@@ -365,6 +365,67 @@
     to   { opacity: 1; transform: translateY(0); }
   }
 
+
+  /* ── 각인 화면 ── */
+  #reveal-screen {
+    display: none;
+    flex-direction: column;
+    padding: 24px 20px 32px;
+    animation: revealIn 0.4s ease;
+  }
+  @keyframes revealIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+
+  .reveal-question {
+    font-size: 13px; line-height: 2;
+    color: rgba(248,244,238,0.6);
+    margin-bottom: 24px;
+    padding: 16px;
+    border: 1px solid rgba(248,244,238,0.08);
+    border-radius: 10px;
+    background: rgba(15,26,20,0.5);
+  }
+  .reveal-answer-label {
+    font-size: 10px; letter-spacing: 0.2em;
+    color: rgba(201,168,76,0.5);
+    text-align: center; margin-bottom: 8px;
+  }
+  .reveal-answer {
+    font-size: 36px; font-weight: 700;
+    color: #E9C97E;
+    text-align: center;
+    margin-bottom: 28px;
+    letter-spacing: 0.05em;
+    animation: answerPop 0.6s cubic-bezier(0.34,1.56,0.64,1) 0.3s both;
+  }
+  @keyframes answerPop { from{opacity:0;transform:scale(0.7)} to{opacity:1;transform:scale(1)} }
+
+  .reveal-commentary {
+    font-size: 13px; line-height: 2;
+    color: rgba(248,244,238,0.75);
+    margin-bottom: 28px;
+    padding: 16px;
+    border-left: 2px solid rgba(201,168,76,0.4);
+    background: rgba(201,168,76,0.04);
+    border-radius: 0 8px 8px 0;
+    min-height: 60px;
+  }
+  .reveal-commentary .typing-cursor {
+    display: inline-block; width: 2px; height: 1em;
+    background: rgba(201,168,76,0.6);
+    margin-left: 2px; vertical-align: text-bottom;
+    animation: blink 0.8s step-end infinite;
+  }
+  .btn-reveal-next {
+    width: 100%; padding: 14px;
+    border-radius: 10px; border: 1px solid rgba(248,244,238,0.15);
+    background: rgba(248,244,238,0.06);
+    color: rgba(248,244,238,0.8); cursor: pointer;
+    font-size: 14px; letter-spacing: 0.05em;
+    font-family: 'Apple SD Gothic Neo','Malgun Gothic',serif;
+    transition: all 0.15s;
+  }
+  .btn-reveal-next:hover { background: rgba(248,244,238,0.12); }
+
 </style>
 <script>
   if('serviceWorker' in navigator){
@@ -517,6 +578,16 @@
 
   <!-- 결과 -->
   <div class="result-area" id="result-area"></div>
+
+  <!-- 각인 화면 -->
+  <div id="reveal-screen">
+    <div class="reveal-question" id="reveal-question"></div>
+    <div class="reveal-answer-label">정 답</div>
+    <div class="reveal-answer" id="reveal-answer"></div>
+    <div class="reveal-commentary" id="reveal-commentary"></div>
+    <button class="btn-reveal-next" id="reveal-next-btn" onclick="revealNext()">다음 타자 →</button>
+  </div>
+
 
   <!-- 통계 -->
   <div class="stat-bar">
@@ -1016,9 +1087,60 @@ function mkResult(label,cls,sub){
   if(gameOver) btnLabel = '경기 결과 보기 🏆';
   else if(halfOver) btnLabel = '수비 시작 →';
   const doneMsg = halfOver ? '⚾ 3아웃! 공수 교대' : gameOver ? '⚾ 3아웃! 경기 종료' : '';
-  const onclickFn = gameOver ? 'showGameResult()' : 'nextQ()';
+  const onclickFn = gameOver ? 'showGameResult()' : halfOver ? 'nextQ()' : 'showReveal()';
   return `<div class="result-box ${cls}"><div class="result-label">${label}</div><div class="result-sub">${sub}</div></div>`+(done?`<div style="text-align:center;font-size:11px;color:rgba(248,244,238,0.5);margin-bottom:10px">${doneMsg}</div>`:'')+`<button class="btn-next" onclick="${onclickFn}">${btnLabel}</button>`;
 }
+
+function showReveal() {
+  const q = getQ();
+  // 결과 화면 숨기기
+  document.getElementById('result-area').style.display = 'none';
+  document.getElementById('game-area').style.display = 'none';
+
+  // 각인 화면 세팅
+  document.getElementById('reveal-question').textContent = q.text;
+  document.getElementById('reveal-answer').textContent = q.display;
+  document.getElementById('reveal-commentary').innerHTML = '';
+
+  // 다음 버튼 라벨
+  const done = st.outs >= 3;
+  const gameOver = done && !st.isAttack;
+  const halfOver = done && st.isAttack;
+  const btn = document.getElementById('reveal-next-btn');
+  btn.textContent = gameOver ? '경기 결과 보기 🏆' : halfOver ? '수비 시작 →' : '다음 타자 →';
+  btn.onclick = gameOver ? showGameResult : nextQ;
+
+  // 각인 화면 표시
+  const rs = document.getElementById('reveal-screen');
+  rs.style.display = 'flex';
+
+  // 해설 타이핑 애니메이션 (library knowledge 있으면 사용, 없으면 기본)
+  const commentary = q.library ? q.library.knowledge : 
+    (q.cat ? '이 문제의 카테고리는 ' + q.cat + ' 입니다.' : '');
+  
+  if(commentary) {
+    let i = 0;
+    const el = document.getElementById('reveal-commentary');
+    el.innerHTML = '<span class="typing-cursor"></span>';
+    const timer = setInterval(() => {
+      if(i < commentary.length) {
+        el.textContent = commentary.slice(0, ++i);
+        const cur = document.createElement('span');
+        cur.className = 'typing-cursor';
+        el.appendChild(cur);
+      } else {
+        clearInterval(timer);
+        el.textContent = commentary;
+      }
+    }, 28);
+  }
+}
+
+function revealNext() {
+  document.getElementById('reveal-screen').style.display = 'none';
+  nextQ();
+}
+
 function showResultAtk(label,cls,q,ok,tp,tt){
   const sub=(ok?'정답: '+q.display:'오답 | 정답: '+q.display)+' · '+tt+' '+tp+'%';
   const ra=document.getElementById('result-area');ra.innerHTML=mkResult(label,cls,sub);ra.style.display='block';
