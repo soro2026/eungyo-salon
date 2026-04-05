@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>은교살롱 — 교양 메이저리그</title>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --green-deep: #1B4332; --green-mid: #2D6A4F; --green-light: #52B788;
+    --dirt: #6B3A2A; --gold: #C9A84C; --gold-l: #E9C97E;
+    --chalk: #F8F4EE; --chalk-dim: rgba(248,244,238,0.6);
+    --chalk-faint: rgba(248,244,238,0.12); --ink: #1A1208;
+    --red: #D85A30; --blue: #185FA5; --purple: #534AB7;
+  }
+  html, body {
+    min-height: 100vh; background: var(--green-deep);
+    font-family: '-apple-system', 'Apple SD Gothic Neo', 'Malgun Gothic', serif; color: var(--chalk);
+  }
+  .field-bg {
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse 120% 80% at 50% 110%, #2D5A3D 0%, #1B4332 40%, #0F2A1E 100%);
+    z-index: 0;
+  }
+  .field-bg::before {
+    content: ''; position: absolute; inset: 0;
+    background: repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0px, rgba(255,255,255,0.02) 40px, transparent 40px, transparent 80px);
+  }
+  .screen {
+    position: relative; z-index: 10; min-height: 100vh;
+    display: flex; flex-direction: column;
+    max-width: 430px; margin: 0 auto; padding: 0 20px 20px;
+  }
+
+  /* 헤더 */
+  .header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 48px 0 16px;
+  }
+  .logo-main { font-size: 20px; font-weight: 700; letter-spacing: 0.08em; }
+  .inning-badge {
+    font-family: 'Courier New', monospace; font-size: 10px; color: var(--gold);
+    background: rgba(201,168,76,0.15); border: 1px solid rgba(201,168,76,0.3);
+    padding: 3px 8px; border-radius: 3px; letter-spacing: 0.08em;
+  }
+  .inning-badge.defense { color: #85B7EB; background: rgba(24,95,165,0.15); border-color: rgba(24,95,165,0.3); }
+
+  /* 스코어보드 */
+  .scoreboard {
+    background: rgba(15,26,20,0.85); border: 1px solid var(--chalk-faint);
+    border-radius: 12px; padding: 14px 18px; margin-bottom: 14px;
+    backdrop-filter: blur(8px);
+  }
+  .score-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
+  .team { text-align: center; }
+  .team-name { font-size: 10px; color: var(--chalk-dim); letter-spacing: 0.06em; margin-bottom: 3px; }
+  .team-score { font-family: 'Courier New', monospace; font-size: 38px; font-weight: 500; line-height: 1; }
+  .team-score.me { color: var(--gold-l); }
+  .diamond-center { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .outs-row { display: flex; gap: 4px; }
+  .out-dot { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid rgba(248,244,238,0.25); background: transparent; transition: all 0.3s; }
+  .out-dot.on { background: var(--red); border-color: var(--red); }
+  .inning-txt { font-family: 'Courier New', monospace; font-size: 9px; color: var(--chalk-dim); }
+
+  /* 문제 박스 */
+  .question-box {
+    background: rgba(15,26,20,0.75); border: 1px solid var(--chalk-faint);
+    border-radius: 12px; padding: 16px 18px; margin-bottom: 12px;
+    backdrop-filter: blur(6px); min-height: 110px;
+  }
+  .q-category { font-size: 10px; color: var(--green-light); letter-spacing: 0.12em; margin-bottom: 8px; }
+  .q-text { font-size: 14px; line-height: 1.9; color: var(--chalk); min-height: 52px; }
+  .q-text.frozen { color: var(--chalk-dim); }
+  .frozen-badge {
+    display: inline-block; font-size: 9px; color: var(--chalk-dim);
+    border: 0.5px solid rgba(248,244,238,0.2); border-radius: 3px;
+    padding: 1px 5px; margin-left: 6px; font-family: 'Courier New', monospace;
+  }
+  .cursor {
+    display: inline-block; width: 2px; height: 1em;
+    background: var(--chalk); margin-left: 2px;
+    animation: blink 0.8s step-end infinite; vertical-align: text-bottom;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* 투구 바 */
+  .pitch-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .pitch-icon { width: 34px; height: 34px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .pitch-bar-wrap { flex: 1; position: relative; height: 34px; display: flex; align-items: center; }
+  .pitch-bar-bg { width: 100%; height: 5px; background: rgba(248,244,238,0.1); border-radius: 3px; position: relative; }
+  .pitch-ball-l { position: absolute; right: -8px; top: -6px; width: 17px; height: 17px; border-radius: 50%; background: var(--chalk); border: 2px solid #ccc; box-shadow: 0 1px 3px rgba(0,0,0,0.3); z-index: 2; display: flex; align-items: center; justify-content: center; }
+  .pitch-ball-r { position: absolute; left: -8px; top: -6px; width: 17px; height: 17px; border-radius: 50%; background: var(--chalk); border: 2px solid #ccc; box-shadow: 0 1px 3px rgba(0,0,0,0.3); z-index: 2; display: flex; align-items: center; justify-content: center; }
+  .seam { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid #e88; }
+  .pitch-pct { font-family: 'Courier New', monospace; font-size: 10px; color: var(--chalk-dim); min-width: 28px; text-align: center; }
+
+  /* 힌트 박스 */
+  .hint-boxes { display: flex; gap: 4px; justify-content: center; margin-bottom: 12px; flex-wrap: wrap; }
+  .hint-box {
+    width: 32px; height: 38px; border: 1.5px solid rgba(248,244,238,0.2);
+    border-radius: 4px; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; color: var(--chalk-dim);
+    background: rgba(15,26,20,0.5);
+  }
+
+  /* 입력 패널 */
+  .input-panel { overflow: hidden; max-height: 0; opacity: 0; transition: max-height 0.5s cubic-bezier(0.4,0,0.2,1), opacity 0.4s ease; margin-bottom: 0; }
+  .input-panel.open { max-height: 200px; opacity: 1; margin-bottom: 12px; }
+  .input-inner { background: rgba(15,26,20,0.8); border: 1px solid var(--chalk-faint); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .timer-row { display: flex; align-items: center; gap: 12px; }
+  .timer-ring { position: relative; width: 50px; height: 50px; flex-shrink: 0; }
+  .timer-ring svg { transform: rotate(-90deg); }
+  .ring-track { fill: none; stroke: rgba(248,244,238,0.1); stroke-width: 5; }
+  .ring-fill { fill: none; stroke: var(--red); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 132; stroke-dashoffset: 0; transition: stroke-dashoffset 0.9s linear, stroke 0.3s; }
+  .ring-num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: 'Courier New', monospace; font-size: 15px; font-weight: 600; color: var(--chalk); }
+  .ans-input {
+    flex: 1; padding: 10px 12px; border: 0.5px solid rgba(248,244,238,0.2);
+    border-radius: 8px; font-family: '-apple-system', 'Apple SD Gothic Neo', 'Malgun Gothic', serif; font-size: 14px;
+    background: rgba(248,244,238,0.05); color: var(--chalk); outline: none; width: 100%;
+  }
+  .ans-input:focus { border-color: var(--green-light); }
+  .confirm-btn {
+    width: 100%; padding: 13px; border-radius: 10px; border: none; cursor: pointer;
+    font-family: '-apple-system', 'Apple SD Gothic Neo', 'Malgun Gothic', serif; font-size: 15px; font-weight: 600;
+    background: var(--gold); color: var(--ink); transition: all 0.15s;
+  }
+  .confirm-btn:hover { background: var(--gold-l); }
+  .confirm-btn:active { transform: scale(0.97); }
+
+  /* AI 타격 */
+  .ai-area { display: none; }
+  .ai-wrap {
+    background: rgba(15,26,20,0.75); border: 1px solid var(--chalk-faint);
+    border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; text-align: center;
+  }
+  .ai-label { font-size: 12px; color: var(--chalk-dim); margin-bottom: 8px; }
+  .ai-dots { display: flex; gap: 4px; justify-content: center; }
+  .ai-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--chalk-dim); }
+  .ai-dot:nth-child(1) { animation: aiD 1.2s 0s infinite; }
+  .ai-dot:nth-child(2) { animation: aiD 1.2s 0.2s infinite; }
+  .ai-dot:nth-child(3) { animation: aiD 1.2s 0.4s infinite; }
+  @keyframes aiD { 0%,80%,100%{transform:scale(0.6);opacity:0.4;}40%{transform:scale(1);opacity:1;} }
+
+  /* 타격 버튼 */
+  .hit-wrap { display: flex; justify-content: center; margin-bottom: 12px; }
+  .btn-hit {
+    padding: 14px 44px; border-radius: 12px; border: none; cursor: pointer;
+    font-family: '-apple-system', 'Apple SD Gothic Neo', 'Malgun Gothic', serif; font-size: 16px; font-weight: 600;
+    letter-spacing: 0.08em; transition: all 0.15s; white-space: nowrap;
+  }
+  .btn-hit.attack { background: var(--green-mid); color: var(--chalk); }
+  .btn-hit.attack:hover { background: var(--green-light); transform: scale(1.02); }
+  .btn-hit.attack:active { transform: scale(0.96); }
+  .btn-hit.pitch-mode { background: var(--blue); color: var(--chalk); }
+  .btn-hit.pitch-mode:hover { background: #378ADD; transform: scale(1.02); }
+  .btn-hit:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+
+  /* 판정 대기 */
+  .judging-area { display: none; text-align: center; padding: 2rem 1rem; }
+  .judging-bar-bg { width: 100%; height: 3px; background: rgba(248,244,238,0.1); border-radius: 2px; margin-bottom: 1.5rem; overflow: hidden; }
+  .judging-bar-fill { height: 100%; border-radius: 2px; background: var(--chalk-dim); width: 0%; transition: width 5s linear; }
+  .judging-bar-fill.run { width: 100%; }
+  .judging-msg { font-size: 14px; color: var(--chalk); min-height: 26px; transition: opacity 0.4s; line-height: 1.6; }
+  .judging-msg.fade { opacity: 0; }
+
+  /* 결과 */
+  .result-area { display: none; }
+  .result-box { text-align: center; padding: 1.5rem; border-radius: 12px; margin-bottom: 12px; animation: pop 0.5s cubic-bezier(0.34,1.56,0.64,1); }
+  @keyframes pop { from{opacity:0;transform:scale(0.85);}to{opacity:1;transform:scale(1);} }
+  .result-label { font-size: 28px; font-weight: 700; margin-bottom: 4px; letter-spacing: 0.05em; }
+  .result-sub { font-size: 11px; opacity: 0.75; margin-bottom: 2px; }
+  .r-homerun { background: rgba(82,183,136,0.2); color: #52B788; border: 1px solid rgba(82,183,136,0.3); }
+  .r-triple  { background: rgba(133,183,235,0.2); color: #85B7EB; border: 1px solid rgba(133,183,235,0.3); }
+  .r-double  { background: rgba(174,168,255,0.2); color: #AEA8FF; border: 1px solid rgba(174,168,255,0.3); }
+  .r-single  { background: rgba(248,244,238,0.1); color: var(--chalk); border: 1px solid var(--chalk-faint); }
+  .r-out     { background: rgba(216,90,48,0.2); color: #E8856A; border: 1px solid rgba(216,90,48,0.3); }
+  .r-defense-ok { background: rgba(133,183,235,0.2); color: #85B7EB; border: 1px solid rgba(133,183,235,0.3); }
+  .r-defense-fail { background: rgba(216,90,48,0.2); color: #E8856A; border: 1px solid rgba(216,90,48,0.3); }
+  .btn-next {
+    width: 100%; padding: 12px; border: 1px solid var(--chalk-faint); border-radius: 10px;
+    background: rgba(248,244,238,0.05); color: var(--chalk); cursor: pointer;
+    font-family: '-apple-system', 'Apple SD Gothic Neo', 'Malgun Gothic', serif; font-size: 13px; margin-bottom: 12px;
+    transition: all 0.15s;
+  }
+  .btn-next:hover { background: rgba(248,244,238,0.1); }
+
+  /* 통계 */
+  .stat-bar {
+    font-family: 'Courier New', monospace; font-size: 10px; color: var(--chalk-dim);
+    padding-top: 10px; border-top: 1px solid var(--chalk-faint); margin-top: auto;
+  }
+  .stat-row {
+    display: flex; justify-content: space-between; margin-bottom: 4px;
+  }
+  .stat-label {
+    font-size: 8px; letter-spacing: 0.08em; color: rgba(248,244,238,0.35);
+    text-align: center; margin-bottom: 1px;
+  }
+  .stat-val {
+    font-size: 11px; color: var(--chalk-dim); text-align: center;
+  }
+  .stat-item { flex:1; text-align:center; }
+  .stat-divider { width:1px; background: var(--chalk-faint); margin: 0 4px; }
+  .stat-mode-label {
+    font-size: 8px; letter-spacing: 0.12em; margin-bottom: 5px;
+    color: rgba(248,244,238,0.3);
+  }
+
+  /* SVG 아이콘 */
+  svg.icon { width: 34px; height: 34px; }
+
+  /* 프리게임 화면 */
+  .pregame-screen {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; flex: 1; padding: 24px 0;
+    animation: fadeIn 0.5s ease;
+  }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  .pregame-vs {
+    font-size: 11px; letter-spacing: 0.15em; color: rgba(248,244,238,0.4);
+    margin-bottom: 20px;
+  }
+  .pregame-ai-name {
+    font-size: 20px; font-weight: 600; color: var(--gold-light);
+    letter-spacing: 0.05em; margin-bottom: 6px; text-align: center;
+  }
+  .pregame-ai-stat {
+    font-family: 'Courier New', monospace; font-size: 10px;
+    color: rgba(248,244,238,0.4); margin-bottom: 32px; text-align: center;
+  }
+  .pregame-divider {
+    width: 40px; height: 1px; background: var(--chalk-faint);
+    margin: 0 auto 28px;
+  }
+  .pregame-tip {
+    font-size: 11px; color: rgba(248,244,238,0.35); text-align: center;
+    line-height: 1.7; margin-bottom: 32px; max-width: 280px;
+  }
+  .btn-pregame {
+    background: var(--gold); color: var(--ink); border: none;
+    border-radius: 10px; padding: 14px 40px;
+    font-family: 'Noto Serif KR', serif; font-size: 14px; font-weight: 600;
+    cursor: pointer; letter-spacing: 0.05em;
+    transition: background 0.2s, transform 0.1s;
+  }
+  .btn-pregame:active { transform: scale(0.97); }
+  .btn-pregame.secondary {
+    background: transparent; color: var(--chalk-dim);
+    border: 1px solid rgba(248,244,238,0.2); margin-top: 12px;
+    padding: 11px 32px; font-size: 13px;
+  }
+
+  /* 타석 준비 화면 */
+  .atstep-screen {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; flex: 1; padding: 24px 0;
+    animation: fadeIn 0.4s ease;
+  }
+  .atstep-inning {
+    font-size: 10px; letter-spacing: 0.15em; color: rgba(248,244,238,0.35);
+    margin-bottom: 16px;
+  }
+  .atstep-category {
+    font-size: 13px; letter-spacing: 0.1em; color: var(--green-light);
+    margin-bottom: 6px;
+  }
+  .atstep-keyword {
+    font-size: 22px; font-weight: 700; color: var(--chalk);
+    margin-bottom: 4px; text-align: center;
+  }
+  .atstep-sub {
+    font-size: 10px; color: rgba(248,244,238,0.3); margin-bottom: 36px;
+  }
+  .atstep-hint {
+    font-size: 11px; color: rgba(248,244,238,0.25);
+    margin-bottom: 28px; text-align: center; line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<div class="field-bg"></div>
+
+<div class="screen">
+
+  <!-- ① 프리게임 화면 -->
+  <div id="pregame-screen" class="pregame-screen">
+    <div class="pregame-vs">오늘의 상대</div>
+    <div class="pregame-ai-name" id="pg-ai-name">프루스트의 마들렌</div>
+    <div class="pregame-ai-stat" id="pg-ai-stat">타율 .312 · OPS .871 · 리그 Single A</div>
+    <div class="pregame-divider"></div>
+    <div class="pregame-tip">
+      1이닝 교양 배틀을 펼칩니다.<br>
+      카테고리를 보고 마음의 준비를 하세요.<br>
+      준비가 되면 타석에 들어서세요.
+    </div>
+    <button class="btn-pregame" onclick="startGame()">⚾ 경기 시작</button>
+  </div>
+
+  <!-- ② 타석 준비 화면 -->
+  <div id="atstep-screen" class="atstep-screen" style="display:none">
+    <div class="atstep-inning" id="as-inning">1회 초 · 1번 타자</div>
+    <div class="atstep-category" id="as-category">문학</div>
+    <div class="atstep-keyword" id="as-keyword">종이 위의 인간</div>
+    <div class="atstep-sub" id="as-sub">책 이름 / 작가 / 작품</div>
+    <div class="atstep-hint">배트를 들고 타석에 들어서세요.<br>준비가 되면 투구를 요청하세요.</div>
+    <button class="btn-pregame" onclick="enterBatterBox()">🪄 타석에 들어서기</button>
+  </div>
+
+  <!-- ③ 투구 준비 화면 -->
+  <div id="pitchready-screen" class="atstep-screen" style="display:none">
+    <div class="atstep-inning" id="pr-inning">1회 초 · 1번 타자</div>
+    <div class="atstep-category" id="pr-category">문학</div>
+    <div class="atstep-keyword" id="pr-keyword">종이 위의 인간</div>
+    <div class="atstep-sub" id="pr-sub">책 이름 / 작가 / 작품</div>
+    <div class="atstep-hint" style="margin-top:20px;color:rgba(248,244,238,0.4)">
+      심호흡하고...<br>준비되면 투구를 받으세요.
+    </div>
+    <button class="btn-pregame" onclick="requestPitch()" style="background:var(--green-light);color:var(--ink)">
+      ⚾ 투구!
+    </button>
+  </div>
+
+  <!-- 헤더 -->
+  <div class="header" id="main-header" style="display:none">
+    <div class="logo-main">EG 은교살롱</div>
+    <div class="inning-badge" id="inning-badge">1회 초 ▲ 공격</div>
+  </div>
+
+  <!-- 메인 게임 컨텐츠 -->
+  <div id="main-content" style="display:none;flex-direction:column;flex:1">
+
+  <!-- 스코어보드 -->
+  <div class="scoreboard">
+    <div class="score-row">
+      <div class="team">
+        <div class="team-name">소로</div>
+        <div class="team-score me" id="score-me">0</div>
+      </div>
+      <div class="diamond-center">
+        <svg width="80" height="80" viewBox="0 0 80 80">
+          <line x1="40" y1="7" x2="7" y2="40" stroke="rgba(248,244,238,0.12)" stroke-width="1"/>
+          <line x1="40" y1="7" x2="73" y2="40" stroke="rgba(248,244,238,0.12)" stroke-width="1"/>
+          <line x1="7" y1="40" x2="40" y2="66" stroke="rgba(248,244,238,0.12)" stroke-width="1"/>
+          <line x1="73" y1="40" x2="40" y2="66" stroke="rgba(248,244,238,0.12)" stroke-width="1"/>
+          <rect id="base2" x="32" y="2" width="16" height="16" rx="2" transform="rotate(45 40 10)" fill="transparent" stroke="rgba(248,244,238,0.2)" stroke-width="2"/>
+          <rect id="base3" x="2" y="32" width="16" height="16" rx="2" transform="rotate(45 10 40)" fill="transparent" stroke="rgba(248,244,238,0.2)" stroke-width="2"/>
+          <rect id="base1" x="62" y="32" width="16" height="16" rx="2" transform="rotate(45 70 40)" fill="transparent" stroke="rgba(248,244,238,0.2)" stroke-width="2"/>
+          <polygon id="home-plate" points="40,74 50,67 50,57 30,57 30,67" fill="transparent" stroke="rgba(248,244,238,0.2)" stroke-width="2"/>
+        </svg>
+        <div class="outs-row">
+          <div class="out-dot" id="out1"></div>
+          <div class="out-dot" id="out2"></div>
+          <div class="out-dot" id="out3"></div>
+        </div>
+        <div class="inning-txt" id="out-label">0 아웃</div>
+      </div>
+      <div class="team">
+        <div class="team-name">프루스트의 마들렌</div>
+        <div class="team-score" id="score-ai">0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 게임 영역 -->
+  <div id="game-area">
+    <div class="question-box">
+      <div class="q-category" id="q-cat"></div>
+      <div class="q-text" id="q-text"></div>
+    </div>
+    <div class="pitch-row" id="pitch-row"></div>
+    <div class="hint-boxes" id="hint-boxes"></div>
+    <div class="hit-wrap" id="hit-wrap">
+      <button class="btn-hit attack" id="hit-btn" onclick="onAction()">⚾ 타격</button>
+    </div>
+    <div class="input-panel" id="input-panel">
+      <div class="input-inner">
+        <div class="timer-row">
+          <div class="timer-ring">
+            <svg width="50" height="50" viewBox="0 0 50 50">
+              <circle class="ring-track" cx="25" cy="25" r="21"/>
+              <circle class="ring-fill" id="ring-fill" cx="25" cy="25" r="21"/>
+            </svg>
+            <div class="ring-num" id="ring-num">10</div>
+          </div>
+          <input class="ans-input" id="ans-input" placeholder="정답을 입력하세요..."/>
+        </div>
+        <button class="confirm-btn" onclick="onConfirm()">✓ 정답 확인</button>
+      </div>
+    </div>
+    <div class="ai-area" id="ai-area">
+      <div class="ai-wrap">
+        <div class="ai-label" id="ai-label">프루스트의 마들렌이 공을 주시합니다...</div>
+        <div class="ai-dots"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 판정 대기 -->
+  <div class="judging-area" id="judging-area">
+    <div class="judging-bar-bg"><div class="judging-bar-fill" id="judging-bar"></div></div>
+    <div class="judging-msg" id="judging-msg"></div>
+  </div>
+
+  <!-- 결과 -->
+  <div class="result-area" id="result-area"></div>
+
+  <!-- 통계 -->
+  <div class="stat-bar">
+    <!-- 타격 스탯 패널 -->
+    <div id="stat-attack-panel">
+      <div class="stat-mode-label">▲ 타격 스탯 &nbsp;|&nbsp; TQ <span id="stat-tq-atk" style="color:var(--gold-light);font-weight:700">0.0</span></div>
+      <div class="stat-row">
+        <div class="stat-item">
+          <div class="stat-label">타율</div>
+          <div class="stat-val" id="stat-avg">.000</div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <div class="stat-label">OPS</div>
+          <div class="stat-val" id="stat-ops">.000</div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <div class="stat-label">홈런</div>
+          <div class="stat-val" id="stat-hr">0</div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <div class="stat-label">타점</div>
+          <div class="stat-val" id="stat-rbi">0</div>
+        </div>
+      </div>
+      <div style="text-align:right;font-size:8px;color:rgba(248,244,238,0.25);margin-top:3px">
+        <span id="stat-atbat">1</span>타석 · 타이밍 <span id="stat-timing">—</span>
+      </div>
+    </div>
+    <!-- 수비 스탯 패널 -->
+    <div id="stat-defense-panel" style="display:none">
+      <div class="stat-mode-label">▽ 수비 스탯 &nbsp;|&nbsp; TQ <span id="stat-tq-def" style="color:var(--gold-light);font-weight:700">0.0</span></div>
+      <div class="stat-row">
+        <div class="stat-item">
+          <div class="stat-label">방어율</div>
+          <div class="stat-val" id="stat-era">0.00</div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <div class="stat-label">피안타</div>
+          <div class="stat-val" id="stat-hits-allowed">0</div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <div class="stat-label">자책점</div>
+          <div class="stat-val" id="stat-er">0</div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <div class="stat-label">아웃</div>
+          <div class="stat-val" id="stat-outs-rec">0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- /main-content -->
+</div>
+
+<script>
+const QS=[
+  // ── 씨앗: 태양 | 01. 카뮈 <이방인> ──
+  {seed_id:"태양-카뮈-이방인",difficulty:1,cat:"문학 · 종이 위의 인간",keyword:"태양 때문에 살인한 남자는?",text:"어머니의 장례식 다음 날 희극 영화를 보며 웃고, 슬픔조차 연기하지 않아 세상으로부터 '괴물' 취급을 받았습니다. 알제리의 뜨거운 해변에서 \"태양이 너무 눈부셔서\"라는 한마디로 자신의 살인을 정당화한, 알베르 카뮈의 소설 《이방인》의 주인공은 누구일까요?",answer:"뫼르소",display:"뫼르소",boxes:3,initials:["ㅁ","ㄹ","ㅅ"]},
+  {seed_id:"태양-카뮈-이방인",difficulty:2,cat:"문학 · 종이 위의 인간",keyword:"카뮈의 이방인 주인공",text:"타인의 감정을 흉내 내지 않았다는 이유로, 그는 살인죄보다 '어머니의 장례식에서 울지 않은 죄'로 더 가혹한 심판을 받습니다. 사형 선고를 받고 나서야 비로소 세계의 다정한 무관심에 마음을 열게 된, 알베르 카뮈 《이방인》의 이 고독한 주인공의 이름은?",answer:"뫼르소",display:"뫼르소",boxes:3,initials:["ㅁ","","ㅅ"]},
+  {seed_id:"태양-카뮈-이방인",difficulty:3,cat:"문학 · 종이 위의 인간",keyword:"부조리의 아이콘",text:"신부의 마지막 기도마저 거부하며, 끝내 거짓말을 하지 않기 위해 단두대를 향해 꼿꼿하게 걸어갔습니다. 카뮈가 \"우리 사회에서 울지 않는 사람은 누구나 사형 선고를 받을 위험이 있다\"고 말하며 창조해 낸 이 반항적 실존의 아이콘은 누구일까요?",answer:"뫼르소",display:"뫼르소",boxes:3,initials:["","",""]},
+  // ── 씨앗: 태양 | 02. 플라톤 이데아 ──
+  {seed_id:"태양-플라톤-이데아",difficulty:1,cat:"철학 · 생각의 탄생",keyword:"동굴 밖 태양의 세계",text:"동굴 벽에 비친 그림자만 보고 그것이 진짜라 믿는 죄수들의 이야기. 태양이 비추는 동굴 밖의 진짜 세계, 즉 플라톤이 말한 변하지 않는 절대적 진리의 세계를 뜻하는 이 개념은 무엇일까요?",answer:"이데아",display:"이데아",boxes:3,initials:["ㅇ","ㄷ","ㅇ"]},
+  {seed_id:"태양-플라톤-이데아",difficulty:2,cat:"철학 · 생각의 탄생",keyword:"플라톤 철학의 핵심",text:"우리가 눈으로 보는 현실 세계는 진짜가 아니며, 오직 이성을 통해서만 도달할 수 있는 완전한 원형의 세계가 따로 있다고 보았습니다. 플라톤 철학의 핵심이자 태양으로 상징되는 절대적 세계, 이것은 무엇일까요?",answer:"이데아",display:"이데아",boxes:3,initials:["ㅇ","","ㅇ"]},
+  {seed_id:"태양-플라톤-이데아",difficulty:3,cat:"철학 · 생각의 탄생",keyword:"서양 철학의 거대한 뼈대",text:"감각으로 경험하는 가변적인 사물들 너머에 존재하는 영원불변의 참된 실재입니다. 기독교의 '천국' 개념에도 큰 영향을 미쳤으며, 칸트가 자신의 철학적 전환을 이 개념에 빗대어 '코페르니쿠스적 전회'라 이름 붙인 것과도 맥이 닿습니다. 플라톤의 이 핵심 개념은?",answer:"이데아",display:"이데아",boxes:3,initials:["","",""]},
+  // ── 씨앗: 태양 | 03. 루이 14세 ──
+  {seed_id:"태양-루이14세",difficulty:1,cat:"역사 · 시간의 지층",keyword:"짐이 곧 국가다",text:"스스로를 빛과 생명의 근원인 '태양왕'이라 칭하며 베르사유 궁전을 지은 프랑스의 절대 군주입니다. \"짐이 곧 국가다\"라는 말로 유명한 이 왕은 누구일까요?",answer:"루이14세",display:"루이 14세",boxes:5,initials:["ㄹ","ㅇ","1","4","ㅅ"]},
+  {seed_id:"태양-루이14세",difficulty:2,cat:"역사 · 시간의 지층",keyword:"사치로 귀족을 무장해제한 왕",text:"귀족들의 반란을 막기 위해 총칼이 아닌 '사치'를 무기로 썼습니다. 귀족들을 베르사유 궁전에 불러 모아 패션과 도박, 끝없는 파티에 탕진하게 만들어 정치적 힘을 거세한 이 절대 군주는?",answer:"루이14세",display:"루이 14세",boxes:5,initials:["ㄹ","","1","4","ㅅ"]},
+  {seed_id:"태양-루이14세",difficulty:3,cat:"역사 · 시간의 지층",keyword:"유럽 역사상 최장기 통치",text:"발레에 심취하여 직접 무대에 올라 태양신 아폴론을 연기하기도 했습니다. 72년이라는 유럽 역사상 최장기 통치 기록을 세웠으며, 그가 남긴 재정 파탄은 훗날 프랑스 대혁명의 씨앗이 됩니다. 이 왕은?",answer:"루이14세",display:"루이 14세",boxes:5,initials:["","","","",""]},
+  // ── 씨앗: 태양 | 04. 반 고흐 ──
+  {seed_id:"태양-반고흐-해바라기",difficulty:1,cat:"예술 · 아름다움의 형식",keyword:"해바라기를 그린 화가",text:"남프랑스 아를의 뜨거운 태양 아래서 자신의 생명력을 모두 불태워 그림을 그렸습니다. 이글거리는 노란색으로 《해바라기》 연작을 그려낸 네덜란드 출신의 이 화가는 누구일까요?",answer:"반고흐",display:"반 고흐",boxes:3,initials:["ㅂ","ㄱ","ㅎ"]},
+  {seed_id:"태양-반고흐-해바라기",difficulty:2,cat:"예술 · 아름다움의 형식",keyword:"노란색에 병적으로 집착한 화가",text:"동생 테오에게 보낸 편지에서 \"태양, 그 빛을 노란색이라고밖에 부를 수 없다\"고 썼습니다. 스스로 귀를 자르는 광기 속에서도 밤하늘의 별과 해를 그렸던 이 후기 인상주의 화가는?",answer:"반고흐",display:"반 고흐",boxes:3,initials:["ㅂ","","ㅎ"]},
+  {seed_id:"태양-반고흐-해바라기",difficulty:3,cat:"예술 · 아름다움의 형식",keyword:"살아생전 단 한 점만 팔린 화가",text:"살아생전 단 한 점의 그림밖에 팔지 못하는 지독한 가난과 고독 속에서도, 세상의 모든 빛을 화폭에 담아내려 했습니다. 현대 미술에 지대한 영향을 미친 후기 인상주의의 이 거장은?",answer:"반고흐",display:"반 고흐",boxes:3,initials:["","",""]},
+  // ── 씨앗: 태양 | 05. 파에톤 ──
+  {seed_id:"태양-파에톤",difficulty:1,cat:"신화 · 신들의 정원",keyword:"태양 마차를 몰다 추락한 소년",text:"자신이 태양신 아폴론의 아들임을 증명하기 위해, 태양 마차를 몰다 궤도를 이탈해 세상을 불바다로 만들고 제우스의 번개에 맞아 추락한 그리스 신화의 소년입니다. 이 소년의 이름은?",answer:"파에톤",display:"파에톤",boxes:3,initials:["ㅍ","ㅇ","ㅌ"]},
+  {seed_id:"태양-파에톤",difficulty:2,cat:"신화 · 신들의 정원",keyword:"휴브리스, 인간의 오만",text:"인간이 자신의 한계를 잊고 신의 영역을 넘보는 오만 '휴브리스(Hubris)'의 상징입니다. 태양 마차의 고삐를 놓쳐 대지를 불태웠고, 강에 추락했다고 전해지는 아폴론의 아들은?",answer:"파에톤",display:"파에톤",boxes:3,initials:["ㅍ","","ㅌ"]},
+  {seed_id:"태양-파에톤",difficulty:3,cat:"신화 · 신들의 정원",keyword:"사하라 사막을 만든 신화",text:"그의 무모한 비행으로 대지가 타들어가 사하라 사막이 생겨났다는 전설이 전해집니다. 오비디우스 《변신 이야기》에 등장하는, 자신의 능력을 과신하다 파멸에 이른 아폴론의 아들은?",answer:"파에톤",display:"파에톤",boxes:3,initials:["","",""]},
+  // ── 씨앗: 태양 | 06. 핵융합 ──
+  {seed_id:"태양-핵융합",difficulty:1,cat:"우주의 문법 · 자연과학",keyword:"태양이 빛나는 원리",text:"태양이 스스로 엄청난 빛과 열을 내는 원리입니다. 수소 원자핵들이 초고온·초고압 상태에서 뭉쳐 헬륨 원자핵으로 변할 때 막대한 에너지가 방출되는 이 현상은 무엇일까요?",answer:"핵융합",display:"핵융합",boxes:3,initials:["ㅎ","ㅇ","ㅎ"]},
+  {seed_id:"태양-핵융합",difficulty:2,cat:"우주의 문법 · 자연과학",keyword:"인공 태양 프로젝트 KSTAR",text:"인류는 이 원리를 이용해 '인공 태양'을 만들려는 프로젝트(한국의 KSTAR 등)를 진행하고 있습니다. 원자력 발전의 원리인 핵분열과 반대되는 이 개념은?",answer:"핵융합",display:"핵융합",boxes:3,initials:["ㅎ","","ㅎ"]},
+  {seed_id:"태양-핵융합",difficulty:3,cat:"우주의 문법 · 자연과학",keyword:"E=mc²의 우주적 증명",text:"아인슈타인의 질량-에너지 등가 원리(E=mc²)를 우주적 규모로 가장 완벽하게 증명하는 현상입니다. 별이 스스로 빛을 내는 가장 근본적인 동력, 이것은 무엇일까요?",answer:"핵융합",display:"핵융합",boxes:3,initials:["","",""]},
+  // ── 씨앗: 태양 | 07. 광합성 ──
+  {seed_id:"태양-광합성",difficulty:1,cat:"땅의 노래 · 생태",keyword:"식물이 태양으로 밥 짓는 법",text:"태양 빛이라는 우주의 에너지를 지구의 생명체들이 사용할 수 있는 에너지로 바꾸는 위대한 과정입니다. 식물이 빛을 이용해 이산화탄소와 물로부터 포도당을 만들어내는 이 과정은?",answer:"광합성",display:"광합성",boxes:3,initials:["ㄱ","ㅎ","ㅅ"]},
+  {seed_id:"태양-광합성",difficulty:2,cat:"땅의 노래 · 생태",keyword:"지구 대기를 만든 반응",text:"이 과정의 부산물로 방출되는 산소 덕분에 지금의 지구 대기가 만들어졌고, 인간을 포함한 동물들이 숨을 쉬며 살아갈 수 있게 되었습니다. 엽록체에서 일어나는 생태계의 가장 근본적인 화학 반응은?",answer:"광합성",display:"광합성",boxes:3,initials:["ㄱ","","ㅅ"]},
+  {seed_id:"태양-광합성",difficulty:3,cat:"땅의 노래 · 생태",keyword:"석유는 과거의 태양이다",text:"우리가 먹는 쌀도, 자동차를 굴리는 석탄·석유도 결국 수억 년 전 이것을 통해 축적된 태양 에너지의 변형입니다. 지구상 모든 먹이사슬의 출발점이 되는 식물의 이 능력은?",answer:"광합성",display:"광합성",boxes:3,initials:["","",""]},
+  // ── 씨앗: 태양 | 08. 지동설 ──
+  {seed_id:"태양-지동설",difficulty:1,cat:"역사 · 시간의 지층",keyword:"지구가 돈다",text:"우주의 중심은 지구가 아니라 태양이며, 지구를 포함한 행성들이 태양 주위를 돌고 있다는 주장입니다. 코페르니쿠스가 제창하여 인류의 세계관을 완전히 뒤집어 놓은 이 우주관은 무엇일까요?",answer:"지동설",display:"지동설",boxes:3,initials:["ㅈ","ㄷ","ㅅ"]},
+  {seed_id:"태양-지동설",difficulty:2,cat:"역사 · 시간의 지층",keyword:"코페르니쿠스의 혁명",text:"수천 년 동안 서양을 지배했던 프톨레마이오스의 천동설에 정면으로 도전한 이론입니다. 갈릴레이가 망원경으로 관측 증거를 찾아내며 더욱 힘을 얻게 된 이 '태양 중심설'의 이름은?",answer:"지동설",display:"지동설",boxes:3,initials:["ㅈ","","ㅅ"]},
+  {seed_id:"태양-지동설",difficulty:3,cat:"역사 · 시간의 지층",keyword:"칸트가 빌린 이름",text:"칸트가 자신의 철학적 사유의 전환을 이 이론의 이름에 빗대어 'OOO적 전회'라 부를 만큼, 인간이 우주의 중심이라는 착각을 깨부순 과학사 최고의 패러다임 전환입니다. 이것은?",answer:"지동설",display:"지동설",boxes:3,initials:["","",""]},
+  // ── 씨앗: 태양 | 09. 융의 그림자 ──
+  {seed_id:"태양-융-그림자",difficulty:1,cat:"내면의 거울 · 심리",keyword:"빛이 강할수록 짙어지는 것",text:"태양 빛이 강렬할수록 이것은 더욱 짙어집니다. 카를 융의 분석심리학에서, 자아가 인정하고 싶지 않아 무의식 깊은 곳으로 억눌러버린 어둡고 부끄러운 이면을 뜻하는 심리학 용어는?",answer:"그림자",display:"그림자",boxes:3,initials:["ㄱ","ㄹ","ㅈ"]},
+  {seed_id:"태양-융-그림자",difficulty:2,cat:"내면의 거울 · 심리",keyword:"타인에 투사된 나의 어둠",text:"타인에게 유독 비난하고 싶은 단점이 보인다면, 그것은 내 무의식 속에 있는 이것이 외부로 투사된 것일 확률이 높습니다. 의식의 빛(페르소나) 뒤에 숨겨진 또 다른 나, 융이 이름 붙인 이것은?",answer:"그림자",display:"그림자",boxes:3,initials:["ㄱ","","ㅈ"]},
+  {seed_id:"태양-융-그림자",difficulty:3,cat:"내면의 거울 · 심리",keyword:"개성화의 첫 관문",text:"진정한 내면의 성숙, 융이 말한 '개성화(Individuation)'를 이루기 위해서는 이 어두운 측면까지 직면하고 껴안아야만 합니다. 헤세 《데미안》의 압락사스가 상징하는, 내 안의 이 반려자는?",answer:"그림자",display:"그림자",boxes:3,initials:["","",""]},
+  // ── 씨앗: 태양 | 10. 스톤헨지 ──
+  {seed_id:"태양-스톤헨지",difficulty:1,cat:"초월의 언어 · 종교와 영성",keyword:"영국의 태양 신전",text:"영국 솔즈베리 평원에 우뚝 선 선사 시대의 거석 유적입니다. 일 년 중 해가 가장 긴 '하지'의 일출 때, 중앙 제단과 힐스톤의 일직선상으로 태양이 떠오르도록 설계된 이 유적의 이름은?",answer:"스톤헨지",display:"스톤헨지",boxes:4,initials:["ㅅ","ㅌ","ㅎ","ㅈ"]},
+  {seed_id:"태양-스톤헨지",difficulty:2,cat:"초월의 언어 · 종교와 영성",keyword:"고대인의 거대한 달력",text:"최대 50톤에 달하는 돌들이 수백 킬로미터 밖에서 운반되었습니다. 고대인들이 태양의 움직임과 계절 변화를 관측하고 종교적 제의를 올렸던 거대한 달력이자 신전, 이것은?",answer:"스톤헨지",display:"스톤헨지",boxes:4,initials:["ㅅ","ㅌ","","ㅈ"]},
+  {seed_id:"태양-스톤헨지",difficulty:3,cat:"초월의 언어 · 종교와 영성",keyword:"죽음과 재생, 태양의 순환",text:"외계인 소행설이나 마법사 멀린의 전설이 깃들 만큼 건축 방식이 미스터리로 남아있습니다. 이집트 피라미드, 마추픽추와 함께 태양신을 향한 인류의 원초적 경외심을 담은 이 유네스코 세계문화유산은?",answer:"스톤헨지",display:"스톤헨지",boxes:4,initials:["","","",""]},
+];
+
+const TS=75, CIRC=132, JSEC=5, AI_AVG=0.31;
+const PITCHER=`<svg class="icon" viewBox="0 0 34 34"><circle cx="17" cy="9" r="5" fill="rgba(248,244,238,0.7)"/><rect x="12" y="14" width="10" height="10" rx="3" fill="rgba(248,244,238,0.7)"/><line x1="22" y1="16" x2="30" y2="10" stroke="rgba(248,244,238,0.7)" stroke-width="2.5" stroke-linecap="round"/><line x1="14" y1="24" x2="11" y2="32" stroke="rgba(248,244,238,0.7)" stroke-width="2.5" stroke-linecap="round"/><line x1="20" y1="24" x2="23" y2="32" stroke="rgba(248,244,238,0.7)" stroke-width="2.5" stroke-linecap="round"/></svg>`;
+const CATCHER=`<svg class="icon" viewBox="0 0 34 34"><circle cx="17" cy="9" r="5" fill="rgba(248,244,238,0.7)"/><rect x="10" y="12" width="14" height="4" rx="2" fill="rgba(248,244,238,0.4)"/><rect x="11" y="14" width="12" height="10" rx="3" fill="rgba(248,244,238,0.7)"/><line x1="11" y1="17" x2="4" y2="13" stroke="rgba(248,244,238,0.7)" stroke-width="2.5" stroke-linecap="round"/><circle cx="4" cy="12" r="3.5" fill="rgba(248,244,238,0.4)" stroke="rgba(248,244,238,0.7)" stroke-width="1.5"/><line x1="14" y1="24" x2="12" y2="32" stroke="rgba(248,244,238,0.7)" stroke-width="2.5" stroke-linecap="round"/><line x1="20" y1="24" x2="22" y2="32" stroke="rgba(248,244,238,0.7)" stroke-width="2.5" stroke-linecap="round"/></svg>`;
+const BATTER=`<svg class="icon" viewBox="0 0 34 34"><circle cx="17" cy="9" r="5" fill="rgba(248,244,238,0.7)"/><rect x="12" y="14" width="10" height="10" rx="3" fill="rgba(248,244,238,0.7)"/><line x1="12" y1="16" x2="4" y2="10" stroke="rgba(248,244,238,0.7)" stroke-width="2.5" stroke-linecap="round"/><line x1="4" y1="10" x2="1" y2="6" stroke="rgba(248,244,238,0.7)" stroke-width="3" stroke-linecap="round"/><line x1="14" y1="24" x2="11" y2="32" stroke="rgba(248,244,238,0.7)" stroke-width="2.5" stroke-linecap="round"/><line x1="20" y1="24" x2="23" y2="32" stroke="rgba(248,244,238,0.7)" stroke-width="2.5" stroke-linecap="round"/></svg>`;
+
+// 상황별 복수 중계 멘트 — 랜덤 선택
+const MSGS_POOL={
+  homerun:[
+    ["타격 — 완벽한 스윙입니다!","공이 하늘 높이 솟구칩니다...","올라갑니다, 올라가요...","펜스를 훌쩍 넘어갑니다!!","홈런!! 장외 홈런입니다!!!"],
+    ["배트가 공을 정확히 때렸습니다!","강렬한 타구! 외야 깊숙이!","외야수가 뒤로 달립니다...","펜스 앞에 서 있는 외야수, 고개를 젖힙니다...","넘어갔습니다! 홈런입니다!!"],
+    ["풀스윙! 몸이 돌아갑니다!","공이 포물선을 그리며 날아갑니다...","펜스 쪽으로, 점점 가까워집니다...","외야수 포기! 뒤돌아봅니다!","홈런!! 관중이 일어섭니다!!!"],
+    ["타이밍이 완벽합니다! 임팩트!","공이 빛처럼 뻗어나갑니다...","이건... 이건 안 잡힙니다!","펜스를 넘었습니다! 넘었어요!!","솔로 홈런!! 환호성이 터집니다!!!"],
+    ["스윙! 딱! 하는 타격음이 들립니다!","외야로 날아가는 공... 엄청난 타구!","외야수가 울타리 쪽으로 전력 질주!","손이 닿지 않습니다! 닿지 않아요!","홈런!! 이 교양은 담장을 넘었습니다!!!"],
+  ],
+  triple:[
+    ["타격! 깊은 외야로 뻗어나갑니다!","외야수가 코너를 향해 달립니다...","공이 외야 잔디를 굴러갑니다!","타자가 2루를 돌아 3루로!!","3루타! 슬라이딩! 세이프!!!"],
+    ["강한 타구! 코너를 향해 날아갑니다!","좌익수가 담장을 등지고 달립니다...","공이 담장을 맞고 튕깁니다!","타자가 전속력으로 달립니다! 2루 통과!","3루타!! 베이스를 세 개나 밟았습니다!"],
+    ["라인드라이브! 외야 코너로!","중견수와 좌익수 사이로 빠집니다!","타자가 1루를 무섭게 달립니다!","2루 코치가 손을 돌립니다! 계속 뛰어요!","3루타! 슬라이딩 세이프!! 박진감 넘칩니다!"],
+  ],
+  double:[
+    ["타격! 중견수 앞으로 날아갑니다!","외야수가 달려갑니다...","공이 잔디를 구릅니다!","타자가 1루를 돌아 2루로!","2루타! 세이프입니다!"],
+    ["좋은 타구! 좌중간으로 뻗어나갑니다!","두 명의 외야수가 협공을 시도합니다!","공이 사이를 빠져나갑니다!","타자가 전력 질주! 2루를 노립니다!","2루타!! 다이빙 슬라이딩! 세이프!!!"],
+    ["임팩트! 우중간 깊숙이!","우익수가 전력 질주합니다!","이 공... 잡힐까요? 못 잡겠습니다!","타자가 1루를 돌아 2루로 쇄도합니다!","2루타! 유유히 2루에 섭니다!"],
+    ["배트 끝에 맞았지만 힘이 있습니다!","좌익수가 옆으로 달립니다...","담장 앞에서 멈추는 공!","타자가 2루까지 달려갑니다!","2루타! 럭키 트윈 베이스히트!!"],
+    ["멋진 타이밍! 좌익선상으로!","파울인가 페어인가!","페어볼! 담장을 맞고 굴러갑니다!","타자가 쏜살같이 달립니다!","2루타입니다! 라인드라이브 2루타!"],
+    ["강습 타구! 3루수 옆을 빠져나갑니다!","유격수가 커버하러 달려갑니다!","따라잡을 수 없는 타구 속도!","타자가 망설임 없이 2루로!","2루타! 우직한 2루타입니다!"],
+    ["풀카운트 끝에 터진 타격!","외야 깊숙이 날아갑니다!","외야수가 뒤로 달리지만...","공이 먼저 땅에 닿습니다!","2루타!! 결정적인 한 방!"],
+    ["스트레이트를 공략했습니다!","중견수 정면이지만 깊습니다!","아웃이냐 안타냐... 아! 땅에 닿습니다!","타자가 재빠르게 2루로!","2루타! 발 빠른 2루타!!"],
+    ["인사이드 아웃 스윙!","우익선상으로 날카롭게 뻗습니다!","우익수가 코너로 달립니다!","공이 담장 모서리를 맞고 튕깁니다!","2루타! 코너를 공략한 영리한 타격!"],
+    ["끝내기 상황은 아니지만... 타격!","외야로 뻗어나가는 타구!","수비 시프트 사이를 뚫었습니다!","타자가 힘껏 달립니다!","2루타! 시프트를 무력화했습니다!"],
+  ],
+  single:[
+    ["타격! 내야를 강하게 굴러갑니다!","유격수가 몸을 날립니다...","손에 닿지 않습니다!","타자가 1루로 전력 질주!","단타! 내야 안타입니다!"],
+    ["라인드라이브! 2루수 옆을 빠져나갑니다!","오른쪽 외야로 굴러가는 공!","우익수가 달려가 공을 잡습니다!","타자가 1루 베이스를 밟습니다!","단타입니다! 깔끔한 히트!"],
+    ["타격! 투수 글러브 옆을 맞고 튕깁니다!","내야에 공이 떨어집니다!","1루수가 달려가지만 늦었습니다!","세이프! 내야 안타!","단타! 행운의 히트입니다!"],
+    ["배트에 맞았습니다! 중전 안타성!","중견수가 앞으로 달려옵니다!","공이 잔디를 구릅니다!","1루수가 베이스를 밟으며 공을 기다립니다!","단타! 깨끗한 중전 안타!"],
+    ["끊어치기! 3루수 앞으로!","3루수가 돌진합니다!","공을 집어올리지만 타자가 더 빠릅니다!","세이프! 박빙의 승부!","단타! 내야 안타로 출루합니다!"],
+    ["코스를 잘 공략했습니다!","좌중간 방향으로 낮게 뻗습니다!","유격수가 점프하지만 닿지 않습니다!","타자가 여유있게 1루로!","단타! 정교한 히트!"],
+    ["스윙! 배트 끝에 맞았지만...","공이 예상외로 뻗어나갑니다!","외야수가 달려오지만 앞에 떨어집니다!","타자가 뛰어서 1루로!","단타! 테キサス 리거 안타!"],
+    ["투수의 공을 받아쳤습니다!","1루선상으로 날카롭게!","1루수가 베이스를 지키며 잡을 수 없습니다!","타자가 들어옵니다!","단타! 1루선을 가른 히트!"],
+    ["타격! 유격수와 3루수 사이로!","두 선수 다 소리를 지르며 달려갑니다!","공이 사이를 빠져나갑니다!","타자가 1루로!","단타! 틈새를 파고들었습니다!"],
+    ["끈질긴 파울 연속 끝에 타격!","내야와 외야 사이에 떨어집니다!","유격수와 좌익수 모두 닿지 않습니다!","빠른 발로 1루를 밟습니다!","단타! 끈기가 만들어낸 안타!"],
+  ],
+  bb:[
+    ["공이 바깥쪽으로 흘러갑니다...","포수가 글러브를 뻗습니다...","심판이 바라봅니다...","볼! 네 번째 볼입니다!","볼넷! 타자가 1루로 걸어나갑니다."],
+    ["낮게 빠지는 공...","배트가 멈춥니다. 참았습니다!","포수가 공을 잡지만...","심판의 판정은... 볼!","볼넷! 선구안이 빛났습니다."],
+    ["바깥쪽 코너를 벗어났습니다...","타자가 배트를 내리지 않았습니다!","투수가 고개를 숙입니다...","볼 판정!","볼넷으로 출루합니다. 선구안 승리!"],
+  ],
+  out:[
+    ["스윙!","헛스윙입니다! 배트가 공을 못 잡았습니다!","포수가 공을 안정적으로 잡습니다!","심판이 오른손을 번쩍 올립니다!","삼진! 스트라이크아웃!!"],
+    ["배트가 돌아갑니다!","하지만 공이 이미 포수 미트 안에 있습니다!","헛스윙! 낚였습니다!","배트를 힘없이 내리는 타자...","삼진! 투수의 완벽한 공!"],
+    ["스윙— 맞았나요?","파울! 파울이었습니다!","타자가 헛웃음을 짓습니다...","그리고 다시 스윙!","삼진! 결국 무릎을 꿇었습니다."],
+    ["낮은 공에 손이 나갑니다...","배트가 공 밑을 통과했습니다!","헛스윙! 완전히 속았습니다!","타자가 타석을 벗어납니다...","삼진! 변화구의 마법이었습니다."],
+    ["큰 스윙!","완전히 타이밍이 맞지 않았습니다!","공은 이미 포수 미트 속으로...","타자가 배트를 바닥에 내려놓습니다...","삼진! 압도적인 삼진입니다!"],
+    ["조심스러운 스윙...","배트가 공을 살짝 빗나갑니다!","포수 미트에 공이 안착합니다!","아깝습니다! 조금만 더 당겼어도...","삼진! 간발의 차이었습니다."],
+    ["배트가 나오다가 멈췄나요?","아니! 스윙으로 판정됩니다!","타자가 심판에게 따지지만...","판정은 번복되지 않습니다!","삼진! 체크스윙 삼진입니다!"],
+    ["이 공을 칠 수 있을까요...","바깥쪽 낮은 코스로 꽂히는 공!","배트가 돌아가지만 맞지 않습니다!","포수가 환호하며 공을 들어올립니다!","삼진! 코너 웍의 승리입니다!"],
+    ["몸쪽 빠른 공에 배트가 나옵니다!","공이 배트 안쪽을 통과합니다!","헛스윙! 속구에 완전히 압도당했습니다!","타자가 황당한 표정을 짓습니다...","삼진!! 손도 못 댔습니다!"],
+    ["마지막 공... 타자가 배트를 올립니다!","풀스윙! 전력을 다한 스윙이지만!","공기만 가르는 배트...","정적이 흐릅니다...","삼진! 게임, 마무리됩니다."],
+  ],
+  timeout:[
+    ["시간이 다 됐습니다...","타자가 아직 배트를 들지 못했습니다!","포수가 공을 받아 심판에게 건넵니다...","심판이 손을 올립니다...","시간 초과 아웃! 더 빠르게 생각해야 합니다!"],
+    ["타임바가 바닥을 치고 있습니다!","타자가 망설이고 있습니다...","공이 포수 미트에 쏙 들어갑니다!","배트를 들지도 못한 채...","삼진! 시간이 먼저였습니다!"],
+    ["초읽기... 3... 2... 1...","타자가 뒤늦게 배트를 올립니다!","하지만 너무 늦었습니다!","심판이 아웃을 선언합니다...","시간 초과! 조금만 더 빨리 생각해봐요!"],
+  ],
+  ai_hit:[
+    ["마들렌이 배트를 들어올립니다...","공을 주시합니다... 스윙!","맞았습니다! 타구가 날아갑니다!","외야수가 달려가지만 늦었습니다!","안타! 마들렌이 출루합니다."],
+    ["마들렌이 타이밍을 잡습니다!","공이 날아오고... 스윙!","라인드라이브! 내야를 뚫었습니다!","1루수가 손을 뻗지만 닿지 않습니다!","안타! 마들렌의 집중력이 빛납니다."],
+    ["마들렌, 여유있게 기다립니다...","투수가 공을 던집니다!","딱! 배트에 정확히 맞습니다!","공이 외야로 뻗어나갑니다!","안타! 마들렌이 진루합니다."],
+  ],
+  ai_homerun:[
+    ["마들렌이 강하게 배트를 들어올립니다!","공이 날아오고... 풀스윙!!","엄청난 타구! 하늘 높이 솟아오릅니다!","외야수가 뒤로 달리지만... 안 됩니다!","홈런!! 마들렌의 장외 홈런! 실점입니다."],
+    ["마들렌, 지금 자세가 심상치 않습니다!","배트가 돌아갑니다! 임팩트!","공이 펜스를 향해 직선으로!","넘어갑니다! 넘어가요!!","홈런 허용!! 마들렌에게 무릎을 꿇었습니다."],
+    ["마들렌이 공을 기다립니다... 스윙!","이 타구... 방향이 심상치 않습니다!","외야수가 고개를 들고 바라보기만 합니다!","관중석으로 빨려들어 갑니다!!","홈런!! 실점. 마들렌의 완벽한 한 방!"],
+  ],
+  ai_out:[
+    ["마들렌이 배트를 올립니다...","공이 날아옵니다! 스윙!","빗나갔습니다! 헛스윙!","포수가 공을 잡습니다!","아웃! 잘 막아냈습니다 ⚾"],
+    ["마들렌, 공을 노리고 있습니다...","투수가 공을 뿌립니다!","배트가 돌지만 공이 없습니다!","포수 미트에 딱 소리가 납니다!","삼진! 완벽한 피칭이었습니다 ⚾"],
+    ["마들렌이 스윙 타이밍을 잽니다...","낮게 들어오는 공에 배트가 나옵니다!","배트 아래로 공이 통과합니다!","포수가 공을 잡으며 환호합니다!","아웃! 변화구가 통했습니다 ⚾"],
+  ],
+};
+// 랜덤 멘트 선택 함수
+function getMsg(key){ const pool=MSGS_POOL[key]; return pool[Math.floor(Math.random()*pool.length)]; }
+
+let st={
+  qIdx:0,phase:'idle',typIdx:0,frozenText:'',isAttack:true,inning:1,
+  typTimer:null,barTimer:null,cdTimer:null,hrTimer:null,msgTimer:null,aiTimer:null,
+  totalMs:0,elapsed:0,hitMs:null,
+  outs:0,bases:[false,false,false],scoreMe:0,scoreAi:0,tq:0,
+  atbat:1,hits:0,totalAB:0,hr:0,rbi:0,bb:0,singles:0,doubles:0,triples:0,
+  pitchAB:0,earnedRuns:0,outsRecorded:0
+};
+
+function getQ(){return QS[st.qIdx%QS.length];}
+function clearAll(){
+  ['typTimer','barTimer','cdTimer','msgTimer'].forEach(k=>{if(st[k]){clearInterval(st[k]);st[k]=null;}});
+  if(st.aiTimer){clearTimeout(st.aiTimer);st.aiTimer=null;}
+}
+
+function renderPitch(pct=100){
+  const row=document.getElementById('pitch-row');
+  const c=st.isAttack?(pct>50?'#40916C':pct>25?'#C9A84C':'#D85A30'):(pct>50?'#185FA5':pct>25?'#C9A84C':'#D85A30');
+  if(st.isAttack){
+    row.innerHTML=`${PITCHER}<div class="pitch-bar-wrap"><div class="pitch-bar-bg"><div id="timebar" style="height:100%;border-radius:3px;background:${c};width:${pct}%;position:relative;transition:width 0.1s linear,background 0.3s;"><div class="pitch-ball-l"><div class="seam"></div></div></div></div></div><div class="pitch-pct" id="tpct">—</div>${CATCHER}`;
+  } else {
+    row.innerHTML=`${CATCHER}<div class="pitch-pct" id="tpct">—</div><div class="pitch-bar-wrap"><div class="pitch-bar-bg" style="display:flex;justify-content:flex-end;"><div id="timebar" style="height:100%;border-radius:3px;background:${c};width:${pct}%;position:relative;transition:width 0.1s linear,background 0.3s;"><div class="pitch-ball-r"><div class="seam"></div></div></div></div></div>${BATTER}`;
+  }
+}
+
+function setBar(pct){
+  const b=document.getElementById('timebar');if(!b)return;
+  const c=st.isAttack?(pct>50?'#40916C':pct>25?'#C9A84C':'#D85A30'):(pct>50?'#185FA5':pct>25?'#C9A84C':'#D85A30');
+  b.style.width=pct+'%';b.style.background=c;
+  const e=document.getElementById('tpct');if(e)e.textContent=Math.round(100-pct)+'%';
+}
+function setRing(s,t){
+  document.getElementById('ring-fill').style.strokeDashoffset=CIRC*(1-s/t);
+  document.getElementById('ring-fill').style.stroke=s>5?'#D85A30':s>2?'#C9A84C':'#8B1A1A';
+  document.getElementById('ring-num').textContent=s;
+}
+function renderBases(){
+  if(st.hrTimer)return;
+  ['base1','base2','base3'].forEach((id,i)=>{
+    const e=document.getElementById(id);if(!e)return;
+    e.setAttribute('fill',st.bases[i]?'#C9A84C':'transparent');
+    e.setAttribute('stroke',st.bases[i]?'#A07830':'rgba(248,244,238,0.2)');
+    e.style.filter='none';
+  });
+}
+function renderOuts(){
+  for(let i=1;i<=3;i++)document.getElementById('out'+i).className='out-dot'+(st.outs>=i?' on':'');
+  document.getElementById('out-label').textContent=st.outs+' 아웃';
+}
+function renderBadge(){
+  const b=document.getElementById('inning-badge');
+  if(st.isAttack){b.textContent=st.inning+'회 초 ▲ 공격';b.className='inning-badge';}
+  else{b.textContent=st.inning+'회 말 ▽ 수비';b.className='inning-badge defense';}
+}
+function renderBoxes(){
+  const q=getQ(),w=document.getElementById('hint-boxes');w.innerHTML='';
+  for(let i=0;i<q.boxes;i++){const d=document.createElement('div');d.className='hint-box';d.textContent=q.initials[i]||'';w.appendChild(d);}
+}
+function resetUI(){
+  document.getElementById('input-panel').className='input-panel';
+  document.getElementById('ans-input').value='';
+  document.getElementById('ai-area').style.display='none';
+  document.getElementById('game-area').style.display='block';
+  document.getElementById('judging-area').style.display='none';
+  document.getElementById('result-area').style.display='none';
+  document.getElementById('hit-wrap').style.display='flex';
+  const btn=document.getElementById('hit-btn');btn.style.opacity='1';btn.disabled=false;
+  document.getElementById('stat-timing').textContent='—';switchStatPanel();
+}
+
+function startQ(){
+  clearAll();
+  const q=getQ();
+  st.typIdx=0;st.hitMs=null;st.elapsed=0;st.frozenText='';
+  st.totalMs=Math.max(12000,q.text.length*TS*1.3);
+  resetUI();renderPitch(100);renderBadge();renderBoxes();setRing(10,10);
+  const qEl=document.getElementById('q-text');
+  qEl.className='q-text';qEl.style.color='';qEl.style.fontSize='';
+  document.getElementById('q-cat').textContent=q.cat;
+  const btn=document.getElementById('hit-btn');
+
+  if(st.isAttack){
+    st.phase='typing';qEl.textContent='';
+    btn.className='btn-hit attack';btn.textContent='⚾ 타격';
+    st.typTimer=setInterval(()=>{
+      if(st.phase!=='typing')return;
+      const txt=getQ().text;
+      if(st.typIdx<txt.length){st.typIdx++;qEl.textContent=txt.slice(0,st.typIdx);if(Math.random()<0.5)SND.type();}
+      else{clearInterval(st.typTimer);st.typTimer=null;const c=document.createElement('span');c.className='cursor';qEl.appendChild(c);}
+    },TS);
+    st.barTimer=setInterval(()=>{
+      if(st.phase!=='typing')return;
+      st.elapsed+=100;setBar(Math.max(0,100-st.elapsed/st.totalMs*100));
+      if(st.elapsed>=st.totalMs){clearInterval(st.barTimer);st.barTimer=null;doAutoOut();}
+    },100);
+  } else {
+    st.phase='pitch_ready';
+    qEl.textContent='[던질 문제]  '+q.text;
+    qEl.style.color='rgba(248,244,238,0.4)';qEl.style.fontSize='12px';
+    btn.className='btn-hit pitch-mode';btn.textContent='⚾ 피칭!';
+  }
+}
+
+function onAction(){
+  if(st.isAttack){
+    if(st.phase!=='typing')return;
+    clearAll();st.hitMs=st.elapsed;st.phase='input';
+    st.frozenText=getQ().text.slice(0,st.typIdx);
+    const qEl=document.getElementById('q-text');
+    qEl.textContent='';qEl.className='q-text frozen';
+    qEl.appendChild(document.createTextNode(st.frozenText));
+    const badge=document.createElement('span');badge.className='frozen-badge';badge.textContent='■ 타격';qEl.appendChild(badge);
+    const btn=document.getElementById('hit-btn');btn.disabled=true;btn.style.opacity='0';
+    setTimeout(()=>{
+      document.getElementById('hit-wrap').style.display='none';
+      document.getElementById('input-panel').className='input-panel open';
+      setTimeout(()=>document.getElementById('ans-input').focus(),300);
+    },150);
+    let cd=10;setRing(cd,10);
+    st.cdTimer=setInterval(()=>{cd--;setRing(cd,10);if(cd<=0){clearInterval(st.cdTimer);st.cdTimer=null;onConfirm();}},1000);
+  } else {
+    if(st.phase!=='pitch_ready')return;
+    st.phase='ai_batting';
+    document.getElementById('hit-wrap').style.display='none';
+    const qEl=document.getElementById('q-text');
+    qEl.textContent='';qEl.className='q-text';qEl.style.color='';qEl.style.fontSize='';
+    st.typIdx=0;st.elapsed=0;
+    document.getElementById('ai-area').style.display='block';
+    st.typTimer=setInterval(()=>{
+      if(st.phase!=='ai_batting')return;
+      const txt=getQ().text;
+      if(st.typIdx<txt.length){st.typIdx++;qEl.textContent=txt.slice(0,st.typIdx);if(Math.random()<0.5)SND.type();}
+      else{clearInterval(st.typTimer);st.typTimer=null;}
+    },TS);
+    st.barTimer=setInterval(()=>{
+      if(st.phase!=='ai_batting')return;
+      st.elapsed+=100;setBar(Math.max(0,100-st.elapsed/st.totalMs*100));
+    },100);
+    const aiPct=0.2+Math.random()*0.6,aiMs=st.totalMs*aiPct;
+    const aiHit=Math.random()<AI_AVG,aiHR=aiHit&&Math.random()<0.12;
+    setTimeout(()=>{if(st.phase==='ai_batting')document.getElementById('ai-label').textContent='스윙!';},aiMs*0.7);
+    st.aiTimer=setTimeout(()=>{
+      if(st.phase!=='ai_batting')return;
+      clearAll();st.phase='judging';
+      document.getElementById('ai-area').style.display='none';
+      document.getElementById('game-area').style.display='none';
+      let mk,label,cls,adv;
+      if(aiHR){mk='ai_homerun';label='홈런 허용';cls='r-defense-fail';adv=4;st.pitchAB++;st.tq+=calcTQ('ai_homerun',4,true);}
+      else if(aiHit){mk='ai_hit';label='안타 허용';cls='r-defense-fail';adv=1+Math.floor(Math.random()*2);st.pitchAB++;st.tq+=calcTQ('ai_hit',1,true);}
+      else{mk='ai_out';label='아웃!';cls='r-defense-ok';adv=0;st.outs++;st.outsRecorded++;st.tq+=calcTQ('ai_out',0,true);}
+      showJudging(getMsg(mk),()=>{
+        st.totalAB++;
+        if(adv>=4){let r=1;for(let i=0;i<3;i++)if(st.bases[i])r++;st.bases=[false,false,false];animHR(r,()=>{st.scoreAi+=r;st.earnedRuns+=r;document.getElementById('score-ai').textContent=st.scoreAi;renderOuts();updateStats();showResultDef(label,cls);});}
+        else if(adv>0){const prevAi=st.scoreAi;advBasesAi(adv);st.earnedRuns+=(st.scoreAi-prevAi);renderOuts();updateStats();showResultDef(label,cls);}
+        else{renderBases();renderOuts();updateStats();showResultDef(label,cls);}
+      });
+    },aiMs);
+  }
+}
+
+function onConfirm(){
+  if(st.phase!=='input')return;
+  SND.hit();
+  if(st.cdTimer){clearInterval(st.cdTimer);st.cdTimer=null;}
+  processAns(document.getElementById('ans-input').value);
+}
+
+function norm(s){return s.replace(/[\s\-_]/g,'').toLowerCase();}
+
+function showJudging(msgs,onDone){
+  const ja=document.getElementById('judging-area'),msgEl=document.getElementById('judging-msg'),bar=document.getElementById('judging-bar');
+  ja.style.display='block';msgEl.textContent=msgs[0];msgEl.classList.remove('fade');
+  bar.className='judging-bar-fill';setTimeout(()=>bar.className='judging-bar-fill run',50);
+  let mi=0;
+  st.msgTimer=setInterval(()=>{mi++;if(mi<msgs.length){msgEl.classList.add('fade');setTimeout(()=>{msgEl.textContent=msgs[mi];msgEl.classList.remove('fade');},300);}if(mi>=msgs.length-1){clearInterval(st.msgTimer);st.msgTimer=null;}},1000);
+  setTimeout(()=>{if(st.msgTimer){clearInterval(st.msgTimer);st.msgTimer=null;}ja.style.display='none';onDone();},JSEC*1000);
+}
+
+// ── 사운드 엔진 (Web Audio API) ──────────────────────────
+const SND = (()=>{
+  let ctx = null;
+  function getCtx(){ if(!ctx) ctx = new (window.AudioContext||window.webkitAudioContext)(); return ctx; }
+
+  // 타격음 — 배트가 공을 때리는 딱! 소리
+  function hit(){
+    const c = getCtx();
+    const t = c.currentTime;
+    // 저음 충격 (배트 울림)
+    const osc1 = c.createOscillator();
+    const gain1 = c.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(180, t);
+    osc1.frequency.exponentialRampToValueAtTime(60, t + 0.08);
+    gain1.gain.setValueAtTime(0.8, t);
+    gain1.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    osc1.connect(gain1); gain1.connect(c.destination);
+    osc1.start(t); osc1.stop(t + 0.18);
+    // 고음 크랙 (충격음)
+    const buf = c.createBuffer(1, c.sampleRate * 0.05, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/d.length, 2);
+    const src = c.createBufferSource();
+    const gain2 = c.createGain();
+    src.buffer = buf;
+    gain2.gain.setValueAtTime(0.6, t);
+    src.connect(gain2); gain2.connect(c.destination);
+    src.start(t);
+  }
+
+  // 홈런 — 더 묵직하고 울리는 타격
+  function homerun(){
+    const c = getCtx();
+    const t = c.currentTime;
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(220, t);
+    osc.frequency.exponentialRampToValueAtTime(55, t + 0.15);
+    gain.gain.setValueAtTime(1.0, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    osc.connect(gain); gain.connect(c.destination);
+    osc.start(t); osc.stop(t + 0.35);
+    // 함성 느낌 — 짧은 화이트노이즈 웨이브
+    const buf = c.createBuffer(1, c.sampleRate * 0.4, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/d.length, 1.5) * 0.3;
+    const src = c.createBufferSource();
+    const gn = c.createGain();
+    src.buffer = buf; gn.gain.setValueAtTime(0.4, t+0.05);
+    src.connect(gn); gn.connect(c.destination);
+    src.start(t + 0.05);
+  }
+
+  // 아웃 — 낮고 짧은 탄식음
+  function out(){
+    const c = getCtx();
+    const t = c.currentTime;
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(120, t);
+    osc.frequency.exponentialRampToValueAtTime(70, t + 0.25);
+    gain.gain.setValueAtTime(0.4, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    osc.connect(gain); gain.connect(c.destination);
+    osc.start(t); osc.stop(t + 0.3);
+  }
+
+  // 타이핑 소리 — 묵직한 타자기 탁탁
+  function type(){
+    const c = getCtx();
+    const t = c.currentTime;
+    const bufLen = Math.floor(c.sampleRate * 0.04);
+    const buf = c.createBuffer(1, bufLen, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i=0;i<bufLen;i++){
+      d[i] = (Math.random()*2-1) * Math.pow(1 - i/bufLen, 2.2);
+    }
+    const src = c.createBufferSource();
+    const gain = c.createGain();
+    const filter = c.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(420 + Math.random()*120, t);
+    filter.Q.value = 2.0;
+    src.buffer = buf;
+    gain.gain.setValueAtTime(0.06 + Math.random()*0.02, t);
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(c.destination);
+    src.start(t);
+  }
+
+  return { hit, homerun, out, type };
+})();
+
+function processAns(ans){
+  st.phase='judging';
+  const q=getQ(),ua=norm(ans),ca=norm(q.answer);
+  const ok=ua===ca||(ua.length>=2&&ca.includes(ua));
+  const pct=st.hitMs/st.totalMs*100;
+  let label,cls,adv,mk;
+  if(!ok){label='OUT';cls='r-out';adv=0;st.outs++;mk='out';st.tq+=calcTQ(mk,0,false); SND.out();}
+  else{st.hits++;
+    if(pct<=20){label='홈런!';cls='r-homerun';adv=4;mk='homerun';st.hr++;st.tq+=calcTQ('homerun',4,false); SND.homerun();}
+    else if(pct<=35){label='3루타!';cls='r-triple';adv=3;mk='triple';st.triples++;st.tq+=calcTQ('triple',3,false); SND.hit();}
+    else if(pct<=50){label='2루타!';cls='r-double';adv=2;mk='double';st.doubles++;st.tq+=calcTQ('double',2,false); SND.hit();}
+    else{label='단타!';cls='r-single';adv=1;mk='single';st.singles++;st.tq+=calcTQ('single',1,false); SND.hit();}
+  }
+  const tp=Math.round(pct),tt=tp<=20?'극초반 반응!':tp<=50?'빠른 반응':'후반 타이밍';
+  document.getElementById('stat-timing').textContent=tp+'%';
+  document.getElementById('input-panel').className='input-panel';
+  document.getElementById('game-area').style.display='none';
+  showJudging(getMsg(mk),()=>{
+    st.totalAB++;
+    if(adv>=4){let r=1;for(let i=0;i<3;i++)if(st.bases[i])r++;st.bases=[false,false,false];animHR(r,()=>{st.scoreMe+=r;st.rbi+=r;popScore();renderOuts();updateStats();showResultAtk(label,cls,q,ok,tp,tt);});}
+    else{const prevScore=st.scoreMe;advBases(adv);st.rbi+=(st.scoreMe-prevScore);renderOuts();updateScore();updateStats();showResultAtk(label,cls,q,ok,tp,tt);}
+  });
+}
+
+function doAutoOut(){
+  if(st.phase==='judging'||st.phase==='idle')return;
+  st.phase='judging';st.outs++;
+  document.getElementById('game-area').style.display='none';
+  showJudging(getMsg('timeout'),()=>{
+    st.totalAB++;renderOuts();updateStats();
+    const ra=document.getElementById('result-area');
+    ra.innerHTML=mkResult('OUT','r-out','시간 초과 | 정답: '+getQ().display);
+    ra.style.display='block';st.atbat++;document.getElementById('stat-atbat').textContent=st.atbat+'타석';
+  });
+}
+
+function mkResult(label,cls,sub){
+  const done=st.outs>=3;
+  // 1이닝 게임: 말이 끝나면 (isAttack=false, done=true) 게임 종료
+  const gameOver = done && !st.isAttack;
+  const halfOver = done && st.isAttack;
+  let btnLabel = '다음 타석 →';
+  if(gameOver) btnLabel = '경기 결과 보기 🏆';
+  else if(halfOver) btnLabel = '수비 시작 →';
+  const doneMsg = halfOver ? '⚾ 3아웃! 공수 교대' : gameOver ? '⚾ 3아웃! 경기 종료' : '';
+  const onclickFn = gameOver ? 'showGameResult()' : 'nextQ()';
+  return `<div class="result-box ${cls}"><div class="result-label">${label}</div><div class="result-sub">${sub}</div></div>`+(done?`<div style="text-align:center;font-size:11px;color:rgba(248,244,238,0.5);margin-bottom:10px">${doneMsg}</div>`:'')+`<button class="btn-next" onclick="${onclickFn}">${btnLabel}</button>`;
+}
+function showResultAtk(label,cls,q,ok,tp,tt){
+  const sub=(ok?'정답: '+q.display:'오답 | 정답: '+q.display)+' · '+tt+' '+tp+'%';
+  const ra=document.getElementById('result-area');ra.innerHTML=mkResult(label,cls,sub);ra.style.display='block';
+  st.atbat++;document.getElementById('stat-atbat').textContent=st.atbat+'타석';
+}
+function showResultDef(label,cls){
+  const ok=cls==='r-defense-ok';
+  const ra=document.getElementById('result-area');ra.innerHTML=mkResult(ok?'OUT':label,cls,ok?'잘 막아냈습니다! ⚾':'실점 허용');ra.style.display='block';
+  st.atbat++;document.getElementById('stat-atbat').textContent=st.atbat+'타석';
+}
+
+function animHR(runs,onDone){
+  if(st.hrTimer)clearInterval(st.hrTimer);
+  const ids=['base1','base2','base3','home-plate'];let step=0,cycles=0,max=runs*4+4;
+  ids.forEach(id=>{const e=document.getElementById(id);if(e){e.setAttribute('fill','#C9A84C');e.setAttribute('stroke','#A07830');}});
+  st.hrTimer=setInterval(()=>{
+    ids.forEach((id,i)=>{const e=document.getElementById(id);if(!e)return;const a=(i===step%4);e.setAttribute('fill',a?'#C9A84C':'rgba(201,168,76,0.15)');e.setAttribute('stroke',a?'#A07830':'rgba(160,120,48,0.2)');e.style.filter=a?'drop-shadow(0 0 4px #C9A84C)':'none';});
+    step++;cycles++;
+    if(cycles>=max){clearInterval(st.hrTimer);st.hrTimer=null;ids.forEach(id=>{const e=document.getElementById(id);if(e){e.setAttribute('fill','transparent');e.setAttribute('stroke','rgba(248,244,238,0.2)');e.style.filter='none';}});if(onDone)onDone();}
+  },160);
+}
+
+function popScore(){const e=document.getElementById('score-me');e.textContent=st.scoreMe;e.style.transform='scale(1.4)';setTimeout(()=>e.style.transform='',300);}
+function updateScore(){document.getElementById('score-me').textContent=st.scoreMe;}
+function calcTQ(mk, adv, isDefense){
+  // 타격 TQ
+  if(!isDefense){
+    if(mk==='homerun') return 4.0;
+    if(mk==='triple') return 3.0;
+    if(mk==='double') return 2.0;
+    if(mk==='single') return 1.0;
+    if(mk==='bb') return 0.5;
+    if(mk==='error') return 0.5;
+    return 0; // out
+  } else {
+    // 수비 TQ
+    if(mk==='ai_out') return 0.5;
+    if(mk==='ai_hit') return -1.0;
+    if(mk==='ai_homerun') return -4.0;
+    return 0;
+  }
+}
+function updateStats(){
+  // --- 타격 스탯 ---
+  const ab=st.totalAB;
+  const avg=ab?st.hits/ab:0;
+  // 출루율: (안타+볼넷)/(타석) 단순화
+  const obp=ab?(st.hits+st.bb)/ab:0;
+  // 장타율: (단타 + 2*2루타 + 3*3루타 + 4*홈런)/타수
+  const slg=ab?(st.singles+st.doubles*2+st.triples*3+st.hr*4)/ab:0;
+  const ops=obp+slg;
+  document.getElementById('stat-avg').textContent=fmtAvg(avg);
+  document.getElementById('stat-ops').textContent=fmtAvg(ops);
+  document.getElementById('stat-hr').textContent=st.hr;
+  document.getElementById('stat-rbi').textContent=st.rbi;
+  // --- 수비 스탯 (ERA) ---
+  // ERA = 자책점 / (아웃수/3) * 9
+  const inningsPitched=st.outsRecorded/3;
+  const era=inningsPitched>0?(st.earnedRuns/inningsPitched*9):0;
+  document.getElementById('stat-era').textContent=era.toFixed(2);
+  document.getElementById('stat-hits-allowed').textContent=st.pitchAB-st.outsRecorded;
+  document.getElementById('stat-er').textContent=st.earnedRuns;
+  document.getElementById('stat-outs-rec').textContent=st.outsRecorded;
+  // TQ 표시
+  const tqEl1=document.getElementById('stat-tq-atk');
+  const tqEl2=document.getElementById('stat-tq-def');
+  const tqStr=(st.tq>=0?'+':'')+st.tq.toFixed(1);
+  if(tqEl1) tqEl1.textContent=tqStr;
+  if(tqEl2) tqEl2.textContent=tqStr;
+}
+function fmtAvg(n){
+  if(n===0)return'.000';
+  return n.toFixed(3).replace(/^0/,'');
+}
+function switchStatPanel(){
+  document.getElementById('stat-attack-panel').style.display=st.isAttack?'block':'none';
+  document.getElementById('stat-defense-panel').style.display=st.isAttack?'none':'block';
+}
+function advBases(n){
+  if(n===0)return;
+  if(n>=4){let r=1;for(let i=0;i<3;i++)if(st.bases[i])r++;st.bases=[false,false,false];st.scoreMe+=r;}
+  else{let nb=[false,false,false];for(let i=2;i>=0;i--){if(st.bases[i]){const np=i+n;if(np>=3)st.scoreMe++;else nb[np]=true;}}if(n===1)nb[0]=true;else if(n===2)nb[1]=true;else if(n===3)nb[2]=true;st.bases=nb;}
+  renderBases();
+}
+function advBasesAi(n){
+  let nb=[false,false,false];
+  for(let i=2;i>=0;i--){if(st.bases[i]){const np=i+n;if(np>=3)st.scoreAi++;else nb[np]=true;}}
+  if(n===1)nb[0]=true;else if(n>=2)nb[1]=true;
+  st.bases=nb;document.getElementById('score-ai').textContent=st.scoreAi;renderBases();
+}
+// nextQ → 하단 흐름제어 블록에서 재정의
+
+// ── 경기 결과 화면 ──────────────────────────────
+function showGameResult(){
+  // 승패 판정
+  let result, resultColor, emoji;
+  if(st.scoreMe > st.scoreAi){
+    result='승리'; resultColor='#52B788'; emoji='🏆';
+  } else if(st.scoreAi > st.scoreMe){
+    result='패배'; resultColor='#D85A30'; emoji='💧';
+  } else {
+    // 동점 — TQ로 판정
+    const aiTQ = (Math.random()*6-3).toFixed(1); // AI TQ 시뮬레이션
+    if(st.tq > parseFloat(aiTQ)){
+      result='TQ 승리'; resultColor='#C9A84C'; emoji='⚾';
+    } else if(st.tq < parseFloat(aiTQ)){
+      result='TQ 패배'; resultColor='#8B5E52'; emoji='💧';
+    } else {
+      result='무승부'; resultColor='#888888'; emoji='🤝';
+    }
+  }
+
+  const ab = st.totalAB || 1;
+  const avg = st.hits/ab;
+  const obp = (st.hits+st.bb)/ab;
+  const slg = (st.singles+st.doubles*2+st.triples*3+st.hr*4)/ab;
+  const ops = obp+slg;
+  const fmtA = n => n>=1?n.toFixed(3):(n===0?'.000':n.toFixed(3).replace(/^0/,''));
+
+  // 결과 화면 HTML
+  const ra = document.getElementById('result-area');
+  document.getElementById('game-area').style.display='none';
+  document.getElementById('judging-area').style.display='none';
+  document.getElementById('atstep-screen').style.display='none';
+  document.getElementById('pitchready-screen').style.display='none';
+
+  ra.innerHTML = `
+    <div style="text-align:center;padding:20px 0 12px">
+      <div style="font-size:36px;margin-bottom:8px">${emoji}</div>
+      <div style="font-size:28px;font-weight:700;color:${resultColor};letter-spacing:0.05em;margin-bottom:4px">${result}</div>
+      <div style="font-size:13px;color:rgba(248,244,238,0.5);margin-bottom:20px">
+        ${st.scoreMe} : ${st.scoreAi}
+      </div>
+    </div>
+    <div style="background:rgba(248,244,238,0.06);border-radius:12px;padding:16px;margin-bottom:12px">
+      <div style="font-size:9px;letter-spacing:0.12em;color:rgba(248,244,238,0.35);margin-bottom:12px">▲ 타격 스탯</div>
+      <div style="display:flex;justify-content:space-between;text-align:center">
+        <div><div style="font-size:8px;color:rgba(248,244,238,0.35)">타율</div><div style="font-size:16px;font-family:'Courier New';color:var(--chalk)">${fmtA(avg)}</div></div>
+        <div><div style="font-size:8px;color:rgba(248,244,238,0.35)">OPS</div><div style="font-size:16px;font-family:'Courier New';color:var(--chalk)">${fmtA(ops)}</div></div>
+        <div><div style="font-size:8px;color:rgba(248,244,238,0.35)">홈런</div><div style="font-size:16px;font-family:'Courier New';color:var(--chalk)">${st.hr}</div></div>
+        <div><div style="font-size:8px;color:rgba(248,244,238,0.35)">타점</div><div style="font-size:16px;font-family:'Courier New';color:var(--chalk)">${st.rbi}</div></div>
+        <div><div style="font-size:8px;color:rgba(248,244,238,0.35);white-space:nowrap">TQ</div><div style="font-size:16px;font-family:'Courier New';color:var(--gold-light)">${st.tq>=0?'+':''}${st.tq.toFixed(1)}</div></div>
+      </div>
+    </div>
+    <div style="background:rgba(248,244,238,0.06);border-radius:12px;padding:16px;margin-bottom:20px">
+      <div style="font-size:9px;letter-spacing:0.12em;color:rgba(248,244,238,0.35);margin-bottom:12px">▽ 수비 스탯</div>
+      <div style="display:flex;justify-content:space-between;text-align:center">
+        <div><div style="font-size:8px;color:rgba(248,244,238,0.35)">방어율</div><div style="font-size:16px;font-family:'Courier New';color:var(--chalk)">${(st.outsRecorded>0?(st.earnedRuns/(st.outsRecorded/3)*9):0).toFixed(2)}</div></div>
+        <div><div style="font-size:8px;color:rgba(248,244,238,0.35)">피안타</div><div style="font-size:16px;font-family:'Courier New';color:var(--chalk)">${st.pitchAB-st.outsRecorded}</div></div>
+        <div><div style="font-size:8px;color:rgba(248,244,238,0.35)">자책점</div><div style="font-size:16px;font-family:'Courier New';color:var(--chalk)">${st.earnedRuns}</div></div>
+        <div><div style="font-size:8px;color:rgba(248,244,238,0.35)">아웃</div><div style="font-size:16px;font-family:'Courier New';color:var(--chalk)">${st.outsRecorded}</div></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-next" style="flex:1;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);color:var(--gold-light)" onclick="alert('서재 기능은 준비 중입니다 🌿')">📖 해설 보기</button>
+      <button class="btn-next" style="flex:1" onclick="location.reload()">⚾ 새 경기</button>
+    </div>
+  `;
+  ra.style.display='block';
+}
+
+// ── 게임 흐름 제어 ──────────────────────────────
+const AI_NAMES = [
+  '프루스트의 마들렌','차라투스트라의 산책','카프카의 성','보르헤스의 미로',
+  '소크라테스의 독배','단테의 베아트리체','루미의 갈대','월든의 새벽안개'
+];
+
+function initGame(){
+  // 프리게임 화면 세팅
+  const name = AI_NAMES[Math.floor(Math.random()*AI_NAMES.length)];
+  document.getElementById('pg-ai-name').textContent = name;
+  document.getElementById('pregame-screen').style.display = 'flex';
+}
+
+function startGame(){
+  // 프리게임 → 타석 준비
+  document.getElementById('pregame-screen').style.display = 'none';
+  document.getElementById('main-header').style.display = 'flex';
+  document.getElementById('main-content').style.display = 'flex';
+  showAtStep();
+}
+
+function showAtStep(){
+  // 현재 문제 카테고리 미리 보기
+  const q = getQ();
+  const parts = q.cat.split('·');
+  const catMain = parts[0]?.trim() || q.cat;
+  const catSub  = parts[1]?.trim() || '';
+
+  // 이닝 표시
+  const inningTxt = st.inning+'회 '+(st.isAttack?'초':'말')+' · '+st.atbat+'번 타자';
+
+  if(st.isAttack){
+    // 타격 → 타석 준비 화면
+    document.getElementById('game-area').style.display = 'none';
+    document.getElementById('result-area').style.display = 'none';
+    document.getElementById('judging-area').style.display = 'none';
+    document.getElementById('atstep-screen').style.display = 'flex';
+    document.getElementById('pitchready-screen').style.display = 'none';
+    document.getElementById('as-inning').textContent   = inningTxt;
+    document.getElementById('as-category').textContent = catMain;
+    document.getElementById('as-keyword').textContent  = getQ().keyword || catSub || catMain;
+    document.getElementById('as-sub').textContent      = '이 카테고리에서 출제됩니다';
+    renderBadge();
+  } else {
+    // 수비 → 바로 투구 준비 (소로가 투수)
+    document.getElementById('game-area').style.display = 'none';
+    document.getElementById('result-area').style.display = 'none';
+    document.getElementById('judging-area').style.display = 'none';
+    document.getElementById('atstep-screen').style.display = 'none';
+    document.getElementById('pitchready-screen').style.display = 'flex';
+    document.getElementById('pr-inning').textContent   = inningTxt.replace('번 타자','번 상대 타자');
+    document.getElementById('pr-category').textContent = catMain;
+    document.getElementById('pr-keyword').textContent  = getQ().keyword || catSub || catMain;
+    document.getElementById('pr-sub').textContent      = '이 문제를 던집니다';
+    renderBadge();
+  }
+}
+
+function enterBatterBox(){
+  // 타석 준비 → 투구 준비
+  const q = getQ();
+  const parts = q.cat.split('·');
+  const catMain = parts[0]?.trim() || q.cat;
+  const catSub  = parts[1]?.trim() || '';
+  const inningTxt = st.inning+'회 초 · '+st.atbat+'번 타자';
+
+  document.getElementById('atstep-screen').style.display = 'none';
+  document.getElementById('pitchready-screen').style.display = 'flex';
+  document.getElementById('pr-inning').textContent   = inningTxt;
+  document.getElementById('pr-category').textContent = catMain;
+  document.getElementById('pr-keyword').textContent  = q.keyword || catSub || catMain;
+  document.getElementById('pr-sub').textContent      = '배트를 꽉 쥐고 — 준비되면 투구 요청!';
+}
+
+function requestPitch(){
+  // 투구 준비 → 실제 문제 시작
+  document.getElementById('pitchready-screen').style.display = 'none';
+  document.getElementById('game-area').style.display = 'block';
+  startQ();
+}
+
+// nextQ — 1이닝 모델
+function nextQ(){
+  clearAll();
+  if(st.hrTimer){clearInterval(st.hrTimer);st.hrTimer=null;}
+  if(st.outs>=3){
+    st.outs=0;st.bases=[false,false,false];
+    if(st.isAttack){
+      // 초 → 말: 공수 교대
+      st.isAttack=false;
+      renderBases();renderOuts();switchStatPanel();
+    } else {
+      // 말 종료: 게임 끝 → showGameResult로
+      renderBases();renderOuts();
+      return; // showGameResult는 mkResult 버튼에서 호출
+    }
+  }
+  st.qIdx=(st.qIdx+1)%QS.length;
+  showAtStep();
+}
+
+initGame();
+</script>
+</body>
+</html>
