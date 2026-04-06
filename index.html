@@ -802,6 +802,8 @@ async function loadQuestions() {
   }
   QS_LOADED = true;
   console.log('문제 DB 로드 완료: 총 ' + QS.length + '문제 (랜덤 섞기 완료)');
+  // 매트릭스 갱신 (로드 후)
+  fillMatrix();
 }
 
 
@@ -1466,13 +1468,32 @@ const HOME = {
   color: '#8B1A1A'
 };
 
+// 전역: 현재 경기 홈/원정 상태
+let currentIsHome = false;
+
+function fillMatrix() {
+  const matrix = document.getElementById('pg-matrix');
+  matrix.innerHTML = '';
+  if(QS_LOADED && QS.length > 0) {
+    const shuffled = [...QS].sort(()=>Math.random()-0.5).slice(0,9);
+    shuffled.forEach((q, i) => {
+      const kw = q.keyword ? q.keyword.split(' ')[0] : q.cat;
+      matrix.innerHTML += '<div class="pg-matrix-cell"><span class="zone-num">ZONE '+(i+1)+'</span>'+kw+'</div>';
+    });
+  } else {
+    for(let i=0;i<9;i++) {
+      matrix.innerHTML += '<div class="pg-matrix-cell"><span class="zone-num">ZONE '+(i+1)+'</span>···</div>';
+    }
+  }
+}
+
 function initGame(){
   // 상대팀 랜덤 선택
   const opp = OPPONENTS[Math.floor(Math.random()*OPPONENTS.length)];
-  const isHome = Math.random() > 0.5;
+  currentIsHome = Math.random() > 0.5;
 
-  // 경기장 설정 (원정: 상대방 구장, 홈: 소로 파크)
-  const stadium = isHome ? HOME : opp;
+  // 경기장 설정 (홈: 소로 파크, 원정: 상대방 구장)
+  const stadium = currentIsHome ? HOME : opp;
 
   document.getElementById('pg-ai-name').textContent = opp.name;
   document.getElementById('pg-ai-stat').textContent = opp.stat;
@@ -1480,24 +1501,10 @@ function initGame(){
   document.getElementById('pg-emblem-img').src = opp.emblemImg;
   document.getElementById('pg-stadium-name').textContent = stadium.stadium;
   document.getElementById('pg-stadium-location').textContent = stadium.location;
-  document.getElementById('pg-home-away').textContent = isHome ? '🏠 홈 경기' : '✈️ 원정 경기';
+  document.getElementById('pg-home-away').textContent = currentIsHome ? '🏠 홈 경기 · 후공' : '✈️ 원정 경기 · 선공';
 
-  // 키워드 매트릭스 — 랜덤 9개
-  const matrix = document.getElementById('pg-matrix');
-  matrix.innerHTML = '';
-  if(QS_LOADED && QS.length > 0) {
-    const shuffled = [...QS].sort(()=>Math.random()-0.5).slice(0,9);
-    const zones = ['1','2','3','4','5','6','7','8','9'];
-    shuffled.forEach((q, i) => {
-      const kw = q.keyword ? q.keyword.split(' ')[0] : q.cat;
-      matrix.innerHTML += '<div class="pg-matrix-cell"><span class="zone-num">ZONE '+zones[i]+'</span>'+kw+'</div>';
-    });
-  } else {
-    // 문제 로드 전이면 빈 매트릭스
-    for(let i=0;i<9;i++) {
-      matrix.innerHTML += '<div class="pg-matrix-cell"><span class="zone-num">ZONE '+(i+1)+'</span>···</div>';
-    }
-  }
+  // 매트릭스 채우기
+  fillMatrix();
 
   document.getElementById('pregame-screen').style.display = 'flex';
 }
@@ -1507,6 +1514,8 @@ function startGame(){
     alert("문제를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
     return;
   }
+  // 홈=후공(말, isAttack=false), 원정=선공(초, isAttack=true)
+  st.isAttack = !currentIsHome;
   // 프리게임 → 타석 준비
   document.getElementById('pregame-screen').style.display = 'none';
   document.getElementById('main-header').style.display = 'flex';
