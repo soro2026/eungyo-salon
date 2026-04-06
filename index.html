@@ -1022,8 +1022,11 @@ function renderOuts(){
 }
 function renderBadge(){
   const b=document.getElementById('inning-badge');
-  if(st.isAttack){b.textContent=st.inning+'회 '+(currentIsHome?'말':'초')+' ▲ 공격';b.className='inning-badge';}
-  else{b.textContent=st.inning+'회 말 ▽ 수비';b.className='inning-badge defense';}
+  // 홈=후공(공격:말, 수비:초) / 원정=선공(공격:초, 수비:말)
+  const attackHalf = currentIsHome ? '말' : '초';
+  const defenseHalf = currentIsHome ? '초' : '말';
+  if(st.isAttack){b.textContent=st.inning+'회 '+attackHalf+' ▲ 공격';b.className='inning-badge';}
+  else{b.textContent=st.inning+'회 '+defenseHalf+' ▽ 수비';b.className='inning-badge defense';}
 }
 function renderBoxes(){
   const q=getQ(),w=document.getElementById('hint-boxes');w.innerHTML='';
@@ -1052,10 +1055,8 @@ function startQ(){
   document.getElementById('q-cat').textContent=q.cat;
   const btn=document.getElementById('hit-btn');
 
-  // 투구 휙 소리
-  SND.pitch();
-  // 난이도 3 문제면 오르간 긴장감 (0.4초 후)
-  if(q.difficulty === 3){ setTimeout(()=>SND.organTension(), 400); }
+  // 난이도 3 문제면 오르간 긴장감
+  if(q.difficulty === 3){ setTimeout(()=>SND.organTension(), 200); }
 
   if(st.isAttack){
     st.phase='typing';qEl.textContent='';
@@ -1107,16 +1108,20 @@ function onAction(){
     qEl.textContent='';qEl.className='q-text';qEl.style.color='';qEl.style.fontSize='';
     st.typIdx=0;st.elapsed=0;
     document.getElementById('ai-area').style.display='block';
-    st.typTimer=setInterval(()=>{
-      if(st.phase!=='ai_batting')return;
-      const txt=getQ().text;
-      if(st.typIdx<txt.length){st.typIdx++;qEl.textContent=txt.slice(0,st.typIdx);if(Math.random()<0.5)SND.type();}
-      else{clearInterval(st.typTimer);st.typTimer=null;}
-    },TS);
-    st.barTimer=setInterval(()=>{
-      if(st.phase!=='ai_batting')return;
-      st.elapsed+=100;setBar(Math.max(0,100-st.elapsed/st.totalMs*100));
-    },100);
+    // 피칭 휙 소리 → 0.4초 후 타이핑 시작
+    SND.pitch();
+    setTimeout(()=>{
+      st.typTimer=setInterval(()=>{
+        if(st.phase!=='ai_batting')return;
+        const txt=getQ().text;
+        if(st.typIdx<txt.length){st.typIdx++;qEl.textContent=txt.slice(0,st.typIdx);if(Math.random()<0.5)SND.type();}
+        else{clearInterval(st.typTimer);st.typTimer=null;}
+      },TS);
+      st.barTimer=setInterval(()=>{
+        if(st.phase!=='ai_batting')return;
+        st.elapsed+=100;setBar(Math.max(0,100-st.elapsed/st.totalMs*100));
+      },100);
+    },400);
     const aiPct=0.2+Math.random()*0.6,aiMs=st.totalMs*aiPct;
     const aiHit=Math.random()<AI_AVG,aiHR=aiHit&&Math.random()<0.12;
     setTimeout(()=>{if(st.phase==='ai_batting')document.getElementById('ai-label').textContent='스윙!';},aiMs*0.7);
@@ -1378,14 +1383,15 @@ function doAutoOut(){
 
 function mkResult(label,cls,sub){
   const done=st.outs>=3;
-  // 1이닝 게임: 말이 끝나면 (isAttack=false, done=true) 게임 종료
-  const gameOver = done && !st.isAttack;
-  const halfOver = done && st.isAttack;
+  // 홈=후공: 공격(말) 끝나면 게임종료, 수비(초) 끝나면 공수교대
+  // 원정=선공: 수비(말) 끝나면 게임종료, 공격(초) 끝나면 공수교대
+  const gameOver = done && (currentIsHome ? st.isAttack : !st.isAttack);
+  const halfOver = done && !gameOver;
   let btnLabel = '이번 타석 돌아보기 →';
   if(gameOver) btnLabel = '경기 결과 보기 🏆';
-  else if(halfOver) btnLabel = '수비 시작 →';
+  else if(halfOver) btnLabel = '공수 교대 →';
   const doneMsg = halfOver ? '⚾ 3아웃! 공수 교대' : gameOver ? '⚾ 3아웃! 경기 종료' : '';
-  const onclickFn = gameOver ? 'showGameResult()' : halfOver ? 'nextQ()' : 'showReveal()';
+  const onclickFn = gameOver ? 'showGameResult()' : halfOver ? 'switchHalf()' : 'showReveal()';
   return `<div class="result-box ${cls}"><div class="result-label">${label}</div><div class="result-sub">${sub}</div></div>`+(done?`<div style="text-align:center;font-size:11px;color:rgba(248,244,238,0.5);margin-bottom:10px">${doneMsg}</div>`:'')+`<button class="btn-next" onclick="${onclickFn}">${btnLabel}</button>`;
 }
 
@@ -1402,11 +1408,11 @@ function showReveal() {
 
   // 다음 버튼 라벨
   const done = st.outs >= 3;
-  const gameOver = done && !st.isAttack;
-  const halfOver = done && st.isAttack;
+  const gameOver = done && (currentIsHome ? st.isAttack : !st.isAttack);
+  const halfOver = done && !gameOver;
   const btn = document.getElementById('reveal-next-btn');
-  btn.textContent = gameOver ? '경기 결과 보기 🏆' : halfOver ? '수비 시작 →' : '다음 타자 →';
-  btn.onclick = gameOver ? showGameResult : nextQ;
+  btn.textContent = gameOver ? '경기 결과 보기 🏆' : halfOver ? '공수 교대 →' : '다음 타자 →';
+  btn.onclick = gameOver ? showGameResult : halfOver ? switchHalf : nextQ;
 
   // 각인 화면 표시
   const rs = document.getElementById('reveal-screen');
@@ -1835,6 +1841,22 @@ function requestPitch(){
 }
 
 // nextQ — 1이닝 모델
+// 공수 교대 전용 함수
+function switchHalf(){
+  const rs = document.getElementById('reveal-screen');
+  rs.style.display = 'none';
+  document.getElementById('reveal-question').textContent = '';
+  document.getElementById('reveal-answer').textContent = '';
+  document.getElementById('reveal-commentary').textContent = '';
+  clearAll();
+  if(st.hrTimer){clearInterval(st.hrTimer);st.hrTimer=null;}
+  st.outs=0;st.bases=[false,false,false];
+  st.isAttack = !st.isAttack; // 공수 전환
+  renderBases();renderOuts();switchStatPanel();
+  st.qIdx=(st.qIdx+1)%QS.length;
+  showAtStep();
+}
+
 function nextQ(){
   // 각인 화면 완전 초기화
   const rs = document.getElementById('reveal-screen');
@@ -1844,18 +1866,6 @@ function nextQ(){
   document.getElementById('reveal-commentary').textContent = '';
   clearAll();
   if(st.hrTimer){clearInterval(st.hrTimer);st.hrTimer=null;}
-  if(st.outs>=3){
-    st.outs=0;st.bases=[false,false,false];
-    if(st.isAttack){
-      // 초 → 말: 공수 교대
-      st.isAttack=false;
-      renderBases();renderOuts();switchStatPanel();
-    } else {
-      // 말 종료: 게임 끝 → showGameResult로
-      renderBases();renderOuts();
-      return; // showGameResult는 mkResult 버튼에서 호출
-    }
-  }
   st.qIdx=(st.qIdx+1)%QS.length;
   showAtStep();
 }
