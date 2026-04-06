@@ -702,8 +702,8 @@
   <div class="scoreboard">
     <div class="score-row">
       <div class="team">
-        <div class="team-name">소로</div>
-        <div class="team-score me" id="score-me">0</div>
+        <div class="team-name" id="score-left-name">소로</div>
+        <div class="team-score me" id="score-left">0</div>
       </div>
       <div class="diamond-center">
         <svg width="80" height="80" viewBox="0 0 80 80">
@@ -724,8 +724,8 @@
         <div class="inning-txt" id="out-label">0 아웃</div>
       </div>
       <div class="team">
-        <div class="team-name">프루스트의 마들렌</div>
-        <div class="team-score" id="score-ai">0</div>
+        <div class="team-name" id="score-right-name">프루스트의 마들렌</div>
+        <div class="team-score" id="score-right">0</div>
       </div>
     </div>
   </div>
@@ -1017,7 +1017,7 @@ function renderOuts(){
 }
 function renderBadge(){
   const b=document.getElementById('inning-badge');
-  if(st.isAttack){b.textContent=st.inning+'회 초 ▲ 공격';b.className='inning-badge';}
+  if(st.isAttack){b.textContent=st.inning+'회 '+(currentIsHome?'말':'초')+' ▲ 공격';b.className='inning-badge';}
   else{b.textContent=st.inning+'회 말 ▽ 수비';b.className='inning-badge defense';}
 }
 function renderBoxes(){
@@ -1118,7 +1118,7 @@ function onAction(){
       else{mk='ai_out';label='아웃!';cls='r-defense-ok';adv=0;st.outs++;st.outsRecorded++;st.tq+=calcTQ('ai_out',0,true);}
       showJudging(getMsg(mk),()=>{
         st.totalAB++;
-        if(adv>=4){let r=1;for(let i=0;i<3;i++)if(st.bases[i])r++;st.bases=[false,false,false];animHR(r,()=>{st.scoreAi+=r;st.earnedRuns+=r;document.getElementById('score-ai').textContent=st.scoreAi;renderOuts();updateStats();showResultDef(label,cls);});}
+        if(adv>=4){let r=1;for(let i=0;i<3;i++)if(st.bases[i])r++;st.bases=[false,false,false];animHR(r,()=>{st.scoreAi+=r;st.earnedRuns+=r;const aiEl=getAiEl();if(aiEl)aiEl.textContent=st.scoreAi;renderOuts();updateStats();showResultDef(label,cls);});}
         else if(adv>0){const prevAi=st.scoreAi;advBasesAi(adv);st.earnedRuns+=(st.scoreAi-prevAi);renderOuts();updateStats();showResultDef(label,cls);}
         else{renderBases();renderOuts();updateStats();showResultDef(label,cls);}
       });
@@ -1366,8 +1366,10 @@ function animHR(runs,onDone){
   },160);
 }
 
-function popScore(){const e=document.getElementById('score-me');e.textContent=st.scoreMe;e.style.transform='scale(1.4)';setTimeout(()=>e.style.transform='',300);}
-function updateScore(){document.getElementById('score-me').textContent=st.scoreMe;}
+function getMeEl(){return document.getElementById(currentIsHome?'score-right':'score-left');}
+function getAiEl(){return document.getElementById(currentIsHome?'score-left':'score-right');}
+function popScore(){const e=getMeEl();if(e){e.textContent=st.scoreMe;e.style.transform='scale(1.4)';setTimeout(()=>e.style.transform='',300);}}
+function updateScore(){const e=getMeEl();if(e)e.textContent=st.scoreMe;}
 function calcTQ(mk, adv, isDefense){
   // 타격 TQ
   if(!isDefense){
@@ -1432,7 +1434,7 @@ function advBasesAi(n){
   let nb=[false,false,false];
   for(let i=2;i>=0;i--){if(st.bases[i]){const np=i+n;if(np>=3)st.scoreAi++;else nb[np]=true;}}
   if(n===1)nb[0]=true;else if(n>=2)nb[1]=true;
-  st.bases=nb;document.getElementById('score-ai').textContent=st.scoreAi;renderBases();
+  st.bases=nb;const aiEl=getAiEl();if(aiEl)aiEl.textContent=st.scoreAi;renderBases();
 }
 // nextQ → 하단 흐름제어 블록에서 재정의
 
@@ -1627,6 +1629,22 @@ function startGame(){
   }
   // 혹시 매트릭스가 ··· 상태면 다시 채우기
   fillMatrix();
+  // 스코어보드 팀명 — 홈경기: 왼쪽=상대, 오른쪽=소로 / 원정경기: 왼쪽=소로, 오른쪽=상대
+  const oppName = document.getElementById('pg-ai-name').textContent;
+  const leftTeam  = document.getElementById('score-left-name');
+  const rightTeam = document.getElementById('score-right-name');
+  const scoreLeft  = document.getElementById('score-left');
+  const scoreRight = document.getElementById('score-right');
+  if(currentIsHome) {
+    // 홈: 소로가 오른쪽(후공), 상대가 왼쪽(선공)
+    if(leftTeam)  leftTeam.textContent  = oppName;
+    if(rightTeam) rightTeam.textContent = '소로';
+  } else {
+    // 원정: 소로가 왼쪽(선공), 상대가 오른쪽(후공)
+    if(leftTeam)  leftTeam.textContent  = '소로';
+    if(rightTeam) rightTeam.textContent = oppName;
+  }
+
   // 게임 시작 — 잔디 배경 활성화 + 구장 클래스 재확인
   const fb = document.getElementById('field-bg');
   fb.className = 'field-bg'; // 초기화
@@ -1658,7 +1676,8 @@ function showAtStep(){
   const catSub  = parts[1]?.trim() || '';
 
   // 이닝 표시
-  const inningTxt = st.inning+'회 '+(st.isAttack?'초':'말')+' · '+st.atbat+'번 타자';
+  const half = st.isAttack ? (currentIsHome?'말':'초') : (currentIsHome?'초':'말');
+  const inningTxt = st.inning+'회 '+half+' · '+st.atbat+'번 타자';
 
   if(st.isAttack){
     // 타격 → 타석 준비 화면
