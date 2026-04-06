@@ -1,10 +1,19 @@
-const CACHE = 'eungyo-v3';
+const CACHE = 'eungyo-v5';
 const FILES = [
   '/eungyo-salon/',
   '/eungyo-salon/index.html',
   '/eungyo-salon/questions_taeyang.json',
   '/eungyo-salon/questions_gil.json',
-  '/eungyo-salon/intro_logo.mp4'
+  '/eungyo-salon/questions_bada.json',
+  '/eungyo-salon/intro_logo.mp4',
+  '/eungyo-salon/stadium_socrates.jpg',
+  '/eungyo-salon/stadium_proust.jpg',
+  '/eungyo-salon/stadium_soro.jpg',
+  '/eungyo-salon/stadium_pascal.jpg',
+  '/eungyo-salon/emblem_socrates.jpg',
+  '/eungyo-salon/emblem_proust.jpg',
+  '/eungyo-salon/emblem_soro.jpg',
+  '/eungyo-salon/emblem_pascal.jpg'
 ];
 
 self.addEventListener('install', e => {
