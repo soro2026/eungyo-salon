@@ -495,6 +495,97 @@
     padding: 11px 32px; font-size: 13px;
   }
 
+  /* ── 존 선택 보드 화면 ── */
+  #zone-board-screen {
+    display: none; flex-direction: column; align-items: center;
+    flex: 1; padding: 0; animation: fadeIn 0.4s ease; overflow-y: auto;
+  }
+  .zone-board-header {
+    width: 100%; padding: 20px 20px 12px;
+    text-align: center;
+  }
+  .zone-board-inning {
+    font-size: 10px; letter-spacing: 0.15em;
+    color: rgba(248,244,238,0.35); margin-bottom: 6px;
+  }
+  .zone-board-title {
+    font-size: 13px; letter-spacing: 0.12em;
+    color: rgba(248,244,238,0.5); margin-bottom: 2px;
+  }
+  .zone-board-sub {
+    font-size: 11px; color: rgba(201,168,76,0.6);
+  }
+  .zone-board-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 8px; padding: 12px 20px; width: 100%;
+  }
+  .zone-card {
+    background: rgba(248,244,238,0.06);
+    border: 1px solid rgba(248,244,238,0.12);
+    border-radius: 10px;
+    aspect-ratio: 1 / 1;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center;
+    font-size: 14px; font-weight: 500;
+    color: rgba(248,244,238,0.88);
+    font-family: 'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif;
+    line-height: 1.4; padding: 8px;
+    word-break: keep-all;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative; overflow: hidden;
+  }
+  .zone-card:hover:not(.done-correct):not(.done-wrong) {
+    border-color: rgba(201,168,76,0.5);
+    background: rgba(201,168,76,0.1);
+    transform: scale(1.03);
+  }
+  .zone-card:active:not(.done-correct):not(.done-wrong) {
+    transform: scale(0.97);
+  }
+  .zone-card .zc-num {
+    font-size: 9px; color: rgba(248,244,238,0.3);
+    font-family: 'Courier New', monospace;
+    display: block; margin-bottom: 6px;
+  }
+  /* 선택됨 */
+  .zone-card.selected {
+    border-color: var(--gold);
+    background: rgba(201,168,76,0.18);
+    color: var(--gold-l);
+    box-shadow: 0 0 12px rgba(201,168,76,0.25);
+  }
+  /* 정답 완료 */
+  .zone-card.done-correct {
+    border-color: rgba(82,183,136,0.4);
+    background: rgba(82,183,136,0.12);
+    color: rgba(82,183,136,0.6);
+    cursor: default;
+  }
+  .zone-card.done-correct::after {
+    content: '✓'; position: absolute;
+    top: 6px; right: 8px;
+    font-size: 11px; color: #52B788;
+  }
+  /* 오답 완료 */
+  .zone-card.done-wrong {
+    border-color: rgba(216,90,48,0.35);
+    background: rgba(216,90,48,0.1);
+    color: rgba(216,90,48,0.55);
+    cursor: default;
+  }
+  .zone-card.done-wrong::after {
+    content: '✗'; position: absolute;
+    top: 6px; right: 8px;
+    font-size: 11px; color: #D85A30;
+  }
+  .zone-board-tip {
+    font-size: 11px; color: rgba(248,244,238,0.25);
+    text-align: center; padding: 8px 20px 20px;
+    line-height: 1.6;
+  }
+
   /* 타석 준비 화면 */
   .atstep-screen {
     display: flex; flex-direction: column; align-items: center;
@@ -737,7 +828,18 @@
     </div>
   </div>
 
-  <!-- ② 타석 준비 화면 -->
+  <!-- ② 존 선택 보드 화면 -->
+  <div id="zone-board-screen">
+    <div class="zone-board-header">
+      <div class="zone-board-inning" id="zb-inning">1회 초 · 공격</div>
+      <div class="zone-board-title">▸ 스트라이크 존 · 타석을 선택하세요</div>
+      <div class="zone-board-sub" id="zb-remain">9개 중 9개 남음</div>
+    </div>
+    <div class="zone-board-grid" id="zone-board-grid"></div>
+    <div class="zone-board-tip">카드를 골라 타석에 들어서세요</div>
+  </div>
+
+  <!-- ③ 타석 준비 화면 -->
   <div id="atstep-screen" class="atstep-screen" style="display:none">
     <div class="atstep-inning" id="as-inning">1회 초 · 1번 타자</div>
     <div class="atstep-category" id="as-category">문학</div>
@@ -754,10 +856,10 @@
     <div class="atstep-keyword" id="pr-keyword">종이 위의 인간</div>
     <div class="atstep-sub" id="pr-sub">책 이름 / 작가 / 작품</div>
     <div class="atstep-hint" style="margin-top:20px;color:rgba(248,244,238,0.4)">
-      심호흡하고...<br>준비되면 투구를 받으세요.
+      투수가 공을 던질 준비를 합니다.<br>준비되면 사인을 보내세요.
     </div>
     <button class="btn-pregame" onclick="requestPitch()" style="background:var(--green-light);color:var(--ink)">
-      ⚾ 투구!
+      ⚾ 투수 셋 포지션
     </button>
   </div>
 
@@ -1056,6 +1158,111 @@ const MSGS_POOL={
 };
 // 랜덤 멘트 선택 함수
 function getMsg(key){ const pool=MSGS_POOL[key]; return pool[Math.floor(Math.random()*pool.length)]; }
+
+// ── 존 보드 전역 상태 ──
+let ZONE_BOARD = [];      // 현재 9개 존 카드 [{q, status:'pending'|'correct'|'wrong'}]
+let ZONE_SELECTED = null; // 현재 선택된 인덱스
+
+function buildZoneBoard() {
+  // seed_id별 중복 제거 후 랜덤 9개 선택
+  const seedMap = {};
+  [...QS].sort(() => Math.random() - 0.5).forEach(q => {
+    if (!seedMap[q.seed_id]) seedMap[q.seed_id] = q;
+  });
+  const picked = Object.values(seedMap).sort(() => Math.random() - 0.5).slice(0, 9);
+  ZONE_BOARD = picked.map(q => ({ q, status: 'pending' }));
+  ZONE_SELECTED = null;
+}
+
+function renderZoneBoard() {
+  const grid = document.getElementById('zone-board-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  const remain = ZONE_BOARD.filter(z => z.status === 'pending').length;
+  const zbRemain = document.getElementById('zb-remain');
+  if (zbRemain) zbRemain.textContent = `9개 중 ${remain}개 남음`;
+
+  ZONE_BOARD.forEach((zone, i) => {
+    const kw = zone.q.zone_keyword || zone.q.keyword || zone.q.cat.split('·')[0].trim();
+    const card = document.createElement('div');
+    card.className = 'zone-card';
+    if (zone.status === 'correct') card.classList.add('done-correct');
+    else if (zone.status === 'wrong') card.classList.add('done-wrong');
+    else if (ZONE_SELECTED === i) card.classList.add('selected');
+
+    card.innerHTML = `<span class="zc-num">ZONE ${i + 1}</span>${kw}`;
+
+    if (zone.status === 'pending') {
+      card.onclick = () => selectZone(i);
+    }
+    grid.appendChild(card);
+  });
+}
+
+function selectZone(idx) {
+  ZONE_SELECTED = idx;
+  SND.ding();
+  renderZoneBoard();
+  // 선택된 존의 문제를 st.qIdx에 반영
+  const selectedQ = ZONE_BOARD[idx].q;
+  // QS에서 해당 문제 인덱스 찾기
+  const qIdx = QS.findIndex(q => q.seed_id === selectedQ.seed_id && q.difficulty === selectedQ.difficulty);
+  if (qIdx >= 0) st.qIdx = qIdx;
+
+  // 잠깐 강조 후 투구 준비 화면으로
+  setTimeout(() => {
+    showZonePitchReady();
+  }, 400);
+}
+
+function showZoneBoardScreen() {
+  // 모두 소진 체크 → 셔플링
+  const remain = ZONE_BOARD.filter(z => z.status === 'pending').length;
+  if (remain === 0) {
+    buildZoneBoard();
+  }
+
+  // 이닝 표시
+  const half = st.isAttack ? (currentIsHome ? '말' : '초') : (currentIsHome ? '초' : '말');
+  const arrow = st.isAttack ? (currentIsHome ? '▽' : '▲') : (currentIsHome ? '▲' : '▽');
+  const zbInning = document.getElementById('zb-inning');
+  if (zbInning) zbInning.textContent = `${st.inning}회 ${half} ${arrow} · ${st.atbat}번 타자`;
+
+  renderZoneBoard();
+
+  // 관중 소음 재생
+  SND.crowd_ambient();
+
+  // 화면 전환
+  document.getElementById('pregame-screen').style.display = 'none';
+  document.getElementById('atstep-screen').style.display = 'none';
+  document.getElementById('pitchready-screen').style.display = 'none';
+  document.getElementById('main-header').style.display = 'flex';
+  document.getElementById('main-content').style.display = 'flex';
+  document.getElementById('game-area').style.display = 'none';
+  document.getElementById('result-area').style.display = 'none';
+  document.getElementById('judging-area').style.display = 'none';
+  document.getElementById('reveal-screen').style.display = 'none';
+  document.getElementById('zone-board-screen').style.display = 'flex';
+}
+
+function showZonePitchReady() {
+  const zone = ZONE_BOARD[ZONE_SELECTED];
+  const q = zone.q;
+  const parts = q.cat.split('·');
+  const catMain = parts[0]?.trim() || q.cat;
+  const half = currentIsHome ? '말' : '초';
+  const arrow = currentIsHome ? '▽' : '▲';
+  const inningTxt = `${st.inning}회 ${half} ${arrow} · ${st.atbat}번 타자`;
+
+  document.getElementById('zone-board-screen').style.display = 'none';
+  document.getElementById('pitchready-screen').style.display = 'flex';
+  document.getElementById('pr-inning').textContent = inningTxt;
+  document.getElementById('pr-category').textContent = catMain;
+  document.getElementById('pr-keyword').textContent = q.zone_keyword || q.keyword || catMain;
+  document.getElementById('pr-sub').textContent = '배트를 꽉 쥐고 — 준비되면 사인을 보내세요';
+  renderBadge();
+}
 
 let st={
   qIdx:0,phase:'idle',typIdx:0,frozenText:'',isAttack:true,inning:1,
@@ -1458,7 +1665,43 @@ const SND = (()=>{
     audio.play().catch(()=>{});
   }
 
-  return { hit, homerun, out, type, pitch, cheer, crowd, organTension };
+  // 관중 소음 — m4a 파일 재생 (존 보드 화면)
+  function crowd_ambient(){
+    const audio = new Audio('crowd_ambient.m4a');
+    audio.volume = 0.55;
+    audio.loop = false;
+    audio.play().catch(()=>{});
+    return audio;
+  }
+
+  // 전광판 딩동 — 카드 선택 시
+  function ding(){
+    const c = getCtx();
+    const t = c.currentTime;
+    // 딩 — 맑은 벨 소리
+    const osc1 = c.createOscillator();
+    const gain1 = c.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(1047, t);      // C6
+    osc1.frequency.setValueAtTime(1319, t+0.01); // E6
+    gain1.gain.setValueAtTime(0.0, t);
+    gain1.gain.linearRampToValueAtTime(0.6, t+0.01);
+    gain1.gain.exponentialRampToValueAtTime(0.001, t+0.6);
+    osc1.connect(gain1); gain1.connect(c.destination);
+    osc1.start(t); osc1.stop(t+0.6);
+    // 동 — 약간 낮은 잔향
+    const osc2 = c.createOscillator();
+    const gain2 = c.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(784, t+0.08); // G5
+    gain2.gain.setValueAtTime(0.0, t+0.08);
+    gain2.gain.linearRampToValueAtTime(0.35, t+0.1);
+    gain2.gain.exponentialRampToValueAtTime(0.001, t+0.7);
+    osc2.connect(gain2); gain2.connect(c.destination);
+    osc2.start(t+0.08); osc2.stop(t+0.7);
+  }
+
+  return { hit, homerun, out, type, pitch, cheer, crowd, organTension, crowd_ambient, ding };
 })();
 
 function processAns(ans){
@@ -1476,6 +1719,10 @@ function processAns(ans){
   }
   const tp=Math.round(pct),tt=tp<=20?'극초반 반응!':tp<=50?'빠른 반응':'후반 타이밍';
   document.getElementById('stat-timing').textContent=tp+'%';
+  // 존 보드 상태 업데이트
+  if(ZONE_SELECTED !== null && ZONE_BOARD[ZONE_SELECTED]) {
+    ZONE_BOARD[ZONE_SELECTED].status = ok ? 'correct' : 'wrong';
+  }
   document.getElementById('input-panel').className='input-panel';
   document.getElementById('game-area').style.display='none';
   showJudging(getMsg(mk),()=>{
@@ -1488,6 +1735,10 @@ function processAns(ans){
 function doAutoOut(){
   if(st.phase==='judging'||st.phase==='idle')return;
   st.phase='judging';st.outs++;
+  // 존 보드 — 시간초과 = 오답
+  if(ZONE_SELECTED !== null && ZONE_BOARD[ZONE_SELECTED]) {
+    ZONE_BOARD[ZONE_SELECTED].status = 'wrong';
+  }
   document.getElementById('game-area').style.display='none';
   showJudging(getMsg('timeout'),()=>{
     st.totalAB++;renderOuts();updateStats();
@@ -1908,6 +2159,8 @@ function startGame(){
   fb.classList.add('game-active');
   // 홈=후공(말, isAttack=false), 원정=선공(초, isAttack=true)
   st.isAttack = !currentIsHome;
+  // 존 보드 초기화
+  buildZoneBoard();
   // 프리게임 → 타석 준비
   document.getElementById('pregame-screen').style.display = 'none';
   document.getElementById('main-header').style.display = 'flex';
@@ -1916,30 +2169,25 @@ function startGame(){
 }
 
 function showAtStep(){
-  // 현재 문제 카테고리 미리 보기
+  // 공격이면 → 존 보드 화면
+  if(st.isAttack){
+    document.getElementById('game-area').style.display = 'none';
+    document.getElementById('result-area').style.display = 'none';
+    document.getElementById('judging-area').style.display = 'none';
+    document.getElementById('reveal-screen').style.display = 'none';
+    showZoneBoardScreen();
+    return;
+  }
+
+  // 수비
   const q = getQ();
   const parts = q.cat.split('·');
   const catMain = parts[0]?.trim() || q.cat;
   const catSub  = parts[1]?.trim() || '';
-
-  // 이닝 표시
-  const half = st.isAttack ? (currentIsHome?'말':'초') : (currentIsHome?'초':'말');
-  const arrow = st.isAttack ? (currentIsHome?'▽':'▲') : (currentIsHome?'▲':'▽');
+  const half = currentIsHome?'초':'말';
+  const arrow = currentIsHome?'▲':'▽';
   const inningTxt = st.inning+'회 '+half+' '+arrow+' · '+st.atbat+'번 타자';
-
-  if(st.isAttack){
-    // 타격 → 타석 준비 화면
-    document.getElementById('game-area').style.display = 'none';
-    document.getElementById('result-area').style.display = 'none';
-    document.getElementById('judging-area').style.display = 'none';
-    document.getElementById('atstep-screen').style.display = 'flex';
-    document.getElementById('pitchready-screen').style.display = 'none';
-    document.getElementById('as-inning').textContent   = inningTxt;
-    document.getElementById('as-category').textContent = catMain;
-    document.getElementById('as-keyword').textContent  = getQ().keyword || catSub || catMain;
-    document.getElementById('as-sub').textContent      = '이 카테고리에서 출제됩니다';
-    renderBadge();
-  } else {
+  {
     // 수비 → 바로 투구 준비 (소로가 투수)
     document.getElementById('game-area').style.display = 'none';
     document.getElementById('result-area').style.display = 'none';
@@ -1982,6 +2230,7 @@ function requestPitch(){
 function switchHalf(){
   const rs = document.getElementById('reveal-screen');
   rs.style.display = 'none';
+  document.getElementById('zone-board-screen').style.display = 'none';
   document.getElementById('reveal-question').textContent = '';
   document.getElementById('reveal-answer').textContent = '';
   document.getElementById('reveal-commentary').textContent = '';
@@ -1998,6 +2247,7 @@ function nextQ(){
   // 각인 화면 완전 초기화
   const rs = document.getElementById('reveal-screen');
   rs.style.display = 'none';
+  document.getElementById('zone-board-screen').style.display = 'none';
   document.getElementById('reveal-question').textContent = '';
   document.getElementById('reveal-answer').textContent = '';
   document.getElementById('reveal-commentary').textContent = '';
