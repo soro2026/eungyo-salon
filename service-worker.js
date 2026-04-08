@@ -1,4 +1,4 @@
-const CACHE = 'eungyo-v6';
+const CACHE = 'eungyo-v7';
 const FILES = [
   '/eungyo-salon/',
   '/eungyo-salon/index.html',
@@ -9,6 +9,10 @@ const FILES = [
   '/eungyo-salon/questions_bam.json',
   '/eungyo-salon/intro_logo.mp4',
   '/eungyo-salon/organ01_game_opening.mp3',
+  '/eungyo-salon/match_up.mp3',
+  '/eungyo-salon/crowd_ambient.m4a',
+  '/eungyo-salon/drone_socrates.mp4',
+  '/eungyo-salon/matchup_title.png',
   '/eungyo-salon/stadium_socrates.jpg',
   '/eungyo-salon/stadium_proust.jpg',
   '/eungyo-salon/stadium_soro.jpg',
