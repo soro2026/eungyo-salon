@@ -1742,13 +1742,35 @@ async function loadQuestions() {
     initials: q.initials,
     library: q.library || {}
   })));
-  // 랜덤 셔플 (Fisher-Yates)
-  for(let i = QS.length - 1; i > 0; i--){
-    const j = Math.floor(Math.random() * (i + 1));
-    [QS[i], QS[j]] = [QS[j], QS[i]];
+  // ── 균등 분배 셔플 (seed_id별 골고루, 난이도 랜덤) ──
+  // 1. seed_id별로 그룹화
+  const seedMap = {};
+  QS.forEach(q => {
+    if(!seedMap[q.seed_id]) seedMap[q.seed_id] = [];
+    seedMap[q.seed_id].push(q);
+  });
+  // 2. 각 그룹 내부 난이도를 랜덤 셔플
+  Object.values(seedMap).forEach(group => {
+    for(let i = group.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [group[i], group[j]] = [group[j], group[i]];
+    }
+  });
+  // 3. 그룹 순서를 랜덤 셔플
+  const seeds = Object.keys(seedMap).sort(() => Math.random() - 0.5);
+  // 4. 라운드 로빈 — 각 그룹에서 1개씩 돌아가며 배열 구성
+  //    매 라운드 주제 순서도 다시 셔플 (패턴 방지)
+  const result = [];
+  const maxRounds = Math.max(...seeds.map(s => seedMap[s].length));
+  for(let round = 0; round < maxRounds; round++){
+    const roundSeeds = [...seeds].sort(() => Math.random() - 0.5);
+    roundSeeds.forEach(seed => {
+      if(seedMap[seed][round]) result.push(seedMap[seed][round]);
+    });
   }
+  QS = result;
   QS_LOADED = true;
-  console.log('문제 DB 로드 완료: 총 ' + QS.length + '문제 (랜덤 섞기 완료)');
+  console.log('문제 DB 로드 완료: 총 ' + QS.length + '문제 (균등 분배 셔플 완료 / ' + seeds.length + '주제)');
   // 매트릭스 갱신 (로드 후) - initGame 재실행으로 전체 갱신
   initGame();
 }
