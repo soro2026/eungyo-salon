@@ -1159,7 +1159,63 @@
     margin-bottom: 28px; text-align: center; line-height: 1.6;
   }
 
-  /* ── 인트로 화면 ── */
+  /* ── 로그인 화면 ── */
+  #login-screen {
+    position: fixed; inset: 0; z-index: 9997;
+    background: var(--green-deep);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 40px 24px;
+    animation: fadeIn 0.5s ease;
+  }
+  #login-screen.hidden { display: none; }
+  .login-logo {
+    width: 80px; height: 80px; border-radius: 50%;
+    overflow: hidden; margin-bottom: 24px;
+    box-shadow: 0 0 24px rgba(201,168,76,0.2);
+    border: 1px solid rgba(201,168,76,0.2);
+  }
+  .login-logo video { width: 100%; height: 100%; object-fit: cover; }
+  .login-title {
+    font-size: 13px; letter-spacing: 0.25em;
+    color: rgba(201,168,76,0.7); margin-bottom: 4px;
+  }
+  .login-sub {
+    font-size: 10px; letter-spacing: 0.15em;
+    color: rgba(248,244,238,0.25); margin-bottom: 40px;
+  }
+  .login-input {
+    width: 100%; max-width: 300px;
+    padding: 12px 16px; border-radius: 10px;
+    border: 1px solid rgba(248,244,238,0.15);
+    background: rgba(248,244,238,0.05);
+    color: var(--chalk); font-size: 14px;
+    outline: none; margin-bottom: 10px;
+    font-family: '-apple-system', 'Apple SD Gothic Neo', 'Malgun Gothic', serif;
+  }
+  .login-input:focus { border-color: var(--green-light); }
+  .login-input::placeholder { color: rgba(248,244,238,0.25); }
+  .login-btn {
+    width: 100%; max-width: 300px;
+    padding: 13px; border-radius: 10px; border: none;
+    background: var(--gold); color: var(--ink);
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    letter-spacing: 0.05em; margin-bottom: 12px;
+    font-family: '-apple-system', 'Apple SD Gothic Neo', 'Malgun Gothic', serif;
+    transition: all 0.15s;
+  }
+  .login-btn:hover { background: var(--gold-l); }
+  .login-btn.secondary {
+    background: transparent; color: var(--chalk-dim);
+    border: 1px solid rgba(248,244,238,0.15); font-size: 13px;
+  }
+  .login-msg {
+    font-size: 11px; color: rgba(248,244,238,0.4);
+    text-align: center; margin-top: 8px; line-height: 1.6;
+    min-height: 20px;
+  }
+  .login-msg.error { color: #E8856A; }
+  .login-msg.success { color: var(--green-light); }
   #intro-screen {
     position: fixed; inset: 0; z-index: 9999;
     background: #1B4332;
@@ -1307,6 +1363,7 @@
   .btn-reveal-next:hover { background: rgba(248,244,238,0.12); }
 
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   if('serviceWorker' in navigator){
     window.addEventListener('load', ()=>{
@@ -1317,6 +1374,26 @@
 </head>
 <body>
 
+
+<!-- ── 로그인 화면 ── -->
+<div id="login-screen" class="hidden">
+  <div class="login-logo">
+    <video autoplay muted playsinline loop>
+      <source src="intro_logo.mp4" type="video/mp4">
+    </video>
+  </div>
+  <div class="login-title">EG 은교살롱</div>
+  <div class="login-sub">은밀하게 스며드는 교양</div>
+
+  <!-- 이메일 입력 -->
+  <div id="login-email-wrap" style="width:100%;max-width:300px">
+    <input class="login-input" id="login-email" type="email" placeholder="이메일 주소"/>
+    <input class="login-input" id="login-password" type="password" placeholder="비밀번호 (6자 이상)"/>
+    <button class="login-btn" onclick="doLogin()">⚾ 로그인</button>
+    <button class="login-btn secondary" onclick="doSignup()">처음이신가요? 회원가입</button>
+    <div class="login-msg" id="login-msg"></div>
+  </div>
+</div>
 
 <!-- ── 인트로 화면 ── -->
 <div id="intro-screen">
@@ -2878,7 +2955,8 @@ function showGameResult(){
     </div>
   `;
   ra.style.display='block';
-}
+  // Supabase에 스탯 저장
+  saveStatsToSupabase();
 
 // ── 게임 흐름 제어 ──────────────────────────────
 // 루키리그 상대팀 데이터
@@ -3587,6 +3665,178 @@ function goToStadium() {
 
 <script>
   window.addEventListener('load', ()=>{ loadQuestions(); })
+</script>
+
+<script>
+// ── Supabase 초기화 ──────────────────────────────
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+let currentUser = null;
+let currentSeasonId = 1;
+
+// ── 앱 시작 — 로그인 상태 확인 ──
+async function initAuth() {
+  const { data: { session } } = await supa.auth.getSession();
+  if (session) {
+    currentUser = session.user;
+    console.log('로그인 상태:', currentUser.email);
+    // 로그인 화면 스킵, 인트로로
+    document.getElementById('login-screen').classList.add('hidden');
+  } else {
+    // 로그인 화면 표시
+    document.getElementById('intro-screen').style.display = 'none';
+    document.getElementById('login-screen').classList.remove('hidden');
+  }
+}
+
+// ── 로그인 ──
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pw = document.getElementById('login-password').value;
+  const msg = document.getElementById('login-msg');
+  msg.textContent = '로그인 중...'; msg.className = 'login-msg';
+
+  const { data, error } = await supa.auth.signInWithPassword({ email, password: pw });
+  if (error) {
+    msg.textContent = '이메일 또는 비밀번호를 확인해주세요.';
+    msg.className = 'login-msg error'; return;
+  }
+  currentUser = data.user;
+  msg.textContent = '로그인 성공! ⚾'; msg.className = 'login-msg success';
+  setTimeout(() => {
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('intro-screen').style.display = 'flex';
+  }, 800);
+}
+
+// ── 회원가입 ──
+async function doSignup() {
+  const email = document.getElementById('login-email').value.trim();
+  const pw = document.getElementById('login-password').value;
+  const msg = document.getElementById('login-msg');
+  if (!email || pw.length < 6) {
+    msg.textContent = '이메일과 비밀번호(6자 이상)를 입력해주세요.';
+    msg.className = 'login-msg error'; return;
+  }
+  msg.textContent = '가입 중...'; msg.className = 'login-msg';
+
+  const { data, error } = await supa.auth.signUp({ email, password: pw });
+  if (error) {
+    msg.textContent = '가입 실패: ' + error.message;
+    msg.className = 'login-msg error'; return;
+  }
+  currentUser = data.user;
+
+  // users 테이블에 프로필 생성
+  await supa.from('users').upsert({
+    id: currentUser.id,
+    nickname: email.split('@')[0],
+    league: 'ROOKIE',
+  });
+  // career_stats 초기화
+  await supa.from('career_stats').upsert({ uid: currentUser.id });
+
+  msg.textContent = '가입 완료! 환영합니다 ⚾'; msg.className = 'login-msg success';
+  setTimeout(() => {
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('intro-screen').style.display = 'flex';
+  }, 800);
+}
+
+// ── 게임 종료 후 스탯 저장 ──
+async function saveStatsToSupabase() {
+  if (!currentUser) return;
+  try {
+    const ab = st.totalAB || 0;
+    const avg = ab ? st.hits / ab : 0;
+    const obp = ab ? (st.hits + st.bb) / ab : 0;
+    const slg = ab ? (st.singles + st.doubles*2 + st.triples*3 + st.hr*4) / ab : 0;
+
+    const won = st.scoreMe > st.scoreAi ? 1 : 0;
+    const lost = st.scoreMe < st.scoreAi ? 1 : 0;
+
+    // season_stats upsert
+    const { data: existing } = await supa
+      .from('season_stats')
+      .select('*')
+      .eq('uid', currentUser.id)
+      .eq('season_id', currentSeasonId)
+      .single();
+
+    if (existing) {
+      await supa.from('season_stats').update({
+        games: existing.games + 1,
+        wins: existing.wins + won,
+        losses: existing.losses + lost,
+        hits: existing.hits + st.hits,
+        at_bats: existing.at_bats + st.totalAB,
+        hr: existing.hr + st.hr,
+        rbi: existing.rbi + st.rbi,
+        singles: existing.singles + st.singles,
+        doubles: existing.doubles + st.doubles,
+        triples: existing.triples + st.triples,
+        bb: existing.bb + st.bb,
+        earned_runs: existing.earned_runs + st.earnedRuns,
+        outs_recorded: existing.outs_recorded + st.outsRecorded,
+        tq: existing.tq + st.tq,
+        updated_at: new Date().toISOString(),
+      }).eq('uid', currentUser.id).eq('season_id', currentSeasonId);
+    } else {
+      await supa.from('season_stats').insert({
+        uid: currentUser.id,
+        season_id: currentSeasonId,
+        games: 1, wins: won, losses: lost,
+        hits: st.hits, at_bats: st.totalAB,
+        hr: st.hr, rbi: st.rbi,
+        singles: st.singles, doubles: st.doubles, triples: st.triples,
+        bb: st.bb, earned_runs: st.earnedRuns,
+        outs_recorded: st.outsRecorded, tq: st.tq,
+      });
+    }
+
+    // career_stats 누적
+    const { data: career } = await supa
+      .from('career_stats').select('*')
+      .eq('uid', currentUser.id).single();
+
+    if (career) {
+      const newApples = career.golden_apples + won;
+      await supa.from('career_stats').update({
+        games: career.games + 1,
+        wins: career.wins + won,
+        losses: career.losses + lost,
+        hits: career.hits + st.hits,
+        at_bats: career.at_bats + st.totalAB,
+        hr: career.hr + st.hr,
+        rbi: career.rbi + st.rbi,
+        singles: career.singles + st.singles,
+        doubles: career.doubles + st.doubles,
+        triples: career.triples + st.triples,
+        bb: career.bb + st.bb,
+        earned_runs: career.earned_runs + st.earnedRuns,
+        outs_recorded: career.outs_recorded + st.outsRecorded,
+        golden_apples: newApples,
+        updated_at: new Date().toISOString(),
+      }).eq('uid', currentUser.id);
+
+      // 황금사과 로그
+      if (won) {
+        await supa.from('apple_log').insert({
+          uid: currentUser.id, amount: 1, reason: '경기 승리'
+        });
+      }
+    }
+
+    console.log('스탯 저장 완료 ⚾');
+  } catch(e) {
+    console.error('스탯 저장 실패:', e);
+  }
+}
+
+// ── 앱 시작 ──
+initAuth();
 </script>
 </body>
 </html>
