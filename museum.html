@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EG뮤세움</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --gold: #C9A84C;
+    --gold-dim: rgba(201,168,76,0.4);
+    --chalk: #F8F4EE;
+    --ink: #1A0F04;
+    --wood: #2A1A08;
+    --wood-dark: #120D06;
+  }
+
+  body {
+    background: var(--wood-dark);
+    font-family: 'Noto Serif KR', Georgia, serif;
+    color: var(--chalk);
+    min-height: 100vh;
+  }
+
+  /* ── 헤더 ── */
+  .museum-header {
+    background: var(--wood-dark);
+    border-bottom: 1px solid var(--gold-dim);
+    padding: 16px 20px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .museum-header-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 13px;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+  }
+  .museum-header-sub {
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    color: rgba(248,244,238,0.3);
+    margin-top: 2px;
+  }
+  .museum-total {
+    font-size: 11px;
+    color: rgba(201,168,76,0.5);
+    font-family: 'Courier New', monospace;
+  }
+
+  /* ── 서가 컨테이너 ── */
+  .bookshelf-container {
+    padding: 0 0 40px;
+  }
+
+  /* ── 카테고리 행 ── */
+  .shelf-row {
+    position: relative;
+    margin-bottom: 2px;
+  }
+
+  /* 카테고리 레이블 */
+  .shelf-label {
+    padding: 14px 20px 6px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .shelf-cat-name {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--gold);
+    letter-spacing: 0.05em;
+  }
+  .shelf-cat-sub {
+    font-size: 10px;
+    color: rgba(248,244,238,0.3);
+    letter-spacing: 0.1em;
+  }
+  .shelf-cat-count {
+    font-size: 9px;
+    color: rgba(201,168,76,0.35);
+    font-family: 'Courier New', monospace;
+    margin-left: auto;
+  }
+
+  /* 책 스크롤 영역 */
+  .shelf-books {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    padding: 0 20px 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    position: relative;
+    min-height: 140px;
+  }
+  .shelf-books::-webkit-scrollbar { display: none; }
+
+  /* 책 아이템 */
+  .book-item {
+    flex-shrink: 0;
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .book-item:hover {
+    transform: translateY(-10px);
+  }
+
+  .book-img {
+    display: block;
+    height: var(--book-h, 130px);
+    width: auto;
+    max-width: 52px;
+    min-width: 28px;
+    object-fit: cover;
+    border-radius: 1px 3px 3px 1px;
+  }
+
+  /* 책 등 텍스트 */
+  .book-text {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    font-size: 9px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.85);
+    letter-spacing: 0.08em;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+    padding: 8px 2px;
+    line-height: 1.2;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  /* 진행도 점 */
+  .book-progress {
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 2px;
+  }
+  .progress-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--gold);
+    opacity: 0.8;
+  }
+
+  /* 완독 별 */
+  .book-star {
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    filter: drop-shadow(0 0 4px rgba(201,168,76,0.8));
+  }
+
+  /* 빈 서가 */
+  .shelf-empty {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 20px 0 12px;
+    opacity: 0.4;
+  }
+  .empty-line {
+    height: 1px;
+    background: rgba(201,168,76,0.2);
+    flex: 1;
+  }
+  .empty-text {
+    font-size: 10px;
+    color: rgba(248,244,238,0.3);
+    letter-spacing: 0.12em;
+    font-style: italic;
+    white-space: nowrap;
+  }
+
+  /* 더보기 버튼 */
+  .more-btn {
+    flex-shrink: 0;
+    align-self: center;
+    padding: 6px 12px;
+    border: 1px solid rgba(201,168,76,0.25);
+    border-radius: 20px;
+    background: rgba(201,168,76,0.06);
+    color: rgba(201,168,76,0.6);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: 'Noto Serif KR', serif;
+    margin-left: 6px;
+    transition: all 0.15s;
+  }
+  .more-btn:hover {
+    background: rgba(201,168,76,0.12);
+    color: var(--gold);
+  }
+
+  /* 선반 나무 */
+  .shelf-wood {
+    height: 6px;
+    background: linear-gradient(to bottom, #3D2A0E, #2A1A08);
+    margin: 4px 20px 16px;
+    border-radius: 1px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  }
+
+  /* ── 카테고리 상세 뷰 ── */
+  .category-detail {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: var(--wood-dark);
+    z-index: 200;
+    overflow-y: auto;
+    animation: slideIn 0.3s ease;
+  }
+  .category-detail.open { display: block; }
+  @keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to   { transform: translateX(0); opacity: 1; }
+  }
+  .detail-header {
+    background: var(--wood-dark);
+    border-bottom: 1px solid var(--gold-dim);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .detail-back {
+    font-size: 18px;
+    color: var(--gold);
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 4px;
+  }
+  .detail-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 16px;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+  }
+  .detail-books-grid {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 6px;
+    padding: 20px;
+  }
+</style>
+</head>
+<body>
+
+<!-- 헤더 -->
+<div class="museum-header">
+  <div>
+    <div class="museum-header-title">EG 뮤세움</div>
+    <div class="museum-header-sub">나만의 교양 서재</div>
+  </div>
+  <div class="museum-total" id="totalCount">0권</div>
+</div>
+
+<!-- 서가 -->
+<div class="bookshelf-container" id="bookshelfContainer"></div>
+
+<!-- 카테고리 상세 -->
+<div class="category-detail" id="categoryDetail">
+  <div class="detail-header">
+    <button class="detail-back" onclick="closeDetail()">←</button>
+    <div>
+      <div class="detail-title" id="detailTitle"></div>
+      <div style="font-size:10px;color:rgba(248,244,238,0.3);letter-spacing:0.1em" id="detailSub"></div>
+    </div>
+  </div>
+  <div class="detail-books-grid" id="detailBooks"></div>
+</div>
+
+<script>
+const BASE = '/eungyo-salon/';
+const BOOK_IMAGES = ['book01','book02','book03','book04','book05','book06','book07','book08','book09','book10'];
+const PREVIEW_MAX = 15;
+
+// 12개 카테고리
+const CATEGORIES = [
+  { id: 'lit',    name: '문학',   sub: '종이 위의 인간' },
+  { id: 'phi',    name: '철학',   sub: '생각의 탄생' },
+  { id: 'his',    name: '역사',   sub: '시간의 지층' },
+  { id: 'art',    name: '예술',   sub: '아름다움의 형식' },
+  { id: 'myth',   name: '신화',   sub: '신들의 정원' },
+  { id: 'sci',    name: '과학',   sub: '우주의 문법' },
+  { id: 'inner',  name: '내면',   sub: '마음의 풍경' },
+  { id: 'power',  name: '사회',   sub: '권력과 연대' },
+  { id: 'spirit', name: '영성',   sub: '신과 인간' },
+  { id: 'eco',    name: '생태',   sub: '자연의 질서' },
+  { id: 'geo',    name: '지리',   sub: '도시와 장소' },
+  { id: 'food',   name: '음식',   sub: '삶의 맛' },
+];
+
+// 샘플 책 데이터 (실제로는 Supabase에서 불러옴)
+const SAMPLE_BOOKS = {
+  lit: [
+    { answer: '화씨 451', d: 3, img: 'book01' },
+    { answer: '노인과 바다', d: 2, img: 'book06' },
+    { answer: '1984', d: 3, img: 'book02' },
+    { answer: '데미안', d: 1, img: 'book03' },
+    { answer: '이방인', d: 2, img: 'book05' },
+    { answer: '변신', d: 1, img: 'book07' },
+    { answer: '죄와 벌', d: 3, img: 'book09' },
+  ],
+  phi: [
+    { answer: '차라투스트라', d: 3, img: 'book04' },
+    { answer: '소크라테스의 변론', d: 1, img: 'book08' },
+    { answer: '명상록', d: 2, img: 'book10' },
+  ],
+  his: [
+    { answer: '로제타 스톤', d: 3, img: 'book02' },
+    { answer: '총균쇠', d: 2, img: 'book05' },
+  ],
+  art: [
+    { answer: '다비드', d: 3, img: 'book03' },
+    { answer: '모나리자', d: 2, img: 'book01' },
+  ],
+  myth: [
+    { answer: '어머니의 뼈', d: 2, img: 'book06' },
+  ],
+  sci: [
+    { answer: '암석의 순환', d: 1, img: 'book09' },
+  ],
+  inner: [],
+  power: [
+    { answer: '베를린 장벽', d: 2, img: 'book07' },
+  ],
+  spirit: [
+    { answer: '사도 베드로', d: 3, img: 'book04' },
+  ],
+  eco: [
+    { answer: '이끼', d: 1, img: 'book08' },
+  ],
+  geo: [
+    { answer: '스톤헨지', d: 3, img: 'book10' },
+  ],
+  food: [
+    { answer: '돌솥비빔밥', d: 1, img: 'book05' },
+  ],
+};
+
+// 랜덤 책 이미지 배정 (seed 기반)
+function getBookImg(answer) {
+  let hash = 0;
+  for (let c of answer) hash = (hash * 31 + c.charCodeAt(0)) & 0xfffff;
+  return BOOK_IMAGES[hash % BOOK_IMAGES.length];
+}
+
+// 책 높이 (두께 다양하게)
+function getBookHeight(answer) {
+  let hash = 0;
+  for (let c of answer) hash = (hash * 17 + c.charCodeAt(0)) & 0xfffff;
+  const heights = [110, 118, 125, 130, 135, 140, 128, 122, 115, 132];
+  return heights[hash % heights.length];
+}
+
+function makeBookEl(book, small = false) {
+  const img = book.img || getBookImg(book.answer);
+  const h = getBookHeight(book.answer);
+  const div = document.createElement('div');
+  div.className = 'book-item';
+  div.style.setProperty('--book-h', (small ? Math.round(h * 0.85) : h) + 'px');
+  div.onclick = () => openBook(book);
+
+  const imgEl = document.createElement('img');
+  imgEl.className = 'book-img';
+  imgEl.src = BASE + img + '.png';
+  imgEl.style.height = (small ? Math.round(h * 0.85) : h) + 'px';
+  imgEl.alt = book.answer;
+
+  const textEl = document.createElement('div');
+  textEl.className = 'book-text';
+  textEl.textContent = book.answer;
+
+  div.appendChild(imgEl);
+  div.appendChild(textEl);
+
+  // 진행도 표시
+  if (book.d >= 1) {
+    const prog = document.createElement('div');
+    prog.className = 'book-progress';
+    for (let i = 0; i < Math.min(book.d, 3); i++) {
+      const dot = document.createElement('div');
+      dot.className = 'progress-dot';
+      prog.appendChild(dot);
+    }
+    div.appendChild(prog);
+  }
+
+  // 완독 별
+  if (book.d >= 3) {
+    const star = document.createElement('div');
+    star.className = 'book-star';
+    star.textContent = '⭐';
+    div.appendChild(star);
+  }
+
+  return div;
+}
+
+function renderShelf() {
+  const container = document.getElementById('bookshelfContainer');
+  let totalBooks = 0;
+
+  CATEGORIES.forEach(cat => {
+    const books = SAMPLE_BOOKS[cat.id] || [];
+    totalBooks += books.length;
+
+    const row = document.createElement('div');
+    row.className = 'shelf-row';
+
+    // 레이블
+    const label = document.createElement('div');
+    label.className = 'shelf-label';
+    label.innerHTML = `
+      <span class="shelf-cat-name">${cat.name}</span>
+      <span class="shelf-cat-sub">${cat.sub}</span>
+      <span class="shelf-cat-count">${books.length}권</span>
+    `;
+    row.appendChild(label);
+
+    // 책 영역
+    const shelfEl = document.createElement('div');
+    shelfEl.className = 'shelf-books';
+
+    if (books.length === 0) {
+      shelfEl.innerHTML = `
+        <div class="shelf-empty">
+          <div class="empty-line"></div>
+          <span class="empty-text">아직 탐험하지 않은 영역</span>
+          <div class="empty-line"></div>
+        </div>
+      `;
+    } else {
+      const preview = books.slice(0, PREVIEW_MAX);
+      preview.forEach(book => {
+        shelfEl.appendChild(makeBookEl(book));
+      });
+
+      if (books.length > PREVIEW_MAX) {
+        const btn = document.createElement('button');
+        btn.className = 'more-btn';
+        btn.textContent = `→ 더보기 (총 ${books.length}권)`;
+        btn.onclick = (e) => { e.stopPropagation(); openDetail(cat, books); };
+        shelfEl.appendChild(btn);
+      }
+    }
+
+    row.appendChild(shelfEl);
+
+    // 선반
+    const wood = document.createElement('div');
+    wood.className = 'shelf-wood';
+    row.appendChild(wood);
+
+    container.appendChild(row);
+  });
+
+  document.getElementById('totalCount').textContent = totalBooks + '권';
+}
+
+function openDetail(cat, books) {
+  document.getElementById('detailTitle').textContent = cat.name + ' · ' + cat.sub;
+  document.getElementById('detailSub').textContent = '총 ' + books.length + '권';
+  const grid = document.getElementById('detailBooks');
+  grid.innerHTML = '';
+  books.forEach(book => grid.appendChild(makeBookEl(book)));
+  document.getElementById('categoryDetail').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('categoryDetail').classList.remove('open');
+}
+
+function openBook(book) {
+  // 나중에 책 페이지 넘기기 모달로 연결
+  alert('📖 ' + book.answer + '\n\n(책 상세 페이지 — 구현 예정)');
+}
+
+renderShelf();
+</script>
+</body>
+</html>
