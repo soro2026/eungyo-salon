@@ -597,6 +597,40 @@
     flex-shrink: 0;
   }
 
+  /* ── 카드 슬라이드 화면 ── */
+  .card-slide-wrap {
+    width: 100%; position: relative;
+    overflow: hidden; margin-top: 16px;
+    flex-shrink: 0;
+  }
+  .card-slide-track {
+    display: flex; width: 200%;
+    transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
+  }
+  .card-slide-item {
+    width: 50%; flex-shrink: 0;
+    padding: 0 20px;
+  }
+  .card-slide-item img {
+    width: 100%; border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    display: block;
+  }
+  /* 슬라이드 인디케이터 */
+  .card-slide-dots {
+    display: flex; justify-content: center;
+    gap: 8px; margin-top: 12px; margin-bottom: 4px;
+  }
+  .card-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: rgba(248,244,238,0.25);
+    transition: all 0.3s;
+  }
+  .card-dot.active {
+    background: var(--gold);
+    width: 20px; border-radius: 3px;
+  }
+
   /* ── 스타디움 홈 화면 ── */
   #stadium-home-screen {
     display: none; flex-direction: column;
@@ -1459,49 +1493,37 @@
     </div>
   </div>
 
-  <!-- ③ 입장 화면 (드론영상 + 야구카드) -->
+  <!-- ③ 입장 화면 (드론영상 + 카드 슬라이드) -->
   <div id="entry-screen">
     <!-- 드론 영상 -->
     <div class="entry-drone-wrap">
-      <video id="entry-drone-video" autoplay muted playsinline>
+      <video id="entry-drone-video" autoplay playsinline>
         <source src="drone_socrates.mp4" type="video/mp4">
       </video>
       <div class="entry-drone-overlay"></div>
       <div class="entry-drone-label" id="entry-drone-label">⚾ 원정 경기 · 입장 중</div>
     </div>
 
-    <!-- 야구카드 -->
-    <div class="baseball-card" id="baseball-card">
-      <div class="bc-photo">
-        <img class="bc-photo-img" id="bc-photo-img" src="emblem_proust.jpg" alt="">
-        <div class="bc-logo-overlay">
-          <div class="bc-logo-big">
-            <img id="bc-logo-big-img" src="emblem_proust.jpg" alt="">
-          </div>
+    <!-- 카드 슬라이드 (상대 ↔ 소로 5초 교대) -->
+    <div class="card-slide-wrap">
+      <div class="card-slide-track" id="card-slide-track">
+        <div class="card-slide-item">
+          <img id="card-opp-img" src="card_pascal2.png" alt="상대 카드">
         </div>
-        <div class="bc-name-wrap">
-          <div class="bc-position" id="bc-position">교양 메이저리그 · ROOKIE</div>
-          <div class="bc-name" id="bc-name">프루스트의 마들렌</div>
+        <div class="card-slide-item">
+          <img id="card-soro-img" src="card_soro.png" alt="소로 카드">
         </div>
       </div>
-      <div class="bc-stats" id="bc-stats">
-        <div class="bc-stats-label">SABERMETRICS · LAST SEASON</div>
-        <div class="bc-stats-grid" id="bc-stats-grid"></div>
-        <div class="bc-stat-divider"></div>
-        <div class="bc-stats-grid" id="bc-stats-grid2"></div>
-      </div>
-      <div class="bc-footer">
-        <div class="bc-footer-logo">
-          <img id="bc-footer-logo-img" src="emblem_proust.jpg" alt="">
-        </div>
-        <div class="bc-footer-text" id="bc-footer-text">EG UNIVERSE · ROOKIE LEAGUE</div>
+      <div class="card-slide-dots">
+        <div class="card-dot active" id="dot-0"></div>
+        <div class="card-dot" id="dot-1"></div>
       </div>
     </div>
 
     <!-- 입장 버튼 -->
     <div class="entry-bottom">
       <button class="btn-pregame" onclick="enterZoneBoard()" style="width:100%;max-width:320px">
-        ⚾ 타석 선택하기
+        ⚾ 필드 입장하기
       </button>
     </div>
   </div>
@@ -2838,50 +2860,77 @@ const OPP_STATS = {
   }
 };
 
+// 카드 슬라이드 타이머
+let cardSlideTimer = null;
+let cardSlideIdx = 0;
+
+function startCardSlide() {
+  cardSlideIdx = 0;
+  updateCardSlide();
+  if(cardSlideTimer) clearInterval(cardSlideTimer);
+  cardSlideTimer = setInterval(() => {
+    cardSlideIdx = cardSlideIdx === 0 ? 1 : 0;
+    updateCardSlide();
+  }, 5000);
+}
+
+function updateCardSlide() {
+  const track = document.getElementById('card-slide-track');
+  if(track) track.style.transform = cardSlideIdx === 0 ? 'translateX(0)' : 'translateX(-50%)';
+  [0,1].forEach(i => {
+    const dot = document.getElementById('dot-' + i);
+    if(dot) dot.className = 'card-dot' + (i === cardSlideIdx ? ' active' : '');
+  });
+}
+
+function stopCardSlide() {
+  if(cardSlideTimer) { clearInterval(cardSlideTimer); cardSlideTimer = null; }
+}
+
 function showEntryScreen() {
   const opp = currentOpp;
   if(!opp) return;
 
-  // 드론 영상 — 지금은 모두 socrates로 통일
+  // 드론 영상 — 구장별 연동
+  const key = opp.emblemImg.replace('emblem_','').replace('.jpg','');
+  const droneMap = {
+    proust:   'drone_proust.mp4',
+    socrates: 'drone_socrates.mp4',
+    pascal:   'drone_pascal.mp4',
+    soro:     'drone_soro.mp4',
+  };
+  const stadiumKey = currentIsHome ? 'soro' : key;
+  const droneSrc = droneMap[stadiumKey] || 'drone_socrates.mp4';
+
   const droneVideo = document.getElementById('entry-drone-video');
   if(droneVideo) {
-    droneVideo.src = 'drone_socrates.mp4';
+    // 소크라테스 구장은 무음, 나머지는 오디오 포함
+    droneVideo.muted = (stadiumKey === 'socrates');
+    droneVideo.src = droneSrc;
     droneVideo.load();
     droneVideo.play().catch(()=>{});
   }
+
+  // 소크라테스 구장만 crowd_ambient 재생
+  if(stadiumKey === 'socrates') {
+    SND.crowd_ambient();
+  }
+
   const droneLabel = document.getElementById('entry-drone-label');
   if(droneLabel) droneLabel.textContent = (currentIsHome ? '🏠 홈 경기' : '✈️ 원정 경기') + ' · ' + opp.stadium;
 
-  // 야구카드 채우기
-  const key = opp.emblemImg.replace('emblem_','').replace('.jpg','');
-  const stats = OPP_STATS[key] || OPP_STATS.proust;
+  // 상대 카드 이미지 연동
+  const cardMap = {
+    proust:   'card_proust2.png',
+    socrates: 'card_socrates2.png',
+    pascal:   'card_pascal2.png',
+  };
+  const oppCardSrc = cardMap[key] || 'card_pascal2.png';
+  const oppCardEl = document.getElementById('card-opp-img');
+  if(oppCardEl) oppCardEl.src = oppCardSrc;
 
-  document.getElementById('bc-photo-img').src = opp.emblemImg;
-  document.getElementById('bc-logo-big-img').src = opp.emblemImg;
-  document.getElementById('bc-footer-logo-img').src = opp.emblemImg;
-  document.getElementById('bc-name').textContent = opp.name;
-  document.getElementById('bc-position').textContent = 'EG UNIVERSE · ROOKIE LEAGUE';
-  document.getElementById('bc-footer-text').textContent = opp.stadium.toUpperCase();
-
-  // 팀 컬러 배경
-  const bcStats = document.getElementById('bc-stats');
-  if(bcStats) bcStats.style.background = opp.color || '#0F2D5C';
-
-  // 스탯 그리드
-  const grid1 = document.getElementById('bc-stats-grid');
-  const grid2 = document.getElementById('bc-stats-grid2');
-  grid1.innerHTML = stats.top.map(s =>
-    `<div class="bc-stat-item">
-      <span class="bc-stat-label">${s.label}</span>
-      <span class="bc-stat-val">${s.val}</span>
-    </div>`
-  ).join('');
-  grid2.innerHTML = stats.bot.map(s =>
-    `<div class="bc-stat-item">
-      <span class="bc-stat-label">${s.label}</span>
-      <span class="bc-stat-val">${s.val}</span>
-    </div>`
-  ).join('');
+  // 카드 슬라이드 시작
+  startCardSlide();
 
   // 화면 전환
   document.getElementById('pregame-screen').style.display = 'none';
@@ -2894,6 +2943,7 @@ function showEntryScreen() {
 }
 
 function enterZoneBoard() {
+  stopCardSlide();
   document.getElementById('entry-screen').style.display = 'none';
   // 오르간 + 존보드
   const opening = new Audio('organ01_game_opening.mp3');
