@@ -1504,14 +1504,20 @@
       <div class="entry-drone-label" id="entry-drone-label">⚾ 원정 경기 · 입장 중</div>
     </div>
 
-    <!-- 카드 슬라이드 (상대 ↔ 소로 5초 교대) -->
+    <!-- 카드 슬라이드 (상대 ↔ 소로 5초 교대 무한루프) -->
     <div class="card-slide-wrap">
-      <div class="card-slide-track" id="card-slide-track">
-        <div class="card-slide-item">
+      <div class="card-slide-track" id="card-slide-track" style="width:400%">
+        <div class="card-slide-item" style="width:25%">
           <img id="card-opp-img" src="card_pascal2.png" alt="상대 카드">
         </div>
-        <div class="card-slide-item">
+        <div class="card-slide-item" style="width:25%">
           <img id="card-soro-img" src="card_soro.png" alt="소로 카드">
+        </div>
+        <div class="card-slide-item" style="width:25%">
+          <img id="card-opp-img2" src="card_pascal2.png" alt="상대 카드">
+        </div>
+        <div class="card-slide-item" style="width:25%">
+          <img id="card-soro-img2" src="card_soro.png" alt="소로 카드">
         </div>
       </div>
       <div class="card-slide-dots">
@@ -2866,20 +2872,41 @@ let cardSlideIdx = 0;
 
 function startCardSlide() {
   cardSlideIdx = 0;
-  updateCardSlide();
+  const track = document.getElementById('card-slide-track');
+  if(track) {
+    track.style.transition = 'none';
+    track.style.transform = 'translateX(0)';
+  }
+  updateCardDots(0);
   if(cardSlideTimer) clearInterval(cardSlideTimer);
   cardSlideTimer = setInterval(() => {
-    cardSlideIdx = cardSlideIdx === 0 ? 1 : 0;
-    updateCardSlide();
+    cardSlideIdx++;
+    const track = document.getElementById('card-slide-track');
+    if(!track) return;
+    track.style.transition = 'transform 0.6s cubic-bezier(0.4,0,0.2,1)';
+    // 4장 트랙에서 25%씩 이동
+    track.style.transform = `translateX(-${cardSlideIdx * 25}%)`;
+    updateCardDots(cardSlideIdx % 2);
+    // 3번째(인덱스2) 상대 카드까지 오면 → 순간이동으로 처음으로
+    if(cardSlideIdx === 2) {
+      setTimeout(() => {
+        if(!cardSlideTimer) return;
+        const t = document.getElementById('card-slide-track');
+        if(t) {
+          t.style.transition = 'none';
+          t.style.transform = 'translateX(0)';
+        }
+        cardSlideIdx = 0;
+        updateCardDots(0);
+      }, 600);
+    }
   }, 5000);
 }
 
-function updateCardSlide() {
-  const track = document.getElementById('card-slide-track');
-  if(track) track.style.transform = cardSlideIdx === 0 ? 'translateX(0)' : 'translateX(-50%)';
+function updateCardDots(activeIdx) {
   [0,1].forEach(i => {
     const dot = document.getElementById('dot-' + i);
-    if(dot) dot.className = 'card-dot' + (i === cardSlideIdx ? ' active' : '');
+    if(dot) dot.className = 'card-dot' + (i === activeIdx ? ' active' : '');
   });
 }
 
@@ -2928,6 +2955,8 @@ function showEntryScreen() {
   const oppCardSrc = cardMap[key] || 'card_pascal2.png';
   const oppCardEl = document.getElementById('card-opp-img');
   if(oppCardEl) oppCardEl.src = oppCardSrc;
+  const oppCardEl2 = document.getElementById('card-opp-img2');
+  if(oppCardEl2) oppCardEl2.src = oppCardSrc;
 
   // 카드 슬라이드 시작
   startCardSlide();
@@ -2945,10 +2974,51 @@ function showEntryScreen() {
 function enterZoneBoard() {
   stopCardSlide();
   document.getElementById('entry-screen').style.display = 'none';
+
+  // 스코어보드 팀 설정 (startGame 로직과 동일)
+  const oppName = currentOpp ? currentOpp.name : '';
+  const oppEmblemSrc = currentOpp ? currentOpp.emblemImg : 'emblem_proust.jpg';
+  const oppColor = currentOpp ? currentOpp.color : '#C94A0F';
+  const soroEmblemSrc = 'emblem_soro.jpg';
+  const soroColor = '#8B1A1A';
+  const cl = document.getElementById('color-left');
+  const cr = document.getElementById('color-right');
+  const li = document.getElementById('emblem-left-img');
+  const ri = document.getElementById('emblem-right-img');
+
+  if(currentIsHome) {
+    if(cl) cl.style.background = oppColor;
+    if(cr) cr.style.background = soroColor;
+    if(li) li.src = oppEmblemSrc;
+    if(ri) ri.src = soroEmblemSrc;
+  } else {
+    if(cl) cl.style.background = soroColor;
+    if(cr) cr.style.background = oppColor;
+    if(li) li.src = soroEmblemSrc;
+    if(ri) ri.src = oppEmblemSrc;
+  }
+
+  // 잔디 배경 활성화
+  const fb = document.getElementById('field-bg');
+  fb.className = 'field-bg';
+  if(currentIsHome) {
+    fb.classList.add('stadium-soro');
+  } else {
+    const key = currentOpp ? currentOpp.emblemImg.replace('emblem_','').replace('.jpg','') : 'proust';
+    fb.classList.add('stadium-' + key);
+  }
+  fb.classList.add('game-active');
+
+  // 공수 설정 (홈=후공=수비먼저, 원정=선공=공격먼저)
+  st.isAttack = !currentIsHome;
+
   // 오르간 + 존보드
   const opening = new Audio('organ01_game_opening.mp3');
   opening.volume = 0.75;
   opening.play().catch(()=>{});
+
+  // 존 보드 초기화
+  buildZoneBoard();
   showZoneBoardScreen();
 }
 
