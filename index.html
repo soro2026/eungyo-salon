@@ -3757,44 +3757,38 @@ async function doSignup() {
 async function saveStatsToSupabase() {
   if (!currentUser) return;
   try {
-    const ab = st.totalAB || 0;
-    const avg = ab ? st.hits / ab : 0;
-    const obp = ab ? (st.hits + st.bb) / ab : 0;
-    const slg = ab ? (st.singles + st.doubles*2 + st.triples*3 + st.hr*4) / ab : 0;
-
     const won = st.scoreMe > st.scoreAi ? 1 : 0;
     const lost = st.scoreMe < st.scoreAi ? 1 : 0;
 
-    // season_stats upsert
+    // ── season_stats: 기존 데이터 조회 후 누적 업데이트 ──
     const { data: existing } = await supa
       .from('season_stats')
       .select('*')
       .eq('uid', currentUser.id)
       .eq('season_id', currentSeasonId)
-      .single();
+      .maybeSingle();
 
     if (existing) {
       await supa.from('season_stats').update({
-        games: existing.games + 1,
-        wins: existing.wins + won,
-        losses: existing.losses + lost,
-        hits: existing.hits + st.hits,
-        at_bats: existing.at_bats + st.totalAB,
-        hr: existing.hr + st.hr,
-        rbi: existing.rbi + st.rbi,
-        singles: existing.singles + st.singles,
-        doubles: existing.doubles + st.doubles,
-        triples: existing.triples + st.triples,
-        bb: existing.bb + st.bb,
-        earned_runs: existing.earned_runs + st.earnedRuns,
+        games:         existing.games + 1,
+        wins:          existing.wins + won,
+        losses:        existing.losses + lost,
+        hits:          existing.hits + st.hits,
+        at_bats:       existing.at_bats + st.totalAB,
+        hr:            existing.hr + st.hr,
+        rbi:           existing.rbi + st.rbi,
+        singles:       existing.singles + st.singles,
+        doubles:       existing.doubles + st.doubles,
+        triples:       existing.triples + st.triples,
+        bb:            existing.bb + st.bb,
+        earned_runs:   existing.earned_runs + st.earnedRuns,
         outs_recorded: existing.outs_recorded + st.outsRecorded,
-        tq: existing.tq + st.tq,
-        updated_at: new Date().toISOString(),
+        tq:            existing.tq + st.tq,
+        updated_at:    new Date().toISOString(),
       }).eq('uid', currentUser.id).eq('season_id', currentSeasonId);
     } else {
       await supa.from('season_stats').insert({
-        uid: currentUser.id,
-        season_id: currentSeasonId,
+        uid: currentUser.id, season_id: currentSeasonId,
         games: 1, wins: won, losses: lost,
         hits: st.hits, at_bats: st.totalAB,
         hr: st.hr, rbi: st.rbi,
@@ -3804,37 +3798,48 @@ async function saveStatsToSupabase() {
       });
     }
 
-    // career_stats 누적
+    // ── career_stats: 기존 데이터 조회 후 누적 업데이트 ──
     const { data: career } = await supa
-      .from('career_stats').select('*')
-      .eq('uid', currentUser.id).single();
+      .from('career_stats')
+      .select('*')
+      .eq('uid', currentUser.id)
+      .maybeSingle();
 
     if (career) {
-      const newApples = career.golden_apples + won;
       await supa.from('career_stats').update({
-        games: career.games + 1,
-        wins: career.wins + won,
-        losses: career.losses + lost,
-        hits: career.hits + st.hits,
-        at_bats: career.at_bats + st.totalAB,
-        hr: career.hr + st.hr,
-        rbi: career.rbi + st.rbi,
-        singles: career.singles + st.singles,
-        doubles: career.doubles + st.doubles,
-        triples: career.triples + st.triples,
-        bb: career.bb + st.bb,
-        earned_runs: career.earned_runs + st.earnedRuns,
+        games:         career.games + 1,
+        wins:          career.wins + won,
+        losses:        career.losses + lost,
+        hits:          career.hits + st.hits,
+        at_bats:       career.at_bats + st.totalAB,
+        hr:            career.hr + st.hr,
+        rbi:           career.rbi + st.rbi,
+        singles:       career.singles + st.singles,
+        doubles:       career.doubles + st.doubles,
+        triples:       career.triples + st.triples,
+        bb:            career.bb + st.bb,
+        earned_runs:   career.earned_runs + st.earnedRuns,
         outs_recorded: career.outs_recorded + st.outsRecorded,
-        golden_apples: newApples,
-        updated_at: new Date().toISOString(),
+        golden_apples: career.golden_apples + won,
+        updated_at:    new Date().toISOString(),
       }).eq('uid', currentUser.id);
+    } else {
+      await supa.from('career_stats').insert({
+        uid: currentUser.id,
+        games: 1, wins: won, losses: lost,
+        hits: st.hits, at_bats: st.totalAB,
+        hr: st.hr, rbi: st.rbi,
+        singles: st.singles, doubles: st.doubles, triples: st.triples,
+        bb: st.bb, earned_runs: st.earnedRuns,
+        outs_recorded: st.outsRecorded, golden_apples: won,
+      });
+    }
 
-      // 황금사과 로그
-      if (won) {
-        await supa.from('apple_log').insert({
-          uid: currentUser.id, amount: 1, reason: '경기 승리'
-        });
-      }
+    // ── 황금사과 로그 ──
+    if (won) {
+      await supa.from('apple_log').insert({
+        uid: currentUser.id, amount: 1, reason: '경기 승리'
+      });
     }
 
     console.log('스탯 저장 완료 ⚾');
