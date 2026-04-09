@@ -1,4 +1,4 @@
-const CACHE = 'eungyo-v7';
+const CACHE = 'eungyo-v8';
 const FILES = [
   '/eungyo-salon/',
   '/eungyo-salon/index.html',
@@ -7,6 +7,7 @@ const FILES = [
   '/eungyo-salon/questions_bada.json',
   '/eungyo-salon/questions_terra.json',
   '/eungyo-salon/questions_bam.json',
+  '/eungyo-salon/questions_bul.json',
   '/eungyo-salon/intro_logo.mp4',
   '/eungyo-salon/organ01_game_opening.mp3',
   '/eungyo-salon/match_up.mp3',
