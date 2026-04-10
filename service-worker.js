@@ -1,7 +1,8 @@
-const CACHE = 'eungyo-v12';
+const CACHE = 'eungyo-v13';
 const FILES = [
   '/eungyo-salon/',
   '/eungyo-salon/index.html',
+  '/eungyo-salon/terra.html',
   '/eungyo-salon/questions_taeyang.json',
   '/eungyo-salon/questions_gil.json',
   '/eungyo-salon/questions_bada.json',
