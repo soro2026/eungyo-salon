@@ -354,7 +354,26 @@
     overflow: hidden;
     box-shadow: -6px 0 0 #1A0F04, 8px 6px 32px rgba(0,0,0,0.8);
   }
-  .book-page-view.active { display: block; }
+  .book-page-view.active {
+    display: block;
+    position: relative;
+    z-index: 2;
+  }
+  /* 슬라이드 아웃 — absolute로 겹치지 않게 */
+  .book-page-view.slide-out-left,
+  .book-page-view.slide-out-right {
+    display: block;
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+  .book-page-view.slide-out-left {
+    animation: slideOutLeft 0.28s ease forwards;
+  }
+  .book-page-view.slide-out-right {
+    animation: slideOutRight 0.28s ease forwards;
+  }
 
   /* 슬라이드 인 — 다음 */
   .book-page-view.slide-in-right {
@@ -559,6 +578,7 @@
     flex: 1;
     overflow-y: auto;
     min-height: 0;
+    position: relative;
   }
     display: flex;
     align-items: center;
@@ -692,16 +712,17 @@ const BGM_COUNT = 12;
 let bgmPlaying = false;
 const bgmAudio = document.getElementById('museumBGM');
 
+// 랜덤 곡 한 번만 선택 (페이지 로드 시 고정)
+const bgmIdx = Math.floor(Math.random() * BGM_COUNT) + 1;
+bgmAudio.src = BASE + 'muse_bgm_' + String(bgmIdx).padStart(2,'0') + '.mp3';
+bgmAudio.volume = 0.18;
+bgmAudio.loop = true;
+
 function initBGM() {
-  const idx = Math.floor(Math.random() * BGM_COUNT) + 1;
-  const num = String(idx).padStart(2, '0');
-  bgmAudio.src = BASE + `muse_bgm_${num}.mp3`;
-  bgmAudio.volume = 0.18;
   bgmAudio.play().then(() => {
     bgmPlaying = true;
     document.getElementById('bgmBtn').textContent = '🎵';
   }).catch(() => {
-    // 자동재생 차단 — 사용자 클릭 후 재생
     bgmPlaying = false;
     document.getElementById('bgmBtn').textContent = '🔇';
   });
@@ -713,13 +734,9 @@ function toggleBGM() {
     bgmPlaying = false;
     document.getElementById('bgmBtn').textContent = '🔇';
   } else {
-    if (!bgmAudio.src || bgmAudio.src === window.location.href) {
-      initBGM();
-    } else {
-      bgmAudio.play();
-      bgmPlaying = true;
-      document.getElementById('bgmBtn').textContent = '🎵';
-    }
+    bgmAudio.play();
+    bgmPlaying = true;
+    document.getElementById('bgmBtn').textContent = '🎵';
   }
 }
 
@@ -1073,26 +1090,14 @@ function makePhilemonPage(book, num) {
 }
 
 // ── 종이 넘기는 소리 (Web Audio API) ──────────
+// 소로님 직접 녹음한 사그락 소리 🎵
+const pageTurnAudio = new Audio(BASE + 'page_turn.mp3');
+pageTurnAudio.volume = 0.7;
+
 function playPageSound() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.12, ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) {
-      // 사그락 — 백색소음 + 급격한 감쇠
-      const decay = Math.exp(-i / (ctx.sampleRate * 0.03));
-      data[i] = (Math.random() * 2 - 1) * decay * 0.35;
-    }
-    const src = ctx.createBufferSource();
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = 3200;
-    filter.Q.value = 0.8;
-    src.buffer = buf;
-    src.connect(filter);
-    filter.connect(ctx.destination);
-    src.start();
-    setTimeout(() => ctx.close(), 300);
+    pageTurnAudio.currentTime = 0;
+    pageTurnAudio.play().catch(() => {});
   } catch(e) {}
 }
 
