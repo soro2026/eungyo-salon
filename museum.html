@@ -228,12 +228,33 @@
     box-shadow: 0 2px 8px rgba(0,0,0,0.4);
   }
 
+  /* ── 책장 배경 ── */
+  .bookshelf-bg {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image: url('/eungyo-salon/bookself.png');
+    background-size: cover;
+    background-position: center top;
+    opacity: 0.18;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .bookshelf-container {
+    position: relative;
+    z-index: 1;
+  }
+  .museum-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
   /* ── 카테고리 상세 뷰 ── */
   .category-detail {
     display: none;
     position: fixed;
     inset: 0;
-    background: var(--wood-dark);
+    background: #180E04;
     z-index: 200;
     overflow-y: auto;
     animation: slideIn 0.3s ease;
@@ -244,7 +265,7 @@
     to   { transform: translateX(0); opacity: 1; }
   }
   .detail-header {
-    background: var(--wood-dark);
+    background: #120D06;
     border-bottom: 1px solid var(--gold-dim);
     padding: 16px 20px;
     display: flex;
@@ -268,16 +289,62 @@
     color: var(--gold);
     letter-spacing: 0.1em;
   }
-  .detail-books-grid {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 6px;
-    padding: 20px;
+
+  /* 세부 서재 — 선반 줄바꿈 구조 */
+  .detail-shelf-wrap {
+    padding: 16px 0 40px;
   }
+  .detail-shelf-row {
+    margin-bottom: 4px;
+  }
+  .detail-shelf-books {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    padding: 0 16px;
+    min-height: 150px;
+    flex-wrap: nowrap;
+    overflow-x: visible;
+  }
+  .detail-shelf-wood {
+    height: 8px;
+    background: linear-gradient(to bottom, #5C3D1A, #3D2A0E, #2A1A08);
+    margin: 2px 16px 20px;
+    border-radius: 2px;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.6);
+  }
+
+  /* BGM 컨트롤 */
+  .bgm-control {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 300;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--gold-dim);
+    background: rgba(18,13,6,0.8);
+    color: var(--gold);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    backdrop-filter: blur(4px);
+  }
+  .bgm-control:hover { background: rgba(201,168,76,0.1); }
 </style>
 </head>
 <body>
+
+<!-- 책장 배경 레이어 -->
+<div class="bookshelf-bg"></div>
+
+<!-- BGM -->
+<audio id="museumBGM" loop></audio>
+<button class="bgm-control" id="bgmBtn" onclick="toggleBGM()" title="음악 켜기/끄기">🎵</button>
 
 <!-- 헤더 -->
 <div class="museum-header">
@@ -300,15 +367,52 @@
       <div style="font-size:10px;color:rgba(248,244,238,0.3);letter-spacing:0.1em" id="detailSub"></div>
     </div>
   </div>
-  <div class="detail-books-grid" id="detailBooks"></div>
+  <div class="detail-shelf-wrap" id="detailShelfWrap"></div>
 </div>
 
 <script>
 const BASE = '/eungyo-salon/';
 const BOOK_IMAGES = ['book01','book02','book03','book04','book05','book06','book07','book08','book09','book10'];
 const PREVIEW_MAX = 15;
+const BOOKS_PER_SHELF = 12; // 세부 서재 한 선반당 권수
 
-// 12개 카테고리
+// ── BGM ──────────────────────────────────────
+const BGM_COUNT = 12;
+let bgmPlaying = false;
+const bgmAudio = document.getElementById('museumBGM');
+
+function initBGM() {
+  const idx = Math.floor(Math.random() * BGM_COUNT) + 1;
+  const num = String(idx).padStart(2, '0');
+  bgmAudio.src = BASE + `muse_bgm_${num}.mp3`;
+  bgmAudio.volume = 0.18;
+  bgmAudio.play().then(() => {
+    bgmPlaying = true;
+    document.getElementById('bgmBtn').textContent = '🎵';
+  }).catch(() => {
+    // 자동재생 차단 — 사용자 클릭 후 재생
+    bgmPlaying = false;
+    document.getElementById('bgmBtn').textContent = '🔇';
+  });
+}
+
+function toggleBGM() {
+  if (bgmPlaying) {
+    bgmAudio.pause();
+    bgmPlaying = false;
+    document.getElementById('bgmBtn').textContent = '🔇';
+  } else {
+    if (!bgmAudio.src || bgmAudio.src === window.location.href) {
+      initBGM();
+    } else {
+      bgmAudio.play();
+      bgmPlaying = true;
+      document.getElementById('bgmBtn').textContent = '🎵';
+    }
+  }
+}
+
+// ── 카테고리 ──────────────────────────────────
 const CATEGORIES = [
   { id: 'lit',    name: '문학',   sub: '종이 위의 인간' },
   { id: 'phi',    name: '철학',   sub: '생각의 탄생' },
@@ -324,7 +428,7 @@ const CATEGORIES = [
   { id: 'food',   name: '음식',   sub: '삶의 맛' },
 ];
 
-// 샘플 책 데이터 (실제로는 Supabase에서 불러옴)
+// 샘플 책 데이터 (최신순 — 인덱스 0이 가장 최신)
 const SAMPLE_BOOKS = {
   lit: [
     { answer: '화씨 451', d: 3, img: 'book01' },
@@ -372,14 +476,13 @@ const SAMPLE_BOOKS = {
   ],
 };
 
-// 랜덤 책 이미지 배정 (seed 기반)
+// ── 유틸 ──────────────────────────────────────
 function getBookImg(answer) {
   let hash = 0;
   for (let c of answer) hash = (hash * 31 + c.charCodeAt(0)) & 0xfffff;
   return BOOK_IMAGES[hash % BOOK_IMAGES.length];
 }
 
-// 책 높이 (두께 다양하게)
 function getBookHeight(answer) {
   let hash = 0;
   for (let c of answer) hash = (hash * 17 + c.charCodeAt(0)) & 0xfffff;
@@ -387,18 +490,17 @@ function getBookHeight(answer) {
   return heights[hash % heights.length];
 }
 
-function makeBookEl(book, small = false) {
+function makeBookEl(book) {
   const img = book.img || getBookImg(book.answer);
   const h = getBookHeight(book.answer);
   const div = document.createElement('div');
   div.className = 'book-item';
-  div.style.setProperty('--book-h', (small ? Math.round(h * 0.85) : h) + 'px');
   div.onclick = () => openBook(book);
 
   const imgEl = document.createElement('img');
   imgEl.className = 'book-img';
   imgEl.src = BASE + img + '.png';
-  imgEl.style.height = (small ? Math.round(h * 0.85) : h) + 'px';
+  imgEl.style.height = h + 'px';
   imgEl.alt = book.answer;
 
   const textEl = document.createElement('div');
@@ -408,7 +510,7 @@ function makeBookEl(book, small = false) {
   div.appendChild(imgEl);
   div.appendChild(textEl);
 
-  // 진행도 표시
+  // 진행도 점
   if (book.d >= 1) {
     const prog = document.createElement('div');
     prog.className = 'book-progress';
@@ -431,6 +533,7 @@ function makeBookEl(book, small = false) {
   return div;
 }
 
+// ── 메인 서가 렌더 ────────────────────────────
 function renderShelf() {
   const container = document.getElementById('bookshelfContainer');
   let totalBooks = 0;
@@ -442,7 +545,6 @@ function renderShelf() {
     const row = document.createElement('div');
     row.className = 'shelf-row';
 
-    // 레이블
     const label = document.createElement('div');
     label.className = 'shelf-label';
     label.innerHTML = `
@@ -452,7 +554,6 @@ function renderShelf() {
     `;
     row.appendChild(label);
 
-    // 책 영역
     const shelfEl = document.createElement('div');
     shelfEl.className = 'shelf-books';
 
@@ -465,10 +566,9 @@ function renderShelf() {
         </div>
       `;
     } else {
+      // 최신순 (인덱스 0이 최신) — 왼쪽부터
       const preview = books.slice(0, PREVIEW_MAX);
-      preview.forEach(book => {
-        shelfEl.appendChild(makeBookEl(book));
-      });
+      preview.forEach(book => shelfEl.appendChild(makeBookEl(book)));
 
       if (books.length > PREVIEW_MAX) {
         const btn = document.createElement('button');
@@ -481,7 +581,6 @@ function renderShelf() {
 
     row.appendChild(shelfEl);
 
-    // 선반
     const wood = document.createElement('div');
     wood.className = 'shelf-wood';
     row.appendChild(wood);
@@ -492,12 +591,36 @@ function renderShelf() {
   document.getElementById('totalCount').textContent = totalBooks + '권';
 }
 
+// ── 카테고리 세부 서재 ────────────────────────
 function openDetail(cat, books) {
   document.getElementById('detailTitle').textContent = cat.name + ' · ' + cat.sub;
   document.getElementById('detailSub').textContent = '총 ' + books.length + '권';
-  const grid = document.getElementById('detailBooks');
-  grid.innerHTML = '';
-  books.forEach(book => grid.appendChild(makeBookEl(book)));
+
+  const wrap = document.getElementById('detailShelfWrap');
+  wrap.innerHTML = '';
+
+  // 선반 단위로 분할 (BOOKS_PER_SHELF개씩)
+  const chunks = [];
+  for (let i = 0; i < books.length; i += BOOKS_PER_SHELF) {
+    chunks.push(books.slice(i, i + BOOKS_PER_SHELF));
+  }
+
+  chunks.forEach((chunk, rowIdx) => {
+    const shelfRow = document.createElement('div');
+    shelfRow.className = 'detail-shelf-row';
+
+    const booksEl = document.createElement('div');
+    booksEl.className = 'detail-shelf-books';
+    chunk.forEach(book => booksEl.appendChild(makeBookEl(book)));
+    shelfRow.appendChild(booksEl);
+
+    const wood = document.createElement('div');
+    wood.className = 'detail-shelf-wood';
+    shelfRow.appendChild(wood);
+
+    wrap.appendChild(shelfRow);
+  });
+
   document.getElementById('categoryDetail').classList.add('open');
 }
 
@@ -506,11 +629,16 @@ function closeDetail() {
 }
 
 function openBook(book) {
-  // 나중에 책 페이지 넘기기 모달로 연결
   alert('📖 ' + book.answer + '\n\n(책 상세 페이지 — 구현 예정)');
 }
 
+// ── 시작 ──────────────────────────────────────
 renderShelf();
+// 페이지 클릭 시 BGM 시작 (자동재생 정책 우회)
+document.addEventListener('click', function startBGM() {
+  if (!bgmPlaying) initBGM();
+  document.removeEventListener('click', startBGM);
+}, { once: true });
 </script>
 </body>
 </html>
