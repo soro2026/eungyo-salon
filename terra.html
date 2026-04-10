@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>EG테라 — 나의 교양 과수원</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  background: #0E1A0F;
+  color: #F0EBE0;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── 헤더 ── */
+.terra-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  position: relative;
+  z-index: 10;
+}
+.back-btn {
+  background: none;
+  border: none;
+  color: rgba(201,168,76,0.7);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.terra-title {
+  font-size: 13px;
+  letter-spacing: 0.15em;
+  color: rgba(201,168,76,0.8);
+  font-weight: 500;
+}
+.apple-count-badge {
+  background: rgba(201,168,76,0.15);
+  border: 1px solid rgba(201,168,76,0.4);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: #C9A84C;
+}
+
+/* ── 나무 영역 ── */
+.tree-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0 16px 40px;
+}
+.tree-img {
+  width: 100%;
+  display: block;
+  border-radius: 16px;
+}
+.apple-on-tree {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  pointer-events: none;
+  animation: float 3s ease-in-out infinite;
+}
+.apple-on-tree.locked {
+  filter: grayscale(0.6) brightness(0.7);
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(-5deg); }
+  50% { transform: translateY(-4px) rotate(3deg); }
+}
+
+/* ── 정보 카드 ── */
+.info-section {
+  padding: 0 20px 40px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+.info-card {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(201,168,76,0.2);
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 12px;
+}
+.info-card-title {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: rgba(201,168,76,0.6);
+  margin-bottom: 12px;
+}
+.apple-stat-row {
+  display: flex;
+  justify-content: space-around;
+  text-align: center;
+}
+.apple-stat {
+  flex: 1;
+}
+.apple-stat-num {
+  font-size: 26px;
+  font-weight: 700;
+  color: #C9A84C;
+  font-family: 'Courier New', monospace;
+}
+.apple-stat-label {
+  font-size: 11px;
+  color: rgba(240,235,224,0.4);
+  margin-top: 4px;
+}
+
+/* ── 로딩 ── */
+.loading-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: rgba(240,235,224,0.4);
+  font-size: 13px;
+  gap: 12px;
+}
+.loading-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: rgba(201,168,76,0.5);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
+
+/* ── 빈 상태 ── */
+.empty-wrap {
+  text-align: center;
+  padding: 40px 20px;
+}
+.empty-msg {
+  font-size: 14px;
+  color: rgba(240,235,224,0.4);
+  line-height: 1.7;
+  margin-bottom: 8px;
+}
+.empty-sub {
+  font-size: 12px;
+  color: rgba(240,235,224,0.25);
+}
+
+/* ── 안내 텍스트 ── */
+.guide-text {
+  text-align: center;
+  font-size: 12px;
+  color: rgba(240,235,224,0.3);
+  padding: 12px 20px 0;
+  line-height: 1.6;
+}
+</style>
+</head>
+<body>
+
+<div class="terra-header">
+  <button class="back-btn" onclick="goHome()">←</button>
+  <div class="terra-title">E G  T E R R A</div>
+  <div class="apple-count-badge" id="header-count">🍎 0</div>
+</div>
+
+<div id="loading-state" class="loading-wrap">
+  <div class="loading-dot"></div>
+  <span>과수원을 불러오는 중...</span>
+</div>
+
+<div id="main-content" style="display:none">
+  <div class="tree-wrap">
+    <img class="tree-img" src="terra_tree.png" alt="황금사과나무" id="tree-img">
+  </div>
+
+  <div class="guide-text" id="guide-text"></div>
+
+  <div class="info-section">
+    <div class="info-card">
+      <div class="info-card-title">▲ 나의 황금사과 현황</div>
+      <div class="apple-stat-row">
+        <div class="apple-stat">
+          <div class="apple-stat-num" id="stat-total">0</div>
+          <div class="apple-stat-label">총 사과</div>
+        </div>
+        <div class="apple-stat">
+          <div class="apple-stat-num" id="stat-available">0</div>
+          <div class="apple-stat-label">사용 가능</div>
+        </div>
+        <div class="apple-stat">
+          <div class="apple-stat-num" id="stat-locked">0</div>
+          <div class="apple-stat-label">경매 사용</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-card" id="empty-card" style="display:none">
+      <div class="empty-wrap">
+        <div class="empty-msg">아직 과수원에 사과가 없어요.<br>경기에서 승리하면 황금사과를 받을 수 있어요!</div>
+        <div class="empty-sub">EG스타디움에서 첫 승리를 거둬보세요 ⚾</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+
+function goHome() {
+  window.location.href = '/eungyo-salon/';
+}
+
+async function getSession() {
+  try {
+    const stored = localStorage.getItem('sb-cyhlotwdisjvoxvfkpnd-auth-token')
+      || localStorage.getItem('eungyo-auth');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed?.access_token || parsed?.session?.access_token || null;
+    }
+  } catch(e) {}
+  return null;
+}
+
+async function fetchApples(userId, token) {
+  const res = await fetch(
+    `${SUPA_URL}/rest/v1/apple_log?uid=eq.${userId}&order=created_at.asc`,
+    {
+      headers: {
+        'apikey': SUPA_KEY,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+  if (!res.ok) throw new Error('fetch failed');
+  return res.json();
+}
+
+async function getCurrentUser(token) {
+  const res = await fetch(`${SUPA_URL}/auth/v1/user`, {
+    headers: {
+      'apikey': SUPA_KEY,
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  if (!res.ok) throw new Error('auth failed');
+  return res.json();
+}
+
+function placeApples(apples) {
+  const treeWrap = document.querySelector('.tree-wrap');
+  const treeImg = document.getElementById('tree-img');
+
+  // 나무 수관 영역 (이미지 상대 위치 기준)
+  const zones = [
+    { x: 30, y: 15 }, { x: 55, y: 10 }, { x: 75, y: 18 },
+    { x: 20, y: 28 }, { x: 42, y: 22 }, { x: 65, y: 25 },
+    { x: 80, y: 32 }, { x: 28, y: 38 }, { x: 50, y: 35 },
+    { x: 70, y: 40 }, { x: 35, y: 48 }, { x: 58, y: 45 },
+    { x: 22, y: 52 }, { x: 45, y: 55 }, { x: 68, y: 50 },
+    { x: 82, y: 45 }, { x: 38, y: 62 }, { x: 60, y: 60 },
+    { x: 25, y: 65 }, { x: 72, y: 58 },
+  ];
+
+  // 기존 사과 제거
+  treeWrap.querySelectorAll('.apple-on-tree').forEach(el => el.remove());
+
+  const maxShow = Math.min(apples.length, zones.length);
+
+  for (let i = 0; i < maxShow; i++) {
+    const apple = apples[i];
+    const zone = zones[i];
+    const img = document.createElement('img');
+    img.src = 'terra_apple.png';
+    img.className = 'apple-on-tree' + (apple.locked ? ' locked' : '');
+
+    // 약간의 랜덤 오프셋
+    const offsetX = (Math.random() - 0.5) * 4;
+    const offsetY = (Math.random() - 0.5) * 4;
+    const delay = (Math.random() * 2).toFixed(1);
+
+    img.style.cssText = `
+      position: absolute;
+      left: calc(${zone.x + offsetX}% - 24px);
+      top: calc(${zone.y + offsetY}% - 24px);
+      width: 48px; height: 48px;
+      animation-delay: ${delay}s;
+      animation-duration: ${2.5 + Math.random()}s;
+    `;
+
+    treeWrap.appendChild(img);
+  }
+}
+
+function updateStats(apples) {
+  const total = apples.length;
+  const locked = apples.filter(a => a.locked).length;
+  const available = total - locked;
+
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-available').textContent = available;
+  document.getElementById('stat-locked').textContent = locked;
+  document.getElementById('header-count').textContent = '🍎 ' + total;
+
+  // 안내 텍스트
+  const guide = document.getElementById('guide-text');
+  if (total === 0) {
+    guide.textContent = '';
+    document.getElementById('empty-card').style.display = 'block';
+  } else if (total < 5) {
+    guide.textContent = `사과 ${total}알이 나무에 열렸어요. 더 많은 승리로 과수원을 채워보세요!`;
+  } else if (total < 10) {
+    guide.textContent = `과수원이 점점 풍성해지고 있어요 🍎`;
+  } else {
+    guide.textContent = `황금빛으로 가득 찬 과수원이네요! ✨`;
+  }
+}
+
+async function init() {
+  try {
+    const token = await getSession();
+    if (!token) {
+      window.location.href = '/eungyo-salon/';
+      return;
+    }
+
+    const user = await getCurrentUser(token);
+    const apples = await fetchApples(user.id, token);
+
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('main-content').style.display = 'block';
+
+    updateStats(apples);
+    if (apples.length > 0) {
+      placeApples(apples);
+    }
+
+  } catch(e) {
+    console.error('테라 로드 오류:', e);
+    document.getElementById('loading-state').innerHTML =
+      '<span style="color:rgba(240,235,224,0.4);font-size:13px">불러오기에 실패했어요. 잠시 후 다시 시도해주세요.</span>';
+  }
+}
+
+window.addEventListener('load', init);
+</script>
+</body>
+</html>
