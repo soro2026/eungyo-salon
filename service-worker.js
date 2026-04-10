@@ -1,4 +1,4 @@
-const CACHE = 'eungyo-v9';
+const CACHE = 'eungyo-v10';
 const FILES = [
   '/eungyo-salon/',
   '/eungyo-salon/index.html',
