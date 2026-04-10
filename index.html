@@ -2947,6 +2947,12 @@ function showGameResult(){
         <div><div style="font-size:8px;color:rgba(248,244,238,0.35)">아웃</div><div style="font-size:16px;font-family:'Courier New';color:var(--chalk)">${st.outsRecorded}</div></div>
       </div>
     </div>
+    ${(result==='승리'||result==='TQ 승리') ? `
+    <div id="apple-award-section" style="text-align:center;margin-bottom:20px">
+      <button class="btn-next" style="width:100%;background:linear-gradient(135deg,rgba(201,168,76,0.3),rgba(201,168,76,0.1));border:1px solid rgba(201,168,76,0.6);color:#C9A84C;font-size:15px;letter-spacing:0.08em;padding:14px" onclick="showAppleAward()">
+        🍎 황금사과 한 알 받기
+      </button>
+    </div>` : ''}
     <div style="display:flex;gap:10px">
       <button class="btn-next" style="flex:1;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);color:var(--gold-light)" onclick="alert(&quot;서재 기능은 준비 중입니다&quot;)">📖 해설 보기</button>
       <button class="btn-next" style="flex:1" onclick="location.reload()">⚾ 새 경기</button>
@@ -3655,6 +3661,43 @@ function closeIntro() {
   }, 1000);
 }
 
+function showAppleAward() {
+  // 수령 버튼 숨기기
+  const sec = document.getElementById('apple-award-section');
+  if (sec) sec.style.display = 'none';
+
+  // 오버레이 표시
+  const overlay = document.getElementById('apple-award-overlay');
+  if (overlay) overlay.style.display = 'flex';
+
+  // Supabase에 사과 +1 저장
+  awardAppleToUser();
+}
+
+async function awardAppleToUser() {
+  if (!currentUser) return;
+  try {
+    // terra_apples 테이블에 사과 추가
+    const { data, error } = await supa
+      .from('terra_apples')
+      .insert([{ uid: currentUser.id, type: 'game_win', locked: false, created_at: new Date().toISOString() }]);
+    if (error) console.error('사과 저장 오류:', error);
+    else console.log('🍎 황금사과 +1 저장 완료');
+  } catch(e) {
+    console.error('사과 저장 실패:', e);
+  }
+}
+
+function closeAppleAward() {
+  const overlay = document.getElementById('apple-award-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function goToTerra() {
+  closeAppleAward();
+  alert('EG테라 — 준비 중입니다 🌳');
+}
+
 function goToMuseum() {
   // EG뮤세움으로 이동
   window.location.href = '/eungyo-salon/museum.html';
@@ -3859,5 +3902,24 @@ async function saveStatsToSupabase() {
 
 // ── 앱 시작은 window load 이벤트에서 ──
 </script>
+<!-- ── 황금사과 수령 오버레이 ── -->
+<div id="apple-award-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:9999;flex-direction:column;align-items:center;justify-content:center;padding:24px;box-sizing:border-box">
+  <div style="text-align:center;max-width:320px;width:100%">
+    <div style="font-size:11px;letter-spacing:0.2em;color:rgba(201,168,76,0.6);margin-bottom:16px">E G  T E R R A</div>
+    <video autoplay loop muted playsinline
+      style="width:200px;height:200px;object-fit:contain;margin-bottom:8px"
+      src="gold_apple award.mp4">
+    </video>
+    <div style="font-size:20px;font-weight:700;color:#C9A84C;letter-spacing:0.08em;margin-bottom:8px">황금사과 한 알</div>
+    <div style="font-size:13px;color:rgba(248,244,238,0.6);margin-bottom:28px;line-height:1.6">승리의 증표가 당신의 과수원에<br>열매를 맺었습니다</div>
+    <button onclick="goToTerra()" style="width:100%;padding:14px;background:linear-gradient(135deg,rgba(201,168,76,0.4),rgba(201,168,76,0.15));border:1px solid rgba(201,168,76,0.6);border-radius:10px;color:#C9A84C;font-size:14px;letter-spacing:0.1em;cursor:pointer;margin-bottom:10px">
+      🌳 EG테라 확인하기
+    </button>
+    <button onclick="closeAppleAward()" style="width:100%;padding:12px;background:none;border:1px solid rgba(248,244,238,0.15);border-radius:10px;color:rgba(248,244,238,0.4);font-size:13px;cursor:pointer">
+      나중에 확인하기
+    </button>
+  </div>
+</div>
+
 </body>
 </html>
