@@ -356,11 +356,47 @@
   }
   .book-page-view.active { display: block; }
 
+  /* 슬라이드 인 — 다음 */
+  .book-page-view.slide-in-right {
+    animation: slideInRight 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  }
+  /* 슬라이드 인 — 이전 */
+  .book-page-view.slide-in-left {
+    animation: slideInLeft 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  }
+  /* 슬라이드 아웃 — 다음 */
+  .book-page-view.slide-out-left {
+    display: block;
+    animation: slideOutLeft 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  }
+  /* 슬라이드 아웃 — 이전 */
+  .book-page-view.slide-out-right {
+    display: block;
+    animation: slideOutRight 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  }
+
+  @keyframes slideInRight {
+    from { opacity: 0; transform: translateX(60px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes slideInLeft {
+    from { opacity: 0; transform: translateX(-60px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes slideOutLeft {
+    from { opacity: 1; transform: translateX(0); }
+    to   { opacity: 0; transform: translateX(-60px); }
+  }
+  @keyframes slideOutRight {
+    from { opacity: 1; transform: translateX(0); }
+    to   { opacity: 0; transform: translateX(60px); }
+  }
+
   /* 표지 */
   .page-cover {
     background: #1E1108;
     border-left: 10px solid #120D04;
-    max-height: calc(80vh - 80px); overflow-y: auto;
+    height: 460px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -425,7 +461,7 @@
   .page-inner {
     background: #F7F2E8;
     border-left: 10px solid #E8E0CC;
-    max-height: calc(80vh - 80px); overflow-y: auto;
+    max-height: calc(85vh - 100px); overflow-y: auto;
     position: relative;
   }
   .page-lines {
@@ -484,7 +520,7 @@
   .page-philemon {
     background: #F0EBE0;
     border-left: 10px solid #DDD5BB;
-    max-height: calc(80vh - 80px); overflow-y: auto;
+    max-height: calc(85vh - 100px); overflow-y: auto;
     position: relative;
   }
   .letter-wrap {
@@ -1036,11 +1072,58 @@ function makePhilemonPage(book, num) {
   return div;
 }
 
+// ── 종이 넘기는 소리 (Web Audio API) ──────────
+function playPageSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.12, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      // 사그락 — 백색소음 + 급격한 감쇠
+      const decay = Math.exp(-i / (ctx.sampleRate * 0.03));
+      data[i] = (Math.random() * 2 - 1) * decay * 0.35;
+    }
+    const src = ctx.createBufferSource();
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 3200;
+    filter.Q.value = 0.8;
+    src.buffer = buf;
+    src.connect(filter);
+    filter.connect(ctx.destination);
+    src.start();
+    setTimeout(() => ctx.close(), 300);
+  } catch(e) {}
+}
+
 function turnPage(dir) {
   const pages = document.querySelectorAll('.book-page-view');
-  pages[currentPage].classList.remove('active');
+  const outPage = pages[currentPage];
   currentPage = Math.max(0, Math.min(totalPages - 1, currentPage + dir));
-  pages[currentPage].classList.add('active');
+  const inPage = pages[currentPage];
+
+  // 사그락 소리
+  playPageSound();
+
+  // 슬라이드 방향 (다음=오른쪽에서, 이전=왼쪽에서)
+  const outClass = dir > 0 ? 'slide-out-left' : 'slide-out-right';
+  const inClass  = dir > 0 ? 'slide-in-right' : 'slide-in-left';
+
+  // 현재 페이지 슬라이드 아웃
+  outPage.classList.remove('active');
+  outPage.classList.add(outClass);
+
+  // 다음 페이지 슬라이드 인
+  inPage.classList.add('active', inClass);
+  inPage.scrollTop = 0;
+  document.getElementById('bookPages').scrollTop = 0;
+
+  // 애니메이션 끝나면 클래스 정리
+  setTimeout(() => {
+    outPage.classList.remove(outClass);
+    inPage.classList.remove(inClass);
+  }, 320);
+
   document.getElementById('bookPrevBtn').disabled = currentPage === 0;
   document.getElementById('bookNextBtn').disabled = currentPage === totalPages - 1;
   renderDots();
@@ -1066,11 +1149,15 @@ function handleOverlayClick(e) {
 
 // ── 시작 ──────────────────────────────────────
 renderShelf();
-// 페이지 클릭 시 BGM 시작 (자동재생 정책 우회)
-document.addEventListener('click', function startBGM() {
-  if (!bgmPlaying) initBGM();
-  document.removeEventListener('click', startBGM);
-}, { once: true });
+
+// BGM 즉시 재생 시도 (자동재생 정책으로 실패하면 첫 클릭 시 재생)
+initBGM();
+if (!bgmPlaying) {
+  document.addEventListener('click', function startBGM() {
+    if (!bgmPlaying) initBGM();
+    document.removeEventListener('click', startBGM);
+  }, { once: true });
+}
 </script>
 </body>
 </html>
