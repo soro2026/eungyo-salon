@@ -114,6 +114,42 @@ body {
   margin-top: 4px;
 }
 
+/* ── 황금나무 완성 오버레이 ── */
+.golden-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.9);
+  z-index: 999;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+.golden-overlay.show { display: flex; }
+.golden-overlay video {
+  width: 100%; max-width: 360px;
+  border-radius: 16px;
+  margin-bottom: 20px;
+}
+.golden-overlay-title {
+  font-size: 20px; font-weight: 700;
+  color: #C9A84C; letter-spacing: 0.08em;
+  text-align: center; margin-bottom: 8px;
+}
+.golden-overlay-sub {
+  font-size: 13px; color: rgba(240,235,224,0.6);
+  text-align: center; margin-bottom: 24px; line-height: 1.6;
+}
+.golden-overlay-btn {
+  width: 100%; max-width: 360px; padding: 14px;
+  background: linear-gradient(135deg, rgba(201,168,76,0.4), rgba(201,168,76,0.15));
+  border: 1px solid rgba(201,168,76,0.6);
+  border-radius: 10px; color: #C9A84C;
+  font-size: 14px; letter-spacing: 0.1em; cursor: pointer;
+}
+
 /* ── 로딩 ── */
 .loading-wrap {
   display: flex;
@@ -167,6 +203,18 @@ body {
   <div class="apple-count-badge" id="header-count">🍎 0</div>
 </div>
 
+<!-- ── 황금나무 완성 오버레이 ── -->
+<div class="golden-overlay" id="golden-overlay">
+  <video id="golden-video" playsinline>
+    <source src="terra_golden_complete.mp4" type="video/mp4">
+  </video>
+  <div class="golden-overlay-title">🌳 황금 과수원 완성!</div>
+  <div class="golden-overlay-sub">10알의 교양이 황금빛 과수원을<br>아름답게 물들였습니다 ✨</div>
+  <button class="golden-overlay-btn" onclick="closeGoldenOverlay()">
+    🍎 새로운 나무를 심으러 가기
+  </button>
+</div>
+
 <div id="loading-state" class="loading-wrap">
   <div class="loading-dot"></div>
   <span>과수원을 불러오는 중...</span>
@@ -212,6 +260,22 @@ body {
 <script>
 const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
 const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+
+function showGoldenOverlay() {
+  const overlay = document.getElementById('golden-overlay');
+  const video = document.getElementById('golden-video');
+  overlay.classList.add('show');
+  video.currentTime = 0;
+  video.play().catch(() => {});
+  // 영상 끝나면 자동으로 닫기 안 함 — 버튼으로만 닫기
+}
+
+function closeGoldenOverlay() {
+  const overlay = document.getElementById('golden-overlay');
+  const video = document.getElementById('golden-video');
+  video.pause();
+  overlay.classList.remove('show');
+}
 
 function goHome() {
   window.location.href = '/eungyo-salon/';
@@ -264,8 +328,8 @@ const TREE_STAGES = [
   },
   { img: 'terra_sapling.png', min: 4, max: 6, label: '작은 나무가 열매를 맺기 시작했어요 🌿',
     zones: [
-      { x: 38, y: 30 }, { x: 55, y: 25 }, { x: 68, y: 32 },
-      { x: 30, y: 42 }, { x: 50, y: 38 }, { x: 65, y: 45 },
+      { x: 38, y: 38 }, { x: 55, y: 32 }, { x: 68, y: 40 },
+      { x: 30, y: 50 }, { x: 50, y: 46 }, { x: 65, y: 52 },
     ]
   },
   { img: 'terra_tree.png', min: 7, max: 9, label: '과수원이 점점 풍성해지고 있어요 🍎',
@@ -302,6 +366,16 @@ function placeApples(apples) {
   const displayCount = currentApples === 10 ? 10 : currentApples;
 
   const stage = getStage(displayCount);
+
+  // 10알 완성 — 팡파레 영상 표시 (첫 진입 시만)
+  if (displayCount === 10 && completedTrees === Math.floor(apples.length / 10)) {
+    // sessionStorage로 이미 봤는지 체크
+    const key = `golden_shown_${completedTrees}`;
+    if (!sessionStorage.getItem(key)) {
+      sessionStorage.setItem(key, '1');
+      setTimeout(() => showGoldenOverlay(), 500);
+    }
+  }
 
   // 나무 이미지 교체
   treeImg.src = stage.img;
