@@ -768,52 +768,85 @@ const CATEGORIES = [
 ];
 
 // 샘플 책 데이터 (최신순 — 인덱스 0이 가장 최신)
-const SAMPLE_BOOKS = {
-  lit: [
-    { answer: '화씨 451', d: 3, img: 'book01' },
-    { answer: '노인과 바다', d: 2, img: 'book06' },
-    { answer: '1984', d: 3, img: 'book02' },
-    { answer: '데미안', d: 1, img: 'book03' },
-    { answer: '이방인', d: 2, img: 'book05' },
-    { answer: '변신', d: 1, img: 'book07' },
-    { answer: '죄와 벌', d: 3, img: 'book09' },
-  ],
-  phi: [
-    { answer: '차라투스트라', d: 3, img: 'book04' },
-    { answer: '소크라테스의 변론', d: 1, img: 'book08' },
-    { answer: '명상록', d: 2, img: 'book10' },
-  ],
-  his: [
-    { answer: '로제타 스톤', d: 3, img: 'book02' },
-    { answer: '총균쇠', d: 2, img: 'book05' },
-  ],
-  art: [
-    { answer: '다비드', d: 3, img: 'book03' },
-    { answer: '모나리자', d: 2, img: 'book01' },
-  ],
-  myth: [
-    { answer: '어머니의 뼈', d: 2, img: 'book06' },
-  ],
-  sci: [
-    { answer: '암석의 순환', d: 1, img: 'book09' },
-  ],
-  inner: [],
-  power: [
-    { answer: '베를린 장벽', d: 2, img: 'book07' },
-  ],
-  spirit: [
-    { answer: '사도 베드로', d: 3, img: 'book04' },
-  ],
-  eco: [
-    { answer: '이끼', d: 1, img: 'book08' },
-  ],
-  geo: [
-    { answer: '스톤헨지', d: 3, img: 'book10' },
-  ],
-  food: [
-    { answer: '돌솥비빔밥', d: 1, img: 'book05' },
-  ],
+// ── 카테고리 매핑 ──────────────────────────────
+const CAT_MAP = {
+  'lit':    ['문학'],
+  'phi':    ['철학'],
+  'his':    ['역사'],
+  'art':    ['예술'],
+  'myth':   ['신화'],
+  'sci':    ['자연과학', '우주의 문법'],
+  'inner':  ['내면', '생각의 탄생'],
+  'power':  ['권력', '사회'],
+  'spirit': ['영성', '종교'],
+  'eco':    ['생태', '자연'],
+  'geo':    ['지리', '도시'],
+  'food':   ['삶의 맛', '음식', '일상'],
 };
+
+function getCatId(categoryStr) {
+  const c = categoryStr || '';
+  for (const [id, keywords] of Object.entries(CAT_MAP)) {
+    if (keywords.some(k => c.includes(k))) return id;
+  }
+  return 'lit';
+}
+
+// ── questions JSON → 82권 변환 ──────────────────
+let ALL_BOOKS = {}; // catId → [{answer, keyword, category, library, solved}]
+let BOOKS_LOADED = false;
+
+async function loadMuseumBooks() {
+  const seeds = [
+    'questions_taeyang.json',
+    'questions_gil.json',
+    'questions_bada.json',
+    'questions_terra.json',
+    'questions_bam.json',
+    'questions_bul.json',
+    'questions_dol.json',
+    'questions_namu.json',
+  ];
+
+  const BASE_URL = '/eungyo-salon/';
+  const bookMap = {}; // answer → book 객체
+
+  for (const seed of seeds) {
+    try {
+      const res = await fetch(BASE_URL + seed);
+      const data = await res.json();
+      for (const q of data.questions) {
+        const key = q.answer;
+        if (!bookMap[key]) {
+          bookMap[key] = {
+            answer: q.answer,
+            keyword: q.keyword || '',
+            category: q.category || '',
+            catId: getCatId(q.category),
+            library: q.library || {},
+            solved: 0, // 0~3 (Supabase에서 나중에 채움)
+          };
+        }
+      }
+    } catch(e) {
+      console.warn('씨앗 로드 실패:', seed, e);
+    }
+  }
+
+  // catId별로 분류
+  ALL_BOOKS = {};
+  CATEGORIES.forEach(cat => ALL_BOOKS[cat.id] = []);
+  for (const book of Object.values(bookMap)) {
+    if (ALL_BOOKS[book.catId]) {
+      ALL_BOOKS[book.catId].push(book);
+    }
+  }
+
+  BOOKS_LOADED = true;
+  const total = Object.values(ALL_BOOKS).reduce((s, arr) => s + arr.length, 0);
+  console.log('뮤세움 책 로드 완료:', total + '권');
+  renderShelf();
+}
 
 // ── 유틸 ──────────────────────────────────────
 function getBookImg(answer) {
@@ -850,10 +883,10 @@ function makeBookEl(book) {
   div.appendChild(textEl);
 
   // 진행도 점
-  if (book.d >= 1) {
+  if (book.solved >= 1) {
     const prog = document.createElement('div');
     prog.className = 'book-progress';
-    for (let i = 0; i < Math.min(book.d, 3); i++) {
+    for (let i = 0; i < Math.min(book.solved, 3); i++) {
       const dot = document.createElement('div');
       dot.className = 'progress-dot';
       prog.appendChild(dot);
@@ -862,7 +895,7 @@ function makeBookEl(book) {
   }
 
   // 완독 별
-  if (book.d >= 3) {
+  if (book.solved >= 3) {
     const star = document.createElement('div');
     star.className = 'book-star';
     star.textContent = '⭐';
@@ -875,10 +908,11 @@ function makeBookEl(book) {
 // ── 메인 서가 렌더 ────────────────────────────
 function renderShelf() {
   const container = document.getElementById('bookshelfContainer');
+  container.innerHTML = '';
   let totalBooks = 0;
 
   CATEGORIES.forEach(cat => {
-    const books = SAMPLE_BOOKS[cat.id] || [];
+    const books = ALL_BOOKS[cat.id] || [];
     totalBooks += books.length;
 
     const row = document.createElement('div');
@@ -1167,7 +1201,7 @@ function handleOverlayClick(e) {
 }
 
 // ── 시작 ──────────────────────────────────────
-renderShelf();
+loadMuseumBooks();
 
 // BGM 즉시 재생 시도 (자동재생 정책으로 실패하면 첫 클릭 시 재생)
 initBGM();
