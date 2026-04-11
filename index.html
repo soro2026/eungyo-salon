@@ -3684,14 +3684,16 @@ function closeAppleAward() {
 }
 
 async function updateSoroCard() {
-  // 기본값 먼저 표시
-  setEl('soro-games',  '0');
-  setEl('soro-record', '0-0');
-  setEl('soro-avg',    '.000');
-  setEl('soro-ops',    '.000');
-  setEl('soro-rbi',    '0');
-  setEl('soro-hr',     '0');
-  setEl('soro-era',    '0.00');
+  const s = id => document.getElementById(id);
+  const set = (id, val) => { if(s(id)) s(id).textContent = val; };
+
+  set('soro-games',  '0');
+  set('soro-record', '0-0');
+  set('soro-avg',    '.000');
+  set('soro-ops',    '.000');
+  set('soro-rbi',    '0');
+  set('soro-hr',     '0');
+  set('soro-era',    '0.00');
 
   if (!currentUser) return;
 
@@ -3707,7 +3709,7 @@ async function updateSoroCard() {
 
     const fmtAvg = n => n >= 1 ? n.toFixed(3) : (n === 0 ? '.000' : n.toFixed(3).replace(/^0/, ''));
 
-    const ab = data.at_bats || 1;
+    const ab  = data.at_bats || 1;
     const avg = data.hits / ab;
     const obp = (data.hits + data.bb) / ab;
     const slg = (data.singles + data.doubles*2 + data.triples*3 + data.hr*4) / ab;
@@ -3715,24 +3717,22 @@ async function updateSoroCard() {
     const ip  = (data.outs_recorded || 0) / 3;
     const era = ip > 0 ? (data.earned_runs / ip * 9) : 0;
 
-    setEl('soro-games',  data.games || 0);
-    setEl('soro-record', `${data.wins || 0}-${data.losses || 0}`);
-    setEl('soro-avg',    fmtAvg(avg));
-    setEl('soro-ops',    fmtAvg(ops));
-    setEl('soro-rbi',    data.rbi || 0);
-    setEl('soro-hr',     data.hr || 0);
-    setEl('soro-era',    era.toFixed(2));
+    set('soro-games',  data.games || 0);
+    set('soro-record', `${data.wins || 0}-${data.losses || 0}`);
+    set('soro-avg',    fmtAvg(avg));
+    set('soro-ops',    fmtAvg(ops));
+    set('soro-rbi',    data.rbi || 0);
+    set('soro-hr',     data.hr || 0);
+    set('soro-era',    era.toFixed(2));
 
-    // 리그 표시 — users 테이블에서
+    // 리그 표시
     const { data: userData } = await supa
       .from('users')
       .select('league')
       .eq('uid', currentUser.id)
       .single();
     if (userData?.league) {
-      const leagueEl = document.querySelector('#card-soro-img')
-        ?.closest('.card-wrap')
-        ?.querySelector('.card-stat-row.league-row .cs-val');
+      const leagueEl = document.querySelector('.card-stat-row.league-row .cs-val');
       if (leagueEl) leagueEl.textContent = userData.league;
     }
 
