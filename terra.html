@@ -174,8 +174,10 @@ body {
 
 <div id="main-content" style="display:none">
   <div class="tree-wrap">
-    <img class="tree-img" src="terra_tree.png" alt="황금사과나무" id="tree-img">
+    <img class="tree-img" src="terra_seedling.png" alt="황금사과나무" id="tree-img">
   </div>
+
+  <div style="display:flex;justify-content:flex-end;align-items:center;gap:6px;padding:8px 20px;min-height:52px;" id="mini-trees-wrap"></div>
 
   <div class="guide-text" id="guide-text"></div>
 
@@ -253,29 +255,81 @@ async function getCurrentUser(token) {
   return res.json();
 }
 
+// ── 성장 단계 설정 ──────────────────────────────
+const TREE_STAGES = [
+  { img: 'terra_seedling.png', min: 0, max: 3, label: '묘목이 자라고 있어요 🌱',
+    zones: [
+      { x: 42, y: 38 }, { x: 55, y: 32 }, { x: 65, y: 40 },
+    ]
+  },
+  { img: 'terra_sapling.png', min: 4, max: 6, label: '작은 나무가 열매를 맺기 시작했어요 🌿',
+    zones: [
+      { x: 38, y: 30 }, { x: 55, y: 25 }, { x: 68, y: 32 },
+      { x: 30, y: 42 }, { x: 50, y: 38 }, { x: 65, y: 45 },
+    ]
+  },
+  { img: 'terra_tree.png', min: 7, max: 9, label: '과수원이 점점 풍성해지고 있어요 🍎',
+    zones: [
+      { x: 35, y: 38 }, { x: 50, y: 32 }, { x: 65, y: 38 },
+      { x: 25, y: 48 }, { x: 45, y: 44 }, { x: 62, y: 50 },
+      { x: 75, y: 42 }, { x: 38, y: 55 }, { x: 58, y: 55 },
+    ]
+  },
+  { img: 'terra_golden_tree.png', min: 10, max: 999, label: '황금 과수원이 완성되었습니다! ✨',
+    zones: [
+      { x: 30, y: 18 }, { x: 45, y: 13 }, { x: 58, y: 10 },
+      { x: 70, y: 18 }, { x: 22, y: 28 }, { x: 38, y: 25 },
+      { x: 55, y: 22 }, { x: 68, y: 30 }, { x: 28, y: 38 },
+      { x: 52, y: 35 },
+    ]
+  },
+];
+
+function getStage(count) {
+  return TREE_STAGES.find(s => count <= s.max) || TREE_STAGES[3];
+}
+
 function placeApples(apples) {
   const treeWrap = document.querySelector('.tree-wrap');
   const treeImg = document.getElementById('tree-img');
 
-  // 나무 수관 영역 — x: 좌우%, y: 이미지 높이 기준 상단부터%
-  // 나무 이미지에서 수관은 대략 상단 20%~75% 구간
-  const zones = [
-    { x: 38, y: 30 }, { x: 55, y: 22 }, { x: 68, y: 28 },
-    { x: 28, y: 38 }, { x: 48, y: 35 }, { x: 65, y: 40 },
-    { x: 75, y: 32 }, { x: 35, y: 45 }, { x: 52, y: 48 },
-    { x: 70, y: 45 }, { x: 42, y: 55 }, { x: 60, y: 52 },
-    { x: 30, y: 50 }, { x: 55, y: 58 }, { x: 72, y: 55 },
-    { x: 45, y: 62 }, { x: 62, y: 60 }, { x: 35, y: 58 },
-    { x: 50, y: 42 }, { x: 68, y: 50 },
-  ];
+  // 현재 단계 결정
+  const currentCount = apples.filter(a => !a.locked).length;
+  // 완성된 나무 수 (10알 단위)
+  const completedTrees = Math.floor(apples.length / 10);
+  // 현재 나무에 달린 사과 (10알 이후 나머지)
+  const currentApples = apples.length % 10 || (apples.length > 0 && apples.length % 10 === 0 ? 10 : 0);
+  const displayCount = currentApples === 10 ? 10 : currentApples;
 
-  treeWrap.querySelectorAll('.apple-on-tree').forEach(el => el.remove());
+  const stage = getStage(displayCount);
 
-  const maxShow = Math.min(apples.length, zones.length);
+  // 나무 이미지 교체
+  treeImg.src = stage.img;
 
-  for (let i = 0; i < maxShow; i++) {
-    const apple = apples[i];
+  // 안내 텍스트 업데이트
+  document.getElementById('guide-text').textContent = stage.label;
+
+  // 기존 사과 + 미니 나무 제거
+  treeWrap.querySelectorAll('.apple-on-tree, .mini-tree').forEach(el => el.remove());
+
+  // 완성된 나무 미니 썸네일 (오른쪽에 쌓기)
+  const miniWrap = document.getElementById('mini-trees-wrap');
+  miniWrap.innerHTML = '';
+  for (let i = 0; i < completedTrees; i++) {
+    const mini = document.createElement('img');
+    mini.src = 'terra_golden_mini.png';
+    mini.style.cssText = 'width:44px;height:44px;object-fit:contain;';
+    mini.title = `${i+1}번째 황금 과수원`;
+    miniWrap.appendChild(mini);
+  }
+
+  // 사과 배치
+  const zones = stage.zones;
+  const showCount = Math.min(displayCount, zones.length);
+
+  for (let i = 0; i < showCount; i++) {
     const zone = zones[i];
+    const apple = apples[i] || { locked: false };
     const img = document.createElement('img');
     img.src = 'terra_apple.png';
     img.className = 'apple-on-tree' + (apple.locked ? ' locked' : '');
@@ -283,16 +337,14 @@ function placeApples(apples) {
     const offsetX = (Math.random() - 0.5) * 3;
     const offsetY = (Math.random() - 0.5) * 3;
     const delay = (Math.random() * 2).toFixed(1);
-    const size = 28 + Math.floor(Math.random() * 8); // 28~35px
+    const size = 30 + Math.floor(Math.random() * 6);
 
-    // treeImg 기준으로 위치 계산
     img.style.position = 'absolute';
     img.style.width = size + 'px';
     img.style.height = size + 'px';
     img.style.animationDelay = delay + 's';
     img.style.animationDuration = (2.5 + Math.random()).toFixed(1) + 's';
 
-    // 이미지 로드 후 실제 크기 기준으로 위치 잡기
     const setPos = () => {
       const iw = treeImg.offsetWidth;
       const ih = treeImg.offsetHeight;
