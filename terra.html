@@ -225,7 +225,7 @@ body {
     <img class="tree-img" src="terra_seedling.png" alt="황금사과나무" id="tree-img">
   </div>
 
-  <div style="display:flex;justify-content:flex-end;align-items:center;gap:6px;padding:8px 20px;min-height:52px;" id="mini-trees-wrap"></div>
+  <div style="display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:10px;padding:12px 20px;min-height:52px;max-width:480px;margin:0 auto;" id="mini-trees-wrap"></div>
 
   <div class="guide-text" id="guide-text"></div>
 
@@ -261,13 +261,12 @@ body {
 const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
 const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
 
-function showGoldenOverlay() {
+function showGoldenOverlay(auto = true) {
   const overlay = document.getElementById('golden-overlay');
   const video = document.getElementById('golden-video');
   overlay.classList.add('show');
   video.currentTime = 0;
   video.play().catch(() => {});
-  // 영상 끝나면 자동으로 닫기 안 함 — 버튼으로만 닫기
 }
 
 function closeGoldenOverlay() {
@@ -275,6 +274,8 @@ function closeGoldenOverlay() {
   const video = document.getElementById('golden-video');
   video.pause();
   overlay.classList.remove('show');
+  // 새 나무 시작을 위해 페이지 새로고침
+  init();
 }
 
 function goHome() {
@@ -358,22 +359,20 @@ function placeApples(apples) {
   const treeImg = document.getElementById('tree-img');
 
   // 현재 단계 결정
-  const currentCount = apples.filter(a => !a.locked).length;
   // 완성된 나무 수 (10알 단위)
   const completedTrees = Math.floor(apples.length / 10);
-  // 현재 나무에 달린 사과 (10알 이후 나머지)
-  const currentApples = apples.length % 10 || (apples.length > 0 && apples.length % 10 === 0 ? 10 : 0);
-  const displayCount = currentApples === 10 ? 10 : currentApples;
+  // 현재 나무에 달린 사과 수 (나머지, 0이면 10으로)
+  const remainder = apples.length % 10;
+  const displayCount = remainder === 0 && apples.length > 0 ? 10 : remainder;
 
   const stage = getStage(displayCount);
 
-  // 10알 완성 — 팡파레 영상 표시 (첫 진입 시만)
-  if (displayCount === 10 && completedTrees === Math.floor(apples.length / 10)) {
-    // sessionStorage로 이미 봤는지 체크
-    const key = `golden_shown_${completedTrees}`;
+  // 10알 완성 — 팡파레 영상 표시 (나무당 한 번만)
+  if (displayCount === 10) {
+    const key = `golden_shown_tree_${completedTrees}`;
     if (!sessionStorage.getItem(key)) {
       sessionStorage.setItem(key, '1');
-      setTimeout(() => showGoldenOverlay(), 500);
+      setTimeout(() => showGoldenOverlay(), 800);
     }
   }
 
@@ -392,8 +391,11 @@ function placeApples(apples) {
   for (let i = 0; i < completedTrees; i++) {
     const mini = document.createElement('img');
     mini.src = 'terra_golden_mini.png';
-    mini.style.cssText = 'width:44px;height:44px;object-fit:contain;';
-    mini.title = `${i+1}번째 황금 과수원`;
+    mini.style.cssText = 'width:52px;height:52px;object-fit:contain;cursor:pointer;transition:transform 0.2s;';
+    mini.title = `${i+1}번째 황금 과수원 — 클릭하면 다시 볼 수 있어요`;
+    mini.onclick = () => showGoldenOverlay(false);
+    mini.onmouseover = () => mini.style.transform = 'scale(1.15)';
+    mini.onmouseout = () => mini.style.transform = 'scale(1)';
     miniWrap.appendChild(mini);
   }
 
