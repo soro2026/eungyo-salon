@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>EG콘스텔라티오 — 교양의 별자리</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --gold: #C9A84C;
+  --gold-l: #E9C97E;
+  --gold-dim: rgba(201,168,76,0.4);
+  --chalk: #F0EBE0;
+  --ink: #050810;
+  --star-1: #fff8e7;   /* 1등급 — 가장 밝음 */
+  --star-9: rgba(255,248,231,0.15); /* 9등급 — 희미 */
+}
+
+html, body {
+  width: 100%; height: 100%;
+  background: var(--ink);
+  overflow: hidden;
+  font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  color: var(--chalk);
+  user-select: none;
+}
+
+/* ── 배경 우주 레이어 ── */
+#sky {
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(201,168,76,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse at 70% 80%, rgba(100,80,180,0.06) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 50%, #0a0d1a 0%, #050810 100%);
+  z-index: 0;
+}
+
+/* 은하수 + 성운 */
+#nebula {
+  position: fixed; inset: 0; z-index: 1;
+  background:
+    linear-gradient(
+      125deg,
+      transparent 0%, transparent 20%,
+      rgba(180,160,255,0.07) 28%,
+      rgba(201,168,76,0.055) 35%,
+      rgba(220,200,255,0.09) 42%,
+      rgba(180,160,255,0.055) 50%,
+      transparent 58%, transparent 100%
+    ),
+    linear-gradient(
+      125deg,
+      transparent 0%, transparent 30%,
+      rgba(255,240,200,0.045) 34%,
+      rgba(255,248,220,0.075) 38%,
+      rgba(255,240,200,0.045) 42%,
+      transparent 46%, transparent 100%
+    ),
+    radial-gradient(ellipse 55% 25% at 18% 38%, rgba(201,168,76,0.05) 0%, transparent 100%),
+    radial-gradient(ellipse 35% 45% at 78% 28%, rgba(120,100,200,0.065) 0%, transparent 100%),
+    radial-gradient(ellipse 40% 30% at 60% 70%, rgba(100,140,200,0.045) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+/* ── 캔버스 (별 렌더링) ── */
+#starCanvas {
+  position: fixed; inset: 0; z-index: 2;
+  cursor: crosshair;
+}
+
+/* ── 헤더 ── */
+.header {
+  position: fixed; top: 0; left: 0; right: 0;
+  z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 52px 20px 16px;
+  background: linear-gradient(to bottom, rgba(5,8,16,0.9) 0%, transparent 100%);
+}
+.back-btn {
+  background: none; border: none;
+  color: rgba(201,168,76,0.6); font-size: 18px;
+  cursor: pointer; padding: 4px 8px;
+}
+.header-title {
+  font-size: 11px; letter-spacing: 0.22em;
+  color: rgba(201,168,76,0.7); font-weight: 400;
+}
+/* 우주 전환 버튼 */
+.universe-toggle {
+  display: flex; gap: 6px;
+}
+.toggle-btn {
+  font-size: 9px; letter-spacing: 0.1em;
+  padding: 5px 10px; border-radius: 20px;
+  border: 1px solid rgba(201,168,76,0.25);
+  background: none; color: rgba(201,168,76,0.4);
+  cursor: pointer; transition: all 0.3s;
+}
+.toggle-btn.active {
+  background: rgba(201,168,76,0.15);
+  border-color: rgba(201,168,76,0.6);
+  color: var(--gold);
+}
+
+/* ── 별 툴팁 ── */
+#tooltip {
+  position: fixed; z-index: 200;
+  pointer-events: none;
+  opacity: 0; transition: opacity 0.2s;
+}
+.tooltip-inner {
+  background: rgba(5,8,16,0.92);
+  border: 1px solid rgba(201,168,76,0.35);
+  border-radius: 10px; padding: 10px 14px;
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+}
+.tooltip-name {
+  font-size: 13px; font-weight: 600;
+  color: var(--gold-l); letter-spacing: 0.06em;
+  margin-bottom: 2px;
+}
+.tooltip-info {
+  font-size: 10px; color: rgba(240,235,224,0.45);
+  letter-spacing: 0.08em;
+}
+.tooltip-grade {
+  font-size: 9px; color: rgba(201,168,76,0.5);
+  margin-top: 4px; letter-spacing: 0.06em;
+}
+
+/* ── 하단 검색바 ── */
+.search-wrap {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  z-index: 100; padding: 16px 20px 32px;
+  background: linear-gradient(to top, rgba(5,8,16,0.9) 0%, transparent 100%);
+}
+.search-bar {
+  width: 100%; max-width: 390px; margin: 0 auto;
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(201,168,76,0.2);
+  border-radius: 24px; padding: 10px 16px;
+  backdrop-filter: blur(8px);
+}
+.search-icon { font-size: 14px; opacity: 0.4; }
+.search-input {
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--chalk); font-size: 13px;
+  font-family: inherit;
+}
+.search-input::placeholder { color: rgba(240,235,224,0.25); }
+
+/* ── 별 카운트 ── */
+.star-count {
+  position: fixed; bottom: 90px; right: 20px;
+  z-index: 100; text-align: right;
+}
+.star-count-num {
+  font-size: 22px; font-weight: 700;
+  color: rgba(201,168,76,0.6);
+  font-family: 'Courier New', monospace;
+  line-height: 1;
+}
+.star-count-label {
+  font-size: 9px; letter-spacing: 0.12em;
+  color: rgba(240,235,224,0.2);
+}
+
+/* ── 소셜 우주 Coming Soon ── */
+#social-overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 150;
+  background: rgba(5,8,16,0.92);
+  flex-direction: column; align-items: center; justify-content: center;
+  backdrop-filter: blur(12px);
+}
+#social-overlay.show { display: flex; }
+.coming-soon-title {
+  font-size: 15px; letter-spacing: 0.2em;
+  color: rgba(100,80,200,0.8); margin-bottom: 8px;
+}
+.coming-soon-sub {
+  font-size: 12px; color: rgba(240,235,224,0.3);
+  letter-spacing: 0.1em; margin-bottom: 28px;
+}
+.coming-soon-btn {
+  padding: 10px 24px; border-radius: 20px;
+  background: none; border: 1px solid rgba(100,80,200,0.3);
+  color: rgba(100,80,200,0.6); font-size: 12px;
+  cursor: pointer; letter-spacing: 0.1em;
+}
+</style>
+</head>
+<body>
+
+<div id="sky"></div>
+<div id="nebula"></div>
+<canvas id="starCanvas"></canvas>
+
+<!-- 헤더 -->
+<div class="header">
+  <button class="back-btn" onclick="goHome()">←</button>
+  <div class="header-title">E G  C O N S T E L L A T I O</div>
+  <div class="universe-toggle">
+    <button class="toggle-btn active" id="btn-culture" onclick="showCultureUniverse()">교양우주</button>
+    <button class="toggle-btn" id="btn-social" onclick="showSocialUniverse()">소셜우주</button>
+  </div>
+</div>
+
+<!-- 별 툴팁 -->
+<div id="tooltip">
+  <div class="tooltip-inner">
+    <div class="tooltip-name" id="tt-name">소크라테스</div>
+    <div class="tooltip-info" id="tt-info">철학 · 고대 그리스</div>
+    <div class="tooltip-grade" id="tt-grade">★ 5등급 · 북마크 127명</div>
+  </div>
+</div>
+
+<!-- 별 카운트 -->
+<div class="star-count">
+  <div class="star-count-num" id="star-count-num">0</div>
+  <div class="star-count-label">별</div>
+</div>
+
+<!-- 소셜 우주 Coming Soon -->
+<div id="social-overlay">
+  <div class="coming-soon-title">S O C I A L  U N I V E R S E</div>
+  <div class="coming-soon-sub">추천 연결망 우주 — 준비 중입니다</div>
+  <button class="coming-soon-btn" onclick="showCultureUniverse()">← 교양우주로</button>
+</div>
+
+<!-- 하단 검색바 -->
+<div class="search-wrap">
+  <div class="search-bar">
+    <span class="search-icon">🔭</span>
+    <input class="search-input" type="text" placeholder="인물 이름으로 별 찾기..."
+      oninput="searchStar(this.value)">
+  </div>
+</div>
+
+<script>
+// ── 샘플 인물 데이터 (나중에 Supabase figures 연동) ──────────────
+const FIGURES = [
+  { name: '소크라테스',   info: '철학 · 고대 그리스',  grade: 2, bookmarks: 312 },
+  { name: '플라톤',       info: '철학 · 고대 그리스',  grade: 3, bookmarks: 245 },
+  { name: '아리스토텔레스', info: '철학 · 고대 그리스', grade: 3, bookmarks: 198 },
+  { name: '니체',         info: '철학 · 독일',         grade: 2, bookmarks: 289 },
+  { name: '칸트',         info: '철학 · 독일',         grade: 3, bookmarks: 176 },
+  { name: '헤겔',         info: '철학 · 독일',         grade: 4, bookmarks: 134 },
+  { name: '마르크스',     info: '철학·경제 · 독일',    grade: 3, bookmarks: 201 },
+  { name: '비트겐슈타인', info: '철학 · 오스트리아',   grade: 5, bookmarks: 89  },
+  { name: '프루스트',     info: '문학 · 프랑스',       grade: 2, bookmarks: 334 },
+  { name: '카프카',       info: '문학 · 체코',         grade: 3, bookmarks: 267 },
+  { name: '도스토예프스키', info: '문학 · 러시아',     grade: 2, bookmarks: 301 },
+  { name: '톨스토이',     info: '문학 · 러시아',       grade: 3, bookmarks: 221 },
+  { name: '헤르만 헤세',  info: '문학 · 독일',         grade: 3, bookmarks: 188 },
+  { name: '보르헤스',     info: '문학 · 아르헨티나',   grade: 4, bookmarks: 112 },
+  { name: '알베르 카뮈',  info: '문학·철학 · 프랑스',  grade: 3, bookmarks: 245 },
+  { name: '사르트르',     info: '철학 · 프랑스',       grade: 4, bookmarks: 143 },
+  { name: '베토벤',       info: '음악 · 독일',         grade: 2, bookmarks: 278 },
+  { name: '모차르트',     info: '음악 · 오스트리아',   grade: 2, bookmarks: 312 },
+  { name: '바흐',         info: '음악 · 독일',         grade: 3, bookmarks: 189 },
+  { name: '쇼팽',         info: '음악 · 폴란드',       grade: 3, bookmarks: 234 },
+  { name: '레오나르도 다빈치', info: '예술·과학 · 이탈리아', grade: 1, bookmarks: 521 },
+  { name: '미켈란젤로',   info: '예술 · 이탈리아',     grade: 2, bookmarks: 298 },
+  { name: '고흐',         info: '예술 · 네덜란드',     grade: 1, bookmarks: 489 },
+  { name: '클림트',       info: '예술 · 오스트리아',   grade: 4, bookmarks: 156 },
+  { name: '세익스피어',   info: '문학 · 영국',         grade: 1, bookmarks: 445 },
+  { name: '단테',         info: '문학 · 이탈리아',     grade: 3, bookmarks: 167 },
+  { name: '융',           info: '심리학 · 스위스',     grade: 3, bookmarks: 213 },
+  { name: '프로이트',     info: '심리학 · 오스트리아', grade: 3, bookmarks: 234 },
+  { name: '아인슈타인',   info: '물리학 · 독일',       grade: 1, bookmarks: 502 },
+  { name: '다윈',         info: '자연과학 · 영국',     grade: 2, bookmarks: 287 },
+  { name: '소로',         info: '문학·철학 · 미국',    grade: 4, bookmarks: 98  },
+  { name: '에머슨',       info: '철학 · 미국',         grade: 5, bookmarks: 76  },
+  { name: '파스칼',       info: '철학·수학 · 프랑스',  grade: 4, bookmarks: 132 },
+  { name: '몽테뉴',       info: '철학 · 프랑스',       grade: 5, bookmarks: 67  },
+  { name: '공자',         info: '철학 · 중국',         grade: 2, bookmarks: 356 },
+  { name: '노자',         info: '철학 · 중국',         grade: 3, bookmarks: 198 },
+  { name: '마키아벨리',   info: '정치철학 · 이탈리아', grade: 4, bookmarks: 145 },
+  { name: '루소',         info: '철학 · 프랑스',       grade: 3, bookmarks: 178 },
+  // 9등급 (희미한 별 — 문제에서만 스쳐간 인물)
+  { name: '들뢰즈',       info: '철학 · 프랑스',       grade: 9, bookmarks: 0   },
+  { name: '가타리',       info: '철학 · 프랑스',       grade: 9, bookmarks: 0   },
+  { name: '샹폴리옹',     info: '언어학 · 프랑스',     grade: 9, bookmarks: 0   },
+  { name: '왕가리 마타이', info: '환경운동 · 케냐',    grade: 9, bookmarks: 0   },
+  { name: '카를 코흐',    info: '심리학 · 스위스',     grade: 9, bookmarks: 0   },
+];
+
+// ── 별 객체 ──────────────────────────────────────────────────────
+let stars = [];
+let animFrame = null;
+let shootingStars = [];
+let tooltip = document.getElementById('tooltip');
+let hoveredStar = null;
+let searchQuery = '';
+
+// ── Canvas 초기화 ────────────────────────────────────────────────
+const canvas = document.getElementById('starCanvas');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  initStars();
+}
+
+function initStars() {
+  stars = [];
+  const W = canvas.width;
+  const H = canvas.height;
+
+  // 배경 미세 별 (장식용) — 랜덤 200개
+  for (let i = 0; i < 200; i++) {
+    stars.push({
+      type: 'bg',
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: Math.random() * 0.8 + 0.2,
+      alpha: Math.random() * 0.3 + 0.05,
+      twinkleSpeed: Math.random() * 0.02 + 0.005,
+      twinklePhase: Math.random() * Math.PI * 2,
+    });
+  }
+
+  // 인물 별 — FIGURES 배열 기반
+  const margin = 80;
+  const usable = { x: margin, y: 80, w: W - margin*2, h: H - 160 };
+
+  FIGURES.forEach((fig, idx) => {
+    // 겹치지 않게 배치 시도
+    let x, y, attempts = 0;
+    do {
+      x = usable.x + Math.random() * usable.w;
+      y = usable.y + Math.random() * usable.h;
+      attempts++;
+    } while (attempts < 30 && stars.some(s => s.type === 'figure' &&
+      Math.hypot(s.x - x, s.y - y) < 40));
+
+    const grade = fig.grade;
+    const baseR = grade === 1 ? 5 : grade === 2 ? 4 : grade === 3 ? 3.2 :
+                  grade === 4 ? 2.5 : grade === 5 ? 2 : 1.2;
+    const baseAlpha = grade === 1 ? 1 : grade === 2 ? 0.85 : grade === 3 ? 0.7 :
+                      grade === 4 ? 0.55 : grade === 5 ? 0.42 : 0.18;
+
+    stars.push({
+      type: 'figure',
+      figure: fig,
+      x, y,
+      r: baseR,
+      alpha: baseAlpha,
+      baseAlpha,
+      twinkleSpeed: Math.random() * 0.015 + 0.004,
+      twinklePhase: Math.random() * Math.PI * 2,
+      glowR: baseR * (grade <= 3 ? 10 : 6),
+      highlighted: false,
+    });
+  });
+
+  document.getElementById('star-count-num').textContent = FIGURES.length;
+}
+
+// ── 별 그리기 ────────────────────────────────────────────────────
+function drawStar(s, t) {
+  // 반짝임
+  const twinkle = Math.sin(t * s.twinkleSpeed * 60 + s.twinklePhase);
+
+  if (s.type === 'bg') {
+    const a = s.alpha + twinkle * 0.05;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,248,231,${Math.max(0, a)})`;
+    ctx.fill();
+    return;
+  }
+
+  // 인물 별
+  const fig = s.figure;
+  const grade = fig.grade;
+  const isFiltered = searchQuery && !fig.name.includes(searchQuery);
+  if (isFiltered) return;
+
+  const pulse = s.highlighted ? 1.4 : 1;
+  const a = Math.min(1, s.baseAlpha + twinkle * 0.08) * pulse;
+  const r = s.r * pulse;
+
+  // 글로우 (1~5등급)
+  if (grade <= 5) {
+    const glowColor = grade <= 2
+      ? `rgba(255,240,180,${a * 0.15})`
+      : `rgba(201,168,76,${a * 0.1})`;
+    const grad = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.glowR * pulse);
+    grad.addColorStop(0, glowColor);
+    grad.addColorStop(1, 'transparent');
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.glowR * pulse, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+
+  // 별 본체
+  const starColor = grade === 9
+    ? `rgba(200,210,255,${a})`
+    : grade <= 2
+    ? `rgba(255,248,220,${a})`
+    : `rgba(240,235,200,${a})`;
+
+  ctx.beginPath();
+  ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+  ctx.fillStyle = starColor;
+  ctx.fill();
+
+  // 1~3등급 — 십자형 광선
+  if (grade <= 3 && a > 0.5) {
+    ctx.strokeStyle = `rgba(255,248,220,${a * 0.4})`;
+    ctx.lineWidth = 0.5;
+    const len = r * 4;
+    ctx.beginPath();
+    ctx.moveTo(s.x - len, s.y); ctx.lineTo(s.x + len, s.y);
+    ctx.moveTo(s.x, s.y - len); ctx.lineTo(s.x, s.y + len);
+    ctx.stroke();
+  }
+
+  // 이름 표시 — 호버된 별만
+  if (s.highlighted && a > 0.3) {
+    ctx.fillStyle = `rgba(240,235,200,${a * 0.85})`;
+    ctx.font = `${grade <= 1 ? 12 : 11}px 'Apple SD Gothic Neo', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(fig.name, s.x, s.y - r - 7);
+  }
+}
+
+// ── 별똥별 4종류 ─────────────────────────────────────────────────
+const SHOOTING_TYPES = [
+  // 타입 1: 빠르고 가는 황금빛 (클래식)
+  { speedMin: 7, speedMax: 12, lenMin: 80, lenMax: 140, width: 1.2,
+    angleMin: 15, angleMax: 35, color: [255,248,200], alpha: 0.9 },
+  // 타입 2: 느리고 굵은 흰빛 (장거리)
+  { speedMin: 3, speedMax: 5,  lenMin: 150, lenMax: 220, width: 2.5,
+    angleMin: 20, angleMax: 40, color: [240,240,255], alpha: 0.7 },
+  // 타입 3: 중간 속도, 푸른빛 (희귀)
+  { speedMin: 5, speedMax: 8,  lenMin: 60, lenMax: 100, width: 1.8,
+    angleMin: 30, angleMax: 55, color: [180,200,255], alpha: 0.75 },
+  // 타입 4: 극도로 빠른 섬광 (찰나)
+  { speedMin: 14, speedMax: 20, lenMin: 40, lenMax: 70, width: 0.8,
+    angleMin: 10, angleMax: 25, color: [255,255,240], alpha: 1.0 },
+];
+
+function spawnShootingStar() {
+  const W = canvas.width;
+  const H = canvas.height;
+  // 타입 4(섬광)는 20% 확률, 나머지는 균등
+  const roll = Math.random();
+  const typeIdx = roll < 0.2 ? 3 : Math.floor(Math.random() * 3);
+  const t = SHOOTING_TYPES[typeIdx];
+
+  const angleDeg = t.angleMin + Math.random() * (t.angleMax - t.angleMin);
+  const angle = angleDeg * Math.PI / 180;
+  const speed = t.speedMin + Math.random() * (t.speedMax - t.speedMin);
+  const len   = t.lenMin + Math.random() * (t.lenMax - t.lenMin);
+
+  // 화면 상단/좌측에서 시작
+  const startEdge = Math.random() < 0.7 ? 'top' : 'left';
+  const x = startEdge === 'top' ? Math.random() * W * 0.75 : Math.random() * W * 0.2;
+  const y = startEdge === 'top' ? Math.random() * H * 0.35 : Math.random() * H * 0.4;
+
+  shootingStars.push({
+    x, y,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed,
+    len, width: t.width,
+    color: t.color,
+    alpha: t.alpha,
+    life: 1,
+    decay: typeIdx === 3 ? 0.06 : 0.018 + Math.random() * 0.01,
+  });
+}
+
+function drawShootingStars() {
+  shootingStars = shootingStars.filter(s => s.life > 0);
+  shootingStars.forEach(s => {
+    const tailX = s.x - s.vx * (s.len / 8);
+    const tailY = s.y - s.vy * (s.len / 8);
+    const [r,g,b] = s.color;
+
+    // 꼬리 그라디언트
+    const grad = ctx.createLinearGradient(s.x, s.y, tailX, tailY);
+    grad.addColorStop(0, `rgba(${r},${g},${b},${s.alpha * s.life})`);
+    grad.addColorStop(0.3, `rgba(${r},${g},${b},${s.alpha * s.life * 0.5})`);
+    grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(tailX, tailY);
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = s.width * s.life;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // 헤드 글로우
+    const glowGrad = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.width * 3);
+    glowGrad.addColorStop(0, `rgba(${r},${g},${b},${s.alpha * s.life * 0.8})`);
+    glowGrad.addColorStop(1, 'transparent');
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.width * 3, 0, Math.PI * 2);
+    ctx.fillStyle = glowGrad;
+    ctx.fill();
+
+    s.x += s.vx; s.y += s.vy;
+    s.life -= s.decay;
+  });
+}
+
+// ── 메인 루프 ────────────────────────────────────────────────────
+let startTime = performance.now();
+function loop() {
+  const t = (performance.now() - startTime) / 1000;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  stars.forEach(s => drawStar(s, t));
+  drawShootingStars();
+  animFrame = requestAnimationFrame(loop);
+}
+
+// 별똥별 — 8~15초 간격 랜덤
+function scheduleShootingStar() {
+  setTimeout(() => {
+    spawnShootingStar();
+    scheduleShootingStar();
+  }, Math.random() * 7000 + 8000);
+}
+
+// ── 인터랙션 ─────────────────────────────────────────────────────
+function getPointerPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  if (e.touches) {
+    return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+  }
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+function findNearestFigureStar(px, py, threshold = 28) {
+  let nearest = null;
+  let minDist = threshold;
+  stars.forEach(s => {
+    if (s.type !== 'figure') return;
+    const d = Math.hypot(s.x - px, s.y - py);
+    if (d < minDist) { minDist = d; nearest = s; }
+  });
+  return nearest;
+}
+
+function showTooltip(s, px, py) {
+  const fig = s.figure;
+  document.getElementById('tt-name').textContent = fig.name;
+  document.getElementById('tt-info').textContent = fig.info;
+  const gradeStr = fig.grade === 9
+    ? '9등급 · 문제에서 만난 인물'
+    : `${fig.grade}등급 · 북마크 ${fig.bookmarks}명`;
+  document.getElementById('tt-grade').textContent =
+    '★'.repeat(Math.max(1, 9 - fig.grade)) + ' ' + gradeStr;
+
+  const tw = 180;
+  let tx = px + 16;
+  let ty = py - 60;
+  if (tx + tw > window.innerWidth - 10) tx = px - tw - 10;
+  if (ty < 80) ty = py + 20;
+  tooltip.style.left = tx + 'px';
+  tooltip.style.top  = ty + 'px';
+  tooltip.style.opacity = '1';
+}
+
+function hideTooltip() {
+  tooltip.style.opacity = '0';
+}
+
+// 마우스
+canvas.addEventListener('mousemove', e => {
+  const { x, y } = getPointerPos(e);
+  const s = findNearestFigureStar(x, y);
+  if (s !== hoveredStar) {
+    if (hoveredStar) hoveredStar.highlighted = false;
+    hoveredStar = s;
+    if (s) { s.highlighted = true; showTooltip(s, x, y); canvas.style.cursor = 'pointer'; }
+    else { hideTooltip(); canvas.style.cursor = 'crosshair'; }
+  } else if (s) {
+    showTooltip(s, x, y);
+  }
+});
+
+canvas.addEventListener('mouseleave', () => {
+  if (hoveredStar) hoveredStar.highlighted = false;
+  hoveredStar = null; hideTooltip();
+});
+
+// 터치
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const { x, y } = getPointerPos(e);
+  const s = findNearestFigureStar(x, y, 40);
+  if (hoveredStar && hoveredStar !== s) hoveredStar.highlighted = false;
+  hoveredStar = s;
+  if (s) { s.highlighted = true; showTooltip(s, x, y); }
+  else hideTooltip();
+}, { passive: false });
+
+// ── 검색 ─────────────────────────────────────────────────────────
+function searchStar(q) {
+  searchQuery = q.trim();
+  if (!searchQuery) return;
+  // 검색된 별 하이라이트
+  stars.forEach(s => {
+    if (s.type !== 'figure') return;
+    s.highlighted = s.figure.name.includes(searchQuery);
+  });
+}
+
+// ── 우주 전환 ────────────────────────────────────────────────────
+function showCultureUniverse() {
+  document.getElementById('social-overlay').classList.remove('show');
+  document.getElementById('btn-culture').classList.add('active');
+  document.getElementById('btn-social').classList.remove('active');
+}
+
+function showSocialUniverse() {
+  document.getElementById('social-overlay').classList.add('show');
+  document.getElementById('btn-social').classList.add('active');
+  document.getElementById('btn-culture').classList.remove('active');
+}
+
+function goHome() {
+  window.location.href = '/eungyo-salon/';
+}
+
+// ── 시작 ─────────────────────────────────────────────────────────
+window.addEventListener('resize', resize);
+resize();
+loop();
+scheduleShootingStar();
+// 첫 별똥별 3초 후
+setTimeout(spawnShootingStar, 3000);
+</script>
+</body>
+</html>
