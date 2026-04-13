@@ -1159,6 +1159,77 @@
     margin-bottom: 28px; text-align: center; line-height: 1.6;
   }
 
+  /* ── 타구장 소식 화면 ── */
+  #other-games-screen {
+    display: none; flex-direction: column; align-items: center;
+    justify-content: center; flex: 1; padding: 24px 20px;
+    animation: fadeIn 0.4s ease;
+  }
+  .og-title {
+    font-size: 10px; letter-spacing: 0.18em;
+    color: rgba(248,244,238,0.3); margin-bottom: 6px;
+    text-align: center;
+  }
+  .og-subtitle {
+    font-size: 13px; letter-spacing: 0.08em;
+    color: rgba(201,168,76,0.7); margin-bottom: 28px;
+    text-align: center;
+  }
+  .og-cards-wrap {
+    width: 100%; max-width: 390px;
+    display: flex; flex-direction: column; gap: 10px;
+    transform: translateY(50px); opacity: 0;
+    transition: transform 0.55s cubic-bezier(0.22,1,0.36,1), opacity 0.55s ease;
+  }
+  .og-cards-wrap.slide-in { transform: translateY(0); opacity: 1; }
+  .og-card {
+    display: flex; align-items: center;
+    background: rgba(10,22,40,0.85);
+    border: 1px solid rgba(180,180,200,0.2);
+    border-radius: 10px; overflow: hidden;
+    padding: 10px 14px; gap: 10px;
+  }
+  .og-card-teams { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+  .og-card-team {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 12px; color: rgba(248,244,238,0.8);
+    font-family: 'Courier New', monospace; letter-spacing: 0.04em;
+  }
+  .og-card-team.winner { color: #fff; font-weight: 700; }
+  .og-emblem {
+    width: 20px; height: 20px; border-radius: 50%;
+    overflow: hidden; border: 1px solid rgba(255,255,255,0.15); flex-shrink: 0;
+  }
+  .og-emblem img { width: 100%; height: 100%; object-fit: cover; }
+  .og-score-col {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 3px; min-width: 36px;
+  }
+  .og-score {
+    font-family: 'Courier New', monospace; font-size: 20px;
+    font-weight: 800; color: #fff; line-height: 1;
+  }
+  .og-score.loser { color: rgba(248,244,238,0.35); font-weight: 400; }
+  .og-divider { width: 1px; background: rgba(180,180,200,0.15); align-self: stretch; margin: 0 4px; }
+  .og-status {
+    font-size: 9px; letter-spacing: 0.1em;
+    color: rgba(248,244,238,0.3); text-align: center;
+    font-family: 'Courier New', monospace;
+  }
+  .og-status.live { color: #52B788; }
+  .og-btn {
+    margin-top: 28px; width: 100%; max-width: 390px;
+    padding: 14px; border-radius: 10px;
+    background: rgba(248,244,238,0.06);
+    border: 1px solid rgba(248,244,238,0.15);
+    color: rgba(248,244,238,0.6); font-size: 14px;
+    letter-spacing: 0.08em; cursor: pointer;
+  }
+  .og-inning-label {
+    font-size: 11px; color: rgba(248,244,238,0.2);
+    text-align: center; margin-bottom: 20px;
+  }
+
   /* ── 카테고리 스탯 바 화면 ── */
   #catstat-screen {
     display: none; flex-direction: column; align-items: center;
@@ -1866,6 +1937,15 @@
         ⚾ 필드 입장하기
       </button>
     </div>
+  </div>
+
+  <!-- ③ 타구장 소식 화면 -->
+  <div id="other-games-screen">
+    <div class="og-title">O T H E R  G A M E S</div>
+    <div class="og-subtitle" id="og-subtitle">공수 교대 · 타구장 현황</div>
+    <div class="og-inning-label" id="og-inning-label"></div>
+    <div class="og-cards-wrap" id="og-cards-wrap"></div>
+    <button class="og-btn" id="og-btn" onclick="proceedFromOtherGames()">▸ 계속하기</button>
   </div>
 
   <!-- ③ 카테고리 스탯 바 화면 -->
@@ -3189,6 +3269,11 @@ function advBasesAi(n){
 
 // ── 경기 결과 화면 ──────────────────────────────
 function showGameResult(){
+  // 타구장 최종 결과 먼저 보여주고 → 실제 결과 화면
+  showOtherGamesScreen(true, () => _showGameResultInner());
+}
+
+function _showGameResultInner(){
   // 승패 판정
   let result, resultColor, emoji;
   if(st.scoreMe > st.scoreAi){
@@ -3220,6 +3305,7 @@ function showGameResult(){
   document.getElementById('judging-area').style.display='none';
   document.getElementById('atstep-screen').style.display='none';
   document.getElementById('pitchready-screen').style.display='none';
+  document.getElementById('other-games-screen').style.display='none';
 
   ra.innerHTML = `
     <div style="text-align:center;padding:20px 0 12px">
@@ -3844,6 +3930,112 @@ function requestPitch(){
   startQ();
 }
 
+// ── 타구장 소식 화면 ──────────────────────────────
+const OG_TEAMS = [
+  { name: 'Socrates', emblem: 'emblem_socrates.jpg', color: '#1a3a6b' },
+  { name: 'Proust',   emblem: 'emblem_proust.jpg',   color: '#8B1A1A' },
+  { name: 'Pascal',   emblem: 'emblem_pascal.jpg',   color: '#2a5a2a' },
+  { name: 'Soro',     emblem: 'emblem_soro.jpg',     color: '#6B1A1A' },
+];
+
+function simOtherGames(isHalfTime) {
+  // 현재 플레이 중인 상대팀 제외하고 3경기 시뮬
+  const oppName = currentOpp ? currentOpp.name : 'Proust';
+  const others = OG_TEAMS.filter(t => t.name !== 'Soro' && t.name !== oppName);
+  // 3경기: 나머지 2팀 간 1경기 + 랜덤 2경기 더
+  const allTeams = OG_TEAMS.filter(t => t.name !== 'Soro');
+  const games = [];
+  // 경기 조합 생성 (중복 없이)
+  const used = new Set();
+  for (let i = 0; i < allTeams.length; i++) {
+    for (let j = i+1; j < allTeams.length; j++) {
+      games.push([allTeams[i], allTeams[j]]);
+    }
+  }
+  // 랜덤 3경기 선택
+  const picked = games.sort(() => Math.random() - 0.5).slice(0, 3);
+  return picked.map(([home, away]) => {
+    const inning = Math.floor(Math.random() * 3) + 1;
+    const half = Math.random() > 0.5 ? '초' : '말';
+    const scoreA = Math.floor(Math.random() * 5);
+    const scoreB = Math.floor(Math.random() * 5);
+    const finished = isHalfTime ? false : true;
+    return { home, away, scoreHome: scoreA, scoreAway: scoreB, inning, half, finished };
+  });
+}
+
+function renderOtherGames(games) {
+  const wrap = document.getElementById('og-cards-wrap');
+  wrap.innerHTML = '';
+  games.forEach(g => {
+    const homeWin = g.scoreHome > g.scoreAway;
+    const awayWin = g.scoreAway > g.scoreHome;
+    const statusTxt = g.finished ? '종료' : `${g.inning}회 ${g.half}`;
+    const statusClass = g.finished ? '' : 'live';
+    wrap.innerHTML += `
+      <div class="og-card">
+        <div class="og-card-teams">
+          <div class="og-card-team ${g.finished && homeWin ? 'winner' : ''}">
+            <div class="og-emblem"><img src="${g.home.emblem}" alt=""></div>
+            ${g.home.name}
+          </div>
+          <div class="og-card-team ${g.finished && awayWin ? 'winner' : ''}">
+            <div class="og-emblem"><img src="${g.away.emblem}" alt=""></div>
+            ${g.away.name}
+          </div>
+        </div>
+        <div class="og-divider"></div>
+        <div class="og-score-col">
+          <div class="og-score ${g.finished && !homeWin ? 'loser' : ''}">${g.scoreHome}</div>
+          <div class="og-score ${g.finished && !awayWin ? 'loser' : ''}">${g.scoreAway}</div>
+        </div>
+        <div class="og-divider"></div>
+        <div class="og-status ${statusClass}">${statusTxt}</div>
+      </div>`;
+  });
+}
+
+// _ogCallback: 타구장 화면 닫은 후 실행할 함수
+let _ogCallback = null;
+
+function showOtherGamesScreen(isFinished, callback) {
+  _ogCallback = callback;
+
+  // 화면 전환
+  ['reveal-screen','zone-board-screen','game-area','result-area',
+   'judging-area','atstep-screen','pitchready-screen','catstat-screen'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  document.getElementById('main-header').style.display = 'flex';
+  document.getElementById('main-content').style.display = 'flex';
+  document.getElementById('other-games-screen').style.display = 'flex';
+
+  // 타이틀 설정
+  const half = st.isAttack ? (currentIsHome ? '말' : '초') : (currentIsHome ? '초' : '말');
+  document.getElementById('og-subtitle').textContent = isFinished
+    ? '경기 종료 · 타구장 최종 결과'
+    : `${st.inning}회 ${half} 종료 · 공수 교대`;
+  document.getElementById('og-inning-label').textContent = isFinished
+    ? '오늘의 리그 결과'
+    : '현재 진행 중인 타구장 현황';
+  document.getElementById('og-btn').textContent = isFinished ? '🏆 경기 결과 보기' : '⚾ 공수 교대';
+
+  // 게임 시뮬 + 렌더
+  const games = simOtherGames(!isFinished);
+  renderOtherGames(games);
+
+  // 슬라이드 인
+  const wrap = document.getElementById('og-cards-wrap');
+  wrap.classList.remove('slide-in');
+  requestAnimationFrame(() => requestAnimationFrame(() => wrap.classList.add('slide-in')));
+}
+
+function proceedFromOtherGames() {
+  document.getElementById('other-games-screen').style.display = 'none';
+  if (_ogCallback) { _ogCallback(); _ogCallback = null; }
+}
+
 // nextQ — 1이닝 모델
 // 공수 교대 전용 함수
 function switchHalf(){
@@ -3859,7 +4051,9 @@ function switchHalf(){
   st.isAttack = !st.isAttack; // 공수 전환
   renderBases();renderOuts();switchStatPanel();
   st.qIdx=(st.qIdx+1)%QS.length;
-  showAtStep();
+
+  // 타구장 소식 화면 → 완료 후 showAtStep
+  showOtherGamesScreen(false, () => showAtStep());
 }
 
 function nextQ(){
