@@ -782,18 +782,96 @@ function renderAuction() {
   return html;
 }
 
+// ── 액자 메타데이터 ──────────────────────────────────────────
+const FRAME_META = {
+  'frame_diamond_01':{grade:'diamond',ratio:'portrait',inset:{top:28,right:20,bottom:16,left:20}},
+  'frame_diamond_02':{grade:'diamond',ratio:'portrait',inset:{top:22,right:18,bottom:18,left:18}},
+  'frame_diamond_03':{grade:'diamond',ratio:'oval',    inset:{top:22,right:18,bottom:22,left:18}},
+  'frame_diamond_04':{grade:'diamond',ratio:'portrait',inset:{top:16,right:14,bottom:16,left:14}},
+  'frame_diamond_05':{grade:'diamond',ratio:'portrait',inset:{top:18,right:16,bottom:16,left:16}},
+  'frame_gold_01':   {grade:'gold',   ratio:'square',  inset:{top:12,right:12,bottom:12,left:12}},
+  'frame_gold_02':   {grade:'gold',   ratio:'portrait',inset:{top:14,right:13,bottom:13,left:13}},
+  'frame_gold_03':   {grade:'gold',   ratio:'landscape',inset:{top:12,right:10,bottom:12,left:10}},
+  'frame_gold_04':   {grade:'gold',   ratio:'portrait',inset:{top:15,right:14,bottom:14,left:14}},
+  'frame_gold_05':   {grade:'gold',   ratio:'square',  inset:{top:14,right:14,bottom:14,left:14}},
+  'frame_gold_06':   {grade:'gold',   ratio:'landscape',inset:{top:14,right:10,bottom:14,left:10}},
+  'frame_gold_07':   {grade:'gold',   ratio:'portrait',inset:{top:24,right:20,bottom:20,left:20}},
+  'frame_gold_08':   {grade:'gold',   ratio:'portrait',inset:{top:14,right:13,bottom:13,left:13}},
+  'frame_silver_01': {grade:'silver', ratio:'square',  inset:{top:10,right:10,bottom:10,left:10}},
+  'frame_silver_02': {grade:'silver', ratio:'square',  inset:{top:11,right:11,bottom:11,left:11}},
+  'frame_silver_03': {grade:'silver', ratio:'portrait',inset:{top:12,right:11,bottom:11,left:11}},
+  'frame_silver_04': {grade:'silver', ratio:'landscape',inset:{top:15,right:10,bottom:15,left:10}},
+  'frame_silver_05': {grade:'silver', ratio:'portrait',inset:{top:13,right:12,bottom:12,left:12}},
+  'frame_silver_06': {grade:'silver', ratio:'portrait',inset:{top:14,right:13,bottom:13,left:13}},
+  'frame_silver_07': {grade:'silver', ratio:'oval',    inset:{top:25,right:22,bottom:25,left:22}},
+  'frame_silver_08': {grade:'silver', ratio:'square',  inset:{top:10,right:10,bottom:10,left:10}},
+  'frame_bronze_01': {grade:'bronze', ratio:'portrait',inset:{top:14,right:13,bottom:13,left:13}},
+  'frame_bronze_02': {grade:'bronze', ratio:'portrait',inset:{top:13,right:12,bottom:12,left:12}},
+  'frame_bronze_03': {grade:'bronze', ratio:'portrait',inset:{top:14,right:12,bottom:13,left:12}},
+  'frame_bronze_04': {grade:'bronze', ratio:'portrait',inset:{top:14,right:13,bottom:13,left:13}},
+  'frame_bronze_05': {grade:'bronze', ratio:'portrait',inset:{top:12,right:11,bottom:11,left:11}},
+  'frame_bronze_06': {grade:'bronze', ratio:'square',  inset:{top:11,right:11,bottom:11,left:11}},
+  'frame_bronze_07': {grade:'bronze', ratio:'portrait',inset:{top:18,right:16,bottom:16,left:16}},
+  'frame_bronze_08': {grade:'bronze', ratio:'portrait',inset:{top:16,right:14,bottom:14,left:14}},
+  'frame_bronze_09': {grade:'bronze', ratio:'portrait',inset:{top:15,right:13,bottom:13,left:13}},
+};
+
+// 등급별 액자 목록
+const FRAME_BY_GRADE = {};
+Object.keys(FRAME_META).forEach(k => {
+  const g = FRAME_META[k].grade;
+  if (!FRAME_BY_GRADE[g]) FRAME_BY_GRADE[g] = [];
+  FRAME_BY_GRADE[g].push(k);
+});
+
+// 등급별 랜덤 액자 선택 (아이템 코드로 시드 — 같은 보물은 항상 같은 액자)
+function getFrameForItem(itemCode, grade) {
+  const frames = FRAME_BY_GRADE[grade] || FRAME_BY_GRADE['bronze'];
+  // 코드 해시로 일관된 선택
+  let hash = 0;
+  for (let i = 0; i < itemCode.length; i++) hash = (hash * 31 + itemCode.charCodeAt(i)) & 0xffff;
+  return frames[hash % frames.length];
+}
+
 function renderTreasures(grade) {
   const items = TREASURES[grade] || [];
   let html = '<div class="treasure-grid">';
   items.forEach(item => {
     const soldOut = item.edition.includes('SOLD OUT');
+    const frameKey = getFrameForItem(item.code, item.grade);
+    const meta = FRAME_META[frameKey];
+    const {top, right, bottom, left} = meta.inset;
+    const isOval = meta.ratio === 'oval';
+    const clipStyle = isOval ? `clip-path:ellipse(${50-left/2}% ${50-top/2}% at 50% 50%);` : '';
+
     html += `
       <div class="treasure-card ${item.grade}" onclick="openTreasure('${item.code}')">
-        <div class="treasure-img-wrap" style="background:${getBgColor(item.grade)}">
-          <div class="treasure-artwork">${item.artwork}</div>
-          <div class="grade-badge">${getGradeLabel(item.grade)}</div>
-          <div class="edition-badge">${item.edition}</div>
-          ${soldOut ? '<div style="position:absolute;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:10px;letter-spacing:0.15em;color:rgba(245,240,232,0.4)">SOLD OUT</div>' : ''}
+        <!-- 액자 래퍼 -->
+        <div style="position:relative;width:100%;aspect-ratio:${
+          meta.ratio==='landscape' ? '4/3' : meta.ratio==='square' ? '1/1' : '3/4'
+        }">
+          <!-- 보물 콘텐츠 (액자 안쪽) -->
+          <div style="
+            position:absolute;
+            top:${top}%;right:${right}%;bottom:${bottom}%;left:${left}%;
+            overflow:hidden;
+            display:flex;align-items:center;justify-content:center;
+            background:${getBgColor(item.grade)};
+            ${clipStyle}
+          ">
+            ${item.img
+              ? `<img src="${item.img}" style="width:100%;height:100%;object-fit:cover;">`
+              : `<div style="font-size:${meta.ratio==='square'?'38':'44'}px;filter:drop-shadow(0 4px 12px rgba(0,0,0,0.6))">${item.artwork}</div>`
+            }
+            ${soldOut ? '<div style="position:absolute;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;font-size:9px;letter-spacing:0.15em;color:rgba(245,240,232,0.5)">SOLD OUT</div>' : ''}
+          </div>
+          <!-- 액자 이미지 오버레이 -->
+          <img src="frames/${frameKey}.png"
+            style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;z-index:2;pointer-events:none;"
+            alt="frame">
+          <!-- 배지들 -->
+          <div class="grade-badge" style="z-index:3">${getGradeLabel(item.grade)}</div>
+          <div class="edition-badge" style="z-index:3">${item.edition}</div>
         </div>
         <div class="treasure-label">
           <div class="treasure-code">${item.code}</div>
