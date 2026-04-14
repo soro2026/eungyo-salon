@@ -2407,6 +2407,10 @@ function showZoneBoardScreen() {
 
   renderZoneBoard();
 
+  // 스탯바 데이터 갱신 (공수교대 후에도 최신 스탯 반영)
+  const currentQ = getQ();
+  if (currentQ) updateGameStatBar(currentQ);
+
   // 스탯바 리셋
   const wrap = document.getElementById('zb-statbar-wrap');
   if (wrap) {
@@ -2679,7 +2683,7 @@ function onAction(){
       document.getElementById('game-area').style.display='none';
       let mk,label,cls,adv;
       if(aiHR){mk='ai_homerun';label='홈런 허용';cls='r-defense-fail';adv=4;st.pitchAB++;st.tq+=calcTQ('ai_homerun',4,true);}
-      else if(aiHit){mk='ai_hit';label='안타 허용';cls='r-defense-fail';adv=1+Math.floor(Math.random()*2);st.pitchAB++;st.tq+=calcTQ('ai_hit',1,true);}
+      else if(aiHit){adv=1+Math.floor(Math.random()*2);mk='ai_hit';label=adv>=2?'2루타 허용':'안타 허용';cls='r-defense-fail';st.pitchAB++;st.tq+=calcTQ('ai_hit',adv,true);}
       else{mk='ai_out';label='아웃!';cls='r-defense-ok';adv=0;st.outs++;st.outsRecorded++;st.tq+=calcTQ('ai_out',0,true);}
       showJudging(getMsg(mk),()=>{
         st.totalAB++;
@@ -2936,7 +2940,8 @@ function processAns(ans){
     if(pct<=20){label='홈런!';cls='r-homerun';adv=4;mk='homerun';st.hr++;st.tq+=calcTQ('homerun',4,false); SND.homerun(); SND.crowd();}
     else if(pct<=35){label='3루타!';cls='r-triple';adv=3;mk='triple';st.triples++;st.tq+=calcTQ('triple',3,false); SND.hit(); SND.cheer();}
     else if(pct<=50){label='2루타!';cls='r-double';adv=2;mk='double';st.doubles++;st.tq+=calcTQ('double',2,false); SND.hit(); SND.cheer();}
-    else{label='단타!';cls='r-single';adv=1;mk='single';st.singles++;st.tq+=calcTQ('single',1,false); SND.hit();}
+    else if(pct<=75){label='단타!';cls='r-single';adv=1;mk='single';st.singles++;st.tq+=calcTQ('single',1,false); SND.hit();}
+    else{label='볼넷';cls='r-single';adv=1;mk='bb';st.bb++;st.tq+=calcTQ('bb',1,false); SND.hit();}
   }
   const tp=Math.round(pct),tt=tp<=20?'극초반 반응!':tp<=50?'빠른 반응':'후반 타이밍';
   document.getElementById('stat-timing').textContent=tp+'%';
@@ -3769,7 +3774,9 @@ function enterBatterBox(){
   const parts = q.cat.split('·');
   const catMain = parts[0]?.trim() || q.cat;
   const catSub  = parts[1]?.trim() || '';
-  const inningTxt = st.inning+'회 초 · '+st.atbat+'번 타자';
+  const half = currentIsHome ? '말' : '초';
+  const arrow = currentIsHome ? '▽' : '▲';
+  const inningTxt = st.inning+'회 '+half+' '+arrow+' · '+st.atbat+'번 타자';
 
   document.getElementById('atstep-screen').style.display = 'none';
   document.getElementById('pitchready-screen').style.display = 'flex';
