@@ -693,16 +693,38 @@ function renderAuction() {
   const items = TREASURES.auction;
   let html = '';
   items.forEach(item => {
+    const frameKey = getFrameForItem(item.code, 'diamond');
+    const meta = FRAME_META[frameKey] || {ratio:'portrait',inset:{top:28,right:20,bottom:16,left:20}};
+    const {top, right, bottom, left} = meta.inset;
+    const isOval = meta.ratio === 'oval';
+    const clipStyle = isOval ? `clip-path:ellipse(${50-left/2}% ${50-top/2}% at 50% 50%);` : '';
+
     html += `
       <div class="auction-card">
-        <div class="auction-header">
-          <div class="auction-title-wrap">
-            <div class="auction-grade">💎 DIAMOND · ${item.edition}</div>
-            <div class="auction-name">${item.name}</div>
+        <!-- 액자 + 보물 이미지 -->
+        <div style="position:relative;width:100%;aspect-ratio:3/4;margin-bottom:12px">
+          <div style="
+            position:absolute;
+            top:${top}%;right:${right}%;bottom:${bottom}%;left:${left}%;
+            overflow:hidden;display:flex;align-items:center;justify-content:center;
+            background:linear-gradient(180deg,rgba(20,15,30,0.9),rgba(10,8,18,0.95));
+            ${clipStyle}
+          ">
+            ${item.img
+              ? `<img src="${item.img}" style="width:100%;height:100%;object-fit:cover;">`
+              : `<div style="font-size:52px;filter:drop-shadow(0 4px 16px rgba(0,0,0,0.8))">${item.artwork}</div>`
+            }
           </div>
-          <div class="auction-artwork">${item.artwork}</div>
+          <img src="${frameKey}.png"
+            style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;z-index:2;pointer-events:none;"
+            alt="frame">
+          <div style="position:absolute;top:8px;right:8px;z-index:3;font-size:8px;letter-spacing:0.12em;padding:2px 7px;border-radius:10px;background:rgba(120,180,255,0.15);border:1px solid rgba(120,180,255,0.3);color:rgba(180,220,255,0.9)">💎 DIAMOND</div>
         </div>
-        <div style="font-size:8px;letter-spacing:0.12em;color:rgba(245,240,232,0.2);font-family:'Courier New',monospace;margin-bottom:10px">${item.code}</div>
+        <!-- 명찰 -->
+        <div style="font-size:7px;letter-spacing:0.18em;color:rgba(245,240,232,0.2);font-family:'Courier New',monospace;margin-bottom:4px">${item.code}</div>
+        <div class="auction-name">${item.name}</div>
+        <div style="font-size:10px;color:rgba(201,168,76,0.7);font-style:italic;margin-bottom:2px">${item.artist||''}</div>
+        <div style="font-size:9px;color:rgba(245,240,232,0.3);margin-bottom:10px">${item.period||''} · ${item.origin||''}</div>
         <div class="auction-info">
           <div class="auction-stat">
             <span class="auction-stat-val">${item.currentBid}</span>
@@ -719,11 +741,12 @@ function renderAuction() {
         </div>
         <div class="auction-timer">
           <div class="timer-dot"></div>
-          경매 진행 중 · ${item.origin}
+          경매 진행 중 · ${item.edition}
         </div>
         <button class="auction-btn" onclick="openBid('${item.code}')">
           🍎 황금사과로 입찰하기
         </button>
+        ${item.source_url ? `<a class="treasure-link-btn" href="${item.source_url}" target="_blank" style="display:block;text-align:center;margin-top:6px;">🔗 원본 감상</a>` : ''}
       </div>`;
   });
   return html;
@@ -814,7 +837,7 @@ function renderTreasures(grade) {
             ${soldOut ? '<div style="position:absolute;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;font-size:9px;letter-spacing:0.15em;color:rgba(245,240,232,0.5)">SOLD OUT</div>' : ''}
           </div>
           <!-- 액자 이미지 오버레이 -->
-          <img src="frames/${frameKey}.png"
+          <img src="${frameKey}.png"
             style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;z-index:2;pointer-events:none;"
             alt="frame">
           <!-- 배지들 -->
