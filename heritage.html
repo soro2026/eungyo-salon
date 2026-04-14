@@ -264,8 +264,8 @@ html, body {
 .treasure-grid {
   display: flex;
   flex-direction: column;
-  gap: 0;
-  padding: 24px 20px 60px;
+  gap: 56px;
+  padding: 24px 24px 60px;
   align-items: center;
 }
 
@@ -273,43 +273,15 @@ html, body {
 .treasure-card {
   position: relative;
   width: 100%; max-width: 320px;
-  border-radius: 4px; overflow: visible;
   cursor: pointer;
   transition: transform 0.35s;
   background: transparent;
-  /* 위쪽(명찰→액자) 간격 고정 */
-  margin-top: 56px;
 }
-.treasure-card:first-child { margin-top: 0; }
 .treasure-card:active { transform: scale(0.98); }
-
-/* 액자 그림자 — 등급/크기별 */
-.treasure-card .frame-img-wrap {
-  filter: drop-shadow(0 8px 20px rgba(0,0,0,0.45))
-          drop-shadow(0 2px 6px rgba(0,0,0,0.35));
-}
-.treasure-card.diamond .frame-img-wrap {
-  filter: drop-shadow(0 18px 40px rgba(0,0,0,0.65))
-          drop-shadow(0 6px 16px rgba(0,0,0,0.5))
-          drop-shadow(0 2px 4px rgba(0,0,0,0.4));
-}
-.treasure-card.gold .frame-img-wrap {
-  filter: drop-shadow(0 14px 32px rgba(0,0,0,0.6))
-          drop-shadow(0 4px 12px rgba(0,0,0,0.45));
-}
-.treasure-card.silver .frame-img-wrap {
-  filter: drop-shadow(0 10px 24px rgba(0,0,0,0.5))
-          drop-shadow(0 3px 8px rgba(0,0,0,0.35));
-}
-.treasure-card.bronze .frame-img-wrap {
-  filter: drop-shadow(0 8px 20px rgba(0,0,0,0.45))
-          drop-shadow(0 2px 6px rgba(0,0,0,0.3));
-}
-
-/* 명찰과 액자 사이 여백 고정 */
-.treasure-label {
-  margin-top: 12px;
-}
+.treasure-card.diamond .frame-img-wrap,
+.treasure-card.gold    .frame-img-wrap,
+.treasure-card.silver  .frame-img-wrap,
+.treasure-card.bronze  .frame-img-wrap { /* 그림자는 JS에서 인라인으로 */ }
 
 /* 보물 이미지 영역 */
 .treasure-img-wrap {
@@ -822,56 +794,81 @@ function renderTreasures(grade) {
     const isOval = meta.ratio === 'oval';
     const clipStyle = isOval ? `clip-path:ellipse(${50-left/2}% ${50-top/2}% at 50% 50%);` : '';
 
+    // 그림자 강도 — 등급별
+    const shadowStrength = {
+      diamond: '0 20px 50px rgba(0,0,0,0.7), 12px 16px 30px rgba(0,0,0,0.5)',
+      gold:    '0 16px 40px rgba(0,0,0,0.6), 10px 12px 24px rgba(0,0,0,0.45)',
+      silver:  '0 12px 30px rgba(0,0,0,0.5), 8px 10px 18px rgba(0,0,0,0.35)',
+      bronze:  '0 10px 24px rgba(0,0,0,0.45), 6px 8px 14px rgba(0,0,0,0.3)',
+    }[item.grade] || '0 10px 24px rgba(0,0,0,0.45)';
+
     html += `
       <div class="treasure-card ${item.grade}" onclick="openTreasure('${item.code}')">
-        <!-- 액자 래퍼 -->
-        <div class="frame-img-wrap" style="position:relative;width:100%;aspect-ratio:${
-          meta.ratio==='landscape' ? '4/3' : meta.ratio==='square' ? '1/1' : '3/4'
-        }">
-          <!-- 보물 콘텐츠 (액자 안쪽) -->
+
+        <!-- 액자 + 보물 컨테이너 -->
+        <div style="position:relative; display:inline-block; width:100%;">
+
+          <!-- 그림자 레이어 (액자 뒤, 오른쪽+아래만) -->
+          <div style="
+            position:absolute;
+            inset:0;
+            border-radius:2px;
+            box-shadow: ${shadowStrength};
+            z-index:0;
+            pointer-events:none;
+          "></div>
+
+          <!-- 액자 이미지 (자연 크기로 흐름) -->
+          <img src="${frameKey}.png"
+            style="position:relative;width:100%;height:auto;display:block;z-index:2;pointer-events:none;mix-blend-mode:multiply;"
+            alt="frame">
+
+          <!-- 보물 콘텐츠 (액자 이미지 위에 절대위치) -->
           <div style="
             position:absolute;
             top:${top}%;right:${right}%;bottom:${bottom}%;left:${left}%;
+            z-index:1;
             overflow:hidden;
             display:flex;align-items:center;justify-content:center;
-            background:transparent;
             ${clipStyle}
           ">
             ${item.img
               ? `<img src="${item.img}"
                   style="width:100%;height:100%;object-fit:cover;"
                   onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-                 <div style="display:none;font-size:${meta.ratio==='square'?'38':'44'}px;
-                   filter:drop-shadow(0 4px 12px rgba(0,0,0,0.3));
-                   width:100%;height:100%;align-items:center;justify-content:center;">
+                 <div style="display:none;font-size:44px;
+                   width:100%;height:100%;align-items:center;justify-content:center;
+                   filter:drop-shadow(0 2px 8px rgba(0,0,0,0.2))">
                    ${item.artwork}
                  </div>`
-              : `<div style="font-size:${meta.ratio==='square'?'38':'44'}px;
-                  filter:drop-shadow(0 4px 12px rgba(0,0,0,0.3))">${item.artwork}</div>`
+              : `<div style="font-size:44px;
+                  filter:drop-shadow(0 2px 8px rgba(0,0,0,0.2))">${item.artwork}</div>`
             }
-            ${soldOut ? '<div style="position:absolute;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;font-size:9px;letter-spacing:0.15em;color:rgba(245,240,232,0.5)">SOLD OUT</div>' : ''}
+            ${soldOut ? '<div style="position:absolute;inset:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;font-size:9px;letter-spacing:0.15em;color:rgba(245,240,232,0.6)">SOLD OUT</div>' : ''}
           </div>
-          <!-- 액자 이미지 오버레이 -->
-          <img src="${frameKey}.png"
-            style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;z-index:2;pointer-events:none;mix-blend-mode:screen;"
-            alt="frame">
-          <!-- 배지들 -->
-          <div class="grade-badge" style="z-index:3">${getGradeLabel(item.grade)}</div>
-          <div class="edition-badge" style="z-index:3">${item.edition}</div>
+
         </div>
+
+        <!-- 명찰 — 항상 액자 바로 아래 16px 고정 간격 -->
+        <div style="height:16px;"></div>
         <div class="treasure-label">
           <div class="treasure-code">${item.code}</div>
           <div class="treasure-name">${item.name}</div>
           <div class="treasure-artist">${item.artist || ''}</div>
           <div class="treasure-period">${item.period || ''}</div>
           <div class="treasure-origin">${item.origin || ''}</div>
-          <div style="font-size:9px;color:rgba(60,40,20,0.5);letter-spacing:0.1em;margin-top:4px;">
-            ${getGradeLabel(item.grade)} ${item.edition}
+          <div style="font-size:9px;color:rgba(60,40,20,0.45);letter-spacing:0.1em;margin-top:4px;">
+            ${getGradeLabel(item.grade)} &nbsp;${item.edition}
           </div>
           <div class="treasure-owner">${item.owner ? '📍 ' + item.owner + ' 소장 중' : '✦ 소장 가능'}</div>
           ${item.source_url ? `<a class="treasure-link-btn" href="${item.source_url}" target="_blank" onclick="event.stopPropagation()">🔗 원본 감상</a>` : ''}
         </div>
+
       </div>`;
+  });
+  html += '</div>';
+  return html;
+}
   });
   html += '</div>';
   return html;
