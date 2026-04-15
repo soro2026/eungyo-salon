@@ -1,6 +1,5 @@
-const CACHE = 'eungyo-v20';
+const CACHE = 'eungyo-v21';
 
-// ── 필수 캐시 파일 (install 시 전부 성공해야 함) ──────────────────
 const CORE_FILES = [
   '/eungyo-salon/',
   '/eungyo-salon/index.html',
@@ -10,7 +9,6 @@ const CORE_FILES = [
   '/eungyo-salon/constella.html',
 ];
 
-// ── 문제 DB ──────────────────────────────────────────────────────
 const QUESTION_FILES = [
   '/eungyo-salon/questions_taeyang.json',
   '/eungyo-salon/questions_gil.json',
@@ -25,7 +23,6 @@ const QUESTION_FILES = [
   '/eungyo-salon/questions_mun.json',
 ];
 
-// ── 오디오 ───────────────────────────────────────────────────────
 const AUDIO_FILES = [
   '/eungyo-salon/organ01_game_opening.mp3',
   '/eungyo-salon/organ1.mp3',
@@ -37,7 +34,6 @@ const AUDIO_FILES = [
   '/eungyo-salon/terra_nature.mp3',
 ];
 
-// ── 영상 (용량 큰 파일 — 캐시 실패해도 앱 작동) ──────────────────
 const VIDEO_FILES = [
   '/eungyo-salon/intro_logo.mp4',
   '/eungyo-salon/drone_socrates.mp4',
@@ -46,12 +42,13 @@ const VIDEO_FILES = [
   '/eungyo-salon/drone_soro.mp4',
 ];
 
-// ── 이미지 ───────────────────────────────────────────────────────
 const IMAGE_FILES = [
   '/eungyo-salon/matchup_title.png',
   '/eungyo-salon/card_socrates2.png',
   '/eungyo-salon/card_proust2.png',
   '/eungyo-salon/card_pascal2.png',
+  '/eungyo-salon/pitcher_set.png',
+  '/eungyo-salon/pitcher_windup.png',
   '/eungyo-salon/stadium_socrates.jpg',
   '/eungyo-salon/stadium_proust.jpg',
   '/eungyo-salon/stadium_soro.jpg',
@@ -69,18 +66,15 @@ const IMAGE_FILES = [
   '/eungyo-salon/terra_apple.png',
 ];
 
-// ── install ───────────────────────────────────────────────────────
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE).then(async cache => {
-      // 핵심 파일은 반드시 캐시
       await cache.addAll([
         ...CORE_FILES,
         ...QUESTION_FILES,
         ...AUDIO_FILES,
         ...IMAGE_FILES,
       ]);
-      // 영상은 개별 시도 — 실패해도 install 계속
       for (const url of VIDEO_FILES) {
         cache.add(url).catch(() => {
           console.warn('[SW] 영상 캐시 실패 (정상):', url);
@@ -91,7 +85,6 @@ self.addEventListener('install', e => {
   self.skipWaiting();
 });
 
-// ── activate: 이전 캐시 전부 삭제 ────────────────────────────────
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
@@ -106,13 +99,10 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
-// ── fetch: 캐시 우선, 없으면 네트워크 ────────────────────────────
 self.addEventListener('fetch', e => {
-  // Supabase API는 항상 네트워크 직접
   if (e.request.url.includes('supabase.co')) {
     return;
   }
-
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
