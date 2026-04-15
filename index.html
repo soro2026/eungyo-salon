@@ -1925,15 +1925,42 @@
     </button>
   </div>
 
-  <!-- 와인드업 화면 (신규) -->
+  <!-- 와인드업 화면 -->
   <div id="windup-screen" class="atstep-screen" style="display:none">
     <div class="atstep-inning" id="wu-inning">1회 초 · 1번 타자</div>
     <div class="atstep-category" id="wu-category">문학</div>
     <div class="atstep-keyword" id="wu-keyword">종이 위의 인간</div>
-    <!-- 투수 와인드업 이미지 -->
     <img src="pitcher_windup.png" style="width:160px;height:auto;margin:16px 0 8px;opacity:0.92;filter:drop-shadow(0 4px 16px rgba(0,0,0,0.5))">
     <button class="btn-pitcher btn-pitcher-gold" onclick="requestPitch()">
       ⚾ 투구 요청
+    </button>
+  </div>
+
+  <!-- 수비 준비 화면 (신규) — 홈 경기 1회초 상대 공격 시작 전 -->
+  <div id="defense-ready-screen" class="atstep-screen" style="display:none">
+    <div class="atstep-inning" id="dr-inning">1회 초 ▲</div>
+    <!-- 스코어보드 미니 -->
+    <div style="display:flex;align-items:center;gap:16px;margin:8px 0 16px;padding:10px 20px;background:rgba(0,0,0,0.3);border-radius:10px;border:1px solid rgba(255,255,255,0.1)">
+      <div style="text-align:center">
+        <div id="dr-left-name" style="font-size:9px;letter-spacing:0.1em;color:rgba(248,244,238,0.5)">PROUST</div>
+        <div id="dr-left-score" style="font-size:28px;font-weight:800;color:#fff;font-family:'Courier New',monospace">0</div>
+      </div>
+      <div style="font-size:12px;color:rgba(248,244,238,0.3)">VS</div>
+      <div style="text-align:center">
+        <div id="dr-right-name" style="font-size:9px;letter-spacing:0.1em;color:rgba(248,244,238,0.5)">SORO</div>
+        <div id="dr-right-score" style="font-size:28px;font-weight:800;color:#fff;font-family:'Courier New',monospace">0</div>
+      </div>
+    </div>
+    <!-- 상대 타자 등장 멘트 (타타탁 흘러나오기) -->
+    <div id="dr-message" style="
+      font-size:15px;font-weight:600;color:rgba(248,244,238,0.85);
+      text-align:center;line-height:1.7;min-height:52px;
+      margin-bottom:16px;letter-spacing:0.03em;
+    "></div>
+    <!-- 셋 포지션 이미지 -->
+    <img src="pitcher_set.png" style="width:140px;height:auto;margin:4px 0 12px;opacity:0.88;filter:drop-shadow(0 4px 16px rgba(0,0,0,0.5))">
+    <button class="btn-pitcher btn-pitcher-gold" id="dr-btn" onclick="startDefenseWindup()" style="opacity:0;transition:opacity 0.5s ease">
+      ⚾ 투구 준비
     </button>
   </div>
 
@@ -2375,6 +2402,8 @@ function renderZoneBoard() {
 }
 
 function selectZone(idx) {
+  // 이미 선택된 상태면 무시 (스탯바 노출 중 재선택 방지)
+  if (ZONE_SELECTED !== null) return;
   ZONE_SELECTED = idx;
   SND.ding();
   renderZoneBoard();
@@ -2393,7 +2422,8 @@ function selectZone(idx) {
 
   // 스탯바 데이터 채우기
   document.getElementById('zb-catname').textContent = shortCat(catMain);
-  document.getElementById('zb-subname').textContent = catSub;
+  const zbSub = document.getElementById('zb-subname');
+  if (zbSub) zbSub.textContent = catSub;
 
   // Supabase 스탯 로드
   (async () => {
@@ -2455,6 +2485,8 @@ function showZoneBoardScreen() {
   if (remain === 0) {
     buildZoneBoard();
   }
+  // 선택 상태 리셋 (새 존보드 열릴 때마다)
+  ZONE_SELECTED = null;
 
   // 이닝 표시
   const half = st.isAttack ? (currentIsHome ? '말' : '초') : (currentIsHome ? '초' : '말');
@@ -3687,7 +3719,7 @@ function initGame(){
   GAME_ACTIVE = false;
   // 모든 게임 화면 숨기기 (깜빡임 방지)
   const hideIds = ['pregame-screen','zone-board-screen','entry-screen',
-    'stadium-home-screen','atstep-screen','pitchready-screen','windup-screen','main-header','main-content'];
+    'stadium-home-screen','atstep-screen','pitchready-screen','windup-screen','defense-ready-screen','main-header','main-content'];
   hideIds.forEach(id => {
     const el = document.getElementById(id);
     if(el) el.style.display = 'none';
@@ -3811,16 +3843,55 @@ function showAtStep(){
   const arrow = currentIsHome?'▲':'▽';
   const inningTxt = st.inning+'회 '+half+' '+arrow+' · '+st.atbat+'번 타자';
   {
-    // 수비 → 바로 투구 준비 (소로가 투수)
+    // 수비 → 수비 준비 화면 (상대 타자 등장 멘트)
     document.getElementById('game-area').style.display = 'none';
     document.getElementById('result-area').style.display = 'none';
     document.getElementById('judging-area').style.display = 'none';
     document.getElementById('atstep-screen').style.display = 'none';
-    document.getElementById('pitchready-screen').style.display = 'flex';
-    document.getElementById('pr-inning').textContent   = inningTxt.replace('번 타자','번 상대 타자');
-    document.getElementById('pr-category').textContent = shortCat(catMain);
-    document.getElementById('pr-keyword').textContent  = getQ().keyword || catSub || catMain;
-    document.getElementById('pr-sub').textContent      = '이 문제를 던집니다';
+    document.getElementById('pitchready-screen').style.display = 'none';
+    document.getElementById('windup-screen').style.display = 'none';
+
+    const oppName = currentOpp ? (currentOpp.shortName || 'AI') : 'AI';
+    const drInning = document.getElementById('dr-inning');
+    if (drInning) drInning.textContent = inningTxt.replace('번 타자', '번 상대 타자');
+
+    // 스코어보드 동기화
+    const leftName  = document.getElementById('dr-left-name');
+    const rightName = document.getElementById('dr-right-name');
+    const leftScore  = document.getElementById('dr-left-score');
+    const rightScore = document.getElementById('dr-right-score');
+    if (currentIsHome) {
+      if (leftName)  leftName.textContent  = oppName;
+      if (rightName) rightName.textContent = 'SORO';
+      if (leftScore)  leftScore.textContent  = st.scoreAi;
+      if (rightScore) rightScore.textContent = st.scoreMe;
+    } else {
+      if (leftName)  leftName.textContent  = 'SORO';
+      if (rightName) rightName.textContent = oppName;
+      if (leftScore)  leftScore.textContent  = st.scoreMe;
+      if (rightScore) rightScore.textContent = st.scoreAi;
+    }
+
+    // 타자 등장 멘트 타타탁 흘러나오기
+    const oppFull = currentOpp ? currentOpp.name : '상대 타자';
+    const msg = st.inning + '회 · ' + oppFull + ' 타석에 들어섭니다.';
+    const msgEl = document.getElementById('dr-message');
+    const btn = document.getElementById('dr-btn');
+    if (msgEl) {
+      msgEl.textContent = '';
+      btn.style.opacity = '0';
+      let i = 0;
+      const typeTimer = setInterval(() => {
+        msgEl.textContent += msg[i];
+        i++;
+        if (i >= msg.length) {
+          clearInterval(typeTimer);
+          setTimeout(() => { btn.style.opacity = '1'; }, 300);
+        }
+      }, 55);
+    }
+
+    document.getElementById('defense-ready-screen').style.display = 'flex';
     renderBadge();
   }
 }
@@ -3844,13 +3915,26 @@ function enterBatterBox(){
 }
 
 function requestWindup(){
-  // 셋 포지션 → 와인드업 화면으로
+  // 셋 포지션 → 와인드업 화면으로 (공격)
   document.getElementById('pitchready-screen').style.display = 'none';
   const ws = document.getElementById('windup-screen');
   ws.style.display = 'flex';
   document.getElementById('wu-inning').textContent = document.getElementById('pr-inning').textContent;
   document.getElementById('wu-category').textContent = document.getElementById('pr-category').textContent;
   document.getElementById('wu-keyword').textContent = document.getElementById('pr-keyword').textContent;
+}
+
+function startDefenseWindup(){
+  // 수비 준비 → 와인드업으로 (수비)
+  document.getElementById('defense-ready-screen').style.display = 'none';
+  const q = getQ();
+  const parts = q.cat.split('·');
+  const catMain = parts[0]?.trim() || q.cat;
+  const ws = document.getElementById('windup-screen');
+  ws.style.display = 'flex';
+  document.getElementById('wu-inning').textContent = document.getElementById('dr-inning').textContent;
+  document.getElementById('wu-category').textContent = shortCat(catMain);
+  document.getElementById('wu-keyword').textContent = q.keyword || catMain;
 }
 
 function requestPitch(){
@@ -3868,6 +3952,7 @@ function switchHalf(){
   rs.style.display = 'none';
   document.getElementById('zone-board-screen').style.display = 'none';
   document.getElementById('windup-screen').style.display = 'none';
+  document.getElementById('defense-ready-screen').style.display = 'none';
   document.getElementById('reveal-question').textContent = '';
   document.getElementById('reveal-answer').textContent = '';
   document.getElementById('reveal-commentary').textContent = '';
@@ -3886,6 +3971,7 @@ function nextQ(){
   rs.style.display = 'none';
   document.getElementById('zone-board-screen').style.display = 'none';
   document.getElementById('windup-screen').style.display = 'none';
+  document.getElementById('defense-ready-screen').style.display = 'none';
   document.getElementById('reveal-question').textContent = '';
   document.getElementById('reveal-answer').textContent = '';
   document.getElementById('reveal-commentary').textContent = '';
