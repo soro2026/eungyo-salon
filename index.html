@@ -1103,14 +1103,14 @@
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     text-align: center;
-    font-size: 14px; font-weight: 500;
+    font-size: 28px; font-weight: 800;
     color: rgba(248,244,238,0.88);
     font-family: 'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif;
-    line-height: 1.4; padding: 8px;
-    word-break: keep-all;
+    line-height: 1; padding: 8px;
     cursor: pointer;
     transition: all 0.2s ease;
     position: relative; overflow: hidden;
+    letter-spacing: -0.02em;
   }
   .zone-card:hover:not(.done-correct):not(.done-wrong) {
     border-color: rgba(201,168,76,0.5);
@@ -1121,9 +1121,10 @@
     transform: scale(0.97);
   }
   .zone-card .zc-num {
-    font-size: 9px; color: rgba(248,244,238,0.3);
+    font-size: 8px; color: rgba(248,244,238,0.25);
     font-family: 'Courier New', monospace;
-    display: block; margin-bottom: 6px;
+    display: block; margin-bottom: 4px;
+    letter-spacing: 0.08em;
   }
   /* 선택됨 */
   .zone-card.selected {
@@ -2175,7 +2176,11 @@ function shortCat(cat) {
     '땅의 노래': '생태', '세계의 골목': '지리', '삶의 맛': '일상',
   };
   const trimmed = cat.trim();
-  return map[trimmed] || trimmed.slice(0,4);
+  if (map[trimmed]) return map[trimmed];
+  for (const [key, val] of Object.entries(map)) {
+    if (trimmed.includes(key) || key.includes(trimmed)) return val;
+  }
+  return trimmed.slice(0,2);
 }
 async function loadQuestions() {
   const files = [
@@ -2346,34 +2351,53 @@ let ZONE_SELECTED = null; // 현재 선택된 인덱스
 let GAME_ACTIVE = false;  // 게임 진행 중 여부 (오디오 제어용)
 
 // 최근 사용된 문제 ID 추적 (중복 출제 방지)
-let USED_Q_IDS = new Set();
+// 12개 카테고리 순환 인덱스 (라운드로빈)
+const CAT_FULL_NAMES = [
+  '종이 위의 인간', '생각의 탄생', '시간의 지층', '아름다움의 형식',
+  '신들의 정원', '우주의 문법', '내면의 거울', '권력과 자본',
+  '초월의 언어', '땅의 노래', '세계의 골목', '삶의 맛'
+];
+let CAT_ROTATION_IDX = 0; // 어느 카테고리부터 시작할지
 
 function buildZoneBoard() {
-  // seed_id별 중복 제거 후 랜덤 9개 선택
-  // 최근 사용된 문제 제외 (단, 전체가 소진되면 리셋)
-  const seedMap = {};
-  const candidates = [...QS].sort(() => Math.random() - 0.5);
-  
-  // 미사용 문제로 먼저 채우기
-  candidates.forEach(q => {
-    if (!seedMap[q.seed_id] && !USED_Q_IDS.has(q.seed_id+'_'+q.difficulty)) {
-      seedMap[q.seed_id] = q;
+  // 12개 카테고리를 라운드로빈으로 순환하며 9개 선택
+  // 각 카테고리마다 문제 풀에서 랜덤 1개 선택
+  const picked = [];
+  const usedCats = new Set();
+
+  // 이번 라운드에서 사용할 9개 카테고리 선택 (라운드로빈)
+  for (let i = 0; i < 9; i++) {
+    const catIdx = (CAT_ROTATION_IDX + i) % 12;
+    usedCats.add(CAT_FULL_NAMES[catIdx]);
+  }
+  // 다음 라운드를 위해 인덱스 전진 (3씩 이동으로 매번 다른 조합)
+  CAT_ROTATION_IDX = (CAT_ROTATION_IDX + 3) % 12;
+
+  // 각 카테고리에서 문제 1개씩 랜덤 선택
+  usedCats.forEach(catName => {
+    const pool = QS.filter(q => {
+      const qCat = q.cat ? q.cat.split('·')[0].trim() : '';
+      return qCat === catName;
+    });
+    if (pool.length > 0) {
+      const q = pool[Math.floor(Math.random() * pool.length)];
+      picked.push(q);
     }
   });
-  // 부족하면 사용했던 것도 채우기
-  if (Object.keys(seedMap).length < 9) {
-    candidates.forEach(q => {
-      if (!seedMap[q.seed_id]) seedMap[q.seed_id] = q;
-    });
+
+  // pool이 없는 카테고리 있으면 다른 카테고리로 채우기
+  if (picked.length < 9) {
+    const fallback = [...QS].sort(() => Math.random() - 0.5);
+    for (const q of fallback) {
+      if (picked.length >= 9) break;
+      const qCat = q.cat ? q.cat.split('·')[0].trim() : '';
+      if (!picked.find(p => shortCat(p.cat.split('·')[0].trim()) === shortCat(qCat))) {
+        picked.push(q);
+      }
+    }
   }
-  
-  const picked = Object.values(seedMap).sort(() => Math.random() - 0.5).slice(0, 9);
-  // 사용된 문제 ID 기록
-  picked.forEach(q => USED_Q_IDS.add(q.seed_id+'_'+q.difficulty));
-  // 너무 많이 쌓이면 오래된 것 제거 (최근 27개만 유지)
-  if (USED_Q_IDS.size > 27) USED_Q_IDS.clear();
-  
-  ZONE_BOARD = picked.map(q => ({ q, status: 'pending' }));
+
+  ZONE_BOARD = picked.slice(0, 9).map(q => ({ q, status: 'pending' }));
   ZONE_SELECTED = null;
 }
 
@@ -2393,7 +2417,8 @@ function renderZoneBoard() {
     else if (zone.status === 'wrong') card.classList.add('done-wrong');
     else if (ZONE_SELECTED === i) card.classList.add('selected');
 
-    card.innerHTML = `<span class="zc-num">ZONE ${i + 1}</span>${kw}`;
+    const catShort = shortCat(zone.q.cat ? zone.q.cat.split('·')[0].trim() : '');
+    card.innerHTML = `<span class="zc-num">ZONE ${i + 1}</span>${catShort}`;
 
     if (zone.status === 'pending') {
       card.onclick = () => selectZone(i);
@@ -2699,6 +2724,10 @@ function startQ(){
 
   // 난이도 3 문제면 오르간 긴장감
   if(q.difficulty === 3){ setTimeout(()=>SND.organTension(), 200); }
+
+  // game-statbar: 공격 시만 표시, 수비 시 숨김
+  const gsbar = document.getElementById('game-statbar');
+  if(gsbar) gsbar.style.display = st.isAttack ? 'flex' : 'none';
 
   if(st.isAttack){
     st.phase='typing';qEl.textContent='';
