@@ -124,7 +124,7 @@
   /* 스코어보드 */
   .scoreboard {
     background: rgba(15,26,20,0.85); border: 1px solid var(--chalk-faint);
-    border-radius: 12px; padding: 6px 6px 6px 6px; margin-bottom: 14px;
+    border-radius: 12px 12px 0 0; padding: 6px 6px 6px 6px; margin-bottom: 0;
     backdrop-filter: blur(8px);
   }
   /* 스코어보드 — 3컬럼 샘플형 */
@@ -171,8 +171,8 @@
     border-left: 1px solid rgba(248,244,238,0.06);
     border-right: 1px solid rgba(248,244,238,0.06);
   }
-  .inning-arrow { font-size: 13px; color: rgba(248,244,238,0.2); line-height: 1; }
-  .inning-arrow.active { color: var(--red); filter: drop-shadow(0 0 3px var(--red)); }
+  .inning-arrow { font-size: 16px; color: rgba(248,244,238,0.15); line-height: 1; }
+  .inning-arrow.active { color: var(--red); font-size: 18px; filter: drop-shadow(0 0 4px var(--red)); text-shadow: 0 0 6px rgba(220,50,50,0.8); }
   .inning-num {
     font-family: 'Courier New', monospace; font-size: 22px; font-weight: 700;
     color: var(--chalk); line-height: 1;
@@ -1850,8 +1850,8 @@
       transform: translateY(100%); opacity: 0;
       transition: transform 0.45s cubic-bezier(0.22,1,0.36,1), opacity 0.4s ease;
       pointer-events: none;
-      background: linear-gradient(to bottom, transparent 0%, rgba(10,20,15,0.97) 20%);
-      z-index: 10;
+      background: linear-gradient(to bottom, transparent 0%, rgba(10,20,15,1.0) 25%);
+      z-index: 20;
     ">
       <!-- 스탯 바 -->
       <div id="zb-statbar" style="
@@ -1944,8 +1944,7 @@
     top:0; left:0; right:0; bottom:0;
     z-index:500;
     flex-direction:column; align-items:center; justify-content:center;
-    background: rgba(10,22,15,0.75);
-    backdrop-filter: blur(2px);
+    background: transparent;
     padding:12px 0;
   ">
     <!-- 상단 이닝 정보 -->
@@ -2030,8 +2029,8 @@
     <!-- 게임 중 스탯바 — 스코어보드 바로 아래 붙어있음 -->
     <div id="game-statbar" style="
       display:flex; align-items:stretch;
-      border-radius:0 0 10px 10px; overflow:hidden;
-      border:1.5px solid rgba(180,180,200,0.3);
+      border-radius:0 0 12px 12px; overflow:hidden;
+      border:1px solid var(--chalk-faint);
       border-top:none;
       background:#0a1628; margin-bottom:10px;
     ">
@@ -2098,7 +2097,7 @@
     </div>
     <div class="ai-area" id="ai-area">
       <div class="ai-wrap">
-        <div class="ai-label" id="ai-label">상대가 공을 주시합니다...</div>
+        <div class="ai-label" id="ai-label">상대가 공을 노려보고 있습니다...</div>
         <div class="ai-dots"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>
       </div>
     </div>
@@ -2346,13 +2345,34 @@ let ZONE_BOARD = [];      // 현재 9개 존 카드 [{q, status:'pending'|'corre
 let ZONE_SELECTED = null; // 현재 선택된 인덱스
 let GAME_ACTIVE = false;  // 게임 진행 중 여부 (오디오 제어용)
 
+// 최근 사용된 문제 ID 추적 (중복 출제 방지)
+let USED_Q_IDS = new Set();
+
 function buildZoneBoard() {
   // seed_id별 중복 제거 후 랜덤 9개 선택
+  // 최근 사용된 문제 제외 (단, 전체가 소진되면 리셋)
   const seedMap = {};
-  [...QS].sort(() => Math.random() - 0.5).forEach(q => {
-    if (!seedMap[q.seed_id]) seedMap[q.seed_id] = q;
+  const candidates = [...QS].sort(() => Math.random() - 0.5);
+  
+  // 미사용 문제로 먼저 채우기
+  candidates.forEach(q => {
+    if (!seedMap[q.seed_id] && !USED_Q_IDS.has(q.seed_id+'_'+q.difficulty)) {
+      seedMap[q.seed_id] = q;
+    }
   });
+  // 부족하면 사용했던 것도 채우기
+  if (Object.keys(seedMap).length < 9) {
+    candidates.forEach(q => {
+      if (!seedMap[q.seed_id]) seedMap[q.seed_id] = q;
+    });
+  }
+  
   const picked = Object.values(seedMap).sort(() => Math.random() - 0.5).slice(0, 9);
+  // 사용된 문제 ID 기록
+  picked.forEach(q => USED_Q_IDS.add(q.seed_id+'_'+q.difficulty));
+  // 너무 많이 쌓이면 오래된 것 제거 (최근 27개만 유지)
+  if (USED_Q_IDS.size > 27) USED_Q_IDS.clear();
+  
   ZONE_BOARD = picked.map(q => ({ q, status: 'pending' }));
   ZONE_SELECTED = null;
 }
@@ -2504,6 +2524,7 @@ function showZoneBoardScreen() {
   document.getElementById('judging-area').style.display = 'none';
   document.getElementById('reveal-screen').style.display = 'none';
   document.getElementById('zone-board-screen').style.display = 'flex';
+  renderBadge(); // 스코어보드 현재 상태 반영
 }
 
 function showZonePitchReady() {
@@ -2701,6 +2722,8 @@ function startQ(){
     qEl.textContent='[던질 문제]  '+q.text;
     qEl.style.color='rgba(248,244,238,0.4)';qEl.style.fontSize='12px';
     btn.className='btn-hit pitch-mode';btn.textContent='⚾ 피칭!';
+    const aiLbl=document.getElementById('ai-label');
+    if(aiLbl){const n=getOppKor();aiLbl.textContent=n+getJosa(n,'ga')+' 공을 노려보고 있습니다.';}
   }
 }
 
@@ -2729,6 +2752,9 @@ function onAction(){
     qEl.textContent='';qEl.className='q-text';qEl.style.color='';qEl.style.fontSize='';
     st.typIdx=0;st.elapsed=0;
     document.getElementById('ai-area').style.display='block';
+    // ai-label 한글 이름으로 설정
+    const aiLblEl = document.getElementById('ai-label');
+    if(aiLblEl){ const n=getOppKor(); aiLblEl.textContent=n+getJosa(n,'ga')+' 공을 노려보고 있습니다.'; }
     // 피칭 휙 소리 → 0.4초 후 타이핑 시작
     SND.pitch();
     setTimeout(()=>{
@@ -2980,7 +3006,7 @@ const SND = (()=>{
     osc1.frequency.setValueAtTime(1047, t);      // C6
     osc1.frequency.setValueAtTime(1319, t+0.01); // E6
     gain1.gain.setValueAtTime(0.0, t);
-    gain1.gain.linearRampToValueAtTime(0.35, t+0.01);
+    gain1.gain.linearRampToValueAtTime(0.18, t+0.01);
     gain1.gain.exponentialRampToValueAtTime(0.001, t+0.6);
     osc1.connect(gain1); gain1.connect(c.destination);
     osc1.start(t); osc1.stop(t+0.6);
@@ -2990,7 +3016,7 @@ const SND = (()=>{
     osc2.type = 'sine';
     osc2.frequency.setValueAtTime(784, t+0.08); // G5
     gain2.gain.setValueAtTime(0.0, t+0.08);
-    gain2.gain.linearRampToValueAtTime(0.2, t+0.1);
+    gain2.gain.linearRampToValueAtTime(0.1, t+0.1);
     gain2.gain.exponentialRampToValueAtTime(0.001, t+0.7);
     osc2.connect(gain2); gain2.connect(c.destination);
     osc2.start(t+0.08); osc2.stop(t+0.7);
@@ -3121,7 +3147,11 @@ function showResultAtk(label,cls,q,ok,tp,tt){
 }
 function showResultDef(label,cls){
   const ok=cls==='r-defense-ok';
-  const ra=document.getElementById('result-area');ra.innerHTML=mkResult(ok?'OUT':label,cls,ok?'잘 막아냈습니다! ⚾':'실점 허용');ra.style.display='block';
+  // 실점 여부 체크: 이전 점수와 비교
+  const scored = st.scoreAi > (st._prevScoreAi||0);
+  const subText = ok ? '잘 막아냈습니다! ⚾' : scored ? '실점 허용' : '출루 허용';
+  st._prevScoreAi = st.scoreAi;
+  const ra=document.getElementById('result-area');ra.innerHTML=mkResult(ok?'OUT':label,cls,subText);ra.style.display='block';
   setTimeout(()=>ra.scrollIntoView({behavior:'smooth',block:'start'}),100);
   st.atbat++;document.getElementById('stat-atbat').textContent=st.atbat+'타석';
 }
@@ -3885,7 +3915,15 @@ function showAtStep(){
 
     // 타자 등장 멘트 타타탁 흘러나오기 + 타자기 효과음
     const oppFull = currentOpp ? currentOpp.name : '상대 타자';
-    const msg = '상대 타자가 타석에 들어섭니다. Soro 마운드에서 던질 준비를 하고 있습니다. 준비가 되면 아래 셋 포지션 버튼을 누르세요.';
+    // 5~7단어 단위로 줄바꿈 처리
+    const msgLines = [
+      '상대 타자가 타석에 들어섭니다.',
+      'Soro 마운드에서',
+      '던질 준비를 하고 있습니다.',
+      '준비가 되면 아래',
+      '셋 포지션 버튼을 누르세요.'
+    ];
+    const msg = msgLines.join('\n');
     const msgEl = document.getElementById('dr-message');
     const btn = document.getElementById('dr-btn');
     if (msgEl) {
@@ -3893,7 +3931,7 @@ function showAtStep(){
       btn.style.opacity = '0';
       let i = 0;
       const typeTimer = setInterval(() => {
-        msgEl.textContent += msg[i];
+        if(msg[i] === '\n') msgEl.innerHTML += '<br>'; else msgEl.textContent = msgEl.textContent + msg[i];
         if (Math.random() < 0.6) SND.type();
         i++;
         if (i >= msg.length) {
