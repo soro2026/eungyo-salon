@@ -653,6 +653,7 @@
   }
   .bgm-control:hover { background: rgba(201,168,76,0.1); }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -801,34 +802,69 @@ let ALL_BOOKS = {}; // catId → [{answer, keyword, category, library, solved}]
 let BOOKS_LOADED = false;
 
 async function loadMuseumBooks() {
-  const seeds = [
-    'questions_taeyang.json',
-    'questions_gil.json',
-    'questions_bada.json',
-    'questions_terra.json',
-    'questions_bam.json',
-    'questions_bul.json',
-    'questions_dol.json',
-    'questions_namu.json',
-  ];
+  const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+  const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5aGxvdHdkaXNqdm94dmZrcG5kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM2ODQxNDcsImV4cCI6MjA1OTI2MDE0N30.j9naxFHqtOmFBwA23aeUoCF-GSvLzE8C7NJGbWkSP1c';
+
+  // 1. 내가 경험한 quiz_log 가져오기
+  let myAnswers = new Set();
+  try {
+    const { data: { session } } = await supabase.createClient(SUPA_URL, SUPA_KEY).auth.getSession();
+    if (session) {
+      const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+      const { data: logs } = await supa
+        .from('quiz_log')
+        .select('answer')
+        .eq('uid', session.user.id);
+      if (logs) logs.forEach(r => myAnswers.add(r.answer));
+    }
+  } catch(e) {
+    console.warn('quiz_log 로드 실패:', e);
+  }
+
+  // 2. 전체 씨앗 JSON에서 책 정보 로드
+  // 씨앗 목록 자동 감지 — questions_index.json 우선, 없으면 알려진 목록 사용
+  let seeds = [];
+  try {
+    const idxRes = await fetch(BASE_URL + 'questions_index.json');
+    if (idxRes.ok) {
+      const idx = await idxRes.json();
+      seeds = idx.files || [];
+      console.log('questions_index.json에서 씨앗 목록 로드:', seeds.length + '개');
+    }
+  } catch(e) {}
+
+  // questions_index.json 없으면 알려진 씨앗 목록 사용
+  if (seeds.length === 0) {
+    seeds = [
+      'questions_taeyang.json', 'questions_gil.json',
+      'questions_bada.json',    'questions_terra.json',
+      'questions_bam.json',     'questions_bul.json',
+      'questions_dol.json',     'questions_namu.json',
+      'questions_baram.json',   'questions_geoul.json',
+      'questions_mun.json',
+    ];
+  }
 
   const BASE_URL = '/eungyo-salon/';
-  const bookMap = {}; // answer → book 객체
+  const bookMap = {};
 
   for (const seed of seeds) {
     try {
       const res = await fetch(BASE_URL + seed);
       const data = await res.json();
-      for (const q of data.questions) {
+      const questions = data.questions || data;
+      for (const q of questions) {
         const key = q.answer;
         if (!bookMap[key]) {
           bookMap[key] = {
-            answer: q.answer,
-            keyword: q.keyword || '',
+            answer:   q.answer,
+            keyword:  q.keyword  || '',
             category: q.category || '',
-            catId: getCatId(q.category),
-            library: q.library || {},
-            solved: 0, // 0~3 (Supabase에서 나중에 채움)
+            catId:    getCatId(q.category),
+            library:  q.library  || {},
+            solved:   0,
+            // 내가 경험한 책인지 여부
+            mine: myAnswers.has(q.answer),
           };
         }
       }
@@ -837,18 +873,35 @@ async function loadMuseumBooks() {
     }
   }
 
-  // catId별로 분류
+  // 3. 내가 경험한 책만 catId별로 분류
   ALL_BOOKS = {};
   CATEGORIES.forEach(cat => ALL_BOOKS[cat.id] = []);
   for (const book of Object.values(bookMap)) {
-    if (ALL_BOOKS[book.catId]) {
+    if (book.mine && ALL_BOOKS[book.catId]) {
       ALL_BOOKS[book.catId].push(book);
     }
   }
 
   BOOKS_LOADED = true;
   const total = Object.values(ALL_BOOKS).reduce((s, arr) => s + arr.length, 0);
-  console.log('뮤세움 책 로드 완료:', total + '권');
+  console.log('뮤세움 내 책 로드 완료:', total + '권 (전체 중 경험한 것만)');
+
+  // 경험한 책이 하나도 없으면 안내 메시지
+  if (total === 0) {
+    document.getElementById('bookshelfContainer').innerHTML = `
+      <div style="padding:60px 24px;text-align:center;color:rgba(248,244,238,0.3)">
+        <div style="font-size:40px;margin-bottom:16px">📚</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:18px;color:rgba(201,168,76,0.5);margin-bottom:10px">
+          아직 서재가 비어있습니다
+        </div>
+        <div style="font-size:12px;line-height:2">
+          퀴즈를 플레이하면<br>만난 문제들이 이곳에 책으로 꽂힙니다
+        </div>
+      </div>`;
+    document.getElementById('totalCount').textContent = '0권';
+    return;
+  }
+
   renderShelf();
 }
 
