@@ -2359,49 +2359,68 @@ let GAME_ACTIVE = false;  // 게임 진행 중 여부 (오디오 제어용)
 
 // 최근 사용된 문제 ID 추적 (중복 출제 방지)
 // 12개 카테고리 순환 인덱스 (라운드로빈)
+// categories_standard.md 기준 — 2글자 메인명으로 통일
 const CAT_FULL_NAMES = [
-  '종이 위의 인간', '생각의 탄생', '시간의 지층', '아름다움의 형식',
-  '신들의 정원', '우주의 문법', '내면의 거울', '권력과 자본',
-  '초월의 언어', '땅의 노래', '세계의 골목', '삶의 맛'
+  '문학', '철학', '역사', '예술',
+  '신화', '과학', '심리', '사회',
+  '영성', '생태', '지리', '일상'
 ];
-let CAT_ROTATION_IDX = 0; // 어느 카테고리부터 시작할지
+// 항상 고정되는 3개 카테고리
+const CAT_FIXED = ['문학', '철학', '예술'];
+// CAT_ROTATION_IDX 제거 — 고정3+랜덤6 방식으로 교체
 
 function buildZoneBoard() {
-  // 12개 카테고리를 라운드로빈으로 순환하며 9개 선택
-  // 각 카테고리마다 문제 풀에서 랜덤 1개 선택
+  // ── 존 보드 9칸 구성 규칙 ──
+  // 고정 3칸: 문학 / 철학 / 예술 (항상 포함)
+  // 랜덤 6칸: 나머지 9개 카테고리 중 6개 랜덤 선택
+
   const picked = [];
-  const usedCats = new Set();
 
-  // 이번 라운드에서 사용할 9개 카테고리 선택 (라운드로빈)
-  for (let i = 0; i < 9; i++) {
-    const catIdx = (CAT_ROTATION_IDX + i) % 12;
-    usedCats.add(CAT_FULL_NAMES[catIdx]);
-  }
-  // 다음 라운드를 위해 인덱스 전진 (3씩 이동으로 매번 다른 조합)
-  CAT_ROTATION_IDX = (CAT_ROTATION_IDX + 3) % 12;
-
-  // 각 카테고리에서 문제 1개씩 랜덤 선택
-  usedCats.forEach(catName => {
+  // 카테고리별 문제 1개 선택 헬퍼
+  function pickFromCat(catName) {
     const pool = QS.filter(q => {
       const qCat = q.cat ? q.cat.split('·')[0].trim() : '';
       return qCat === catName;
     });
-    if (pool.length > 0) {
-      const q = pool[Math.floor(Math.random() * pool.length)];
-      picked.push(q);
-    }
+    if (pool.length === 0) return null;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  // 1. 고정 3칸: 문학 / 철학 / 예술
+  CAT_FIXED.forEach(catName => {
+    const q = pickFromCat(catName);
+    if (q) picked.push(q);
   });
 
-  // pool이 없는 카테고리 있으면 다른 카테고리로 채우기
+  // 2. 나머지 9개 카테고리 중 6개 랜덤 선택
+  const remainCats = CAT_FULL_NAMES.filter(c => !CAT_FIXED.includes(c));
+  // Fisher-Yates 셔플로 랜덤 6개 뽑기
+  for (let i = remainCats.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [remainCats[i], remainCats[j]] = [remainCats[j], remainCats[i]];
+  }
+  remainCats.slice(0, 6).forEach(catName => {
+    const q = pickFromCat(catName);
+    if (q) picked.push(q);
+  });
+
+  // 3. 부족하면 전체에서 채우기 (fallback)
   if (picked.length < 9) {
+    const usedIds = new Set(picked.map(p => p.seed_id));
     const fallback = [...QS].sort(() => Math.random() - 0.5);
     for (const q of fallback) {
       if (picked.length >= 9) break;
-      const qCat = q.cat ? q.cat.split('·')[0].trim() : '';
-      if (!picked.find(p => shortCat(p.cat.split('·')[0].trim()) === shortCat(qCat))) {
+      if (!usedIds.has(q.seed_id)) {
         picked.push(q);
+        usedIds.add(q.seed_id);
       }
     }
+  }
+
+  // 4. 9칸 순서 자체도 랜덤 셔플 (고정칸이 항상 같은 위치에 안 오도록)
+  for (let i = picked.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [picked[i], picked[j]] = [picked[j], picked[i]];
   }
 
   ZONE_BOARD = picked.slice(0, 9).map(q => ({ q, status: 'pending' }));
@@ -2587,6 +2606,14 @@ let st={
 };
 
 function getQ(){return QS[st.qIdx%QS.length];}
+
+// 게임 시작 시 QS 배열 셔플 — 매 게임마다 다른 순서로 문제 출제
+function shuffleQSForGame() {
+  for (let i = QS.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [QS[i], QS[j]] = [QS[j], QS[i]];
+  }
+}
 function resetClock(){
   const clk=document.getElementById('pitch-clock');
   if(clk){clk.textContent=':10';clk.className='pitch-clock idle';}
@@ -3792,6 +3819,8 @@ function fillMatrix() {
 
 function initGame(){
   GAME_ACTIVE = false;
+  // 매 게임마다 문제 순서 새로 셔플 (반복 출현 방지)
+  if (QS_LOADED) shuffleQSForGame();
   // 모든 게임 화면 숨기기 (깜빡임 방지)
   const hideIds = ['pregame-screen','zone-board-screen','entry-screen',
     'stadium-home-screen','atstep-screen','pitchready-screen','windup-screen','defense-ready-screen','main-header','main-content'];
