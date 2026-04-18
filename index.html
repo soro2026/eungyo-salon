@@ -1955,13 +1955,18 @@
       <div style="font-size:11px;color:rgba(248,244,238,0.4);letter-spacing:0.08em;margin-top:2px">상대방 공격 시작</div>
     </div>
     <!-- 스코어보드: 실제 컴포넌트 사용 (main-content가 켜진 상태로 오버레이) -->
-    <!-- 상대 타자 등장 멘트 (타타탁) -->
+    <!-- 상대 타자 등장 멘트 (2줄 고정 창) -->
     <div id="dr-message" style="
       font-size:17px;font-weight:700;color:rgba(248,244,238,0.92);
-      text-align:center;line-height:1.7;min-height:58px;
+      text-align:center;line-height:1.7;
+      height:58px;overflow:hidden;
       margin-bottom:12px;letter-spacing:0.03em;padding:0 24px;
       max-width:280px;word-break:keep-all;
-    "></div>
+      display:flex;flex-direction:column;justify-content:flex-end;
+    ">
+      <div id="dr-line1" style="opacity:0.45;transition:opacity 0.3s"></div>
+      <div id="dr-line2" style=""></div>
+    </div>
     <!-- 셋 포지션 이미지 -->
     <img src="pitcher_set.png" style="width:140px;height:auto;margin:4px 0 12px;opacity:0.9;filter:drop-shadow(0 4px 16px rgba(0,0,0,0.5))">
     <button class="btn-pitcher btn-pitcher-gold" id="dr-btn" onclick="startDefenseWindup()" style="opacity:0;transition:opacity 0.5s ease">
@@ -3948,32 +3953,53 @@ function showAtStep(){
     const drInningNum = document.getElementById('dr-inning-num');
     if (drInningNum) drInningNum.textContent = st.inning;
 
-    // 타자 등장 멘트 타타탁 흘러나오기 + 타자기 효과음
+    // 타자 등장 멘트 — 2줄 슬라이딩 창 (새 줄이 오면 위 줄은 흐려지며 사라짐)
     const oppFull = currentOpp ? currentOpp.name : '상대 타자';
-    // 5~7단어 단위로 줄바꿈 처리
     const msgLines = [
-      '상대 타자가 타석에 들어섭니다.',
-      'Soro 마운드에서',
-      '던질 준비를 하고 있습니다.',
-      '준비가 되면 아래',
-      '셋 포지션 버튼을 누르세요.'
+      oppFull + ' 타자가 타석에 들어섭니다.',
+      'Soro 마운드에서 준비를 하고 있습니다.',
+      '준비가 되면 아래 셋 포지션 버튼을 누르세요.',
     ];
-    const msg = msgLines.join('\n');
-    const msgEl = document.getElementById('dr-message');
+    const line1El = document.getElementById('dr-line1');
+    const line2El = document.getElementById('dr-line2');
     const btn = document.getElementById('dr-btn');
-    if (msgEl) {
-      msgEl.textContent = '';
+    if (line1El && line2El) {
+      line1El.textContent = '';
+      line2El.textContent = '';
       btn.style.opacity = '0';
-      let i = 0;
-      const typeTimer = setInterval(() => {
-        if(msg[i] === '\n') msgEl.innerHTML += '<br>'; else msgEl.textContent = msgEl.textContent + msg[i];
-        if (Math.random() < 0.6) SND.type();
-        i++;
-        if (i >= msg.length) {
-          clearInterval(typeTimer);
+
+      let lineIdx = 0;
+      let charIdx = 0;
+
+      function typeNextLine() {
+        if (lineIdx >= msgLines.length) {
           setTimeout(() => { btn.style.opacity = '1'; }, 300);
+          return;
         }
-      }, 55);
+        const line = msgLines[lineIdx];
+        charIdx = 0;
+        const typeTimer = setInterval(() => {
+          line2El.textContent = line.slice(0, charIdx + 1);
+          if (Math.random() < 0.6) SND.type();
+          charIdx++;
+          if (charIdx >= line.length) {
+            clearInterval(typeTimer);
+            lineIdx++;
+            if (lineIdx < msgLines.length) {
+              // 현재 line2 → line1으로 올리고 (흐릿하게), line2 초기화
+              setTimeout(() => {
+                line1El.textContent = line2El.textContent;
+                line1El.style.opacity = '0.45';
+                line2El.textContent = '';
+                typeNextLine();
+              }, 600);
+            } else {
+              setTimeout(() => { btn.style.opacity = '1'; }, 300);
+            }
+          }
+        }, 55);
+      }
+      typeNextLine();
     }
 
     document.getElementById('defense-ready-screen').style.display = 'flex';
