@@ -1274,18 +1274,160 @@ async function submitApplication(itemId) {
       body: JSON.stringify({ p_item_id: itemId, p_user_id: user.id, p_nickname: nickname })
     });
 
-    closeBidPanel();
-    closeModal();
-
     if (result.ok) {
-      showToast(`🎟 티켓 발급! ${result.ticket}`);
+      // 패널 안에서 티켓 표시 (닫지 않음)
+      showTicketInPanel(result.ticket, itemId);
       renderCurrentRoom();
     } else {
       showToast(result.msg);
+      if (btn) { btn.disabled = false; btn.textContent = '🍎 오늘 응모하기 (황금사과 1알)'; }
     }
   } catch(e) {
     showToast('응모 실패: ' + e.message);
     if (btn) { btn.disabled = false; btn.textContent = '🍎 오늘 응모하기 (황금사과 1알)'; }
+  }
+}
+
+// ══════════════════════════════════════════════
+// 티켓 발급 완료 화면 (패널 안에서)
+// ══════════════════════════════════════════════
+function showTicketInPanel(ticketCode, itemId) {
+  const allItems = Object.values(TREASURES).flat();
+  const item = allItems.find(i => i.id === itemId);
+  const panel = document.getElementById('bid-panel');
+  if (!panel) return;
+
+  const sheet = panel.querySelector('div > div');
+  if (!sheet) return;
+
+  sheet.innerHTML = `
+    <div style="width:36px;height:4px;border-radius:2px;background:rgba(201,168,76,0.25);margin:0 auto 28px;"></div>
+    <div style="font-size:9px;letter-spacing:0.28em;color:var(--gold-dim);margin-bottom:6px;text-transform:uppercase;">티켓 발급 완료</div>
+    <div style="font-size:17px;color:var(--cream);margin-bottom:28px;">${item ? item.name : itemId}</div>
+
+    <!-- 티켓 디자인 -->
+    <div id="ticket-card" style="
+      background:linear-gradient(135deg,rgba(201,168,76,0.15),rgba(140,100,20,0.1));
+      border:1px solid rgba(201,168,76,0.4);
+      border-radius:12px;padding:28px 24px;margin-bottom:24px;
+      position:relative;overflow:hidden;
+    ">
+      <!-- 티켓 구멍 장식 -->
+      <div style="position:absolute;left:-10px;top:50%;transform:translateY(-50%);width:20px;height:20px;background:#1A1510;border-radius:50%;border:1px solid rgba(201,168,76,0.2);"></div>
+      <div style="position:absolute;right:-10px;top:50%;transform:translateY(-50%);width:20px;height:20px;background:#1A1510;border-radius:50%;border:1px solid rgba(201,168,76,0.2);"></div>
+      <!-- 점선 -->
+      <div style="border-top:1px dashed rgba(201,168,76,0.2);margin:16px 0;"></div>
+
+      <div style="text-align:center;">
+        <div style="font-size:9px;letter-spacing:0.2em;color:var(--gold-dim);margin-bottom:12px;">EG HERITAGE · LOTTERY TICKET</div>
+        <div style="font-size:13px;color:rgba(245,240,232,0.6);margin-bottom:6px;">${item ? item.name : itemId}</div>
+        <div style="font-size:11px;color:rgba(245,240,232,0.35);margin-bottom:20px;">${item ? item.artist : ''}</div>
+        <div style="border-top:1px dashed rgba(201,168,76,0.2);margin-bottom:20px;"></div>
+        <div style="font-family:'Courier New',monospace;font-size:18px;color:var(--gold);letter-spacing:0.15em;font-weight:bold;">
+          ${ticketCode}
+        </div>
+        <div style="font-size:9px;color:rgba(245,240,232,0.25);margin-top:8px;letter-spacing:0.1em;">
+          ${new Date().toLocaleDateString('ko-KR')} 발급
+        </div>
+      </div>
+
+      <div style="border-top:1px dashed rgba(201,168,76,0.2);margin:16px 0;"></div>
+      <div style="text-align:center;font-size:9px;color:rgba(245,240,232,0.2);letter-spacing:0.08em;">
+        추첨은 소장 기간 종료 후 진행됩니다<br>
+        응모한 황금사과는 환불되지 않습니다
+      </div>
+    </div>
+
+    <!-- 버튼들 -->
+    <button onclick="downloadTicket('${ticketCode}','${item ? item.name : itemId}')" style="
+      width:100%;padding:14px;margin-bottom:10px;
+      background:linear-gradient(135deg,rgba(201,168,76,0.25),rgba(201,168,76,0.1));
+      border:1px solid rgba(201,168,76,0.4);border-radius:12px;
+      color:var(--gold);font-size:12px;letter-spacing:0.12em;
+      cursor:pointer;font-family:inherit;
+    ">📥 티켓 이미지 저장</button>
+
+    <button onclick="saveTicketToWunderkammer('${ticketCode}','${item ? item.name : itemId}')" style="
+      width:100%;padding:14px;margin-bottom:10px;
+      background:rgba(245,240,232,0.05);
+      border:1px solid rgba(245,240,232,0.12);border-radius:12px;
+      color:rgba(245,240,232,0.5);font-size:12px;letter-spacing:0.12em;
+      cursor:pointer;font-family:inherit;
+    ">🏠 분더카머에 보관</button>
+
+    <button onclick="closeBidPanel()" style="
+      width:100%;padding:12px;
+      background:none;border:1px solid rgba(245,240,232,0.06);border-radius:12px;
+      color:rgba(245,240,232,0.25);font-size:11px;cursor:pointer;font-family:inherit;
+    ">닫기</button>
+  `;
+}
+
+// 티켓 이미지 다운로드
+function downloadTicket(ticketCode, itemName) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 600; canvas.height = 320;
+  const ctx = canvas.getContext('2d');
+
+  // 배경
+  ctx.fillStyle = '#1A1510';
+  ctx.fillRect(0, 0, 600, 320);
+
+  // 골드 테두리
+  ctx.strokeStyle = 'rgba(201,168,76,0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(16, 16, 568, 288);
+
+  // 점선 중앙
+  ctx.setLineDash([6, 4]);
+  ctx.strokeStyle = 'rgba(201,168,76,0.25)';
+  ctx.beginPath(); ctx.moveTo(40, 160); ctx.lineTo(560, 160); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 구멍
+  ctx.fillStyle = '#0E0B07';
+  ctx.beginPath(); ctx.arc(16, 160, 12, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(584, 160, 12, 0, Math.PI * 2); ctx.fill();
+
+  // 텍스트
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(201,168,76,0.6)';
+  ctx.font = '11px "Courier New"';
+  ctx.fillText('EG HERITAGE · LOTTERY TICKET', 300, 60);
+
+  ctx.fillStyle = 'rgba(245,240,232,0.7)';
+  ctx.font = '18px Georgia';
+  ctx.fillText(itemName, 300, 100);
+
+  ctx.fillStyle = '#C9A84C';
+  ctx.font = 'bold 22px "Courier New"';
+  ctx.letterSpacing = '0.15em';
+  ctx.fillText(ticketCode, 300, 210);
+
+  ctx.fillStyle = 'rgba(245,240,232,0.3)';
+  ctx.font = '11px Georgia';
+  ctx.fillText(new Date().toLocaleDateString('ko-KR') + ' 발급 · 은교살롱', 300, 270);
+
+  // 다운로드
+  const a = document.createElement('a');
+  a.download = `EG_TICKET_${ticketCode}.png`;
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+  showToast('🎟 티켓이 저장되었습니다!');
+}
+
+// 분더카머에 티켓 보관 (localStorage에 임시 저장 → 추후 Supabase 연동)
+function saveTicketToWunderkammer(ticketCode, itemName) {
+  try {
+    const tickets = JSON.parse(localStorage.getItem('eg_my_tickets') || '[]');
+    const exists = tickets.find(t => t.code === ticketCode);
+    if (!exists) {
+      tickets.push({ code: ticketCode, item: itemName, date: new Date().toISOString() });
+      localStorage.setItem('eg_my_tickets', JSON.stringify(tickets));
+    }
+    showToast('🏠 분더카머에 보관했습니다!');
+  } catch(e) {
+    showToast('보관 실패: ' + e.message);
   }
 }
 
