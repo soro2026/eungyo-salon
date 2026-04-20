@@ -939,8 +939,21 @@ function renderCurrentRoom() {
 
 function renderTreasureCard(item) {
   const isSold = item.status === 'sold';
+  const wkId = getWkId();
+
+  // 내 응모 여부는 렌더 시 전역 캐시에서 확인
+  const myApplied = (window._myApplied || {})[item.id];
+  const todayApplied = myApplied?.today;
+  const weekCount = myApplied?.count || 0;
+
+  const statusHtml = isSold
+    ? `<div class="label-status status-sold">📍 ${item.winner_nick || item.owner || '?'} 소장 중</div>`
+    : weekCount > 0
+    ? `<div class="label-status status-available">🎟 ${weekCount}장 응모 중 ${todayApplied ? '· 오늘 완료' : '· 오늘 응모 가능'}</div>`
+    : `<div class="label-status status-available">✦ 소장 가능 · 응모하기</div>`;
+
   return `
-    <div class="treasure-card" onclick="openModal('${item.id}')">
+    <div class="treasure-card" onclick="${isSold ? `openSoldModal('${item.id}')` : `openModal('${item.id}')`}">
       <img class="frame-img ${isSold ? 'sold' : ''}"
         src="${item.img}"
         alt="${item.name}"
@@ -949,11 +962,47 @@ function renderTreasureCard(item) {
         <div class="label-name">${item.name}</div>
         <div class="label-artist">${item.artist}</div>
         <div class="label-period">${item.period}</div>
-        <div class="label-status ${isSold ? 'status-sold' : 'status-available'}">
-          ${isSold ? `📍 ${item.owner} 소장 중` : '✦ 소장 가능'}
+        ${statusHtml}
+      </div>
+    </div>`;
+}
+
+// sold 작품 클릭 → 빈 액자 + 분더카머 링크
+function openSoldModal(itemId) {
+  const allItems = Object.values(TREASURES).flat();
+  const item = allItems.find(i => i.id === itemId);
+  if (!item) return;
+
+  const html = `
+    <div class="modal-overlay" onclick="closeModalOutside(event)">
+      <div class="modal-sheet">
+        <div class="modal-handle"></div>
+        <button class="modal-close" onclick="closeModal()">×</button>
+        <img class="modal-frame sold" src="${item.img}" alt="${item.name}" onerror="this.style.opacity='0.15'">
+        <div class="modal-info">
+          <div class="modal-name">${item.name}</div>
+          <div class="modal-artist">${item.artist}</div>
+          <div class="modal-meta">${item.period} &nbsp;·&nbsp; ${item.origin}</div>
+        </div>
+        <div class="modal-divider"></div>
+        <div style="text-align:center;padding:20px 24px;font-size:13px;color:rgba(245,240,232,0.45);line-height:1.8;letter-spacing:0.04em;">
+          이 작품은 <strong style="color:var(--gold-dim);">${item.winner_nick || item.owner || '?'}</strong>님의 분더카머로 떠났습니다.<br>
+          <span style="font-size:11px;color:rgba(245,240,232,0.25);">빈 액자가 이 작품을 기억합니다.</span>
+        </div>
+        <div class="modal-actions">
+          ${item.winner_nick ? `
+            <a href="wunderkammer.html?owner=${item.winner_nick}" class="btn-primary" style="text-decoration:none;display:block;text-align:center;">
+              🏠 ${item.winner_nick}님의 분더카머에서 감상하기
+            </a>` : ''}
+          <div class="btn-sold">📍 판매 완료</div>
         </div>
       </div>
     </div>`;
+
+  const modal = document.getElementById('modal');
+  modal.innerHTML = html;
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
 }
 
 function renderEmptyRoom() {
@@ -1062,16 +1111,246 @@ function closeModalOutside(e) {
   if (e.target.classList.contains('modal-overlay')) closeModal();
 }
 
-function openBid(id) {
-  alert('입찰 기능은 준비 중입니다 🍎\n베타 오픈 후 활성화됩니다.');
+// ══════════════════════════════════════════════
+// Supabase 설정
+// ══════════════════════════════════════════════
+const SUPABASE_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5aGxvdHdkaXNqdm94dmZrcG5kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3MjM1NDYsImV4cCI6MjA5MTI5OTU0Nn0.9sLMbD3WH9dZgMsr_BrlYcSwCwU-CUsGJQ1eUPHSqzw';
+
+async function sbFetch(path, options = {}) {
+  const res = await fetch(SUPABASE_URL + path, {
+    ...options,
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + (getToken() || SUPABASE_KEY),
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation',
+      ...options.headers
+    }
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.message || res.statusText); }
+  return res.status === 204 ? null : res.json();
+}
+
+function getToken() {
+  try {
+    const k = Object.keys(localStorage).find(k => k.includes('supabase.auth.token'));
+    return k ? JSON.parse(localStorage.getItem(k))?.currentSession?.access_token : null;
+  } catch { return null; }
+}
+
+function getUser() {
+  try {
+    const k = Object.keys(localStorage).find(k => k.includes('supabase.auth.token'));
+    return k ? JSON.parse(localStorage.getItem(k))?.currentSession?.user : null;
+  } catch { return null; }
+}
+
+function getWkId() {
+  const d = new Date();
+  const startOfYear = new Date(d.getFullYear(), 0, 1);
+  const wk = Math.ceil(((d - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
+  return `${d.getFullYear()}-W${String(wk).padStart(2,'0')}`;
+}
+
+// ══════════════════════════════════════════════
+// 응모 패널 열기 (행운의 미소)
+// ══════════════════════════════════════════════
+async function openBid(itemId) {
+  const user = getUser();
+  if (!user) { showToast('로그인이 필요합니다'); return; }
+
+  const wkId = getWkId();
+  let myTickets = [], totalTickets = 0;
+
+  try {
+    // 내 티켓 조회
+    myTickets = await sbFetch(
+      `/rest/v1/heritage_applications?item_id=eq.${itemId}&user_id=eq.${user.id}&wk_id=eq.${wkId}&select=ticket_code,applied_date,created_at&order=created_at.asc`
+    );
+    // 전체 티켓 수
+    const countRes = await fetch(SUPABASE_URL + `/rest/v1/heritage_applications?item_id=eq.${itemId}&select=id`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + (getToken() || SUPABASE_KEY), 'Prefer': 'count=exact', 'Range': '0-0' }
+    });
+    totalTickets = parseInt(countRes.headers.get('content-range')?.split('/')[1] || '0');
+  } catch(e) { console.warn(e); }
+
+  const todayApplied = myTickets.some(t => t.applied_date === new Date().toISOString().slice(0,10));
+  const weekCount = myTickets.length;
+  const canApply = !todayApplied && weekCount < 7;
+
+  const allItems = Object.values(TREASURES).flat();
+  const item = allItems.find(i => i.id === itemId);
+
+  const panel = document.createElement('div');
+  panel.id = 'bid-panel';
+  panel.innerHTML = `
+    <div style="position:fixed;inset:0;z-index:600;background:rgba(8,6,4,0.95);backdrop-filter:blur(16px);display:flex;align-items:flex-end;justify-content:center;animation:overlayIn 0.25s ease;" onclick="if(event.target===this)closeBidPanel()">
+      <div style="width:100%;max-width:480px;background:#1A1510;border-radius:20px 20px 0 0;border-top:1px solid rgba(201,168,76,0.2);padding:28px 28px 48px;animation:sheetUp 0.3s cubic-bezier(0.34,1.56,0.64,1);max-height:85vh;overflow-y:auto;">
+
+        <div style="width:36px;height:4px;border-radius:2px;background:rgba(201,168,76,0.25);margin:0 auto 24px;"></div>
+        <div style="font-size:9px;letter-spacing:0.28em;color:var(--gold-dim);margin-bottom:6px;text-transform:uppercase;">행운의 미소 · Heritage Lottery</div>
+        <div style="font-size:17px;color:var(--cream);margin-bottom:6px;line-height:1.35;">${item ? item.name : itemId}</div>
+        <div style="font-size:10px;color:rgba(245,240,232,0.35);margin-bottom:24px;">${item ? item.artist : ''}</div>
+
+        <!-- 현황 -->
+        <div style="display:flex;gap:12px;margin-bottom:24px;">
+          <div style="flex:1;background:rgba(201,168,76,0.07);border:1px solid rgba(201,168,76,0.15);border-radius:10px;padding:14px;text-align:center;">
+            <div style="font-size:24px;color:var(--gold-l);">${totalTickets}</div>
+            <div style="font-size:9px;color:var(--cream-dim);letter-spacing:0.1em;margin-top:3px;">전체 티켓</div>
+          </div>
+          <div style="flex:1;background:rgba(201,168,76,0.07);border:1px solid rgba(201,168,76,0.15);border-radius:10px;padding:14px;text-align:center;">
+            <div style="font-size:24px;color:var(--gold-l);">${weekCount}<span style="font-size:14px;color:var(--gold-dim)">/7</span></div>
+            <div style="font-size:9px;color:var(--cream-dim);letter-spacing:0.1em;margin-top:3px;">내 티켓 (이번 주)</div>
+          </div>
+        </div>
+
+        <!-- 확률 표시 -->
+        ${totalTickets > 0 ? `
+        <div style="background:rgba(201,168,76,0.05);border:1px solid rgba(201,168,76,0.1);border-radius:10px;padding:14px;margin-bottom:20px;text-align:center;">
+          <div style="font-size:11px;color:rgba(245,240,232,0.4);margin-bottom:4px;">현재 당첨 확률</div>
+          <div style="font-size:22px;color:var(--gold);">${weekCount > 0 ? ((weekCount / totalTickets) * 100).toFixed(1) : '—'}%</div>
+          <div style="font-size:9px;color:rgba(245,240,232,0.25);margin-top:4px;">티켓 1장 더 추가하면 ${weekCount > 0 ? (((weekCount+1) / (totalTickets+1)) * 100).toFixed(1) : (1/(totalTickets+1)*100).toFixed(1)}%</div>
+        </div>` : ''}
+
+        <!-- 내 티켓 목록 -->
+        ${myTickets.length > 0 ? `
+        <div style="margin-bottom:20px;">
+          <div style="font-size:9px;letter-spacing:0.2em;color:var(--gold-dim);margin-bottom:10px;">내 티켓</div>
+          ${myTickets.map(t => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(8,6,4,0.4);border:1px solid rgba(201,168,76,0.1);border-radius:6px;margin-bottom:6px;">
+              <span style="font-family:'Courier New',monospace;font-size:12px;color:var(--gold-l);letter-spacing:0.05em;">${t.ticket_code}</span>
+              <span style="font-size:9px;color:rgba(245,240,232,0.3);">${t.applied_date}</span>
+            </div>`).join('')}
+        </div>` : ''}
+
+        <!-- 응모 안내 -->
+        <div style="font-size:10px;color:rgba(245,240,232,0.3);line-height:1.8;margin-bottom:20px;letter-spacing:0.04em;">
+          🍎 황금사과 1알 = 티켓 1장<br>
+          📅 하루 1회 · 이번 주 ${7 - weekCount}회 응모 가능<br>
+          🎲 추첨은 소장 기간 종료 후 진행<br>
+          ✦ 응모한 황금사과는 환불되지 않습니다
+        </div>
+
+        <!-- 응모 버튼 -->
+        ${canApply ? `
+          <button onclick="submitApplication('${itemId}')" style="width:100%;padding:15px;background:linear-gradient(135deg,rgba(201,168,76,0.35),rgba(201,168,76,0.15));border:1px solid rgba(201,168,76,0.5);border-radius:12px;color:var(--gold);font-size:13px;letter-spacing:0.14em;cursor:pointer;font-family:inherit;">
+            🍎 오늘 응모하기 (황금사과 1알)
+          </button>
+        ` : todayApplied ? `
+          <div style="width:100%;padding:15px;background:rgba(245,240,232,0.04);border:1px solid rgba(245,240,232,0.08);border-radius:12px;color:rgba(245,240,232,0.3);font-size:12px;letter-spacing:0.1em;text-align:center;">
+            ✓ 오늘 이미 응모하셨습니다 · 내일 다시 오세요
+          </div>
+        ` : `
+          <div style="width:100%;padding:15px;background:rgba(245,240,232,0.04);border:1px solid rgba(245,240,232,0.08);border-radius:12px;color:rgba(245,240,232,0.3);font-size:12px;letter-spacing:0.1em;text-align:center;">
+            이번 주 응모 한도(7회)를 모두 사용하셨습니다
+          </div>
+        `}
+
+        <button onclick="closeBidPanel()" style="width:100%;padding:12px;margin-top:10px;background:none;border:1px solid rgba(245,240,232,0.08);border-radius:12px;color:rgba(245,240,232,0.3);font-size:11px;cursor:pointer;font-family:inherit;">닫기</button>
+      </div>
+    </div>`;
+  document.body.appendChild(panel);
+}
+
+function closeBidPanel() {
+  const p = document.getElementById('bid-panel'); if (p) p.remove();
+}
+
+// ══════════════════════════════════════════════
+// 응모 실행
+// ══════════════════════════════════════════════
+async function submitApplication(itemId) {
+  const user = getUser();
+  if (!user) { showToast('로그인이 필요합니다'); return; }
+  const nickname = localStorage.getItem('eg_nickname') || user.email?.split('@')[0] || '익명';
+
+  const btn = document.querySelector('#bid-panel button[onclick*="submitApplication"]');
+  if (btn) { btn.disabled = true; btn.textContent = '응모 중...'; }
+
+  try {
+    const result = await sbFetch('/rest/v1/rpc/apply_heritage', {
+      method: 'POST',
+      body: JSON.stringify({ p_item_id: itemId, p_user_id: user.id, p_nickname: nickname })
+    });
+
+    closeBidPanel();
+    closeModal();
+
+    if (result.ok) {
+      showToast(`🎟 티켓 발급! ${result.ticket}`);
+      renderCurrentRoom();
+    } else {
+      showToast(result.msg);
+    }
+  } catch(e) {
+    showToast('응모 실패: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '🍎 오늘 응모하기 (황금사과 1알)'; }
+  }
+}
+
+// ══════════════════════════════════════════════
+// 추첨 (소로님 관리자 전용 버튼)
+// ══════════════════════════════════════════════
+async function drawWinner(itemId) {
+  if (!confirm(`"${itemId}" 추첨을 진행할까요?
+이 작업은 되돌릴 수 없습니다.`)) return;
+
+  showToast('🎲 추첨 중...');
+
+  try {
+    const result = await sbFetch('/rest/v1/rpc/draw_winner', {
+      method: 'POST',
+      body: JSON.stringify({ p_item_id: itemId })
+    });
+
+    if (result.ok) {
+      showDrawResult(result);
+      renderCurrentRoom();
+    } else {
+      showToast(result.msg);
+    }
+  } catch(e) {
+    showToast('추첨 실패: ' + e.message);
+  }
+}
+
+// 추첨 결과 화면
+function showDrawResult(result) {
+  const panel = document.createElement('div');
+  panel.innerHTML = `
+    <div style="position:fixed;inset:0;z-index:700;background:rgba(8,6,4,0.97);display:flex;align-items:center;justify-content:center;animation:overlayIn 0.3s ease;" onclick="this.parentElement.remove()">
+      <div style="text-align:center;padding:48px 32px;max-width:360px;">
+        <div style="font-size:48px;margin-bottom:24px;animation:flowerIn 0.6s ease;">🎉</div>
+        <div style="font-size:10px;letter-spacing:0.28em;color:var(--gold-dim);margin-bottom:16px;">당첨자 발표</div>
+        <div style="font-size:28px;color:var(--cream);font-weight:300;margin-bottom:8px;">${result.winner_nick}</div>
+        <div style="font-family:'Courier New',monospace;font-size:13px;color:var(--gold);letter-spacing:0.1em;margin-bottom:24px;">${result.winner_ticket}</div>
+        <div style="height:1px;background:linear-gradient(90deg,transparent,rgba(201,168,76,0.3),transparent);margin-bottom:24px;"></div>
+        <div style="font-size:12px;color:rgba(245,240,232,0.4);line-height:1.8;">
+          전체 ${result.total_tickets}장 중 당첨<br>
+          분더카머로 작품이 이동합니다
+        </div>
+        <div style="margin-top:24px;font-size:10px;color:rgba(245,240,232,0.2);">화면을 탭하면 닫힙니다</div>
+      </div>
+    </div>`;
+  document.body.appendChild(panel);
+}
+
+// ══════════════════════════════════════════════
+// 토스트
+// ══════════════════════════════════════════════
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:rgba(30,20,10,0.95);border:1px solid rgba(201,168,76,0.3);color:var(--cream);padding:12px 24px;border-radius:24px;font-size:13px;letter-spacing:0.06em;z-index:800;animation:overlayIn 0.25s ease;white-space:nowrap;';
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
 }
 
 // ══════════════════════════════════════════════
 // 초기화
 // ══════════════════════════════════════════════
-function goHome() {
-  window.location.href = '/eungyo-salon/';
-}
+function goHome() { window.location.href = '/eungyo-salon/'; }
 
 renderHallNav();
 renderRoomNav();
