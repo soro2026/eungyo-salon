@@ -355,6 +355,54 @@ html, body {
   font-size: 13px; cursor: pointer;
   font-family: inherit; letter-spacing: 0.08em;
 }
+
+/* ── 매입 축하 팝업 ── */
+#purchase-celebration {
+  display: none; position: fixed; inset: 0; z-index: 500;
+  align-items: center; justify-content: center;
+  background: rgba(5,8,16,0.75); backdrop-filter: blur(6px);
+}
+#purchase-celebration.show { display: flex; }
+.celebration-box {
+  background: linear-gradient(160deg, #0d1225 0%, #080c18 100%);
+  border: 1px solid rgba(201,168,76,0.5); border-radius: 24px;
+  padding: 36px 28px; text-align: center;
+  max-width: 320px; width: 90%; position: relative; overflow: hidden;
+  animation: celebPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes celebPop {
+  from { transform: scale(0.7); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+.celeb-glow {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+.celeb-stars { font-size: 26px; letter-spacing: 4px; margin-bottom: 14px; animation: tw 1.5s ease-in-out infinite alternate; }
+@keyframes tw { from { opacity: 0.5; } to { opacity: 1; } }
+.celeb-title { font-size: 11px; letter-spacing: 0.2em; color: rgba(201,168,76,0.6); margin-bottom: 14px; }
+.celeb-name { font-size: 22px; font-weight: 700; color: #E9C97E; letter-spacing: 0.06em; margin-bottom: 6px; }
+.celeb-info { font-size: 13px; color: rgba(240,235,224,0.5); margin-bottom: 18px; }
+.celeb-divider { height: 1px; background: linear-gradient(to right, transparent, rgba(201,168,76,0.3), transparent); margin-bottom: 16px; }
+.celeb-balance-label { font-size: 10px; letter-spacing: 0.14em; color: rgba(201,168,76,0.4); margin-bottom: 4px; }
+.celeb-balance-num { font-size: 20px; font-weight: 700; color: #C9A84C; font-family: "Courier New", monospace; margin-bottom: 6px; }
+.celeb-share { font-size: 11px; color: rgba(240,235,224,0.3); letter-spacing: 0.08em; margin-bottom: 22px; }
+.celeb-btn {
+  width: 100%; padding: 13px;
+  background: rgba(201,168,76,0.15); border: 1px solid rgba(201,168,76,0.4);
+  border-radius: 12px; color: #E9C97E; font-size: 14px;
+  letter-spacing: 0.1em; cursor: pointer; font-family: inherit; transition: all 0.2s;
+}
+.celeb-btn:hover { background: rgba(201,168,76,0.25); }
+.particle {
+  position: absolute; width: 5px; height: 5px; border-radius: 50%;
+  pointer-events: none; animation: pFly 1s ease-out forwards;
+}
+@keyframes pFly {
+  0% { transform: translate(0,0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
+}
 </style>
 </head>
 <body>
@@ -393,6 +441,22 @@ html, body {
   <div class="coming-soon-title">S O C I A L  U N I V E R S E</div>
   <div class="coming-soon-sub">추천 연결망 우주 — 준비 중입니다</div>
   <button class="coming-soon-btn" onclick="showCultureUniverse()">← 교양우주로</button>
+</div>
+
+<!-- 매입 축하 팝업 -->
+<div id="purchase-celebration">
+  <div class="celebration-box" id="celeb-box">
+    <div class="celeb-glow"></div>
+    <div class="celeb-stars">✦ ✦ ✦</div>
+    <div class="celeb-title">주 주 가  되 셨 습 니 다</div>
+    <div class="celeb-name" id="celeb-star-name"></div>
+    <div class="celeb-info" id="celeb-info"></div>
+    <div class="celeb-divider"></div>
+    <div class="celeb-balance-label">R E M A I N I N G</div>
+    <div class="celeb-balance-num" id="celeb-balance"></div>
+    <div class="celeb-share" id="celeb-share"></div>
+    <button class="celeb-btn" onclick="closeCelebration()">✦ 확인</button>
+  </div>
 </div>
 
 <!-- 별 상세 모달 -->
@@ -845,14 +909,23 @@ async function buyStock() {
       });
     }
 
-    // 6. 100주 소진 시 IPO 대상 등록
+    // 6. 잔액 계산
+    const { data: newAppleData } = await supa.from('apple_log')
+      .select('amount').eq('uid', currentUser.id);
+    const newBalance = newAppleData
+      ? newAppleData.reduce((s, r) => s + (r.amount || 0), 0).toFixed(2)
+      : '0.00';
+    const myQty = existing ? existing.quantity + 1 : 1;
+    const sharePercent = ((myQty / currentStockData.total_issued) * 100).toFixed(1);
+
+    // 7. 100주 소진 시 IPO 대상 등록
     if (newSold >= currentStockData.total_issued) {
       await supa.from('stocks')
         .update({ status: 'ipo_pending' })
         .eq('star_id', starId);
-      alert(`🎉 ${currentStarData.name}의 비상장 주식이 전량 소화되었습니다!\nIPO 심사 대상으로 등록됩니다.`);
+      showCelebration(currentStarData.name, myQty, price, newBalance, sharePercent, true);
     } else {
-      alert(`✅ ${currentStarData.name} 주식 1주 매입 완료!\n매입가: ${price}알`);
+      showCelebration(currentStarData.name, myQty, price, newBalance, sharePercent, false);
     }
 
     // 7. 모달 UI 갱신
@@ -865,6 +938,42 @@ async function buyStock() {
     btn.disabled = false;
     btn.textContent = `🔒 ${currentStockPrice}알로 1주 매입하기`;
   }
+}
+
+// ── 축하 팝업 ────────────────────────────────────────────────────
+function showCelebration(name, qty, price, balance, sharePercent, isIPO) {
+  document.getElementById('celeb-star-name').textContent = name;
+  document.getElementById('celeb-info').textContent =
+    isIPO
+      ? `${qty}주 보유 · 전량 소화! 🎉 IPO 대상 등록`
+      : `${qty}주 보유 · ${price}알 매입`;
+  document.getElementById('celeb-balance').textContent = `${balance} 알`;
+  document.getElementById('celeb-share').textContent = `현재 지분 ${sharePercent}%`;
+  document.getElementById('purchase-celebration').classList.add('show');
+
+  // 파티클 효과
+  const box = document.getElementById('celeb-box');
+  const colors = ['#C9A84C', '#E9C97E', '#fff8e7', '#a0c4ff'];
+  for (let i = 0; i < 20; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const angle = (i / 20) * 360;
+    const dist = 80 + Math.random() * 60;
+    const tx = Math.cos(angle * Math.PI / 180) * dist;
+    const ty = Math.sin(angle * Math.PI / 180) * dist - 40;
+    p.style.cssText = `
+      left: 50%; top: 40%;
+      background: ${colors[i % colors.length]};
+      --tx: ${tx}px; --ty: ${ty}px;
+      animation-delay: ${Math.random() * 0.3}s;
+    `;
+    box.appendChild(p);
+    setTimeout(() => p.remove(), 1500);
+  }
+}
+
+function closeCelebration() {
+  document.getElementById('purchase-celebration').classList.remove('show');
 }
 
 // ── 별 객체 ─────────────────────────────────────────────────────
@@ -916,6 +1025,42 @@ const FIGURES_DUMMY = [
   { name: '왕가리 마타이', info: '환경운동 · 케냐',    grade: 9, bookmarks: 0   },
   { name: '카를 코흐',    info: '심리학 · 스위스',     grade: 9, bookmarks: 0   },
 ]; // FIGURES_DUMMY 끝
+
+// ── 축하 팝업 ────────────────────────────────────────────────────
+function showCelebration(name, qty, price, balance, sharePercent, isIPO) {
+  document.getElementById('celeb-star-name').textContent = name;
+  document.getElementById('celeb-info').textContent =
+    isIPO
+      ? `${qty}주 보유 · 전량 소화! 🎉 IPO 대상 등록`
+      : `${qty}주 보유 · ${price}알 매입`;
+  document.getElementById('celeb-balance').textContent = `${balance} 알`;
+  document.getElementById('celeb-share').textContent = `현재 지분 ${sharePercent}%`;
+  document.getElementById('purchase-celebration').classList.add('show');
+
+  // 파티클 효과
+  const box = document.getElementById('celeb-box');
+  const colors = ['#C9A84C', '#E9C97E', '#fff8e7', '#a0c4ff'];
+  for (let i = 0; i < 20; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const angle = (i / 20) * 360;
+    const dist = 80 + Math.random() * 60;
+    const tx = Math.cos(angle * Math.PI / 180) * dist;
+    const ty = Math.sin(angle * Math.PI / 180) * dist - 40;
+    p.style.cssText = `
+      left: 50%; top: 40%;
+      background: ${colors[i % colors.length]};
+      --tx: ${tx}px; --ty: ${ty}px;
+      animation-delay: ${Math.random() * 0.3}s;
+    `;
+    box.appendChild(p);
+    setTimeout(() => p.remove(), 1500);
+  }
+}
+
+function closeCelebration() {
+  document.getElementById('purchase-celebration').classList.remove('show');
+}
 
 // ── 별 객체 ──────────────────────────────────────────────────────
 let animFrame = null;
