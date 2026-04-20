@@ -450,7 +450,8 @@ html, body {
           <span class="stock-value" id="modal-ipo-est">— 배</span>
         </div>
       </div>
-      <button class="btn-stock buy" onclick="buyStock()">🔒 주식 매입하기 (준비 중)</button>
+      <button class="btn-stock buy" id="btn-buy-unlisted" onclick="buyStock()">🔒 주식 매입하기</button>
+      <div id="modal-my-stock" style="display:none; font-size:11px; color:rgba(201,168,76,0.6); text-align:center; margin-top:8px;"></div>
     </div>
 
     <!-- 상장 단계 -->
@@ -471,6 +472,7 @@ html, body {
         </div>
       </div>
       <button class="btn-stock buy" onclick="buyStock()">매수 / 매도 (준비 중)</button>
+      <div id="modal-my-stock-listed" style="display:none; font-size:11px; color:rgba(201,168,76,0.6); text-align:center; margin-top:8px;"></div>
     </div>
 
     <br>
@@ -575,10 +577,10 @@ function openStarModal(fig) {
     renderHeartSection(fig);
   } else if (fig.stock_status === 'unlisted') {
     document.getElementById('section-unlisted').style.display = 'block';
-    renderUnlistedSection(fig);
+    renderUnlistedSection(fig); // async
   } else if (fig.stock_status === 'listed') {
     document.getElementById('section-listed').style.display = 'block';
-    renderListedSection(fig);
+    renderListedSection(fig); // async
   }
 
   document.getElementById('star-modal').classList.add('show');
@@ -611,18 +613,99 @@ function renderHeartSection(fig) {
   }
 }
 
-function renderUnlistedSection(fig) {
-  // 더미 스톡 데이터 (스톡 시스템 구현 전)
-  document.getElementById('modal-stock-remain').textContent = '— 주';
-  document.getElementById('modal-stock-price').textContent = '— 알';
-  document.getElementById('modal-stock-holders').textContent = '— 명';
-  document.getElementById('modal-ipo-est').textContent = '— 배';
+async function renderUnlistedSection(fig) {
+  // stocks 테이블에서 실시간 데이터 로드
+  const { data: stock } = await supa.from('stocks')
+    .select('*').eq('star_id', fig.id).single();
+
+  if (!stock) return;
+
+  // 현재가 계산: (sold+1) × 0.1알
+  const currentPrice = parseFloat(((stock.sold + 1) * 0.1).toFixed(1));
+  const remain = stock.total_issued - stock.sold;
+
+  // 주주 수 조회
+  const { count: holders } = await supa.from('portfolio')
+    .select('*', { count: 'exact', head: true })
+    .eq('star_id', fig.id);
+
+  // 예상 IPO 배수 (광도 기반 간단 산정)
+  const lum = fig.luminosity || 0;
+  const ipoEst = Math.max(1, Math.min(10, Math.round(lum / 10 * 10) / 10));
+  const ipoLow = Math.max(1, Math.floor(ipoEst * 0.8));
+  const ipoHigh = Math.min(10, Math.ceil(ipoEst * 1.2));
+
+  document.getElementById('modal-stock-remain').textContent = `${remain}주`;
+  document.getElementById('modal-stock-price').textContent = `${currentPrice}알`;
+  document.getElementById('modal-stock-holders').textContent = `${holders || 0}명`;
+  document.getElementById('modal-ipo-est').textContent = `${ipoLow}~${ipoHigh}배`;
+
+  // 내 보유 주식 표시
+  if (currentUser) {
+    const { data: myPortfolio } = await supa.from('portfolio')
+      .select('quantity, avg_price')
+      .eq('star_id', fig.id)
+      .eq('user_id', currentUser.id)
+      .single();
+
+    const myInfo = document.getElementById('modal-my-stock');
+    if (myPortfolio && myPortfolio.quantity > 0) {
+      myInfo.textContent = `내 보유: ${myPortfolio.quantity}주 · 평균 ${myPortfolio.avg_price}알`;
+      myInfo.style.display = 'block';
+    } else {
+      myInfo.textContent = '';
+      myInfo.style.display = 'none';
+    }
+  }
+
+  // 매진 여부 체크
+  const btn = document.getElementById('btn-buy-unlisted');
+  if (remain <= 0) {
+    btn.textContent = '🔒 매진 — IPO 대기 중';
+    btn.disabled = true;
+  } else {
+    btn.textContent = `🔒 ${currentPrice}알로 1주 매입하기`;
+    btn.disabled = !currentUser;
+  }
+
+  // stock 데이터 임시 저장
+  currentStockData = stock;
+  currentStockPrice = currentPrice;
 }
 
-function renderListedSection(fig) {
-  document.getElementById('modal-listed-price').textContent = '— 알';
-  document.getElementById('modal-listed-holders').textContent = '— 명';
-  document.getElementById('modal-market-cap').textContent = '— 알';
+async function renderListedSection(fig) {
+  const { data: stock } = await supa.from('stocks')
+    .select('*').eq('star_id', fig.id).single();
+
+  if (!stock) return;
+
+  const { count: holders } = await supa.from('portfolio')
+    .select('*', { count: 'exact', head: true })
+    .eq('star_id', fig.id);
+
+  const price = stock.price_current || 0;
+  const totalShares = stock.total_issued || 100;
+  const marketCap = parseFloat((price * totalShares).toFixed(1));
+
+  document.getElementById('modal-listed-price').textContent = `${price}알`;
+  document.getElementById('modal-listed-holders').textContent = `${holders || 0}명`;
+  document.getElementById('modal-market-cap').textContent = `${marketCap}알`;
+
+  if (currentUser) {
+    const { data: myPortfolio } = await supa.from('portfolio')
+      .select('quantity, avg_price')
+      .eq('star_id', fig.id)
+      .eq('user_id', currentUser.id)
+      .single();
+
+    const myInfo = document.getElementById('modal-my-stock-listed');
+    if (myPortfolio && myPortfolio.quantity > 0) {
+      myInfo.textContent = `내 보유: ${myPortfolio.quantity}주 · 평균매입가 ${myPortfolio.avg_price}알`;
+      myInfo.style.display = 'block';
+    } else {
+      myInfo.style.display = 'none';
+    }
+  }
 }
 
 function closeModal() {
@@ -672,9 +755,110 @@ async function sendHeart() {
   renderHeartSection(currentStarData);
 }
 
-// ── 스톡 매입 (준비 중) ───────────────────────────────────────────
-function buyStock() {
-  alert('스톡 시스템은 준비 중입니다. 곧 오픈됩니다!');
+// ── 스톡 전역 변수 ────────────────────────────────────────────────
+let currentStockData = null;
+let currentStockPrice = 0;
+
+// ── 비상장 주식 매입 ──────────────────────────────────────────────
+async function buyStock() {
+  if (!currentUser) { alert('로그인이 필요합니다.'); return; }
+  if (!currentStarData || !currentStockData) return;
+
+  const btn = document.getElementById('btn-buy-unlisted');
+  btn.disabled = true;
+  btn.textContent = '처리 중...';
+
+  try {
+    // 1. 황금사과 잔액 확인
+    const { data: apples } = await supa.from('apple_log')
+      .select('amount')
+      .eq('uid', currentUser.id);
+
+    const totalApples = apples
+      ? apples.reduce((sum, r) => sum + (r.amount || 0), 0)
+      : 0;
+
+    if (totalApples < currentStockPrice) {
+      alert(`황금사과가 부족합니다.\n필요: ${currentStockPrice}알 / 보유: ${totalApples.toFixed(1)}알`);
+      btn.disabled = false;
+      btn.textContent = `🔒 ${currentStockPrice}알로 1주 매입하기`;
+      return;
+    }
+
+    const starId = currentStarData.id;
+    const price = currentStockPrice;
+
+    // 2. 황금사과 차감
+    const { error: appleErr } = await supa.from('apple_log').insert({
+      uid: currentUser.id,
+      amount: -price,
+      reason: `${currentStarData.name} 비상장 주식 1주 매입`,
+      locked: false,
+    });
+    if (appleErr) throw appleErr;
+
+    // 3. stocks sold +1, price_current 업데이트
+    const newSold = currentStockData.sold + 1;
+    const newPrice = parseFloat(((newSold + 1) * 0.1).toFixed(1));
+    const { error: stockErr } = await supa.from('stocks')
+      .update({ sold: newSold, price_current: newPrice })
+      .eq('star_id', starId);
+    if (stockErr) throw stockErr;
+
+    // 4. stock_transactions 기록
+    await supa.from('stock_transactions').insert({
+      user_id: currentUser.id,
+      star_id: starId,
+      quantity: 1,
+      price: price,
+      type: 'buy',
+    });
+
+    // 5. portfolio 업데이트 (upsert)
+    const { data: existing } = await supa.from('portfolio')
+      .select('quantity, avg_price')
+      .eq('user_id', currentUser.id)
+      .eq('star_id', starId)
+      .single();
+
+    if (existing) {
+      const newQty = existing.quantity + 1;
+      const newAvg = parseFloat(
+        ((existing.avg_price * existing.quantity + price) / newQty).toFixed(2)
+      );
+      await supa.from('portfolio')
+        .update({ quantity: newQty, avg_price: newAvg })
+        .eq('user_id', currentUser.id)
+        .eq('star_id', starId);
+    } else {
+      await supa.from('portfolio').insert({
+        user_id: currentUser.id,
+        star_id: starId,
+        quantity: 1,
+        avg_price: price,
+      });
+    }
+
+    // 6. 100주 소진 시 IPO 대상 등록
+    if (newSold >= currentStockData.total_issued) {
+      await supa.from('stocks')
+        .update({ status: 'ipo_pending' })
+        .eq('star_id', starId);
+      alert(`🎉 ${currentStarData.name}의 비상장 주식이 전량 소화되었습니다!\nIPO 심사 대상으로 등록됩니다.`);
+    } else {
+      alert(`✅ ${currentStarData.name} 주식 1주 매입 완료!\n매입가: ${price}알`);
+    }
+
+    // 7. 모달 UI 갱신
+    currentStockData.sold = newSold;
+    await renderUnlistedSection(currentStarData);
+
+  } catch (err) {
+    console.error('매입 오류:', err);
+    alert('매입 중 오류가 발생했습니다. 다시 시도해 주세요.');
+    btn.disabled = false;
+    btn.textContent = `🔒 ${currentStockPrice}알로 1주 매입하기`;
+  }
 }
 
 // ── 별 객체 ─────────────────────────────────────────────────────
