@@ -587,7 +587,7 @@ function openStarModal(fig) {
 }
 
 function renderHeartSection(fig) {
-  const heartCount = fig.heart_count || 0;
+  const heartCount = Math.min(fig.heart_count || 0, 3); // 도트는 최대 3개
   const dots = document.getElementById('heart-dots');
   dots.innerHTML = '';
   for (let i = 0; i < 3; i++) {
@@ -602,21 +602,27 @@ function renderHeartSection(fig) {
 
   const btn = document.getElementById('btn-heart');
   const alreadyHearted = myHearts.has(fig.id);
+
+  // 이미 하트 보냈거나, 별이 각성 완료된 경우
   if (alreadyHearted) {
     btn.textContent = '♥ 하트를 보냈습니다';
     btn.classList.add('hearted');
     btn.disabled = true;
+  } else if (!currentUser) {
+    btn.textContent = '♡ 하트 보내기 (로그인 필요)';
+    btn.classList.remove('hearted');
+    btn.disabled = true;
   } else {
     btn.textContent = '♡ 하트 보내기';
     btn.classList.remove('hearted');
-    btn.disabled = !currentUser;
+    btn.disabled = false;
   }
 }
 
 async function renderUnlistedSection(fig) {
   // stocks 테이블에서 실시간 데이터 로드
   const { data: stock } = await supa.from('stocks')
-    .select('*').eq('star_id', fig.id).single();
+    .select('*').eq('star_id', fig.id).maybeSingle();
 
   if (!stock) return;
 
@@ -646,7 +652,7 @@ async function renderUnlistedSection(fig) {
       .select('quantity, avg_price')
       .eq('star_id', fig.id)
       .eq('user_id', currentUser.id)
-      .single();
+      .maybeSingle();
 
     const myInfo = document.getElementById('modal-my-stock');
     if (myPortfolio && myPortfolio.quantity > 0) {
@@ -675,7 +681,7 @@ async function renderUnlistedSection(fig) {
 
 async function renderListedSection(fig) {
   const { data: stock } = await supa.from('stocks')
-    .select('*').eq('star_id', fig.id).single();
+    .select('*').eq('star_id', fig.id).maybeSingle();
 
   if (!stock) return;
 
@@ -696,7 +702,7 @@ async function renderListedSection(fig) {
       .select('quantity, avg_price')
       .eq('star_id', fig.id)
       .eq('user_id', currentUser.id)
-      .single();
+      .maybeSingle();
 
     const myInfo = document.getElementById('modal-my-stock-listed');
     if (myPortfolio && myPortfolio.quantity > 0) {
@@ -819,7 +825,7 @@ async function buyStock() {
       .select('quantity, avg_price')
       .eq('user_id', currentUser.id)
       .eq('star_id', starId)
-      .single();
+      .maybeSingle();
 
     if (existing) {
       const newQty = existing.quantity + 1;
