@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EG분더카머</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Noto+Serif+KR:wght@300;400;500&display=swap');
+
+  :root {
+    --gold: #C8922A;
+    --gold-light: #F0C040;
+    --gold-dark: #8B6010;
+    --cream: #FAF6EE;
+    --cream-dark: #F0E8D8;
+    --brown: #3D2B1F;
+    --brown-mid: #6B4C35;
+    --text: #2C1E14;
+    --text-muted: #8B7355;
+    --border: rgba(200, 146, 42, 0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Serif KR', 'Cormorant Garamond', serif;
+    background-color: var(--cream);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ── 방 배경 ── */
+  .room-bg {
+    position: fixed;
+    inset: 0;
+    background-image: url('images/wunderkammer/bg_room/bg_room_gallery_01.jpg');
+    background-size: cover;
+    background-position: center;
+    filter: brightness(0.85);
+    z-index: 0;
+  }
+  .room-overlay {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      rgba(30,18,8,0.35) 0%,
+      rgba(30,18,8,0.15) 40%,
+      rgba(30,18,8,0.45) 100%
+    );
+    z-index: 1;
+  }
+
+  /* ── 전체 레이아웃 ── */
+  .container {
+    position: relative;
+    z-index: 2;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 20px 80px;
+  }
+
+  /* ── 헤더 ── */
+  .header {
+    text-align: center;
+    padding: 48px 0 32px;
+    border-bottom: 1px solid var(--border);
+  }
+  .header-label {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .header-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 36px;
+    font-weight: 300;
+    color: #FAF6EE;
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+  }
+  .header-sub {
+    font-size: 13px;
+    color: rgba(250,246,238,0.6);
+    font-weight: 300;
+    letter-spacing: 1px;
+  }
+
+  /* ── 주인 정보 바 (내 방 볼 때) ── */
+  .owner-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 0 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .owner-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 20px;
+    font-weight: 400;
+    color: #FAF6EE;
+  }
+  .owner-name span {
+    font-size: 13px;
+    color: var(--gold);
+    margin-left: 8px;
+    font-family: 'Noto Serif KR', serif;
+    font-weight: 300;
+  }
+  .owner-stats {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+  }
+  .stat-item {
+    text-align: center;
+  }
+  .stat-num {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    color: var(--gold-light);
+    display: block;
+    line-height: 1;
+  }
+  .stat-label {
+    font-size: 10px;
+    color: rgba(250,246,238,0.5);
+    letter-spacing: 1px;
+    margin-top: 3px;
+    display: block;
+  }
+
+  /* ── 방문자 통계 (주인에게만) ── */
+  .visit-info {
+    background: rgba(200,146,42,0.1);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 20px;
+    margin: 20px 0;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .visit-info .visit-icon { font-size: 18px; }
+  .visit-text {
+    font-size: 13px;
+    color: rgba(250,246,238,0.7);
+  }
+  .visit-text strong {
+    color: var(--gold-light);
+    font-weight: 500;
+  }
+
+  /* ── 소장품 그리드 ── */
+  .collection-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 32px 0 20px;
+  }
+  .collection-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 13px;
+    letter-spacing: 3px;
+    color: var(--gold);
+    text-transform: uppercase;
+  }
+  .collection-count {
+    font-size: 12px;
+    color: rgba(250,246,238,0.4);
+  }
+
+  .collection-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+
+  /* ── 소장품 카드 ── */
+  .item-card {
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+  }
+  .item-card:hover { transform: translateY(-4px); }
+
+  .item-frame {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3/4;
+    overflow: hidden;
+    border-radius: 2px;
+  }
+  .item-frame.landscape { aspect-ratio: 4/3; }
+  .item-frame.wide { aspect-ratio: 16/9; }
+  .item-frame.square { aspect-ratio: 1/1; }
+
+  /* 배경 이미지 */
+  .item-bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    filter: brightness(0.7);
+  }
+
+  /* 소장품 이미지 (액자 포함) */
+  .item-artwork {
+    position: absolute;
+    inset: 8%;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    transition: transform 0.4s ease;
+  }
+  .item-card:hover .item-artwork { transform: scale(1.03); }
+
+  /* 빈 슬롯 */
+  .item-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(30,18,8,0.6);
+    border: 1px dashed rgba(200,146,42,0.25);
+    border-radius: 2px;
+  }
+  .empty-icon {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 32px;
+    color: rgba(200,146,42,0.2);
+    margin-bottom: 8px;
+  }
+  .empty-text {
+    font-size: 11px;
+    color: rgba(200,146,42,0.3);
+    letter-spacing: 2px;
+  }
+
+  /* 네임태그 */
+  .item-tag {
+    margin-top: 10px;
+    padding: 0 4px;
+  }
+  .item-tag-title {
+    font-size: 13px;
+    color: rgba(250,246,238,0.85);
+    font-weight: 400;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+  }
+  .item-tag-sub {
+    font-size: 11px;
+    color: var(--gold);
+    letter-spacing: 0.5px;
+  }
+
+  /* ── 꽃과 방명록 섹션 ── */
+  .visitor-section {
+    margin-top: 48px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+  }
+  .visitor-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 13px;
+    letter-spacing: 3px;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  /* 꽃 행 */
+  .flowers-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+    min-height: 48px;
+    align-items: flex-end;
+  }
+  .flower-item {
+    width: 36px;
+    height: 36px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    animation: flowerIn 0.4s ease;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+  }
+  @keyframes flowerIn {
+    from { opacity: 0; transform: translateY(8px) scale(0.8); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .flowers-empty {
+    font-size: 12px;
+    color: rgba(250,246,238,0.3);
+    letter-spacing: 1px;
+    font-style: italic;
+    padding: 12px 0;
+  }
+
+  /* 꽃 놓기 버튼 (방문자용) */
+  .flower-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: rgba(200,146,42,0.12);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--gold);
+    font-family: 'Noto Serif KR', serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 24px;
+  }
+  .flower-btn:hover {
+    background: rgba(200,146,42,0.22);
+    border-color: var(--gold);
+  }
+  .flower-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  /* 방명록 */
+  .guestbook-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .guestbook-item {
+    background: rgba(30,18,8,0.5);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 14px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .guestbook-left { flex: 1; }
+  .guestbook-nick {
+    font-size: 11px;
+    color: var(--gold);
+    letter-spacing: 1px;
+    margin-bottom: 5px;
+  }
+  .guestbook-text {
+    font-size: 14px;
+    color: rgba(250,246,238,0.8);
+    line-height: 1.6;
+    font-weight: 300;
+  }
+  .guestbook-date {
+    font-size: 10px;
+    color: rgba(250,246,238,0.3);
+    white-space: nowrap;
+    margin-top: 2px;
+  }
+  .guestbook-delete {
+    background: none;
+    border: none;
+    color: rgba(250,246,238,0.2);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 4px;
+    transition: color 0.2s;
+    flex-shrink: 0;
+  }
+  .guestbook-delete:hover { color: rgba(220,80,60,0.6); }
+
+  /* 방명록 작성 폼 */
+  .guestbook-form {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+  }
+  .guestbook-input {
+    flex: 1;
+    background: rgba(30,18,8,0.5);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 12px 16px;
+    color: rgba(250,246,238,0.85);
+    font-family: 'Noto Serif KR', serif;
+    font-size: 13px;
+    resize: none;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .guestbook-input:focus { border-color: var(--gold); }
+  .guestbook-input::placeholder { color: rgba(250,246,238,0.25); }
+  .guestbook-submit {
+    padding: 12px 20px;
+    background: rgba(200,146,42,0.15);
+    border: 1px solid var(--gold);
+    border-radius: 2px;
+    color: var(--gold);
+    font-family: 'Noto Serif KR', serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .guestbook-submit:hover { background: rgba(200,146,42,0.3); }
+
+  .guestbook-limit {
+    font-size: 11px;
+    color: rgba(250,246,238,0.3);
+    margin-top: 8px;
+    letter-spacing: 0.5px;
+  }
+
+  /* 자격 없음 안내 */
+  .no-permission {
+    font-size: 12px;
+    color: rgba(250,246,238,0.3);
+    font-style: italic;
+    padding: 12px 0;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── 소장품 모달 ── */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15,8,3,0.88);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .modal-overlay.active {
+    opacity: 1;
+    pointer-events: all;
+  }
+  .modal-box {
+    max-width: 640px;
+    width: 100%;
+    background: rgba(30,18,8,0.95);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 36px;
+    transform: translateY(16px);
+    transition: transform 0.3s;
+  }
+  .modal-overlay.active .modal-box { transform: translateY(0); }
+  .modal-img {
+    width: 100%;
+    max-height: 400px;
+    object-fit: contain;
+    margin-bottom: 24px;
+    border-radius: 2px;
+  }
+  .modal-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    color: #FAF6EE;
+    font-weight: 400;
+    margin-bottom: 6px;
+  }
+  .modal-meta {
+    font-size: 12px;
+    color: var(--gold);
+    letter-spacing: 1px;
+    margin-bottom: 16px;
+  }
+  .modal-desc {
+    font-size: 14px;
+    color: rgba(250,246,238,0.65);
+    line-height: 1.8;
+    font-weight: 300;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+  .modal-close {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    background: none;
+    border: none;
+    color: rgba(250,246,238,0.4);
+    font-size: 20px;
+    cursor: pointer;
+  }
+  .modal-box { position: relative; }
+
+  /* ── 하단 네비 ── */
+  .bottom-nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 50;
+    background: rgba(15,8,3,0.92);
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-around;
+    padding: 10px 0 max(10px, env(safe-area-inset-bottom));
+  }
+  .nav-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    background: none;
+    border: none;
+    color: rgba(250,246,238,0.4);
+    font-family: 'Noto Serif KR', serif;
+    font-size: 10px;
+    cursor: pointer;
+    padding: 4px 12px;
+    transition: color 0.2s;
+  }
+  .nav-btn.active { color: var(--gold); }
+  .nav-btn:hover { color: rgba(250,246,238,0.7); }
+  .nav-icon { font-size: 18px; }
+
+  /* ── 반응형 ── */
+  @media (max-width: 640px) {
+    .collection-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .header-title { font-size: 28px; }
+    .owner-stats { gap: 16px; }
+  }
+  @media (max-width: 400px) {
+    .collection-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 방 배경 -->
+<div class="room-bg" id="roomBg"></div>
+<div class="room-overlay"></div>
+
+<!-- 소장품 상세 모달 -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal-box">
+    <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('active')">✕</button>
+    <img class="modal-img" id="modalImg" src="" alt="">
+    <div class="modal-title" id="modalTitle"></div>
+    <div class="modal-meta" id="modalMeta"></div>
+    <div class="modal-desc" id="modalDesc"></div>
+  </div>
+</div>
+
+<!-- 메인 컨테이너 -->
+<div class="container">
+
+  <!-- 헤더 -->
+  <div class="header">
+    <div class="header-label">EG Wunderkammer</div>
+    <div class="header-title">분더카머</div>
+    <div class="header-sub">나만의 은밀한 교양 보물 수장고</div>
+  </div>
+
+  <!-- 주인 정보 바 -->
+  <div class="owner-bar">
+    <div class="owner-name" id="ownerName">월든맨 <span>의 수장고</span></div>
+    <div class="owner-stats">
+      <div class="stat-item">
+        <span class="stat-num" id="statItems">0</span>
+        <span class="stat-label">소장품</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-num" id="statFlowers">28</span>
+        <span class="stat-label">꽃 잔량</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-num" id="statVisits">0</span>
+        <span class="stat-label">방문</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 방문 정보 (주인에게만) -->
+  <div class="visit-info" id="visitInfo" style="display:none">
+    <span class="visit-icon">👁</span>
+    <div class="visit-text">
+      이번 주 <strong id="weekVisits">0</strong>명이 다녀갔습니다.
+      꽃 <strong id="weekFlowers">0</strong>송이 · 방명록 <strong id="weekBooks">0</strong>개
+    </div>
+  </div>
+
+  <!-- 소장품 그리드 -->
+  <div class="collection-header">
+    <div class="collection-title">Collection</div>
+    <div class="collection-count" id="collectionCount">0점 소장 중</div>
+  </div>
+  <div class="collection-grid" id="collectionGrid">
+    <!-- JS로 생성 -->
+  </div>
+
+  <!-- 방문자 섹션 -->
+  <div class="visitor-section">
+    <div class="visitor-title">Visitors' Traces</div>
+
+    <!-- 꽃 -->
+    <div class="flowers-row" id="flowersRow">
+      <div class="flowers-empty">아직 꽃이 없습니다</div>
+    </div>
+
+    <!-- 꽃 놓기 버튼 (방문자용, 주인에게는 숨김) -->
+    <button class="flower-btn" id="flowerBtn" onclick="leaveFlower()">
+      🌸 꽃 한 송이 놓고 가기
+    </button>
+
+    <!-- 방명록 목록 -->
+    <div class="guestbook-list" id="guestbookList">
+      <!-- JS로 생성 -->
+    </div>
+
+    <!-- 방명록 작성 폼 -->
+    <div id="guestbookFormWrap">
+      <div class="guestbook-form">
+        <textarea
+          class="guestbook-input"
+          id="guestbookInput"
+          rows="2"
+          maxlength="50"
+          placeholder="조용히 한 마디 남겨두세요... (50자 이내)"
+        ></textarea>
+        <button class="guestbook-submit" onclick="submitGuestbook()">남기기</button>
+      </div>
+      <div class="guestbook-limit" id="charCount">0 / 50</div>
+    </div>
+
+    <!-- 자격 없음 안내 (정회원+30알 미충족시) -->
+    <div class="no-permission" id="noPermission" style="display:none">
+      방명록은 정회원 + 황금사과 30알 이상 멤버만 작성할 수 있습니다.
+    </div>
+  </div>
+
+</div>
+
+<!-- 하단 네비 -->
+<div class="bottom-nav">
+  <button class="nav-btn" onclick="location.href='index.html'">
+    <span class="nav-icon">⚾</span>스타디움
+  </button>
+  <button class="nav-btn" onclick="location.href='heritage.html'">
+    <span class="nav-icon">🏛</span>헤리티지
+  </button>
+  <button class="nav-btn active">
+    <span class="nav-icon">🏠</span>분더카머
+  </button>
+  <button class="nav-btn" onclick="location.href='constella.html'">
+    <span class="nav-icon">✦</span>콘스텔라티오
+  </button>
+  <button class="nav-btn" onclick="location.href='terra.html'">
+    <span class="nav-icon">🌿</span>테라
+  </button>
+</div>
+
+<script>
+// ── 임시 더미 데이터 (Supabase 연동 전) ──────────────────────────
+
+const CURRENT_USER = {
+  id: 'user_soro',
+  nickname: '월든맨',
+  is_owner: true,        // 내 방 보는 중이면 true
+  is_regular: true,      // 정회원
+  golden_apples: 42,     // 황금사과 보유량
+  flowers_left: 28,      // 꽃 잔량
+  guestbook_this_week: 3 // 이번 주 방명록 작성 횟수
+};
+
+const ROOM_OWNER = {
+  id: 'user_soro',
+  nickname: '월든맨'
+};
+
+// 배경 이미지 풀
+const BG_ROOMS = [
+  'images/wunderkammer/bg_room/bg_room_gallery_01.jpg',
+  'images/wunderkammer/bg_room/bg_room_gallery_02.jpg',
+  'images/wunderkammer/bg_room/bg_room_museum_01.jpg',
+  'images/wunderkammer/bg_room/bg_room_museum_02.jpg',
+  'images/wunderkammer/bg_room/bg_room_library_01.jpg',
+  'images/wunderkammer/bg_room/bg_room_library_02.jpg',
+];
+
+const BG_ARTWORK = {
+  art:        ['images/wunderkammer/bg_artwork/bg_art_01.jpg', 'images/wunderkammer/bg_artwork/bg_art_02.jpg'],
+  music:      ['images/wunderkammer/bg_artwork/bg_music_01.jpg', 'images/wunderkammer/bg_artwork/bg_music_02.jpg'],
+  literature: ['images/wunderkammer/bg_artwork/bg_literature_01.jpg', 'images/wunderkammer/bg_artwork/bg_literature_02.jpg'],
+  science:    ['images/wunderkammer/bg_artwork/bg_science_01.jpg', 'images/wunderkammer/bg_artwork/bg_science_02.jpg'],
+  history:    ['images/wunderkammer/bg_artwork/bg_history_01.jpg', 'images/wunderkammer/bg_artwork/bg_history_02.jpg'],
+};
+
+const FLOWERS = [
+  'images/wunderkammer/ui/flowers/flower_rose.png',
+  'images/wunderkammer/ui/flowers/flower_daisy.png',
+  'images/wunderkammer/ui/flowers/flower_tulip.png',
+  'images/wunderkammer/ui/flowers/flower_lily.png',
+  'images/wunderkammer/ui/flowers/flower_cosmos.png',
+  'images/wunderkammer/ui/flowers/flower_violet.png',
+];
+
+// 소장품 더미 데이터
+const ITEMS = [
+  {
+    id: 1,
+    title: '아이리스',
+    artist: '빈센트 반 고흐 · 1889',
+    category: 'art',
+    ratio: 'landscape',
+    artwork_img: 'images/wunderkammer/artworks/irises_framed.jpg',
+    desc: '생 폴 드 모졸 요양원의 정원에서 그린 작품. 병원 입원 직후 고흐가 세상과 처음 나눈 대화.',
+  },
+  {
+    id: 2,
+    title: '파리의 카페 타박',
+    artist: 'Félix Bivas · 1918',
+    category: 'art',
+    ratio: 'portrait',
+    artwork_img: 'images/wunderkammer/artworks/paris_cafe_framed.jpg',
+    desc: '1차 세계대전 중 파리 거리. 전쟁의 그림자 속에서도 일상은 계속된다.',
+  },
+];
+
+// 방문자 꽃 더미
+const FLOWERS_DATA = [
+  { id: 1, img: FLOWERS[0] },
+  { id: 2, img: FLOWERS[3] },
+  { id: 3, img: FLOWERS[2] },
+];
+
+// 방명록 더미
+const GUESTBOOK_DATA = [
+  { id: 1, nickname: '에머슨', text: '조용히 다녀갑니다. 아이리스가 정말 아름답네요.', date: '04.20' },
+  { id: 2, nickname: '달팽이걸음', text: '이 공간에 오면 마음이 차분해집니다.', date: '04.19' },
+];
+
+// ── 초기화 ────────────────────────────────────────────────────────
+
+function init() {
+  setRoomBg();
+  renderOwnerInfo();
+  renderCollection();
+  renderFlowers();
+  renderGuestbook();
+  setupGuestbookForm();
+}
+
+function setRoomBg() {
+  const bg = BG_ROOMS[Math.floor(Math.random() * BG_ROOMS.length)];
+  document.getElementById('roomBg').style.backgroundImage = `url('${bg}')`;
+}
+
+function renderOwnerInfo() {
+  document.getElementById('ownerName').innerHTML =
+    `${ROOM_OWNER.nickname} <span>의 수장고</span>`;
+  document.getElementById('statItems').textContent = ITEMS.length;
+  document.getElementById('statFlowers').textContent = CURRENT_USER.flowers_left;
+  document.getElementById('statVisits').textContent = 47; // 총 방문수
+
+  if (CURRENT_USER.is_owner) {
+    document.getElementById('visitInfo').style.display = 'flex';
+    document.getElementById('weekVisits').textContent = 12;
+    document.getElementById('weekFlowers').textContent = 8;
+    document.getElementById('weekBooks').textContent = 3;
+  }
+
+  document.getElementById('collectionCount').textContent =
+    `${ITEMS.length}점 소장 중`;
+}
+
+// ── 소장품 그리드 ─────────────────────────────────────────────────
+
+function getArtworkBg(category) {
+  const pool = BG_ARTWORK[category] || BG_ARTWORK['art'];
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function renderCollection() {
+  const grid = document.getElementById('collectionGrid');
+  grid.innerHTML = '';
+
+  // 실제 소장품
+  ITEMS.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'item-card';
+    card.onclick = () => openModal(item);
+
+    const bgUrl = getArtworkBg(item.category);
+
+    card.innerHTML = `
+      <div class="item-frame ${item.ratio}">
+        <div class="item-bg" style="background-image:url('${bgUrl}')"></div>
+        <div class="item-artwork" style="background-image:url('${item.artwork_img}')"></div>
+      </div>
+      <div class="item-tag">
+        <div class="item-tag-title">${item.title}</div>
+        <div class="item-tag-sub">${item.artist}</div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+
+  // 빈 슬롯 (최소 6칸 채우기)
+  const empties = Math.max(0, 6 - ITEMS.length);
+  for (let i = 0; i < empties; i++) {
+    const card = document.createElement('div');
+    card.className = 'item-card';
+    card.innerHTML = `
+      <div class="item-frame">
+        <div class="item-empty">
+          <div class="empty-icon">◻</div>
+          <div class="empty-text">empty</div>
+        </div>
+      </div>
+    `;
+    grid.appendChild(card);
+  }
+}
+
+// ── 소장품 모달 ───────────────────────────────────────────────────
+
+function openModal(item) {
+  document.getElementById('modalImg').src = item.artwork_img;
+  document.getElementById('modalImg').alt = item.title;
+  document.getElementById('modalTitle').textContent = item.title;
+  document.getElementById('modalMeta').textContent = item.artist;
+  document.getElementById('modalDesc').textContent = item.desc;
+  document.getElementById('modalOverlay').classList.add('active');
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modalOverlay')) {
+    document.getElementById('modalOverlay').classList.remove('active');
+  }
+}
+
+// ── 꽃 ───────────────────────────────────────────────────────────
+
+function renderFlowers() {
+  const row = document.getElementById('flowersRow');
+
+  if (FLOWERS_DATA.length === 0) {
+    row.innerHTML = '<div class="flowers-empty">아직 꽃이 없습니다</div>';
+    return;
+  }
+
+  row.innerHTML = '';
+  FLOWERS_DATA.forEach(f => {
+    const el = document.createElement('div');
+    el.className = 'flower-item';
+    el.style.backgroundImage = `url('${f.img}')`;
+    row.appendChild(el);
+  });
+
+  // 꽃 놓기 버튼: 주인이면 숨김, 꽃 없으면 비활성
+  const btn = document.getElementById('flowerBtn');
+  if (CURRENT_USER.is_owner) {
+    btn.style.display = 'none';
+  } else {
+    btn.disabled = CURRENT_USER.flowers_left <= 0;
+    btn.textContent = CURRENT_USER.flowers_left > 0
+      ? `🌸 꽃 한 송이 놓고 가기 (잔량 ${CURRENT_USER.flowers_left})`
+      : '🌸 꽃 잔량이 없습니다';
+  }
+}
+
+function leaveFlower() {
+  if (CURRENT_USER.flowers_left <= 0) return;
+  // TODO: Supabase flowers 테이블에 insert
+  const randomFlower = FLOWERS[Math.floor(Math.random() * FLOWERS.length)];
+  FLOWERS_DATA.push({ id: Date.now(), img: randomFlower });
+  CURRENT_USER.flowers_left--;
+  renderFlowers();
+  document.getElementById('statFlowers').textContent = CURRENT_USER.flowers_left;
+}
+
+// ── 방명록 ────────────────────────────────────────────────────────
+
+function canWriteGuestbook() {
+  if (CURRENT_USER.is_owner) return false; // 내 방엔 못 씀
+  if (!CURRENT_USER.is_regular) return false; // 정회원 아니면 못 씀
+  if (CURRENT_USER.golden_apples < 30) return false; // 30알 미만 못 씀
+  if (CURRENT_USER.guestbook_this_week >= 7) return false; // 주 7회 초과 못 씀
+  // TODO: 이 분더카머에 이미 작성했으면 false
+  return true;
+}
+
+function renderGuestbook() {
+  const list = document.getElementById('guestbookList');
+  list.innerHTML = '';
+
+  if (GUESTBOOK_DATA.length === 0) {
+    list.innerHTML = '<div class="flowers-empty">방명록이 아직 비어 있습니다</div>';
+    return;
+  }
+
+  GUESTBOOK_DATA.forEach(g => {
+    const item = document.createElement('div');
+    item.className = 'guestbook-item';
+    const deleteBtn = CURRENT_USER.is_owner
+      ? `<button class="guestbook-delete" onclick="deleteGuestbook(${g.id})" title="삭제">✕</button>`
+      : '';
+    item.innerHTML = `
+      <div class="guestbook-left">
+        <div class="guestbook-nick">${g.nickname}</div>
+        <div class="guestbook-text">${g.text}</div>
+        <div class="guestbook-date">${g.date}</div>
+      </div>
+      ${deleteBtn}
+    `;
+    list.appendChild(item);
+  });
+
+  // 폼 표시 여부
+  const formWrap = document.getElementById('guestbookFormWrap');
+  const noPermission = document.getElementById('noPermission');
+  if (canWriteGuestbook()) {
+    formWrap.style.display = 'block';
+    noPermission.style.display = 'none';
+  } else {
+    formWrap.style.display = 'none';
+    noPermission.style.display = CURRENT_USER.is_owner ? 'none' : 'block';
+  }
+}
+
+function setupGuestbookForm() {
+  const input = document.getElementById('guestbookInput');
+  const count = document.getElementById('charCount');
+  input.addEventListener('input', () => {
+    count.textContent = `${input.value.length} / 50`;
+  });
+}
+
+function submitGuestbook() {
+  const input = document.getElementById('guestbookInput');
+  const text = input.value.trim();
+  if (!text) return;
+  if (text.length > 50) return;
+  // TODO: Supabase guestbook 테이블에 insert
+  GUESTBOOK_DATA.unshift({
+    id: Date.now(),
+    nickname: CURRENT_USER.nickname,
+    text,
+    date: '오늘'
+  });
+  CURRENT_USER.guestbook_this_week++;
+  input.value = '';
+  document.getElementById('charCount').textContent = '0 / 50';
+  renderGuestbook();
+}
+
+function deleteGuestbook(id) {
+  // TODO: Supabase에서 삭제
+  const idx = GUESTBOOK_DATA.findIndex(g => g.id === id);
+  if (idx > -1) GUESTBOOK_DATA.splice(idx, 1);
+  renderGuestbook();
+}
+
+// ══════════════════════════════════════════════════════════
+// Supabase 연동 (헤리티지 낙찰 → 분더카머 자동 수신)
+// ══════════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5aGxvdHdkaXNqdm94dmZrcG5kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3MjM1NDYsImV4cCI6MjA5MTI5OTU0Nn0.9sLMbD3WH9dZgMsr_BrlYcSwCwU-CUsGJQ1eUPHSqzw';
+
+async function sbFetch(path, options = {}) {
+  const res = await fetch(SUPABASE_URL + path, {
+    ...options,
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + (getToken() || SUPABASE_KEY),
+      'Content-Type': 'application/json',
+      ...options.headers
+    }
+  });
+  if (!res.ok) throw new Error(res.statusText);
+  return res.status === 204 ? null : res.json();
+}
+
+function getToken() {
+  try {
+    const key = Object.keys(localStorage).find(k => k.includes('supabase.auth.token'));
+    if (!key) return null;
+    return JSON.parse(localStorage.getItem(key))?.currentSession?.access_token || null;
+  } catch { return null; }
+}
+
+function getUser() {
+  try {
+    const key = Object.keys(localStorage).find(k => k.includes('supabase.auth.token'));
+    if (!key) return null;
+    return JSON.parse(localStorage.getItem(key))?.currentSession?.user || null;
+  } catch { return null; }
+}
+
+// Supabase에서 실제 소장품 로드
+async function loadItemsFromDB(ownerId) {
+  try {
+    const data = await sbFetch(
+      `/rest/v1/wunderkammer_items?owner_id=eq.${ownerId}&order=acquired_at.desc`
+    );
+    return data || [];
+  } catch(e) {
+    console.warn('소장품 로드 실패, 더미 데이터 사용:', e);
+    return null; // null이면 더미 데이터 사용
+  }
+}
+
+// 꽃 놓기 (Supabase)
+async function leaveFlowerDB(roomOwnerId) {
+  const randomFlower = FLOWERS[Math.floor(Math.random() * FLOWERS.length)];
+  const flowerType = randomFlower.split('flower_')[1].replace('.png', '');
+  const weekNo = getWeekNo();
+
+  // 꽃 잔량 차감
+  await sbFetch('/rest/v1/flower_balance', {
+    method: 'PATCH',
+    headers: { 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ balance: CURRENT_USER.flowers_left - 1, updated_at: new Date().toISOString() })
+  });
+
+  // 꽃 기록 insert
+  await sbFetch('/rest/v1/wunderkammer_flowers', {
+    method: 'POST',
+    body: JSON.stringify({ room_owner_id: roomOwnerId, flower_type: flowerType, week_no: weekNo })
+  });
+
+  return randomFlower;
+}
+
+// 방명록 제출 (Supabase)
+async function submitGuestbookDB(roomOwnerId, text) {
+  const user = getUser();
+  const weekNo = getWeekNo();
+  await sbFetch('/rest/v1/wunderkammer_guestbook', {
+    method: 'POST',
+    body: JSON.stringify({
+      room_owner_id: roomOwnerId,
+      visitor_id: user.id,
+      visitor_nick: CURRENT_USER.nickname,
+      text,
+      week_no: weekNo
+    })
+  });
+  // 주간 횟수 upsert
+  await sbFetch('/rest/v1/guestbook_weekly_count', {
+    method: 'POST',
+    headers: { 'Prefer': 'resolution=merge-duplicates' },
+    body: JSON.stringify({ user_id: user.id, week_no: weekNo, count: CURRENT_USER.guestbook_this_week + 1 })
+  });
+}
+
+// 새 소장품 확인 후 is_new = false 처리
+async function markItemSeen(itemId) {
+  await sbFetch(`/rest/v1/wunderkammer_items?id=eq.${itemId}`, {
+    method: 'PATCH',
+    headers: { 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ is_new: false })
+  });
+}
+
+// 주차 계산 (ISO week number)
+function getWeekNo() {
+  const d = new Date();
+  d.setHours(0,0,0,0);
+  d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+  const week1 = new Date(d.getFullYear(), 0, 4);
+  return 1 + Math.round(((d - week1) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+}
+
+// ── 실행 ─────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
