@@ -461,10 +461,10 @@ html, body {
 <div class="header">
   <button class="back-btn" onclick="goHome()">←</button>
   <div class="header-title">E G  C O N S T E L L A T I O</div>
-  <button class="home-btn" onclick="resetView()" title="기본 뷰로">⊙ 리셋</button>
   <div class="universe-toggle">
     <button class="toggle-btn active" id="btn-culture" onclick="showCultureUniverse()">교양우주</button>
     <button class="toggle-btn" id="btn-portfolio" onclick="showPortfolio()">내 별</button>
+    <button class="home-btn" onclick="resetView()" title="기본 뷰로">⊙</button>
   </div>
 </div>
 
@@ -1536,7 +1536,9 @@ function screenToWorld(sx, sy) {
 
 function findNearestFigureStar(wx, wy, threshold = 28) {
   let nearest = null;
-  let minDist = threshold / scale;
+  // 축소 시 별이 작아지므로 threshold를 scale에 맞게 역보정
+  const adjustedThreshold = Math.max(20, threshold) / scale;
+  let minDist = adjustedThreshold;
   stars.forEach(s => {
     if (s.type !== 'figure') return;
     const d = Math.hypot(s.x - wx, s.y - wy);
@@ -1824,26 +1826,28 @@ async function showPortfolio() {
         const targetViewX = targetStar.x - (canvas.width / scale) / 2;
         const targetViewY = targetStar.y - (canvas.height / scale) / 2;
 
-        // 부드러운 이동 애니메이션
+        // 부드러운 이동 애니메이션 (scale도 1.0으로 리셋)
         const startX = viewX, startY = viewY;
+        const startScale = scale;
+        const targetScale = 1.0;
         const duration = 600;
         const startTime = performance.now();
 
         function animateTo(now) {
           const elapsed = now - startTime;
           const progress = Math.min(elapsed / duration, 1);
-          // easeInOutCubic
           const ease = progress < 0.5
             ? 4 * progress * progress * progress
             : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 
+          scale = startScale + (targetScale - startScale) * ease;
           viewX = startX + (targetViewX - startX) * ease;
           viewY = startY + (targetViewY - startY) * ease;
           clampView();
 
           if (progress < 1) requestAnimationFrame(animateTo);
           else {
-            // 도착 후 별 하이라이트 + 모달 오픈
+            scale = targetScale;
             targetStar.highlighted = true;
             setTimeout(() => openStarModal(targetStar.figure), 300);
           }
