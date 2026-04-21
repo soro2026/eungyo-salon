@@ -1,4 +1,4 @@
-const CACHE = 'eungyo-v21';
+const CACHE = 'eungyo-v22';
 
 const CORE_FILES = [
   '/eungyo-salon/',
@@ -7,6 +7,7 @@ const CORE_FILES = [
   '/eungyo-salon/terra.html',
   '/eungyo-salon/heritage.html',
   '/eungyo-salon/constella.html',
+  '/eungyo-salon/wunderkammer.html',
 ];
 
 const QUESTION_FILES = [
