@@ -31,14 +31,18 @@ html, body {
 #sky {
   position: fixed; inset: 0;
   background:
-    radial-gradient(ellipse at 30% 20%, rgba(201,168,76,0.04) 0%, transparent 60%),
-    radial-gradient(ellipse at 70% 80%, rgba(100,80,180,0.06) 0%, transparent 55%),
-    radial-gradient(ellipse at 50% 50%, #0a0d1a 0%, #050810 100%);
+    url('milkyway_bg.jpg') center center / cover no-repeat;
   z-index: 0;
 }
+#sky::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgba(2,4,12,0.38);
+}
 
-/* 은하수 + 성운 */
+/* 은하수 + 성운 — 실제 사진 배경 사용으로 숨김 */
 #nebula {
+  display: none;
   position: fixed; inset: 0; z-index: 1;
   background:
     linear-gradient(
@@ -1256,22 +1260,17 @@ function initStars() {
     }
 
     const grade = fig.grade;
-    // 개선된 별 크기 — 더 선명하고 차별화
-    const baseR = grade === 1 ? 6 : grade === 2 ? 4.5 : grade === 3 ? 3.2 :
-                  grade === 4 ? 2.2 : grade === 5 ? 1.6 : 1.0;
-    const baseAlpha = grade === 1 ? 1.0 : grade === 2 ? 0.9 : grade === 3 ? 0.75 :
-                      grade === 4 ? 0.55 : grade === 5 ? 0.4 : 0.2;
+    const props = gradeProps(grade, (fig.id || 0) + 1);
+    const baseR = GRADE_R[grade] || 0.7;
+    const baseAlpha = [0,1,0.9,0.78,0.65,0.52,0.40,0.28,0.18,0.11][grade] || 0.11;
 
     stars.push({
       type: 'figure',
       figure: fig,
       x, y,
       r: baseR,
-      alpha: baseAlpha,
       baseAlpha,
-      twinkleSpeed: Math.random() * 0.012 + 0.003,
-      twinklePhase: Math.random() * Math.PI * 2,
-      glowR: baseR * (grade <= 2 ? 12 : grade <= 4 ? 7 : 4),
+      ...props,
       highlighted: false,
     });
   });
@@ -1289,6 +1288,56 @@ async function saveStarPositions(list) {
       .update({ x_ratio: item.x_ratio, y_ratio: item.y_ratio })
       .eq('id', item.id);
   }
+}
+
+// ── 별 개성 시스템 ───────────────────────────────────────────────
+function seededRand(seed) {
+  return (idx) => {
+    const x = Math.sin(seed * 127.1 + idx * 311.7) * 43758.5453;
+    return x - Math.floor(x);
+  };
+}
+
+// 등급별 반지름 (소로님 확정값)
+const GRADE_R = [0, 4.0, 3.5, 3.0, 2.5, 2.0, 1.5, 1.2, 0.9, 0.7];
+
+function gradeProps(grade, seed) {
+  const r = seededRand(seed);
+  let hue, sat, light;
+  if (grade <= 2) {
+    hue = 40 + r(0) * 20; sat = 55 + r(1) * 30; light = 88 + r(2) * 12;
+  } else if (grade <= 4) {
+    hue = 35 + r(0) * 25; sat = 45 + r(1) * 35; light = 70 + r(2) * 15;
+  } else if (grade <= 6) {
+    hue = 200 + r(0) * 40; sat = 25 + r(1) * 35; light = 62 + r(2) * 20;
+  } else {
+    hue = 210 + r(0) * 50; sat = 15 + r(1) * 25; light = 48 + r(2) * 18;
+  }
+  const glowR = (GRADE_R[grade] || 0.7) * (grade <= 2 ? 13 : grade <= 4 ? 8 : grade <= 6 ? 5.5 : 3);
+  const glowAlpha = [0,0.26,0.20,0.14,0.10,0.08,0.05,0.035,0.025,0.015][grade] || 0.015;
+  const pulseType = Math.floor(r(3) * 8);
+  const pulseSpeed = 0.3 + r(4) * 3.2;
+  const pulsePhase = r(5) * Math.PI * 2;
+  const pulseDepth = 0.07 + r(6) * 0.22;
+  return { hue, sat, light, glowR, glowAlpha, pulseType, pulseSpeed, pulsePhase, pulseDepth };
+}
+
+// 8가지 펄스 패턴 — 별마다 고유한 반짝임
+function pulseCalc(type, t, speed, phase, depth) {
+  const p = t * speed + phase;
+  let v;
+  switch(type) {
+    case 0: v = Math.sin(p); break;
+    case 1: v = Math.sin(p) * Math.cos(p * 0.3); break;
+    case 2: v = Math.pow(Math.abs(Math.sin(p)), 0.5) * Math.sign(Math.sin(p)); break;
+    case 3: v = Math.sin(p) + 0.3 * Math.sin(p * 3.7); break;
+    case 4: v = Math.sin(p * 0.5) * Math.sin(p * 2.3); break;
+    case 5: v = Math.sin(p) * (0.7 + 0.3 * Math.sin(p * 7.3)); break;
+    case 6: v = Math.sin(p * 0.4) + 0.15 * Math.sin(p * 11.1); break;
+    case 7: v = 0.6 * Math.sin(p) + 0.4 * Math.sin(p * 1.618); break;
+    default: v = Math.sin(p);
+  }
+  return v * depth;
 }
 
 // ── 별 그리기 ────────────────────────────────────────────────────
@@ -1321,66 +1370,53 @@ function drawStar(s, t) {
   const isFiltered = searchQuery && !fig.name.includes(searchQuery);
   if (isFiltered) return;
 
-  const pulse = s.highlighted ? 1.5 : 1;
-  const a = Math.min(1, s.baseAlpha + twinkle * 0.06) * pulse;
-  const r = s.r * pulse;
+  // 8가지 펄스 패턴 적용
+  const pulseV = pulseCalc(s.pulseType, t, s.pulseSpeed, s.pulsePhase, s.pulseDepth);
+  const hb = s.highlighted ? 1.5 : 1;
+  const r = s.r * (1 + pulseV * 0.35) * hb;
+  const a = Math.min(1, s.baseAlpha + pulseV * 0.1) * hb;
 
-  // 글로우 — 등급별 차별화
-  if (grade <= 6) {
-    const glowIntensity = grade <= 2 ? 0.25 : grade <= 4 ? 0.15 : 0.08;
-    const glowColor = grade <= 2
-      ? `rgba(255,240,160,${a * glowIntensity})`
-      : grade <= 4
-      ? `rgba(201,168,76,${a * glowIntensity})`
-      : `rgba(180,180,255,${a * glowIntensity})`;
-    const glowR = s.glowR * pulse;
-    const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
-    grad.addColorStop(0, glowColor);
-    grad.addColorStop(0.4, glowColor.replace(/[\d.]+\)$/, `${a * glowIntensity * 0.3})`));
-    grad.addColorStop(1, 'transparent');
+  // 글로우 — 색온도 기반 + 등급별 강도
+  if (grade <= 7) {
+    const ga = s.glowAlpha * (1 + pulseV * 0.4);
+    const gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, s.glowR * hb);
+    gr.addColorStop(0, `hsla(${s.hue},${s.sat}%,${s.light}%,${ga})`);
+    gr.addColorStop(0.45, `hsla(${s.hue},${s.sat}%,${s.light}%,${ga * 0.28})`);
+    gr.addColorStop(1, 'transparent');
     ctx.beginPath();
-    ctx.arc(sx, sy, glowR, 0, Math.PI * 2);
-    ctx.fillStyle = grad;
+    ctx.arc(sx, sy, s.glowR * hb, 0, Math.PI * 2);
+    ctx.fillStyle = gr;
     ctx.fill();
   }
 
-  // 별 본체 — 색온도 차별화
-  const starColor = grade === 9
-    ? `rgba(180,190,255,${a * 0.6})`  // 9등성: 희미한 청백
-    : grade <= 2
-    ? `rgba(255,252,230,${a})`          // 1~2등성: 밝은 황백
-    : grade <= 5
-    ? `rgba(245,238,210,${a})`          // 3~5등성: 중간
-    : `rgba(220,225,255,${a * 0.7})`;   // 6~8등성: 희미한 청
-
+  // 별 본체 — 별마다 미세하게 다른 색온도
   ctx.beginPath();
   ctx.arc(sx, sy, r, 0, Math.PI * 2);
-  ctx.fillStyle = starColor;
+  ctx.fillStyle = `hsla(${s.hue},${s.sat}%,${s.light}%,${a})`;
   ctx.fill();
 
-  // 1~2등성 — 강한 십자 광선 (diffraction spike)
+  // 1~2등성 — 줄인 십자 + 대각 광선 (1/3 크기)
   if (grade <= 2 && a > 0.4) {
-    const len = r * 5;
-    ctx.strokeStyle = `rgba(255,248,200,${a * 0.5})`;
-    ctx.lineWidth = 0.8;
+    const len = r * 1.8;
+    ctx.strokeStyle = `hsla(${s.hue},${s.sat}%,${s.light + 10}%,${a * 0.45})`;
+    ctx.lineWidth = 0.7;
     ctx.beginPath();
     ctx.moveTo(sx - len, sy); ctx.lineTo(sx + len, sy);
     ctx.moveTo(sx, sy - len); ctx.lineTo(sx, sy + len);
     ctx.stroke();
-    // 대각선 광선 (약하게)
-    const dlen = r * 3;
-    ctx.strokeStyle = `rgba(255,248,200,${a * 0.2})`;
-    ctx.lineWidth = 0.5;
+    const dlen = r * 1.1;
+    ctx.strokeStyle = `hsla(${s.hue},${s.sat}%,${s.light + 10}%,${a * 0.2})`;
+    ctx.lineWidth = 0.4;
     ctx.beginPath();
     ctx.moveTo(sx - dlen, sy - dlen); ctx.lineTo(sx + dlen, sy + dlen);
     ctx.moveTo(sx + dlen, sy - dlen); ctx.lineTo(sx - dlen, sy + dlen);
     ctx.stroke();
   }
-  // 3등성 — 약한 십자
-  else if (grade === 3 && a > 0.5) {
-    const len = r * 3.5;
-    ctx.strokeStyle = `rgba(255,248,200,${a * 0.25})`;
-    ctx.lineWidth = 0.5;
+  // 3~4등성 — 아주 작은 십자
+  else if (grade <= 4 && a > 0.4) {
+    const len = r * 1.3;
+    ctx.strokeStyle = `hsla(${s.hue},${s.sat}%,${s.light + 5}%,${a * 0.22})`;
+    ctx.lineWidth = 0.4;
     ctx.beginPath();
     ctx.moveTo(sx - len, sy); ctx.lineTo(sx + len, sy);
     ctx.moveTo(sx, sy - len); ctx.lineTo(sx, sy + len);
@@ -1389,7 +1425,7 @@ function drawStar(s, t) {
 
   // 이름 표시 — 호버된 별만
   if (s.highlighted && a > 0.3) {
-    ctx.fillStyle = `rgba(255,252,230,${Math.min(1, a * 1.2)})`;
+    ctx.fillStyle = `hsla(${s.hue},${s.sat}%,96%,0.92)`;
     ctx.font = `bold ${grade <= 2 ? 13 : 12}px 'Apple SD Gothic Neo', sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillText(fig.name, sx, sy - r - 8);
