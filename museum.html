@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- EG뮤세움 v0422-r2 · 파이스 빌드 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -424,7 +425,7 @@
     display: flex;
     flex-direction: column;
     position: relative;
-    overflow: hidden;
+    overflow: visible;
     border-radius: 2px 12px 12px 2px;
     opacity: 0;
     transform: scale(0.96);
@@ -440,35 +441,13 @@
     overflow: hidden;
     box-shadow: -6px 0 0 #1A0F04, 8px 6px 32px rgba(0,0,0,0.8);
   }
-  .book-page-view.active {
-    display: flex !important;
-    flex-direction: column;
-    height: 460px;
-    overflow: hidden;
-  }
+  /* active 스타일은 JS showInnerPages에서 직접 style로 제어 */
   /* ── 애플북스 방식: 현재 페이지가 위에서 슬라이드아웃, 다음 페이지는 바닥 고정 ── */
   .book-page-view {
-    position: absolute !important;
-    top: 0; left: 0; right: 0;
     will-change: transform;
+    box-sizing: border-box;
   }
-  .book-page-view.active {
-    z-index: 2;
-    transform: translateX(0);
-  }
-  .book-page-view.page-below {
-    z-index: 1;
-    transform: translateX(0) !important;
-    transition: none !important;
-  }
-  .book-page-view.page-from-right {
-    z-index: 3;
-    transform: translateX(100%);
-  }
-  .book-page-view.page-from-right.arriving {
-    transform: translateX(0);
-    transition: transform 0.48s cubic-bezier(0.32, 0.72, 0, 1) !important;
-  }
+  /* active 클래스는 JS에서 style로 직접 제어 */
 
   /* 표지 */
   .page-cover {
@@ -763,7 +742,7 @@
     <button class="book-close-btn" onclick="closeBook()">×</button>
 
     <!-- 페이지들 -->
-    <div id="bookPages" style="position:relative;height:460px;overflow:hidden">
+    <div id="bookPages" style="position:relative;height:460px;overflow:hidden;flex-shrink:0">
       <!-- 좌우 네비 존 -->
       <div class="book-nav">
         <div class="book-nav-zone left"  id="navLeft"  onclick="turnPage(-1)"><div class="nav-arrow">‹</div></div>
@@ -1326,6 +1305,7 @@ function attachCoverTilt() {
 function enterBook() {
   if (isAnimating) return;
   isAnimating = true;
+  console.log('enterBook 시작, currentBookData:', currentBookData?.answer);
 
   const book3d = document.getElementById('coverBook3D');
   const shadow = document.getElementById('coverShadow');
@@ -1344,6 +1324,7 @@ function enterBook() {
 
   // ③ 내부 페이지 등장
   setTimeout(() => {
+    console.log('showInnerPages 호출 직전');
     document.getElementById('coverScene').style.display = 'none';
     showInnerPages();
     isAnimating = false;
@@ -1352,39 +1333,53 @@ function enterBook() {
 
 function showInnerPages() {
   const book = currentBookData;
+  console.log('showInnerPages:', book?.answer, 'library:', JSON.stringify(book?.library)?.slice(0,80));
   currentPage = 0;
   const lib   = book.library || {};
   const pages = buildPages(book, lib);
-  totalPages  = pages.length;
+  console.log('buildPages 결과:', pages.length, '페이지');
+
+  // library 데이터 없는 책 — 빈 페이지 하나라도 보장
+  if (pages.length === 0) {
+    pages.push(makeInnerPage('EG뮤세움', book.answer, '아직 해설이 준비되지 않았습니다.', 1));
+    pages.push(makePhilemonPage(book, 2));
+  }
+
+  totalPages = pages.length;
+  console.log('totalPages:', totalPages);
 
   const pagesEl = document.getElementById('bookPages');
-  // 네비 존 보존
   const navEl = pagesEl.querySelector('.book-nav');
   pagesEl.innerHTML = '';
   if (navEl) pagesEl.appendChild(navEl);
 
   pages.forEach((p, i) => {
-    p.style.display = 'flex';
+    p.style.display       = 'flex';
     p.style.flexDirection = 'column';
-    p.style.height = '460px';
-    p.style.overflow = 'hidden';
-    if (i === 0) {
-      p.classList.add('active');
-      p.style.zIndex = '2';
-      p.style.transform = 'translateX(0)';
-    } else {
-      p.style.zIndex = '1';
-      p.style.transform = 'translateX(0)';
-    }
+    p.style.width         = '100%';
+    p.style.height        = '460px';
+    p.style.overflow      = 'hidden';
+    p.style.position      = 'absolute';
+    p.style.top           = '0';
+    p.style.left          = '0';
+    p.style.right         = '0';
+    p.style.zIndex        = i === 0 ? '2' : '1';
+    p.style.transform     = 'translateX(0)';
     pagesEl.appendChild(p);
+    console.log(`페이지 ${i} 추가:`, p.className, p.style.display);
   });
 
   renderDots();
   updateNavZones();
 
   const modal = document.getElementById('bookModal');
+  console.log('bookModal 현재 display:', modal.style.display, 'visible:', modal.classList.contains('visible'));
   modal.style.display = 'flex';
-  requestAnimationFrame(() => modal.classList.add('visible'));
+  modal.style.flexDirection = 'column';
+  requestAnimationFrame(() => {
+    modal.classList.add('visible');
+    console.log('bookModal visible 추가 완료');
+  });
 }
 
 // ── 페이지 넘기기 — 애플북스 방식 ──────────────
