@@ -434,7 +434,7 @@
     position: absolute;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%) scale(0.96);
+    transform: translate(-50%, -50%);
     width: 340px;
     display: flex;
     flex-direction: column;
@@ -442,14 +442,11 @@
     border-radius: 2px 12px 12px 2px;
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.38s ease, transform 0.38s ease;
     pointer-events: none;
     z-index: 10;
   }
   .book-modal.visible {
-    opacity: 1;
     visibility: visible;
-    transform: translate(-50%, -50%) scale(1);
     pointer-events: all;
   }
   /* active 스타일은 JS showInnerPages에서 직접 style로 제어 */
@@ -1383,15 +1380,23 @@ function showInnerPages() {
   updateNavZones();
 
   const modal = document.getElementById('bookModal');
-  console.log('bookModal visible 추가 시작');
-  // visibility transition 딜레이 우회 — 강제 리플로우 후 클래스 추가
-  modal.getBoundingClientRect(); // 강제 리플로우
+  console.log('bookModal 표시 시작');
+  modal.classList.add('visible');
+  // CSS transition 우회 — JS로 직접 opacity 애니메이션
+  modal.style.opacity = '0';
+  modal.style.transform = 'translate(-50%, -50%) scale(0.96)';
+  modal.style.transition = 'none';
+
+  // 강제 리플로우
+  modal.getBoundingClientRect();
+
+  // JS transition 직접 적용
+  modal.style.transition = 'opacity 0.38s ease, transform 0.38s ease';
   setTimeout(() => {
-    modal.classList.add('visible');
-    setTimeout(() => {
-      console.log('bookModal visible 완료. opacity:', getComputedStyle(modal).opacity, 'visibility:', getComputedStyle(modal).visibility);
-    }, 400);
-  }, 20);
+    modal.style.opacity = '1';
+    modal.style.transform = 'translate(-50%, -50%) scale(1)';
+    console.log('bookModal opacity 1 설정 완료');
+  }, 30);
 }
 
 // ── 페이지 넘기기 — 애플북스 방식 ──────────────
@@ -1482,7 +1487,9 @@ function closeBook() {
 
   // 내부 모달 숨기기
   const modal = document.getElementById('bookModal');
-  modal.classList.remove('visible');
+  modal.style.opacity = '0';
+  modal.style.transform = 'translate(-50%, -50%) scale(0.96)';
+  setTimeout(() => modal.classList.remove('visible'), 380);
   isAnimating = false;
 }
 
