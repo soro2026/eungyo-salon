@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>EG콘스텔라티오 — 별 탐구</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --gold: #C9A84C;
+  --gold-l: #E9C97E;
+  --gold-dim: rgba(201,168,76,0.3);
+  --chalk: #F0EBE0;
+  --ink: #04060f;
+  --surface: rgba(255,255,255,0.03);
+  --border: rgba(201,168,76,0.15);
+}
+html, body {
+  min-height: 100%;
+  background: var(--ink);
+  color: var(--chalk);
+  font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  line-height: 1.7;
+}
+
+/* ── 배경 ── */
+#bg {
+  position: fixed; inset: 0; z-index: 0;
+  background: url('milkyway_bg.jpg') center center / cover no-repeat;
+}
+#bg::after {
+  content: ''; position: absolute; inset: 0;
+  background: rgba(2,4,12,0.82);
+}
+
+/* ── 레이아웃 ── */
+#app {
+  position: relative; z-index: 1;
+  max-width: 680px; margin: 0 auto;
+  padding: 0 20px 80px;
+}
+
+/* ── 헤더 ── */
+.star-header {
+  padding: 52px 0 32px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 32px;
+}
+.back-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; letter-spacing: 0.1em;
+  color: rgba(201,168,76,0.5);
+  text-decoration: none; margin-bottom: 24px;
+  transition: color 0.2s;
+}
+.back-link:hover { color: var(--gold); }
+
+.star-card-row {
+  display: flex; gap: 20px; align-items: flex-start;
+}
+.star-portrait {
+  width: 96px; height: 120px;
+  border-radius: 10px;
+  background: rgba(201,168,76,0.08);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.star-portrait img {
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: center top;
+}
+.star-portrait-empty {
+  font-size: 28px; color: rgba(201,168,76,0.3);
+}
+.star-meta { flex: 1; }
+.star-name {
+  font-size: 26px; font-weight: 900;
+  color: #ffffff; letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.star-field {
+  font-size: 11px; letter-spacing: 0.14em;
+  color: var(--gold); margin-bottom: 10px;
+  font-weight: 700;
+}
+.star-desc {
+  font-size: 13px; color: rgba(240,235,224,0.6);
+  line-height: 1.65; margin-bottom: 14px;
+}
+.star-stats {
+  display: flex; gap: 16px; flex-wrap: wrap;
+}
+.stat-item {
+  display: flex; flex-direction: column; gap: 2px;
+}
+.stat-label {
+  font-size: 9px; letter-spacing: 0.12em;
+  color: rgba(201,168,76,0.45); font-weight: 700;
+}
+.stat-value {
+  font-size: 14px; font-weight: 700;
+  color: #ffffff; font-family: 'Courier New', monospace;
+}
+.lum-bar {
+  display: flex; gap: 2px; align-items: center; margin-top: 2px;
+}
+.lum-dot {
+  width: 14px; height: 4px; border-radius: 2px;
+  background: rgba(201,168,76,0.15);
+}
+.lum-dot.on { background: rgba(201,168,76,0.8); }
+
+/* ── 섹션 공통 ── */
+.section {
+  margin-bottom: 40px;
+}
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px; padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.section-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; letter-spacing: 0.14em;
+  color: var(--gold); font-weight: 700;
+}
+.section-icon { font-size: 14px; }
+.add-btn {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; letter-spacing: 0.08em;
+  color: rgba(201,168,76,0.5);
+  background: rgba(201,168,76,0.06);
+  border: 1px solid rgba(201,168,76,0.2);
+  border-radius: 20px; padding: 4px 12px;
+  cursor: pointer; transition: all 0.2s;
+  font-family: inherit;
+}
+.add-btn:hover {
+  color: var(--gold); background: rgba(201,168,76,0.12);
+  border-color: rgba(201,168,76,0.4);
+}
+.add-btn:disabled {
+  opacity: 0.3; cursor: not-allowed;
+}
+
+/* ── 스토리 카드 ── */
+.story-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px; padding: 18px 20px;
+  margin-bottom: 12px;
+  transition: border-color 0.2s;
+}
+.story-card:hover { border-color: rgba(201,168,76,0.3); }
+.story-card-header {
+  display: flex; justify-content: space-between;
+  align-items: center; margin-bottom: 12px;
+}
+.story-author {
+  font-size: 10px; color: rgba(201,168,76,0.5);
+  letter-spacing: 0.08em;
+}
+.story-date {
+  font-size: 10px; color: rgba(240,235,224,0.25);
+}
+.story-body {
+  font-size: 14px; color: rgba(240,235,224,0.8);
+  line-height: 1.8; white-space: pre-wrap;
+}
+.story-body.collapsed {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.expand-btn {
+  margin-top: 8px; font-size: 11px;
+  color: rgba(201,168,76,0.5);
+  background: none; border: none;
+  cursor: pointer; padding: 0;
+  font-family: inherit; letter-spacing: 0.06em;
+}
+.expand-btn:hover { color: var(--gold); }
+
+/* ── 미디어 카드 ── */
+.media-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px; padding: 14px 18px;
+  margin-bottom: 10px;
+  display: flex; gap: 14px; align-items: center;
+  cursor: pointer; transition: all 0.2s;
+  text-decoration: none;
+}
+.media-card:hover {
+  border-color: rgba(201,168,76,0.3);
+  background: rgba(201,168,76,0.04);
+}
+.media-thumb {
+  width: 52px; height: 52px; border-radius: 8px;
+  background: rgba(201,168,76,0.08);
+  flex-shrink: 0; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+}
+.media-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.media-info { flex: 1; min-width: 0; }
+.media-title {
+  font-size: 13px; font-weight: 700;
+  color: rgba(240,235,224,0.85);
+  margin-bottom: 3px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.media-sub {
+  font-size: 11px; color: rgba(240,235,224,0.35);
+  letter-spacing: 0.04em;
+}
+.media-author {
+  font-size: 10px; color: rgba(201,168,76,0.4);
+  letter-spacing: 0.06em; flex-shrink: 0;
+}
+
+/* ── 이미지 갤러리 ── */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.gallery-item {
+  aspect-ratio: 1; border-radius: 10px;
+  background: rgba(201,168,76,0.06);
+  border: 1px solid var(--border);
+  overflow: hidden; cursor: pointer;
+  transition: border-color 0.2s;
+}
+.gallery-item:hover { border-color: rgba(201,168,76,0.35); }
+.gallery-item img { width: 100%; height: 100%; object-fit: cover; }
+.gallery-item-empty {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; color: rgba(201,168,76,0.2);
+}
+
+/* ── 유튜브 임베드 ── */
+.video-wrap {
+  border-radius: 12px; overflow: hidden;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  aspect-ratio: 16/9;
+}
+.video-wrap iframe { width: 100%; height: 100%; border: none; }
+
+/* ── 빈 상태 ── */
+.empty-state {
+  text-align: center; padding: 32px 20px;
+  color: rgba(240,235,224,0.2);
+  font-size: 13px; letter-spacing: 0.06em;
+  border: 1px dashed rgba(201,168,76,0.1);
+  border-radius: 14px;
+}
+
+/* ── 모달 ── */
+.modal-bg {
+  display: none; position: fixed; inset: 0; z-index: 500;
+  background: rgba(2,4,12,0.88);
+  backdrop-filter: blur(8px);
+  align-items: flex-end; justify-content: center;
+}
+.modal-bg.show { display: flex; }
+.modal-box {
+  background: linear-gradient(160deg, #0f1428 0%, #080c1c 100%);
+  border: 1px solid rgba(201,168,76,0.3);
+  border-radius: 24px 24px 0 0;
+  padding: 28px 22px 40px;
+  width: 100%; max-width: 680px;
+  max-height: 85vh; overflow-y: auto;
+  animation: slideUp 0.3s ease;
+}
+@keyframes slideUp {
+  from { transform: translateY(40px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+.modal-title {
+  font-size: 13px; letter-spacing: 0.14em;
+  color: var(--gold); margin-bottom: 20px; font-weight: 700;
+}
+.modal-close {
+  float: right; background: none; border: none;
+  color: rgba(240,235,224,0.3); font-size: 18px;
+  cursor: pointer; padding: 0; font-family: inherit;
+}
+
+/* 폼 */
+.form-group { margin-bottom: 16px; }
+.form-label {
+  display: block; font-size: 10px; letter-spacing: 0.12em;
+  color: rgba(201,168,76,0.5); margin-bottom: 6px; font-weight: 700;
+}
+.form-input, .form-textarea {
+  width: 100%; background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(201,168,76,0.2);
+  border-radius: 10px; padding: 10px 14px;
+  color: var(--chalk); font-size: 14px;
+  font-family: inherit; transition: border-color 0.2s;
+  resize: vertical;
+}
+.form-input:focus, .form-textarea:focus {
+  outline: none; border-color: rgba(201,168,76,0.5);
+}
+.form-textarea { min-height: 120px; }
+
+.type-tabs {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 20px;
+}
+.type-tab {
+  padding: 5px 14px; border-radius: 20px; font-size: 12px;
+  border: 1px solid rgba(201,168,76,0.2);
+  background: none; color: rgba(240,235,224,0.4);
+  cursor: pointer; transition: all 0.2s; font-family: inherit;
+}
+.type-tab.active {
+  background: rgba(201,168,76,0.15);
+  border-color: rgba(201,168,76,0.5);
+  color: var(--gold-l);
+}
+
+.submit-btn {
+  width: 100%; padding: 14px;
+  background: rgba(201,168,76,0.15);
+  border: 1px solid rgba(201,168,76,0.4);
+  border-radius: 12px; color: var(--gold-l);
+  font-size: 14px; letter-spacing: 0.08em;
+  cursor: pointer; font-family: inherit;
+  transition: all 0.2s; font-weight: 700;
+}
+.submit-btn:hover { background: rgba(201,168,76,0.25); }
+.submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── 로그인 필요 화면 ── */
+#login-wall {
+  display: none;
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(2,4,12,0.95);
+  align-items: center; justify-content: center;
+  flex-direction: column; gap: 16px; text-align: center;
+}
+#login-wall.show { display: flex; }
+.login-wall-title {
+  font-size: 16px; color: var(--gold-l); font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.login-wall-sub {
+  font-size: 13px; color: rgba(240,235,224,0.4);
+  margin-bottom: 8px;
+}
+.login-btn {
+  padding: 12px 32px;
+  background: rgba(201,168,76,0.15);
+  border: 1px solid rgba(201,168,76,0.4);
+  border-radius: 12px; color: var(--gold-l);
+  font-size: 14px; cursor: pointer;
+  font-family: inherit; letter-spacing: 0.08em;
+}
+
+/* ── 로딩 ── */
+.loading {
+  display: flex; align-items: center; justify-content: center;
+  padding: 60px; color: rgba(201,168,76,0.3);
+  font-size: 12px; letter-spacing: 0.14em;
+}
+</style>
+</head>
+<body>
+
+<div id="bg"></div>
+
+<!-- 로그인 필요 -->
+<div id="login-wall">
+  <div style="font-size:28px; color:rgba(201,168,76,0.4);">✦</div>
+  <div class="login-wall-title">은교살롱 회원만 입장 가능합니다</div>
+  <div class="login-wall-sub">별의 탐구 페이지는 회원 전용 공간입니다</div>
+  <button class="login-btn" onclick="location.href='index.html'">로그인하러 가기</button>
+</div>
+
+<!-- 메인 앱 -->
+<div id="app" style="display:none;">
+
+  <!-- 헤더 -->
+  <div class="star-header">
+    <a href="constella.html" class="back-link">← 별자리로 돌아가기</a>
+    <div class="star-card-row">
+      <div class="star-portrait" id="portrait">
+        <span class="star-portrait-empty">✦</span>
+      </div>
+      <div class="star-meta">
+        <div class="star-name" id="star-name">로딩 중...</div>
+        <div class="star-field" id="star-field"></div>
+        <div class="star-desc" id="star-desc"></div>
+        <div class="star-stats">
+          <div class="stat-item">
+            <span class="stat-label">L U M I N O S I T Y</span>
+            <div class="lum-bar" id="lum-bar"></div>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">하트</span>
+            <span class="stat-value" id="heart-count">—</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">주주</span>
+            <span class="stat-value" id="holder-count">—</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">스톡</span>
+            <span class="stat-value" id="stock-status">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📖 스토리 -->
+  <div class="section" id="section-story">
+    <div class="section-header">
+      <div class="section-title">
+        <span class="section-icon">📖</span>
+        <span>S T O R Y</span>
+      </div>
+      <button class="add-btn" id="btn-add-story" onclick="openModal('story')" disabled>+ 추가</button>
+    </div>
+    <div id="story-list"><div class="loading">⬤ 로딩 중...</div></div>
+  </div>
+
+  <!-- 🎬 영상 -->
+  <div class="section" id="section-video">
+    <div class="section-header">
+      <div class="section-title">
+        <span class="section-icon">🎬</span>
+        <span>V I D E O</span>
+      </div>
+      <button class="add-btn" id="btn-add-video" onclick="openModal('video')" disabled>+ 추가</button>
+    </div>
+    <div id="video-list"><div class="loading">⬤ 로딩 중...</div></div>
+  </div>
+
+  <!-- 🎵 음악 -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">
+        <span class="section-icon">🎵</span>
+        <span>M U S I C</span>
+      </div>
+      <button class="add-btn" id="btn-add-music" onclick="openModal('music')" disabled>+ 추가</button>
+    </div>
+    <div id="music-list"><div class="loading">⬤ 로딩 중...</div></div>
+  </div>
+
+  <!-- 🎨 이미지 -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">
+        <span class="section-icon">🎨</span>
+        <span>I M A G E</span>
+      </div>
+      <button class="add-btn" id="btn-add-image" onclick="openModal('image')" disabled>+ 추가</button>
+    </div>
+    <div id="image-list"><div class="loading">⬤ 로딩 중...</div></div>
+  </div>
+
+  <!-- 🔗 링크 -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">
+        <span class="section-icon">🔗</span>
+        <span>L I N K</span>
+      </div>
+      <button class="add-btn" id="btn-add-link" onclick="openModal('link')" disabled>+ 추가</button>
+    </div>
+    <div id="link-list"><div class="loading">⬤ 로딩 중...</div></div>
+  </div>
+
+</div>
+
+<!-- 콘텐츠 추가 모달 -->
+<div class="modal-bg" id="modal">
+  <div class="modal-box">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <div class="modal-title" id="modal-title">콘텐츠 추가</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+
+    <!-- 타입 선택 탭 -->
+    <div class="type-tabs" id="type-tabs">
+      <button class="type-tab active" data-type="story" onclick="selectType('story')">📖 스토리</button>
+      <button class="type-tab" data-type="video" onclick="selectType('video')">🎬 영상</button>
+      <button class="type-tab" data-type="music" onclick="selectType('music')">🎵 음악</button>
+      <button class="type-tab" data-type="image" onclick="selectType('image')">🎨 이미지</button>
+      <button class="type-tab" data-type="link" onclick="selectType('link')">🔗 링크</button>
+    </div>
+
+    <!-- 스토리 폼 -->
+    <div id="form-story">
+      <div class="form-group">
+        <label class="form-label">제목 (선택)</label>
+        <input class="form-input" id="story-title" placeholder="예: 카프카와 막스 브로트의 우정">
+      </div>
+      <div class="form-group">
+        <label class="form-label">내용 *</label>
+        <textarea class="form-textarea" id="story-content" style="min-height:200px;"
+          placeholder="이 인물에 대해 알게 된 이야기, 감상, 에피소드 등 자유롭게 써주세요.&#10;몇 챕터 분량이 되어도 괜찮습니다 🌟"></textarea>
+      </div>
+    </div>
+
+    <!-- 영상 폼 -->
+    <div id="form-video" style="display:none;">
+      <div class="form-group">
+        <label class="form-label">유튜브 URL *</label>
+        <input class="form-input" id="video-url" placeholder="https://youtube.com/watch?v=...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">설명 (선택)</label>
+        <input class="form-input" id="video-desc" placeholder="예: TED 강연 — 카프카의 변신이 현대에 던지는 메시지">
+      </div>
+    </div>
+
+    <!-- 음악 폼 -->
+    <div id="form-music" style="display:none;">
+      <div class="form-group">
+        <label class="form-label">음악 링크 *</label>
+        <input class="form-input" id="music-url" placeholder="유튜브, 스포티파이, 사운드클라우드 등">
+      </div>
+      <div class="form-group">
+        <label class="form-label">곡명 / 설명 *</label>
+        <input class="form-input" id="music-desc" placeholder="예: 카프카가 좋아했던 플라멩코 — Cante Jondo">
+      </div>
+    </div>
+
+    <!-- 이미지 폼 -->
+    <div id="form-image" style="display:none;">
+      <div class="form-group">
+        <label class="form-label">이미지 URL *</label>
+        <input class="form-input" id="image-url" placeholder="https://...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">설명 (선택)</label>
+        <input class="form-input" id="image-desc" placeholder="예: 카프카의 삽화 — 체코 표현주의 화가 Jan Preisler 작">
+      </div>
+    </div>
+
+    <!-- 링크 폼 -->
+    <div id="form-link" style="display:none;">
+      <div class="form-group">
+        <label class="form-label">URL *</label>
+        <input class="form-input" id="link-url" placeholder="https://...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">제목 *</label>
+        <input class="form-input" id="link-title" placeholder="예: 변신 (전문 번역) — 위키문헌">
+      </div>
+      <div class="form-group">
+        <label class="form-label">설명 (선택)</label>
+        <input class="form-input" id="link-desc" placeholder="간단한 소개">
+      </div>
+    </div>
+
+    <button class="submit-btn" id="submit-btn" onclick="submitContent()">✦ 제출하기</button>
+    <div id="submit-msg" style="margin-top:12px; font-size:12px; text-align:center; color:rgba(201,168,76,0.5); display:none;"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth: { storageKey: 'eungyo-auth' }
+});
+
+let currentUser = null;
+let currentStar = null;
+let isHolder = false;
+let currentType = 'story';
+
+// ── 초기화 ─────────────────────────────────────────────────────
+async function init() {
+  // URL에서 star id 파싱
+  const params = new URLSearchParams(location.search);
+  const starId = params.get('id');
+  if (!starId) { location.href = 'constella.html'; return; }
+
+  // 로그인 확인
+  const { data: { user } } = await supa.auth.getUser();
+  if (!user) {
+    document.getElementById('login-wall').classList.add('show');
+    return;
+  }
+  currentUser = user;
+  document.getElementById('app').style.display = 'block';
+
+  // 별 데이터 로드
+  await loadStar(starId);
+  // 콘텐츠 로드
+  await loadContents(starId);
+  // 주주 여부 확인
+  await checkHolder(starId);
+}
+
+// ── 별 데이터 로드 ──────────────────────────────────────────────
+async function loadStar(starId) {
+  const { data: star } = await supa.from('stars')
+    .select('*').eq('id', starId).single();
+  if (!star) { location.href = 'constella.html'; return; }
+  currentStar = star;
+
+  document.getElementById('star-name').textContent = star.name;
+
+  const birth = star.birth < 0
+    ? `BC ${Math.abs(star.birth)}` : star.birth;
+  const death = star.death < 0
+    ? `BC ${Math.abs(star.death)}` : (star.death || '현재');
+  document.getElementById('star-field').textContent =
+    `${star.field} · ${birth} ~ ${death}`;
+
+  document.getElementById('star-desc').textContent =
+    star.description || '아직 소개가 없습니다. 주주가 되어 이 별을 꾸며주세요.';
+
+  document.title = `${star.name} — EG콘스텔라티오`;
+
+  // 광도 바
+  const lum = Math.round(star.luminosity || 0);
+  const bar = document.getElementById('lum-bar');
+  for (let i = 1; i <= 10; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'lum-dot' + (i <= lum ? ' on' : '');
+    bar.appendChild(dot);
+  }
+
+  // 하트 수
+  document.getElementById('heart-count').textContent =
+    (star.heart_count || 0).toLocaleString();
+
+  // 주주 수
+  const { count: holders } = await supa.from('portfolio')
+    .select('*', { count: 'exact', head: true }).eq('star_id', starId);
+  document.getElementById('holder-count').textContent = holders || 0;
+
+  // 스톡 상태
+  const statusMap = { seed: '씨앗', unlisted: '비상장', listed: '상장', ipo_pending: 'IPO 대기' };
+  document.getElementById('stock-status').textContent =
+    statusMap[star.stock_status] || '—';
+}
+
+// ── 주주 여부 확인 ──────────────────────────────────────────────
+async function checkHolder(starId) {
+  if (!currentUser) return;
+  const { data } = await supa.from('portfolio')
+    .select('quantity').eq('user_id', currentUser.id)
+    .eq('star_id', starId).maybeSingle();
+  isHolder = data && data.quantity > 0;
+
+  // 추가 버튼 활성화
+  ['story','video','music','image','link'].forEach(type => {
+    const btn = document.getElementById(`btn-add-${type}`);
+    if (btn) btn.disabled = !isHolder;
+  });
+}
+
+// ── 콘텐츠 로드 ────────────────────────────────────────────────
+async function loadContents(starId) {
+  const { data: contents } = await supa.from('star_contents')
+    .select('*, users:user_id(email)')
+    .eq('star_id', starId)
+    .eq('status', 'published')
+    .order('created_at', { ascending: false });
+
+  const types = ['story','video','music','image','link'];
+  types.forEach(type => {
+    const list = document.getElementById(`${type}-list`);
+    const items = (contents || []).filter(c => c.content_type === type);
+    list.innerHTML = '';
+    if (items.length === 0) {
+      list.innerHTML = `<div class="empty-state">아직 ${typeLabel(type)}가 없습니다<br>주주가 되어 첫 번째로 추가해보세요 ✦</div>`;
+    } else {
+      items.forEach(item => list.appendChild(renderContent(item)));
+    }
+  });
+}
+
+function typeLabel(type) {
+  return { story:'스토리', video:'영상', music:'음악', image:'이미지', link:'링크' }[type] || type;
+}
+
+function renderContent(item) {
+  const date = new Date(item.created_at).toLocaleDateString('ko-KR');
+  const author = item.users?.email?.split('@')[0] || '주주';
+
+  if (item.content_type === 'story') {
+    const div = document.createElement('div');
+    div.className = 'story-card';
+    const isLong = item.content && item.content.length > 300;
+    div.innerHTML = `
+      <div class="story-card-header">
+        <span class="story-author">✦ ${author}</span>
+        <span class="story-date">${date}</span>
+      </div>
+      ${item.title ? `<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:8px;">${item.title}</div>` : ''}
+      <div class="story-body ${isLong ? 'collapsed' : ''}" id="story-${item.id}">${item.content || ''}</div>
+      ${isLong ? `<button class="expand-btn" onclick="toggleStory('${item.id}')">더 읽기 ↓</button>` : ''}
+    `;
+    return div;
+  }
+
+  if (item.content_type === 'video') {
+    const videoId = extractYoutubeId(item.content);
+    const div = document.createElement('div');
+    div.style.marginBottom = '12px';
+    if (videoId) {
+      div.innerHTML = `
+        <div class="video-wrap">
+          <iframe src="https://www.youtube.com/embed/${videoId}"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
+            allowfullscreen></iframe>
+        </div>
+        ${item.title ? `<div style="font-size:12px;color:rgba(240,235,224,0.4);margin-top:6px;padding:0 4px;">${item.title} · ${author}</div>` : ''}
+      `;
+    }
+    return div;
+  }
+
+  if (item.content_type === 'image') {
+    const div = document.createElement('div');
+    div.className = 'gallery-item';
+    div.innerHTML = `<img src="${item.content}" alt="${item.title || ''}">`;
+    return div;
+  }
+
+  // music, link — 미디어 카드
+  const a = document.createElement('a');
+  a.className = 'media-card';
+  a.href = item.content || '#';
+  a.target = '_blank';
+  a.rel = 'noopener';
+  const icon = item.content_type === 'music' ? '🎵' : '🔗';
+  a.innerHTML = `
+    <div class="media-thumb">${icon}</div>
+    <div class="media-info">
+      <div class="media-title">${item.title || item.content || ''}</div>
+      <div class="media-sub">${item.content || ''}</div>
+    </div>
+    <div class="media-author">${author}</div>
+  `;
+  return a;
+}
+
+function extractYoutubeId(url) {
+  if (!url) return null;
+  const m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
+  return m ? m[1] : null;
+}
+
+function toggleStory(id) {
+  const el = document.getElementById(`story-${id}`);
+  const btn = el.nextElementSibling;
+  if (el.classList.contains('collapsed')) {
+    el.classList.remove('collapsed');
+    btn.textContent = '접기 ↑';
+  } else {
+    el.classList.add('collapsed');
+    btn.textContent = '더 읽기 ↓';
+  }
+}
+
+// ── 이미지 갤러리 래핑 ─────────────────────────────────────────
+function wrapGallery() {
+  const list = document.getElementById('image-list');
+  const items = list.querySelectorAll('.gallery-item');
+  if (items.length > 0) {
+    const grid = document.createElement('div');
+    grid.className = 'gallery-grid';
+    items.forEach(i => grid.appendChild(i));
+    list.appendChild(grid);
+  }
+}
+
+// ── 모달 ───────────────────────────────────────────────────────
+function openModal(type) {
+  if (!isHolder) return;
+  selectType(type || 'story');
+  document.getElementById('modal').classList.add('show');
+}
+function closeModal() {
+  document.getElementById('modal').classList.remove('show');
+  document.getElementById('submit-msg').style.display = 'none';
+}
+function selectType(type) {
+  currentType = type;
+  ['story','video','music','image','link'].forEach(t => {
+    document.getElementById(`form-${t}`).style.display = t === type ? 'block' : 'none';
+    document.querySelector(`[data-type="${t}"]`)?.classList.toggle('active', t === type);
+  });
+}
+
+// ── 제출 ───────────────────────────────────────────────────────
+async function submitContent() {
+  if (!currentUser || !currentStar || !isHolder) return;
+  const btn = document.getElementById('submit-btn');
+  const msg = document.getElementById('submit-msg');
+  btn.disabled = true;
+  btn.textContent = '제출 중...';
+
+  let payload = {
+    star_id: currentStar.id,
+    user_id: currentUser.id,
+    content_type: currentType,
+    status: 'published', // MVP: 바로 게시 (나중에 AI 심사 추가)
+    created_at: new Date().toISOString(),
+  };
+
+  if (currentType === 'story') {
+    payload.title = document.getElementById('story-title').value.trim();
+    payload.content = document.getElementById('story-content').value.trim();
+    if (!payload.content) { alert('내용을 입력해주세요.'); btn.disabled = false; btn.textContent = '✦ 제출하기'; return; }
+  } else if (currentType === 'video') {
+    payload.content = document.getElementById('video-url').value.trim();
+    payload.title = document.getElementById('video-desc').value.trim();
+    if (!payload.content) { alert('URL을 입력해주세요.'); btn.disabled = false; btn.textContent = '✦ 제출하기'; return; }
+  } else if (currentType === 'music') {
+    payload.content = document.getElementById('music-url').value.trim();
+    payload.title = document.getElementById('music-desc').value.trim();
+    if (!payload.content) { alert('URL을 입력해주세요.'); btn.disabled = false; btn.textContent = '✦ 제출하기'; return; }
+  } else if (currentType === 'image') {
+    payload.content = document.getElementById('image-url').value.trim();
+    payload.title = document.getElementById('image-desc').value.trim();
+    if (!payload.content) { alert('이미지 URL을 입력해주세요.'); btn.disabled = false; btn.textContent = '✦ 제출하기'; return; }
+  } else if (currentType === 'link') {
+    payload.content = document.getElementById('link-url').value.trim();
+    payload.title = document.getElementById('link-title').value.trim();
+    payload.ai_reason = document.getElementById('link-desc').value.trim();
+    if (!payload.content || !payload.title) { alert('URL과 제목을 입력해주세요.'); btn.disabled = false; btn.textContent = '✦ 제출하기'; return; }
+  }
+
+  const { error } = await supa.from('star_contents').insert(payload);
+
+  if (error) {
+    console.error(error);
+    msg.textContent = '오류가 발생했습니다. 다시 시도해주세요.';
+    msg.style.color = 'rgba(255,100,100,0.7)';
+  } else {
+    msg.textContent = '✦ 등록되었습니다! 황금사과 1알이 지급됩니다.';
+    msg.style.color = 'rgba(201,168,76,0.7)';
+    setTimeout(() => {
+      closeModal();
+      loadContents(currentStar.id);
+    }, 1500);
+  }
+
+  msg.style.display = 'block';
+  btn.disabled = false;
+  btn.textContent = '✦ 제출하기';
+}
+
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal')) closeModal();
+});
+
+init().then(() => {
+  // 이미지 갤러리 래핑 (비동기 후)
+  setTimeout(wrapGallery, 500);
+});
+</script>
+</body>
+</html>
