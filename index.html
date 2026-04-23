@@ -105,6 +105,19 @@
     transform-origin: 50% 0%;
     top: -10%; height: 120%;
   }
+
+  /* 게임 중 풀배경 이미지 — stadium_bg_01~30.png 중 랜덤 */
+  .field-bg.game-active.stadium-bg-image {
+    background: #1B4332;
+  }
+  .field-bg.game-active.stadium-bg-image::before {
+    background-image: var(--stadium-bg-url);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    transform: none;
+    top: 0; height: 100%;
+  }
   .screen {
     position: relative; z-index: 10; min-height: 100vh;
     display: flex; flex-direction: column;
@@ -2189,10 +2202,25 @@ function shortCat(cat) {
   }
   return trimmed.slice(0,2);
 }
+// 풀배경 이미지 랜덤 선택 (stadium_bg_01.png ~ stadium_bg_NN.png)
+const STADIUM_BG_COUNT = 1; // 이미지 개수 — 늘어나면 이 숫자만 수정
+function applyRandomStadiumBg(fieldBgEl) {
+  if (!fieldBgEl) return;
+  const idx = Math.floor(Math.random() * STADIUM_BG_COUNT) + 1;
+  const num = String(idx).padStart(2, '0');
+  const url = `stadium_bg_${num}.png`;
+  // 기존 잔디 클래스 제거 후 풀배경 클래스 적용
+  fieldBgEl.classList.remove('stadium-soro', 'stadium-socrates', 'stadium-proust', 'stadium-pascal');
+  fieldBgEl.classList.add('stadium-bg-image');
+  // ::before 가상요소에 배경 이미지 동적 적용 (CSS 변수 활용)
+  fieldBgEl.style.setProperty('--stadium-bg-url', `url('${url}')`);
+}
+
 async function loadQuestions() {
   const files = [
     'questions_taeyang.json',
     'questions_gil.json',
+    'questions_bada.json',
     'questions_terra.json',
     'questions_bam.json',
     'questions_bul.json',
@@ -2203,31 +2231,21 @@ async function loadQuestions() {
     'questions_mun.json'
   ];
   const results = await Promise.all(
-    files.map(f =>
-      fetch(f)
-        .then(r => r.ok ? r.json() : { questions: [] })
-        .catch(() => ({ questions: [] }))
-    )
+    files.map(f => fetch(f).then(r => r.json()).catch(() => ({ questions: [] })))
   );
-  QS = results.flatMap((r, idx) => {
-    if (!r || !Array.isArray(r.questions)) {
-      console.warn(`⚠️ ${files[idx]} 로딩 실패 또는 형식 오류 — 건너뜁니다.`);
-      return [];
-    }
-    return r.questions.map(q => ({
-      seed_id: q.seed_id,
-      difficulty: q.difficulty,
-      cat: q.category,
-      keyword: q.keyword,
-      zone_keyword: q.zone_keyword || '',
-      text: q.text,
-      answer: q.answer,
-      display: q.display,
-      boxes: q.boxes,
-      initials: q.initials,
-      library: q.library || {}
-    }));
-  });
+  QS = results.flatMap(r => r.questions.map(q => ({
+    seed_id: q.seed_id,
+    difficulty: q.difficulty,
+    cat: q.category,
+    keyword: q.keyword,
+    zone_keyword: q.zone_keyword || '',
+    text: q.text,
+    answer: q.answer,
+    display: q.display,
+    boxes: q.boxes,
+    initials: q.initials,
+    library: q.library || {}
+  })));
   // ── 균등 분배 셔플 (seed_id별 골고루, 난이도 랜덤) ──
   // 1. seed_id별로 그룹화
   const seedMap = {};
@@ -2388,8 +2406,8 @@ function buildZoneBoard() {
   // 카테고리별 문제 1개 선택 헬퍼
   function pickFromCat(catName) {
     const pool = QS.filter(q => {
-      const qCatShort = shortCat(q.cat || '');
-      return qCatShort === catName;
+      const qCat = q.cat ? q.cat.split('·')[0].trim() : '';
+      return qCat === catName;
     });
     if (pool.length === 0) return null;
     return pool[Math.floor(Math.random() * pool.length)];
@@ -3732,6 +3750,7 @@ function enterZoneBoard() {
     fb.classList.add('stadium-' + key);
   }
   fb.classList.add('game-active');
+  applyRandomStadiumBg(fb); // 풀배경 이미지 랜덤 적용
 
   // 공수 설정 (홈=후공=수비먼저, 원정=선공=공격먼저)
   st.isAttack = !currentIsHome;
@@ -3928,6 +3947,7 @@ function startGame(){
     else fb.classList.add('stadium-soro');
   }
   fb.classList.add('game-active');
+  applyRandomStadiumBg(fb); // 풀배경 이미지 랜덤 적용
   // 홈=후공(말, isAttack=false), 원정=선공(초, isAttack=true)
   st.isAttack = !currentIsHome;
   // 존 보드 초기화
