@@ -1,4 +1,4 @@
-const CACHE = 'eungyo-v22';
+const CACHE = 'eungyo-v23';
 
 const CORE_FILES = [
   '/eungyo-salon/',
@@ -13,7 +13,6 @@ const CORE_FILES = [
 const QUESTION_FILES = [
   '/eungyo-salon/questions_taeyang.json',
   '/eungyo-salon/questions_gil.json',
-  '/eungyo-salon/questions_bada.json',
   '/eungyo-salon/questions_terra.json',
   '/eungyo-salon/questions_bam.json',
   '/eungyo-salon/questions_bul.json',
