@@ -2204,21 +2204,31 @@ async function loadQuestions() {
     'questions_mun.json'
   ];
   const results = await Promise.all(
-    files.map(f => fetch(f).then(r => r.json()).catch(() => ({ questions: [] })))
+    files.map(f =>
+      fetch(f)
+        .then(r => r.ok ? r.json() : { questions: [] })
+        .catch(() => ({ questions: [] }))
+    )
   );
-  QS = results.flatMap(r => r.questions.map(q => ({
-    seed_id: q.seed_id,
-    difficulty: q.difficulty,
-    cat: q.category,
-    keyword: q.keyword,
-    zone_keyword: q.zone_keyword || '',
-    text: q.text,
-    answer: q.answer,
-    display: q.display,
-    boxes: q.boxes,
-    initials: q.initials,
-    library: q.library || {}
-  })));
+  QS = results.flatMap((r, idx) => {
+    if (!r || !Array.isArray(r.questions)) {
+      console.warn(`⚠️ ${files[idx]} 로딩 실패 또는 형식 오류 — 건너뜁니다.`);
+      return [];
+    }
+    return r.questions.map(q => ({
+      seed_id: q.seed_id,
+      difficulty: q.difficulty,
+      cat: q.category,
+      keyword: q.keyword,
+      zone_keyword: q.zone_keyword || '',
+      text: q.text,
+      answer: q.answer,
+      display: q.display,
+      boxes: q.boxes,
+      initials: q.initials,
+      library: q.library || {}
+    }));
+  });
   // ── 균등 분배 셔플 (seed_id별 골고루, 난이도 랜덤) ──
   // 1. seed_id별로 그룹화
   const seedMap = {};
