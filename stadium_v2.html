@@ -3956,10 +3956,433 @@ async function updateWeekProgress() {
   }
 }
 
+// ============================================
+// 📊 순위 탭 — Supabase 데이터 연결
+// ============================================
+
+async function loadStandingsData() {
+  console.log('📊 순위 데이터 로딩...');
+  
+  const { data: { session } } = await supa.auth.getSession();
+  if (!session) {
+    console.warn('⚠️ 로그인 필요');
+    return;
+  }
+  
+  const week = getCurrentWeek();
+  
+  // 이번 주 모든 경기 가져오기 (내 경기 + 타구장 다)
+  const { data: matches, error } = await supa
+    .from('matches')
+    .select('*')
+    .eq('week_num', week);
+  
+  if (error) {
+    console.error('❌ 순위 로드 실패:', error);
+    return;
+  }
+  
+  // 4팀 승패 집계
+  const teamStats = {
+    soro: { wins: 0, losses: 0, streak: [] },
+    socrates: { wins: 0, losses: 0, streak: [] },
+    proust: { wins: 0, losses: 0, streak: [] },
+    pascal: { wins: 0, losses: 0, streak: [] }
+  };
+  
+  // 완료 경기만 집계
+  const completedMatches = matches
+    .filter(m => m.status === 'completed')
+    .sort((a, b) => new Date(a.match_date) - new Date(b.match_date));
+  
+  completedMatches.forEach(m => {
+    const homeWin = m.home_score > m.away_score;
+    if (homeWin) {
+      teamStats[m.home_team].wins++;
+      teamStats[m.home_team].streak.push('W');
+      teamStats[m.away_team].losses++;
+      teamStats[m.away_team].streak.push('L');
+    } else {
+      teamStats[m.away_team].wins++;
+      teamStats[m.away_team].streak.push('W');
+      teamStats[m.home_team].losses++;
+      teamStats[m.home_team].streak.push('L');
+    }
+  });
+  
+  // 정렬: 승률 높은 순
+  const sorted = Object.entries(teamStats).map(([team, s]) => ({
+    team,
+    wins: s.wins,
+    losses: s.losses,
+    games: s.wins + s.losses,
+    rate: s.wins + s.losses > 0 ? (s.wins / (s.wins + s.losses)) : 0,
+    streak: getStreak(s.streak)
+  })).sort((a, b) => b.rate - a.rate || b.wins - a.wins);
+  
+  // 게임차 계산
+  const leader = sorted[0];
+  sorted.forEach(t => {
+    t.gb = ((leader.wins - t.wins) + (t.losses - leader.losses)) / 2;
+  });
+  
+  console.log('✅ 순위 집계 완료:', sorted);
+  
+  // 1) 1위 카드
+  updateLeaderCard(sorted[0]);
+  
+  // 2) 풀 스탠딩
+  updateStandings(sorted);
+  
+  // 3) H2H 매트릭스
+  updateH2H(matches, completedMatches);
+  
+  // 4) 페이지 메타 (현재 주차)
+  const pageMeta = document.querySelector('#screen-standings .page-meta');
+  if (pageMeta) pageMeta.textContent = `WEEK ${week} · ROOKIE LEAGUE`;
+}
+
+// 연승/연패 계산
+function getStreak(arr) {
+  if (arr.length === 0) return { type: '-', count: 0 };
+  const last = arr[arr.length - 1];
+  let count = 1;
+  for (let i = arr.length - 2; i >= 0; i--) {
+    if (arr[i] === last) count++;
+    else break;
+  }
+  return { type: last, count };
+}
+
+// 1위 카드
+function updateLeaderCard(leader) {
+  const card = document.querySelector('.leader-card');
+  if (!card) return;
+  
+  const emblem = card.querySelector('.leader-emblem img');
+  const name = card.querySelector('.leader-name');
+  const record = card.querySelector('.leader-record');
+  const rate = card.querySelector('.leader-rate');
+  
+  if (emblem) emblem.src = TEAM_EMBLEM[leader.team];
+  if (name) name.textContent = TEAM_NAMES[leader.team];
+  if (record) record.innerHTML = `${leader.wins}<span class="losses">−${leader.losses}</span>`;
+  if (rate) rate.textContent = leader.rate.toFixed(3).replace(/^0/, '');
+}
+
+// 풀 스탠딩
+function updateStandings(sorted) {
+  const container = document.querySelector('.full-standings');
+  if (!container) return;
+  
+  let html = `
+    <div class="standings-header-row">
+      <div></div>
+      <div></div>
+      <div>팀</div>
+      <div>승−패</div>
+      <div>승률</div>
+      <div>게임차</div>
+      <div>흐름</div>
+    </div>
+  `;
+  
+  sorted.forEach((t, idx) => {
+    const isMine = (t.team === 'soro');
+    const rate = t.rate.toFixed(3).replace(/^0/, '');
+    const gbStr = t.gb === 0 ? '−' : t.gb.toFixed(1);
+    const streakClass = t.streak.type === 'W' ? 'win' : t.streak.type === 'L' ? 'lose' : '';
+    const streakText = t.streak.count > 0 ? `${t.streak.type}${t.streak.count}` : '−';
+    
+    html += `
+      <div class="standings-row ${isMine ? 'mine' : ''}">
+        <div class="standings-rank">${idx + 1}</div>
+        <div class="standings-emblem"><img src="${TEAM_EMBLEM[t.team]}" alt="${t.team}"></div>
+        <div class="standings-team">${TEAM_NAMES[t.team]}</div>
+        <div class="standings-record">${t.wins}<span class="losses">−${t.losses}</span></div>
+        <div class="standings-rate">${rate}</div>
+        <div class="standings-gb ${t.gb === 0 ? 'zero' : ''}">${gbStr}</div>
+        <div class="standings-streak ${streakClass}">${streakText}</div>
+      </div>
+    `;
+  });
+  
+  container.innerHTML = html;
+}
+
+// H2H 매트릭스
+function updateH2H(weekMatches, completedMatches) {
+  const teams = ['soro', 'socrates', 'pascal', 'proust'];
+  
+  // 이번 주 H2H 집계
+  const weeklyH2H = {};
+  teams.forEach(a => {
+    weeklyH2H[a] = {};
+    teams.forEach(b => { if (a !== b) weeklyH2H[a][b] = { w: 0, l: 0 }; });
+  });
+  
+  completedMatches.forEach(m => {
+    const homeWin = m.home_score > m.away_score;
+    const winner = homeWin ? m.home_team : m.away_team;
+    const loser = homeWin ? m.away_team : m.home_team;
+    if (weeklyH2H[winner] && weeklyH2H[winner][loser]) {
+      weeklyH2H[winner][loser].w++;
+      weeklyH2H[loser][winner].l++;
+    }
+  });
+  
+  // h2hData 전역변수 업데이트 (기존 렌더링 함수가 사용)
+  const matrix = teams.map(rowTeam => 
+    teams.map(colTeam => {
+      if (rowTeam === colTeam) return null;
+      const stat = weeklyH2H[rowTeam][colTeam];
+      return `${stat.w}-${stat.l}`;
+    })
+  );
+  
+  // 전역 h2hData 업데이트
+  if (typeof h2hData !== 'undefined') {
+    h2hData.weekly.matrix = matrix;
+    // 통산은 일단 weekly로 같이 (matches 테이블이 첫 주차라)
+    h2hData.career.matrix = matrix;
+    
+    // 현재 활성 탭 다시 렌더
+    const activeBtn = document.querySelector('.h2h-level-toggle button.active');
+    if (activeBtn && typeof renderH2H === 'function') {
+      renderH2H(activeBtn.dataset.h2h);
+    }
+  }
+}
+
+// ============================================
+// 📈 기록 탭 — Supabase 데이터 연결
+// ============================================
+
+async function loadRecordsData() {
+  console.log('📈 기록 데이터 로딩...');
+  
+  const { data: { session } } = await supa.auth.getSession();
+  if (!session) {
+    console.warn('⚠️ 로그인 필요');
+    return;
+  }
+  
+  // 통산 기록 (career_stats)
+  const { data: career } = await supa
+    .from('career_stats')
+    .select('*')
+    .eq('uid', session.user.id)
+    .maybeSingle();
+  
+  // 시즌 기록 (season_stats)
+  const { data: season } = await supa
+    .from('season_stats')
+    .select('*')
+    .eq('uid', session.user.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  
+  // 이번 주 매치 (matches)
+  const week = getCurrentWeek();
+  const { data: weekMatches } = await supa
+    .from('matches')
+    .select('*')
+    .eq('week_num', week)
+    .eq('is_my_game', true);
+  
+  console.log('✅ 기록 로드:', { career, season, weekMatches });
+  
+  // 1) 100승 진행 바
+  updateProgressBar(career);
+  
+  // 2) 이번 주 / 통산 토글 데이터 갱신
+  updateRecordsStats(weekMatches, career, season);
+}
+
+// 100승 진행 바
+function updateProgressBar(career) {
+  const wins = career?.wins || 0;
+  const progressFill = document.querySelector('.progress-fill');
+  const progressValue = document.querySelector('.progress-value');
+  const progressSub = document.querySelector('.progress-sub');
+  
+  const percent = Math.min(100, (wins / 100) * 100);
+  if (progressFill) progressFill.style.width = `${percent}%`;
+  if (progressValue) progressValue.innerHTML = `${wins}<span class="total"> / 100</span>`;
+  
+  if (progressSub) {
+    const remaining = Math.max(0, 100 - wins);
+    if (remaining > 0) {
+      const weeksEstimate = Math.ceil(remaining / 8); // 주당 평균 8승 가정
+      progressSub.textContent = `싱글A까지 ${remaining}승 남음 · 약 ${weeksEstimate}주 예상`;
+    } else {
+      progressSub.textContent = '싱글A 승급 완료! 🎉';
+    }
+  }
+  
+  // 마일스톤 상태 업데이트
+  const milestones = document.querySelectorAll('.milestone-row');
+  const targets = [1, 10, 25, 50, 100];
+  milestones.forEach((row, idx) => {
+    const target = targets[idx];
+    if (!target) return;
+    const achieved = wins >= target;
+    row.classList.toggle('achieved', achieved);
+    
+    const status = row.querySelector('.milestone-status');
+    if (status) {
+      if (achieved) {
+        status.textContent = idx === 0 ? '달성' : `${wins} / ${target}`;
+      } else {
+        status.textContent = `${wins} / ${target}`;
+      }
+    }
+  });
+}
+
+// 이번 주 / 통산 스탯 업데이트
+function updateRecordsStats(weekMatches, career, season) {
+  // 현재 활성 토글 확인
+  const activeBtn = document.querySelector('.level-toggle button.active');
+  const level = activeBtn?.dataset.level || 'weekly';
+  
+  if (level === 'weekly') {
+    renderWeeklyStats(weekMatches);
+  } else {
+    renderCareerStats(career);
+  }
+  
+  // 토글 클릭 시 다시 렌더
+  document.querySelectorAll('.level-toggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const lvl = btn.dataset.level;
+      if (lvl === 'weekly') renderWeeklyStats(weekMatches);
+      else renderCareerStats(career);
+    }, { once: false });
+  });
+}
+
+// 이번 주 스탯
+function renderWeeklyStats(weekMatches) {
+  const completed = weekMatches.filter(m => m.status === 'completed');
+  let wins = 0, losses = 0, runsScored = 0, runsAllowed = 0;
+  
+  completed.forEach(m => {
+    const myIsHome = m.home_team === 'soro';
+    const myScore = myIsHome ? m.home_score : m.away_score;
+    const oppScore = myIsHome ? m.away_score : m.home_score;
+    if (myScore > oppScore) wins++; else losses++;
+    runsScored += myScore;
+    runsAllowed += oppScore;
+  });
+  
+  const grid = document.getElementById('statsGrid');
+  if (!grid) return;
+  
+  grid.innerHTML = `
+    <div class="stat-card featured">
+      <div class="stat-label">승 / 패</div>
+      <div class="stat-value">${wins}<span style="opacity:0.4">−</span>${losses}</div>
+      <div class="stat-trend ${wins > losses ? 'up' : losses > wins ? 'down' : 'flat'}">
+        ${wins > losses ? '↑ 호조' : losses > wins ? '↓ 부진' : '→ 5할'}
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">득점</div>
+      <div class="stat-value">${runsScored}</div>
+      <div class="stat-trend flat">${completed.length}경기 누적</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">실점</div>
+      <div class="stat-value">${runsAllowed}</div>
+      <div class="stat-trend ${runsAllowed < runsScored ? 'up' : 'down'}">
+        ${runsAllowed < runsScored ? '↑ 안정' : '↓ 보강 필요'}
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">득실차</div>
+      <div class="stat-value">${runsScored - runsAllowed > 0 ? '+' : ''}${runsScored - runsAllowed}</div>
+      <div class="stat-trend flat">평균 ${completed.length > 0 ? ((runsScored - runsAllowed) / completed.length).toFixed(1) : '0.0'}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">평균 득점</div>
+      <div class="stat-value">${completed.length > 0 ? (runsScored / completed.length).toFixed(1) : '0.0'}</div>
+      <div class="stat-trend flat">경기당</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">평균 실점</div>
+      <div class="stat-value">${completed.length > 0 ? (runsAllowed / completed.length).toFixed(1) : '0.0'}</div>
+      <div class="stat-trend flat">경기당</div>
+    </div>
+  `;
+  
+  // 타이틀
+  const title = document.getElementById('statsTitle');
+  const titleSub = document.getElementById('statsTitleSub');
+  if (title) title.textContent = '이번 주 기록';
+  if (titleSub) titleSub.textContent = `WEEK ${getCurrentWeek()}`;
+}
+
+// 통산 스탯
+function renderCareerStats(career) {
+  const wins = career?.wins || 0;
+  const losses = career?.losses || 0;
+  const games = career?.games || (wins + losses);
+  const hits = career?.hits || 0;
+  const hr = career?.hr || 0;
+  const rate = games > 0 ? (wins / games) : 0;
+  
+  const grid = document.getElementById('statsGrid');
+  if (!grid) return;
+  
+  grid.innerHTML = `
+    <div class="stat-card featured">
+      <div class="stat-label">통산 승수</div>
+      <div class="stat-value">${wins}<span class="stat-unit"> / 100</span></div>
+      <div class="stat-trend up">↑ ${((wins/100)*100).toFixed(0)}% 진행</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">통산 승률</div>
+      <div class="stat-value">${rate.toFixed(3).replace(/^0/, '')}</div>
+      <div class="stat-trend ${rate >= 0.5 ? 'up' : 'down'}">
+        ${rate >= 0.5 ? '↑ 5할 이상' : '↓ 5할 미만'}
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">총 경기</div>
+      <div class="stat-value">${games}</div>
+      <div class="stat-trend flat">→ ${wins}승 ${losses}패</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">통산 안타</div>
+      <div class="stat-value">${hits}</div>
+      <div class="stat-trend flat">→ 누적</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">통산 홈런</div>
+      <div class="stat-value">${hr}</div>
+      <div class="stat-trend flat">→ 누적</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">남은 승수</div>
+      <div class="stat-value">${Math.max(0, 100 - wins)}</div>
+      <div class="stat-trend flat">싱글A까지</div>
+    </div>
+  `;
+  
+  const title = document.getElementById('statsTitle');
+  const titleSub = document.getElementById('statsTitleSub');
+  if (title) title.textContent = '통산 기록';
+  if (titleSub) titleSub.textContent = 'CAREER';
+}
+
 // 페이지 로드 시 자동 실행
 window.addEventListener('load', () => {
   setTimeout(loadScheduleData, 500); // 0.5초 후 (Supabase 초기화 대기)
   setTimeout(loadHomeData, 600);
+  setTimeout(loadStandingsData, 700);
+  setTimeout(loadRecordsData, 800);
 });
 </script>
 
