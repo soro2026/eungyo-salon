@@ -4398,15 +4398,72 @@ function goToStadium() {
     // stadium_v2.html에서 "경기 입장하기" 클릭하고 왔으면 자동 게임 진입
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('game') === 'true') {
-      // 로그인 확인 + 인증 후에 게임 화면으로
+      const oppTeam = urlParams.get('opp');     // 'pascal' / 'socrates' / 'proust'
+      const isHome = urlParams.get('isHome') === '1';
+      const matchId = urlParams.get('matchId');
+      
+      // 메인 메뉴 즉시 숨기기 (FOUC 방지)
+      document.body.style.opacity = '0';
+      document.getElementById('home-screen')?.classList.add('hidden');
+      
+      // 인증 + 데이터 초기화 대기 후 게임 화면 진입
       setTimeout(() => {
-        if (typeof showStadiumHome === 'function') {
-          document.getElementById('home-screen')?.classList.add('hidden');
-          showStadiumHome();
-        }
-      }, 800); // 인증 초기화 대기
+        enterGameDirectly(oppTeam, isHome, matchId);
+        document.body.style.opacity = '1';
+        document.body.style.transition = 'opacity 0.3s';
+      }, 800);
     }
   });
+  
+  // stadium_v2에서 직접 진입 시 옛 매치업 카드 건너뛰고 바로 게임 시작
+  function enterGameDirectly(oppTeamCode, isHome, matchId) {
+    if (typeof OPPONENTS === 'undefined') {
+      console.error('OPPONENTS 데이터 미로딩');
+      return;
+    }
+    
+    // 상대팀 코드 → OPPONENTS 객체 매칭
+    const opp = OPPONENTS.find(o => o.shortName.toLowerCase() === oppTeamCode);
+    if (!opp) {
+      console.error('상대팀 매칭 실패:', oppTeamCode);
+      return;
+    }
+    
+    // 전역 변수 직접 세팅 (showStadiumHome의 랜덤 부분 대체)
+    currentOpp = opp;
+    currentIsHome = isHome;
+    
+    // 매치 ID는 게임 종료 시 활용
+    window.currentMatchId = matchId;
+    
+    // 경기장 설정 (홈: 소로 파크, 원정: 상대방 구장)
+    const stadium = currentIsHome ? HOME : opp;
+    
+    // 프리게임 정보 세팅 (atstep으로 가기 전 데이터 세팅)
+    const aiName = document.getElementById('pg-ai-name');
+    const aiStat = document.getElementById('pg-ai-stat');
+    const stadiumImg = document.getElementById('pg-stadium-img');
+    const emblemImg = document.getElementById('pg-emblem-img');
+    const stadiumName = document.getElementById('pg-stadium-name');
+    const stadiumLoc = document.getElementById('pg-stadium-location');
+    const homeAway = document.getElementById('pg-home-away');
+    
+    if (aiName) aiName.textContent = opp.name;
+    if (aiStat) aiStat.textContent = opp.stat;
+    if (stadiumImg) stadiumImg.src = stadium.stadiumImg;
+    if (emblemImg) emblemImg.src = opp.emblemImg;
+    if (stadiumName) stadiumName.textContent = stadium.stadium;
+    if (stadiumLoc) stadiumLoc.textContent = stadium.location;
+    if (homeAway) homeAway.textContent = currentIsHome ? '🏠 홈 경기 · 후공' : '✈️ 원정 경기 · 선공';
+    
+    // 매트릭스 채우기
+    if (typeof fillMatrix === 'function') fillMatrix();
+    
+    // 게임 시작! (옛 매치업 카드 건너뛰고 바로 atstep으로)
+    if (typeof startGame === 'function') {
+      startGame();
+    }
+  }
 </script>
 
 <script>

@@ -3190,9 +3190,47 @@ function goToMain() {
 }
 
 // ── 게임 입장 → index.html의 게임 화면 ──
-function enterStadium() {
-  // index.html에 game=true 파라미터 전달 → 자동 게임 진입
-  window.location.href = '/eungyo-salon/index.html?game=true';
+async function enterStadium() {
+  // 오늘 내 경기 정보 가져오기
+  const today = getToday();
+  const { data: { session } } = await supa.auth.getSession();
+  
+  if (!session) {
+    alert('로그인이 필요합니다.');
+    window.location.href = '/eungyo-salon/index.html';
+    return;
+  }
+  
+  const { data: todayMatches } = await supa
+    .from('matches')
+    .select('*')
+    .eq('match_date', today)
+    .eq('is_my_game', true)
+    .maybeSingle();
+  
+  if (!todayMatches) {
+    alert('오늘 예정된 경기가 없습니다.');
+    return;
+  }
+  
+  if (todayMatches.status === 'completed') {
+    alert('오늘 경기는 이미 완료되었습니다.');
+    return;
+  }
+  
+  // 상대팀 + 홈/원정 정보 추출
+  const myIsHome = todayMatches.home_team === 'soro';
+  const oppTeam = myIsHome ? todayMatches.away_team : todayMatches.home_team;
+  
+  // index.html에 정보 전달
+  const params = new URLSearchParams({
+    game: 'true',
+    opp: oppTeam,           // 'pascal' / 'socrates' / 'proust'
+    isHome: myIsHome ? '1' : '0',
+    matchId: todayMatches.id // 게임 끝나면 이 매치 업데이트
+  });
+  
+  window.location.href = `/eungyo-salon/index.html?${params.toString()}`;
 }
 
 // ── 탭 전환 ──
