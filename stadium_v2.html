@@ -3469,6 +3469,304 @@ function applyWeeklyTone() {
   });
 }
 applyWeeklyTone();
+
+// ============================================
+// 📅 일정 탭 — Supabase 데이터 연결
+// ============================================
+
+// 팀 이름 매핑 (DB 소문자 → 화면 대문자)
+const TEAM_NAMES = {
+  soro: 'SORO',
+  socrates: 'SOCRATES',
+  proust: 'PROUST',
+  pascal: 'PASCAL'
+};
+const TEAM_EMBLEM = {
+  soro: 'emblem_soro.png',
+  socrates: 'emblem_socrates.png',
+  proust: 'emblem_proust.png',
+  pascal: 'emblem_pascal.png'
+};
+
+// 현재 주차 계산 (시즌 시작: 2026-04-21 화)
+function getCurrentWeek() {
+  const start = new Date('2026-04-21T00:00:00+09:00');
+  const now = new Date();
+  return Math.floor((now - start) / (7 * 24 * 60 * 60 * 1000)) + 1;
+}
+
+// 오늘 날짜 (YYYY-MM-DD)
+function getToday() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+// 일정 탭 데이터 로드 + 화면 갱신
+async function loadScheduleData() {
+  console.log('📅 일정 데이터 로딩...');
+  
+  // 로그인 확인
+  const { data: { session } } = await supa.auth.getSession();
+  if (!session) {
+    console.warn('⚠️ 로그인 필요 — index.html에서 먼저 로그인하세요');
+    return;
+  }
+  
+  const week = getCurrentWeek();
+  const today = getToday();
+  
+  // 이번 주 모든 경기 가져오기
+  const { data: matches, error } = await supa
+    .from('matches')
+    .select('*')
+    .eq('week_num', week)
+    .order('match_date', { ascending: true })
+    .order('is_my_game', { ascending: false }); // 내 경기 먼저
+  
+  if (error) {
+    console.error('❌ 일정 로드 실패:', error);
+    return;
+  }
+  
+  console.log(`✅ ${matches.length}개 경기 로드됨`);
+  
+  // 1) 일자 칩 결과 dot 업데이트
+  updateDayChips(matches, today);
+  
+  // 2) 오늘 내 경기 카드 업데이트
+  updateMyGameCard(matches, today);
+  
+  // 3) 오늘 타구장 카드 업데이트
+  updateOtherFieldToday(matches, today);
+  
+  // 4) 이번 주 모든 경기 리스트 업데이트
+  updateAllGamesList(matches, today);
+}
+
+// 1) 일자 칩 (일자별 결과 dot)
+function updateDayChips(matches, today) {
+  // 내 경기만 필터해서 일자별로 묶음
+  const myGames = matches.filter(m => m.is_my_game);
+  const myGameByDate = {};
+  myGames.forEach(g => { myGameByDate[g.match_date] = g; });
+  
+  document.querySelectorAll('.day-chip').forEach(chip => {
+    const numEl = chip.querySelector('.num');
+    if (!numEl) return;
+    const dayNum = numEl.textContent.trim();
+    
+    // 04.21 ~ 04.26 매칭 (간단하게)
+    const dateStr = `2026-04-${dayNum.padStart(2, '0')}`;
+    const game = myGameByDate[dateStr];
+    
+    const dot = chip.querySelector('.result-dot');
+    if (!dot) return;
+    
+    // 클래스 초기화
+    dot.classList.remove('win', 'lose', 'upcoming');
+    
+    if (!game) {
+      dot.classList.add('upcoming');
+      return;
+    }
+    
+    if (game.status === 'pending') {
+      dot.classList.add('upcoming');
+    } else if (game.status === 'completed') {
+      // 내가 이겼는지 판단
+      const myTeam = game.home_team === 'soro' ? 'home' : 'away';
+      const myScore = myTeam === 'home' ? game.home_score : game.away_score;
+      const oppScore = myTeam === 'home' ? game.away_score : game.home_score;
+      dot.classList.add(myScore > oppScore ? 'win' : 'lose');
+    }
+  });
+}
+
+// 2) 오늘 내 경기 카드
+function updateMyGameCard(matches, today) {
+  const todayMyGame = matches.find(m => m.match_date === today && m.is_my_game);
+  if (!todayMyGame) {
+    console.log('오늘 내 경기 없음');
+    return;
+  }
+  
+  // home/away 결정
+  const homeTeam = todayMyGame.home_team;
+  const awayTeam = todayMyGame.away_team;
+  const myIsHome = homeTeam === 'soro';
+  
+  // 카드 안의 첫 번째 / 두 번째 팀 영역 찾기
+  const card = document.querySelector('#screen-schedule .my-game-card');
+  if (!card) return;
+  
+  const teams = card.querySelectorAll('.team-side');
+  if (teams.length < 2) return;
+  
+  // 왼쪽 = SORO (항상), 오른쪽 = 상대팀
+  const oppTeam = myIsHome ? awayTeam : homeTeam;
+  
+  // 왼쪽 SORO 영역
+  const leftEmblemImg = teams[0].querySelector('.match-emblem-img');
+  const leftName = teams[0].querySelector('.team-name-mid');
+  if (leftEmblemImg) leftEmblemImg.src = TEAM_EMBLEM.soro;
+  if (leftName) leftName.textContent = TEAM_NAMES.soro;
+  
+  // 오른쪽 상대팀
+  const rightEmblemImg = teams[1].querySelector('.match-emblem-img');
+  const rightName = teams[1].querySelector('.team-name-mid');
+  if (rightEmblemImg) rightEmblemImg.src = TEAM_EMBLEM[oppTeam];
+  if (rightName) rightName.textContent = TEAM_NAMES[oppTeam];
+  
+  // HOME/AWAY 태그
+  const homeAwayTag = card.querySelector('.home-away-tag');
+  if (homeAwayTag) homeAwayTag.textContent = myIsHome ? 'HOME' : 'AWAY';
+  
+  // 경기 상태 텍스트
+  const status = card.querySelector('.game-status');
+  if (status) {
+    if (todayMyGame.status === 'pending') {
+      status.textContent = '대기 중 · 18:30';
+    } else if (todayMyGame.status === 'completed') {
+      const myScore = myIsHome ? todayMyGame.home_score : todayMyGame.away_score;
+      const oppScore = myIsHome ? todayMyGame.away_score : todayMyGame.home_score;
+      status.textContent = `완료 · ${myScore}:${oppScore}`;
+    }
+  }
+}
+
+// 3) 오늘 타구장 카드
+function updateOtherFieldToday(matches, today) {
+  const todayOther = matches.find(m => m.match_date === today && !m.is_my_game);
+  if (!todayOther) return;
+  
+  const card = document.querySelector('#screen-schedule .other-field-today');
+  if (!card) return;
+  
+  const emblems = card.querySelectorAll('.mini-emblem img');
+  const names = card.querySelectorAll('.mini-team-name');
+  
+  if (emblems[0]) emblems[0].src = TEAM_EMBLEM[todayOther.home_team];
+  if (emblems[1]) emblems[1].src = TEAM_EMBLEM[todayOther.away_team];
+  if (names[0]) names[0].textContent = TEAM_NAMES[todayOther.home_team];
+  if (names[1]) names[1].textContent = TEAM_NAMES[todayOther.away_team];
+  
+  // 시간 영역
+  const time = card.querySelector('.other-field-time');
+  if (time) {
+    if (todayOther.status === 'pending') {
+      time.textContent = '대기 중 · 18:30';
+    } else {
+      time.textContent = `완료 · ${todayOther.home_score}:${todayOther.away_score}`;
+    }
+  }
+}
+
+// 4) 이번 주 모든 경기 리스트 — 일자별 그룹으로 다시 생성
+function updateAllGamesList(matches, today) {
+  const container = document.querySelector('#screen-schedule .all-games');
+  if (!container) return;
+  
+  // 일자별 그룹화
+  const byDate = {};
+  matches.forEach(m => {
+    if (!byDate[m.match_date]) byDate[m.match_date] = [];
+    byDate[m.match_date].push(m);
+  });
+  
+  // 일자 순 정렬
+  const sortedDates = Object.keys(byDate).sort();
+  
+  // 요일 매핑
+  const dowKor = ['일', '월', '화', '수', '목', '금', '토'];
+  
+  let html = '';
+  sortedDates.forEach(date => {
+    const games = byDate[date];
+    const d = new Date(date);
+    const dow = dowKor[d.getDay()];
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const isToday = (date === today);
+    
+    // 그룹 상태 결정
+    const allCompleted = games.every(g => g.status === 'completed');
+    let groupStatus = '예정';
+    if (allCompleted) groupStatus = '완료';
+    if (isToday) groupStatus = games[0].status === 'pending' ? '대기 중 · 18:30' : '완료';
+    
+    html += `
+      <div class="day-group ${isToday ? 'today' : ''}">
+        <div class="day-group-header">
+          <span class="day-group-label">${dow} · ${mm}.${dd}${isToday ? ' · 오늘' : ''}</span>
+          <span class="day-group-status">${groupStatus}</span>
+        </div>
+    `;
+    
+    // 내 경기 먼저, 타구장 나중
+    games.sort((a, b) => (b.is_my_game ? 1 : 0) - (a.is_my_game ? 1 : 0));
+    
+    games.forEach(game => {
+      const completed = game.status === 'completed';
+      const home = game.home_team;
+      const away = game.away_team;
+      const myIsHome = home === 'soro';
+      
+      let leftLose = false, rightLose = false;
+      if (completed) {
+        if (game.home_score > game.away_score) rightLose = true;
+        else leftLose = true;
+      }
+      
+      // 태그 결정
+      let tagHtml = '';
+      if (game.is_my_game) {
+        if (completed) {
+          const myScore = myIsHome ? game.home_score : game.away_score;
+          const oppScore = myIsHome ? game.away_score : game.home_score;
+          if (myScore > oppScore) {
+            tagHtml = '<div class="list-tag my-w">MY · W</div>';
+          } else {
+            tagHtml = '<div class="list-tag my-l">MY · L</div>';
+          }
+        } else if (isToday) {
+          tagHtml = '<div class="list-tag today">TODAY</div>';
+        } else {
+          tagHtml = '<div class="list-tag upcoming">예정</div>';
+        }
+      } else {
+        tagHtml = '<div class="list-tag">타구장</div>';
+      }
+      
+      html += `
+        <div class="list-game ${game.is_my_game ? 'my-game' : ''}">
+          <div class="list-emblem ${leftLose ? 'lose' : ''}"><img src="${TEAM_EMBLEM[home]}" alt="${home}"></div>
+          <div class="list-team-info ${leftLose ? 'lose' : ''}">
+            <div class="list-team-name">${TEAM_NAMES[home]}</div>
+            ${completed ? `<div class="list-score">${game.home_score}</div>` : ''}
+          </div>
+          <div class="list-team-info right ${rightLose ? 'lose' : ''}">
+            <div class="list-team-name">${TEAM_NAMES[away]}</div>
+            ${completed ? `<div class="list-score">${game.away_score}</div>` : ''}
+          </div>
+          <div class="list-emblem ${rightLose ? 'lose' : ''}"><img src="${TEAM_EMBLEM[away]}" alt="${away}"></div>
+          ${tagHtml}
+        </div>
+      `;
+    });
+    
+    html += '</div>'; // day-group 닫기
+  });
+  
+  container.innerHTML = html;
+}
+
+// 페이지 로드 시 자동 실행
+window.addEventListener('load', () => {
+  setTimeout(loadScheduleData, 500); // 0.5초 후 (Supabase 초기화 대기)
+});
 </script>
 
 </body>
