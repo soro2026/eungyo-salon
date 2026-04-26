@@ -3960,6 +3960,57 @@ async function updateWeekProgress() {
 // 📊 순위 탭 — Supabase 데이터 연결
 // ============================================
 
+// 팀 통계 전역 캐시 (홈/일정 탭에서도 사용)
+let teamStatsCache = null;
+
+// 팀 기록 갱신 (홈 탭 매치업 카드 + 일정 탭 MY GAME 카드)
+function refreshTeamRecords() {
+  if (!teamStatsCache) return;
+  
+  // 1) 홈 탭 매치업 카드 — 양쪽 팀 기록
+  const homeMatchupTeams = document.querySelectorAll('#state-matchup .team-side');
+  if (homeMatchupTeams.length >= 2) {
+    homeMatchupTeams.forEach(side => {
+      const nameEl = side.querySelector('.team-name-large');
+      if (!nameEl) return;
+      const teamName = nameEl.textContent.trim().toLowerCase();
+      const stat = teamStatsCache[teamName];
+      if (!stat) return;
+      
+      // 위치 태그 (HOME/AWAY · 순위)
+      const posEl = side.querySelector('.team-position-tag');
+      if (posEl) {
+        const baseText = posEl.textContent.split('·')[0].trim();
+        posEl.textContent = `${baseText} · ${stat.rank}위`;
+      }
+      
+      // 기록
+      const recordEl = side.querySelector('.team-record-mini');
+      if (recordEl) {
+        const rate = stat.rate.toFixed(3).replace(/^0/, '');
+        recordEl.textContent = `${stat.wins}승 ${stat.losses}패 · ${rate}`;
+      }
+    });
+  }
+  
+  // 2) 일정 탭 MY GAME 카드 — 양쪽 팀 기록
+  const scheduleMyGameTeams = document.querySelectorAll('#screen-schedule .my-game-card .team-side');
+  if (scheduleMyGameTeams.length >= 2) {
+    scheduleMyGameTeams.forEach(side => {
+      const nameEl = side.querySelector('.team-name-mid');
+      if (!nameEl) return;
+      const teamName = nameEl.textContent.trim().toLowerCase();
+      const stat = teamStatsCache[teamName];
+      if (!stat) return;
+      
+      const recordEl = side.querySelector('.team-record-tag');
+      if (recordEl) {
+        recordEl.textContent = `${stat.wins}승 ${stat.losses}패 · ${stat.rank}위`;
+      }
+    });
+  }
+}
+
 async function loadStandingsData() {
   console.log('📊 순위 데이터 로딩...');
   
@@ -4028,6 +4079,17 @@ async function loadStandingsData() {
   
   console.log('✅ 순위 집계 완료:', sorted);
   
+  // 전역 캐시 저장 (홈/일정 탭에서 사용)
+  teamStatsCache = {};
+  sorted.forEach((t, idx) => {
+    teamStatsCache[t.team] = {
+      wins: t.wins,
+      losses: t.losses,
+      rate: t.rate,
+      rank: idx + 1
+    };
+  });
+  
   // 1) 1위 카드
   updateLeaderCard(sorted[0]);
   
@@ -4040,6 +4102,9 @@ async function loadStandingsData() {
   // 4) 페이지 메타 (현재 주차)
   const pageMeta = document.querySelector('#screen-standings .page-meta');
   if (pageMeta) pageMeta.textContent = `WEEK ${week} · ROOKIE LEAGUE`;
+  
+  // 5) 홈/일정 탭의 팀 기록 갱신 (이번 주 실제 데이터)
+  refreshTeamRecords();
 }
 
 // 연승/연패 계산
@@ -4378,11 +4443,20 @@ function renderCareerStats(career) {
 }
 
 // 페이지 로드 시 자동 실행
-window.addEventListener('load', () => {
-  setTimeout(loadScheduleData, 500); // 0.5초 후 (Supabase 초기화 대기)
-  setTimeout(loadHomeData, 600);
-  setTimeout(loadStandingsData, 700);
-  setTimeout(loadRecordsData, 800);
+window.addEventListener('load', async () => {
+  // 0.5초 대기 (Supabase 초기화)
+  await new Promise(r => setTimeout(r, 500));
+  
+  // 순위 먼저 로드 (팀 통계 캐시 만들어짐)
+  await loadStandingsData();
+  
+  // 그 다음 홈/일정/기록 (캐시 활용)
+  await loadScheduleData();
+  await loadHomeData();
+  await loadRecordsData();
+  
+  // 마지막으로 한 번 더 갱신 (확실하게)
+  refreshTeamRecords();
 });
 </script>
 
