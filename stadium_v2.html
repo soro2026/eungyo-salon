@@ -3593,34 +3593,30 @@ function updateMyGameCard(matches, today) {
     return;
   }
   
-  // home/away 결정
+  // 야구 정석: AWAY 왼쪽, HOME 오른쪽
   const homeTeam = todayMyGame.home_team;
   const awayTeam = todayMyGame.away_team;
   const myIsHome = homeTeam === 'soro';
   
-  // 카드 안의 첫 번째 / 두 번째 팀 영역 찾기
   const card = document.querySelector('#screen-schedule .my-game-card');
   if (!card) return;
   
   const teams = card.querySelectorAll('.team-side');
   if (teams.length < 2) return;
   
-  // 왼쪽 = SORO (항상), 오른쪽 = 상대팀
-  const oppTeam = myIsHome ? awayTeam : homeTeam;
-  
-  // 왼쪽 SORO 영역
+  // 왼쪽 = AWAY
   const leftEmblemImg = teams[0].querySelector('.match-emblem-img');
   const leftName = teams[0].querySelector('.team-name-mid');
-  if (leftEmblemImg) leftEmblemImg.src = TEAM_EMBLEM.soro;
-  if (leftName) leftName.textContent = TEAM_NAMES.soro;
+  if (leftEmblemImg) leftEmblemImg.src = TEAM_EMBLEM[awayTeam];
+  if (leftName) leftName.textContent = TEAM_NAMES[awayTeam];
   
-  // 오른쪽 상대팀
+  // 오른쪽 = HOME
   const rightEmblemImg = teams[1].querySelector('.match-emblem-img');
   const rightName = teams[1].querySelector('.team-name-mid');
-  if (rightEmblemImg) rightEmblemImg.src = TEAM_EMBLEM[oppTeam];
-  if (rightName) rightName.textContent = TEAM_NAMES[oppTeam];
+  if (rightEmblemImg) rightEmblemImg.src = TEAM_EMBLEM[homeTeam];
+  if (rightName) rightName.textContent = TEAM_NAMES[homeTeam];
   
-  // HOME/AWAY 태그
+  // HOME/AWAY 태그 — 내 입장에서 표시
   const homeAwayTag = card.querySelector('.home-away-tag');
   if (homeAwayTag) homeAwayTag.textContent = myIsHome ? 'HOME' : 'AWAY';
   
@@ -3630,9 +3626,7 @@ function updateMyGameCard(matches, today) {
     if (todayMyGame.status === 'pending') {
       status.textContent = '대기 중 · 18:30';
     } else if (todayMyGame.status === 'completed') {
-      const myScore = myIsHome ? todayMyGame.home_score : todayMyGame.away_score;
-      const oppScore = myIsHome ? todayMyGame.away_score : todayMyGame.home_score;
-      status.textContent = `완료 · ${myScore}:${oppScore}`;
+      status.textContent = `완료 · ${todayMyGame.away_score}:${todayMyGame.home_score}`;
     }
   }
 }
@@ -3763,9 +3757,276 @@ function updateAllGamesList(matches, today) {
   container.innerHTML = html;
 }
 
+// ============================================
+// 🏠 홈 탭 — Supabase 데이터 연결
+// ============================================
+
+async function loadHomeData() {
+  console.log('🏠 홈 데이터 로딩...');
+  
+  const { data: { session } } = await supa.auth.getSession();
+  if (!session) {
+    console.warn('⚠️ 로그인 필요');
+    return;
+  }
+  
+  const today = getToday();
+  
+  // 오늘 경기 2개 가져오기 (내 경기 + 타구장)
+  const { data: todayMatches, error } = await supa
+    .from('matches')
+    .select('*')
+    .eq('match_date', today)
+    .order('is_my_game', { ascending: false }); // 내 경기 먼저
+  
+  if (error) {
+    console.error('❌ 홈 로드 실패:', error);
+    return;
+  }
+  
+  if (!todayMatches || todayMatches.length === 0) {
+    console.log('오늘 경기 없음 (월요일 휴식?)');
+    return;
+  }
+  
+  const myGame = todayMatches.find(m => m.is_my_game);
+  const otherGame = todayMatches.find(m => !m.is_my_game);
+  
+  console.log('내 경기:', myGame?.status, '타구장:', otherGame?.status);
+  
+  // 자동 분기: pending → 매치업, completed → 결과
+  if (myGame.status === 'pending') {
+    showMatchupView(myGame, otherGame);
+  } else if (myGame.status === 'completed') {
+    showResultView(myGame, otherGame);
+  }
+  
+  // 통산 정보 가져오기 (career_stats)
+  await updateCareerInfo();
+  
+  // 이번 주 진행 현황
+  await updateWeekProgress();
+}
+
+// 매치업 화면 (경기 전)
+function showMatchupView(myGame, otherGame) {
+  // 토글 버튼: 매치업으로 (가짜 데모용 토글은 그대로 유지)
+  document.getElementById('state-matchup').style.display = 'block';
+  document.getElementById('state-result').style.display = 'none';
+  document.querySelectorAll('.matchup-state-toggle button').forEach(b => {
+    b.classList.toggle('active', b.dataset.state === 'matchup');
+  });
+  
+  const myIsHome = myGame.home_team === 'soro';
+  const oppTeam = myIsHome ? myGame.away_team : myGame.home_team;
+  
+  // 페이지 헤더 — 날짜
+  const today = new Date(myGame.match_date);
+  const dowKor = ['일', '월', '화', '수', '목', '금', '토'];
+  const dowEng = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  
+  // 페이지 메타
+  const pageMeta = document.querySelector('#screen-home .page-meta');
+  if (pageMeta) {
+    const week = myGame.week_num;
+    const dayInWeek = myGame.day_of_week - 1; // 화=2 → DAY 1
+    pageMeta.textContent = `WEEK ${week} · DAY ${dayInWeek} · ${mm}.${dd} ${dowEng[today.getDay()]}`;
+  }
+  
+  // hero-date 갱신
+  const heroDate = document.querySelector('#state-matchup .hero-date');
+  if (heroDate) {
+    heroDate.textContent = `2026.${mm}.${dd} · ${dowEng[today.getDay()]} · ${myIsHome ? 'HOME' : 'AWAY'}`;
+  }
+  
+  // 매치업 카드 — 양쪽 팀 (야구 정석: AWAY 왼쪽, HOME 오른쪽)
+  const teams = document.querySelectorAll('#state-matchup .team-side');
+  if (teams.length >= 2) {
+    // 왼쪽 = AWAY 팀
+    const leftImg = teams[0].querySelector('.match-emblem-img');
+    const leftName = teams[0].querySelector('.team-name-large');
+    const leftPos = teams[0].querySelector('.team-position-tag');
+    if (leftImg) leftImg.src = TEAM_EMBLEM[awayTeam];
+    if (leftName) leftName.textContent = TEAM_NAMES[awayTeam];
+    if (leftPos) leftPos.textContent = `AWAY${awayTeam === 'soro' ? ' · 1위' : ''}`;
+    
+    // 오른쪽 = HOME 팀
+    const rightImg = teams[1].querySelector('.match-emblem-img');
+    const rightName = teams[1].querySelector('.team-name-large');
+    const rightPos = teams[1].querySelector('.team-position-tag');
+    if (rightImg) rightImg.src = TEAM_EMBLEM[homeTeam];
+    if (rightName) rightName.textContent = TEAM_NAMES[homeTeam];
+    if (rightPos) rightPos.textContent = `HOME${homeTeam === 'soro' ? ' · 1위' : ''}`;
+  }
+  
+  // 카운트다운: 오늘 18:30까지
+  startCountdown();
+}
+
+// 결과 화면 (경기 후)
+function showResultView(myGame, otherGame) {
+  document.getElementById('state-matchup').style.display = 'none';
+  document.getElementById('state-result').style.display = 'block';
+  document.querySelectorAll('.matchup-state-toggle button').forEach(b => {
+    b.classList.toggle('active', b.dataset.state === 'result');
+  });
+  
+  const myIsHome = myGame.home_team === 'soro';
+  const myScore = myIsHome ? myGame.home_score : myGame.away_score;
+  const oppScore = myIsHome ? myGame.away_score : myGame.home_score;
+  const oppTeam = myIsHome ? myGame.away_team : myGame.home_team;
+  const isWin = myScore > oppScore;
+  
+  const resultCard = document.getElementById('resultCard');
+  if (!resultCard) return;
+  
+  // WIN/LOSE 스탬프
+  const winStamp = resultCard.querySelector('.win-stamp, .lose-stamp');
+  if (winStamp) {
+    winStamp.className = isWin ? 'win-stamp' : 'lose-stamp';
+    winStamp.textContent = isWin ? 'WIN' : 'LOSE';
+  }
+  
+  // 사과 흩날림 (WIN 시만)
+  const appleRain = resultCard.querySelector('.apple-rain');
+  if (appleRain) appleRain.style.display = isWin ? 'block' : 'none';
+  
+  // 스코어 보드 (야구 정석: AWAY 왼쪽, HOME 오른쪽)
+  const homeTeam = myGame.home_team;
+  const awayTeam = myGame.away_team;
+  const homeIsWin = myGame.home_score > myGame.away_score;
+  
+  const scoreTeams = resultCard.querySelectorAll('.score-team');
+  if (scoreTeams.length >= 2) {
+    // 왼쪽 = AWAY 팀
+    const leftImg = scoreTeams[0].querySelector('.score-emblem-img');
+    const leftName = scoreTeams[0].querySelector('.score-team-name');
+    const leftScore = scoreTeams[0].querySelector('.score-num-large');
+    if (leftImg) {
+      leftImg.src = TEAM_EMBLEM[awayTeam];
+      leftImg.classList.toggle('lose', homeIsWin); // away가 졌으면 lose
+    }
+    if (leftName) leftName.textContent = TEAM_NAMES[awayTeam];
+    if (leftScore) {
+      leftScore.textContent = myGame.away_score;
+      leftScore.classList.toggle('lose', homeIsWin);
+    }
+    scoreTeams[0].classList.toggle('lose', homeIsWin);
+    
+    // 오른쪽 = HOME 팀
+    const rightImg = scoreTeams[1].querySelector('.score-emblem-img');
+    const rightName = scoreTeams[1].querySelector('.score-team-name');
+    const rightScore = scoreTeams[1].querySelector('.score-num-large');
+    if (rightImg) {
+      rightImg.src = TEAM_EMBLEM[homeTeam];
+      rightImg.classList.toggle('lose', !homeIsWin);
+    }
+    if (rightName) rightName.textContent = TEAM_NAMES[homeTeam];
+    if (rightScore) {
+      rightScore.textContent = myGame.home_score;
+      rightScore.classList.toggle('lose', !homeIsWin);
+    }
+    scoreTeams[1].classList.toggle('lose', !homeIsWin);
+  }
+}
+
+// 카운트다운: 오늘 18:30까지
+let countdownTimer = null;
+function startCountdown() {
+  if (countdownTimer) clearInterval(countdownTimer);
+  
+  function tick() {
+    const now = new Date();
+    const target = new Date();
+    target.setHours(18, 30, 0, 0);
+    
+    let diff = target - now;
+    if (diff < 0) diff = 0;
+    
+    const hrs = Math.floor(diff / (1000 * 60 * 60));
+    const mins = Math.floor((diff / (1000 * 60)) % 60);
+    const secs = Math.floor((diff / 1000) % 60);
+    
+    const h = document.getElementById('hrs');
+    const m = document.getElementById('mins');
+    const s = document.getElementById('secs');
+    if (h) h.textContent = String(hrs).padStart(2, '0');
+    if (m) m.textContent = String(mins).padStart(2, '0');
+    if (s) s.textContent = String(secs).padStart(2, '0');
+  }
+  
+  tick();
+  countdownTimer = setInterval(tick, 1000);
+}
+
+// 통산 정보 (career_stats)
+async function updateCareerInfo() {
+  const { data: { session } } = await supa.auth.getSession();
+  if (!session) return;
+  
+  const { data: career } = await supa
+    .from('career_stats')
+    .select('wins')
+    .eq('uid', session.user.id)
+    .maybeSingle();
+  
+  if (!career) return;
+  
+  // 통산 승수 카드 (홈 탭 quick-info의 두 번째 카드)
+  const infoCards = document.querySelectorAll('#screen-home .info-card');
+  if (infoCards.length >= 2) {
+    const careerCard = infoCards[1];
+    const valueEl = careerCard.querySelector('.info-card-value');
+    if (valueEl) {
+      valueEl.innerHTML = `${career.wins}<span style="color: var(--ink-tertiary); font-size: 12px; font-weight: 500"> / 100</span>`;
+    }
+    const subEl = careerCard.querySelector('.info-card-sub');
+    if (subEl) {
+      const remaining = 100 - career.wins;
+      subEl.textContent = `싱글A까지 ${remaining}승`;
+    }
+  }
+}
+
+// 이번 주 진행 (이번 주 내 경기 중 완료된 것)
+async function updateWeekProgress() {
+  const { data: { session } } = await supa.auth.getSession();
+  if (!session) return;
+  
+  const week = getCurrentWeek();
+  const { data: weekMatches } = await supa
+    .from('matches')
+    .select('status')
+    .eq('week_num', week)
+    .eq('is_my_game', true);
+  
+  if (!weekMatches) return;
+  
+  const completed = weekMatches.filter(m => m.status === 'completed').length;
+  const total = weekMatches.length;
+  const remaining = total - completed;
+  
+  // 첫 번째 카드 (이번 주 진행)
+  const infoCards = document.querySelectorAll('#screen-home .info-card');
+  if (infoCards.length >= 1) {
+    const weekCard = infoCards[0];
+    const valueEl = weekCard.querySelector('.info-card-value');
+    if (valueEl) {
+      valueEl.innerHTML = `${completed} <span style="color: var(--ink-tertiary); font-weight: 400">/</span> ${total}`;
+    }
+    const subEl = weekCard.querySelector('.info-card-sub');
+    if (subEl) {
+      subEl.textContent = remaining > 0 ? `잔여 ${remaining}경기` : '주간 완료';
+    }
+  }
+}
+
 // 페이지 로드 시 자동 실행
 window.addEventListener('load', () => {
   setTimeout(loadScheduleData, 500); // 0.5초 후 (Supabase 초기화 대기)
+  setTimeout(loadHomeData, 600);
 });
 </script>
 
