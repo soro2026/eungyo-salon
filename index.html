@@ -2221,13 +2221,28 @@ function shortCat(cat) {
   }
   return trimmed.slice(0,2);
 }
-// 풀배경 이미지 랜덤 선택 (stadium_bg_01.png ~ stadium_bg_NN.png)
-const STADIUM_BG_COUNT = 1; // 이미지 개수 — 늘어나면 이 숫자만 수정
+// 풀배경 이미지 랜덤 선택 (stadium_bg_01.webp ~ stadium_bg_30.webp)
+// 하루에 1번 랜덤 선택 → localStorage에 저장 → 같은 날엔 같은 배경
+const STADIUM_BG_COUNT = 30;
+function getTodayBgIndex() {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const stored = localStorage.getItem('eg_stadium_bg_today');
+  if (stored) {
+    try {
+      const { date, idx } = JSON.parse(stored);
+      if (date === today) return idx; // 같은 날이면 저장된 거 재사용
+    } catch (e) {}
+  }
+  // 새 날 → 랜덤 선택 후 저장
+  const idx = Math.floor(Math.random() * STADIUM_BG_COUNT) + 1;
+  localStorage.setItem('eg_stadium_bg_today', JSON.stringify({ date: today, idx }));
+  return idx;
+}
 function applyRandomStadiumBg(fieldBgEl) {
   if (!fieldBgEl) return;
-  const idx = Math.floor(Math.random() * STADIUM_BG_COUNT) + 1;
+  const idx = getTodayBgIndex();
   const num = String(idx).padStart(2, '0');
-  const url = `stadium_bg_${num}.png`;
+  const url = `stadium_bg_${num}.webp`;
   // 기존 잔디 클래스 제거 후 풀배경 클래스 적용
   fieldBgEl.classList.remove('stadium-soro', 'stadium-socrates', 'stadium-proust', 'stadium-pascal');
   fieldBgEl.classList.add('stadium-bg-image');
