@@ -1312,165 +1312,14 @@ function showGameResult(){
 
 // ── 게임 흐름 제어 ──────────────────────────────
 // 루키리그 상대팀 데이터
-// ── 카운트다운 타이머 ──
-let countdownTimer = null;
+// ── 옛 매치업 카드 화면(countdown/showStadiumHome/enterStadium/goToHome) 함수들 ──
+//    2026-05-01 분리 작업 중 제거됨 (현재 흐름에서 안 쓰임)
+//    필요 시 git history에서 복원 가능
 
-function startCountdown() {
-  function tick() {
-    const now = new Date();
-    const target = new Date(now);
-    target.setHours(18, 30, 0, 0);
 
-    // 날짜 표시
-    const days = ['일','월','화','수','목','금','토'];
-    const dateStr = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')} ${days[now.getDay()]} · 18:30 시작`;
-    const mcDate = document.getElementById('mc-date');
-    if(mcDate) mcDate.textContent = dateStr;
+// ── CARD_STATS, OPP_STATS는 game_rookie.html에서 선언됨 ──
+// 봇별 야구카드 스탯 데이터. 리그가 바뀌면 이 데이터도 바뀜.
 
-    const diff = target - now;
-    const cd = document.getElementById('mc-countdown');
-
-    if(diff <= 0) {
-      // 경기 시작!
-      document.getElementById('mc-h').textContent = '경기';
-      document.getElementById('mc-m').textContent = '중';
-      document.getElementById('mc-s').textContent = '⚾';
-      if(cd) cd.classList.add('started');
-      return;
-    }
-
-    const h = Math.floor(diff / 3600000);
-    const m = Math.floor((diff % 3600000) / 60000);
-    const s = Math.floor((diff % 60000) / 1000);
-    document.getElementById('mc-h').textContent = String(h).padStart(2,'0');
-    document.getElementById('mc-m').textContent = String(m).padStart(2,'0');
-    document.getElementById('mc-s').textContent = String(s).padStart(2,'0');
-  }
-  tick();
-  countdownTimer = setInterval(tick, 1000);
-}
-
-function showStadiumHome() {
-  // 모든 화면 숨기기
-  document.getElementById('home-screen').classList.add('hidden');
-  document.getElementById('pregame-screen').style.display = 'none';
-  document.getElementById('entry-screen').style.display = 'none';
-  document.getElementById('zone-board-screen').style.display = 'none';
-  document.getElementById('main-header').style.display = 'none';
-  document.getElementById('main-content').style.display = 'none';
-
-  // 상대팀 정보 채우기
-  const opp = currentOpp;
-  if(opp) {
-    document.getElementById('mc-logo-right').src = opp.emblemImg;
-    document.getElementById('mc-opp-name').textContent = opp.name;
-    document.getElementById('mc-bg-right').style.background = opp.color;
-  }
-  // 홈/원정 표시
-  const isHome = currentIsHome;
-  // 홈팀 항상 오른쪽, 어웨이 항상 왼쪽
-  if(isHome) {
-    // 소로 홈 → 좌=상대(AWAY), 우=소로(HOME)
-    document.getElementById('mc-logo-left').src = opp ? opp.emblemImg : 'emblem_proust.jpg';
-    document.getElementById('mc-bg-left').style.background = opp ? opp.color : '#0F2D5C';
-    document.getElementById('mc-label-left').textContent = 'AWAY';
-    document.getElementById('mc-name-left').textContent = opp ? opp.shortName : 'PROUST';
-    document.getElementById('mc-logo-right').src = 'emblem_soro.jpg';
-    document.getElementById('mc-bg-right').style.background = '#8B1A1A';
-    document.getElementById('mc-label-right').textContent = 'HOME';
-    document.getElementById('mc-opp-name').textContent = 'SORO';
-  } else {
-    // 소로 원정 → 좌=소로(AWAY), 우=상대(HOME)
-    document.getElementById('mc-logo-left').src = 'emblem_soro.jpg';
-    document.getElementById('mc-bg-left').style.background = '#8B1A1A';
-    document.getElementById('mc-label-left').textContent = 'AWAY';
-    document.getElementById('mc-name-left').textContent = 'SORO';
-    document.getElementById('mc-logo-right').src = opp ? opp.emblemImg : 'emblem_proust.jpg';
-    document.getElementById('mc-bg-right').style.background = opp ? opp.color : '#0F2D5C';
-    document.getElementById('mc-label-right').textContent = 'HOME';
-    document.getElementById('mc-opp-name').textContent = opp ? opp.shortName : 'PROUST';
-  }
-
-  // 매치업 음악
-  const matchupAudio = new Audio('match_up.mp3');
-  matchupAudio.volume = 0.6;
-  matchupAudio.play().catch(()=>{});
-
-  // 카운트다운 시작
-  if(countdownTimer) clearInterval(countdownTimer);
-  startCountdown();
-
-  document.getElementById('stadium-home-screen').style.display = 'flex';
-}
-
-function enterStadium() {
-  // 스타디움 홈 → 드론영상+야구카드
-  if(countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
-  document.getElementById('stadium-home-screen').style.display = 'none';
-  showEntryScreen();
-}
-
-function goToHome() {
-  // 홈 메뉴로 복귀
-  if(countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
-  document.getElementById('stadium-home-screen').style.display = 'none';
-  document.getElementById('home-screen').classList.remove('hidden');
-}
-
-const CARD_STATS = {
-  proust: {
-    league: 'ROOKIE', games: 20, record: '12-8',
-    avg: '.312', ops: '.871', rbi: 67, hr: 18, era: '3.54'
-  },
-  socrates: {
-    league: 'ROOKIE', games: 20, record: '10-10',
-    avg: '.287', ops: '.834', rbi: 54, hr: 12, era: '3.71'
-  },
-  pascal: {
-    league: 'ROOKIE', games: 20, record: '11-9',
-    avg: '.301', ops: '.856', rbi: 58, hr: 15, era: '4.37'
-  },
-};
-
-// 상대팀 야구카드 스탯
-const OPP_STATS = {
-  proust: {
-    top: [
-      { label: 'AVG', val: '.312' },
-      { label: 'OPS', val: '.871' },
-      { label: 'HR', val: '18' },
-    ],
-    bot: [
-      { label: 'RBI', val: '67' },
-      { label: 'WAR', val: '3.2' },
-      { label: 'wRC+', val: '128' },
-    ]
-  },
-  socrates: {
-    top: [
-      { label: 'ERA', val: '3.54' },
-      { label: 'WHIP', val: '1.21' },
-      { label: 'K/9', val: '9.8' },
-    ],
-    bot: [
-      { label: 'WAR', val: '2.8' },
-      { label: 'FIP', val: '3.71' },
-      { label: 'IP', val: '142' },
-    ]
-  },
-  pascal: {
-    top: [
-      { label: 'AVG', val: '.301' },
-      { label: 'OPS', val: '.856' },
-      { label: 'SB', val: '24' },
-    ],
-    bot: [
-      { label: 'RBI', val: '58' },
-      { label: 'WAR', val: '2.9' },
-      { label: 'BB%', val: '12.3' },
-    ]
-  }
-};
 
 // 카드 슬라이드 타이머
 let cardSlideTimer = null;
@@ -1642,48 +1491,10 @@ function enterZoneBoard() {
   showAtStep();
 }
 
-const OPPONENTS = [
-  {
-    name: '프루스트',
-    shortName: 'PROUST',
-    stadium: 'Proust Ballpark',
-    location: '필라델피아',
-    stat: '타율 .312 · OPS .871 · 리그 Rookie',
-    stadiumImg: 'stadium_proust.jpg',
-    emblemImg: 'emblem_proust.jpg',
-    color: '#C94A0F'
-  },
-  {
-    name: '소크라테스',
-    shortName: 'SOCRATES',
-    stadium: 'Socrates Park',
-    location: '아테네',
-    stat: '타율 .287 · OPS .834 · 리그 Rookie',
-    stadiumImg: 'stadium_socrates.jpg',
-    emblemImg: 'emblem_socrates.jpg',
-    color: '#0F2D5C'
-  },
-  {
-    name: '파스칼',
-    shortName: 'PASCAL',
-    stadium: 'Pascal Stadium',
-    location: '파리',
-    stat: '타율 .301 · OPS .856 · 리그 Rookie',
-    stadiumImg: 'stadium_pascal.jpg',
-    emblemImg: 'emblem_pascal.jpg',
-    color: '#1A6BA8'
-  }
-];
+// ── OPPONENTS, HOME 데이터는 game_rookie.html에서 선언됨 ──
+// 리그별 봇 정보가 다르기 때문에 (루키: 3봇, 싱글A: 5봇 등)
+// game_core.js는 currentOpp / currentIsHome 변수만 참조함
 
-// 홈구장 (소로 파크)
-const HOME = {
-  name: '소로 파크',
-  stadium: 'Soro Park',
-  location: '흥해',
-  stadiumImg: 'stadium_soro.jpg',
-  emblemImg: 'emblem_soro.jpg',
-  color: '#8B1A1A'
-};
 
 // 전역: 현재 경기 홈/원정 상태
 let currentIsHome = false;
@@ -1736,6 +1547,14 @@ function initGame(){
   // 프리게임 화면 — 잔디 배경 비활성화 (딥그린 민짜)
   const fb = document.getElementById('field-bg');
   if(fb) fb.classList.remove('game-active');
+  
+  // ⚠️ 옛 흐름의 "랜덤 상대 매칭"은 제거됨.
+  //    이제는 game_rookie.html의 enterGameDirectly()가 
+  //    URL 파라미터(?opp=...&isHome=...)를 읽어 currentOpp/currentIsHome 설정.
+  //    initGame()은 화면 초기화만 담당.
+  return;
+  
+  // ↓↓↓ 아래는 옛 매치업 카드 화면용 코드 (미사용, 삭제 예정) ↓↓↓
   // 상대팀 랜덤 선택
   const opp = OPPONENTS[Math.floor(Math.random()*OPPONENTS.length)];
   currentOpp = opp;
