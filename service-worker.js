@@ -1,10 +1,10 @@
-const CACHE = 'eungyo-v23';
+const CACHE = 'eungyo-v24';
 
 const CORE_FILES = [
   '/eungyo-salon/',
   '/eungyo-salon/index.html',
+  '/eungyo-salon/stadium_v2.html',
   '/eungyo-salon/museum.html',
-  '/eungyo-salon/terra.html',
   '/eungyo-salon/heritage.html',
   '/eungyo-salon/constella.html',
   '/eungyo-salon/wunderkammer.html',
@@ -31,7 +31,6 @@ const AUDIO_FILES = [
   '/eungyo-salon/match_up.mp3',
   '/eungyo-salon/page_turn.mp3',
   '/eungyo-salon/reaction_apple.mp3',
-  '/eungyo-salon/terra_nature.mp3',
 ];
 
 const VIDEO_FILES = [
@@ -58,23 +57,20 @@ const IMAGE_FILES = [
   '/eungyo-salon/emblem_soro.jpg',
   '/eungyo-salon/emblem_pascal.jpg',
   '/eungyo-salon/bookself.png',
-  '/eungyo-salon/terra_seedling.png',
-  '/eungyo-salon/terra_sapling.png',
-  '/eungyo-salon/terra_tree.png',
-  '/eungyo-salon/terra_golden_tree.png',
-  '/eungyo-salon/terra_golden_mini.png',
-  '/eungyo-salon/terra_apple.png',
 ];
 
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE).then(async cache => {
-      await cache.addAll([
-        ...CORE_FILES,
-        ...QUESTION_FILES,
-        ...AUDIO_FILES,
-        ...IMAGE_FILES,
-      ]);
+      // 핵심 파일들은 개별 처리 (하나 실패해도 install 안 깨지게)
+      for (const url of [...CORE_FILES, ...QUESTION_FILES, ...AUDIO_FILES, ...IMAGE_FILES]) {
+        try {
+          await cache.add(url);
+        } catch (err) {
+          console.warn('[SW] 캐시 실패 (계속 진행):', url, err.message);
+        }
+      }
+      // 영상은 원래도 부드럽게 실패 허용
       for (const url of VIDEO_FILES) {
         cache.add(url).catch(() => {
           console.warn('[SW] 영상 캐시 실패 (정상):', url);
