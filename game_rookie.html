@@ -2297,13 +2297,31 @@ function showAppleAward() {
 async function awardAppleToUser() {
   if (!currentUser) return;
   try {
-    const { data, error } = await supa
+    // ① apple_log에 기록 (이력)
+    const { error: logError } = await supa
       .from('apple_log')
-      .insert([{ uid: currentUser.id, amount: 1, reason: '경기 승리', locked: false }]);
-    if (error) console.error('사과 저장 오류:', error);
-    else console.log('🍎 황금사과 +1 저장 완료');
+      .insert([{ uid: currentUser.id, amount: 1, reason: '경기 완주', locked: false }]);
+    if (logError) {
+      console.error('사과 로그 저장 오류:', logError);
+      return;
+    }
+    
+    // ② career_stats.golden_apples +1 (잔고)
+    const { data: career } = await supa
+      .from('career_stats')
+      .select('golden_apples')
+      .eq('uid', currentUser.id)
+      .maybeSingle();
+    
+    if (career) {
+      await supa.from('career_stats')
+        .update({ golden_apples: (career.golden_apples || 0) + 1 })
+        .eq('uid', currentUser.id);
+    }
+    
+    console.log('🍎 황금사과 +1 지급 완료 (경기 완주)');
   } catch(e) {
-    console.error('사과 저장 실패:', e);
+    console.error('사과 지급 실패:', e);
   }
 }
 
@@ -2644,7 +2662,7 @@ async function saveStatsToSupabase() {
         bb:            career.bb + st.bb,
         earned_runs:   career.earned_runs + st.earnedRuns,
         outs_recorded: career.outs_recorded + st.outsRecorded,
-        golden_apples: career.golden_apples + won,
+        // ⚠️ golden_apples는 awardAppleToUser()가 담당. 여기선 통계만.
         updated_at:    new Date().toISOString(),
       }).eq('uid', currentUser.id);
     } else {
@@ -2655,16 +2673,16 @@ async function saveStatsToSupabase() {
         hr: st.hr, rbi: st.rbi,
         singles: st.singles, doubles: st.doubles, triples: st.triples,
         bb: st.bb, earned_runs: st.earnedRuns,
-        outs_recorded: st.outsRecorded, golden_apples: won,
+        outs_recorded: st.outsRecorded,
+        // ⚠️ 사과는 awardAppleToUser()가 처리. 첫 경기에도 0으로 시작.
+        golden_apples: 0,
       });
     }
 
-    // ── 황금사과 로그 ──
-    if (won) {
-      await supa.from('apple_log').insert({
-        uid: currentUser.id, amount: 1, reason: '경기 승리'
-      });
-    }
+    // ⚠️ 옛 정책의 "승리 시 자동 사과 지급"은 제거됨.
+    //    새 정책: 결과 화면의 [황금사과 한 알 받기] 버튼 클릭 시
+    //    awardAppleToUser()가 사과 +1 처리 (승/패 무관, 끝까지 뛰면 지급).
+    //    2026-05-01 5단계 매듭에서 정리.
 
     console.log('스탯 저장 완료 ⚾');
   } catch(e) {

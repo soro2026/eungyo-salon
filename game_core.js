@@ -1295,12 +1295,12 @@ function showGameResult(){
         <div><div style="font-size:8px;color:rgba(248,244,238,0.35)">아웃</div><div style="font-size:16px;font-family:'Courier New';color:var(--chalk)">${st.outsRecorded}</div></div>
       </div>
     </div>
-    ${(result==='승리'||result==='TQ 승리') ? `
+    <!-- 황금사과 수령 — 끝까지 뛴 모든 경기에 대한 환대의 증표 (승/패 무관) -->
     <div id="apple-award-section" style="text-align:center;margin-bottom:20px">
       <button class="btn-next" style="width:100%;background:linear-gradient(135deg,rgba(201,168,76,0.3),rgba(201,168,76,0.1));border:1px solid rgba(201,168,76,0.6);color:#C9A84C;font-size:15px;letter-spacing:0.08em;padding:14px" onclick="showAppleAward()">
         🍎 황금사과 한 알 받기
       </button>
-    </div>` : ''}
+    </div>
     <div style="display:flex;gap:10px">
       <button class="btn-next" style="flex:1" onclick="location.href='index.html'">🏠 홈으로</button>
     </div>
