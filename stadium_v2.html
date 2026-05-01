@@ -2589,25 +2589,20 @@ body{
       <h1 class="page-title">일정</h1>
       <span class="week-tone-badge">Mint Sky</span>
     </div>
-    <div class="page-meta">WEEK 1 · 04.21 — 04.26</div>
+    <div class="page-meta" id="schedule-page-meta">WEEK · — </div>
   </div>
 
   <div class="week-selector">
     <button class="week-arrow">‹</button>
     <div class="week-info">
-      <div class="week-info-main">1주차</div>
+      <div class="week-info-main" id="schedule-week-main">주차</div>
       <div class="week-info-sub">시즌 1주 · 6경기</div>
     </div>
     <button class="week-arrow">›</button>
   </div>
 
-  <div class="day-chips">
-    <div class="day-chip past"><span class="dow">화</span><span class="num">21</span><span class="result-dot win"></span></div>
-    <div class="day-chip past"><span class="dow">수</span><span class="num">22</span><span class="result-dot lose"></span></div>
-    <div class="day-chip past"><span class="dow">목</span><span class="num">23</span><span class="result-dot win"></span></div>
-    <div class="day-chip past"><span class="dow">금</span><span class="num">24</span><span class="result-dot win"></span></div>
-    <div class="day-chip past"><span class="dow">토</span><span class="num">25</span><span class="result-dot lose"></span></div>
-    <div class="day-chip today selected"><span class="dow">일</span><span class="num">26</span><span class="result-dot upcoming"></span></div>
+  <div class="day-chips" id="day-chips-container">
+    <!-- 동적 생성: getCurrentWeek() 결과 기반으로 화~일 6일 자동 계산 -->
   </div>
 
   <div style="height: 8px"></div>
@@ -3472,6 +3467,46 @@ function getCurrentWeek() {
   return Math.floor((now - start) / (7 * 24 * 60 * 60 * 1000)) + 1;
 }
 
+// ── 주차 번호 → 그 주 화요일 0시 ──
+// week=1 → 2026-04-21 (화), week=2 → 2026-04-28 (화) ...
+function getWeekStart(weekNum) {
+  const seasonStart = new Date('2026-04-21T00:00:00+09:00');
+  const weekStart = new Date(seasonStart);
+  weekStart.setDate(seasonStart.getDate() + (weekNum - 1) * 7);
+  return weekStart;
+}
+
+// ── 주차 번호 → 화~일 6일치 날짜 배열 (월요일 휴식이라 화~일만) ──
+// 반환: [{ date: '2026-04-28', dow: '화', num: 28, dowEng: 'TUE', isToday: false }, ...]
+function getWeekDates(weekNum) {
+  const dowKor = ['일', '월', '화', '수', '목', '금', '토'];
+  const dowEng = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+  const weekStart = getWeekStart(weekNum);  // 화요일
+  const today = getToday();
+  
+  const dates = [];
+  for (let i = 0; i < 6; i++) {  // 화·수·목·금·토·일 = 6일
+    const d = new Date(weekStart);
+    d.setDate(weekStart.getDate() + i);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+    dates.push({
+      date: dateStr,
+      dow: dowKor[d.getDay()],
+      dowEng: dowEng[d.getDay()],
+      num: parseInt(dd, 10),
+      mm: mm,
+      dd: dd,
+      isToday: dateStr === today,
+      isPast: dateStr < today,
+      isFuture: dateStr > today
+    });
+  }
+  return dates;
+}
+
 // 오늘 날짜 (YYYY-MM-DD)
 function getToday() {
   const d = new Date();
@@ -3530,36 +3565,61 @@ function updateDayChips(matches, today) {
   const myGameByDate = {};
   myGames.forEach(g => { myGameByDate[g.match_date] = g; });
   
-  document.querySelectorAll('.day-chip').forEach(chip => {
-    const numEl = chip.querySelector('.num');
-    if (!numEl) return;
-    const dayNum = numEl.textContent.trim();
+  // 현재 주차 + 그 주 화~일 6일 계산
+  const week = getCurrentWeek();
+  const dates = getWeekDates(week);
+  
+  // ── 일자 칩 동적 생성 ──
+  const container = document.getElementById('day-chips-container');
+  if (!container) return;
+  container.innerHTML = '';
+  
+  dates.forEach(d => {
+    const game = myGameByDate[d.date];
     
-    // 04.21 ~ 04.26 매칭 (간단하게)
-    const dateStr = `2026-04-${dayNum.padStart(2, '0')}`;
-    const game = myGameByDate[dateStr];
+    // 일자 칩 클래스 결정
+    let chipClass = 'day-chip';
+    if (d.isToday) chipClass += ' today selected';
+    else if (d.isPast) chipClass += ' past';
+    else if (d.isFuture) chipClass += ' future';
     
-    const dot = chip.querySelector('.result-dot');
-    if (!dot) return;
-    
-    // 클래스 초기화
-    dot.classList.remove('win', 'lose', 'upcoming');
-    
+    // result-dot 클래스 결정
+    let dotClass = 'result-dot';
     if (!game) {
-      dot.classList.add('upcoming');
-      return;
-    }
-    
-    if (game.status === 'pending') {
-      dot.classList.add('upcoming');
+      dotClass += ' upcoming';
+    } else if (game.status === 'pending') {
+      dotClass += ' upcoming';
     } else if (game.status === 'completed') {
-      // 내가 이겼는지 판단
       const myTeam = game.home_team === 'soro' ? 'home' : 'away';
       const myScore = myTeam === 'home' ? game.home_score : game.away_score;
       const oppScore = myTeam === 'home' ? game.away_score : game.home_score;
-      dot.classList.add(myScore > oppScore ? 'win' : 'lose');
+      dotClass += myScore > oppScore ? ' win' : ' lose';
     }
+    
+    // 칩 HTML 생성
+    const chip = document.createElement('div');
+    chip.className = chipClass;
+    chip.innerHTML = `
+      <span class="dow">${d.dow}</span>
+      <span class="num">${d.num}</span>
+      <span class="${dotClass}"></span>
+    `;
+    container.appendChild(chip);
   });
+  
+  // ── 헤더 page-meta 갱신: "WEEK 2 · 04.28 — 05.03" ──
+  const pageMeta = document.getElementById('schedule-page-meta');
+  if (pageMeta && dates.length > 0) {
+    const first = dates[0];
+    const last = dates[dates.length - 1];
+    pageMeta.textContent = `WEEK ${week} · ${first.mm}.${first.dd} — ${last.mm}.${last.dd}`;
+  }
+  
+  // ── week-info-main 갱신: "2주차" ──
+  const weekMain = document.getElementById('schedule-week-main');
+  if (weekMain) {
+    weekMain.textContent = `${week}주차`;
+  }
 }
 
 // 2) 오늘 내 경기 카드
@@ -4312,12 +4372,12 @@ async function loadRecordsData() {
     .eq('uid', session.user.id)
     .maybeSingle();
   
-  // 시즌 기록 (season_stats)
+  // 시즌 기록 (season_stats) — season_id 내림차순(최신 시즌)
   const { data: season } = await supa
     .from('season_stats')
     .select('*')
     .eq('uid', session.user.id)
-    .order('created_at', { ascending: false })
+    .order('season_id', { ascending: false })
     .limit(1)
     .maybeSingle();
   
