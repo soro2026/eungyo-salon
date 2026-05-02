@@ -1453,10 +1453,18 @@ function finishDice(diceResult, myProduct, aiProduct, myDice, aiDice) {
     if(mh) mh.style.display = 'flex';
     if(mc) mc.style.display = 'flex';
     
+    // 🎵 팡파레 사운드 (승/패에 따라 다른 음원)
+    const oppName = currentOpp ? currentOpp.shortName : 'OPPONENT';
     if(diceResult === '승리') {
-      showFinalResult('🎲 운명의 승리', '#C9A84C', '🎲');
+      const winSfx = new Audio('dice_fanfare_win.mp3');
+      winSfx.volume = 0.8;
+      winSfx.play().catch(()=>{});
+      showFinalResult('SORO 운명의 승리', '#C9A84C', '🎲');
     } else {
-      showFinalResult('🎲 운명의 패배', '#8B5E52', '🎲');
+      const loseSfx = new Audio('dice_fanfare_lose.mp3');
+      loseSfx.volume = 0.8;
+      loseSfx.play().catch(()=>{});
+      showFinalResult(`${oppName} 운명의 승리`, '#8B5E52', '🎲');
     }
   }, 1500);
 }

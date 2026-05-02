@@ -1,4 +1,4 @@
-const CACHE = 'eungyo-v25';
+const CACHE = 'eungyo-v26';
 
 const CORE_FILES = [
   '/eungyo-salon/',
@@ -34,6 +34,8 @@ const AUDIO_FILES = [
   '/eungyo-salon/page_turn.mp3',
   '/eungyo-salon/reaction_apple.mp3',
   '/eungyo-salon/dice_sequence.mp3',
+  '/eungyo-salon/dice_fanfare_win.mp3',
+  '/eungyo-salon/dice_fanfare_lose.mp3',
 ];
 
 const VIDEO_FILES = [
