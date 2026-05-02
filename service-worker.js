@@ -1,4 +1,4 @@
-const CACHE = 'eungyo-v24';
+const CACHE = 'eungyo-v25';
 
 const CORE_FILES = [
   '/eungyo-salon/',
@@ -8,6 +8,8 @@ const CORE_FILES = [
   '/eungyo-salon/heritage.html',
   '/eungyo-salon/constella.html',
   '/eungyo-salon/wunderkammer.html',
+  '/eungyo-salon/game_rookie.html',
+  '/eungyo-salon/game_core.js',
 ];
 
 const QUESTION_FILES = [
@@ -31,6 +33,7 @@ const AUDIO_FILES = [
   '/eungyo-salon/match_up.mp3',
   '/eungyo-salon/page_turn.mp3',
   '/eungyo-salon/reaction_apple.mp3',
+  '/eungyo-salon/dice_sequence.mp3',
 ];
 
 const VIDEO_FILES = [

@@ -1399,6 +1399,11 @@ async function rollDice() {
   document.getElementById('dice-product-me').textContent = '—';
   document.getElementById('dice-product-ai').textContent = '—';
   
+  // 🎵 9초 통합 주사위 사운드 (굴림 + 확정음)
+  const diceSfx = new Audio('dice_sequence.mp3');
+  diceSfx.volume = 0.7;
+  diceSfx.play().catch(()=>{});
+  
   // 소로 두 알 (한 알씩, 0.6초 간격)
   const me1 = await rollOneDice('dice-me-1');
   await diceSleep(600);
