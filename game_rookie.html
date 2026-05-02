@@ -1441,6 +1441,133 @@
   }
   .btn-reveal-next:hover { background: rgba(248,244,238,0.12); }
 
+  /* ═══════════════════════════════════════════════════
+     🎲 주사위 결판 화면 (점수 동점 시)
+     ═══════════════════════════════════════════════════ */
+  #dice-screen {
+    position: fixed; inset: 0;
+    background: rgba(10, 20, 16, 0.96);
+    z-index: 9998;
+    display: flex; align-items: center; justify-content: center;
+    perspective: 1200px;
+    -webkit-perspective: 1200px;
+  }
+  .dice-screen-inner {
+    max-width: 480px; width: 100%;
+    padding: 40px 32px;
+    text-align: center;
+  }
+  .dice-title {
+    font-size: 22px;
+    letter-spacing: 0.15em;
+    color: var(--gold-light, #C9A84C);
+    margin-bottom: 8px;
+  }
+  .dice-subtitle {
+    font-size: 13px;
+    color: rgba(248, 244, 238, 0.5);
+    margin-bottom: 32px;
+  }
+  .dice-arena {
+    display: flex; flex-direction: column; gap: 16px;
+    margin-bottom: 16px;
+    perspective: 1200px;
+    -webkit-perspective: 1200px;
+  }
+  .dice-row {
+    display: flex; align-items: center;
+    gap: 14px;
+    padding: 24px 16px;
+    background: rgba(0, 0, 0, 0.35);
+    border-radius: 12px;
+    min-height: 130px;
+    perspective: 1200px;
+    -webkit-perspective: 1200px;
+  }
+  .dice-label {
+    font-size: 13px; font-weight: 500;
+    letter-spacing: 0.12em;
+    min-width: 80px;
+    text-align: left;
+  }
+  .dice-label-me { color: #E8B4B4; }
+  .dice-label-ai { color: #A4C8A4; }
+  .dice-set {
+    display: flex; gap: 24px;
+    flex: 1;
+    justify-content: center;
+    perspective: 1200px;
+    -webkit-perspective: 1200px;
+  }
+  /* 정육면체 핵심 */
+  .dice-3d {
+    width: 64px; height: 64px;
+    position: relative;
+    transform-style: preserve-3d;
+    -webkit-transform-style: preserve-3d;
+    transition: transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    -webkit-transition: -webkit-transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform: rotateX(-20deg) rotateY(25deg);
+    -webkit-transform: rotateX(-20deg) rotateY(25deg);
+  }
+  .dice-face {
+    position: absolute;
+    width: 64px; height: 64px;
+    background: linear-gradient(135deg, #fafafa, #d8d8d8);
+    border: 1px solid #888;
+    border-radius: 8px;
+    display: grid;
+    grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+    padding: 8px;
+    box-sizing: border-box;
+    -webkit-backface-visibility: visible;
+    backface-visibility: visible;
+  }
+  .face-1 { transform: translateZ(32px); -webkit-transform: translateZ(32px); }
+  .face-2 { transform: rotateY(180deg) translateZ(32px); -webkit-transform: rotateY(180deg) translateZ(32px); }
+  .face-3 { transform: rotateY(90deg) translateZ(32px); -webkit-transform: rotateY(90deg) translateZ(32px); }
+  .face-4 { transform: rotateY(-90deg) translateZ(32px); -webkit-transform: rotateY(-90deg) translateZ(32px); }
+  .face-5 { transform: rotateX(90deg) translateZ(32px); -webkit-transform: rotateX(90deg) translateZ(32px); }
+  .face-6 { transform: rotateX(-90deg) translateZ(32px); -webkit-transform: rotateX(-90deg) translateZ(32px); }
+  .pip {
+    width: 10px; height: 10px;
+    background: #1a1a1a;
+    border-radius: 50%;
+    align-self: center;
+    justify-self: center;
+  }
+  .dice-product {
+    font-size: 18px; font-weight: 600;
+    color: var(--gold-light, #C9A84C);
+    font-family: 'Courier New', monospace;
+    min-width: 100px;
+    text-align: right;
+  }
+  .btn-dice {
+    margin-top: 16px;
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, rgba(201,168,76,0.4), rgba(201,168,76,0.15));
+    border: 1px solid rgba(201,168,76,0.6);
+    border-radius: 12px;
+    color: var(--gold-light, #C9A84C);
+    font-size: 16px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-dice:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(201,168,76,0.5), rgba(201,168,76,0.2));
+  }
+  .btn-dice:disabled { opacity: 0.4; cursor: not-allowed; }
+  .dice-rounds {
+    margin-top: 12px;
+    font-size: 12px;
+    color: rgba(248, 244, 238, 0.4);
+    letter-spacing: 0.05em;
+    min-height: 16px;
+  }
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -2079,6 +2206,68 @@
   </div><!-- /main-content -->
 </div>
 
+<!-- ── 🎲 주사위 결판 화면 (점수 동점 시) ── -->
+<div id="dice-screen" style="display:none">
+  <div class="dice-screen-inner">
+    <div class="dice-title">🎲 운명의 결판</div>
+    <div class="dice-subtitle">두 주사위의 곱이 큰 쪽이 승리</div>
+    
+    <div class="dice-arena">
+      <!-- 소로 주사위 -->
+      <div class="dice-row">
+        <div class="dice-label dice-label-me">SORO</div>
+        <div class="dice-set">
+          <div class="dice-3d" id="dice-me-1">
+            <div class="dice-face face-1"><span class="pip" style="grid-area:2/2"></span></div>
+            <div class="dice-face face-2"><span class="pip" style="grid-area:1/1"></span><span class="pip" style="grid-area:3/3"></span></div>
+            <div class="dice-face face-3"><span class="pip" style="grid-area:1/1"></span><span class="pip" style="grid-area:2/2"></span><span class="pip" style="grid-area:3/3"></span></div>
+            <div class="dice-face face-4"><span class="pip" style="grid-area:1/1"></span><span class="pip" style="grid-area:1/3"></span><span class="pip" style="grid-area:3/1"></span><span class="pip" style="grid-area:3/3"></span></div>
+            <div class="dice-face face-5"><span class="pip" style="grid-area:1/1"></span><span class="pip" style="grid-area:1/3"></span><span class="pip" style="grid-area:2/2"></span><span class="pip" style="grid-area:3/1"></span><span class="pip" style="grid-area:3/3"></span></div>
+            <div class="dice-face face-6"><span class="pip" style="grid-area:1/1"></span><span class="pip" style="grid-area:2/1"></span><span class="pip" style="grid-area:3/1"></span><span class="pip" style="grid-area:1/3"></span><span class="pip" style="grid-area:2/3"></span><span class="pip" style="grid-area:3/3"></span></div>
+          </div>
+          <div class="dice-3d" id="dice-me-2">
+            <div class="dice-face face-1"><span class="pip" style="grid-area:2/2"></span></div>
+            <div class="dice-face face-2"><span class="pip" style="grid-area:1/1"></span><span class="pip" style="grid-area:3/3"></span></div>
+            <div class="dice-face face-3"><span class="pip" style="grid-area:1/1"></span><span class="pip" style="grid-area:2/2"></span><span class="pip" style="grid-area:3/3"></span></div>
+            <div class="dice-face face-4"><span class="pip" style="grid-area:1/1"></span><span class="pip" style="grid-area:1/3"></span><span class="pip" style="grid-area:3/1"></span><span class="pip" style="grid-area:3/3"></span></div>
+            <div class="dice-face face-5"><span class="pip" style="grid-area:1/1"></span><span class="pip" style="grid-area:1/3"></span><span class="pip" style="grid-area:2/2"></span><span class="pip" style="grid-area:3/1"></span><span class="pip" style="grid-area:3/3"></span></div>
+            <div class="dice-face face-6"><span class="pip" style="grid-area:1/1"></span><span class="pip" style="grid-area:2/1"></span><span class="pip" style="grid-area:3/1"></span><span class="pip" style="grid-area:1/3"></span><span class="pip" style="grid-area:2/3"></span><span class="pip" style="grid-area:3/3"></span></div>
+          </div>
+        </div>
+        <div class="dice-product" id="dice-product-me">—</div>
+      </div>
+      
+      <!-- 상대 주사위 -->
+      <div class="dice-row">
+        <div class="dice-label dice-label-ai" id="dice-label-ai">상대</div>
+        <div class="dice-set">
+          <div class="dice-3d" id="dice-ai-1">
+            <div class="dice-face face-1"><span class="pip" style="grid-area:2/2"></span></div>
+            <div class="dice-face face-2"><span class="pip" style="grid-area:1/1"></span><span class="pip" style="grid-area:3/3"></span></div>
+            <div class="dice-face face-3"><span class="pip" style="grid-area:1/1"></span><span class="pip" style="grid-area:2/2"></span><span class="pip" style="grid-area:3/3"></span></div>
+            <div class="dice-face face-4"><span class="pip" style="grid-area:1/1"></span><span class="pip" style="grid-area:1/3"></span><span class="pip" style="grid-area:3/1"></span><span class="pip" style="grid-area:3/3"></span></div>
+            <div class="dice-face face-5"><span class="pip" style="grid-area:1/1"></span><span class="pip" style="grid-area:1/3"></span><span class="pip" style="grid-area:2/2"></span><span class="pip" style="grid-area:3/1"></span><span class="pip" style="grid-area:3/3"></span></div>
+            <div class="dice-face face-6"><span class="pip" style="grid-area:1/1"></span><span class="pip" style="grid-area:2/1"></span><span class="pip" style="grid-area:3/1"></span><span class="pip" style="grid-area:1/3"></span><span class="pip" style="grid-area:2/3"></span><span class="pip" style="grid-area:3/3"></span></div>
+          </div>
+          <div class="dice-3d" id="dice-ai-2">
+            <div class="dice-face face-1"><span class="pip" style="grid-area:2/2"></span></div>
+            <div class="dice-face face-2"><span class="pip" style="grid-area:1/1"></span><span class="pip" style="grid-area:3/3"></span></div>
+            <div class="dice-face face-3"><span class="pip" style="grid-area:1/1"></span><span class="pip" style="grid-area:2/2"></span><span class="pip" style="grid-area:3/3"></span></div>
+            <div class="dice-face face-4"><span class="pip" style="grid-area:1/1"></span><span class="pip" style="grid-area:1/3"></span><span class="pip" style="grid-area:3/1"></span><span class="pip" style="grid-area:3/3"></span></div>
+            <div class="dice-face face-5"><span class="pip" style="grid-area:1/1"></span><span class="pip" style="grid-area:1/3"></span><span class="pip" style="grid-area:2/2"></span><span class="pip" style="grid-area:3/1"></span><span class="pip" style="grid-area:3/3"></span></div>
+            <div class="dice-face face-6"><span class="pip" style="grid-area:1/1"></span><span class="pip" style="grid-area:2/1"></span><span class="pip" style="grid-area:3/1"></span><span class="pip" style="grid-area:1/3"></span><span class="pip" style="grid-area:2/3"></span><span class="pip" style="grid-area:3/3"></span></div>
+          </div>
+        </div>
+        <div class="dice-product" id="dice-product-ai">—</div>
+      </div>
+    </div>
+    
+    <button class="btn-dice" id="btn-roll-dice" onclick="rollDice()">🎲 주사위 던지기</button>
+    
+    <div class="dice-rounds" id="dice-rounds-display"></div>
+  </div>
+</div>
+
 <!-- 저작권 고정 표시 — 항상 화면 맨 아래 -->
 <div id="fixed-copyright" style="
   position:fixed; bottom:0; left:0; right:0;
@@ -2701,7 +2890,7 @@ async function saveStatsToSupabase() {
       src="gold_apple award.mp4">
     </video>
     <div style="font-size:20px;font-weight:700;color:#C9A84C;letter-spacing:0.08em;margin-bottom:8px">황금사과 한 알</div>
-    <div style="font-size:13px;color:rgba(248,244,238,0.6);margin-bottom:28px;line-height:1.6">승리의 증표가 당신의 과수원에<br>열매를 맺었습니다</div>
+    <div style="font-size:13px;color:rgba(248,244,238,0.6);margin-bottom:28px;line-height:1.6">완주의 증표가 당신의 과수원에<br>열매를 맺었습니다</div>
     <button onclick="goToTerra()" style="width:100%;padding:14px;background:linear-gradient(135deg,rgba(201,168,76,0.4),rgba(201,168,76,0.15));border:1px solid rgba(201,168,76,0.6);border-radius:10px;color:#C9A84C;font-size:14px;letter-spacing:0.1em;cursor:pointer;margin-bottom:10px">
       🌳 EG테라 확인하기
     </button>

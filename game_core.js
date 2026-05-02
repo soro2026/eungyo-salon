@@ -504,7 +504,7 @@ let st={
   qIdx:0,phase:'idle',typIdx:0,frozenText:'',isAttack:true,inning:1,
   typTimer:null,barTimer:null,cdTimer:null,hrTimer:null,msgTimer:null,aiTimer:null,
   totalMs:0,elapsed:0,hitMs:null,
-  outs:0,bases:[false,false,false],scoreMe:0,scoreAi:0,tq:0,
+  outs:0,bases:[false,false,false],scoreMe:0,scoreAi:0,tq:0,aiTq:0,
   atbat:1,hits:0,totalAB:0,hr:0,rbi:0,bb:0,singles:0,doubles:0,triples:0,
   pitchAB:0,hitsAllowed:0,earnedRuns:0,outsRecorded:0
 };
@@ -745,9 +745,22 @@ function onAction(){
       document.getElementById('ai-area').style.display='none';
       document.getElementById('game-area').style.display='none';
       let mk,label,cls,adv;
-      if(aiHR){mk='ai_homerun';label='홈런 허용';cls='r-defense-fail';adv=4;st.pitchAB++;st.tq+=calcTQ('ai_homerun',4,true);}
-      else if(aiHit){adv=1+Math.floor(Math.random()*2);mk='ai_hit';label=adv>=2?'2루타 허용':'안타 허용';cls='r-defense-fail';st.pitchAB++;st.hitsAllowed++;st.tq+=calcTQ('ai_hit',adv,true);}
-      else{mk='ai_out';label='아웃!';cls='r-defense-ok';adv=0;st.outs++;st.outsRecorded++;st.tq+=calcTQ('ai_out',0,true);}
+      if(aiHR){
+        mk='ai_homerun';label='홈런 허용';cls='r-defense-fail';adv=4;
+        st.pitchAB++;
+        st.aiTq += 4.0;  // AI 홈런 → AI 공격 TQ
+      }
+      else if(aiHit){
+        adv=1+Math.floor(Math.random()*2);
+        mk='ai_hit';label=adv>=2?'2루타 허용':'안타 허용';cls='r-defense-fail';
+        st.pitchAB++;st.hitsAllowed++;
+        st.aiTq += (adv >= 2 ? 2.0 : 1.0);  // 2루타 +2.0, 단타 +1.0
+      }
+      else{
+        mk='ai_out';label='아웃!';cls='r-defense-ok';adv=0;
+        st.outs++;st.outsRecorded++;
+        // AI 아웃 → TQ 변화 없음 (아웃은 0)
+      }
       showJudging(getMsg(mk),()=>{
         st.totalAB++;
         if(adv>=4){let r=1;for(let i=0;i<3;i++)if(st.bases[i])r++;st.bases=[false,false,false];animHR(r,()=>{st.scoreAi+=r;st.earnedRuns+=r;const aiEl=getAiEl();if(aiEl)aiEl.textContent=st.scoreAi;renderOuts();updateStats();showResultDef(label,cls);});}
@@ -1143,22 +1156,18 @@ function getAiEl(){return document.getElementById(currentIsHome?'score-left':'sc
 function popScore(){const e=getMeEl();if(e){e.textContent=st.scoreMe;e.style.transform='scale(1.4)';setTimeout(()=>e.style.transform='',300);}}
 function updateScore(){const e=getMeEl();if(e)e.textContent=st.scoreMe;}
 function calcTQ(mk, adv, isDefense){
-  // 타격 TQ
-  if(!isDefense){
-    if(mk==='homerun') return 4.0;
-    if(mk==='triple') return 3.0;
-    if(mk==='double') return 2.0;
-    if(mk==='single') return 1.0;
-    if(mk==='bb') return 0.5;
-    if(mk==='error') return 0.5;
-    return 0; // out
-  } else {
-    // 수비 TQ
-    if(mk==='ai_out') return 0.5;
-    if(mk==='ai_hit') return -1.0;
-    if(mk==='ai_homerun') return -4.0;
-    return 0;
-  }
+  // ⚠️ 새 정책 (2026-05-02): TQ는 공격 성과만 측정, 수비는 0.
+  //    승부 결판은 점수 → 동점이면 주사위가 책임. TQ는 통계 표시용.
+  if(isDefense) return 0;  // 수비는 TQ에 안 들어감
+  
+  // 공격 TQ — 순수 가산점 (아웃은 0, 처벌하지 않음)
+  if(mk==='homerun') return 4.0;
+  if(mk==='triple')  return 3.0;
+  if(mk==='double')  return 2.0;
+  if(mk==='single')  return 1.0;
+  if(mk==='bb')      return 0.5;
+  if(mk==='error')   return 0.5;  // 에러로 인한 출루도 +0.5
+  return 0;  // out 등
 }
 function updateStats(){
   // --- 타격 스탯 ---
@@ -1243,16 +1252,17 @@ function showGameResult(){
   } else if(st.scoreAi > st.scoreMe){
     result='패배'; resultColor='#D85A30'; emoji='💧';
   } else {
-    // 동점 — TQ로 판정
-    const aiTQ = (Math.random()*6-3).toFixed(1); // AI TQ 시뮬레이션
-    if(st.tq > parseFloat(aiTQ)){
-      result='TQ 승리'; resultColor='#C9A84C'; emoji='⚾';
-    } else if(st.tq < parseFloat(aiTQ)){
-      result='TQ 패배'; resultColor='#8B5E52'; emoji='💧';
-    } else {
-      result='무승부'; resultColor='#888888'; emoji='🤝';
-    }
+    // ⚠️ 점수 동점 → 즉시 주사위 결판 (TQ 결판 단계 제거됨, 2026-05-02)
+    //    TQ는 통계로만 표시. 승부는 주사위가 책임.
+    showDiceScreen();  // 주사위 화면 띄우고 함수 종료
+    return;
   }
+  // 결판난 경우만 아래 코드 진행
+  showFinalResult(result, resultColor, emoji);
+}
+
+// ── 결과 화면 그리기 (점수/주사위 결판 후 공통 호출) ──
+function showFinalResult(result, resultColor, emoji){
 
   const ab = st.totalAB || 1;
   const avg = st.hits/ab;
@@ -1308,6 +1318,136 @@ function showGameResult(){
   ra.style.display='block';
   // Supabase에 스탯 저장
   saveStatsToSupabase();
+}
+
+// ═══════════════════════════════════════════════════
+// 🎲 주사위 결판 시스템 (점수 동점 시)
+// ═══════════════════════════════════════════════════
+// 각 숫자가 정면에 보이게 하는 회전 각도
+const FACE_ROTATIONS = {
+  1: { x: 0,   y: 0   },
+  2: { x: 0,   y: 180 },
+  3: { x: 0,   y: -90 },
+  4: { x: 0,   y: 90  },
+  5: { x: -90, y: 0   },
+  6: { x: 90,  y: 0   },
+};
+
+let diceRound = 0;
+
+function showDiceScreen() {
+  // 결과 화면 숨기기 + 주사위 화면 띄우기
+  const ra = document.getElementById('result-area');
+  if(ra) ra.style.display = 'none';
+  
+  document.getElementById('dice-screen').style.display = 'flex';
+  
+  // 상대 이름 표시
+  const aiLabel = document.getElementById('dice-label-ai');
+  if(aiLabel) aiLabel.textContent = currentOpp ? currentOpp.shortName : '상대';
+  
+  // 초기화
+  diceRound = 0;
+  resetDiceVisuals();
+}
+
+function resetDiceVisuals() {
+  ['dice-me-1', 'dice-me-2', 'dice-ai-1', 'dice-ai-2'].forEach(id => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.style.transition = 'none';
+    el.style.transform = 'rotateX(-20deg) rotateY(25deg)';
+    // 다음 굴림 위해 transition 다시 켜기 (next frame)
+    requestAnimationFrame(() => {
+      el.style.transition = 'transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)';
+    });
+  });
+  document.getElementById('dice-product-me').textContent = '—';
+  document.getElementById('dice-product-ai').textContent = '—';
+  document.getElementById('btn-roll-dice').disabled = false;
+  document.getElementById('btn-roll-dice').textContent = '🎲 주사위 던지기';
+}
+
+function diceSleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function rollOneDice(elId) {
+  const el = document.getElementById(elId);
+  if(!el) return Math.floor(Math.random() * 6) + 1;
+  
+  const num = Math.floor(Math.random() * 6) + 1;
+  const t = FACE_ROTATIONS[num];
+  
+  // 매번 다른 방향으로 굴리기 위해 추가 회전 랜덤화
+  const extraSpinX = (Math.floor(Math.random() * 2) + 3) * 360;
+  const extraSpinY = (Math.floor(Math.random() * 2) + 3) * 360;
+  const finalRotX = extraSpinX + t.x;
+  const finalRotY = extraSpinY + t.y;
+  
+  el.style.transform = `rotateX(${finalRotX}deg) rotateY(${finalRotY}deg)`;
+  el.style.webkitTransform = `rotateX(${finalRotX}deg) rotateY(${finalRotY}deg)`;
+  
+  await diceSleep(1200);
+  return num;
+}
+
+async function rollDice() {
+  diceRound++;
+  document.getElementById('dice-rounds-display').textContent = diceRound + '회차';
+  document.getElementById('btn-roll-dice').disabled = true;
+  document.getElementById('dice-product-me').textContent = '—';
+  document.getElementById('dice-product-ai').textContent = '—';
+  
+  // 소로 두 알 (한 알씩, 0.6초 간격)
+  const me1 = await rollOneDice('dice-me-1');
+  await diceSleep(600);
+  const me2 = await rollOneDice('dice-me-2');
+  const myProduct = me1 * me2;
+  document.getElementById('dice-product-me').textContent = `${me1} × ${me2} = ${myProduct}`;
+  await diceSleep(1500);
+  
+  // 상대 두 알 (자동)
+  const ai1 = await rollOneDice('dice-ai-1');
+  await diceSleep(600);
+  const ai2 = await rollOneDice('dice-ai-2');
+  const aiProduct = ai1 * ai2;
+  document.getElementById('dice-product-ai').textContent = `${ai1} × ${ai2} = ${aiProduct}`;
+  await diceSleep(1500);
+  
+  // 결판
+  if (myProduct > aiProduct) {
+    finishDice('승리', myProduct, aiProduct, [me1, me2], [ai1, ai2]);
+  } else if (myProduct < aiProduct) {
+    finishDice('패배', myProduct, aiProduct, [me1, me2], [ai1, ai2]);
+  } else {
+    // 또 동점 → 즉시 자동 재굴림
+    document.getElementById('dice-rounds-display').textContent = '동점! 즉시 재굴림...';
+    await diceSleep(800);
+    resetDiceVisuals();
+    document.getElementById('btn-roll-dice').disabled = true;
+    rollDice();
+  }
+}
+
+function finishDice(diceResult, myProduct, aiProduct, myDice, aiDice) {
+  // 결과 저장
+  st.diceResult = {
+    myDice, aiDice,
+    myProduct, aiProduct,
+    rounds: diceRound,
+  };
+  
+  // 1.5초 후 주사위 화면 닫고 결과 화면으로
+  setTimeout(() => {
+    document.getElementById('dice-screen').style.display = 'none';
+    
+    if(diceResult === '승리') {
+      showFinalResult('🎲 운명의 승리', '#C9A84C', '🎲');
+    } else {
+      showFinalResult('🎲 운명의 패배', '#8B5E52', '🎲');
+    }
+  }, 1500);
 }
 
 // ── 게임 흐름 제어 ──────────────────────────────
