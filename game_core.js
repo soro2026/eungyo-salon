@@ -1442,6 +1442,12 @@ function finishDice(diceResult, myProduct, aiProduct, myDice, aiDice) {
   setTimeout(() => {
     document.getElementById('dice-screen').style.display = 'none';
     
+    // 결과 화면이 들어있는 main-content 띄우기
+    const mh = document.getElementById('main-header');
+    const mc = document.getElementById('main-content');
+    if(mh) mh.style.display = 'flex';
+    if(mc) mc.style.display = 'flex';
+    
     if(diceResult === '승리') {
       showFinalResult('🎲 운명의 승리', '#C9A84C', '🎲');
     } else {
