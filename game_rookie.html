@@ -2613,6 +2613,50 @@ function goToStadium() {
     const oppTeam = urlParams.get('opp');     // 'pascal' / 'socrates' / 'proust'
     const isHome = urlParams.get('isHome') === '1';
     const matchId = urlParams.get('matchId');
+    const debug = urlParams.get('debug');     // 디버그 모드
+    
+    // ═══ 디버그 모드 ═══
+    // ?debug=dice    → 주사위 화면 바로 띄움
+    // ?debug=result  → 결과 화면 (승리) 바로 띄움
+    // ?debug=defeat  → 결과 화면 (패배) 바로 띄움
+    // ?debug=tie     → 점수 동점 만들고 결과 호출 (= 주사위 자동 진입)
+    if (debug) {
+      // 첫 번째 봇을 강제로 currentOpp로 세팅 (소크라테스)
+      currentOpp = OPPONENTS.find(o => o.shortName === 'SOCRATES') || OPPONENTS[0];
+      currentIsHome = true;
+      
+      setTimeout(() => {
+        document.body.style.opacity = '1';
+        if (debug === 'dice') {
+          console.log('🎲 디버그: 주사위 화면 바로 진입');
+          showDiceScreen();
+        } else if (debug === 'result') {
+          console.log('🏆 디버그: 승리 결과 화면');
+          // 가짜 통계 박기
+          st.scoreMe = 3; st.scoreAi = 1;
+          st.totalAB = 5; st.hits = 2; st.bb = 0;
+          st.singles = 1; st.doubles = 1; st.triples = 0; st.hr = 0;
+          st.rbi = 2; st.tq = 3.0; st.aiTq = 1.0;
+          st.outsRecorded = 3; st.hitsAllowed = 1; st.earnedRuns = 1;
+          showFinalResult('승리', '#52B788', '🏆');
+        } else if (debug === 'defeat') {
+          console.log('💧 디버그: 패배 결과 화면');
+          st.scoreMe = 0; st.scoreAi = 2;
+          st.totalAB = 5; st.hits = 1;
+          st.singles = 1; st.tq = 1.0; st.aiTq = 4.0;
+          st.outsRecorded = 3; st.hitsAllowed = 2;
+          showFinalResult('패배', '#D85A30', '💧');
+        } else if (debug === 'tie') {
+          console.log('🎲 디버그: 점수 동점 → 주사위 진입');
+          st.scoreMe = 0; st.scoreAi = 0;
+          st.totalAB = 3; st.tq = 1.0; st.aiTq = 1.0;
+          showGameResult();  // 동점이므로 자동으로 showDiceScreen() 호출됨
+        }
+      }, 500);
+      document.body.style.opacity = '0';
+      return;
+    }
+    // ═══ 일반 진입 ═══
     
     // 파라미터 없이 직접 진입 → stadium 라운지로 돌아감
     if (!oppTeam) {
