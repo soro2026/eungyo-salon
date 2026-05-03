@@ -366,7 +366,7 @@
   
   <div class="header">
     <h1>🔍 데이터 마이그레이션 도구</h1>
-    <p>잘린 정답을 탐지하고 정식 명칭으로 복원합니다 · v1.1 (문제 삭제 기능 추가)</p>
+    <p>잘린 정답을 탐지하고 정식 명칭으로 복원합니다 · v1.2 (검토 도장 — 도돌이표 청산)</p>
   </div>
   
   <div class="step-banner">
@@ -424,7 +424,10 @@
     1. <strong>후보 클릭</strong> — 잘림 발견. 후보가 정식 명칭<br>
     2. <strong>직접 입력</strong> — 후보가 부정확. 정식 명칭 직접 박기<br>
     3. <strong>그대로 두기</strong> — 잘림 아님. 짧은 정답이 정상 (예: 뫼르소, 거울)<br>
-    4. <strong>문제 삭제</strong> — 질문 의도와 답이 어긋난 함정 문제 (예: "수식어를 묻는 질문")
+    4. <strong>문제 삭제</strong> — 질문 의도와 답이 어긋난 함정 문제 (예: "수식어를 묻는 질문")<br>
+    <br>
+    <strong>v1.2 검토 도장</strong><br>
+    [그대로 두기] 또는 [후보 클릭/직접 입력] 결정 후 마이그레이션 적용 시 — 데이터에 <code>_reviewed: true</code> 도장이 박힙니다. 다음 진단 시 그 항목은 자동 건너뜀. <strong>도돌이표 청산</strong>.
   </div>
 
 </div>
@@ -460,7 +463,7 @@ async function diagnose() {
   }
   
   // 모든 파일 로드 + 의심 탐지
-  let totalQ = 0, autoOk = 0, autoFix = 0, suspectCount = 0;
+  let totalQ = 0, autoOk = 0, autoFix = 0, suspectCount = 0, reviewedCount = 0;
   
   for (const f of seedFiles) {
     try {
@@ -474,6 +477,12 @@ async function diagnose() {
         totalQ++;
         const answer = q.answer || '';
         const display = q.display || answer;
+        
+        // 검토 완료 도장이 있으면 의심에서 건너뜀 (도돌이표 방지)
+        if (q._reviewed === true) {
+          reviewedCount++;
+          return;
+        }
         
         // 의심 탐지: answer 8자 이하 + text/library에 더 긴 표현 있나
         if (answer.length <= 8 && answer.length >= 1) {
@@ -507,7 +516,7 @@ async function diagnose() {
     }
   }
   
-  renderSummary(totalQ, autoOk, autoFix, suspectCount);
+  renderSummary(totalQ, autoOk, autoFix, suspectCount, reviewedCount);
   renderSuspects();
   
   btn.disabled = false;
@@ -558,7 +567,7 @@ function findCandidates(q) {
 }
 
 // ===== 렌더 =====
-function renderSummary(total, ok, fix, suspect) {
+function renderSummary(total, ok, fix, suspect, reviewed) {
   document.getElementById('summary-panel').style.display = 'block';
   document.getElementById('summary-grid').innerHTML = `
     <div class="summary-card">
@@ -572,6 +581,10 @@ function renderSummary(total, ok, fix, suspect) {
     <div class="summary-card">
       <div class="summary-num" style="color:#f0b860">${fix}</div>
       <div class="summary-label">구조만 자동 변환</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-num" style="color:#7dc4e4">${reviewed}</div>
+      <div class="summary-label">검토 완료 (건너뜀)</div>
     </div>
     <div class="summary-card">
       <div class="summary-num" style="color:#f29696">${suspect}</div>
@@ -774,6 +787,13 @@ function convert() {
           newInitials[i] = oldInitials[i] || '';
         }
         q.initials = newInitials;
+      }
+      
+      // 검토 도장 박기 — 한 번 결정한 건 영원히 통과 (도돌이표 방지)
+      if (res && (res.action === 'use' || res.action === 'skip')) {
+        q._reviewed = true;
+        q._reviewed_at = new Date().toISOString().split('T')[0];
+        q._review_action = res.action;
       }
       
       // 폐기 필드 삭제
