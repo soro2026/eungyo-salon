@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EG스타디움 퀴즈 검증기</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #1a2820;
+    color: #e8e6df;
+    min-height: 100vh;
+    padding: 20px;
+    line-height: 1.6;
+  }
+  .container { max-width: 720px; margin: 0 auto; }
+  
+  /* 헤더 */
+  .header {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(232,230,223,0.15);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+  }
+  .header h1 {
+    font-size: 18px;
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: #f5f1e8;
+  }
+  .header-meta {
+    font-size: 13px;
+    color: #b8b4a8;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  
+  /* 씨앗 선택 */
+  .seed-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .seed-btn {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(232,230,223,0.15);
+    color: #b8b4a8;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .seed-btn:hover { background: rgba(255,255,255,0.05); }
+  .seed-btn.active {
+    background: #c9a84c;
+    color: #1a2820;
+    border-color: #c9a84c;
+    font-weight: 500;
+  }
+  
+  /* 진행도 바 */
+  .progress {
+    background: rgba(0,0,0,0.3);
+    border-radius: 6px;
+    height: 6px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .progress-fill {
+    background: #c9a84c;
+    height: 100%;
+    transition: width 0.2s;
+  }
+  
+  /* 카드 */
+  .card {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(232,230,223,0.15);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+  
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(232,230,223,0.1);
+  }
+  .seed-id {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    color: #b8b4a8;
+  }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.05);
+    color: #b8b4a8;
+  }
+  .badge.diff-1 { background: rgba(99,153,34,0.25); color: #a3d97a; }
+  .badge.diff-2 { background: rgba(186,117,23,0.25); color: #f0b860; }
+  .badge.diff-3 { background: rgba(226,75,74,0.25); color: #f29696; }
+  .badge.cat { background: rgba(127,119,221,0.25); color: #c5bff0; }
+  
+  /* 검증 결과 */
+  .validation {
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+  }
+  .validation.pass {
+    background: rgba(99,153,34,0.15);
+    color: #a3d97a;
+    border-left: 3px solid #639922;
+  }
+  .validation.fail {
+    background: rgba(226,75,74,0.15);
+    color: #f29696;
+    border-left: 3px solid #e24b4a;
+  }
+  .validation ul {
+    margin-top: 6px;
+    padding-left: 20px;
+  }
+  .validation li { margin-top: 2px; }
+  
+  /* 본문 섹션 */
+  .section {
+    margin-bottom: 18px;
+  }
+  .section-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #8a877d;
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+  .text-body {
+    font-size: 15px;
+    color: #e8e6df;
+    line-height: 1.7;
+  }
+  
+  .keyword {
+    font-style: italic;
+    color: #d4c89a;
+    font-size: 14px;
+  }
+  
+  /* 힌트 박스 시뮬레이션 */
+  .hint-boxes {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 12px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 8px;
+  }
+  .hint-box {
+    width: 36px;
+    height: 36px;
+    border: 1.5px solid rgba(232,230,223,0.4);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 500;
+    background: rgba(0,0,0,0.2);
+  }
+  .hint-box.filled { color: #c9a84c; }
+  .hint-box.empty { color: rgba(232,230,223,0.3); }
+  
+  /* 데이터 비교 */
+  .data-grid {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 8px 12px;
+    font-size: 14px;
+    background: rgba(0,0,0,0.2);
+    padding: 12px 14px;
+    border-radius: 8px;
+  }
+  .data-key {
+    color: #8a877d;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+  }
+  .data-val {
+    color: #e8e6df;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    word-break: break-all;
+  }
+  .data-val.highlight {
+    color: #c9a84c;
+    font-weight: 500;
+  }
+  
+  /* 책등 시뮬레이션 */
+  .book-spine {
+    display: inline-block;
+    background: linear-gradient(135deg, #4a2a1a, #3d2515);
+    color: #f5e8c8;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-weight: 500;
+    font-size: 14px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+  
+  /* 4레이어 해설 */
+  .library {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .layer {
+    background: rgba(0,0,0,0.2);
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .layer-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #c9a84c;
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+  
+  /* 네비게이션 */
+  .nav {
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(232,230,223,0.15);
+    border-radius: 12px;
+    padding: 12px 16px;
+    position: sticky;
+    bottom: 16px;
+  }
+  .nav-btn {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(232,230,223,0.2);
+    color: #e8e6df;
+    padding: 10px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: inherit;
+    font-weight: 500;
+  }
+  .nav-btn:hover { background: rgba(255,255,255,0.1); }
+  .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .nav-btn.primary {
+    background: #c9a84c;
+    color: #1a2820;
+    border-color: #c9a84c;
+  }
+  .nav-btn.primary:hover { background: #d4b85d; }
+  
+  .jump-input {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(232,230,223,0.2);
+    color: #e8e6df;
+    padding: 8px 10px;
+    border-radius: 6px;
+    width: 60px;
+    text-align: center;
+    font-family: inherit;
+    font-size: 14px;
+  }
+  .nav-position {
+    font-size: 14px;
+    color: #b8b4a8;
+  }
+  
+  /* 카탈로그 (전체 보기) */
+  .catalog {
+    display: none;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(232,230,223,0.15);
+    border-radius: 12px;
+    padding: 16px;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+  .catalog.open { display: block; }
+  .catalog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(232,230,223,0.1);
+  }
+  .catalog-summary { font-size: 13px; color: #b8b4a8; }
+  .catalog-row {
+    display: grid;
+    grid-template-columns: 30px 30px 50px 1fr 80px;
+    gap: 8px;
+    padding: 8px 6px;
+    font-size: 13px;
+    border-bottom: 1px solid rgba(232,230,223,0.05);
+    cursor: pointer;
+    align-items: center;
+  }
+  .catalog-row:hover { background: rgba(255,255,255,0.05); }
+  .catalog-row.fail { background: rgba(226,75,74,0.08); }
+  .catalog-icon { text-align: center; font-size: 14px; }
+  .catalog-num { color: #8a877d; font-family: monospace; }
+  .catalog-diff { color: #b8b4a8; }
+  .catalog-title { color: #e8e6df; font-weight: 500; }
+  .catalog-answer { color: #c9a84c; font-family: monospace; font-size: 12px; }
+  
+  .filter-bar {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .filter-btn {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(232,230,223,0.15);
+    color: #b8b4a8;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+  }
+  .filter-btn.active {
+    background: rgba(201,168,76,0.2);
+    color: #c9a84c;
+    border-color: #c9a84c;
+  }
+  
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #8a877d;
+  }
+  
+  .help {
+    font-size: 12px;
+    color: #8a877d;
+    margin-top: 8px;
+    text-align: center;
+  }
+  
+  @media (max-width: 600px) {
+    body { padding: 12px; }
+    .data-grid { grid-template-columns: 80px 1fr; }
+    .catalog-row { grid-template-columns: 25px 25px 35px 1fr 70px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  
+  <!-- 헤더 -->
+  <div class="header">
+    <h1>📋 EG스타디움 퀴즈 검증기</h1>
+    <div class="header-meta">
+      <span>씨앗 파일 단위로 모든 문제를 카드로 훑어볼 수 있습니다</span>
+    </div>
+  </div>
+  
+  <!-- 씨앗 선택 -->
+  <div class="seed-picker" id="seed-picker"></div>
+  
+  <!-- 모드 토글 -->
+  <div class="filter-bar">
+    <button class="filter-btn active" id="mode-card-btn" onclick="setMode('card')">카드 보기</button>
+    <button class="filter-btn" id="mode-catalog-btn" onclick="setMode('catalog')">전체 카탈로그</button>
+    <button class="filter-btn" id="filter-fail-btn" onclick="toggleFailOnly()">⚠️ 위반만</button>
+  </div>
+  
+  <!-- 진행도 -->
+  <div class="progress" id="progress-bar">
+    <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+  </div>
+  
+  <!-- 카탈로그 뷰 -->
+  <div class="catalog" id="catalog">
+    <div class="catalog-header">
+      <span style="font-size: 14px; font-weight: 500;">전체 문제 목록</span>
+      <span class="catalog-summary" id="catalog-summary">—</span>
+    </div>
+    <div id="catalog-list"></div>
+  </div>
+  
+  <!-- 카드 뷰 -->
+  <div id="card-view">
+    <div class="card" id="card">
+      <div class="empty-state">씨앗을 선택해주세요</div>
+    </div>
+  </div>
+  
+  <!-- 네비게이션 -->
+  <div class="nav" id="nav" style="display: none;">
+    <button class="nav-btn" id="prev-btn" onclick="prev()">◀ 이전</button>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <input type="number" class="jump-input" id="jump-input" min="1" placeholder="N" onkeypress="if(event.key==='Enter') jumpTo()">
+      <span class="nav-position" id="nav-position">— / —</span>
+    </div>
+    <button class="nav-btn primary" id="next-btn" onclick="next()">다음 ▶</button>
+  </div>
+  
+  <div class="help">
+    💡 키보드: ← (이전) / → (다음) / 숫자 입력 후 Enter (점프)
+  </div>
+
+</div>
+
+<script>
+const BASE_URL = '';
+
+const SEEDS = [
+  { id: 'taeyang', label: '☀️ 태양' },
+  { id: 'gil',     label: '🛤 길' },
+  { id: 'bada',    label: '🌊 바다' },
+  { id: 'terra',   label: '🌍 테라' },
+  { id: 'bam',     label: '🌙 밤' },
+  { id: 'bul',     label: '🔥 불' },
+  { id: 'dol',     label: '🪨 돌' },
+  { id: 'namu',    label: '🌳 나무' },
+  { id: 'baram',   label: '💨 바람' },
+  { id: 'geoul',   label: '🪞 거울' },
+  { id: 'mun',     label: '🚪 문' },
+];
+
+const VALID_CATEGORIES = [
+  '문학 · 종이 위의 인간',
+  '철학 · 생각의 탄생',
+  '역사 · 시간의 지층',
+  '예술 · 아름다움의 형식',
+  '신화 · 신들의 정원',
+  '과학 · 우주의 문법',
+  '심리 · 내면의 거울',
+  '사회 · 세상의 구조',
+  '영성 · 초월의 언어',
+  '생태 · 땅의 노래',
+  '지리 · 세계의 골목',
+  '일상 · 삶의 향기',
+];
+
+let currentSeed = null;
+let questions = [];
+let currentIdx = 0;
+let mode = 'card';
+let failOnly = false;
+
+function init() {
+  renderSeedPicker();
+  
+  // URL 파라미터에서 씨앗 자동 로드
+  const params = new URLSearchParams(location.search);
+  const seedFromUrl = params.get('seed');
+  if (seedFromUrl && SEEDS.find(s => s.id === seedFromUrl)) {
+    loadSeed(seedFromUrl);
+  }
+  
+  // 키보드 네비게이션
+  document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === 'ArrowLeft') prev();
+    if (e.key === 'ArrowRight') next();
+  });
+}
+
+function renderSeedPicker() {
+  const picker = document.getElementById('seed-picker');
+  picker.innerHTML = SEEDS.map(s => 
+    `<button class="seed-btn" data-seed="${s.id}" onclick="loadSeed('${s.id}')">${s.label}</button>`
+  ).join('');
+}
+
+async function loadSeed(seedId) {
+  currentSeed = seedId;
+  currentIdx = 0;
+  
+  // URL 갱신
+  history.replaceState(null, '', `?seed=${seedId}`);
+  
+  // 버튼 활성화 표시
+  document.querySelectorAll('.seed-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.seed === seedId);
+  });
+  
+  // 카드 영역 로딩 표시
+  document.getElementById('card').innerHTML = '<div class="empty-state">로딩 중...</div>';
+  
+  try {
+    const res = await fetch(`questions_${seedId}.json`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    questions = data.questions || [];
+    
+    if (questions.length === 0) {
+      document.getElementById('card').innerHTML = '<div class="empty-state">문제가 없습니다</div>';
+      return;
+    }
+    
+    document.getElementById('nav').style.display = 'flex';
+    document.getElementById('jump-input').max = questions.length;
+    
+    render();
+  } catch(e) {
+    document.getElementById('card').innerHTML = 
+      `<div class="empty-state">로드 실패: ${e.message}<br><br>
+       <small>questions_${seedId}.json 파일이 같은 폴더에 있어야 합니다.</small></div>`;
+    document.getElementById('nav').style.display = 'none';
+  }
+}
+
+function validate(q) {
+  const errors = [];
+  
+  // 필수 필드
+  const required = ['seed_id', 'category', 'difficulty', 'keyword', 
+                    'text', 'answer', 'initials', 'library', 'figures'];
+  for (const f of required) {
+    if (!(f in q)) errors.push(`필수 필드 누락: ${f}`);
+  }
+  
+  // title (v1 신규) — display로 대체될 수 있음
+  const title = q.title || q.display || q.answer || '';
+  
+  const answer = q.answer || '';
+  
+  // answer 10자 이내
+  if (answer.length > 10) {
+    errors.push(`answer ${answer.length}자 (10자 초과)`);
+  }
+  
+  // answer 띄어쓰기·괄호
+  if (/\s/.test(answer)) errors.push('answer에 띄어쓰기');
+  if (/[(){}\[\]<>]/.test(answer)) errors.push('answer에 괄호');
+  
+  // initials 길이
+  const initials = q.initials || [];
+  if (initials.length !== answer.length) {
+    errors.push(`initials 길이 불일치 (${initials.length} vs answer ${answer.length})`);
+  }
+  
+  // title vs answer 정규화 매치
+  const normalize = s => s.replace(/[\s(){}\[\]<>]/g, '');
+  if (normalize(title) !== answer) {
+    errors.push(`title 정규화 ≠ answer ('${normalize(title)}' vs '${answer}')`);
+  }
+  
+  // difficulty
+  if (![1,2,3].includes(q.difficulty)) {
+    errors.push(`difficulty 1/2/3 아님: ${q.difficulty}`);
+  }
+  
+  // 카테고리
+  if (!VALID_CATEGORIES.includes(q.category)) {
+    errors.push(`카테고리 표준 외: '${q.category}'`);
+  }
+  
+  // library 4레이어
+  const lib = q.library || {};
+  for (const layer of ['knowledge', 'thought', 'connection', 'curation']) {
+    if (!lib[layer]) errors.push(`library.${layer} 비어있음`);
+  }
+  
+  return errors;
+}
+
+function render() {
+  if (mode === 'catalog') {
+    renderCatalog();
+    return;
+  }
+  
+  if (questions.length === 0) return;
+  const q = questions[currentIdx];
+  const errors = validate(q);
+  const title = q.title || q.display || q.answer;
+  
+  // 진행도 바
+  document.getElementById('progress-fill').style.width = 
+    `${((currentIdx + 1) / questions.length) * 100}%`;
+  
+  // 네비게이션 위치
+  document.getElementById('nav-position').textContent = 
+    `${currentIdx + 1} / ${questions.length}`;
+  document.getElementById('prev-btn').disabled = currentIdx === 0;
+  document.getElementById('next-btn').disabled = currentIdx === questions.length - 1;
+  document.getElementById('jump-input').value = currentIdx + 1;
+  
+  // 카드 렌더
+  const card = document.getElementById('card');
+  card.innerHTML = `
+    <div class="card-header">
+      <div class="seed-id">${q.seed_id || '(no seed_id)'}</div>
+      <div class="badges">
+        <span class="badge diff-${q.difficulty}">난이도 ${q.difficulty}</span>
+        <span class="badge cat">${q.category || '(no category)'}</span>
+      </div>
+    </div>
+    
+    ${errors.length === 0 
+      ? `<div class="validation pass">✓ 자동 검증 통과</div>`
+      : `<div class="validation fail">⚠️ 검증 실패 (${errors.length}건)
+           <ul>${errors.map(e => `<li>${e}</li>`).join('')}</ul>
+         </div>`
+    }
+    
+    <div class="section">
+      <div class="section-label">키워드</div>
+      <div class="keyword">${q.keyword || ''}</div>
+    </div>
+    
+    <div class="section">
+      <div class="section-label">질문 본문</div>
+      <div class="text-body">${escapeHtml(q.text || '')}</div>
+    </div>
+    
+    <div class="section">
+      <div class="section-label">힌트 박스 (게임 시뮬레이션)</div>
+      <div class="hint-boxes">
+        ${(q.initials || []).map(c => 
+          c ? `<div class="hint-box filled">${escapeHtml(c)}</div>`
+            : `<div class="hint-box empty">_</div>`
+        ).join('')}
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="section-label">데이터</div>
+      <div class="data-grid">
+        <div class="data-key">title</div>
+        <div class="data-val highlight">${escapeHtml(title)}</div>
+        <div class="data-key">answer</div>
+        <div class="data-val highlight">${escapeHtml(q.answer || '')} <span style="color:#8a877d">(${(q.answer||'').length}자)</span></div>
+        <div class="data-key">initials</div>
+        <div class="data-val">[${(q.initials || []).map(c => `"${c}"`).join(', ')}]</div>
+        <div class="data-key">figures</div>
+        <div class="data-val">[${(q.figures || []).map(f => `"${f}"`).join(', ')}]</div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="section-label">정답 공개 / 책등 표시</div>
+      <div class="book-spine">${escapeHtml(title)}</div>
+    </div>
+    
+    <div class="section">
+      <div class="section-label">4레이어 해설</div>
+      <div class="library">
+        ${renderLayer('📚 지식 (knowledge)', q.library?.knowledge)}
+        ${renderLayer('💭 사유 (thought)', q.library?.thought)}
+        ${renderLayer('🔗 연결 (connection)', q.library?.connection)}
+        ${renderLayer('🎨 큐레이션 (curation)', q.library?.curation)}
+      </div>
+    </div>
+  `;
+}
+
+function renderLayer(title, content) {
+  return `<div class="layer">
+    <div class="layer-title">${title}</div>
+    <div>${escapeHtml(content || '(비어있음)')}</div>
+  </div>`;
+}
+
+function renderCatalog() {
+  const list = document.getElementById('catalog-list');
+  let passCount = 0, failCount = 0;
+  const validations = questions.map(q => {
+    const errors = validate(q);
+    if (errors.length === 0) passCount++;
+    else failCount++;
+    return { q, errors };
+  });
+  
+  const filtered = failOnly ? validations.filter(v => v.errors.length > 0) : validations;
+  
+  document.getElementById('catalog-summary').innerHTML = 
+    `✓ ${passCount}건 통과 / ⚠️ ${failCount}건 위반`;
+  
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty-state">표시할 문제가 없습니다</div>';
+    return;
+  }
+  
+  list.innerHTML = filtered.map((v, displayIdx) => {
+    const realIdx = questions.indexOf(v.q);
+    const title = v.q.title || v.q.display || v.q.answer;
+    return `
+      <div class="catalog-row ${v.errors.length > 0 ? 'fail' : ''}" 
+           onclick="goTo(${realIdx})">
+        <div class="catalog-icon">${v.errors.length === 0 ? '✓' : '⚠️'}</div>
+        <div class="catalog-num">${realIdx + 1}</div>
+        <div class="catalog-diff">난${v.q.difficulty}</div>
+        <div class="catalog-title">${escapeHtml(title)}</div>
+        <div class="catalog-answer">${escapeHtml(v.q.answer || '')}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('mode-card-btn').classList.toggle('active', m === 'card');
+  document.getElementById('mode-catalog-btn').classList.toggle('active', m === 'catalog');
+  document.getElementById('catalog').classList.toggle('open', m === 'catalog');
+  document.getElementById('card-view').style.display = m === 'card' ? 'block' : 'none';
+  document.getElementById('nav').style.display = (m === 'card' && questions.length > 0) ? 'flex' : 'none';
+  document.getElementById('progress-bar').style.display = m === 'card' ? 'block' : 'none';
+  if (m === 'catalog') renderCatalog();
+}
+
+function toggleFailOnly() {
+  failOnly = !failOnly;
+  document.getElementById('filter-fail-btn').classList.toggle('active', failOnly);
+  if (mode === 'catalog') renderCatalog();
+}
+
+function goTo(idx) {
+  currentIdx = idx;
+  setMode('card');
+  render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function next() {
+  if (currentIdx < questions.length - 1) {
+    currentIdx++;
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+
+function prev() {
+  if (currentIdx > 0) {
+    currentIdx--;
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+
+function jumpTo() {
+  const v = parseInt(document.getElementById('jump-input').value);
+  if (v >= 1 && v <= questions.length) {
+    currentIdx = v - 1;
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+
+function escapeHtml(s) {
+  if (typeof s !== 'string') s = String(s ?? '');
+  return s.replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+init();
+</script>
+
+</body>
+</html>
