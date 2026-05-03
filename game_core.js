@@ -50,20 +50,59 @@ function getJosa(name, type) {
   if (type === 'wa') return hasBatchim ? '과' : '와';
   return '';
 }
-// 카테고리명 4자 축약
+// 카테고리명 2자 메인명으로 정규화
+// categories_standard.md (2026.04.19 확정) 단일 진실 원천 기준
+// 입력 형태 3가지 모두 처리:
+//   1) "예술 · 아름다움의 형식"  (풀카테고리)
+//   2) "예술"                   (메인 2자)
+//   3) "아름다움의 형식"         (부제만)
 function shortCat(cat) {
-  const map = {
-    '종이 위의 인간': '문학', '생각의 탄생': '철학', '시간의 지층': '역사',
-    '아름다움의 형식': '예술', '신들의 정원': '신화', '우주의 문법': '과학',
-    '내면의 거울': '심리', '권력과 자본': '사회', '초월의 언어': '영성',
-    '땅의 노래': '생태', '세계의 골목': '지리', '삶의 맛': '일상',
-  };
+  if (!cat) return '';
   const trimmed = cat.trim();
-  if (map[trimmed]) return map[trimmed];
-  for (const [key, val] of Object.entries(map)) {
-    if (trimmed.includes(key) || key.includes(trimmed)) return val;
+
+  // 12 메인 카테고리 (categories_standard.md 표준)
+  const MAIN_CATS = ['문학','철학','역사','예술','신화','과학','심리','사회','영성','생태','지리','일상'];
+
+  // 1) 메인명이 이미 들어왔으면 그대로 반환 (가장 흔한 경우)
+  if (MAIN_CATS.includes(trimmed)) return trimmed;
+
+  // 2) "메인 · 부제" 형태면 split해서 메인 추출
+  if (trimmed.includes('·')) {
+    const main = trimmed.split('·')[0].trim();
+    if (MAIN_CATS.includes(main)) return main;
   }
-  return trimmed.slice(0,2);
+
+  // 3) 부제만 들어온 경우 — 부제 → 메인 매핑
+  const SUB_TO_MAIN = {
+    '종이 위의 인간': '문학',
+    '생각의 탄생':   '철학',
+    '시간의 지층':   '역사',
+    '아름다움의 형식': '예술',
+    '신들의 정원':   '신화',
+    '우주의 문법':   '과학',
+    '내면의 거울':   '심리',
+    '세상의 구조':   '사회',
+    '초월의 언어':   '영성',
+    '땅의 노래':     '생태',
+    '세계의 골목':   '지리',
+    '삶의 향기':     '일상',
+  };
+  if (SUB_TO_MAIN[trimmed]) return SUB_TO_MAIN[trimmed];
+
+  // 4) 옛 표준 흔적 fallback (마이그레이션 잔해 보호)
+  const LEGACY_MAP = {
+    '권력과 자본': '사회',
+    '삶의 맛':    '일상',
+  };
+  if (LEGACY_MAP[trimmed]) return LEGACY_MAP[trimmed];
+
+  // 5) 부분 일치 fallback
+  for (const [sub, main] of Object.entries(SUB_TO_MAIN)) {
+    if (trimmed.includes(sub) || sub.includes(trimmed)) return main;
+  }
+
+  // 6) 마지막 fallback — 앞 2자
+  return trimmed.slice(0, 2);
 }
 // 풀배경 이미지 랜덤 선택 (stadium_bg_01.webp ~ stadium_bg_30.webp)
 // 하루에 1번 랜덤 선택 → localStorage에 저장 → 같은 날엔 같은 배경
