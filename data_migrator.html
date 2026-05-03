@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EG 데이터 마이그레이션 도구</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #1a2820;
+    color: #e8e6df;
+    min-height: 100vh;
+    padding: 20px;
+    line-height: 1.6;
+  }
+  .container { max-width: 760px; margin: 0 auto; }
+  
+  .header {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(232,230,223,0.15);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .header h1 {
+    font-size: 20px;
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: #f5f1e8;
+  }
+  .header p { font-size: 14px; color: #b8b4a8; }
+  
+  .step-banner {
+    background: rgba(201,168,76,0.1);
+    border-left: 3px solid #c9a84c;
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    font-size: 14px;
+  }
+  
+  .btn-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  
+  .btn {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(232,230,223,0.2);
+    color: #e8e6df;
+    padding: 12px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 15px;
+    font-family: inherit;
+    font-weight: 500;
+  }
+  .btn:hover { background: rgba(255,255,255,0.1); }
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .btn.primary {
+    background: #c9a84c;
+    color: #1a2820;
+    border-color: #c9a84c;
+  }
+  .btn.primary:hover { background: #d4b85d; }
+  .btn.success {
+    background: #639922;
+    color: #fff;
+    border-color: #639922;
+  }
+  .btn.success:hover { background: #74b528; }
+  
+  .panel {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(232,230,223,0.15);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .panel h2 {
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 12px;
+    color: #f5f1e8;
+  }
+  
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .summary-card {
+    background: rgba(0,0,0,0.2);
+    padding: 12px;
+    border-radius: 8px;
+    text-align: center;
+  }
+  .summary-num {
+    font-size: 24px;
+    font-weight: 500;
+    color: #c9a84c;
+  }
+  .summary-label {
+    font-size: 12px;
+    color: #b8b4a8;
+    margin-top: 4px;
+  }
+  
+  /* 의심 항목 카드 */
+  .suspect-card {
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(232,230,223,0.1);
+    border-left: 3px solid #f0b860;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+  .suspect-card.resolved {
+    border-left-color: #639922;
+    background: rgba(99,153,34,0.08);
+  }
+  .suspect-card.skipped {
+    border-left-color: #8a877d;
+    opacity: 0.6;
+  }
+  
+  .suspect-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .seed-id {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    color: #b8b4a8;
+  }
+  .file-tag {
+    font-size: 11px;
+    background: rgba(127,119,221,0.2);
+    color: #c5bff0;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+  
+  .suspect-data {
+    font-size: 13px;
+    color: #b8b4a8;
+    margin-bottom: 8px;
+    font-family: 'Courier New', monospace;
+  }
+  .suspect-data .label { color: #8a877d; }
+  .suspect-data .value { color: #f29696; }
+  .suspect-data .arrow { color: #c9a84c; margin: 0 6px; }
+  
+  .suspect-text {
+    font-size: 12px;
+    color: #8a877d;
+    font-style: italic;
+    background: rgba(0,0,0,0.2);
+    padding: 6px 10px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    line-height: 1.5;
+    max-height: 60px;
+    overflow: hidden;
+  }
+  
+  .candidates {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .candidate-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,0,0,0.2);
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+  }
+  .candidate-row:hover {
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(201,168,76,0.3);
+  }
+  .candidate-row.selected {
+    background: rgba(99,153,34,0.15);
+    border-color: #639922;
+  }
+  .candidate-text {
+    flex: 1;
+    font-size: 14px;
+    color: #e8e6df;
+  }
+  .candidate-len {
+    font-size: 11px;
+    color: #8a877d;
+  }
+  .candidate-warn {
+    color: #f29696;
+    font-weight: 500;
+  }
+  
+  .custom-input {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(232,230,223,0.2);
+    color: #e8e6df;
+    padding: 8px 10px;
+    border-radius: 6px;
+    width: 100%;
+    font-family: inherit;
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+  
+  .actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .action-btn {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(232,230,223,0.2);
+    color: #e8e6df;
+    padding: 6px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+  }
+  .action-btn:hover { background: rgba(255,255,255,0.1); }
+  .action-btn.confirm {
+    background: rgba(99,153,34,0.2);
+    color: #a3d97a;
+    border-color: #639922;
+  }
+  .action-btn.confirm:hover { background: rgba(99,153,34,0.35); }
+  .action-btn.skip {
+    color: #8a877d;
+  }
+  
+  .resolution-badge {
+    font-size: 12px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(99,153,34,0.2);
+    color: #a3d97a;
+    font-weight: 500;
+  }
+  .resolution-badge.skipped {
+    background: rgba(138,135,125,0.2);
+    color: #b8b4a8;
+  }
+  
+  .progress-info {
+    background: rgba(0,0,0,0.2);
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: #b8b4a8;
+    text-align: center;
+  }
+  .progress-info strong { color: #c9a84c; }
+  
+  .filter-bar {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .filter-btn {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(232,230,223,0.15);
+    color: #b8b4a8;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+  }
+  .filter-btn.active {
+    background: rgba(201,168,76,0.2);
+    color: #c9a84c;
+    border-color: #c9a84c;
+  }
+  
+  .empty-state {
+    text-align: center;
+    padding: 30px 20px;
+    color: #8a877d;
+  }
+  
+  .download-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .download-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0,0,0,0.2);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  .download-btn {
+    background: #c9a84c;
+    color: #1a2820;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+  }
+  .download-btn:hover { background: #d4b85d; }
+  .download-btn.done {
+    background: rgba(99,153,34,0.3);
+    color: #a3d97a;
+  }
+  
+  .help-box {
+    background: rgba(0,0,0,0.2);
+    border-radius: 8px;
+    padding: 14px;
+    margin-top: 16px;
+    font-size: 13px;
+    color: #b8b4a8;
+    line-height: 1.7;
+  }
+  .help-box strong { color: #c9a84c; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  
+  <div class="header">
+    <h1>🔍 데이터 마이그레이션 도구</h1>
+    <p>잘린 정답을 탐지하고 정식 명칭으로 복원합니다 · v1</p>
+  </div>
+  
+  <div class="step-banner">
+    <strong>1단계</strong>: 진단 — answer가 잘렸을 가능성이 있는 문제를 찾고, text/해설에서 정식 명칭 후보를 추출합니다
+  </div>
+  
+  <div class="btn-row">
+    <button class="btn primary" id="diagnose-btn" onclick="diagnose()">🔍 잘림 의심 자동 탐지</button>
+  </div>
+  
+  <div class="panel" id="summary-panel" style="display: none;">
+    <h2>📊 진단 결과</h2>
+    <div class="summary-grid" id="summary-grid"></div>
+    <div class="progress-info" id="progress-info" style="display:none;">
+      <strong id="resolved-count">0</strong> / <span id="total-suspects">0</span>건 검토 완료
+    </div>
+  </div>
+  
+  <div class="panel" id="suspects-panel" style="display: none;">
+    <h2>⚠️ 잘림 의심 항목</h2>
+    <div class="filter-bar">
+      <button class="filter-btn active" id="filter-pending" onclick="setFilter('pending')">검토 대기</button>
+      <button class="filter-btn" id="filter-resolved" onclick="setFilter('resolved')">완료</button>
+      <button class="filter-btn" id="filter-all" onclick="setFilter('all')">전체</button>
+    </div>
+    <div id="suspects-list"></div>
+  </div>
+  
+  <div class="step-banner" id="step2-banner" style="display: none;">
+    <strong>2단계</strong>: 검토 완료된 항목 + 자동 변환 가능한 항목을 모두 적용해서 새 JSON 파일을 만듭니다
+  </div>
+  
+  <div class="btn-row" id="convert-btn-row" style="display: none;">
+    <button class="btn success" id="convert-btn" onclick="convert()">✨ 마이그레이션 적용 + 다운로드</button>
+  </div>
+  
+  <div class="panel" id="download-panel" style="display: none;">
+    <h2>📥 수정된 파일 다운로드</h2>
+    <p style="font-size: 13px; color: #b8b4a8; margin-bottom: 12px;">
+      각 파일을 다운받아 깃허브에 덮어쓰기 하세요
+    </p>
+    <div class="download-list" id="download-list"></div>
+  </div>
+  
+  <div class="help-box">
+    <strong>도구가 하는 일</strong><br>
+    • <strong>잘림 탐지</strong>: answer가 8자 이하인 문제 중, text나 해설에 더 긴 명사구가 있으면 의심으로 표시<br>
+    • <strong>후보 추출</strong>: 정식 작품명 후보를 자동 발견 (예: answer "술집" → 후보 "폴리 베르제르의 술집")<br>
+    • <strong>사람 결정</strong>: 각 후보를 보고 Yes/No 선택. 직접 입력도 가능<br>
+    • <strong>자동 변환</strong>: 결정된 title 기준으로 answer/initials 자동 계산<br>
+    • <strong>구조 변환</strong>: display 필드 → title로 옮김. boxes 필드 폐기<br>
+    <br>
+    <strong>한 줄 정리</strong>: 도구가 의심 자리를 모아주고, 사람이 결정하면, 도구가 자동 마무리합니다.
+  </div>
+
+</div>
+
+<script>
+let allFiles = [];   // [{filename, data}]
+let suspects = [];   // 의심 항목 배열
+let resolutions = {}; // {suspectKey: {action: 'use'/'skip', value: '...'}}
+let currentFilter = 'pending';
+let convertedFiles = [];
+
+// ===== 진단 =====
+async function diagnose() {
+  const btn = document.getElementById('diagnose-btn');
+  btn.disabled = true;
+  btn.textContent = '진단 중...';
+  
+  allFiles = [];
+  suspects = [];
+  resolutions = {};
+  
+  // questions_index.json 로드
+  let seedFiles = [];
+  try {
+    const res = await fetch('questions_index.json');
+    const idx = await res.json();
+    seedFiles = idx.files || [];
+  } catch(e) {
+    alert('questions_index.json 로드 실패');
+    btn.disabled = false;
+    btn.textContent = '🔍 잘림 의심 자동 탐지';
+    return;
+  }
+  
+  // 모든 파일 로드 + 의심 탐지
+  let totalQ = 0, autoOk = 0, autoFix = 0, suspectCount = 0;
+  
+  for (const f of seedFiles) {
+    try {
+      const res = await fetch(f);
+      if (!res.ok) continue;
+      const data = await res.json();
+      allFiles.push({ filename: f, data });
+      
+      const questions = data.questions || [];
+      questions.forEach((q, idx) => {
+        totalQ++;
+        const answer = q.answer || '';
+        const display = q.display || answer;
+        
+        // 의심 탐지: answer 8자 이하 + text/library에 더 긴 표현 있나
+        if (answer.length <= 8 && answer.length >= 1) {
+          const candidates = findCandidates(q);
+          if (candidates.length > 0) {
+            suspects.push({
+              key: `${f}::${idx}`,
+              filename: f,
+              questionIdx: idx,
+              seed_id: q.seed_id || `#${idx+1}`,
+              answer,
+              display,
+              text: q.text || '',
+              candidates,
+            });
+            suspectCount++;
+            return;
+          }
+        }
+        
+        // 의심 아닌 경우 — 자동 변환 가능 여부
+        const newAnswer = display.replace(/[\s(){}\[\]<>]/g, '');
+        if (q.display !== q.answer || (q.boxes !== undefined && q.boxes !== newAnswer.length)) {
+          autoFix++;
+        } else {
+          autoOk++;
+        }
+      });
+    } catch(e) {
+      console.error(f, e);
+    }
+  }
+  
+  renderSummary(totalQ, autoOk, autoFix, suspectCount);
+  renderSuspects();
+  
+  btn.disabled = false;
+  btn.textContent = '🔄 다시 진단';
+}
+
+// ===== 후보 추출 =====
+function findCandidates(q) {
+  const answer = q.answer || '';
+  if (answer.length < 1) return [];
+  
+  // 검색 대상: text + library 4레이어
+  const lib = q.library || {};
+  const sources = [
+    q.text || '',
+    lib.knowledge || '',
+    lib.thought || '',
+    lib.connection || '',
+    lib.curation || '',
+  ].join(' ');
+  
+  // answer를 포함하는 더 긴 명사구 찾기
+  // 패턴: [한글/영문 2자+] (공백/조사) ... answer
+  // 예: "폴리 베르제르의 술집" 패턴
+  const escapedAnswer = answer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  
+  const patterns = [
+    // "X의 Y" 패턴
+    new RegExp(`([가-힣A-Za-z][가-힣A-Za-z\\s]{1,15}?의\\s+${escapedAnswer})`, 'g'),
+    // "X Y" 단순 인접 (1~3단어 앞)
+    new RegExp(`([가-힣A-Za-z]+(?:\\s+[가-힣A-Za-z]+){1,3}\\s+${escapedAnswer})`, 'g'),
+    // 괄호로 묶인 작품명
+    new RegExp(`<([^<>]*${escapedAnswer}[^<>]*)>`, 'g'),
+  ];
+  
+  const found = new Set();
+  patterns.forEach(re => {
+    let m;
+    while ((m = re.exec(sources)) !== null) {
+      const candidate = m[1].trim();
+      if (candidate && candidate.length > answer.length && candidate.length <= 25) {
+        found.add(candidate);
+      }
+    }
+  });
+  
+  return Array.from(found).slice(0, 5);
+}
+
+// ===== 렌더 =====
+function renderSummary(total, ok, fix, suspect) {
+  document.getElementById('summary-panel').style.display = 'block';
+  document.getElementById('summary-grid').innerHTML = `
+    <div class="summary-card">
+      <div class="summary-num">${total}</div>
+      <div class="summary-label">총 문제</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-num" style="color:#a3d97a">${ok}</div>
+      <div class="summary-label">이미 OK ✓</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-num" style="color:#f0b860">${fix}</div>
+      <div class="summary-label">구조만 자동 변환</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-num" style="color:#f29696">${suspect}</div>
+      <div class="summary-label">잘림 의심 (검토)</div>
+    </div>
+  `;
+  
+  if (suspect > 0) {
+    document.getElementById('suspects-panel').style.display = 'block';
+    document.getElementById('progress-info').style.display = 'block';
+    document.getElementById('total-suspects').textContent = suspect;
+    document.getElementById('step2-banner').style.display = 'block';
+    document.getElementById('convert-btn-row').style.display = 'flex';
+  } else {
+    // 의심 없으면 바로 변환 가능
+    document.getElementById('step2-banner').style.display = 'block';
+    document.getElementById('convert-btn-row').style.display = 'flex';
+  }
+}
+
+function setFilter(f) {
+  currentFilter = f;
+  document.getElementById('filter-pending').classList.toggle('active', f === 'pending');
+  document.getElementById('filter-resolved').classList.toggle('active', f === 'resolved');
+  document.getElementById('filter-all').classList.toggle('active', f === 'all');
+  renderSuspects();
+}
+
+function renderSuspects() {
+  const list = document.getElementById('suspects-list');
+  
+  let filtered = suspects;
+  if (currentFilter === 'pending') {
+    filtered = suspects.filter(s => !resolutions[s.key]);
+  } else if (currentFilter === 'resolved') {
+    filtered = suspects.filter(s => resolutions[s.key]);
+  }
+  
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty-state">표시할 항목 없음</div>';
+    return;
+  }
+  
+  list.innerHTML = filtered.map(s => {
+    const res = resolutions[s.key];
+    const cardClass = res ? (res.action === 'skip' ? 'skipped' : 'resolved') : '';
+    const seedShort = s.filename.replace('questions_', '').replace('.json', '');
+    
+    let body = '';
+    if (res) {
+      body = `<div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="suspect-data">
+          <span class="label">결정:</span> 
+          ${res.action === 'skip' 
+            ? '<span class="resolution-badge skipped">건너뜀 (그대로 둠)</span>'
+            : `<span class="value" style="color:#a3d97a">'${escapeHtml(res.value)}'</span>`}
+        </div>
+        <button class="action-btn" onclick="undo('${s.key}')">↩ 취소</button>
+      </div>`;
+    } else {
+      body = `
+        <div class="suspect-data">
+          <span class="label">현재 answer:</span>
+          <span class="value">'${escapeHtml(s.answer)}'</span>
+          <span class="label">(${s.answer.length}자)</span>
+        </div>
+        ${s.text ? `<div class="suspect-text">${escapeHtml(s.text.substring(0, 200))}...</div>` : ''}
+        <div class="candidates">
+          ${s.candidates.map((c, ci) => {
+            const noSpace = c.replace(/[\s(){}\[\]<>]/g, '');
+            const isLong = noSpace.length > 10;
+            return `<div class="candidate-row" onclick="confirmCandidate('${s.key}', ${ci})">
+              <span class="candidate-text">${escapeHtml(c)}</span>
+              <span class="candidate-len ${isLong ? 'candidate-warn' : ''}">${noSpace.length}자${isLong ? ' ⚠️' : ''}</span>
+            </div>`;
+          }).join('')}
+        </div>
+        <input type="text" class="custom-input" placeholder="직접 입력 (정식 작품명 또는 약칭)" id="custom-${s.key.replace(/[^a-zA-Z0-9]/g, '_')}">
+        <div class="actions">
+          <button class="action-btn confirm" onclick="confirmCustom('${s.key}')">✓ 직접 입력 확정</button>
+          <button class="action-btn skip" onclick="skipSuspect('${s.key}')">⊘ 그대로 두기 (검토 안 함)</button>
+        </div>
+      `;
+    }
+    
+    return `<div class="suspect-card ${cardClass}">
+      <div class="suspect-header">
+        <div class="seed-id">${escapeHtml(s.seed_id)}</div>
+        <span class="file-tag">${seedShort}</span>
+      </div>
+      ${body}
+    </div>`;
+  }).join('');
+  
+  updateProgress();
+}
+
+function confirmCandidate(key, ci) {
+  const s = suspects.find(x => x.key === key);
+  if (!s) return;
+  resolutions[key] = { action: 'use', value: s.candidates[ci] };
+  renderSuspects();
+}
+
+function confirmCustom(key) {
+  const safeKey = key.replace(/[^a-zA-Z0-9]/g, '_');
+  const input = document.getElementById('custom-' + safeKey);
+  const val = input.value.trim();
+  if (!val) {
+    alert('값을 입력해주세요');
+    return;
+  }
+  resolutions[key] = { action: 'use', value: val };
+  renderSuspects();
+}
+
+function skipSuspect(key) {
+  resolutions[key] = { action: 'skip' };
+  renderSuspects();
+}
+
+function undo(key) {
+  delete resolutions[key];
+  renderSuspects();
+}
+
+function updateProgress() {
+  const resolved = Object.keys(resolutions).length;
+  document.getElementById('resolved-count').textContent = resolved;
+}
+
+// ===== 변환 =====
+function convert() {
+  convertedFiles = [];
+  
+  allFiles.forEach(f => {
+    const newData = JSON.parse(JSON.stringify(f.data));
+    let changed = 0;
+    
+    newData.questions.forEach((q, idx) => {
+      const key = `${f.filename}::${idx}`;
+      const res = resolutions[key];
+      
+      // title 결정
+      let newTitle;
+      if (res && res.action === 'use') {
+        newTitle = res.value;
+      } else {
+        newTitle = q.display || q.answer || '';
+      }
+      
+      // 새 answer (띄어쓰기·괄호 제거)
+      const newAnswer = newTitle.replace(/[\s(){}\[\]<>]/g, '');
+      
+      // 변경 여부 판정
+      const oldTitle = q.display || q.answer || '';
+      const oldAnswer = q.answer || '';
+      const hasOldBoxes = q.boxes !== undefined;
+      
+      if (newTitle !== oldTitle || newAnswer !== oldAnswer || hasOldBoxes) {
+        changed++;
+      }
+      
+      // 새 구조 적용
+      q.title = newTitle;
+      q.answer = newAnswer;
+      
+      // initials 길이 보정 (기존 보존하되 길이만 맞춤)
+      const oldInitials = Array.isArray(q.initials) ? q.initials : [];
+      if (oldInitials.length !== newAnswer.length) {
+        const newInitials = new Array(newAnswer.length).fill('');
+        // 기존 값 가능한 만큼 보존
+        for (let i = 0; i < Math.min(oldInitials.length, newAnswer.length); i++) {
+          newInitials[i] = oldInitials[i] || '';
+        }
+        q.initials = newInitials;
+      }
+      
+      // 폐기 필드 삭제
+      delete q.display;
+      delete q.boxes;
+    });
+    
+    if (changed > 0) {
+      convertedFiles.push({
+        filename: f.filename,
+        data: newData,
+        changeCount: changed,
+      });
+    }
+  });
+  
+  renderDownloadList();
+}
+
+function renderDownloadList() {
+  document.getElementById('download-panel').style.display = 'block';
+  const list = document.getElementById('download-list');
+  
+  if (convertedFiles.length === 0) {
+    list.innerHTML = '<div class="empty-state">변경된 파일이 없습니다</div>';
+    return;
+  }
+  
+  list.innerHTML = convertedFiles.map((f, idx) => `
+    <div class="download-row">
+      <div>
+        <strong>${f.filename}</strong>
+        <span style="color: #8a877d; font-size: 12px; margin-left: 8px;">
+          ${f.changeCount}건 수정됨
+        </span>
+      </div>
+      <button class="download-btn" id="dl-${idx}" onclick="downloadFile(${idx})">
+        ⬇ 다운로드
+      </button>
+    </div>
+  `).join('') + `
+    <div style="margin-top: 16px; text-align: center;">
+      <button class="btn primary" onclick="downloadAll()">
+        📦 전체 다운로드 (${convertedFiles.length}개)
+      </button>
+    </div>
+  `;
+  
+  document.getElementById('download-panel').scrollIntoView({ behavior: 'smooth' });
+}
+
+function downloadFile(idx) {
+  const f = convertedFiles[idx];
+  const blob = new Blob([JSON.stringify(f.data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = f.filename;
+  a.click();
+  URL.revokeObjectURL(url);
+  
+  const btn = document.getElementById(`dl-${idx}`);
+  btn.textContent = '✓ 완료';
+  btn.classList.add('done');
+}
+
+function downloadAll() {
+  convertedFiles.forEach((_, idx) => {
+    setTimeout(() => downloadFile(idx), idx * 200);
+  });
+}
+
+function escapeHtml(s) {
+  if (typeof s !== 'string') s = String(s ?? '');
+  return s.replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+</script>
+
+</body>
+</html>
