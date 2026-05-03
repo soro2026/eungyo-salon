@@ -230,7 +230,7 @@
   
   <div class="header">
     <h1>🔧 카테고리 일괄 수정 도구</h1>
-    <p>questions JSON 파일들의 카테고리 표기를 표준 형식으로 정돈합니다</p>
+    <p>questions JSON 파일들의 카테고리 표기를 표준 형식으로 정돈합니다 · v1.1 (옛 카테고리 17종 인식 추가)</p>
   </div>
   
   <!-- 1단계: 진단 -->
@@ -275,6 +275,7 @@
     • 옛 부제는 자동으로 표준 부제로 갈아끼움<br>
     • 순서가 뒤바뀐 경우 자동 정돈<br>
     • 가운뎃점 양옆 공백 정돈<br>
+    • <strong>옛 카테고리 표기 17종 자동 인식</strong> (삶의 맛/자연과학/생태와 자연/도시와 지리/내면/권력 등)<br>
     <br>
     <strong>표준 12카테고리</strong><br>
     문학 · 종이 위의 인간 / 철학 · 생각의 탄생 / 역사 · 시간의 지층 / 예술 · 아름다움의 형식 / 신화 · 신들의 정원 / 과학 · 우주의 문법 / 심리 · 내면의 거울 / 사회 · 세상의 구조 / 영성 · 초월의 언어 / 생태 · 땅의 노래 / 지리 · 세계의 골목 / 일상 · 삶의 향기
@@ -314,6 +315,39 @@ const SUBTITLE_TO_MAIN = {
   '세계의 골목': '지리',
   '삶의 향기': '일상',
 };
+
+// 옛 카테고리 표기 → 표준 메인 (2026.04.19 표준 확정 이전 흔적)
+const LEGACY_TO_MAIN = {
+  // 일상 (옛: 삶의 맛 / 음식)
+  '삶의 맛': '일상',
+  '오감의 기억': '일상',
+  '음식과 일상': '일상',
+  '음식과 인간': '일상',
+  '음식': '일상',
+  
+  // 과학 (옛: 자연과학)
+  '자연과학': '과학',
+  '경이로운 세계': '과학',
+  '지구의 언어': '과학',
+  
+  // 생태 (옛: 생태와 자연)
+  '생태와 자연': '생태',
+  '살아있는 지구': '생태',
+  
+  // 지리 (옛: 도시와 지리)
+  '도시와 지리': '지리',
+  '인간의 공간': '지리',
+  
+  // 심리 (옛: 내면)
+  '내면': '심리',
+  '나를 찾는 여정': '심리',
+  
+  // 사회 (옛: 권력)
+  '권력': '사회',
+  '세상을 움직이는 힘': '사회',
+  '권력과 자본': '사회',
+};
+
 
 const VALID_MAINS = Object.keys(STANDARD_CATEGORIES);
 
@@ -358,12 +392,24 @@ function normalizeCategory(cat) {
     }
   }
   
+  // 옛 카테고리 표기 인식
+  if (!foundMain) {
+    for (const part of parts) {
+      if (LEGACY_TO_MAIN[part]) {
+        foundMain = LEGACY_TO_MAIN[part];
+        break;
+      }
+    }
+  }
+  
   // 단일 문자열로 들어온 경우 (가운뎃점 없음)
   if (parts.length === 1 && !foundMain) {
     if (VALID_MAINS.includes(trimmed)) {
       foundMain = trimmed;
     } else if (SUBTITLE_TO_MAIN[trimmed]) {
       foundMain = SUBTITLE_TO_MAIN[trimmed];
+    } else if (LEGACY_TO_MAIN[trimmed]) {
+      foundMain = LEGACY_TO_MAIN[trimmed];
     }
   }
   
