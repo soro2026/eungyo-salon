@@ -133,18 +133,133 @@ function applyRandomStadiumBg(fieldBgEl) {
   fieldBgEl.style.setProperty('--stadium-bg-url', `url('${url}')`);
 }
 
+// ===================================================================
+// v1.5 헬퍼 — 형식 정규화·셔플·정답 비교
+// 매뉴얼 v1.7 5.6~5.9절 합의 시안 흡수
+// ===================================================================
+
+/**
+ * question_type 정규화 — 영문(카리)·한글(매뉴얼) 둘 다 받음
+ * 30년 호환을 위한 길
+ */
+function getNormalizedType(qType) {
+  if (!qType) return '주관식';
+  const t = String(qType).trim().toLowerCase();
+  if (t === 'subjective' || t === '주관식') return '주관식';
+  if (t === 'multiple_choice' || t === 'mc' || t === '객관식') return '객관식';
+  if (t === 'ox' || t === 'o/x') return 'OX';
+  return '주관식'; // 기본값
+}
+
+/**
+ * 객관식 보기 셔플 — Fisher-Yates
+ * answer 텍스트 비교 모양이라 correct_index 재계산 불필요
+ */
+function shuffleChoices(choices) {
+  if (!Array.isArray(choices)) return [];
+  const shuffled = [...choices];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+/**
+ * 객관식 정답 판정 — 클릭한 보기 텍스트 vs answer
+ */
+function checkAnswerMC(userChoice, question) {
+  return userChoice === question.answer;
+}
+
+/**
+ * OX 정답 판정 — "O" 또는 "X"
+ */
+function checkAnswerOX(userChoice, question) {
+  return userChoice === question.answer;
+}
+
+/**
+ * 객관식 보기 버튼 렌더 — 셔플된 순서로 화면에 띄움
+ * 보기 클릭 = 타격 + 정답 처리 한 번에
+ */
+function renderMCButtons(q) {
+  const panel = document.getElementById('mc-panel');
+  if (!panel) return;
+  const shuffled = shuffleChoices(q.choices);
+  panel.innerHTML = '';
+  shuffled.forEach(choice => {
+    const btn = document.createElement('button');
+    btn.className = 'btn-mc';
+    btn.textContent = choice;
+    btn.onclick = () => hitMC(choice);
+    panel.appendChild(btn);
+  });
+  panel.style.display = 'flex';
+}
+
+/**
+ * OX 보기 버튼 렌더
+ */
+function renderOXButtons(q) {
+  const panel = document.getElementById('ox-panel');
+  if (!panel) return;
+  panel.innerHTML = '';
+  ['O', 'X'].forEach(choice => {
+    const btn = document.createElement('button');
+    btn.className = 'btn-ox btn-' + choice.toLowerCase();
+    btn.textContent = choice;
+    btn.onclick = () => hitOX(choice);
+    panel.appendChild(btn);
+  });
+  panel.style.display = 'flex';
+}
+
+/**
+ * 객관식 보기 클릭 — 타격 + 정답 처리 한 번에
+ */
+function hitMC(choice) {
+  if (st.phase !== 'typing') return; // 타이핑 중에만 유효
+  clearAll();
+  st.hitMs = st.elapsed;
+  // 보기 카드 모두 비활성화 (중복 클릭 방지)
+  const panel = document.getElementById('mc-panel');
+  if (panel) {
+    panel.querySelectorAll('button').forEach(b => b.disabled = true);
+    panel.style.display = 'none';
+  }
+  SND.hit();
+  processAns(choice);
+}
+
+/**
+ * OX 보기 클릭 — 타격 + 정답 처리 한 번에
+ */
+function hitOX(choice) {
+  if (st.phase !== 'typing') return;
+  clearAll();
+  st.hitMs = st.elapsed;
+  const panel = document.getElementById('ox-panel');
+  if (panel) {
+    panel.querySelectorAll('button').forEach(b => b.disabled = true);
+    panel.style.display = 'none';
+  }
+  SND.hit();
+  processAns(choice);
+}
+
+
 async function loadQuestions() {
   const files = [
-    'questions_taeyang.json',
-    'questions_gil.json',
-    'questions_terra.json',
-    'questions_bam.json',
-    'questions_bul.json',
-    'questions_dol.json',
-    'questions_namu.json',
-    'questions_baram.json',
-    'questions_geoul.json',
-    'questions_mun.json'
+    'questions_davinci.json',
+    'questions_homer.json',
+    'questions_mozart.json',
+    'questions_ovid.json',
+    'questions_sejong.json',
+    'questions_shakespeare.json',
+    'questions_socrates.json',
+    'questions_tolstoy.json',
+    'questions_vangogh.json'
   ];
   const results = await Promise.all(
     files.map(f => fetch(f).then(r => r.json()).catch(() => ({ questions: [] })))
@@ -157,10 +272,20 @@ async function loadQuestions() {
     zone_keyword: q.zone_keyword || '',
     text: q.text,
     answer: q.answer,
-    display: q.display,
+    display: q.display || q.title || q.answer,
     boxes: q.boxes,
     initials: q.initials,
-    library: q.library || {}
+    library: q.library || {},
+    // ── v1.5 신규 필드 (OX·객관식·주관식 호환) ──
+    question_type: getNormalizedType(q.question_type),
+    aliases: Array.isArray(q.aliases) ? q.aliases : [],
+    choices: Array.isArray(q.choices) ? q.choices : [],
+    title: q.title || '',
+    // ── 0층·큐레이션·메타 (콘스텔라티오·뮤세움·함수 A·B용) ──
+    constellatio_card: q.constellatio_card || null,
+    curation_links: q.curation_links || null,
+    metadata: q.metadata || null,
+    figures: Array.isArray(q.figures) ? q.figures : []
   })));
   // ── 균등 분배 셔플 (seed_id별 골고루, 난이도 랜덤) ──
   // 1. seed_id별로 그룹화
@@ -681,6 +806,11 @@ function resetUI(){
   document.getElementById('result-area').style.display='none';
   document.getElementById('hit-wrap').style.display='flex';
   const btn=document.getElementById('hit-btn');btn.style.opacity='1';btn.disabled=false;
+  // ── v1.5 객관식·OX 패널 초기화 ──
+  const mcPanel = document.getElementById('mc-panel');
+  if (mcPanel) { mcPanel.style.display = 'none'; mcPanel.innerHTML = ''; }
+  const oxPanel = document.getElementById('ox-panel');
+  if (oxPanel) { oxPanel.style.display = 'none'; oxPanel.innerHTML = ''; }
   document.getElementById('stat-timing').textContent='—';switchStatPanel();
 }
 
@@ -709,6 +839,19 @@ function startQ(){
   if(st.isAttack){
     st.phase='typing';qEl.textContent='';
     btn.className='btn-hit attack';btn.textContent='⚾ 타격';
+
+    // ── v1.5 객관식·OX 처치 — 보기 카드 미리 렌더 ──
+    if (q.question_type === '객관식') {
+      renderMCButtons(q);
+      // 타격 버튼 숨김 (보기 클릭 = 타격)
+      const hitWrap = document.getElementById('hit-wrap');
+      if (hitWrap) hitWrap.style.display = 'none';
+    } else if (q.question_type === 'OX') {
+      renderOXButtons(q);
+      const hitWrap = document.getElementById('hit-wrap');
+      if (hitWrap) hitWrap.style.display = 'none';
+    }
+
     // 휙 소리 끝나고 0.4초 후 타이핑 시작
     setTimeout(()=>{
       st.typTimer=setInterval(()=>{
@@ -1046,8 +1189,30 @@ const SND = (()=>{
 
 function processAns(ans){
   st.phase='judging';
-  const q=getQ(),ua=norm(ans),ca=norm(q.answer);
-  const ok=ua===ca||(ua.length>=2&&ca.includes(ua));
+  const q=getQ();
+  let ok;
+  // ── v1.5 형식별 정답 비교 ──
+  if (q.question_type === '객관식') {
+    // 클릭한 보기 텍스트 vs answer 텍스트 단순 비교
+    ok = checkAnswerMC(ans, q);
+  } else if (q.question_type === 'OX') {
+    // "O" 또는 "X" 비교
+    ok = checkAnswerOX(ans, q);
+  } else {
+    // 주관식 — 기존 로직 (정규화 + aliases 비교)
+    const ua = norm(ans);
+    const ca = norm(q.answer);
+    ok = ua === ca || (ua.length >= 2 && ca.includes(ua));
+    // aliases 비교 (있으면)
+    if (!ok && Array.isArray(q.aliases)) {
+      for (const alias of q.aliases) {
+        if (ua === norm(alias) || (ua.length >= 2 && norm(alias).includes(ua))) {
+          ok = true;
+          break;
+        }
+      }
+    }
+  }
   const pct=st.hitMs/st.totalMs*100;
   let label,cls,adv,mk;
   if(!ok){label='OUT';cls='r-out';adv=0;st.outs++;mk='out';st.tq+=calcTQ(mk,0,false); SND.out();}
