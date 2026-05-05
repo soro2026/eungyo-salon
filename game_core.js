@@ -485,6 +485,13 @@ let ZONE_BOARD = [];      // 현재 9개 존 카드 [{q, status:'pending'|'corre
 let ZONE_SELECTED = null; // 현재 선택된 인덱스
 let GAME_ACTIVE = false;  // 게임 진행 중 여부 (오디오 제어용)
 
+// ── 한 경기 누적 사용 ── v1.5+
+// 공격·수비 자세 무관하게 한 경기에서 같은 문제·인물·정답이 두 번 등장 안 하게
+// 새 경기 시작 시 startNewGame에서 청산
+let GAME_USED_SEEDS = new Set();
+let GAME_USED_FIGURES = new Set();
+let GAME_USED_ANSWERS = new Set();
+
 // 최근 사용된 문제 ID 추적 (중복 출제 방지)
 // 12개 카테고리 순환 인덱스 (라운드로빈)
 // categories_standard.md 기준 — 2글자 메인명으로 통일
@@ -511,28 +518,37 @@ function buildZoneBoard() {
   const usedSeedIds = new Set();
   const usedFigures = new Set();   // 이미 등장한 인물 이름들
   const usedAnswers = new Set();   // 이미 등장한 정답들
+  const usedCats = new Set();      // 이미 등장한 카테고리들
 
   // 한 문제가 중복 조건에 걸리는지 체크
+  // — 이번 보드 안 + 이번 경기 누적 둘 다 회피
   function isDuplicate(q) {
-    if (usedSeedIds.has(q.seed_id)) return true;
-    if (usedAnswers.has(q.answer)) return true;
+    if (usedSeedIds.has(q.seed_id) || GAME_USED_SEEDS.has(q.seed_id)) return true;
+    if (usedAnswers.has(q.answer) || GAME_USED_ANSWERS.has(q.answer)) return true;
     // figures 배열 안의 *어느 한 인물*이라도 이미 등장했으면 중복
     if (Array.isArray(q.figures)) {
       for (const fig of q.figures) {
-        if (usedFigures.has(fig)) return true;
+        if (usedFigures.has(fig) || GAME_USED_FIGURES.has(fig)) return true;
       }
     }
     return false;
   }
 
-  // 한 문제를 picked에 등록 (사용 흔적 남김)
+  // 한 문제를 picked에 등록 (이번 보드 + 경기 누적 둘 다 박음)
   function register(q) {
     picked.push(q);
     usedSeedIds.add(q.seed_id);
     usedAnswers.add(q.answer);
+    GAME_USED_SEEDS.add(q.seed_id);
+    GAME_USED_ANSWERS.add(q.answer);
     if (Array.isArray(q.figures)) {
-      q.figures.forEach(fig => usedFigures.add(fig));
+      q.figures.forEach(fig => {
+        usedFigures.add(fig);
+        GAME_USED_FIGURES.add(fig);
+      });
     }
+    const qCat = q.cat ? q.cat.split('·')[0].trim() : '';
+    if (qCat) usedCats.add(qCat);
   }
 
   // 카테고리별 문제 1개 선택 헬퍼 (중복 회피)
@@ -565,15 +581,35 @@ function buildZoneBoard() {
 
   // 3. 부족하면 전체에서 채우기 (fallback)
   // — 풀이 작아서 figures 중복 회피로 9칸 못 채울 수도 있음
-  // — 그래도 일단 figures 중복 회피 시도, 안 되면 seed_id·answer 중복만 회피
+  // — 1차: figures + 카테고리 중복 모두 회피
+  // — 2차: 카테고리만 회피 (figures 양보)
+  // — 3차: seed_id·answer만 회피 (모두 양보) — 풀 너무 작을 때만 도달
   if (picked.length < 9) {
     const fallback = [...QS].sort(() => Math.random() - 0.5);
-    // 1차: figures 포함 모든 중복 회피
+    // 1차: figures + 카테고리 모두 회피
     for (const q of fallback) {
       if (picked.length >= 9) break;
-      if (!isDuplicate(q)) register(q);
+      const qCat = q.cat ? q.cat.split('·')[0].trim() : '';
+      if (!isDuplicate(q) && !usedCats.has(qCat)) register(q);
     }
-    // 2차: seed_id·answer만 회피 (figures는 양보) — 풀 너무 작을 때만 도달
+    // 2차: 카테고리만 회피 (figures 양보)
+    if (picked.length < 9) {
+      for (const q of fallback) {
+        if (picked.length >= 9) break;
+        const qCat = q.cat ? q.cat.split('·')[0].trim() : '';
+        if (!usedSeedIds.has(q.seed_id) && !usedAnswers.has(q.answer) 
+            && !GAME_USED_SEEDS.has(q.seed_id) && !GAME_USED_ANSWERS.has(q.answer)
+            && !usedCats.has(qCat)) {
+          picked.push(q);
+          usedSeedIds.add(q.seed_id);
+          usedAnswers.add(q.answer);
+          GAME_USED_SEEDS.add(q.seed_id);
+          GAME_USED_ANSWERS.add(q.answer);
+          usedCats.add(qCat);
+        }
+      }
+    }
+    // 3차: 모두 양보 — 12 카테고리 풀이 9개 미만일 때만 도달
     if (picked.length < 9) {
       for (const q of fallback) {
         if (picked.length >= 9) break;
@@ -581,6 +617,8 @@ function buildZoneBoard() {
           picked.push(q);
           usedSeedIds.add(q.seed_id);
           usedAnswers.add(q.answer);
+          GAME_USED_SEEDS.add(q.seed_id);
+          GAME_USED_ANSWERS.add(q.answer);
         }
       }
     }
@@ -862,7 +900,18 @@ function renderBadge(){
 }
 function renderBoxes(){
   const q=getQ(),w=document.getElementById('hint-boxes');w.innerHTML='';
-  for(let i=0;i<q.boxes;i++){const d=document.createElement('div');d.className='hint-box';d.textContent=q.initials[i]||'';w.appendChild(d);}
+  // ── v1.5+ boxes 필드 fallback ──
+  // 카리 새 출제는 boxes 안 박음 — initials.length 또는 answer.length로 대체
+  let n = q.boxes;
+  if (!n && Array.isArray(q.initials)) n = q.initials.length;
+  if (!n && q.answer) n = String(q.answer).length;
+  if (!n) n = 0;
+  for(let i=0;i<n;i++){
+    const d=document.createElement('div');
+    d.className='hint-box';
+    d.textContent=(q.initials && q.initials[i])||'';
+    w.appendChild(d);
+  }
 }
 async function updateGameStatBar(q) {
   // 카테고리명 업데이트
@@ -2059,6 +2108,11 @@ function initGame(){
 
 function startGame(){
   GAME_ACTIVE = true;
+  // ── 새 경기 시작 — 누적 set 청산 (v1.5+)
+  // 이전 경기에서 등장한 문제·인물·정답 흔적 청산
+  GAME_USED_SEEDS.clear();
+  GAME_USED_FIGURES.clear();
+  GAME_USED_ANSWERS.clear();
   if(!QS_LOADED || QS.length === 0){
     alert("문제를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
     return;
