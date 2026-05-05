@@ -166,10 +166,21 @@ function shuffleChoices(choices) {
 }
 
 /**
- * 객관식 정답 판정 — 클릭한 보기 텍스트 vs answer
+ * 객관식 정답 판정 — 클릭한 보기 텍스트 vs answer (+ aliases)
+ * 띄어쓰기·번역어 차이 흡수를 위해 aliases도 함께 비교
  */
 function checkAnswerMC(userChoice, question) {
-  return userChoice === question.answer;
+  if (userChoice === question.answer) return true;
+  // aliases 안에 있어도 정답 처치 (띄어쓰기·번역어 차이)
+  if (Array.isArray(question.aliases)) {
+    for (const alias of question.aliases) {
+      if (userChoice === alias) return true;
+    }
+  }
+  // 정규화 비교 (공백·구두점 제거 후 비교) — 마지막 안전망
+  const normUser = String(userChoice).replace(/\s+/g, '').replace(/[·,.!?]/g, '');
+  const normAnswer = String(question.answer).replace(/\s+/g, '').replace(/[·,.!?]/g, '');
+  return normUser === normAnswer;
 }
 
 /**
@@ -246,6 +257,55 @@ function hitOX(choice) {
   }
   SND.hit();
   processAns(choice);
+}
+
+/**
+ * 뮤세움 연동 — 회원이 경험한 문제를 quiz_log에 기록
+ *
+ * 정신: 정답·오답 무관하게 *경험한 문제*는 모두 책등으로 박힘.
+ *      〈잃어버리기 연습〉의 정신 — 한 번의 마주침이 곧 영원한 책꽂이.
+ *
+ * 호출 자리: processAns(타격) / doAutoOut(시간초과) / showReveal(각인)
+ * INSERT 시점: 결과 화면 도달 직전
+ *
+ * 안전망:
+ *  - 비로그인 회원: 조용히 스킵
+ *  - 수비 시: 봇의 답이라 INSERT 안 함
+ *  - 중복 (같은 문제 두 번째): UPSERT 없이 INSERT — 같은 문제 여러 번 풀어도 한 번만 책으로
+ *    (실제 중복 처치는 museum.html이 answer 키로 dedupe 하므로 부담 없음)
+ *  - 네트워크 실패: 콘솔 경고만, 게임 흐름 안 끊김
+ */
+async function logQuizToMuseum(q) {
+  // 수비 중에는 INSERT 안 함 (봇 답이라)
+  if (!st.isAttack) return;
+  // 비로그인 회원은 스킵
+  if (!currentUser) return;
+  if (!q || !q.answer) return;
+
+  try {
+    const session = (await supa.auth.getSession()).data.session;
+    if (!session) return;
+    const token = session.access_token;
+
+    await fetch(`${SUPA_URL}/rest/v1/quiz_log`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPA_KEY,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        uid: currentUser.id,
+        answer: q.answer,
+        seed_id: q.seed_id || '',
+        category: q.cat || ''
+      })
+    });
+  } catch (e) {
+    console.warn('[뮤세움 연동] quiz_log INSERT 실패 (무시):', e?.message || e);
+    // 게임 흐름 안 끊음
+  }
 }
 
 
@@ -659,7 +719,7 @@ function showZonePitchReady() {
   document.getElementById('pitchready-screen').style.display = 'flex';
   document.getElementById('pr-inning').textContent = inningTxt;
   document.getElementById('pr-category').textContent = shortCat(catMain);
-  document.getElementById('pr-keyword').textContent = q.zone_keyword || q.keyword || catMain;
+  document.getElementById('pr-keyword').textContent = q.keyword || q.zone_keyword || catMain;
   document.getElementById('pr-sub').textContent = '배트를 꽉 쥐고 — 준비되면 사인을 보내세요';
   renderBadge();
 }
