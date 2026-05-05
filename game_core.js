@@ -1427,7 +1427,12 @@ function revealNext() {
 }
 
 function showResultAtk(label,cls,q,ok,tp,tt){
-  const sub=(ok?'정답: '+q.display:'오답 | 정답: '+q.display)+' · '+tt+' '+tp+'%';
+  let sub=(ok?'정답: '+q.display:'오답 | 정답: '+q.display)+' · '+tt+' '+tp+'%';
+  // ── v1.5+ OX 해설 추가 ──
+  // 카리가 박은 ox_explanation 필드 — 회원이 OX 정답 후 *왜 그런지* 만남
+  if (q.question_type === 'OX' && q.ox_explanation) {
+    sub += '<br><br>💡 ' + q.ox_explanation;
+  }
   const ra=document.getElementById('result-area');ra.innerHTML=mkResult(label,cls,sub);ra.style.display='block';
   st.atbat++;document.getElementById('stat-atbat').textContent=st.atbat+'타석';
   setTimeout(()=>ra.scrollIntoView({behavior:'smooth',block:'start'}),100);
