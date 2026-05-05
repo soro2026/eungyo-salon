@@ -1,4 +1,4 @@
-const CACHE = 'eungyo-v28';
+const CACHE = 'eungyo-v30';
 
 const CORE_FILES = [
   '/eungyo-salon/',
@@ -16,15 +16,28 @@ const CORE_FILES = [
 ];
 
 const QUESTION_FILES = [
+  '/eungyo-salon/questions_aeschylus.json',
+  '/eungyo-salon/questions_baekseok.json',
+  '/eungyo-salon/questions_chekhov.json',
+  '/eungyo-salon/questions_darwin.json',
   '/eungyo-salon/questions_davinci.json',
+  '/eungyo-salon/questions_dostoevsky.json',
+  '/eungyo-salon/questions_euripides.json',
+  '/eungyo-salon/questions_goethe.json',
   '/eungyo-salon/questions_homer.json',
+  '/eungyo-salon/questions_hugo.json',
+  '/eungyo-salon/questions_kafka.json',
   '/eungyo-salon/questions_mozart.json',
   '/eungyo-salon/questions_ovid.json',
+  '/eungyo-salon/questions_poe.json',
   '/eungyo-salon/questions_sejong.json',
   '/eungyo-salon/questions_shakespeare.json',
   '/eungyo-salon/questions_socrates.json',
+  '/eungyo-salon/questions_sophocles.json',
   '/eungyo-salon/questions_tolstoy.json',
   '/eungyo-salon/questions_vangogh.json',
+  '/eungyo-salon/questions_virgil.json',
+  '/eungyo-salon/questions_yundongju.json',
 ];
 
 const AUDIO_FILES = [
