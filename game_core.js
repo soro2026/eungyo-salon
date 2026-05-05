@@ -501,14 +501,45 @@ function buildZoneBoard() {
   // ── 존 보드 9칸 구성 규칙 ──
   // 고정 3칸: 문학 / 철학 / 예술 (항상 포함)
   // 랜덤 6칸: 나머지 9개 카테고리 중 6개 랜덤 선택
+  // ── v1.5+ 중복 방지 ──
+  // 한 게임에 같은 인물 두 번 나오지 않도록:
+  //   ① 같은 seed_id 두 번 안 뽑음
+  //   ② 같은 figures(주인공 인물) 두 번 안 뽑음
+  //   ③ 같은 answer 두 번 안 뽑음 (다른 인물이 같은 작품 만든 경우 대비)
 
   const picked = [];
+  const usedSeedIds = new Set();
+  const usedFigures = new Set();   // 이미 등장한 인물 이름들
+  const usedAnswers = new Set();   // 이미 등장한 정답들
 
-  // 카테고리별 문제 1개 선택 헬퍼
+  // 한 문제가 중복 조건에 걸리는지 체크
+  function isDuplicate(q) {
+    if (usedSeedIds.has(q.seed_id)) return true;
+    if (usedAnswers.has(q.answer)) return true;
+    // figures 배열 안의 *어느 한 인물*이라도 이미 등장했으면 중복
+    if (Array.isArray(q.figures)) {
+      for (const fig of q.figures) {
+        if (usedFigures.has(fig)) return true;
+      }
+    }
+    return false;
+  }
+
+  // 한 문제를 picked에 등록 (사용 흔적 남김)
+  function register(q) {
+    picked.push(q);
+    usedSeedIds.add(q.seed_id);
+    usedAnswers.add(q.answer);
+    if (Array.isArray(q.figures)) {
+      q.figures.forEach(fig => usedFigures.add(fig));
+    }
+  }
+
+  // 카테고리별 문제 1개 선택 헬퍼 (중복 회피)
   function pickFromCat(catName) {
     const pool = QS.filter(q => {
       const qCat = q.cat ? q.cat.split('·')[0].trim() : '';
-      return qCat === catName;
+      return qCat === catName && !isDuplicate(q);
     });
     if (pool.length === 0) return null;
     return pool[Math.floor(Math.random() * pool.length)];
@@ -517,7 +548,7 @@ function buildZoneBoard() {
   // 1. 고정 3칸: 문학 / 철학 / 예술
   CAT_FIXED.forEach(catName => {
     const q = pickFromCat(catName);
-    if (q) picked.push(q);
+    if (q) register(q);
   });
 
   // 2. 나머지 9개 카테고리 중 6개 랜덤 선택
@@ -529,18 +560,28 @@ function buildZoneBoard() {
   }
   remainCats.slice(0, 6).forEach(catName => {
     const q = pickFromCat(catName);
-    if (q) picked.push(q);
+    if (q) register(q);
   });
 
   // 3. 부족하면 전체에서 채우기 (fallback)
+  // — 풀이 작아서 figures 중복 회피로 9칸 못 채울 수도 있음
+  // — 그래도 일단 figures 중복 회피 시도, 안 되면 seed_id·answer 중복만 회피
   if (picked.length < 9) {
-    const usedIds = new Set(picked.map(p => p.seed_id));
     const fallback = [...QS].sort(() => Math.random() - 0.5);
+    // 1차: figures 포함 모든 중복 회피
     for (const q of fallback) {
       if (picked.length >= 9) break;
-      if (!usedIds.has(q.seed_id)) {
-        picked.push(q);
-        usedIds.add(q.seed_id);
+      if (!isDuplicate(q)) register(q);
+    }
+    // 2차: seed_id·answer만 회피 (figures는 양보) — 풀 너무 작을 때만 도달
+    if (picked.length < 9) {
+      for (const q of fallback) {
+        if (picked.length >= 9) break;
+        if (!usedSeedIds.has(q.seed_id) && !usedAnswers.has(q.answer)) {
+          picked.push(q);
+          usedSeedIds.add(q.seed_id);
+          usedAnswers.add(q.answer);
+        }
       }
     }
   }
