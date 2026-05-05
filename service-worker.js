@@ -1,4 +1,4 @@
-const CACHE = 'eungyo-v27';
+const CACHE = 'eungyo-v28';
 
 const CORE_FILES = [
   '/eungyo-salon/',
@@ -10,18 +10,21 @@ const CORE_FILES = [
   '/eungyo-salon/wunderkammer.html',
   '/eungyo-salon/game_rookie.html',
   '/eungyo-salon/game_core.js',
+  '/eungyo-salon/external_links.js',
+  '/eungyo-salon/answer_compare.js',
+  '/eungyo-salon/questions_index.json',
 ];
 
 const QUESTION_FILES = [
-  '/eungyo-salon/questions_taeyang.json',
-  '/eungyo-salon/questions_gil.json',
-  '/eungyo-salon/questions_terra.json',
-  '/eungyo-salon/questions_bam.json',
-  '/eungyo-salon/questions_bul.json',
-  '/eungyo-salon/questions_namu.json',
-  '/eungyo-salon/questions_dol.json',
-  '/eungyo-salon/questions_baram.json',
-  '/eungyo-salon/questions_geoul.json',
+  '/eungyo-salon/questions_davinci.json',
+  '/eungyo-salon/questions_homer.json',
+  '/eungyo-salon/questions_mozart.json',
+  '/eungyo-salon/questions_ovid.json',
+  '/eungyo-salon/questions_sejong.json',
+  '/eungyo-salon/questions_shakespeare.json',
+  '/eungyo-salon/questions_socrates.json',
+  '/eungyo-salon/questions_tolstoy.json',
+  '/eungyo-salon/questions_vangogh.json',
 ];
 
 const AUDIO_FILES = [
