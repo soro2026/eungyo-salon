@@ -1375,9 +1375,31 @@ function showInnerPages() {
     p.style.top           = '0';
     p.style.left          = '0';
     p.style.right         = '0';
-    p.style.zIndex        = i === 0 ? '2' : '1';
+    // 활성 페이지를 nav-zone(z:10) 위로 올림 — 링크 클릭 가능
+    p.style.zIndex        = i === 0 ? '12' : '1';
     p.style.transform     = i === 0 ? 'translateX(0)' : 'translateX(100%)';
     p.style.transition    = 'none';
+
+    // page-inner 자식이 있으면 그쪽에 스크롤 살리기
+    // (book-page-view는 슬라이드 애니메이션 위해 hidden 필수)
+    const innerScroll = p.classList.contains('page-inner') ? p : p.querySelector('.page-inner');
+    if (innerScroll) {
+      innerScroll.style.overflowY = 'auto';
+      innerScroll.style.height    = '100%';
+      innerScroll.style.maxHeight = '460px';
+      innerScroll.style.flex      = '1 1 auto';
+    }
+
+    // 페이지 자체에 좌우 클릭 분기 — 링크/버튼 위가 아닐 때만 페이지 뒤집기
+    p.addEventListener('click', (ev) => {
+      // 링크·버튼 위에서 클릭하면 무시 (그쪽이 자기 일 함)
+      if (ev.target.closest('a, button, [data-no-flip]')) return;
+      const rect = p.getBoundingClientRect();
+      const x = ev.clientX - rect.left;
+      // 가운데 30% 영역은 무반응 (실수 방지). 좌측 35% / 우측 35%만 반응
+      if (x < rect.width * 0.35) turnPage(-1);
+      else if (x > rect.width * 0.65) turnPage(1);
+    });
     pagesEl.appendChild(p);
     console.log(`페이지 ${i} 추가:`, p.className, p.style.display);
   });
@@ -1423,11 +1445,12 @@ function turnPage(dir) {
 
   if (dir > 0) {
     // ── 다음: outPage(위)가 왼쪽으로 슬라이드아웃, inPage(아래)는 고정 ──
-    inPage.style.zIndex    = '1';
+    // z-index를 nav-zone(10) 위로 올려 페이지 안 링크가 클릭 가능
+    inPage.style.zIndex    = '11';
     inPage.style.transform = 'translateX(0)';
     inPage.style.transition = 'none';
 
-    outPage.style.zIndex    = '2';
+    outPage.style.zIndex    = '12';
     outPage.style.transition = 'none';
     outPage.style.transform  = 'translateX(0)';
 
@@ -1438,11 +1461,11 @@ function turnPage(dir) {
 
   } else {
     // ── 이전: inPage(이전 페이지)가 오른쪽에서 위로 슬라이드인, outPage는 아래 고정 ──
-    outPage.style.zIndex    = '1';
+    outPage.style.zIndex    = '11';
     outPage.style.transform = 'translateX(0)';
     outPage.style.transition = 'none';
 
-    inPage.style.zIndex    = '3';
+    inPage.style.zIndex    = '13';
     inPage.style.transition = 'none';
     inPage.style.transform  = 'translateX(100%)';
 
@@ -1457,6 +1480,9 @@ function turnPage(dir) {
   setTimeout(() => {
     currentPage = next;
     inPage.scrollTop = 0;
+    // 새 활성 페이지를 z:12, 옛 페이지는 z:1로 정돈
+    inPage.style.zIndex  = '12';
+    outPage.style.zIndex = '1';
     renderDots();
     updateNavZones();
     isAnimating = false;
