@@ -959,6 +959,7 @@ async function loadMuseumBooks() {
             category: q.category || '',
             catId:    getCatId(q.category),
             library:  q.library  || {},
+            curation_links: q.curation_links || null,
             solved:   0,
             // 내가 경험한 책인지 여부
             mine: myAnswers.has(q.answer),
@@ -1561,6 +1562,18 @@ document.getElementById('bookModalOverlay').addEventListener('touchend', e => {
 }, { passive: true });
 
 // ── buildPages ──────────────────────────────
+
+// 마크다운 강조 (*텍스트*) → <em>텍스트</em> 변환
+// 카리가 4레이어에 빚는 별표 강조를 부드러운 이탤릭으로 풀어내기 위함
+function renderMarkdown(text) {
+  if (!text) return '';
+  // 줄바꿈 보존 + 별표 한 쌍으로 감싼 부분을 em으로 변환
+  // **텍스트** (볼드)도 함께 처치
+  return String(text)
+    .replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*\n]+?)\*/g, '<em>$1</em>');
+}
+
 function buildPages(book, lib) {
   const pages = [];
   // (표지는 3D 씬으로 대체 — 내부 페이지만 구성)
@@ -1581,9 +1594,13 @@ function buildPages(book, lib) {
     pages.push(makeInnerPage('LAYER 3 · 연결', '삶과 이어보기', lib.connection, pages.length + 1));
   }
 
-  // 4. 큐레이션
+  // 4. 큐레이션 (텍스트 + 자동 링크)
+  // curation 텍스트가 있으면 그 페이지에 링크 함께 / 텍스트 없어도 링크만 있으면 별도 페이지
   if (lib.curation) {
-    pages.push(makeCurationPage(lib.curation, pages.length + 1));
+    pages.push(makeCurationPage(lib.curation, pages.length + 1, book.curation_links));
+  } else if (book.curation_links) {
+    // curation 텍스트는 없지만 링크만 있는 케이스
+    pages.push(makeCurationPage('', pages.length + 1, book.curation_links));
   }
 
   // 5. 마지막 페이지
@@ -1600,7 +1617,7 @@ function makeInnerPage(tag, heading, body, num) {
     <div class="page-inner-content">
       <div class="page-layer-tag">${tag}</div>
       <div class="page-layer-heading">${heading}</div>
-      <div class="page-layer-body">${body}</div>
+      <div class="page-layer-body">${renderMarkdown(body)}</div>
     </div>
     <div class="page-num-inner">${num}</div>
     <div class="page-corner"></div>
@@ -1608,16 +1625,22 @@ function makeInnerPage(tag, heading, body, num) {
   return div;
 }
 
-function makeCurationPage(curation, num) {
+function makeCurationPage(curation, num, links) {
   const div = document.createElement('div');
   div.className = 'book-page-view page-inner';
   // 큐레이션 텍스트를 항목별로 분리
   const items = curation.split('/').map(s => s.trim()).filter(Boolean);
   const itemsHtml = items.map(item => `
     <div style="padding:10px 0;border-bottom:1px solid rgba(180,160,120,0.15);font-size:13px;color:#3D2F10;font-family:'Noto Serif KR',serif;line-height:1.6">
-      ${item}
+      ${renderMarkdown(item)}
     </div>
   `).join('');
+
+  // curation_links 자동 렌더링 (있으면)
+  let linksHtml = '';
+  if (links && (links.books || links.library_call_number || links.youtube_keywords)) {
+    linksHtml = renderCurationLinks(links);
+  }
 
   div.innerHTML = `
     <div class="page-lines"></div>
@@ -1625,11 +1648,70 @@ function makeCurationPage(curation, num) {
       <div class="page-layer-tag">LAYER 4 · 큐레이션</div>
       <div class="page-layer-heading">더 깊이 들어가기</div>
       ${itemsHtml}
+      ${linksHtml}
     </div>
     <div class="page-num-inner">${num}</div>
     <div class="page-corner"></div>
   `;
   return div;
+}
+
+// curation_links 객체 → HTML 자동 생성
+// 책(교보·알라딘·예스24) / 도서관 청구기호 / 유튜브 검색
+function renderCurationLinks(links) {
+  const sections = [];
+
+  // 1. 책 살 수 있는 곳
+  if (links.books && links.books.length > 0) {
+    const bookCards = links.books.map(b => {
+      const title = b.title || '';
+      const meta = [b.translator && `${b.translator} 옮김`, b.publisher].filter(Boolean).join(' · ');
+      const isbn = b.isbn || '';
+      // 교보·알라딘·예스24 검색 링크
+      const stores = [];
+      if (isbn) {
+        stores.push(`<a href="https://search.kyobobook.co.kr/search?keyword=${isbn}" target="_blank" rel="noopener" style="color:#8B6F2A;text-decoration:none;border-bottom:1px solid rgba(139,111,42,0.3);padding-bottom:1px">교보</a>`);
+        stores.push(`<a href="https://www.aladin.co.kr/search/wsearchresult.aspx?SearchTarget=All&SearchWord=${isbn}" target="_blank" rel="noopener" style="color:#8B6F2A;text-decoration:none;border-bottom:1px solid rgba(139,111,42,0.3);padding-bottom:1px">알라딘</a>`);
+        stores.push(`<a href="https://www.yes24.com/Product/Search?domain=BOOK&query=${isbn}" target="_blank" rel="noopener" style="color:#8B6F2A;text-decoration:none;border-bottom:1px solid rgba(139,111,42,0.3);padding-bottom:1px">예스24</a>`);
+      }
+      const storesHtml = stores.length ? `<div style="margin-top:6px;font-size:11px;letter-spacing:0.05em">${stores.join(' · ')}</div>` : '';
+      return `
+        <div style="padding:10px 0;border-bottom:1px solid rgba(180,160,120,0.12);font-family:'Noto Serif KR',serif;">
+          <div style="font-size:13px;color:#3D2F10;font-weight:500">${title}</div>
+          ${meta ? `<div style="font-size:11px;color:rgba(80,60,30,0.6);margin-top:3px">${meta}</div>` : ''}
+          ${storesHtml}
+        </div>`;
+    }).join('');
+    sections.push(`
+      <div style="margin-top:18px">
+        <div style="font-size:10px;letter-spacing:0.18em;color:rgba(120,90,40,0.55);font-family:'Courier New',monospace;margin-bottom:6px">📖 책</div>
+        ${bookCards}
+      </div>`);
+  }
+
+  // 2. 도서관 청구기호
+  if (links.library_call_number) {
+    sections.push(`
+      <div style="margin-top:14px;padding:10px 0;border-bottom:1px solid rgba(180,160,120,0.12);font-family:'Noto Serif KR',serif">
+        <div style="font-size:10px;letter-spacing:0.18em;color:rgba(120,90,40,0.55);font-family:'Courier New',monospace;margin-bottom:4px">🏛 도서관 청구기호</div>
+        <div style="font-size:13px;color:#3D2F10">${links.library_call_number}</div>
+      </div>`);
+  }
+
+  // 3. 유튜브 검색
+  if (links.youtube_keywords && links.youtube_keywords.length > 0) {
+    const ytLinks = links.youtube_keywords.map(kw => {
+      const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(kw)}`;
+      return `<a href="${url}" target="_blank" rel="noopener" style="color:#8B6F2A;text-decoration:none;border-bottom:1px solid rgba(139,111,42,0.3);padding-bottom:1px;display:inline-block;margin-right:10px;margin-top:4px">${kw}</a>`;
+    }).join('');
+    sections.push(`
+      <div style="margin-top:14px;padding:10px 0;font-family:'Noto Serif KR',serif">
+        <div style="font-size:10px;letter-spacing:0.18em;color:rgba(120,90,40,0.55);font-family:'Courier New',monospace;margin-bottom:4px">🎬 유튜브에서 더 보기</div>
+        <div style="font-size:12px;line-height:2">${ytLinks}</div>
+      </div>`);
+  }
+
+  return sections.length ? `<div style="margin-top:24px;padding-top:18px;border-top:1px dashed rgba(180,160,120,0.25)">${sections.join('')}</div>` : '';
 }
 
 function makePhilemonPage(book, num) {
