@@ -1680,6 +1680,332 @@ function showFinalResult(result, resultColor, emoji){
 }
 
 // ═══════════════════════════════════════════════════
+// 💾 경기 종료 후 Supabase 저장 — 4건 일괄 처치
+// ═══════════════════════════════════════════════════
+//
+//  처치 흐름 (종합설계도 v1.1 데이터 흐름 4·5단계):
+//    1. 현재 active 시즌 조회 (seasons 테이블)
+//    2. matches: 오늘 my_game 행 INSERT or UPDATE → completed
+//    3. season_stats: UPSERT (시즌 누적)
+//    4. career_stats: UPSERT (통산 누적, golden_apples +1)
+//    5. apple_log: INSERT (황금사과 한 알, 끝까지 뛴 보상)
+//
+//  실패 시: 콘솔 경고만 — 게임 화면 안 깨짐
+//
+async function saveStatsToSupabase() {
+  if (!currentUser) {
+    console.warn('[저장] 비로그인 — 스킵');
+    return;
+  }
+
+  try {
+    const session = (await supa.auth.getSession()).data.session;
+    if (!session) {
+      console.warn('[저장] 세션 없음 — 스킵');
+      return;
+    }
+    const token = session.access_token;
+    const baseHeaders = {
+      'apikey': SUPA_KEY,
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+
+    // ── 1단계. 현재 active 시즌 조회 ────────────────────────
+    const seasonRes = await fetch(
+      `${SUPA_URL}/rest/v1/seasons?user_id=eq.${currentUser.id}&status=eq.active&select=id,league&order=id.desc&limit=1`,
+      { headers: baseHeaders }
+    );
+    const seasonData = await seasonRes.json();
+    if (!seasonData?.[0]) {
+      console.warn('[저장] active 시즌 없음 — 스킵');
+      return;
+    }
+    const seasonId = seasonData[0].id;
+
+    // ── 2단계. matches 처치 ──────────────────────────────
+    //   오늘 날짜의 my_game 행 찾기 → 있으면 UPDATE, 없으면 INSERT
+    const today = new Date().toISOString().slice(0, 10);  // 'YYYY-MM-DD'
+    const isWin = st.scoreMe > st.scoreAi;
+    const homeScore = currentIsHome ? st.scoreMe : st.scoreAi;
+    const awayScore = currentIsHome ? st.scoreAi : st.scoreMe;
+    const homeTeam  = currentIsHome ? 'soro' : (currentOpp?.id || 'unknown');
+    const awayTeam  = currentIsHome ? (currentOpp?.id || 'unknown') : 'soro';
+
+    const matchSearchRes = await fetch(
+      `${SUPA_URL}/rest/v1/matches?user_id=eq.${currentUser.id}&match_date=eq.${today}&is_my_game=eq.true&select=id,status`,
+      { headers: baseHeaders }
+    );
+    const existingMatches = await matchSearchRes.json();
+
+    if (existingMatches?.[0]) {
+      // 이미 cron이 만들어둔 행 — UPDATE
+      const matchId = existingMatches[0].id;
+      await fetch(
+        `${SUPA_URL}/rest/v1/matches?id=eq.${matchId}`,
+        {
+          method: 'PATCH',
+          headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({
+            status: 'completed',
+            home_score: homeScore,
+            away_score: awayScore,
+            completed_at: new Date().toISOString()
+          })
+        }
+      );
+    } else {
+      // 행 없음 — 새로 INSERT (cron 도입 전 상황 대응)
+      const dayOfWeek = new Date().getDay() === 0 ? 7 : new Date().getDay();  // ISO: 월=1, 일=7
+      // week_num은 임시로 시즌 시작일 기준 주차 계산
+      const seasonStartRes = await fetch(
+        `${SUPA_URL}/rest/v1/seasons?id=eq.${seasonId}&select=start_date`,
+        { headers: baseHeaders }
+      );
+      const seasonInfo = await seasonStartRes.json();
+      let weekNum = 1;
+      if (seasonInfo?.[0]?.start_date) {
+        const startDate = new Date(seasonInfo[0].start_date);
+        const todayDate = new Date(today);
+        const diffDays = Math.floor((todayDate - startDate) / (1000 * 60 * 60 * 24));
+        weekNum = Math.floor(diffDays / 7) + 1;
+      }
+
+      await fetch(
+        `${SUPA_URL}/rest/v1/matches`,
+        {
+          method: 'POST',
+          headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({
+            user_id: currentUser.id,
+            match_date: today,
+            week_num: weekNum,
+            day_of_week: dayOfWeek,
+            home_team: homeTeam,
+            away_team: awayTeam,
+            is_my_game: true,
+            home_score: homeScore,
+            away_score: awayScore,
+            status: 'completed',
+            completed_at: new Date().toISOString()
+          })
+        }
+      );
+    }
+
+    // ── 3단계. season_stats UPSERT ────────────────────────
+    //   기존 행 있으면 통계 더하고, 없으면 INSERT
+    const statsSearchRes = await fetch(
+      `${SUPA_URL}/rest/v1/season_stats?uid=eq.${currentUser.id}&season_id=eq.${seasonId}&select=*`,
+      { headers: baseHeaders }
+    );
+    const existingStats = await statsSearchRes.json();
+
+    const winInc  = isWin ? 1 : 0;
+    const lossInc = isWin ? 0 : 1;
+    const ab = st.totalAB || 0;
+
+    if (existingStats?.[0]) {
+      const cur = existingStats[0];
+      await fetch(
+        `${SUPA_URL}/rest/v1/season_stats?id=eq.${cur.id}`,
+        {
+          method: 'PATCH',
+          headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({
+            games:         (cur.games || 0) + 1,
+            wins:          (cur.wins || 0) + winInc,
+            losses:        (cur.losses || 0) + lossInc,
+            hits:          (cur.hits || 0) + (st.hits || 0),
+            at_bats:       (cur.at_bats || 0) + ab,
+            hr:            (cur.hr || 0) + (st.hr || 0),
+            rbi:           (cur.rbi || 0) + (st.rbi || 0),
+            singles:       (cur.singles || 0) + (st.singles || 0),
+            doubles:       (cur.doubles || 0) + (st.doubles || 0),
+            triples:       (cur.triples || 0) + (st.triples || 0),
+            bb:            (cur.bb || 0) + (st.bb || 0),
+            earned_runs:   (cur.earned_runs || 0) + (st.earnedRuns || 0),
+            outs_recorded: (cur.outs_recorded || 0) + (st.outsRecorded || 0),
+            tq:            (cur.tq || 0) + (st.tq || 0),
+            updated_at:    new Date().toISOString()
+          })
+        }
+      );
+    } else {
+      await fetch(
+        `${SUPA_URL}/rest/v1/season_stats`,
+        {
+          method: 'POST',
+          headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({
+            uid:           currentUser.id,
+            season_id:     seasonId,
+            games:         1,
+            wins:          winInc,
+            losses:        lossInc,
+            hits:          st.hits || 0,
+            at_bats:       ab,
+            hr:            st.hr || 0,
+            rbi:           st.rbi || 0,
+            singles:       st.singles || 0,
+            doubles:       st.doubles || 0,
+            triples:       st.triples || 0,
+            bb:            st.bb || 0,
+            earned_runs:   st.earnedRuns || 0,
+            outs_recorded: st.outsRecorded || 0,
+            tq:            st.tq || 0,
+            updated_at:    new Date().toISOString()
+          })
+        }
+      );
+    }
+
+    // ── 4단계. career_stats UPSERT ────────────────────────
+    //   uid PK라 단순. golden_apples는 황금사과 수령 시 따로 +1 (apple_log 트리거)
+    const careerSearchRes = await fetch(
+      `${SUPA_URL}/rest/v1/career_stats?uid=eq.${currentUser.id}&select=*`,
+      { headers: baseHeaders }
+    );
+    const existingCareer = await careerSearchRes.json();
+
+    if (existingCareer?.[0]) {
+      const cur = existingCareer[0];
+      await fetch(
+        `${SUPA_URL}/rest/v1/career_stats?uid=eq.${currentUser.id}`,
+        {
+          method: 'PATCH',
+          headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({
+            games:         (cur.games || 0) + 1,
+            wins:          (cur.wins || 0) + winInc,
+            losses:        (cur.losses || 0) + lossInc,
+            hits:          (cur.hits || 0) + (st.hits || 0),
+            at_bats:       (cur.at_bats || 0) + ab,
+            hr:            (cur.hr || 0) + (st.hr || 0),
+            rbi:           (cur.rbi || 0) + (st.rbi || 0),
+            singles:       (cur.singles || 0) + (st.singles || 0),
+            doubles:       (cur.doubles || 0) + (st.doubles || 0),
+            triples:       (cur.triples || 0) + (st.triples || 0),
+            bb:            (cur.bb || 0) + (st.bb || 0),
+            earned_runs:   (cur.earned_runs || 0) + (st.earnedRuns || 0),
+            outs_recorded: (cur.outs_recorded || 0) + (st.outsRecorded || 0),
+            updated_at:    new Date().toISOString()
+          })
+        }
+      );
+    } else {
+      await fetch(
+        `${SUPA_URL}/rest/v1/career_stats`,
+        {
+          method: 'POST',
+          headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({
+            uid:           currentUser.id,
+            games:         1,
+            wins:          winInc,
+            losses:        lossInc,
+            hits:          st.hits || 0,
+            at_bats:       ab,
+            hr:            st.hr || 0,
+            rbi:           st.rbi || 0,
+            singles:       st.singles || 0,
+            doubles:       st.doubles || 0,
+            triples:       st.triples || 0,
+            bb:            st.bb || 0,
+            earned_runs:   st.earnedRuns || 0,
+            outs_recorded: st.outsRecorded || 0,
+            golden_apples: 0,  // apple_log 처치 시 +1 (showAppleAward에서)
+            updated_at:    new Date().toISOString()
+          })
+        }
+      );
+    }
+
+    console.log('[저장] matches/season_stats/career_stats 저장 완료', {
+      season_id: seasonId,
+      isWin,
+      score: `${st.scoreMe}:${st.scoreAi}`
+    });
+
+  } catch (e) {
+    console.warn('[저장] Supabase 저장 실패 (게임 흐름 안 끊음):', e?.message || e);
+  }
+}
+
+// ── 황금사과 수령 UI 처치 (HTML onclick에서 호출) ──
+//   버튼 누르면: 황금사과 한 알 박아주고 + 버튼 비활성화 + 안내
+async function showAppleAward() {
+  const section = document.getElementById('apple-award-section');
+  if (!section) return;
+
+  // 버튼 비활성화 — 중복 클릭 방지
+  section.innerHTML = `
+    <div style="background:linear-gradient(135deg,rgba(201,168,76,0.2),rgba(201,168,76,0.05));border:1px solid rgba(201,168,76,0.4);border-radius:8px;padding:14px;color:#C9A84C;font-size:14px;letter-spacing:0.04em">
+      🍎 황금사과 한 알이 자화상 월렛에 들어왔어요
+    </div>
+  `;
+
+  // 실제 처치
+  await awardGoldenApple(1, '경기 완주');
+}
+
+// ── 황금사과 수령 처치 (사용자가 *받기* 버튼 누를 때 호출) ──
+//   apple_log INSERT + career_stats.golden_apples += 1
+async function awardGoldenApple(amount = 1, reason = '경기 완주') {
+  if (!currentUser) return;
+
+  try {
+    const session = (await supa.auth.getSession()).data.session;
+    if (!session) return;
+    const token = session.access_token;
+    const baseHeaders = {
+      'apikey': SUPA_KEY,
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+
+    // 1. apple_log INSERT
+    await fetch(
+      `${SUPA_URL}/rest/v1/apple_log`,
+      {
+        method: 'POST',
+        headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          uid: currentUser.id,
+          amount: amount,
+          reason: reason,
+          locked: false
+        })
+      }
+    );
+
+    // 2. career_stats.golden_apples += amount
+    const careerRes = await fetch(
+      `${SUPA_URL}/rest/v1/career_stats?uid=eq.${currentUser.id}&select=golden_apples`,
+      { headers: baseHeaders }
+    );
+    const careerData = await careerRes.json();
+    const curApples = careerData?.[0]?.golden_apples || 0;
+
+    await fetch(
+      `${SUPA_URL}/rest/v1/career_stats?uid=eq.${currentUser.id}`,
+      {
+        method: 'PATCH',
+        headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          golden_apples: curApples + amount,
+          updated_at: new Date().toISOString()
+        })
+      }
+    );
+
+    console.log('[황금사과] 수령 완료', { amount, reason, total: curApples + amount });
+  } catch (e) {
+    console.warn('[황금사과] apple_log INSERT 실패:', e?.message || e);
+  }
+}
+
+// ═══════════════════════════════════════════════════
 // 🎲 주사위 결판 시스템 (점수 동점 시)
 // ═══════════════════════════════════════════════════
 // 각 숫자가 정면에 보이게 하는 회전 각도
