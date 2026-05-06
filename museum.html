@@ -1563,15 +1563,16 @@ document.getElementById('bookModalOverlay').addEventListener('touchend', e => {
 
 // ── buildPages ──────────────────────────────
 
-// 마크다운 강조 (*텍스트*) → <em>텍스트</em> 변환
-// 카리가 4레이어에 빚는 별표 강조를 부드러운 이탤릭으로 풀어내기 위함
+// 마크다운 강조 (*텍스트*) → 굵은 고딕(산세리프) 강조
+// 카리가 4레이어에 빚는 별표 강조를 부드러운 이탤릭 대신
+// 또렷한 볼드 + 산세리프로 풀어내기 (소로 결정 5/6)
 function renderMarkdown(text) {
   if (!text) return '';
-  // 줄바꿈 보존 + 별표 한 쌍으로 감싼 부분을 em으로 변환
-  // **텍스트** (볼드)도 함께 처치
+  // **텍스트** (이중 별표) — 짙은 볼드 강조
+  // *텍스트* (단일 별표) — 산세리프 볼드 강조 (이탤릭 아님)
   return String(text)
-    .replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*\n]+?)\*/g, '<em>$1</em>');
+    .replace(/\*\*([^*\n]+?)\*\*/g, '<strong style="font-family:\'Noto Sans KR\',\'맑은 고딕\',sans-serif;font-weight:700;color:#2a1f08">$1</strong>')
+    .replace(/\*([^*\n]+?)\*/g, '<strong style="font-family:\'Noto Sans KR\',\'맑은 고딕\',sans-serif;font-weight:600;color:#3a2a10">$1</strong>');
 }
 
 function buildPages(book, lib) {
@@ -1658,8 +1659,11 @@ function makeCurationPage(curation, num, links) {
 
 // curation_links 객체 → HTML 자동 생성
 // 책(교보·알라딘·예스24) / 도서관 청구기호 / 유튜브 검색
+// 모든 링크는 event.stopPropagation()으로 페이지 뒤집기 충돌 방지
 function renderCurationLinks(links) {
   const sections = [];
+  const linkStyle = "color:#8B6F2A;text-decoration:none;border-bottom:1px solid rgba(139,111,42,0.3);padding-bottom:1px";
+  const stopProp = `onclick="event.stopPropagation()" ontouchstart="event.stopPropagation()"`;
 
   // 1. 책 살 수 있는 곳
   if (links.books && links.books.length > 0) {
@@ -1670,9 +1674,9 @@ function renderCurationLinks(links) {
       // 교보·알라딘·예스24 검색 링크
       const stores = [];
       if (isbn) {
-        stores.push(`<a href="https://search.kyobobook.co.kr/search?keyword=${isbn}" target="_blank" rel="noopener" style="color:#8B6F2A;text-decoration:none;border-bottom:1px solid rgba(139,111,42,0.3);padding-bottom:1px">교보</a>`);
-        stores.push(`<a href="https://www.aladin.co.kr/search/wsearchresult.aspx?SearchTarget=All&SearchWord=${isbn}" target="_blank" rel="noopener" style="color:#8B6F2A;text-decoration:none;border-bottom:1px solid rgba(139,111,42,0.3);padding-bottom:1px">알라딘</a>`);
-        stores.push(`<a href="https://www.yes24.com/Product/Search?domain=BOOK&query=${isbn}" target="_blank" rel="noopener" style="color:#8B6F2A;text-decoration:none;border-bottom:1px solid rgba(139,111,42,0.3);padding-bottom:1px">예스24</a>`);
+        stores.push(`<a href="https://search.kyobobook.co.kr/search?keyword=${isbn}" target="_blank" rel="noopener" ${stopProp} style="${linkStyle}">교보</a>`);
+        stores.push(`<a href="https://www.aladin.co.kr/search/wsearchresult.aspx?SearchTarget=All&SearchWord=${isbn}" target="_blank" rel="noopener" ${stopProp} style="${linkStyle}">알라딘</a>`);
+        stores.push(`<a href="https://www.yes24.com/Product/Search?domain=BOOK&query=${isbn}" target="_blank" rel="noopener" ${stopProp} style="${linkStyle}">예스24</a>`);
       }
       const storesHtml = stores.length ? `<div style="margin-top:6px;font-size:11px;letter-spacing:0.05em">${stores.join(' · ')}</div>` : '';
       return `
@@ -1689,7 +1693,7 @@ function renderCurationLinks(links) {
       </div>`);
   }
 
-  // 2. 도서관 청구기호
+  // 2. 도서관 청구기호 (텍스트만 — 링크 아님)
   if (links.library_call_number) {
     sections.push(`
       <div style="margin-top:14px;padding:10px 0;border-bottom:1px solid rgba(180,160,120,0.12);font-family:'Noto Serif KR',serif">
@@ -1702,7 +1706,7 @@ function renderCurationLinks(links) {
   if (links.youtube_keywords && links.youtube_keywords.length > 0) {
     const ytLinks = links.youtube_keywords.map(kw => {
       const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(kw)}`;
-      return `<a href="${url}" target="_blank" rel="noopener" style="color:#8B6F2A;text-decoration:none;border-bottom:1px solid rgba(139,111,42,0.3);padding-bottom:1px;display:inline-block;margin-right:10px;margin-top:4px">${kw}</a>`;
+      return `<a href="${url}" target="_blank" rel="noopener" ${stopProp} style="${linkStyle};display:inline-block;margin-right:10px;margin-top:4px">${kw}</a>`;
     }).join('');
     sections.push(`
       <div style="margin-top:14px;padding:10px 0;font-family:'Noto Serif KR',serif">
