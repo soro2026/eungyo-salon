@@ -1366,11 +1366,11 @@ function showInnerPages() {
   if (navEl) pagesEl.appendChild(navEl);
 
   pages.forEach((p, i) => {
+    // 컨테이너 자체 (슬라이드 애니메이션 위해 absolute + hidden 필수)
     p.style.display       = 'flex';
     p.style.flexDirection = 'column';
     p.style.width         = '100%';
     p.style.height        = '460px';
-    p.style.overflow      = 'hidden';
     p.style.position      = 'absolute';
     p.style.top           = '0';
     p.style.left          = '0';
@@ -1380,14 +1380,15 @@ function showInnerPages() {
     p.style.transform     = i === 0 ? 'translateX(0)' : 'translateX(100%)';
     p.style.transition    = 'none';
 
-    // page-inner 자식이 있으면 그쪽에 스크롤 살리기
-    // (book-page-view는 슬라이드 애니메이션 위해 hidden 필수)
-    const innerScroll = p.classList.contains('page-inner') ? p : p.querySelector('.page-inner');
-    if (innerScroll) {
-      innerScroll.style.overflowY = 'auto';
-      innerScroll.style.height    = '100%';
-      innerScroll.style.maxHeight = '460px';
-      innerScroll.style.flex      = '1 1 auto';
+    // 분기: page-inner 류(LAYER 페이지)는 *자체*를 스크롤 컨테이너로
+    //       page-philemon·page-cover 류는 hidden 유지
+    if (p.classList.contains('page-inner')) {
+      // 자체가 스크롤 컨테이너
+      p.style.overflowX = 'hidden';
+      p.style.overflowY = 'auto';
+      p.style.webkitOverflowScrolling = 'touch';  // iOS 부드러운 스크롤
+    } else {
+      p.style.overflow = 'hidden';
     }
 
     // 페이지 자체에 좌우 클릭 분기 — 링크/버튼 위가 아닐 때만 페이지 뒤집기
@@ -1401,7 +1402,6 @@ function showInnerPages() {
       else if (x > rect.width * 0.65) turnPage(1);
     });
     pagesEl.appendChild(p);
-    console.log(`페이지 ${i} 추가:`, p.className, p.style.display);
   });
 
   renderDots();
@@ -1545,11 +1545,15 @@ let touchStartX = 0;
 let touchStartY = 0;
 let touchDragging = false;
 let dragPage = null;
+let touchOnLink = false;  // 터치 시작점이 링크/버튼 위면 드래그 비활성
 
 document.getElementById('bookModalOverlay').addEventListener('touchstart', e => {
   touchStartX = e.touches[0].clientX;
   touchStartY = e.touches[0].clientY;
   touchDragging = false;
+
+  // 터치 시작점이 링크/버튼 위면 드래그 모드 비활성
+  touchOnLink = !!(e.target.closest && e.target.closest('a, button, [data-no-flip]'));
 
   // 현재 페이지 참조
   const pagesEl = document.getElementById('bookPages');
@@ -1558,7 +1562,7 @@ document.getElementById('bookModalOverlay').addEventListener('touchstart', e => 
 }, { passive: true });
 
 document.getElementById('bookModalOverlay').addEventListener('touchmove', e => {
-  if (!dragPage || isAnimating) return;
+  if (!dragPage || isAnimating || touchOnLink) return;
   const dx = e.touches[0].clientX - touchStartX;
   const dy = e.touches[0].clientY - touchStartY;
   if (!touchDragging && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) {
@@ -1577,6 +1581,7 @@ document.getElementById('bookModalOverlay').addEventListener('touchmove', e => {
 }, { passive: true });
 
 document.getElementById('bookModalOverlay').addEventListener('touchend', e => {
+  if (touchOnLink) { touchOnLink = false; return; }
   if (!touchDragging || !dragPage) return;
   const dx = e.changedTouches[0].clientX - touchStartX;
   const threshold = 60;
