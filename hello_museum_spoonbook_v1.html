@@ -1,0 +1,922 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#1A0F04" />
+<title>한스푼 책 · 찰스 디킨스 · 2026.06.09</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Noto+Serif+KR:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --gold:#C9A84C;
+  --gold-dim:rgba(201,168,76,0.4);
+  --chalk:#F8F4EE;
+  --ink:#1A0F04;
+  --wood:#2A1A08;
+  --wood-dark:#120D06;
+  --page:#F7F2E8;
+  --page-edge:#E8E0CC;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  background:var(--wood-dark);
+  font-family:'Noto Serif KR',Georgia,serif;
+  color:var(--chalk);
+  min-height:100vh;
+  overflow:hidden;
+}
+
+/* === 헤더 === */
+.museum-header{
+  background:var(--wood-dark);
+  border-bottom:1px solid var(--gold-dim);
+  padding:16px 20px 12px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:fixed;top:0;left:0;right:0;
+  z-index:50;
+}
+.museum-header .back{
+  background:none;border:none;cursor:pointer;
+  color:rgba(248,244,238,0.55);
+  font-size:13px;letter-spacing:0.04em;
+  font-family:'Noto Serif KR',serif;
+  padding:6px 10px;
+  display:flex;align-items:center;gap:6px;
+  transition:.2s;
+}
+.museum-header .back:hover{color:var(--chalk)}
+.museum-header .ttl{
+  font-family:'Cormorant Garamond',Georgia,serif;
+  font-size:12px;letter-spacing:0.3em;
+  color:var(--gold);text-transform:uppercase;
+  text-align:center;
+}
+.museum-header .ttl .sub{
+  display:block;font-size:9px;
+  letter-spacing:0.15em;
+  color:rgba(248,244,238,0.3);
+  margin-top:3px;
+  text-transform:none;font-style:italic;
+  font-family:'Cormorant Garamond',serif;
+}
+.museum-header .spacer{width:48px}
+
+/* === 책 모달 오버레이 === */
+.book-modal-overlay{
+  display:none;
+  position:fixed;inset:0;
+  background:rgba(42,32,20,0.0);
+  z-index:500;
+  align-items:center;justify-content:center;
+  padding:20px;
+  transition:background 1.2s ease;
+}
+.book-modal-overlay.open{display:flex}
+.book-modal-overlay.bg-light{background:rgba(200,190,170,0.85)}
+
+/* === 표지 씬 (3D 책) === */
+.cover-scene{
+  position:relative;
+  width:200px;height:280px;
+  perspective:1200px;
+  transform-style:preserve-3d;
+}
+.cover-book-3d{
+  width:200px;height:280px;
+  position:relative;
+  transform-style:preserve-3d;
+  transform:rotateY(-26deg) rotateX(4deg);
+  transition:transform 0.5s cubic-bezier(0.23,1,0.32,1);
+  will-change:transform;
+  cursor:pointer;
+  pointer-events:all;
+}
+/* 정면 — 책 본체. 책등(spine)은 좌측 외부에 부착 */
+.cover-face{
+  position:absolute;
+  width:200px;height:280px;
+  border-radius:0 5px 5px 0;
+  overflow:hidden;
+  backface-visibility:hidden;
+  box-shadow:inset -3px 0 8px rgba(0,0,0,0.10);
+  pointer-events:none;
+}
+/* 책등 — 좌측 외부, 두께 72px, 좌측 면에 90도 회전 부착 */
+.cover-spine{
+  position:absolute;
+  width:72px;height:280px;
+  left:-72px;top:0;
+  transform-origin:right center;
+  transform:rotateY(-90deg);
+  border-radius:4px 0 0 4px;
+  background:#1E1108;
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;
+}
+.cover-spine::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(to right,rgba(0,0,0,0.30),transparent 55%);
+}
+.cover-spine-text{
+  font-family:'Cormorant Garamond',serif;
+  font-size:10.5px;letter-spacing:0.16em;
+  color:#E8D9A8;
+  writing-mode:vertical-rl;
+  transform:rotate(180deg);
+  white-space:nowrap;overflow:hidden;
+  max-height:88%;
+  position:relative;z-index:1;
+  font-weight:600;
+}
+/* 책 그림자 — 바닥에 깔린 모양 (X축 90도 회전) */
+.cover-shadow{
+  position:absolute;
+  bottom:-44px;left:-80px;
+  width:280px;height:55px;
+  background:radial-gradient(ellipse at 45% 5%,rgba(0,0,0,0.45) 0%,rgba(0,0,0,0.15) 40%,transparent 70%);
+  transform:rotateX(90deg) scaleY(0.5);
+  filter:blur(10px);
+  pointer-events:none;
+  transition:opacity 0.5s ease;
+}
+/* 글로스 — 표지에 살짝 빛 */
+.cover-gloss{
+  position:absolute;top:0;left:0;
+  width:52%;height:100%;
+  background:linear-gradient(to right,rgba(255,255,255,0.22) 0%,rgba(255,255,255,0.05) 55%,transparent 100%);
+  pointer-events:none;z-index:20;
+}
+.cover-hint{
+  position:absolute;
+  left:50%;bottom:-66px;
+  transform:translateX(-50%);
+  font-family:'Cormorant Garamond',serif;
+  font-size:11px;letter-spacing:0.2em;
+  color:rgba(100,80,40,0.55);
+  white-space:nowrap;
+  font-style:italic;
+}
+
+/* === 책 모달 (페이지) === */
+.book-modal{
+  position:fixed;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%) scale(0.96);
+  width:340px;
+  height:520px;
+  display:flex;flex-direction:column;
+  border-radius:2px 12px 12px 2px;
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+  z-index:600;
+  box-shadow:0 30px 80px rgba(0,0,0,0.4);
+  transition:opacity 0.5s ease, transform 0.5s ease;
+}
+.book-modal.visible{
+  opacity:1;
+  visibility:visible;
+  pointer-events:all;
+  transform:translate(-50%,-50%) scale(1);
+}
+.book-pages{
+  flex:1;
+  position:relative;
+  overflow:hidden;
+  border-radius:2px 12px 12px 2px;
+}
+.book-page-view{
+  position:absolute;inset:0;
+  will-change:transform;
+  box-sizing:border-box;
+  z-index:1;
+}
+.page-inner{
+  background:var(--page);
+  border-left:10px solid var(--page-edge);
+  position:relative;
+  overflow-y:auto;
+  height:100%;
+}
+.page-inner-content{
+  position:relative;
+  padding:32px 24px 80px;
+  z-index:15;
+}
+.page-lines{
+  position:absolute;inset:0;
+  background-image:repeating-linear-gradient(
+    0deg,transparent,transparent 27px,
+    rgba(180,160,120,0.10) 27px,rgba(180,160,120,0.10) 28px
+  );
+  pointer-events:none;
+}
+.page-layer-tag{
+  font-family:'Cormorant Garamond',serif;
+  font-size:10.5px;letter-spacing:0.25em;
+  color:#9C7C28;
+  text-transform:uppercase;
+  margin-bottom:8px;
+}
+.page-layer-heading{
+  font-family:'Noto Serif KR',serif;
+  font-size:16px;font-weight:600;
+  color:#2A1A08;
+  margin-bottom:18px;
+  padding-bottom:10px;
+  border-bottom:1px solid rgba(180,150,80,0.25);
+}
+.page-layer-body{
+  font-size:13px;line-height:1.85;
+  color:#3D2F10;
+  font-family:'Noto Serif KR',serif;
+  word-break:keep-all;
+}
+.page-layer-body p{margin-bottom:10px}
+.page-layer-body strong{
+  font-family:'Noto Sans KR',sans-serif;
+  font-weight:600;
+  color:#2A1A08;
+}
+.page-layer-body em{
+  font-style:italic;
+  color:#7A5818;
+}
+
+/* 콩파뇽 흔적 페이지 — 신규 */
+.page-reactions .head{
+  font-family:'Cormorant Garamond',serif;
+  font-size:11px;letter-spacing:0.25em;
+  color:#9C7C28;text-transform:uppercase;
+  margin-bottom:6px;
+}
+.page-reactions .heading{
+  font-family:'Noto Serif KR',serif;
+  font-size:15px;font-weight:600;
+  color:#2A1A08;
+  margin-bottom:6px;
+}
+.page-reactions .meta{
+  font-size:10.5px;
+  color:rgba(100,80,40,0.55);
+  font-family:'Cormorant Garamond',serif;
+  letter-spacing:0.04em;
+  margin-bottom:18px;
+  padding-bottom:12px;
+  border-bottom:1px solid rgba(180,150,80,0.25);
+}
+.page-reactions .list{
+  display:flex;flex-direction:column;gap:14px;
+}
+.page-reactions .row{
+  display:flex;align-items:flex-start;gap:10px;
+  font-size:12px;
+}
+.page-reactions .row .time{
+  font-family:'Cormorant Garamond',serif;
+  font-size:10.5px;
+  color:rgba(100,80,40,0.55);
+  flex-shrink:0;
+  min-width:38px;
+  padding-top:2px;
+  letter-spacing:0.03em;
+}
+.page-reactions .row .who{
+  font-family:'Noto Serif KR',serif;
+  font-weight:600;
+  color:#5A4218;
+  flex-shrink:0;
+  font-size:11.5px;
+  padding-top:2px;
+  min-width:62px;
+}
+.page-reactions .row .txt{
+  flex:1;
+  font-size:12px;
+  line-height:1.7;
+  color:#3D2F10;
+  font-family:'Noto Serif KR',serif;
+  word-break:keep-all;
+}
+.page-reactions .hint{
+  margin-top:22px;
+  padding-top:14px;
+  border-top:1px solid rgba(180,150,80,0.18);
+  font-size:10.5px;
+  color:rgba(100,80,40,0.45);
+  font-family:'Cormorant Garamond',serif;
+  font-style:italic;
+  text-align:center;
+  letter-spacing:0.04em;
+}
+
+/* 완독 페이지 */
+.page-end{
+  background:var(--page);
+  border-left:10px solid var(--page-edge);
+  position:relative;
+  height:100%;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:32px 24px;text-align:center;
+}
+.page-end .star{font-size:22px;opacity:0.4;margin-bottom:20px}
+.page-end .ttl{
+  font-family:'Cormorant Garamond',serif;
+  font-size:15px;
+  color:#4A3820;
+  letter-spacing:0.05em;
+  margin-bottom:10px;
+}
+.page-end .rule{
+  width:32px;height:1px;
+  background:rgba(180,150,80,0.3);
+  margin:12px auto;
+}
+.page-end .label{
+  font-size:11px;
+  color:rgba(100,80,40,0.45);
+  letter-spacing:0.18em;
+  font-family:'Cormorant Garamond',serif;
+  margin-bottom:24px;
+}
+.page-end .msg{
+  font-size:11px;
+  color:rgba(100,80,40,0.6);
+  font-family:'Noto Serif KR',serif;
+  line-height:1.9;
+  margin-bottom:28px;
+}
+.page-end .btn{
+  padding:9px 26px;
+  border:1px solid rgba(180,150,80,0.3);
+  border-radius:20px;
+  background:rgba(201,168,76,0.07);
+  color:rgba(160,120,50,0.85);
+  font-size:11px;
+  font-family:'Noto Serif KR',serif;
+  letter-spacing:0.12em;
+  cursor:pointer;
+  transition:all 0.15s;
+}
+.page-end .btn:hover{background:rgba(201,168,76,0.14)}
+
+/* 페이지 번호 / 모서리 */
+.page-num-inner{
+  position:absolute;
+  bottom:14px;right:18px;
+  font-family:'Cormorant Garamond',serif;
+  font-size:11px;
+  color:rgba(100,80,40,0.4);
+  font-style:italic;
+}
+.page-corner{
+  position:absolute;
+  bottom:0;right:0;
+  width:36px;height:36px;
+  background:linear-gradient(135deg,transparent 50%,rgba(180,160,120,0.18) 50%);
+}
+
+/* === 좌우 끝 클릭존 === */
+.book-nav-zone{
+  position:absolute;
+  top:0;bottom:0;
+  width:30%;
+  pointer-events:none;       /* 시각 hint만 — 실제 클릭은 페이지에서 위치로 판단 */
+  cursor:pointer;
+  display:flex;align-items:center;
+  opacity:0;
+  transition:opacity 0.2s;
+  z-index:30;                /* 페이지 위에 시각적으로만 보임 */
+}
+.book-modal:hover .book-nav-zone{opacity:0.4}
+.book-nav-zone.left{left:0;justify-content:flex-start;padding-left:10px}
+.book-nav-zone.right{right:0;justify-content:flex-end;padding-right:10px}
+.book-nav-zone:hover{opacity:0.5}
+.nav-arrow{
+  font-family:'Cormorant Garamond',serif;
+  font-size:28px;
+  color:rgba(100,80,40,0.45);
+}
+
+/* 닫기 + 힌트 + 페이지 점 */
+.modal-close{
+  position:fixed;
+  top:18px;right:18px;
+  width:36px;height:36px;border-radius:50%;
+  background:rgba(80,50,30,0.55);
+  border:none;color:rgba(248,244,238,0.85);
+  font-size:18px;cursor:pointer;
+  z-index:700;
+  display:flex;align-items:center;justify-content:center;
+  transition:all 0.2s;
+}
+.modal-close:hover{background:rgba(110,60,40,0.85)}
+.modal-hint{
+  position:fixed;
+  bottom:30px;left:50%;
+  transform:translateX(-50%);
+  font-family:'Cormorant Garamond',serif;
+  font-size:11px;letter-spacing:0.08em;
+  color:rgba(248,244,238,0.5);
+  font-style:italic;
+  z-index:700;
+  white-space:nowrap;
+}
+.book-modal-overlay.bg-light .modal-hint{color:rgba(80,60,30,0.5)}
+.book-modal-overlay.bg-light .modal-close{
+  background:rgba(80,50,30,0.35);color:rgba(248,244,238,0.95);
+}
+.book-page-dots{
+  position:fixed;
+  bottom:60px;left:50%;
+  transform:translateX(-50%);
+  display:flex;gap:6px;
+  z-index:700;
+}
+.book-page-dot{
+  width:5px;height:5px;border-radius:50%;
+  background:rgba(100,80,40,0.2);
+  transition:all 0.25s;
+}
+.book-page-dot.active{
+  background:var(--gold);width:14px;border-radius:3px;
+}
+
+/* 빌드 표식 */
+.build{
+  position:fixed;
+  bottom:8px;left:50%;
+  transform:translateX(-50%);
+  font-family:'Cormorant Garamond',serif;
+  font-size:9px;letter-spacing:0.25em;
+  color:rgba(248,244,238,0.18);
+  z-index:5;
+}
+</style>
+</head>
+<body>
+
+<!-- 헤더 -->
+<div class="museum-header">
+  <button class="back" onclick="goBack()">← 한스푼</button>
+  <div class="ttl">
+    EG MUSEUM · HAN-SPOON
+    <span class="sub">2026 · 06 · 09 · Monday</span>
+  </div>
+  <span class="spacer"></span>
+</div>
+
+<!-- 책 모달 오버레이 -->
+<div class="book-modal-overlay" id="bookModalOverlay" onclick="handleOverlayClick(event)">
+
+  <!-- 표지 씬 (3D 책) -->
+  <div class="cover-scene" id="coverScene">
+    <div class="cover-book-3d" id="coverBook3D" onclick="enterBook()">
+      <div class="cover-face" id="coverFace">
+        <div class="cover-gloss"></div>
+        <!-- buildCoverHTML 로 채움 -->
+      </div>
+      <div class="cover-spine">
+        <div class="cover-spine-text" id="coverSpineText">디킨스 · 06.09</div>
+      </div>
+      <div class="cover-shadow" id="coverShadow"></div>
+    </div>
+    <div class="cover-hint">표지를 눌러 펼치세요</div>
+  </div>
+
+  <!-- 본문 페이지 모달 -->
+  <div class="book-modal" id="bookModal">
+    <div class="book-pages" id="bookPages">
+      <!-- pages 동적으로 들어감 -->
+      <div class="book-nav-zone left"  id="navLeft"  onclick="event.stopPropagation();turnPage(-1)"><div class="nav-arrow">‹</div></div>
+      <div class="book-nav-zone right" id="navRight" onclick="event.stopPropagation();turnPage(1)"><div class="nav-arrow">›</div></div>
+    </div>
+  </div>
+
+</div>
+
+<button class="modal-close" id="modalClose" onclick="closeBook()">×</button>
+<div class="modal-hint" id="modalHint">표지를 눌러 펼치고, 좌우 끝을 눌러 페이지를 넘기세요</div>
+<div class="book-page-dots" id="bookDots"></div>
+
+<div class="build">museum_spoonbook · v1.2 · 0525밤 · + page_turn sound</div>
+
+<script>
+(function(){
+  'use strict';
+
+  // ─── 디킨스 한스푼 책 데이터 (2026.06.09) ─────────────
+  const BOOK = {
+    date: '2026.06.09',
+    axis: 'person',
+    author: '찰스 디킨스',
+    title: '올리버 트위스트',
+    spineTitle: '디킨스 · 06.09',
+    catLabel: '문학 · 종이 위의 인간',
+    keyword: '인간은 누구나 조금 더 원할 권리가 있다',
+    library: {
+      knowledge: `1812년 잉글랜드 포츠머스. 찰스 디킨스가 태어났습니다.
+
+그가 자란 시대 — *빅토리아 영국*. 산업혁명의 짙은 그늘이 영국 도시들을 덮고 있었습니다. 공장 매연, 하수 없는 골목, 열두 시간 노동.
+
+1834년, **신빈민법**(New Poor Law)이 의회를 통과합니다. 빈민에게 더는 *집에서 도움*을 주지 않고, 모두 **구빈원**(workhouse)으로 모아 *최소한의 식·노동*만 허락하는 법. *빈민이 구빈원을 두려워하면 게을러서 빈민이 된 사람이 줄어들 것*이라는 잔혹한 논리.
+
+디킨스는 이 구빈원의 광경을 1837년부터 잡지 〈Bentley's Miscellany〉에 연재합니다. **〈올리버 트위스트〉**. 두 번째 장편. 1838년 Richard Bentley 출판사에서 단행본으로 출간.
+
+빅토리아 영국의 *조용한 잔혹*을 한 아홉 살 아이의 빈 그릇으로 그려냈습니다.`,
+
+      thought: `그릇 하나. 한 마디. *조금만 더 주세요.*
+
+어른들의 잔혹은 **법**과 **제도**의 형태로 새겨져 있습니다. 신빈민법은 *합리적*이었어요 — 통계상으로. *빈민을 줄이는 법*. 그러나 한 아홉 살 아이의 빈 그릇 앞에서, 그 *합리*는 무엇이 될까요.
+
+디킨스 본인이 그 빈 그릇을 안 적이 있었습니다. **열두 살, 1824년.** 부친의 채무로 가족이 마샬시 채무자 감옥에 들어가고, 디킨스 혼자 **워런 검은 구두약 공장**으로 보내졌어요. 라벨을 붙이는 손. 하루 열두 시간. 약 6개월에서 1년.
+
+그 손이 *조금만 더 주세요*를 썼습니다. **올리버의 빈 그릇은 작가의 기억이었어요.**
+
+인간은 누구나 *조금 더* 원할 권리가 있습니다. 음식 한 그릇만이 아니에요. **인간으로 살아 있을 한 곳. 인간으로 인정받을 한 마디.** 그것이 *기본권*이라는 이름의 시작이었습니다.`,
+
+      connection: `1970년대 대한민국. 다른 시대, 다른 식탁.
+
+4·19와 5·16을 지난 한국. 산업화의 굉음 속에서 *밥상의 빈 그릇*이 있었습니다. 도시 외곽 공장 노동자, 농촌에서 올라온 일용직, 그리고 그들의 아이들. *조금만 더*라는 말이 입 밖으로 나오지 못한 한 세대.
+
+같은 시기, 미국 생태학자 **존 칼훈**은 *밀집된 쥐의 사회*를 실험하고 있었어요. 〈Universe 25〉 — 충분한 먹이·물·공간을 주되, **밀도**만 높였습니다. 결과는 사회 붕괴. 어미가 새끼를 외면하고, 폭력이 일어나고, 어떤 쥐는 *밥 먹는 일조차 잊었습니다*.
+
+그릇이 없어서가 아니었어요. **그릇을 들고 한 마디 청할 안전한 곳이 없어서**였습니다.
+
+디킨스의 구빈원과 칼훈의 우주는 같은 진실을 비춥니다 — *환경이 인간(또는 생명)을 결정한다*는 사실. 그리고 그 환경 안에서도 **조금만 더를 청한 한 아이**가 있었다는 사실.`,
+
+      curation: `〈올리버 트위스트〉 · 찰스 디킨스 (1838) — 원작 정독
+/ 〈모던 타임즈〉 · 채플린 (1936) — 산업화 잔혹의 시각화
+/ 차이콥스키 〈비창〉 6번 교향곡 — 19세기 슬라브의 그림자
+/ 존 칼훈 〈Universe 25〉 (1968~1973) — 밀집 사회 실험 다큐
+/ 〈낮에는 흙을 파고, 밤에는 문장을 팠다〉 · 소로 (2024) — 새벽 인력시장 노동자가 본 한국의 그릇`
+    },
+
+    reactions: [
+      { time:'07:12', who:'소로',       text:'올리버의 빈 그릇 앞에 내 빈 그릇이 겹쳐졌어요. 새벽 인력시장에서 들었던 그 한 마디.' },
+      { time:'07:18', who:'은교지기',   text:'조금만 더. 그게 인간이라는 말의 시작이네요.' },
+      { time:'07:24', who:'나무책방',   text:'1834년의 신빈민법이 지금 한국 어디선가도 흐르고 있을 거예요.' },
+      { time:'07:31', who:'새벽길손',   text:'어머니가 빈 밥그릇 앞에서 했던 한 마디가 떠올랐어요.' },
+      { time:'07:42', who:'별빛주막',   text:'디킨스 12살. 올리버 9살. 그 사이에 한 세계가 있네요.' },
+      { time:'07:58', who:'한모금',     text:'조금 더 원하는 것 — 오늘 나는 *진심으로 들어주는 사람*이 더 있었으면.' },
+      { time:'08:14', who:'책읽는고래', text:'Universe 25 실험이 무섭습니다. 우리 도시도 어쩌면...' },
+      { time:'08:27', who:'차한잔',     text:'구빈원의 잔혹이 *합리*라는 옷을 입었다는 게 가장 무서워요.' },
+      { time:'08:45', who:'종이학',     text:'빈 그릇은 인간의 가장 정직한 거울이라는 생각이 들어요.' },
+      { time:'09:03', who:'달빛창가',   text:'9살 올리버, 12살 디킨스, 그리고 오늘 내 옆 아이까지.' },
+      { time:'09:31', who:'햇살무게',   text:'*조금 더*가 *권리*가 되기까지 200년이 걸렸네요.' },
+      { time:'10:08', who:'가을등불',   text:'워런 구두약 공장의 라벨이 어떻게 〈올리버 트위스트〉가 되는지.' },
+      { time:'10:42', who:'산책자',     text:'디킨스가 만약 그 6개월을 안 겪었다면, 우리는 올리버를 못 만났을지도.' },
+      { time:'11:17', who:'청록빛',     text:'오늘 점심에 가장 가까운 사람에게 *조금 더* 챙겨주고 싶어요.' },
+      { time:'12:35', who:'안개나무',   text:'1970년대 한국의 빈 그릇이 우리 부모님이었다는 사실.' },
+      { time:'14:22', who:'작은불씨',   text:'올리버의 한 마디가 도덕이 아니라 절박함이었다는 것.' },
+      { time:'16:48', who:'무화과',     text:'환경이 인간을 결정한다 — 그렇다면 나는 어떤 환경을 만들고 있나요.' },
+      { time:'18:30', who:'깊은우물',   text:'차이콥스키 비창 들으면서 다시 읽어볼게요.' },
+      { time:'20:14', who:'한지꽃',     text:'어른들의 합리가 아이의 그릇을 외면한 시대들.' },
+      { time:'23:07', who:'새벽별',     text:'내일 아침에 또 만나요. 오늘 한 모금 잘 받았습니다.' }
+    ]
+  };
+
+  // ─── 상태 ─────────────────────────────────────────────
+  let currentPage = 0;
+  let totalPages  = 0;
+  let isAnimating = false;
+
+  // ─── 마크다운 짧게 (* ** 만) ─────────────────────────
+  function md(text){
+    if(!text) return '';
+    return String(text)
+      .replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*\n]+?)\*/g, '<em>$1</em>')
+      .split(/\n\n+/).map(p => `<p>${p.replace(/\n/g,'<br>')}</p>`).join('');
+  }
+
+  // ─── 표지 빌드 ────────────────────────────────────────
+  function buildCoverHTML(book){
+    document.getElementById('coverSpineText').textContent = book.spineTitle;
+    const html = `
+      <div class="cover-gloss"></div>
+      <div style="display:flex;flex-direction:column;height:100%;background:linear-gradient(180deg,#F7F2E8 0%,#E8DEC4 100%)">
+        <div style="width:100%;height:74px;background:#1E1108;position:relative;overflow:hidden;flex-shrink:0">
+          <div style="position:absolute;bottom:8px;left:14px;right:14px;height:1px;background:linear-gradient(to right,transparent,rgba(232,217,168,.45),transparent)"></div>
+          <div style="position:absolute;bottom:16px;left:14px;font-family:'Cormorant Garamond',serif;font-size:0.55rem;letter-spacing:0.18em;color:#E8D9A8;font-style:italic">${book.catLabel}</div>
+        </div>
+        <div style="flex:1;padding:14px 16px 12px;display:flex;flex-direction:column;justify-content:space-between">
+          <div>
+            <div style="font-size:0.45rem;letter-spacing:0.26em;color:#9C7C28;font-weight:700;text-transform:uppercase;margin-bottom:8px">EG뮤세움 · 한스푼</div>
+            <div style="font-family:'Noto Serif KR',serif;font-size:1.35rem;font-weight:600;color:#2A1A08;line-height:1.2">${book.author}</div>
+            <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:0.85rem;color:#5A4218;margin-top:6px;letter-spacing:0.02em">${book.title}</div>
+            <div style="width:24px;height:1.5px;background:#9C7C28;margin:10px 0;opacity:0.5"></div>
+            <div style="font-family:'Noto Serif KR',serif;font-size:0.62rem;color:#3D2F10;font-style:italic;line-height:1.6;opacity:0.75">"${book.keyword}"</div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;font-size:0.5rem;color:rgba(60,40,10,0.55);font-family:'Cormorant Garamond',serif;letter-spacing:0.06em">
+            <span>${book.date}</span>
+            <span>HAN-SPOON · 001</span>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('coverFace').innerHTML = html;
+  }
+
+  // ─── 페이지 생성 함수들 ───────────────────────────────
+  function makeInnerPage(tag, heading, body, num){
+    const div = document.createElement('div');
+    div.className = 'book-page-view page-inner';
+    div.innerHTML = `
+      <div class="page-lines"></div>
+      <div class="page-inner-content">
+        <div class="page-layer-tag">${tag}</div>
+        <div class="page-layer-heading">${heading}</div>
+        <div class="page-layer-body">${md(body)}</div>
+      </div>
+      <div class="page-num-inner">${num}</div>
+      <div class="page-corner"></div>
+    `;
+    return div;
+  }
+
+  function makeCurationPage(curation, num){
+    const div = document.createElement('div');
+    div.className = 'book-page-view page-inner';
+    const items = curation.split('/').map(s=>s.trim()).filter(Boolean);
+    const itemsHtml = items.map(item =>
+      `<div style="padding:11px 0;border-bottom:1px solid rgba(180,160,120,0.15);font-size:12.5px;color:#3D2F10;font-family:'Noto Serif KR',serif;line-height:1.65;word-break:keep-all">${md(item)}</div>`
+    ).join('');
+    div.innerHTML = `
+      <div class="page-lines"></div>
+      <div class="page-inner-content">
+        <div class="page-layer-tag">LAYER 4 · 큐레이션</div>
+        <div class="page-layer-heading">더 깊이 들어가기</div>
+        ${itemsHtml}
+      </div>
+      <div class="page-num-inner">${num}</div>
+      <div class="page-corner"></div>
+    `;
+    return div;
+  }
+
+  function makeReactionsPage(reactions, num){
+    const div = document.createElement('div');
+    div.className = 'book-page-view page-inner page-reactions';
+    const rowsHtml = reactions.map(r => `
+      <div class="row">
+        <span class="time">${r.time}</span>
+        <span class="who">${r.who}</span>
+        <span class="txt">${md(r.text)}</span>
+      </div>
+    `).join('');
+    div.innerHTML = `
+      <div class="page-lines"></div>
+      <div class="page-inner-content">
+        <div class="head">☕ 콩파뇽 흔적</div>
+        <div class="heading">오늘 ${reactions.length}명의 한 모금</div>
+        <div class="meta">시간순 누적 · 댓글 없음</div>
+        <div class="list">${rowsHtml}</div>
+        <div class="hint">한 줄 사유는 자서전(분더카머)에도 본인만의 결로 누적됩니다</div>
+      </div>
+      <div class="page-num-inner">${num}</div>
+      <div class="page-corner"></div>
+    `;
+    return div;
+  }
+
+  function makeEndPage(num){
+    const div = document.createElement('div');
+    div.className = 'book-page-view';
+    div.innerHTML = `
+      <div class="page-end">
+        <div class="page-lines"></div>
+        <div class="star">✦</div>
+        <div class="ttl">${BOOK.author} · ${BOOK.date}</div>
+        <div class="rule"></div>
+        <div class="label">마지막 페이지입니다</div>
+        <div class="msg">이 한 모금을 끝까지 읽었습니다.<br>책장에 별이 하나 켜졌습니다. 🌟</div>
+        <button class="btn" onclick="closeBook()">서재로 돌아가기</button>
+      </div>
+      <div class="page-num-inner" style="color:rgba(100,80,40,0.4)">${num}</div>
+    `;
+    return div;
+  }
+
+  // ─── 페이지 빌드 ──────────────────────────────────────
+  function buildPages(book){
+    const pages = [];
+    const lib = book.library;
+    if(lib.knowledge)  pages.push(makeInnerPage('LAYER 1 · 지식',  '알고 이해하기',   lib.knowledge,  pages.length+1));
+    if(lib.thought)    pages.push(makeInnerPage('LAYER 2 · 사유',  '생각하고 느끼기', lib.thought,    pages.length+1));
+    if(lib.connection) pages.push(makeInnerPage('LAYER 3 · 연결',  '삶과 이어보기',   lib.connection, pages.length+1));
+    if(lib.curation)   pages.push(makeCurationPage(lib.curation, pages.length+1));
+    if(book.reactions) pages.push(makeReactionsPage(book.reactions, pages.length+1));
+    pages.push(makeEndPage(pages.length+1));
+    return pages;
+  }
+
+  // ─── 책 열기 (표지 등장) ─────────────────────────────
+  function openBook(book){
+    const overlay = document.getElementById('bookModalOverlay');
+    overlay.classList.add('open');
+    buildCoverHTML(book);
+    document.getElementById('coverScene').style.visibility = 'visible';
+    document.getElementById('coverScene').style.pointerEvents = 'auto';
+    document.getElementById('bookModal').classList.remove('visible');
+    document.getElementById('coverShadow').style.opacity = '1';
+    setTimeout(() => overlay.classList.add('bg-light'), 50);
+    attachCoverTilt();
+  }
+
+  function attachCoverTilt(){
+    const scene = document.getElementById('coverScene');
+    const book3d = document.getElementById('coverBook3D');
+    scene.onmousemove = e => {
+      if(isAnimating) return;
+      const r = scene.getBoundingClientRect();
+      const dx = (e.clientX - (r.left + r.width/2)) / (r.width/2);
+      const dy = (e.clientY - (r.top  + r.height/2)) / (r.height/2);
+      book3d.style.transform = `rotateY(${-26 + dx*14}deg) rotateX(${4 - dy*8}deg)`;
+      book3d.style.transition = 'transform 0.06s linear';
+    };
+    scene.onmouseleave = () => {
+      if(isAnimating) return;
+      book3d.style.transform = 'rotateY(-26deg) rotateX(4deg)';
+      book3d.style.transition = 'transform 0.5s cubic-bezier(0.23,1,0.32,1)';
+    };
+  }
+
+  // ─── 표지 클릭 → 내부 진입 ───────────────────────────
+  window.enterBook = function(){
+    if(isAnimating) return;
+    isAnimating = true;
+
+    const book3d = document.getElementById('coverBook3D');
+    const shadow = document.getElementById('coverShadow');
+
+    book3d.style.transition = 'transform 0.48s cubic-bezier(0.23,1,0.32,1)';
+    book3d.style.transform  = 'rotateY(0deg) rotateX(0deg)';
+    shadow.style.opacity    = '0';
+
+    setTimeout(() => {
+      book3d.style.transition = 'transform 1.0s cubic-bezier(0.25,0,0.2,1), opacity 0.55s ease 0.45s';
+      book3d.style.transform  = 'rotateY(0deg) rotateX(0deg) scale(3.8)';
+      book3d.style.opacity    = '0';
+    }, 450);
+
+    setTimeout(() => {
+      document.getElementById('coverScene').style.visibility = 'hidden';
+      document.getElementById('coverScene').style.pointerEvents = 'none';
+
+      // 페이지 빌드
+      const pagesEl = document.getElementById('bookPages');
+      pagesEl.querySelectorAll('.book-page-view').forEach(p => p.remove());
+      const pages = buildPages(BOOK);
+      totalPages = pages.length;
+      pages.forEach((p, i) => {
+        p.style.zIndex = i === 0 ? '12' : '1';
+        pagesEl.appendChild(p);
+      });
+      currentPage = 0;
+
+      document.getElementById('bookModal').classList.add('visible');
+      renderDots();
+      updateNavZones();
+
+      // 페이지 위치 기반 클릭 핸들러 — 한 번만 바인딩
+      if(!pagesEl.dataset.clickBound){
+        pagesEl.addEventListener('click', e => {
+          if(e.target.closest('button, a, .nav-arrow')) return;
+          const r = pagesEl.getBoundingClientRect();
+          const x = e.clientX - r.left;
+          const w = r.width;
+          if(x < w * 0.30)      turnPage(-1);
+          else if(x > w * 0.70) turnPage(1);
+        });
+        pagesEl.dataset.clickBound = '1';
+      }
+
+      isAnimating = false;
+    }, 1500);
+  };
+
+  // ─── 페이지 넘김 사그락 사운드 (소로 직접 녹음 — 라이브에서) ─
+  const pageTurnAudio = new Audio('https://soro2026.github.io/eungyo-salon/page_turn.mp3');
+  pageTurnAudio.volume = 0.7;
+  function playPageSound(){
+    try{ pageTurnAudio.currentTime = 0; pageTurnAudio.play().catch(()=>{}); }catch(e){}
+  }
+
+  // ─── 페이지 넘김 ──────────────────────────────────────
+  window.turnPage = function(dir){
+    if(isAnimating) return;
+    const next = currentPage + dir;
+    if(next < 0 || next >= totalPages) return;
+    isAnimating = true;
+    playPageSound();
+
+    const pagesEl  = document.getElementById('bookPages');
+    const allPages = pagesEl.querySelectorAll('.book-page-view');
+    const outPage  = allPages[currentPage];
+    const inPage   = allPages[next];
+
+    if(dir > 0){
+      inPage.style.zIndex = '11';
+      inPage.style.transform = 'translateX(0)';
+      inPage.style.transition = 'none';
+      outPage.style.zIndex = '12';
+      outPage.style.transition = 'none';
+      outPage.style.transform = 'translateX(0)';
+      requestAnimationFrame(() => {
+        outPage.style.transition = 'transform 0.48s cubic-bezier(0.32,0.72,0,1)';
+        outPage.style.transform  = 'translateX(-100%)';
+      });
+    } else {
+      outPage.style.zIndex = '11';
+      outPage.style.transform = 'translateX(0)';
+      outPage.style.transition = 'none';
+      inPage.style.zIndex = '13';
+      inPage.style.transition = 'none';
+      inPage.style.transform = 'translateX(100%)';
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          inPage.style.transition = 'transform 0.48s cubic-bezier(0.32,0.72,0,1)';
+          inPage.style.transform  = 'translateX(0)';
+        });
+      });
+    }
+
+    setTimeout(() => {
+      currentPage = next;
+      inPage.scrollTop = 0;
+      inPage.style.zIndex  = '12';
+      outPage.style.zIndex = '1';
+      renderDots();
+      updateNavZones();
+      isAnimating = false;
+    }, 490);
+  };
+
+  function updateNavZones(){
+    document.getElementById('navLeft').style.display  = currentPage === 0           ? 'none' : 'flex';
+    document.getElementById('navRight').style.display = currentPage === totalPages-1 ? 'none' : 'flex';
+  }
+  function renderDots(){
+    const dots = document.getElementById('bookDots');
+    dots.innerHTML = '';
+    for(let i=0;i<totalPages;i++){
+      const dot = document.createElement('div');
+      dot.className = 'book-page-dot' + (i === currentPage ? ' active' : '');
+      dots.appendChild(dot);
+    }
+  }
+
+  // ─── 닫기 ─────────────────────────────────────────────
+  window.closeBook = function(){
+    const overlay = document.getElementById('bookModalOverlay');
+    document.getElementById('coverScene').style.visibility = 'visible';
+    document.getElementById('coverScene').style.pointerEvents = 'auto';
+    overlay.classList.remove('open','bg-light');
+
+    const book3d = document.getElementById('coverBook3D');
+    book3d.style.transition = 'none';
+    book3d.style.transform  = 'rotateY(-26deg) rotateX(4deg)';
+    book3d.style.opacity    = '1';
+    document.getElementById('coverShadow').style.opacity = '1';
+
+    const modal = document.getElementById('bookModal');
+    modal.classList.remove('visible');
+    setTimeout(() => {
+      document.querySelectorAll('.book-page-view').forEach(p => p.remove());
+    }, 400);
+
+    setTimeout(() => goBack(), 600);
+  };
+
+  window.handleOverlayClick = function(e){
+    if(e.target.id === 'bookModalOverlay') closeBook();
+  };
+
+  // ─── 한스푼으로 돌아가기 ─────────────────────────────
+  window.goBack = function(){
+    window.location.href = './hello_spoon_v1.html';
+  };
+
+  // ESC + 좌우 화살표
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape') closeBook();
+    if(e.key === 'ArrowLeft')  turnPage(-1);
+    if(e.key === 'ArrowRight') turnPage(1);
+  });
+
+  // ─── 출발 — 페이지 진입 즉시 책 모달 열림 ────────────
+  openBook(BOOK);
+
+})();
+</script>
+
+</body>
+</html>
