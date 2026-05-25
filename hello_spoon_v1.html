@@ -709,6 +709,7 @@ main.stage{
   padding:14px 0 20px;
 }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -718,7 +719,7 @@ main.stage{
   <header class="bar">
     <div class="row">
       <div class="brand"><span class="cup">☕</span><span>Han-Spoon</span></div>
-      <div class="meta">2026 · 06 · 09 · Mon</div>
+      <div class="meta" id="hdrDate">2026 · 06 · 09 · Mon</div>
     </div>
     <ol class="dots" id="dots">
       <li class="now"></li><li></li><li></li><li></li><li></li><li></li>
@@ -770,43 +771,8 @@ main.stage{
       <div class="body">
         <div class="qmark">Q.</div>
 
-        <!-- 스토리 9블록 — JS로 한 블록씩 페이드 인 -->
-        <div class="story" id="quizStory">
-          <div class="block">
-            그가 남긴 두 번째 장편 〈올리버 트위스트〉(1838).<br>
-            빅토리아 영국이 막 열린 무렵, 구빈원의 식당.
-          </div>
-          <div class="block">
-            스무 명 굶주린 아이들 가운데<br>
-            제비를 뽑은 아홉 살 한 아이가<br>
-            빈 그릇을 들고 식탁 앞으로 걸어 나갑니다.
-          </div>
-          <div class="block">
-            숟가락을 내밀며 떨리는 목소리로 한 마디.
-          </div>
-          <div class="block quote">
-            <em>"Please, sir, I want some more."</em>
-            <em>"부디, 한 그릇 더 주세요."</em>
-          </div>
-          <div class="block">
-            식당이 그 순간 얼어붙어요.<br>
-            관리자는 두 눈이 휘둥그레져 굳고,<br>
-            달려 온 보조원은 올리버를 위원회로 끌고 갑니다.
-          </div>
-          <div class="block">
-            그날로 컴컴한 방에 갇힌 아홉 살,<br>
-            혼자 우는 밤.
-          </div>
-          <div class="block">
-            이튿날 아침, 구빈원 벽에 광고 한 장이 붙어요.
-          </div>
-          <div class="block quote">
-            <em>"5파운드. 한 소년, 받아주실 분 구합니다."</em>
-          </div>
-          <div class="block close">
-            한 그릇 더 청한 죄로 그렇게 갈린 운명.
-          </div>
-        </div>
+        <!-- 스토리 블록 — JS가 DB story 배열로 동적 생성 -->
+        <div class="story" id="quizStory"></div>
 
         <!-- 스토리 다 펴진 후 페이드 인 -->
         <div class="story-cta" id="quizStoryCta">
@@ -817,7 +783,7 @@ main.stage{
 
         <!-- 버튼 누르면 펼쳐짐 -->
         <div class="quiz-q" id="quizQ">
-          <p class="qtext">그가 더 청한 음식은 무엇이었을까요?</p>
+          <p class="qtext" id="quizQText">그가 더 청한 음식은 무엇이었을까요?</p>
           <div class="opts" id="opts">
             <button class="opt" data-pick="1"><span class="n">①</span><span>빵</span></button>
             <button class="opt" data-pick="2"><span class="n">②</span><span>죽</span></button>
@@ -834,7 +800,7 @@ main.stage{
       <div class="body">
         <div class="check">✓</div>
         <div class="label">정답</div>
-        <div class="corr"><span class="n">②</span>죽</div>
+        <div class="corr" id="answerCorr"><span class="n">②</span>죽</div>
         <div class="museum">
           <span class="ico">📚</span>
           오늘의 교양 한스푼 이야기가<br>
@@ -852,17 +818,17 @@ main.stage{
       <div class="body">
         <div class="small">오늘의 한 모금</div>
         <div class="ttl">A Spoonful of Today</div>
-        <blockquote>
+        <blockquote id="echoQuote">
           <span class="mark">“</span>인간은 누구나<br>
           조금 더 원할 권리가 있다.<span class="mark">”</span>
         </blockquote>
-        <div class="essay">
+        <div class="essay" id="echoEssay">
           <p>디킨스는 열두 살에 공장으로 보내졌어요.</p>
           <p>올리버의 빈 그릇은<br>그의 기억이었어요.</p>
         </div>
         <div class="prompt">
           <span class="ico">💭</span>
-          <div class="pq">
+          <div class="pq" id="echoPrompt">
             오늘 당신이 <em>“조금 더”</em> 원하는 것은<br>무엇인가요?
           </div>
         </div>
@@ -940,9 +906,120 @@ main.stage{
 (function(){
   'use strict';
 
-  // ── 디킨스 더미 데이터 ─────────────────────────────────
-  const QUIZ = { answer: 2 };          // 정답: ② 죽
+  // ── Supabase 연결 ───────────────────────────────────
+  const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+  const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+  const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
+    auth: { storageKey: 'eungyo-auth', persistSession: true }
+  });
+
+  // ── 한스푼 데이터 (DB에서 채움. 폴백 = 디킨스 더미) ─────
+  let SPOON = null;
+  const QUIZ = { answer: 2 };          // 정답 (DB 로드 후 갱신)
   const TOTAL_STEPS = 6;
+
+  // 줄바꿈(\n) → <br>, 안전 이스케이프
+  function esc(s){
+    return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function nl2br(s){ return esc(s).replace(/\n/g,'<br>'); }
+
+  // ── DB에서 오늘(또는 ?date=) 한스푼 가져오기 ──────────
+  async function fetchSpoon(){
+    const params = new URLSearchParams(location.search);
+    const wantDate = params.get('date');   // 없으면 최신 published 1건
+    try {
+      let q = supa.from('spoons')
+        .select('*')
+        .eq('status','published');
+      if (wantDate) q = q.eq('spoon_date', wantDate);
+      else          q = q.order('spoon_date',{ascending:false}).limit(1);
+      const { data, error } = await q;
+      if (error){ console.warn('한스푼 fetch 실패:', error.message); return; }
+      if (data && data.length){
+        SPOON = data[0];
+        QUIZ.answer = SPOON.quiz_answer;
+        console.log('한스푼 로드:', SPOON.spoon_date, SPOON.subject);
+      } else {
+        console.warn('해당 날짜 한스푼 없음 — 더미 유지');
+      }
+    } catch(e){ console.warn('한스푼 fetch 예외:', e); }
+  }
+
+  // ── DB 데이터를 화면에 채움 ──────────────────────────
+  function applySpoon(){
+    if(!SPOON) return;  // 못 불러오면 HTML 더미 그대로
+
+    // 헤더 날짜
+    const dt = SPOON.spoon_date;
+    if(dt){
+      const d = new Date(dt + 'T00:00:00');
+      const wd = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+      const hd = document.getElementById('hdrDate');
+      if(hd) hd.textContent = dt.replace(/-/g,' · ') + ' · ' + wd;
+    }
+
+    // 퀴즈 질문
+    const qt = document.getElementById('quizQText');
+    if(qt && SPOON.quiz_question) qt.textContent = SPOON.quiz_question;
+
+    // 퀴즈 보기 (quiz_options: {"1":"빵",...})
+    const optMarks = ['①','②','③','④'];
+    if(SPOON.quiz_options){
+      const opts = typeof SPOON.quiz_options === 'string'
+        ? JSON.parse(SPOON.quiz_options) : SPOON.quiz_options;
+      document.querySelectorAll('#opts .opt').forEach((btn,i) => {
+        const key = String(i+1);
+        const label = opts[key];
+        if(label != null){
+          btn.style.display = '';
+          btn.innerHTML = '<span class="n">'+optMarks[i]+'</span><span>'+esc(label)+'</span>';
+        } else {
+          btn.style.display = 'none';
+        }
+      });
+    }
+
+    // 정답 카드
+    const corr = document.getElementById('answerCorr');
+    if(corr && SPOON.quiz_options){
+      const opts = typeof SPOON.quiz_options === 'string'
+        ? JSON.parse(SPOON.quiz_options) : SPOON.quiz_options;
+      const a = SPOON.quiz_answer;
+      corr.innerHTML = '<span class="n">'+optMarks[a-1]+'</span>'+esc(opts[String(a)]||'');
+    }
+
+    // 여운 카드
+    const eq = document.getElementById('echoQuote');
+    if(eq && SPOON.quote){
+      eq.innerHTML = '<span class="mark">“</span>'+nl2br(SPOON.quote)+'<span class="mark">”</span>';
+    }
+    const ee = document.getElementById('echoEssay');
+    if(ee && SPOON.reflection){
+      ee.innerHTML = SPOON.reflection.split(/\n\n+/)
+        .map(p => '<p>'+nl2br(p)+'</p>').join('');
+    }
+    const ep = document.getElementById('echoPrompt');
+    if(ep && SPOON.prompt) ep.innerHTML = nl2br(SPOON.prompt);
+  }
+
+  // 스토리 블록을 DB 배열로 생성 (없으면 비움)
+  function buildStoryBlocks(){
+    const wrap = document.getElementById('quizStory');
+    if(!wrap || !SPOON || !SPOON.story) return;
+    const story = typeof SPOON.story === 'string' ? JSON.parse(SPOON.story) : SPOON.story;
+    wrap.innerHTML = '';
+    for(const b of story){
+      const div = document.createElement('div');
+      div.className = 'block' + (b.type==='quote'?' quote':'') + (b.type==='close'?' close':'');
+      if(b.type==='quote'){
+        div.innerHTML = esc(b.text).split('\n').map(l => '<em>'+l+'</em>').join('');
+      } else {
+        div.innerHTML = nl2br(b.text);
+      }
+      wrap.appendChild(div);
+    }
+  }
 
   // ── 상태 ─────────────────────────────────────────────
   const state = {
@@ -1010,14 +1087,25 @@ main.stage{
     const l3 = document.getElementById('ln3');
     const btn = document.getElementById('heroStart');
     if(!l1 || !l2 || !l3) return;
+
+    // DB headline을 줄바꿈(\n)으로 쪼갬. 없으면 디킨스 폴백.
+    let lines = ['1870년 오늘,', '찰스 디킨스가', '눈을 감았어요.'];
+    if(SPOON && SPOON.headline){
+      const parts = SPOON.headline.split('\n').map(s => s.trim()).filter(Boolean);
+      if(parts.length) lines = parts;
+    }
+    const els = [l1, l2, l3];
+    const speeds = [100, 105, 120];
+
     l1.textContent = l2.textContent = l3.textContent = '';
     btn.classList.remove('show');
     await sleep(1800);
-    await typeLine(l1, '1870년 오늘,', 100);
-    await sleep(380);
-    await typeLine(l2, '찰스 디킨스가', 105);
-    await sleep(380);
-    await typeLine(l3, '눈을 감았어요.', 120);
+    for(let i=0; i<els.length; i++){
+      if(lines[i] != null){
+        await typeLine(els[i], lines[i], speeds[i] || 110);
+        if(i < els.length-1) await sleep(380);
+      }
+    }
     await sleep(700);
     btn.classList.add('show');
   }
@@ -1120,8 +1208,14 @@ main.stage{
   }
 
   // ── 출발 ─────────────────────────────────────────────
-  show(1);
-  runHeroTyping();
+  async function init(){
+    await fetchSpoon();   // DB에서 한스푼 로드 (실패 시 더미 유지)
+    applySpoon();         // 날짜·퀴즈·정답·여운 채움
+    buildStoryBlocks();   // 스토리 블록 생성
+    show(1);
+    runHeroTyping();
+  }
+  init();
 
 })();
 </script>
