@@ -1312,11 +1312,7 @@ let isAnimating = false;
 let currentBookData = null;
 
 function openBook(book) {
-  // ── 한스푼 책이면 전용 모달로 점프 (v1.1 정착본) ──
-  if (book.isSpoon || book.catId === 'spoon') {
-    window.location.href = './hello_museum_spoonbook_v1.html';
-    return;
-  }
+  // ── 한스푼 책도 같은 모달에서 처리 (v1.2 — 점프 제거, DB library 4겹 + 콩파뇽 사유) ──
   currentBookData = book;
   isAnimating = false;
 
@@ -1389,11 +1385,17 @@ function enterBook() {
   }, 1100);
 }
 
-function showInnerPages() {
+async function showInnerPages() {
   const book = currentBookData;
   console.log('showInnerPages:', book?.answer, 'library:', JSON.stringify(book?.library)?.slice(0,80));
   currentPage = 0;
   const lib   = book.library || {};
+
+  // 한스푼 책이면 콩파뇽 사유를 DB에서 먼저 읽어 book에 담아둠
+  if (book.isSpoon || book.catId === 'spoon') {
+    book._reactions = await fetchSpoonReactions(book.spoonId);
+  }
+
   const pages = buildPages(book, lib);
   console.log('buildPages 결과:', pages.length, '페이지');
 
@@ -1688,6 +1690,11 @@ function buildPages(book, lib) {
     pages.push(makeCurationPage('', pages.length + 1, book.curation_links));
   }
 
+  // 4.5 콩파뇽 사유 (한스푼 책 전용 — showInnerPages가 미리 담아둔 _reactions)
+  if (book.isSpoon || book.catId === 'spoon') {
+    pages.push(makeCompanionPage(book._reactions, pages.length + 1));
+  }
+
   // 5. 마지막 페이지
   pages.push(makePhilemonPage(book, pages.length + 1));
 
@@ -1803,6 +1810,82 @@ function renderCurationLinks(links) {
   }
 
   return sections.length ? `<div style="margin-top:24px;padding-top:18px;border-top:1px dashed rgba(180,160,120,0.25)">${sections.join('')}</div>` : '';
+}
+
+// ── 콩파뇽 사유 페이지 (한스푼 전용 — spoon_reactions + users.nickname) ──
+function escHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function makeCompanionPage(reactions, num) {
+  const div = document.createElement('div');
+  div.className = 'book-page-view page-inner';
+  let listHtml;
+  if (!reactions || reactions.length === 0) {
+    listHtml = `
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;text-align:center;color:rgba(100,80,40,0.45)">
+        <div style="font-size:20px;margin-bottom:14px;opacity:0.5">☕</div>
+        <div style="font-family:'Noto Serif KR',serif;font-size:13px;line-height:1.9">아직 이 한 모금에<br>남겨진 흔적이 없습니다.<br><br>첫 사유를 남겨보세요.</div>
+      </div>`;
+  } else {
+    const rows = reactions.map(r => {
+      const t = (r.created_at || '').slice(11, 16); // HH:MM
+      return `
+        <div style="padding:11px 0;border-bottom:1px solid rgba(180,160,120,0.15);font-family:'Noto Serif KR',serif;line-height:1.65;word-break:keep-all">
+          <span style="font-size:10.5px;color:rgba(140,110,50,0.6);letter-spacing:0.04em">${escHtml(t)}</span>
+          <span style="font-size:11.5px;color:#9C7C28;font-weight:600;margin:0 8px">${escHtml(r.nickname || '벗')}</span>
+          <div style="font-size:12.5px;color:#3D2F10;margin-top:3px">${escHtml(r.reaction_text)}</div>
+        </div>`;
+    }).join('');
+    listHtml = `<div style="overflow-y:auto">${rows}</div>`;
+  }
+  div.innerHTML = `
+    <div class="page-lines"></div>
+    <div class="page-inner-content">
+      <div class="page-layer-tag">☕ 콩파뇽 흔적</div>
+      <div class="page-layer-heading">이 한 모금을 마신 벗들</div>
+      <div style="font-size:11px;color:rgba(100,80,40,0.5);margin-bottom:10px">시간순 누적 · 댓글 없음</div>
+      ${listHtml}
+    </div>
+    <div class="page-num-inner">${num}</div>
+    <div class="page-corner"></div>
+  `;
+  return div;
+}
+
+// 한스푼 책의 사유를 DB에서 읽어옴 (spoon_reactions → users.nickname 별도 조회)
+async function fetchSpoonReactions(spoonId) {
+  if (!spoonId) return [];
+  try {
+    const { data, error } = await supa
+      .from('spoon_reactions')
+      .select('reaction_text, created_at, user_id')
+      .eq('spoon_id', spoonId)
+      .order('created_at', { ascending: true });
+    if (error) { console.warn('사유 fetch 실패:', error.message); return []; }
+    const rows = data || [];
+    if (rows.length === 0) return [];
+
+    // user_id 모아 닉네임 한 번에 조회 (FK 자동 join에 의존하지 않음)
+    const ids = [...new Set(rows.map(r => r.user_id).filter(Boolean))];
+    const nickMap = {};
+    if (ids.length) {
+      const { data: us, error: ue } = await supa
+        .from('users').select('id, nickname').in('id', ids);
+      if (ue) console.warn('닉네임 조회 실패:', ue.message);
+      else (us || []).forEach(u => { nickMap[u.id] = u.nickname; });
+    }
+    return rows.map(r => ({
+      reaction_text: r.reaction_text,
+      created_at: r.created_at,
+      nickname: nickMap[r.user_id] || null,
+    }));
+  } catch(e) {
+    console.warn('사유 fetch 예외:', e);
+    return [];
+  }
 }
 
 function makePhilemonPage(book, num) {
