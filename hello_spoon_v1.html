@@ -148,7 +148,7 @@ main.stage{
 /* 배경 이미지 */
 .hero-bg{
   position:absolute;inset:0;
-  background-image:url('./teacup_hero.webp');
+  background-image:url('./assets/teacup_hero.webp');
   background-size:cover;
   background-position:56% 50%;
   background-repeat:no-repeat;
@@ -918,6 +918,40 @@ main.stage{
   const QUIZ = { answer: 2 };          // 정답 (DB 로드 후 갱신)
   const TOTAL_STEPS = 6;
 
+  // ── B-1. 현재 로그인 회원 (eungyo-auth 세션 공유) ──────
+  let CURRENT_USER = null;   // 로그인 회원 { id, email } / 비로그인 시 null
+  async function loadSession(){
+    try {
+      const { data:{ session } } = await supa.auth.getSession();
+      CURRENT_USER = session ? session.user : null;
+      console.log('한스푼 세션:', CURRENT_USER ? CURRENT_USER.email : '비로그인');
+    } catch(e){
+      console.warn('세션 읽기 예외:', e);
+      CURRENT_USER = null;
+    }
+  }
+
+  // ── B-2. 퀴즈 풀이 기록 (spoon_quiz_logs) ──────────────
+  // 풀면 책장 등재의 근거가 됨. 정답/오답 무관하게 "풀었음"을 기록.
+  let QUIZ_LOGGED = false;   // 중복 INSERT 방지
+  async function logQuiz(selectedOption, isCorrect){
+    if(QUIZ_LOGGED) return;             // 이미 기록함
+    if(!CURRENT_USER){ console.log('[spoon] 비로그인 — 퀴즈 기록 안 함'); return; }
+    if(!SPOON || !SPOON.id){ console.warn('[spoon] SPOON.id 없음 — 기록 불가'); return; }
+    QUIZ_LOGGED = true;
+    try {
+      const { error } = await supa.from('spoon_quiz_logs').insert({
+        user_id:         CURRENT_USER.id,
+        spoon_id:        SPOON.id,
+        spoon_date:      SPOON.spoon_date,
+        selected_option: selectedOption,
+        is_correct:      isCorrect
+      });
+      if(error){ console.warn('[spoon] 퀴즈 기록 실패:', error.message); QUIZ_LOGGED = false; }
+      else      { console.log('[spoon] 퀴즈 기록 완료 → 책장 등재 근거 생성'); }
+    } catch(e){ console.warn('[spoon] 퀴즈 기록 예외:', e); QUIZ_LOGGED = false; }
+  }
+
   // 줄바꿈(\n) → <br>, 안전 이스케이프
   function esc(s){
     return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -1165,6 +1199,9 @@ main.stage{
       if(pick === QUIZ.answer) opt.classList.add('correct','pick');
       else                     opt.classList.add('pick');
 
+      // B-2. 퀴즈 풀이를 DB에 기록 (책장 등재 근거)
+      logQuiz(pick, pick === QUIZ.answer);
+
       // v2.3 전환 효과(flip+steam) 패스 — 옛 단순 페이드 유지
       // (효과 CSS·HTML은 미래 인테리어 정비용으로 그대로 둠)
       setTimeout(next, 850);
@@ -1209,7 +1246,7 @@ main.stage{
 
   // ── 출발 ─────────────────────────────────────────────
   async function init(){
-    await fetchSpoon();   // DB에서 한스푼 로드 (실패 시 더미 유지)
+    await Promise.all([ fetchSpoon(), loadSession() ]);  // 한스푼 + 세션 동시 로드
     applySpoon();         // 날짜·퀴즈·정답·여운 채움
     buildStoryBlocks();   // 스토리 블록 생성
     show(1);
