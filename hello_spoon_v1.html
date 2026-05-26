@@ -952,6 +952,27 @@ main.stage{
     } catch(e){ console.warn('[spoon] 퀴즈 기록 예외:', e); QUIZ_LOGGED = false; }
   }
 
+  // ── B-3. 한 줄 사유 기록 (spoon_reactions) ─────────────
+  // 콩파뇽 페이지("이 한 모금을 마신 벗들")에 실시간 누적됨.
+  let REACTION_LOGGED = false;
+  async function logReaction(text){
+    if(REACTION_LOGGED) return;
+    if(!text || !text.trim()){ return; }
+    if(!CURRENT_USER){ console.log('[spoon] 비로그인 — 사유 기록 안 함'); return; }
+    if(!SPOON || !SPOON.id){ console.warn('[spoon] SPOON.id 없음 — 사유 기록 불가'); return; }
+    REACTION_LOGGED = true;
+    try {
+      const { error } = await supa.from('spoon_reactions').insert({
+        user_id:       CURRENT_USER.id,
+        spoon_id:      SPOON.id,
+        spoon_date:    SPOON.spoon_date,
+        reaction_text: text.trim()
+      });
+      if(error){ console.warn('[spoon] 사유 기록 실패:', error.message); REACTION_LOGGED = false; }
+      else      { console.log('[spoon] 사유 기록 완료 → 콩파뇽 페이지에 누적'); }
+    } catch(e){ console.warn('[spoon] 사유 기록 예외:', e); REACTION_LOGGED = false; }
+  }
+
   // 줄바꿈(\n) → <br>, 안전 이스케이프
   function esc(s){
     return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -1222,6 +1243,7 @@ main.stage{
     if(btnSave.disabled) return;
     state.saved = true;
     console.log('[spoon] 한 줄 사유:', state.reaction);
+    logReaction(state.reaction);   // B-3. 사유를 DB에 기록 → 콩파뇽 페이지 누적
     next();
   });
   btnSkip.addEventListener('click', () => {
