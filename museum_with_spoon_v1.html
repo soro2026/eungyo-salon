@@ -919,10 +919,12 @@ async function loadMuseumBooks() {
 
   // 1. 내가 경험한 quiz_log 가져오기
   let myAnswers = new Set();
+  let myUid = null;   // B-4: 한스푼 필터에서도 쓰기 위해 함수 스코프로
   try {
     const { data: { session } } = await supa.auth.getSession();
     console.log('뮤세움 세션:', session ? session.user.email : '없음');
     if (session) {
+      myUid = session.user.id;
       const { data: logs, error } = await supa
         .from('quiz_log')
         .select('answer')
@@ -983,9 +985,21 @@ async function loadMuseumBooks() {
   ALL_BOOKS = {};
   CATEGORIES.forEach(cat => ALL_BOOKS[cat.id] = []);
 
-  // ── 한스푼 책장 — Supabase spoons 테이블에서 published 콘텐츠 fetch ──
-  //    DB에 있는 만큼 책장에 꽂힘 (최신 왼쪽). 더미 없음.
+  // ── 한스푼 책장 — 내가 퀴즈를 푼 한스푼만 (강물 원칙: 풀어야 책장에 들어옴) ──
+  //    spoon_quiz_logs에 내 기록이 있는 spoon_id만 꽂힘.
   try {
+    // B-4. 내가 푼 한스푼 id 목록 먼저 조회
+    let mySpoonIds = new Set();
+    if (myUid) {
+      const { data: qlogs, error: qe } = await supa
+        .from('spoon_quiz_logs')
+        .select('spoon_id')
+        .eq('user_id', myUid);
+      if (qe) console.warn('spoon_quiz_logs 조회 실패:', qe.message);
+      else (qlogs || []).forEach(r => mySpoonIds.add(r.spoon_id));
+      console.log('내가 푼 한스푼:', mySpoonIds.size + '권');
+    }
+
     const { data: spoons, error } = await supa
       .from('spoons')
       .select('id, spoon_date, headline, subject, quote, layer_knowledge, layer_thought, layer_connection, layer_curation, curation_links')
@@ -995,7 +1009,9 @@ async function loadMuseumBooks() {
     if (error) {
       console.warn('한스푼 fetch 실패:', error.message);
     } else if (spoons && spoons.length) {
+      let shelved = 0;
       for (const s of spoons) {
+        if (!mySpoonIds.has(s.id)) continue;   // 안 푼 한스푼은 책장에 안 꽂힘
         // spoon_date(2026-06-09) → 책등 표기 06.09
         const d = (s.spoon_date || '').slice(5).replace('-', '.');
         ALL_BOOKS['spoon'].push({
@@ -1016,8 +1032,9 @@ async function loadMuseumBooks() {
             curation:   s.layer_curation   || ''
           }
         });
+        shelved++;
       }
-      console.log('한스푼 책장 로드:', spoons.length + '권');
+      console.log('한스푼 책장 로드:', shelved + '권 (내가 푼 것만)');
     }
   } catch(e) {
     console.warn('한스푼 fetch 예외:', e);
@@ -1832,7 +1849,12 @@ function makeCompanionPage(reactions, num) {
       </div>`;
   } else {
     const rows = reactions.map(r => {
-      const t = (r.created_at || '').slice(11, 16); // HH:MM
+      // created_at(UTC) → 한국시간(KST) HH:MM 으로 표시
+      let t = '';
+      if (r.created_at) {
+        const dt = new Date(r.created_at);
+        t = dt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Seoul' });
+      }
       return `
         <div style="padding:11px 0;border-bottom:1px solid rgba(180,160,120,0.15);font-family:'Noto Serif KR',serif;line-height:1.65;word-break:keep-all">
           <span style="font-size:10.5px;color:rgba(140,110,50,0.6);letter-spacing:0.04em">${escHtml(t)}</span>
