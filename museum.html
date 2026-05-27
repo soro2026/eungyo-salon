@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EG뮤세움 v0422-r2 · 파이스 빌드 -->
+<!-- EG뮤세움 museum.html · 한스푼 통합본 (v0422-r2 + spoon) · 5/27 C방식 승격 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -235,7 +235,7 @@
   .bookshelf-bg {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background-image: url('/eungyo-salon/bookself.png');
+    background-image: url('https://soro2026.github.io/eungyo-salon/bookself.png');
     background-size: cover;
     background-position: center top;
     opacity: 0.28;
@@ -808,7 +808,7 @@
 </div>
 
 <script>
-const BASE = '/eungyo-salon/';
+const BASE = 'https://soro2026.github.io/eungyo-salon/';
 
 // ── Supabase 전역 클라이언트 (index.html과 동일 설정) ──
 const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
@@ -851,7 +851,7 @@ function goHome() {
   bgmAudio.currentTime = 0;
   bgmAudio.src = '';  // 오디오 소스 완전 제거
   bgmPlaying = false;
-  window.location.href = '/eungyo-salon/';
+  window.location.href = 'https://soro2026.github.io/eungyo-salon/';
 }
 
 function toggleBGM() {
@@ -868,6 +868,7 @@ function toggleBGM() {
 
 // ── 카테고리 ──────────────────────────────────
 const CATEGORIES = [
+  { id: 'spoon', name: '한스푼', sub: '매일 한 모금' },
   { id: 'lit',  name: '문학', sub: '종이 위의 인간' },
   { id: 'phi',  name: '철학', sub: '생각의 탄생' },
   { id: 'his',  name: '역사', sub: '시간의 지층' },
@@ -914,14 +915,16 @@ let BOOKS_LOADED = false;
 
 async function loadMuseumBooks() {
   // 전역 supa 클라이언트 사용
-  const BASE_URL = '/eungyo-salon/';
+  const BASE_URL = 'https://soro2026.github.io/eungyo-salon/';
 
   // 1. 내가 경험한 quiz_log 가져오기
   let myAnswers = new Set();
+  let myUid = null;   // B-4: 한스푼 필터에서도 쓰기 위해 함수 스코프로
   try {
     const { data: { session } } = await supa.auth.getSession();
     console.log('뮤세움 세션:', session ? session.user.email : '없음');
     if (session) {
+      myUid = session.user.id;
       const { data: logs, error } = await supa
         .from('quiz_log')
         .select('answer')
@@ -981,6 +984,62 @@ async function loadMuseumBooks() {
   // 3. 내가 경험한 책만 catId별로 분류
   ALL_BOOKS = {};
   CATEGORIES.forEach(cat => ALL_BOOKS[cat.id] = []);
+
+  // ── 한스푼 책장 — 내가 퀴즈를 푼 한스푼만 (강물 원칙: 풀어야 책장에 들어옴) ──
+  //    spoon_quiz_logs에 내 기록이 있는 spoon_id만 꽂힘.
+  try {
+    // B-4. 내가 푼 한스푼 id 목록 먼저 조회
+    let mySpoonIds = new Set();
+    if (myUid) {
+      const { data: qlogs, error: qe } = await supa
+        .from('spoon_quiz_logs')
+        .select('spoon_id')
+        .eq('user_id', myUid);
+      if (qe) console.warn('spoon_quiz_logs 조회 실패:', qe.message);
+      else (qlogs || []).forEach(r => mySpoonIds.add(r.spoon_id));
+      console.log('내가 푼 한스푼:', mySpoonIds.size + '권');
+    }
+
+    const { data: spoons, error } = await supa
+      .from('spoons')
+      .select('id, spoon_date, headline, subject, quote, layer_knowledge, layer_thought, layer_connection, layer_curation, curation_links')
+      .eq('status', 'published')
+      .order('spoon_date', { ascending: false });
+
+    if (error) {
+      console.warn('한스푼 fetch 실패:', error.message);
+    } else if (spoons && spoons.length) {
+      let shelved = 0;
+      for (const s of spoons) {
+        if (!mySpoonIds.has(s.id)) continue;   // 안 푼 한스푼은 책장에 안 꽂힘
+        // spoon_date(2026-06-09) → 책등 표기 06.09
+        const d = (s.spoon_date || '').slice(5).replace('-', '.');
+        ALL_BOOKS['spoon'].push({
+          catId:    'spoon',
+          spoonId:  s.id,
+          spoonDate: s.spoon_date,
+          answer:   d + ' · ' + (s.subject || ''),
+          keyword:  s.quote || '',
+          category: '한스푼 · 매일 한 모금',
+          headline: s.headline || '',
+          mine:     true,
+          isSpoon:  true,
+          curation_links: s.curation_links || null,
+          library: {
+            knowledge:  s.layer_knowledge  || '',
+            thought:    s.layer_thought    || '',
+            connection: s.layer_connection || '',
+            curation:   s.layer_curation   || ''
+          }
+        });
+        shelved++;
+      }
+      console.log('한스푼 책장 로드:', shelved + '권 (내가 푼 것만)');
+    }
+  } catch(e) {
+    console.warn('한스푼 fetch 예외:', e);
+  }
+
   for (const book of Object.values(bookMap)) {
     if (book.mine && ALL_BOOKS[book.catId]) {
       ALL_BOOKS[book.catId].push(book);
@@ -1271,6 +1330,7 @@ let isAnimating = false;
 let currentBookData = null;
 
 function openBook(book) {
+  // ── 한스푼 책도 같은 모달에서 처리 (v1.2 — 점프 제거, DB library 4겹 + 콩파뇽 사유) ──
   currentBookData = book;
   isAnimating = false;
 
@@ -1343,11 +1403,17 @@ function enterBook() {
   }, 1100);
 }
 
-function showInnerPages() {
+async function showInnerPages() {
   const book = currentBookData;
   console.log('showInnerPages:', book?.answer, 'library:', JSON.stringify(book?.library)?.slice(0,80));
   currentPage = 0;
   const lib   = book.library || {};
+
+  // 한스푼 책이면 콩파뇽 사유를 DB에서 먼저 읽어 book에 담아둠
+  if (book.isSpoon || book.catId === 'spoon') {
+    book._reactions = await fetchSpoonReactions(book.spoonId);
+  }
+
   const pages = buildPages(book, lib);
   console.log('buildPages 결과:', pages.length, '페이지');
 
@@ -1642,6 +1708,11 @@ function buildPages(book, lib) {
     pages.push(makeCurationPage('', pages.length + 1, book.curation_links));
   }
 
+  // 4.5 콩파뇽 사유 (한스푼 책 전용 — showInnerPages가 미리 담아둔 _reactions)
+  if (book.isSpoon || book.catId === 'spoon') {
+    pages.push(makeCompanionPage(book._reactions, pages.length + 1));
+  }
+
   // 5. 마지막 페이지
   pages.push(makePhilemonPage(book, pages.length + 1));
 
@@ -1759,6 +1830,87 @@ function renderCurationLinks(links) {
   return sections.length ? `<div style="margin-top:24px;padding-top:18px;border-top:1px dashed rgba(180,160,120,0.25)">${sections.join('')}</div>` : '';
 }
 
+// ── 콩파뇽 사유 페이지 (한스푼 전용 — spoon_reactions + users.nickname) ──
+function escHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function makeCompanionPage(reactions, num) {
+  const div = document.createElement('div');
+  div.className = 'book-page-view page-inner';
+  let listHtml;
+  if (!reactions || reactions.length === 0) {
+    listHtml = `
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;text-align:center;color:rgba(100,80,40,0.45)">
+        <div style="font-size:20px;margin-bottom:14px;opacity:0.5">☕</div>
+        <div style="font-family:'Noto Serif KR',serif;font-size:13px;line-height:1.9">아직 이 한 모금에<br>남겨진 흔적이 없습니다.<br><br>첫 사유를 남겨보세요.</div>
+      </div>`;
+  } else {
+    const rows = reactions.map(r => {
+      // created_at(UTC) → 한국시간(KST) HH:MM 으로 표시
+      let t = '';
+      if (r.created_at) {
+        const dt = new Date(r.created_at);
+        t = dt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Seoul' });
+      }
+      return `
+        <div style="padding:11px 0;border-bottom:1px solid rgba(180,160,120,0.15);font-family:'Noto Serif KR',serif;line-height:1.65;word-break:keep-all">
+          <span style="font-size:10.5px;color:rgba(140,110,50,0.6);letter-spacing:0.04em">${escHtml(t)}</span>
+          <span style="font-size:11.5px;color:#9C7C28;font-weight:600;margin:0 8px">${escHtml(r.nickname || '벗')}</span>
+          <div style="font-size:12.5px;color:#3D2F10;margin-top:3px">${escHtml(r.reaction_text)}</div>
+        </div>`;
+    }).join('');
+    listHtml = `<div style="overflow-y:auto">${rows}</div>`;
+  }
+  div.innerHTML = `
+    <div class="page-lines"></div>
+    <div class="page-inner-content">
+      <div class="page-layer-tag">☕ 콩파뇽 흔적</div>
+      <div class="page-layer-heading">이 한 모금을 마신 벗들</div>
+      <div style="font-size:11px;color:rgba(100,80,40,0.5);margin-bottom:10px">시간순 누적 · 댓글 없음</div>
+      ${listHtml}
+    </div>
+    <div class="page-num-inner">${num}</div>
+    <div class="page-corner"></div>
+  `;
+  return div;
+}
+
+// 한스푼 책의 사유를 DB에서 읽어옴 (spoon_reactions → users.nickname 별도 조회)
+async function fetchSpoonReactions(spoonId) {
+  if (!spoonId) return [];
+  try {
+    const { data, error } = await supa
+      .from('spoon_reactions')
+      .select('reaction_text, created_at, user_id')
+      .eq('spoon_id', spoonId)
+      .order('created_at', { ascending: true });
+    if (error) { console.warn('사유 fetch 실패:', error.message); return []; }
+    const rows = data || [];
+    if (rows.length === 0) return [];
+
+    // user_id 모아 닉네임 한 번에 조회 (FK 자동 join에 의존하지 않음)
+    const ids = [...new Set(rows.map(r => r.user_id).filter(Boolean))];
+    const nickMap = {};
+    if (ids.length) {
+      const { data: us, error: ue } = await supa
+        .from('users').select('id, nickname').in('id', ids);
+      if (ue) console.warn('닉네임 조회 실패:', ue.message);
+      else (us || []).forEach(u => { nickMap[u.id] = u.nickname; });
+    }
+    return rows.map(r => ({
+      reaction_text: r.reaction_text,
+      created_at: r.created_at,
+      nickname: nickMap[r.user_id] || null,
+    }));
+  } catch(e) {
+    console.warn('사유 fetch 예외:', e);
+    return [];
+  }
+}
+
 function makePhilemonPage(book, num) {
   const div = document.createElement('div');
   div.className = 'book-page-view page-philemon';
@@ -1820,5 +1972,6 @@ if (!bgmPlaying) {
   }, { once: true });
 }
 </script>
+
 </body>
 </html>
