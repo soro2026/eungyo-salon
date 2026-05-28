@@ -454,6 +454,123 @@ html, body {
   padding: 60px; color: rgba(184,136,30,0.4);
   font-size: 12px; letter-spacing: 0.14em;
 }
+
+/* ═══════ 0층 — 교양의 풍경 ═══════ */
+.floor0 {
+  max-width: 720px;
+  margin: 0 auto 28px;
+  padding: 0 18px;
+}
+.floor0-header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(184,136,30,0.2);
+}
+.floor0-icon { font-size: 20px; }
+.floor0-title {
+  font-size: 17px; font-weight: 600;
+  color: #4a3f2e; letter-spacing: 0.04em;
+}
+.floor0-loading {
+  color: rgba(74,63,46,0.4);
+  font-size: 14px; text-align: center;
+  padding: 30px 0;
+}
+.floor0-empty {
+  color: rgba(74,63,46,0.45);
+  font-size: 14px; text-align: center;
+  padding: 30px 18px; line-height: 1.7;
+}
+
+/* 작품 묶음 (아코디언) */
+.work-group {
+  margin-bottom: 12px;
+  border: 1px solid rgba(184,136,30,0.18);
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255,253,247,0.5);
+}
+.work-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 15px 18px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+.work-head:hover { background: rgba(184,136,30,0.05); }
+.work-arrow {
+  font-size: 11px; color: #B8881E;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+.work-group.open .work-arrow { transform: rotate(90deg); }
+.work-name {
+  font-size: 15px; font-weight: 600;
+  color: #4a3f2e; flex: 1;
+}
+.work-count {
+  font-size: 12px; color: rgba(74,63,46,0.45);
+  flex-shrink: 0;
+}
+.work-cards {
+  display: none;
+  padding: 0 12px 12px;
+}
+.work-group.open .work-cards { display: block; }
+
+/* 카드 (poetic_title → 4겹) */
+.scene-card {
+  margin-top: 10px;
+  border: 1px solid rgba(184,136,30,0.15);
+  border-radius: 8px;
+  background: #fffdf7;
+  overflow: hidden;
+}
+.scene-head {
+  padding: 14px 16px;
+  cursor: pointer;
+  user-select: none;
+  display: flex; align-items: center; gap: 10px;
+  transition: background 0.15s;
+}
+.scene-head:hover { background: rgba(184,136,30,0.04); }
+.scene-dot { color: #C9A84C; font-size: 10px; flex-shrink: 0; }
+.scene-title {
+  font-family: 'Noto Serif KR', serif;
+  font-size: 15px; line-height: 1.5;
+  color: #3a3226; flex: 1;
+}
+.scene-layers {
+  display: none;
+  padding: 4px 16px 18px;
+  border-top: 1px solid rgba(184,136,30,0.12);
+}
+.scene-card.open .scene-layers { display: block; }
+.layer {
+  margin-top: 16px;
+}
+.layer-label {
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.1em;
+  color: #B8881E;
+  margin-bottom: 6px;
+}
+.layer-text {
+  font-family: 'Noto Serif KR', serif;
+  font-size: 14.5px; line-height: 1.85;
+  color: #2e2820;
+  white-space: pre-wrap;
+}
+
+/* 폰 — 폭 꽉, 터치 편하게 */
+@media (max-width: 600px) {
+  .floor0 { padding: 0 14px; }
+  .work-head { padding: 14px 14px; }
+  .scene-head { padding: 13px 13px; }
+  .scene-title { font-size: 14.5px; }
+  .layer-text { font-size: 14px; }
+}
 </style>
 </head>
 <body>
@@ -530,6 +647,17 @@ html, body {
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- 🌌 0층 — 교양의 풍경 (카리 4겹) -->
+  <div class="floor0" id="floor0">
+    <div class="floor0-header">
+      <span class="floor0-icon">🌌</span>
+      <span class="floor0-title">교양의 풍경</span>
+    </div>
+    <div id="floor0-body">
+      <div class="floor0-loading">⬤ 별빛을 모으는 중...</div>
     </div>
   </div>
 
@@ -713,10 +841,12 @@ async function init() {
 
   // 별 데이터 로드
   await loadStar(starId);
+  // 0층 교양의 풍경 (카리 4겹) ← 오늘 신설
+  await loadFloor0(starId);
   // 콘텐츠 로드
   await loadContents(starId);
-  // 주주 여부 확인
-  await checkHolder(starId);
+  // 주주 여부 확인 — 5/9 폐기(portfolio) 화석. 3층 Company 작업 때 재구현.
+  // await checkHolder(starId);
 }
 
 // ── 별 데이터 로드 ──────────────────────────────────────────────
@@ -736,7 +866,7 @@ async function loadStar(starId) {
     `${star.field} · ${birth} ~ ${death}`;
 
   document.getElementById('star-desc').textContent =
-    star.description || '아직 소개가 없습니다. 주주가 되어 이 별을 꾸며주세요.';
+    star.description || '';
 
   document.title = `${star.name} — EG콘스텔라티오`;
 
@@ -753,21 +883,17 @@ async function loadStar(starId) {
   document.getElementById('heart-count').textContent =
     (star.heart_count || 0).toLocaleString();
 
-  // 주주 수
-  const { count: holders } = await supa.from('portfolio')
-    .select('*', { count: 'exact', head: true }).eq('star_id', starId);
-  document.getElementById('holder-count').textContent = holders || 0;
-
-  // 스톡 상태
-  const statusMap = { seed: '씨앗', unlisted: '비상장', listed: '상장', ipo_pending: 'IPO 대기' };
-  const stockLabel = statusMap[star.stock_status] || '—';
-  document.getElementById('stock-status').textContent = stockLabel;
+  // 주주·스톡 = 5/9 폐기 화석. 헤더 칸 숨김 (3층 Company 작업 때 콩파뇽으로 부활)
+  const holderStat = document.getElementById('holder-count')?.closest('.stat-item');
+  const stockStat = document.getElementById('stock-status')?.closest('.stat-item');
+  if (holderStat) holderStat.style.display = 'none';
+  if (stockStat) stockStat.style.display = 'none';
 
   // 3D 카드 업데이트
-  updateCard(star, lum, holders || 0, stockLabel);
+  updateCard(star, lum);
 }
 
-function updateCard(star, lum, holders, stockLabel) {
+function updateCard(star, lum) {
   // 등성 배지
   document.getElementById('card-grade-badge').textContent =
     `${star.grade || '—'}등성`;
@@ -793,7 +919,7 @@ function updateCard(star, lum, holders, stockLabel) {
   ).join('');
   document.getElementById('card-back-lum').innerHTML = lumDots;
   document.getElementById('card-back-stock').innerHTML =
-    `주주 ${holders}명<br>스톡 ${stockLabel}`;
+    `${star.field || ''}`;
 
   // 3D 기울기 인터랙션
   initCardInteraction();
@@ -897,6 +1023,80 @@ async function checkHolder(starId) {
     const btn = document.getElementById(`btn-add-${type}`);
     if (btn) btn.disabled = !isHolder;
   });
+}
+
+// ── 0층 교양의 풍경 로드 (카리 4겹) ──────────────────────────────
+async function loadFloor0(starId) {
+  const body = document.getElementById('floor0-body');
+  const { data: rows, error } = await supa.rpc('get_star_questions', {
+    p_star_id: Number(starId)
+  });
+
+  if (error) {
+    console.error('floor0 error:', error);
+    body.innerHTML = '<div class="floor0-empty">별빛을 불러오지 못했습니다.</div>';
+    return;
+  }
+
+  // 빈 별 → 0층 자체를 숨김 ("준비된 별만 빛난다")
+  if (!rows || rows.length === 0) {
+    document.getElementById('floor0').style.display = 'none';
+    return;
+  }
+
+  // work별로 묶기
+  const groups = {};
+  rows.forEach(r => {
+    const w = r.work || 'general';
+    if (!groups[w]) groups[w] = [];
+    groups[w].push(r);
+  });
+
+  // 'general'은 맨 뒤로, 나머지는 가나다순
+  const workNames = Object.keys(groups).sort((a, b) => {
+    if (a === 'general') return 1;
+    if (b === 'general') return -1;
+    return a.localeCompare(b, 'ko');
+  });
+
+  const esc = s => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const workLabel = w => w === 'general' ? '생애와 사상' : w;
+
+  body.innerHTML = workNames.map(w => {
+    const cards = groups[w].map(r => `
+      <div class="scene-card" onclick="this.classList.toggle('open')">
+        <div class="scene-head">
+          <span class="scene-dot">✦</span>
+          <span class="scene-title">${esc(r.poetic_title) || '제목 없음'}</span>
+        </div>
+        <div class="scene-layers" onclick="event.stopPropagation()">
+          ${layerHtml('지식', r.knowledge)}
+          ${layerHtml('사유', r.thought)}
+          ${layerHtml('연결', r.connection)}
+          ${layerHtml('큐레이션', r.curation)}
+        </div>
+      </div>`).join('');
+
+    return `
+      <div class="work-group">
+        <div class="work-head" onclick="this.parentElement.classList.toggle('open')">
+          <span class="work-arrow">▶</span>
+          <span class="work-name">${esc(workLabel(w))}</span>
+          <span class="work-count">${groups[w].length}</span>
+        </div>
+        <div class="work-cards">${cards}</div>
+      </div>`;
+  }).join('');
+}
+
+function layerHtml(label, text) {
+  if (!text) return '';
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return `
+    <div class="layer">
+      <div class="layer-label">${label}</div>
+      <div class="layer-text">${esc(text)}</div>
+    </div>`;
 }
 
 // ── 콘텐츠 로드 ────────────────────────────────────────────────
