@@ -33,6 +33,31 @@ html, body {
 }
 #bg::after { display: none; }
 
+/* ── 살롱 배경 (문학 별 등 풍경 있는 별) ── */
+body.has-salon-bg #bg {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+/* 사진 위 아이보리 베일 — 글이 또렷이 뜨게 */
+body.has-salon-bg #bg::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgba(240,235,224,0.62);
+}
+/* 풍경 있는 별: 4겹 카드를 거의 불투명하게 (글 가독성 1순위) */
+body.has-salon-bg .work-group { background: rgba(255,253,247,0.92); }
+body.has-salon-bg .scene-card { background: rgba(255,253,247,0.97); }
+body.has-salon-bg .floor0-header { 
+  background: rgba(240,235,224,0.55); 
+  border-radius: 8px; padding: 10px 14px;
+}
+
+/* 폰 — 배경 거의 안 보여도 무관 (베일 진하게) */
+@media (max-width: 600px) {
+  body.has-salon-bg #bg::before { background: rgba(240,235,224,0.86); }
+}
+
 /* ── 레이아웃 ── */
 #app {
   position: relative; z-index: 1;
@@ -1044,6 +1069,9 @@ async function loadFloor0(starId) {
     return;
   }
 
+  // 별의 자기 곳 — 문학 별에 살롱 배경 한 곳 고정 (별 id로 6장 중 하나)
+  applyStarBackground();
+
   // work별로 묶기
   const groups = {};
   rows.forEach(r => {
@@ -1097,6 +1125,27 @@ function layerHtml(label, text) {
       <div class="layer-label">${label}</div>
       <div class="layer-text">${esc(text)}</div>
     </div>`;
+}
+
+// ── 별의 자기 곳 (배경 배정) ────────────────────────────────────
+// 분야별 살롱 풍경 풀. 별 id로 그 안에서 한 곳 고정 → 30년 가는 "그 별의 방".
+const SALON_BG = {
+  lit: ['star_bg01.webp','star_bg02.webp','star_bg03.webp',
+        'star_bg04.webp','star_bg05.webp','star_bg06.webp'],
+  // 다른 카테고리는 풍경 준비되는 대로 추가 (phi/art/myth/...)
+};
+function applyStarBackground() {
+  if (!currentStar) return;
+  const tag = currentStar.primary_tag;
+  const pool = SALON_BG[tag];
+  if (!pool || pool.length === 0) return;  // 풍경 없는 분야 → 아이보리 유지
+
+  const bg = pool[currentStar.id % pool.length];  // 별 id로 한 곳 고정
+  const sky = document.getElementById('bg');
+  if (sky) {
+    sky.style.backgroundImage = `url('${bg}')`;
+    document.body.classList.add('has-salon-bg');
+  }
 }
 
 // ── 콘텐츠 로드 ────────────────────────────────────────────────
