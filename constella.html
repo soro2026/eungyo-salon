@@ -996,6 +996,7 @@ async function loadStars() {
     photo_url: s.photo_url,
     description: s.description,
     aliases: s.aliases,
+    is_polaris: s.is_polaris,
     // 툴팁용
     info: `${s.field} · ${s.birth < 0 ? 'BC ' + Math.abs(s.birth) : s.birth}`,
     bookmarks: s.heart_count,
@@ -1855,6 +1856,27 @@ function resize() {
   initStars();
 }
 
+// ── 연대기 궤도 배치 (5/29 결정문 v1.0) ──────────────────────────
+// 북극성(소로) 중심 고정 + birth 시대 띠(band) + 띠 안 고정랜덤 흩뜨림 + 황금각.
+// 좌표는 birth로 런타임 계산 (DB x_ratio/y_ratio에 저장하지 않음 = 자전 토대).
+
+const ORBIT_MARGIN = 120;
+const BAND_COUNT   = 7;                 // 띠 7개 (5/29 DB 실측 확정)
+const GOLDEN_ANGLE = 137.5 * Math.PI / 180;
+
+// 띠 표 v1.0 — birth → 띠 인덱스(0=중심쪽 고대 … 6=바깥 근현대)
+// 경계는 이 함수 한 곳만 고치면 전체가 다시 배치됨 (알고리즘 불변).
+function bandOf(birth) {
+  if (birth == null) return BAND_COUNT - 1; // birth 미상 → 임시로 맨 바깥
+  if (birth < -400) return 0;  // ~BC400        (6명)
+  if (birth <  400) return 1;  // BC400~서기400  (3명, 1~3C 0명 흡수)
+  if (birth < 1300) return 2;  // 4~12C 중세     (4명)
+  if (birth < 1600) return 3;  // 13~16C 르네상스 (11명)
+  if (birth < 1800) return 4;  // 17~18C 근대    (24명)
+  if (birth < 1900) return 5;  // 19C           (72명)
+  return 6;                    // 20C~          (62명)
+}
+
 function initStars() {
   stars = [];
 
@@ -1871,49 +1893,48 @@ function initStars() {
     });
   }
 
-  // 인물 별 — x_ratio/y_ratio 있으면 고정, 없으면 랜덤 배치
-  const margin = 120;
-  const usable = { x: margin, y: margin, w: WORLD_W - margin*2, h: WORLD_H - margin*2 };
-  const needsSave = [];
+  // 중심·단위거리
+  const CX = WORLD_W / 2, CY = WORLD_H / 2;            // (1500, 1500)
+  const UNIT = (Math.min(CX, CY) - ORBIT_MARGIN) / BAND_COUNT; // 띠당 ≈197px
 
-  FIGURES.forEach((fig) => {
-    let x, y;
-    if (fig.x_ratio != null && fig.y_ratio != null) {
-      // DB에 저장된 위치 사용
-      x = fig.x_ratio * WORLD_W;
-      y = fig.y_ratio * WORLD_H;
-    } else {
-      // 랜덤 배치 후 DB 저장 예약
-      let attempts = 0;
-      do {
-        x = usable.x + Math.random() * usable.w;
-        y = usable.y + Math.random() * usable.h;
-        attempts++;
-      } while (attempts < 50 && stars.some(s => s.type === 'figure' &&
-        Math.hypot(s.x - x, s.y - y) < 60));
-      fig.x_ratio = parseFloat((x / WORLD_W).toFixed(4));
-      fig.y_ratio = parseFloat((y / WORLD_H).toFixed(4));
-      needsSave.push({ id: fig.id, x_ratio: fig.x_ratio, y_ratio: fig.y_ratio });
-    }
-
+  // 한 별을 stars 배열에 등록 (좌표 x,y는 호출부에서 계산)
+  function placeFigure(fig, x, y) {
     const grade = fig.grade;
     const props = gradeProps(grade, (fig.id || 0) + 1);
     const baseR = GRADE_R[grade] || 0.7;
     const baseAlpha = [0,1,0.9,0.78,0.65,0.52,0.40,0.28,0.18,0.11][grade] || 0.11;
-
+    // fig에도 좌표 비율 반영 (다른 코드 호환용 — DB 저장은 안 함)
+    fig.x_ratio = parseFloat((x / WORLD_W).toFixed(4));
+    fig.y_ratio = parseFloat((y / WORLD_H).toFixed(4));
     stars.push({
-      type: 'figure',
-      figure: fig,
-      x, y,
-      r: baseR,
-      baseAlpha,
-      ...props,
-      highlighted: false,
+      type: 'figure', figure: fig, x, y,
+      r: baseR, baseAlpha, ...props, highlighted: false,
+    });
+  }
+
+  // 북극성과 일반 별 분리 + 띠별로 모으기 (id순 → 황금각 순번 안정화)
+  const polaris = [];
+  const bands = Array.from({ length: BAND_COUNT }, () => []);
+  FIGURES.forEach(fig => {
+    if (fig.is_polaris) polaris.push(fig);
+    else bands[bandOf(fig.birth)].push(fig);
+  });
+  bands.forEach(arr => arr.sort((a, b) => a.id - b.id));
+
+  // 북극성 — 중심 (1500,1500) 고정. 안 돎.
+  polaris.forEach(fig => placeFigure(fig, CX, CY));
+
+  // 일반 별 — 시대 띠 + 띠 안 고정랜덤 흩뜨림 + 황금각
+  bands.forEach((arr, bandIdx) => {
+    arr.forEach((fig, seq) => {
+      const jitter = seededRand(fig.id)(0);          // 0~1, 별마다 고정
+      const R = (bandIdx + jitter) * UNIT;           // 띠 폭 안에서 흩뜨림
+      const theta = seq * GOLDEN_ANGLE;              // 황금각 (띠별 0번부터)
+      const x = CX + R * Math.cos(theta);
+      const y = CY + R * Math.sin(theta);
+      placeFigure(fig, x, y);
     });
   });
-
-  // 새 위치 DB 저장 (배치)
-  if (needsSave.length > 0) saveStarPositions(needsSave);
 
   document.getElementById('star-count-num').textContent = FIGURES.length;
 }
