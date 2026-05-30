@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="robots" content="noindex, nofollow">
+<title>EG 관리자 — 응답의 정원 심사</title>
+<style>
+:root {
+  --gold: #C9A84C;
+  --gold-d: #B8881E;
+  --chalk: #f0ebe0;
+  --ink: #0a0e1a;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body {
+  min-height:100%;
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(201,168,76,0.07) 0%, transparent 45%),
+    radial-gradient(ellipse at 80% 100%, rgba(80,90,160,0.10) 0%, transparent 50%),
+    #0a0e1a;
+  color: var(--chalk);
+  font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  line-height: 1.7;
+}
+.wrap { max-width: 760px; margin: 0 auto; padding: 40px 20px 80px; }
+
+/* 헤더 */
+.head { text-align:center; margin-bottom: 36px; }
+.head-eg { font-size: 11px; letter-spacing: 0.3em; color: var(--gold); opacity: 0.7; }
+.head-title { font-size: 22px; font-weight: 900; letter-spacing: 0.06em; margin-top: 8px; }
+.head-sub { font-size: 13px; color: rgba(240,235,224,0.5); margin-top: 6px; }
+.count-badge {
+  display:inline-block; margin-top: 16px; padding: 5px 14px;
+  border:1px solid var(--gold-d); border-radius: 20px;
+  font-size: 12px; color: var(--gold); letter-spacing: 0.05em;
+}
+
+/* 차단 화면 */
+.blocked { text-align:center; padding: 120px 20px; }
+.blocked-icon { font-size: 40px; margin-bottom: 18px; opacity: 0.5; }
+.blocked-msg { font-size: 16px; color: rgba(240,235,224,0.6); }
+
+/* 에세이 카드 */
+.card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(201,168,76,0.18);
+  border-radius: 16px; padding: 22px;
+  margin-bottom: 18px;
+}
+.card-top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom: 14px; }
+.card-star { font-size: 17px; font-weight: 900; color:#fff; }
+.card-meta { font-size: 12px; color: rgba(240,235,224,0.5); margin-top: 3px; }
+.grade {
+  flex-shrink:0; font-size: 11px; font-weight:700; letter-spacing:0.04em;
+  padding: 4px 10px; border-radius: 10px; white-space:nowrap;
+}
+.grade.none   { background: rgba(255,255,255,0.06); color: rgba(240,235,224,0.4); }
+.grade.매우우수 { background: rgba(201,168,76,0.20); color: var(--gold); }
+.grade.우수    { background: rgba(82,214,138,0.16); color:#7fe0a6; }
+.grade.보통    { background: rgba(255,255,255,0.10); color: rgba(240,235,224,0.7); }
+.grade.수준이하 { background: rgba(255,160,80,0.16); color:#ffb060; }
+.grade.통과불가 { background: rgba(255,90,90,0.16); color:#ff8080; }
+
+.card-title { font-size: 15px; font-weight:700; color:#fff; margin-bottom: 8px; }
+.card-body {
+  font-size: 14px; color: rgba(240,235,224,0.85);
+  white-space: pre-wrap; word-break: break-word;
+  background: rgba(0,0,0,0.18); border-radius: 10px; padding: 14px 16px;
+  max-height: 320px; overflow-y: auto; margin-bottom: 8px;
+}
+.ai-reason {
+  font-size: 12px; color: rgba(201,168,76,0.6);
+  border-left: 2px solid var(--gold-d); padding-left: 10px; margin-bottom: 14px;
+}
+.card-btns { display:flex; gap: 10px; }
+.btn {
+  flex:1; padding: 12px; border-radius: 10px; font-size: 14px; font-weight:700;
+  font-family: inherit; cursor: pointer; letter-spacing: 0.04em;
+  border: 1px solid transparent; transition: all 0.15s;
+}
+.btn-approve { background: rgba(201,168,76,0.18); border-color: rgba(201,168,76,0.4); color: var(--gold); }
+.btn-approve:hover { background: rgba(201,168,76,0.3); }
+.btn-reject { background: rgba(255,255,255,0.04); border-color: rgba(240,235,224,0.15); color: rgba(240,235,224,0.55); }
+.btn-reject:hover { background: rgba(255,90,90,0.12); color:#ff8080; }
+.btn:disabled { opacity: 0.4; cursor: default; }
+
+.empty { text-align:center; padding: 80px 20px; color: rgba(240,235,224,0.45); font-size: 15px; line-height: 2.2; }
+.loading { text-align:center; padding: 80px 20px; color: rgba(240,235,224,0.4); }
+.back { display:inline-block; margin-bottom: 24px; font-size: 13px; color: rgba(240,235,224,0.5); text-decoration:none; }
+.back:hover { color: var(--gold); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="constella.html">← 별자리로</a>
+
+  <div id="gate" class="loading">⬤ 확인 중...</div>
+
+  <div id="app" style="display:none;">
+    <div class="head">
+      <div class="head-eg">E G · A D M I N</div>
+      <div class="head-title">응답의 정원 — 심사</div>
+      <div class="head-sub">콩파뇽이 기고한 에세이를 읽고 게시할지 정합니다</div>
+      <div class="count-badge" id="count-badge">대기 0편</div>
+    </div>
+    <div id="list"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth: { storageKey: 'eungyo-auth' }
+});
+
+const GRADES = ['매우우수','우수','보통','수준이하','통과불가'];
+
+function showBlocked(msg) {
+  document.getElementById('gate').innerHTML =
+    `<div class="blocked"><div class="blocked-icon">🔒</div><div class="blocked-msg">${msg}</div></div>`;
+}
+
+async function init() {
+  // 1. 로그인 확인
+  const { data: { user } } = await supa.auth.getUser();
+  if (!user) { showBlocked('로그인이 필요합니다.'); return; }
+
+  // 2. admin 권한 확인
+  const { data: me } = await supa.from('users')
+    .select('is_admin').eq('id', user.id).maybeSingle();
+  if (!me || !me.is_admin) { showBlocked('관리자 권한이 없습니다.'); return; }
+
+  // 통과
+  document.getElementById('gate').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  await loadPending();
+}
+
+async function loadPending() {
+  const list = document.getElementById('list');
+  list.innerHTML = '<div class="loading">⬤ 대기 목록 불러오는 중...</div>';
+
+  const { data, error } = await supa.from('star_contents')
+    .select('id, star_id, user_id, title, content, ai_review, ai_reason, created_at, stars(name, field)')
+    .eq('context_type', 'star')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    list.innerHTML = `<div class="empty">목록을 불러오지 못했습니다.<br>${error.message}</div>`;
+    return;
+  }
+
+  document.getElementById('count-badge').textContent = `대기 ${data.length}편`;
+
+  if (data.length === 0) {
+    list.innerHTML = '<div class="empty">심사 대기 중인 에세이가 없습니다 ✦</div>';
+    return;
+  }
+
+  // 작성자 닉네임 매핑 (star_contents.user_id → users.nickname)
+  const uids = [...new Set(data.map(d => d.user_id))];
+  const { data: users } = await supa.from('users').select('id, nickname').in('id', uids);
+  const nickMap = {};
+  (users || []).forEach(u => { nickMap[u.id] = u.nickname; });
+
+  list.innerHTML = '';
+  data.forEach(item => list.appendChild(renderCard(item, nickMap)));
+}
+
+function renderCard(item, nickMap) {
+  const date = new Date(item.created_at).toLocaleString('ko-KR', { dateStyle:'medium', timeStyle:'short' });
+  const author = nickMap[item.user_id] || '콩파뇽';
+  const starName = item.stars?.name || '(별 미상)';
+  const field = item.stars?.field || '';
+  const grade = GRADES.includes(item.ai_review) ? item.ai_review : null;
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.id = `card-${item.id}`;
+  card.innerHTML = `
+    <div class="card-top">
+      <div>
+        <div class="card-star">✦ ${starName} <span style="font-size:12px;color:rgba(240,235,224,0.4);font-weight:400;">${field}</span></div>
+        <div class="card-meta">${author} · ${date}</div>
+      </div>
+      <div class="grade ${grade || 'none'}">${grade || '심사 전'}</div>
+    </div>
+    ${item.title ? `<div class="card-title">${escapeHtml(item.title)}</div>` : ''}
+    <div class="card-body">${escapeHtml(item.content || '')}</div>
+    ${item.ai_reason ? `<div class="ai-reason">AI 코멘트: ${escapeHtml(item.ai_reason)}</div>` : ''}
+    <div class="card-btns">
+      <button class="btn btn-approve" onclick="approve(${item.id}, this)">✦ 게시 (황금사과 1알)</button>
+      <button class="btn btn-reject" onclick="reject(${item.id}, this)">보류</button>
+    </div>
+  `;
+  return card;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function lockCard(id) {
+  document.querySelectorAll(`#card-${id} .btn`).forEach(b => b.disabled = true);
+}
+function removeCard(id) {
+  const el = document.getElementById(`card-${id}`);
+  if (el) el.remove();
+  const remain = document.querySelectorAll('#list .card').length;
+  document.getElementById('count-badge').textContent = `대기 ${remain}편`;
+  if (remain === 0) {
+    document.getElementById('list').innerHTML = '<div class="empty">심사 대기 중인 에세이가 없습니다 ✦</div>';
+  }
+}
+
+async function approve(id, btn) {
+  lockCard(id);
+  btn.textContent = '게시하는 중...';
+  const { error } = await supa.rpc('approve_essay', { content_id: id });
+  if (error) {
+    alert('게시 실패: ' + error.message);
+    document.querySelectorAll(`#card-${id} .btn`).forEach(b => b.disabled = false);
+    btn.textContent = '✦ 게시 (황금사과 1알)';
+    return;
+  }
+  removeCard(id);
+}
+
+async function reject(id, btn) {
+  if (!confirm('이 에세이를 보류하시겠습니까? 작성자에게는 게시되지 않습니다.')) return;
+  lockCard(id);
+  btn.textContent = '처리 중...';
+  const { error } = await supa.rpc('reject_essay', { content_id: id });
+  if (error) {
+    alert('보류 실패: ' + error.message);
+    document.querySelectorAll(`#card-${id} .btn`).forEach(b => b.disabled = false);
+    btn.textContent = '보류';
+    return;
+  }
+  removeCard(id);
+}
+
+init();
+</script>
+</body>
+</html>
