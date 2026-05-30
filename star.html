@@ -1276,7 +1276,7 @@ function applyStarBackground() {
 // ── 에세이 로드 ────────────────────────────────────────────────
 async function loadContents(starId) {
   const { data: contents } = await supa.from('star_contents')
-    .select('*, users:user_id(email)')
+    .select('id, user_id, title, content, created_at')
     .eq('star_id', starId)
     .eq('context_type', 'star')
     .eq('status', 'published')
@@ -1288,12 +1288,19 @@ async function loadContents(starId) {
     list.innerHTML = `<div class="empty-state">아직 에세이가 없습니다<br>콩파뇽이 되어 첫 번째 글을 남겨보세요 ✦</div>`;
     return;
   }
-  contents.forEach(item => list.appendChild(renderContent(item)));
+
+  // 작성자 닉네임 매핑 (user_id → users.nickname)
+  const uids = [...new Set(contents.map(c => c.user_id))];
+  const { data: users } = await supa.from('users').select('id, nickname').in('id', uids);
+  const nickMap = {};
+  (users || []).forEach(u => { nickMap[u.id] = u.nickname; });
+
+  contents.forEach(item => list.appendChild(renderContent(item, nickMap)));
 }
 
-function renderContent(item) {
+function renderContent(item, nickMap) {
   const date = new Date(item.created_at).toLocaleDateString('ko-KR');
-  const author = item.users?.email?.split('@')[0] || '콩파뇽';
+  const author = (nickMap && nickMap[item.user_id]) || '콩파뇽';
 
   const div = document.createElement('div');
   div.className = 'story-card';
