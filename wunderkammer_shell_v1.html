@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>EG Wunderkammer · Building Shell v1</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Noto+Serif+KR:wght@300;400;500&display=swap');
+
+/* ============================================================
+ *  분더카머 빌딩 셸 v1 — 층 전환 골조만 (콘텐츠 없음)
+ *
+ *  3레이어 토대:
+ *    레이어 1 (#floorLayer)  = 층 콘텐츠. 층마다 구조 달라도 OK.
+ *    레이어 2 (#modalLayer)  = 모달·펼침. 지금은 비어둠.
+ *    레이어 3 (.fixed-layer) = 화면 고정. 닻(층 안내판) + 미니플레이어 슬롯.
+ *    전환 커튼 (#elevator)   = 엘리베이터 문. 전환 순간만 최상단.
+ *
+ *  이동 두 갈래 — 둘 다 goToFloor() 하나로 모이고, 둘 다 "문이 닫혔다 열림".
+ *    느린 길 = 각 층 안 엘리베이터 사물(▲▼)
+ *    빠른 길 = 레이어 3 닻(황동판) → 5층 목록 → 점프
+ * ============================================================ */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  background: #050304;
+  font-family: 'Noto Serif KR', 'Cormorant Garamond', serif;
+  color: #e8d9b0;
+  user-select: none;
+}
+
+/* ===== 층별 팔레트 (JS가 --floor-* 갱신) ===== */
+:root {
+  --floor-bg-1: #3a1820;  --floor-bg-2: #6a2230;
+  --floor-accent: #c9a84c;
+  --floor-text: #f0ebe0;
+  --floor-text-dim: #a89a85;
+}
+
+/* ============================================================
+ *  레이어 1 — 층 콘텐츠
+ * ============================================================ */
+.floor-layer {
+  position: fixed; inset: 0; z-index: 1;
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity 0.4s ease;
+}
+.floor {
+  position: relative;
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 38%, rgba(255,240,210,0.10), transparent 70%),
+    linear-gradient(165deg, var(--floor-bg-1) 0%, var(--floor-bg-2) 100%);
+  box-shadow: inset 0 0 180px rgba(0,0,0,0.55);
+}
+/* 위·아래 황금 띠 (살롱 몰딩) */
+.floor::before, .floor::after {
+  content: ''; position: absolute; left: 0; right: 0; height: 5px;
+  background: linear-gradient(90deg, transparent, var(--floor-accent), transparent);
+  opacity: 0.5;
+}
+.floor::before { top: 0; }
+.floor::after  { bottom: 0; }
+
+.floor-roman {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(48px, 14vw, 120px);
+  font-weight: 300; line-height: 1;
+  color: var(--floor-accent);
+  opacity: 0.85;
+  letter-spacing: 4px;
+  text-shadow: 0 4px 30px rgba(0,0,0,0.6);
+}
+.floor-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(22px, 6vw, 38px);
+  font-weight: 400; font-style: italic;
+  color: var(--floor-text);
+  letter-spacing: 3px;
+  margin-top: 14px;
+}
+.floor-kr {
+  font-size: clamp(13px, 3.6vw, 16px);
+  color: var(--floor-text-dim);
+  letter-spacing: 6px;
+  margin-top: 10px;
+}
+.floor-placeholder {
+  margin-top: 34px;
+  padding: 10px 22px;
+  border: 1px dashed color-mix(in srgb, var(--floor-accent) 45%, transparent);
+  border-radius: 2px;
+  font-size: 11px; letter-spacing: 3px;
+  color: var(--floor-text-dim);
+  font-family: 'Cormorant Garamond', serif;
+}
+
+/* ===== 층 안 엘리베이터 사물 (느린 길) ===== */
+.room-elevator {
+  position: absolute;
+  right: clamp(16px, 4vw, 48px);
+  top: 50%; transform: translateY(-50%);
+  width: clamp(64px, 16vw, 92px);
+  display: flex; flex-direction: column; align-items: center;
+  gap: 8px;
+  padding: 14px 8px;
+  background: linear-gradient(180deg, rgba(40,28,16,0.85), rgba(20,14,8,0.92));
+  border: 1px solid color-mix(in srgb, var(--floor-accent) 60%, transparent);
+  border-radius: 6px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.5), inset 0 0 24px rgba(0,0,0,0.4);
+}
+.room-elevator .grille {
+  width: 100%; height: 46px;
+  background: repeating-linear-gradient(90deg,
+    color-mix(in srgb, var(--floor-accent) 55%, #2a1c0e) 0 2px,
+    rgba(0,0,0,0.35) 2px 7px);
+  border-radius: 2px;
+  opacity: 0.7;
+}
+.room-elevator .elev-label {
+  font-size: 8px; letter-spacing: 2px;
+  color: var(--floor-text-dim);
+  font-family: 'Cormorant Garamond', serif;
+}
+.elev-arrow {
+  width: 100%;
+  background: linear-gradient(180deg, rgba(60,42,24,0.9), rgba(34,22,12,0.95));
+  border: 1px solid color-mix(in srgb, var(--floor-accent) 50%, transparent);
+  color: var(--floor-accent);
+  font-size: 15px; line-height: 1;
+  padding: 6px 0; border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+}
+.elev-arrow:hover { background: linear-gradient(180deg, rgba(90,62,34,0.95), rgba(50,34,18,1)); }
+.elev-arrow:active { transform: scale(0.94); }
+.elev-arrow:disabled { opacity: 0.25; cursor: default; }
+
+/* ============================================================
+ *  레이어 2 — 모달 (지금은 비어둠)
+ * ============================================================ */
+.modal-layer { position: fixed; inset: 0; z-index: 50; pointer-events: none; }
+
+/* ============================================================
+ *  레이어 3 — 화면 고정 (닻 + 미니플레이어 슬롯)
+ * ============================================================ */
+.fixed-layer { position: fixed; inset: 0; z-index: 100; pointer-events: none; }
+.fixed-layer > * { pointer-events: auto; }
+
+/* 현재 층 라벨 (상단) */
+.floor-label {
+  position: fixed; top: 22px; left: 50%; transform: translateX(-50%);
+  text-align: center;
+  font-family: 'Cormorant Garamond', serif;
+  color: var(--floor-accent);
+  text-shadow: 0 2px 14px rgba(0,0,0,0.9);
+}
+.floor-label .fl-name { font-size: 14px; letter-spacing: 4px; }
+.floor-label .fl-floor { font-size: 10px; letter-spacing: 3px; color: var(--floor-text-dim); margin-top: 3px; }
+
+/* 미니플레이어 슬롯 (2층에서 채워질 자리 — 지금은 비표시) */
+.mini-player-slot { position: fixed; bottom: 26px; left: 22px; }
+
+/* ===== 닻 — 층 안내판 (빠른 길) ===== */
+.anchor { position: fixed; bottom: 26px; right: 22px; }
+.anchor-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  width: 58px; padding: 9px 6px;
+  background: linear-gradient(160deg, #c9a84c, #8a6a2a 55%, #5a3f14);
+  border: 1px solid #d8c078;
+  border-radius: 4px;
+  cursor: pointer;
+  box-shadow: 0 5px 18px rgba(0,0,0,0.55), inset 0 1px 2px rgba(255,240,200,0.4);
+  transition: transform 0.18s, box-shadow 0.18s;
+}
+.anchor-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.6), inset 0 1px 2px rgba(255,240,200,0.5); }
+.anchor-btn .ab-icon { font-size: 16px; line-height: 1; color: #2a1c08; }
+.anchor-btn .ab-text { font-size: 7px; letter-spacing: 1.5px; color: #2a1c08; font-family: 'Cormorant Garamond', serif; }
+
+.anchor-panel {
+  position: absolute; bottom: 70px; right: 0;
+  width: 220px;
+  background: linear-gradient(180deg, #1a120a, #0e0906);
+  border: 1px solid #c9a84c;
+  border-radius: 6px;
+  box-shadow: 0 14px 44px rgba(0,0,0,0.7);
+  padding: 8px;
+  opacity: 0; transform: translateY(10px) scale(0.96);
+  transform-origin: bottom right;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.2,0.8,0.3,1);
+}
+.anchor.open .anchor-panel { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+.anchor-panel-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 10px; letter-spacing: 3px; color: #8a7654;
+  text-align: center; padding: 6px 0 10px;
+  border-bottom: 1px solid rgba(201,168,76,0.2); margin-bottom: 6px;
+}
+.floor-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; border-radius: 4px;
+  cursor: pointer; transition: background 0.18s;
+}
+.floor-item:hover { background: rgba(201,168,76,0.12); }
+.floor-item.current { background: rgba(201,168,76,0.18); }
+.floor-item .fi-num {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 18px; color: #c9a84c; width: 26px; text-align: center;
+}
+.floor-item .fi-name { font-size: 13px; color: #e8d9b0; }
+.floor-item .fi-kr { font-size: 10px; color: #8a7654; letter-spacing: 1px; margin-top: 1px; }
+.floor-item.current .fi-name { color: #f0e0a0; }
+
+/* ============================================================
+ *  전환 커튼 — 빈티지 황동 엘리베이터 문 (z 200)
+ * ============================================================ */
+.elevator {
+  position: fixed; inset: 0; z-index: 200;
+  pointer-events: none;
+}
+.elevator.active { pointer-events: auto; }
+
+/* 두 문짝 */
+.door {
+  position: absolute; top: 0; bottom: 0; width: 50.5%;
+  background:
+    repeating-linear-gradient(90deg,
+      #3a2a16 0 6px,
+      #6b5226 6px 9px,
+      #2a1d0c 9px 22px),
+    linear-gradient(180deg, #4a3618, #241808);
+  box-shadow: inset 0 0 120px rgba(0,0,0,0.7);
+  transition: transform 0.7s cubic-bezier(0.6, 0, 0.25, 1);
+}
+.door::before { /* 문 안 황동 패널 테두리 */
+  content: ''; position: absolute; inset: 7%;
+  border: 2px solid rgba(201,168,76,0.4);
+  border-radius: 3px;
+  box-shadow: inset 0 0 40px rgba(0,0,0,0.5);
+}
+.door-left  { left: 0;  transform: translateX(-101%); }
+.door-right { right: 0; transform: translateX(101%); }
+.elevator.closing .door-left,
+.elevator.closing .door-right { transform: translateX(0); }
+
+/* 중앙 이음새 황금선 */
+.door-seam {
+  position: absolute; top: 0; bottom: 0; left: 50%; width: 2px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, transparent, rgba(240,210,120,0.5), transparent);
+  opacity: 0; transition: opacity 0.3s;
+}
+.elevator.closing .door-seam { opacity: 1; }
+
+/* 층 표시 다이얼 (문 위 황동 램프) */
+.dial {
+  position: absolute; top: 8%; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 14px;
+  padding: 12px 20px;
+  background: linear-gradient(180deg, #2a1d0c, #160e04);
+  border: 1px solid rgba(201,168,76,0.5);
+  border-radius: 40px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.6);
+  opacity: 0; transition: opacity 0.4s;
+}
+.elevator.closing .dial { opacity: 1; }
+.dial-lamp {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Cormorant Garamond', serif; font-size: 15px;
+  color: rgba(201,168,76,0.35);
+  border: 1px solid rgba(201,168,76,0.25);
+  transition: all 0.2s ease;
+}
+.dial-lamp.lit {
+  color: #1a1208;
+  background: radial-gradient(circle at 40% 35%, #ffe7a0, #d8a838);
+  border-color: #ffe7a0;
+  box-shadow: 0 0 18px rgba(255,210,120,0.8);
+}
+
+/* ===== 첫 진입 힌트 ===== */
+.boot-hint {
+  position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%);
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 11px; letter-spacing: 2px; color: rgba(240,216,168,0.45);
+  z-index: 100; text-align: center; pointer-events: none;
+  transition: opacity 0.6s; line-height: 1.7;
+}
+.version-badge {
+  position: fixed; top: 22px; right: 22px; z-index: 100;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 10px; letter-spacing: 2px; color: rgba(240,216,168,0.4);
+}
+</style>
+</head>
+<body>
+
+<!-- 레이어 1 — 층 콘텐츠 (JS 렌더) -->
+<div class="floor-layer" id="floorLayer"></div>
+
+<!-- 레이어 2 — 모달 (비어둠) -->
+<div class="modal-layer" id="modalLayer"></div>
+
+<!-- 레이어 3 — 화면 고정 -->
+<div class="fixed-layer">
+  <div class="floor-label" id="floorLabel"></div>
+  <div class="mini-player-slot" id="miniPlayerSlot"></div>
+
+  <!-- 닻: 층 안내판 (빠른 길) -->
+  <div class="anchor" id="anchor">
+    <div class="anchor-panel" id="anchorPanel">
+      <div class="anchor-panel-title">ÉTAGES · 층</div>
+      <!-- 층 목록 JS 렌더 -->
+    </div>
+    <button class="anchor-btn" id="anchorBtn" aria-label="층 안내판">
+      <span class="ab-icon">⌖</span>
+      <span class="ab-text">ÉTAGES</span>
+    </button>
+  </div>
+</div>
+
+<!-- 전환 커튼 — 엘리베이터 문 -->
+<div class="elevator" id="elevator">
+  <div class="dial" id="dial"></div>
+  <div class="door door-left"></div>
+  <div class="door door-right"></div>
+  <div class="door-seam"></div>
+</div>
+
+<div class="boot-hint" id="bootHint">우측 하단 ⌖ 황동판으로 층 점프 · 각 층 우측 엘리베이터 ▲▼로 한 층씩</div>
+<div class="version-badge">shell v1 · 5 étages</div>
+
+<script>
+/* ============================================================
+ *  층 정의 — 각 층의 톤·이름. (콘텐츠는 다음 단계에서 채움)
+ *  bg1/bg2 = 층 배경 그라데이션 / accent = 황금 / text·dim = 글자
+ * ============================================================ */
+const FLOORS = [
+  { n: 1, roman: 'I',   fr: 'Galerie',            kr: '미술관',          bg1:'#3a1820', bg2:'#6a2230', accent:'#c9a84c', text:'#f0ebe0', dim:'#bfa88a' },
+  { n: 2, roman: 'II',  fr: 'Chambre de Musique', kr: '음악실',          bg1:'#0a0604', bg2:'#1c130a', accent:'#d4a548', text:'#d4c5a0', dim:'#8a7654' },
+  { n: 3, roman: 'III', fr: 'Bibliothèque',       kr: '책의 방',          bg1:'#2a1410', bg2:'#4a1822', accent:'#b8884c', text:'#e8d4a0', dim:'#a07c66' },
+  { n: 4, roman: 'IV',  fr: 'Scriptorium',        kr: '기고와 한스푼',     bg1:'#d8c8a4', bg2:'#bda886', accent:'#6b5226', text:'#3a2a18', dim:'#7a6446' },
+  { n: 5, roman: 'V',   fr: 'Le Cabinet Secret',  kr: '자서전 · 비공개',   bg1:'#0c0a08', bg2:'#181210', accent:'#8a6a3a', text:'#a89878', dim:'#6b5838' },
+];
+
+let currentFloor = 1;
+let transitioning = false;
+
+const floorLayer = document.getElementById('floorLayer');
+const floorLabel = document.getElementById('floorLabel');
+const elevator   = document.getElementById('elevator');
+const dial       = document.getElementById('dial');
+const anchor     = document.getElementById('anchor');
+const anchorBtn  = document.getElementById('anchorBtn');
+const anchorPanel= document.getElementById('anchorPanel');
+const bootHint   = document.getElementById('bootHint');
+
+function floorData(n) { return FLOORS.find(f => f.n === n); }
+
+/* ===== 팔레트 적용 ===== */
+function applyPalette(f) {
+  const r = document.documentElement.style;
+  r.setProperty('--floor-bg-1', f.bg1);
+  r.setProperty('--floor-bg-2', f.bg2);
+  r.setProperty('--floor-accent', f.accent);
+  r.setProperty('--floor-text', f.text);
+  r.setProperty('--floor-text-dim', f.dim);
+}
+
+/* ===== 레이어 1: 한 층 그리기 (지금은 빈 플레이스홀더) ===== */
+function renderFloor(n) {
+  const f = floorData(n);
+  applyPalette(f);
+
+  const upDisabled   = (n >= 5) ? 'disabled' : '';
+  const downDisabled = (n <= 1) ? 'disabled' : '';
+
+  floorLayer.innerHTML = `
+    <div class="floor">
+      <div class="floor-roman">${f.roman}</div>
+      <div class="floor-name">${f.fr}</div>
+      <div class="floor-kr">${f.kr}</div>
+      <div class="floor-placeholder">콘텐츠가 들어올 곳</div>
+
+      <!-- 느린 길: 층 안 엘리베이터 사물 -->
+      <div class="room-elevator">
+        <button class="elev-arrow" id="elevUp" ${upDisabled} aria-label="위층">▲</button>
+        <div class="grille"></div>
+        <div class="elev-label">ÉTAGE ${f.roman}</div>
+        <button class="elev-arrow" id="elevDown" ${downDisabled} aria-label="아래층">▼</button>
+      </div>
+    </div>
+  `;
+
+  // 층 라벨
+  floorLabel.innerHTML = `
+    <div class="fl-name">${f.fr.toUpperCase()}</div>
+    <div class="fl-floor">ÉTAGE ${f.roman} · ${f.kr}</div>
+  `;
+
+  // 층 안 엘리베이터 ▲▼
+  const up = document.getElementById('elevUp');
+  const down = document.getElementById('elevDown');
+  if (up)   up.addEventListener('click',   () => goToFloor(n + 1));
+  if (down) down.addEventListener('click', () => goToFloor(n - 1));
+
+  renderAnchorList();
+}
+
+/* ===== 닻 목록 그리기 ===== */
+function renderAnchorList() {
+  // 기존 항목 제거(타이틀만 남김)
+  anchorPanel.querySelectorAll('.floor-item').forEach(el => el.remove());
+  // 위층이 위로 오도록 5 → 1 순서
+  [...FLOORS].reverse().forEach(f => {
+    const item = document.createElement('div');
+    item.className = 'floor-item' + (f.n === currentFloor ? ' current' : '');
+    item.innerHTML = `
+      <div class="fi-num">${f.roman}</div>
+      <div>
+        <div class="fi-name">${f.fr}</div>
+        <div class="fi-kr">${f.kr}</div>
+      </div>
+    `;
+    item.addEventListener('click', () => {
+      closeAnchor();
+      goToFloor(f.n);
+    });
+    anchorPanel.appendChild(item);
+  });
+}
+
+/* ===== 다이얼 램프 그리기 ===== */
+function buildDial() {
+  dial.innerHTML = '';
+  FLOORS.forEach(f => {
+    const lamp = document.createElement('div');
+    lamp.className = 'dial-lamp';
+    lamp.dataset.n = f.n;
+    lamp.textContent = f.roman;
+    dial.appendChild(lamp);
+  });
+}
+function litDial(n) {
+  dial.querySelectorAll('.dial-lamp').forEach(l => {
+    l.classList.toggle('lit', parseInt(l.dataset.n, 10) === n);
+  });
+}
+
+/* ============================================================
+ *  층 이동 — 엘리베이터 문 전환 (느린 길·빠른 길 공통)
+ *    1) 문 닫힘 (0.7s)
+ *    2) 닫힌 뒤 층 콘텐츠 교체 + 다이얼이 현재→목표 흐름
+ *    3) 문 열림 (0.7s)
+ * ============================================================ */
+function goToFloor(target) {
+  if (transitioning) return;
+  if (target < 1 || target > 5) return;
+  if (target === currentFloor) return;
+  transitioning = true;
+
+  if (bootHint) bootHint.style.opacity = '0';
+
+  const from = currentFloor;
+  litDial(from);
+
+  // 1) 문 닫힘
+  elevator.classList.add('active', 'closing');
+
+  // 2) 문이 닫힌 뒤 (0.72s) — 층 교체 + 다이얼 흐름
+  setTimeout(() => {
+    currentFloor = target;
+    renderFloor(target);
+
+    // 다이얼이 from → target 한 칸씩 흐름
+    const step = (target > from) ? 1 : -1;
+    let cur = from;
+    const flow = setInterval(() => {
+      cur += step;
+      litDial(cur);
+      if (cur === target) {
+        clearInterval(flow);
+        // 3) 잠깐 머문 뒤 문 열림
+        setTimeout(() => {
+          elevator.classList.remove('closing');
+          setTimeout(() => {
+            elevator.classList.remove('active');
+            transitioning = false;
+          }, 720);
+        }, 360);
+      }
+    }, 150);
+  }, 720);
+}
+
+/* ===== 닻 토글 ===== */
+function openAnchor()  { anchor.classList.add('open'); }
+function closeAnchor() { anchor.classList.remove('open'); }
+anchorBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  anchor.classList.toggle('open');
+});
+document.addEventListener('click', (e) => {
+  if (!anchor.contains(e.target)) closeAnchor();
+});
+
+/* ===== 키보드: ↑↓ 한 층씩 ===== */
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowUp')   { e.preventDefault(); goToFloor(currentFloor + 1); }
+  if (e.key === 'ArrowDown') { e.preventDefault(); goToFloor(currentFloor - 1); }
+});
+
+/* ===== 첫 진입 ===== */
+buildDial();
+renderFloor(1);
+</script>
+
+</body>
+</html>
