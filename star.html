@@ -417,6 +417,14 @@ body.has-salon-bg .back-link {
   color: rgba(26,20,16,0.3); font-size: 18px;
   cursor: pointer; padding: 0; font-family: inherit;
 }
+#quota-info {
+  font-size: 13px; color: #8a6d2e;
+  background: rgba(201,168,76,0.08);
+  border: 1px solid rgba(201,168,76,0.22);
+  border-radius: 10px; padding: 11px 14px;
+  margin-bottom: 18px; text-align: center; line-height: 1.6;
+}
+#quota-info b { color: #B8881E; font-weight: 700; }
 
 /* 폼 */
 .form-group { margin-bottom: 16px; }
@@ -787,6 +795,19 @@ body.has-salon-bg .floor1-header {
 .f3-join-btn{margin-top:18px;font-family:'Cinzel','Noto Serif KR',serif;font-size:14px;letter-spacing:.03em;padding:11px 24px;border-radius:12px;border:1px solid var(--f3-gold);background:rgba(203,185,133,.12);color:var(--f3-gold);cursor:pointer;transition:all .15s}
 .f3-join-btn:hover{background:rgba(203,185,133,.22)}
 .f3-mine{margin-top:16px;font-family:'Cinzel','Noto Serif KR',serif;font-size:13px;letter-spacing:.04em;color:var(--f3-gold-soft)}
+
+/* 황금사과 출금(합류) 팝업 */
+.apple-pop-bg{display:none;position:fixed;inset:0;z-index:600;background:rgba(10,8,4,0.78);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:24px}
+.apple-pop-bg.show{display:flex}
+.apple-pop{background:#faf6ee;border:1px solid rgba(184,136,30,0.3);border-top:3px solid #C9A84C;border-radius:20px;padding:32px 28px;max-width:380px;width:100%;text-align:center;box-shadow:0 12px 48px rgba(0,0,0,0.3)}
+.apple-pop-icon{font-size:40px;margin-bottom:12px}
+.apple-pop-title{font-family:'Cinzel','Noto Serif KR',serif;font-size:20px;font-weight:600;color:#2a2018;margin-bottom:4px}
+.apple-pop-sub{font-size:13px;color:#8a6d2e;margin-bottom:18px;letter-spacing:.05em}
+.apple-pop-line{font-size:15px;color:#3a2f22;margin-bottom:6px}
+.apple-pop-bal{font-size:14px;color:#8a6d2e;margin-bottom:22px}
+.apple-pop b{color:#B8881E;font-weight:700;font-size:1.08em}
+.apple-pop-btn{font-family:inherit;font-size:15px;font-weight:600;padding:12px 0;width:100%;border:none;border-radius:12px;background:#C9A84C;color:#2a2018;cursor:pointer;transition:background .15s}
+.apple-pop-btn:hover{background:#b8941f}
 </style>
 </head>
 <body>
@@ -925,6 +946,8 @@ body.has-salon-bg .floor1-header {
       <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
 
+    <div id="quota-info"></div>
+
     <div class="form-group">
       <label class="form-label">제목 (선택)</label>
       <input class="form-input" id="essay-title" placeholder="예: 카프카와 막스 브로트의 우정">
@@ -937,6 +960,18 @@ body.has-salon-bg .floor1-header {
 
     <button class="submit-btn" id="submit-btn" onclick="submitContent()">✦ 기고하기</button>
     <div id="submit-msg" style="margin-top:12px; font-size:12px; text-align:center; color:rgba(201,168,76,0.5); display:none;"></div>
+  </div>
+</div>
+
+<!-- 황금사과 출금(합류) 팝업 -->
+<div class="apple-pop-bg" id="apple-spent-overlay">
+  <div class="apple-pop">
+    <div class="apple-pop-icon">🍎</div>
+    <div class="apple-pop-title" id="as-star">— &amp; Company</div>
+    <div class="apple-pop-sub" id="as-rank">콩파뇽이 되었습니다</div>
+    <div class="apple-pop-line">합류에 황금사과 <b id="as-price">—</b>알을 들였습니다</div>
+    <div class="apple-pop-bal">남은 잔액 <b id="as-balance">—</b>알</div>
+    <button class="apple-pop-btn" onclick="closeAppleSpent()">확인</button>
   </div>
 </div>
 
@@ -1297,8 +1332,20 @@ async function joinCompanion() {
   const { data, error } = await supa.rpc('join_companion', { p_star_id: currentStar.id });
   if (error) { alert('합류 처리 중 오류: ' + error.message); return; }
   if (!data || !data.ok) { alert((data && data.error) || '합류하지 못했습니다.'); return; }
-  alert(`✦ ${data.star} & Company의 #${String(data.rank).padStart(3,'0')} 콩파뇽이 되었습니다.\n황금사과 ${data.price}알이 쓰였습니다.`);
-  location.reload();
+  showAppleSpent(data);
+}
+
+function showAppleSpent(data) {
+  document.getElementById('as-star').textContent = `${data.star} & Company`;
+  document.getElementById('as-rank').textContent = `#${String(data.rank).padStart(3,'0')} 콩파뇽이 되었습니다`;
+  document.getElementById('as-price').textContent = data.price;
+  document.getElementById('as-balance').textContent = data.balance;
+  document.getElementById('apple-spent-overlay').classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+function closeAppleSpent() {
+  document.body.style.overflow = '';
+  location.reload();   // 명패 벽·카드 카운트·기고권한 갱신
 }
 
 // ── 0층 교양의 풍경 로드 (카리 4겹) ──────────────────────────────
@@ -1556,8 +1603,33 @@ function openModal() {
   document.getElementById('essay-title').value = '';
   document.getElementById('essay-content').value = '';
   document.getElementById('submit-msg').style.display = 'none';
+  const btn = document.getElementById('submit-btn');
+  btn.textContent = '✦ 기고하기';
+  btn.disabled = false;
+  btn.onclick = submitContent;
   document.getElementById('modal').classList.add('show');
   document.body.style.overflow = 'hidden';
+  loadQuota();
+}
+
+// 이번 주 기고 현황 (전체 별 통합 주 10편)
+async function loadQuota() {
+  const info = document.getElementById('quota-info');
+  const btn = document.getElementById('submit-btn');
+  if (!info) return;
+  info.style.display = 'block';
+  info.textContent = '이번 주 기고 현황 확인 중…';
+  const { data, error } = await supa.rpc('my_star_essays_this_week');
+  if (error) { info.style.display = 'none'; return; }
+  const used = data || 0;
+  const left = Math.max(0, 10 - used);
+  if (used >= 10) {
+    info.innerHTML = `이번 주 기고 <b>${used} / 10편</b> — 한도를 모두 쓰셨습니다.<br>다음 월요일 0시에 다시 열립니다.`;
+    btn.disabled = true;
+    btn.textContent = '이번 주 한도 마감';
+  } else {
+    info.innerHTML = `이번 주 기고 <b>${used} / 10편</b> · 이번 주 <b>${left}편</b> 더 쓰실 수 있습니다`;
+  }
 }
 function closeModal() {
   document.getElementById('modal').classList.remove('show');
@@ -1597,15 +1669,20 @@ async function submitContent() {
     return;
   }
 
-  msg.textContent = '✦ 기고되었습니다. 심사를 거쳐 게시됩니다.';
-  msg.style.color = 'rgba(201,168,76,0.7)';
+  // 입력 비우고, 성공 안내를 띄운 채 콩파뇽이 직접 닫도록 (자동 닫기 없음)
+  document.getElementById('essay-title').value = '';
+  document.getElementById('essay-content').value = '';
+  msg.textContent = '✦ 기고되었습니다. 심사를 거쳐 게시됩니다. 확인하셨으면 닫아주세요.';
+  msg.style.color = 'rgba(201,168,76,0.85)';
   msg.style.display = 'block';
-  setTimeout(() => {
-    closeModal();
-    loadContents(currentStar.id);
-  }, 1800);
   btn.disabled = false;
-  btn.textContent = '✦ 기고하기';
+  btn.textContent = '✦ 닫기';
+  btn.onclick = closeAfterSubmit;
+}
+
+function closeAfterSubmit() {
+  closeModal();
+  loadContents(currentStar.id);
 }
 
 document.getElementById('modal').addEventListener('click', e => {

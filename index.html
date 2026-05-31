@@ -1676,6 +1676,7 @@ function closeIntro() {
   setTimeout(() => {
     el.style.display = 'none';
     document.getElementById('home-screen').classList.remove('hidden');
+    checkUnseenIncome();
   }, 1000);
 }
 
@@ -1841,6 +1842,7 @@ async function initAuth() {
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('intro-screen').style.display = 'none';
     document.getElementById('home-screen').classList.remove('hidden');
+    checkUnseenIncome();
   } else {
     // 로그인 화면 표시
     document.getElementById('intro-screen').style.display = 'none';
@@ -1903,12 +1905,44 @@ async function doSignup() {
   }, 800);
 }
 
+// ── 그동안 도착한 황금사과 입금 축하 (조용히, 1회) ──
+let incomeChecked = false;
+async function checkUnseenIncome() {
+  if (incomeChecked || !currentUser) return;
+  incomeChecked = true;
+  try {
+    const { data, error } = await supa.rpc('apple_income_unseen');
+    if (error || !data) return;
+    if ((data.count || 0) > 0 && Number(data.income) > 0) {
+      document.getElementById('inc-amount').textContent = data.income;
+      document.getElementById('inc-count').textContent = data.count;
+      document.getElementById('inc-balance').textContent = data.balance;
+      document.getElementById('income-overlay').style.display = 'flex';
+    }
+  } catch(e) { console.error('입금 확인 오류:', e); }
+}
+async function closeIncomePopup() {
+  document.getElementById('income-overlay').style.display = 'none';
+  try { await supa.rpc('mark_apple_seen'); } catch(e) {}
+}
+
 // ── 게임 종료 처리(logQuizToMuseum, saveStatsToSupabase)는 game_core.js로 이동됨 ──
 //    2026-05-01 4단계 매듭에서 정리.
 
 
 // ── 앱 시작은 window load 이벤트에서 ──
 </script>
+<!-- ── 그동안 도착한 황금사과 입금 축하 ── -->
+<div id="income-overlay" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.82);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:24px">
+  <div style="background:#faf6ee;border:1px solid rgba(184,136,30,0.3);border-top:3px solid #C9A84C;border-radius:20px;padding:34px 28px;max-width:380px;width:100%;text-align:center;box-shadow:0 12px 48px rgba(0,0,0,0.4)">
+    <div style="font-size:42px;margin-bottom:10px">🍎</div>
+    <div style="font-size:19px;font-weight:700;color:#2a2018;margin-bottom:14px">그동안 황금사과가 도착했어요</div>
+    <div style="font-size:15px;color:#3a2f22;margin-bottom:6px">받은 황금사과 <b style="color:#B8881E;font-size:1.15em"><span id="inc-amount">—</span></b>알 <span style="color:#9a8a6a;font-size:13px">(<span id="inc-count">—</span>건)</span></div>
+    <div style="font-size:14px;color:#8a6d2e;margin-bottom:24px">현재 잔액 <b style="color:#B8881E"><span id="inc-balance">—</span></b>알</div>
+    <button onclick="closeIncomePopup()" style="font-family:inherit;font-size:15px;font-weight:600;padding:12px 0;width:100%;border:none;border-radius:12px;background:#C9A84C;color:#2a2018;cursor:pointer">확인</button>
+  </div>
+</div>
+
 <!-- ── 황금사과 수령 오버레이 ── -->
 <div id="apple-award-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:9999;flex-direction:column;align-items:center;justify-content:center;padding:24px;box-sizing:border-box">
   <div style="text-align:center;max-width:320px;width:100%">
