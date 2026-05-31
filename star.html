@@ -779,6 +779,11 @@ body.has-salon-bg .floor1-header {
 .floor3 .legend{display:flex;justify-content:center;gap:22px;margin-top:30px;flex-wrap:wrap;font-size:12px;color:var(--f3-gold-soft)}
 .floor3 .legend span{display:inline-flex;align-items:center;gap:7px}
 .floor3 .lg-dot{width:9px;height:9px;border-radius:2px}
+
+/* 합류 버튼 / 내 콩파뇽 상태 */
+.f3-join-btn{margin-top:18px;font-family:'Cinzel','Noto Serif KR',serif;font-size:14px;letter-spacing:.03em;padding:11px 24px;border-radius:12px;border:1px solid var(--f3-gold);background:rgba(203,185,133,.12);color:var(--f3-gold);cursor:pointer;transition:all .15s}
+.f3-join-btn:hover{background:rgba(203,185,133,.22)}
+.f3-mine{margin-top:16px;font-family:'Cinzel','Noto Serif KR',serif;font-size:13px;letter-spacing:.04em;color:var(--f3-gold-soft)}
 </style>
 </head>
 <body>
@@ -895,6 +900,7 @@ body.has-salon-bg .floor1-header {
     <div class="f3-head">
       <div class="f3-title" id="f3-title">&nbsp;</div>
       <div class="f3-counts">활동 콩파뇽 <b id="f3-liveN">—</b> / 100 &nbsp;·&nbsp; 누적 <b id="f3-totalN">—</b>명</div>
+      <div id="f3-join"></div>
     </div>
     <div class="f3-rule"></div>
     <div class="wall" id="f3-wall"></div>
@@ -1211,6 +1217,21 @@ async function loadCompanions(starId) {
   compPage = 1;
   renderCompanions();
   renderCompPager();
+
+  // 합류 버튼 / 내 콩파뇽 상태
+  const joinBox = document.getElementById('f3-join');
+  const mine = (comps || []).find(c => c.user_id === currentUser.id && c.status === 'live');
+  if (mine) {
+    joinBox.innerHTML = `<div class="f3-mine">✦ 당신은 이 별의 #${padRank(mine.rank)} 콩파뇽입니다</div>`;
+  } else if (liveCnt >= 100) {
+    joinBox.innerHTML = `<div class="f3-mine">100명 모집 마감 — 결원이 나면 합류할 수 있습니다</div>`;
+  } else {
+    const firstFree = companionSlots.find(s => s.status !== 'filled');
+    const nr = firstFree ? firstFree.rank : 1;
+    const np = (Math.round((1.0 + (nr - 1) * 0.1) * 10) / 10).toFixed(1);
+    joinBox.innerHTML =
+      `<button class="f3-join-btn" onclick="joinCompanion()">✦ 이 별의 콩파뇽 되기 · 다음 #${padRank(nr)} · ${np}알</button>`;
+  }
 }
 
 function fmtPlateDate(iso) {
@@ -1264,6 +1285,17 @@ function renderCompPager() {
     b.onclick = () => { compPage = i; renderCompanions(); renderCompPager(); };
     p.appendChild(b);
   }
+}
+
+// ── 콩파뇽 합류 ────────────────────────────────────────────────
+async function joinCompanion() {
+  if (!currentUser || !currentStar) return;
+  if (!confirm(`${currentStar.name} & Company의 콩파뇽이 되시겠습니까?\n황금사과가 쓰입니다.`)) return;
+  const { data, error } = await supa.rpc('join_companion', { p_star_id: currentStar.id });
+  if (error) { alert('합류 처리 중 오류: ' + error.message); return; }
+  if (!data || !data.ok) { alert((data && data.error) || '합류하지 못했습니다.'); return; }
+  alert(`✦ ${data.star} & Company의 #${String(data.rank).padStart(3,'0')} 콩파뇽이 되었습니다.\n황금사과 ${data.price}알이 쓰였습니다.`);
+  location.reload();
 }
 
 // ── 0층 교양의 풍경 로드 (카리 4겹) ──────────────────────────────
