@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EG Wunderkammer · Personal Record Library</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    background:
+      radial-gradient(ellipse 90% 70% at 50% 35%, #fdf2e6 0%, #f5e3d0 45%, #ecd0b8 100%);
+    min-height: 100vh;
+    font-family: 'Georgia', 'Noto Serif KR', serif;
+    color: #6b4a3a;
+    user-select: none;
+    position: relative;
+  }
+
+  /* ============ 음반장 배경 (살굿빛 크림 살롱) ============ */
+  .room {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+  }
+
+  /* 살굿빛 크림 벽 */
+  .wall {
+    position: absolute;
+    inset: 0 0 32% 0;
+    background:
+      linear-gradient(180deg,
+        rgba(253, 240, 226, 0.7) 0%,
+        rgba(248, 220, 200, 0.5) 50%,
+        rgba(240, 205, 185, 0.4) 100%
+      );
+  }
+
+  /* 벽 패널 라인 (몰딩 — 옅은 그림자) */
+  .wall::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(90deg,
+        transparent 0,
+        transparent 220px,
+        rgba(180, 130, 100, 0.08) 220px,
+        rgba(180, 130, 100, 0.08) 221px,
+        transparent 221px,
+        transparent 260px,
+        rgba(255, 240, 220, 0.3) 260px,
+        rgba(255, 240, 220, 0.3) 261px,
+        transparent 261px,
+        transparent 480px
+      );
+    opacity: 0.7;
+  }
+
+  /* 바닥 (밝은 paquet — 옅은 우드) */
+  .floor {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 32%;
+    background:
+      linear-gradient(180deg,
+        rgba(232, 200, 178, 0.7) 0%,
+        rgba(210, 175, 150, 0.85) 100%
+      );
+    transform: perspective(900px) rotateX(38deg);
+    transform-origin: top;
+  }
+
+  .floor::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(90deg,
+        transparent 0,
+        transparent 90px,
+        rgba(160, 110, 80, 0.18) 90px,
+        rgba(160, 110, 80, 0.18) 92px
+      ),
+      repeating-linear-gradient(0deg,
+        transparent 0,
+        transparent 70px,
+        rgba(160, 110, 80, 0.12) 70px,
+        rgba(160, 110, 80, 0.12) 71px
+      );
+  }
+
+  /* 천장 따뜻한 햇살 (위에서 부드럽게 떨어지는 빛) */
+  .ceiling-glow {
+    position: absolute;
+    top: -10%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80%;
+    height: 60%;
+    background: radial-gradient(ellipse 60% 100% at center top,
+      rgba(255, 230, 210, 0.4) 0%,
+      rgba(255, 220, 195, 0.2) 35%,
+      transparent 75%);
+    pointer-events: none;
+  }
+
+  /* ============ 상단 헤더 ============ */
+  .header {
+    position: relative;
+    z-index: 10;
+    text-align: center;
+    padding: 28px 24px 12px;
+  }
+
+  .header-label {
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: #b58a6e;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #b58a6e, transparent);
+    margin: 10px auto;
+    max-width: 380px;
+  }
+
+  .room-title {
+    font-size: 22px;
+    color: #6b4a3a;
+    font-style: italic;
+    letter-spacing: 2px;
+  }
+
+  .room-sub {
+    font-size: 12px;
+    color: #a07c66;
+    margin-top: 6px;
+    letter-spacing: 1.5px;
+  }
+
+  /* ============ 디깅 박스 컨테이너 ============ */
+  .digging-box {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    height: 480px;
+    perspective: 1800px;
+    perspective-origin: center center;
+    z-index: 5;
+  }
+
+  .stage {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+  }
+
+  /* ============ LP 자켓 ============ */
+  .lp-card {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 340px;
+    height: 340px;
+    margin-top: -170px;
+    margin-left: -170px;
+    transform-style: preserve-3d;
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+                opacity 0.6s ease,
+                filter 0.6s ease;
+    cursor: pointer;
+    will-change: transform, opacity;
+  }
+
+  .lp-card .cover {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    box-shadow:
+      0 30px 60px rgba(120, 70, 50, 0.35),
+      0 10px 20px rgba(120, 70, 50, 0.25),
+      inset 0 0 0 1px rgba(255, 240, 220, 0.15);
+    border-radius: 2px;
+  }
+
+  /* LP 디스크가 자켓 뒤로 살짝 빼꼼 */
+  .lp-card .disc {
+    position: absolute;
+    top: 50%;
+    right: -38px;
+    width: 280px;
+    height: 280px;
+    margin-top: -140px;
+    background: radial-gradient(circle at center,
+      #1a1208 0%,
+      #2a1f12 8%,
+      #0a0604 12%,
+      #1a1208 14%,
+      #0a0604 16%,
+      #1a1208 100%);
+    border-radius: 50%;
+    z-index: -1;
+    box-shadow: 0 0 12px rgba(0,0,0,0.6);
+    opacity: 0.75;
+  }
+
+  /* LP 라벨 (가운데 원) */
+  .lp-card .disc::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 90px;
+    height: 90px;
+    margin-top: -45px;
+    margin-left: -45px;
+    background: radial-gradient(circle, #8a5a2a 0%, #5a3a1a 100%);
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 2px rgba(255,220,160,0.2);
+  }
+
+  /* 자켓 그루브 (홈) - LP 위 광택선 */
+  .lp-card .disc::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: repeating-radial-gradient(circle,
+      transparent 0,
+      transparent 3px,
+      rgba(255,220,160,0.04) 3px,
+      rgba(255,220,160,0.04) 4px);
+    pointer-events: none;
+  }
+
+  /* ============ 좌우 네비게이션 화살표 ============ */
+  .nav-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 56px;
+    height: 56px;
+    background: rgba(255, 245, 235, 0.7);
+    border: 1px solid rgba(180, 130, 100, 0.4);
+    color: #8a5a42;
+    font-family: 'Georgia', serif;
+    font-size: 28px;
+    cursor: pointer;
+    border-radius: 50%;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 12px rgba(180, 130, 100, 0.2);
+  }
+
+  .nav-btn:hover {
+    background: rgba(255, 250, 245, 0.95);
+    border-color: rgba(140, 90, 70, 0.6);
+    color: #6b3a28;
+    transform: translateY(-50%) scale(1.08);
+  }
+
+  .nav-btn:active { transform: translateY(-50%) scale(0.96); }
+
+  .nav-prev { left: 40px; }
+  .nav-next { right: 40px; }
+
+  /* ============ 하단 인디케이터 ============ */
+  .indicator {
+    position: absolute;
+    bottom: 36px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    text-align: center;
+  }
+
+  .indicator-text {
+    font-size: 13px;
+    letter-spacing: 4px;
+    color: #a07c66;
+    font-style: italic;
+  }
+
+  .indicator-text .current {
+    color: #6b3a28;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .indicator-text .total {
+    color: #b58a6e;
+  }
+
+  .indicator-sub {
+    font-size: 10px;
+    letter-spacing: 2.5px;
+    color: #b58a6e;
+    margin-top: 6px;
+    text-transform: uppercase;
+  }
+
+  /* ============ 좌측 상단 — 감상실로 돌아가기 ============ */
+  .back-link {
+    position: absolute;
+    top: 28px;
+    left: 32px;
+    z-index: 20;
+    color: #a07c66;
+    font-size: 11px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: color 0.3s;
+    text-transform: uppercase;
+  }
+  .back-link:hover { color: #6b3a28; }
+
+  /* ============ 우측 상단 — 버전 표기 ============ */
+  .version {
+    position: absolute;
+    top: 28px;
+    right: 32px;
+    z-index: 20;
+    color: #b58a6e;
+    font-size: 10px;
+    letter-spacing: 2px;
+    font-style: italic;
+  }
+
+  /* ============ 모바일 반응형 ============ */
+  @media (max-width: 768px) {
+    .lp-card { width: 220px; height: 220px; margin-top: -110px; margin-left: -110px; }
+    .lp-card .disc { width: 180px; height: 180px; margin-top: -90px; right: -24px; }
+    .lp-card .disc::before { width: 60px; height: 60px; margin-top: -30px; margin-left: -30px; }
+    .nav-btn { width: 44px; height: 44px; font-size: 22px; }
+    .nav-prev { left: 16px; }
+    .nav-next { right: 16px; }
+    .digging-box { height: 360px; perspective: 1200px; }
+    .room-title { font-size: 18px; }
+  }
+
+  /* ============ 흔들림 애니메이션 (준비 중 자켓) ============ */
+  @keyframes shake {
+    0%, 100% { transform: var(--base-transform) translateX(0); }
+    20% { transform: var(--base-transform) translateX(-12px) rotate(-1deg); }
+    40% { transform: var(--base-transform) translateX(10px) rotate(1deg); }
+    60% { transform: var(--base-transform) translateX(-8px) rotate(-0.5deg); }
+    80% { transform: var(--base-transform) translateX(6px) rotate(0.5deg); }
+  }
+
+  .lp-card.shaking {
+    animation: shake 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  }
+
+  /* ============ 준비 중 토스트 ============ */
+  .coming-soon-toast {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) translateY(-200px);
+    background: rgba(107, 58, 40, 0.95);
+    color: #fdf2e6;
+    padding: 14px 28px;
+    border-radius: 24px;
+    font-size: 13px;
+    letter-spacing: 3px;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+    box-shadow: 0 8px 24px rgba(107, 58, 40, 0.4);
+    backdrop-filter: blur(10px);
+    font-style: italic;
+  }
+
+  .coming-soon-toast.show {
+    opacity: 1;
+  }
+
+  /* ============ 페이드 아웃 트랜지션 ============ */
+  .page-fade {
+    position: fixed;
+    inset: 0;
+    background: #fdf2e6;
+    z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1s ease;
+  }
+  .page-fade.active {
+    opacity: 1;
+    pointer-events: all;
+  }
+</style>
+</head>
+<body>
+
+<div class="room">
+  <div class="wall"></div>
+  <div class="ceiling-glow"></div>
+  <div class="floor"></div>
+</div>
+
+<a class="back-link" id="backLink" href="index.html">‹ RETURN TO LISTENING</a>
+<div class="version">lp_room v1.2 · digging box</div>
+
+<div class="header">
+  <div class="header-label">WUNDERKAMMER · FLOOR IV</div>
+  <div class="divider"></div>
+  <div class="room-title">Personal Record Library</div>
+  <div class="room-sub">콩파뇽의 음반 서고</div>
+</div>
+
+<div class="digging-box" id="diggingBox">
+  <div class="stage" id="stage"></div>
+</div>
+
+<button class="nav-btn nav-prev" id="prevBtn" aria-label="이전 음반">‹</button>
+<button class="nav-btn nav-next" id="nextBtn" aria-label="다음 음반">›</button>
+
+<div class="indicator">
+  <div class="indicator-text">
+    <span class="current" id="currentNum">01</span>
+    <span class="total"> / <span id="totalNum">05</span></span>
+  </div>
+  <div class="indicator-sub">Album in collection</div>
+</div>
+
+<!-- 준비 중 토스트 -->
+<div class="coming-soon-toast" id="toast">곧 들려드릴게요</div>
+
+<!-- 페이드 아웃 오버레이 -->
+<div class="page-fade" id="pageFade"></div>
+
+<script>
+  // ============ 음반 데이터 ============
+  // trackIndex: 감상실 collection 배열의 index (null이면 준비 중)
+  const albums = [
+    { id: 'lp_01', file: 'lp_01_mozart_requiem.png',     title: 'Mozart · Requiem',          trackIndex: 0    },
+    { id: 'lp_02', file: 'lp_02_mahler_titan.png',       title: 'Mahler · Titan',            trackIndex: 1    },
+    { id: 'lp_03', file: 'lp_03_beethoven_choral.png',   title: 'Beethoven · Choral',        trackIndex: null },
+    { id: 'lp_04', file: 'lp_04_bach_cello_suites.png',  title: 'Bach · Cello Suites',       trackIndex: null },
+    { id: 'lp_05', file: 'lp_05_debussy_clair_de_lune.png', title: 'Debussy · Clair de Lune', trackIndex: null }
+  ];
+
+  // ============ 디깅 박스 설정 ============
+  const VISIBLE_RANGE = 3; // 중앙 1 + 좌우 3장씩 = 총 7장
+  const SPACING_X = 165;   // 자켓 간 가로 간격 (px)
+  const ROTATION  = 28;    // 가장자리 자켓 회전 각도 (deg)
+  const DEPTH_Z   = 140;   // 가장자리 자켓 z축 후퇴 (px)
+
+  let currentIndex = 0;
+  let isTransitioning = false;
+  const stage = document.getElementById('stage');
+  const currentNumEl = document.getElementById('currentNum');
+  const totalNumEl   = document.getElementById('totalNum');
+  const toast = document.getElementById('toast');
+  const pageFade = document.getElementById('pageFade');
+
+  // 카드 미리 생성 (DOM 재사용)
+  const cards = [];
+  albums.forEach((album, idx) => {
+    const card = document.createElement('div');
+    card.className = 'lp-card';
+    card.dataset.index = idx;
+    card.innerHTML = `
+      <div class="disc"></div>
+      <div class="cover" style="background-image: url('${album.file}');"></div>
+    `;
+    card.addEventListener('click', () => onCardClick(idx));
+    stage.appendChild(card);
+    cards.push(card);
+  });
+
+  totalNumEl.textContent = String(albums.length).padStart(2, '0');
+
+  // ============ 레이아웃 함수 ============
+  function layout() {
+    cards.forEach((card, idx) => {
+      let offset = idx - currentIndex;
+
+      if (Math.abs(offset) > VISIBLE_RANGE) {
+        card.style.opacity = '0';
+        card.style.pointerEvents = 'none';
+        const baseTransform = `translateX(${offset * SPACING_X}px) translateZ(-${DEPTH_Z * 2}px)`;
+        card.style.setProperty('--base-transform', baseTransform);
+        card.style.transform = baseTransform;
+        return;
+      }
+
+      const absOffset = Math.abs(offset);
+      const sign = Math.sign(offset);
+
+      const tx = offset * SPACING_X;
+      const ry = -sign * Math.min(absOffset, 1) * ROTATION
+                 - sign * Math.max(0, absOffset - 1) * (ROTATION * 0.5);
+      const tz = -absOffset * DEPTH_Z * 0.7;
+      const brightness = 1 - absOffset * 0.18;
+      const opacity = absOffset === 0 ? 1 : (1 - absOffset * 0.22);
+
+      card.style.opacity = opacity;
+      card.style.pointerEvents = 'auto';
+      card.style.zIndex = String(100 - absOffset);
+      card.style.filter = `brightness(${brightness})`;
+
+      const baseTransform = `translateX(${tx}px) translateZ(${tz}px) rotateY(${ry}deg)`;
+      card.style.setProperty('--base-transform', baseTransform);
+      card.style.transform = baseTransform;
+    });
+
+    currentNumEl.textContent = String(currentIndex + 1).padStart(2, '0');
+  }
+
+  // ============ 네비게이션 ============
+  function goPrev() {
+    if (isTransitioning) return;
+    if (currentIndex > 0) {
+      currentIndex--;
+      layout();
+    }
+  }
+
+  function goNext() {
+    if (isTransitioning) return;
+    if (currentIndex < albums.length - 1) {
+      currentIndex++;
+      layout();
+    }
+  }
+
+  // ============ 자켓 클릭 ============
+  function onCardClick(idx) {
+    if (isTransitioning) return;
+
+    if (idx !== currentIndex) {
+      // 옆 자켓 클릭 → 이동
+      currentIndex = idx;
+      layout();
+      return;
+    }
+
+    // 중앙 자켓 클릭
+    const album = albums[idx];
+
+    if (album.trackIndex === null) {
+      // 준비 중 자켓 → 흔들기 + 토스트
+      const card = cards[idx];
+      card.classList.add('shaking');
+      setTimeout(() => card.classList.remove('shaking'), 600);
+
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 1800);
+      return;
+    }
+
+    // 실제 트랙 자켓 → 페이드 아웃 → 감상실로
+    isTransitioning = true;
+    pageFade.classList.add('active');
+    setTimeout(() => {
+      window.location.href = `index.html?track=${album.trackIndex}`;
+    }, 1000);
+  }
+
+  // ============ 이벤트 ============
+  document.getElementById('prevBtn').addEventListener('click', goPrev);
+  document.getElementById('nextBtn').addEventListener('click', goNext);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft')  { goPrev(); e.preventDefault(); }
+    if (e.key === 'ArrowRight') { goNext(); e.preventDefault(); }
+  });
+
+  // 드래그 / 스와이프
+  let dragStartX = null;
+  let isDragging = false;
+  const DRAG_THRESHOLD = 50;
+
+  const box = document.getElementById('diggingBox');
+
+  function onDragStart(clientX) {
+    dragStartX = clientX;
+    isDragging = true;
+  }
+
+  function onDragMove(clientX) {
+    if (!isDragging || dragStartX === null) return;
+    const dx = clientX - dragStartX;
+    if (Math.abs(dx) > DRAG_THRESHOLD) {
+      if (dx > 0) goPrev();
+      else goNext();
+      isDragging = false;
+      dragStartX = null;
+    }
+  }
+
+  function onDragEnd() {
+    isDragging = false;
+    dragStartX = null;
+  }
+
+  box.addEventListener('mousedown', (e) => onDragStart(e.clientX));
+  document.addEventListener('mousemove', (e) => onDragMove(e.clientX));
+  document.addEventListener('mouseup', onDragEnd);
+
+  box.addEventListener('touchstart', (e) => onDragStart(e.touches[0].clientX), { passive: true });
+  document.addEventListener('touchmove', (e) => onDragMove(e.touches[0].clientX), { passive: true });
+  document.addEventListener('touchend', onDragEnd);
+
+  let wheelLock = false;
+  box.addEventListener('wheel', (e) => {
+    if (wheelLock) return;
+    if (Math.abs(e.deltaY) < 10 && Math.abs(e.deltaX) < 10) return;
+    const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (delta > 0) goNext();
+    else goPrev();
+    wheelLock = true;
+    setTimeout(() => { wheelLock = false; }, 350);
+    e.preventDefault();
+  }, { passive: false });
+
+  // 감상실로 돌아가기 — 페이드 아웃
+  document.getElementById('backLink').addEventListener('click', (e) => {
+    e.preventDefault();
+    if (isTransitioning) return;
+    isTransitioning = true;
+    pageFade.classList.add('active');
+    setTimeout(() => { window.location.href = 'index.html'; }, 1000);
+  });
+
+  // 초기 레이아웃
+  layout();
+</script>
+
+</body>
+</html>
