@@ -791,7 +791,7 @@ html, body {
 <audio id="elevatorSfx" preload="auto" src="ding_sound.mp3"></audio>
 
 <div class="boot-hint" id="bootHint">우측 하단 ⌖ 황동판으로 층 점프 · 각 층 우측 엘리베이터 ▲▼로 한 층씩 · Ⅱ층은 음악실</div>
-<div class="version-badge">shell v4.2 · 2F 음악실+서고 · 3F 책방</div>
+<div class="version-badge">shell v4.2b · 2F 음악실+서고 · 3F 책방</div>
 
 <script>
 const FLOORS = [
@@ -1375,6 +1375,12 @@ const MusicPlayer = (() => {
   }
 
   function play(idx){
+    // 이미 그 곡을 재생 중이면 src를 다시 안 꽂음 (끊김 방지) — 위치만 갱신
+    if(started && loadedIdx===idx){
+      player.classList.remove('hidden','priming');
+      setState(currentFloor===2 ? 'dock' : 'mini');
+      return;
+    }
     trackIdx=idx; started=true;
     player.classList.remove('hidden','priming');
     iframe.src=buildSrc(idx,true); loadedIdx=idx;
@@ -1417,6 +1423,11 @@ const MusicPlayer = (() => {
     }
   }
 
+  // 재생 중이고 접힘이 아니면 좌하단 미니로 (감상실 아닌 다른 방으로 갈 때)
+  function toMiniIfPlaying(){
+    if(started && state!=='folded' && !player.classList.contains('hidden')) setState('mini');
+  }
+
   function onFloorChange(n){
     if(n===2){
       primeIfNeeded();
@@ -1442,7 +1453,7 @@ const MusicPlayer = (() => {
   document.getElementById('mpFold').addEventListener('click', ()=> setState('folded'));
   document.getElementById('mpPill').addEventListener('click', ()=> setState(currentFloor===2 ? 'dock' : 'mini'));
 
-  return { play, primeIfNeeded, setState, reposition, onFloorChange, syncMeta, currentTrack };
+  return { play, primeIfNeeded, setState, reposition, onFloorChange, syncMeta, currentTrack, toMiniIfPlaying };
 })();
 window.MusicPlayer = MusicPlayer;
 
@@ -1546,8 +1557,14 @@ const Library = (() => {
     if(!built) build();
     modal.classList.add('open');
     currentIndex=0; layout();
+    // 서고는 감상실이 아니므로, 재생 중이면 좌하단 미니로 (벽 도킹 잔류 방지)
+    if(window.MusicPlayer) MusicPlayer.toMiniIfPlaying();
   }
-  function close(){ modal.classList.remove('open'); }
+  function close(){
+    modal.classList.remove('open');
+    // 감상실(2층)에 있고 재생 중이면 벽 도킹 복원
+    if(currentFloor===2 && window.MusicPlayer) MusicPlayer.onFloorChange(2);
+  }
 
   // 이벤트
   document.getElementById('lib-prev').addEventListener('click', goPrev);
