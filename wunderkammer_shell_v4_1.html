@@ -1,0 +1,1357 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>EG Wunderkammer · Building Shell v3 (3F books)</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Noto+Serif+KR:wght@300;400;500&display=swap');
+
+/* ============================================================
+ *  분더카머 빌딩 셸 v2 — 층 전환 골조 (콘텐츠 없음)
+ *
+ *  v1 → v2 변경:
+ *   ① 층 안내 bar(다이얼)를 문에서 분리 → 문 위 늘 떠 있는 상단 패널.
+ *      탑승 순간 뜸 → 문이 다 열린 뒤에야 사라짐. (실제 엘리베이터 경험)
+ *   ② 좌우 문은 그 bar '아래'에서만 여닫이.
+ *   ③ 4초 효과음(ding_sound.mp3) 싱크:
+ *      0s 닫힘 시작 / 1.1s 철커덩(닫힘완료) / 1.4s 띵동=불 딸깍 점등
+ *      / 2.5s 스르륵(열림 시작) / ~3.5s 문 활짝 + bar 사라짐
+ * ============================================================ */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  background: #050304;
+  font-family: 'Noto Serif KR', 'Cormorant Garamond', serif;
+  color: #e8d9b0;
+  user-select: none;
+}
+
+:root {
+  --floor-bg-1: #3a1820;  --floor-bg-2: #6a2230;
+  --floor-accent: #c9a84c;
+  --floor-text: #f0ebe0;
+  --floor-text-dim: #a89a85;
+
+  /* 효과음 싱크 타임라인 (초) — 소리가 주인, 애니메이션이 따라감 */
+  --t-close: 1.1s;   /* 문 닫힘 완료(철커덩) */
+  --t-open-dur: 1.0s;/* 문 열림 길이 (2.5s → 3.5s) */
+}
+
+/* ============================================================
+ *  레이어 1 — 층 콘텐츠
+ * ============================================================ */
+.floor-layer {
+  position: fixed; inset: 0; z-index: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+.floor {
+  position: relative; width: 100%; height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 38%, rgba(255,240,210,0.10), transparent 70%),
+    linear-gradient(165deg, var(--floor-bg-1) 0%, var(--floor-bg-2) 100%);
+  box-shadow: inset 0 0 180px rgba(0,0,0,0.55);
+}
+.floor::before, .floor::after {
+  content: ''; position: absolute; left: 0; right: 0; height: 5px;
+  background: linear-gradient(90deg, transparent, var(--floor-accent), transparent);
+  opacity: 0.5;
+}
+.floor::before { top: 0; }
+.floor::after  { bottom: 0; }
+
+.floor-roman {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(48px, 14vw, 120px); font-weight: 300; line-height: 1;
+  color: var(--floor-accent); opacity: 0.85; letter-spacing: 4px;
+  text-shadow: 0 4px 30px rgba(0,0,0,0.6);
+}
+.floor-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(22px, 6vw, 38px); font-weight: 400; font-style: italic;
+  color: var(--floor-text); letter-spacing: 3px; margin-top: 14px;
+}
+.floor-kr {
+  font-size: clamp(13px, 3.6vw, 16px); color: var(--floor-text-dim);
+  letter-spacing: 6px; margin-top: 10px;
+}
+.floor-placeholder {
+  margin-top: 34px; padding: 10px 22px;
+  border: 1px dashed color-mix(in srgb, var(--floor-accent) 45%, transparent);
+  border-radius: 2px; font-size: 11px; letter-spacing: 3px;
+  color: var(--floor-text-dim); font-family: 'Cormorant Garamond', serif;
+}
+
+/* ===== 층 안 엘리베이터 사물 (느린 길) ===== */
+.room-elevator {
+  position: absolute; right: clamp(16px, 4vw, 48px); top: 50%; transform: translateY(-50%);
+  width: clamp(64px, 16vw, 92px);
+  z-index: 30; /* 책방 cover-stack(5)·화살표(8)보다 위 — 항상 클릭 가능 */
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 14px 8px;
+  background: linear-gradient(180deg, rgba(40,28,16,0.85), rgba(20,14,8,0.92));
+  border: 1px solid color-mix(in srgb, var(--floor-accent) 60%, transparent);
+  border-radius: 6px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.5), inset 0 0 24px rgba(0,0,0,0.4);
+}
+.room-elevator .grille {
+  width: 100%; height: 46px;
+  background: repeating-linear-gradient(90deg,
+    color-mix(in srgb, var(--floor-accent) 55%, #2a1c0e) 0 2px, rgba(0,0,0,0.35) 2px 7px);
+  border-radius: 2px; opacity: 0.7;
+}
+.room-elevator .elev-label {
+  font-size: 8px; letter-spacing: 2px; color: var(--floor-text-dim);
+  font-family: 'Cormorant Garamond', serif;
+}
+.elev-arrow {
+  width: 100%;
+  background: linear-gradient(180deg, rgba(60,42,24,0.9), rgba(34,22,12,0.95));
+  border: 1px solid color-mix(in srgb, var(--floor-accent) 50%, transparent);
+  color: var(--floor-accent); font-size: 15px; line-height: 1;
+  padding: 6px 0; border-radius: 3px; cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+}
+.elev-arrow:hover { background: linear-gradient(180deg, rgba(90,62,34,0.95), rgba(50,34,18,1)); }
+.elev-arrow:active { transform: scale(0.94); }
+.elev-arrow:disabled { opacity: 0.25; cursor: default; }
+
+/* ============================================================
+ *  층 콘텐츠 공통 래퍼
+ * ============================================================ */
+.floor-content { position: absolute; inset: 0; }
+
+/* ============================================================
+ *  ⅢF 책의 방 (Bibliothèque) — 전부 [data-floor="3"] 스코프
+ *  원본 hello_books_v1.6 → 셸 통합. 전역 html,body 제거,
+ *  fixed → absolute (층 콘텐츠 박스 기준), z-index 셸 체계로.
+ * ============================================================ */
+.floor-content[data-floor="3"] {
+  --c-amber: #f0d8a8; --c-amber-dim: #b89968; --c-amber-dark: #6b5838;
+  font-family: 'Cormorant Garamond', 'Noto Serif KR', Georgia, serif;
+  color: var(--c-amber);
+}
+.floor-content[data-floor="3"] .stage {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.floor-content[data-floor="3"] .room {
+  position: relative; width: 100%; max-width: 1672px;
+  aspect-ratio: 1672 / 941;
+  background: url('bookshelf_01.png') center/cover no-repeat;
+  background-color: #2a1410; overflow: hidden;
+}
+.floor-content[data-floor="3"] .pendant-sway {
+  position: absolute; left: 50%; top: 0; width: 30%; height: 30%;
+  transform: translateX(-50%); pointer-events: none;
+  animation: bk-pendant-sway 45s ease-in-out infinite;
+  transform-origin: 50% 0%; z-index: 2;
+}
+@keyframes bk-pendant-sway {
+  0%, 100% { transform: translateX(-50%) rotate(0deg); }
+  25%      { transform: translateX(-50%) rotate(0.15deg); }
+  75%      { transform: translateX(-50%) rotate(-0.15deg); }
+}
+.floor-content[data-floor="3"] .pendant-glow {
+  position: absolute; left: 50%; top: 25%; width: 14%; aspect-ratio: 1;
+  transform: translate(-50%, -50%); border-radius: 50%;
+  pointer-events: none; mix-blend-mode: screen;
+  background: radial-gradient(circle, rgba(255,220,150,0.45) 0%, rgba(255,200,120,0.25) 30%, rgba(255,180,100,0.10) 60%, transparent 100%);
+  filter: blur(8px); animation: bk-pendant-breath 4s ease-in-out infinite;
+}
+@keyframes bk-pendant-breath {
+  0%, 100% { opacity: 0.85; transform: translate(-50%, -50%) scale(1); }
+  50%      { opacity: 1.0;  transform: translate(-50%, -50%) scale(1.08); }
+}
+.floor-content[data-floor="3"] .dust {
+  position: absolute; width: 3px; height: 3px;
+  background: radial-gradient(circle, rgba(255,220,150,0.7), transparent);
+  border-radius: 50%; pointer-events: none; z-index: 4;
+}
+.floor-content[data-floor="3"] .dust-1 { left: 47%; top: 30%; animation: bk-dust-1 18s ease-in-out infinite; }
+.floor-content[data-floor="3"] .dust-2 { left: 52%; top: 35%; animation: bk-dust-2 22s ease-in-out infinite; }
+.floor-content[data-floor="3"] .dust-3 { left: 49%; top: 28%; animation: bk-dust-3 25s ease-in-out infinite; }
+.floor-content[data-floor="3"] .dust-4 { left: 53%; top: 32%; animation: bk-dust-4 20s ease-in-out infinite; }
+.floor-content[data-floor="3"] .dust-5 { left: 48%; top: 34%; animation: bk-dust-5 28s ease-in-out infinite; }
+@keyframes bk-dust-1 { 0%,100% {transform:translate(0,0);opacity:.3} 25% {transform:translate(8px,-12px);opacity:.7} 50% {transform:translate(-4px,-20px);opacity:.5} 75% {transform:translate(-10px,-8px);opacity:.6} }
+@keyframes bk-dust-2 { 0%,100% {transform:translate(0,0);opacity:.4} 33% {transform:translate(-12px,10px);opacity:.8} 66% {transform:translate(6px,-15px);opacity:.5} }
+@keyframes bk-dust-3 { 0%,100% {transform:translate(0,0);opacity:.2} 50% {transform:translate(15px,18px);opacity:.6} }
+@keyframes bk-dust-4 { 0%,100% {transform:translate(0,0);opacity:.5} 25% {transform:translate(-8px,-10px);opacity:.7} 75% {transform:translate(12px,6px);opacity:.4} }
+@keyframes bk-dust-5 { 0%,100% {transform:translate(0,0);opacity:.3} 40% {transform:translate(-15px,8px);opacity:.6} 80% {transform:translate(10px,-12px);opacity:.5} }
+
+.floor-content[data-floor="3"] .cover-stack { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+.floor-content[data-floor="3"] .cover-page {
+  position: absolute; inset: 0; opacity: 0; pointer-events: none;
+  transition: opacity 0.6s ease-in-out;
+}
+.floor-content[data-floor="3"] .cover-page.active { opacity: 1; }
+.floor-content[data-floor="3"] .cover-book { pointer-events: auto; }
+.floor-content[data-floor="3"] .cover-book {
+  position: absolute; cursor: pointer;
+  transition: transform 0.3s ease, filter 0.3s ease;
+  filter: drop-shadow(2px 5px 10px rgba(0,0,0,0.75));
+  transform: translate(-50%, -100%);
+}
+.floor-content[data-floor="3"] .cover-book img { height: 100%; width: auto; display: block; }
+.floor-content[data-floor="3"] .cover-book:hover {
+  transform: translate(-50%, -100%) translateY(-8px) scale(1.05);
+  filter: drop-shadow(5px 10px 18px rgba(0,0,0,0.9)); z-index: 10;
+}
+/* 진열대 UI — fixed → absolute (층 박스 기준) */
+.floor-content[data-floor="3"] .bk-nav-arrow {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 56px; height: 56px;
+  background: rgba(80,40,28,0.78); border: 1px solid rgba(212,184,120,0.7);
+  color: var(--c-amber); font-size: 28px; line-height: 1; border-radius: 50%;
+  cursor: pointer; z-index: 8; backdrop-filter: blur(8px);
+  transition: background 0.2s, transform 0.2s;
+}
+.floor-content[data-floor="3"] .bk-nav-arrow:hover { background: rgba(110,60,40,0.95); transform: translateY(-50%) scale(1.08); }
+.floor-content[data-floor="3"] .bk-nav-left  { left: max(20px, calc(50% - 580px)); }
+.floor-content[data-floor="3"] .bk-nav-right { right: max(130px, calc(50% - 580px)); }
+/* 좁은 화면: 엘리베이터(우측)와 안 겹치게 화살표를 더 안쪽으로 */
+@media (max-width: 900px) {
+  .floor-content[data-floor="3"] .bk-nav-left  { left: 8px; width: 44px; height: 44px; font-size: 22px; }
+  .floor-content[data-floor="3"] .bk-nav-right { right: 92px; width: 44px; height: 44px; font-size: 22px; }
+}
+.floor-content[data-floor="3"] .bk-dots {
+  position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 10px; z-index: 8;
+}
+.floor-content[data-floor="3"] .bk-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: rgba(240,216,168,0.3); cursor: pointer; transition: all 0.3s;
+}
+.floor-content[data-floor="3"] .bk-dot.active { background: var(--c-amber); width: 24px; border-radius: 4px; }
+.floor-content[data-floor="3"] .bk-hint {
+  position: absolute; bottom: 64px; left: 50%; transform: translateX(-50%);
+  color: rgba(240,216,168,0.55); font-size: 12px; letter-spacing: 0.25em; z-index: 8;
+}
+
+/* === FlipBook 모달 — 레이어 2(z 50대)로 진입, 셸 엘리베이터(z200) 아래 === */
+.book-modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,0); z-index: 60;
+  pointer-events: none; opacity: 0; visibility: hidden;
+  transition: opacity 0.5s ease, background 0.5s ease, visibility 0s linear 0.5s;
+  display: flex; min-height: 100dvh; perspective: 1500px; overflow: hidden;
+}
+.book-modal.open {
+  pointer-events: auto; opacity: 1; visibility: visible;
+  transition: opacity 0.5s ease, background 0.5s ease, visibility 0s linear 0s;
+  background: radial-gradient(circle farthest-corner at 50% 50%, hsl(187 20% 88%) 30%, hsl(149 20% 94%) 100%);
+}
+.book-modal .book {
+  position: relative; display: flex; margin: auto;
+  width: 32cqmin; pointer-events: none; transform-style: preserve-3d;
+  transition: translate 1s; translate: calc(min(var(--c), 1) * 50%) 0%;
+  rotate: 1 0 0 30deg;
+}
+.book-modal .page {
+  --thickness: 4; flex: none; display: flex; width: 100%;
+  font-size: 1.8cqmin; pointer-events: all; user-select: none;
+  transform-style: preserve-3d; transform-origin: left center;
+  transition: transform 1s, rotate 1s ease-in calc((min(var(--i), var(--c)) - max(var(--i), var(--c))) * 50ms);
+  translate: calc(var(--i) * -100%) 0px 0px;
+  transform: translateZ(calc((var(--c) - var(--i) - 0.5) * calc(var(--thickness) * .23cqmin)));
+  rotate: 0 1 0 calc(clamp(0, var(--c) - var(--i), 1) * -180deg);
+  cursor: pointer; box-shadow: 0 .5em 1em -.2em #00000020;
+}
+.book-modal .front, .book-modal .back {
+  position: relative; flex: none; width: 100%; backface-visibility: hidden;
+  overflow: hidden; background-color: #fff; translate: 0px;
+  display: flex; flex-flow: column wrap; justify-content: space-between;
+  padding: 2.2em 2em; border: 1px solid #0002;
+}
+.book-modal .front:has(.cover-bg), .book-modal .back:has(.cover-bg) { padding: 0; }
+.book-modal .back { translate: -100% 0; rotate: 0 1 0 180deg; }
+.book-modal .book { counter-reset: page -1; }
+.book-modal .front::after, .book-modal .back::after {
+  position: absolute; bottom: 1em; counter-increment: page; content: counter(page) ".";
+  font-size: 0.75em; color: #b8a880; font-style: italic;
+}
+.book-modal .front::after { right: 1.5em; }
+.book-modal .back::after  { left: 1.5em; }
+.book-modal .cover::after { content: ""; }
+.book-modal .front { background: linear-gradient(to left, #faf7f0 80%, #f0ebe0 100%); border-radius: .1em .5em .5em .1em; }
+.book-modal .back  { background-image: linear-gradient(to right, #faf7f0 80%, #f0ebe0 100%); border-radius: .5em .1em .1em .5em; }
+.book-modal .cover { color: hsl(200 30% 98%); padding: 0; }
+.book-modal .cover-bg { position: absolute; inset: 0; background-size: cover; background-position: center; }
+.book-modal .page-content { width: 100%; height: 100%; display: flex; flex-direction: column; color: #1a1410; font-family: 'Cormorant Garamond', 'Noto Serif KR', Georgia, serif; }
+.book-modal .page-content h2 { font-size: 1.25em; font-weight: 600; color: #2a1810; margin-bottom: 0.9em; line-height: 1.4; }
+.book-modal .page-content p { font-size: 0.95em; line-height: 1.8; margin-bottom: 0.6em; text-align: justify; text-justify: inter-character; word-break: break-all; line-break: strict; overflow-wrap: anywhere; }
+.book-modal .page-content .author-line { margin-top: auto; padding-top: 1em; font-style: italic; color: #8a7654; text-align: right; font-size: 0.85em; }
+.book-modal .page-content .chapter-mark { font-style: italic; color: #b8a880; font-size: 0.8em; margin-bottom: 0.5em; letter-spacing: 0.1em; }
+.book-modal .page-end { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #2a1810; }
+.book-modal .page-end h2 { font-style: italic; margin-bottom: 1em; font-size: 1.3em; }
+.book-modal .page-end .author { font-style: italic; color: #8a7654; margin-top: 1em; }
+.book-modal .page-end .book-title { color: #b8a880; font-size: 0.85em; margin-top: 1.5em; }
+.book-modal .modal-close {
+  position: fixed; top: 24px; right: 24px; width: 42px; height: 42px;
+  background: rgba(80,40,28,0.92); border: 1px solid rgba(212,184,120,0.7);
+  color: var(--floor-accent, #f0d8a8); font-size: 22px; border-radius: 50%;
+  cursor: pointer; z-index: 70; backdrop-filter: blur(8px);
+}
+.book-modal .modal-close:hover { background: rgba(110,60,40,0.95); }
+.book-modal .modal-hint {
+  position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
+  color: rgba(40,30,20,0.5); font-size: 12px; letter-spacing: 0.15em; z-index: 70; font-style: italic;
+}
+
+/* ============================================================
+ *  ⅡF 음악의 방 (Chambre de Musique) — 전부 [data-floor="2"] 스코프
+ *  원본 music_room.html(감상실) → 셸 통합.
+ *  세로 스크롤 페이지 → 스크롤 없는 한 화면 무대(도킹 좌표 안정화).
+ *  유튜브 iframe은 여기 없음 — 레이어3 단일 미니 플레이어가 .ms-wall에 도킹.
+ * ============================================================ */
+.floor-content[data-floor="2"] {
+  --ms-wood-1:#2a1f15; --ms-wood-2:#1a1208; --ms-line:#4a3a22;
+  --ms-dim:#8a7654; --ms-dim2:#6b5838; --ms-text:#d4c5a0; --ms-bright:#e8d9b0;
+  font-family:'Georgia','Noto Serif KR',serif; color:var(--ms-text);
+  overflow:hidden; background:#0a0604;
+  display:flex; flex-direction:column;
+}
+/* ── 상단: 곡 토글 ── */
+.floor-content[data-floor="2"] .ms-top { flex:none; padding:clamp(10px,2.2vh,22px) 16px 4px; text-align:center; z-index:6; }
+.floor-content[data-floor="2"] .ms-eyebrow { font-family:'Cormorant Garamond',serif; font-size:10px; letter-spacing:4px; color:var(--ms-dim); }
+.floor-content[data-floor="2"] .ms-track-row { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:9px; }
+.floor-content[data-floor="2"] .ms-track {
+  background:linear-gradient(180deg,#2a1f15,#1a1208); border:1px solid var(--ms-line);
+  color:var(--ms-dim); padding:8px 18px; font-family:inherit; font-size:12px;
+  letter-spacing:1.2px; cursor:pointer; border-radius:2px; transition:all .3s; min-width:200px; text-align:left;
+}
+.floor-content[data-floor="2"] .ms-track:hover { border-color:var(--ms-dim2); color:#b89968; }
+.floor-content[data-floor="2"] .ms-track.active {
+  background:linear-gradient(180deg,#4a3a22,#2a1f15); border-color:var(--ms-dim);
+  color:var(--ms-bright); box-shadow:0 0 18px rgba(180,150,100,.2);
+}
+.floor-content[data-floor="2"] .ms-track .tn { font-size:9px; letter-spacing:2px; opacity:.7; margin-bottom:3px; }
+.floor-content[data-floor="2"] .ms-track .tt { font-style:italic; font-size:13px; }
+
+/* ── 무대 ── */
+.floor-content[data-floor="2"] .ms-stage { flex:1 1 auto; container-type:size; display:grid; place-items:center; min-height:0; padding:4px 12px; }
+.floor-content[data-floor="2"] .ms-room {
+  position:relative; aspect-ratio:1672/941;
+  width:min(100cqw, calc(100cqh * 1672 / 941), 1400px);
+  background-size:cover; background-position:center; transition:background-image .6s ease;
+}
+.floor-content[data-floor="2"] .ms-room-name { font-size:11px; letter-spacing:2px; color:#8a7654; font-style:italic; margin-top:4px; }
+/* 벽 스크린 = 도킹 타겟 (iframe 없음 · 검은 무대 + 호박빛 글로우) */
+.floor-content[data-floor="2"] .ms-wall {
+  position:absolute; background:#000; overflow:hidden;
+  box-shadow:inset 0 0 60px rgba(0,0,0,.9), 0 0 40px rgba(255,200,100,.15);
+}
+.floor-content[data-floor="2"] .ms-wall::before { content:''; position:absolute; inset:-2px; box-shadow:inset 0 0 20px rgba(255,180,100,.1); pointer-events:none; z-index:2; }
+.floor-content[data-floor="2"] .ms-wall-hint { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#5a4a30; font-size:11px; letter-spacing:3px; font-style:italic; text-align:center; padding:12px; }
+/* 진공관 7 */
+.floor-content[data-floor="2"] .ms-tube { position:absolute; aspect-ratio:1; border-radius:50%; pointer-events:none; mix-blend-mode:screen; }
+.floor-content[data-floor="2"] .ms-tube::before {
+  content:''; position:absolute; inset:0; border-radius:50%; filter:blur(2px);
+  background:radial-gradient(circle at center, var(--tc1) 0%, var(--tc2) 20%, var(--tc3) 45%, var(--tc4) 75%, transparent 100%);
+}
+@keyframes ms-flicker { 0%,100%{opacity:.85;transform:scale(1)} 25%{opacity:1;transform:scale(1.03)} 50%{opacity:.78;transform:scale(.98)} 75%{opacity:.92;transform:scale(1.01)} }
+/* VU 2 */
+.floor-content[data-floor="2"] .ms-vu { position:absolute; width:3.2%; aspect-ratio:2.2/1; pointer-events:none; }
+.floor-content[data-floor="2"] .ms-vu svg { width:100%; height:100%; overflow:visible; }
+.floor-content[data-floor="2"] .ms-needle { transform-origin:50% 95%; stroke-width:1.8; stroke-linecap:round; fill:none; }
+@keyframes ms-vu-swing {
+  0%{transform:rotate(calc(-1 * var(--ms-vu-range,12deg)))} 15%{transform:rotate(calc(-.25 * var(--ms-vu-range,12deg)))}
+  25%{transform:rotate(calc(-.65 * var(--ms-vu-range,12deg)))} 40%{transform:rotate(calc(.35 * var(--ms-vu-range,12deg)))}
+  50%{transform:rotate(calc(-.4 * var(--ms-vu-range,12deg)))} 65%{transform:rotate(calc(.6 * var(--ms-vu-range,12deg)))}
+  75%{transform:rotate(calc(-.15 * var(--ms-vu-range,12deg)))} 85%{transform:rotate(calc(-.75 * var(--ms-vu-range,12deg)))} 100%{transform:rotate(calc(-1 * var(--ms-vu-range,12deg)))}
+}
+/* 헤더 도구: 🎲 다른 음악실 / ♪ 음반 고르기 */
+.floor-content[data-floor="2"] .ms-tools { display:flex; gap:8px; justify-content:center; margin-top:9px; flex-wrap:wrap; }
+.floor-content[data-floor="2"] .ms-shuffle, .floor-content[data-floor="2"] .ms-crate {
+  background:rgba(20,14,8,.6); border:1px solid var(--ms-line); color:var(--ms-dim);
+  padding:5px 13px; font-family:inherit; font-size:10px; letter-spacing:1px;
+  cursor:pointer; border-radius:2px; transition:all .2s;
+}
+.floor-content[data-floor="2"] .ms-shuffle:hover, .floor-content[data-floor="2"] .ms-crate:hover { color:var(--ms-text); border-color:var(--ms-dim2); }
+
+/* ── 하단 정보: 명패(항상) + 마리 노트(접힘, 버튼으로 펼침) ── */
+.floor-content[data-floor="2"] .ms-info {
+  flex:none; display:flex; gap:12px; align-items:center; justify-content:center; flex-wrap:wrap;
+  padding:6px 16px clamp(54px,7vh,74px); width:100%;
+}
+.floor-content[data-floor="2"] .ms-plate { display:flex; align-items:baseline; gap:14px; padding:9px 18px; background:linear-gradient(180deg,#2a1f15,#1a1208); border:1px solid var(--ms-line); border-radius:2px; box-shadow:0 4px 18px rgba(0,0,0,.5); flex-wrap:wrap; justify-content:center; }
+.floor-content[data-floor="2"] .ms-plate .pt { font-size:15px; color:var(--ms-bright); font-style:italic; }
+.floor-content[data-floor="2"] .ms-plate .pc { font-size:9px; letter-spacing:2px; color:var(--ms-dim); }
+.floor-content[data-floor="2"] .ms-plate .pm { font-size:9px; color:var(--ms-dim2); font-style:italic; }
+.floor-content[data-floor="2"] .ms-note-btn {
+  background:linear-gradient(160deg,#c9a84c,#8a6a2a 60%,#5a3f14); border:1px solid #d8c078;
+  color:#2a1c08; font-family:'Cormorant Garamond',serif; font-size:11px; letter-spacing:1px;
+  padding:7px 15px; border-radius:3px; cursor:pointer; white-space:nowrap; transition:transform .15s; box-shadow:0 3px 10px rgba(0,0,0,.4);
+}
+.floor-content[data-floor="2"] .ms-note-btn:hover { transform:translateY(-1px); }
+
+/* 마리 노트 하단 시트 (평소 숨김 · 무대 크기 불변 → 도킹 안 흔듦) */
+.floor-content[data-floor="2"] .ms-note-sheet {
+  position:fixed; left:50%; bottom:0; transform:translateX(-50%) translateY(112%);
+  width:min(560px,92vw); background:linear-gradient(135deg,#f4e8c8,#e8d4a0); color:#3a2a18;
+  padding:20px 24px 26px; border-radius:10px 10px 0 0; box-shadow:0 -8px 44px rgba(0,0,0,.6);
+  z-index:140; transition:transform .42s cubic-bezier(.4,.7,.3,1);
+}
+.floor-content[data-floor="2"] .ms-note-sheet.open { transform:translateX(-50%) translateY(0); }
+.floor-content[data-floor="2"] .ms-note-sheet .sheet-close { position:absolute; top:8px; right:14px; background:none; border:none; color:#6b4818; font-size:20px; cursor:pointer; line-height:1; }
+.floor-content[data-floor="2"] .ms-note-sheet .nl { font-size:9px; letter-spacing:3px; color:#8a6a3a; margin-bottom:9px; }
+.floor-content[data-floor="2"] .ms-note-sheet .nb { font-size:13px; line-height:1.75; color:#3a2a18; }
+.floor-content[data-floor="2"] .ms-note-sheet .ns { margin-top:12px; padding-top:9px; border-top:1px dashed #b89968; font-size:11px; color:#6b4818; font-style:italic; text-align:right; }
+@media (max-width:760px){
+  .floor-content[data-floor="2"] .ms-plate .pt { font-size:13px; }
+}
+
+/* 토스트 (음반 서고 안내 등) */
+.ms-toast {
+  position:fixed; bottom:96px; left:50%; transform:translateX(-50%) translateY(10px);
+  background:rgba(20,14,8,.95); border:1px solid #d4a548; color:#e8d9b0;
+  padding:10px 20px; font-size:12px; letter-spacing:1px; border-radius:4px; z-index:150;
+  opacity:0; pointer-events:none; transition:all .35s; font-family:'Noto Serif KR',serif; white-space:nowrap;
+}
+.ms-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ============================================================
+ *  음악 미니 플레이어 — 레이어3 위, 단일 iframe.
+ *  영상 알맹이(mp-frame)는 위치·크기만 이동(DOM 안 옮김 → 재생 안 끊김).
+ *  옷(skin)만 상태 따라 크로스페이드: dock(벽) ↔ mini(좌하단) ↔ folded(알약).
+ * ============================================================ */
+.music-player {
+  position:fixed; z-index:90; pointer-events:none;
+  left:0; top:0; width:0; height:0;
+  transition:left .6s cubic-bezier(.4,.7,.3,1), top .6s cubic-bezier(.4,.7,.3,1),
+             width .6s cubic-bezier(.4,.7,.3,1), height .6s cubic-bezier(.4,.7,.3,1);
+}
+.music-player.hidden { display:none; }
+.music-player .mp-frame { position:absolute; inset:0; overflow:hidden; background:#000; pointer-events:auto; transition:opacity .4s ease, box-shadow .45s ease, border-radius .45s ease; }
+.music-player .mp-frame iframe { width:100%; height:100%; border:0; display:block; }
+.music-player .mp-prime { position:absolute; inset:0; z-index:3; display:none; flex-direction:column; align-items:center; justify-content:center; gap:10px; cursor:pointer; background:rgba(8,5,3,.35); transition:background .2s; }
+.music-player.priming .mp-prime { display:flex; }
+.music-player .mp-prime .pr-play { font-size:clamp(26px,5vw,38px); color:rgba(232,217,176,.92); text-shadow:0 0 20px rgba(255,200,120,.5); }
+.music-player .mp-prime .pr-txt { font-family:'Cormorant Garamond',serif; font-size:12px; letter-spacing:2px; color:rgba(212,197,160,.8); }
+.music-player .mp-prime:hover { background:rgba(8,5,3,.18); }
+
+/* 옷1 — 벽 도킹 */
+.music-player .skin-wall { position:absolute; inset:-2px; pointer-events:none; opacity:0; transition:opacity .45s ease; box-shadow:inset 0 0 20px rgba(255,180,100,.1); }
+.music-player.dock .skin-wall { opacity:1; }
+.music-player.dock .mp-frame { box-shadow:inset 0 0 60px rgba(0,0,0,.9), 0 0 40px rgba(255,200,100,.15); border-radius:0; }
+
+/* 옷2 — 좌하단 미니 */
+.music-player .skin-mini { position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .45s ease; border-radius:8px; border:1px solid #d4a548; box-shadow:0 10px 34px rgba(0,0,0,.65); }
+.music-player.mini .skin-mini { opacity:1; }
+.music-player.mini .mp-frame { border-radius:8px; box-shadow:none; }
+.music-player .mp-bar { position:absolute; top:-32px; left:0; right:0; height:28px; display:flex; align-items:center; justify-content:space-between; gap:6px; pointer-events:none; opacity:0; transition:opacity .45s ease; }
+.music-player.mini .mp-bar { opacity:1; pointer-events:auto; }
+.music-player .mp-return {
+  display:inline-flex; align-items:center; gap:5px;
+  background:linear-gradient(160deg,#c9a84c,#8a6a2a 60%,#5a3f14); border:1px solid #d8c078;
+  color:#2a1c08; font-family:'Cormorant Garamond',serif; font-size:10.5px; letter-spacing:1px;
+  padding:4px 11px; border-radius:3px; cursor:pointer; white-space:nowrap;
+  box-shadow:0 3px 10px rgba(0,0,0,.4); transition:transform .15s;
+}
+.music-player .mp-return:hover { transform:translateY(-1px); }
+.music-player .mp-fold { width:26px; height:24px; background:rgba(20,14,8,.92); border:1px solid #d4a548; color:#d4a548; border-radius:3px; cursor:pointer; font-size:13px; line-height:1; flex:none; transition:background .2s; }
+.music-player .mp-fold:hover { background:rgba(40,28,16,1); }
+
+/* 옷3 — 접힘(알약). 끄기 아님 · 음악 계속 */
+.music-player.folded { width:auto !important; height:auto !important; }
+.music-player.folded .mp-frame { opacity:0; pointer-events:none; }
+.music-player.folded .skin-wall, .music-player.folded .skin-mini, .music-player.folded .mp-bar { opacity:0; pointer-events:none; }
+.music-player .mp-pill {
+  display:none; align-items:center; gap:9px; pointer-events:auto;
+  background:linear-gradient(180deg,#2a1f15,#1a1208); border:1px solid #d4a548; color:#e8d9b0;
+  padding:9px 15px; border-radius:22px; cursor:pointer; font-family:'Cormorant Garamond',serif;
+  font-size:11px; letter-spacing:1px; box-shadow:0 8px 24px rgba(0,0,0,.6); white-space:nowrap;
+}
+.music-player.folded .mp-pill { display:inline-flex; }
+.music-player .mp-eq { display:inline-flex; align-items:flex-end; gap:2px; height:13px; }
+.music-player .mp-eq i { width:2.5px; background:#d4a548; border-radius:1px; animation:mp-eq 1s ease-in-out infinite; }
+.music-player .mp-eq i:nth-child(1){ height:40%; animation-delay:0s }
+.music-player .mp-eq i:nth-child(2){ height:90%; animation-delay:.2s }
+.music-player .mp-eq i:nth-child(3){ height:60%; animation-delay:.4s }
+.music-player .mp-eq i:nth-child(4){ height:100%; animation-delay:.1s }
+@keyframes mp-eq { 0%,100%{transform:scaleY(.4)} 50%{transform:scaleY(1)} }
+
+/* ============================================================
+ *  레이어 2 — 모달 (비어둠)
+ * ============================================================ */
+.modal-layer { position: fixed; inset: 0; z-index: 50; pointer-events: none; }
+
+/* ============================================================
+ *  레이어 3 — 화면 고정
+ * ============================================================ */
+.fixed-layer { position: fixed; inset: 0; z-index: 100; pointer-events: none; }
+.fixed-layer > * { pointer-events: auto; }
+
+.floor-label {
+  position: fixed; top: 22px; left: 50%; transform: translateX(-50%); text-align: center;
+  font-family: 'Cormorant Garamond', serif; color: var(--floor-accent);
+  text-shadow: 0 2px 14px rgba(0,0,0,0.9);
+}
+.floor-label .fl-name { font-size: 14px; letter-spacing: 4px; }
+.floor-label .fl-floor { font-size: 10px; letter-spacing: 3px; color: var(--floor-text-dim); margin-top: 3px; }
+
+.mini-player-slot { position: fixed; bottom: 26px; left: 22px; }
+
+/* ===== 닻 — 층 안내판 (빠른 길) ===== */
+.anchor { position: fixed; bottom: 26px; right: 22px; }
+.anchor-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  width: 58px; padding: 9px 6px;
+  background: linear-gradient(160deg, #c9a84c, #8a6a2a 55%, #5a3f14);
+  border: 1px solid #d8c078; border-radius: 4px; cursor: pointer;
+  box-shadow: 0 5px 18px rgba(0,0,0,0.55), inset 0 1px 2px rgba(255,240,200,0.4);
+  transition: transform 0.18s, box-shadow 0.18s;
+}
+.anchor-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.6), inset 0 1px 2px rgba(255,240,200,0.5); }
+.anchor-btn .ab-icon { font-size: 16px; line-height: 1; color: #2a1c08; }
+.anchor-btn .ab-text { font-size: 7px; letter-spacing: 1.5px; color: #2a1c08; font-family: 'Cormorant Garamond', serif; }
+
+.anchor-panel {
+  position: absolute; bottom: 70px; right: 0; width: 220px;
+  background: linear-gradient(180deg, #1a120a, #0e0906);
+  border: 1px solid #c9a84c; border-radius: 6px;
+  box-shadow: 0 14px 44px rgba(0,0,0,0.7); padding: 8px;
+  opacity: 0; transform: translateY(10px) scale(0.96); transform-origin: bottom right;
+  pointer-events: none; transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.2,0.8,0.3,1);
+}
+.anchor.open .anchor-panel { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+.anchor-panel-title {
+  font-family: 'Cormorant Garamond', serif; font-size: 10px; letter-spacing: 3px; color: #8a7654;
+  text-align: center; padding: 6px 0 10px; border-bottom: 1px solid rgba(201,168,76,0.2); margin-bottom: 6px;
+}
+.floor-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 4px; cursor: pointer; transition: background 0.18s; }
+.floor-item:hover { background: rgba(201,168,76,0.12); }
+.floor-item.current { background: rgba(201,168,76,0.18); }
+.floor-item .fi-num { font-family: 'Cormorant Garamond', serif; font-size: 18px; color: #c9a84c; width: 26px; text-align: center; }
+.floor-item .fi-name { font-size: 13px; color: #e8d9b0; }
+.floor-item .fi-kr { font-size: 10px; color: #8a7654; letter-spacing: 1px; margin-top: 1px; }
+.floor-item.current .fi-name { color: #f0e0a0; }
+
+/* ===== 음소거 토글 ===== */
+.mute-toggle {
+  position: fixed; top: 22px; left: 22px; z-index: 100;
+  width: 34px; height: 34px; border-radius: 50%;
+  background: rgba(26,18,10,0.6); border: 1px solid rgba(201,168,76,0.35);
+  color: #c9a84c; font-size: 14px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s; backdrop-filter: blur(6px);
+}
+.mute-toggle:hover { background: rgba(40,28,16,0.85); }
+
+/* ============================================================
+ *  전환 — 엘리베이터 (z 200)
+ *  구조: [상단 안내 bar] + [그 아래 좌우 문]
+ * ============================================================ */
+.elevator { position: fixed; inset: 0; z-index: 200; pointer-events: none; }
+.elevator.active { pointer-events: auto; }
+
+/* --- 상단 안내 bar (문에서 분리·탑승 중 늘 떠 있음) --- */
+.elevator-bar {
+  position: absolute; top: 0; left: 50%; transform: translate(-50%, -100%);
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 26px 16px;
+  background: linear-gradient(180deg, #2a1d0c 0%, #1a1206 70%, #120c04 100%);
+  border: 1px solid rgba(201,168,76,0.45);
+  border-top: none;
+  border-radius: 0 0 14px 14px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.6), inset 0 -2px 10px rgba(0,0,0,0.5);
+  z-index: 3; /* 문보다 위 */
+  transition: transform 0.5s cubic-bezier(0.3,0.8,0.3,1);
+}
+.elevator.riding .elevator-bar { transform: translate(-50%, 0); } /* 탑승 중 내려와 자리잡음 */
+
+.dial-lamp {
+  width: 38px; height: 38px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Cormorant Garamond', serif; font-size: 17px;
+  color: rgba(201,168,76,0.30);
+  border: 1px solid rgba(201,168,76,0.22);
+  background: radial-gradient(circle at 40% 35%, rgba(40,30,16,0.8), rgba(15,10,4,0.9));
+  transition: all 0.18s ease;
+}
+.dial-lamp.lit {
+  color: #1a1208;
+  background: radial-gradient(circle at 40% 35%, #ffe7a0, #d8a838);
+  border-color: #ffe7a0;
+  box-shadow: 0 0 20px rgba(255,210,120,0.85);
+  transform: scale(1.06);
+}
+
+/* --- 좌우 문 (bar 아래에서만 여닫이) --- */
+.doors {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  top: 0; /* JS가 bar 높이만큼 내려줌 (--door-top) */
+  top: var(--door-top, 0px);
+  z-index: 1;
+}
+.door {
+  position: absolute; top: 0; bottom: 0; width: 50.5%;
+  background:
+    repeating-linear-gradient(90deg, #3a2a16 0 6px, #6b5226 6px 9px, #2a1d0c 9px 22px),
+    linear-gradient(180deg, #4a3618, #241808);
+  box-shadow: inset 0 0 120px rgba(0,0,0,0.7);
+  transition: transform var(--t-open-dur) cubic-bezier(0.55, 0, 0.30, 1);
+}
+.door::before {
+  content: ''; position: absolute; inset: 7%;
+  border: 2px solid rgba(201,168,76,0.4); border-radius: 3px;
+  box-shadow: inset 0 0 40px rgba(0,0,0,0.5);
+}
+.door-left  { left: 0;  transform: translateX(-101%); }
+.door-right { right: 0; transform: translateX(101%); }
+.elevator.closing .door-left,
+.elevator.closing .door-right { transform: translateX(0); }
+
+.door-seam {
+  position: absolute; top: var(--door-top, 0px); bottom: 0; left: 50%; width: 2px;
+  transform: translateX(-50%); z-index: 2;
+  background: linear-gradient(180deg, transparent, rgba(240,210,120,0.5), transparent);
+  opacity: 0; transition: opacity 0.3s;
+}
+.elevator.closing .door-seam { opacity: 1; }
+
+/* ===== 첫 진입 힌트 / 버전 ===== */
+.boot-hint {
+  position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%);
+  font-family: 'Cormorant Garamond', serif; font-size: 11px; letter-spacing: 2px;
+  color: rgba(240,216,168,0.45); z-index: 100; text-align: center; pointer-events: none;
+  transition: opacity 0.6s; line-height: 1.7;
+}
+.version-badge {
+  position: fixed; top: 22px; right: 22px; z-index: 100;
+  font-family: 'Cormorant Garamond', serif; font-size: 10px; letter-spacing: 2px; color: rgba(240,216,168,0.4);
+}
+</style>
+</head>
+<body>
+
+<!-- 레이어 1 -->
+<div class="floor-layer" id="floorLayer"></div>
+
+<!-- 레이어 2 -->
+<div class="modal-layer" id="modalLayer"></div>
+
+<!-- 3층 책방 FlipBook 모달 (레이어 2 진입) -->
+<div class="book-modal" id="book-modal">
+  <button class="modal-close" id="modal-close">×</button>
+  <div class="modal-hint">페이지 가장자리를 클릭해 넘기세요 · ESC로 닫기</div>
+</div>
+<audio id="page-flip-sound" preload="auto"><source src="page_turn.mp3" type="audio/mpeg"></audio>
+
+<!-- 레이어 3 -->
+<div class="fixed-layer">
+  <div class="floor-label" id="floorLabel"></div>
+  <div class="mini-player-slot" id="miniPlayerSlot"></div>
+  <div class="anchor" id="anchor">
+    <div class="anchor-panel" id="anchorPanel">
+      <div class="anchor-panel-title">ÉTAGES · 층</div>
+    </div>
+    <button class="anchor-btn" id="anchorBtn" aria-label="층 안내판">
+      <span class="ab-icon">⌖</span>
+      <span class="ab-text">ÉTAGES</span>
+    </button>
+  </div>
+</div>
+
+<!-- 음악 미니 플레이어 (단일 iframe · 도킹/미니/접힘 · 층 넘어도 안 끊김) -->
+<div class="music-player hidden" id="musicPlayer">
+  <div class="mp-bar">
+    <button class="mp-return" id="mpReturn">‹ 감상실로</button>
+    <button class="mp-fold" id="mpFold" aria-label="접기">✕</button>
+  </div>
+  <div class="skin-wall"></div>
+  <div class="skin-mini"></div>
+  <div class="mp-frame" id="mpFrame">
+    <iframe id="mpIframe" src="" referrerpolicy="strict-origin-when-cross-origin"
+      allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+    <div class="mp-prime" id="mpPrime"><span class="pr-play">▶</span><span class="pr-txt">눌러서 음악을 시작합니다</span></div>
+  </div>
+  <button class="mp-pill" id="mpPill"><span class="mp-eq"><i></i><i></i><i></i><i></i></span><span id="mpPillText">지금 듣는 중</span></button>
+</div>
+
+<!-- 음악실 토스트 -->
+<div class="ms-toast" id="msToast"></div>
+
+<!-- 음소거 -->
+<button class="mute-toggle" id="muteToggle" aria-label="소리 켜기/끄기">♪</button>
+
+<!-- 전환 — 엘리베이터: 상단 bar + 그 아래 좌우 문 -->
+<div class="elevator" id="elevator">
+  <div class="elevator-bar" id="elevatorBar"></div>
+  <div class="doors">
+    <div class="door door-left"></div>
+    <div class="door door-right"></div>
+  </div>
+  <div class="door-seam"></div>
+</div>
+
+<!-- 효과음 (소로 깃허브 업로드: ding_sound.mp3) -->
+<audio id="elevatorSfx" preload="auto" src="ding_sound.mp3"></audio>
+
+<div class="boot-hint" id="bootHint">우측 하단 ⌖ 황동판으로 층 점프 · 각 층 우측 엘리베이터 ▲▼로 한 층씩 · Ⅱ층은 음악실</div>
+<div class="version-badge">shell v4.1 · 2F 음악실 · 3F 책방</div>
+
+<script>
+const FLOORS = [
+  { n: 1, roman: 'I',   fr: 'Galerie',            kr: '미술관',          bg1:'#3a1820', bg2:'#6a2230', accent:'#c9a84c', text:'#f0ebe0', dim:'#bfa88a' },
+  { n: 2, roman: 'II',  fr: 'Chambre de Musique', kr: '음악실',          bg1:'#0a0604', bg2:'#1c130a', accent:'#d4a548', text:'#d4c5a0', dim:'#8a7654' },
+  { n: 3, roman: 'III', fr: 'Bibliothèque',       kr: '책의 방',          bg1:'#2a1410', bg2:'#4a1822', accent:'#b8884c', text:'#e8d4a0', dim:'#a07c66' },
+  { n: 4, roman: 'IV',  fr: 'Scriptorium',        kr: '기고와 한스푼',     bg1:'#d8c8a4', bg2:'#bda886', accent:'#6b5226', text:'#3a2a18', dim:'#7a6446' },
+  { n: 5, roman: 'V',   fr: 'Le Cabinet Secret',  kr: '자서전 · 비공개',   bg1:'#0c0a08', bg2:'#181210', accent:'#8a6a3a', text:'#a89878', dim:'#6b5838' },
+];
+
+/* ===== 효과음 타임라인 (소로 측정값 · 전체 4초) ===== */
+const SFX = {
+  close: 1100,   // 1.1s 철커덩(닫힘 완료)
+  ding:  1400,   // 1.4s 띵동 = 불 딸깍 점등
+  open:  2500,   // 2.5s 스르륵(열림 시작)
+  end:   3500,   // ~3.5s 문 활짝
+};
+
+let currentFloor = 1;
+let transitioning = false;
+let muted = false;
+
+const floorLayer  = document.getElementById('floorLayer');
+const floorLabel  = document.getElementById('floorLabel');
+const elevator    = document.getElementById('elevator');
+const elevatorBar = document.getElementById('elevatorBar');
+const anchor      = document.getElementById('anchor');
+const anchorBtn   = document.getElementById('anchorBtn');
+const anchorPanel = document.getElementById('anchorPanel');
+const bootHint    = document.getElementById('bootHint');
+const sfx         = document.getElementById('elevatorSfx');
+const muteToggle  = document.getElementById('muteToggle');
+
+function floorData(n) { return FLOORS.find(f => f.n === n); }
+
+function applyPalette(f) {
+  const r = document.documentElement.style;
+  r.setProperty('--floor-bg-1', f.bg1);
+  r.setProperty('--floor-bg-2', f.bg2);
+  r.setProperty('--floor-accent', f.accent);
+  r.setProperty('--floor-text', f.text);
+  r.setProperty('--floor-text-dim', f.dim);
+}
+
+/* ===== 레이어 1: 한 층 그리기 ===== */
+function renderFloor(n) {
+  const f = floorData(n);
+  applyPalette(f);
+  const upDisabled   = (n >= 5) ? 'disabled' : '';
+  const downDisabled = (n <= 1) ? 'disabled' : '';
+
+  // 층 본업 콘텐츠 (2·3층은 실내, 나머지는 플레이스홀더)
+  const body = (n === 3) ? Floor3.markup()
+    : (n === 2) ? Floor2.markup()
+    : `<div class="floor-roman">${f.roman}</div>
+       <div class="floor-name">${f.fr}</div>
+       <div class="floor-kr">${f.kr}</div>
+       <div class="floor-placeholder">콘텐츠가 들어올 곳</div>`;
+
+  floorLayer.innerHTML = `
+    <div class="floor">
+      ${body}
+      <div class="room-elevator">
+        <button class="elev-arrow" id="elevUp" ${upDisabled} aria-label="위층">▲</button>
+        <div class="grille"></div>
+        <div class="elev-label">ÉTAGE ${f.roman}</div>
+        <button class="elev-arrow" id="elevDown" ${downDisabled} aria-label="아래층">▼</button>
+      </div>
+    </div>`;
+
+  floorLabel.innerHTML = `
+    <div class="fl-name">${f.fr.toUpperCase()}</div>
+    <div class="fl-floor">ÉTAGE ${f.roman} · ${f.kr}</div>`;
+  floorLabel.style.display = (n === 2) ? 'none' : '';  // 2층은 자체 헤더가 있어 겹침 방지
+
+  const up = document.getElementById('elevUp');
+  const down = document.getElementById('elevDown');
+  if (up)   up.addEventListener('click',   () => goToFloor(n + 1));
+  if (down) down.addEventListener('click', () => goToFloor(n - 1));
+
+  if (n === 3) Floor3.mount();  // 책방 진열 활성화
+  if (n === 2) Floor2.mount();  // 감상실 활성화
+
+  renderAnchorList();
+
+  // 미니 플레이어: 층이 바뀔 때마다 도킹(2층)/미니(그 외) 갱신
+  if (window.MusicPlayer) MusicPlayer.onFloorChange(n);
+}
+
+function renderAnchorList() {
+  anchorPanel.querySelectorAll('.floor-item').forEach(el => el.remove());
+  [...FLOORS].reverse().forEach(f => {
+    const item = document.createElement('div');
+    item.className = 'floor-item' + (f.n === currentFloor ? ' current' : '');
+    item.innerHTML = `
+      <div class="fi-num">${f.roman}</div>
+      <div><div class="fi-name">${f.fr}</div><div class="fi-kr">${f.kr}</div></div>`;
+    item.addEventListener('click', () => { closeAnchor(); goToFloor(f.n); });
+    anchorPanel.appendChild(item);
+  });
+}
+
+/* ===== 상단 bar 램프 ===== */
+function buildBar() {
+  elevatorBar.innerHTML = '';
+  FLOORS.forEach(f => {
+    const lamp = document.createElement('div');
+    lamp.className = 'dial-lamp'; lamp.dataset.n = f.n; lamp.textContent = f.roman;
+    elevatorBar.appendChild(lamp);
+  });
+}
+function litLamp(n) {
+  elevatorBar.querySelectorAll('.dial-lamp').forEach(l => {
+    l.classList.toggle('lit', parseInt(l.dataset.n, 10) === n);
+  });
+}
+/* bar 실제 높이를 측정해 문 시작 위치(--door-top)에 반영 */
+function syncDoorTop() {
+  const h = elevatorBar.getBoundingClientRect().height || 0;
+  document.documentElement.style.setProperty('--door-top', h + 'px');
+}
+
+/* ===== 효과음 ===== */
+function playSfx() {
+  if (muted || !sfx) return;
+  try { sfx.currentTime = 0; sfx.play().catch(()=>{}); } catch(e){}
+}
+
+/* ============================================================
+ *  층 이동 — 4초 효과음 싱크
+ *   0    : bar 내려오며 자리잡음 + 문 닫히기 시작 + 소리 재생
+ *   1.1s : (철커덩) 문 닫힘 완료
+ *   1.4s : (띵동) 출발층 불 꺼지고 목표층 불 딸깍 점등 + 층 교체
+ *   2.5s : (스르륵) 문 열리기 시작
+ *   3.5s : 문 활짝 → bar 스르륵 올라가 사라짐
+ * ============================================================ */
+function goToFloor(target) {
+  if (transitioning) return;
+  if (target < 1 || target > 5 || target === currentFloor) return;
+  transitioning = true;
+  if (bootHint) bootHint.style.opacity = '0';
+
+  const from = currentFloor;
+
+  // bar 자리잡기 + 출발층 불 + 문 닫힘 시작 + 소리
+  syncDoorTop();
+  litLamp(from);
+  elevator.classList.add('active', 'riding', 'closing');
+  playSfx();
+
+  // 1.4s 띵동 — 목표층 불 딸깍 + 층 콘텐츠 교체 (문 닫힌 뒤라 안 보임)
+  setTimeout(() => {
+    currentFloor = target;
+    renderFloor(target);
+    syncDoorTop();
+    litLamp(target);
+  }, SFX.ding);
+
+  // 2.5s 스르륵 — 문 열림 시작
+  setTimeout(() => {
+    elevator.classList.remove('closing');
+  }, SFX.open);
+
+  // 3.5s 문 활짝 — bar 사라지고 정리
+  setTimeout(() => {
+    elevator.classList.remove('riding'); // bar 위로 사라짐
+    setTimeout(() => {
+      elevator.classList.remove('active');
+      transitioning = false;
+    }, 500);
+  }, SFX.end);
+}
+
+/* ===== 닻 ===== */
+function openAnchor()  { anchor.classList.add('open'); }
+function closeAnchor() { anchor.classList.remove('open'); }
+anchorBtn.addEventListener('click', (e) => { e.stopPropagation(); anchor.classList.toggle('open'); });
+document.addEventListener('click', (e) => { if (!anchor.contains(e.target)) closeAnchor(); });
+
+/* ===== 음소거 ===== */
+muteToggle.addEventListener('click', () => {
+  muted = !muted;
+  muteToggle.textContent = muted ? '♪̷' : '♪';
+  muteToggle.style.opacity = muted ? '0.45' : '1';
+});
+
+/* ===== 키보드 ===== */
+document.addEventListener('keydown', (e) => {
+  // 책방 모달이 열려 있으면 엘리베이터 조작 막음 (모달 자체가 ESC 처리)
+  if (document.getElementById('book-modal').classList.contains('open')) return;
+  // 3층(책방)에서 ←→ 는 진열대 넘김에 양보, ↑↓만 엘리베이터
+  if (e.key === 'ArrowUp')   { e.preventDefault(); goToFloor(currentFloor + 1); }
+  if (e.key === 'ArrowDown') { e.preventDefault(); goToFloor(currentFloor - 1); }
+  if (currentFloor === 3 && !transitioning) {
+    if (e.key === 'ArrowLeft')  Floor3.slide(-1);
+    if (e.key === 'ArrowRight') Floor3.slide(+1);
+  }
+});
+
+window.addEventListener('resize', () => {
+  if (transitioning) syncDoorTop();
+  if (window.MusicPlayer) MusicPlayer.reposition();
+});
+
+/* ============================================================
+ *  Ⅲ층 책의 방 모듈 (Floor3) — 원본 hello_books_v1.6 통합
+ *    markup()  : 층 콘텐츠 HTML 문자열 반환 (renderFloor가 삽입)
+ *    mount()   : 삽입 후 진열대·이벤트 활성화
+ *    slide(d)  : 진열대 페이지 넘김 (키보드 ←→ 연동)
+ * ============================================================ */
+const Floor3 = (() => {
+  const BOOKS = [
+    { id: '001', cover: '001.jpg', title: '월든', author: '헨리 데이비드 소로' },
+    { id: '002', cover: '002.jpg', title: '위로하는 정신', author: '슈테판 츠바이크' },
+    { id: '003', cover: '003.jpg', title: '일리아스', author: '호메로스' },
+    { id: '004', cover: '004.jpg', title: '지하로부터의 수기', author: '도스토옙스키' },
+    { id: '005', cover: '005.jpg', title: '인간의 대지', author: '생텍쥐페리' },
+    { id: '006', cover: '006.jpg', title: '미메시스', author: '에리히 아우어바흐' },
+    { id: '007', cover: '007.jpg', title: '모비 딕', author: '허먼 멜빌' },
+    { id: '008', cover: '008.jpg', title: '필경사 바틀비', author: '허먼 멜빌' },
+    { id: '009', cover: '009.jpg', title: '이처럼 사소한 것들', author: '클레어 키건' },
+    { id: '010', cover: '010.jpg', title: '잃어버린 시간을 찾아서 1', author: '마르셀 프루스트' },
+    { id: '011', cover: '011.jpg', title: '문학과 예술의 사회사', author: '아르놀트 하우저' },
+    { id: '012', cover: '012.jpg', title: '정신의 삶', author: '한나 아렌트' }
+  ];
+  const SHELF_SLOTS = [
+    { left: 40.8, top: 44.2, height: 8 },   { left: 46.9, top: 44.4, height: 9 },
+    { left: 52.9, top: 44.4, height: 9 },   { left: 59.3, top: 44.3, height: 8.5 },
+    { left: 39.9, top: 60.1, height: 11 },  { left: 46.4, top: 60.1, height: 10.5 },
+    { left: 52.4, top: 60.1, height: 10.5 },{ left: 59.7, top: 59.9, height: 8.5 },
+    { left: 39.0, top: 78.6, height: 14 },  { left: 46.1, top: 78.5, height: 14 },
+    { left: 53.1, top: 78.5, height: 14 },  { left: 60.3, top: 78.4, height: 14 }
+  ];
+  const PAGES = [
+    BOOKS.map((b, i) => ({ book: b, slot: SHELF_SLOTS[i] })),
+    [...BOOKS].reverse().map((b, i) => ({ book: b, slot: SHELF_SLOTS[i] })),
+    BOOKS.map((b, i) => ({ book: BOOKS[(i + 5) % 12], slot: SHELF_SLOTS[i] }))
+  ];
+  const OPINIONS = {
+    '012': {
+      title: '정신의 삶', author: '한나 아렌트',
+      spreads: [
+        { chapter: 'Ⅰ', title: '책상 위에 남은 한 단어',
+          left: ['1975년 12월 4일, 한나 아렌트는 뉴욕의 자기 아파트에서 친구들과 저녁을 먹다가 갑자기 의자에서 미끄러져 죽었다. 일흔의 나이였다.','그녀의 책상 위에는 타자기에 끼워진 종이 한 장이 놓여 있었다. 그 종이의 제목은 단 한 단어, "Judging(판단)"이었다.'],
+          right: ['아렌트가 평생 쓰고자 했던 마지막 책 『정신의 삶』은 세 권으로 기획되어 있었다. 사유(Thinking), 의지(Willing), 그리고 판단(Judging). 앞의 두 권은 완성했지만, 세 번째 권은 그 한 단어에서 멈췄다.','나는 이 책을 어머니가 돌아가시고 한 달쯤 지났을 때 처음 펼쳤다. 그때 나는 무언가를 이해하고 싶었다 — 죽음의 직전까지 사유한다는 것이 도대체 무엇인지를.'] },
+        { chapter: 'Ⅱ', title: '아이히만, 그리고 비어 있는 사람',
+          left: ['아렌트가 이 책을 쓰기 시작한 계기는 1961년 예루살렘의 아이히만 재판이었다.','그녀는 그곳에서 한 평범한 남자를 보았다. 수백만의 죽음에 책임이 있는 그 남자는, 자기가 무엇을 하고 있는지 생각하지 않았다. 명령에 따랐을 뿐이라고 그는 말했다.'],
+          right: ['"악의 평범성." 아렌트가 만든 이 말이 세계를 충격에 빠뜨렸다.','악은 흉포한 괴물의 모습으로 오지 않는다. 그것은 사유하지 않는 사람의 일상으로 온다. 아이히만은 악마가 아니라, 그저 비어 있는 사람이었다.','그래서 아렌트는 물었다. 사유한다는 것은 도대체 무엇인가. 그것이 우리를 악으로부터 지켜줄 수 있는가.'] },
+        { chapter: 'Ⅲ', title: '나와 나 자신 사이의 대화',
+          left: ['아렌트는 소크라테스로 돌아간다. 사유란 "나와 나 자신 사이의 소리 없는 대화"다.','혼자 있을 때, 나는 결코 혼자가 아니다. 내 안에 또 다른 내가 있고, 그 둘이 끊임없이 말을 주고받는다.'],
+          right: ['소크라테스는 이렇게 말했다. 나쁜 일을 하느니 차라리 당하는 편이 낫다. 왜냐하면 나는 매일 밤 나 자신과 마주 앉아야 하기 때문이다. 살인을 저지른 자와 함께 잠자리에 드는 것은 견딜 수 없다.','이 내적 대화가 깨지면, 인간은 "두 사람"이기를 그만둔다. 그저 하나의 명령 수행자가 된다. 사유하지 않는 사람은 자기 자신과의 대화를 잃어버린 사람이다.'] },
+        { chapter: 'Ⅳ', title: '의지 — 새로 시작할 수 있는 능력',
+          left: ['두 번째 권 "의지"에서 아렌트는 더 깊은 곳으로 간다.','인간은 새로 시작할 수 있는 존재다. 과거에 매이지 않고, 어느 순간 결단을 내려 새로운 일을 시작할 수 있다. 이것이 자유의 본질이다.'],
+          right: ['아우구스티누스를 인용하며 아렌트는 말한다. "시작이 있도록, 인간이 창조되었다." 인간 한 사람 한 사람이 태어나는 것 자체가 세계에 새로움이 들어오는 사건이다.','이 개념이 내게는 위로였다. 죽음을 향해 가는 존재가 아니라, 시작할 수 있는 존재로 인간을 본다는 것. 어머니가 떠난 자리에서, 무엇인가를 새로 시작할 수 있다는 가능성.'] },
+        { chapter: 'Ⅴ', title: '쓰이지 못한 마지막 책',
+          left: ['세 번째 책 "판단"은 영영 미완으로 남았다.','그러나 어떤 의미에서는 그것이 이 책의 가장 깊은 가르침일지도 모른다. 판단은 보편적 규칙으로부터 연역되지 않는다.'],
+          right: ['매번의 상황에서, 매번의 한 사람이, 자기 자신의 양심으로 지금 여기를 판단해야 한다. 그래서 판단은 책으로 쓸 수 없다. 살아내야만 한다.','아렌트는 죽기 전 강의 노트에서 칸트로부터 출발하려 했다. 미적 취향처럼 윤리적 판단도 공감의 확장에서 온다고. 다른 사람의 자리에 자기를 놓아보는 능력 — 그것이 판단의 토대다.'] },
+        { chapter: 'Ⅵ', title: '왜 나는 이 책을 사랑하는가',
+          left: ['나는 이 책을 1년에 한 번씩 꺼내 읽는다. 매번 다른 장이 다르게 다가온다.','아렌트는 학자였지만, 동시에 살아남은 사람이었다. 1933년 독일을 떠나야 했고, 게슈타포에 체포되었다 풀려났고, 프랑스 수용소에 갇혔다가 탈출했고, 미국으로 도망쳤다.'],
+          right: ['그녀가 사유에 대해 쓸 때, 그것은 책상 위의 추상이 아니었다. 20세기가 가장 광기 어린 시대로 흘러갈 때, 한 여자가 책상 앞에서 나와 나 자신의 대화를 지키려 했다.','그 대화의 흔적이 이 책이다. 이 책은 끝나지 않았다. "Judging"이라는 한 단어 앞에서 멈춰 있다. 우리가 끝낼 차례다.'],
+          signature: true }
+      ]
+    }
+  };
+  function getDefaultOpinion(book) {
+    return { title: book.title, author: book.author, spreads: [{
+      chapter: '', title: book.title,
+      left: [`여기에 ${book.author}의 『${book.title}』에 대한 오피니언이 들어갑니다.`, '이 자리는 콩파뇽이 책에 대한 자기 글을 쓰는 곳입니다.'],
+      right: ['책과 자기 인생의 만남, 한 책을 사랑하는 이유, 어떤 시기에 어떻게 다가왔는지.', '베타에서는 한나 아렌트의 『정신의 삶』(좌측 맨 아래)만 진짜 오피니언이 들어가 있어요.']
+    }] };
+  }
+
+  let currentShelfPage = 0;
+  let isTransitioning = false;
+  let soundEnabled = true;
+
+  function markup() {
+    return `
+      <div class="floor-content" data-floor="3">
+        <div class="stage">
+          <div class="room" id="bk-room">
+            <div class="pendant-sway"><div class="pendant-glow"></div></div>
+            <div class="dust dust-1"></div><div class="dust dust-2"></div>
+            <div class="dust dust-3"></div><div class="dust dust-4"></div><div class="dust dust-5"></div>
+            <div class="cover-stack" id="bk-cover-stack"></div>
+          </div>
+        </div>
+        <button class="bk-nav-arrow bk-nav-left" id="bk-prev">‹</button>
+        <button class="bk-nav-arrow bk-nav-right" id="bk-next">›</button>
+        <div class="bk-dots" id="bk-dots"></div>
+        <div class="bk-hint">책을 클릭해 펼쳐보세요</div>
+      </div>`;
+  }
+
+  function mount() {
+    currentShelfPage = 0; isTransitioning = false;
+    buildShelfPages();
+    buildDots();
+    document.getElementById('bk-prev').addEventListener('click', () => slide(-1));
+    document.getElementById('bk-next').addEventListener('click', () => slide(+1));
+  }
+
+  function buildShelfPages() {
+    const stack = document.getElementById('bk-cover-stack');
+    stack.innerHTML = '';
+    PAGES.forEach((pageData, idx) => {
+      const page = document.createElement('div');
+      page.className = 'cover-page' + (idx === 0 ? ' active' : '');
+      pageData.forEach(({ book, slot }) => {
+        const el = document.createElement('div');
+        el.className = 'cover-book';
+        el.style.left = slot.left + '%'; el.style.top = slot.top + '%'; el.style.height = slot.height + '%';
+        el.innerHTML = `<img src="${book.cover}" alt="${book.title}" title="${book.title} · ${book.author}">`;
+        el.addEventListener('click', () => openBook(book));
+        page.appendChild(el);
+      });
+      stack.appendChild(page);
+    });
+  }
+  function buildDots() {
+    const dots = document.getElementById('bk-dots');
+    dots.innerHTML = '';
+    for (let i = 0; i < PAGES.length; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'bk-dot' + (i === 0 ? ' active' : '');
+      dot.addEventListener('click', () => transitionTo(i));
+      dots.appendChild(dot);
+    }
+  }
+  function transitionTo(idx) {
+    if (isTransitioning || idx === currentShelfPage) return;
+    isTransitioning = true;
+    const pages = document.querySelectorAll('.floor-content[data-floor="3"] .cover-page');
+    if (!pages.length) { isTransitioning = false; return; }
+    pages[currentShelfPage].classList.remove('active');
+    pages[idx].classList.add('active');
+    currentShelfPage = idx;
+    document.querySelectorAll('.floor-content[data-floor="3"] .bk-dot').forEach((d, i) => d.classList.toggle('active', i === currentShelfPage));
+    setTimeout(() => { isTransitioning = false; }, 600);
+  }
+  function slide(direction) {
+    if (currentFloor !== 3) return;
+    transitionTo((currentShelfPage + direction + PAGES.length) % PAGES.length);
+  }
+
+  /* === FlipBook 모달 (body의 #book-modal 재사용) === */
+  const modal = document.getElementById('book-modal');
+  const flipSound = document.getElementById('page-flip-sound');
+
+  function playFlipSound() {
+    if (!soundEnabled || muted) return;
+    flipSound.currentTime = 0; flipSound.volume = 0.5;
+    flipSound.play().catch(() => {});
+  }
+  function openBook(book) {
+    const opinion = OPINIONS[book.id] || getDefaultOpinion(book);
+    buildFlipbook(book, opinion);
+    modal.classList.add('open');
+  }
+  function closeBook() {
+    modal.classList.remove('open');
+    setTimeout(() => { const b = modal.querySelector('.book'); if (b) b.remove(); }, 500);
+  }
+  function buildFlipbook(book, opinion) {
+    const old = modal.querySelector('.book'); if (old) old.remove();
+    const bookEl = document.createElement('div'); bookEl.className = 'book';
+    const spreads = opinion.spreads;
+    bookEl.appendChild(buildPageEl(makeCoverHtml(book), makeLeftPageHtml(spreads[0])));
+    spreads.forEach((spread, i) => {
+      const isLast = i === spreads.length - 1;
+      bookEl.appendChild(buildPageEl(makeRightPageHtml(spread), isLast ? makeEndHtml(opinion) : makeLeftPageHtml(spreads[i + 1])));
+    });
+    modal.insertBefore(bookEl, modal.firstChild);
+    bookEl.style.setProperty('--c', 0);
+    bookEl.querySelectorAll('.page').forEach((page, idx) => {
+      page.style.setProperty('--i', idx);
+      page.addEventListener('click', (evt) => {
+        if (evt.target.closest('a')) return;
+        const curr = evt.target.closest('.back') ? idx : idx + 1;
+        const prev = parseInt(bookEl.style.getPropertyValue('--c')) || 0;
+        bookEl.style.setProperty('--c', curr);
+        if (curr !== prev) playFlipSound();
+      });
+    });
+  }
+  function buildPageEl(frontHtml, backHtml) {
+    const page = document.createElement('div'); page.className = 'page';
+    page.innerHTML = frontHtml + backHtml; return page;
+  }
+  function makeCoverHtml(book) { return `<div class="front cover"><div class="cover-bg" style="background-image:url('${book.cover}')"></div></div>`; }
+  function makeLeftPageHtml(spread) {
+    const ps = spread.left.map(p => `<p>${p}</p>`).join('');
+    const ch = spread.chapter ? `<div class="chapter-mark">${spread.chapter}</div>` : '';
+    return `<div class="back"><div class="page-content">${ch}<h2>${spread.title}</h2>${ps}</div></div>`;
+  }
+  function makeRightPageHtml(spread) {
+    const ps = spread.right.map(p => `<p>${p}</p>`).join('');
+    const sig = spread.signature ? `<div class="author-line">— 한 콩파뇽의 글</div>` : '';
+    return `<div class="front"><div class="page-content">${ps}${sig}</div></div>`;
+  }
+  function makeEndHtml(opinion) {
+    return `<div class="back cover" style="background:#faf7f0;color:#2a1810"><div class="page-end"><h2>— 끝 —</h2><p class="author">${opinion.author}</p><p class="book-title">『${opinion.title}』</p></div></div>`;
+  }
+
+  // 모달 닫기 (한 번만 바인딩)
+  document.getElementById('modal-close').addEventListener('click', closeBook);
+  modal.addEventListener('click', (e) => { if (e.target === modal) closeBook(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.classList.contains('open')) closeBook();
+  });
+
+  return { markup, mount, slide };
+})();
+
+/* ============================================================
+ *  Ⅱ층 음악의 방 모듈 (Floor2) — 원본 music_room.html(감상실) 통합
+ *    markup() : 무대 HTML (벽=도킹 타겟, iframe 없음) + 명패 + 마리 메모
+ *    mount()  : 배경 적용 · 곡 토글 · 🎲 · 음반 고르기 바인딩
+ *  유튜브는 MusicPlayer(단일 iframe)가 .ms-wall에 도킹.
+ * ============================================================ */
+const Floor2 = (() => {
+  const TUBE_KEYS = ['L1','L2','C1','C2','C3','R1','R2'];
+  // 배경 컬렉션 — 좌표는 소로가 F12로 잡은 원본 그대로
+  const BACKGROUNDS = [
+    { id:'vintage', name:'빈티지 유럽 음악감상실', image:'music_room_bg.png',
+      screen:{left:25,top:5,width:50,height:57},
+      tubes:{ L1:{left:40.2,top:68.5}, L2:{left:42.2,top:68.5}, C1:{left:44.8,top:67.5}, C2:{left:48.2,top:68.5}, C3:{left:51.6,top:67.5}, R1:{left:54.8,top:69.5}, R2:{left:56.7,top:69.5} },
+      vu:{ left:{left:42.9,top:75.3}, right:{left:53.2,top:75.3} },
+      style:{ tubeColor:'#ff8c32', tubeSize:2.4, tubeSpeed:3.0, needleColor:'#1a1a0a', vuRange:12 } },
+    { id:'japanese-minimal', name:'일본 다실 · 와비사비', image:'japanese_minimal.png',
+      screen:{left:24.8,top:20.8,width:42.8,height:46.2},
+      tubes:{ L1:{left:39.7,top:75.6}, L2:{left:42.7,top:75.7}, C1:{left:45.3,top:75.1}, C2:{left:48.2,top:75.3}, C3:{left:51.1,top:75.4}, R1:{left:53.9,top:75.2}, R2:{left:57.0,top:75.4} },
+      vu:{ left:{left:45.6,top:82.5}, right:{left:51.3,top:82.5} },
+      style:{ tubeColor:'#ff8c32', tubeSize:3.6, tubeSpeed:3.8, needleColor:'#0c063c', vuRange:30 } }
+  ];
+  let currentBgIndex = -1;
+
+  function hexToRgba(hex,a){ const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16); return `rgba(${r},${g},${b},${a})`; }
+
+  function markup(){
+    const tubes = TUBE_KEYS.map(k=>`<div class="ms-tube" id="ms-tube-${k}"></div>`).join('');
+    return `
+      <div class="floor-content" data-floor="2">
+        <div class="ms-top">
+          <div class="ms-eyebrow">CHAMBRE DE MUSIQUE · 음악실</div>
+          <div class="ms-room-name" id="ms-room-name">— 음악실 입장 중 —</div>
+          <div class="ms-tools">
+            <button class="ms-shuffle" id="ms-shuffle">🎲 다른 음악실로</button>
+            <button class="ms-crate" id="ms-crate">♪ 음반 고르기</button>
+          </div>
+          <div class="ms-track-row">
+            <button class="ms-track active" data-track="0"><div class="tn">TRACK 01</div><div class="tt">Mozart · Requiem K. 626</div></button>
+            <button class="ms-track" data-track="1"><div class="tn">TRACK 02</div><div class="tt">Mahler · Symphony No. 1 "Titan"</div></button>
+          </div>
+        </div>
+        <div class="ms-stage">
+          <div class="ms-room" id="ms-room">
+            <div class="ms-wall" id="ms-wall"></div>
+            ${tubes}
+            <div class="ms-vu" id="ms-vu-left"><svg viewBox="0 0 100 50"><path class="ms-needle" d="M 50 48 L 50 8"/></svg></div>
+            <div class="ms-vu" id="ms-vu-right"><svg viewBox="0 0 100 50"><path class="ms-needle" d="M 50 48 L 50 8"/></svg></div>
+          </div>
+        </div>
+        <div class="ms-info">
+          <div class="ms-plate">
+            <span class="pt" id="ms-plate-title">Wolfgang Amadeus Mozart</span>
+            <span class="pc" id="ms-plate-cat">REQUIEM IN D MINOR · K. 626</span>
+            <span class="pm" id="ms-plate-meta">1791 · 미완성 유작</span>
+          </div>
+          <button class="ms-note-btn" id="ms-note-btn">✎ 마리의 노트</button>
+        </div>
+        <div class="ms-note-sheet" id="ms-note-sheet">
+          <button class="sheet-close" id="ms-sheet-close" aria-label="닫기">×</button>
+          <div class="nl">CURATOR'S NOTE</div>
+          <div class="nb" id="ms-note-body"></div>
+          <div class="ns">— 큐레이터 마리 (Maria)</div>
+        </div>
+      </div>`;
+  }
+
+  function applyBackground(bg){
+    const room = document.getElementById('ms-room');
+    if(!room) return;
+    room.style.backgroundImage = `url('${bg.image}')`;
+    document.getElementById('ms-room-name').textContent = `— ${bg.name} —`;
+    const wall = document.getElementById('ms-wall');
+    wall.style.left=bg.screen.left+'%'; wall.style.top=bg.screen.top+'%';
+    wall.style.width=bg.screen.width+'%'; wall.style.height=bg.screen.height+'%';
+    const c1=hexToRgba(bg.style.tubeColor,.95), c2=hexToRgba(bg.style.tubeColor,.7), c3=hexToRgba(bg.style.tubeColor,.35), c4=hexToRgba(bg.style.tubeColor,.1);
+    TUBE_KEYS.forEach((k,idx)=>{
+      const el=document.getElementById('ms-tube-'+k); const pos=bg.tubes[k];
+      el.style.left=pos.left+'%'; el.style.top=pos.top+'%'; el.style.width=bg.style.tubeSize+'%';
+      el.style.animation=`ms-flicker ${bg.style.tubeSpeed+idx*0.15}s ease-in-out infinite ${idx*0.2}s`;
+      el.style.setProperty('--tc1',c1); el.style.setProperty('--tc2',c2); el.style.setProperty('--tc3',c3); el.style.setProperty('--tc4',c4);
+    });
+    const vl=document.getElementById('ms-vu-left'), vr=document.getElementById('ms-vu-right');
+    vl.style.left=bg.vu.left.left+'%'; vl.style.top=bg.vu.left.top+'%';
+    vr.style.left=bg.vu.right.left+'%'; vr.style.top=bg.vu.right.top+'%';
+    document.querySelectorAll('.floor-content[data-floor="2"] .ms-needle').forEach((n,idx)=>{
+      n.style.stroke=bg.style.needleColor;
+      n.style.animation=`ms-vu-swing ${1.7+idx*0.4}s ease-in-out infinite ${idx*0.3}s`;
+    });
+    document.documentElement.style.setProperty('--ms-vu-range', bg.style.vuRange+'deg');
+    // 벽 위치 바뀌었으니 도킹 좌표 재측정
+    if(window.MusicPlayer) MusicPlayer.reposition();
+  }
+
+  function randomBackground(){
+    let idx;
+    if(BACKGROUNDS.length>1){ do{ idx=Math.floor(Math.random()*BACKGROUNDS.length); }while(idx===currentBgIndex); } else idx=0;
+    currentBgIndex=idx; applyBackground(BACKGROUNDS[idx]);
+  }
+
+  function wallRect(){ const w=document.getElementById('ms-wall'); return w?w.getBoundingClientRect():null; }
+
+  function mount(){
+    randomBackground();
+    document.querySelectorAll('.floor-content[data-floor="2"] .ms-track').forEach(btn=>{
+      btn.addEventListener('click',()=> MusicPlayer.play(parseInt(btn.dataset.track,10)));
+    });
+    MusicPlayer.syncMeta();
+    document.getElementById('ms-shuffle').addEventListener('click', randomBackground);
+    document.getElementById('ms-crate').addEventListener('click', ()=> showToast('음반 서고는 다음 단계에서 문을 엽니다'));
+    // 마리의 노트 시트
+    const sheet=document.getElementById('ms-note-sheet');
+    document.getElementById('ms-note-btn').addEventListener('click', ()=> sheet.classList.add('open'));
+    document.getElementById('ms-sheet-close').addEventListener('click', ()=> sheet.classList.remove('open'));
+  }
+
+  return { markup, mount, wallRect };
+})();
+
+/* ============================================================
+ *  음악 미니 플레이어 (MusicPlayer) — 단일 iframe, 층 넘어도 안 끊김
+ *    play(i)         : 곡 선택·재생 (사용자 클릭 후 autoplay)
+ *    onFloorChange(n): 2층=도킹 / 그 외=좌하단 미니 (started 후)
+ *    setState(s)     : dock | mini | folded
+ *    reposition()    : 현재 상태에 맞는 위치·크기 재계산
+ * ============================================================ */
+const MusicPlayer = (() => {
+  const COLLECTION = [
+    { videoId:'FKGjVMIALJo', startSeconds:0,
+      plateCat:'REQUIEM IN D MINOR · K. 626', plateTitle:'Wolfgang Amadeus Mozart',
+      plateMeta:'1791 · 미완성 유작 · Minoritenkirche',
+      note:`모차르트가 죽음의 문턱에서 받아 든 의뢰.<br>검은 옷의 낯선 사내가 두고 간 악보 위로 그는 자신의 진혼곡을 써 내려갔다. <span style="font-style:italic">Lacrimosa</span>의 여덟 마디에서 펜이 멈췄을 때, 그는 서른다섯이었다.`,
+      pill:'Mozart · Requiem' },
+    { videoId:'2tAS9WxucBU', startSeconds:20,
+      plateCat:'SYMPHONY NO. 1 · "TITAN"', plateTitle:'Gustav Mahler',
+      plateMeta:'1888 · Karina Canellakis · PMF Orchestra',
+      note:`스물일곱 청년 말러가 라이프치히의 한 방에서 사랑에 빠졌다.<br>이루어질 수 없는 사랑, 그 좌절과 환희, 자연의 황홀과 죽음의 그림자가 첫 교향곡이 되었다. 장 파울의 소설 <span style="font-style:italic">「거인」</span>에서 빌려온 이름 — 그러나 거인은 신화 속 영웅이 아니라 자기 운명과 싸우는 한 인간이었다.`,
+      pill:'Mahler · Titan' }
+  ];
+
+  const player   = document.getElementById('musicPlayer');
+  const iframe   = document.getElementById('mpIframe');
+  const pillText = document.getElementById('mpPillText');
+
+  let trackIdx = 0, started = false, state = 'mini', loadedIdx = -1;
+
+  function currentTrack(){ return trackIdx; }
+  function buildSrc(idx, autoplay){
+    const t=COLLECTION[idx];
+    const start=t.startSeconds>0?`&start=${t.startSeconds}`:'';
+    const ap=autoplay?'&autoplay=1':'';
+    return `https://www.youtube-nocookie.com/embed/${t.videoId}?rel=0&modestbranding=1&playsinline=1${start}${ap}`;
+  }
+
+  function syncMeta(){
+    const cat=document.getElementById('ms-plate-cat'); if(!cat) return; // 2층 아닐 때
+    const t=COLLECTION[trackIdx];
+    cat.textContent=t.plateCat;
+    document.getElementById('ms-plate-title').textContent=t.plateTitle;
+    document.getElementById('ms-plate-meta').textContent=t.plateMeta;
+    document.getElementById('ms-note-body').innerHTML=t.note;
+    document.querySelectorAll('.floor-content[data-floor="2"] .ms-track').forEach((b,i)=>b.classList.toggle('active', i===trackIdx));
+  }
+
+  function play(idx){
+    trackIdx=idx; started=true;
+    player.classList.remove('hidden','priming');
+    iframe.src=buildSrc(idx,true); loadedIdx=idx;
+    pillText.textContent=COLLECTION[idx].pill;
+    syncMeta();
+    setState(currentFloor===2 ? 'dock' : 'mini');
+  }
+
+  // 2층 첫 진입: 자동재생 없이 썸네일만 도킹 + "눌러 시작" (강요 없음)
+  function primeIfNeeded(){
+    if(started) return;
+    player.classList.remove('hidden');
+    if(loadedIdx!==trackIdx){ iframe.src=buildSrc(trackIdx,false); loadedIdx=trackIdx; }
+    player.classList.add('priming');
+    pillText.textContent=COLLECTION[trackIdx].pill;
+  }
+
+  function setState(next){
+    state=next;
+    player.classList.remove('dock','mini','folded');
+    player.classList.add(next);
+    reposition();
+  }
+
+  function reposition(){
+    if(player.classList.contains('hidden')) return;
+    if(state==='folded'){
+      player.style.left='22px'; player.style.top='auto'; player.style.bottom='26px';
+      player.style.width='auto'; player.style.height='auto'; return;
+    }
+    player.style.bottom='auto';
+    if(state==='dock'){
+      const r=Floor2.wallRect();
+      if(r){ player.style.left=r.left+'px'; player.style.top=r.top+'px'; player.style.width=r.width+'px'; player.style.height=r.height+'px'; }
+    } else { // mini
+      const w=Math.min(320, Math.max(220, window.innerWidth*0.42));
+      const h=w*9/16;
+      player.style.left='22px'; player.style.top=(window.innerHeight-h-26)+'px';
+      player.style.width=w+'px'; player.style.height=h+'px';
+    }
+  }
+
+  function onFloorChange(n){
+    if(n===2){
+      primeIfNeeded();
+      if(!player.classList.contains('hidden')){
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{ setState('dock'); syncMeta(); }));
+      }
+    } else {
+      // 2층을 떠날 때
+      if(started){
+        // 이미 재생 중 → 좌하단 미니로 따라오게 (접어둔 경우는 그대로)
+        if(state!=='folded' && !player.classList.contains('hidden')) setState('mini');
+      } else {
+        // 아직 한 번도 재생 안 함(prime 썸네일만) → 영상을 거둠
+        player.classList.add('hidden');
+        player.classList.remove('priming');
+      }
+    }
+  }
+
+  // 버튼
+  document.getElementById('mpPrime').addEventListener('click', ()=> play(trackIdx));
+  document.getElementById('mpReturn').addEventListener('click', ()=>{ if(currentFloor!==2) goToFloor(2); else setState('dock'); });
+  document.getElementById('mpFold').addEventListener('click', ()=> setState('folded'));
+  document.getElementById('mpPill').addEventListener('click', ()=> setState(currentFloor===2 ? 'dock' : 'mini'));
+
+  return { play, primeIfNeeded, setState, reposition, onFloorChange, syncMeta, currentTrack };
+})();
+window.MusicPlayer = MusicPlayer;
+
+/* 토스트 헬퍼 */
+let _toastTimer=null;
+function showToast(msg){
+  const t=document.getElementById('msToast'); if(!t) return;
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(_toastTimer); _toastTimer=setTimeout(()=>t.classList.remove('show'),2000);
+}
+
+/* ===== 첫 진입 ===== */
+buildBar();
+renderFloor(1);
+</script>
+
+</body>
+</html>
