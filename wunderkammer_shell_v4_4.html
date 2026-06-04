@@ -891,7 +891,7 @@ html, body {
 <audio id="elevatorSfx" preload="auto" src="ding_sound.mp3"></audio>
 
 <div class="boot-hint" id="bootHint">우측 하단 ⌖ 황동판으로 층 점프 · 각 층 우측 엘리베이터 ▲▼로 한 층씩 · Ⅱ층은 음악실</div>
-<div class="version-badge">shell v4.4 · 2F 음악관+인물벽 90° · 3F 책방</div>
+<div class="version-badge">shell v4.4a · 2F 음악관+인물벽 90° · 3F 책방</div>
 
 <script>
 const FLOORS = [
@@ -1444,7 +1444,21 @@ const Floor2 = (() => {
       document.getElementById('ms-room-name').textContent =
         currentBgIndex >= 0 ? `— ${BACKGROUNDS[currentBgIndex].name} —` : '— 음악실 입장 중 —';
       btn.textContent = '✦ 나의 별들';
-      if(window.MusicPlayer) MusicPlayer.onFloorChange(2);  // 도킹·프라임 복원
+      // ⚠️ 도킹은 회전이 다 끝난 뒤에 — 회전 중 벽 좌표를 재면 세로 띠처럼 좁게 잡힘
+      const room = document.getElementById('ms-room');
+      let docked = false;
+      const dock = ()=>{
+        if(docked || turned) return;          // 그새 다시 돌렸으면 도킹 안 함
+        docked = true;
+        if(window.MusicPlayer) MusicPlayer.onFloorChange(2);  // 도킹·프라임 복원
+      };
+      const onEnd = (ev)=>{
+        if(ev.propertyName !== 'transform') return;
+        room.removeEventListener('transitionend', onEnd);
+        dock();
+      };
+      room.addEventListener('transitionend', onEnd);
+      setTimeout(dock, 950);                   // transitionend 불발 대비 안전망
     }
   }
   function turnBack(){ if(turned) turnWall(); }
