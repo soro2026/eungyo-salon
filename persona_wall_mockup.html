@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EG Persona Wall · 인물 벽 목업</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: #0e0a06;
+    font-family: 'Cormorant Garamond', 'Noto Serif KR', Georgia, serif;
+    color: #e8d9b0; user-select: none;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 12px;
+  }
+
+  /* 상단 안내 (목업용) */
+  .mock-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: center; gap: 18px;
+    padding: 12px; background: linear-gradient(180deg, rgba(14,10,6,.9), transparent);
+    font-size: 12px; letter-spacing: 2px; color: #8a7654;
+  }
+  .mock-bar button {
+    background: rgba(40,28,16,.6); border: 1px solid #4a3a22; color: #d4c5a0;
+    font-family: inherit; font-size: 12px; letter-spacing: 1px; padding: 6px 14px;
+    border-radius: 3px; cursor: pointer; transition: all .2s;
+  }
+  .mock-bar button:hover { border-color: #8a7654; color: #e8d9b0; }
+
+  /* ── 무대: 음악실과 같은 1672/941 ── */
+  .stage { width: 100%; max-width: min(1400px, 96vw); display: grid; place-items: center; }
+  .wall {
+    position: relative; width: 100%; aspect-ratio: 1672/941;
+    background-image: url('star_wall_musicroom.png');
+    background-size: cover; background-position: center;
+    box-shadow: 0 30px 80px rgba(0,0,0,.7);
+    overflow: hidden;
+  }
+
+  /* ── 인물 액자 ── */
+  .frame {
+    position: absolute;
+    background: #f4ecd8;
+    padding: 2.2% 2.2% 5.5%;          /* 아래쪽 여백 큼 = 사진 명판 자리 */
+    box-shadow:
+      0 1px 1px rgba(0,0,0,.2),
+      var(--drop);                      /* 기울기 따라 그림자 방향 다르게(JS) */
+    cursor: pointer;
+    transition: transform .35s cubic-bezier(.34,1.4,.5,1), box-shadow .35s, filter .35s;
+    transform: rotate(var(--rot)) translateZ(0);
+    transform-origin: center center;
+  }
+  .frame .photo {
+    width: 100%; aspect-ratio: 3/3.6; object-fit: cover; display: block;
+    filter: grayscale(1) contrast(1.05) sepia(.12) brightness(.96);
+    background: #2a2018;
+  }
+  .frame .plate {
+    position: absolute; left: 0; right: 0; bottom: 1.4%;
+    text-align: center; font-size: clamp(7px, .85vw, 11px);
+    letter-spacing: .5px; color: #4a3a26; font-style: italic;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 6%;
+  }
+  .frame:hover {
+    transform: rotate(0deg) scale(1.06);
+    box-shadow: 0 18px 40px rgba(0,0,0,.55);
+    filter: brightness(1.06);
+    z-index: 200 !important;
+  }
+  /* 액자 안쪽 미세한 마운트 라인 */
+  .frame::after {
+    content: ''; position: absolute; inset: 2.2% 2.2% 5.5%;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.12);
+    pointer-events: none;
+  }
+
+  /* ── 안내 액자 (MES ÉTOILES 포스터 · 늘 한 장, 콘스텔라티오로 가는 문) ── */
+  .frame.guide { padding: 1.8%; }            /* 포스터는 명판 없음 → 아래 여백 축소 */
+  .frame.guide .photo {
+    aspect-ratio: 1145/1374; filter: none;   /* 포스터는 흑백 처리 안 함 */
+  }
+  .frame.guide::after { inset: 1.8%; }
+  .frame.guide .hint {
+    position: absolute; left: 50%; bottom: -34px; transform: translateX(-50%) translateY(4px);
+    white-space: nowrap; font-size: 11px; letter-spacing: 2px; color: #d4a548;
+    opacity: 0; transition: all .3s; pointer-events: none; font-style: italic;
+  }
+  .frame.guide:hover .hint { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .frame.guide:hover {
+    box-shadow: 0 18px 44px rgba(0,0,0,.55), 0 0 30px rgba(212,165,72,.35);  /* 호버 시 호박빛 글로우 */
+  }
+
+  /* 캡션 */
+  .caption {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    text-align: center; color: #6b5838; font-size: 12px; letter-spacing: 2px;
+  }
+  .caption .t { font-size: 15px; color: #b8a880; font-style: italic; letter-spacing: 3px; }
+</style>
+</head>
+<body>
+
+<div class="mock-bar">
+  <span>PERSONA WALL · 인물 벽 목업</span>
+  <button id="reseedBtn">다른 콩파뇽 벽 (시드 변경)</button>
+  <button id="countBtn">액자 수: <span id="countLabel">12</span></button>
+  <button id="emptyBtn">빈 벽 (첫 화면)</button>
+</div>
+
+<div class="stage">
+  <div class="wall" id="wall"></div>
+</div>
+
+<div class="caption">
+  <div class="t">MES PERSONNES — 내가 사랑한 사람들</div>
+  <div>셰익스피어 앤 컴퍼니의 벽처럼 · 별 id 시드 고정 배치</div>
+</div>
+
+<script>
+  // ── 더미 인물 (실제론 stars.photo_url · field=음악) ──
+  const PEOPLE = [
+    'Wolfgang Amadeus Mozart','Gustav Mahler','Ludwig van Beethoven','Johann Sebastian Bach',
+    'Claude Debussy','Frédéric Chopin','Pyotr Tchaikovsky','Maria Callas',
+    'Glenn Gould','Jacqueline du Pré','Arturo Toscanini','Clara Schumann',
+    'Franz Schubert','Antonín Dvořák','Sergei Rachmaninoff','Hildegard von Bingen'
+  ];
+  // placeholder 초상 (흑백 인물 — picsum 고정 시드)
+  function portrait(seed){ return `https://picsum.photos/seed/persona${seed}/300/360`; }
+
+  // ── 시드 고정 랜덤 (mulberry32) ──
+  function mulberry32(a){
+    return function(){
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  let starSeed = 183;   // 콩파뇽이 품은 별 id (예: 북극성 183)
+  let frameCount = 12;
+
+  const wall = document.getElementById('wall');
+
+  // 액자 배치: 위쪽 빈 벽 영역(책 선반 위)에 흩뿌림 + 살짝 겹침
+  function buildWall(){
+    wall.innerHTML = '';
+    const rnd = mulberry32(starSeed);
+    // 배치 영역(%): 좌우 4~92, 상하 5~74 (맨아래 책선반 26% 비움)
+    const AX0=4, AX1=92, AY0=5, AY1=74;
+    const placed = [];
+
+    for(let i=0; i<frameCount; i++){
+      const person = PEOPLE[i % PEOPLE.length];
+      // 크기 4단계 (제각각)
+      const sizeTier = [8.5, 10.5, 12.5, 15][Math.floor(rnd()*4)];
+      const w = sizeTier;                       // 가로 %
+      // 위치: 약간의 격자 흩뿌림 + 지터
+      const cols = 5, rows = Math.ceil(frameCount/cols);
+      const col = i % cols, row = Math.floor(i/cols);
+      const cellW = (AX1-AX0)/cols, cellH = (AY1-AY0)/rows;
+      const jx = (rnd()-.5) * cellW * .7;
+      const jy = (rnd()-.5) * cellH * .7;
+      let cx = AX0 + cellW*(col+.5) + jx;
+      let cy = AY0 + cellH*(row+.5) + jy;
+      const left = Math.max(AX0, Math.min(AX1-w, cx - w/2));
+      const top  = Math.max(AY0, cy - w/2);
+      const rot = (rnd()-.5) * 8;               // ±4°
+      // 그림자 방향: 기울기 반대편으로 살짝
+      const dropX = -Math.sin(rot*Math.PI/180)*8;
+      const drop = `${dropX}px 10px 22px rgba(0,0,0,.5)`;
+
+      const f = document.createElement('div');
+      f.className = 'frame';
+      f.style.left = left + '%';
+      f.style.top = top + '%';
+      f.style.width = w + '%';
+      f.style.setProperty('--rot', rot.toFixed(2)+'deg');
+      f.style.setProperty('--drop', drop);
+      f.style.zIndex = String(100 + i);
+      f.innerHTML = `
+        <img class="photo" src="${portrait(starSeed*100+i)}" alt="${person}" loading="lazy">
+        <div class="plate">${person}</div>`;
+      wall.appendChild(f);
+      placed.push({left,top,w});
+    }
+
+    // ── 안내 액자 (MES ÉTOILES) — 늘 한 장 ──
+    addGuideFrame(frameCount === 0);
+  }
+
+  // 안내 포스터 액자: 콘스텔라티오로 가는 문 (늘 존재)
+  function addGuideFrame(isEmpty){
+    const g = document.createElement('div');
+    g.className = 'frame guide';
+    if(isEmpty){
+      // 빈 벽: 중앙에 단정하게, 살짝만 기울여
+      g.style.left = '40%'; g.style.top = '14%'; g.style.width = '20%';
+      g.style.setProperty('--rot', '-1.2deg');
+    } else {
+      // 인물들 사이: 우상단 빈 곳에 포스터처럼
+      g.style.left = '79%'; g.style.top = '8%'; g.style.width = '15%';
+      g.style.setProperty('--rot', '2deg');
+    }
+    g.style.setProperty('--drop', '-3px 12px 26px rgba(0,0,0,.55)');
+    g.style.zIndex = '180';
+    g.innerHTML = `
+      <img class="photo" src="poster_01.png" alt="MES ÉTOILES — 별을 품으러">
+      <div class="hint">콘스텔라티오로 — 음악의 별들 ✦</div>`;
+    g.addEventListener('click', ()=>{
+      // 지금은 목업 — 본 공사 때 콘스텔라티오(음악 별 큐레이션)로 건너감
+      g.animate([{transform:'rotate(var(--rot)) scale(1.06)'},{transform:'rotate(var(--rot)) scale(1)'}],{duration:300});
+    });
+    wall.appendChild(g);
+  }
+
+  document.getElementById('reseedBtn').addEventListener('click', ()=>{
+    starSeed = Math.floor(Math.random()*9999);
+    buildWall();
+  });
+  document.getElementById('countBtn').addEventListener('click', ()=>{
+    const seq = [8, 12, 16];
+    frameCount = seq[(seq.indexOf(frameCount)+1) % seq.length];
+    document.getElementById('countLabel').textContent = frameCount;
+    buildWall();
+  });
+  document.getElementById('emptyBtn').addEventListener('click', ()=>{
+    frameCount = 0;
+    document.getElementById('countLabel').textContent = 0;
+    buildWall();
+  });
+
+  buildWall();
+</script>
+</body>
+</html>
