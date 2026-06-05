@@ -299,6 +299,10 @@ html, body {
 .floor-content[data-floor="1"] .g1-pedestal {
   width: 150px; margin-top: -2px;
 }
+.floor-content[data-floor="1"] .g1-ped-img {
+  display: block; width: auto;
+  filter: drop-shadow(5px 12px 20px rgba(0,0,0,0.55));
+}
 .floor-content[data-floor="1"] .g1-pedestal .g1-ped-top {
   height: 14px; background: linear-gradient(180deg, #e2d6bc, #b8a888);
   border: 1px solid rgba(60,42,24,0.5); border-bottom: none;
@@ -1093,7 +1097,7 @@ html, body {
 <audio id="elevatorSfx" preload="auto" src="ding_sound.mp3"></audio>
 
 <div class="boot-hint" id="bootHint">우측 하단 ⌖ 황동판으로 층 점프 · 각 층 우측 엘리베이터 ▲▼로 한 층씩 · Ⅰ층 갤러리는 ‹ › 로 벽 회전 · Ⅱ층은 음악실</div>
-<div class="version-badge">shell v4.5b · 1F 갤러리 3D+비너스 4면 · 2F 음악관+인물벽 90° · 3F 책방</div>
+<div class="version-badge">shell v4.5d · 1F 갤러리 3D+비너스·좌대 · 2F 음악관+인물벽 90° · 3F 책방</div>
 
 <script>
 const FLOORS = [
@@ -1193,9 +1197,9 @@ const Floor1 = (() => {
       c-7 -7 -12 -18 -12 -30 c0 -18 12 -34 32 -34 z"/>
     <ellipse cx="74" cy="46" rx="13" ry="20" fill="rgba(240,216,168,0.10)"/></svg>`;
   const SCULPT = [
-    { t: '밀로의 비너스', a: '고대 그리스 · 클릭하면 돌아갑니다 ↻', x: 620, z: -620,
+    { t: '밀로의 비너스', a: '고대 그리스 · 클릭하면 돌아갑니다 ↻', x: 640, z: -560,
       faces: ['venus_0.webp', 'venus_01.webp', 'venus_02.webp', 'venus_03.webp'],
-      sw: 200, sh: 300 },
+      sw: 270, sh: 410, ped: 'pedestal_01.webp', pedh: 185 },
     { t: '철학자의 흉상', a: '로마 시대 · 자리지킴', x: 760, z: 400, svg: SVG_BUST, src: null },
   ];
 
@@ -1270,7 +1274,8 @@ const Floor1 = (() => {
       const d = document.createElement('div');
       d.className = 'g1-sculpt' + (s.faces ? ' g1-turnable' : '');
       const statueH = s.sh || 250;
-      const colH = statueH + 180;                       // 받침대(108)+명판 여유
+      const pedH = s.ped ? (s.pedh || 175) : 108;       // 이미지 받침대 vs CSS 받침대
+      const colH = statueH + pedH + 72;                 // +명판 여유
       d.style.height = colH + 'px';
       d.style.setProperty('--sx', s.x + 'px');
       d.style.setProperty('--sy', (350 - colH) + 'px'); // 바닥(y=+350)에 발 딛기
@@ -1282,11 +1287,21 @@ const Floor1 = (() => {
       } else {
         visual = s.src ? `<img class="g1-sface on" src="${s.src}" alt="${s.t}">` : s.svg;
       }
+      // 받침대: 이미지가 오면 이미지, 안 오면(404) CSS 받침대가 자리 지킴
+      const cssPed = `<div class="g1-pedestal">
+          <div class="g1-ped-top"></div><div class="g1-ped-body"></div><div class="g1-ped-base"></div>
+        </div>`;
+      const pedHTML = s.ped
+        ? `<img class="g1-ped-img" src="${s.ped}" alt=""
+              style="height:${pedH}px; margin-top:${-Math.round(statueH * 0.04)}px"
+              onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+           <div class="g1-pedestal" style="display:none">
+             <div class="g1-ped-top"></div><div class="g1-ped-body"></div><div class="g1-ped-base"></div>
+           </div>`
+        : cssPed;
       d.innerHTML = `
         <div class="g1-statue" style="${s.sw ? `width:${s.sw}px;` : ''}height:${statueH}px">${visual}</div>
-        <div class="g1-pedestal">
-          <div class="g1-ped-top"></div><div class="g1-ped-body"></div><div class="g1-ped-base"></div>
-        </div>
+        ${pedHTML}
         <div class="g1-plaque"><div class="g1-pt">${s.t}</div><div class="g1-pa">${s.a}</div></div>`;
       if (s.faces) {                                    // 클릭 → 다음 면으로 크로스페이드
         let cur = 0;
