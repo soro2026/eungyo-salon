@@ -734,7 +734,7 @@ html, body {
  *  근거: 인물액자혁명 의제(0529) + 목업 확정 표정(0603).
  *  셰익스피어 앤 컴퍼니식 흑백 인물 액자 — 삐뚤빼뚤·제각각·다닥다닥.
  *  mulberry32(starSeed) 고정 랜덤 = "내 방 벽 30년 그대로".
- *  본 공사 때 companions → stars.photo_url(field 필터)로 2·3·4층 동시 연결.
+ *  본 공사 때 companions → stars.photo_url(field 필터)로 1~4층 동시 연결.
  * ============================================================ */
 .pw-frame {
   position:absolute;
@@ -783,6 +783,39 @@ html, body {
 .pw-frame.pw-guide:hover {
   box-shadow:0 18px 44px rgba(0,0,0,.55), 0 0 30px rgba(212,165,72,.35);
 }
+/* ── 인물벽 90도 면 — 1·3층 공용 (2층은 자체 무대 회전 보유) ── */
+.pw-face {
+  position:absolute; inset:0; z-index:25; display:grid; place-items:center;
+  perspective:1800px; container-type:size; pointer-events:none;
+}
+.pw-face::before { content:''; position:absolute; inset:0; background:rgba(16,10,12,0); transition:background .6s ease; }
+.pw-face.on { pointer-events:auto; }
+.pw-face.on::before { background:rgba(16,10,12,.82); }
+.pw-face .pw-canvas {
+  position:relative; aspect-ratio:1672/941;
+  width:min(94cqw, calc(92cqh * 1672 / 941), 1380px);
+  background-image:url('star_wall_musicroom.png');
+  background-size:cover; background-position:center;
+  box-shadow:0 18px 60px rgba(0,0,0,.55); overflow:hidden;
+  transform:rotateY(92deg); opacity:0;
+  transition:transform .8s cubic-bezier(.55,.05,.3,1), opacity .55s ease .12s;
+}
+.pw-face.on .pw-canvas { transform:rotateY(0deg); opacity:1; }
+/* 돌아선 동안 본업 도구는 조용히 거둠 (베일이 위를 덮으니 즉시 숨김으로 충분) */
+.floor-content[data-floor="1"].pw-turned .g1-nav,
+.floor-content[data-floor="1"].pw-turned .g1-compass,
+.floor-content[data-floor="3"].pw-turned .bk-nav-arrow,
+.floor-content[data-floor="3"].pw-turned .bk-dots,
+.floor-content[data-floor="3"].pw-turned .bk-hint { opacity:0; pointer-events:none; }
+/* 토글 손잡이 — 2층 ✦ 버튼과 같은 표정, 층 좌상단 */
+.pw-toggle {
+  position:absolute; top:18px; left:22px; z-index:30;
+  background:rgba(20,14,8,.6); border:1px solid rgba(140,110,70,.45); color:#b09a78;
+  padding:6px 14px; font-family:'Cormorant Garamond','Noto Serif KR',serif;
+  font-size:11px; letter-spacing:1px; cursor:pointer; border-radius:2px; transition:all .2s;
+}
+.pw-toggle:hover { color:#e8d8b8; border-color:rgba(212,165,72,.6); }
+.floor-content.pw-turned .pw-toggle { color:#d4a548; border-color:rgba(212,165,72,.5); }
 
 /* ============================================================
  *  음반 서고 모달 (Library) — 레이어2 · 살굿빛 크림 살롱
@@ -1103,7 +1136,7 @@ html, body {
 <audio id="elevatorSfx" preload="auto" src="ding_sound.mp3"></audio>
 
 <div class="boot-hint" id="bootHint">우측 하단 ⌖ 황동판으로 층 점프 · 각 층 우측 엘리베이터 ▲▼로 한 층씩 · Ⅰ층 갤러리는 ‹ › 로 벽 회전 · Ⅱ층은 음악실</div>
-<div class="version-badge">shell v4.6 · 1F 헤리티지 10점 진열+좌대 착지 · 2F 음악관+인물벽 90° · 3F 책방</div>
+<div class="version-badge">shell v4.7a · 1F 회화 전용+3F 인물벽 90° · 헤리티지 10점 · 2F 완전체</div>
 
 <script>
 const FLOORS = [
@@ -1206,6 +1239,9 @@ const Floor1 = (() => {
       c20 14 38 28 42 58 l6 56 h-144 l6 -56 c4 -30 22 -44 42 -58 c5 -4 6 -10 4 -18
       c-7 -7 -12 -18 -12 -30 c0 -18 12 -34 32 -34 z"/>
     <ellipse cx="74" cy="46" rx="13" ry="20" fill="rgba(240,216,168,0.10)"/></svg>`;
+  // ⚠ 조각은 갤러리에서 거둠(0606, 소로 결정) — 조각의 방(앙필라드, 2차 작업) 완공 시 이주.
+  //   비너스 4면·좌대 배관·sink 24px 실측·빌보드 시스템 전부 보존 — 스위치만 켜면 부활.
+  const SCULPT_ON = false;
   const SCULPT = [
     { t: '밀로의 비너스', a: '고대 그리스 · 클릭하면 돌아갑니다 ↻', x: 640, z: -560,
       faces: ['venus_0.webp', 'venus_01.webp', 'venus_02.webp', 'venus_03.webp'],
@@ -1231,6 +1267,8 @@ const Floor1 = (() => {
         <button class="g1-nav g1-nav-left"  id="g1-prev" aria-label="좌로 회전">‹</button>
         <button class="g1-nav g1-nav-right" id="g1-next" aria-label="우로 회전">›</button>
         <div class="g1-compass" id="g1-compass"></div>
+        <button class="pw-toggle" aria-label="인물벽으로 돌아서기">✦ 나의 별들</button>
+        <div class="pw-face"><div class="pw-canvas"></div></div>
       </div>`;
   }
 
@@ -1277,6 +1315,7 @@ const Floor1 = (() => {
   }
 
   function buildSculpt() {
+    if (!SCULPT_ON) return;                 // 조각의 방 개관 전까지 회화만
     const world = root.querySelector('#g1-world');
     SCULPT.forEach(s => {
       // 바닥 그림자 (바닥 평면에 눕힘)
@@ -1356,6 +1395,7 @@ const Floor1 = (() => {
     build(); update(); fit();
     root.querySelector('#g1-prev').addEventListener('click', prev);
     root.querySelector('#g1-next').addEventListener('click', next);
+    SideWall.bind(1);                                  // 인물벽(미술) 90도
     if (!bound) {               // 전역 리스너는 1회만 — root 생존 가드로 층 비종속 안전
       window.addEventListener('resize', fit);
       bound = true;
@@ -1523,15 +1563,17 @@ document.addEventListener('keydown', (e) => {
   if (document.getElementById('book-modal').classList.contains('open')) return;
   // 2층 인물벽 면이면 ESC = 무대로 돌아오기
   if (e.key === 'Escape' && currentFloor === 2 && Floor2.isTurned()) { Floor2.turnBack(); return; }
+  // 1·3층 인물벽 면이면 ESC = 본업으로
+  if (e.key === 'Escape' && SideWall.isTurned(currentFloor)) { SideWall.turnBack(currentFloor); return; }
   // 3층(책방)에서 ←→ 는 진열대 넘김에 양보, ↑↓만 엘리베이터
   if (e.key === 'ArrowUp')   { e.preventDefault(); goToFloor(currentFloor + 1); }
   if (e.key === 'ArrowDown') { e.preventDefault(); goToFloor(currentFloor - 1); }
-  if (currentFloor === 3 && !transitioning) {
+  if (currentFloor === 3 && !transitioning && !SideWall.isTurned(3)) {
     if (e.key === 'ArrowLeft')  Floor3.slide(-1);
     if (e.key === 'ArrowRight') Floor3.slide(+1);
   }
   // 1층(갤러리)에서 ←→ 는 방 회전에 양보
-  if (currentFloor === 1 && !transitioning) {
+  if (currentFloor === 1 && !transitioning && !SideWall.isTurned(1)) {
     if (e.key === 'ArrowLeft')  Floor1.rotate(-1);
     if (e.key === 'ArrowRight') Floor1.rotate(+1);
   }
@@ -1629,6 +1671,8 @@ const Floor3 = (() => {
         <button class="bk-nav-arrow bk-nav-right" id="bk-next">›</button>
         <div class="bk-dots" id="bk-dots"></div>
         <div class="bk-hint">책을 클릭해 펼쳐보세요</div>
+        <button class="pw-toggle" aria-label="인물벽으로 돌아서기">✦ 나의 별들</button>
+        <div class="pw-face"><div class="pw-canvas"></div></div>
       </div>`;
   }
 
@@ -1638,6 +1682,7 @@ const Floor3 = (() => {
     buildDots();
     document.getElementById('bk-prev').addEventListener('click', () => slide(-1));
     document.getElementById('bk-next').addEventListener('click', () => slide(+1));
+    SideWall.bind(3);                                  // 인물벽(저술가) 90도
   }
 
   function buildShelfPages() {
@@ -2258,7 +2303,8 @@ window.Shelf = Shelf;
  *    render(host, {seed, count}) : host 안에 액자들을 흩뿌림.
  *    mulberry32(starSeed) 고정 랜덤 — 같은 콩파뇽 벽은 늘 같은 배치.
  *    MES ÉTOILES 안내 액자는 늘 한 장 (빈 벽=중앙 초대 / 빼곡=우상단).
- *    지금은 더미 16인 + placeholder 초상 — 본 공사 때
+ *    render(opts)에 people(명단)·guide(안내 문구)를 층별로 넘김.
+ *    지금은 더미 명단 + placeholder 초상 — 본 공사 때
  *    companions → stars.photo_url(field 필터)로 교체 (로직 불변).
  * ============================================================ */
 const PersonaWall = (() => {
@@ -2283,13 +2329,15 @@ const PersonaWall = (() => {
     if(!host) return;
     const seed  = (opts && opts.seed)  || 183;
     const count = (opts && typeof opts.count === 'number') ? opts.count : 12;
+    const people = (opts && opts.people) || PEOPLE;          // 층별 명단 (기본=음악)
+    const guide  = (opts && opts.guide)  || '콘스텔라티오로 — 음악의 별들 ✦';
     host.innerHTML = '';
     const rnd = mulberry32(seed);
     // 배치 영역(%): 좌우 4~92, 상하 5~74 (맨 아래 책선반 26% 비움)
     const AX0=4, AX1=92, AY0=5, AY1=74;
 
     for(let i=0; i<count; i++){
-      const person = PEOPLE[i % PEOPLE.length];
+      const person = people[i % people.length];
       const w = [8.5, 10.5, 12.5, 15][Math.floor(rnd()*4)];   // 크기 4단계
       const cols = 5, rows = Math.ceil(count/cols) || 1;
       const col = i % cols, row = Math.floor(i/cols);
@@ -2317,11 +2365,11 @@ const PersonaWall = (() => {
       host.appendChild(f);
     }
 
-    addGuideFrame(host, count === 0);
+    addGuideFrame(host, count === 0, guide);
   }
 
   // 안내 포스터 액자 — 콘스텔라티오로 가는 문 (늘 존재 · 빈 벽은 결핍 아닌 초대)
-  function addGuideFrame(host, isEmpty){
+  function addGuideFrame(host, isEmpty, hint){
     const g = document.createElement('div');
     g.className = 'pw-frame pw-guide';
     if(isEmpty){
@@ -2335,7 +2383,7 @@ const PersonaWall = (() => {
     g.style.zIndex = '180';
     g.innerHTML = `
       <img class="pw-photo" src="poster_01.png" alt="MES ÉTOILES — 별을 품으러">
-      <div class="pw-hint">콘스텔라티오로 — 음악의 별들 ✦</div>`;
+      <div class="pw-hint">${hint}</div>`;
     g.addEventListener('click', ()=>{
       // 지금은 까딱이기만 — 본 공사 때 콘스텔라티오(음악 별 큐레이션) 연결 (임시 발판 회피)
       g.animate(
@@ -2349,6 +2397,54 @@ const PersonaWall = (() => {
   return { render };
 })();
 window.PersonaWall = PersonaWall;
+
+/* ============================================================
+ *  SideWall — 1·3층 인물벽 90도 토글 (2층은 자체 무대 회전 보유)
+ *    층마다 본업 위로 .pw-face가 rotateY로 돌아 들어옴 (2층과 같은 동작 언어).
+ *    명단은 더미 — 본 공사 때 companions → stars(field 필터) 한 줄 교체 (로직 불변).
+ * ============================================================ */
+const SideWall = (() => {
+  const PEOPLE_ART = [
+    '레오나르도 다빈치','산드로 보티첼리','요하네스 베르메르','렘브란트 판 레인',
+    '클로드 모네','오귀스트 르누아르','빈센트 반 고흐','구스타프 클림트',
+    '장프랑수아 밀레','귀스타브 카유보트','가쓰시카 호쿠사이','펠릭스 브라르'
+  ];
+  const PEOPLE_LETTERS = [
+    '호메로스','소크라테스','소포클레스','윌리엄 셰익스피어',
+    '요한 볼프강 폰 괴테','빅토르 위고','표도르 도스토옙스키','레프 톨스토이',
+    '안톤 체호프','프란츠 카프카','헨리 데이비드 소로','윤동주',
+    '백석','어니스트 헤밍웨이','에드거 앨런 포','카를 마르크스'
+  ];
+  const CFG = {
+    1: { people: PEOPLE_ART,     guide: '콘스텔라티오로 — 미술의 별들 ✦',           back: '🖼 갤러리로', seed: 411, count: 12 },
+    3: { people: PEOPLE_LETTERS, guide: '콘스텔라티오로 — 문학·철학·역사의 별들 ✦', back: '📖 책방으로', seed: 937, count: 14 },
+  };
+  const turned = {};
+  function isTurned(n){ return !!turned[n]; }
+  function set(n, on){
+    const fc = document.querySelector(`.floor-content[data-floor="${n}"]`);
+    if (!fc) return;
+    const btn = fc.querySelector('.pw-toggle');
+    const face = fc.querySelector('.pw-face');
+    const host = fc.querySelector('.pw-canvas');
+    turned[n] = on;
+    if (on && !host.dataset.built){            // 처음 돌아설 때 한 번만 건다
+      PersonaWall.render(host, CFG[n]);
+      host.dataset.built = '1';
+    }
+    face.classList.toggle('on', on);
+    fc.classList.toggle('pw-turned', on);
+    btn.textContent = on ? CFG[n].back : '✦ 나의 별들';
+  }
+  function bind(n){
+    turned[n] = false;                          // 매 방문 초기화 (innerHTML 재생성 원칙)
+    const fc = document.querySelector(`.floor-content[data-floor="${n}"]`);
+    const btn = fc && fc.querySelector('.pw-toggle');
+    if (btn) btn.addEventListener('click', () => set(n, !turned[n]));
+  }
+  return { bind, isTurned, turnBack: n => set(n, false) };
+})();
+window.SideWall = SideWall;
 
 /* ===== 첫 진입 ===== */
 buildBar();
