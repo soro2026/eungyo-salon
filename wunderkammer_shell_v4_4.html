@@ -280,9 +280,18 @@ html, body {
   text-align: center; z-index: 3;
 }
 .floor-content[data-floor="1"] .g1-sculpt .g1-statue {
+  position: relative;
   width: 170px; height: 250px; display: flex; align-items: flex-end; justify-content: center;
   filter: drop-shadow(6px 14px 18px rgba(0,0,0,0.55));
 }
+.floor-content[data-floor="1"] .g1-sculpt.g1-turnable { cursor: pointer; }
+.floor-content[data-floor="1"] .g1-sculpt.g1-turnable:hover .g1-statue { filter: drop-shadow(6px 14px 22px rgba(0,0,0,0.65)) brightness(1.07); }
+.floor-content[data-floor="1"] .g1-statue .g1-sface {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: contain; object-position: center bottom;
+  opacity: 0; transition: opacity 0.45s ease;
+}
+.floor-content[data-floor="1"] .g1-statue .g1-sface.on { opacity: 1; }
 .floor-content[data-floor="1"] .g1-sculpt .g1-statue svg,
 .floor-content[data-floor="1"] .g1-sculpt .g1-statue img {
   width: 100%; height: 100%; object-fit: contain; display: block;
@@ -1084,7 +1093,7 @@ html, body {
 <audio id="elevatorSfx" preload="auto" src="ding_sound.mp3"></audio>
 
 <div class="boot-hint" id="bootHint">우측 하단 ⌖ 황동판으로 층 점프 · 각 층 우측 엘리베이터 ▲▼로 한 층씩 · Ⅰ층 갤러리는 ‹ › 로 벽 회전 · Ⅱ층은 음악실</div>
-<div class="version-badge">shell v4.5a · 1F 갤러리 3D+조각 · 2F 음악관+인물벽 90° · 3F 책방</div>
+<div class="version-badge">shell v4.5b · 1F 갤러리 3D+비너스 4면 · 2F 음악관+인물벽 90° · 3F 책방</div>
 
 <script>
 const FLOORS = [
@@ -1184,8 +1193,10 @@ const Floor1 = (() => {
       c-7 -7 -12 -18 -12 -30 c0 -18 12 -34 32 -34 z"/>
     <ellipse cx="74" cy="46" rx="13" ry="20" fill="rgba(240,216,168,0.10)"/></svg>`;
   const SCULPT = [
-    { t: '암포라', a: '고대 그리스 · 자리지킴', x:  400, z: -760, svg: SVG_AMPHORA, src: null },
-    { t: '철학자의 흉상', a: '로마 시대 · 자리지킴', x: 760, z:  400, svg: SVG_BUST, src: null },
+    { t: '밀로의 비너스', a: '고대 그리스 · 클릭하면 돌아갑니다 ↻', x: 620, z: -620,
+      faces: ['venus_0.webp', 'venus_01.webp', 'venus_02.webp', 'venus_03.webp'],
+      sw: 200, sh: 300 },
+    { t: '철학자의 흉상', a: '로마 시대 · 자리지킴', x: 760, z: 400, svg: SVG_BUST, src: null },
   ];
 
   let side = 0, yaw = 0, root = null, bound = false;
@@ -1257,16 +1268,35 @@ const Floor1 = (() => {
       world.appendChild(sh);
       // 조각 본체 (받침대+조각+명판 한 기둥, 카메라 향해 빌보드 회전)
       const d = document.createElement('div');
-      d.className = 'g1-sculpt';
+      d.className = 'g1-sculpt' + (s.faces ? ' g1-turnable' : '');
+      const statueH = s.sh || 250;
+      const colH = statueH + 180;                       // 받침대(108)+명판 여유
+      d.style.height = colH + 'px';
       d.style.setProperty('--sx', s.x + 'px');
-      d.style.setProperty('--sy', (350 - 430) + 'px');  // 바닥(y=+350)에 발 딛기
+      d.style.setProperty('--sy', (350 - colH) + 'px'); // 바닥(y=+350)에 발 딛기
       d.style.setProperty('--sz', s.z + 'px');
+      let visual;
+      if (s.faces) {                                    // 4면 조각 — 회전 좌대
+        visual = s.faces.map((f, i) =>
+          `<img class="g1-sface${i === 0 ? ' on' : ''}" src="${f}" alt="${s.t}">`).join('');
+      } else {
+        visual = s.src ? `<img class="g1-sface on" src="${s.src}" alt="${s.t}">` : s.svg;
+      }
       d.innerHTML = `
-        <div class="g1-statue">${s.src ? `<img src="${s.src}" alt="${s.t}">` : s.svg}</div>
+        <div class="g1-statue" style="${s.sw ? `width:${s.sw}px;` : ''}height:${statueH}px">${visual}</div>
         <div class="g1-pedestal">
           <div class="g1-ped-top"></div><div class="g1-ped-body"></div><div class="g1-ped-base"></div>
         </div>
         <div class="g1-plaque"><div class="g1-pt">${s.t}</div><div class="g1-pa">${s.a}</div></div>`;
+      if (s.faces) {                                    // 클릭 → 다음 면으로 크로스페이드
+        let cur = 0;
+        d.addEventListener('click', () => {
+          const imgs = d.querySelectorAll('.g1-sface');
+          imgs[cur].classList.remove('on');
+          cur = (cur + 1) % imgs.length;
+          imgs[cur].classList.add('on');
+        });
+      }
       world.appendChild(d);
     });
   }
