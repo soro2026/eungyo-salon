@@ -270,6 +270,51 @@ html, body {
   display: block; margin-top: 5px; font-size: 11px; letter-spacing: 0.35em;
   color: rgba(240,216,168,0.55);
 }
+/* 조각 — 빌보드 (항상 카메라를 향해 회전: world의 -yaw를 +yaw로 상쇄) */
+.floor-content[data-floor="1"] .g1-sculpt {
+  position: absolute; top: 0; left: 0;
+  width: 260px; height: 430px; margin-left: -130px;
+  transform: translate3d(var(--sx), var(--sy), var(--sz)) rotateY(var(--g1-yaw));
+  transition: transform 1.0s cubic-bezier(0.5, 0, 0.2, 1);  /* world 회전과 싱크 */
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  text-align: center; z-index: 3;
+}
+.floor-content[data-floor="1"] .g1-sculpt .g1-statue {
+  width: 170px; height: 250px; display: flex; align-items: flex-end; justify-content: center;
+  filter: drop-shadow(6px 14px 18px rgba(0,0,0,0.55));
+}
+.floor-content[data-floor="1"] .g1-sculpt .g1-statue svg,
+.floor-content[data-floor="1"] .g1-sculpt .g1-statue img {
+  width: 100%; height: 100%; object-fit: contain; display: block;
+}
+.floor-content[data-floor="1"] .g1-pedestal {
+  width: 150px; margin-top: -2px;
+}
+.floor-content[data-floor="1"] .g1-pedestal .g1-ped-top {
+  height: 14px; background: linear-gradient(180deg, #e2d6bc, #b8a888);
+  border: 1px solid rgba(60,42,24,0.5); border-bottom: none;
+}
+.floor-content[data-floor="1"] .g1-pedestal .g1-ped-body {
+  height: 78px; margin: 0 10px;
+  background:
+    repeating-linear-gradient(90deg, rgba(0,0,0,0.10) 0 3px, transparent 3px 16px),
+    linear-gradient(180deg, #cfc1a2, #a8987a);
+  border-left: 1px solid rgba(60,42,24,0.4); border-right: 1px solid rgba(60,42,24,0.4);
+}
+.floor-content[data-floor="1"] .g1-pedestal .g1-ped-base {
+  height: 16px; background: linear-gradient(180deg, #d8cab0, #998a6c);
+  border: 1px solid rgba(60,42,24,0.5);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.5);
+}
+.floor-content[data-floor="1"] .g1-sculpt .g1-plaque { margin-top: 8px; }
+/* 조각 바닥 그림자 — 바닥 평면에 눕힘 */
+.floor-content[data-floor="1"] .g1-sculpt-shadow {
+  position: absolute; top: 0; left: 0;
+  width: 300px; height: 150px; margin-left: -150px; margin-top: -75px;
+  transform: translate3d(var(--sx), 349px, var(--sz)) rotateX(90deg);
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.42), transparent 68%);
+  pointer-events: none;
+}
 
 /* ============================================================
  *  ⅢF 책의 방 (Bibliothèque) — 전부 [data-floor="3"] 스코프
@@ -1039,7 +1084,7 @@ html, body {
 <audio id="elevatorSfx" preload="auto" src="ding_sound.mp3"></audio>
 
 <div class="boot-hint" id="bootHint">우측 하단 ⌖ 황동판으로 층 점프 · 각 층 우측 엘리베이터 ▲▼로 한 층씩 · Ⅰ층 갤러리는 ‹ › 로 벽 회전 · Ⅱ층은 음악실</div>
-<div class="version-badge">shell v4.5 · 1F 갤러리 3D · 2F 음악관+인물벽 90° · 3F 책방</div>
+<div class="version-badge">shell v4.5a · 1F 갤러리 3D+조각 · 2F 음악관+인물벽 90° · 3F 책방</div>
 
 <script>
 const FLOORS = [
@@ -1110,7 +1155,7 @@ const Floor1 = (() => {
       { t:'아르놀피니 부부의 초상', a:'얀 반 에이크', src: wm('Van Eyck - Arnolfini Portrait.jpg') } ],
     [ { t:'이삭 줍는 여인들', a:'장프랑수아 밀레', src: wm('Jean-François Millet - Gleaners - Google Art Project.jpg') },
       { t:'양산을 쓴 여인', a:'클로드 모네', src: wm('Claude Monet - Woman with a Parasol - Madame Monet and Her Son - Google Art Project.jpg') },
-      { t:'씨 뿌리는 사람', a:'빈센트 반 고흐', src: wm('Vincent van Gogh - The Sower - Google Art Project.jpg') },
+      { t:'씨 뿌리는 사람', a:'빈센트 반 고흐', src: wm('Vincent van Gogh - The sower - Google Art Project.jpg') },
       { t:'마루를 깎는 사람들', a:'귀스타브 카유보트', src: wm('Gustave Caillebotte - The Floor Planers - Google Art Project.jpg') } ],
   ];
   const SIDES = [
@@ -1121,6 +1166,27 @@ const Floor1 = (() => {
   ];
   const POS = [-600, -200, 200, 600];   // 한 벽 4 작품 자리
   const CAM = 600, HALF = 1000;
+
+  // 조각 2점 — 빌보드 방식. 지금은 청동 실루엣(인라인 SVG) 자리지킴
+  //  → 소로가 누끼 PNG(받침대 제외, 조각만) 업로드 시 src만 채우면 교체 (로직 불변)
+  const BRONZE = `<defs><linearGradient id="g1bz" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6a5638"/><stop offset="0.45" stop-color="#3a2c1c"/>
+      <stop offset="0.55" stop-color="#52412a"/><stop offset="1" stop-color="#241a10"/>
+    </linearGradient></defs>`;
+  const SVG_AMPHORA = `<svg viewBox="0 0 170 250" xmlns="http://www.w3.org/2000/svg">${BRONZE}
+    <path fill="url(#g1bz)" d="M62 8 h46 v10 h-12 c0 8 4 14 10 20 c22 20 26 44 26 66
+      c0 50 -22 88 -38 104 l0 18 h14 v12 h-46 v-12 h14 l0 -18 c-16 -16 -38 -54 -38 -104
+      c0 -22 4 -46 26 -66 c6 -6 10 -12 10 -20 h-12 z"/>
+    <ellipse cx="85" cy="95" rx="30" ry="44" fill="rgba(240,216,168,0.10)"/></svg>`;
+  const SVG_BUST = `<svg viewBox="0 0 170 250" xmlns="http://www.w3.org/2000/svg">${BRONZE}
+    <path fill="url(#g1bz)" d="M85 14 c20 0 32 16 32 34 c0 12 -5 23 -12 30 c-2 8 -1 14 4 18
+      c20 14 38 28 42 58 l6 56 h-144 l6 -56 c4 -30 22 -44 42 -58 c5 -4 6 -10 4 -18
+      c-7 -7 -12 -18 -12 -30 c0 -18 12 -34 32 -34 z"/>
+    <ellipse cx="74" cy="46" rx="13" ry="20" fill="rgba(240,216,168,0.10)"/></svg>`;
+  const SCULPT = [
+    { t: '암포라', a: '고대 그리스 · 자리지킴', x:  400, z: -760, svg: SVG_AMPHORA, src: null },
+    { t: '철학자의 흉상', a: '로마 시대 · 자리지킴', x: 760, z:  400, svg: SVG_BUST, src: null },
+  ];
 
   let side = 0, yaw = 0, root = null, bound = false;
 
@@ -1176,6 +1242,32 @@ const Floor1 = (() => {
         img.src = a.src;
         wall.appendChild(d);
       });
+    });
+    buildSculpt();
+  }
+
+  function buildSculpt() {
+    const world = root.querySelector('#g1-world');
+    SCULPT.forEach(s => {
+      // 바닥 그림자 (바닥 평면에 눕힘)
+      const sh = document.createElement('div');
+      sh.className = 'g1-sculpt-shadow';
+      sh.style.setProperty('--sx', s.x + 'px');
+      sh.style.setProperty('--sz', s.z + 'px');
+      world.appendChild(sh);
+      // 조각 본체 (받침대+조각+명판 한 기둥, 카메라 향해 빌보드 회전)
+      const d = document.createElement('div');
+      d.className = 'g1-sculpt';
+      d.style.setProperty('--sx', s.x + 'px');
+      d.style.setProperty('--sy', (350 - 430) + 'px');  // 바닥(y=+350)에 발 딛기
+      d.style.setProperty('--sz', s.z + 'px');
+      d.innerHTML = `
+        <div class="g1-statue">${s.src ? `<img src="${s.src}" alt="${s.t}">` : s.svg}</div>
+        <div class="g1-pedestal">
+          <div class="g1-ped-top"></div><div class="g1-ped-body"></div><div class="g1-ped-base"></div>
+        </div>
+        <div class="g1-plaque"><div class="g1-pt">${s.t}</div><div class="g1-pa">${s.a}</div></div>`;
+      world.appendChild(d);
     });
   }
 
