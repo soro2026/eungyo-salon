@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>EG헤리티지 — 경매장과 대여 서가</title>
+<style>
+/* ══════════════════════════════════════════════════
+   EG HERITAGE v3.0 · Phase 1
+   "희소성은 소장에, 풍요는 길 위에 — 보물은 흐른다"
+   설계도: EG헤리티지_종합설계도_v3_0_0606
+   ══════════════════════════════════════════════════ */
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+:root {
+  --wine:       #3a2222;   /* 배경 깊은 와인 레드 */
+  --wine-deep:  #2b1818;
+  --oak:        #2c2118;
+  --gold:       #c9a84c;
+  --gold-l:     #e9c97e;
+  --gold-dim:   rgba(201,168,76,0.45);
+  --gold-faint: rgba(201,168,76,0.12);
+  --cream:      #f0ebe0;
+  --cream-dim:  rgba(240,235,224,0.55);
+  --warmgrey:   #a89a85;
+  --ink:        #221510;   /* 크림 아침 방의 글자색 */
+}
+
+html, body { height: 100%; }
+body {
+  font-family: 'Apple SD Gothic Neo', 'Noto Serif KR', Georgia, serif;
+  background:
+    radial-gradient(ellipse 120% 70% at 50% -10%, rgba(201,168,76,0.06), transparent 60%),
+    linear-gradient(180deg, var(--wine) 0%, var(--wine-deep) 100%);
+  background-attachment: fixed;
+  color: var(--cream);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: 0.01em;
+}
+
+/* ── 헤더 ───────────────────────────────── */
+header {
+  position: sticky; top: 0; z-index: 100;
+  padding: 14px 16px 10px;
+  background: linear-gradient(180deg, rgba(43,24,24,0.96) 70%, rgba(43,24,24,0));
+  backdrop-filter: blur(8px);
+}
+.hd-row { display: flex; align-items: center; gap: 12px; }
+.hd-back {
+  background: none; border: 1px solid rgba(240,235,224,0.14);
+  border-radius: 8px; color: var(--cream-dim);
+  width: 32px; height: 32px; font-size: 15px; cursor: pointer;
+  flex-shrink: 0; font-family: inherit; line-height: 1;
+}
+.hd-title { flex: 1; }
+.hd-eyebrow {
+  font-size: 8.5px; letter-spacing: 0.34em; color: var(--gold-dim);
+  text-transform: uppercase; margin-bottom: 2px;
+}
+.hd-name { font-size: 16px; color: var(--cream); letter-spacing: 0.06em; font-weight: 500; }
+.hd-name .amp { color: var(--gold-dim); font-style: italic; font-size: 13px; }
+.hd-badge {
+  font-size: 8px; color: rgba(240,235,224,0.3);
+  letter-spacing: 0.08em; text-align: right; line-height: 1.5; flex-shrink: 0;
+}
+
+/* ── 주간 리듬 한 줄 ─────────────────────── */
+.rhythm {
+  margin: 4px 16px 0;
+  padding: 7px 12px;
+  border: 1px solid var(--gold-faint);
+  border-radius: 8px;
+  background: rgba(201,168,76,0.04);
+  font-size: 10px; color: var(--warmgrey);
+  letter-spacing: 0.05em; text-align: center; line-height: 1.6;
+}
+.rhythm b { color: var(--gold-dim); font-weight: 500; }
+
+/* ── 메인 3탭 ────────────────────────────── */
+.main-tabs {
+  display: flex; margin: 14px 16px 0;
+  border-bottom: 1px solid rgba(240,235,224,0.08);
+}
+.main-tab {
+  flex: 1; padding: 11px 4px 12px;
+  background: none; border: none;
+  border-bottom: 2px solid transparent;
+  color: rgba(240,235,224,0.35);
+  font-size: 12px; letter-spacing: 0.06em;
+  cursor: pointer; font-family: inherit;
+  transition: color 0.25s, border-color 0.25s;
+}
+.main-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+/* ── Salle 네비 ──────────────────────────── */
+.salle-nav {
+  display: flex; gap: 6px;
+  padding: 14px 16px 4px;
+  overflow-x: auto; scrollbar-width: none;
+}
+.salle-nav::-webkit-scrollbar { display: none; }
+.salle-tab {
+  flex: 1; min-width: 56px;
+  padding: 8px 4px;
+  background: none;
+  border: 1px solid rgba(240,235,224,0.1);
+  border-radius: 10px;
+  color: rgba(240,235,224,0.4);
+  font-family: inherit; cursor: pointer;
+  transition: all 0.25s;
+  text-align: center;
+}
+.salle-tab .num { display: block; font-size: 15px; letter-spacing: 0.1em; line-height: 1.2; }
+.salle-tab .nm  { display: block; font-size: 7.5px; letter-spacing: 0.06em; margin-top: 3px; opacity: 0.8; }
+.salle-tab.active {
+  border-color: var(--gold-dim);
+  color: var(--gold-l);
+  background: var(--gold-faint);
+}
+
+/* ── 무대 (Salle 방별 테마) ───────────────── */
+.stage-wrap { padding: 12px 16px 32px; }
+.stage {
+  position: relative;
+  border-radius: 16px;
+  border: 1px solid rgba(201,168,76,0.14);
+  overflow: hidden;
+  min-height: 58vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 36px 22px 26px;
+  transition: background 0.5s ease;
+  animation: stageIn 0.45s ease;
+}
+@keyframes stageIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* Salle Ⅰ — 와인 다마스크 */
+.stage[data-salle="1"] {
+  background:
+    radial-gradient(circle at 25% 20%, rgba(201,168,76,0.05) 0 18px, transparent 19px),
+    radial-gradient(circle at 75% 60%, rgba(201,168,76,0.04) 0 24px, transparent 25px),
+    radial-gradient(circle at 50% 90%, rgba(201,168,76,0.03) 0 20px, transparent 21px),
+    linear-gradient(165deg, #4a2828 0%, #351c1c 100%);
+}
+/* Salle Ⅱ — 진녹 서재 */
+.stage[data-salle="2"] {
+  background:
+    repeating-linear-gradient(90deg, rgba(0,0,0,0.10) 0 2px, transparent 2px 64px),
+    linear-gradient(170deg, #243126 0%, #16201a 100%);
+}
+/* Salle Ⅲ — 프러시안 블루 궁전 */
+.stage[data-salle="3"] {
+  background:
+    radial-gradient(ellipse 90% 50% at 50% 0%, rgba(201,168,76,0.07), transparent 55%),
+    linear-gradient(170deg, #1f2c44 0%, #131c2c 100%);
+}
+/* Salle Ⅳ — 크림 아침 (밝은 방) */
+.stage[data-salle="4"] {
+  background:
+    radial-gradient(ellipse 110% 70% at 50% -10%, rgba(255,252,244,0.85), transparent 70%),
+    linear-gradient(175deg, #ece2cd 0%, #d8cbb2 100%);
+}
+/* Salle Ⅴ — 렘브란트 명암 */
+.stage[data-salle="5"] {
+  background:
+    radial-gradient(ellipse 60% 45% at 50% 38%, rgba(201,168,76,0.13), transparent 65%),
+    linear-gradient(180deg, #171109 0%, #0c0805 100%);
+}
+
+.stage-label {
+  position: absolute; top: 14px; left: 0; right: 0;
+  text-align: center;
+  font-size: 9px; letter-spacing: 0.32em;
+  color: var(--gold-dim); text-transform: uppercase;
+}
+.stage[data-salle="4"] .stage-label { color: rgba(110,85,40,0.65); }
+
+.artwork {
+  max-width: 88%; max-height: 44vh;
+  width: auto; height: auto;
+  display: block;
+  filter: drop-shadow(0 24px 48px rgba(0,0,0,0.6));
+  border: 6px solid rgba(201,168,76,0.18);
+  outline: 1px solid rgba(0,0,0,0.35);
+  background: #1a1410;
+  animation: artIn 0.6s ease;
+}
+@keyframes artIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: none; } }
+.stage[data-salle="4"] .artwork { border-color: rgba(110,85,40,0.35); filter: drop-shadow(0 20px 40px rgba(60,40,20,0.4)); }
+
+/* 명판(플라크) */
+.plaque {
+  margin-top: 22px;
+  text-align: center;
+  max-width: 320px;
+}
+.plaque-name { font-size: 16px; color: var(--cream); letter-spacing: 0.04em; line-height: 1.4; }
+.plaque-artist { font-size: 11px; color: var(--gold-dim); font-style: italic; margin-top: 5px; }
+.plaque-meta { font-size: 9.5px; color: rgba(240,235,224,0.32); letter-spacing: 0.05em; margin-top: 4px; }
+.stage[data-salle="4"] .plaque-name  { color: var(--ink); }
+.stage[data-salle="4"] .plaque-artist{ color: rgba(110,85,40,0.8); }
+.stage[data-salle="4"] .plaque-meta  { color: rgba(60,45,30,0.45); }
+
+.love-line {
+  margin-top: 14px;
+  font-size: 10px; letter-spacing: 0.06em;
+  color: var(--warmgrey);
+}
+.love-line b { color: var(--gold-l); font-weight: 500; }
+.stage[data-salle="4"] .love-line { color: rgba(90,70,45,0.7); }
+.stage[data-salle="4"] .love-line b { color: #8a6420; }
+
+/* 카드 버튼 줄 */
+.card-actions {
+  margin-top: 18px;
+  display: flex; gap: 10px;
+  width: 100%; max-width: 340px;
+}
+.btn-layers {
+  flex: 1;
+  padding: 12px 8px;
+  background: rgba(240,235,224,0.05);
+  border: 1px solid rgba(240,235,224,0.14);
+  border-radius: 12px;
+  color: var(--cream-dim);
+  font-size: 11px; letter-spacing: 0.08em;
+  cursor: pointer; font-family: inherit;
+}
+.btn-apply {
+  flex: 1.4;
+  padding: 12px 8px;
+  background: linear-gradient(135deg, rgba(201,168,76,0.32), rgba(201,168,76,0.12));
+  border: 1px solid rgba(201,168,76,0.5);
+  border-radius: 12px;
+  color: var(--gold);
+  font-size: 12px; letter-spacing: 0.1em;
+  cursor: pointer; font-family: inherit;
+}
+.stage[data-salle="4"] .btn-layers { background: rgba(60,45,30,0.06); border-color: rgba(60,45,30,0.22); color: rgba(70,55,35,0.8); }
+.stage[data-salle="4"] .btn-apply  { background: linear-gradient(135deg, rgba(140,100,30,0.22), rgba(140,100,30,0.08)); border-color: rgba(140,100,30,0.5); color: #7a5a18; }
+
+/* ── 우아한 비움 ─────────────────────────── */
+.void {
+  min-height: 50vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center;
+  padding: 40px 28px;
+  animation: stageIn 0.45s ease;
+}
+.void-mark { font-size: 26px; color: var(--gold-dim); margin-bottom: 18px; }
+.void-line { font-size: 13px; color: var(--cream-dim); line-height: 2; letter-spacing: 0.04em; }
+.void-sub  { font-size: 10px; color: rgba(240,235,224,0.28); margin-top: 14px; letter-spacing: 0.08em; line-height: 1.8; }
+
+/* ── 응모 패널 / 모달 공통 ────────────────── */
+@keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes flowerIn { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
+
+.sheet-overlay {
+  position: fixed; inset: 0; z-index: 600;
+  background: rgba(20,10,8,0.94);
+  backdrop-filter: blur(14px);
+  display: flex; align-items: flex-end; justify-content: center;
+  animation: overlayIn 0.25s ease;
+}
+.sheet {
+  width: 100%; max-width: 480px;
+  background: #241614;
+  border-radius: 20px 20px 0 0;
+  border-top: 1px solid rgba(201,168,76,0.2);
+  padding: 26px 26px 46px;
+  animation: sheetUp 0.32s cubic-bezier(0.34,1.56,0.64,1);
+  max-height: 86vh; overflow-y: auto;
+}
+.sheet-handle {
+  width: 36px; height: 4px; border-radius: 2px;
+  background: rgba(201,168,76,0.25);
+  margin: 0 auto 22px;
+}
+.sheet-eyebrow { font-size: 9px; letter-spacing: 0.28em; color: var(--gold-dim); margin-bottom: 6px; text-transform: uppercase; }
+.sheet-title { font-size: 17px; color: var(--cream); margin-bottom: 5px; line-height: 1.35; }
+.sheet-sub { font-size: 10px; color: rgba(240,235,224,0.35); margin-bottom: 22px; }
+
+/* 4겹 모달 본문 */
+.layer-block { margin-bottom: 20px; }
+.layer-tag {
+  font-size: 8.5px; letter-spacing: 0.26em; color: var(--gold-dim);
+  text-transform: uppercase; margin-bottom: 7px;
+}
+.layer-text { font-size: 12.5px; color: rgba(240,235,224,0.78); line-height: 1.95; letter-spacing: 0.01em; }
+.layer-divider { height: 1px; margin: 22px 0; background: linear-gradient(90deg, transparent, rgba(201,168,76,0.18), transparent); }
+
+/* 공통 버튼 */
+.sheet-btn {
+  width: 100%; padding: 14px;
+  border-radius: 12px;
+  font-size: 12px; letter-spacing: 0.1em;
+  cursor: pointer; font-family: inherit;
+  margin-top: 10px;
+}
+.sheet-btn.gold {
+  background: linear-gradient(135deg, rgba(201,168,76,0.32), rgba(201,168,76,0.12));
+  border: 1px solid rgba(201,168,76,0.5);
+  color: var(--gold);
+}
+.sheet-btn.ghost {
+  background: rgba(240,235,224,0.05);
+  border: 1px solid rgba(240,235,224,0.12);
+  color: rgba(240,235,224,0.5);
+}
+.sheet-btn.quiet {
+  background: none;
+  border: 1px solid rgba(240,235,224,0.07);
+  color: rgba(240,235,224,0.28);
+  font-size: 11px; padding: 12px;
+}
+.sheet-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* 응모 현황 박스 */
+.stat-row { display: flex; gap: 10px; margin-bottom: 20px; }
+.stat-box {
+  flex: 1;
+  background: rgba(201,168,76,0.07);
+  border: 1px solid rgba(201,168,76,0.15);
+  border-radius: 10px;
+  padding: 13px 8px;
+  text-align: center;
+}
+.stat-num { font-size: 22px; color: var(--gold-l); }
+.stat-num small { font-size: 13px; color: var(--gold-dim); }
+.stat-lbl { font-size: 8.5px; color: var(--cream-dim); letter-spacing: 0.1em; margin-top: 3px; }
+
+.confession {
+  background: rgba(201,168,76,0.05);
+  border: 1px solid rgba(201,168,76,0.12);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  font-size: 10.5px; color: var(--warmgrey);
+  line-height: 1.85; letter-spacing: 0.03em;
+  text-align: center;
+}
+.confession b { color: var(--gold-dim); font-weight: 500; }
+
+.ticket-list-tag { font-size: 9px; letter-spacing: 0.2em; color: var(--gold-dim); margin-bottom: 10px; }
+.ticket-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px;
+  background: rgba(20,10,8,0.4);
+  border: 1px solid rgba(201,168,76,0.1);
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+.ticket-code { font-family: 'Courier New', monospace; font-size: 11.5px; color: var(--gold-l); letter-spacing: 0.05em; }
+.ticket-date { font-size: 9px; color: rgba(240,235,224,0.3); }
+
+.notice {
+  font-size: 10px; color: rgba(240,235,224,0.32);
+  line-height: 1.9; margin: 18px 0;
+  letter-spacing: 0.04em;
+}
+
+/* 티켓 카드 */
+.ticket-card {
+  background: linear-gradient(135deg, rgba(201,168,76,0.15), rgba(140,100,20,0.1));
+  border: 1px solid rgba(201,168,76,0.4);
+  border-radius: 12px;
+  padding: 26px 22px;
+  margin-bottom: 22px;
+  position: relative; overflow: hidden;
+  text-align: center;
+}
+.ticket-hole { position: absolute; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; background: #241614; border-radius: 50%; border: 1px solid rgba(201,168,76,0.2); }
+.ticket-hole.l { left: -10px; } .ticket-hole.r { right: -10px; }
+.ticket-dash { border-top: 1px dashed rgba(201,168,76,0.2); margin: 16px 0; }
+.ticket-big-code { font-family: 'Courier New', monospace; font-size: 14px; color: var(--gold); letter-spacing: 0.08em; font-weight: bold; word-break: break-all; line-height: 1.6; }
+
+/* 토스트 */
+.toast {
+  position: fixed; bottom: 88px; left: 50%; transform: translateX(-50%);
+  background: rgba(36,22,20,0.96);
+  border: 1px solid rgba(201,168,76,0.3);
+  color: var(--cream);
+  padding: 12px 24px;
+  border-radius: 24px;
+  font-size: 12.5px; letter-spacing: 0.05em;
+  z-index: 800;
+  animation: overlayIn 0.25s ease;
+  white-space: nowrap;
+}
+
+@media (min-width: 640px) {
+  .stage-wrap, .main-tabs, .salle-nav, .rhythm { max-width: 560px; margin-left: auto; margin-right: auto; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hd-row">
+    <button class="hd-back" onclick="goHome()" aria-label="홈으로">←</button>
+    <div class="hd-title">
+      <div class="hd-eyebrow">EG Heritage</div>
+      <div class="hd-name">경매장 <span class="amp">&amp;</span> 대여 서가</div>
+    </div>
+    <div class="hd-badge">heritage v3.0 · Phase 1<br>살롱 탭 · 주 6장 · 사람 풀</div>
+  </div>
+</header>
+
+<div class="rhythm" id="rhythm-line"></div>
+
+<nav class="main-tabs" id="main-tabs">
+  <button class="main-tab active" data-tab="salon"   onclick="switchMainTab('salon')">🖼 이번 주 살롱</button>
+  <button class="main-tab"        data-tab="record"  onclick="switchMainTab('record')">📀 음반 가게</button>
+  <button class="main-tab"        data-tab="catalog" onclick="switchMainTab('catalog')">📚 카탈로그</button>
+</nav>
+
+<!-- ── 탭 ① 살롱 ─────────────────────────── -->
+<section id="tab-salon">
+  <nav class="salle-nav" id="salle-nav"></nav>
+  <div class="stage-wrap"><div id="stage-host"></div></div>
+</section>
+
+<!-- ── 탭 ② 음반 가게 (Phase 3) ─────────────── -->
+<section id="tab-record" hidden>
+  <div class="void">
+    <div class="void-mark">📀</div>
+    <div class="void-line">가게가 단장 중입니다.</div>
+    <div class="void-sub">매주 화요일, 아홉 장의 신보가 진열됩니다.<br>청음은 없습니다 — 재킷과 라이너 노트만 읽고,<br>판은 집으로 데려가 듣는 곳입니다.</div>
+  </div>
+</section>
+
+<!-- ── 탭 ③ 카탈로그 레조네 (Phase 4) ────────── -->
+<section id="tab-catalog" hidden>
+  <div class="void">
+    <div class="void-mark">📚</div>
+    <div class="void-line">카탈로그 레조네를 제본 중입니다.</div>
+    <div class="void-sub">떠난 보물의 소장처와 여행 일지,<br>대여 서가의 문이 이곳에 걸립니다.</div>
+  </div>
+</section>
+
+<script>
+/* ══════════════════════════════════════════════════
+   EG HERITAGE v3.0 · Phase 1 — 살롱 탭
+   ══════════════════════════════════════════════════ */
+
+// ── Supabase 설정 ─────────────────────────
+const SUPABASE_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+
+async function sbFetch(path, options = {}) {
+  const res = await fetch(SUPABASE_URL + path, {
+    ...options,
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + (getToken() || SUPABASE_KEY),
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation',
+      ...options.headers
+    }
+  });
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message || res.statusText); }
+  return res.status === 204 ? null : res.json();
+}
+
+function getToken() {
+  try { const s = JSON.parse(localStorage.getItem('eungyo-auth')); return s?.access_token || null; }
+  catch { return null; }
+}
+function getUser() {
+  try { const s = JSON.parse(localStorage.getItem('eungyo-auth')); return s?.user || null; }
+  catch { return null; }
+}
+
+// ISO 주차 (DB 함수 TO_CHAR IYYY-"W"IW 와 정합)
+function getWkId(d = new Date()) {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const wk = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+  return `${date.getUTCFullYear()}-W${String(wk).padStart(2, '0')}`;
+}
+
+// ── 상태 ─────────────────────────────────
+let SALON_ITEMS = [];        // 이번 주 그림 5점 (salle_no 순)
+let LOVE_COUNTS = {};        // item_id → 이번 주 응모한 '사람' 수
+let currentSalle = 1;
+
+const SALLE_NAMES = {
+  1: '와인 다마스크', 2: '진녹 서재', 3: '프러시안 궁전',
+  4: '크림 아침', 5: '렘브란트 명암'
+};
+const ROMAN = { 1:'Ⅰ', 2:'Ⅱ', 3:'Ⅲ', 4:'Ⅳ', 5:'Ⅴ' };
+
+// 4겹 라벨 (layers 신형식 도착 전, library 폴백 공용)
+const LAYER_LABELS = {
+  knowledge:  '첫 번째 겹 · 앎',
+  thought:    '두 번째 겹 · 사유',
+  connection: '세 번째 겹 · 연결',
+  curation:   '네 번째 겹 · 큐레이션',
+  scene:      '장면'
+};
+
+// ── 데이터 로드 ───────────────────────────
+async function loadSalon() {
+  try {
+    SALON_ITEMS = await sbFetch(
+      `/rest/v1/heritage_items?status=eq.active&category=eq.visual&select=*&order=salle_no.asc`
+    ) || [];
+  } catch (e) { console.warn('살롱 로드 실패:', e); SALON_ITEMS = []; }
+
+  // 응모 현황: 사람 풀 — 작품별 DISTINCT 응모자 수
+  LOVE_COUNTS = {};
+  if (SALON_ITEMS.length) {
+    try {
+      const ids = SALON_ITEMS.map(i => i.id).join(',');
+      const apps = await sbFetch(
+        `/rest/v1/heritage_applications?item_id=in.(${ids})&wk_id=eq.${getWkId()}&select=item_id,user_id`
+      ) || [];
+      const sets = {};
+      for (const a of apps) {
+        (sets[a.item_id] = sets[a.item_id] || new Set()).add(a.user_id);
+      }
+      for (const k of Object.keys(sets)) LOVE_COUNTS[k] = sets[k].size;
+    } catch (e) { console.warn('응모 현황 로드 실패:', e); }
+  }
+}
+
+// ── 메인 탭 ───────────────────────────────
+function switchMainTab(tab) {
+  document.querySelectorAll('.main-tab').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === tab));
+  document.getElementById('tab-salon').hidden   = tab !== 'salon';
+  document.getElementById('tab-record').hidden  = tab !== 'record';
+  document.getElementById('tab-catalog').hidden = tab !== 'catalog';
+}
+
+// ── 주간 리듬 한 줄 ───────────────────────
+function renderRhythm() {
+  const day = new Date().getDay(); // 0 일 ~ 6 토
+  let line;
+  if (day === 1) {
+    line = '오늘 <b>정오</b>, 다섯 방 동시 추첨 — 보물이 집으로 떠납니다';
+  } else if (day === 0) {
+    line = '응모는 <b>오늘 자정</b> 마감 · 추첨은 <b>월요일 정오</b>';
+  } else if (day === 2) {
+    line = '새 살롱이 열렸습니다 · 응모는 <b>일요일 자정</b>까지 · 추첨은 <b>월요일 정오</b>';
+  } else {
+    line = '응모는 <b>일요일 자정</b>까지 · 추첨은 <b>월요일 정오</b>, 다섯 방 동시에';
+  }
+  document.getElementById('rhythm-line').innerHTML = line;
+}
+
+// ── Salle 네비 ────────────────────────────
+function renderSalleNav() {
+  const host = document.getElementById('salle-nav');
+  host.innerHTML = [1,2,3,4,5].map(n => `
+    <button class="salle-tab ${n === currentSalle ? 'active' : ''}" data-salle="${n}" onclick="switchSalle(${n})">
+      <span class="num">${ROMAN[n]}</span>
+      <span class="nm">${SALLE_NAMES[n]}</span>
+    </button>`).join('');
+}
+
+function switchSalle(n) {
+  if (n < 1 || n > 5) return;
+  currentSalle = n;
+  renderSalleNav();
+  renderStage();
+}
+
+// ── 무대 렌더 ─────────────────────────────
+function renderStage() {
+  const host = document.getElementById('stage-host');
+  const item = SALON_ITEMS.find(i => i.salle_no === currentSalle);
+
+  if (!SALON_ITEMS.length) {
+    host.innerHTML = `
+      <div class="void">
+        <div class="void-mark">✦</div>
+        <div class="void-line">이번 주 살롱이 아직 비어 있습니다.</div>
+        <div class="void-sub">화요일 0시, 새 보물 다섯 점이 도착합니다.</div>
+      </div>`;
+    return;
+  }
+
+  if (!item) {
+    host.innerHTML = `
+      <div class="stage" data-salle="${currentSalle}">
+        <div class="stage-label">Salle ${ROMAN[currentSalle]} · ${SALLE_NAMES[currentSalle]}</div>
+        <div class="void" style="min-height:40vh;">
+          <div class="void-mark">✦</div>
+          <div class="void-line">이 방은 비어 있습니다.</div>
+          <div class="void-sub">다음 보물을 기다리는 벽입니다.</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const loved = LOVE_COUNTS[item.id] || 0;
+  const loveLine = loved > 0
+    ? `이번 주 <b>${loved}명</b>이 이 작품을 사랑합니다`
+    : `첫 번째 사랑의 고백을 기다립니다`;
+  const hasLayers = !!(item.layers || item.library);
+
+  host.innerHTML = `
+    <div class="stage" data-salle="${currentSalle}">
+      <div class="stage-label">Salle ${ROMAN[currentSalle]} · ${SALLE_NAMES[currentSalle]}</div>
+      <img class="artwork" src="${item.img}" alt="${escapeHtml(item.name)}"
+           onerror="this.style.display='none'">
+      <div class="plaque">
+        <div class="plaque-name">${escapeHtml(item.name)}</div>
+        <div class="plaque-artist">${escapeHtml(item.artist)}${item.period ? ' · ' + escapeHtml(item.period) : ''}</div>
+        ${item.origin ? `<div class="plaque-meta">${escapeHtml(item.origin)}</div>` : ''}
+        <div class="love-line">${loveLine}</div>
+      </div>
+      <div class="card-actions">
+        ${hasLayers ? `<button class="btn-layers" onclick="openLayers('${item.id}')">✦ 카리의 4겹</button>` : ''}
+        <button class="btn-apply" onclick="openBid('${item.id}')">🍎 1알 응모하기</button>
+      </div>
+    </div>`;
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+// ── 카리의 4겹 모달 ───────────────────────
+function openLayers(itemId) {
+  const item = SALON_ITEMS.find(i => i.id === itemId);
+  if (!item) return;
+  const src = item.layers || item.library;
+  if (!src) return;
+
+  let blocks = '';
+  if (Array.isArray(src)) {
+    blocks = src.map((t, i) => `
+      <div class="layer-block">
+        <div class="layer-tag">${i + 1}번째 겹</div>
+        <div class="layer-text">${escapeHtml(typeof t === 'string' ? t : JSON.stringify(t))}</div>
+      </div>`).join('<div class="layer-divider"></div>');
+  } else if (typeof src === 'object') {
+    const order = ['scene', 'knowledge', 'thought', 'connection', 'curation'];
+    const keys = [...order.filter(k => src[k]), ...Object.keys(src).filter(k => !order.includes(k))];
+    blocks = keys.map(k => `
+      <div class="layer-block">
+        <div class="layer-tag">${LAYER_LABELS[k] || escapeHtml(k)}</div>
+        <div class="layer-text">${escapeHtml(src[k])}</div>
+      </div>`).join('<div class="layer-divider"></div>');
+  } else {
+    blocks = `<div class="layer-text">${escapeHtml(src)}</div>`;
+  }
+
+  const panel = document.createElement('div');
+  panel.id = 'layers-panel';
+  panel.innerHTML = `
+    <div class="sheet-overlay" onclick="if(event.target===this)closeLayers()">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-eyebrow">Quatre Couches · 카리의 4겹</div>
+        <div class="sheet-title">${escapeHtml(item.name)}</div>
+        <div class="sheet-sub">${escapeHtml(item.artist)}</div>
+        ${blocks}
+        <button class="sheet-btn quiet" onclick="closeLayers()">닫기</button>
+      </div>
+    </div>`;
+  document.body.appendChild(panel);
+}
+function closeLayers() {
+  const p = document.getElementById('layers-panel'); if (p) p.remove();
+}
+
+// ── 응모 패널 (행운의 미소) ────────────────
+async function openBid(itemId) {
+  const user = getUser();
+  if (!user) { showToast('로그인이 필요합니다'); return; }
+
+  const wkId = getWkId();
+  let myTickets = [];
+
+  try {
+    myTickets = await sbFetch(
+      `/rest/v1/heritage_applications?item_id=eq.${itemId}&user_id=eq.${user.id}&wk_id=eq.${wkId}&select=ticket_code,applied_date,created_at&order=created_at.asc`
+    ) || [];
+  } catch (e) { console.warn(e); }
+
+  const todayApplied = myTickets.some(t => t.applied_date === new Date().toISOString().slice(0, 10));
+  const weekCount = myTickets.length;
+  const canApply = !todayApplied && weekCount < 6;
+  const item = SALON_ITEMS.find(i => i.id === itemId);
+  const loved = LOVE_COUNTS[itemId] || 0;
+
+  const panel = document.createElement('div');
+  panel.id = 'bid-panel';
+  panel.innerHTML = `
+    <div class="sheet-overlay" onclick="if(event.target===this)closeBidPanel()">
+      <div class="sheet" id="bid-sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-eyebrow">행운의 미소 · Heritage Lottery</div>
+        <div class="sheet-title">${item ? escapeHtml(item.name) : itemId}</div>
+        <div class="sheet-sub">${item ? escapeHtml(item.artist) : ''}</div>
+
+        <div class="stat-row">
+          <div class="stat-box">
+            <div class="stat-num">${loved}</div>
+            <div class="stat-lbl">이 작품을 사랑하는 사람</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-num">${weekCount}<small>/6</small></div>
+            <div class="stat-lbl">내 티켓 (이번 주)</div>
+          </div>
+        </div>
+
+        <div class="confession">
+          추첨은 <b>사람</b>에서 뽑습니다 — 1,000알과 1알이 동등합니다.<br>
+          두 번째 티켓부터는, 확률이 아니라 <b>사랑의 고백</b>입니다.
+        </div>
+
+        ${myTickets.length ? `
+        <div style="margin-bottom:18px;">
+          <div class="ticket-list-tag">내 티켓</div>
+          ${myTickets.map(t => `
+            <div class="ticket-row">
+              <span class="ticket-code">${t.ticket_code}</span>
+              <span class="ticket-date">${t.applied_date}</span>
+            </div>`).join('')}
+        </div>` : ''}
+
+        <div class="notice">
+          🍎 황금사과 1알 = 티켓 1장<br>
+          📅 하루 1회 · 화~일, 한 작품에 주 6장까지<br>
+          🎲 월요일 정오, 다섯 방 동시 추첨<br>
+          🥇 1등은 영구 소장 — 2~5등은 보물이 대여로 집에 머뭅니다<br>
+          ✦ 응모한 황금사과는 환불되지 않습니다
+        </div>
+
+        ${canApply ? `
+          <button class="sheet-btn gold" onclick="submitApplication('${itemId}')">🍎 오늘 응모하기 (황금사과 1알)</button>
+        ` : todayApplied ? `
+          <div class="sheet-btn ghost" style="text-align:center;cursor:default;">✓ 오늘 이미 응모하셨습니다 · 내일 다시 오세요</div>
+        ` : `
+          <div class="sheet-btn ghost" style="text-align:center;cursor:default;">이번 주 응모 6장을 모두 사용하셨습니다</div>
+        `}
+
+        <button class="sheet-btn quiet" onclick="closeBidPanel()">닫기</button>
+      </div>
+    </div>`;
+  document.body.appendChild(panel);
+}
+
+function closeBidPanel() {
+  const p = document.getElementById('bid-panel'); if (p) p.remove();
+}
+
+// ── 응모 실행 ─────────────────────────────
+async function submitApplication(itemId) {
+  const user = getUser();
+  if (!user) { showToast('로그인이 필요합니다'); return; }
+  const nickname = localStorage.getItem('eg_nickname') || user.email?.split('@')[0] || '익명';
+
+  const btn = document.querySelector('#bid-panel button[onclick*="submitApplication"]');
+  if (btn) { btn.disabled = true; btn.textContent = '응모 중...'; }
+
+  try {
+    const result = await sbFetch('/rest/v1/rpc/apply_heritage', {
+      method: 'POST',
+      body: JSON.stringify({ p_item_id: itemId, p_user_id: user.id, p_nickname: nickname })
+    });
+
+    if (result.ok) {
+      LOVE_COUNTS[itemId] = Math.max(LOVE_COUNTS[itemId] || 0, 0) || 0;
+      showTicketInPanel(result.ticket, itemId);
+      refreshLoveAndStage(itemId);
+    } else {
+      showToast(result.msg);
+      if (btn) { btn.disabled = false; btn.textContent = '🍎 오늘 응모하기 (황금사과 1알)'; }
+    }
+  } catch (e) {
+    showToast('응모 실패: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '🍎 오늘 응모하기 (황금사과 1알)'; }
+  }
+}
+
+// 응모 후 사람 수 재조회 + 무대 갱신
+async function refreshLoveAndStage(itemId) {
+  try {
+    const apps = await sbFetch(
+      `/rest/v1/heritage_applications?item_id=eq.${itemId}&wk_id=eq.${getWkId()}&select=user_id`
+    ) || [];
+    LOVE_COUNTS[itemId] = new Set(apps.map(a => a.user_id)).size;
+  } catch (e) { console.warn(e); }
+  renderStage();
+}
+
+// ── 티켓 발급 화면 ────────────────────────
+function showTicketInPanel(ticketCode, itemId) {
+  const item = SALON_ITEMS.find(i => i.id === itemId);
+  const sheet = document.getElementById('bid-sheet');
+  if (!sheet) return;
+
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <div class="sheet-eyebrow">티켓 발급 완료</div>
+    <div class="sheet-title" style="margin-bottom:24px;">${item ? escapeHtml(item.name) : itemId}</div>
+
+    <div class="ticket-card">
+      <div class="ticket-hole l"></div>
+      <div class="ticket-hole r"></div>
+      <div class="sheet-eyebrow" style="margin-bottom:12px;">EG Heritage · Lottery Ticket</div>
+      <div style="font-size:13px;color:rgba(240,235,224,0.6);margin-bottom:5px;">${item ? escapeHtml(item.name) : itemId}</div>
+      <div style="font-size:11px;color:rgba(240,235,224,0.35);">${item ? escapeHtml(item.artist) : ''}</div>
+      <div class="ticket-dash"></div>
+      <div class="ticket-big-code">${ticketCode}</div>
+      <div style="font-size:9px;color:rgba(240,235,224,0.25);margin-top:8px;letter-spacing:0.1em;">${new Date().toLocaleDateString('ko-KR')} 발급</div>
+      <div class="ticket-dash"></div>
+      <div style="font-size:9px;color:rgba(240,235,224,0.22);letter-spacing:0.08em;line-height:1.8;">
+        월요일 정오, 다섯 방 동시 추첨<br>
+        응모한 황금사과는 환불되지 않습니다
+      </div>
+    </div>
+
+    <button class="sheet-btn gold" onclick="downloadTicket('${ticketCode}','${item ? escapeHtml(item.name) : itemId}')">📥 티켓 이미지 저장</button>
+    <button class="sheet-btn ghost" onclick="saveTicketToWunderkammer('${ticketCode}','${item ? escapeHtml(item.name) : itemId}')">🏠 분더카머에 보관</button>
+    <button class="sheet-btn quiet" onclick="closeBidPanel()">닫기</button>
+  `;
+}
+
+// ── 티켓 이미지 다운로드 ──────────────────
+function downloadTicket(ticketCode, itemName) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 600; canvas.height = 320;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#241614';
+  ctx.fillRect(0, 0, 600, 320);
+
+  ctx.strokeStyle = 'rgba(201,168,76,0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(16, 16, 568, 288);
+
+  ctx.setLineDash([6, 4]);
+  ctx.strokeStyle = 'rgba(201,168,76,0.25)';
+  ctx.beginPath(); ctx.moveTo(40, 160); ctx.lineTo(560, 160); ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = '#140a08';
+  ctx.beginPath(); ctx.arc(16, 160, 12, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(584, 160, 12, 0, Math.PI * 2); ctx.fill();
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(201,168,76,0.6)';
+  ctx.font = '11px "Courier New"';
+  ctx.fillText('EG HERITAGE · LOTTERY TICKET', 300, 60);
+
+  ctx.fillStyle = 'rgba(240,235,224,0.7)';
+  ctx.font = '18px Georgia';
+  ctx.fillText(itemName, 300, 100);
+
+  ctx.fillStyle = '#C9A84C';
+  ctx.font = 'bold 22px "Courier New"';
+  ctx.fillText(ticketCode, 300, 210);
+
+  ctx.fillStyle = 'rgba(240,235,224,0.3)';
+  ctx.font = '11px Georgia';
+  ctx.fillText(new Date().toLocaleDateString('ko-KR') + ' 발급 · 은교살롱', 300, 270);
+
+  const a = document.createElement('a');
+  a.download = `EG_TICKET_${ticketCode}.png`;
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+  showToast('🎟 티켓이 저장되었습니다!');
+}
+
+// ── 분더카머 티켓 보관 (임시 localStorage — 본 공사 교체 지점) ──
+function saveTicketToWunderkammer(ticketCode, itemName) {
+  try {
+    const tickets = JSON.parse(localStorage.getItem('eg_my_tickets') || '[]');
+    if (!tickets.find(t => t.code === ticketCode)) {
+      tickets.push({ code: ticketCode, item: itemName, date: new Date().toISOString() });
+      localStorage.setItem('eg_my_tickets', JSON.stringify(tickets));
+    }
+    showToast('🏠 분더카머에 보관했습니다!');
+  } catch (e) {
+    showToast('보관 실패: ' + e.message);
+  }
+}
+
+// ── 토스트 ────────────────────────────────
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// ── 키보드 + 스와이프 ─────────────────────
+document.addEventListener('keydown', (e) => {
+  if (document.getElementById('bid-panel') || document.getElementById('layers-panel')) {
+    if (e.key === 'Escape') { closeBidPanel(); closeLayers(); }
+    return;
+  }
+  if (document.getElementById('tab-salon').hidden) return;
+  if (e.key === 'ArrowLeft')  switchSalle(currentSalle - 1);
+  if (e.key === 'ArrowRight') switchSalle(currentSalle + 1);
+  if (['1','2','3','4','5'].includes(e.key)) switchSalle(parseInt(e.key));
+});
+
+let touchX = null;
+document.addEventListener('touchstart', (e) => {
+  if (document.getElementById('bid-panel') || document.getElementById('layers-panel')) return;
+  if (document.getElementById('tab-salon').hidden) return;
+  touchX = e.touches[0].clientX;
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  if (touchX === null) return;
+  const dx = e.changedTouches[0].clientX - touchX;
+  touchX = null;
+  if (Math.abs(dx) < 60) return;
+  if (dx < 0) switchSalle(currentSalle + 1);
+  else        switchSalle(currentSalle - 1);
+}, { passive: true });
+
+// ── 초기화 ────────────────────────────────
+function goHome() { window.location.href = '/eungyo-salon/'; }
+
+(async function init() {
+  renderRhythm();
+  renderSalleNav();
+  document.getElementById('stage-host').innerHTML = `
+    <div class="void">
+      <div class="void-mark">✦</div>
+      <div class="void-line">살롱의 불을 켜는 중입니다…</div>
+    </div>`;
+  await loadSalon();
+  renderSalleNav();
+  renderStage();
+})();
+</script>
+</body>
+</html>
