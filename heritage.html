@@ -1070,13 +1070,73 @@ function showTicketInPanel(ticketCode, itemId) {
       </div>
     </div>
 
-    <button class="sheet-btn gold" onclick="downloadTicket('${ticketCode}','${item ? escapeHtml(item.name) : itemId}')">📥 티켓 이미지 저장</button>
+    <button class="sheet-btn gold" onclick="downloadTicket('${ticketCode}','${itemId}')">📥 티켓 이미지 저장</button>
     <button class="sheet-btn quiet" onclick="closeBidPanel()">닫기</button>
   `;
 }
 
 // ── 티켓 이미지 다운로드 ──────────────────
-function downloadTicket(ticketCode, itemName) {
+// 방(Salle)마다 전용 티켓 한 장 — 무대 색과 짝지은 배정 (0607 소로 결정)
+// 잉크색 = 각 티켓에 인쇄된 글자색 실측값. 짙은 바탕(Ⅲ·Ⅴ)은 크림 화이트.
+const TICKET_DESIGNS = {
+  1: { file: 'ticket_05.webp', ink: '#7A5B58', sub: 'rgba(122,91,88,0.85)'   }, // Ⅰ 와인 다마스크 → 로즈
+  2: { file: 'ticket_04.webp', ink: '#464628', sub: 'rgba(70,70,40,0.85)'    }, // Ⅱ 진녹 서재 → 셀라돈
+  3: { file: 'ticket_03.webp', ink: '#FAFAF0', sub: 'rgba(250,250,240,0.85)' }, // Ⅲ 프러시안 궁전 → 네이비
+  4: { file: 'ticket_01.webp', ink: '#56492E', sub: 'rgba(86,73,46,0.85)'    }, // Ⅳ 크림 아침 → 아이보리
+  5: { file: 'ticket_02.webp', ink: '#FFFDF3', sub: 'rgba(255,253,243,0.88)' }  // Ⅴ 렘브란트 명암 → 토프
+};
+
+async function downloadTicket(ticketCode, itemId) {
+  const item = SALON_ITEMS.find(i => String(i.id) === String(itemId));
+  const itemName = item ? item.name : String(itemId);
+  const design = item ? TICKET_DESIGNS[item.salle_no] : null;
+  if (!design) { downloadTicketFallback(ticketCode, itemName); return; }
+
+  try { await document.fonts.ready; } catch (e) {}
+
+  const img = new Image();
+  img.onload = () => {
+    const W = 2172, H = 724, CX = 810; // 원본 규격 + 본문(반권 제외) 중앙
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, W, H);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // 작품명 — 부제와 장식선 사이, 길면 자동 축소
+    let size = 66;
+    ctx.font = '600 ' + size + 'px "Noto Serif KR", serif';
+    while (ctx.measureText(itemName).width > 1380 && size > 34) {
+      size -= 4;
+      ctx.font = '600 ' + size + 'px "Noto Serif KR", serif';
+    }
+    ctx.fillStyle = design.ink;
+    ctx.fillText(itemName, CX, 352);
+
+    // 일련번호 — 장식선 아래
+    try { ctx.letterSpacing = '2px'; } catch (e) {}
+    ctx.font = 'bold 46px "Courier New", monospace';
+    ctx.fillText(ticketCode, CX, 510);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+
+    // 발급일
+    ctx.font = '500 27px "Noto Serif KR", serif';
+    ctx.fillStyle = design.sub;
+    ctx.fillText(new Date().toLocaleDateString('ko-KR') + ' 발급 · 은교살롱', CX, 598);
+
+    const a = document.createElement('a');
+    a.download = 'EG_TICKET_' + ticketCode + '.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+    showToast('🎟 티켓이 저장되었습니다!');
+  };
+  img.onerror = () => downloadTicketFallback(ticketCode, itemName); // 자재 못 받으면 옛 티켓으로 정직 폴백
+  img.src = design.file;
+}
+
+// 폴백 — v3.9 캔버스 티켓 (자재 로드 실패 시에만)
+function downloadTicketFallback(ticketCode, itemName) {
   const canvas = document.createElement('canvas');
   canvas.width = 600; canvas.height = 320;
   const ctx = canvas.getContext('2d');
