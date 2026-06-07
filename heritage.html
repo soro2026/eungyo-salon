@@ -376,7 +376,11 @@ header {
   border: 1px solid rgba(201,168,76,0.1);
   border-radius: 6px;
   margin-bottom: 6px;
+  cursor: pointer;
+  transition: border-color 0.25s ease, background 0.25s ease;
 }
+.ticket-row:hover { border-color: rgba(201,168,76,0.45); background: rgba(30,16,12,0.55); }
+.ticket-go { color: var(--gold-dim); font-size: 14px; margin-left: 6px; }
 .ticket-code { font-family: 'Courier New', monospace; font-size: 13.5px; color: var(--gold-l); letter-spacing: 0.05em; }
 .ticket-date { font-size: 12px; color: var(--txt-soft); }
 
@@ -438,7 +442,7 @@ header {
       <button class="main-tab"        data-tab="record"  onclick="switchMainTab('record')">📀 음반 가게</button>
       <button class="main-tab"        data-tab="catalog" onclick="switchMainTab('catalog')">📚 카탈로그</button>
     </nav>
-    <div class="hd-badge">heritage v4.2 · Phase 1+<br>방별 티켓 · 즉석 미리보기</div>
+    <div class="hd-badge">heritage v4.3 · Phase 1+<br>방별 티켓 · 내 티켓 상시 열람</div>
   </div>
   <div class="rhythm" id="rhythm-line"></div>
 </header>
@@ -1006,9 +1010,9 @@ async function openBid(itemId) {
         <div style="margin-bottom:18px;">
           <div class="ticket-list-tag">내 티켓</div>
           ${myTickets.map(t => `
-            <div class="ticket-row">
+            <div class="ticket-row" title="티켓 보기" onclick="viewTicket('${t.ticket_code}','${itemId}')">
               <span class="ticket-code">${t.ticket_code}</span>
-              <span class="ticket-date">${t.applied_date}</span>
+              <span class="ticket-date">${t.applied_date}<span class="ticket-go">›</span></span>
             </div>`).join('')}
         </div>` : ''}
 
@@ -1133,6 +1137,14 @@ const TICKET_DESIGNS = {
   5: { file: 'ticket_02.webp', ink: '#FFFDF3', sub: 'rgba(255,253,243,0.88)' }  // Ⅴ 렘브란트 명암 → 토프
 };
 
+// 티켓 번호(HTG_00N-YYYYMMDD-XXXX)에 새겨진 발급일 — 옛 티켓도 제 날짜를 입는다
+function ticketIssueDate(ticketCode) {
+  const m = /-(\d{8})-/.exec(ticketCode);
+  if (!m) return new Date().toLocaleDateString('ko-KR');
+  const s = m[1];
+  return parseInt(s.slice(0, 4), 10) + '. ' + parseInt(s.slice(4, 6), 10) + '. ' + parseInt(s.slice(6, 8), 10) + '.';
+}
+
 let _ticketCache = { code: null, url: null }; // 같은 티켓은 한 번만 굽는다
 
 async function buildTicketImage(ticketCode, itemId) {
@@ -1180,7 +1192,7 @@ async function buildTicketImage(ticketCode, itemId) {
   // 발급일
   ctx.font = '500 27px "Noto Serif KR", serif';
   ctx.fillStyle = design.sub;
-  ctx.fillText(new Date().toLocaleDateString('ko-KR') + ' 발급 · 은교살롱', CX, 598);
+  ctx.fillText(ticketIssueDate(ticketCode) + ' 발급 · 은교살롱', CX, 598);
 
   const url = canvas.toDataURL('image/png');
   _ticketCache = { code: ticketCode, url: url };
@@ -1198,6 +1210,42 @@ async function downloadTicket(ticketCode, itemId) {
   a.href = url;
   a.click();
   showToast('🎟 티켓이 저장되었습니다!');
+}
+
+// ── 내 티켓 상시 열람 — 응모 패널 위층의 막 ──
+async function viewTicket(ticketCode, itemId) {
+  const item = SALON_ITEMS.find(i => String(i.id) === String(itemId));
+  const panel = document.createElement('div');
+  panel.id = 'ticket-view-panel';
+  panel.innerHTML = `
+    <div class="sheet-overlay" style="${salleBackdrop()}" onclick="if(event.target===this)closeTicketView()">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-eyebrow">내 티켓</div>
+        <div class="sheet-title" style="margin-bottom:24px;">${item ? escapeHtml(item.name) : ''}</div>
+        <div id="ticket-view-host">
+          <div class="ticket-card">
+            <div class="sheet-eyebrow" style="margin-bottom:12px;">EG Heritage · Lottery Ticket</div>
+            <div class="ticket-big-code">${ticketCode}</div>
+            <div style="font-size:12px;color:rgba(244,239,228,0.55);margin-top:8px;letter-spacing:0.06em;">${ticketIssueDate(ticketCode)} 발급</div>
+          </div>
+        </div>
+        <button class="sheet-btn gold" onclick="downloadTicket('${ticketCode}','${itemId}')">📥 티켓 이미지 저장</button>
+        <button class="sheet-btn quiet" onclick="closeTicketView()">← 돌아가기</button>
+      </div>
+    </div>`;
+  document.body.appendChild(panel);
+
+  buildTicketImage(ticketCode, itemId).then(url => {
+    const host = document.getElementById('ticket-view-host');
+    if (!url || !host) return;
+    host.innerHTML = '<img class="ticket-img" src="' + url + '" alt="응모 티켓">';
+    requestAnimationFrame(() => { const im = host.querySelector('img'); if (im) im.style.opacity = '1'; });
+  });
+}
+function closeTicketView() {
+  const p = document.getElementById('ticket-view-panel'); if (p) p.remove();
+  // body overflow는 아래층 응모 패널 소관 — 건드리지 않는다
 }
 
 // 폴백 — v3.9 캔버스 티켓 (자재 로드 실패 시에만)
@@ -1257,6 +1305,10 @@ function showToast(msg) {
 
 // ── 키보드 + 스와이프 ─────────────────────
 document.addEventListener('keydown', (e) => {
+  if (document.getElementById('ticket-view-panel')) {
+    if (e.key === 'Escape') closeTicketView();
+    return;
+  }
   if (document.getElementById('bid-panel') || document.getElementById('layers-panel') ||
       document.getElementById('liner-panel') || document.getElementById('rent-panel')) {
     if (e.key === 'Escape') { closeBidPanel(); closeLayers(); closeLiner(); closeRent(); }
