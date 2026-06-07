@@ -437,7 +437,7 @@ header {
       <button class="main-tab"        data-tab="record"  onclick="switchMainTab('record')">📀 음반 가게</button>
       <button class="main-tab"        data-tab="catalog" onclick="switchMainTab('catalog')">📚 카탈로그</button>
     </nav>
-    <div class="hd-badge">heritage v4.0 · Phase 1+<br>음반 가게 — 아홉 방 개점</div>
+    <div class="hd-badge">heritage v4.1 · Phase 1+<br>방별 티켓 · 토큰 자동 갱신</div>
   </div>
   <div class="rhythm" id="rhythm-line"></div>
 </header>
@@ -472,12 +472,53 @@ header {
 const SUPABASE_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
 
+// ── 토큰 수명 관리 (0607 낮 수술) ──────────
+// 증상: 로그인 1시간 뒤 access_token 만료 → 만료 토큰으로 요청 → 전부 401 → 살롱·가게가 텅 빔.
+// 처방: 만료 임박이면 refresh_token으로 조용히 갱신, 갱신 불가면 익명 키 폴백(공개 읽기는 계속 산다).
+let _refreshing = null; // 동시 요청 단일화 — 갱신은 한 번만
+
+function getSession() {
+  try { return JSON.parse(localStorage.getItem('eungyo-auth')); }
+  catch { return null; }
+}
+
+function tokenExp(tok) { // JWT 만료 시각(초) — 저장 형태와 무관하게 토큰 자체에서 읽음
+  try { return JSON.parse(atob(tok.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).exp || 0; }
+  catch { return 0; }
+}
+
+async function getValidToken() {
+  const s = getSession();
+  if (!s?.access_token) return null;
+  const now = Math.floor(Date.now() / 1000);
+  if (tokenExp(s.access_token) - now > 60) return s.access_token; // 아직 신선
+  if (!s.refresh_token) return null;
+  _refreshing = _refreshing || (async () => {
+    try {
+      const r = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: s.refresh_token })
+      });
+      if (!r.ok) return null;
+      const data = await r.json();
+      if (!data.expires_at) data.expires_at = Math.floor(Date.now() / 1000) + (data.expires_in || 3600);
+      localStorage.setItem('eungyo-auth', JSON.stringify(data)); // supabase-js 세션 형태 그대로
+      return data.access_token || null;
+    } catch (e) { return null; }
+  })();
+  const tok = await _refreshing;
+  _refreshing = null;
+  return tok;
+}
+
 async function sbFetch(path, options = {}) {
+  const token = await getValidToken();
   const res = await fetch(SUPABASE_URL + path, {
     ...options,
     headers: {
       'apikey': SUPABASE_KEY,
-      'Authorization': 'Bearer ' + (getToken() || SUPABASE_KEY),
+      'Authorization': 'Bearer ' + (token || SUPABASE_KEY),
       'Content-Type': 'application/json',
       'Prefer': 'return=representation',
       ...options.headers
@@ -485,11 +526,6 @@ async function sbFetch(path, options = {}) {
   });
   if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message || res.statusText); }
   return res.status === 204 ? null : res.json();
-}
-
-function getToken() {
-  try { const s = JSON.parse(localStorage.getItem('eungyo-auth')); return s?.access_token || null; }
-  catch { return null; }
 }
 function getUser() {
   try { const s = JSON.parse(localStorage.getItem('eungyo-auth')); return s?.user || null; }
