@@ -400,6 +400,7 @@ header {
 .ticket-hole.l { left: -10px; } .ticket-hole.r { right: -10px; }
 .ticket-dash { border-top: 1px dashed rgba(201,168,76,0.2); margin: 16px 0; }
 .ticket-big-code { font-family: 'Courier New', monospace; font-size: 17px; color: var(--gold); letter-spacing: 0.08em; font-weight: bold; word-break: break-all; line-height: 1.6; }
+.ticket-img { width: 100%; display: block; border-radius: 12px; box-shadow: 0 14px 34px rgba(0,0,0,0.45); opacity: 0; transition: opacity 0.6s ease; }
 
 /* 토스트 */
 .toast {
@@ -437,7 +438,7 @@ header {
       <button class="main-tab"        data-tab="record"  onclick="switchMainTab('record')">📀 음반 가게</button>
       <button class="main-tab"        data-tab="catalog" onclick="switchMainTab('catalog')">📚 카탈로그</button>
     </nav>
-    <div class="hd-badge">heritage v4.1 · Phase 1+<br>방별 티켓 · 토큰 자동 갱신</div>
+    <div class="hd-badge">heritage v4.2 · Phase 1+<br>방별 티켓 · 즉석 미리보기</div>
   </div>
   <div class="rhythm" id="rhythm-line"></div>
 </header>
@@ -1090,25 +1091,35 @@ function showTicketInPanel(ticketCode, itemId) {
     <div class="sheet-eyebrow">티켓 발급 완료</div>
     <div class="sheet-title" style="margin-bottom:24px;">${item ? escapeHtml(item.name) : itemId}</div>
 
-    <div class="ticket-card">
-      <div class="ticket-hole l"></div>
-      <div class="ticket-hole r"></div>
-      <div class="sheet-eyebrow" style="margin-bottom:12px;">EG Heritage · Lottery Ticket</div>
-      <div style="font-size:15px;color:rgba(244,239,228,0.9);margin-bottom:5px;">${item ? escapeHtml(item.name) : itemId}</div>
-      <div style="font-size:13.5px;color:rgba(244,239,228,0.62);">${item ? escapeHtml(item.artist) : ''}</div>
-      <div class="ticket-dash"></div>
-      <div class="ticket-big-code">${ticketCode}</div>
-      <div style="font-size:12px;color:rgba(244,239,228,0.55);margin-top:8px;letter-spacing:0.06em;">${new Date().toLocaleDateString('ko-KR')} 발급</div>
-      <div class="ticket-dash"></div>
-      <div style="font-size:12.5px;color:rgba(244,239,228,0.62);letter-spacing:0.04em;line-height:1.9;">
-        월요일 정오, 다섯 방 동시 추첨<br>
-        응모한 황금사과는 환불되지 않습니다
+    <div id="ticket-preview">
+      <div class="ticket-card">
+        <div class="ticket-hole l"></div>
+        <div class="ticket-hole r"></div>
+        <div class="sheet-eyebrow" style="margin-bottom:12px;">EG Heritage · Lottery Ticket</div>
+        <div style="font-size:15px;color:rgba(244,239,228,0.9);margin-bottom:5px;">${item ? escapeHtml(item.name) : itemId}</div>
+        <div style="font-size:13.5px;color:rgba(244,239,228,0.62);">${item ? escapeHtml(item.artist) : ''}</div>
+        <div class="ticket-dash"></div>
+        <div class="ticket-big-code">${ticketCode}</div>
+        <div style="font-size:12px;color:rgba(244,239,228,0.55);margin-top:8px;letter-spacing:0.06em;">${new Date().toLocaleDateString('ko-KR')} 발급</div>
       </div>
+    </div>
+
+    <div style="font-size:12.5px;color:rgba(244,239,228,0.62);letter-spacing:0.04em;line-height:1.9;text-align:center;margin:16px 0 4px;">
+      월요일 정오, 다섯 방 동시 추첨<br>
+      응모한 황금사과는 환불되지 않습니다
     </div>
 
     <button class="sheet-btn gold" onclick="downloadTicket('${ticketCode}','${itemId}')">📥 티켓 이미지 저장</button>
     <button class="sheet-btn quiet" onclick="closeBidPanel()">닫기</button>
   `;
+
+  // 새 옷 입은 티켓을 즉석에서 구워 미리보기에 끼움 — 실패하면 위 카드가 그대로 남는다
+  buildTicketImage(ticketCode, itemId).then(url => {
+    const host = document.getElementById('ticket-preview');
+    if (!url || !host) return;
+    host.innerHTML = '<img class="ticket-img" src="' + url + '" alt="응모 티켓">';
+    requestAnimationFrame(() => { const im = host.querySelector('img'); if (im) im.style.opacity = '1'; });
+  });
 }
 
 // ── 티켓 이미지 다운로드 ──────────────────
@@ -1122,53 +1133,71 @@ const TICKET_DESIGNS = {
   5: { file: 'ticket_02.webp', ink: '#FFFDF3', sub: 'rgba(255,253,243,0.88)' }  // Ⅴ 렘브란트 명암 → 토프
 };
 
-async function downloadTicket(ticketCode, itemId) {
+let _ticketCache = { code: null, url: null }; // 같은 티켓은 한 번만 굽는다
+
+async function buildTicketImage(ticketCode, itemId) {
+  if (_ticketCache.code === ticketCode && _ticketCache.url) return _ticketCache.url;
+
   const item = SALON_ITEMS.find(i => String(i.id) === String(itemId));
-  const itemName = item ? item.name : String(itemId);
   const design = item ? TICKET_DESIGNS[item.salle_no] : null;
-  if (!design) { downloadTicketFallback(ticketCode, itemName); return; }
+  if (!design) return null;
+  const itemName = item.name;
 
   try { await document.fonts.ready; } catch (e) {}
 
-  const img = new Image();
-  img.onload = () => {
-    const W = 2172, H = 724, CX = 810; // 원본 규격 + 본문(반권 제외) 중앙
-    const canvas = document.createElement('canvas');
-    canvas.width = W; canvas.height = H;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0, W, H);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+  const img = await new Promise(resolve => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = () => resolve(null); // 자재 못 받으면 null → 호출 쪽 폴백
+    im.src = design.file;
+  });
+  if (!img) return null;
 
-    // 작품명 — 부제와 장식선 사이, 길면 자동 축소
-    let size = 66;
+  const W = 2172, H = 724, CX = 810; // 원본 규격 + 본문(반권 제외) 중앙
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, W, H);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // 작품명 — 부제와 장식선 사이, 길면 자동 축소
+  let size = 66;
+  ctx.font = '600 ' + size + 'px "Noto Serif KR", serif';
+  while (ctx.measureText(itemName).width > 1380 && size > 34) {
+    size -= 4;
     ctx.font = '600 ' + size + 'px "Noto Serif KR", serif';
-    while (ctx.measureText(itemName).width > 1380 && size > 34) {
-      size -= 4;
-      ctx.font = '600 ' + size + 'px "Noto Serif KR", serif';
-    }
-    ctx.fillStyle = design.ink;
-    ctx.fillText(itemName, CX, 352);
+  }
+  ctx.fillStyle = design.ink;
+  ctx.fillText(itemName, CX, 352);
 
-    // 일련번호 — 장식선 아래
-    try { ctx.letterSpacing = '2px'; } catch (e) {}
-    ctx.font = 'bold 46px "Courier New", monospace';
-    ctx.fillText(ticketCode, CX, 510);
-    try { ctx.letterSpacing = '0px'; } catch (e) {}
+  // 일련번호 — 장식선 아래
+  try { ctx.letterSpacing = '2px'; } catch (e) {}
+  ctx.font = 'bold 46px "Courier New", monospace';
+  ctx.fillText(ticketCode, CX, 510);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
 
-    // 발급일
-    ctx.font = '500 27px "Noto Serif KR", serif';
-    ctx.fillStyle = design.sub;
-    ctx.fillText(new Date().toLocaleDateString('ko-KR') + ' 발급 · 은교살롱', CX, 598);
+  // 발급일
+  ctx.font = '500 27px "Noto Serif KR", serif';
+  ctx.fillStyle = design.sub;
+  ctx.fillText(new Date().toLocaleDateString('ko-KR') + ' 발급 · 은교살롱', CX, 598);
 
-    const a = document.createElement('a');
-    a.download = 'EG_TICKET_' + ticketCode + '.png';
-    a.href = canvas.toDataURL('image/png');
-    a.click();
-    showToast('🎟 티켓이 저장되었습니다!');
-  };
-  img.onerror = () => downloadTicketFallback(ticketCode, itemName); // 자재 못 받으면 옛 티켓으로 정직 폴백
-  img.src = design.file;
+  const url = canvas.toDataURL('image/png');
+  _ticketCache = { code: ticketCode, url: url };
+  return url;
+}
+
+async function downloadTicket(ticketCode, itemId) {
+  const item = SALON_ITEMS.find(i => String(i.id) === String(itemId));
+  const itemName = item ? item.name : String(itemId);
+  const url = await buildTicketImage(ticketCode, itemId);
+  if (!url) { downloadTicketFallback(ticketCode, itemName); return; } // 자재 못 받으면 옛 티켓으로 정직 폴백
+
+  const a = document.createElement('a');
+  a.download = 'EG_TICKET_' + ticketCode + '.png';
+  a.href = url;
+  a.click();
+  showToast('🎟 티켓이 저장되었습니다!');
 }
 
 // 폴백 — v3.9 캔버스 티켓 (자재 로드 실패 시에만)
