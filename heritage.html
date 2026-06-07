@@ -491,7 +491,7 @@ header {
       <button class="main-tab"        data-tab="record"  onclick="switchMainTab('record')">📀 음반 가게</button>
       <button class="main-tab"        data-tab="catalog" onclick="switchMainTab('catalog')">📚 카탈로그</button>
     </nav>
-    <div class="hd-badge">heritage v5.0 · Phase 2+4a<br>카탈로그 레조네 — 그림·음반 챕터</div>
+    <div class="hd-badge">heritage v5.1 · Phase 2+3a+4a<br>음반 대여 창구 개통 — 🍎 1알 · 3주</div>
   </div>
   <div class="rhythm" id="rhythm-line"></div>
 </header>
@@ -523,7 +523,7 @@ header {
 
 <script>
 /* ══════════════════════════════════════════════════
-   EG HERITAGE v5.0 · Phase 2+4a — 살롱 + 음반 가게 + 카탈로그 레조네
+   EG HERITAGE v5.1 · Phase 2+3a+4a — 살롱 + 음반 가게(대여 창구) + 카탈로그 레조네
    ══════════════════════════════════════════════════ */
 
 // ── Supabase 설정 ─────────────────────────
@@ -804,7 +804,7 @@ function openLiner(itemId) {
         <div class="sheet-title">${escapeHtml(item.name)}</div>
         <div class="sheet-sub">${escapeHtml(item.artist)}${item.origin ? ' · ' + escapeHtml(item.origin) : ''}</div>
         ${blocks}
-        <button class="sheet-btn gold" onclick="closeLiner();openRent('${item.id}')">이 판을 집으로 — 🍎 1알 · 3주</button>
+        ${linerRentButton(item)}
         <button class="sheet-btn quiet" onclick="closeLiner()">닫기</button>
       </div>
     </div>`;
@@ -838,7 +838,7 @@ function openRent(itemId) {
           ✦ 카탈로그는 닫히지 않습니다 — 언제든 다시 빌릴 수 있습니다
         </div>
 
-        <button class="sheet-btn gold" onclick="showToast('대여 창구는 마무리 공사 중입니다 — 곧 열립니다 🔨')">이 판을 집으로 — 🍎 1알 · 3주</button>
+        <button class="sheet-btn gold" onclick="rpcRentRecord('${item.id}')">이 판을 집으로 — 🍎 1알 · 3주</button>
         <button class="sheet-btn quiet" onclick="closeRent()">닫기</button>
       </div>
     </div>`;
@@ -1134,6 +1134,61 @@ async function refreshCatWork(itemId) {
   renderCatalog();
   closeCatWork();
   openCatWork(itemId);
+}
+
+// ── 음반 대여 창구 — 🍎 1알 · 3주 · 서고 27칸 ──
+let MY_REC_RENTS = [];   // 내 서고의 판들 (열린 음반 대여)
+
+async function loadMyRecordRentals() {
+  const user = getUser();
+  if (!user) { MY_REC_RENTS = []; return; }
+  try {
+    MY_REC_RENTS = await sbFetch(
+      `/rest/v1/heritage_rentals?user_id=eq.${user.id}&edition_id=is.null&returned_at=is.null&select=id,item_id,due_at,source`
+    ) || [];
+  } catch (e) { MY_REC_RENTS = []; }
+}
+
+// 라이너 노트 막의 손잡이 — 상태별 옷
+function linerRentButton(item) {
+  const mine = MY_REC_RENTS.find(r => r.item_id === item.id);
+  if (!mine) {
+    return `<button class="sheet-btn gold" onclick="closeLiner();openRent('${item.id}')">이 판을 집으로 — 🍎 1알 · 3주</button>`;
+  }
+  const nearDue = (new Date(mine.due_at) - Date.now()) <= 5 * 24 * 3600 * 1000;
+  return `<button class="sheet-btn quiet" disabled>지금 당신의 서고에 있습니다 — ${fmtMD(mine.due_at)}까지 ✦</button>` +
+    (nearDue
+      ? `<button class="sheet-btn gold" onclick="rpcRenewRecord(${mine.id},'${item.id}')">한 계절 더 곁에 두시겠어요? — 🍎 1알 · 3주</button>`
+      : '');
+}
+
+async function rpcRentRecord(itemId) {
+  const user = getUser();
+  if (!user) { showToast('입장 후 빌릴 수 있습니다'); return; }
+  const nickname = localStorage.getItem('eg_nickname') || user.email?.split('@')[0] || '익명';
+  try {
+    const r = await sbFetch('/rest/v1/rpc/rent_record', {
+      method: 'POST',
+      body: JSON.stringify({ p_item_id: itemId, p_user_id: user.id, p_nickname: nickname })
+    });
+    await loadMyRecordRentals();
+    closeRent(); closeLiner();
+    showToast(`판이 집으로 떠납니다 — 🍎 1알 · ${fmtMD(r.due_at)}까지 (서고 ${r.slots_used}/27칸)`);
+  } catch (e) { showToast(e.message || '대여하지 못했습니다'); }
+}
+
+async function rpcRenewRecord(rentalId, itemId) {
+  const user = getUser();
+  if (!user) { showToast('입장 후 갱신할 수 있습니다'); return; }
+  try {
+    const r = await sbFetch('/rest/v1/rpc/renew_record', {
+      method: 'POST',
+      body: JSON.stringify({ p_rental_id: rentalId, p_user_id: user.id })
+    });
+    await loadMyRecordRentals();
+    closeLiner();
+    showToast(`한 계절 더 — 🍎 1알 · ${fmtMD(r.due_at)}까지`);
+  } catch (e) { showToast(e.message || '갱신하지 못했습니다'); }
 }
 
 // ── 메인 탭 ───────────────────────────────
@@ -1701,6 +1756,7 @@ function goHome() { window.location.href = '/eungyo-salon/'; }
       <div class="void-mark">✦</div>
       <div class="void-line">살롱의 불을 켜는 중입니다…</div>
     </div>`;
+  loadMyRecordRentals();
   await loadSalon();
   renderSalleNav();
   renderStage();
