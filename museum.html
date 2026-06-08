@@ -169,7 +169,7 @@
     opacity: 0.8;
   }
 
-  /* 완독 별 */
+  /* 별 표시 — 사랑하는 별의 책 (콘스텔라티오 발행 에세이) */
   .book-star {
     position: absolute;
     top: -8px;
@@ -177,6 +177,24 @@
     transform: translateX(-50%);
     font-size: 12px;
     filter: drop-shadow(0 0 4px rgba(201,168,76,0.8));
+    cursor: help;
+  }
+
+  /* NEW 마크 — 스타디움에서 갓 만난 책 (48시간) */
+  .book-new {
+    position: absolute;
+    top: -6px;
+    right: -5px;
+    background: linear-gradient(135deg, #c0452a, #8a2040);
+    color: #fff5e8;
+    font-size: 7px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    padding: 2px 4px;
+    border-radius: 3px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.45);
+    pointer-events: none;
+    z-index: 3;
   }
 
   /* 빈 서가 */
@@ -920,6 +938,9 @@ async function loadMuseumBooks() {
   // 1. 내가 경험한 quiz_log 가져오기
   let myAnswers = new Set();
   let myUid = null;   // B-4: 한스푼 필터에서도 쓰기 위해 함수 스코프로
+  let newMap = {};          // answer → 가장 최근 quiz_log created_at (ms) — NEW 48h 판정용
+  let myStarNames = new Set();  // 내가 발행(published) 에세이를 쓴 별 이름(+aliases)
+  let myEssaysByStar = {};      // 별 이름 → [{title, content}] — 뮤세움 회상 페이지용
   try {
     const { data: { session } } = await supa.auth.getSession();
     console.log('뮤세움 세션:', session ? session.user.email : '없음');
@@ -927,13 +948,53 @@ async function loadMuseumBooks() {
       myUid = session.user.id;
       const { data: logs, error } = await supa
         .from('quiz_log')
-        .select('answer')
+        .select('answer, created_at')
         .eq('uid', session.user.id);
       console.log('quiz_log 조회:', logs ? logs.length + '건' : '실패', error);
-      if (logs) logs.forEach(r => myAnswers.add(r.answer));
+      if (logs) logs.forEach(r => {
+        myAnswers.add(r.answer);
+        // 같은 책을 여러 번 풀었으면 가장 최근 시각으로 (NEW 배지는 최근 만남 기준)
+        const ts = r.created_at ? new Date(r.created_at).getTime() : 0;
+        if (!newMap[r.answer] || ts > newMap[r.answer]) newMap[r.answer] = ts;
+      });
     }
   } catch(e) {
     console.warn('quiz_log 로드 실패:', e);
+  }
+
+  // 1-b. 내가 발행한 별 에세이 → 별 이름 + 에세이 본문 (published만, RLS 공개)
+  //      별 표시·회상 페이지의 단일 진실원: star_contents(status='published')
+  if (myUid) {
+    try {
+      const { data: essays, error: ee } = await supa
+        .from('star_contents')
+        .select('star_id, title, content')
+        .eq('user_id', myUid)
+        .eq('status', 'published');
+      if (ee) console.warn('star_contents 조회 실패:', ee.message);
+      else if (essays && essays.length) {
+        const starIds = [...new Set(essays.map(e => e.star_id))];
+        const { data: srows } = await supa
+          .from('stars')
+          .select('id, name, aliases')
+          .in('id', starIds);
+        const id2names = {};
+        (srows || []).forEach(s => {
+          const names = [s.name, ...(Array.isArray(s.aliases) ? s.aliases : [])].filter(Boolean);
+          id2names[s.id] = names;
+          names.forEach(n => myStarNames.add(n));
+        });
+        essays.forEach(e => {
+          (id2names[e.star_id] || []).forEach(n => {
+            if (!myEssaysByStar[n]) myEssaysByStar[n] = [];
+            myEssaysByStar[n].push({ title: e.title, content: e.content });
+          });
+        });
+        console.log('내 발행 에세이 별:', myStarNames.size + '명');
+      }
+    } catch(e) {
+      console.warn('에세이 별 로드 예외:', e);
+    }
   }
 
   // 2. 전체 씨앗 JSON에서 책 정보 로드
@@ -970,6 +1031,7 @@ async function loadMuseumBooks() {
             catId:    getCatId(q.category),
             library:  q.library  || {},
             curation_links: q.curation_links || null,
+            figures:  Array.isArray(q.figures) ? q.figures : [],
             solved:   0,
             // 내가 경험한 책인지 여부
             mine: myAnswers.has(q.answer),
@@ -1042,6 +1104,17 @@ async function loadMuseumBooks() {
 
   for (const book of Object.values(bookMap)) {
     if (book.mine && ALL_BOOKS[book.catId]) {
+      // NEW 48시간 — 가장 최근 만남 기준
+      const ts = newMap[book.answer];
+      book.isNew = ts ? (Date.now() - ts < 48 * 3600 * 1000) : false;
+      // 별 표시 + 회상 에세이 — 이 책의 인물(figures) 중 내가 발행 에세이를 쓴 별
+      book.starEssays = [];
+      (book.figures || []).forEach(f => {
+        if (myStarNames.has(f) && myEssaysByStar[f]) {
+          book.starEssays.push(...myEssaysByStar[f]);
+        }
+      });
+      book.hasStar = book.starEssays.length > 0;
       ALL_BOOKS[book.catId].push(book);
     }
   }
@@ -1103,23 +1176,20 @@ function makeBookEl(book) {
   div.appendChild(imgEl);
   div.appendChild(textEl);
 
-  // 진행도 점
-  if (book.solved >= 1) {
-    const prog = document.createElement('div');
-    prog.className = 'book-progress';
-    for (let i = 0; i < Math.min(book.solved, 3); i++) {
-      const dot = document.createElement('div');
-      dot.className = 'progress-dot';
-      prog.appendChild(dot);
-    }
-    div.appendChild(prog);
+  // NEW 마크 (스타디움에서 갓 만난 책 · 48시간)
+  if (book.isNew) {
+    const nu = document.createElement('div');
+    nu.className = 'book-new';
+    nu.textContent = 'NEW';
+    div.appendChild(nu);
   }
 
-  // 완독 별
-  if (book.solved >= 3) {
+  // 별 표시 (콘스텔라티오에서 이 별에게 에세이를 발행한 책 — 사랑하는 별의 책)
+  if (book.hasStar) {
     const star = document.createElement('div');
     star.className = 'book-star';
     star.textContent = '⭐';
+    star.title = '사랑하는 별의 책 · 펼치면 내가 남긴 글이 담겨 있습니다';
     div.appendChild(star);
   }
 
@@ -1713,10 +1783,38 @@ function buildPages(book, lib) {
     pages.push(makeCompanionPage(book._reactions, pages.length + 1));
   }
 
+  // 4.7 내 에세이 회상 (별 달린 책 전용 — 본인 뮤세움에서만, 발행 에세이를 조용히)
+  if (book.hasStar && Array.isArray(book.starEssays) && book.starEssays.length) {
+    pages.push(makeEssayPage(book.starEssays, pages.length + 1));
+  }
+
   // 5. 마지막 페이지
   pages.push(makePhilemonPage(book, pages.length + 1));
 
   return pages;
+}
+
+function makeEssayPage(essays, num) {
+  const div = document.createElement('div');
+  div.className = 'book-page-view page-inner';
+  const sep = '<div style="width:30px;height:1px;background:rgba(180,160,120,0.3);margin:16px auto"></div>';
+  const body = essays.map(e => `
+    <div>
+      ${e.title ? `<div style="font-family:'Noto Serif KR',serif;font-weight:700;font-size:14px;color:#3D2F10;margin-bottom:8px">${e.title}</div>` : ''}
+      <div style="font-size:13px;color:#3D2F10;font-family:'Noto Serif KR',serif;line-height:1.78">${renderMarkdown(e.content || '')}</div>
+    </div>
+  `).join(sep);
+  div.innerHTML = `
+    <div class="page-lines"></div>
+    <div class="page-inner-content">
+      <div class="page-layer-tag">✦ 이 별에게 남긴 글</div>
+      <div class="page-layer-heading">콘스텔라티오에 발행한 나의 에세이</div>
+      <div class="page-layer-body">${body}</div>
+    </div>
+    <div class="page-num-inner">${num}</div>
+    <div class="page-corner"></div>
+  `;
+  return div;
 }
 
 function makeInnerPage(tag, heading, body, num) {
