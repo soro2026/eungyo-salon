@@ -1733,7 +1733,7 @@ async function saveStatsToSupabase() {
     const awayTeam  = currentIsHome ? (currentOpp?.id || 'unknown') : 'soro';
 
     const matchSearchRes = await fetch(
-      `${SUPA_URL}/rest/v1/matches?user_id=eq.${currentUser.id}&match_date=eq.${today}&is_my_game=eq.true&select=id,status`,
+      `${SUPA_URL}/rest/v1/matches?user_id=eq.${currentUser.id}&match_date=eq.${today}&is_my_game=eq.true&select=id,status,week_num`,
       { headers: baseHeaders }
     );
     const existingMatches = await matchSearchRes.json();
@@ -1791,6 +1791,13 @@ async function saveStatsToSupabase() {
           })
         }
       );
+    }
+
+    // ── 시범경기(week_num=0): 일정(matches)만 completed로 남기고 통계는 미반영 ──
+    const isPreseason = existingMatches?.[0]?.week_num === 0;
+    if (isPreseason) {
+      console.log('[저장] 시범경기 — 시즌/통산 통계 미반영 (matches만 completed)');
+      return;
     }
 
     // ── 3단계. season_stats UPSERT ────────────────────────

@@ -2389,6 +2389,33 @@ body{
     <div class="page-meta">WEEK 1 · DAY 4 · 04.26 SAT</div>
   </div>
 
+  <!-- 시즌 미시작: 멘토르 안내 + 시범경기 시작 -->
+  <div id="state-noseason" style="display:none">
+    <div class="matchup-stage">
+      <div class="matchup-card">
+        <div class="matchup-card-content" style="text-align:center">
+          <div class="hero-label">WELCOME</div>
+          <div style="font-size:15px;line-height:1.9;color:var(--ink-secondary,#5a4a38);margin:18px 6px 8px">
+            처음 오셨군요.<br>
+            천천히 둘러보셔도 괜찮습니다.<br>
+            준비되시면, 첫 시범경기를 함께 시작해요.
+          </div>
+          <div style="font-size:12px;color:var(--ink-tertiary);margin-bottom:6px">— 멘토르</div>
+          <div class="matchup-info">
+            시범경기는 통계에 들어가지 않습니다.<br>
+            가벼운 마음으로 첫 타석에 서보세요.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="matchup-cta">
+      <button class="cta-primary" id="startSeasonBtn" onclick="startMySeason()">
+        🌱 시범경기 시작하기
+      </button>
+      <div class="matchup-tip">오늘부터 시범경기, 다가오는 화요일부터 루키리그</div>
+    </div>
+  </div>
+
   <!-- 경기 전: TODAY MATCHUP -->
   <div id="state-matchup">
     <div class="matchup-stage">
@@ -3853,9 +3880,22 @@ async function loadHomeData() {
   }
   
   if (!todayMatches || todayMatches.length === 0) {
-    console.log('오늘 경기 없음 (월요일 휴식?)');
+    // 오늘 경기 없음 — 미래 일정 유무로 분기 (RLS가 본인 것만 반환)
+    const { data: future } = await supa
+      .from('matches').select('id').gte('match_date', today).limit(1);
+    if (!future || future.length === 0) {
+      showNoSeasonView();          // 시즌 미시작 → 멘토르 안내 + 시범경기 버튼
+    } else {
+      // 미래 일정은 있으나 오늘은 없음 = 휴식일(월요일 등) → 세 상태 모두 숨김
+      ['state-matchup','state-result','state-noseason'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.style.display = 'none';
+      });
+      console.log('오늘 경기 없음 (휴식일)');
+    }
     return;
   }
+  // 경기가 있으면 시즌 미시작 카드는 확실히 숨김
+  { const ns = document.getElementById('state-noseason'); if (ns) ns.style.display = 'none'; }
   
   const myGame = todayMatches.find(m => m.is_my_game);
   const otherGame = todayMatches.find(m => !m.is_my_game);
@@ -3871,6 +3911,97 @@ async function loadHomeData() {
 }
 
 // 매치업 화면 (경기 전)
+// ── 시즌 미시작 화면 (멘토르 안내 + 시범경기 버튼) ──
+function showNoSeasonView() {
+  document.getElementById('state-matchup').style.display = 'none';
+  document.getElementById('state-result').style.display = 'none';
+  const ns = document.getElementById('state-noseason');
+  if (ns) ns.style.display = 'block';
+}
+
+// ── 콩파뇽 시즌 시작 — 멘토르 [시범경기 시작하기] 버튼에서 호출 ──
+async function startMySeason() {
+  const btn = document.getElementById('startSeasonBtn');
+  const { data: { session } } = await supa.auth.getSession();
+  if (!session) { alert('로그인이 필요합니다.'); return; }
+  const uid = session.user.id;
+  const todayStr = getToday();
+
+  if (btn) { btn.disabled = true; btn.textContent = '시즌을 준비하고 있어요…'; }
+
+  // 중복 방지: 오늘 이후 내 일정이 이미 있으면 재생성 안 함
+  const { data: existing } = await supa.from('matches')
+    .select('id').gte('match_date', todayStr).limit(1);
+  if (existing && existing.length) { loadHomeData(); return; }
+
+  // 요일별(ISO: 화2~일7) 매치업 [home, away, is_my_game] — 시범·정식 공통
+  const DAY_TEMPLATE = {
+    2: [['soro','socrates',true],['proust','pascal',false]],
+    3: [['socrates','soro',true],['pascal','proust',false]],
+    4: [['soro','proust',true],  ['socrates','pascal',false]],
+    5: [['proust','soro',true],  ['pascal','socrates',false]],
+    6: [['soro','pascal',true],  ['socrates','proust',false]],
+    7: [['pascal','soro',true],  ['proust','socrates',false]],
+  };
+  const isoDow = d => (d.getDay() === 0 ? 7 : d.getDay());
+  const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+
+  const today = new Date(todayStr + 'T00:00:00+09:00');
+  const SEASON_START = new Date('2026-04-21T00:00:00+09:00'); // getCurrentWeek 기준점
+  const REG_WEEKS = 6;            // 정식 몇 주치 미리 INSERT
+  const rows = [];
+
+  // 정식 시작 화요일 (오늘 이후 가장 가까운 화요일)
+  const daysToTue = ((2 - isoDow(today) + 7) % 7) || 7;
+  const firstTue = addDays(today, daysToTue);
+
+  // active 시즌 보장 (없으면 ROOKIE 시즌 생성) — 경기 저장이 active 시즌을 요구함
+  const { data: activeSeason } = await supa
+    .from('seasons').select('id').eq('user_id', uid).eq('status', 'active').limit(1);
+  if (!activeSeason || activeSeason.length === 0) {
+    await supa.from('seasons').insert({
+      user_id: uid, league: 'ROOKIE', start_date: fmt(firstTue), status: 'active', season_num: 1
+    });
+  }
+
+  // 1) 시범경기 (week_num=0): 오늘 ~ 정식 화요일 전날, 월요일 휴식 제외
+  for (let d = new Date(today); d < firstTue; d = addDays(d, 1)) {
+    const dow = isoDow(d);
+    if (dow === 1) continue;
+    for (const [h, a, my] of DAY_TEMPLATE[dow])
+      rows.push({ user_id: uid, match_date: fmt(d), week_num: 0, day_of_week: dow,
+                  home_team: h, away_team: a, is_my_game: my, status: 'pending' });
+  }
+  // 월요일 당일 입장 보정: 시범경기가 0개면 당일 1경기(화요일 템플릿 차용)
+  if (rows.length === 0)
+    for (const [h, a, my] of DAY_TEMPLATE[2])
+      rows.push({ user_id: uid, match_date: todayStr, week_num: 0, day_of_week: isoDow(today),
+                  home_team: h, away_team: a, is_my_game: my, status: 'pending' });
+
+  // 2) 정식 루키리그: firstTue 부터 REG_WEEKS 주 (화~일 6경기 + 타구장)
+  for (let w = 0; w < REG_WEEKS; w++) {
+    const weekTue = addDays(firstTue, w * 7);
+    const weekNum = Math.floor((weekTue - SEASON_START) / (7 * 864e5)) + 1;
+    for (let i = 0; i < 6; i++) {
+      const d = addDays(weekTue, i), dow = isoDow(d);
+      for (const [h, a, my] of DAY_TEMPLATE[dow])
+        rows.push({ user_id: uid, match_date: fmt(d), week_num: weekNum, day_of_week: dow,
+                    home_team: h, away_team: a, is_my_game: my, status: 'pending' });
+    }
+  }
+
+  const { error } = await supa.from('matches').insert(rows);
+  if (error) {
+    console.error('시즌 생성 실패:', error);
+    alert('시즌 생성에 실패했어요. 잠시 후 다시 시도해주세요.');
+    if (btn) { btn.disabled = false; btn.textContent = '🌱 시범경기 시작하기'; }
+    return;
+  }
+  console.log(`시즌 생성 완료: ${rows.length}행`);
+  loadHomeData();   // 버튼 사라지고 오늘 매치업 표시
+}
+
 function showMatchupView(myGame, otherGame) {
   // 매치업 화면 표시, 결과 화면 숨김
   document.getElementById('state-matchup').style.display = 'block';
