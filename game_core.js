@@ -310,17 +310,23 @@ async function logQuizToMuseum(q) {
 
 
 async function loadQuestions() {
-  const files = [
-    'questions_davinci.json',
-    'questions_homer.json',
-    'questions_mozart.json',
-    'questions_ovid.json',
-    'questions_sejong.json',
-    'questions_shakespeare.json',
-    'questions_socrates.json',
-    'questions_tolstoy.json',
-    'questions_vangogh.json'
-  ];
+  // ── 문제 파일 목록을 questions_index.json에서 동적 로드 ──
+  //   (인물 추가 시 인덱스만 수정 — game_core는 안 건드림)
+  let files = null;
+  try {
+    const idx = await fetch('questions_index.json?t=' + Date.now()).then(r => r.json());
+    if (Array.isArray(idx.files) && idx.files.length) files = idx.files;
+  } catch (e) {
+    console.warn('[문제] questions_index.json 로드 실패 — 폴백 목록 사용', e?.message || e);
+  }
+  if (!files) {
+    // 폴백: 인덱스 못 읽을 때 최소 풀
+    files = [
+      'questions_davinci.json', 'questions_homer.json', 'questions_mozart.json',
+      'questions_ovid.json', 'questions_sejong.json', 'questions_shakespeare.json',
+      'questions_socrates.json', 'questions_tolstoy.json', 'questions_vangogh.json'
+    ];
+  }
   const results = await Promise.all(
     files.map(f => fetch(f).then(r => r.json()).catch(() => ({ questions: [] })))
   );
@@ -899,7 +905,7 @@ const COMMENTARY = {
     return [ pickC(C_SWING), `공이 ${lr}을 깊숙이 가릅니다!`, `${of}가 끝까지 쫓아갑니다...`, '타자는 벌써 2루를 돌았습니다!', '3루타! 슬라이딩 세이프!' ]; },
   double(){ const lr=pickC(['좌중간','우중간','좌익선상','우익선상']);
     return [ pickC(C_SWING), `${lr} 방면으로 빠르게 뻗습니다!`, '외야수가 따라붙지만 늦었습니다', '여유 있게 2루로!', '2루타!' ]; },
-  single(){ const d=pickC(['중전','좌전','우전','내야']);
+  single(){ const d=pickC(['중전','좌전','우전','중전','좌전','우전','내야']);   // 내야안타 비중 ↓ (약 1/7)
     if(d==='내야'){ const p=pickC(['3루수','유격수','2루수']); return [ pickC(C_SWING), `${p} 앞 느린 땅볼!`, '잡아서 송구하지만...', '한 발 빨랐습니다!', '내야안타! 살아나갑니다.' ]; }
     return [ pickC(C_SWING), `${d} 방면으로 깔끔하게!`, '외야수 앞에 떨어집니다', '1루를 밟습니다', '단타! 안타입니다.' ]; },
   bb(){ return [ '투수의 공이 자꾸 빠집니다...', '볼, 또 볼...', '타자는 배트를 내지 않습니다', '네 번째 볼!', '볼넷 — 1루로 걸어나갑니다.' ]; },
@@ -1214,7 +1220,7 @@ function onAction(){
         msgKey = 'ai_out';
       }
       showJudging(getMsg(msgKey),()=>{
-        st.totalAB++;
+        // (봇 공격은 유저 타수 totalAB에 더하지 않음 — pitchAB로 별도 집계)
         if(adv>=4){let r=1;for(let i=0;i<3;i++)if(st.bases[i])r++;st.bases=[false,false,false];animHR(r,()=>{st.scoreAi+=r;st.earnedRuns+=r;const aiEl=getAiEl();if(aiEl)aiEl.textContent=st.scoreAi;renderOuts();updateStats();showResultDef(label,cls);});}
         else if(aiMk==='bb'||aiMk==='hbp'){const prevAi=st.scoreAi;advBasesAiBB();st.earnedRuns+=(st.scoreAi-prevAi);renderOuts();updateStats();showResultDef(label,cls);}
         else if(adv>0){const prevAi=st.scoreAi;advBasesAi(adv);st.earnedRuns+=(st.scoreAi-prevAi);renderOuts();updateStats();showResultDef(label,cls);}
@@ -1519,7 +1525,7 @@ function processAns(ans){
   document.getElementById('input-panel').className='input-panel';
   document.getElementById('game-area').style.display='none';
   showJudging(composeComment(mk),()=>{
-    st.totalAB++;
+    if(mk!=='bb'&&mk!=='hbp') st.totalAB++;   // 볼넷·몸맞공은 타수(AB)에서 제외 → 타율 정확
     if(adv>=4){let r=1;for(let i=0;i<3;i++)if(st.bases[i])r++;st.bases=[false,false,false];animHR(r,()=>{st.scoreMe+=r;st.rbi+=r;popScore();renderOuts();updateStats();showResultAtk(label,cls,q,ok,tp,tt);});}
     else{const prevScore=st.scoreMe;if(mk==='bb'||mk==='hbp')advBasesBB();else advBases(adv);st.rbi+=(st.scoreMe-prevScore);renderOuts();updateScore();updateStats();showResultAtk(label,cls,q,ok,tp,tt);}
   });
@@ -1848,10 +1854,12 @@ async function saveStatsToSupabase() {
     return;
   }
 
+  const _dbgFails = [];  // 🔧 임시 진단: 저장 실패 수집 (원인 확정 후 제거)
   try {
     const session = (await supa.auth.getSession()).data.session;
     if (!session) {
       console.warn('[저장] 세션 없음 — 스킵');
+      alert('🔧 저장 디버그: 로그인 세션 없음 — 저장 스킵됨');
       return;
     }
     const token = session.access_token;
@@ -1891,7 +1899,7 @@ async function saveStatsToSupabase() {
     if (existingMatches?.[0]) {
       // 이미 cron이 만들어둔 행 — UPDATE
       const matchId = existingMatches[0].id;
-      await fetch(
+      const _mRes = await fetch(
         `${SUPA_URL}/rest/v1/matches?id=eq.${matchId}`,
         {
           method: 'PATCH',
@@ -1904,6 +1912,7 @@ async function saveStatsToSupabase() {
           })
         }
       );
+      if(!_mRes.ok) _dbgFails.push('matches-UPDATE '+_mRes.status+': '+(await _mRes.text().catch(()=>'')).slice(0,150));
     } else {
       // 행 없음 — 새로 INSERT (cron 도입 전 상황 대응)
       const dayOfWeek = new Date().getDay() === 0 ? 7 : new Date().getDay();  // ISO: 월=1, 일=7
@@ -1989,7 +1998,7 @@ async function saveStatsToSupabase() {
         }
       );
     } else {
-      await fetch(
+      const _sRes = await fetch(
         `${SUPA_URL}/rest/v1/season_stats`,
         {
           method: 'POST',
@@ -2015,6 +2024,7 @@ async function saveStatsToSupabase() {
           })
         }
       );
+      if(!_sRes.ok) _dbgFails.push('season-INSERT '+_sRes.status+': '+(await _sRes.text().catch(()=>'')).slice(0,150));
     }
 
     // ── 4단계. career_stats UPSERT ────────────────────────
@@ -2083,9 +2093,17 @@ async function saveStatsToSupabase() {
       isWin,
       score: `${st.scoreMe}:${st.scoreAi}`
     });
+    // 🔧 임시 진단: 실패가 있으면 화면에 표시 (원인 확정 후 제거)
+    if(_dbgFails.length){
+      console.error('[저장 실패]', _dbgFails);
+      alert('🔧 저장 디버그 — 실패 지점:\n\n' + _dbgFails.join('\n\n'));
+    } else {
+      console.log('[저장] ✅ 전부 성공 (matches·season·career)');
+    }
 
   } catch (e) {
     console.warn('[저장] Supabase 저장 실패 (게임 흐름 안 끊음):', e?.message || e);
+    alert('🔧 저장 디버그 — 예외 발생:\n' + (e?.message || e));
   }
 }
 

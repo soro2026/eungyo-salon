@@ -1,4 +1,4 @@
-const CACHE = 'eungyo-v39';
+const CACHE = 'eungyo-v42';
 
 const CORE_FILES = [
   '/eungyo-salon/',
@@ -17,6 +17,15 @@ const CORE_FILES = [
 
 const QUESTION_FILES = [
   '/eungyo-salon/questions_aeschylus.json',
+  '/eungyo-salon/questions_bach.json',
+  '/eungyo-salon/questions_hemingway.json',
+  '/eungyo-salon/questions_marx.json',
+  '/eungyo-salon/questions_miyazawa.json',
+  '/eungyo-salon/questions_monet.json',
+  '/eungyo-salon/questions_thoreau.json',
+  '/eungyo-salon/questions_topic_breath1.json',
+  '/eungyo-salon/questions_topic_breath2.json',
+  '/eungyo-salon/questions_topic_breath3.json',
   '/eungyo-salon/questions_baekseok.json',
   '/eungyo-salon/questions_chekhov.json',
   '/eungyo-salon/questions_darwin.json',
