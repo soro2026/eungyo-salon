@@ -1399,7 +1399,7 @@ async function loadFloor0(starId) {
           ${layerHtml('지식', r.knowledge)}
           ${layerHtml('사유', r.thought)}
           ${layerHtml('연결', r.connection)}
-          ${layerHtml('큐레이션', r.curation)}
+          ${layerHtml('큐레이션', r.curation, r.curation_links)}
         </div>
       </div>`).join('');
 
@@ -1415,13 +1415,69 @@ async function loadFloor0(starId) {
   }).join('');
 }
 
-function layerHtml(label, text) {
+// ── 별표 *...* → 굵은 강조 (뮤세움 renderMarkdown 이식, 소로 6/10) ──
+//    **텍스트**=짙은 볼드 / *텍스트*=볼드. 콘스텔라티오 풍경 양피지 톤에 맞춤.
+function renderMarkdownStar(text) {
   if (!text) return '';
-  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const e = String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return e
+    .replace(/\*\*([^*\n]+?)\*\*/g, '<strong style="font-family:\'Noto Sans KR\',\'맑은 고딕\',sans-serif;font-weight:700;color:#1f1a12">$1</strong>')
+    .replace(/\*([^*\n]+?)\*/g, '<strong style="font-family:\'Noto Sans KR\',\'맑은 고딕\',sans-serif;font-weight:600;color:#2e2415">$1</strong>');
+}
+
+// ── 큐레이션 링크 (뮤세움 renderCurationLinks 이식) — 절대 사라지지 않는 검색 링크 ──
+function renderCurationLinksStar(links) {
+  if (!links) return '';
+  const sections = [];
+  const linkStyle = "color:#8B6F2A;text-decoration:none;border-bottom:1px solid rgba(139,111,42,0.35);padding-bottom:1px";
+  const stopProp = `onclick="event.stopPropagation()" ontouchstart="event.stopPropagation()"`;
+  if (links.books && links.books.length > 0) {
+    const bookCards = links.books.map(b => {
+      const title = b.title || '';
+      const meta = [b.translator && `${b.translator} 옮김`, b.publisher].filter(Boolean).join(' · ');
+      const qFull  = encodeURIComponent(b.translator ? `${title} ${b.translator}` : title);
+      const qTitle = encodeURIComponent(title);
+      const stores = [
+        `<a href="https://search.kyobobook.co.kr/search?keyword=${qFull}" target="_blank" rel="noopener" ${stopProp} style="${linkStyle}">교보</a>`,
+        `<a href="https://www.aladin.co.kr/search/wsearchresult.aspx?SearchTarget=Book&SearchWord=${qTitle}" target="_blank" rel="noopener" ${stopProp} style="${linkStyle}">알라딘</a>`,
+      ];
+      return `
+        <div style="padding:10px 0;border-bottom:1px solid rgba(180,160,120,0.15);font-family:'Noto Serif KR',serif">
+          <div style="font-size:13px;color:#2e2820;font-weight:500">${title}</div>
+          ${meta ? `<div style="font-size:11px;color:rgba(80,60,30,0.6);margin-top:3px">${meta}</div>` : ''}
+          <div style="margin-top:6px;font-size:11px;letter-spacing:0.05em">${stores.join(' · ')}</div>
+        </div>`;
+    }).join('');
+    sections.push(`<div style="margin-top:14px"><div style="font-size:10px;letter-spacing:0.18em;color:rgba(120,90,40,0.6);margin-bottom:6px">📖 책</div>${bookCards}</div>`);
+  }
+  if (links.library_call_number) {
+    sections.push(`
+      <div style="margin-top:12px;padding:8px 0;border-bottom:1px solid rgba(180,160,120,0.15);font-family:'Noto Serif KR',serif">
+        <div style="font-size:10px;letter-spacing:0.18em;color:rgba(120,90,40,0.6);margin-bottom:4px">🏛 도서관 청구기호</div>
+        <div style="font-size:13px;color:#2e2820">${links.library_call_number}</div>
+      </div>`);
+  }
+  if (links.youtube_keywords && links.youtube_keywords.length > 0) {
+    const ytLinks = links.youtube_keywords.map(kw =>
+      `<a href="https://www.youtube.com/results?search_query=${encodeURIComponent(kw)}" target="_blank" rel="noopener" ${stopProp} style="${linkStyle};display:inline-block;margin-right:10px;margin-top:4px">${kw}</a>`
+    ).join('');
+    sections.push(`
+      <div style="margin-top:12px;padding:8px 0;font-family:'Noto Serif KR',serif">
+        <div style="font-size:10px;letter-spacing:0.18em;color:rgba(120,90,40,0.6);margin-bottom:4px">🎬 유튜브에서 더 보기</div>
+        <div style="font-size:12px;line-height:2">${ytLinks}</div>
+      </div>`);
+  }
+  return sections.length ? `<div style="margin-top:14px;padding-top:14px;border-top:1px dashed rgba(180,160,120,0.3)">${sections.join('')}</div>` : '';
+}
+
+function layerHtml(label, text, links) {
+  if (!text && !links) return '';
+  const linksHtml = links ? renderCurationLinksStar(links) : '';
   return `
     <div class="layer">
       <div class="layer-label">${label}</div>
-      <div class="layer-text">${esc(text)}</div>
+      <div class="layer-text">${renderMarkdownStar(text)}</div>
+      ${linksHtml}
     </div>`;
 }
 
