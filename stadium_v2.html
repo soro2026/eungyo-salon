@@ -3445,12 +3445,16 @@ if(isMobile &&
 }
 
 // ── 주간 톤 시스템 (매주 화요일 0시 기준 결정) ──
+// 개인 주차 기준점 (정식 WEEK1 화요일) — seasons.start_date 가 단일 진실, localStorage 캐시
+function getMySeasonStartTue() {
+  const s = localStorage.getItem('eg_my_season_start_tue');
+  return s ? new Date(s + 'T00:00:00+09:00') : null;
+}
 function getCurrentWeekIndex() {
-  const startDate = new Date('2026-04-21'); // 시즌 시작일 (1주차 화요일)
-  const now = new Date();
-  const diff = now - startDate;
-  const weekNum = Math.floor(diff / (7 * 24 * 60 * 60 * 1000));
-  return weekNum;
+  const start = getMySeasonStartTue();
+  if (!start) return 0;
+  const idx = Math.floor((new Date() - start) / (7 * 24 * 60 * 60 * 1000));
+  return idx < 0 ? 0 : idx;  // 시범경기(정식 시작 전)는 0
 }
 function applyWeeklyTone() {
   const week = getCurrentWeekIndex();
@@ -3487,17 +3491,18 @@ const TEAM_EMBLEM = {
   pascal: 'emblem_pascal.png'
 };
 
-// 현재 주차 계산 (시즌 시작: 2026-04-21 화)
+// 현재 개인 주차 (시범경기=0, 정식 1·2·3…) — 기준점 getMySeasonStartTue()
 function getCurrentWeek() {
-  const start = new Date('2026-04-21T00:00:00+09:00');
-  const now = new Date();
-  return Math.floor((now - start) / (7 * 24 * 60 * 60 * 1000)) + 1;
+  const start = getMySeasonStartTue();
+  if (!start) return 0;            // 시즌 시작 전
+  const w = Math.floor((new Date() - start) / (7 * 24 * 60 * 60 * 1000)) + 1;
+  return w < 1 ? 0 : w;            // 정식 화요일 이전(시범경기)은 0
 }
 
 // ── 주차 번호 → 그 주 화요일 0시 ──
-// week=1 → 2026-04-21 (화), week=2 → 2026-04-28 (화) ...
+// week=1 → 정식 시작 화요일(firstTue), week=2 → +7일 … (개인 주차 기준)
 function getWeekStart(weekNum) {
-  const seasonStart = new Date('2026-04-21T00:00:00+09:00');
+  const seasonStart = getMySeasonStartTue() || new Date();
   const weekStart = new Date(seasonStart);
   weekStart.setDate(seasonStart.getDate() + (weekNum - 1) * 7);
   return weekStart;
@@ -3861,6 +3866,15 @@ async function loadHomeData() {
     return;
   }
   
+  // 개인 주차 기준점 복원 (캐시 소실/기기 이전 대비 — seasons.start_date 가 단일 진실)
+  if (!localStorage.getItem('eg_my_season_start_tue')) {
+    const { data: sn } = await supa.from('seasons')
+      .select('start_date').eq('user_id', session.user.id)
+      .eq('status', 'active').limit(1);
+    if (sn && sn.length && sn[0].start_date)
+      localStorage.setItem('eg_my_season_start_tue', sn[0].start_date);
+  }
+
   // 통산·주간 갱신 — 오늘 경기 유무와 무관하게 항상 처치
   await updateCareerInfo();
   await updateWeekProgress();
@@ -3948,13 +3962,14 @@ async function startMySeason() {
   const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
 
   const today = new Date(todayStr + 'T00:00:00+09:00');
-  const SEASON_START = new Date('2026-04-21T00:00:00+09:00'); // getCurrentWeek 기준점
   const REG_WEEKS = 6;            // 정식 몇 주치 미리 INSERT
   const rows = [];
 
   // 정식 시작 화요일 (오늘 이후 가장 가까운 화요일)
   const daysToTue = ((2 - isoDow(today) + 7) % 7) || 7;
   const firstTue = addDays(today, daysToTue);
+  // 개인 주차 기준점 저장 — getCurrentWeek/Index/getWeekStart 가 이 값을 읽음
+  localStorage.setItem('eg_my_season_start_tue', fmt(firstTue));
 
   // active 시즌 보장 (없으면 ROOKIE 시즌 생성) — 경기 저장이 active 시즌을 요구함
   const { data: activeSeason } = await supa
@@ -3982,7 +3997,7 @@ async function startMySeason() {
   // 2) 정식 루키리그: firstTue 부터 REG_WEEKS 주 (화~일 6경기 + 타구장)
   for (let w = 0; w < REG_WEEKS; w++) {
     const weekTue = addDays(firstTue, w * 7);
-    const weekNum = Math.floor((weekTue - SEASON_START) / (7 * 864e5)) + 1;
+    const weekNum = w + 1;  // 개인 주차: 정식 첫 주 = WEEK 1
     for (let i = 0; i < 6; i++) {
       const d = addDays(weekTue, i), dow = isoDow(d);
       for (const [h, a, my] of DAY_TEMPLATE[dow])
@@ -4023,7 +4038,9 @@ function showMatchupView(myGame, otherGame) {
   if (pageMeta) {
     const week = myGame.week_num;
     const dayInWeek = myGame.day_of_week - 1; // 화=2 → DAY 1
-    pageMeta.textContent = `WEEK ${week} · DAY ${dayInWeek} · ${mm}.${dd} ${dowEng[today.getDay()]}`;
+    pageMeta.textContent = week === 0
+      ? `시범경기 · ${mm}.${dd} ${dowEng[today.getDay()]}`
+      : `WEEK ${week} · DAY ${dayInWeek} · ${mm}.${dd} ${dowEng[today.getDay()]}`;
   }
   
   // hero-date 갱신
