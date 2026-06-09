@@ -968,6 +968,28 @@ function composeAIComment(mk){
 
 function getQ(){return QS[st.qIdx%QS.length];}
 
+// ── 별표 *...* 굵게 변환 (소로 6/10: 타이핑에 *기호*가 그대로 노출되던 문제, A안) ──
+//    HTML 특수문자 이스케이프 후, 짝이 맞는 *...* 만 <b>로. 미완성(한쪽) 별표는 숨김.
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function boldStars(raw){
+  // 완성 텍스트용: *...* → <b>...</b>, 별표 기호 제거
+  let out='', i=0, open=false;
+  while(i<raw.length){
+    const ch=raw[i];
+    if(ch==='*'){ out += open ? '</b>' : '<b>'; open=!open; i++; continue; }
+    out += escHtml(ch); i++;
+  }
+  if(open) out += '</b>';   // 안 닫힌 별표 방어
+  return out;
+}
+function boldStarsTyping(slice){
+  // 타이핑 조각용: 짝 맞는 *...*만 <b>로, 아직 안 닫힌 마지막 *부터는 통째로 숨김
+  const lastOpen = (slice.split('*').length-1) % 2 === 1;  // 별표 개수 홀수면 미완성
+  let work = slice;
+  if(lastOpen){ work = slice.slice(0, slice.lastIndexOf('*')); }  // 미완성 별표 이후 잘라냄
+  return boldStars(work);
+}
+
 // 게임 시작 시 QS 배열 셔플 — 매 게임마다 다른 순서로 문제 출제
 function shuffleQSForGame() {
   for (let i = QS.length - 1; i > 0; i--) {
@@ -1165,8 +1187,8 @@ function startQ(){
       st.typTimer=setInterval(()=>{
         if(st.phase!=='typing')return;
         const txt=getQ().text;
-        if(st.typIdx<txt.length){st.typIdx++;qEl.textContent=txt.slice(0,st.typIdx);if(Math.random()<0.5)SND.type();}
-        else{clearInterval(st.typTimer);st.typTimer=null;const c=document.createElement('span');c.className='cursor';qEl.appendChild(c);}
+        if(st.typIdx<txt.length){st.typIdx++;qEl.innerHTML=boldStarsTyping(txt.slice(0,st.typIdx));if(Math.random()<0.5)SND.type();}
+        else{clearInterval(st.typTimer);st.typTimer=null;qEl.innerHTML=boldStars(txt);const c=document.createElement('span');c.className='cursor';qEl.appendChild(c);}
       },TS);
       st.barTimer=setInterval(()=>{
         if(st.phase!=='typing')return;
@@ -1176,7 +1198,7 @@ function startQ(){
     }, 400);
   } else {
     st.phase='pitch_ready';
-    qEl.textContent='[던질 문제]  '+q.text;
+    qEl.innerHTML='[던질 문제]  '+boldStars(q.text);
     qEl.style.color='rgba(248,244,238,0.4)';qEl.style.fontSize='12px';
     btn.className='btn-hit pitch-mode';btn.textContent='⚾ 피칭!';
     const aiLbl=document.getElementById('ai-label');
@@ -1191,7 +1213,7 @@ function onAction(){
     st.frozenText=getQ().text.slice(0,st.typIdx);
     const qEl=document.getElementById('q-text');
     qEl.textContent='';qEl.className='q-text frozen';
-    qEl.appendChild(document.createTextNode(st.frozenText));
+    qEl.innerHTML=boldStarsTyping(st.frozenText);
     const badge=document.createElement('span');badge.className='frozen-badge';badge.textContent='■ 타격';qEl.appendChild(badge);
     const btn=document.getElementById('hit-btn');btn.disabled=true;btn.style.opacity='0';
     setTimeout(()=>{
@@ -1610,7 +1632,7 @@ function showReveal() {
   document.getElementById('game-area').style.display = 'none';
 
   // 각인 화면 세팅
-  document.getElementById('reveal-question').textContent = q.text;
+  document.getElementById('reveal-question').innerHTML = boldStars(q.text);
   document.getElementById('reveal-answer').textContent = q.display;
   document.getElementById('reveal-commentary').innerHTML = '';
 
