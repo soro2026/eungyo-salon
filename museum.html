@@ -1122,6 +1122,7 @@ async function loadMuseumBooks() {
       // NEW 48시간 — 가장 최근 만남 기준
       const ts = newMap[book.answer];
       book.isNew = ts ? (Date.now() - ts < 48 * 3600 * 1000) : false;
+      book.solvedAt = ts || 0;   // 책장 정렬 기준 (최근 푼 시각, ms)
       // 별 표시 + 회상 에세이 — 이 책의 인물(figures) 중 내가 발행 에세이를 쓴 별
       book.starEssays = [];
       (book.figures || []).forEach(f => {
@@ -1133,6 +1134,15 @@ async function loadMuseumBooks() {
       ALL_BOOKS[book.catId].push(book);
     }
   }
+
+  // ── 책장 정렬: 최근 푼 책이 왼쪽(인덱스 0)으로 (소로 6/10) ──
+  //    renderShelf가 "인덱스 0이 최신"을 전제로 앞에서부터 그림. 여기서 그 전제를 실제로 보장.
+  //    한스푼(spoon)은 이미 spoon_date 내림차순으로 담겨 최신이 앞 — 건드리지 않음.
+  CATEGORIES.forEach(cat => {
+    if (cat.id === 'spoon') return;
+    const arr = ALL_BOOKS[cat.id];
+    if (Array.isArray(arr)) arr.sort((a, b) => (b.solvedAt || 0) - (a.solvedAt || 0));
+  });
 
   BOOKS_LOADED = true;
   const total = Object.values(ALL_BOOKS).reduce((s, arr) => s + arr.length, 0);
