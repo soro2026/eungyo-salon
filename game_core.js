@@ -461,6 +461,31 @@ const MSGS_POOL={
     ["마들렌, 공을 노리고 있습니다...","투수가 공을 뿌립니다!","배트가 돌지만 공이 없습니다!","포수 미트에 딱 소리가 납니다!","삼진! 완벽한 피칭이었습니다 ⚾"],
     ["마들렌이 스윙 타이밍을 잽니다...","낮게 들어오는 공에 배트가 나옵니다!","배트 아래로 공이 통과합니다!","포수가 공을 잡으며 환호합니다!","아웃! 변화구가 통했습니다 ⚾"],
   ],
+  // ── 100칸 시스템 신규 결과 (v1.0 임시 멘트 / 매듭3에서 포지션·동작 조합으로 대체 예정) ──
+  strikeout:[
+    ["스윙!","헛스윙입니다!","포수 미트에 공이 꽂힙니다!","심판의 손이 올라갑니다!","삼진 아웃!"],
+    ["배트가 나오지 않습니다...","공이 한복판을 가릅니다!","꼼짝 못 했습니다!","루킹 삼진!","아웃! 완벽한 코스였습니다."],
+  ],
+  groundout:[
+    ["타격! 공이 땅을 강하게 구릅니다!","내야수가 몸을 숙입니다...","잡아서 1루로 송구!","아웃! 깔끔한 땅볼 처리입니다."],
+    ["빠른 땅볼 타구!","내야수 정면으로 향합니다!","여유 있게 잡아 던집니다!","땅볼 아웃입니다."],
+  ],
+  flyout:[
+    ["타격! 공이 외야로 높이 떠오릅니다!","외야수가 자리를 잡습니다...","낙구 지점에서 기다립니다!","아웃! 평범한 뜬공입니다."],
+    ["공이 하늘로 솟구칩니다!","외야수가 뒷걸음으로 따라갑니다...","글러브 안으로!","뜬공 아웃입니다."],
+  ],
+  popout:[
+    ["빗맞았습니다! 내야에 높이 떴습니다!","내야수들이 서로 부릅니다...","가볍게 잡아냅니다!","팝업 아웃! 아쉬운 타구입니다."],
+  ],
+  lineout:[
+    ["강한 타구! 빨랫줄처럼 뻗어나갑니다!","하지만 수비수 정면입니다!","몸을 날려 잡아냅니다!","직선타 아웃! 잘 맞았지만 아쉽습니다."],
+  ],
+  hbp:[
+    ["공이 몸쪽으로 바짝 붙습니다...","앗! 타자의 몸을 맞혔습니다!","타자가 1루로 향합니다.","몸에 맞는 볼! 출루합니다."],
+  ],
+  error:[
+    ["타격! 평범한 타구입니다...","아! 수비수가 공을 놓칩니다!","타자가 재빨리 1루로!","실책! 행운의 출루입니다."],
+  ],
 };
 // 상대팀 한글 이름 (조사 처리용)
 function getOppKor(){
@@ -469,7 +494,8 @@ function getOppKor(){
 }
 // 랜덤 멘트 선택 함수 (상대팀명 + 조사 동적 치환)
 function getMsg(key){
-  const pool=MSGS_POOL[key];
+  let pool=MSGS_POOL[key];
+  if(!pool){ pool = MSGS_POOL[ (OUT_META&&OUT_META[key]) ? 'out' : 'single' ] || MSGS_POOL.single; }
   const msgs = pool[Math.floor(Math.random()*pool.length)];
   const name = getOppKor();
   return msgs.map(m =>
@@ -800,6 +826,9 @@ function showZonePitchReady() {
   document.getElementById('pr-category').textContent = shortCat(catMain);
   document.getElementById('pr-keyword').textContent = q.keyword || q.zone_keyword || catMain;
   document.getElementById('pr-sub').textContent = '배트를 꽉 쥐고 — 준비되면 사인을 보내세요';
+  // 매 타석 보드 셔플 (이 타석의 100칸 지도)
+  st.hitBoard = buildBoard(HIT_DIST);
+  st.outBoard = buildBoard(OUT_DIST);
   renderBadge();
 }
 
@@ -808,9 +837,92 @@ let st={
   typTimer:null,barTimer:null,cdTimer:null,hrTimer:null,msgTimer:null,aiTimer:null,
   totalMs:0,elapsed:0,hitMs:null,
   outs:0,bases:[false,false,false],scoreMe:0,scoreAi:0,tq:0,aiTq:0,
-  atbat:1,hits:0,totalAB:0,hr:0,rbi:0,bb:0,singles:0,doubles:0,triples:0,
-  pitchAB:0,hitsAllowed:0,earnedRuns:0,outsRecorded:0
+  atbat:1,hits:0,totalAB:0,hr:0,rbi:0,bb:0,singles:0,doubles:0,triples:0,hbp:0,errors:0,
+  pitchAB:0,hitsAllowed:0,earnedRuns:0,outsRecorded:0,
+  hitBoard:[],outBoard:[],aiHitBoard:[],aiOutBoard:[]
 };
+
+// ═══════════════════════════════════════════════════════════════
+// 100칸 셔플 타격 시스템 (결정문 v1.0 / 2026.06.09)
+//   타임바 100칸 = 확률의 분모. 정답→출루보드, 오답→아웃보드.
+//   매 타석 셔플. 입력 순간 잔여%가 떨어진 칸이 결과를 부른다.
+//   (반응속도 구간분할 폐기 — 빨라도 범타, 느려도 한 방)
+// ═══════════════════════════════════════════════════════════════
+const HIT_DIST = { homerun:8, triple:2, double:14, single:42, bb:25, hbp:3, error:6 }; // 합 100
+const OUT_DIST = { strikeout:32, groundout:31, flyout:22, popout:8, lineout:7 };       // 합 100
+
+// 결과 유형 → 표시·진루 메타
+const HIT_META = {
+  homerun:{label:'홈런!',        cls:'r-homerun', adv:4, hit:true },
+  triple: {label:'3루타!',       cls:'r-triple',  adv:3, hit:true },
+  double: {label:'2루타!',       cls:'r-double',  adv:2, hit:true },
+  single: {label:'단타!',        cls:'r-single',  adv:1, hit:true },
+  bb:     {label:'볼넷',          cls:'r-single',  adv:0, hit:false },
+  hbp:    {label:'몸에 맞는 볼',  cls:'r-single',  adv:0, hit:false },
+  error:  {label:'출루 (수비 실책)', cls:'r-single', adv:1, hit:false },
+};
+const OUT_META = {
+  strikeout:{label:'삼진 아웃',   cls:'r-out', adv:0},
+  groundout:{label:'땅볼 아웃',   cls:'r-out', adv:0},
+  flyout:   {label:'뜬공 아웃',   cls:'r-out', adv:0},
+  popout:   {label:'팝업 아웃',   cls:'r-out', adv:0},
+  lineout:  {label:'직선타 아웃', cls:'r-out', adv:0},
+};
+
+// 분포를 100칸으로 펼친 뒤 Fisher-Yates 셔플
+function buildBoard(dist){
+  const b=[];
+  for(const k in dist){ for(let i=0;i<dist[k];i++) b.push(k); }
+  for(let i=b.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=b[i];b[i]=b[j];b[j]=t; }
+  return b;
+}
+// 입력 순간의 타임바 잔여 퍼센트(100→0) → 칸 인덱스 0~99
+function hitMsToIdx(hitMs,totalMs){
+  const remain = Math.max(0, 1 - (hitMs/totalMs));   // 빨리 답할수록 잔여 큼
+  return Math.min(99, Math.max(0, Math.floor(remain*100)));
+}
+
+// ── 멘트 조합 엔진 (매듭3 / 2026.06.09) — 결과유형 × 포지션 × 동작 ──
+//    유저 타격 멘트 전담. 봇 멘트(ai_*)는 당분간 getMsg 유지(멘트 공들이기에서 세분).
+//    ※ 추후 다듬기: 볼넷 변주 확대 + 안타 상황 다양화 (소로 6/9 피드백)
+const pickC = a => a[Math.floor(Math.random()*a.length)];
+const C_INFIELD  = ['투수','1루수','2루수','3루수','유격수'];
+const C_OUTFIELD = ['좌익수','중견수','우익수'];
+const C_SWING = ['배트가 돌아갑니다!','정확히 받아쳤습니다!','힘차게 휘두릅니다!','방망이 중심에 맞았습니다!','스윙 — 타격!'];
+const C_GO_ACT  = ['정면으로 잡아','한 발 옆으로 잡아','앞으로 달려나와 잡아','백핸드로 처리해','몸으로 막아 잡아'];
+const C_FLY_ACT = ['제자리에서','두어 걸음 물러나','앞으로 달려나와','자리를 잡고'];
+const C_GREAT   = ['몸을 날려 다이빙으로','펜스를 등지고 점프해','글러브 끝에 걸쳐','전력 질주 끝에 겨우'];
+const C_ERR_ACT = ['공을 더듬다가','포구하지 못하고','송구가 빗나가','글러브를 튕겨나와'];
+const COMMENTARY = {
+  homerun(){ return [ pickC(C_SWING), '공이 까마득하게 솟구칩니다...', `${pickC(C_OUTFIELD)}가 타구를 바라보기만 합니다`, '담장을 훌쩍 넘어갑니다!', '홈런!! 관중이 일어섭니다!' ]; },
+  triple(){ const lr=pickC(['좌중간','우중간']); const of=lr[0]==='좌'?'좌익수':'우익수';
+    return [ pickC(C_SWING), `공이 ${lr}을 깊숙이 가릅니다!`, `${of}가 끝까지 쫓아갑니다...`, '타자는 벌써 2루를 돌았습니다!', '3루타! 슬라이딩 세이프!' ]; },
+  double(){ const lr=pickC(['좌중간','우중간','좌익선상','우익선상']);
+    return [ pickC(C_SWING), `${lr} 방면으로 빠르게 뻗습니다!`, '외야수가 따라붙지만 늦었습니다', '여유 있게 2루로!', '2루타!' ]; },
+  single(){ const d=pickC(['중전','좌전','우전','내야']);
+    if(d==='내야'){ const p=pickC(['3루수','유격수','2루수']); return [ pickC(C_SWING), `${p} 앞 느린 땅볼!`, '잡아서 송구하지만...', '한 발 빨랐습니다!', '내야안타! 살아나갑니다.' ]; }
+    return [ pickC(C_SWING), `${d} 방면으로 깔끔하게!`, '외야수 앞에 떨어집니다', '1루를 밟습니다', '단타! 안타입니다.' ]; },
+  bb(){ return [ '투수의 공이 자꾸 빠집니다...', '볼, 또 볼...', '타자는 배트를 내지 않습니다', '네 번째 볼!', '볼넷 — 1루로 걸어나갑니다.' ]; },
+  hbp(){ return [ '공이 몸쪽으로 바짝 붙습니다...', '앗! 타자의 몸을 맞혔습니다!', '타자가 1루로 향합니다', '몸에 맞는 볼!' ]; },
+  error(){ const p=pickC(C_INFIELD); return [ pickC(C_SWING), '평범한 타구입니다...', `${p}가 ${pickC(C_ERR_ACT)}!`, '그 틈에 타자가 1루로!', '실책! 행운의 출루입니다.' ]; },
+  strikeout(){ return pickC([
+    [ '스윙 — 헛돕니다!', '포수 미트에 공이 꽂힙니다!', '삼진 아웃!' ],
+    [ '배트가 나오지 않습니다...', '한복판을 가르는 공!', '루킹 삼진! 꼼짝 못 했습니다.' ],
+    [ '살짝 스쳤나요?', '파울팁 — 포수가 잡았습니다!', '삼진 아웃!' ],
+    [ '바깥쪽 변화구에 헛스윙!', '완전히 속았습니다', '삼진! 마법 같은 공이었습니다.' ],
+  ]); },
+  groundout(){ const p=pickC(C_INFIELD); return [ pickC(C_SWING), `공이 ${p} 쪽으로 굴러갑니다!`, `${p}가 ${pickC(C_GO_ACT)}`, '1루로 송구 — 아웃!' ]; },
+  flyout(){ const p=pickC(C_OUTFIELD); const great=Math.random()<0.22;
+    return great
+      ? [ pickC(C_SWING), `공이 ${p} 방면 깊숙이 뻗습니다!`, `${p}가 ${pickC(C_GREAT)}...`, '잡았습니다! 호수비! 안타가 될 뻔했습니다!' ]
+      : [ pickC(C_SWING), `공이 ${p} 방면으로 떠오릅니다!`, `${p}가 ${pickC(C_FLY_ACT)} 기다립니다...`, '뜬공 아웃!' ]; },
+  popout(){ const p=pickC(C_INFIELD.concat('포수')); return [ pickC(C_SWING), '빗맞아 내야에 높이 떴습니다!', `${p}가 가볍게 잡아냅니다`, '팝업 아웃! 아쉬운 타구입니다.' ]; },
+  lineout(){ const p=pickC(C_INFIELD.concat(C_OUTFIELD)); const great=Math.random()<0.4;
+    return great
+      ? [ pickC(C_SWING), '총알 같은 직선타!', `${p}가 ${pickC(C_GREAT)}...`, '믿기지 않는 호수비! 잡았습니다!' ]
+      : [ pickC(C_SWING), '강한 직선타!', `${p} 정면입니다!`, '아웃! 잘 맞았지만 정면이었습니다.' ]; },
+};
+function composeComment(mk){ const fn=COMMENTARY[mk]; return fn ? fn() : ['타격!','결과 처리 중...']; }
 
 function getQ(){return QS[st.qIdx%QS.length];}
 
@@ -1069,33 +1181,42 @@ function onAction(){
       },100);
     },400);
     const aiPct=0.2+Math.random()*0.6,aiMs=st.totalMs*aiPct;
-    const aiHit=Math.random()<AI_AVG,aiHR=aiHit&&Math.random()<0.12;
+    // 봇도 매 타석 보드 셔플 — 무작위 칸 (반응속도 없음, 유저와 동일 시스템)
+    st.aiHitBoard = buildBoard(HIT_DIST);
+    st.aiOutBoard = buildBoard(OUT_DIST);
+    const aiOnBase = Math.random() < AI_AVG;            // 출루 게이트 (OBP 개념)
+    const aiIdx = Math.floor(Math.random()*100);
+    const aiMk = aiOnBase ? st.aiHitBoard[aiIdx] : st.aiOutBoard[aiIdx];
     setTimeout(()=>{if(st.phase==='ai_batting'){const n=getOppKor();document.getElementById('ai-label').textContent=n+getJosa(n,'ga')+' 스윙합니다!';}},aiMs*0.7);
     st.aiTimer=setTimeout(()=>{
       if(st.phase!=='ai_batting')return;
       clearAll();st.phase='judging';
       document.getElementById('ai-area').style.display='none';
       document.getElementById('game-area').style.display='none';
-      let mk,label,cls,adv;
-      if(aiHR){
-        mk='ai_homerun';label='홈런 허용';cls='r-defense-fail';adv=4;
+      let mk,label,cls,adv,msgKey;
+      mk = aiMk;
+      if(aiOnBase){
+        // 봇 출루 (출루 보드)
+        const hm = HIT_META[aiMk] || HIT_META.single;
+        adv = hm.adv; cls='r-defense-fail';
+        const AILBL={homerun:'홈런 허용',triple:'3루타 허용',double:'2루타 허용',single:'안타 허용',bb:'볼넷 허용',hbp:'몸에 맞는 볼',error:'실책 출루'};
+        label = AILBL[aiMk] || '출루 허용';
         st.pitchAB++;
-        st.aiTq += 4.0;  // AI 홈런 → AI 공격 TQ
+        if(hm.hit) st.hitsAllowed++;            // 안타만 피안타 집계 (볼넷·몸맞·에러 제외)
+        st.aiTq += calcTQ(aiMk, adv, false);
+        msgKey = (aiMk==='homerun') ? 'ai_homerun' : 'ai_hit';   // 봇 멘트는 당분간 간소 (멘트 공들이기에서 세분)
+      } else {
+        // 봇 아웃 (아웃 보드)
+        adv=0; cls='r-defense-ok';
+        const AOLBL={strikeout:'삼진!',groundout:'땅볼 아웃!',flyout:'뜬공 아웃!',popout:'팝업 아웃!',lineout:'직선타 아웃!'};
+        label = AOLBL[aiMk] || '아웃!';
+        st.outs++; st.outsRecorded++;
+        msgKey = 'ai_out';
       }
-      else if(aiHit){
-        adv=1+Math.floor(Math.random()*2);
-        mk='ai_hit';label=adv>=2?'2루타 허용':'안타 허용';cls='r-defense-fail';
-        st.pitchAB++;st.hitsAllowed++;
-        st.aiTq += (adv >= 2 ? 2.0 : 1.0);  // 2루타 +2.0, 단타 +1.0
-      }
-      else{
-        mk='ai_out';label='아웃!';cls='r-defense-ok';adv=0;
-        st.outs++;st.outsRecorded++;
-        // AI 아웃 → TQ 변화 없음 (아웃은 0)
-      }
-      showJudging(getMsg(mk),()=>{
+      showJudging(getMsg(msgKey),()=>{
         st.totalAB++;
         if(adv>=4){let r=1;for(let i=0;i<3;i++)if(st.bases[i])r++;st.bases=[false,false,false];animHR(r,()=>{st.scoreAi+=r;st.earnedRuns+=r;const aiEl=getAiEl();if(aiEl)aiEl.textContent=st.scoreAi;renderOuts();updateStats();showResultDef(label,cls);});}
+        else if(aiMk==='bb'||aiMk==='hbp'){const prevAi=st.scoreAi;advBasesAiBB();st.earnedRuns+=(st.scoreAi-prevAi);renderOuts();updateStats();showResultDef(label,cls);}
         else if(adv>0){const prevAi=st.scoreAi;advBasesAi(adv);st.earnedRuns+=(st.scoreAi-prevAi);renderOuts();updateStats();showResultDef(label,cls);}
         else{renderBases();renderOuts();updateStats();showResultDef(label,cls);}
       });
@@ -1363,17 +1484,33 @@ function processAns(ans){
       }
     }
   }
-  const pct=st.hitMs/st.totalMs*100;
+  const idx = hitMsToIdx(st.hitMs, st.totalMs);
   let label,cls,adv,mk;
-  if(!ok){label='OUT';cls='r-out';adv=0;st.outs++;mk='out';st.tq+=calcTQ(mk,0,false); SND.out();}
-  else{st.hits++;
-    if(pct<=20){label='홈런!';cls='r-homerun';adv=4;mk='homerun';st.hr++;st.tq+=calcTQ('homerun',4,false); SND.homerun(); SND.crowd();}
-    else if(pct<=35){label='3루타!';cls='r-triple';adv=3;mk='triple';st.triples++;st.tq+=calcTQ('triple',3,false); SND.hit(); SND.cheer();}
-    else if(pct<=50){label='2루타!';cls='r-double';adv=2;mk='double';st.doubles++;st.tq+=calcTQ('double',2,false); SND.hit(); SND.cheer();}
-    else if(pct<=75){label='단타!';cls='r-single';adv=1;mk='single';st.singles++;st.tq+=calcTQ('single',1,false); SND.hit();}
-    else{label='볼넷';cls='r-single';adv=0;mk='bb';st.bb++;st.tq+=calcTQ('bb',1,false); SND.hit();}
+  if(!ok){
+    // 오답 → 아웃 보드에서 칸 추첨
+    mk = (st.outBoard && st.outBoard.length===100) ? st.outBoard[idx] : 'strikeout';
+    const m = OUT_META[mk] || OUT_META.strikeout;
+    label=m.label; cls=m.cls; adv=0;
+    st.outs++; st.tq+=calcTQ('out',0,false); SND.out();
+  } else {
+    // 정답 → 출루 보드에서 칸 추첨
+    mk = (st.hitBoard && st.hitBoard.length===100) ? st.hitBoard[idx] : 'single';
+    const m = HIT_META[mk] || HIT_META.single;
+    label=m.label; cls=m.cls; adv=m.adv;
+    if(m.hit) st.hits++;            // 안타만 H로 집계 (볼넷·몸맞공·에러 제외)
+    if(mk==='homerun') st.hr++;
+    else if(mk==='triple') st.triples++;
+    else if(mk==='double') st.doubles++;
+    else if(mk==='single') st.singles++;
+    else if(mk==='bb') st.bb++;
+    else if(mk==='hbp') st.hbp++;
+    else if(mk==='error') st.errors++;
+    st.tq += calcTQ(mk, adv, false);
+    if(mk==='homerun'){ SND.homerun(); SND.crowd(); }
+    else if(mk==='triple'||mk==='double'){ SND.hit(); SND.cheer(); }
+    else { SND.hit(); }
   }
-  const tp=Math.round(pct),tt=tp<=20?'극초반 반응!':tp<=50?'빠른 반응':'후반 타이밍';
+  const tp=idx, tt=label;
   document.getElementById('stat-timing').textContent=tp+'%';
   // 존 보드 상태 업데이트
   if(ZONE_SELECTED !== null && ZONE_BOARD[ZONE_SELECTED]) {
@@ -1381,10 +1518,10 @@ function processAns(ans){
   }
   document.getElementById('input-panel').className='input-panel';
   document.getElementById('game-area').style.display='none';
-  showJudging(getMsg(mk),()=>{
+  showJudging(composeComment(mk),()=>{
     st.totalAB++;
     if(adv>=4){let r=1;for(let i=0;i<3;i++)if(st.bases[i])r++;st.bases=[false,false,false];animHR(r,()=>{st.scoreMe+=r;st.rbi+=r;popScore();renderOuts();updateStats();showResultAtk(label,cls,q,ok,tp,tt);});}
-    else{const prevScore=st.scoreMe;if(mk==='bb')advBasesBB();else advBases(adv);st.rbi+=(st.scoreMe-prevScore);renderOuts();updateScore();updateStats();showResultAtk(label,cls,q,ok,tp,tt);}
+    else{const prevScore=st.scoreMe;if(mk==='bb'||mk==='hbp')advBasesBB();else advBases(adv);st.rbi+=(st.scoreMe-prevScore);renderOuts();updateScore();updateStats();showResultAtk(label,cls,q,ok,tp,tt);}
   });
 }
 
@@ -1525,6 +1662,7 @@ function calcTQ(mk, adv, isDefense){
   if(mk==='double')  return 2.0;
   if(mk==='single')  return 1.0;
   if(mk==='bb')      return 0.5;
+  if(mk==='hbp')     return 0.5;  // 몸맞공 출루도 +0.5
   if(mk==='error')   return 0.5;  // 에러로 인한 출루도 +0.5
   return 0;  // out 등
 }
@@ -1599,6 +1737,18 @@ function advBasesAi(n){
   for(let i=2;i>=0;i--){if(st.bases[i]){const np=i+n;if(np>=3)st.scoreAi++;else nb[np]=true;}}
   if(n===1)nb[0]=true;else if(n>=2)nb[1]=true;
   st.bases=nb;const aiEl=getAiEl();if(aiEl)aiEl.textContent=st.scoreAi;renderBases();
+}
+// 봇 볼넷·몸맞공 — 밀어내기 진루 (막힌 주자만 한 칸씩)
+function advBasesAiBB(){
+  if(st.bases[0]){           // 1루 점유 → 밀림 발생
+    if(st.bases[1]){         // 2루도 점유
+      if(st.bases[2]){ st.scoreAi++; }  // 만루 → 3루주자 득점
+      st.bases[2]=true;      // 2루주자 → 3루
+    }
+    st.bases[1]=true;        // 1루주자 → 2루
+  }
+  st.bases[0]=true;          // 타자 1루
+  const aiEl=getAiEl();if(aiEl)aiEl.textContent=st.scoreAi;renderBases();
 }
 // nextQ → 하단 흐름제어 블록에서 재정의
 
