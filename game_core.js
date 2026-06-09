@@ -930,6 +930,42 @@ const COMMENTARY = {
 };
 function composeComment(mk){ const fn=COMMENTARY[mk]; return fn ? fn() : ['타격!','결과 처리 중...']; }
 
+// ── 봇(상대) 출루 멘트 — 결과 유형별 (소로 6/9 피드백: 볼넷인데 "안타" 멘트 모순 해결) ──
+//    유저 시점은 '수비/허용' 관점. 봇 이름은 호출부에서 getMsg와 동일하게 치환.
+function composeAIComment(mk){
+  const n = getOppKor();
+  const ga = n + getJosa(n,'ga');   // "프루스트가"
+  const ui = n + getJosa(n,'eun');  // "프루스트는" 주격 보조
+  const POOL = {
+    homerun: [
+      [ `${ga} 풀스윙!`, '타구가 까마득히 솟구칩니다...', '외야수가 바라보기만 합니다!', '담장을 넘어갑니다 — 홈런 허용!' ],
+      [ `${ga} 노렸습니다 — 임팩트!`, '공이 펜스를 향해 쭉쭉 뻗습니다...', '넘어갑니다, 넘어가요!', '장외 홈런! 실점입니다.' ],
+    ],
+    triple: [
+      [ `${ga} 받아쳤습니다!`, '공이 우중간을 깊숙이 가릅니다!', '외야수가 끝까지 쫓지만 늦었습니다...', '3루타 허용! 발 빠르게 3루까지.' ],
+    ],
+    double: [
+      [ `${ga} 정확히 맞혔습니다!`, '좌중간으로 빠르게 빠집니다...', '외야수 앞에서 한 번 튕깁니다', '2루타 허용. 주자 진루합니다.' ],
+    ],
+    single: [
+      [ `${ga} 스윙 — 깔끔합니다!`, '외야 앞에 툭 떨어집니다', '수비가 달려오지만 늦었습니다', '안타 허용! 1루로 나갑니다.' ],
+      [ `${ga} 받아쳤습니다!`, '내야를 살짝 넘기는 타구...', '잡을 수 없는 코스였습니다', '안타 허용. 출루를 내줍니다.' ],
+    ],
+    bb: [
+      [ '투수의 공이 자꾸 빠집니다...', '볼, 또 볼...', `${ga} 배트를 내지 않습니다`, '네 번째 볼!', '볼넷 허용 — 1루로 걸어나갑니다.' ],
+      [ '제구가 흔들립니다...', `${ga} 침착하게 골라냅니다`, '풀카운트에서 또 하나 빠집니다', '볼넷 허용. 거저 출루를 내줬습니다.' ],
+    ],
+    hbp: [
+      [ '공이 몸쪽으로 바짝 붙습니다...', `앗! ${ga} 맞았습니다!`, `${ui} 1루로 향합니다`, '몸에 맞는 볼! 출루 허용.' ],
+    ],
+    error: [
+      [ `${ga} 평범한 타구를 굴립니다...`, '수비가 공을 더듬습니다!', '그 틈에 주자가 1루로!', '실책 출루! 아쉽게 내줬습니다.' ],
+    ],
+  };
+  const arr = POOL[mk] || POOL.single;
+  return arr[Math.floor(Math.random()*arr.length)];
+}
+
 function getQ(){return QS[st.qIdx%QS.length];}
 
 // 게임 시작 시 QS 배열 셔플 — 매 게임마다 다른 순서로 문제 출제
@@ -1018,6 +1054,10 @@ function renderBadge(){
 }
 function renderBoxes(){
   const q=getQ(),w=document.getElementById('hint-boxes');w.innerHTML='';
+  // ── OX·객관식은 힌트 칸을 그리지 않는다 (소로 6/9: 보기에 정답이 그대로 노출되던 버그) ──
+  //    주관식(타이핑)만 초성 힌트 칸을 갖는다. 컨테이너째 숨겨 여백(margin-bottom)까지 제거.
+  if (q.question_type === 'OX' || q.question_type === '객관식') { w.style.display='none'; return; }
+  w.style.display='flex';
   // ── v1.5+ boxes 필드 fallback ──
   // 카리 새 출제는 boxes 안 박음 — initials.length 또는 answer.length로 대체
   let n = q.boxes;
@@ -1210,7 +1250,7 @@ function onAction(){
         st.pitchAB++;
         if(hm.hit) st.hitsAllowed++;            // 안타만 피안타 집계 (볼넷·몸맞·에러 제외)
         st.aiTq += calcTQ(aiMk, adv, false);
-        msgKey = (aiMk==='homerun') ? 'ai_homerun' : 'ai_hit';   // 봇 멘트는 당분간 간소 (멘트 공들이기에서 세분)
+        msgKey = null;   // 봇 출루 멘트는 composeAIComment(aiMk)로 유형별 생성
       } else {
         // 봇 아웃 (아웃 보드)
         adv=0; cls='r-defense-ok';
@@ -1219,7 +1259,7 @@ function onAction(){
         st.outs++; st.outsRecorded++;
         msgKey = 'ai_out';
       }
-      showJudging(getMsg(msgKey),()=>{
+      showJudging(aiOnBase ? composeAIComment(aiMk) : getMsg(msgKey),()=>{
         // (봇 공격은 유저 타수 totalAB에 더하지 않음 — pitchAB로 별도 집계)
         if(adv>=4){let r=1;for(let i=0;i<3;i++)if(st.bases[i])r++;st.bases=[false,false,false];animHR(r,()=>{st.scoreAi+=r;st.earnedRuns+=r;const aiEl=getAiEl();if(aiEl)aiEl.textContent=st.scoreAi;renderOuts();updateStats();showResultDef(label,cls);});}
         else if(aiMk==='bb'||aiMk==='hbp'){const prevAi=st.scoreAi;advBasesAiBB();st.earnedRuns+=(st.scoreAi-prevAi);renderOuts();updateStats();showResultDef(label,cls);}
