@@ -3866,13 +3866,16 @@ async function loadHomeData() {
     return;
   }
   
-  // 개인 주차 기준점 복원 (캐시 소실/기기 이전 대비 — seasons.start_date 가 단일 진실)
-  if (!localStorage.getItem('eg_my_season_start_tue')) {
+  // 개인 주차 기준점 = 현재 active 시즌의 start_date (단일 진실)
+  // 리그 승급(루키→싱글A 등)으로 active 시즌이 바뀌면 자동 갱신 → WEEK 1 리셋
+  {
     const { data: sn } = await supa.from('seasons')
       .select('start_date').eq('user_id', session.user.id)
-      .eq('status', 'active').limit(1);
+      .eq('status', 'active').order('start_date', { ascending: false }).limit(1);
     if (sn && sn.length && sn[0].start_date)
       localStorage.setItem('eg_my_season_start_tue', sn[0].start_date);
+    else
+      localStorage.removeItem('eg_my_season_start_tue');  // active 시즌 없으면 기준점도 비움
   }
 
   // 통산·주간 갱신 — 오늘 경기 유무와 무관하게 항상 처치
