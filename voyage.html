@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>헤밍웨이 — 콘스텔라티오 여정 데모</title>
+
+<!-- ════════════════════════════════════════════════════════════════
+     소로님께: API 키는 아래 단 한 곳입니다.
+     구글 클라우드에서 Map Tiles API 키를 발급받아 따옴표 사이에 넣으시면
+     실사 3D 건물이 떠오릅니다. 비워두면 매끈한 지구 위에서
+     '대표 착륙 + 핀 선택' 혼합 흐름만 그대로 체험됩니다.
+════════════════════════════════════════════════════════════════ -->
+<script>
+  const GOOGLE_API_KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A"; // ← 소로님 키 삽입 완료
+</script>
+
+<script>
+  window.CESIUM_BASE_URL = "https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/";
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Widgets/widgets.css" rel="stylesheet" />
+
+<style>
+  :root{
+    --night:#0a0e1a;
+    --night-2:#10172b;
+    --gold:#c9a227;
+    --gold-soft:#9a8138;
+    --cream:#ece5d3;
+    --cream-dim:#9a9482;
+    --line:rgba(201,162,39,.28);
+    --serif:Georgia,"Nanum Myeongjo","Apple SD Gothic Neo",serif;
+    --sans:"Helvetica Neue","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--night);overflow:hidden;font-family:var(--sans);color:var(--cream)}
+  #cesiumContainer{position:fixed;inset:0}
+  .cesium-widget-credits{font-size:9px!important;opacity:.35}
+  .cesium-viewer-bottom{right:6px;bottom:4px}
+
+  /* ── 좌상단 인물 표제 ── */
+  #title{
+    position:fixed;top:62px;left:30px;z-index:10;pointer-events:none;
+    opacity:0;transform:translateY(-8px);transition:opacity 1.4s ease,transform 1.4s ease;
+  }
+  /* ── 별로 돌아가기 ── */
+  #backBtn{
+    position:fixed;top:22px;left:30px;z-index:12;
+    display:inline-flex;align-items:center;gap:6px;
+    font-family:var(--sans);font-size:12.5px;letter-spacing:.04em;
+    color:var(--cream-dim);text-decoration:none;
+    border:1px solid var(--line);border-radius:999px;
+    padding:7px 14px;background:rgba(8,11,22,.55);backdrop-filter:blur(4px);
+    transition:color .25s ease,border-color .25s ease;
+  }
+  #backBtn:hover{color:var(--gold);border-color:var(--gold-soft)}
+  #title.in{opacity:1;transform:none}
+  #title .eyebrow{font-size:11px;letter-spacing:.42em;color:var(--gold);text-transform:uppercase}
+  #title h1{
+    font-family:var(--serif);font-weight:400;margin:.28em 0 .1em;
+    font-size:clamp(28px,4vw,46px);line-height:1;letter-spacing:.01em;
+  }
+  #title .span{font-size:13px;color:var(--cream-dim);letter-spacing:.18em}
+
+  /* ── 우상단 안내 ── */
+  #hint{
+    position:fixed;top:28px;right:30px;z-index:10;max-width:230px;
+    font-size:11.5px;line-height:1.6;color:var(--cream-dim);text-align:right;
+    border-right:1px solid var(--line);padding:2px 12px 2px 0;
+  }
+  #hint b{color:var(--gold-soft);font-weight:600}
+
+  /* ── 현재 장소 카드 ── */
+  #card{
+    position:fixed;left:30px;bottom:128px;z-index:10;max-width:340px;
+    opacity:0;transform:translateY(10px);transition:opacity .7s ease,transform .7s ease;
+  }
+  #card.in{opacity:1;transform:none}
+  #card .yr{font-size:12px;letter-spacing:.3em;color:var(--gold)}
+  #card .pl{font-family:var(--serif);font-size:24px;margin:.18em 0 .35em}
+  #card .desc{font-size:13.5px;line-height:1.65;color:var(--cream-dim)}
+
+  /* ── 하단 여정 띠 ── */
+  #journey{
+    position:fixed;left:0;right:0;bottom:0;z-index:10;
+    display:flex;align-items:flex-end;gap:0;
+    padding:16px 24px 18px;
+    background:linear-gradient(to top,rgba(8,11,22,.92),rgba(8,11,22,0));
+  }
+  .stop{
+    flex:1;min-width:0;cursor:pointer;border:0;background:none;color:inherit;
+    text-align:left;padding:8px 14px 8px 0;position:relative;
+    border-top:1px solid rgba(154,148,130,.18);
+    transition:border-color .4s ease;
+  }
+  .stop:hover{border-top-color:var(--gold-soft)}
+  .stop.active{border-top-color:var(--gold)}
+  .stop .dot{
+    position:absolute;top:-5px;left:0;width:9px;height:9px;border-radius:50%;
+    background:var(--night);border:1.5px solid var(--cream-dim);transition:all .4s ease;
+  }
+  .stop:hover .dot{border-color:var(--gold-soft)}
+  .stop.active .dot{background:var(--gold);border-color:var(--gold);box-shadow:0 0 12px 2px rgba(201,162,39,.6)}
+  .stop .yr{font-size:10.5px;letter-spacing:.2em;color:var(--cream-dim);margin-top:6px}
+  .stop.active .yr{color:var(--gold)}
+  .stop .nm{font-family:var(--serif);font-size:15px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  #loader{
+    position:fixed;inset:0;z-index:50;background:var(--night);
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--serif);font-size:15px;letter-spacing:.32em;color:var(--gold);
+    transition:opacity 1s ease;
+  }
+  #loader.gone{opacity:0;pointer-events:none}
+
+  /* ── 나라 이름 자막 (고공 조망 때 잠깐) ── */
+  #countryLabel{
+    position:fixed;top:50%;left:50%;z-index:20;
+    transform:translate(-50%,-50%) scale(.96);
+    font-family:var(--serif);font-size:clamp(30px,5vw,60px);font-weight:400;
+    letter-spacing:.08em;color:var(--cream);
+    text-shadow:0 2px 30px rgba(0,0,0,.9);
+    opacity:0;pointer-events:none;
+    transition:opacity 1s ease,transform 1.4s ease;
+  }
+  #countryLabel.in{opacity:.95;transform:translate(-50%,-50%) scale(1)}
+
+  @media (max-width:640px){
+    #title{left:18px;top:52px}
+    #backBtn{left:18px;top:14px}
+    #card{left:18px;bottom:148px;max-width:72vw}
+    #hint{display:none}
+    .stop .nm{font-size:13px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    #title,#card{transition:none}
+  }
+</style>
+</head>
+<body>
+<div id="cesiumContainer"></div>
+
+<a id="backBtn" href="constella.html">← 별로 돌아가기</a>
+
+<div id="title">
+  <div class="eyebrow">Constellatio</div>
+  <h1>Ernest Hemingway</h1>
+  <div class="span">한 별의 다섯 착지 · 1899–1961</div>
+</div>
+
+<div id="hint"></div>
+
+<div id="card">
+  <div class="yr" id="cardYr"></div>
+  <div class="pl" id="cardPl"></div>
+  <div class="desc" id="cardDesc"></div>
+</div>
+
+<nav id="journey"></nav>
+
+<div id="loader">밤하늘을 펴는 중…</div>
+
+<div id="countryLabel"></div>
+
+<script>
+// ─── 헤밍웨이: 인물 1 → 장소 N (연대순) ───
+const HEMINGWAY = {
+  name: "Ernest Hemingway",
+  representative: 3, // 대표 착륙지 = 쿠바
+  places: [
+    { name:"파리 몽파르나스", country:"프랑스 · France", yr:"1921", lat:48.8420, lng:2.3370, range:900,
+      desc:"스물둘에 건너와 카페 구석에서 첫 문장들을 벼린 도시." },
+    { name:"팜플로나",        country:"스페인 · España", yr:"1923", lat:42.8189, lng:-1.6442, range:1100,
+      desc:"산 페르민 축제의 투우를 보고 『해는 또다시 떠오른다』를 끌어낸 곳." },
+    { name:"키웨스트",        country:"미국 플로리다 · USA", yr:"1931", lat:24.5511, lng:-81.8009, range:850,
+      desc:"낚싯배와 술집 사이에서 단편을 쏟아낸 플로리다 남단의 집." },
+    { name:"쿠바 핀카 비히아", country:"쿠바 · Cuba", yr:"1939", lat:23.0494, lng:-82.2706, range:1000,
+      desc:"가장 오래 머물며 『노인과 바다』를 써낸 언덕 위의 농장." },
+    { name:"케첨, 아이다호",   country:"미국 아이다호 · USA", yr:"1959", lat:43.6805, lng:-114.3637, range:3500,
+      desc:"산과 강으로 둘러싸인 마지막 거처." },
+  ]
+};
+
+let viewer, orbiting=false, orbitHeading=0, orbitCenter=null, orbitRange=1000, orbitTick=null, activeIdx=-1;
+
+// 돌아가기: 온 별 페이지로 (목업 단계 — id가 있으면 그 별로, 없으면 별자리로)
+(function setBack(){
+  const backId = new URLSearchParams(location.search).get('id');
+  document.getElementById('backBtn').href = backId ? ('star.html?id=' + backId) : 'constella.html';
+})();
+
+(async function init(){
+  viewer = new Cesium.Viewer("cesiumContainer", {
+    baseLayer:false, baseLayerPicker:false, geocoder:false, homeButton:false,
+    sceneModePicker:false, navigationHelpButton:false, animation:false,
+    timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false,
+    requestRenderMode:false
+  });
+
+  const s = viewer.scene;
+  s.skyAtmosphere.show = true;
+  s.globe.show = true;
+  s.globe.baseColor = Cesium.Color.fromCssColorString("#0a1326");
+  s.globe.showGroundAtmosphere = true;
+  s.backgroundColor = Cesium.Color.fromCssColorString("#05070f");
+  if (s.fog) s.fog.enabled = true;
+
+  // ── 세계지도 입히기 (고공에서 '어느 나라'인지 보이도록, 어둡게 톤다운) ──
+  try{
+    const osm = viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+      url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      credit: "© OpenStreetMap contributors",
+      maximumLevel: 19
+    }));
+    osm.brightness = 0.55;   // 어둡게
+    osm.saturation = 0.65;   // 채도 낮춰 콘스텔라티오 톤에 맞춤
+    osm.gamma = 0.8;
+  }catch(e){ console.warn("기본 지도 로드 실패:", e); }
+
+  // ── 구글 실사 3D 타일 (키가 있을 때만) ──
+  const hint = document.getElementById("hint");
+  if (GOOGLE_API_KEY && GOOGLE_API_KEY.trim()){
+    try{
+      let tileset;
+      try { tileset = await Cesium.createGooglePhotorealistic3DTileset({ key: GOOGLE_API_KEY }); }
+      catch(e){ tileset = await Cesium.createGooglePhotorealistic3DTileset(GOOGLE_API_KEY); }
+      s.primitives.add(tileset);
+      // globe.show 는 끄지 않음 — 실사 타일이 없는 시골(케첨 등)에서도 지도가 보이도록
+      hint.innerHTML = "<b>실사 3D 모드</b><br>구글 포토리얼 타일이 켜졌습니다.";
+    }catch(err){
+      hint.innerHTML = "<b>키 오류</b><br>타일을 불러오지 못해 기본 지구로 표시합니다.";
+      console.warn("3D Tiles load failed:", err);
+    }
+  } else {
+    hint.innerHTML = "<b>흐름 미리보기 모드</b><br>GOOGLE_API_KEY 한 줄을 채우면 이 지면 위로 실사 건물이 떠오릅니다.";
+  }
+
+  buildJourney();
+
+  // 사용자가 화면을 잡으면 자동 회전을 멈춤
+  viewer.canvas.addEventListener("pointerdown", stopOrbit);
+
+  // 시작: 우주 높은 곳 → 대표 착륙지로 강하
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(HEMINGWAY.places[HEMINGWAY.representative].lng, 20, 14000000)
+  });
+  document.getElementById("loader").classList.add("gone");
+  setTimeout(()=> document.getElementById("title").classList.add("in"), 300);
+  setTimeout(()=> flyTo(HEMINGWAY.representative), 900);
+})();
+
+function buildJourney(){
+  const nav = document.getElementById("journey");
+  HEMINGWAY.places.forEach((p,i)=>{
+    const b = document.createElement("button");
+    b.className = "stop"; b.dataset.idx = i;
+    b.innerHTML = `<span class="dot"></span><div class="yr">${p.yr}</div><div class="nm">${p.name}</div>`;
+    b.addEventListener("click", ()=> flyTo(i));
+    nav.appendChild(b);
+
+    // 지구 위 핀
+    viewer.entities.add({
+      id:"pin-"+i,
+      position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),
+      point:{ pixelSize:9, color:Cesium.Color.fromCssColorString("#c9a227"),
+              outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
+              disableDepthTestDistance:Number.POSITIVE_INFINITY }
+    });
+  });
+}
+
+function flyTo(i){
+  stopOrbit();
+  const p = HEMINGWAY.places[i];
+  setActive(i);
+
+  // 나라 이름 자막 띄우기
+  const cl = document.getElementById("countryLabel");
+  cl.textContent = p.country || "";
+  cl.classList.add("in");
+
+  // 1단계 — 고공에서 그 나라를 내려다봄 (어느 나라인지 인지할 시간)
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 1200000), // 약 1,200km 상공
+    orientation:{ heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 }, // 지도처럼 수직
+    duration: 2.6,
+    complete: ()=>{
+      // 잠깐 머물러 나라를 눈에 담게 한 뒤
+      setTimeout(()=>{
+        cl.classList.remove("in"); // 자막 사라짐
+        // 2단계 — 천천히 도시로 줌인
+        viewer.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, p.range),
+          orientation:{ heading:Cesium.Math.toRadians(20), pitch:Cesium.Math.toRadians(-35), roll:0 },
+          duration: 4.2,
+          complete: ()=> startOrbit(Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 0), p.range)
+        });
+      }, 900);
+    }
+  });
+}
+
+function setActive(i){
+  activeIdx = i;
+  document.querySelectorAll(".stop").forEach(el=>{
+    el.classList.toggle("active", +el.dataset.idx === i);
+  });
+  const p = HEMINGWAY.places[i];
+  document.getElementById("cardYr").textContent = p.yr;
+  document.getElementById("cardPl").textContent = p.name;
+  document.getElementById("cardDesc").textContent = p.desc;
+  document.getElementById("card").classList.add("in");
+}
+
+function startOrbit(center, range){
+  orbitCenter = center; orbitRange = range; orbiting = true;
+  if (orbitTick) return;
+  orbitTick = viewer.clock.onTick.addEventListener(()=>{
+    if (!orbiting || !orbitCenter) return;
+    orbitHeading += 0.0016;
+    viewer.camera.lookAt(orbitCenter,
+      new Cesium.HeadingPitchRange(orbitHeading, Cesium.Math.toRadians(-28), orbitRange));
+  });
+}
+
+function stopOrbit(){
+  orbiting = false;
+  if (orbitTick){ orbitTick(); orbitTick = null; }
+  viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY); // 자유 조작 복원
+}
+</script>
+</body>
+</html>
