@@ -2058,11 +2058,9 @@
     background: transparent;
     padding:12px 0 60px;
   ">
-    <!-- 상단 이닝 정보 (화면 최상단 고정) -->
-    <div style="
-      position:absolute; top:8px; left:0; right:0;
-      text-align:center; z-index:10;
-    ">
+    <!-- 스코어보드: 실제 컴포넌트 사용 (main-content가 켜진 상태로 오버레이) -->
+    <!-- 이닝 정보 — 헤더 타이틀과 겹치지 않게 하단 스택 흐름으로 이동 (2026.06.10) -->
+    <div style="text-align:center; margin-bottom:14px;">
       <div id="dr-inning" style="
         font-size:16px; font-weight:800; color:#fff;
         letter-spacing:0.08em;
@@ -2075,7 +2073,6 @@
         text-shadow: 0 1px 4px rgba(0,0,0,0.8);
       ">상대방 공격 시작</div>
     </div>
-    <!-- 스코어보드: 실제 컴포넌트 사용 (main-content가 켜진 상태로 오버레이) -->
     <!-- 상대 타자 등장 멘트 (2줄 고정 창) -->
     <div id="dr-message" style="
       font-size:17px;font-weight:700;color:rgba(248,244,238,0.92);
@@ -2571,6 +2568,10 @@ async function awardAppleToUser() {
       await supa.from('career_stats')
         .update({ golden_apples: (career.golden_apples || 0) + 1 })
         .eq('uid', currentUser.id);
+    } else {
+      // career 행이 아직 없으면(시범경기 기간) 잔고 행 생성 — 사과는 시범에도 지급·기록 (절충 정책)
+      await supa.from('career_stats')
+        .insert([{ uid: currentUser.id, golden_apples: 1 }]);
     }
     
     console.log('🍎 황금사과 +1 지급 완료 (경기 완주)');
@@ -2597,6 +2598,7 @@ async function updateSoroCard() {
   set('soro-era',    '0.00');
 
   if (!currentUser) return;
+  if (!currentSeasonId) return;  // 함정 #2: 시즌 미확정이면 조회 스킵 (406 방지, 기본값 0 표시)
 
   try {
     const { data, error } = await supa
@@ -2810,7 +2812,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
 });
 
 let currentUser = null;
-let currentSeasonId = 1;
+let currentSeasonId = null;  // 함정 #2 종결 — initAuth에서 active 시즌을 동적 조회 (하드코딩 금지)
 
 // ── 게임 화면 시작 — 세션 확인 후 게임 초기화 ──
 async function initAuth() {
@@ -2818,6 +2820,14 @@ async function initAuth() {
   if (session) {
     currentUser = session.user;
     console.log('로그인 상태:', currentUser.email);
+    // active 시즌 동적 조회 — 함정 #2 종결 (시간이 지나면 변하는 값은 DB가 진실)
+    try {
+      const { data: sn } = await supa.from('seasons')
+        .select('id').eq('user_id', currentUser.id)
+        .eq('status', 'active').order('id', { ascending: false }).limit(1);
+      currentSeasonId = (sn && sn.length) ? sn[0].id : null;
+      console.log('active 시즌:', currentSeasonId ?? '없음(시즌 생성 전)');
+    } catch(e) { currentSeasonId = null; console.warn('시즌 조회 실패:', e); }
   } else {
     // 비로그인 상태로 진입 시 입구로 돌려보냄
     console.warn('비로그인 상태로 game_rookie.html 진입. index.html로 이동');

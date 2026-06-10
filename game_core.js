@@ -719,7 +719,7 @@ function selectZone(idx) {
   // Supabase 스탯 로드
   (async () => {
     let ab = 0, h = 0, hr = 0, league = 'ROOKIE';
-    if (currentUser) {
+    if (currentUser && currentSeasonId) {  // 함정 #2: 시즌 미확정이면 조회 스킵 (406 방지)
       try {
         const token = (await supa.auth.getSession()).data.session?.access_token;
         const res = await fetch(
@@ -1102,7 +1102,7 @@ async function updateGameStatBar(q) {
 
   // Supabase 스탯 로드
   let ab = 0, h = 0, hr = 0, league = 'ROOKIE';
-  if (currentUser) {
+  if (currentUser && currentSeasonId) {  // 함정 #2: 시즌 미확정이면 조회 스킵 (406 방지)
     try {
       const token = (await supa.auth.getSession()).data.session?.access_token;
       const res = await fetch(
@@ -1642,7 +1642,7 @@ function showReveal() {
   const halfOver = done && !gameOver;
   const btn = document.getElementById('reveal-next-btn');
   btn.textContent = gameOver ? '경기 결과 보기 🏆' : halfOver ? '공수 교대 →' : '다음 타자 →';
-  btn.onclick = gameOver ? showGameResult : halfOver ? switchHalf : nextQ;
+  btn.onclick = gameOver ? showGameResult : halfOver ? showHalftime : nextQ;  // 교대는 간이역 경유 (2026.06.10)
   if(gameOver || halfOver) btn.style.fontWeight = '800';
 
   // 각인 화면 표시
@@ -1882,17 +1882,27 @@ function showFinalResult(result, resultColor, emoji){
         <div><div style="font-size:8px;color:rgba(248,244,238,0.35)">아웃</div><div style="font-size:16px;font-family:'Courier New';color:var(--chalk)">${st.outsRecorded}</div></div>
       </div>
     </div>
-    <!-- 황금사과 수령 — 끝까지 뛴 모든 경기에 대한 환대의 증표 (승/패 무관) -->
-    <div id="apple-award-section" style="text-align:center;margin-bottom:20px">
-      <button class="btn-next" style="width:100%;background:linear-gradient(135deg,rgba(201,168,76,0.3),rgba(201,168,76,0.1));border:1px solid rgba(201,168,76,0.6);color:#C9A84C;font-size:15px;letter-spacing:0.08em;padding:14px" onclick="showAppleAward()">
-        🍎 황금사과 한 알 받기
-      </button>
+    <!-- 황금사과 — 끝까지 뛴 모든 경기에 자동 도착 (승/패 무관, 버튼→자동 전환 2026.06.10) -->
+    <div style="text-align:center;margin-bottom:16px;padding:13px;background:linear-gradient(135deg,rgba(201,168,76,0.18),rgba(201,168,76,0.05));border:1px solid rgba(201,168,76,0.45);border-radius:12px;color:#C9A84C;font-size:13.5px;letter-spacing:0.05em">
+      🍎 황금사과 한 알이 도착했습니다
     </div>
-    <div style="display:flex;gap:10px">
+    <div style="display:flex;gap:10px;margin-bottom:10px">
+      <button class="btn-next" style="flex:1" onclick="showOtherFieldFinal()">🏟 타구장 결과 보기</button>
       <button class="btn-next" style="flex:1" onclick="location.href='index.html'">🏠 홈으로</button>
     </div>
+    <div id="otherfield-final-panel" style="display:none;text-align:center;font-size:14px;font-family:'Courier New';color:#E9C97E;background:rgba(0,0,0,0.25);border-radius:10px;padding:12px"></div>
   `;
   ra.style.display='block';
+  // 각인 화면의 잔존 진행 버튼 숨김 — 해설 콘텐츠는 그대로 (2026.06.10)
+  const rvBtn = document.getElementById('reveal-next-btn');
+  if (rvBtn) rvBtn.style.display = 'none';
+  // 황금사과 자동 지급 — "받는" 행위가 아니라 "도착"하는 환대 (디버그 진입 시엔 미지급)
+  const _isDebug = new URLSearchParams(location.search).get('debug');
+  if (!_isDebug) {
+    try { if (typeof awardAppleToUser === 'function') awardAppleToUser(); } catch(e) { console.warn('사과 자동 지급 실패:', e); }
+  } else {
+    console.log('🔧 디버그 모드 — 사과 자동 지급 스킵');
+  }
   // Supabase에 스탯 저장
   saveStatsToSupabase();
 }
@@ -2013,6 +2023,9 @@ async function saveStatsToSupabase() {
         }
       );
     }
+
+    // ── 타구장 점수 보증 — 버튼을 안 눌렀어도 최종 점수는 기록 (멱등, 비차단) ──
+    ensureOtherFieldScores('final').catch(()=>{});
 
     // ── 시범경기(week_num=0): 일정(matches)만 completed로 남기고 통계는 미반영 ──
     const isPreseason = existingMatches?.[0]?.week_num === 0;
@@ -2899,6 +2912,195 @@ function requestPitch(){
   document.getElementById('main-content').style.display = 'flex';
   document.getElementById('game-area').style.display = 'block';
   startQ();
+}
+
+// ═══════════════════════════════════════════════════
+// 🏟 공수 교대 간이역 + 타구장 점수 엔진 (2026.06.10)
+//   - 간이역: 교대 시 잠깐 쉬어가는 화면 (시범·정규 공통 유지)
+//   - 멘토르 카드: 시범경기(week_num=0) 동안만 노출, 정규부터 조용히 사라짐
+//   - 타구장 점수 2단계: 교대 = 원정(1회초) 확정·불변 / 종료 = 홈 확정 (동점이면 홈 +1)
+//     v37 §5 설계. matches에 영속. 모든 생성은 멱등.
+// ═══════════════════════════════════════════════════
+
+const EG_TEAM_LABEL = { soro:'SORO', socrates:'SOCRATES', proust:'PROUST', pascal:'PASCAL' };
+
+// 봇 점수 추첨 — 0~6점, 평균 약 1.5 (v37)
+function randBotScore(){
+  const w = [30,28,18,12,7,3,2];  // 0~6점 가중치 (합 100)
+  let r = Math.random()*100, acc = 0;
+  for(let i=0;i<w.length;i++){ acc += w[i]; if(r < acc) return i; }
+  return 1;
+}
+
+// REST 직접 호출용 인증 헤더
+async function egAuthHeaders(){
+  try{
+    const session = (await supa.auth.getSession()).data.session;
+    if(!session) return null;
+    return { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' };
+  }catch(e){ return null; }
+}
+
+// 오늘의 matches 두 행(내 경기 + 타구장) — 캐시
+let _egTodayMatches = null;
+async function getTodayMatchInfo(forceRefresh){
+  if(_egTodayMatches && !forceRefresh) return _egTodayMatches;
+  if(!currentUser) return null;
+  const headers = await egAuthHeaders();
+  if(!headers) return null;
+  const today = new Date().toISOString().slice(0,10);
+  try{
+    const res = await fetch(
+      `${SUPA_URL}/rest/v1/matches?user_id=eq.${currentUser.id}&match_date=eq.${today}&select=id,is_my_game,week_num,home_team,away_team,home_score,away_score,status`,
+      { headers }
+    );
+    const rows = await res.json();
+    if(!Array.isArray(rows)) return null;
+    _egTodayMatches = {
+      my:    rows.find(r => r.is_my_game) || null,
+      other: rows.find(r => !r.is_my_game) || null
+    };
+    return _egTodayMatches;
+  }catch(e){ console.warn('[타구장] 오늘 경기 조회 실패:', e); return null; }
+}
+
+// 타구장 점수 생성 — 멱등 + 직렬화 (이중 호출 경합 방지)
+// stage: 'away' = 1회초 원정 점수 확정 / 'final' = 홈 점수 확정 + completed
+let _egOtherFieldLock = null;
+async function ensureOtherFieldScores(stage){
+  if(_egOtherFieldLock) await _egOtherFieldLock.catch(()=>{});
+  const job = (async () => {
+    const info = await getTodayMatchInfo(true);
+    const o = info && info.other;
+    if(!o) return null;
+    const headers = await egAuthHeaders();
+    if(!headers) return o;
+    const patch = {};
+    if(o.away_score === null || o.away_score === undefined){
+      patch.away_score = randBotScore();   // 1회초 — 한 번 정해지면 불변
+    }
+    if(stage === 'final' && (o.home_score === null || o.home_score === undefined || o.status !== 'completed')){
+      let h = randBotScore();
+      const a = (patch.away_score !== undefined) ? patch.away_score : o.away_score;
+      if(h === a) h = h + 1;               // 봇끼리 무승부 없음 — 동점이면 홈 +1 (v37)
+      patch.home_score = h;
+      patch.status = 'completed';
+      patch.completed_at = new Date().toISOString();
+    }
+    if(Object.keys(patch).length){
+      const r = await fetch(`${SUPA_URL}/rest/v1/matches?id=eq.${o.id}`, {
+        method:'PATCH', headers:{ ...headers, 'Prefer':'return=minimal' }, body: JSON.stringify(patch)
+      });
+      if(r.ok) Object.assign(o, patch);
+      else console.warn('[타구장] 점수 저장 실패:', r.status);
+    }
+    return o;
+  })();
+  _egOtherFieldLock = job.then(()=>{}, ()=>{});
+  try { return await job; }
+  catch(e){ console.warn('[타구장] 점수 생성 실패:', e); return null; }
+}
+
+// 타구장 한 줄 표기
+function fmtOtherField(o, stage){
+  if(!o) return '오늘은 옆 구장 경기가 없습니다.';
+  const away = EG_TEAM_LABEL[o.away_team] || o.away_team;
+  const home = EG_TEAM_LABEL[o.home_team] || o.home_team;
+  const a = (o.away_score===null||o.away_score===undefined) ? '-' : o.away_score;
+  if(stage === 'away'){
+    return `${away} ${a} : - ${home} <span style="font-size:10px;opacity:0.6">(1회말 진행 중)</span>`;
+  }
+  const h = (o.home_score===null||o.home_score===undefined) ? '-' : o.home_score;
+  return `${away} ${a} : ${h} ${home} <span style="font-size:10px;opacity:0.6">(최종)</span>`;
+}
+
+// ── 간이역 화면 (동적 생성 — HTML 무수정) ──
+function buildHalftimeScreen(){
+  let el = document.getElementById('halftime-screen');
+  if(el) return el;
+  el = document.createElement('div');
+  el.id = 'halftime-screen';
+  el.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:600;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,20,14,0.55);backdrop-filter:blur(2px);padding:20px;';
+  el.innerHTML = `
+    <div style="width:100%;max-width:340px;background:rgba(16,28,20,0.93);border:1px solid rgba(248,244,238,0.12);border-radius:16px;padding:22px 18px;box-shadow:0 12px 40px rgba(0,0,0,0.5)">
+      <div style="text-align:center;margin-bottom:6px;font-size:11px;letter-spacing:0.18em;color:rgba(248,244,238,0.45)">HALF TIME</div>
+      <div id="ht-title" style="text-align:center;font-size:18px;font-weight:800;color:#F8F4EE;margin-bottom:4px">⚾ 1회초 종료 · 공수 교대</div>
+      <div id="ht-score" style="text-align:center;font-size:13px;font-family:'Courier New';color:rgba(248,244,238,0.65);margin-bottom:14px"></div>
+      <div id="ht-mentor" style="display:none;background:rgba(140,190,160,0.10);border:1px solid rgba(140,190,160,0.25);border-radius:12px;padding:14px;margin-bottom:14px;font-size:12.5px;line-height:1.8;color:rgba(235,245,238,0.92);word-break:keep-all"></div>
+      <button class="btn-next" id="ht-other-btn" style="width:100%;margin-bottom:8px;background:rgba(248,244,238,0.08);border:1px solid rgba(248,244,238,0.25)">🏟 옆 구장 소식 보기</button>
+      <div id="ht-other-panel" style="display:none;text-align:center;font-size:14px;font-family:'Courier New';color:#E9C97E;background:rgba(0,0,0,0.25);border-radius:10px;padding:12px;margin-bottom:8px"></div>
+      <button class="btn-next" id="ht-go-btn" style="width:100%;font-weight:800"></button>
+    </div>`;
+  document.body.appendChild(el);
+  return el;
+}
+
+// 공수 교대 → 간이역 (reveal의 "공수 교대 →"가 호출)
+async function showHalftime(){
+  const rs = document.getElementById('reveal-screen');
+  if(rs) rs.style.display = 'none';
+
+  const el = buildHalftimeScreen();
+  const nextIsAttack = !st.isAttack;   // 다음 하프에 내가 타석에 서는가
+
+  // 점수줄 — 원정·홈 위치 그대로 (초 공격팀이 왼쪽)
+  const sc = document.getElementById('ht-score');
+  if(sc){
+    const oppName = currentOpp ? (currentOpp.shortName || 'AI') : 'AI';
+    sc.textContent = currentIsHome
+      ? `${oppName} ${st.scoreAi} : ${st.scoreMe} SORO`
+      : `SORO ${st.scoreMe} : ${st.scoreAi} ${oppName}`;
+  }
+
+  // 진행 버튼 — 다음 하프의 내 역할에 따라 라벨 분기 (홈/원정 동적)
+  const go = document.getElementById('ht-go-btn');
+  go.textContent = nextIsAttack ? '🏏 타석에 서기 →' : '⚾ 수비 준비 →';
+  go.onclick = () => { el.style.display = 'none'; switchHalf(); };
+
+  // 옆 구장 버튼 — 누르는 순간 타구장 1회초(원정) 점수 확정
+  const ob = document.getElementById('ht-other-btn');
+  const op = document.getElementById('ht-other-panel');
+  op.style.display = 'none'; op.innerHTML = '';
+  ob.style.display = 'block'; ob.disabled = false; ob.textContent = '🏟 옆 구장 소식 보기';
+  ob.onclick = async () => {
+    ob.disabled = true; ob.textContent = '🏟 옆 구장 확인 중...';
+    const o = await ensureOtherFieldScores('away');
+    op.innerHTML = fmtOtherField(o, 'away');
+    op.style.display = 'block';
+    ob.style.display = 'none';
+  };
+
+  // 멘토르 카드 — 시범경기(week 0) 동안만, 홈/원정 동적 문구
+  const mc = document.getElementById('ht-mentor');
+  mc.style.display = 'none';
+  try{
+    const info = await getTodayMatchInfo();
+    if(info && info.my && info.my.week_num === 0){
+      const sideLine = currentIsHome
+        ? '오늘은 홈 — 수비를 마쳤으니, 마지막 타석은 당신의 것입니다.'
+        : '오늘은 원정 — 공격을 마쳤으니, 이제 지킬 시간입니다.';
+      mc.innerHTML =
+        '경기는 1회 초와 말, 단 한 이닝으로 끝납니다.<br>' +
+        '원정팀이 초에, 홈팀이 말에 타석에 섭니다.<br>' +
+        sideLine + '<br>' +
+        '끝내 동점이라면, 주사위가 운명을 가립니다.<br>' +
+        '교대하는 이 짬에 옆 구장 소식을 들여다보셔도 좋습니다.' +
+        '<div style="text-align:right;margin-top:6px;font-size:11px;opacity:0.55">— 멘토르</div>';
+      mc.style.display = 'block';
+    }
+  }catch(e){}
+
+  el.style.display = 'flex';
+}
+
+// 결과 화면의 "타구장 결과 보기" — 최종 점수 확정·표시
+async function showOtherFieldFinal(){
+  const p = document.getElementById('otherfield-final-panel');
+  if(!p) return;
+  p.style.display = 'block';
+  p.textContent = '타구장 결과 확인 중...';
+  const o = await ensureOtherFieldScores('final');
+  p.innerHTML = fmtOtherField(o, 'final');
 }
 
 // nextQ — 1이닝 모델
