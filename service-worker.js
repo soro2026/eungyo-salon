@@ -10,6 +10,7 @@ const CORE_FILES = [
   '/eungyo-salon/wunderkammer.html',
   '/eungyo-salon/game_rookie.html',
   '/eungyo-salon/game_core.js',
+  '/eungyo-salon/journal_engine.js',
   '/eungyo-salon/external_links.js',
   '/eungyo-salon/answer_compare.js',
   '/eungyo-salon/questions_index.json',
