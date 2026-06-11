@@ -523,6 +523,36 @@ let GAME_ACTIVE = false;  // 게임 진행 중 여부 (오디오 제어용)
 let GAME_USED_SEEDS = new Set();
 let GAME_USED_FIGURES = new Set();
 let GAME_USED_ANSWERS = new Set();
+// ── B방식 (시범경기 전용): 이전 경기에서 이미 경험한 문제 회피 ──
+//   quiz_log 기반. 시범경기(week 0)에서만 채워지고, 정규경기는 비움(다음 설계).
+//   풀이 바닥나면 buildZoneBoard 3차 폴백이 자동으로 다시 허용 — 우아한 폴백.
+let EXPERIENCED_SEEDS = new Set();
+let _expSeedsActive = false;   // true일 때만 isDuplicate가 경험 회피 적용
+
+// 시범경기면 quiz_log에서 이 유저의 경험 seed 로드. 정규/비로그인은 비활성.
+async function prepExperiencedSeeds() {
+  EXPERIENCED_SEEDS = new Set();
+  _expSeedsActive = false;
+  if (!currentUser) return;
+  try {
+    const info = await getTodayMatchInfo();
+    const isPre = info && info.my && info.my.week_num === 0;
+    if (!isPre) return;   // 정규경기는 B방식 미적용
+    const headers = await egAuthHeaders();
+    if (!headers) return;
+    const res = await fetch(
+      `${SUPA_URL}/rest/v1/quiz_log?uid=eq.${currentUser.id}&select=seed_id`,
+      { headers }
+    );
+    const rows = await res.json();
+    if (Array.isArray(rows)) rows.forEach(r => { if (r.seed_id) EXPERIENCED_SEEDS.add(r.seed_id); });
+    _expSeedsActive = true;
+    console.log(`[B방식] 시범경기 — 경험한 문제 ${EXPERIENCED_SEEDS.size}개 회피`);
+  } catch (e) {
+    console.warn('[B방식] 경험 seed 로드 실패 (무시):', e?.message || e);
+    _expSeedsActive = false;
+  }
+}
 
 // 최근 사용된 문제 ID 추적 (중복 출제 방지)
 // 12개 카테고리 순환 인덱스 (라운드로빈)
@@ -556,6 +586,8 @@ function buildZoneBoard() {
   // — 이번 보드 안 + 이번 경기 누적 둘 다 회피
   function isDuplicate(q) {
     if (usedSeedIds.has(q.seed_id) || GAME_USED_SEEDS.has(q.seed_id)) return true;
+    // B방식: 시범경기 활성 시 이전 경기 경험 문제도 회피 (3차 폴백에선 제외 → 바닥나면 허용)
+    if (_expSeedsActive && EXPERIENCED_SEEDS.has(q.seed_id)) return true;
     if (usedAnswers.has(q.answer) || GAME_USED_ANSWERS.has(q.answer)) return true;
     // figures 배열 안의 *어느 한 인물*이라도 이미 등장했으면 중복
     if (Array.isArray(q.figures)) {
@@ -2607,7 +2639,7 @@ function showEntryScreen() {
   document.getElementById('entry-screen').style.display = 'flex';
 }
 
-function enterZoneBoard() {
+async function enterZoneBoard() {
   stopCardSlide();
   document.getElementById('entry-screen').style.display = 'none';
 
@@ -2655,6 +2687,8 @@ function enterZoneBoard() {
   opening.play().catch(()=>{});
 
   // 존 보드 초기화 후 공수에 맞는 화면으로
+  // B방식: 시범경기면 경험한 문제 회피 준비 (buildZoneBoard 전에 await)
+  await prepExperiencedSeeds();
   buildZoneBoard();
   showAtStep();
 }
@@ -2756,7 +2790,7 @@ function initGame(){
   // 프리게임은 goToStadium()에서 열림
 }
 
-function startGame(){
+async function startGame(){
   GAME_ACTIVE = true;
   // ── 새 경기 시작 — 누적 set 청산 (v1.5+)
   // 이전 경기에서 등장한 문제·인물·정답 흔적 청산
@@ -2819,6 +2853,8 @@ function startGame(){
   applyRandomStadiumBg(fb); // 풀배경 이미지 랜덤 적용
   // 홈=후공(말, isAttack=false), 원정=선공(초, isAttack=true)
   st.isAttack = !currentIsHome;
+  // B방식: 시범경기면 경험한 문제 회피 준비 (buildZoneBoard 전에 await)
+  await prepExperiencedSeeds();
   // 존 보드 초기화
   buildZoneBoard();
   // 프리게임 → 입장 화면 (드론영상 + 야구카드)
