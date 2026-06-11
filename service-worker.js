@@ -1,4 +1,4 @@
-const CACHE = 'eungyo-v49';
+const CACHE = 'eungyo-v50';
 
 const CORE_FILES = [
   '/eungyo-salon/',
