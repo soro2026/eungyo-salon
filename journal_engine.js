@@ -176,8 +176,19 @@ const EGJournal = (() => {
     loss_big:  ['오늘은 {opp}의 날이었다 — {me} {os}−{ms} 패배',
                 '{me}, {opp}의 타선에 길을 내주다. {os}−{ms}'],
     dice_win:  ['주사위는 {me}의 편이었다 — 운명의 {ms}−{os}'],
-    dice_loss: ['주사위가 {opp}를 가리켰다 — {me}, 운명의 한 점에 무릎']
+    dice_loss: ['주사위가 {opp}를 가리켰다 — {me}, 운명의 한 점에 무릎'],
+    forfeit_home: ['빈 타석 — 이 날, {park}의 홈플레이트는 조용했다',
+                   '{park}, 끝내 켜지지 않은 전광판 — {ms}−{os}'],
+    forfeit_away: ['{park}에 닿지 않은 타자 — {ms}−{os}',
+                   '원정의 발걸음은 끝내 {park}에 닿지 않았다 — {ms}−{os}']
   };
+
+  // ── 🌑 결석(forfeit) 본문 풀 — 비난 없이 빈 타석을 응시하는 담담한 한 줄 ──
+  const FORFEIT_BODY = [
+    '타석 하나가 비어 있었다. 야구는 룰대로 한 줄을 적었고, {park}의 바람만이 빈 그라운드를 오래 지켰다. 전광판은 끝내 환히 켜지지 않았다.',
+    '오늘, {park}에는 답할 이가 없었다. 기록은 담담히 패를 적는다. 그러나 적히지 않은 것도 있다 — 비어 있던 그 하루가 무엇이었는지는, 신문이 알지 못한다.',
+    '전광판은 익숙하게 한 줄을 새겼다. 비어 있던 곳은 비어 있던 대로 거기 있었다. 야구는 기다리지 않지만, {park}의 그라운드는 늘 그대로다.'
+  ];
 
   // ── B 단상 풀 ──
   const ESSAY_OPEN = [
@@ -275,7 +286,8 @@ const EGJournal = (() => {
     const weather = pick(rng, wpool).replace('{p}', 7 + Math.floor(rng() * 40));
     return { rng, home, away, hs, as, meHome, myGame, me, oppCode, opp, ms, os,
              winnerCode, season, weather, isPre: data.weekNum === 0,
-             decided: !!data.decidedByDice, dice: data.diceDetail || null };
+             decided: !!data.decidedByDice, dice: data.diceDetail || null,
+             forfeit: !!data.forfeit };
   }
 
   // ── 헤드라인 선택 ──
@@ -283,7 +295,8 @@ const EGJournal = (() => {
     const { rng, home, ms, os, opp } = c;
     let key;
     const diff = Math.abs(ms - os);
-    if(c.decided)    key = ms > os ? 'dice_win' : 'dice_loss';   // 🎲 주사위 결판 우선
+    if(c.forfeit)    key = c.meHome ? 'forfeit_home' : 'forfeit_away';  // 🌑 결석 최우선
+    else if(c.decided) key = ms > os ? 'dice_win' : 'dice_loss';   // 🎲 주사위 결판
     else if(ms > os) key = os === 0 ? 'win_shut' : diff >= 3 ? 'win_big' : 'win_close';
     else             key = diff >= 3 ? 'loss_big' : 'loss_close';
     return pick(rng, HL[key])
@@ -356,6 +369,16 @@ const EGJournal = (() => {
   function assemble(data){
     const c = prep(data);
     const { rng } = c;
+    // 🌑 결석 — 비난 없이 빈 타석을 응시하는 담담한 한 편 (다른 포맷을 타지 않음)
+    if(c.myGame && c.forfeit){
+      const body = pick(rng, FORFEIT_BODY).replace(/\{park\}/g, c.home.park);
+      return {
+        headline: headlineFor(c, data),
+        lead: `${dateK(data.date)}, ${c.home.park}. 한 타석이 끝내 채워지지 않았다.`,
+        paragraphs: [body], tag: '결석', fmt: 'F',
+        isPre: c.isPre, dateLabel: dateK(data.date)
+      };
+    }
     let fmt = 'A';
     if(c.myGame) fmt = pickW(rng, [['A', 5], ['B', 3], ['C', 3]]);
     const tag = fmt === 'A' ? '보도' : fmt === 'B' ? '그라운드 단상' : '라커룸';
@@ -387,6 +410,11 @@ const EGJournal = (() => {
   }
   function assembleShort(data){
     const c = prep(data);
+    if(c.myGame && c.forfeit){
+      return { headline: headlineFor(c, data),
+               summary: `${dateK(data.date)}, 빈 타석. 기록은 담담히 한 줄을 적었다.`,
+               isPre: c.isPre, dateLabel: dateK(data.date) };
+    }
     const headline = c.myGame ? headlineFor(c, data) : shortHeadline(c);
     const summary = leadFor(c, data);
     return { headline, summary, isPre: c.isPre, dateLabel: dateK(data.date) };
