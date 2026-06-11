@@ -878,7 +878,8 @@ let st={
   atbat:1,hits:0,totalAB:0,hr:0,rbi:0,bb:0,singles:0,doubles:0,triples:0,hbp:0,errors:0,
   pitchAB:0,hitsAllowed:0,earnedRuns:0,outsRecorded:0,
   hitBoard:[],outBoard:[],aiHitBoard:[],aiOutBoard:[],
-  catStats:{}   // 카테고리별 누적 {분야:{ab,h,hr,d,t,s,bb,hbp,err,tq}} — 통산 스탯용
+  catStats:{},   // 카테고리별 누적 {분야:{ab,h,hr,d,t,s,bb,hbp,err,tq}} — 통산 스탯용
+  diceResult:null  // 점수 동점 시 주사위 결판 결과 — 정상 경기는 null 유지(매 경기 startGame에서 청산)
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -2008,6 +2009,15 @@ async function saveStatsToSupabase() {
     //   오늘 날짜의 my_game 행 찾기 → 있으면 UPDATE, 없으면 INSERT
     const today = new Date().toISOString().slice(0, 10);  // 'YYYY-MM-DD'
     const isWin = st.scoreMe > st.scoreAi;
+    // 🎲 주사위 끝내기 표식 — finishDice가 st.diceResult.decided=true로 남긴다(정상 경기는 null).
+    const _dr = st.diceResult;
+    const decidedByDice = !!(_dr && _dr.decided);
+    const diceDetail = decidedByDice ? {
+      my_dice:    _dr.myDice,    ai_dice:    _dr.aiDice,
+      my_product: _dr.myProduct, ai_product: _dr.aiProduct,
+      rounds:     _dr.rounds,
+      winner:     _dr.meWon ? 'soro' : (currentOpp?.id || 'unknown')
+    } : null;
     const homeScore = currentIsHome ? st.scoreMe : st.scoreAi;
     const awayScore = currentIsHome ? st.scoreAi : st.scoreMe;
     const homeTeam  = currentIsHome ? 'soro' : (currentOpp?.id || 'unknown');
@@ -2031,6 +2041,8 @@ async function saveStatsToSupabase() {
             status: 'completed',
             home_score: homeScore,
             away_score: awayScore,
+            decided_by_dice: decidedByDice,
+            dice_detail: diceDetail,
             completed_at: new Date().toISOString()
           })
         }
@@ -2068,6 +2080,8 @@ async function saveStatsToSupabase() {
             is_my_game: true,
             home_score: homeScore,
             away_score: awayScore,
+            decided_by_dice: decidedByDice,
+            dice_detail: diceDetail,
             status: 'completed',
             completed_at: new Date().toISOString()
           })
@@ -2477,11 +2491,19 @@ async function rollDice() {
 }
 
 function finishDice(diceResult, myProduct, aiProduct, myDice, aiDice) {
-  // 결과 저장
+  const meWon = (diceResult === '승리');
+  // 🎲 주사위 끝내기 1점 — 경기 스코어에만 더한다.
+  //   ⚠️ rbi·hits·hr·earned_runs 등 타격 통계엔 절대 미반영(타자가 친 점수가 아님).
+  //   이 한 줄로 동점(0:0)이 1:0/0:1로 갈려, isWin·순위 집계가 손 안 대도 정답을 낸다.
+  if (meWon) st.scoreMe += 1;
+  else       st.scoreAi += 1;
+  // 결과 저장 — saveStatsToSupabase가 읽어 matches에 표식·상세를 남긴다.
   st.diceResult = {
     myDice, aiDice,
     myProduct, aiProduct,
     rounds: diceRound,
+    meWon,         // 누가 이겼나 (점수로도 갈리지만 명시 보존)
+    decided: true  // 이 경기는 주사위로 결판났다 → 저널 보도 근거
   };
   
   // 1.5초 후 주사위 화면 닫고 결과 화면으로
@@ -2797,6 +2819,7 @@ async function startGame(){
   GAME_USED_SEEDS.clear();
   GAME_USED_FIGURES.clear();
   GAME_USED_ANSWERS.clear();
+  st.diceResult = null;  // 🎲 이전 경기의 주사위 결판 흔적 청산 (정상 경기에 새지 않도록)
   if(!QS_LOADED || QS.length === 0){
     alert("문제를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
     return;

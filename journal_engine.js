@@ -274,7 +274,8 @@ const EGJournal = (() => {
     const wpool = (WEATHER[data.homeTeam] || WEATHER.soro)[season] || WEATHER.soro[season];
     const weather = pick(rng, wpool).replace('{p}', 7 + Math.floor(rng() * 40));
     return { rng, home, away, hs, as, meHome, myGame, me, oppCode, opp, ms, os,
-             winnerCode, season, weather, isPre: data.weekNum === 0 };
+             winnerCode, season, weather, isPre: data.weekNum === 0,
+             decided: !!data.decidedByDice, dice: data.diceDetail || null };
   }
 
   // ── 헤드라인 선택 ──
@@ -282,8 +283,9 @@ const EGJournal = (() => {
     const { rng, home, ms, os, opp } = c;
     let key;
     const diff = Math.abs(ms - os);
-    if(ms > os) key = os === 0 ? 'win_shut' : diff >= 3 ? 'win_big' : 'win_close';
-    else        key = diff >= 3 ? 'loss_big' : 'loss_close';
+    if(c.decided)    key = ms > os ? 'dice_win' : 'dice_loss';   // 🎲 주사위 결판 우선
+    else if(ms > os) key = os === 0 ? 'win_shut' : diff >= 3 ? 'win_big' : 'win_close';
+    else             key = diff >= 3 ? 'loss_big' : 'loss_close';
     return pick(rng, HL[key])
       .replace(/\{me\}/g, 'SORO').replace(/\{opp\}/g, opp)
       .replace(/\{ms\}/g, ms).replace(/\{os\}/g, os)
@@ -299,6 +301,19 @@ const EGJournal = (() => {
     let lead = `${dateK(data.date)}, ${home.park}에서 열린 경기에서 ${josa(winner,'이','가')} ${josa(loser,'을','를')} ${wsc}−${lsc}${roJosa(lsc)} 눌렀다.`;
     if(isPre && myGame) lead += ' 시범경기 — 기록에는 남지 않는 승부였다.';
     return lead;
+  }
+
+  // ── 🎲 주사위 결판 묘사 (내 경기·동점→주사위 끝내기일 때만) ──
+  function diceLine(c){
+    const d = c.dice;
+    if(!d) return null;
+    const opp = c.opp || '상대';
+    const meWon = c.ms > c.os;
+    const md = (d.my_dice || []).join('×'), ad = (d.ai_dice || []).join('×');
+    const mp = d.my_product, ap = d.ai_product;
+    const roundTxt = (d.rounds && d.rounds > 1) ? `재굴림 ${d.rounds}회차 끝에, ` : '';
+    const winnerTxt = meWon ? 'SORO' : opp;
+    return `${roundTxt}마지막 한 점은 주사위가 갈랐다. SORO ${md}=${mp}, ${opp} ${ad}=${ap} — 운명은 ${winnerTxt}의 손을 들었다.`;
   }
 
   // ── 포맷 A. 스트레이트 보도 ──
@@ -351,6 +366,10 @@ const EGJournal = (() => {
     const lead = leadFor(c, data);
     const paras = (fmt === 'A' ? fmtA : fmt === 'B' ? fmtB : fmtC)(c, data);
 
+    if(c.myGame && c.decided){
+      const dl = diceLine(c);
+      if(dl) paras.push(dl);
+    }
     if(c.myGame){
       const b = bridgePara(rng, data.persons);
       if(b) paras.push(b);
