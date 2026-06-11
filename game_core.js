@@ -716,14 +716,14 @@ function selectZone(idx) {
   const zbSub = document.getElementById('zb-subname');
   if (zbSub) zbSub.textContent = catSub;
 
-  // Supabase 스탯 로드
+  // Supabase 스탯 로드 — 선택 카테고리의 통산 전적 (category_stats)
   (async () => {
     let ab = 0, h = 0, hr = 0, league = 'ROOKIE';
-    if (currentUser && currentSeasonId) {  // 함정 #2: 시즌 미확정이면 조회 스킵 (406 방지)
+    if (currentUser) {  // 통산이라 시즌 미확정이어도 조회 (category_stats는 season 무관)
       try {
         const token = (await supa.auth.getSession()).data.session?.access_token;
         const res = await fetch(
-          `${SUPA_URL}/rest/v1/season_stats?uid=eq.${currentUser.id}&season_id=eq.${currentSeasonId}&select=at_bats,hits,hr`,
+          `${SUPA_URL}/rest/v1/category_stats?uid=eq.${currentUser.id}&category=eq.${encodeURIComponent(catMain)}&select=at_bats,hits,hr`,
           { headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${token}` } }
         );
         const data = await res.json();
@@ -845,7 +845,8 @@ let st={
   outs:0,bases:[false,false,false],scoreMe:0,scoreAi:0,tq:0,aiTq:0,
   atbat:1,hits:0,totalAB:0,hr:0,rbi:0,bb:0,singles:0,doubles:0,triples:0,hbp:0,errors:0,
   pitchAB:0,hitsAllowed:0,earnedRuns:0,outsRecorded:0,
-  hitBoard:[],outBoard:[],aiHitBoard:[],aiOutBoard:[]
+  hitBoard:[],outBoard:[],aiHitBoard:[],aiOutBoard:[],
+  catStats:{}   // 카테고리별 누적 {분야:{ab,h,hr,d,t,s,bb,hbp,err,tq}} — 통산 스탯용
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -1100,13 +1101,13 @@ async function updateGameStatBar(q) {
   const gscat = document.getElementById('gs-catname');
   if (gscat) gscat.textContent = shortCat(catMain);
 
-  // Supabase 스탯 로드
+  // Supabase 스탯 로드 — 이 문제 분야의 통산 전적 (category_stats)
   let ab = 0, h = 0, hr = 0, league = 'ROOKIE';
-  if (currentUser && currentSeasonId) {  // 함정 #2: 시즌 미확정이면 조회 스킵 (406 방지)
+  if (currentUser) {  // 통산이라 시즌 무관
     try {
       const token = (await supa.auth.getSession()).data.session?.access_token;
       const res = await fetch(
-        `${SUPA_URL}/rest/v1/season_stats?uid=eq.${currentUser.id}&season_id=eq.${currentSeasonId}&select=at_bats,hits,hr`,
+        `${SUPA_URL}/rest/v1/category_stats?uid=eq.${currentUser.id}&category=eq.${encodeURIComponent(catMain)}&select=at_bats,hits,hr`,
         { headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${token}` } }
       );
       const data = await res.json();
@@ -1577,6 +1578,24 @@ function processAns(ans){
     if(mk==='homerun'){ SND.homerun(); SND.crowd(); }
     else if(mk==='triple'||mk==='double'){ SND.hit(); SND.cheer(); }
     else { SND.hit(); }
+  }
+  // ── 카테고리별 누적 (그 문제의 메인 분야로) — 통산 스탯 ──
+  {
+    const cat = (q.cat || '').split('·')[0].trim();
+    if(cat){
+      const cs = st.catStats[cat] || (st.catStats[cat]={ab:0,h:0,hr:0,d:0,t:0,s:0,bb:0,hbp:0,err:0,tq:0});
+      if(ok){
+        if(mk==='homerun'){cs.hr++;cs.h++;}
+        else if(mk==='triple'){cs.t++;cs.h++;}
+        else if(mk==='double'){cs.d++;cs.h++;}
+        else if(mk==='single'){cs.s++;cs.h++;}
+        else if(mk==='bb')cs.bb++;
+        else if(mk==='hbp')cs.hbp++;
+        else if(mk==='error')cs.err++;
+      }
+      if(mk!=='bb'&&mk!=='hbp') cs.ab++;   // 타수 정의: 볼넷·몸맞공 제외 (전체 집계와 동일)
+      cs.tq += calcTQ(ok?mk:'out', adv, false);
+    }
   }
   const tp=idx, tt=label;
   document.getElementById('stat-timing').textContent=tp+'%';
@@ -2065,6 +2084,8 @@ async function saveStatsToSupabase() {
             doubles:       (cur.doubles || 0) + (st.doubles || 0),
             triples:       (cur.triples || 0) + (st.triples || 0),
             bb:            (cur.bb || 0) + (st.bb || 0),
+            hbp:           (cur.hbp || 0) + (st.hbp || 0),
+            errors:        (cur.errors || 0) + (st.errors || 0),
             earned_runs:   (cur.earned_runs || 0) + (st.earnedRuns || 0),
             outs_recorded: (cur.outs_recorded || 0) + (st.outsRecorded || 0),
             tq:            (cur.tq || 0) + (st.tq || 0),
@@ -2092,6 +2113,8 @@ async function saveStatsToSupabase() {
             doubles:       st.doubles || 0,
             triples:       st.triples || 0,
             bb:            st.bb || 0,
+            hbp:           st.hbp || 0,
+            errors:        st.errors || 0,
             earned_runs:   st.earnedRuns || 0,
             outs_recorded: st.outsRecorded || 0,
             tq:            st.tq || 0,
@@ -2129,8 +2152,11 @@ async function saveStatsToSupabase() {
             doubles:       (cur.doubles || 0) + (st.doubles || 0),
             triples:       (cur.triples || 0) + (st.triples || 0),
             bb:            (cur.bb || 0) + (st.bb || 0),
+            hbp:           (cur.hbp || 0) + (st.hbp || 0),
+            errors:        (cur.errors || 0) + (st.errors || 0),
             earned_runs:   (cur.earned_runs || 0) + (st.earnedRuns || 0),
             outs_recorded: (cur.outs_recorded || 0) + (st.outsRecorded || 0),
+            tq:            (cur.tq || 0) + (st.tq || 0),
             updated_at:    new Date().toISOString()
           })
         }
@@ -2154,8 +2180,11 @@ async function saveStatsToSupabase() {
             doubles:       st.doubles || 0,
             triples:       st.triples || 0,
             bb:            st.bb || 0,
+            hbp:           st.hbp || 0,
+            errors:        st.errors || 0,
             earned_runs:   st.earnedRuns || 0,
             outs_recorded: st.outsRecorded || 0,
+            tq:            st.tq || 0,
             golden_apples: 0,  // apple_log 처치 시 +1 (showAppleAward에서)
             updated_at:    new Date().toISOString()
           })
@@ -2163,10 +2192,55 @@ async function saveStatsToSupabase() {
       );
     }
 
-    console.log('[저장] matches/season_stats/career_stats 저장 완료', {
+    // ── 5단계. category_stats UPSERT (분야별 통산) ──────────
+    //   st.catStats = { 분야: {ab,h,hr,d,t,s,bb,hbp,err,tq} }
+    //   (uid, category) 복합 PK — 기존 행 조회 후 합산하여 다시 저장
+    const catEntries = Object.entries(st.catStats || {});
+    if (catEntries.length) {
+      // 현재 사용자의 모든 카테고리 행을 한 번에 조회
+      const existRes = await fetch(
+        `${SUPA_URL}/rest/v1/category_stats?uid=eq.${currentUser.id}&select=*`,
+        { headers: baseHeaders }
+      );
+      const existRows = await existRes.json().catch(() => []);
+      const byCat = {};
+      (Array.isArray(existRows) ? existRows : []).forEach(r => { byCat[r.category] = r; });
+
+      for (const [cat, c] of catEntries) {
+        const cur = byCat[cat];
+        const row = {
+          uid:        currentUser.id,
+          category:   cat,
+          games:      (cur?.games   || 0) + 1,
+          at_bats:    (cur?.at_bats || 0) + (c.ab  || 0),
+          hits:       (cur?.hits    || 0) + (c.h   || 0),
+          hr:         (cur?.hr      || 0) + (c.hr  || 0),
+          doubles:    (cur?.doubles || 0) + (c.d   || 0),
+          triples:    (cur?.triples || 0) + (c.t   || 0),
+          singles:    (cur?.singles || 0) + (c.s   || 0),
+          bb:         (cur?.bb      || 0) + (c.bb  || 0),
+          hbp:        (cur?.hbp     || 0) + (c.hbp || 0),
+          errors:     (cur?.errors  || 0) + (c.err || 0),
+          tq:         (cur?.tq      || 0) + (c.tq  || 0),
+          updated_at: new Date().toISOString()
+        };
+        const _cRes = await fetch(
+          `${SUPA_URL}/rest/v1/category_stats?on_conflict=uid,category`,
+          {
+            method: 'POST',
+            headers: { ...baseHeaders, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify(row)
+          }
+        );
+        if (!_cRes.ok) _dbgFails.push('category-UPSERT['+cat+'] '+_cRes.status+': '+(await _cRes.text().catch(()=>'')).slice(0,120));
+      }
+    }
+
+    console.log('[저장] matches/season_stats/career_stats/category_stats 저장 완료', {
       season_id: seasonId,
       isWin,
-      score: `${st.scoreMe}:${st.scoreAi}`
+      score: `${st.scoreMe}:${st.scoreAi}`,
+      cats: Object.keys(st.catStats || {}).length
     });
     // 🔧 임시 진단: 실패가 있으면 화면에 표시 (원인 확정 후 제거)
     if(_dbgFails.length){
