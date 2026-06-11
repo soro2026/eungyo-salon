@@ -3272,7 +3272,7 @@ async function renderJournalArticle(row){
     matchId: row.id, date: row.match_date, weekNum: row.week_num,
     isMyGame: row.is_my_game, homeTeam: row.home_team, awayTeam: row.away_team,
     homeScore: row.home_score, awayScore: row.away_score,
-    decidedByDice: row.decided_by_dice, diceDetail: row.dice_detail, persons
+    decidedByDice: row.decided_by_dice, diceDetail: row.dice_detail, forfeit: row.forfeit, persons
   });
 
   const el = id => document.getElementById(id);
@@ -3313,7 +3313,7 @@ function renderNewsList(rows, headId){
       matchId: r.id, date: r.match_date, weekNum: r.week_num,
       isMyGame: r.is_my_game, homeTeam: r.home_team, awayTeam: r.away_team,
       homeScore: r.home_score, awayScore: r.away_score,
-      decidedByDice: r.decided_by_dice, diceDetail: r.dice_detail
+      decidedByDice: r.decided_by_dice, diceDetail: r.dice_detail, forfeit: r.forfeit
     });
     const emb = r.is_my_game ? (r.home_team === 'soro' ? r.away_team : r.home_team) : r.home_team;
     const card = document.createElement('div');
@@ -3975,6 +3975,165 @@ function updateAllGamesList(matches, today) {
 // 🏠 홈 탭 — Supabase 데이터 연결
 // ============================================
 
+// ── 결석 정산 — 지난 pending 경기를 다음 접속 시 굳힌다 ──
+//   봇끼리(is_my_game=false): 점수 생성 → completed
+//   소로 경기(is_my_game=true): 0-3 결석패(forfeit=true) → completed
+//   대상: 정규(week>0) + 오늘 이전 + pending. 시범경기(week 0)는 제외(통계 미반영).
+function sRandBotScore(){
+  const w = [30,28,18,12,7,3,2];  // 0~6점 가중치 (game_core.randBotScore와 동일)
+  let r = Math.random()*100, acc = 0;
+  for(let i=0;i<w.length;i++){ acc += w[i]; if(r < acc) return i; }
+  return 1;
+}
+async function reconcileAbsences(uid){
+  try {
+    const today = getToday();
+    const { data: stale } = await supa.from('matches')
+      .select('id,is_my_game,home_team,away_team')
+      .eq('user_id', uid).gt('week_num', 0)
+      .lt('match_date', today).eq('status', 'pending');
+    if (!stale || !stale.length) return;
+    const nowIso = new Date().toISOString();
+    for (const m of stale) {
+      let patch;
+      if (m.is_my_game) {
+        // 결석 = 소로 0-3 패 (소로가 home이면 0:3, away면 3:0)
+        const soroHome = (m.home_team === 'soro');
+        patch = {
+          home_score: soroHome ? 0 : 3,
+          away_score: soroHome ? 3 : 0,
+          status: 'completed', forfeit: true, completed_at: nowIso
+        };
+      } else {
+        // 봇끼리 = 점수 생성, 동점이면 홈 +1 (무승부 없음)
+        const a = sRandBotScore();
+        let h = sRandBotScore();
+        if (h === a) h = h + 1;
+        patch = { home_score: h, away_score: a, status: 'completed', completed_at: nowIso };
+      }
+      await supa.from('matches').update(patch).eq('id', m.id);
+    }
+    console.log(`[결석정산] ${stale.length}경기 정산 (봇 점수 생성 + 소로 결석패 0-3)`);
+  } catch (e) {
+    console.warn('[결석정산] 실패 (무시):', e?.message || e);
+  }
+}
+
+// ── 🏆 주간 우승 정산 — 접속 시 미지급 지난 주를 오래된 것부터 정산 ──
+//   결석 정산(reconcileAbsences) 다음에 호출. 과거 주는 이미 다 completed.
+//   우승 = 그 주 4팀 중 최다승(동률 공동우승, 0승은 제외). 보너스 = 10 + 연속 + 전승.
+//   멱등: weekly_stats에 그 주 row가 있으면 스킵(row 존재 = 정산 완료).
+function calcWeeklyBonus(streak, isPerfect){
+  let base;
+  if (streak <= 1) base = 10;
+  else if (streak === 2) base = 15;
+  else if (streak === 3) base = 20;
+  else if (streak === 4) base = 25;
+  else base = 30;                    // 5주 이상 연속 = 30 상한 (그 위는 뉴스가 보상)
+  return base + (isPerfect ? 5 : 0); // 전승(6승 0패) +5
+}
+async function bumpCareerApples(uid, n){
+  const { data: c } = await supa.from('career_stats').select('golden_apples').eq('uid', uid).limit(1);
+  if (c && c.length) {
+    await supa.from('career_stats').update({ golden_apples: (c[0].golden_apples || 0) + n }).eq('uid', uid);
+  } else {
+    await supa.from('career_stats').insert({ uid, golden_apples: n });
+  }
+}
+async function settleWeeklyChampions(uid){
+  const won = [];  // 이번에 새로 정산된 우승 주 (모달용)
+  try {
+    const curWeek = getCurrentWeek();
+    if (curWeek < 2) return won;  // 정규 1주차 진행 중이면 판정할 직전 주 없음
+
+    const { data: doneRows } = await supa.from('weekly_stats')
+      .select('week_num, is_champion, streak').eq('uid', uid);
+    const doneMap = {};
+    (doneRows || []).forEach(r => { doneMap[r.week_num] = r; });
+
+    // 1 .. curWeek-1 중 미정산 주를 오래된 것부터
+    for (let k = 1; k <= curWeek - 1; k++) {
+      if (doneMap[k]) continue;  // 이미 정산됨 (멱등)
+
+      const { data: wm } = await supa.from('matches')
+        .select('home_team,away_team,home_score,away_score,status')
+        .eq('user_id', uid).eq('week_num', k);
+      if (!wm || !wm.length) continue;                          // 경기 없는 주
+      if (!wm.every(m => m.status === 'completed')) continue;   // 아직 마감 안 됨
+
+      // 4팀 승패 집계 (loadStandingsData와 동일 규칙)
+      const t = { soro:{w:0,l:0}, socrates:{w:0,l:0}, proust:{w:0,l:0}, pascal:{w:0,l:0} };
+      wm.forEach(m => {
+        const homeWin = m.home_score > m.away_score;
+        const winner = homeWin ? m.home_team : m.away_team;
+        const loser  = homeWin ? m.away_team : m.home_team;
+        if (t[winner]) t[winner].w++;
+        if (t[loser])  t[loser].l++;
+      });
+      const maxW = Math.max(...Object.values(t).map(s => s.w));
+      const soroChamp = (t.soro.w === maxW && maxW > 0);  // 0승 최다는 우승 아님
+
+      let streak = 0, bonus = 0;
+      const perfect = (t.soro.w === 6 && t.soro.l === 0);
+      if (soroChamp) {
+        const prev = doneMap[k - 1];
+        const prevStreak = (prev && prev.is_champion) ? prev.streak : 0;
+        streak = prevStreak + 1;
+        bonus = calcWeeklyBonus(streak, perfect);
+      }
+
+      const row = {
+        uid, week_num: k, wins: t.soro.w, losses: t.soro.l,
+        is_champion: soroChamp, streak, bonus_apples: bonus,
+        paid_at: new Date().toISOString()
+      };
+      const { error: insErr } = await supa.from('weekly_stats').insert(row);
+      if (insErr) { console.warn('[주간우승] weekly_stats INSERT 실패:', insErr.message); continue; }
+      doneMap[k] = row;  // 다음 주 streak 계산용
+
+      if (soroChamp && bonus > 0) {
+        await supa.from('apple_log').insert({
+          uid, amount: bonus,
+          reason: `루키리그 WEEK ${k} 주간 우승${streak >= 2 ? ` (${streak}주 연속)` : ''}${perfect ? ' · 전승' : ''}`
+        });
+        await bumpCareerApples(uid, bonus);
+        won.push({ week: k, bonus, streak, perfect, wins: t.soro.w, losses: t.soro.l });
+      }
+    }
+  } catch (e) {
+    console.warn('[주간우승] 정산 실패 (무시):', e?.message || e);
+  }
+  return won;
+}
+
+// 🏆 우승 축하 모달 (동적 생성 — 의식이 살아있게, 자동 지급이 아니라 도착하는 환대)
+function showChampionModal(champions){
+  if (!champions || !champions.length) return;
+  const total = champions.reduce((s, c) => s + c.bonus, 0);
+  const lines = champions.map(c => {
+    let label = `WEEK ${c.week} · ${c.wins}승 ${c.losses}패`;
+    if (c.streak >= 2) label += ` · ${c.streak}주 연속`;
+    if (c.perfect)     label += ' · 전승';
+    return `<div style="display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid rgba(201,168,76,0.18);font-size:14px;color:#3a3530">
+      <span>${label}</span><b style="color:#C9A84C;white-space:nowrap">🍎 ${c.bonus}</b></div>`;
+  }).join('');
+  const head = champions.length === 1
+    ? '지난 주, 당신은 루키리그 주간 챔피언이었습니다.'
+    : `그동안 ${champions.length}번의 주간 우승이 기다리고 있었습니다.`;
+  const ov = document.createElement('div');
+  ov.id = 'champion-modal';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(20,28,24,0.62);padding:24px';
+  ov.innerHTML = `<div style="max-width:380px;width:100%;background:#f8f4ee;border:1px solid #C9A84C;border-radius:16px;padding:32px 28px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,0.35)">
+    <div style="font-size:52px;line-height:1">🏆</div>
+    <div style="font-size:20px;font-weight:700;color:#1a3a2e;letter-spacing:0.04em;margin:10px 0 4px">주간 챔피언</div>
+    <p style="font-size:14px;color:#6b655c;margin:0 0 18px;line-height:1.6">${head}</p>
+    <div style="text-align:left;margin-bottom:18px">${lines}</div>
+    <p style="font-size:15px;color:#1a3a2e;font-weight:600;margin:0 0 22px">황금사과 ${total}알이 도착했습니다 🍎</p>
+    <button onclick="document.getElementById('champion-modal')?.remove()" style="background:#1a3a2e;color:#f8f4ee;border:none;border-radius:10px;padding:13px 28px;font-size:14px;font-weight:600;cursor:pointer">사과를 받습니다</button>
+  </div>`;
+  document.body.appendChild(ov);
+}
+
 async function loadHomeData() {
   console.log('🏠 홈 데이터 로딩...');
   
@@ -3983,7 +4142,14 @@ async function loadHomeData() {
     console.warn('⚠️ 로그인 필요');
     return;
   }
-  
+
+  // 결석 정산 — 지난 pending 경기를 먼저 굳히고(봇 completed / 소로 0-3 결석패), 그 위에서 홈·순위를 그린다
+  await reconcileAbsences(session.user.id);
+
+  // 주간 우승 정산 — 결석 정산으로 마감된 지난 주들을 오래된 것부터 판정·지급. 새 우승이 있으면 축하 모달.
+  const _newChamps = await settleWeeklyChampions(session.user.id);
+  if (_newChamps.length) showChampionModal(_newChamps);
+
   // 개인 주차 기준점 = 현재 active 시즌의 start_date (단일 진실)
   // 리그 승급(루키→싱글A 등)으로 active 시즌이 바뀌면 자동 갱신 → WEEK 1 리셋
   {
@@ -4352,7 +4518,7 @@ async function updateResultExtras(myGame, otherGame) {
       matchId: myGame.id, date: myGame.match_date, weekNum: myGame.week_num,
       isMyGame: true, homeTeam: myGame.home_team, awayTeam: myGame.away_team,
       homeScore: myGame.home_score, awayScore: myGame.away_score,
-      decidedByDice: myGame.decided_by_dice, diceDetail: myGame.dice_detail
+      decidedByDice: myGame.decided_by_dice, diceDetail: myGame.dice_detail, forfeit: myGame.forfeit
     });
     const hd = document.getElementById('result-article-headline');
     const bd = document.getElementById('result-article-body');
