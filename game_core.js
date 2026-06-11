@@ -275,7 +275,7 @@ function hitOX(choice) {
  *    (실제 중복 처치는 museum.html이 answer 키로 dedupe 하므로 부담 없음)
  *  - 네트워크 실패: 콘솔 경고만, 게임 흐름 안 끊김
  */
-async function logQuizToMuseum(q) {
+async function logQuizToMuseum(q, wasCorrect) {
   // 수비 중에는 INSERT 안 함 (봇 답이라)
   if (!st.isAttack) return;
   // 비로그인 회원은 스킵
@@ -299,7 +299,8 @@ async function logQuizToMuseum(q) {
         uid: currentUser.id,
         answer: q.answer,
         seed_id: q.seed_id || '',
-        category: q.cat || ''
+        category: q.cat || '',
+        was_correct: (typeof wasCorrect === 'boolean' ? wasCorrect : null)
       })
     });
   } catch (e) {
@@ -528,29 +529,60 @@ let GAME_USED_ANSWERS = new Set();
 //   풀이 바닥나면 buildZoneBoard 3차 폴백이 자동으로 다시 허용 — 우아한 폴백.
 let EXPERIENCED_SEEDS = new Set();
 let _expSeedsActive = false;   // true일 때만 isDuplicate가 경험 회피 적용
+let REGULAR_AVOID = new Set();
+let _regAvoidActive = false;   // 정규경기(week>0) 복습 회피. 시범경기 B방식과 배타적(week_num으로 갈림).
 
-// 시범경기면 quiz_log에서 이 유저의 경험 seed 로드. 정규/비로그인은 비활성.
+// 시범경기(week 0): 경험 seed 전부 회피(B방식). 정규경기(week>0): 복습 로직.
 async function prepExperiencedSeeds() {
   EXPERIENCED_SEEDS = new Set();
   _expSeedsActive = false;
+  REGULAR_AVOID = new Set();
+  _regAvoidActive = false;
   if (!currentUser) return;
   try {
     const info = await getTodayMatchInfo();
-    const isPre = info && info.my && info.my.week_num === 0;
-    if (!isPre) return;   // 정규경기는 B방식 미적용
+    const week = (info && info.my) ? info.my.week_num : null;
     const headers = await egAuthHeaders();
     if (!headers) return;
-    const res = await fetch(
-      `${SUPA_URL}/rest/v1/quiz_log?uid=eq.${currentUser.id}&select=seed_id`,
-      { headers }
-    );
-    const rows = await res.json();
-    if (Array.isArray(rows)) rows.forEach(r => { if (r.seed_id) EXPERIENCED_SEEDS.add(r.seed_id); });
-    _expSeedsActive = true;
-    console.log(`[B방식] 시범경기 — 경험한 문제 ${EXPERIENCED_SEEDS.size}개 회피`);
+
+    if (week === 0) {
+      // ── 시범경기 B방식: 경험한 모든 seed 회피(정답·오답 무관) ──
+      const res = await fetch(
+        `${SUPA_URL}/rest/v1/quiz_log?uid=eq.${currentUser.id}&select=seed_id`,
+        { headers }
+      );
+      const rows = await res.json();
+      if (Array.isArray(rows)) rows.forEach(r => { if (r.seed_id) EXPERIENCED_SEEDS.add(r.seed_id); });
+      _expSeedsActive = true;
+      console.log(`[B방식] 시범경기 — 경험한 문제 ${EXPERIENCED_SEEDS.size}개 회피`);
+    } else if (week > 0) {
+      // ── 정규경기 복습 로직 (설계결정문 v1.0 §4) ──
+      //   회피 = ① 최근 2주 경험 전부  ∪  ② 한 번이라도 맞힌 seed(영구 잠듦)
+      //   복습 대상(=회피 안 됨) = 2주 경과 + 한 번도 못 맞힌 seed. NULL(미상)은 보수적으로 복습 안 함.
+      const res = await fetch(
+        `${SUPA_URL}/rest/v1/quiz_log?uid=eq.${currentUser.id}&select=seed_id,was_correct,created_at`,
+        { headers }
+      );
+      const rows = await res.json();
+      if (Array.isArray(rows)) {
+        const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;  // 2주 전 ms
+        for (const r of rows) {
+          if (!r.seed_id) continue;
+          // ② 한 번이라도 맞힌 문제 → 영구 회피
+          if (r.was_correct === true) REGULAR_AVOID.add(r.seed_id);
+          // ① 최근 2주 이내 경험 → 회피
+          const t = r.created_at ? Date.parse(r.created_at) : NaN;
+          if (!isNaN(t) && t >= cutoff) REGULAR_AVOID.add(r.seed_id);
+        }
+      }
+      _regAvoidActive = true;
+      console.log(`[복습] 정규경기 week${week} — 회피 ${REGULAR_AVOID.size}개 (최근2주 + 정복문제)`);
+    }
+    // week === null(시즌/매치 정보 부재): 둘 다 비활성 — 회피 없이 진행(안전)
   } catch (e) {
-    console.warn('[B방식] 경험 seed 로드 실패 (무시):', e?.message || e);
+    console.warn('[출제 회피] seed 로드 실패 (무시):', e?.message || e);
     _expSeedsActive = false;
+    _regAvoidActive = false;
   }
 }
 
@@ -588,6 +620,8 @@ function buildZoneBoard() {
     if (usedSeedIds.has(q.seed_id) || GAME_USED_SEEDS.has(q.seed_id)) return true;
     // B방식: 시범경기 활성 시 이전 경기 경험 문제도 회피 (3차 폴백에선 제외 → 바닥나면 허용)
     if (_expSeedsActive && EXPERIENCED_SEEDS.has(q.seed_id)) return true;
+    // 복습 로직: 정규경기 활성 시 2주내·정복 문제 회피 (3차 폴백에선 제외 → 안전망)
+    if (_regAvoidActive && REGULAR_AVOID.has(q.seed_id)) return true;
     if (usedAnswers.has(q.answer) || GAME_USED_ANSWERS.has(q.answer)) return true;
     // figures 배열 안의 *어느 한 인물*이라도 이미 등장했으면 중복
     if (Array.isArray(q.figures)) {
@@ -1652,8 +1686,8 @@ function doAutoOut(){
   if(ZONE_SELECTED !== null && ZONE_BOARD[ZONE_SELECTED]) {
     ZONE_BOARD[ZONE_SELECTED].status = 'wrong';
   }
-  // 뮤세움 연동 — 시간초과도 경험한 문제로 기록
-  logQuizToMuseum(getQ());
+  // 뮤세움 연동 — 시간초과도 경험한 문제로 기록 (정답 여부 = 오답)
+  logQuizToMuseum(getQ(), false);
   document.getElementById('game-area').style.display='none';
   showJudging(getMsg('timeout'),()=>{
     st.totalAB++;renderOuts();updateStats();
@@ -1742,8 +1776,8 @@ function showResultAtk(label,cls,q,ok,tp,tt){
   const ra=document.getElementById('result-area');ra.innerHTML=mkResult(label,cls,sub);ra.style.display='block';
   st.atbat++;document.getElementById('stat-atbat').textContent=st.atbat+'타석';
   setTimeout(()=>ra.scrollIntoView({behavior:'smooth',block:'start'}),100);
-  // 뮤세움 연동 — 공격 타석에서 경험한 문제 기록
-  logQuizToMuseum(q);
+  // 뮤세움 연동 — 공격 타석에서 경험한 문제 기록 (정답 여부 = ok)
+  logQuizToMuseum(q, ok);
 }
 function showResultDef(label,cls){
   const ok=cls==='r-defense-ok';
