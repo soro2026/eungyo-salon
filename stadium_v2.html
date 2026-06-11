@@ -2896,7 +2896,7 @@ body{
       <h1 class="page-title">기록</h1>
       <span class="week-tone-badge">Mint Sky</span>
     </div>
-    <div class="page-meta">CAREER · ROOKIE LEAGUE</div>
+    <div class="page-meta" id="records-page-meta">CAREER · ROOKIE LEAGUE</div>
   </div>
 
   <div class="player-card-stage">
@@ -2978,10 +2978,10 @@ body{
     </div>
     <div class="chart-card">
       <div class="chart-header">
-        <span class="chart-title">타율</span>
-        <span class="chart-current">.345</span>
+        <span class="chart-title" id="trend-title">승률 추이</span>
+        <span class="chart-current" id="trend-current">—</span>
       </div>
-      <div class="chart-area">
+      <div class="chart-area" id="trend-chart-area">
         <svg width="100%" height="100" viewBox="0 0 360 100" preserveAspectRatio="none">
           <line x1="0" y1="20" x2="360" y2="20" stroke="rgba(42,38,32,0.06)" stroke-dasharray="2 4"/>
           <line x1="0" y1="50" x2="360" y2="50" stroke="rgba(42,38,32,0.06)" stroke-dasharray="2 4"/>
@@ -2992,10 +2992,11 @@ body{
               <stop offset="100%" stop-color="#2a2620" stop-opacity="0"/>
             </linearGradient>
           </defs>
-          <path d="M 0 80 L 0 65 L 60 50 L 120 60 L 180 38 L 240 30 L 300 35 L 360 25 L 360 80 Z" fill="url(#trendGrad)"/>
-          <path d="M 0 65 L 60 50 L 120 60 L 180 38 L 240 30 L 300 35 L 360 25" fill="none" stroke="#2a2620" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <circle cx="360" cy="25" r="4" fill="#2a2620" stroke="white" stroke-width="2"/>
+          <path id="trend-fill" d="" fill="url(#trendGrad)"/>
+          <path id="trend-line" d="" fill="none" stroke="#2a2620" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle id="trend-dot" cx="360" cy="50" r="4" fill="#2a2620" stroke="white" stroke-width="2"/>
         </svg>
+        <div id="trend-empty" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;font-size:12px;color:var(--ink-tertiary);letter-spacing:0.04em">경기가 쌓이면 추이가 그려집니다</div>
       </div>
     </div>
   </div>
@@ -3026,7 +3027,7 @@ body{
         <div class="milestone-icon">25</div>
         <div class="milestone-info">
           <div class="milestone-name">25승 — 한 달의 결실</div>
-          <div class="milestone-desc">한 계절의 첫 매듭</div>
+          <div class="milestone-desc">한 계절의 첫 이정표</div>
         </div>
         <div class="milestone-status">14 / 25</div>
       </div>
@@ -3195,6 +3196,7 @@ tabs.forEach(tab => {
     screens[target].classList.add('active');
     if (target === 'news') loadNewsData();   // 📰 뉴스 탭 진입 시 발간
     if (target === 'schedule') loadScheduleData();   // 📅 일정 탭 진입 시 재로딩
+    if (target === 'records') loadRecordsData();   // 📈 기록 탭 진입 시 재로딩
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 });
@@ -4788,6 +4790,72 @@ async function loadRecordsData() {
   
   // 2) 이번 주 / 통산 토글 데이터 갱신
   updateRecordsStats(weekMatches, career, season);
+
+  // 3) 플레이어 카드 헤더 (랭크·page-meta) + 승률 추이 차트
+  updateRecordsHeader(career);
+  await updateTrendChart(session.user.id);
+}
+
+// 플레이어 카드 랭크 · 기록 탭 page-meta 갱신
+function updateRecordsHeader(career) {
+  const league = (career?.league) || (window.__myLeague) || 'ROOKIE';
+  const rankTag = document.querySelector('#screen-records .player-rank-tag');
+  if (rankTag) rankTag.textContent = 'RANK · ' + league;
+  const meta = document.getElementById('records-page-meta');
+  if (meta) meta.textContent = `CAREER · ${league} LEAGUE`;
+}
+
+// 승률 추이 차트 — 최근 완료 경기들의 누적 승률을 꺾은선으로
+async function updateTrendChart(uid) {
+  const lineEl = document.getElementById('trend-line');
+  const fillEl = document.getElementById('trend-fill');
+  const dotEl  = document.getElementById('trend-dot');
+  const curEl  = document.getElementById('trend-current');
+  const emptyEl= document.getElementById('trend-empty');
+  const svgEl  = lineEl ? lineEl.closest('svg') : null;
+  if (!lineEl || !fillEl) return;
+
+  // 내 경기 중 완료된 것만, 날짜 순 (시범경기 포함 — 추이는 경험의 궤적)
+  const { data: rows } = await supa.from('matches')
+    .select('match_date,home_team,home_score,away_score,status')
+    .eq('is_my_game', true).eq('status', 'completed')
+    .order('match_date', { ascending: true });
+
+  const games = rows || [];
+  // 누적 승률 계산
+  let w = 0, pts = [];
+  games.forEach(g => {
+    const mine = g.home_team === 'soro' ? g.home_score : g.away_score;
+    const theirs = g.home_team === 'soro' ? g.away_score : g.home_score;
+    if (mine > theirs) w++;
+    pts.push(w / (pts.length + 1));   // 그 경기까지의 누적 승률
+  });
+
+  if (pts.length < 2) {
+    // 점이 하나 이하면 추이가 성립하지 않음 — 안내 표시
+    if (svgEl) svgEl.style.opacity = '0.25';
+    if (emptyEl) emptyEl.style.display = 'flex';
+    if (curEl) curEl.textContent = pts.length === 1 ? pts[0].toFixed(3).replace(/^0/, '') : '—';
+    lineEl.setAttribute('d', '');
+    fillEl.setAttribute('d', '');
+    return;
+  }
+  if (svgEl) svgEl.style.opacity = '1';
+  if (emptyEl) emptyEl.style.display = 'none';
+
+  // 좌표 변환: x 0~360 균등, y 승률 0~1 → 88~12 (위가 높음, 여백)
+  const n = pts.length;
+  const X = i => (n === 1 ? 360 : (i / (n - 1)) * 360);
+  const Y = v => 88 - v * 76;          // 0→88(하단), 1→12(상단)
+
+  let line = '';
+  pts.forEach((v, i) => { line += (i === 0 ? 'M ' : 'L ') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1) + ' '; });
+  const fill = `M 0 88 ` + pts.map((v,i)=>`L ${X(i).toFixed(1)} ${Y(v).toFixed(1)}`).join(' ') + ` L 360 88 Z`;
+
+  lineEl.setAttribute('d', line.trim());
+  fillEl.setAttribute('d', fill);
+  if (dotEl) { dotEl.setAttribute('cx', X(n-1).toFixed(1)); dotEl.setAttribute('cy', Y(pts[n-1]).toFixed(1)); }
+  if (curEl) curEl.textContent = pts[n-1].toFixed(3).replace(/^0/, '');
 }
 
 // 100승 진행 바
@@ -4832,25 +4900,32 @@ function updateProgressBar(career) {
 }
 
 // 이번 주 / 통산 스탯 업데이트
+let _recordsToggleBound = false;
+let _recordsCtx = { weekMatches: [], career: null };
 function updateRecordsStats(weekMatches, career, season) {
+  // 최신 데이터를 클로저 밖 컨텍스트에 보관 (토글이 항상 최신값을 읽도록)
+  _recordsCtx = { weekMatches, career };
+
   // 현재 활성 토글 확인
   const activeBtn = document.querySelector('.level-toggle button.active');
   const level = activeBtn?.dataset.level || 'weekly';
-  
-  if (level === 'weekly') {
-    renderWeeklyStats(weekMatches);
-  } else {
-    renderCareerStats(career);
+
+  if (level === 'weekly') renderWeeklyStats(weekMatches);
+  else                    renderCareerStats(career);
+
+  // 토글 클릭 — 단 한 번만 바인딩 (재진입 시 리스너 중첩 방지)
+  if (!_recordsToggleBound) {
+    _recordsToggleBound = true;
+    document.querySelectorAll('.level-toggle button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.level-toggle button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const lvl = btn.dataset.level;
+        if (lvl === 'weekly') renderWeeklyStats(_recordsCtx.weekMatches);
+        else                  renderCareerStats(_recordsCtx.career);
+      });
+    });
   }
-  
-  // 토글 클릭 시 다시 렌더
-  document.querySelectorAll('.level-toggle button').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const lvl = btn.dataset.level;
-      if (lvl === 'weekly') renderWeeklyStats(weekMatches);
-      else renderCareerStats(career);
-    }, { once: false });
-  });
 }
 
 // 이번 주 스탯
@@ -4907,11 +4982,12 @@ function renderWeeklyStats(weekMatches) {
     </div>
   `;
   
-  // 타이틀
+  // 타이틀 — 시범경기(week 0)는 'WEEK 0' 대신 '시범경기'
+  const wk = getCurrentWeek();
   const title = document.getElementById('statsTitle');
   const titleSub = document.getElementById('statsTitleSub');
-  if (title) title.textContent = '이번 주 기록';
-  if (titleSub) titleSub.textContent = `WEEK ${getCurrentWeek()}`;
+  if (title) title.textContent = wk === 0 ? '시범경기 기록' : '이번 주 기록';
+  if (titleSub) titleSub.textContent = wk === 0 ? 'PRESEASON' : `WEEK ${wk}`;
 }
 
 // 통산 스탯
