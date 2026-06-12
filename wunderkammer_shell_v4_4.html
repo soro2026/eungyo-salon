@@ -1140,7 +1140,7 @@ html, body {
 <audio id="elevatorSfx" preload="auto" src="ding_sound.mp3"></audio>
 
 <div class="boot-hint" id="bootHint">우측 하단 ⌖ 황동판으로 층 점프 · 각 층 우측 엘리베이터 ▲▼로 한 층씩 · Ⅰ층 갤러리는 ‹ › 로 벽 회전 · Ⅱ층은 음악실</div>
-<div class="version-badge">shell v4.8 · 1F DB연동(내 소장·대여작) · 3F 인물벽 90° · 2F 완전체</div>
+<div class="version-badge">shell v4.9 · 1F·2F서고 DB연동 · 3F 인물벽 90° · 2F 감상실</div>
 
 <script>
 
@@ -2179,13 +2179,33 @@ function showToast(msg){
  *  trackIndex = MusicPlayer.COLLECTION 배열의 index.
  * ============================================================ */
 const Library = (() => {
-  const albums = [
-    { id:'lp_01', file:'lp_01_mozart_requiem.png',        title:'Mozart · Requiem',       trackIndex:0    },
-    { id:'lp_02', file:'lp_02_mahler_titan.png',          title:'Mahler · Titan',         trackIndex:1    },
-    { id:'lp_03', file:'lp_03_beethoven_choral.png',      title:'Beethoven · Choral',     trackIndex:null },
-    { id:'lp_04', file:'lp_04_bach_cello_suites.png',     title:'Bach · Cello Suites',    trackIndex:null },
-    { id:'lp_05', file:'lp_05_debussy_clair_de_lune.png', title:'Debussy · Clair de Lune',trackIndex:null }
-  ];
+  // 본 공사 A1-2(0613): 하드코딩 5장 → 내 음반 rentals(반납 안 된 것). loadLibrary()가 채운다.
+  let albums = [];
+  // owner = ?user= 우선(순례 입구 #24), 없으면 로그인 본인 — 1층과 동일 정신.
+  async function loadLibrary() {
+    albums = [];
+    const qUser = new URLSearchParams(location.search).get('user');
+    let ownerId = null;
+    if (qUser) {
+      try { const u = await sbFetch(`/rest/v1/users?nickname=eq.${encodeURIComponent(qUser)}&select=id`); ownerId = u?.[0]?.id || null; }
+      catch (e) { console.warn('owner 조회 실패', e); }
+    } else {
+      ownerId = getUser()?.id || null;
+    }
+    if (!ownerId) return;  // 비로그인·미존재 → 빈 서고
+    try {
+      const rents = await sbFetch(`/rest/v1/heritage_rentals?user_id=eq.${ownerId}&returned_at=is.null&select=item_id,starts_at&order=starts_at.desc`);
+      const ids = [...new Set((rents || []).map(r => r.item_id))];
+      if (!ids.length) return;
+      const items = await sbFetch(`/rest/v1/heritage_items?id=in.(${ids.join(',')})&category=eq.record&select=id,name,artist,img,video_id`);
+      const map = {}; (items || []).forEach(it => map[it.id] = it);
+      albums = (rents || []).filter(r => map[r.item_id]).map(r => {
+        const it = map[r.item_id];
+        // 2차: video_id 채워지면 COLLECTION에 연동 → trackIndex 부여. 지금은 표지만 꽂고 재생은 "준비 중".
+        return { id: it.id, file: it.img, title: it.name, artist: it.artist, trackIndex: null };
+      }).slice(0, 27);  // 서고 27칸 상한
+    } catch (e) { console.warn('서고 로드 실패', e); }
+  }
   const VISIBLE_RANGE=3, SPACING_X=165, ROTATION=28, DEPTH_Z=140;
 
   const modal   = document.getElementById('library-modal');
@@ -2198,6 +2218,7 @@ const Library = (() => {
   const cards=[];
 
   function build(){
+    stage.innerHTML=''; cards.length=0;   // 재호출 대비: 매 open마다 새 대여 반영
     albums.forEach((album,idx)=>{
       const card=document.createElement('div');
       card.className='lp-card'; card.dataset.index=idx;
@@ -2259,8 +2280,9 @@ const Library = (() => {
     }, 420);
   }
 
-  function open(){
-    if(!built) build();
+  async function open(){
+    await loadLibrary();        // 내 음반 rentals 읽기 (매 open마다 새 대여 반영)
+    build();                    // stage 비우고 다시 그림
     modal.classList.add('open');
     currentIndex=0; layout();
     // 서고는 감상실이 아니므로, 재생 중이면 좌하단 미니로 (벽 도킹 잔류 방지)
