@@ -1140,9 +1140,49 @@ html, body {
 <audio id="elevatorSfx" preload="auto" src="ding_sound.mp3"></audio>
 
 <div class="boot-hint" id="bootHint">우측 하단 ⌖ 황동판으로 층 점프 · 각 층 우측 엘리베이터 ▲▼로 한 층씩 · Ⅰ층 갤러리는 ‹ › 로 벽 회전 · Ⅱ층은 음악실</div>
-<div class="version-badge">shell v4.7b · 1F 회화 전용+3F 인물벽 90° · 헤리티지 10점 · 2F 완전체</div>
+<div class="version-badge">shell v4.8 · 1F DB연동(내 소장·대여작) · 3F 인물벽 90° · 2F 완전체</div>
 
 <script>
+
+/* ===== Supabase 읽기 배관 (heritage.html 0607 검증본 이식 · A1 0613) ===== */
+const SUPABASE_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+let _refreshing = null;
+function getSession() { try { return JSON.parse(localStorage.getItem('eungyo-auth')); } catch { return null; } }
+function tokenExp(tok) { try { return JSON.parse(atob(tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).exp || 0; } catch { return 0; } }
+async function getValidToken() {
+  const s = getSession();
+  if (!s?.access_token) return null;
+  const now = Math.floor(Date.now()/1000);
+  if (tokenExp(s.access_token) - now > 60) return s.access_token;
+  if (!s.refresh_token) return null;
+  _refreshing = _refreshing || (async () => {
+    try {
+      const r = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', {
+        method:'POST', headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},
+        body: JSON.stringify({ refresh_token: s.refresh_token })
+      });
+      if (!r.ok) return null;
+      const data = await r.json();
+      if (!data.expires_at) data.expires_at = Math.floor(Date.now()/1000) + (data.expires_in || 3600);
+      localStorage.setItem('eungyo-auth', JSON.stringify(data));
+      return data.access_token || null;
+    } catch (e) { return null; }
+  })();
+  const tok = await _refreshing; _refreshing = null; return tok;
+}
+async function sbFetch(path, options = {}) {
+  const token = await getValidToken();
+  const res = await fetch(SUPABASE_URL + path, {
+    ...options,
+    headers: { 'apikey':SUPABASE_KEY, 'Authorization':'Bearer ' + (token || SUPABASE_KEY),
+      'Content-Type':'application/json', ...options.headers }
+  });
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message || res.statusText); }
+  return res.status === 204 ? null : res.json();
+}
+function getUser() { try { return JSON.parse(localStorage.getItem('eungyo-auth'))?.user || null; } catch { return null; } }
+
 const FLOORS = [
   { n: 1, roman: 'I',   fr: 'Galerie',            kr: '미술관',          bg1:'#3a1820', bg2:'#6a2230', accent:'#c9a84c', text:'#f0ebe0', dim:'#bfa88a' },
   { n: 2, roman: 'II',  fr: 'Chambre de Musique', kr: '음악실',          bg1:'#0a0604', bg2:'#1c130a', accent:'#d4a548', text:'#d4c5a0', dim:'#8a7654' },
@@ -1198,26 +1238,8 @@ const Floor1 = (() => {
   // [벽 0 정면 → 1 우측 → 2 뒷벽 → 3 좌측]
   // 헤리티지 입고분(htg_pNNN.webp, 액자 합성·투명) = img + w(표시 폭) → CSS 액자 없이 원본 액자 그대로
   // 좌측 벽은 위키미디어 임시 진열 유지 — 다음 입고의 빈 벽
-  const ART = [
-    [ // 정면 Salle des Trésors — 거장의 전당
-      { t:'진주 귀걸이를 한 소녀', a:'요하네스 베르메르', img:'htg_p002.webp', w:300 },
-      { t:'비너스의 탄생', a:'산드로 보티첼리', img:'htg_p001.webp', w:380 },
-      { t:'야경', a:'렘브란트 판 레인', img:'htg_p010.webp', w:355 },
-      { t:'점심 식사', a:'클로드 모네 · 1868', img:'htg_p007.webp', w:280 } ],
-    [ // 우측 Galerie d'Or — 빛의 인상주의
-      { t:'양산을 쓴 여인', a:'클로드 모네', img:'htg_p008.webp', w:300 },
-      { t:'물랭 드 라 갈레트의 무도회', a:'오귀스트 르누아르', img:'htg_p009.webp', w:430 },
-      { t:'수련', a:'클로드 모네', img:'htg_p003.webp', w:310 } ],
-    [ // 뒷벽 Cabinet de Curiosités — 고흐 둘 사이의 무명 화가 (1918 파리, 담배 배급 행렬)
-      { t:'별이 빛나는 밤', a:'빈센트 반 고흐', img:'htg_p004.webp', w:380 },
-      { t:'담배 가게 앞의 행렬', a:'펠릭스 브라르 · 1918', img:'htg_p005.webp', w:300 },
-      { t:'붓꽃', a:'빈센트 반 고흐', img:'htg_p006.webp', w:380 } ],
-    [ // 좌측 Galerie de Lumière — 임시 (위키미디어 PD, 본 공사 때 교체)
-      { t:'이삭 줍는 여인들', a:'장프랑수아 밀레', src: wm('Jean-François Millet - Gleaners - Google Art Project.jpg') },
-      { t:'인상, 해돋이', a:'클로드 모네', src: wm('Monet - Impression, Sunrise.jpg') },
-      { t:'씨 뿌리는 사람', a:'빈센트 반 고흐', src: wm('Vincent van Gogh - The sower - Google Art Project.jpg') },
-      { t:'마루를 깎는 사람들', a:'귀스타브 카유보트', src: wm('Gustave Caillebotte - The Floor Planers - Google Art Project.jpg') } ],
-  ];
+  // 본 공사 A1(0613): 하드코딩 14점 → DB 동적 진열. loadFloor1()이 내 소장·대여작으로 채운다.
+  let ART = [[], [], [], []];
   const SIDES = [
     { fr: 'Salle des Trésors',     kr: '정면 — 보물의 방' },
     { fr: "Galerie d'Or",          kr: '우측 — 황금의 회랑' },
@@ -1393,10 +1415,45 @@ const Floor1 = (() => {
     root.style.setProperty('--g1-scale', s.toFixed(4));
   }
 
-  function mount() {
+  // 본 공사 A1(0613): 내 1층 = 영구소장(wunderkammer_items) + 지금 머무는 대여작(heritage_rentals).
+  // owner = ?user= 우선(순례 동선 입구, 백로그 #24), 없으면 로그인 본인.
+  async function loadFloor1() {
+    ART = [[], [], [], []];
+    const qUser = new URLSearchParams(location.search).get('user');
+    let ownerId = null;
+    if (qUser) {
+      try { const u = await sbFetch(`/rest/v1/users?nickname=eq.${encodeURIComponent(qUser)}&select=id`); ownerId = u?.[0]?.id || null; }
+      catch (e) { console.warn('owner 조회 실패', e); }
+    } else {
+      ownerId = getUser()?.id || null;
+    }
+    if (!ownerId) return;  // 비로그인·미존재 → 빈 방 (우아한 비움)
+    try {
+      const [perm, rents] = await Promise.all([
+        sbFetch(`/rest/v1/wunderkammer_items?owner_id=eq.${ownerId}&category=eq.visual&select=name,artist,img,ratio,acquired_at&order=acquired_at.asc`),
+        sbFetch(`/rest/v1/heritage_rentals?user_id=eq.${ownerId}&returned_at=is.null&select=item_id,starts_at&order=starts_at.asc`)
+      ]);
+      let rentArts = [];
+      const rentIds = (rents || []).map(r => r.item_id);
+      if (rentIds.length) {
+        const items = await sbFetch(`/rest/v1/heritage_items?id=in.(${rentIds.join(',')})&category=eq.visual&select=id,name,artist,img,ratio`);
+        const map = {}; (items || []).forEach(it => map[it.id] = it);
+        rentArts = (rents || []).filter(r => map[r.item_id]).map(r => map[r.item_id]);
+      }
+      const all = [...(perm || []), ...rentArts].map(d => ({
+        t: d.name, a: d.artist, img: d.img, w: (d.ratio === 'portrait') ? 300 : 380
+      }));
+      const CAP = [4, 3, 3, 4];   // 정면4 · 우측3 · 뒷벽3 · 좌측4 슬롯
+      let idx = 0;
+      for (let s = 0; s < 4 && idx < all.length; s++)
+        for (let k = 0; k < CAP[s] && idx < all.length; k++) ART[s].push(all[idx++]);
+    } catch (e) { console.warn('1층 로드 실패', e); }
+  }
+
+  async function mount() {
     root = floorLayer.querySelector('.floor-content[data-floor="1"]');
     side = 0; yaw = 0;          // 매 방문 정면부터 (renderFloor가 innerHTML 재생성 — 상태 초기화)
-    build(); update(); fit();
+    update(); fit();
     root.querySelector('#g1-prev').addEventListener('click', prev);
     root.querySelector('#g1-next').addEventListener('click', next);
     SideWall.bind(1);                                  // 인물벽(미술) 90도
@@ -1404,6 +1461,8 @@ const Floor1 = (() => {
       window.addEventListener('resize', fit);
       bound = true;
     }
+    await loadFloor1();         // DB에서 내 소장·대여작 읽어 ART 채움
+    build();                    // 작품 걸기 (빈 벽은 forEach가 건너뜀 = 우아한 비움)
   }
 
   // 전역 키보드 핸들러용 (←→ 회전 양보 — Floor3.slide와 같은 방식)
