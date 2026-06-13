@@ -695,6 +695,14 @@ body.has-salon-bg .back-link {
 .treasure-path .tp-link:hover { color: #6b4f14; }
 .treasure-path .tp-mine { color: #9a6a14; font-weight: 600; }
 .treasure-path .tp-heritage { font-style: italic; }
+.treasure-path .tp-coming { font-size: 13.5px; color: rgba(120,90,40,0.8); font-style: italic; }
+
+/* 그룹 머리 표지 — 카탈로그 레조네처럼 곡명 옆 작은 재킷 */
+.work-cover {
+  width: 34px; height: 34px; flex-shrink: 0;
+  border-radius: 4px; object-fit: cover;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+}
 
 /* 폰 — 폭 꽉, 터치 편하게 */
 @media (max-width: 600px) {
@@ -1501,6 +1509,7 @@ async function loadFloor0(starId) {
   const workLabel = w => w === 'general' ? '생애와 사상' : w;
 
   body.innerHTML = workNames.map(w => {
+    const cover = (groups[w].find(r => r.cover) || {}).cover;
     const cards = groups[w].map(r => `
       <div class="scene-card" onclick="this.classList.toggle('open')">
         <div class="scene-head">
@@ -1512,7 +1521,11 @@ async function loadFloor0(starId) {
           ${layerHtml('사유', r.thought)}
           ${layerHtml('연결', r.connection)}
           ${layerHtml('큐레이션', r.curation, r.curation_links)}
-          ${r.question_type === 'treasure' ? renderTreasurePath(r.seed_id, rentalMap[r.seed_id]) : ''}
+          ${r.question_type === 'treasure'
+            ? (r.open_at && new Date(r.open_at) > new Date()
+                ? renderComingSoon(r.open_at)
+                : renderTreasurePath(r.seed_id, rentalMap[r.seed_id]))
+            : ''}
         </div>
       </div>`).join('');
 
@@ -1520,6 +1533,7 @@ async function loadFloor0(starId) {
       <div class="work-group">
         <div class="work-head" onclick="this.parentElement.classList.toggle('open')">
           <span class="work-arrow">▶</span>
+          ${cover ? `<img class="work-cover" src="${esc(cover)}" alt="" loading="lazy">` : ''}
           <span class="work-name">${esc(workLabel(w))}</span>
           <span class="work-count">${groups[w].length}</span>
         </div>
@@ -1617,6 +1631,15 @@ function renderTreasurePath(seedId, holders) {
   return `<div class="treasure-path">
     <div class="tp-label">🎧 지금 이 판이 도는 ${where}</div>
     <div class="tp-list">${lines.join('')}</div>
+  </div>`;
+}
+
+// ── 공개 예정 보물: open_at이 아직 미래면 경로 대신 공개 예정일 안내 (잠긴 톤, 클릭 없음) ──
+function renderComingSoon(openAt) {
+  const d = new Date(openAt);
+  const md = `${d.getMonth() + 1}월 ${d.getDate()}일`;
+  return `<div class="treasure-path">
+    <div class="tp-coming">🗓 ${md}, 헤리티지에 공개됩니다</div>
   </div>`;
 }
 
