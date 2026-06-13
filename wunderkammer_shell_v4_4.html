@@ -653,7 +653,7 @@ html, body {
 .floor-content[data-floor="2"] .ms-note-sheet.open { transform:translateX(-50%) translateY(0); }
 .floor-content[data-floor="2"] .ms-note-sheet .sheet-close { position:absolute; top:8px; right:14px; background:none; border:none; color:#6b4818; font-size:20px; cursor:pointer; line-height:1; }
 .floor-content[data-floor="2"] .ms-note-sheet .nl { font-size:9px; letter-spacing:3px; color:#8a6a3a; margin-bottom:9px; }
-.floor-content[data-floor="2"] .ms-note-sheet .nb { font-size:13px; line-height:1.75; color:#3a2a18; }
+.floor-content[data-floor="2"] .ms-note-sheet .nb { font-size:13px; line-height:1.75; color:#3a2a18; max-height:56vh; overflow-y:auto; }
 .floor-content[data-floor="2"] .ms-note-sheet .ns { margin-top:12px; padding-top:9px; border-top:1px dashed #b89968; font-size:11px; color:#6b4818; font-style:italic; text-align:right; }
 @media (max-width:760px){
   .floor-content[data-floor="2"] .ms-plate .pt { font-size:13px; }
@@ -1140,7 +1140,7 @@ html, body {
 <audio id="elevatorSfx" preload="auto" src="ding_sound.mp3"></audio>
 
 <div class="boot-hint" id="bootHint">우측 하단 ⌖ 황동판으로 층 점프 · 각 층 우측 엘리베이터 ▲▼로 한 층씩 · Ⅰ층 갤러리는 ‹ › 로 벽 회전 · Ⅱ층은 음악실</div>
-<div class="version-badge">shell v4.9 · 1F·2F서고 DB연동 · 3F 인물벽 90° · 2F 감상실</div>
+<div class="version-badge">shell v5.0 · 2F 음반 재생·마리노트 4겹 DB연동 · 1F·2F서고 · 3F 인물벽</div>
 
 <script>
 
@@ -2048,6 +2048,11 @@ const MusicPlayer = (() => {
       pill:'Mahler · Titan' }
   ];
 
+  // 목업 베이스(모차르트·말러) 기준선 — DB 음반은 이 뒤에 쌓이고, 서고 재로드 때 여기까지 되돌린다.
+  const COLLECTION_BASE_LEN = COLLECTION.length;
+  function resetLibraryTracks(){ COLLECTION.length = COLLECTION_BASE_LEN; }   // 동적 트랙 비움 (중복 누적 방지)
+  function addTrack(t){ return COLLECTION.push(t) - 1; }                       // DB 음반 등록 → trackIndex 반환
+
   const player   = document.getElementById('musicPlayer');
   const iframe   = document.getElementById('mpIframe');
   const pillText = document.getElementById('mpPillText');
@@ -2162,7 +2167,7 @@ const MusicPlayer = (() => {
   document.getElementById('mpPill').addEventListener('click', ()=>
     setState(currentFloor===2 && !Floor2.isTurned() && !libOpen() ? 'dock' : 'mini'));
 
-  return { play, primeIfNeeded, setState, reposition, onFloorChange, syncMeta, currentTrack, toMiniIfPlaying, getTrack:(i)=>COLLECTION[i], trackCount:COLLECTION.length };
+  return { play, primeIfNeeded, setState, reposition, onFloorChange, syncMeta, currentTrack, toMiniIfPlaying, getTrack:(i)=>COLLECTION[i], trackCount:COLLECTION.length, resetLibraryTracks, addTrack };
 })();
 window.MusicPlayer = MusicPlayer;
 
@@ -2184,9 +2189,35 @@ function showToast(msg){
 const Library = (() => {
   // 본 공사 A1-2(0613): 하드코딩 5장 → 내 음반 rentals(반납 안 된 것). loadLibrary()가 채운다.
   let albums = [];
+
+  // ── 마리의 라이너 노트 4겹 렌더 (heritage openLiner 로직 이식 · 감상실 양피지 톤) ──
+  //    별표 강조는 밝은 양피지 시트에 맞춰 어두운 볼드. scene(시적 표지) + 앎·사유·연결·큐레이션.
+  const MS_LAYER_LABELS = { knowledge:'앎', thought:'사유', connection:'연결', curation:'큐레이션' };
+  function msMd(text){
+    if(!text) return '';
+    const e = String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return e
+      .replace(/\*\*([^*\n]+?)\*\*/g,'<strong style="font-weight:700;color:#2a1c08">$1</strong>')
+      .replace(/\*([^*\n]+?)\*/g,'<strong style="font-weight:600;color:#5a3f14">$1</strong>');
+  }
+  function renderLinerNote(ln){
+    if(!ln || typeof ln !== 'object') return ln ? msMd(String(ln)) : '<span style="opacity:.6">라이너 노트가 인쇄소에 있습니다.</span>';
+    const blocks = [];
+    if(ln.scene) blocks.push(`<div style="font-size:14px;font-style:italic;color:#3a2a18;margin-bottom:14px;line-height:1.6">${msMd(ln.scene)}</div>`);
+    ['knowledge','thought','connection','curation'].forEach(k=>{
+      if(!ln[k]) return;
+      blocks.push(`<div style="margin-bottom:12px">
+        <div style="font-size:9px;letter-spacing:2px;color:#8a6a3a;margin-bottom:4px">${MS_LAYER_LABELS[k]}</div>
+        <div>${msMd(ln[k])}</div>
+      </div>`);
+    });
+    return blocks.join('');
+  }
+
   // owner = ?user= 우선(순례 입구 #24), 없으면 로그인 본인 — 1층과 동일 정신.
   async function loadLibrary() {
     albums = [];
+    if (window.MusicPlayer) MusicPlayer.resetLibraryTracks();   // 동적 트랙 비움 (매 open마다 중복 누적 방지)
     const qUser = new URLSearchParams(location.search).get('user');
     let ownerId = null;
     if (qUser) {
@@ -2200,12 +2231,26 @@ const Library = (() => {
       const rents = await sbFetch(`/rest/v1/heritage_rentals?user_id=eq.${ownerId}&returned_at=is.null&select=item_id,starts_at&order=starts_at.desc`);
       const ids = [...new Set((rents || []).map(r => r.item_id))];
       if (!ids.length) return;
-      const items = await sbFetch(`/rest/v1/heritage_items?id=in.(${ids.join(',')})&category=eq.record&select=id,name,artist,img,video_id`);
+      const items = await sbFetch(`/rest/v1/heritage_items?id=in.(${ids.join(',')})&category=eq.record&select=id,name,artist,period,origin,img,video_id,start_seconds,liner_note`);
       const map = {}; (items || []).forEach(it => map[it.id] = it);
       albums = (rents || []).filter(r => map[r.item_id]).map(r => {
         const it = map[r.item_id];
-        // 2차: video_id 채워지면 COLLECTION에 연동 → trackIndex 부여. 지금은 표지만 꽂고 재생은 "준비 중".
-        return { id: it.id, file: it.img, title: it.name, artist: it.artist, trackIndex: null };
+        let trackIndex = null;
+        // video_id가 있으면 검증된 재생 동선에 태운다 → COLLECTION에 트랙 등록 후 index 부여 (잠금 해제).
+        // video_id 없으면 trackIndex=null 유지 → 클릭 시 "곧 들려드릴게요" (준비 중).
+        if (it.video_id && window.MusicPlayer) {
+          trackIndex = MusicPlayer.addTrack({
+            videoId: it.video_id,
+            startSeconds: it.start_seconds || 0,
+            cover: it.img,
+            plateCat: it.name,
+            plateTitle: it.artist,
+            plateMeta: [it.period, it.origin].filter(Boolean).join(' · '),
+            note: renderLinerNote(it.liner_note),
+            pill: `${it.artist} · ${it.name}`
+          });
+        }
+        return { id: it.id, file: it.img, title: it.name, artist: it.artist, trackIndex };
       }).slice(0, 27);  // 서고 27칸 상한
     } catch (e) { console.warn('서고 로드 실패', e); }
   }
