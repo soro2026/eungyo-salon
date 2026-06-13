@@ -780,7 +780,7 @@ function openLiner(itemId) {
     blocks = src.map((t, i) => `
       <div class="layer-block">
         <div class="layer-tag">${i + 1}번째 겹</div>
-        <div class="layer-text">${escapeHtml(typeof t === 'string' ? t : JSON.stringify(t))}</div>
+        <div class="layer-text">${renderMarkdownStar(typeof t === 'string' ? t : JSON.stringify(t))}</div>
       </div>`).join('<div class="layer-divider"></div>');
   } else if (typeof src === 'object') {
     const order = ['scene', 'knowledge', 'thought', 'connection', 'curation'];
@@ -788,11 +788,13 @@ function openLiner(itemId) {
     blocks = keys.map(k => `
       <div class="layer-block">
         <div class="layer-tag">${LAYER_LABELS[k] || escapeHtml(k)}</div>
-        <div class="layer-text">${escapeHtml(src[k])}</div>
+        <div class="layer-text">${renderMarkdownStar(src[k])}</div>
       </div>`).join('<div class="layer-divider"></div>');
   } else {
-    blocks = `<div class="layer-text">${escapeHtml(src)}</div>`;
+    blocks = `<div class="layer-text">${renderMarkdownStar(src)}</div>`;
   }
+
+  const curationHtml = item.curation_links ? renderCurationLinksStar(item.curation_links) : '';
 
   const panel = document.createElement('div');
   panel.id = 'liner-panel';
@@ -804,6 +806,7 @@ function openLiner(itemId) {
         <div class="sheet-title">${escapeHtml(item.name)}</div>
         <div class="sheet-sub">${escapeHtml(item.artist)}${item.origin ? ' · ' + escapeHtml(item.origin) : ''}</div>
         ${blocks}
+        ${curationHtml}
         ${linerRentButton(item)}
         <button class="sheet-btn quiet" onclick="closeLiner()">닫기</button>
       </div>
@@ -1308,6 +1311,62 @@ function escapeHtml(s) {
     ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 }
 
+// ── 별표 *...* → 굵은 강조 (star.html renderMarkdownStar 이식 · 로직 동일, 색만 헤리티지 어두운 시트 톤) ──
+//    **텍스트**=금색 짙은 볼드(700) / *텍스트*=크림 볼드(600). 콘스텔라티오·뮤세움과 같은 로직.
+function renderMarkdownStar(text) {
+  if (!text) return '';
+  const e = String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return e
+    .replace(/\*\*([^*\n]+?)\*\*/g, '<strong style="font-family:\'Noto Sans KR\',\'Apple SD Gothic Neo\',sans-serif;font-weight:700;color:var(--gold-l)">$1</strong>')
+    .replace(/\*([^*\n]+?)\*/g, '<strong style="font-family:\'Noto Sans KR\',\'Apple SD Gothic Neo\',sans-serif;font-weight:600;color:var(--cream)">$1</strong>');
+}
+
+// ── 큐레이션 링크 (star.html renderCurationLinksStar 이식 · 로직 동일, 색만 헤리티지 톤) ──
+//    liner_note 4겹과 별개인 heritage_items.curation_links 칸을 읽어 한 번만 그린다.
+function renderCurationLinksStar(links) {
+  if (!links) return '';
+  const sections = [];
+  const linkStyle = "color:var(--gold);text-decoration:none;border-bottom:1px solid var(--gold-dim);padding-bottom:1px";
+  const stopProp = `onclick="event.stopPropagation()" ontouchstart="event.stopPropagation()"`;
+  if (links.books && links.books.length > 0) {
+    const bookCards = links.books.map(b => {
+      const title = b.title || '';
+      const meta = [b.translator && `${b.translator} 옮김`, b.publisher].filter(Boolean).join(' · ');
+      const qFull  = encodeURIComponent(b.translator ? `${title} ${b.translator}` : title);
+      const qTitle = encodeURIComponent(title);
+      const stores = [
+        `<a href="https://search.kyobobook.co.kr/search?keyword=${qFull}" target="_blank" rel="noopener" ${stopProp} style="${linkStyle}">교보</a>`,
+        `<a href="https://www.aladin.co.kr/search/wsearchresult.aspx?SearchTarget=Book&SearchWord=${qTitle}" target="_blank" rel="noopener" ${stopProp} style="${linkStyle}">알라딘</a>`,
+      ];
+      return `
+        <div style="padding:10px 0;border-bottom:1px solid var(--gold-faint);font-family:'Noto Serif KR',serif">
+          <div style="font-size:13px;color:var(--cream);font-weight:500">${title}</div>
+          ${meta ? `<div style="font-size:11px;color:var(--txt-soft);margin-top:3px">${meta}</div>` : ''}
+          <div style="margin-top:6px;font-size:11px;letter-spacing:0.05em">${stores.join(' · ')}</div>
+        </div>`;
+    }).join('');
+    sections.push(`<div style="margin-top:14px"><div style="font-size:10px;letter-spacing:0.18em;color:var(--gold-dim);margin-bottom:6px">📖 책</div>${bookCards}</div>`);
+  }
+  if (links.library_call_number) {
+    sections.push(`
+      <div style="margin-top:12px;padding:8px 0;border-bottom:1px solid var(--gold-faint);font-family:'Noto Serif KR',serif">
+        <div style="font-size:10px;letter-spacing:0.18em;color:var(--gold-dim);margin-bottom:4px">🏛 도서관 청구기호</div>
+        <div style="font-size:13px;color:var(--cream)">${links.library_call_number}</div>
+      </div>`);
+  }
+  if (links.youtube_keywords && links.youtube_keywords.length > 0) {
+    const ytLinks = links.youtube_keywords.map(kw =>
+      `<a href="https://www.youtube.com/results?search_query=${encodeURIComponent(kw)}" target="_blank" rel="noopener" ${stopProp} style="${linkStyle};display:inline-block;margin-right:10px;margin-top:4px">${kw}</a>`
+    ).join('');
+    sections.push(`
+      <div style="margin-top:12px;padding:8px 0;font-family:'Noto Serif KR',serif">
+        <div style="font-size:10px;letter-spacing:0.18em;color:var(--gold-dim);margin-bottom:4px">🎬 유튜브에서 더 보기</div>
+        <div style="font-size:12px;line-height:2">${ytLinks}</div>
+      </div>`);
+  }
+  return sections.length ? `<div style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--gold-faint)">${sections.join('')}</div>` : '';
+}
+
 // ── 카리의 4겹 모달 ───────────────────────
 function openLayers(itemId) {
   const item = SALON_ITEMS.find(i => i.id === itemId);
@@ -1320,7 +1379,7 @@ function openLayers(itemId) {
     blocks = src.map((t, i) => `
       <div class="layer-block">
         <div class="layer-tag">${i + 1}번째 겹</div>
-        <div class="layer-text">${escapeHtml(typeof t === 'string' ? t : JSON.stringify(t))}</div>
+        <div class="layer-text">${renderMarkdownStar(typeof t === 'string' ? t : JSON.stringify(t))}</div>
       </div>`).join('<div class="layer-divider"></div>');
   } else if (typeof src === 'object') {
     const order = ['scene', 'knowledge', 'thought', 'connection', 'curation'];
@@ -1328,11 +1387,13 @@ function openLayers(itemId) {
     blocks = keys.map(k => `
       <div class="layer-block">
         <div class="layer-tag">${LAYER_LABELS[k] || escapeHtml(k)}</div>
-        <div class="layer-text">${escapeHtml(src[k])}</div>
+        <div class="layer-text">${renderMarkdownStar(src[k])}</div>
       </div>`).join('<div class="layer-divider"></div>');
   } else {
-    blocks = `<div class="layer-text">${escapeHtml(src)}</div>`;
+    blocks = `<div class="layer-text">${renderMarkdownStar(src)}</div>`;
   }
+
+  const curationHtml = item.curation_links ? renderCurationLinksStar(item.curation_links) : '';
 
   const panel = document.createElement('div');
   panel.id = 'layers-panel';
@@ -1344,6 +1405,7 @@ function openLayers(itemId) {
         <div class="sheet-title">${escapeHtml(item.name)}</div>
         <div class="sheet-sub">${escapeHtml(item.artist)}</div>
         ${blocks}
+        ${curationHtml}
         <button class="sheet-btn quiet" onclick="closeLayers()">닫기</button>
       </div>
     </div>`;
