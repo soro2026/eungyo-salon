@@ -664,19 +664,16 @@ async function loadSalon() {
     ) || [];
   } catch (e) { console.warn('살롱 로드 실패:', e); SALON_ITEMS = []; }
 
-  // 응모 현황: 사람 풀 — 작품별 DISTINCT 응모자 수
+  // 응모 현황: 사람 풀 — 작품별 DISTINCT 응모자 수 (RLS 우회 RPC)
   LOVE_COUNTS = {};
   if (SALON_ITEMS.length) {
     try {
-      const ids = SALON_ITEMS.map(i => i.id).join(',');
-      const apps = await sbFetch(
-        `/rest/v1/heritage_applications?item_id=in.(${ids})&wk_id=eq.${getWkId()}&select=item_id,user_id`
-      ) || [];
-      const sets = {};
-      for (const a of apps) {
-        (sets[a.item_id] = sets[a.item_id] || new Set()).add(a.user_id);
-      }
-      for (const k of Object.keys(sets)) LOVE_COUNTS[k] = sets[k].size;
+      const ids = SALON_ITEMS.map(i => i.id);
+      const rows = await sbFetch('/rest/v1/rpc/get_heritage_lovers_bulk', {
+        method: 'POST',
+        body: JSON.stringify({ p_item_ids: ids })
+      }) || [];
+      for (const r of rows) LOVE_COUNTS[r.item_id] = r.lovers;
     } catch (e) { console.warn('응모 현황 로드 실패:', e); }
   }
 }
@@ -1285,8 +1282,8 @@ function renderStage() {
 
   const loved = LOVE_COUNTS[item.id] || 0;
   const loveLine = loved > 0
-    ? `이번 주 <b>${loved}명</b>이 이 작품을 사랑합니다`
-    : `첫 번째 사랑의 고백을 기다립니다`;
+    ? `이번 주 <b>${loved}명</b>의 콩파뇽이 응모했습니다`
+    : `첫 응모를 기다립니다`;
   const hasLayers = !!(item.layers || item.library);
 
   host.innerHTML = `
@@ -1450,7 +1447,7 @@ async function openBid(itemId) {
         <div class="stat-row">
           <div class="stat-box">
             <div class="stat-num">${loved}</div>
-            <div class="stat-lbl">이 작품을 사랑하는 사람</div>
+            <div class="stat-lbl">이번 주 응모한 콩파뇽</div>
           </div>
           <div class="stat-box">
             <div class="stat-num">${weekCount}<small>/6</small></div>
@@ -1533,10 +1530,11 @@ async function submitApplication(itemId) {
 // 응모 후 사람 수 재조회 + 무대 갱신
 async function refreshLoveAndStage(itemId) {
   try {
-    const apps = await sbFetch(
-      `/rest/v1/heritage_applications?item_id=eq.${itemId}&wk_id=eq.${getWkId()}&select=user_id`
-    ) || [];
-    LOVE_COUNTS[itemId] = new Set(apps.map(a => a.user_id)).size;
+    const n = await sbFetch('/rest/v1/rpc/get_heritage_lovers', {
+      method: 'POST',
+      body: JSON.stringify({ p_item_id: itemId })
+    });
+    LOVE_COUNTS[itemId] = (typeof n === 'number') ? n : (n || 0);
   } catch (e) { console.warn(e); }
   renderStage();
 }
