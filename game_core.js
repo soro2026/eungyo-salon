@@ -886,21 +886,24 @@ function showZoneBoardScreen() {
 function showZonePitchReady() {
   const zone = ZONE_BOARD[ZONE_SELECTED];
   const q = zone.q;
+  // 🎲 매 타석 보드 셔플 (이 타석의 100칸 지도) — DOM 조작보다 먼저! 요소 누락으로 죽어도 보드는 반드시 생성된다.
+  st.hitBoard = buildBoard(HIT_DIST);
+  st.outBoard = buildBoard(OUT_DIST);
   const parts = q.cat.split('·');
   const catMain = parts[0]?.trim() || q.cat;
   const half = currentIsHome ? '말' : '초';
   const arrow = currentIsHome ? '▼' : '▲';
   const inningTxt = `${st.inning}회 ${half} ${arrow} · ${st.atbat}번 타자`;
 
-  document.getElementById('zone-board-screen').style.display = 'none';
-  document.getElementById('pitchready-screen').style.display = 'flex';
-  document.getElementById('pr-inning').textContent = inningTxt;
-  document.getElementById('pr-category').textContent = shortCat(catMain);
-  document.getElementById('pr-keyword').textContent = q.keyword || q.zone_keyword || catMain;
-  document.getElementById('pr-sub').textContent = '배트를 꽉 쥐고 — 준비되면 사인을 보내세요';
-  // 매 타석 보드 셔플 (이 타석의 100칸 지도)
-  st.hitBoard = buildBoard(HIT_DIST);
-  st.outBoard = buildBoard(OUT_DIST);
+  // DOM 접근은 전부 null-safe — 요소 하나 빠져도 함수가 죽지 않게 (pr-sub 누락 사고 방지)
+  const _set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+  const _show = (id, disp) => { const el = document.getElementById(id); if (el) el.style.display = disp; };
+  _show('zone-board-screen', 'none');
+  _show('pitchready-screen', 'flex');
+  _set('pr-inning', inningTxt);
+  _set('pr-category', shortCat(catMain));
+  _set('pr-keyword', q.keyword || q.zone_keyword || catMain);
+  _set('pr-sub', '배트를 꽉 쥐고 — 준비되면 사인을 보내세요');
   renderBadge();
 }
 
@@ -1294,6 +1297,9 @@ function onAction(){
   } else {
     if(st.phase!=='pitch_ready')return;
     st.phase='ai_batting';
+    // 봇 보드도 DOM 조작보다 먼저 생성 — 요소 누락 throw로 보드가 비는 사고 방지 (유저와 동일 안전장치)
+    st.aiHitBoard = buildBoard(HIT_DIST);
+    st.aiOutBoard = buildBoard(OUT_DIST);
     document.getElementById('hit-wrap').style.display='none';
     const qEl=document.getElementById('q-text');
     qEl.textContent='';qEl.className='q-text';qEl.style.color='';qEl.style.fontSize='';
@@ -1317,9 +1323,6 @@ function onAction(){
       },100);
     },400);
     const aiPct=0.2+Math.random()*0.6,aiMs=st.totalMs*aiPct;
-    // 봇도 매 타석 보드 셔플 — 무작위 칸 (반응속도 없음, 유저와 동일 시스템)
-    st.aiHitBoard = buildBoard(HIT_DIST);
-    st.aiOutBoard = buildBoard(OUT_DIST);
     const aiOnBase = Math.random() < AI_AVG;            // 출루 게이트 (OBP 개념)
     const aiIdx = Math.floor(Math.random()*100);
     const aiMk = aiOnBase ? st.aiHitBoard[aiIdx] : st.aiOutBoard[aiIdx];
