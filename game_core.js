@@ -950,7 +950,7 @@ function buildBoard(dist){
   for(let i=b.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=b[i];b[i]=b[j];b[j]=t; }
   return b;
 }
-// 입력 순간의 타임바 잔여 퍼센트(100→0) → 칸 인덱스 0~99
+// ⚠️ 폐기됨(2026.06.14): 반응속도 기반 idx. processAns가 순수 무작위 추첨으로 전환되어 더는 호출되지 않음. (남겨둔 이유: 같은 함정 재발 방지 기억)
 function hitMsToIdx(hitMs,totalMs){
   const remain = Math.max(0, 1 - (hitMs/totalMs));   // 빨리 답할수록 잔여 큼
   return Math.min(99, Math.max(0, Math.floor(remain*100)));
@@ -1620,7 +1620,7 @@ function processAns(ans){
       }
     }
   }
-  const idx = hitMsToIdx(st.hitMs, st.totalMs);
+  const idx = Math.floor(Math.random()*100);  // 🎲 타격 순간 100칸 무작위 추첨 (반응속도 무관·봇과 동일 / 결정문 2026.06.09 정신)
   let label,cls,adv,mk;
   if(!ok){
     // 오답 → 아웃 보드에서 칸 추첨
