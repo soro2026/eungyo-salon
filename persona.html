@@ -166,6 +166,9 @@
   .row-amt.minus{ color:var(--minus); }
   .row-desc{ font-size:12.5px; color:var(--ink-soft); margin-top:4px; }
   .row-bal{ font-size:10.5px; color:var(--ink-dim); margin-top:2px; }
+  .row.locked{ opacity:.5; }
+  .row.locked .row-amt{ color:var(--ink-dim); }
+  .wallet-empty{ font-size:12.5px; color:var(--ink-dim); padding:16px 2px; text-align:center; }
 
   /* ── ④ 조용한 초대장 ── */
   .invite{
@@ -249,7 +252,7 @@
   <div class="sec-title">교양 자화상</div>
   <div class="stats">
     <div class="stat"><div class="stat-v">47</div><div class="stat-l">총 완주</div></div>
-    <div class="stat"><div class="stat-v">52<span class="u">🍎</span></div><div class="stat-l">황금사과</div></div>
+    <div class="stat"><div class="stat-v"><span id="stat-apples">–</span><span class="u">🍎</span></div><div class="stat-l">황금사과</div></div>
     <div class="stat"><div class="stat-v">3<span class="u">✦</span></div><div class="stat-l">씨앗을<br>품은 별</div></div>
     <div class="stat"><div class="stat-v">1</div><div class="stat-l">응답의<br>정원 기고</div></div>
     <div class="stat"><div class="stat-v">2</div><div class="stat-l">분더카머<br>소장품</div></div>
@@ -269,30 +272,14 @@
   <div class="sec-title">황금사과 월렛</div>
   <div class="wallet-head">
     <span class="wallet-label">현재 잔액</span>
-    <span class="wallet-bal">52.00<span class="u"> 알</span></span>
+    <span class="wallet-bal"><span id="wallet-bal">–</span><span class="u"> 알</span></span>
   </div>
   <div class="filters">
-    <span class="filter on">전체</span>
-    <span class="filter">수입 +</span>
-    <span class="filter">지출 −</span>
+    <span class="filter on" data-f="all" onclick="setWalletFilter(this,'all')">전체</span>
+    <span class="filter" data-f="in" onclick="setWalletFilter(this,'in')">수입 +</span>
+    <span class="filter" data-f="out" onclick="setWalletFilter(this,'out')">지출 −</span>
   </div>
-  <div class="ledger">
-    <div class="row">
-      <div class="row-top"><span class="row-date">2026.05.27 · 18:45</span><span class="row-amt plus">+ 1.00 🍎</span></div>
-      <div class="row-desc">루키리그 47번째 완주</div>
-      <div class="row-bal">잔액 52.00 알</div>
-    </div>
-    <div class="row">
-      <div class="row-top"><span class="row-date">2026.05.26 · 14:22</span><span class="row-amt minus">− 3.90 🍎</span></div>
-      <div class="row-desc">도스토예프스키 별에 합류 (씨앗 품기)</div>
-      <div class="row-bal">잔액 51.00 알</div>
-    </div>
-    <div class="row">
-      <div class="row-top"><span class="row-date">2026.05.25 · 09:12</span><span class="row-amt minus">− 1.00 🍎</span></div>
-      <div class="row-desc">헤리티지 추첨 응모</div>
-      <div class="row-bal">잔액 54.90 알</div>
-    </div>
-  </div>
+  <div class="ledger" id="ledger"></div>
 
   <!-- ④ 조용한 초대장 -->
   <div class="sec-title">조용한 초대장</div>
@@ -348,5 +335,102 @@
   </div>
 
 </div>
+<script>
+/* ══ 교양자화상 · 황금사과 월렛 — apple_log 실연동 (SSoT = SUM(amount)) ══ */
+const SUPABASE_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+
+let _refreshing = null;
+function getSession(){ try{ return JSON.parse(localStorage.getItem('eungyo-auth')); }catch{ return null; } }
+function tokenExp(tok){ try{ return JSON.parse(atob(tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).exp || 0; }catch{ return 0; } }
+async function getValidToken(){
+  const s = getSession();
+  if(!s?.access_token) return null;
+  const now = Math.floor(Date.now()/1000);
+  if(tokenExp(s.access_token) - now > 60) return s.access_token;
+  if(!s.refresh_token) return null;
+  _refreshing = _refreshing || (async () => {
+    try{
+      const r = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', {
+        method:'POST', headers:{ 'apikey':SUPABASE_KEY, 'Content-Type':'application/json' },
+        body: JSON.stringify({ refresh_token: s.refresh_token }) });
+      if(!r.ok) return null;
+      const data = await r.json();
+      if(!data.expires_at) data.expires_at = Math.floor(Date.now()/1000) + (data.expires_in || 3600);
+      localStorage.setItem('eungyo-auth', JSON.stringify(data));
+      return data.access_token || null;
+    }catch(e){ return null; }
+  })();
+  const tok = await _refreshing; _refreshing = null; return tok;
+}
+async function sbFetch(path, options = {}){
+  const token = await getValidToken();
+  const res = await fetch(SUPABASE_URL + path, { ...options, headers:{
+    'apikey':SUPABASE_KEY, 'Authorization':'Bearer ' + (token || SUPABASE_KEY),
+    'Content-Type':'application/json', ...options.headers } });
+  if(!res.ok){ const e = await res.json().catch(()=>({})); throw new Error(e.message || res.statusText); }
+  return res.status === 204 ? null : res.json();
+}
+function getUser(){ try{ const s = JSON.parse(localStorage.getItem('eungyo-auth')); return s?.user || null; }catch{ return null; } }
+
+// ── 월렛 상태 ──
+let WALLET_ROWS = [];          // {amount, reason, created_at, locked, balAfter}
+let WALLET_FILTER = 'all';
+
+function fmtDate(iso){
+  const d = new Date(iso); const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}.${p(d.getMonth()+1)}.${p(d.getDate())} · ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderWallet(){
+  const box = document.getElementById('ledger'); if(!box) return;
+  let rows = WALLET_ROWS;
+  if(WALLET_FILTER === 'in') rows = rows.filter(r => Number(r.amount) > 0);
+  else if(WALLET_FILTER === 'out') rows = rows.filter(r => Number(r.amount) < 0);
+  if(!rows.length){ box.innerHTML = '<div class="wallet-empty">아직 내역이 없습니다.</div>'; return; }
+  box.innerHTML = rows.map(r => {
+    const amt = Number(r.amount);
+    const cls = amt >= 0 ? 'plus' : 'minus';
+    const sign = amt >= 0 ? '+' : '−';
+    const lock = r.locked ? ' locked' : '';
+    return `<div class="row${lock}">
+      <div class="row-top"><span class="row-date">${fmtDate(r.created_at)}</span><span class="row-amt ${cls}">${sign} ${Math.abs(amt).toFixed(2)} 🍎</span></div>
+      <div class="row-desc">${esc(r.reason)}</div>
+      <div class="row-bal">잔액 ${r.balAfter.toFixed(2)} 알</div>
+    </div>`;
+  }).join('');
+}
+
+function setWalletFilter(el, f){
+  WALLET_FILTER = f;
+  document.querySelectorAll('.filters .filter').forEach(x => x.classList.remove('on'));
+  el.classList.add('on');
+  renderWallet();
+}
+
+async function loadWallet(){
+  const box = document.getElementById('ledger');
+  const balEl = document.getElementById('wallet-bal');
+  const statEl = document.getElementById('stat-apples');
+  const user = getUser();
+  if(!user){ if(box) box.innerHTML = '<div class="wallet-empty">로그인이 필요합니다.</div>'; return; }
+  try{
+    const data = await sbFetch(`/rest/v1/apple_log?uid=eq.${user.id}&select=amount,reason,created_at,locked&order=created_at.desc,id.desc`);
+    const rows = data || [];
+    const total = rows.reduce((s, r) => s + Number(r.amount), 0);   // 현재 잔액 = 전체 합
+    // 거래 후 누적 잔액: 위(최신)=total, 아래로 내려가며 직전 거래액 차감
+    let running = total;
+    WALLET_ROWS = rows.map(r => { const balAfter = running; running -= Number(r.amount); return { ...r, balAfter }; });
+    if(balEl) balEl.textContent = total.toFixed(2);
+    if(statEl) statEl.textContent = String(Math.round(total));   // 스탯카드는 정수 요약
+    renderWallet();
+  }catch(e){
+    if(box) box.innerHTML = '<div class="wallet-empty">잔액을 불러오지 못했습니다.</div>';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadWallet);
+</script>
 </body>
 </html>
