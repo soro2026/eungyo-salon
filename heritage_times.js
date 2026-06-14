@@ -193,7 +193,110 @@ const EGHeritageTimes = (() => {
     };
   }
 
-  return { assembleClosing };
+  // ════════ 결과호 풀 ════════
+  //   영혼 헌장 9장: 우열·랭킹 없음. 1등은 "가장 잘한 사람"이 아니라 운이 데려간 한 사람.
+  const HEAD_RESULT = [
+    '{art1}, 한 사람의 품으로',
+    '추첨이 끝났다 — 다섯 별이 갈 곳을 찾았다',
+    '별들이 떠난 밤 — 다섯 작품, 다섯 갈래의 길',
+    '{art1}{j_eun} 한 밤하늘로, 나머지 넷은 여럿의 곳으로'
+  ];
+  const LEAD_RESULT = [
+    '{date} 정오, 추첨이 돌았다. 다섯 별이 각자의 밤하늘을 찾아 떠났다. 운이 갈랐을 뿐, 누구도 더 잘하거나 못한 밤이 아니었다.',
+    '추첨함이 멈췄다. {pool}명의 콩파뇽이 마음을 보냈고, 다섯 작품은 저마다의 곳으로 흩어졌다. {date}, 한 주가 그렇게 닫혔다.',
+    '{date}, 다섯 별의 갈 곳이 정해졌다. 영구작 한 점은 한 사람에게 영원히, 나머지 넷은 여럿의 곳을 한 철씩 돈다.'
+  ];
+  // 1등 가상 지면 인터뷰 — 따뜻하게, 개인을 캐묻지 않고, 운으로 온 기쁨을 담담히
+  const FEATURE_INTRO = [
+    '{art1}{eul} 영원히 곁에 두게 된 이는 {nick}님이다. 추첨은 실력이 아니라 운이었고, 그래서 이 한 점은 누구의 것이 되어도 좋았을 별이었다.',
+    '오늘, {art1}{i} {nick}님의 분더카머로 떠났다. 영구작은 한 사람에게만 머무는 유일한 별 — 그 한 사람이 오늘은 {nick}님이었다.'
+  ];
+  const FEATURE_QUOTE = [
+    '"제가 잘한 것이 아니라 운이 제게 온 것뿐인데, 이렇게 큰 별을 받아도 되는지 모르겠습니다."',
+    '"이 그림을 매일 제 곳에서 볼 수 있다니, 아직 실감이 나지 않습니다."',
+    '"제 분더카머의 벽 하나가, 오늘로 영영 채워졌습니다."',
+    '"같이 응모한 다른 분들을 생각하면 미안하고 고맙습니다. 잘 간직하겠습니다."'
+  ];
+  const FEATURE_TAIL = [
+    '{nick}님의 말이다. 별은 이제 그의 밤하늘에서 조용히 빛난다.',
+    '{nick}님은 그렇게 짧게 답했다. 그 한 마디로 충분한 밤이었다.'
+  ];
+  const RESULT_RENTAL = [
+    '{art}{neun} {copies}부가 풀려, {copies}명의 콩파뇽이 한 철 동안 곁에 두고 본다.',
+    '{art} — {copies}명의 곳을 차례로 돌며 한 해를 보낼 {copies}부가 길을 떠났다.',
+    '{copies}명이 {art}{wa} 한동안 함께 산다. 별 하나가 여러 밤하늘을 도는 방식이다.'
+  ];
+  const RESULT_RENTAL_ZERO = [
+    '{art}{neun} 이번 주, 곁에 둘 콩파뇽을 만나지 못했다. 다음 별을 조용히 기다린다.',
+    '{art}{neun} 응모의 손이 닿지 않았다. 다음 주를 기약하며 잠시 물러난다.'
+  ];
+  const RESULT_PRIZE = [
+    '이번 주 모인 {total}알의 사과는 부상이 되어 흩어졌다. 절반은 1등에게, 나머지는 2·3·4등의 손으로 고르게.',
+    '{total}알이 응모함에 쌓였고, 그대로 부상이 되어 콩파뇽들에게 돌아갔다. 들어온 사과가 다시 사과로 — 순환은 닫혔다.'
+  ];
+  const NEXT_PREVIEW = [
+    '다음 주, 새 다섯 별이 화요일 0시 살롱에 도착한다. 또 한 번의 한 주가 그렇게 열린다.',
+    '화요일 0시, 살롱의 벽이 다시 채워진다. 어떤 별이 올지는 그때의 기쁨으로 남겨 둔다.'
+  ];
+
+  function resultArticleOf(rng, item){
+    const copies = item.copies || 0;
+    const art = item.name;
+    const line = copies > 0
+      ? pick(rng, RESULT_RENTAL)
+          .replace(/\{art\}/g, art)
+          .replace(/\{neun\}/g, hasJong(art) ? '은' : '는')
+          .replace(/\{wa\}/g, hasJong(art) ? '과' : '와')
+          .replace(/\{copies\}/g, copies)
+      : pick(rng, RESULT_RENTAL_ZERO)
+          .replace(/\{art\}/g, art)
+          .replace(/\{neun\}/g, hasJong(art) ? '은' : '는');
+    return {
+      salle: item.salle, id: item.id, name: art, artist: item.artist,
+      img: item.img, copies, line
+    };
+  }
+
+  // ── 메인: 결과호 조립 ──
+  function assembleResult(data){
+    const rng = makeRng('TIMES-R-' + data.vol + '-' + (data.wkId || ''));
+    const items = (data.items || []).slice().sort((a, b) => a.salle - b.salle);
+    const perm = items.find(i => i.salle === 1) || items[0] || { name:'영구작', artist:'' };
+    const art1 = perm.name;
+    const nick = (data.first && data.first.nickname) || '한 콩파뇽';
+    const rentals = items.filter(i => i.salle >= 2);
+
+    const headline = pick(rng, HEAD_RESULT)
+      .replace(/\{art1\}/g, art1)
+      .replace(/\{j_eun\}/g, hasJong(art1) ? '은' : '는');
+    const lead = pick(rng, LEAD_RESULT)
+      .replace(/\{date\}/g, data.dateLabel || '오늘')
+      .replace(/\{pool\}/g, data.pool || 0);
+
+    const featureIntro = pick(rng, FEATURE_INTRO)
+      .replace(/\{art1\}/g, art1)
+      .replace(/\{eul\}/g, hasJong(art1) ? '을' : '를')
+      .replace(/\{i\}/g, hasJong(art1) ? '이' : '가')
+      .replace(/\{nick\}/g, nick);
+    const featureQuote = pick(rng, FEATURE_QUOTE);
+    const featureTail = pick(rng, FEATURE_TAIL).replace(/\{nick\}/g, nick);
+
+    const articles = rentals.map(it => resultArticleOf(rng, it));
+    const prize = pick(rng, RESULT_PRIZE).replace(/\{total\}/g, data.totalTickets || 0);
+    const nextPreview = pick(rng, NEXT_PREVIEW);
+    const bridge = pick(rng, BRIDGE);
+
+    return {
+      kind: 'result',
+      masthead: masthead(data, '결과호'),
+      headline, lead,
+      feature: { perm, nick, intro: featureIntro, quote: featureQuote, tail: featureTail },
+      articles, prize, nextPreview, bridge,
+      footer: '추첨은 운이 갈랐다. 그래서 모두가 같은 자격으로 별 앞에 섰다.'
+    };
+  }
+
+  return { assembleClosing, assembleResult };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { EGHeritageTimes };

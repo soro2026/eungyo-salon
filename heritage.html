@@ -341,6 +341,39 @@ header {
 .tm-bridge a { color: var(--gold-l); }
 .tm-footer { font-size: 12.5px; color: var(--gold-dim); text-align: center;
   font-style: italic; margin-bottom: 18px; }
+/* 결과호 1등 특집 — 큰 액자 + 황동 명패 (콘스텔라티오 명패 이식) */
+.tm-feature { text-align: center; margin: 10px 0 26px; }
+.tm-frame { display: inline-block; max-width: 188px; padding: 9px;
+  background: linear-gradient(135deg, #3a2c14, #1c1408); border: 3px solid #6b5226;
+  border-radius: 4px; box-shadow: 0 16px 42px rgba(0,0,0,.62); position: relative; z-index: 2; }
+.tm-frame img { width: 100%; display: block; border-radius: 2px; }
+.tm-plate { position: relative; width: min(88%, 308px); margin: -6px auto 0; aspect-ratio: 3/1;
+  background: url('constellatio_nametag.webp') center/100% 100% no-repeat; z-index: 1; }
+.tm-plate-text { position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center; line-height: 1.05; padding: 4% 9%; }
+.tm-pc { font-family: 'Cinzel','Noto Serif KR',serif; font-size: 11px; font-weight: 600;
+  letter-spacing: .08em; color: #2a2317; margin-bottom: .35em; white-space: nowrap; }
+.tm-pn { font-family: 'Noto Serif KR',serif; font-size: 22px; font-weight: 500; color: #2a2317;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.tm-pr { font-family: 'Cinzel','Noto Serif KR',serif; font-size: 11px; font-weight: 500;
+  letter-spacing: .04em; color: #2a2317; margin-top: .35em; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.tm-feature-intro { font-size: 13.5px; line-height: 1.7; color: var(--txt-soft); margin: 18px 0 10px; }
+.tm-feature-quote { font-size: 15px; line-height: 1.6; color: var(--gold-l); font-style: italic;
+  margin: 10px 0; padding: 0 12px; }
+.tm-feature-tail { font-size: 12.5px; color: var(--txt-soft); }
+.tm-result-section { border-top: 1.5px solid var(--gold-dim); margin-top: 22px; padding-top: 18px; }
+.tm-result-line { font-size: 13px; line-height: 1.65; color: var(--txt-soft);
+  padding: 11px 0; border-bottom: 1px solid var(--gold-faint); }
+.tm-result-line b { color: var(--gold-l); font-weight: 600; }
+/* 추첨 버튼 — 소로(lonelywalden) 전용 */
+.tm-draw-bar { display: flex; justify-content: center; padding: 10px 16px 0; }
+.tm-draw-btn { font-family: 'Noto Sans KR','Apple SD Gothic Neo',sans-serif; font-size: 14px;
+  font-weight: 600; color: #1c1408; background: linear-gradient(135deg, var(--gold-l), var(--gold));
+  border: none; border-radius: 10px; padding: 11px 24px; cursor: pointer; letter-spacing: .02em;
+  box-shadow: 0 6px 18px rgba(201,168,76,.35); transition: transform .1s; }
+.tm-draw-btn:active { transform: translateY(1px); }
+.tm-draw-btn:disabled { opacity: .55; cursor: default; }
 
 .sheet-overlay {
   position: fixed; inset: 0; z-index: 600;
@@ -1325,11 +1358,10 @@ function switchSalle(n) {
 // ── 무대 렌더 ─────────────────────────────
 function renderStage() {
   const host = document.getElementById('stage-host');
-  // 신문의 날 (월 0–12시): 작품을 내리고 회전하는 마감호 신문이 무대를 차지한다
-  if (timesMode() === 'closing' && SALON_ITEMS.length) {
-    renderTimesStage(host);
-    return;
-  }
+  // 신문의 날 (월): 작품을 내리고 회전하는 신문이 무대를 차지한다
+  const _tm = timesMode();
+  if (_tm === 'closing' && SALON_ITEMS.length) { renderTimesStage(host); return; }
+  if (_tm === 'result' && RESULT_SUMMARY) { renderTimesStage(host); return; }
   const item = SALON_ITEMS.find(i => i.salle_no === currentSalle);
 
   if (!SALON_ITEMS.length) {
@@ -1392,10 +1424,10 @@ const sfxTimesOpen = (() => { try { const a = new Audio('times_open.mp3'); a.pre
 // KST 벽시계 (실행 환경 TZ 무관)
 function kstDate() { const d = new Date(); return new Date(d.getTime() + (d.getTimezoneOffset() + 540) * 60000); }
 
-// 시간대 판정: 월 0–12시 = 마감호. (월 12–24 결과호는 추첨 후 회차에서)
+// 시간대 판정: 월 0–12시 = 마감호, 월 12–24시 = 결과호, 그 외 = 작품(평소)
 function timesMode() {
   const d = kstDate();
-  if (d.getDay() === 1 && d.getHours() < 12) return 'closing';
+  if (d.getDay() === 1) return d.getHours() < 12 ? 'closing' : 'result';
   return 'normal';
 }
 
@@ -1434,6 +1466,9 @@ function buildClosingData() {
 // 무대: 회전 신문 + 스탬프 (방을 옮길 때마다 새로 그려져 핑 돈다)
 function renderTimesStage(host) {
   const vol = String(currentVol()).padStart(2, '0');
+  const tapMsg = timesMode() === 'result'
+    ? '탭하면 이번 주 추첨 결과가 펼쳐집니다'
+    : '탭하면 이번 주 마감호가 펼쳐집니다';
   host.innerHTML = `
     <div class="stage times-stage" data-salle="${currentSalle}">
       <div class="times-paper-wrap" onclick="openTimes()">
@@ -1444,7 +1479,7 @@ function renderTimesStage(host) {
           <div class="ts-v">VOL. ${vol}</div>
         </div>
       </div>
-      <div class="times-tap">탭하면 이번 주 마감호가 펼쳐집니다</div>
+      <div class="times-tap">${tapMsg}</div>
     </div>`;
   animateTimesArrival();
 }
@@ -1471,22 +1506,18 @@ function renderClosingArticles(o) {
 let _timesOverlay = null;
 function openTimes() {
   if (typeof EGHeritageTimes === 'undefined') { console.warn('타임즈 엔진 미로드'); return; }
-  const o = EGHeritageTimes.assembleClosing(buildClosingData());
+  let inner;
+  if (timesMode() === 'result' && RESULT_SUMMARY) {
+    const rd = buildResultData();
+    inner = buildResultHtml(EGHeritageTimes.assembleResult(rd), rd);
+  } else {
+    inner = buildClosingHtml(EGHeritageTimes.assembleClosing(buildClosingData()));
+  }
   const html = `
     <div class="sheet-overlay" style="${sheetBackdropStyle()}" onclick="if(event.target===this)closeTimes()">
       <div class="sheet">
         <div class="sheet-handle"></div>
-        <div class="tm-masthead">
-          <div class="tm-title">${o.masthead.title}</div>
-          <div class="tm-sub">${escapeHtml(o.masthead.sub)}</div>
-          <div class="tm-meta">${escapeHtml(o.masthead.meta)}</div>
-        </div>
-        <h2 class="tm-headline">${escapeHtml(o.headline)}</h2>
-        <p class="tm-lead">${escapeHtml(o.lead)}</p>
-        <div class="tm-articles">${renderClosingArticles(o)}</div>
-        <div class="tm-preview">${escapeHtml(o.preview)}</div>
-        <div class="tm-bridge">${o.bridge}</div>
-        <div class="tm-footer">${escapeHtml(o.footer)}</div>
+        ${inner}
         <button class="sheet-btn ghost" onclick="closeTimes()">닫기</button>
       </div>
     </div>`;
@@ -1497,6 +1528,146 @@ function openTimes() {
 }
 function closeTimes() {
   if (_timesOverlay) { _timesOverlay.remove(); _timesOverlay = null; }
+}
+
+// 마감호 모달 본문
+function buildClosingHtml(o) {
+  return `
+    <div class="tm-masthead">
+      <div class="tm-title">${o.masthead.title}</div>
+      <div class="tm-sub">${escapeHtml(o.masthead.sub)}</div>
+      <div class="tm-meta">${escapeHtml(o.masthead.meta)}</div>
+    </div>
+    <h2 class="tm-headline">${escapeHtml(o.headline)}</h2>
+    <p class="tm-lead">${escapeHtml(o.lead)}</p>
+    <div class="tm-articles">${renderClosingArticles(o)}</div>
+    <div class="tm-preview">${escapeHtml(o.preview)}</div>
+    <div class="tm-bridge">${o.bridge}</div>
+    <div class="tm-footer">${escapeHtml(o.footer)}</div>`;
+}
+
+// 결과호 모달 본문 — 1등 특집(큰 액자 + 황동 명패) + 나머지 결과 + 부상·예고
+function buildResultHtml(o, rd) {
+  const perm = o.feature.perm;
+  const plate = `
+    <div class="tm-feature">
+      <div class="tm-frame"><img src="${perm.img}" alt="${escapeHtml(perm.name)}" onerror="this.style.display='none'"></div>
+      <div class="tm-plate">
+        <div class="tm-plate-text">
+          <div class="tm-pc">EG HERITAGE · 영구 소장</div>
+          <div class="tm-pn">${escapeHtml(o.feature.nick)}</div>
+          <div class="tm-pr">${escapeHtml(perm.name)} · ${escapeHtml(rd.dateDot)}</div>
+        </div>
+      </div>
+      <div class="tm-feature-intro">${escapeHtml(o.feature.intro)}</div>
+      <div class="tm-feature-quote">${escapeHtml(o.feature.quote)}</div>
+      <div class="tm-feature-tail">${escapeHtml(o.feature.tail)}</div>
+    </div>`;
+  const rest = o.articles.map(a =>
+    `<div class="tm-result-line"><b>${ROMAN[a.salle] || a.salle}</b> ${escapeHtml(a.line)}</div>`).join('');
+  return `
+    <div class="tm-masthead">
+      <div class="tm-title">${o.masthead.title}</div>
+      <div class="tm-sub">${escapeHtml(o.masthead.sub)}</div>
+      <div class="tm-meta">${escapeHtml(o.masthead.meta)}</div>
+    </div>
+    <h2 class="tm-headline">${escapeHtml(o.headline)}</h2>
+    <p class="tm-lead">${escapeHtml(o.lead)}</p>
+    ${plate}
+    <div class="tm-result-section">${rest}</div>
+    <div class="tm-preview">${escapeHtml(o.prize)}</div>
+    <div class="tm-bridge" style="margin-top:14px">${escapeHtml(o.nextPreview)}</div>
+    <div class="tm-bridge">${o.bridge}</div>
+    <div class="tm-footer">${escapeHtml(o.footer)}</div>`;
+}
+
+// ── 관리자(소로 · lonelywalden) 추첨 ──────────────────
+const SORO_UID = '81ac3dfa-0d44-4ab9-84bf-d630321b0bad';   // 영구 관리자 uid
+function isSoro() { const u = getUser(); return !!u && u.id === SORO_UID; }
+
+let RESULT_SUMMARY = null;   // 이번 주 추첨 결과 summary (있으면 결과호)
+let RESULT_ITEMS = null;     // 이번 주 5작품 메타 (drawn 포함)
+
+function thisWk() {
+  if (SALON_ITEMS[0] && SALON_ITEMS[0].wk_id) return SALON_ITEMS[0].wk_id;
+  if (RESULT_ITEMS && RESULT_ITEMS[0]) return RESULT_ITEMS[0].wk_id;
+  return getWkId(kstDate());
+}
+
+// 이번 주 결과 로드 (월요일 진입 / 추첨 직후)
+async function loadResult(wkId) {
+  if (!wkId) return;
+  try {
+    const arc = await sbFetch(`/rest/v1/heritage_archives?wk_id=eq.${wkId}&select=summary&order=id.desc&limit=1`);
+    RESULT_SUMMARY = (arc && arc[0]) ? arc[0].summary : null;
+  } catch (e) { RESULT_SUMMARY = null; }
+  if (RESULT_SUMMARY) {
+    try {
+      RESULT_ITEMS = await sbFetch(`/rest/v1/heritage_items?wk_id=eq.${wkId}&category=eq.visual&select=*&order=salle_no.asc`) || null;
+    } catch (e) { RESULT_ITEMS = null; }
+  }
+}
+
+// 결과호 data 빌드 (summary + 작품 메타 + 부수)
+function buildResultData() {
+  const sum = RESULT_SUMMARY || {};
+  const metas = (RESULT_ITEMS && RESULT_ITEMS.length) ? RESULT_ITEMS : SALON_ITEMS;
+  const copyMap = {};
+  (sum.editions || []).forEach(e => { copyMap[e.item_id] = e.copies; });
+  const items = (metas || []).slice().sort((a, b) => a.salle_no - b.salle_no).map(it => ({
+    salle: it.salle_no, id: it.id, name: it.name, artist: it.artist,
+    img: it.img, layers: it.layers || null, copies: copyMap[it.id] || 0
+  }));
+  const d = kstDate();
+  const dow = ['일','월','화','수','목','금','토'][d.getDay()];
+  return {
+    vol: currentVol(),
+    wkId: sum.wk || thisWk(),
+    dateLabel: `${d.getMonth() + 1}월 ${d.getDate()}일 ${dow}요일`,
+    dateDot: `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}`,
+    first: sum.first || { nickname: '한 콩파뇽' },
+    totalTickets: sum.total_tickets || 0,
+    pool: sum.pool || 0,
+    items
+  };
+}
+
+// 추첨 버튼 — 소로일 때, 마감 지난 월요일, 아직 미추첨에만 헤더 아래 뜸
+function renderDrawButton() {
+  const old = document.getElementById('tm-draw-bar');
+  if (old) old.remove();
+  const host = document.getElementById('rhythm-line');
+  if (!host) return;
+  const undrawn = !RESULT_SUMMARY && SALON_ITEMS.length > 0;
+  if (!isSoro() || timesMode() === 'normal' || !undrawn) return;
+  const bar = document.createElement('div');
+  bar.id = 'tm-draw-bar';
+  bar.className = 'tm-draw-bar';
+  bar.innerHTML = `<button class="tm-draw-btn" onclick="doDrawWinners()">🎲 이번 주 추첨하기 · ${thisWk()}</button>`;
+  host.insertAdjacentElement('afterend', bar);
+}
+
+// 추첨 실행 → 결과호 자동 표시
+async function doDrawWinners() {
+  const wk = thisWk();
+  if (!confirm(`이번 주(${wk}) 추첨을 돌립니다.\n당첨자·부상·분더카머 이동이 확정되며 되돌릴 수 없습니다.\n진행할까요?`)) return;
+  const btn = document.querySelector('.tm-draw-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '추첨 중…'; }
+  try {
+    const r = await sbFetch('/rest/v1/rpc/draw_winners', {
+      method: 'POST', body: JSON.stringify({ p_wk: wk })
+    });
+    RESULT_SUMMARY = r || null;
+    await loadResult(wk);     // 작품 메타(drawn) + summary 재확정
+    await loadSalon();        // active 비워짐 반영
+    renderDrawButton();       // 버튼 사라짐
+    renderSalleNav();
+    renderStage();            // 무대 결과호로
+    openTimes();              // 결과호 모달 펼침
+  } catch (e) {
+    alert('추첨 중 문제가 발생했습니다.\n' + (e && e.message ? e.message : e));
+    if (btn) { btn.disabled = false; btn.textContent = `🎲 이번 주 추첨하기 · ${wk}`; }
+  }
 }
 
 // ── 별표 *...* → 굵은 강조 (star.html renderMarkdownStar 이식 · 로직 동일, 색만 헤리티지 어두운 시트 톤) ──
@@ -2011,6 +2182,9 @@ function goHome() { window.location.href = '/eungyo-salon/'; }
   await loadSalon();
   renderSalleNav();
   renderStage();
+  await loadResult(thisWk());   // 이번 주 추첨 결과(있으면 결과호)
+  renderStage();                // 결과 반영
+  renderDrawButton();           // 소로면 추첨 버튼
   await loadRecords();
   renderRecordStage();
 })();
