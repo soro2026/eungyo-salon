@@ -1350,7 +1350,7 @@ function onAction(){
         const AOLBL={strikeout:'삼진!',groundout:'땅볼 아웃!',flyout:'뜬공 아웃!',popout:'팝업 아웃!',lineout:'직선타 아웃!'};
         label = AOLBL[aiMk] || '아웃!';
         st.outs++; st.outsRecorded++;
-        msgKey = 'ai_out';
+        msgKey = aiMk;   // 🎲 봇 아웃도 결과별 멘트 (삼진/땅볼/뜬공/팝업/직선타) — ai_out 단일 삼진풀 폐기
       }
       showJudging(aiOnBase ? composeAIComment(aiMk) : getMsg(msgKey),()=>{
         // (봇 공격은 유저 타수 totalAB에 더하지 않음 — pitchAB로 별도 집계)
