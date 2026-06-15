@@ -366,6 +366,8 @@ header {
 .tm-result-line { font-size: 13px; line-height: 1.65; color: var(--txt-soft);
   padding: 11px 0; border-bottom: 1px solid var(--gold-faint); }
 .tm-result-line b { color: var(--gold-l); font-weight: 600; }
+.tm-result-nicks { margin-top: 5px; font-size: 12px; color: var(--gold-dim); line-height: 1.7; }
+.tm-result-nicks-label { color: var(--gold-l); font-weight: 600; margin-right: 6px; }
 /* 추첨 버튼 — 소로(lonelywalden) 전용 */
 .tm-draw-bar { display: flex; justify-content: center; padding: 10px 16px 0; }
 .tm-draw-btn { font-family: 'Noto Sans KR','Apple SD Gothic Neo',sans-serif; font-size: 14px;
@@ -1566,8 +1568,13 @@ function buildResultHtml(o, rd) {
       <div class="tm-feature-quote">${escapeHtml(o.feature.quote)}</div>
       <div class="tm-feature-tail">${escapeHtml(o.feature.tail)}</div>
     </div>`;
-  const rest = o.articles.map(a =>
-    `<div class="tm-result-line"><b>${ROMAN[a.salle] || a.salle}</b> ${escapeHtml(a.line)}</div>`).join('');
+  const rest = o.articles.map(a => {
+    const salleLabel = `Salle ${ROMAN[a.salle] || a.salle}`;
+    const nickLine = (a.nicks && a.nicks.length)
+      ? `<div class="tm-result-nicks"><span class="tm-result-nicks-label">${salleLabel}</span>${a.nicks.map(n => escapeHtml(n)).join(' · ')}</div>`
+      : '';
+    return `<div class="tm-result-line"><b>${salleLabel}</b> ${escapeHtml(a.line)}${nickLine}</div>`;
+  }).join('');
   return `
     <div class="tm-masthead">
       <div class="tm-title">${o.masthead.title}</div>
@@ -1590,6 +1597,8 @@ function isSoro() { const u = getUser(); return !!u && u.id === SORO_UID; }
 
 let RESULT_SUMMARY = null;   // 이번 주 추첨 결과 summary (있으면 결과호)
 let RESULT_ITEMS = null;     // 이번 주 5작품 메타 (drawn 포함)
+let RESULT_NICKS = [];       // 2~4등 닉네임 [{grade, item_id, winner_nick}]
+let RESULT_NICKS_5 = [];     // 5등 전원 닉네임 [{nickname}]
 
 function thisWk() {
   if (SALON_ITEMS[0] && SALON_ITEMS[0].wk_id) return SALON_ITEMS[0].wk_id;
@@ -1619,6 +1628,23 @@ async function loadResult(wkId) {
     try {
       RESULT_ITEMS = await sbFetch(`/rest/v1/heritage_items?wk_id=eq.${realWk}&category=eq.visual&select=*&order=salle_no.asc`) || null;
     } catch (e) { RESULT_ITEMS = null; }
+    // 2~4등 닉네임 (heritage_results)
+    try {
+      RESULT_NICKS = await sbFetch(`/rest/v1/heritage_results?wk_id=eq.${realWk}&select=grade,item_id,winner_nick&order=grade.asc`) || [];
+    } catch (e) { RESULT_NICKS = []; }
+    // 5등 닉네임 전원 (heritage_rentals, salle5 item)
+    if (RESULT_ITEMS) {
+      const s5 = RESULT_ITEMS.find(i => i.salle_no === 5);
+      if (s5) {
+        try {
+          RESULT_NICKS_5 = await sbFetch(`/rest/v1/heritage_rentals?item_id=eq.${s5.id}&wk_id=is.null&source=eq.prize&select=nickname&order=nickname.asc`) || [];
+          // wk_id 컬럼이 rentals에 없으면 born_week 기준 editions로 거름
+          if (!RESULT_NICKS_5.length) {
+            RESULT_NICKS_5 = await sbFetch(`/rest/v1/heritage_rentals?item_id=eq.${s5.id}&source=eq.prize&select=nickname&order=nickname.asc`) || [];
+          }
+        } catch (e) { RESULT_NICKS_5 = []; }
+      }
+    }
   }
 }
 
@@ -1628,10 +1654,21 @@ function buildResultData() {
   const metas = (RESULT_ITEMS && RESULT_ITEMS.length) ? RESULT_ITEMS : SALON_ITEMS;
   const copyMap = {};
   (sum.editions || []).forEach(e => { copyMap[e.item_id] = e.copies; });
-  const items = (metas || []).slice().sort((a, b) => a.salle_no - b.salle_no).map(it => ({
-    salle: it.salle_no, id: it.id, name: it.name, artist: it.artist,
-    img: it.img, layers: it.layers || null, copies: copyMap[it.id] || 0
-  }));
+  const items = (metas || []).slice().sort((a, b) => a.salle_no - b.salle_no).map(it => {
+    // 2~4등 닉네임
+    const nicks = (RESULT_NICKS || [])
+      .filter(r => r.item_id === it.id)
+      .map(r => r.winner_nick);
+    // 5등(salle5)은 전원 목록
+    const nicks5 = it.salle_no === 5
+      ? (RESULT_NICKS_5 || []).map(r => r.nickname)
+      : null;
+    return {
+      salle: it.salle_no, id: it.id, name: it.name, artist: it.artist,
+      img: it.img, layers: it.layers || null, copies: copyMap[it.id] || 0,
+      nicks: nicks5 !== null ? nicks5 : nicks
+    };
+  });
   const d = kstDate();
   const dow = ['일','월','화','수','목','금','토'][d.getDay()];
   return {
