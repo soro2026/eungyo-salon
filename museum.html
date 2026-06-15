@@ -1012,50 +1012,80 @@ async function loadMuseumBooks() {
     }
   }
 
-  // 2. 전체 씨앗 JSON에서 책 정보 로드
-  // 씨앗 목록 자동 감지 — questions_index.json 우선, 없으면 알려진 목록 사용
-  let seeds = [];
-  try {
-    const idxRes = await fetch(BASE_URL + 'questions_index.json');
-    if (idxRes.ok) {
-      const idx = await idxRes.json();
-      seeds = idx.files || [];
-      console.log('questions_index.json에서 씨앗 목록 로드:', seeds.length + '개');
-    }
-  } catch(e) {}
-
-  // questions_index.json 없으면 빈 채로 진행 (옛 462문제 폐기, 5/5)
-  if (seeds.length === 0) {
-    console.warn('questions_index.json 로드 실패 — 책 0권으로 진행');
-  }
-
+  // 2. 책 정보 로드 — DB questions 우선(단일 소스), 실패 시 GitHub JSON 폴백
+  //    경험 거르기(myAnswers = quiz_log)는 그대로. 여기선 '책의 내용(4겹)'만 길어온다.
+  //    책 식별 키 = answer (quiz_log의 answer와 대조해 mine 판정)
   const bookMap = {};
 
-  for (const seed of seeds) {
-    try {
-      const res = await fetch(BASE_URL + seed);
-      const data = await res.json();
-      const questions = data.questions || data;
-      for (const q of questions) {
-        const key = q.answer;
-        if (!bookMap[key]) {
-          bookMap[key] = {
-            answer:   q.answer,
-            keyword:  q.keyword  || '',
-            category: q.category || '',
-            catId:    getCatId(q.category),
-            library:  q.library  || {},
-            curation_links: q.curation_links || null,
-            figures:  Array.isArray(q.figures) ? q.figures : [],
-            solved:   0,
-            // 내가 경험한 책인지 여부
-            mine: myAnswers.has(q.answer),
-          };
-        }
-      }
-    } catch(e) {
-      console.warn('씨앗 로드 실패:', seed, e);
+  let dbRows = null;
+  try {
+    const sel = 'answer,keyword,category,library,curation_links,figures';
+    const res = await fetch(`${SUPA_URL}/rest/v1/questions?select=${sel}`, {
+      headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${SUPA_KEY}` }
+    });
+    if (res.ok) {
+      const rows = await res.json();
+      if (Array.isArray(rows) && rows.length) dbRows = rows;
     }
+  } catch(e) {
+    console.warn('[뮤세움] DB questions 로드 실패 — GitHub 폴백', e?.message || e);
+  }
+
+  if (dbRows) {
+    for (const q of dbRows) {
+      const key = q.answer;
+      if (!key || bookMap[key]) continue;
+      bookMap[key] = {
+        answer:   q.answer,
+        keyword:  q.keyword  || '',
+        category: q.category || '',
+        catId:    getCatId(q.category),
+        library:  q.library  || {},
+        curation_links: q.curation_links || null,
+        figures:  Array.isArray(q.figures) ? q.figures : [],
+        solved:   0,
+        // 내가 경험한 책인지 여부
+        mine: myAnswers.has(q.answer),
+      };
+    }
+    console.log('[뮤세움] DB questions 책 로드:', Object.keys(bookMap).length + '권');
+  } else {
+    // ── 폴백: 기존 GitHub JSON 경로 (그대로 보존) ──
+    let seeds = [];
+    try {
+      const idxRes = await fetch(BASE_URL + 'questions_index.json');
+      if (idxRes.ok) {
+        const idx = await idxRes.json();
+        seeds = idx.files || [];
+      }
+    } catch(e) {}
+    for (const seed of seeds) {
+      try {
+        const res = await fetch(BASE_URL + seed);
+        const data = await res.json();
+        const questions = data.questions || data;
+        for (const q of questions) {
+          const key = q.answer;
+          if (!bookMap[key]) {
+            bookMap[key] = {
+              answer:   q.answer,
+              keyword:  q.keyword  || '',
+              category: q.category || '',
+              catId:    getCatId(q.category),
+              library:  q.library  || {},
+              curation_links: q.curation_links || null,
+              figures:  Array.isArray(q.figures) ? q.figures : [],
+              solved:   0,
+              // 내가 경험한 책인지 여부
+              mine: myAnswers.has(q.answer),
+            };
+          }
+        }
+      } catch(e) {
+        console.warn('씨앗 로드 실패:', seed, e);
+      }
+    }
+    console.log('[뮤세움] GitHub 폴백 책 로드:', Object.keys(bookMap).length + '권');
   }
 
   // 3. 내가 경험한 책만 catId별로 분류
