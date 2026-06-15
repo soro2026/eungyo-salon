@@ -311,28 +311,58 @@ async function logQuizToMuseum(q, wasCorrect) {
 
 
 async function loadQuestions() {
-  // ── 문제 파일 목록을 questions_index.json에서 동적 로드 ──
-  //   (인물 추가 시 인덱스만 수정 — game_core는 안 건드림)
-  let files = null;
+  // ── 1순위: DB questions 테이블 (단일 소스 — 콘스텔라티오·뮤세움과 같은 우물) ──
+  //   questions는 RLS public(SELECT)이라 auth 전에도 apikey만으로 읽힌다.
+  //   question_text → text 는 PostgREST 별칭으로 받아 GitHub 매핑과 키를 통일.
+  //   tier(시범/정규) 분리는 출제 시점에 거른다 — 여기선 전체를 싣는다.
+  let rawList = null;
   try {
-    const idx = await fetch('questions_index.json?t=' + Date.now()).then(r => r.json());
-    if (Array.isArray(idx.files) && idx.files.length) files = idx.files;
+    const sel = [
+      'seed_id', 'source_seed', 'difficulty', 'category', 'keyword', 'zone_keyword',
+      'text:question_text', 'answer', 'title', 'initials', 'aliases', 'choices',
+      'question_type', 'ox_explanation', 'library', 'figures',
+      'constellatio_card', 'curation_links', 'metadata', 'tier'
+    ].join(',');
+    const res = await fetch(`${SUPA_URL}/rest/v1/questions?select=${sel}`, {
+      headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${SUPA_KEY}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length) rawList = data;
+    }
   } catch (e) {
-    console.warn('[문제] questions_index.json 로드 실패 — 폴백 목록 사용', e?.message || e);
+    console.warn('[문제] DB questions 로드 실패 — GitHub 폴백', e?.message || e);
   }
-  if (!files) {
-    // 폴백: 인덱스 못 읽을 때 최소 풀
-    files = [
-      'questions_davinci.json', 'questions_homer.json', 'questions_mozart.json',
-      'questions_ovid.json', 'questions_sejong.json', 'questions_shakespeare.json',
-      'questions_socrates.json', 'questions_tolstoy.json', 'questions_vangogh.json'
-    ];
+
+  // ── 폴백: DB가 비거나 실패하면 기존 GitHub JSON 경로 (그대로 보존) ──
+  if (!rawList) {
+    let files = null;
+    try {
+      const idx = await fetch('questions_index.json?t=' + Date.now()).then(r => r.json());
+      if (Array.isArray(idx.files) && idx.files.length) files = idx.files;
+    } catch (e) {
+      console.warn('[문제] questions_index.json 로드 실패 — 폴백 목록 사용', e?.message || e);
+    }
+    if (!files) {
+      files = [
+        'questions_davinci.json', 'questions_homer.json', 'questions_mozart.json',
+        'questions_ovid.json', 'questions_sejong.json', 'questions_shakespeare.json',
+        'questions_socrates.json', 'questions_tolstoy.json', 'questions_vangogh.json'
+      ];
+    }
+    const results = await Promise.all(
+      files.map(f => fetch(f).then(r => r.json()).catch(() => ({ questions: [] })))
+    );
+    rawList = results.flatMap(r => r.questions || []);
+    console.log('[문제] GitHub 폴백 로드:', rawList.length + '문항');
+  } else {
+    console.log('[문제] DB questions 로드:', rawList.length + '문항');
   }
-  const results = await Promise.all(
-    files.map(f => fetch(f).then(r => r.json()).catch(() => ({ questions: [] })))
-  );
-  QS = results.flatMap(r => r.questions.map(q => ({
-    seed_id: q.seed_id,
+
+  // ── 매핑 통일 (DB·GitHub 공통) ──
+  //   seed_id = 그룹화·복습 키(인물 단위). DB는 source_seed(31), GitHub은 seed_id가 이미 인물.
+  QS = rawList.map(q => ({
+    seed_id: q.source_seed || q.seed_id,
     difficulty: q.difficulty,
     cat: q.category,
     keyword: q.keyword,
@@ -345,15 +375,17 @@ async function loadQuestions() {
     library: q.library || {},
     // ── v1.5 신규 필드 (OX·객관식·주관식 호환) ──
     question_type: getNormalizedType(q.question_type),
+    ox_explanation: q.ox_explanation || '',   // DB OX 해설 — 기존 GitHub 매핑서 누락됐던 필드 복원
     aliases: Array.isArray(q.aliases) ? q.aliases : [],
     choices: Array.isArray(q.choices) ? q.choices : [],
     title: q.title || '',
+    tier: q.tier || 'preseason',              // 시범/정규 분리 키 (출제 시점 필터는 다음 조각)
     // ── 0층·큐레이션·메타 (콘스텔라티오·뮤세움·함수 A·B용) ──
     constellatio_card: q.constellatio_card || null,
     curation_links: q.curation_links || null,
     metadata: q.metadata || null,
     figures: Array.isArray(q.figures) ? q.figures : []
-  })));
+  }));
   // ── 균등 분배 셔플 (seed_id별 골고루, 난이도 랜덤) ──
   // 1. seed_id별로 그룹화
   const seedMap = {};
