@@ -563,10 +563,12 @@ let EXPERIENCED_SEEDS = new Set();
 let _expSeedsActive = false;   // true일 때만 isDuplicate가 경험 회피 적용
 let REGULAR_AVOID = new Set();
 let _regAvoidActive = false;   // 정규경기(week>0) 복습 회피. 시범경기 B방식과 배타적(week_num으로 갈림).
+let ACTIVE_TIER = null;        // 출제 풀 tier 한정: week0→'preseason' / week>0→'rookie' / null→전체(필터 없음). 폴백과 무관하게 절대 유지.
 
 // 시범경기(week 0): 경험 seed 전부 회피(B방식). 정규경기(week>0): 복습 로직.
 async function prepExperiencedSeeds() {
   EXPERIENCED_SEEDS = new Set();
+  ACTIVE_TIER = null;
   _expSeedsActive = false;
   REGULAR_AVOID = new Set();
   _regAvoidActive = false;
@@ -586,6 +588,7 @@ async function prepExperiencedSeeds() {
       const rows = await res.json();
       if (Array.isArray(rows)) rows.forEach(r => { if (r.seed_id) EXPERIENCED_SEEDS.add(r.seed_id); });
       _expSeedsActive = true;
+      ACTIVE_TIER = 'preseason';   // 시범경기 — preseason 문항만 출제(rookie 차단)
       console.log(`[B방식] 시범경기 — 경험한 문제 ${EXPERIENCED_SEEDS.size}개 회피`);
     } else if (week > 0) {
       // ── 정규경기 복습 로직 (설계결정문 v1.0 §4) ──
@@ -608,6 +611,7 @@ async function prepExperiencedSeeds() {
         }
       }
       _regAvoidActive = true;
+      ACTIVE_TIER = 'rookie';   // 정규경기 — rookie 문항만 출제(시범문항 차단)
       console.log(`[복습] 정규경기 week${week} — 회피 ${REGULAR_AVOID.size}개 (최근2주 + 정복문제)`);
     }
     // week === null(시즌/매치 정보 부재): 둘 다 비활성 — 회피 없이 진행(안전)
@@ -639,6 +643,9 @@ function buildZoneBoard() {
   //   ① 같은 seed_id 두 번 안 뽑음
   //   ② 같은 figures(주인공 인물) 두 번 안 뽑음
   //   ③ 같은 answer 두 번 안 뽑음 (다른 인물이 같은 작품 만든 경우 대비)
+
+  // 출제 풀을 현재 리그 tier로 한정 — 폴백과 무관하게 절대 유지(시범에 rookie 안 섞임)
+  const POOL = ACTIVE_TIER ? QS.filter(q => (q.tier || 'preseason') === ACTIVE_TIER) : QS;
 
   const picked = [];
   const usedSeedIds = new Set();
@@ -683,7 +690,7 @@ function buildZoneBoard() {
 
   // 카테고리별 문제 1개 선택 헬퍼 (중복 회피)
   function pickFromCat(catName) {
-    const pool = QS.filter(q => {
+    const pool = POOL.filter(q => {
       const qCat = q.cat ? q.cat.split('·')[0].trim() : '';
       return qCat === catName && !isDuplicate(q);
     });
@@ -715,7 +722,7 @@ function buildZoneBoard() {
   // — 2차: 카테고리만 회피 (figures 양보)
   // — 3차: seed_id·answer만 회피 (모두 양보) — 풀 너무 작을 때만 도달
   if (picked.length < 9) {
-    const fallback = [...QS].sort(() => Math.random() - 0.5);
+    const fallback = [...POOL].sort(() => Math.random() - 0.5);
     // 1차: figures + 카테고리 모두 회피
     for (const q of fallback) {
       if (picked.length >= 9) break;
@@ -1263,7 +1270,7 @@ function startQ(){
   const btn=document.getElementById('hit-btn');
 
   // 난이도 3 문제면 오르간 긴장감
-  if(q.difficulty === 3){ setTimeout(()=>SND.organTension(), 200); }
+  if(q.difficulty >= 5){ setTimeout(()=>SND.organTension(), 200); }  // 동심원 바깥 겹(난5·6) 긴장감
 
   // game-statbar: 공격 시만 표시, 수비 시 숨김
   const gsbar = document.getElementById('game-statbar');
@@ -1584,7 +1591,7 @@ const SND = (()=>{
     audio.play().catch(()=>{});
   }
 
-  // 난이도3 투구 전 오르간 긴장감 (파일 있을 때만)
+  // 난이도5·6(동심원 바깥 겹) 투구 전 오르간 긴장감 (파일 있을 때만)
   function organTension(){
     const organs = ['organ1.mp3','organ2.mp3','organ3.mp3'];
     const pick = organs[Math.floor(Math.random()*organs.length)];
