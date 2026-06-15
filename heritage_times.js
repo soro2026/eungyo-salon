@@ -253,7 +253,7 @@ const EGHeritageTimes = (() => {
           .replace(/\{neun\}/g, hasJong(art) ? '은' : '는');
     return {
       salle: item.salle, id: item.id, name: art, artist: item.artist,
-      img: item.img, copies, line
+      img: item.img, copies, line, nicks: item.nicks || []
     };
   }
 
