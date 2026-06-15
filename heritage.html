@@ -1378,7 +1378,10 @@ function renderStage() {
   // 신문의 날 (월): 작품을 내리고 회전하는 신문이 무대를 차지한다
   const _tm = timesMode();
   if (_tm === 'closing' && SALON_ITEMS.length) { renderTimesStage(host); return; }
-  if (_tm === 'result' && RESULT_SUMMARY) { renderTimesStage(host); return; }
+  // 결과호: 월요일이거나(추첨일) 아직 새 보물이 입고되지 않았을 때만. 새 살롱이 열리면 양보.
+  if (_tm === 'result' && RESULT_SUMMARY && (kstDate().getDay() === 1 || !SALON_ITEMS.length)) {
+    renderTimesStage(host); return;
+  }
   const item = SALON_ITEMS.find(i => i.salle_no === currentSalle);
 
   if (!SALON_ITEMS.length) {
@@ -1446,11 +1449,10 @@ function timesMode() {
   const d = kstDate();
   const dow = d.getDay(); // 0=일 1=월
   const h = d.getHours();
-  // 월요일 오전: 마감호
-  if (dow === 1 && h < 12) return 'closing';
-  // 월요일 정오 이후 ~ 다음 주 월요일 오전 전: 결과호
-  // renderStage에서 RESULT_SUMMARY 없으면 자동으로 일반 무대로 폴백됨
-  return 'result';
+  if (dow === 1 && h < 12) return 'closing';  // 월 오전: 마감호
+  if (dow === 1) return 'result';             // 월 정오 이후: 결과호
+  // 화~일: 새 보물이 아직 없으면(개봉 전) 결과호 유지, 있으면 renderStage가 일반 살롱 우선
+  return SALON_ITEMS.length ? 'normal' : 'result';
 }
 
 // 호수: 창간 첫 마감호 월요일(2026-06-15)을 기점으로 주차에서 흘러나온다 (저장하지 않음)
