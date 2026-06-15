@@ -1068,9 +1068,13 @@ html, body {
   margin-bottom: 16px; text-transform: uppercase;
 }
 #arrival-card .ac-msg {
-  font-size: 16px; line-height: 2.0; color: rgba(255,245,220,0.97);
-  text-shadow: 0 1px 6px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.7);
-  margin-bottom: 20px; white-space: pre-wrap;
+  font-size: 16px; line-height: 2.0; color: rgba(255,247,228,0.99);
+  text-shadow:
+    0 1px 2px rgba(0,0,0,1),
+    0 2px 8px rgba(0,0,0,0.95),
+    0 0 16px rgba(0,0,0,0.9),
+    0 0 28px rgba(0,0,0,0.75);
+  margin-bottom: 20px; white-space: pre-wrap; font-weight: 500;
 }
 #arrival-card .ac-cursor {
   display: inline-block; width: 2px; height: 1em;
@@ -1079,9 +1083,9 @@ html, body {
 }
 @keyframes blink { 50% { opacity: 0; } }
 #arrival-card .ac-timer {
-  font-size: 11px; color: rgba(200,165,80,0.5);
+  font-size: 11px; color: rgba(220,190,120,0.75);
   letter-spacing: 0.1em; margin-bottom: 14px;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+  text-shadow: 0 1px 3px rgba(0,0,0,1), 0 0 10px rgba(0,0,0,0.85);
 }
 #arrival-card .ac-close {
   background: rgba(10,5,2,0.45); border: 1px solid rgba(180,140,60,0.35);
@@ -1563,15 +1567,27 @@ async function buildArrivalList(ownerId, permItems, rentItems) {
   return list;
 }
 
+// 한글 받침 판별 → 조사 자동 선택
+function hasJongseong(word) {
+  if (!word) return false;
+  const last = word.charCodeAt(word.length - 1);
+  if (last < 0xAC00 || last > 0xD7A3) return false; // 한글 음절 아님
+  return (last - 0xAC00) % 28 !== 0;
+}
+function josa(word, withJong, withoutJong) {
+  return hasJongseong(word) ? withJong : withoutJong;
+}
+
 // 개별화 메시지 생성
 function buildArrivalMsg(arrivals, nickname) {
   const lines = [];
   for (const a of arrivals) {
+    const iga = josa(a.name, '이', '가');   // 수련이 / 무도회가
     if (a.type === 'perm') {
-      lines.push(`〈${a.name}〉이(가) ${nickname || ''}님의 분더카머에 영구 소장되었습니다.\n이 작품은 오직 한 분의 것으로, 영원히 이 갤러리에 머뭅니다.`);
+      lines.push(`〈${a.name}〉${iga} ${nickname || ''}님의 분더카머에 영원히 자리합니다.\n이 작품은 오직 한 분의 것 — 유일본으로, 이 갤러리에 영구 소장됩니다.`);
     } else {
       const wk = a.weeks ? `${a.weeks}주` : '한 철';
-      lines.push(`〈${a.name}〉이(가) ${nickname || ''}님의 분더카머에 도착했습니다.\n이 작품은 ${wk} 대여로 운영되며, 기간이 마치면 헤리티지에 자동으로 반납됩니다.\n그 동안 즐거운 감상 되세요.`);
+      lines.push(`〈${a.name}〉${iga} ${nickname || ''}님의 분더카머에 도착했습니다.\n이 작품은 ${wk} 대여로 운영되며, 기간이 마치면 헤리티지에 자동으로 반납됩니다.\n그 동안 즐거운 감상 되세요.`);
     }
   }
   return lines.join('\n\n');
@@ -1648,8 +1664,8 @@ function typeWriter(el, text, speed, onDone) {
     if (i < text.length) {
       const ch = text[i++];
       el.insertBefore(document.createTextNode(ch), cursor);
-      // 공백·줄바꿈은 무음, 그 외 글자는 50% 확률로만 탁 — 스타디움 SND.type() 호출과 동일
-      if (ch !== ' ' && ch !== '\n' && Math.random() < 0.5) _typeSound();
+      // 공백·줄바꿈은 소리 없이, 그 외 글자마다 탁탁
+      if (ch !== ' ' && ch !== '\n') _typeSound();
       setTimeout(tick, ch === '\n' ? speed * 4 : speed);
     } else if (onDone) onDone();
   }
@@ -1686,7 +1702,7 @@ function showArrivalPopup(arrivals, firstTs, lsKey) {
 
   // 타이핑
   const msgEl = overlay.querySelector('.ac-msg');
-  typeWriter(msgEl, msg, 75, null);   // 스타디움 TS=75와 동일 간격
+  typeWriter(msgEl, msg, 28, null);
 
   // 남은 시간 카운트다운
   const timerEl = overlay.querySelector('#ac-timer');
