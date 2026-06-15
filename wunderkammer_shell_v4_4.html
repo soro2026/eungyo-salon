@@ -1615,13 +1615,42 @@ function launchConfetti() {
 }
 
 // 타이핑 효과
+// 타이핑 효과음 — game_core.js SND.type()과 동일한 Web Audio API 방식
+const _typingAudioCtx = { ctx: null };
+function _typeSound() {
+  try {
+    if (!_typingAudioCtx.ctx)
+      _typingAudioCtx.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const c = _typingAudioCtx.ctx;
+    const t = c.currentTime;
+    const bufLen = Math.floor(c.sampleRate * 0.04);
+    const buf = c.createBuffer(1, bufLen, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++)
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 2.2);
+    const src = c.createBufferSource();
+    const gain = c.createGain();
+    const filter = c.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(420 + Math.random() * 120, t);
+    filter.Q.value = 2.0;
+    src.buffer = buf;
+    gain.gain.setValueAtTime(0.06 + Math.random() * 0.02, t);
+    src.connect(filter); filter.connect(gain); gain.connect(c.destination);
+    src.start(t);
+  } catch (e) { /* 소리 실패는 조용히 — 타이핑 표시는 계속 */ }
+}
+
 function typeWriter(el, text, speed, onDone) {
   let i = 0;
   const cursor = el.querySelector('.ac-cursor');
   function tick() {
     if (i < text.length) {
-      el.insertBefore(document.createTextNode(text[i++]), cursor);
-      setTimeout(tick, text[i - 1] === '\n' ? speed * 4 : speed);
+      const ch = text[i++];
+      el.insertBefore(document.createTextNode(ch), cursor);
+      // 공백·줄바꿈은 소리 없이, 그 외 글자마다 탁탁
+      if (ch !== ' ' && ch !== '\n') _typeSound();
+      setTimeout(tick, ch === '\n' ? speed * 4 : speed);
     } else if (onDone) onDone();
   }
   tick();
