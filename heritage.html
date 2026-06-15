@@ -368,6 +368,18 @@ header {
 .tm-result-line b { color: var(--gold-l); font-weight: 600; }
 .tm-result-nicks { margin-top: 5px; font-size: 12px; color: var(--gold-dim); line-height: 1.7; }
 .tm-result-nicks-label { color: var(--gold-l); font-weight: 600; margin-right: 6px; }
+/* Salle 그림 카드 */
+.tm-result-line { display: flex; gap: 16px; align-items: flex-start;
+  padding: 16px 0; border-bottom: 1px solid var(--gold-faint); }
+.tm-salle-thumb { width: 90px; min-width: 90px; height: 68px;
+  object-fit: cover; border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35); flex-shrink: 0; }
+.tm-salle-body { flex: 1; min-width: 0; }
+.tm-salle-head { font-size: 13px; margin-bottom: 4px; }
+.tm-salle-head b { color: var(--gold-l); font-weight: 600; margin-right: 6px; }
+.tm-salle-name { color: var(--txt-soft); font-style: italic; }
+.tm-salle-line { font-size: 13px; line-height: 1.65; color: var(--txt-soft); margin-bottom: 3px; }
+.tm-result-nicks { font-size: 12px; color: var(--gold-dim); line-height: 1.7; margin-top: 4px; }
 /* 추첨 버튼 — 소로(lonelywalden) 전용 */
 .tm-draw-bar { display: flex; justify-content: center; padding: 10px 16px 0; }
 .tm-draw-btn { font-family: 'Noto Sans KR','Apple SD Gothic Neo',sans-serif; font-size: 14px;
@@ -1570,10 +1582,23 @@ function buildResultHtml(o, rd) {
     </div>`;
   const rest = o.articles.map(a => {
     const salleLabel = `Salle ${ROMAN[a.salle] || a.salle}`;
-    const nickLine = (a.nicks && a.nicks.length)
-      ? `<div class="tm-result-nicks"><span class="tm-result-nicks-label">${salleLabel}</span>${a.nicks.map(n => escapeHtml(n)).join(' · ')}</div>`
+    // 그림 썸네일
+    const thumb = a.img
+      ? `<img class="tm-salle-thumb" src="${a.img}" alt="${escapeHtml(a.name)}" onerror="this.style.display='none'">`
       : '';
-    return `<div class="tm-result-line"><b>${salleLabel}</b> ${escapeHtml(a.line)}${nickLine}</div>`;
+    // 닉네임 (Salle 라벨 중복 없이 한 줄)
+    const nickLine = (a.nicks && a.nicks.length)
+      ? `<div class="tm-result-nicks">${a.nicks.map(n => escapeHtml(n)).join(' · ')}</div>`
+      : '';
+    return `
+      <div class="tm-result-line">
+        ${thumb}
+        <div class="tm-salle-body">
+          <div class="tm-salle-head"><b>${salleLabel}</b> <span class="tm-salle-name">${escapeHtml(a.name)}</span></div>
+          <div class="tm-salle-line">${escapeHtml(a.line)}</div>
+          ${nickLine}
+        </div>
+      </div>`;
   }).join('');
   return `
     <div class="tm-masthead">
@@ -1635,13 +1660,10 @@ async function loadResult(wkId) {
     // 5등 닉네임 전원 (heritage_rentals, salle5 item)
     if (RESULT_ITEMS) {
       const s5 = RESULT_ITEMS.find(i => i.salle_no === 5);
+    // 5등 닉네임 전원 (heritage_rentals, salle5 item — wk_id 컬럼 없음)
       if (s5) {
         try {
-          RESULT_NICKS_5 = await sbFetch(`/rest/v1/heritage_rentals?item_id=eq.${s5.id}&wk_id=is.null&source=eq.prize&select=nickname&order=nickname.asc`) || [];
-          // wk_id 컬럼이 rentals에 없으면 born_week 기준 editions로 거름
-          if (!RESULT_NICKS_5.length) {
-            RESULT_NICKS_5 = await sbFetch(`/rest/v1/heritage_rentals?item_id=eq.${s5.id}&source=eq.prize&select=nickname&order=nickname.asc`) || [];
-          }
+          RESULT_NICKS_5 = await sbFetch(`/rest/v1/heritage_rentals?item_id=eq.${s5.id}&source=eq.prize&select=nickname&order=nickname.asc`) || [];
         } catch (e) { RESULT_NICKS_5 = []; }
       }
     }
