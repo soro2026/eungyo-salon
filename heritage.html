@@ -1599,14 +1599,25 @@ function thisWk() {
 
 // 이번 주 결과 로드 (월요일 진입 / 추첨 직후)
 async function loadResult(wkId) {
-  if (!wkId) return;
-  try {
-    const arc = await sbFetch(`/rest/v1/heritage_archives?wk_id=eq.${wkId}&select=summary&order=id.desc&limit=1`);
-    RESULT_SUMMARY = (arc && arc[0]) ? arc[0].summary : null;
-  } catch (e) { RESULT_SUMMARY = null; }
-  if (RESULT_SUMMARY) {
+  let arc = null;
+  if (wkId) {
     try {
-      RESULT_ITEMS = await sbFetch(`/rest/v1/heritage_items?wk_id=eq.${wkId}&category=eq.visual&select=*&order=salle_no.asc`) || null;
+      arc = await sbFetch(`/rest/v1/heritage_archives?wk_id=eq.${wkId}&select=summary,wk_id&order=id.desc&limit=1`);
+    } catch (e) { arc = null; }
+  }
+  // 폴백: 지정 주차로 못 찾았고 결과호 시간대(월 오후)면, 가장 최근 추첨 결과를 가져온다.
+  //  ─ 추첨이 끝나면 SALON_ITEMS(active)가 비고, 결과호가 뜨는 월요일엔 getWkId가 이미
+  //     다음 주차를 가리켜 thisWk()가 어긋난다. 결과호는 곧 '방금 추첨된 최신 결과'이므로 최신 1건으로 채운다.
+  if ((!arc || !arc[0]) && timesMode() === 'result') {
+    try {
+      arc = await sbFetch(`/rest/v1/heritage_archives?select=summary,wk_id&order=id.desc&limit=1`);
+    } catch (e) { arc = null; }
+  }
+  RESULT_SUMMARY = (arc && arc[0]) ? arc[0].summary : null;
+  if (RESULT_SUMMARY) {
+    const realWk = arc[0].wk_id || RESULT_SUMMARY.wk || wkId;
+    try {
+      RESULT_ITEMS = await sbFetch(`/rest/v1/heritage_items?wk_id=eq.${realWk}&category=eq.visual&select=*&order=salle_no.asc`) || null;
     } catch (e) { RESULT_ITEMS = null; }
   }
 }
