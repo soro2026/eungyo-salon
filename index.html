@@ -570,6 +570,39 @@
   }
   #home-screen.hidden { display: none; }
 
+  /* ══ admin 전용 레일 (소로만 표시) ══ */
+  #admin-rail{
+    display:none; position:fixed; top:118px; right:14px; z-index:1200;
+    flex-direction:column; gap:8px; width:152px;
+  }
+  #admin-rail .ar-label{
+    font-size:10px; letter-spacing:2px; color:rgba(248,244,238,0.42);
+    text-align:center; margin-bottom:2px;
+  }
+  #admin-rail .ar-btn{
+    display:flex; flex-direction:column; gap:2px;
+    background:rgba(201,168,76,0.14); border:1px solid rgba(201,168,76,0.42);
+    border-radius:12px; padding:10px 12px; cursor:pointer;
+    text-decoration:none; color:#F8F4EE; transition:all 0.18s ease;
+  }
+  #admin-rail .ar-btn:hover{ background:rgba(201,168,76,0.26); border-color:#C9A84C; }
+  #admin-rail .ar-btn:active{ transform:scale(0.97); }
+  #admin-rail .ar-btn .t{ font-size:13px; font-weight:700; }
+  #admin-rail .ar-btn .d{ font-size:10px; color:rgba(248,244,238,0.6); }
+  #admin-rail .ar-btn.soon{
+    opacity:0.4; cursor:default;
+    background:rgba(248,244,238,0.04); border-color:rgba(248,244,238,0.12);
+  }
+  #admin-rail .ar-btn.soon:hover{
+    background:rgba(248,244,238,0.04); border-color:rgba(248,244,238,0.12);
+  }
+  @media(max-width:720px){
+    #admin-rail{ top:auto; bottom:16px; right:10px; width:130px; }
+    #admin-rail .ar-btn{ padding:8px 10px; }
+    #admin-rail .ar-btn .d{ display:none; }
+    #admin-rail .ar-label{ display:none; }
+  }
+
   .home-logo-wrap {
     display: flex; flex-direction: column; align-items: center;
     padding: 48px 0 28px;
@@ -1584,6 +1617,27 @@
 
     </div>
   </div>
+
+  <!-- ══ admin 전용 레일 — 소로(살롱지기)만 표시 ══ -->
+  <div id="admin-rail" aria-hidden="true">
+    <div class="ar-label">살롱지기</div>
+    <a class="ar-btn" href="admin_quiz_dashboard.html">
+      <span class="t">🎯 출제 dashboard</span>
+      <span class="d">12카테고리 현황</span>
+    </a>
+    <div class="ar-btn soon">
+      <span class="t">✍ 에세이 심사</span>
+      <span class="d">준비 중</span>
+    </div>
+    <div class="ar-btn soon">
+      <span class="t">🌱 신규 회원</span>
+      <span class="d">준비 중</span>
+    </div>
+    <div class="ar-btn soon">
+      <span class="t">⭐ star 신청</span>
+      <span class="d">준비 중</span>
+    </div>
+  </div>
 </div>
 
 <!-- ── 게임 화면들은 game_rookie.html로 이동됨 ──
@@ -1678,6 +1732,7 @@ function closeIntro() {
     el.style.display = 'none';
     document.getElementById('home-screen').classList.remove('hidden');
     checkUnseenIncome();
+    applyAdminGate();
   }, 1000);
 }
 
@@ -1838,6 +1893,17 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
 let currentUser = null;
 let currentSeasonId = 1;
 
+// ── admin 전용 레일 노출 (살롱지기 소로만) ──
+function applyAdminGate() {
+  try {
+    const rail = document.getElementById('admin-rail');
+    if (!rail || !currentUser) return;
+    const isSoro = (currentUser.email === 'lonelywalden@gmail.com')
+                || (currentUser.id === '81ac3dfa-0d44-4ab9-84bf-d630321b0bad');
+    rail.style.display = isSoro ? 'flex' : 'none';
+  } catch (e) { /* gate 무음 */ }
+}
+
 // ── 앱 시작 — 로그인 상태 확인 ──
 async function initAuth() {
   const { data: { session } } = await supa.auth.getSession();
@@ -1849,6 +1915,7 @@ async function initAuth() {
     document.getElementById('intro-screen').style.display = 'none';
     document.getElementById('home-screen').classList.remove('hidden');
     checkUnseenIncome();
+    applyAdminGate();
   } else {
     // 로그인 화면 표시
     document.getElementById('intro-screen').style.display = 'none';

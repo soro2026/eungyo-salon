@@ -35,6 +35,7 @@
 
 // ── 문제 DB: JSON에서 동적 로드 ──
 let QS = [];
+let QS_ALL = [];        // tier 한정 전 원본 풀(백업). prep에서 QS = QS_ALL.filter(tier)로 게임마다 재구성.
 let QS_LOADED = false;
 
 
@@ -413,6 +414,7 @@ async function loadQuestions() {
     });
   }
   QS = result;
+  QS_ALL = QS.slice();   // 원본 백업 — 이후 prep에서 tier로 한정
   QS_LOADED = true;
   console.log('문제 DB 로드 완료: 총 ' + QS.length + '문제 (균등 분배 셔플 완료 / ' + seeds.length + '주제)');
   // 매트릭스 갱신 (로드 후) - initGame 재실행으로 전체 갱신
@@ -619,6 +621,13 @@ async function prepExperiencedSeeds() {
     console.warn('[출제 회피] seed 로드 실패 (무시):', e?.message || e);
     _expSeedsActive = false;
     _regAvoidActive = false;
+  }
+  // 출제 풀(QS)을 현재 리그 tier로 한정 — 유저 공격(buildZoneBoard)·봇 공격(getQ/qIdx) 모든 경로 공통 차단.
+  // 시범(week0)엔 preseason만, 정규(week>0)엔 rookie만. QS_ALL(원본)에서 매 게임 재구성 → week 전환에도 안전.
+  if (QS_ALL.length) {
+    QS = ACTIVE_TIER ? QS_ALL.filter(q => (q.tier || 'preseason') === ACTIVE_TIER) : QS_ALL.slice();
+    shuffleQSForGame();
+    console.log(`[tier] ${ACTIVE_TIER || '전체'} 출제 풀: ${QS.length}문항`);
   }
 }
 

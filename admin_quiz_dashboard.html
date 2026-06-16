@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>출제 현황판 · 은교살롱 admin</title>
+<style>
+  :root{
+    --green-deep:#1B4332; --green-mid:#2D6A4F; --green-light:#52B788;
+    --gold:#C9A84C; --gold-l:#E9C97E;
+    --chalk:#F8F4EE; --chalk-dim:rgba(248,244,238,0.6);
+    --chalk-faint:rgba(248,244,238,0.12);
+    --red:#D85A30; --blue:#185FA5; --purple:#534AB7;
+    --ok:#52B788; --warn:#E9C97E; --bad:#D85A30;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--green-deep); color:var(--chalk);
+    font-family:'-apple-system','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    -webkit-font-smoothing:antialiased; padding:0 0 60px;
+  }
+  .wrap{max-width:880px; margin:0 auto; padding:20px 16px;}
+
+  /* 게이트 */
+  #gate{display:flex; flex-direction:column; align-items:center; justify-content:center;
+    min-height:80vh; text-align:center; gap:14px; padding:24px;}
+  #gate .lock{font-size:42px;}
+  #gate .msg{color:var(--chalk-dim); font-size:14px; line-height:1.7;}
+  #gate a{color:var(--gold-l); text-decoration:underline;}
+
+  /* 헤더 */
+  .head{display:flex; align-items:flex-end; justify-content:space-between;
+    border-bottom:1px solid var(--chalk-faint); padding-bottom:14px; margin-bottom:18px; gap:12px; flex-wrap:wrap;}
+  .head h1{font-size:19px; margin:0; font-weight:700; letter-spacing:0.5px;}
+  .head h1 .sub{display:block; font-size:11px; color:var(--chalk-dim); font-weight:400; margin-top:4px; letter-spacing:1px;}
+  .head .tools{display:flex; gap:8px; align-items:center;}
+  .tier-tabs{display:flex; gap:4px; background:rgba(248,244,238,0.05); border-radius:10px; padding:3px;}
+  .tier-tabs button{background:none; border:none; color:var(--chalk-dim); font-size:12px;
+    padding:6px 11px; border-radius:8px; cursor:pointer; font-family:inherit;}
+  .tier-tabs button.on{background:var(--green-light); color:var(--green-deep); font-weight:700;}
+  .refresh{background:none; border:1px solid var(--chalk-faint); color:var(--chalk-dim);
+    border-radius:8px; padding:6px 10px; cursor:pointer; font-size:12px; font-family:inherit;}
+  .refresh:hover{color:var(--chalk); border-color:var(--gold);}
+
+  /* 요약 카드 4개 */
+  .summary{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:18px;}
+  .scard{background:rgba(248,244,238,0.04); border:1px solid var(--chalk-faint);
+    border-radius:14px; padding:14px 12px; text-align:center;}
+  .scard .num{font-size:26px; font-weight:800; color:var(--gold-l); line-height:1.1;}
+  .scard .lab{font-size:11px; color:var(--chalk-dim); margin-top:5px;}
+  .scard .note{font-size:10px; color:var(--chalk-dim); margin-top:2px; opacity:0.7;}
+  @media(max-width:560px){ .summary{grid-template-columns:repeat(2,1fr);} }
+
+  /* 진행바 */
+  .progress-wrap{margin-bottom:22px;}
+  .progress-label{display:flex; justify-content:space-between; font-size:12px; color:var(--chalk-dim); margin-bottom:6px;}
+  .progress-bar{height:10px; background:rgba(248,244,238,0.08); border-radius:6px; overflow:hidden;}
+  .progress-fill{height:100%; background:linear-gradient(90deg,var(--green-light),var(--gold)); border-radius:6px; transition:width .5s;}
+
+  /* 섹션 */
+  .section{margin-bottom:26px;}
+  .section > h2{font-size:14px; font-weight:700; margin:0 0 12px; color:var(--chalk);
+    display:flex; align-items:center; gap:8px;}
+  .section > h2 .hint{font-size:11px; color:var(--chalk-dim); font-weight:400;}
+
+  /* 12카테고리 가로막대 */
+  .cat-row{display:flex; align-items:center; gap:10px; margin-bottom:8px;}
+  .cat-name{width:62px; font-size:12px; color:var(--chalk-dim); text-align:right; flex-shrink:0;}
+  .cat-track{flex:1; height:22px; background:rgba(248,244,238,0.05); border-radius:6px; position:relative; overflow:hidden;}
+  .cat-fill{height:100%; border-radius:6px; min-width:2px; transition:width .5s;
+    display:flex; align-items:center; padding-left:8px; font-size:11px; font-weight:700; color:var(--green-deep);}
+  .cat-meta{width:78px; font-size:11px; color:var(--chalk-dim); flex-shrink:0;}
+  .cat-meta b{color:var(--chalk);}
+  .goal-line{position:absolute; top:0; bottom:0; width:2px; background:var(--gold);
+    opacity:0.55; z-index:2;}
+  .goal-caption{font-size:10px; color:var(--chalk-dim); margin-top:4px; padding-left:72px;}
+
+  /* 형식 분포 */
+  .fmt-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px;}
+  .fmt-card{background:rgba(248,244,238,0.04); border:1px solid var(--chalk-faint); border-radius:12px; padding:13px; text-align:center;}
+  .fmt-card .n{font-size:22px; font-weight:800;}
+  .fmt-card .l{font-size:12px; color:var(--chalk-dim); margin-top:3px;}
+  .fmt-card .pct{font-size:11px; color:var(--gold-l); margin-top:4px;}
+
+  /* OX 균형 게이지 */
+  .ox-gauge{height:30px; border-radius:8px; overflow:hidden; display:flex; border:1px solid var(--chalk-faint);}
+  .ox-o{background:var(--blue); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; transition:width .5s; min-width:30px;}
+  .ox-x{background:var(--red); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; transition:width .5s; min-width:30px;}
+  .ox-caption{font-size:11px; color:var(--chalk-dim); margin-top:6px;}
+
+  /* 인물 테이블 */
+  table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  th,td{padding:9px 8px; text-align:left; border-bottom:1px solid rgba(248,244,238,0.07);}
+  th{color:var(--chalk-dim); font-weight:600; font-size:11px; position:sticky; top:0; background:var(--green-deep);}
+  td.c{text-align:center;} td.r{text-align:right;}
+  .badge{display:inline-block; padding:2px 7px; border-radius:6px; font-size:10px; font-weight:700;}
+  .badge.ok{background:rgba(82,183,136,0.18); color:var(--ok);}
+  .badge.bad{background:rgba(216,90,48,0.18); color:var(--bad);}
+  .person-name{font-weight:600;}
+  .fmt-mini{font-size:10.5px; color:var(--chalk-dim);}
+  .tbl-scroll{max-height:480px; overflow-y:auto; border:1px solid var(--chalk-faint); border-radius:12px;}
+
+  /* 검증 경고 */
+  .warns{background:rgba(216,90,48,0.08); border:1px solid rgba(216,90,48,0.3); border-radius:12px; padding:14px 16px;}
+  .warns.clean{background:rgba(82,183,136,0.08); border-color:rgba(82,183,136,0.3);}
+  .warns h3{margin:0 0 8px; font-size:13px;}
+  .warns ul{margin:0; padding-left:18px; font-size:12px; color:var(--chalk-dim); line-height:1.8;}
+  .warns .clean-msg{font-size:13px; color:var(--ok);}
+
+  .loading{text-align:center; padding:60px 0; color:var(--chalk-dim);}
+  .err{text-align:center; padding:30px; color:var(--bad); font-size:13px; line-height:1.7;}
+  .foot{text-align:center; font-size:11px; color:var(--chalk-dim); margin-top:30px; opacity:0.6;}
+</style>
+</head>
+<body>
+
+<!-- 권한 게이트 -->
+<div id="gate" style="display:none;">
+  <div class="lock">🔒</div>
+  <div class="msg">
+    출제 현황판은 살롱지기 전용입니다.<br>
+    소로 계정으로 로그인한 뒤 다시 열어 주세요.<br><br>
+    <a href="index.html">← 은교살롱 입구로</a>
+  </div>
+</div>
+
+<!-- 대시보드 본체 -->
+<div id="dash" class="wrap" style="display:none;">
+  <div class="head">
+    <h1>출제 현황판<span class="sub">EG STADIUM · QUESTION POOL</span></h1>
+    <div class="tools">
+      <div class="tier-tabs" id="tier-tabs">
+        <button data-tier="rookie" class="on">정규</button>
+        <button data-tier="preseason">시범</button>
+        <button data-tier="all">전체</button>
+      </div>
+      <button class="refresh" onclick="load()">↻ 새로고침</button>
+    </div>
+  </div>
+
+  <div id="body">
+    <div class="loading">현황을 불러오는 중…</div>
+  </div>
+
+  <div class="foot">한 우물(questions)에서 길어 올린 현황 · 출제 즉시 반영</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ── 환경 ──
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
+});
+
+// ── 살롱지기 식별 ──
+const SORO_EMAIL = 'lonelywalden@gmail.com';
+const SORO_UID   = '81ac3dfa-0d44-4ab9-84bf-d630321b0bad';
+
+// ── 12카테고리 표준 순서 (대분류 키 = ' · ' 앞부분) ──
+const CATS = [
+  ['문학','문학 · 종이 위의 인간','#E9C97E'],
+  ['예술','예술 · 아름다움의 형식','#D8A0C0'],
+  ['철학','철학 · 생각의 탄생','#9DB4E9'],
+  ['역사','역사 · 시간의 지층','#C9A84C'],
+  ['과학','과학 · 우주의 문법','#7FD1C0'],
+  ['신화','신화 · 신들의 정원','#E0B080'],
+  ['심리','심리 · 내면의 거울','#B5A0E9'],
+  ['사회','사회 · 세상의 구조','#E99A85'],
+  ['일상','일상 · 삶의 향기','#A8D8A0'],
+  ['생태','생태 · 땅의 노래','#88C988'],
+  ['영성','영성 · 초월의 언어','#D0C0E9'],
+  ['지리','지리 · 세계의 골목','#C0B89A'],
+];
+const TARGET = 300;          // 정규 풀 1차 비축 목표
+let curTier = 'rookie';
+
+// ── 시작: 세션 확인 → 게이트 ──
+(async function init(){
+  const { data:{ session } } = await supa.auth.getSession();
+  const u = session && session.user;
+  const isSoro = u && (u.email === SORO_EMAIL || u.id === SORO_UID);
+  if(!isSoro){
+    document.getElementById('gate').style.display = 'flex';
+    return;
+  }
+  document.getElementById('dash').style.display = 'block';
+  // tier 탭
+  document.querySelectorAll('#tier-tabs button').forEach(b=>{
+    b.onclick = ()=>{
+      document.querySelectorAll('#tier-tabs button').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on'); curTier = b.dataset.tier; load();
+    };
+  });
+  load();
+})();
+
+// ── 데이터 적재 ──
+async function load(){
+  const body = document.getElementById('body');
+  body.innerHTML = '<div class="loading">현황을 불러오는 중…</div>';
+
+  let q = supa.from('questions')
+    .select('source_seed,category,question_type,answer,figures,library,constellatio_card,tier');
+  if(curTier !== 'all') q = q.eq('tier', curTier);
+
+  const { data, error } = await q;
+  if(error){
+    body.innerHTML = '<div class="err">현황을 불러오지 못했습니다.<br>'+error.message+'</div>';
+    return;
+  }
+  render(data || []);
+}
+
+// ── 집계 + 그리기 ──
+function render(rows){
+  const total = rows.length;
+  const persons = new Set(rows.map(r=>r.source_seed||'(미지정)')).size;
+
+  // 카테고리 집계 (대분류 키)
+  const catMap = {};
+  CATS.forEach(c=> catMap[c[0]] = {n:0, persons:new Set()});
+  const otherCat = {n:0, persons:new Set()};
+  rows.forEach(r=>{
+    const big = (r.category||'').split('·')[0].trim();
+    const slot = catMap[big] || otherCat;
+    slot.n++; if(r.source_seed) slot.persons.add(r.source_seed);
+  });
+  const maxCat = Math.max(1, ...CATS.map(c=>catMap[c[0]].n), otherCat.n);
+  const goalEach = total ? total/12 : 0;
+
+  // 형식 집계
+  const fmt = {ox:0, multiple_choice:0, subjective:0, other:0};
+  rows.forEach(r=>{ fmt[r.question_type] !== undefined ? fmt[r.question_type]++ : fmt.other++; });
+
+  // OX 균형
+  let oxO=0, oxX=0;
+  rows.forEach(r=>{ if(r.question_type==='ox'){ (r.answer==='O'?oxO++:oxX++); }});
+  const oxTotal = oxO+oxX;
+
+  // 인물별 집계
+  const pMap = {};
+  rows.forEach(r=>{
+    const k = r.source_seed || '(미지정)';
+    if(!pMap[k]) pMap[k] = {n:0, cat:'', fmt:{ox:0,mc:0,sj:0}, layerOK:0, figOK:0};
+    const p = pMap[k];
+    p.n++;
+    if(!p.cat) p.cat = (r.category||'').split('·')[0].trim();
+    if(r.question_type==='ox') p.fmt.ox++;
+    else if(r.question_type==='multiple_choice') p.fmt.mc++;
+    else if(r.question_type==='subjective') p.fmt.sj++;
+    // 4겹 완비
+    const L = r.library||{};
+    if(L.knowledge && L.thought && L.connection && L.curation) p.layerOK++;
+    // figures 존재
+    if(Array.isArray(r.figures) && r.figures.length>0) p.figOK++;
+  });
+  const personList = Object.entries(pMap).sort((a,b)=>b[1].n-a[1].n);
+
+  // 검증 경고 수집
+  const warns = [];
+  personList.forEach(([name,p])=>{
+    if(p.layerOK < p.n) warns.push(`<b>${esc(name)}</b> — 4겹 미완비 ${p.n-p.layerOK}/${p.n}문항`);
+    if(p.figOK < p.n)   warns.push(`<b>${esc(name)}</b> — figures(별 이름) 빈 문항 ${p.n-p.figOK}/${p.n}`);
+  });
+  if(pMap['(미지정)']) warns.push(`source_seed 미지정 문항 ${pMap['(미지정)'].n}건 — 게임 셔플 그룹화 깨짐`);
+  if(oxTotal>=2 && (oxO===0||oxX===0)) warns.push(`OX 정답 편향 — O ${oxO} / X ${oxX} (50:50 권장)`);
+
+  // ── 렌더 ──
+  const oxBalance = oxTotal? Math.round(Math.min(oxO,oxX)/oxTotal*200) : 0; // 0~100(50:50이면 100)
+  let html = '';
+
+  // 요약 4카드
+  html += `<div class="summary">
+    <div class="scard"><div class="num">${total}</div><div class="lab">총 문항</div>${curTier==='rookie'?`<div class="note">목표 ${TARGET}</div>`:''}</div>
+    <div class="scard"><div class="num">${persons}</div><div class="lab">출제 인물</div><div class="note">하루 9명 기준 ${ (persons/9).toFixed(1) }일치</div></div>
+    <div class="scard"><div class="num">${oxTotal?Math.round(oxO/oxTotal*100):'—'}<span style="font-size:14px">${oxTotal?'%':''}</span></div><div class="lab">OX 중 O 비율</div><div class="note">${oxO}O · ${oxX}X</div></div>
+    <div class="scard"><div class="num">${warns.length}</div><div class="lab">검증 경고</div><div class="note">${warns.length?'점검 필요':'깨끗'}</div></div>
+  </div>`;
+
+  // 진행바 (정규만)
+  if(curTier==='rookie'){
+    const pct = Math.min(100, Math.round(total/TARGET*100));
+    html += `<div class="progress-wrap">
+      <div class="progress-label"><span>정규 풀 비축</span><span>${total} / ${TARGET} (${pct}%)</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+    </div>`;
+  }
+
+  // 12카테고리 막대
+  html += `<div class="section"><h2>12카테고리 분포 <span class="hint">· 금색 선 = 균등 기준(총÷12)</span></h2>`;
+  const goalPct = goalEach/maxCat*100;
+  CATS.forEach(([key,full,color])=>{
+    const slot = catMap[key];
+    const w = slot.n/maxCat*100;
+    html += `<div class="cat-row">
+      <div class="cat-name">${key}</div>
+      <div class="cat-track">
+        ${total?`<div class="goal-line" style="left:${goalPct}%"></div>`:''}
+        <div class="cat-fill" style="width:${w}%; background:${color}">${slot.n||''}</div>
+      </div>
+      <div class="cat-meta"><b>${slot.n}</b>문항·${slot.persons.size}명</div>
+    </div>`;
+  });
+  if(otherCat.n){
+    html += `<div class="cat-row"><div class="cat-name" style="color:var(--bad)">기타</div>
+      <div class="cat-track"><div class="cat-fill" style="width:${otherCat.n/maxCat*100}%; background:var(--bad)">${otherCat.n}</div></div>
+      <div class="cat-meta"><b>${otherCat.n}</b>문항</div></div>`;
+  }
+  html += `<div class="goal-caption">균등 기준선 ${goalEach.toFixed(1)}문항 · 막대가 선을 크게 넘거나 못 미치면 그날 보정</div></div>`;
+
+  // 형식 분포
+  const fmtPct = n=> total? Math.round(n/total*100)+'%' : '—';
+  html += `<div class="section"><h2>형식 분포 <span class="hint">· 헌법 권장 OX 1 : 객관식 2 : 주관식 3</span></h2>
+    <div class="fmt-grid">
+      <div class="fmt-card"><div class="n" style="color:#9DB4E9">${fmt.ox}</div><div class="l">OX</div><div class="pct">${fmtPct(fmt.ox)} · 권장 17%</div></div>
+      <div class="fmt-card"><div class="n" style="color:#7FD1C0">${fmt.multiple_choice}</div><div class="l">객관식</div><div class="pct">${fmtPct(fmt.multiple_choice)} · 권장 33%</div></div>
+      <div class="fmt-card"><div class="n" style="color:#E9C97E">${fmt.subjective}</div><div class="l">주관식</div><div class="pct">${fmtPct(fmt.subjective)} · 권장 50%</div></div>
+    </div></div>`;
+
+  // OX 균형 게이지
+  if(oxTotal){
+    const oPct = oxO/oxTotal*100;
+    html += `<div class="section"><h2>OX 정답 균형 <span class="hint">· 50:50에 가까울수록 좋음 (룰7)</span></h2>
+      <div class="ox-gauge">
+        <div class="ox-o" style="width:${oPct}%">O ${oxO}</div>
+        <div class="ox-x" style="width:${100-oPct}%">X ${oxX}</div>
+      </div>
+      <div class="ox-caption">균형도 ${oxBalance}% ${oxBalance>=80?'· 좋음':oxBalance>=50?'· 보통':'· 한쪽 쏠림, X(또는 O) 보강 필요'}</div></div>`;
+  }
+
+  // 인물 테이블
+  html += `<div class="section"><h2>출제 인물 <span class="hint">· ${personList.length}명</span></h2>
+    <div class="tbl-scroll"><table>
+    <thead><tr><th>인물</th><th class="c">문항</th><th>카테고리</th><th class="c">형식(O/객/주)</th><th class="c">4겹</th><th class="c">별이름</th></tr></thead><tbody>`;
+  personList.forEach(([name,p])=>{
+    const layerBadge = p.layerOK===p.n ? `<span class="badge ok">✓</span>` : `<span class="badge bad">${p.layerOK}/${p.n}</span>`;
+    const figBadge   = p.figOK===p.n   ? `<span class="badge ok">✓</span>` : `<span class="badge bad">${p.figOK}/${p.n}</span>`;
+    html += `<tr>
+      <td class="person-name">${esc(name)}</td>
+      <td class="c">${p.n}</td>
+      <td>${esc(p.cat||'—')}</td>
+      <td class="c fmt-mini">${p.fmt.ox}/${p.fmt.mc}/${p.fmt.sj}</td>
+      <td class="c">${layerBadge}</td>
+      <td class="c">${figBadge}</td>
+    </tr>`;
+  });
+  if(!personList.length) html += `<tr><td colspan="6" style="text-align:center; color:var(--chalk-dim); padding:24px">아직 출제된 문항이 없습니다.</td></tr>`;
+  html += `</tbody></table></div></div>`;
+
+  // 검증 경고
+  if(warns.length){
+    html += `<div class="section"><div class="warns"><h3>⚠ 점검 신호 ${warns.length}건</h3><ul>`;
+    warns.forEach(w=> html += `<li>${w}</li>`);
+    html += `</ul></div></div>`;
+  } else if(total){
+    html += `<div class="section"><div class="warns clean"><div class="clean-msg">✓ 4겹·별이름·OX 균형 모두 깨끗합니다.</div></div></div>`;
+  }
+
+  document.getElementById('body').innerHTML = html;
+}
+
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+</script>
+</body>
+</html>
