@@ -126,11 +126,22 @@ function shortCat(cat) {
   // 6) 마지막 fallback — 앞 2자
   return trimmed.slice(0, 2);
 }
+// ── 오늘 날짜 YYYY-MM-DD — 로컬(콩파뇽) 시각 기준 ──
+// stadium_v2.html의 getToday()와 동일 로직. 일정·저장·표시를 한 시계로 통일(함정 #8).
+// ⚠️ toISOString()(UTC)로 만들면 한국 0~9시(UTC 전날)에 경기 결과가 어제 칸에 박힘. 절대 금지.
+function egLocalDate() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 // 풀배경 이미지 랜덤 선택 (stadium_bg_01.webp ~ stadium_bg_30.webp)
 // 하루에 1번 랜덤 선택 → localStorage에 저장 → 같은 날엔 같은 배경
 const STADIUM_BG_COUNT = 30;
 function getTodayBgIndex() {
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const today = egLocalDate(); // 로컬 시각 기준 (함정 #8)
   const stored = localStorage.getItem('eg_stadium_bg_today');
   if (stored) {
     try {
@@ -2129,7 +2140,7 @@ async function saveStatsToSupabase() {
 
     // ── 2단계. matches 처치 ──────────────────────────────
     //   오늘 날짜의 my_game 행 찾기 → 있으면 UPDATE, 없으면 INSERT
-    const today = new Date().toISOString().slice(0, 10);  // 'YYYY-MM-DD'
+    const today = egLocalDate();  // 로컬 시각 기준 — 새벽 경기가 어제 칸에 박히던 버그 수정(함정 #8)
     const isWin = st.scoreMe > st.scoreAi;
     // 🎲 주사위 끝내기 표식 — finishDice가 st.diceResult.decided=true로 남긴다(정상 경기는 null).
     const _dr = st.diceResult;
@@ -3218,7 +3229,7 @@ async function getTodayMatchInfo(forceRefresh){
   if(!currentUser) return null;
   const headers = await egAuthHeaders();
   if(!headers) return null;
-  const today = new Date().toISOString().slice(0,10);
+  const today = egLocalDate();  // 로컬 시각 기준 (함정 #8)
   try{
     const res = await fetch(
       `${SUPA_URL}/rest/v1/matches?user_id=eq.${currentUser.id}&match_date=eq.${today}&select=id,is_my_game,week_num,home_team,away_team,home_score,away_score,status`,
