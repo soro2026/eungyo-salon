@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>문항 출제빈도 · 은교살롱 admin</title>
+<style>
+  :root{
+    --green-deep:#1B4332; --green-mid:#2D6A4F; --green-light:#52B788;
+    --gold:#C9A84C; --gold-l:#E9C97E;
+    --chalk:#F8F4EE; --chalk-dim:rgba(248,244,238,0.6);
+    --chalk-faint:rgba(248,244,238,0.12);
+    --red:#D85A30; --blue:#185FA5;
+    --ok:#52B788; --warn:#E9C97E; --bad:#D85A30;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--green-deep); color:var(--chalk);
+    font-family:'-apple-system','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    -webkit-font-smoothing:antialiased; padding:0 0 60px;
+  }
+  .wrap{max-width:880px; margin:0 auto; padding:20px 16px;}
+
+  /* 게이트 */
+  #gate{display:none; flex-direction:column; align-items:center; justify-content:center;
+    min-height:80vh; text-align:center; gap:14px; padding:24px;}
+  #gate .lock{font-size:42px;}
+  #gate .msg{color:var(--chalk-dim); font-size:14px; line-height:1.7;}
+  #gate a{color:var(--gold-l); text-decoration:underline;}
+
+  /* 헤더 */
+  .head{display:flex; align-items:flex-end; justify-content:space-between;
+    border-bottom:1px solid var(--chalk-faint); padding-bottom:14px; margin-bottom:18px; gap:12px; flex-wrap:wrap;}
+  .head h1{font-size:19px; margin:0; font-weight:700; letter-spacing:0.5px;}
+  .head h1 .sub{display:block; font-size:11px; color:var(--chalk-dim); font-weight:400; margin-top:4px; letter-spacing:1px;}
+  .head .tools{display:flex; gap:8px; align-items:center;}
+  .tier-tabs{display:flex; gap:4px; background:rgba(248,244,238,0.05); border-radius:10px; padding:3px;}
+  .tier-tabs button{background:none; border:none; color:var(--chalk-dim); font-size:12px;
+    padding:6px 11px; border-radius:8px; cursor:pointer; font-family:inherit;}
+  .tier-tabs button.on{background:var(--green-light); color:var(--green-deep); font-weight:700;}
+  .refresh{background:none; border:1px solid var(--chalk-faint); color:var(--chalk-dim);
+    border-radius:8px; padding:6px 10px; cursor:pointer; font-size:12px; font-family:inherit;}
+  .refresh:hover{color:var(--chalk); border-color:var(--gold);}
+
+  /* 요약 카드 */
+  .summary{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:18px;}
+  .scard{background:rgba(248,244,238,0.04); border:1px solid var(--chalk-faint);
+    border-radius:14px; padding:14px 12px; text-align:center;}
+  .scard .num{font-size:26px; font-weight:800; color:var(--gold-l); line-height:1.1;}
+  .scard .num.zero{color:var(--warn);}
+  .scard .lab{font-size:11px; color:var(--chalk-dim); margin-top:5px;}
+  .scard .note{font-size:10px; color:var(--chalk-dim); margin-top:2px; opacity:0.75;}
+  @media(max-width:560px){ .summary{grid-template-columns:repeat(2,1fr);} }
+
+  /* 섹션 */
+  .section{margin-bottom:26px;}
+  .section > h2{font-size:14px; font-weight:700; margin:0 0 12px; color:var(--chalk);
+    display:flex; align-items:center; gap:8px;}
+  .section > h2 .hint{font-size:11px; color:var(--chalk-dim); font-weight:400;}
+
+  /* 빈도 분포 막대 */
+  .dist-row{display:flex; align-items:center; gap:10px; margin-bottom:7px;}
+  .dist-name{width:56px; font-size:12px; color:var(--chalk-dim); text-align:right; flex-shrink:0;}
+  .dist-track{flex:1; height:22px; background:rgba(248,244,238,0.05); border-radius:6px; overflow:hidden;}
+  .dist-fill{height:100%; border-radius:6px; min-width:2px; transition:width .5s;
+    display:flex; align-items:center; padding-left:8px; font-size:11px; font-weight:700; color:var(--green-deep);}
+  .dist-meta{width:64px; font-size:11px; color:var(--chalk-dim); flex-shrink:0;}
+  .dist-meta b{color:var(--chalk);}
+
+  /* 카테고리 소진율 */
+  .cat-row{display:flex; align-items:center; gap:10px; margin-bottom:8px;}
+  .cat-name{width:62px; font-size:12px; color:var(--chalk-dim); text-align:right; flex-shrink:0;}
+  .cat-track{flex:1; height:18px; background:rgba(248,244,238,0.05); border-radius:6px; overflow:hidden;}
+  .cat-fill{height:100%; border-radius:6px; min-width:2px; transition:width .5s; background:linear-gradient(90deg,var(--green-light),var(--gold));}
+  .cat-meta{width:96px; font-size:11px; color:var(--chalk-dim); flex-shrink:0;}
+  .cat-meta b{color:var(--chalk);}
+
+  /* 테이블 */
+  .tbl-tools{display:flex; align-items:center; gap:14px; margin-bottom:10px; font-size:12px; color:var(--chalk-dim);}
+  .tbl-tools label{display:flex; align-items:center; gap:6px; cursor:pointer;}
+  table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  th,td{padding:9px 8px; text-align:left; border-bottom:1px solid rgba(248,244,238,0.07);}
+  th{color:var(--chalk-dim); font-weight:600; font-size:11px; position:sticky; top:0; background:var(--green-deep); cursor:pointer; user-select:none;}
+  th.c,td.c{text-align:center;} th.r,td.r{text-align:right;}
+  .person-name{font-weight:600;}
+  .ans{color:var(--chalk-dim); font-size:11.5px;}
+  .served-0{color:var(--warn); font-weight:700;}
+  .served-hi{color:var(--gold-l); font-weight:700;}
+  .tbl-scroll{max-height:520px; overflow-y:auto; border:1px solid var(--chalk-faint); border-radius:12px;}
+  .rate-dim{color:var(--chalk-faint);}
+
+  .loading{text-align:center; padding:60px 0; color:var(--chalk-dim);}
+  .err{text-align:center; padding:30px; color:var(--bad); font-size:13px; line-height:1.7;}
+  .foot{text-align:center; font-size:11px; color:var(--chalk-dim); margin-top:30px; opacity:0.6; line-height:1.7;}
+</style>
+</head>
+<body>
+
+<!-- 권한 게이트 -->
+<div id="gate">
+  <div class="lock">🔒</div>
+  <div class="msg">
+    문항 출제빈도는 살롱지기 전용입니다.<br>
+    소로 계정으로 로그인한 뒤 다시 열어 주세요.<br><br>
+    <a href="index.html">← 은교살롱 입구로</a>
+  </div>
+</div>
+
+<!-- 본체 -->
+<div id="dash" class="wrap" style="display:none;">
+  <div class="head">
+    <h1>문항 출제빈도<span class="sub">EG STADIUM · QUESTION FREQUENCY</span></h1>
+    <div class="tools">
+      <div class="tier-tabs" id="tier-tabs">
+        <button data-tier="preseason" class="on">시범</button>
+        <button data-tier="rookie">정규</button>
+        <button data-tier="all">전체</button>
+      </div>
+      <button class="refresh" onclick="load()">↻ 새로고침</button>
+    </div>
+  </div>
+
+  <div id="body">
+    <div class="loading">우물에서 길어 올리는 중…</div>
+  </div>
+
+  <div class="foot">
+    전체 유저가 마주친 누적 출제 횟수 · 문항 단위 집계(인물 아님)<br>
+    quiz_log는 본인 행만 잠겨 있고, 이 통계는 살롱지기 전용 우물에서만 길어 올립니다.
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ── 환경 ──
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
+});
+
+const SORO_EMAIL = 'lonelywalden@gmail.com';
+const SORO_UID   = '81ac3dfa-0d44-4ab9-84bf-d630321b0bad';
+
+// 12카테고리 표준 순서 (대분류 키 = ' · ' 앞부분)
+const CATS = ['문학','예술','철학','역사','과학','신화','심리','사회','일상','생태','영성','지리'];
+
+let curTier = 'preseason';
+let _rows = [];           // 현재 tier 문항 집계
+let _zeroOnly = false;
+let _sortKey = 'times';   // times | person
+let _sortDir = -1;        // -1 내림차순
+let _lastSum = { total_served:0, distinct_players:0 };
+
+// ── 시작 ──
+(async function init(){
+  const { data:{ session } } = await supa.auth.getSession();
+  const u = session && session.user;
+  const isSoro = u && (u.email === SORO_EMAIL || u.id === SORO_UID);
+  if(!isSoro){ document.getElementById('gate').style.display = 'flex'; return; }
+  document.getElementById('dash').style.display = 'block';
+  document.querySelectorAll('#tier-tabs button').forEach(b=>{
+    b.onclick = ()=>{
+      document.querySelectorAll('#tier-tabs button').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on'); curTier = b.dataset.tier; load();
+    };
+  });
+  load();
+})();
+
+// ── 우물에서 길어 올리기 ──
+async function load(){
+  const body = document.getElementById('body');
+  body.innerHTML = '<div class="loading">우물에서 길어 올리는 중…</div>';
+  const [freq, summary] = await Promise.all([
+    supa.rpc('get_question_frequency', { p_tier: curTier }),
+    supa.rpc('get_quizlog_summary',   { p_tier: curTier })
+  ]);
+  if(freq.error){
+    body.innerHTML = '<div class="err">우물을 열지 못했습니다.<br>'+freq.error.message+'</div>';
+    return;
+  }
+  _rows = freq.data || [];
+  const sum = (summary.data && summary.data[0]) || { total_served:0, distinct_players:0 };
+  render(sum);
+}
+
+// ── 그리기 ──
+function render(sum){
+  if(sum) _lastSum = sum; else sum = _lastSum;
+  const total   = _rows.length;
+  const served  = _rows.filter(r=>r.times_served>0).length;
+  const zero    = total - served;
+  const maxServed = Math.max(0, ..._rows.map(r=>r.times_served));
+
+  let html = '';
+
+  // 요약 4카드
+  html += `<div class="summary">
+    <div class="scard"><div class="num">${total}</div><div class="lab">총 문항</div><div class="note">${tierLabel()} 풀</div></div>
+    <div class="scard"><div class="num">${served}</div><div class="lab">출제된 문항</div><div class="note">풀의 ${total?Math.round(served/total*100):0}%</div></div>
+    <div class="scard"><div class="num zero">${zero}</div><div class="lab">아직 0회</div><div class="note">한 번도 안 나옴</div></div>
+    <div class="scard"><div class="num">${sum.total_served}</div><div class="lab">총 타석</div><div class="note">유저 ${sum.distinct_players}명 · 최다 ${maxServed}회</div></div>
+  </div>`;
+
+  // 빈도 분포 (출제 횟수별 문항 수)
+  const distMap = {};
+  _rows.forEach(r=>{ const k=r.times_served; distMap[k]=(distMap[k]||0)+1; });
+  const keys = Object.keys(distMap).map(Number).sort((a,b)=>b-a);
+  const maxBucket = Math.max(1, ...Object.values(distMap));
+  html += `<div class="section"><h2>출제 횟수 분포 <span class="hint">· 풀이 고루 도는지 한눈에</span></h2>`;
+  keys.forEach(k=>{
+    const n = distMap[k];
+    const w = n/maxBucket*100;
+    const color = k===0 ? 'var(--warn)' : 'linear-gradient(90deg,var(--green-light),var(--gold))';
+    html += `<div class="dist-row">
+      <div class="dist-name">${k}회</div>
+      <div class="dist-track"><div class="dist-fill" style="width:${w}%; background:${color}">${n}</div></div>
+      <div class="dist-meta"><b>${n}</b>문항</div>
+    </div>`;
+  });
+  html += `</div>`;
+
+  // 카테고리별 소진율
+  const catMap = {};
+  CATS.forEach(c=> catMap[c]={total:0, served:0});
+  const otherCat = {total:0, served:0};
+  _rows.forEach(r=>{
+    const big = (r.category||'').split('·')[0].trim();
+    const slot = catMap[big] || otherCat;
+    slot.total++; if(r.times_served>0) slot.served++;
+  });
+  html += `<div class="section"><h2>카테고리별 소진율 <span class="hint">· 출제된 문항 / 전체 문항</span></h2>`;
+  CATS.forEach(c=>{
+    const s = catMap[c];
+    if(s.total===0) return;
+    const pct = s.served/s.total*100;
+    html += `<div class="cat-row">
+      <div class="cat-name">${c}</div>
+      <div class="cat-track"><div class="cat-fill" style="width:${pct}%"></div></div>
+      <div class="cat-meta"><b>${s.served}</b>/${s.total} (${Math.round(pct)}%)</div>
+    </div>`;
+  });
+  html += `</div>`;
+
+  // 문항 테이블
+  html += `<div class="section"><h2>문항별 상세 <span class="hint">· 헤더 클릭 = 정렬</span></h2>
+    <div class="tbl-tools">
+      <label><input type="checkbox" id="zeroChk" ${_zeroOnly?'checked':''} onchange="toggleZero(this.checked)"> 0회 문항만 보기</label>
+      <span>정답률 칸은 was_correct 기록이 쌓이면 채워집니다</span>
+    </div>
+    <div class="tbl-scroll"><table>
+    <thead><tr>
+      <th onclick="setSort('person')">인물</th>
+      <th>정답(문항)</th>
+      <th>카테고리</th>
+      <th class="c" onclick="setSort('times')">출제수</th>
+      <th class="c">정답률</th>
+    </tr></thead><tbody>`;
+
+  let view = _zeroOnly ? _rows.filter(r=>r.times_served===0) : _rows.slice();
+  view.sort((a,b)=>{
+    if(_sortKey==='person') return _sortDir * String(a.source_seed||'').localeCompare(String(b.source_seed||''));
+    return _sortDir * (a.times_served - b.times_served);
+  });
+  view.forEach(r=>{
+    const graded = r.n_correct + r.n_wrong;
+    const rate = graded>0 ? Math.round(r.n_correct/graded*100)+'%' : '<span class="rate-dim">—</span>';
+    const cls = r.times_served===0 ? 'served-0' : (r.times_served===maxServed && maxServed>0 ? 'served-hi' : '');
+    html += `<tr>
+      <td class="person-name">${esc(r.source_seed||'—')}</td>
+      <td class="ans">${esc(r.answer||'')}</td>
+      <td class="ans">${esc((r.category||'').split('·')[0].trim()||'—')}</td>
+      <td class="c ${cls}">${r.times_served}</td>
+      <td class="c">${graded>0?`${rate} <span class="rate-dim">(${r.n_correct}/${graded})</span>`:rate}</td>
+    </tr>`;
+  });
+  if(!view.length) html += `<tr><td colspan="5" style="text-align:center; color:var(--chalk-dim); padding:24px">${_zeroOnly?'0회 문항이 없습니다 — 풀이 다 돌았네요.':'문항이 없습니다.'}</td></tr>`;
+  html += `</tbody></table></div></div>`;
+
+  document.getElementById('body').innerHTML = html;
+}
+
+function tierLabel(){ return curTier==='preseason'?'시범':curTier==='rookie'?'정규':'전체'; }
+function toggleZero(v){ _zeroOnly=v; render(_lastSum); }
+function setSort(k){ if(_sortKey===k){ _sortDir*=-1; } else { _sortKey=k; _sortDir=-1; } render(_lastSum); }
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+</script>
+</body>
+</html>
