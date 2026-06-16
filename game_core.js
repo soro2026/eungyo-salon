@@ -385,6 +385,7 @@ async function loadQuestions() {
   //   seed_id = 그룹화·복습 키(인물 단위). DB는 source_seed(31), GitHub은 seed_id가 이미 인물.
   QS = rawList.map(q => ({
     seed_id: q.source_seed || q.seed_id,
+    qid: q.seed_id || ((q.source_seed||'') + '|' + (q.difficulty||'') + '|' + (q.answer||'')),
     difficulty: q.difficulty,
     cat: q.category,
     keyword: q.keyword,
@@ -836,7 +837,9 @@ function selectZone(idx) {
 
   // 선택된 존의 문제를 st.qIdx에 반영
   const selectedQ = ZONE_BOARD[idx].q;
-  const qIdx = QS.findIndex(q => q.seed_id === selectedQ.seed_id && q.difficulty === selectedQ.difficulty);
+  const qIdx = QS.findIndex(q =>
+    selectedQ.qid ? (q.qid === selectedQ.qid)
+                  : (q.seed_id === selectedQ.seed_id && q.difficulty === selectedQ.difficulty && q.answer === selectedQ.answer));
   if (qIdx >= 0) st.qIdx = qIdx;
 
   // 존 보드 타이틀 변경
@@ -1693,11 +1696,11 @@ function processAns(ans){
     // 주관식 — 기존 로직 (정규화 + aliases 비교)
     const ua = norm(ans);
     const ca = norm(q.answer);
-    ok = ua === ca || (ua.length >= 2 && ca.includes(ua));
+    ok = ua === ca;
     // aliases 비교 (있으면)
     if (!ok && Array.isArray(q.aliases)) {
       for (const alias of q.aliases) {
-        if (ua === norm(alias) || (ua.length >= 2 && norm(alias).includes(ua))) {
+        if (ua === norm(alias)) {
           ok = true;
           break;
         }
