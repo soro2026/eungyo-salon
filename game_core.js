@@ -320,7 +320,7 @@ async function logQuizToMuseum(q, wasCorrect) {
       body: JSON.stringify({
         uid: currentUser.id,
         answer: q.answer,
-        seed_id: q.seed_id || '',
+        seed_id: q.qid || q.seed_id || '',
         category: q.cat || '',
         was_correct: (typeof wasCorrect === 'boolean' ? wasCorrect : null)
       })
@@ -382,7 +382,8 @@ async function loadQuestions() {
   }
 
   // ── 매핑 통일 (DB·GitHub 공통) ──
-  //   seed_id = 그룹화·복습 키(인물 단위). DB는 source_seed(31), GitHub은 seed_id가 이미 인물.
+  //   seed_id = 셔플 그룹화 키(인물 단위). qid = 문항 고유 키(quiz_log 기록·복습 회피용).
+  //   DB는 source_seed(인물)·seed_id(문항). GitHub은 seed_id가 이미 인물.
   QS = rawList.map(q => ({
     seed_id: q.source_seed || q.seed_id,
     qid: q.seed_id || ((q.source_seed||'') + '|' + (q.difficulty||'') + '|' + (q.answer||'')),
@@ -689,9 +690,9 @@ function buildZoneBoard() {
   function isDuplicate(q) {
     if (usedSeedIds.has(q.seed_id) || GAME_USED_SEEDS.has(q.seed_id)) return true;
     // B방식: 시범경기 활성 시 이전 경기 경험 문제도 회피 (3차 폴백에선 제외 → 바닥나면 허용)
-    if (_expSeedsActive && EXPERIENCED_SEEDS.has(q.seed_id)) return true;
+    if (_expSeedsActive && EXPERIENCED_SEEDS.has(q.qid)) return true;
     // 복습 로직: 정규경기 활성 시 2주내·정복 문제 회피 (3차 폴백에선 제외 → 안전망)
-    if (_regAvoidActive && REGULAR_AVOID.has(q.seed_id)) return true;
+    if (_regAvoidActive && REGULAR_AVOID.has(q.qid)) return true;
     if (usedAnswers.has(q.answer) || GAME_USED_ANSWERS.has(q.answer)) return true;
     // figures 배열 안의 *어느 한 인물*이라도 이미 등장했으면 중복
     if (Array.isArray(q.figures)) {
