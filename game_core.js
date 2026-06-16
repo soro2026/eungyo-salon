@@ -35,6 +35,11 @@
 
 // ── 문제 DB: JSON에서 동적 로드 ──
 let QS = [];
+// 🔧🔧 임시 검증 플래그 (2026-06-16) — 시범경기(week0)도 통산 스탯에 반영해 스탯바를 눈으로 검증하기 위함.
+//   ⚠️ 검증이 끝나면 반드시 false 로 되돌리고 DB(category_stats/season_stats/matches 등) 리셋할 것.
+//   정책 원칙: 시범경기는 통산 미반영. 이 플래그는 오직 1회성 검증용.
+let TEST_PRESEASON_STATS = true;
+let PLAYER_NICK = 'SORO';   // 게임 멘트·투구준비에 띄울 플레이어 닉네임(팀명 SORO와 별개). startGame에서 users.nickname 로드, 폴백 'SORO'.
 let QS_ALL = [];        // tier 한정 전 원본 풀(백업). prep에서 QS = QS_ALL.filter(tier)로 게임마다 재구성.
 let QS_LOADED = false;
 
@@ -42,13 +47,29 @@ let QS_LOADED = false;
 
 // 한국어 조사 처리 함수
 function getJosa(name, type) {
-  const last = name[name.length - 1];
-  const code = last.charCodeAt(0);
-  const hasBatchim = (code - 0xAC00) % 28 !== 0;
-  if (type === 'ga') return hasBatchim ? '이' : '가';
+  name = name || '';
+  const last = name[name.length - 1] || '';
+  const code = last.charCodeAt(0) || 0;
+  let hasBatchim;
+  if (code >= 0xAC00 && code <= 0xD7A3) {
+    // 한글 음절 — 받침(종성) 유무 (봇 이름·한글 닉네임)
+    hasBatchim = (code - 0xAC00) % 28 !== 0;
+  } else if (/[a-z]/i.test(last)) {
+    // 영문 닉네임 — 한국어 발음상 받침 추정 (끝글자 휴리스틱)
+    //   받침 O: l(ㄹ)·m(ㅁ)·n(ㄴ)·ng(ㅇ)   /   받침 X: 모음·r·s·x·z·기타자음(드·크·트…)
+    const c = last.toLowerCase();
+    if (name.slice(-2).toLowerCase() === 'ng') hasBatchim = true;
+    else hasBatchim = (c === 'l' || c === 'm' || c === 'n');
+  } else if (/[0-9]/.test(last)) {
+    // 숫자 발음 받침: 0영·1일·3삼·6육·7칠·8팔 = 받침 / 2·4·5·9 = 없음
+    hasBatchim = '013678'.includes(last);
+  } else {
+    hasBatchim = false; // 기호 등은 받침 없음 취급
+  }
+  if (type === 'ga')  return hasBatchim ? '이' : '가';
   if (type === 'eul') return hasBatchim ? '을' : '를';
   if (type === 'eun') return hasBatchim ? '은' : '는';
-  if (type === 'wa') return hasBatchim ? '과' : '와';
+  if (type === 'wa')  return hasBatchim ? '과' : '와';
   return '';
 }
 // 카테고리명 2자 메인명으로 정규화
@@ -1047,7 +1068,19 @@ const COMMENTARY = {
       ? [ pickC(C_SWING), '총알 같은 직선타!', `${p}가 ${pickC(C_GREAT)}...`, '믿기지 않는 호수비! 잡았습니다!' ]
       : [ pickC(C_SWING), '강한 직선타!', `${p} 정면입니다!`, '아웃! 잘 맞았지만 정면이었습니다.' ]; },
 };
-function composeComment(mk){ const fn=COMMENTARY[mk]; return fn ? fn() : ['타격!','결과 처리 중...']; }
+// 내 공격 멘트의 '타자' → 플레이어 닉네임 (조사 궁합 자동). 봇 멘트(composeAIComment)는 미적용.
+function applyNick(line){
+  const n = PLAYER_NICK;
+  return line
+    .replace(/타자가/g, n + getJosa(n,'ga'))
+    .replace(/타자는/g, n + getJosa(n,'eun'))
+    .replace(/타자를/g, n + getJosa(n,'eul'))
+    .replace(/타자와/g, n + getJosa(n,'wa'))
+    .replace(/타자의/g, n + '의')
+    .replace(/타자에게/g, n + '에게')
+    .replace(/타자/g,  n);
+}
+function composeComment(mk){ const fn=COMMENTARY[mk]; const lines = fn ? fn() : ['타격!','결과 처리 중...']; return lines.map(applyNick); }
 
 // ── 봇(상대) 출루 멘트 — 결과 유형별 (소로 6/9 피드백: 볼넷인데 "안타" 멘트 모순 해결) ──
 //    유저 시점은 '수비/허용' 관점. 봇 이름은 호출부에서 getMsg와 동일하게 치환.
@@ -1740,7 +1773,7 @@ function doAutoOut(){
   // 뮤세움 연동 — 시간초과도 경험한 문제로 기록 (정답 여부 = 오답)
   logQuizToMuseum(getQ(), false);
   document.getElementById('game-area').style.display='none';
-  showJudging(getMsg('timeout'),()=>{
+  showJudging(getMsg('timeout').map(applyNick),()=>{
     st.totalAB++;renderOuts();updateStats();
     const ra=document.getElementById('result-area');
     ra.innerHTML=mkResult('OUT','r-out','시간 초과 | 정답: '+getQ().display);
@@ -2179,7 +2212,10 @@ async function saveStatsToSupabase() {
 
     // ── 시범경기(week_num=0): 일정(matches)만 completed로 남기고 통계는 미반영 ──
     const isPreseason = existingMatches?.[0]?.week_num === 0;
-    if (isPreseason) {
+    if (isPreseason && TEST_PRESEASON_STATS) {
+      console.warn('⚠️[검증모드] 시범경기 통산 반영 중 — TEST_PRESEASON_STATS=true. 검증이 끝나면 false 로 되돌리고 DB 리셋 필수.');
+    }
+    if (isPreseason && !TEST_PRESEASON_STATS) {
       console.log('[저장] 시범경기 — 시즌/통산 통계 미반영 (matches만 completed)');
       return;
     }
@@ -2905,6 +2941,18 @@ async function startGame(){
   GAME_USED_FIGURES.clear();
   GAME_USED_ANSWERS.clear();
   st.diceResult = null;  // 🎲 이전 경기의 주사위 결판 흔적 청산 (정상 경기에 새지 않도록)
+  // ── 플레이어 닉네임 로드 (멘트·투구준비에 띄움; 실패 시 폴백 'SORO') ──
+  try {
+    if (currentUser) {
+      const _tk = (await supa.auth.getSession()).data.session?.access_token;
+      const _nr = await fetch(
+        `${SUPA_URL}/rest/v1/users?id=eq.${currentUser.id}&select=nickname`,
+        { headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${_tk}` } }
+      );
+      const _nd = await _nr.json();
+      if (_nd?.[0]?.nickname) PLAYER_NICK = _nd[0].nickname;
+    }
+  } catch(e) { /* 폴백 'SORO' 유지 */ }
   if(!QS_LOADED || QS.length === 0){
     alert("문제를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
     return;
@@ -3028,7 +3076,7 @@ function showAtStep(){
     const oppFull = currentOpp ? currentOpp.name : '상대 타자';
     const msgLines = [
       oppFull + ' 타자가 타석에 들어섭니다.',
-      'Soro 마운드에서 준비를 하고 있습니다.',
+      PLAYER_NICK + getJosa(PLAYER_NICK,'ga') + ' 마운드에서 준비를 하고 있습니다.',
       '준비가 되면 아래 셋 포지션 버튼을 누르세요.',
     ];
     const line1El = document.getElementById('dr-line1');
