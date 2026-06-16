@@ -1633,7 +1633,7 @@
       <span class="d">전체 유저 경험 횟수</span>
     </a>
     <a class="ar-btn" href="admin.html">
-      <span class="t">✍ 에세이 심사</span>
+      <span class="t">✍ 에세이 심사<span class="ar-badge" id="essayBadge" style="display:none"></span></span>
       <span class="d">응답의 정원 심사</span>
     </a>
     <a class="ar-btn" href="admin_new_members.html">
@@ -1908,7 +1908,7 @@ function applyAdminGate() {
     const isSoro = (currentUser.email === 'lonelywalden@gmail.com')
                 || (currentUser.id === '81ac3dfa-0d44-4ab9-84bf-d630321b0bad');
     rail.style.display = isSoro ? 'flex' : 'none';
-    if (isSoro) loadNewMemberBadge();
+    if (isSoro) { loadNewMemberBadge(); loadEssayBadge(); }
   } catch (e) { /* gate 무음 */ }
 }
 
@@ -1919,6 +1919,21 @@ async function loadNewMemberBadge() {
     const badge = document.getElementById('newMemberBadge');
     if (!badge) return;
     const n = (!error && Array.isArray(data)) ? data.length : 0;
+    if (n > 0) { badge.textContent = n; badge.style.display = 'inline-block'; }
+    else { badge.style.display = 'none'; }
+  } catch (e) { /* 배지 무음 */ }
+}
+
+// ── 에세이 심사 빨간 배지 (심사 대기 pending 수) ──
+async function loadEssayBadge() {
+  try {
+    const { count, error } = await supa.from('star_contents')
+      .select('id', { count: 'exact', head: true })
+      .eq('context_type', 'star')
+      .eq('status', 'pending');
+    const badge = document.getElementById('essayBadge');
+    if (!badge) return;
+    const n = (!error && typeof count === 'number') ? count : 0;
     if (n > 0) { badge.textContent = n; badge.style.display = 'inline-block'; }
     else { badge.style.display = 'none'; }
   } catch (e) { /* 배지 무음 */ }
