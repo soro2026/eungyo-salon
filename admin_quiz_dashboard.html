@@ -96,6 +96,7 @@
   .badge{display:inline-block; padding:2px 7px; border-radius:6px; font-size:10px; font-weight:700;}
   .badge.ok{background:rgba(82,183,136,0.18); color:var(--ok);}
   .badge.bad{background:rgba(216,90,48,0.18); color:var(--bad);}
+  .badge.warn{background:rgba(233,201,126,0.18); color:var(--warn);}
   .person-name{font-weight:600;}
   .fmt-mini{font-size:10.5px; color:var(--chalk-dim);}
   .tbl-scroll{max-height:480px; overflow-y:auto; border:1px solid var(--chalk-faint); border-radius:12px;}
@@ -202,19 +203,26 @@ async function load(){
   body.innerHTML = '<div class="loading">현황을 불러오는 중…</div>';
 
   let q = supa.from('questions')
-    .select('source_seed,category,question_type,answer,figures,library,constellatio_card,tier');
+    .select('source_seed,category,question_type,answer,figures,library,curation_links,constellatio_card,tier');
   if(curTier !== 'all') q = q.eq('tier', curTier);
 
-  const { data, error } = await q;
-  if(error){
-    body.innerHTML = '<div class="err">현황을 불러오지 못했습니다.<br>'+error.message+'</div>';
+  const [qRes, starsRes] = await Promise.all([
+    q,
+    supa.from('stars').select('name,photo_url')
+  ]);
+  if(qRes.error){
+    body.innerHTML = '<div class="err">현황을 불러오지 못했습니다.<br>'+qRes.error.message+'</div>';
     return;
   }
-  render(data || []);
+  // 별 맵: 정식 이름 → photo_url (figures[0]이 풀네임이라 정확 매칭)
+  const starMap = {};
+  (starsRes.data || []).forEach(s=>{ starMap[s.name] = s.photo_url || ''; });
+  render(qRes.data || [], starMap);
 }
 
 // ── 집계 + 그리기 ──
-function render(rows){
+function render(rows, starMap){
+  starMap = starMap || {};
   const total = rows.length;
   const persons = new Set(rows.map(r=>r.source_seed||'(미지정)')).size;
 
@@ -243,7 +251,8 @@ function render(rows){
   const pMap = {};
   rows.forEach(r=>{
     const k = r.source_seed || '(미지정)';
-    if(!pMap[k]) pMap[k] = {n:0, cat:'', fmt:{ox:0,mc:0,sj:0}, layerOK:0, figOK:0};
+    if(!pMap[k]) pMap[k] = {n:0, cat:'', fmt:{ox:0,mc:0,sj:0}, layerOK:0, figOK:0,
+                            starName:'', bookOK:0, bookTitles:new Set()};
     const p = pMap[k];
     p.n++;
     if(!p.cat) p.cat = (r.category||'').split('·')[0].trim();
@@ -253,17 +262,39 @@ function render(rows){
     // 4겹 완비
     const L = r.library||{};
     if(L.knowledge && L.thought && L.connection && L.curation) p.layerOK++;
-    // figures 존재
-    if(Array.isArray(r.figures) && r.figures.length>0) p.figOK++;
+    // figures 존재 + 대표 별이름(figures[0] = 풀네임)
+    if(Array.isArray(r.figures) && r.figures.length>0){
+      p.figOK++;
+      if(!p.starName) p.starName = r.figures[0];
+    }
+    // 책 큐레이션 (원작 한정 아님 — 평전·입문서·해설서 다 포함. 문항별 다양성을 종류 수로 본다)
+    const cl = r.curation_links||{};
+    const books = Array.isArray(cl.books) ? cl.books : [];
+    if(books.length>0){
+      p.bookOK++;
+      books.forEach(b=>{ if(b && b.title) p.bookTitles.add(b.title); });
+    }
   });
   const personList = Object.entries(pMap).sort((a,b)=>b[1].n-a[1].n);
 
   // 검증 경고 수집
   const warns = [];
+  const starMissing=[], photoMissing=[], bookMissing=[], bookCopy=[];
   personList.forEach(([name,p])=>{
+    if(name==='(미지정)') return;
     if(p.layerOK < p.n) warns.push(`<b>${esc(name)}</b> — 4겹 미완비 ${p.n-p.layerOK}/${p.n}문항`);
     if(p.figOK < p.n)   warns.push(`<b>${esc(name)}</b> — figures(별 이름) 빈 문항 ${p.n-p.figOK}/${p.n}`);
+    const hasStar  = Object.prototype.hasOwnProperty.call(starMap, p.starName);
+    const hasPhoto = hasStar && starMap[p.starName] !== '';
+    if(!hasStar)            starMissing.push(name);
+    else if(!hasPhoto)      photoMissing.push(name);
+    if(p.bookOK===0)        bookMissing.push(name);
+    else if(p.bookTitles.size<=1) bookCopy.push(name);
   });
+  if(starMissing.length)  warns.push(`⭐ 별 미생성 ${starMissing.length}명 — ${starMissing.map(esc).join(' · ')}`);
+  if(photoMissing.length) warns.push(`📷 사진 미등록 ${photoMissing.length}명 — ${photoMissing.map(esc).join(' · ')}`);
+  if(bookMissing.length)  warns.push(`📚 책 큐레이션 미보강 ${bookMissing.length}명 — ${bookMissing.map(esc).join(' · ')}`);
+  if(bookCopy.length)     warns.push(`📑 책 1종(복붙 의심) ${bookCopy.length}명 — ${bookCopy.map(esc).join(' · ')} · 문항별 재큐레 검토`);
   if(pMap['(미지정)']) warns.push(`source_seed 미지정 문항 ${pMap['(미지정)'].n}건 — 게임 셔플 그룹화 깨짐`);
   if(oxTotal>=2 && (oxO===0||oxX===0)) warns.push(`OX 정답 편향 — O ${oxO} / X ${oxX} (50:50 권장)`);
 
@@ -333,20 +364,29 @@ function render(rows){
   // 인물 테이블
   html += `<div class="section"><h2>출제 인물 <span class="hint">· ${personList.length}명</span></h2>
     <div class="tbl-scroll"><table>
-    <thead><tr><th>인물</th><th class="c">문항</th><th>카테고리</th><th class="c">형식(O/객/주)</th><th class="c">4겹</th><th class="c">별이름</th></tr></thead><tbody>`;
+    <thead><tr><th>인물</th><th class="c">문항</th><th>카테고리</th><th class="c">형식(O/객/주)</th><th class="c">4겹</th><th class="c">별</th><th class="c">사진</th><th class="c">책</th></tr></thead><tbody>`;
   personList.forEach(([name,p])=>{
     const layerBadge = p.layerOK===p.n ? `<span class="badge ok">✓</span>` : `<span class="badge bad">${p.layerOK}/${p.n}</span>`;
-    const figBadge   = p.figOK===p.n   ? `<span class="badge ok">✓</span>` : `<span class="badge bad">${p.figOK}/${p.n}</span>`;
+    const hasStar  = Object.prototype.hasOwnProperty.call(starMap, p.starName);
+    const hasPhoto = hasStar && starMap[p.starName] !== '';
+    const starBadge  = hasStar  ? `<span class="badge ok">○</span>` : `<span class="badge bad">—</span>`;
+    const photoBadge = hasPhoto ? `<span class="badge ok">○</span>` : `<span class="badge bad">—</span>`;
+    let bookBadge;
+    if(p.bookOK===0)                bookBadge = `<span class="badge bad">—</span>`;
+    else if(p.bookTitles.size<=1)   bookBadge = `<span class="badge warn">△ 1종</span>`;
+    else                            bookBadge = `<span class="badge ok">○ ${p.bookTitles.size}종</span>`;
     html += `<tr>
       <td class="person-name">${esc(name)}</td>
       <td class="c">${p.n}</td>
       <td>${esc(p.cat||'—')}</td>
       <td class="c fmt-mini">${p.fmt.ox}/${p.fmt.mc}/${p.fmt.sj}</td>
       <td class="c">${layerBadge}</td>
-      <td class="c">${figBadge}</td>
+      <td class="c">${starBadge}</td>
+      <td class="c">${photoBadge}</td>
+      <td class="c">${bookBadge}</td>
     </tr>`;
   });
-  if(!personList.length) html += `<tr><td colspan="6" style="text-align:center; color:var(--chalk-dim); padding:24px">아직 출제된 문항이 없습니다.</td></tr>`;
+  if(!personList.length) html += `<tr><td colspan="8" style="text-align:center; color:var(--chalk-dim); padding:24px">아직 출제된 문항이 없습니다.</td></tr>`;
   html += `</tbody></table></div></div>`;
 
   // 검증 경고
@@ -355,7 +395,7 @@ function render(rows){
     warns.forEach(w=> html += `<li>${w}</li>`);
     html += `</ul></div></div>`;
   } else if(total){
-    html += `<div class="section"><div class="warns clean"><div class="clean-msg">✓ 4겹·별이름·OX 균형 모두 깨끗합니다.</div></div></div>`;
+    html += `<div class="section"><div class="warns clean"><div class="clean-msg">✓ 4겹·별·사진·책·OX 균형 모두 깨끗합니다.</div></div></div>`;
   }
 
   document.getElementById('body').innerHTML = html;
