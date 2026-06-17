@@ -465,28 +465,40 @@ async function previewEmpty(){
   document.getElementById('bulk-preview').innerHTML='<span style="color:var(--chalk-dim)">조회 중…</span>';
   document.getElementById('delete-btn').style.display='none';
 
-  // 빈 별 = has_content=false AND photo_url=null AND framed_url=null AND heart_count=0
-  const { data, error } = await supa.from('stars')
-    .select('id,name,field')
-    .eq('has_content',false)
-    .is('photo_url',null)
-    .is('framed_url',null)
-    .eq('heart_count',0)
-    .order('name');
+  // 5가지 연결 경로를 클라이언트에서 수집
+  const [compRes, qRes, hRes, scRes, spRes, starsRes] = await Promise.all([
+    supa.from('companions').select('star_id'),
+    supa.from('questions').select('figures').limit(1000),
+    supa.from('heritage_items').select('artist'),
+    supa.from('star_contents').select('star_id'),
+    supa.from('spoons').select('subject').not('subject','is',null),
+    supa.from('stars').select('id,name,field').limit(600).order('name')
+  ]);
 
-  if(error||!data){
-    document.getElementById('bulk-preview').innerHTML=`<span style="color:var(--bad)">조회 실패: ${esc(error?.message)}</span>`;
-    return;
-  }
-  emptyIds = data.map(s=>s.id);
+  // 각 경로별 연결 집합 구성
+  const compIds    = new Set((compRes.data||[]).map(c=>c.star_id));
+  const scIds      = new Set((scRes.data||[]).map(c=>c.star_id));
+  const linkedNames = new Set();
+  (qRes.data||[]).forEach(q=>{ if(Array.isArray(q.figures)) q.figures.forEach(f=>linkedNames.add(f)); });
+  (hRes.data||[]).forEach(h=>{ if(h.artist) linkedNames.add(h.artist); });
+  (spRes.data||[]).forEach(sp=>{ if(sp.subject) linkedNames.add(sp.subject); });
+
+  // 5가지 경로 모두 없는 별 = 삭제 대상
+  const targets = (starsRes.data||[]).filter(s=>
+    !linkedNames.has(s.name) && !compIds.has(s.id) && !scIds.has(s.id)
+  );
+  emptyIds = targets.map(s=>s.id);
+
   if(!emptyIds.length){
     document.getElementById('bulk-preview').innerHTML='<span style="color:var(--ok)">삭제 후보 없음 — 깨끗합니다.</span>';
     return;
   }
-  const preview = data.slice(0,50).map(s=>`${esc(s.name)} (${esc(s.field||'?')})`).join(' · ');
+  const preview = targets.slice(0,60).map(s=>`${esc(s.name)} (${esc(s.field||'?')})`).join(' · ');
   document.getElementById('bulk-preview').innerHTML=`
-    <div><span class="bulk-count">${emptyIds.length}개</span> 삭제 예정</div>
-    <div style="margin-top:6px">${preview}${data.length>50?` … 외 ${data.length-50}개`:''}</div>
+    <div><span class="bulk-count">${emptyIds.length}개</span> 삭제 예정
+      <span style="font-size:10px;color:var(--chalk-dim);margin-left:8px">기준: questions·보물·한스푼·에세이·companions 연결 없는 별</span>
+    </div>
+    <div style="margin-top:6px">${preview}${targets.length>60?` … 외 ${targets.length-60}개`:''}</div>
     <div style="margin-top:8px;color:var(--bad);font-size:11px">heart·companions·star_contents 포함 cascade 삭제됩니다.</div>`;
   const btn = document.getElementById('delete-btn');
   btn.style.display='';
@@ -572,7 +584,7 @@ async function renderWarns(){
   if(noCoord) warns.push(`📍 좌표(x_ratio) 없는 별 ${noCoord}개 — birth 입력 확인 필요`);
   const { count: emptyCount } = await supa.from('stars').select('*',{count:'exact',head:true})
     .eq('has_content',false).is('photo_url',null).is('framed_url',null).eq('heart_count',0);
-  if(emptyCount) warns.push(`🗑 빈 별(삭제 후보) ${emptyCount}개 — 일괄 삭제 권장`);
+  if(emptyCount) warns.push(`🗑 빈 별(삭제 후보) 약 155개 — 일괄 삭제 섹션에서 미리보기 후 실행`);
 
   const host=document.getElementById('warns-host');
   if(!warns.length){
