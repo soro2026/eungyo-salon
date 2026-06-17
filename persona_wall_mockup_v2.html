@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>나의 별 · 사진#2 액자 목업 v2</title>
+<!--
+  PersonaWall 편집 모드 목업 v1 (0612)
+  - photocard 10장(루트)을 액자로 덧입혀 다섯 변주(크기·액자비율·매트·담는법·각도)
+  - 자유 흩뿌림 + 개수 적응(1~2개 여유 → 빼곡) + 가벼운 충돌 회피
+  - 편집 모드에서만 드래그(Vanilla pointer-events, 의존성 0) → pinned 저장
+  - localStorage 임시 저장(본 공사 때 Supabase companions)
+  - 방 정원 16점, 17번째에 방 자동 증식
+  ※ 셸 이식 시 RAW 절대경로 → 루트 상대경로로 교체
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500&family=Cormorant+Garamond:ital@0;1&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{ --gold:#d4a548; }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ width:100%; height:100%; overflow:hidden; background:#15100e; }
+  body{ font-family:'Noto Serif KR',serif; }
+
+  /* ── 무대 ── */
+  #stage{
+    position:absolute; inset:0; display:grid; place-items:center;
+    background:#15100e;
+  }
+  #wall{
+    position:relative; aspect-ratio:1672/941;
+    width:min(96vw, calc(94vh * 1672 / 941));
+    background-image:url('https://raw.githubusercontent.com/soro2026/eungyo-salon/main/star_wall_musicroom.png');
+    background-size:cover; background-position:center;
+    box-shadow:0 18px 60px rgba(0,0,0,.55); overflow:hidden;
+    transition:filter .5s ease;
+  }
+  /* 편집 중 = 벽이 살짝 가라앉아 "지금 만지는 중" */
+  #wall.editing{ filter:brightness(.82) saturate(.92); cursor:default; }
+  #wall::after{
+    content:''; position:absolute; inset:0; pointer-events:none;
+    background:rgba(16,10,12,0); transition:background .5s ease;
+  }
+  #wall.editing::after{ background:rgba(16,10,12,.28); }
+
+  /* ── 액자 ── */
+  .pw-frame{
+    position:absolute;
+    box-shadow:var(--drop);     /* 사진#2가 이미 액자 — 덧입히기 제거 */
+    transform:translate(-50%,-50%) rotate(var(--rot));
+    transform-origin:center center;
+    transition:transform .35s cubic-bezier(.34,1.4,.5,1), box-shadow .35s, filter .35s;
+    cursor:pointer; will-change:transform;
+  }
+  .pw-frame .pw-photo{
+    width:100%; height:auto; display:block;   /* ⭐ 비율 자유 — 잘림·찌그러짐 0 */
+    background:transparent;
+  }
+  /* 감상 모드 호버 — 정면으로 펴지며 살짝 확대 */
+  #wall:not(.editing) .pw-frame:not(.pw-guide):hover{
+    transform:translate(-50%,-50%) rotate(0deg) scale(1.06);
+    box-shadow:0 18px 40px rgba(0,0,0,.55);
+    z-index:300 !important;
+  }
+  /* 편집 모드 — 만질 수 있다는 신호 */
+  #wall.editing .pw-frame:not(.pw-guide){ cursor:grab; }
+  #wall.editing .pw-frame.grabbing{
+    cursor:grabbing; transition:none;
+    box-shadow:0 22px 48px rgba(0,0,0,.6), 0 0 0 2px rgba(212,165,72,.7);
+    z-index:400 !important;
+  }
+  #wall.editing .pw-frame:not(.pw-guide):not(.grabbing):hover{
+    box-shadow:0 14px 34px rgba(0,0,0,.5), 0 0 0 1px rgba(212,165,72,.45);
+  }
+
+  /* ── MES ÉTOILES 안내 액자 ── */
+  .pw-frame.pw-guide{ padding:1.8%; cursor:pointer; }
+  .pw-frame.pw-guide .pw-photo{ object-fit:contain; height:100%; filter:none; background:transparent; }
+  .pw-frame.pw-guide::after{ inset:1.8%; }
+  .pw-frame.pw-guide .pw-hint{
+    position:absolute; left:50%; bottom:-30px; transform:translateX(-50%) translateY(4px);
+    white-space:nowrap; font-size:11px; letter-spacing:2px; color:var(--gold);
+    opacity:0; transition:all .3s; pointer-events:none; font-style:italic;
+    font-family:'Cormorant Garamond','Noto Serif KR',serif;
+  }
+  .pw-frame.pw-guide:hover .pw-hint{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .pw-frame.pw-guide:hover{ box-shadow:0 18px 44px rgba(0,0,0,.55), 0 0 30px rgba(212,165,72,.35); }
+
+  /* ── 상단 헤더 ── */
+  #head{
+    position:absolute; top:18px; left:0; right:0; text-align:center;
+    pointer-events:none; z-index:500;
+  }
+  #head .title{
+    font-family:'Cinzel',serif; font-size:clamp(15px,1.6vw,22px);
+    letter-spacing:.22em; color:#e9dcc2; text-shadow:0 2px 8px rgba(0,0,0,.6);
+  }
+  #head .sub{
+    margin-top:4px; font-family:'Cormorant Garamond',serif; font-style:italic;
+    font-size:clamp(11px,1.1vw,14px); color:#b9a986; letter-spacing:.08em;
+  }
+
+  /* ── 토글/네비 ── */
+  .ctl{ position:absolute; z-index:520; pointer-events:auto; }
+  #editBtn{
+    top:18px; right:22px;
+    font-family:'Cormorant Garamond',serif; font-style:italic;
+    font-size:14px; letter-spacing:.05em;
+    color:#e9dcc2; background:rgba(30,22,18,.7); border:1px solid rgba(212,165,72,.4);
+    padding:8px 16px; border-radius:3px; cursor:pointer; backdrop-filter:blur(4px);
+    transition:all .25s;
+  }
+  #editBtn:hover{ background:rgba(48,36,28,.85); border-color:rgba(212,165,72,.7); }
+  #editBtn.on{ color:#1a120c; background:var(--gold); border-color:var(--gold); }
+
+  #roomNav{
+    bottom:20px; left:50%; transform:translateX(-50%);
+    display:flex; align-items:center; gap:14px;
+    background:rgba(24,17,14,.72); border:1px solid rgba(212,165,72,.3);
+    padding:7px 16px; border-radius:24px; backdrop-filter:blur(4px);
+  }
+  #roomNav button{
+    background:none; border:none; color:#e9dcc2; font-size:18px; cursor:pointer;
+    width:26px; height:26px; line-height:1; opacity:.85; transition:all .2s;
+  }
+  #roomNav button:hover:not(:disabled){ color:var(--gold); transform:scale(1.2); }
+  #roomNav button:disabled{ opacity:.25; cursor:default; }
+  #roomNav .label{
+    font-family:'Cinzel',serif; font-size:12px; letter-spacing:.15em; color:#cdbf9e;
+    min-width:120px; text-align:center;
+  }
+
+  /* ── 목업 테스트 패널 (셸 이식 시 제거) ── */
+  #lab{
+    position:absolute; bottom:18px; right:18px; z-index:530;
+    background:rgba(18,13,11,.9); border:1px solid rgba(212,165,72,.25);
+    border-radius:8px; padding:12px 14px; backdrop-filter:blur(6px);
+    font-family:'Noto Serif KR',serif; min-width:210px;
+  }
+  #lab h4{
+    font-size:10px; letter-spacing:.18em; color:#8a7a5c; font-weight:500;
+    margin-bottom:9px; text-transform:uppercase; font-family:'Cinzel',serif;
+  }
+  #lab .row{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  #lab .cap{ font-size:11px; color:#b9a986; min-width:48px; }
+  #lab .count{ font-size:15px; color:#e9dcc2; min-width:28px; text-align:center; font-variant-numeric:tabular-nums; }
+  #lab button{
+    background:rgba(40,30,24,.8); border:1px solid rgba(212,165,72,.3); color:#e9dcc2;
+    font-size:12px; padding:4px 9px; border-radius:4px; cursor:pointer; transition:all .2s;
+    font-family:'Noto Serif KR',serif;
+  }
+  #lab button:hover{ background:rgba(60,46,36,.9); border-color:rgba(212,165,72,.6); }
+  #lab .presets{ display:flex; flex-wrap:wrap; gap:5px; margin-top:2px; }
+  #lab .presets button{ padding:3px 8px; font-size:11px; }
+  #lab .reset{ width:100%; margin-top:9px; color:#c98; border-color:rgba(200,150,120,.35); }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="wall"></div>
+</div>
+
+<div id="head">
+  <div class="title">MES ÉTOILES</div>
+  <div class="sub">내가 사랑한 별들</div>
+</div>
+
+<button id="editBtn" class="ctl">✎ 배치 바꾸기</button>
+
+<div id="roomNav" class="ctl">
+  <button id="prevRoom">‹</button>
+  <span class="label" id="roomLabel">LE CABINET I</span>
+  <button id="nextRoom">›</button>
+</div>
+
+<div id="lab">
+  <h4>목업 시험대</h4>
+  <div class="row">
+    <span class="cap">별 개수</span>
+    <button id="minus">−</button>
+    <span class="count" id="countVal">10</span>
+    <button id="plus">+</button>
+  </div>
+  <div class="presets" id="presets"></div>
+  <button class="reset" id="resetBtn">↺ 배치 전부 초기화</button>
+</div>
+
+<script>
+/* ============================================================
+ *  데이터 · 자원
+ * ============================================================ */
+const RAW = 'https://raw.githubusercontent.com/soro2026/eungyo-salon/main/';
+const POSTER = RAW + 'poster_01.png';
+
+// 사진#2 — Supabase framed_url 8개 (이미 액자 입혀진 완성품, 비율 제각각)
+const SUPA = 'https://cyhlotwdisjvoxvfkpnd.supabase.co/storage/v1/object/public/star-photos/';
+const FRAMED = [
+  { id:201, name:'레오나르도 다 빈치', file:'framed_201_1781659013497.webp' },
+  { id:83,  name:'레프 톨스토이',      file:'framed_83_1781659028446.webp' },
+  { id:103, name:'버지니아 울프',      file:'framed_103_1781658554439.webp' },
+  { id:206, name:'세종대왕',           file:'framed_206_1781658892765.webp' },
+  { id:207, name:'소크라테스',         file:'framed_207_1781658908962.webp' },
+  { id:8,   name:'오비디우스',         file:'framed_8_1781658991293.webp' },
+  { id:21,  name:'이상',               file:'framed_21_1781658943140.webp' },
+  { id:202, name:'찰스 다윈',          file:'framed_202_1781658976043.webp' },
+];
+
+const ROOM_CAP = 16;                 // 방 정원 — 넘으면 다음 방
+const ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X'];
+const STORE_KEY = 'eg_personawall_mockup_v2';
+
+// 벽 종횡비(1672/941) — y방향 %를 x방향 %로 환산할 때
+const ASPECT = 941/1672;             // ≈ 0.563
+
+/* ============================================================
+ *  상태
+ * ============================================================ */
+let STARS = [];            // 전체 별
+let totalCount = 8;        // 목업: 화면에 거는 별 개수(framed_url 8개)
+let curRoom = 0;
+let editMode = false;
+let saved = loadSaved();   // { [id]: {x,y,pinned} }  사용자가 옮긴 별
+
+/* ── 시드 고정 랜덤 (별 id) — 같은 별은 늘 같은 변주 ── */
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const lerp = (a,b,t)=> a + (b-a)*t;
+const clamp = (v,lo,hi)=> Math.max(lo, Math.min(hi, v));
+
+/* ── 별 한 명의 "다섯 변주" 생성 (id 시드 고정) ── */
+function makeStar(i){
+  const c = FRAMED[i % FRAMED.length];
+  const r = mulberry32(9000 + i*131);   // 이 별 전용 시드
+  // 사진#2는 이미 액자 완성품 → 덧입힐 변주 없음. 폭·각도만 살짝.
+  const sizePct = +lerp(11, 16, Math.pow(r(), 1.1)).toFixed(2);  // 폭(%)
+  const rot = +((r()-0.5)*5).toFixed(2);                          // ±2.5° 약하게
+  return {
+    id:i, starId:c.id, name:c.name, card:SUPA + c.file,
+    room: Math.floor(i / ROOM_CAP),
+    sizePct, rot,
+    x:50, y:38, pinned:false   // x,y는 자동배치에서 채움(중심 %)
+  };
+}
+
+function buildStars(){
+  STARS = [];
+  for(let i=0;i<totalCount;i++){
+    const s = makeStar(i);
+    // 저장된(사용자가 옮긴) 위치 덮어쓰기
+    if(saved[i] && saved[i].pinned){
+      s.x = saved[i].x; s.y = saved[i].y; s.pinned = true;
+    }
+    STARS.push(s);
+  }
+}
+
+/* ============================================================
+ *  자동 배치 — 자유 흩뿌림 · 개수 적응 · 가벼운 충돌 회피
+ *    pinned 별은 장애물로 고정, 자동 별만 빈 곳을 찾아 흩뿌림.
+ * ============================================================ */
+function half(s){ return s.sizePct/2; }          // x방향 반지름(%)
+function halfY(s){ return (s.sizePct/0.82)*ASPECT/2; } // y방향 반지름(%) — 비율 평균 근사
+
+// 두 별 겹침량(0이하=안 겹침). 종횡비 보정한 타원 근사.
+function overlap(ax,ay,a, bx,by,b){
+  const rx = half(a)+half(b), ry = halfY(a)+halfY(b);
+  const dx = (ax-bx)/rx, dy = (ay-by)/ry;
+  const d = Math.hypot(dx, dy);          // <1 이면 겹침
+  return (0.82 - d);                     // 0.82 = 약간의 겹침 허용(빼곡함)
+}
+
+function autoLayout(roomStars){
+  const pinned = roomStars.filter(s=> s.pinned);
+  const autos  = roomStars.filter(s=> !s.pinned);
+  const placed = pinned.map(s=> ({x:s.x, y:s.y, s}));
+
+  // 개수가 많을수록 넓게 퍼짐(적으면 중앙에 여유)
+  const n = roomStars.length;
+  const t = clamp(n/14, 0, 1);
+  const spreadX = lerp(13, 43, t);
+  const spreadY = lerp(9, 30, t);
+  const cx = 50, cy = 38;
+
+  for(const s of autos){
+    const r = mulberry32(4000 + s.id*977);
+    let best = {x:cx, y:cy}, bestOv = Infinity;
+    for(let k=0;k<48;k++){
+      const ang = r()*Math.PI*2;
+      const rad = Math.sqrt(r());           // 중심 쪽에 살짝 밀집
+      const x = clamp(cx + Math.cos(ang)*rad*spreadX, half(s)+2, 98-half(s));
+      const y = clamp(cy + Math.sin(ang)*rad*spreadY, halfY(s)+4, 74-halfY(s));
+      let mx = -Infinity;
+      for(const p of placed) mx = Math.max(mx, overlap(x,y,s, p.x,p.y,p.s));
+      if(placed.length===0) mx = -1;
+      if(mx < bestOv){ bestOv = mx; best = {x,y}; }
+      if(mx <= 0) break;                    // 안 겹치면 즉시 채택
+    }
+    s.x = best.x; s.y = best.y;
+    placed.push({x:best.x, y:best.y, s});
+  }
+}
+
+/* ============================================================
+ *  렌더
+ * ============================================================ */
+const wall = document.getElementById('wall');
+
+function roomCount(){ return Math.max(1, Math.ceil(totalCount / ROOM_CAP)); }
+
+function render(){
+  wall.innerHTML = '';
+  const roomStars = STARS.filter(s=> s.room === curRoom);
+  autoLayout(roomStars);
+
+  for(const s of roomStars){
+    const f = document.createElement('div');
+    f.className = 'pw-frame';
+    f.dataset.id = s.id;
+    applyStyle(f, s);
+    const dropX = -Math.sin(s.rot*Math.PI/180)*8;
+    f.style.setProperty('--drop', `${dropX}px 10px 22px rgba(0,0,0,.5)`);
+    f.innerHTML = `<img class="pw-photo" src="${s.card}" alt="${s.name}" draggable="false" loading="lazy">`;
+    bindFrame(f, s);
+    wall.appendChild(f);
+  }
+
+  // MES ÉTOILES 안내 액자 — 마지막 방(빈자리 있는 방)에만, 늘 한 장
+  const isLastRoom = (curRoom === roomCount()-1);
+  if(isLastRoom){
+    addGuide(roomStars.length === 0);
+  }
+  updateNav();
+}
+
+function applyStyle(f, s){
+  f.style.left   = s.x + '%';
+  f.style.top    = s.y + '%';
+  f.style.width  = s.sizePct + '%';   /* 폭만 — 높이는 이미지 비율이 결정 */
+  f.style.setProperty('--rot', s.rot + 'deg');
+  f.style.zIndex = String(100 + s.id);
+}
+
+function addGuide(isEmpty){
+  const g = document.createElement('div');
+  g.className = 'pw-frame pw-guide';
+  if(isEmpty){
+    g.style.left='50%'; g.style.top='40%'; g.style.width='17%';
+    g.style.setProperty('--rot','-1.2deg');
+  } else {
+    g.style.left='90%'; g.style.top='17%'; g.style.width='12%';
+    g.style.setProperty('--rot','2deg');
+  }
+  g.style.aspectRatio = '1145/1374';
+  g.style.setProperty('--matte','1.8%');
+  g.style.setProperty('--fit','contain');
+  g.style.setProperty('--drop','-3px 12px 26px rgba(0,0,0,.55)');
+  g.style.zIndex = '380';
+  g.innerHTML = `<img class="pw-photo" src="${POSTER}" alt="MES ÉTOILES" draggable="false">
+                 <div class="pw-hint">콘스텔라티오로 — 별을 품으러 ✦</div>`;
+  g.addEventListener('click', ()=>{
+    g.animate([{transform:'translate(-50%,-50%) rotate(var(--rot)) scale(1.06)'},
+               {transform:'translate(-50%,-50%) rotate(var(--rot)) scale(1)'}], {duration:300});
+  });
+  wall.appendChild(g);
+}
+
+/* ============================================================
+ *  편집 모드 — 드래그(Vanilla pointer-events)
+ * ============================================================ */
+let drag = null;
+
+function bindFrame(f, s){
+  f.addEventListener('click', (e)=>{
+    if(editMode) return;            // 편집 중엔 클릭=콘스 연결 차단
+    // 감상 모드 클릭 = 본 공사 때 콘스텔라티오/별 정보 (지금은 까딱)
+    f.animate([{transform:'translate(-50%,-50%) rotate(0) scale(1.06)'},
+               {transform:'translate(-50%,-50%) rotate(0) scale(1.1)'},
+               {transform:'translate(-50%,-50%) rotate(0) scale(1.06)'}], {duration:260});
+  });
+
+  f.addEventListener('pointerdown', (e)=>{
+    if(!editMode) return;
+    e.preventDefault();
+    const rect = wall.getBoundingClientRect();
+    drag = { f, s, mx:e.clientX, my:e.clientY, x0:s.x, y0:s.y, w:rect.width, h:rect.height };
+    f.classList.add('grabbing');
+    f.setPointerCapture(e.pointerId);
+  });
+  f.addEventListener('pointermove', (e)=>{
+    if(!drag || drag.f !== f) return;
+    const dx = (e.clientX - drag.mx) / drag.w * 100;
+    const dy = (e.clientY - drag.my) / drag.h * 100;
+    s.x = clamp(drag.x0 + dx, half(s)+1, 99-half(s));
+    s.y = clamp(drag.y0 + dy, halfY(s)+2, 76-halfY(s));
+    f.style.left = s.x + '%';
+    f.style.top  = s.y + '%';
+  });
+  const end = (e)=>{
+    if(!drag || drag.f !== f) return;
+    f.classList.remove('grabbing');
+    s.pinned = true;                // 내 손으로 정한 곳 = 고정
+    persist();
+    drag = null;
+  };
+  f.addEventListener('pointerup', end);
+  f.addEventListener('pointercancel', end);
+}
+
+function setEdit(on){
+  editMode = on;
+  wall.classList.toggle('editing', on);
+  const btn = document.getElementById('editBtn');
+  btn.classList.toggle('on', on);
+  btn.textContent = on ? '✓ 완료' : '✎ 배치 바꾸기';
+}
+
+/* ============================================================
+ *  저장 (localStorage 임시 → 본 공사 Supabase)
+ * ============================================================ */
+function persist(){
+  const out = {};
+  for(const s of STARS){
+    if(s.pinned) out[s.id] = { x:+s.x.toFixed(2), y:+s.y.toFixed(2), pinned:true };
+  }
+  saved = out;
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(out)); }catch(e){}
+}
+function loadSaved(){
+  try{ return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; }catch(e){ return {}; }
+}
+
+/* ============================================================
+ *  방 네비
+ * ============================================================ */
+function updateNav(){
+  const rc = roomCount();
+  document.getElementById('roomLabel').textContent = 'LE CABINET ' + (ROMAN[curRoom]||curRoom+1);
+  document.getElementById('prevRoom').disabled = (curRoom === 0);
+  document.getElementById('nextRoom').disabled = (curRoom >= rc-1);
+}
+document.getElementById('prevRoom').onclick = ()=>{ if(curRoom>0){ curRoom--; render(); } };
+document.getElementById('nextRoom').onclick = ()=>{ if(curRoom<roomCount()-1){ curRoom++; render(); } };
+
+/* ============================================================
+ *  목업 시험대
+ * ============================================================ */
+function setCount(n){
+  totalCount = clamp(n, 0, 60);
+  document.getElementById('countVal').textContent = totalCount;
+  curRoom = clamp(curRoom, 0, roomCount()-1);
+  buildStars(); render();
+}
+document.getElementById('plus').onclick  = ()=> setCount(totalCount+1);
+document.getElementById('minus').onclick = ()=> setCount(totalCount-1);
+document.getElementById('editBtn').onclick = ()=> setEdit(!editMode);
+document.getElementById('resetBtn').onclick = ()=>{
+  saved = {}; try{ localStorage.removeItem(STORE_KEY); }catch(e){}
+  buildStars(); render();
+};
+const presets = [1,2,5,10,16,20];
+const pc = document.getElementById('presets');
+presets.forEach(p=>{
+  const b = document.createElement('button');
+  b.textContent = p;
+  b.onclick = ()=>{ curRoom = 0; setCount(p); };
+  pc.appendChild(b);
+});
+
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape' && editMode) setEdit(false);
+  if(editMode) return;
+  if(e.key === 'ArrowLeft'  && curRoom>0){ curRoom--; render(); }
+  if(e.key === 'ArrowRight' && curRoom<roomCount()-1){ curRoom++; render(); }
+});
+
+/* ── 첫 진입 ── */
+buildStars();
+render();
+window.addEventListener('resize', ()=> render());
+</script>
+
+</body>
+</html>
