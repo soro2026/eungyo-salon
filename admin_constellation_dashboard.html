@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>콘스텔라티오 운영 현황판 · 은교살롱 admin</title>
+<style>
+  :root{
+    --bg-deep:#0d0d1a; --bg-mid:#111122; --bg-card:rgba(255,255,255,.04);
+    --gold:#C9A84C; --gold-l:#E9C97E; --gold-dim:rgba(201,168,76,.6);
+    --chalk:#F8F4EE; --chalk-dim:rgba(248,244,238,.6); --chalk-faint:rgba(248,244,238,.09);
+    --ok:#52B788; --warn:#E9C97E; --bad:#D85A30; --info:#7EB8C9;
+    --star:#a78bfa;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:linear-gradient(180deg,var(--bg-deep) 0%,var(--bg-mid) 100%);
+    background-attachment:fixed;
+    color:var(--chalk); font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    -webkit-font-smoothing:antialiased; padding:0 0 80px; min-height:100vh;
+  }
+  .wrap{max-width:960px;margin:0 auto;padding:20px 16px;}
+
+  /* 게이트 */
+  #gate{display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:80vh;text-align:center;gap:14px;padding:24px;}
+  #gate .lock{font-size:42px;}
+  #gate .msg{color:var(--chalk-dim);font-size:14px;line-height:1.7;}
+  #gate a{color:var(--gold-l);text-decoration:underline;}
+
+  /* 헤더 */
+  .head{display:flex;align-items:flex-end;justify-content:space-between;
+    border-bottom:1px solid var(--chalk-faint);padding-bottom:14px;margin-bottom:20px;
+    gap:12px;flex-wrap:wrap;}
+  .head h1{font-size:19px;margin:0;font-weight:700;}
+  .head h1 .sub{display:block;font-size:11px;color:var(--chalk-dim);font-weight:400;
+    margin-top:4px;letter-spacing:1px;}
+  .refresh{background:none;border:1px solid var(--chalk-faint);color:var(--chalk-dim);
+    border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px;font-family:inherit;}
+  .refresh:hover{color:var(--chalk);border-color:var(--gold);}
+
+  /* 요약 카드 */
+  .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px;}
+  .scard{background:var(--bg-card);border:1px solid var(--chalk-faint);
+    border-radius:14px;padding:14px 12px;text-align:center;}
+  .scard .num{font-size:26px;font-weight:800;color:var(--gold-l);line-height:1.1;}
+  .scard .num.ok{color:var(--ok);} .scard .num.bad{color:var(--bad);}
+  .scard .lab{font-size:11px;color:var(--chalk-dim);margin-top:5px;}
+  .scard .note{font-size:10px;color:var(--chalk-dim);margin-top:3px;opacity:.7;}
+  @media(max-width:560px){.summary{grid-template-columns:repeat(2,1fr);}}
+
+  /* 섹션 */
+  .section{margin-bottom:28px;}
+  .section>h2{font-size:13px;font-weight:700;margin:0 0 12px;
+    display:flex;align-items:center;gap:8px;letter-spacing:.04em;}
+  .section>h2 .hint{font-size:11px;color:var(--chalk-dim);font-weight:400;}
+
+  /* 분야 막대 */
+  .field-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  .field-name{width:48px;font-size:11px;color:var(--chalk-dim);text-align:right;flex-shrink:0;}
+  .field-track{flex:1;height:22px;background:rgba(255,255,255,.05);border-radius:6px;overflow:hidden;display:flex;}
+  .field-seg{display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;min-width:0;}
+  .field-seg.content{background:rgba(82,183,136,.35);color:#a7f0c8;}
+  .field-seg.no-content{background:rgba(201,168,76,.15);color:var(--gold-dim);}
+  .field-meta{width:110px;font-size:11px;color:var(--chalk-dim);flex-shrink:0;}
+
+  /* 필터 + 검색 */
+  .filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center;}
+  .filter-tabs{display:flex;gap:4px;flex-wrap:wrap;}
+  .ftab{background:none;border:1px solid var(--chalk-faint);color:var(--chalk-dim);
+    border-radius:8px;padding:5px 11px;cursor:pointer;font-size:12px;font-family:inherit;transition:all .15s;}
+  .ftab:hover{border-color:var(--gold-dim);color:var(--chalk);}
+  .ftab.on{background:rgba(201,168,76,.18);border-color:var(--gold);color:var(--gold-l);font-weight:700;}
+  .ftab.on.bad{background:rgba(216,90,48,.18);border-color:var(--bad);color:var(--bad);}
+  .search-wrap{flex:1;min-width:160px;max-width:260px;}
+  .search-wrap input{width:100%;background:rgba(255,255,255,.06);border:1px solid var(--chalk-faint);
+    border-radius:8px;color:var(--chalk);font-size:12px;padding:6px 10px;font-family:inherit;outline:none;}
+  .search-wrap input:focus{border-color:var(--gold-dim);}
+  .field-filter{display:flex;gap:4px;flex-wrap:wrap;}
+  .fftab{background:none;border:1px solid var(--chalk-faint);color:var(--chalk-dim);
+    border-radius:6px;padding:4px 9px;cursor:pointer;font-size:11px;font-family:inherit;}
+  .fftab.on{background:rgba(167,139,250,.2);border-color:var(--star);color:var(--star);}
+
+  /* 별 테이블 */
+  .tbl-scroll{border:1px solid var(--chalk-faint);border-radius:12px;overflow:hidden;margin-bottom:12px;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid rgba(255,255,255,.05);}
+  th{color:var(--chalk-dim);font-weight:600;font-size:10.5px;background:rgba(0,0,0,.25);
+    position:sticky;top:0;z-index:2;}
+  td.c{text-align:center;} tr:last-child td{border-bottom:none;}
+  .star-name{font-weight:600;max-width:140px;}
+  .star-field{font-size:11px;color:var(--chalk-dim);}
+  .badge{display:inline-block;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:700;}
+  .badge.ok{background:rgba(82,183,136,.18);color:var(--ok);}
+  .badge.bad{background:rgba(216,90,48,.18);color:var(--bad);}
+  .badge.warn{background:rgba(233,201,126,.18);color:var(--warn);}
+  .badge.info{background:rgba(126,184,201,.18);color:var(--info);}
+  .badge.star{background:rgba(167,139,250,.18);color:var(--star);}
+  .del-btn{background:none;border:1px solid rgba(216,90,48,.3);color:rgba(216,90,48,.7);
+    border-radius:5px;padding:3px 8px;cursor:pointer;font-size:10px;font-family:inherit;}
+  .del-btn:hover{background:rgba(216,90,48,.15);color:var(--bad);border-color:var(--bad);}
+
+  /* 페이지네이션 */
+  .pagination{display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap;}
+  .pg-btn{background:rgba(255,255,255,.05);border:1px solid var(--chalk-faint);
+    color:var(--chalk-dim);border-radius:8px;padding:6px 14px;cursor:pointer;
+    font-size:12px;font-family:inherit;}
+  .pg-btn:hover:not(:disabled){border-color:var(--gold-dim);color:var(--chalk);}
+  .pg-btn:disabled{opacity:.35;cursor:default;}
+  .pg-info{font-size:12px;color:var(--chalk-dim);}
+
+  /* 일괄 삭제 */
+  .bulk-box{background:rgba(216,90,48,.07);border:1px solid rgba(216,90,48,.25);
+    border-radius:12px;padding:16px;}
+  .bulk-box h3{margin:0 0 10px;font-size:13px;color:var(--bad);}
+  .bulk-btn{background:rgba(216,90,48,.15);border:1px solid rgba(216,90,48,.4);
+    color:var(--bad);border-radius:8px;padding:7px 16px;cursor:pointer;
+    font-size:12px;font-family:inherit;margin-right:8px;}
+  .bulk-btn:hover{background:rgba(216,90,48,.28);}
+  .bulk-btn.confirm{background:var(--bad);color:#fff;border-color:var(--bad);}
+  .bulk-btn:disabled{opacity:.4;cursor:default;}
+  .bulk-preview{margin-top:12px;font-size:11.5px;color:var(--chalk-dim);line-height:1.8;
+    max-height:200px;overflow-y:auto;}
+  .bulk-count{font-size:13px;color:var(--bad);font-weight:700;}
+
+  /* figures 정합 체크 */
+  .check-box{background:rgba(126,184,201,.06);border:1px solid rgba(126,184,201,.2);
+    border-radius:12px;padding:16px;}
+  .check-btn{background:rgba(126,184,201,.12);border:1px solid rgba(126,184,201,.35);
+    color:var(--info);border-radius:8px;padding:7px 16px;cursor:pointer;
+    font-size:12px;font-family:inherit;}
+  .check-btn:hover{background:rgba(126,184,201,.22);}
+  .check-result{margin-top:12px;font-size:11.5px;color:var(--chalk-dim);line-height:1.9;}
+  .mismatch-item{background:rgba(216,90,48,.08);border-left:2px solid var(--bad);
+    padding:4px 10px;margin-bottom:4px;border-radius:0 4px 4px 0;}
+
+  /* 점검 신호 */
+  .warns{background:rgba(216,90,48,.07);border:1px solid rgba(216,90,48,.28);
+    border-radius:12px;padding:14px 16px;}
+  .warns.clean{background:rgba(82,183,136,.07);border-color:rgba(82,183,136,.28);}
+  .warns h3{margin:0 0 8px;font-size:13px;}
+  .warns ul{margin:0;padding-left:18px;font-size:12px;color:var(--chalk-dim);line-height:1.9;}
+  .warns .clean-msg{font-size:13px;color:var(--ok);}
+  .loading{text-align:center;padding:40px 0;color:var(--chalk-dim);}
+  .foot{text-align:center;font-size:11px;color:var(--chalk-dim);margin-top:30px;opacity:.5;}
+</style>
+</head>
+<body>
+
+<div id="gate" style="display:none;">
+  <div class="lock">🔒</div>
+  <div class="msg">
+    콘스텔라티오 현황판은 살롱지기 전용입니다.<br>
+    소로 계정으로 로그인한 뒤 다시 열어 주세요.<br><br>
+    <a href="index.html">← 은교살롱 입구로</a>
+  </div>
+</div>
+
+<div id="dash" class="wrap" style="display:none;">
+  <div class="head">
+    <h1>콘스텔라티오 운영 현황판<span class="sub">EG CONSTELLA · 살롱지기 전용</span></h1>
+    <button class="refresh" onclick="loadAll()">↻ 새로고침</button>
+  </div>
+
+  <!-- ① 요약 카드 -->
+  <div id="summary-host"><div class="loading">불러오는 중…</div></div>
+
+  <!-- ② 분야별 현황 -->
+  <div class="section" id="field-section" style="display:none;">
+    <h2>✦ 분야별 현황 <span class="hint" id="field-hint"></span></h2>
+    <div id="field-host"></div>
+  </div>
+
+  <!-- ③ 별 상태판 -->
+  <div class="section">
+    <h2>🌟 별 상태판 <span class="hint" id="table-hint"></span></h2>
+
+    <div class="filter-bar">
+      <div class="filter-tabs" id="filter-tabs">
+        <button class="ftab on" data-f="all"    onclick="setFilter('all')">전체</button>
+        <button class="ftab"    data-f="empty"  onclick="setFilter('empty')">빈 별 (삭제 후보)</button>
+        <button class="ftab"    data-f="no_photo" onclick="setFilter('no_photo')">사진 없음</button>
+        <button class="ftab"    data-f="no_frame" onclick="setFilter('no_frame')">액자 없음</button>
+        <button class="ftab bad" data-f="check" onclick="setFilter('check')">⚠ 점검 필요</button>
+      </div>
+      <div class="search-wrap">
+        <input type="text" id="search-input" placeholder="별 이름 검색…" oninput="onSearch()">
+      </div>
+    </div>
+
+    <div class="field-filter" id="field-filter">
+      <button class="fftab on" data-ff="" onclick="setFieldFilter('')">전체</button>
+      <button class="fftab" data-ff="문학" onclick="setFieldFilter('문학')">문학</button>
+      <button class="fftab" data-ff="예술" onclick="setFieldFilter('예술')">예술</button>
+      <button class="fftab" data-ff="철학" onclick="setFieldFilter('철학')">철학</button>
+      <button class="fftab" data-ff="과학" onclick="setFieldFilter('과학')">과학</button>
+      <button class="fftab" data-ff="역사" onclick="setFieldFilter('역사')">역사</button>
+    </div>
+
+    <div style="margin-top:12px;">
+      <div class="tbl-scroll"><div id="table-host"><div class="loading">불러오는 중…</div></div></div>
+      <div class="pagination" id="pagination" style="margin-top:10px;display:none;"></div>
+    </div>
+  </div>
+
+  <!-- ④ 빈 별 일괄 삭제 -->
+  <div class="section">
+    <h2>🗑 빈 별 일괄 삭제 <span class="hint">· questions·hearts·companions 연결 없는 별</span></h2>
+    <div class="bulk-box">
+      <h3>⚠ 삭제 전 반드시 미리보기 확인</h3>
+      <button class="bulk-btn" id="preview-btn" onclick="previewEmpty()">삭제 후보 미리보기</button>
+      <button class="bulk-btn confirm" id="delete-btn" onclick="deleteEmpty()" style="display:none;" disabled>확인 후 삭제 실행</button>
+      <div class="bulk-preview" id="bulk-preview"></div>
+    </div>
+  </div>
+
+  <!-- ⑤ figures 정합 체크 -->
+  <div class="section">
+    <h2>🔍 figures ↔ stars.name 정합 체크 <span class="hint">· 약칭/풀네임 불일치 자동 감지 · 0616 사고 재발 방지</span></h2>
+    <div class="check-box">
+      <button class="check-btn" onclick="runCheck()">정합 체크 실행</button>
+      <div class="check-result" id="check-result"></div>
+    </div>
+  </div>
+
+  <!-- ⑥ 점검 신호 -->
+  <div class="section">
+    <div id="warns-host"></div>
+  </div>
+
+  <div class="foot">stars · questions · hearts · companions 실시간 조회</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
+});
+
+const PAGE_SIZE = 50;
+let curPage = 0;      // 0-based
+let curFilter = 'all';
+let curField  = '';
+let searchTerm = '';
+let searchTimer = null;
+let totalCount = 0;
+
+function esc(s){ return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// ── 초기화 ──
+async function init(){
+  const { data:{ session } } = await supa.auth.getSession();
+  if(!session){ showGate(); return; }
+  const { data:u } = await supa.from('users').select('is_admin').eq('id',session.user.id).single();
+  if(!u||!u.is_admin){ showGate(); return; }
+  document.getElementById('gate').style.display='none';
+  document.getElementById('dash').style.display='';
+  await loadAll();
+}
+
+function showGate(){
+  document.getElementById('gate').style.display='flex';
+  document.getElementById('dash').style.display='none';
+}
+
+async function loadAll(){
+  await Promise.all([loadSummary(), loadFieldStats()]);
+  await loadTable();
+  renderWarns();
+}
+
+// ── ① 요약 카드 ──
+async function loadSummary(){
+  const [total, photo, framed] = await Promise.all([
+    supa.from('stars').select('*', {count:'exact',head:true}),
+    supa.from('stars').select('*', {count:'exact',head:true}).not('photo_url','is',null),
+    supa.from('stars').select('*', {count:'exact',head:true}).not('framed_url','is',null),
+  ]);
+  // 실제 questions 연결 별 수
+  const { data: figData } = await supa.from('questions').select('figures').limit(500);
+  const figNames = new Set();
+  (figData||[]).forEach(q=>{
+    if(Array.isArray(q.figures)) q.figures.forEach(f=>figNames.add(f));
+  });
+  const { data: starsData } = await supa.from('stars').select('name').limit(300);
+  const linkedCount = (starsData||[]).filter(s=>figNames.has(s.name)).length;
+
+  const t = total.count||0;
+  const p = photo.count||0;
+  const f = framed.count||0;
+  document.getElementById('summary-host').innerHTML = `
+    <div class="summary">
+      <div class="scard">
+        <div class="num">${t}</div>
+        <div class="lab">전체 별</div>
+        <div class="note">206개 → 5000개 예정</div>
+      </div>
+      <div class="scard">
+        <div class="num ok">${linkedCount}</div>
+        <div class="lab">콘텐츠 연결 (실제)</div>
+        <div class="note">questions.figures 기준</div>
+      </div>
+      <div class="scard">
+        <div class="num ${p<t/2?'warn':''}">${p}</div>
+        <div class="lab">사진#1 보유</div>
+        <div class="note">${Math.round(p/t*100)}%</div>
+      </div>
+      <div class="scard">
+        <div class="num ${f<20?'bad':''}">${f}</div>
+        <div class="lab">액자(사진#2) 보유</div>
+        <div class="note">${Math.round(f/t*100)}%</div>
+      </div>
+    </div>`;
+}
+
+// ── ② 분야별 현황 ──
+async function loadFieldStats(){
+  const { data } = await supa.from('stars')
+    .select('field, has_content, photo_url, framed_url');
+  if(!data) return;
+  const fields = {};
+  data.forEach(s=>{
+    if(!fields[s.field]) fields[s.field]={n:0,content:0,photo:0,framed:0};
+    fields[s.field].n++;
+    if(s.has_content) fields[s.field].content++;
+    if(s.photo_url)   fields[s.field].photo++;
+    if(s.framed_url)  fields[s.field].framed++;
+  });
+  const sorted = Object.entries(fields).sort((a,b)=>b[1].n-a[1].n);
+  const max = Math.max(...sorted.map(([,v])=>v.n),1);
+  const host = document.getElementById('field-host');
+  host.innerHTML = sorted.map(([field,v])=>`
+    <div class="field-row">
+      <div class="field-name">${esc(field)}</div>
+      <div class="field-track">
+        <div class="field-seg content"  style="width:${v.content/max*100}%">${v.content||''}</div>
+        <div class="field-seg no-content" style="width:${(v.n-v.content)/max*100}%">${v.n-v.content||''}</div>
+      </div>
+      <div class="field-meta">${v.n}개 · 📷${v.photo} · 🖼${v.framed}</div>
+    </div>`).join('');
+  document.getElementById('field-hint').textContent = `· ${Object.keys(fields).length}개 분야`;
+  document.getElementById('field-section').style.display='';
+}
+
+// ── ③ 별 상태판 ──
+async function loadTable(){
+  document.getElementById('table-host').innerHTML='<div class="loading">불러오는 중…</div>';
+  document.getElementById('pagination').style.display='none';
+
+  let q = supa.from('stars')
+    .select('id,name,field,grade,has_content,photo_url,framed_url,x_ratio,stella_status,heart_count,aliases',{count:'exact'});
+
+  if(searchTerm) q = q.ilike('name',`%${searchTerm}%`);
+  if(curField)   q = q.eq('field', curField);
+  switch(curFilter){
+    case 'empty':    q = q.eq('has_content',false).is('photo_url',null).is('framed_url',null).eq('heart_count',0); break;
+    case 'no_photo': q = q.is('photo_url',null); break;
+    case 'no_frame': q = q.is('framed_url',null); break;
+    case 'check':    q = q.or('grade.eq.9,x_ratio.is.null'); break;
+  }
+
+  const offset = curPage * PAGE_SIZE;
+  q = q.range(offset, offset+PAGE_SIZE-1).order('name');
+  const { data, count, error } = await q;
+
+  if(error){
+    document.getElementById('table-host').innerHTML=`<div class="loading" style="color:var(--bad)">오류: ${esc(error.message)}</div>`;
+    return;
+  }
+  totalCount = count||0;
+  const totalPages = Math.max(1, Math.ceil(totalCount/PAGE_SIZE));
+  document.getElementById('table-hint').textContent = `· ${totalCount}개 · ${curPage+1}/${totalPages}페이지`;
+
+  if(!data||!data.length){
+    document.getElementById('table-host').innerHTML='<div class="loading">해당 별이 없습니다.</div>';
+    return;
+  }
+
+  let html=`<table><thead><tr>
+    <th>이름</th><th>분야</th><th class="c">grade</th>
+    <th class="c">콘텐츠</th><th class="c">사진#1</th><th class="c">액자</th>
+    <th class="c">좌표</th><th class="c">status</th><th class="c">💛</th><th class="c">삭제</th>
+  </tr></thead><tbody>`;
+  data.forEach(s=>{
+    const gradeB  = s.grade<=3?`<span class="badge ok">${s.grade}</span>`:`<span class="badge bad">${s.grade}</span>`;
+    const contentB= s.has_content?`<span class="badge ok">○</span>`:`<span class="badge bad">—</span>`;
+    const photoB  = s.photo_url?`<span class="badge ok">○</span>`:`<span class="badge bad">—</span>`;
+    const frameB  = s.framed_url?`<span class="badge ok">○</span>`:`<span class="badge bad">—</span>`;
+    const coordB  = s.x_ratio!=null?`<span class="badge ok">○</span>`:`<span class="badge warn">—</span>`;
+    const statusB = s.stella_status==='recruiting'?`<span class="badge star">모집중</span>`:`<span class="badge info">씨앗</span>`;
+    html+=`<tr>
+      <td class="star-name">${esc(s.name)}</td>
+      <td class="star-field">${esc(s.field||'—')}</td>
+      <td class="c">${gradeB}</td>
+      <td class="c">${contentB}</td>
+      <td class="c">${photoB}</td>
+      <td class="c">${frameB}</td>
+      <td class="c">${coordB}</td>
+      <td class="c">${statusB}</td>
+      <td class="c" style="font-size:11px;color:var(--chalk-dim)">${s.heart_count||0}</td>
+      <td class="c"><button class="del-btn" onclick="deleteStar(${s.id},'${esc(s.name)}')">🗑</button></td>
+    </tr>`;
+  });
+  html+=`</tbody></table>`;
+  document.getElementById('table-host').innerHTML=html;
+
+  // 페이지네이션
+  if(totalPages>1){
+    const pg=document.getElementById('pagination');
+    pg.style.display='flex';
+    pg.innerHTML=`
+      <button class="pg-btn" onclick="goPage(0)" ${curPage===0?'disabled':''}>처음</button>
+      <button class="pg-btn" onclick="goPage(${curPage-1})" ${curPage===0?'disabled':''}>← 이전</button>
+      <span class="pg-info">${curPage+1} / ${totalPages} 페이지 (${totalCount}개)</span>
+      <button class="pg-btn" onclick="goPage(${curPage+1})" ${curPage>=totalPages-1?'disabled':''}>다음 →</button>
+      <button class="pg-btn" onclick="goPage(${totalPages-1})" ${curPage>=totalPages-1?'disabled':''}>마지막</button>`;
+  }
+}
+
+function goPage(p){ curPage=p; loadTable(); }
+function setFilter(f){
+  curFilter=f; curPage=0;
+  document.querySelectorAll('.ftab').forEach(b=>b.classList.toggle('on',b.dataset.f===f));
+  loadTable();
+}
+function setFieldFilter(ff){
+  curField=ff; curPage=0;
+  document.querySelectorAll('.fftab').forEach(b=>b.classList.toggle('on',b.dataset.ff===ff));
+  loadTable();
+}
+function onSearch(){
+  clearTimeout(searchTimer);
+  searchTimer=setTimeout(()=>{ searchTerm=document.getElementById('search-input').value.trim(); curPage=0; loadTable(); },350);
+}
+
+// ── 개별 별 삭제 ──
+async function deleteStar(id, name){
+  if(!confirm(`"${name}" 별을 삭제합니다.\nheart·companions·star_contents도 함께 삭제됩니다.\n되돌릴 수 없습니다. 진행할까요?`)) return;
+  try {
+    await supa.from('hearts').delete().eq('star_id',id);
+    await supa.from('companions').delete().eq('star_id',id);
+    await supa.from('star_contents').delete().eq('star_id',id);
+    const { data: vids } = await supa.from('star_videos').select('id').eq('star_id',id);
+    if(vids&&vids.length){
+      const vids_ids = vids.map(v=>v.id);
+      await supa.from('star_video_essays').delete().in('video_id',vids_ids);
+      await supa.from('star_videos').delete().eq('star_id',id);
+    }
+    const { error } = await supa.from('stars').delete().eq('id',id);
+    if(error) throw error;
+    alert(`"${name}" 삭제 완료.`);
+    loadAll();
+  } catch(e){
+    alert('삭제 실패: '+e.message);
+  }
+}
+
+// ── ④ 빈 별 일괄 삭제 ──
+let emptyIds = [];
+
+async function previewEmpty(){
+  document.getElementById('bulk-preview').innerHTML='<span style="color:var(--chalk-dim)">조회 중…</span>';
+  document.getElementById('delete-btn').style.display='none';
+
+  // 빈 별 = has_content=false AND photo_url=null AND framed_url=null AND heart_count=0
+  const { data, error } = await supa.from('stars')
+    .select('id,name,field')
+    .eq('has_content',false)
+    .is('photo_url',null)
+    .is('framed_url',null)
+    .eq('heart_count',0)
+    .order('name');
+
+  if(error||!data){
+    document.getElementById('bulk-preview').innerHTML=`<span style="color:var(--bad)">조회 실패: ${esc(error?.message)}</span>`;
+    return;
+  }
+  emptyIds = data.map(s=>s.id);
+  if(!emptyIds.length){
+    document.getElementById('bulk-preview').innerHTML='<span style="color:var(--ok)">삭제 후보 없음 — 깨끗합니다.</span>';
+    return;
+  }
+  const preview = data.slice(0,50).map(s=>`${esc(s.name)} (${esc(s.field||'?')})`).join(' · ');
+  document.getElementById('bulk-preview').innerHTML=`
+    <div><span class="bulk-count">${emptyIds.length}개</span> 삭제 예정</div>
+    <div style="margin-top:6px">${preview}${data.length>50?` … 외 ${data.length-50}개`:''}</div>
+    <div style="margin-top:8px;color:var(--bad);font-size:11px">heart·companions·star_contents 포함 cascade 삭제됩니다.</div>`;
+  const btn = document.getElementById('delete-btn');
+  btn.style.display='';
+  btn.disabled=false;
+}
+
+async function deleteEmpty(){
+  if(!emptyIds.length) return;
+  if(!confirm(`빈 별 ${emptyIds.length}개를 삭제합니다. 되돌릴 수 없습니다. 진행할까요?`)) return;
+  const btn=document.getElementById('delete-btn');
+  btn.disabled=true; btn.textContent='삭제 중…';
+  try {
+    // 50개씩 나눠서 삭제
+    const CHUNK=50;
+    for(let i=0;i<emptyIds.length;i+=CHUNK){
+      const chunk=emptyIds.slice(i,i+CHUNK);
+      await supa.from('hearts').delete().in('star_id',chunk);
+      await supa.from('companions').delete().in('star_id',chunk);
+      await supa.from('star_contents').delete().in('star_id',chunk);
+      const { data:vids } = await supa.from('star_videos').select('id').in('star_id',chunk);
+      if(vids&&vids.length){
+        await supa.from('star_video_essays').delete().in('video_id',vids.map(v=>v.id));
+        await supa.from('star_videos').delete().in('star_id',chunk);
+      }
+      await supa.from('stars').delete().in('id',chunk);
+    }
+    alert(`빈 별 ${emptyIds.length}개 삭제 완료.`);
+    emptyIds=[];
+    document.getElementById('bulk-preview').innerHTML='';
+    btn.style.display='none';
+    loadAll();
+  } catch(e){
+    alert('삭제 중 오류: '+e.message);
+    btn.disabled=false; btn.textContent='확인 후 삭제 실행';
+  }
+}
+
+// ── ⑤ figures 정합 체크 ──
+async function runCheck(){
+  document.getElementById('check-result').innerHTML='<span style="color:var(--chalk-dim)">분석 중…</span>';
+  const [{ data: qs }, { data: ss }] = await Promise.all([
+    supa.from('questions').select('figures,source_seed').limit(1000),
+    supa.from('stars').select('name,aliases').limit(500)
+  ]);
+  const starNames = new Set((ss||[]).map(s=>s.name));
+  const aliases = new Map();
+  (ss||[]).forEach(s=>{
+    if(Array.isArray(s.aliases)) s.aliases.forEach(a=>aliases.set(a,s.name));
+  });
+
+  const mismatches = [];
+  const seen = new Set();
+  (qs||[]).forEach(q=>{
+    if(!Array.isArray(q.figures)) return;
+    q.figures.forEach(f=>{
+      if(seen.has(f)) return; seen.add(f);
+      if(!starNames.has(f)){
+        const hint = aliases.has(f)?`→ 별명으로 등록됨(stars alias), 풀네임 사용 필요`:`→ stars 테이블에 없음`;
+        mismatches.push({fig:f, seed:q.source_seed, hint});
+      }
+    });
+  });
+
+  if(!mismatches.length){
+    document.getElementById('check-result').innerHTML=`<span style="color:var(--ok)">✓ 모든 figures가 stars.name과 정합합니다. (${(qs||[]).length}개 문항 검사)</span>`;
+    return;
+  }
+  document.getElementById('check-result').innerHTML=`
+    <div style="color:var(--bad);margin-bottom:8px">⚠ 불일치 ${mismatches.length}건 발견</div>
+    ${mismatches.map(m=>`
+      <div class="mismatch-item">
+        <b>${esc(m.fig)}</b> — ${esc(m.hint)}<br>
+        <span style="font-size:10px;opacity:.7">예시 출제: ${esc(m.seed||'?')}</span>
+      </div>`).join('')}`;
+}
+
+// ── ⑥ 점검 신호 ──
+async function renderWarns(){
+  const warns=[];
+  const { data: grade9 } = await supa.from('stars').select('name').eq('grade',9).limit(20);
+  if(grade9&&grade9.length) warns.push(`⭐ grade 9 숨김 별 ${grade9.length}개 — 콘스텔라티오에서 안 보임: ${grade9.map(s=>esc(s.name)).join(' · ')}`);
+  const { count: noCoord } = await supa.from('stars').select('*',{count:'exact',head:true}).is('x_ratio',null);
+  if(noCoord) warns.push(`📍 좌표(x_ratio) 없는 별 ${noCoord}개 — birth 입력 확인 필요`);
+  const { count: emptyCount } = await supa.from('stars').select('*',{count:'exact',head:true})
+    .eq('has_content',false).is('photo_url',null).is('framed_url',null).eq('heart_count',0);
+  if(emptyCount) warns.push(`🗑 빈 별(삭제 후보) ${emptyCount}개 — 일괄 삭제 권장`);
+
+  const host=document.getElementById('warns-host');
+  if(!warns.length){
+    host.innerHTML=`<div class="warns clean"><div class="clean-msg">✓ grade·좌표·빈 별 점검 — 모두 깨끗합니다.</div></div>`;
+  } else {
+    host.innerHTML=`<div class="warns"><h3>⚠ 점검 신호 ${warns.length}건</h3><ul>${warns.map(w=>`<li>${w}</li>`).join('')}</ul></div>`;
+  }
+}
+
+init();
+</script>
+</body>
+</html>
