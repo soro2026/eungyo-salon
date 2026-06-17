@@ -137,6 +137,47 @@
   .warns .clean-msg{font-size:13px;color:var(--ok);}
   .loading{text-align:center;padding:60px 0;color:var(--chalk-dim);}
   .foot{text-align:center;font-size:11px;color:var(--chalk-dim);margin-top:30px;opacity:.6;}
+  /* ── 보물 입고 모달 ── */
+  .intake-open{ background:rgba(201,168,76,0.16); border:1px solid var(--gold-dim);
+    color:var(--gold-l); border-radius:9px; padding:7px 13px; font-size:12.5px; font-weight:700;
+    cursor:pointer; font-family:inherit; letter-spacing:0.02em; margin-left:8px; }
+  .intake-open:hover{ background:rgba(201,168,76,0.28); }
+  #intake-modal{ position:fixed; inset:0; z-index:200; display:none;
+    align-items:flex-start; justify-content:center; padding:24px 14px;
+    background:rgba(10,8,8,0.74); overflow-y:auto; }
+  .intake-box{ background:linear-gradient(180deg,var(--oak),var(--wine-deep));
+    border:1px solid var(--gold-dim); border-radius:18px; width:100%; max-width:470px;
+    padding:24px 22px 22px; box-shadow:0 24px 60px rgba(0,0,0,0.5); margin:auto; }
+  .intake-box h3{ margin:0 0 4px; font-size:16px; color:var(--gold-l); letter-spacing:0.03em; }
+  .intake-box .ib-sub{ font-size:11.5px; color:var(--chalk-dim); margin-bottom:18px; line-height:1.6; }
+  .ib-seg{ display:flex; gap:8px; margin-bottom:16px; }
+  .ib-seg button{ flex:1; padding:10px; border-radius:10px; font-family:inherit; font-size:13px;
+    font-weight:700; cursor:pointer; border:1px solid var(--chalk-faint);
+    background:rgba(255,255,255,0.03); color:var(--chalk-dim); transition:all .15s; }
+  .ib-seg button.on[data-cat="visual"]{ border-color:var(--visual); color:#fff; background:rgba(201,126,154,0.22); }
+  .ib-seg button.on[data-cat="record"]{ border-color:var(--record); color:#fff; background:rgba(126,184,201,0.22); }
+  .ib-row{ display:flex; gap:12px; margin-bottom:14px; }
+  .ib-field{ flex:1; }
+  .ib-field label{ display:block; font-size:11px; color:var(--gold-dim); margin-bottom:5px; letter-spacing:0.04em; }
+  .ib-field select{ width:100%; padding:10px; border-radius:9px; font-family:inherit; font-size:13px;
+    background:var(--wine); color:var(--chalk); border:1px solid var(--chalk-faint); }
+  .ib-drop{ border:1.5px dashed var(--gold-dim); border-radius:12px; padding:22px 14px; text-align:center;
+    cursor:pointer; transition:all .15s; margin-bottom:14px; background:rgba(255,255,255,0.02); }
+  .ib-drop:hover, .ib-drop.over{ border-color:var(--gold); background:rgba(201,168,76,0.08); }
+  .ib-drop .ph{ font-size:12.5px; color:var(--chalk-dim); }
+  .ib-preview{ display:none; margin-bottom:14px; text-align:center; }
+  .ib-preview img{ max-width:100%; max-height:240px; border-radius:8px; border:1px solid var(--chalk-faint); }
+  .ib-preview .meta{ font-size:11.5px; color:var(--chalk-dim); margin-top:8px; }
+  .ib-btns{ display:flex; gap:10px; margin-top:6px; }
+  .ib-btns button{ flex:1; padding:12px; border-radius:10px; font-family:inherit; font-size:13.5px;
+    font-weight:700; cursor:pointer; border:1px solid transparent; }
+  .ib-submit{ background:rgba(201,168,76,0.2); border-color:var(--gold-dim); color:var(--gold-l); }
+  .ib-submit:hover{ background:rgba(201,168,76,0.34); }
+  .ib-submit:disabled{ opacity:0.45; cursor:default; }
+  .ib-cancel{ background:rgba(255,255,255,0.04); border-color:var(--chalk-faint); color:var(--chalk-dim); }
+  .ib-toast{ font-size:12px; margin-top:12px; padding:10px 12px; border-radius:8px; display:none; line-height:1.5; }
+  .ib-toast.ok{ display:block; background:rgba(82,183,136,0.14); color:var(--ok); border:1px solid rgba(82,183,136,0.3); }
+  .ib-toast.err{ display:block; background:rgba(216,90,48,0.14); color:var(--bad); border:1px solid rgba(216,90,48,0.3); }
 </style>
 </head>
 <body>
@@ -154,9 +195,51 @@
   <div class="head">
     <h1>헤리티지 운영 현황판<span class="sub">EG HERITAGE · 살롱지기 전용</span></h1>
     <button class="refresh" onclick="load()">↻ 새로고침</button>
+    <button class="intake-open" onclick="openIntake()">🖼 보물 입고</button>
   </div>
   <div id="body"><div class="loading">현황을 불러오는 중…</div></div>
   <div class="foot">heritage_items · editions · rentals · archives 실시간 조회</div>
+</div>
+
+<!-- ══ 보물 입고 모달 ══ -->
+<div id="intake-modal">
+  <div class="intake-box">
+    <h3>🖼 보물 입고</h3>
+    <div class="ib-sub">주차·방을 고르고 파일만 던지세요. 작가·작품명·연도·4겹은 카리가 명패를 보고 채웁니다.<br>입고 상태 = <b>standby</b> (그 주 화요일 0시에 자동 개봉)</div>
+
+    <div class="ib-seg" id="ib-seg">
+      <button data-cat="visual" class="on" onclick="ibSetCat('visual')">🖼 그림 (5점/주)</button>
+      <button data-cat="record" onclick="ibSetCat('record')">📀 음반 (3점/주)</button>
+    </div>
+
+    <div class="ib-row">
+      <div class="ib-field">
+        <label>주차</label>
+        <select id="ib-wk"></select>
+      </div>
+      <div class="ib-field">
+        <label>방 호수 (salle)</label>
+        <select id="ib-salle"></select>
+      </div>
+    </div>
+
+    <div class="ib-drop" id="ib-drop" onclick="document.getElementById('ib-file').click()">
+      <div class="ph" id="ib-drop-ph">이미지를 끌어다 놓거나 눌러서 선택</div>
+    </div>
+    <input type="file" id="ib-file" accept="image/*" style="display:none" onchange="ibPickFile(event)">
+
+    <div class="ib-preview" id="ib-preview">
+      <img id="ib-preview-img" alt="">
+      <div class="meta" id="ib-preview-meta"></div>
+    </div>
+
+    <div class="ib-toast" id="ib-toast"></div>
+
+    <div class="ib-btns">
+      <button class="ib-cancel" onclick="closeIntake()">닫기</button>
+      <button class="ib-submit" id="ib-submit" onclick="ibSubmit()">입고</button>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -498,6 +581,186 @@ function render(items, editions, rentals, waitlist, archives, results){
   }
 
   document.getElementById('body').innerHTML = html;
+}
+
+// ══════════ 보물 입고 모달 ══════════
+const ibState = { cat:'visual', file:null, ratio:'portrait' };
+
+function ibSetCat(cat){
+  ibState.cat = cat;
+  document.querySelectorAll('#ib-seg button').forEach(b=>{
+    b.classList.toggle('on', b.dataset.cat===cat);
+  });
+  ibFillSalle();
+  ibFillWeeks();
+}
+
+// 방 호수 select (그림 1~5 / 음반 1~3)
+function ibFillSalle(){
+  const sel = document.getElementById('ib-salle');
+  const max = ibState.cat==='visual' ? 5 : 3;
+  const labels = ibState.cat==='visual'
+    ? {1:'1번 · 영구',2:'2번 · 대여',3:'3번 · 대여',4:'4번 · 대여',5:'5번 · 대여'}
+    : {1:'1번 · 슬롯',2:'2번 · 슬롯',3:'3번 · 슬롯'};
+  sel.innerHTML = '';
+  for(let i=1;i<=max;i++){
+    const o=document.createElement('option'); o.value=i; o.textContent=labels[i]; sel.appendChild(o);
+  }
+}
+
+// 주차 select — 다음 주부터 16주, 각 주차 입고 수 표시
+async function ibFillWeeks(){
+  const sel = document.getElementById('ib-wk');
+  sel.innerHTML = '<option>불러오는 중…</option>';
+  const cat = ibState.cat;
+  const cap = cat==='visual' ? 5 : 3;
+  let counts = {};
+  try{
+    const { data } = await supa.from('heritage_items')
+      .select('wk_id,category').eq('category',cat);
+    (data||[]).forEach(r=>{ if(r.wk_id) counts[r.wk_id]=(counts[r.wk_id]||0)+1; });
+  }catch(e){}
+  const start = addWeeks(toWkId(kstNow()), 1);   // 다음 주부터
+  sel.innerHTML = '';
+  let wk = start;
+  for(let i=0;i<16;i++){
+    const n = counts[wk]||0;
+    const o = document.createElement('option');
+    o.value = wk;
+    o.textContent = `${wk}  (${n}/${cap})` + (n>=cap ? ' ·꽉참' : '');
+    sel.appendChild(o);
+    wk = addWeeks(wk, 1);
+  }
+}
+
+function openIntake(){
+  ibState.file=null; ibState.ratio='portrait';
+  ibSetCat('visual');
+  document.getElementById('ib-file').value='';
+  document.getElementById('ib-preview').style.display='none';
+  document.getElementById('ib-drop').style.display='';
+  document.getElementById('ib-drop-ph').textContent='이미지를 끌어다 놓거나 눌러서 선택';
+  ibToast('');
+  document.getElementById('intake-modal').style.display='flex';
+}
+function closeIntake(){ document.getElementById('intake-modal').style.display='none'; }
+
+function ibToast(msg, cls){
+  const t=document.getElementById('ib-toast');
+  t.className='ib-toast'+(cls?(' '+cls):'');
+  t.innerHTML=msg||'';
+}
+
+// 비율 자동 측정
+function ibMeasure(file){
+  return new Promise(res=>{
+    const img=new Image();
+    img.onload=()=>{ res({ratio: img.naturalWidth>=img.naturalHeight?'landscape':'portrait', w:img.naturalWidth, h:img.naturalHeight}); };
+    img.onerror=()=>res({ratio:'portrait', w:0, h:0});
+    img.src=URL.createObjectURL(file);
+  });
+}
+
+async function ibUseFile(file){
+  if(!file || !file.type.startsWith('image/')){ ibToast('이미지 파일만 가능합니다.', 'err'); return; }
+  ibState.file=file;
+  const m=await ibMeasure(file);
+  ibState.ratio=m.ratio;
+  document.getElementById('ib-preview-img').src=URL.createObjectURL(file);
+  document.getElementById('ib-preview-meta').textContent=
+    `${file.name} · ${m.w}×${m.h} · ${m.ratio==='landscape'?'가로':'세로'}`;
+  document.getElementById('ib-preview').style.display='block';
+  document.getElementById('ib-drop').style.display='none';
+  ibToast('');
+}
+function ibPickFile(e){ ibUseFile(e.target.files[0]); }
+
+// 드롭존 드래그
+(function(){
+  const setup=()=>{
+    const drop=document.getElementById('ib-drop'); if(!drop) return;
+    ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+    ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
+    drop.addEventListener('drop',e=>{ if(e.dataTransfer.files[0]) ibUseFile(e.dataTransfer.files[0]); });
+  };
+  if(document.readyState!=='loading') setup(); else document.addEventListener('DOMContentLoaded',setup);
+})();
+
+// 다음 id (htg_p / htg_m + 3자리)
+async function ibNextId(prefix){
+  const { data } = await supa.from('heritage_items').select('id').like('id', prefix+'%');
+  let mx=0;
+  (data||[]).forEach(r=>{ const m=String(r.id).match(/(\d+)$/); if(m) mx=Math.max(mx,+m[1]); });
+  return prefix + String(mx+1).padStart(3,'0');
+}
+
+// open_at — 그 주 화요일 0시 KST (= 월 15:00 UTC)
+function ibOpenAt(wk){
+  const tue=wkIdToTuesday(wk);
+  const y=tue.getFullYear(), mo=String(tue.getMonth()+1).padStart(2,'0'), d=String(tue.getDate()).padStart(2,'0');
+  return `${y}-${mo}-${d} 00:00:00+09:00`;
+}
+
+async function ibSubmit(){
+  const cat=ibState.cat;
+  const wk=document.getElementById('ib-wk').value;
+  const salle=parseInt(document.getElementById('ib-salle').value,10);
+  const file=ibState.file;
+  if(!file){ ibToast('파일을 먼저 선택하세요.', 'err'); return; }
+  if(!wk || !salle){ ibToast('주차와 방을 고르세요.', 'err'); return; }
+
+  const btn=document.getElementById('ib-submit');
+  btn.disabled=true; btn.textContent='입고 중…'; ibToast('');
+
+  try{
+    // 같은 주·방·매체 중복 확인
+    const { data:dup } = await supa.from('heritage_items')
+      .select('id,name').eq('wk_id',wk).eq('salle_no',salle).eq('category',cat);
+    if(dup && dup.length){
+      const ok=confirm(`${wk} ${salle}번 방에 이미 [${dup[0].name}]가 있습니다.\n같은 방에 또 넣으면 화면이 겹칠 수 있어요. 그래도 진행할까요?`);
+      if(!ok){ btn.disabled=false; btn.textContent='입고'; return; }
+    }
+
+    const prefix = cat==='visual' ? 'htg_p' : 'htg_m';
+    const id = await ibNextId(prefix);
+    const ext = (file.name.split('.').pop()||'webp').toLowerCase().replace(/[^a-z0-9]/g,'') || 'webp';
+    const fname = `${id}.${ext}`;
+
+    // ① Storage 업로드
+    const { error:upErr } = await supa.storage.from('heritage-treasures')
+      .upload(fname, file, { upsert:true, contentType:file.type });
+    if(upErr) throw new Error('업로드 실패: '+upErr.message);
+    const { data:urlData } = supa.storage.from('heritage-treasures').getPublicUrl(fname);
+    const publicUrl = urlData.publicUrl;
+
+    // ② DB INSERT (standby) — 작가·작품명은 카리가 채울 placeholder
+    const { error:insErr } = await supa.from('heritage_items').insert({
+      id, file_id:id, img:publicUrl,
+      name:'⏳ 입고 대기', artist:'⏳ 입고 대기',
+      category:cat, grade:'gold', ratio:ibState.ratio,
+      wk_id:wk, salle_no:salle, open_at:ibOpenAt(wk),
+      status:'standby', is_welcome:false
+    });
+    if(insErr) throw new Error('DB 입고 실패: '+insErr.message);
+
+    ibToast(`✦ ${id} 입고 완료 — ${wk} ${salle}번 방 (${ibState.ratio==='landscape'?'가로':'세로'}). 카리가 채울 차례.`, 'ok');
+
+    // ③ 연속 입고 — 방 자동 +1, 파일 비움
+    const maxSalle = cat==='visual'?5:3;
+    if(salle<maxSalle) document.getElementById('ib-salle').value=salle+1;
+    ibState.file=null;
+    document.getElementById('ib-file').value='';
+    document.getElementById('ib-preview').style.display='none';
+    document.getElementById('ib-drop').style.display='';
+
+    await ibFillWeeks();              // 현황 갱신
+    document.getElementById('ib-wk').value=wk;
+    load();                          // 대시보드 갱신
+  }catch(e){
+    ibToast(e.message||'입고 중 오류', 'err');
+  }finally{
+    btn.disabled=false; btn.textContent='입고';
+  }
 }
 
 init();
