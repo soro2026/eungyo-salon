@@ -974,6 +974,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
 });
 
 let currentUser = null;
+let isAdmin = false;   // 살롱지기(lonelywalden) — 사진 업로드 권한
 let myHearts = new Set(); // 내가 하트 준 star_id 목록
 let currentStarData = null; // 현재 모달에 열린 별 데이터
 
@@ -982,6 +983,12 @@ async function initAuth() {
   const { data: { session } } = await supa.auth.getSession();
   if (session) {
     currentUser = session.user;
+    // 살롱지기(lonelywalden) 여부 — 사진 업로드 권한 (users.is_admin)
+    try {
+      const { data: me } = await supa.from('users')
+        .select('is_admin').eq('id', currentUser.id).maybeSingle();
+      isAdmin = !!(me && me.is_admin);
+    } catch (e) { /* 조회 실패 시 잠금 유지 */ }
     await loadMyHearts();
   }
 }
@@ -1154,11 +1161,13 @@ function initModalCard(fig) {
       empty.textContent = '✦';
       newPhoto.appendChild(empty);
     }
-    const h = document.createElement('div');
-    h.className = 'eg-photo-hint';
-    h.textContent = fig.photo_url ? '📷 사진 변경' : '📷 사진 추가';
-    h.onclick = (e) => { e.stopPropagation(); triggerModalPhotoUpload(); };
-    newPhoto.appendChild(h);
+    if (isAdmin) {
+      const h = document.createElement('div');
+      h.className = 'eg-photo-hint';
+      h.textContent = fig.photo_url ? '📷 사진 변경' : '📷 사진 추가';
+      h.onclick = (e) => { e.stopPropagation(); triggerModalPhotoUpload(); };
+      newPhoto.appendChild(h);
+    }
   }
 
   // 앞면 인물명 세리프 — 사진 없는 별만 (호메로스 등 포토카드는 이름이 사진에 박혀 있음)
@@ -1233,7 +1242,7 @@ function initModalCard(fig) {
 
 // ── 사진 업로드 ───────────────────────────────────────────────
 function triggerModalPhotoUpload() {
-  if (!currentUser) return;
+  if (!currentUser || !isAdmin) return;
   document.getElementById('modal-photo-input').click();
 }
 async function uploadModalPhoto(event) {
