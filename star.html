@@ -94,7 +94,7 @@ body.has-salon-bg .back-link {
 .back-link:hover { color: var(--gold); }
 
 .star-card-row {
-  display: flex; gap: 20px; align-items: flex-start;
+  display: flex; gap: 28px; align-items: flex-start;
 }
 /* ── 3D 별 카드 ── */
 .card-wrap {
@@ -182,6 +182,38 @@ body.has-salon-bg .back-link {
 /* 살롱지기(lonelywalden)만 사진#1 표지 교체 가능 */
 body.is-admin .upload-overlay { pointer-events: auto; }
 body.is-admin .card-wrap:hover .upload-overlay { opacity: 1; }
+
+/* ═══ 사진#2 — 액자(framed) : 비율 그대로, 잘림·찌그러짐 없음 ═══ */
+.framed-wrap { width: 160px; flex-shrink: 0; position: relative; }
+.framed-img {
+  width: 100%; height: auto; display: block;   /* ⭐ 한 축만 고정 → 비율 자유 */
+  border-radius: 8px; box-shadow: 0 5px 22px rgba(0,0,0,0.18);
+}
+.framed-empty {
+  width: 100%; aspect-ratio: 3 / 4;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 5px;
+  border: 1px dashed rgba(184,136,30,0.3); border-radius: 8px;
+  color: rgba(184,136,30,0.35); font-size: 24px;
+}
+.framed-empty-add { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; }
+.framed-grade {
+  position: absolute; top: 8px; right: 8px; z-index: 3;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
+  color: #8B6010; background: rgba(255,253,247,0.85);
+  padding: 2px 7px; border-radius: 10px;
+}
+.framed-upload {
+  position: absolute; inset: 0; border-radius: 8px;
+  background: rgba(201,168,76,0.15);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 4px;
+  opacity: 0; transition: opacity 0.2s;
+  cursor: pointer; pointer-events: none; z-index: 4;
+}
+.framed-upload-text { font-size: 9px; color: #8B6010; font-weight: 700; letter-spacing: 0.08em; }
+body.is-admin .framed-upload { pointer-events: auto; }
+body.is-admin .framed-wrap:hover .framed-upload { opacity: 1; }
 .upload-overlay-text {
   font-size: 9px; color: #8B6010;
   letter-spacing: 0.08em; font-weight: 700;
@@ -923,37 +955,16 @@ body.has-salon-bg .floor1-header {
   <div class="star-header">
     <a href="constella.html" class="back-link">← 별자리로 돌아가기</a>
     <div class="star-card-row">
-      <!-- 숨긴 파일 입력 -->
-      <input type="file" id="photo-input" accept="image/*" onchange="uploadPhoto(event)">
-
-      <div class="card-wrap" id="card-wrap">
-        <div class="card-3d" id="card-3d">
-          <!-- 앞면 -->
-          <div class="card-face card-front-face">
-            <div class="card-glare" id="card-glare"></div>
-            <div class="card-grade-badge" id="card-grade-badge">—등성</div>
-            <div id="card-front-content" class="card-empty">
-              <span class="card-empty-icon">✦</span>
-              <span class="card-empty-text">사진 없음</span>
-            </div>
-            <div class="card-egbadge">E G · ✦</div>
-          </div>
-          <!-- 뒷면 -->
-          <div class="card-face card-back-face">
-            <div style="font-size:9px;letter-spacing:0.14em;color:rgba(184,136,30,0.5);text-align:center;padding:8px;">
-              S T A R<br>P R O F I L E
-            </div>
-            <div style="width:80%;height:1px;background:linear-gradient(to right,transparent,rgba(184,136,30,0.3),transparent);"></div>
-            <div id="card-back-lum" style="font-size:10px;color:#B8881E;font-family:'Courier New',monospace;"></div>
-            <div style="width:80%;height:1px;background:linear-gradient(to right,transparent,rgba(184,136,30,0.3),transparent);"></div>
-            <div id="card-back-stock" style="font-size:9px;color:rgba(26,20,16,0.5);text-align:center;line-height:1.8;padding:4px 8px;"></div>
-          </div>
-        </div>
-        <!-- 업로드 오버레이 -->
-        <div class="upload-overlay" id="upload-overlay" onclick="triggerUpload()">
+      <!-- 사진#2 (액자) — 비율 그대로, 없으면 빈 칸 -->
+      <div class="framed-wrap" id="framed-wrap">
+        <div class="framed-grade" id="framed-grade">—등성</div>
+        <img class="framed-img" id="framed-img" alt="" style="display:none;">
+        <div class="framed-empty" id="framed-empty"><span>✦</span></div>
+        <div class="framed-upload" id="framed-upload" onclick="triggerFramedUpload()" style="display:none;">
           <span style="font-size:16px;">📷</span>
-          <span class="upload-overlay-text">사진 변경</span>
+          <span class="framed-upload-text">액자 변경</span>
         </div>
+        <input type="file" id="framed-input" accept="image/*" style="display:none" onchange="uploadFramed(event)">
       </div>
       <div class="star-meta">
         <div class="star-name" id="star-name">로딩 중...</div>
@@ -1177,7 +1188,7 @@ async function loadStar(starId) {
   document.getElementById('stock-status').textContent = statusLabel;
 
   // 3D 카드 업데이트
-  updateCard(star, lum);
+  updateFramed(star);
 }
 
 function updateCard(star, lum) {
@@ -1243,6 +1254,57 @@ function initCardInteraction() {
       ? 'rotateY(180deg)'
       : 'perspective(700px) rotateY(0deg) rotateX(0deg)';
   });
+}
+
+// ── 사진#2 (액자) 표시·업로드 ──────────────────────────────────
+function updateFramed(star) {
+  const img = document.getElementById('framed-img');
+  const empty = document.getElementById('framed-empty');
+  const grade = document.getElementById('framed-grade');
+  const upBtn = document.getElementById('framed-upload');
+  const admin = document.body.classList.contains('is-admin');
+  grade.textContent = `${star.grade || '—'}등성`;
+  if (star.framed_url) {
+    img.src = star.framed_url; img.alt = star.name || '';
+    img.style.display = 'block';
+    empty.style.display = 'none';
+    upBtn.style.display = admin ? 'flex' : 'none';   // 소로면 hover 시 "액자 변경"
+  } else {
+    img.removeAttribute('src');
+    img.style.display = 'none';
+    upBtn.style.display = 'none';
+    empty.style.display = 'flex';
+    if (admin) {                                      // 소로면 빈 칸이 곧 올리기 버튼
+      empty.innerHTML = '<span style="font-size:18px;">📷</span><span class="framed-empty-add">액자 올리기</span>';
+      empty.style.cursor = 'pointer';
+      empty.onclick = triggerFramedUpload;
+    } else {                                          // 일반 회원은 그냥 빈 칸(추적용)
+      empty.innerHTML = '<span>✦</span>';
+      empty.style.cursor = 'default';
+      empty.onclick = null;
+    }
+  }
+}
+
+function triggerFramedUpload() {
+  if (!document.body.classList.contains('is-admin')) return;
+  document.getElementById('framed-input').click();
+}
+
+async function uploadFramed(event) {
+  const file = event.target.files[0];
+  if (!file || !currentStar) return;
+  if (!document.body.classList.contains('is-admin')) return;
+  const ext = file.name.split('.').pop();
+  const fileName = `framed_${currentStar.id}_${Date.now()}.${ext}`;
+  const { error } = await supa.storage.from('star-photos').upload(fileName, file, { upsert: true });
+  if (error) { console.error(error); alert('업로드 실패. 다시 시도해주세요.'); return; }
+  const { data: urlData } = supa.storage.from('star-photos').getPublicUrl(fileName);
+  const url = urlData.publicUrl;
+  await supa.from('stars').update({ framed_url: url }).eq('id', currentStar.id);
+  currentStar.framed_url = url;
+  updateFramed(currentStar);
+  event.target.value = '';
 }
 
 // ── 사진 업로드 ────────────────────────────────────────────────
