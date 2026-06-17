@@ -584,6 +584,22 @@ header {
   border-bottom: 1px dashed rgba(201,168,76,0.16); line-height: 1.55; }
 .catw-line .dim { color: var(--txt-soft); }
 
+/* ── 타임즈 탭 ── */
+.times-tab-wrap { max-width: 680px; margin: 0 auto; padding: 20px 16px 80px; }
+.times-archive-section { margin-top: 36px; border-top: 1px solid rgba(201,168,76,.18); padding-top: 24px; }
+.times-archive-label { font-size: 11px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--gold-dim); margin-bottom: 18px; }
+.times-arc-card { background: rgba(255,255,255,.03); border: 1px solid rgba(201,168,76,.15);
+  border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
+.times-arc-wk { font-size: 11px; letter-spacing: .1em; color: var(--gold-dim); margin-bottom: 10px; }
+.times-arc-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+.times-arc-btn { background: rgba(201,168,76,.1); border: 1px solid rgba(201,168,76,.28);
+  border-radius: 6px; color: var(--gold-l); font-size: 12.5px; padding: 6px 14px;
+  cursor: pointer; transition: background .15s; }
+.times-arc-btn:hover { background: rgba(201,168,76,.22); }
+.times-arc-btn.result { background: rgba(201,168,76,.05); }
+.times-arc-empty { font-size: 13px; color: var(--txt-soft); text-align: center; padding: 24px 0; }
+
 @media (min-width: 640px) {
   .stage-wrap, .salle-nav { max-width: 560px; margin-left: auto; margin-right: auto; }
 }
@@ -605,6 +621,7 @@ header {
       <button class="main-tab active" data-tab="salon"   onclick="switchMainTab('salon')">🖼 이번 주 살롱</button>
       <button class="main-tab"        data-tab="record"  onclick="switchMainTab('record')">📀 음반 가게</button>
       <button class="main-tab"        data-tab="catalog" onclick="switchMainTab('catalog')">📚 카탈로그</button>
+      <button class="main-tab"        data-tab="times"   onclick="switchMainTab('times')">📰 헤리티지 타임즈</button>
     </nav>
     <div class="hd-badge">heritage v5.1 · Phase 2+3a+4a<br>음반 대여 창구 개통 — 🍎 1알 · 3주</div>
   </div>
@@ -631,6 +648,19 @@ header {
       <div class="void">
         <div class="void-mark">📚</div>
         <div class="void-line">도록을 펼치는 중입니다…</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 탭 ④ 헤리티지 타임즈 — 이번 호 + 지난 호 서가 ── -->
+<section id="tab-times" hidden>
+  <div class="times-tab-wrap">
+    <div id="times-current-host"></div>
+    <div class="times-archive-section">
+      <div class="times-archive-label">지난 호 서가</div>
+      <div id="times-archive-host">
+        <div class="void"><div class="void-line">불러오는 중…</div></div>
       </div>
     </div>
   </div>
@@ -1317,6 +1347,7 @@ function switchMainTab(tab) {
   document.getElementById('tab-salon').hidden   = tab !== 'salon';
   document.getElementById('tab-record').hidden  = tab !== 'record';
   document.getElementById('tab-catalog').hidden = tab !== 'catalog';
+  document.getElementById('tab-times').hidden   = tab !== 'times';
   document.body.classList.toggle('mode-salon', tab === 'salon');
   const bd = document.getElementById('salon-backdrop');
   if (bd) bd.style.opacity = tab === 'salon' ? '1' : '0';
@@ -1324,6 +1355,7 @@ function switchMainTab(tab) {
   if (rbd) rbd.classList.toggle('on', tab === 'record');
   if (tab === 'record') setRecordBackdrop(currentRoom);
   if (tab === 'catalog') ensureCatalog();
+  if (tab === 'times') loadTimesTab();
   renderRhythm(tab);
   window.scrollTo(0, 0);
 }
@@ -1338,6 +1370,11 @@ function renderRhythm(tab = 'salon') {
   if (tab === 'catalog') {
     document.getElementById('rhythm-line').innerHTML =
       '카탈로그 레조네 — 보물은 흐릅니다 · 서가 대여는 <b>부수 연동 🍎 · 6주</b>';
+    return;
+  }
+  if (tab === 'times') {
+    document.getElementById('rhythm-line').innerHTML =
+      '헤리티지 타임즈 — 매주 <b>마감호</b>(월 오전) · <b>결과호</b>(월 오후) 발행 · 지난 호는 서가에서';
     return;
   }
   const day = new Date().getDay(); // 0 일 ~ 6 토
@@ -1378,10 +1415,11 @@ function renderStage() {
   // 신문의 날 (월): 작품을 내리고 회전하는 신문이 무대를 차지한다
   const _tm = timesMode();
   if (_tm === 'closing' && SALON_ITEMS.length) { renderTimesStage(host); return; }
-  // 결과호: 월요일이거나(추첨일) 아직 새 보물이 입고되지 않았을 때만. 새 살롱이 열리면 양보.
-  if (_tm === 'result' && RESULT_SUMMARY && (kstDate().getDay() === 1 || !SALON_ITEMS.length)) {
+  // 결과호: 월요일(추첨일)에만 무대 차지. 화~일은 archived → 살롱 정상 표시.
+  if (_tm === 'result' && RESULT_SUMMARY && kstDate().getDay() === 1) {
     renderTimesStage(host); return;
   }
+  // archived / normal: 살롱 무대 정상 표시
   const item = SALON_ITEMS.find(i => i.salle_no === currentSalle);
 
   if (!SALON_ITEMS.length) {
@@ -1444,15 +1482,14 @@ const sfxTimesOpen = (() => { try { const a = new Audio('times_open.mp3'); a.pre
 // KST 벽시계 (실행 환경 TZ 무관)
 function kstDate() { const d = new Date(); return new Date(d.getTime() + (d.getTimezoneOffset() + 540) * 60000); }
 
-// 시간대 판정: 월 0–12시 = 마감호, 월 12–24시 = 결과호, 그 외 = 작품(평소)
+// 시간대 판정: 월 0–12시 = 마감호, 월 12–24시 = 결과호, 화~일 = archived(탭으로)
 function timesMode() {
   const d = kstDate();
   const dow = d.getDay(); // 0=일 1=월
   const h = d.getHours();
-  if (dow === 1 && h < 12) return 'closing';  // 월 오전: 마감호
-  if (dow === 1) return 'result';             // 월 정오 이후: 결과호
-  // 화~일: 새 보물이 아직 없으면(개봉 전) 결과호 유지, 있으면 renderStage가 일반 살롱 우선
-  return SALON_ITEMS.length ? 'normal' : 'result';
+  if (dow === 1 && h < 12) return 'closing';  // 월 오전: 마감호 팝업
+  if (dow === 1) return 'result';             // 월 오후: 결과호 팝업
+  return 'archived';  // 화~일: 살롱 무대 반환, 타임즈는 탭에서만
 }
 
 // 호수: 창간 첫 마감호 월요일(2026-06-15)을 기점으로 주차에서 흘러나온다 (저장하지 않음)
@@ -1464,9 +1501,10 @@ function weekIndex() {
   const first = new Date(2026, 5, 15);
   return Math.max(0, Math.round((monday - first) / (7 * 86400000)));
 }
-function currentVol() {
+function currentVol(forMode) {
   const wk = weekIndex();
-  return timesMode() === 'closing' ? wk * 2 + 1 : wk * 2 + 2;
+  const mode = forMode !== undefined ? forMode : timesMode();
+  return mode === 'closing' ? wk * 2 + 1 : wk * 2 + 2;
 }
 
 // 엔진에 흘려보낼 마감호 데이터 (실데이터 SALON_ITEMS + LOVE_COUNTS)
@@ -1528,6 +1566,27 @@ function renderClosingArticles(o) {
 }
 
 let _timesOverlay = null;
+
+// 타임즈 모달 열기 (살롱 탭 팝업 + 아카이브 서가 공용)
+function openTimesModal(inner) {
+  const html = `
+    <div class="sheet-overlay" style="${sheetBackdropStyle()}" onclick="if(event.target===this)closeTimesModal()">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        ${inner}
+        <button class="sheet-btn ghost" onclick="closeTimesModal()">닫기</button>
+      </div>
+    </div>`;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = html;
+  _timesOverlay = wrap.firstElementChild;
+  document.body.appendChild(_timesOverlay);
+}
+function closeTimesModal() {
+  if (_timesOverlay) { _timesOverlay.remove(); _timesOverlay = null; }
+}
+
+// 살롱 탭 신문 무대 클릭 시 팝업 (월요일 전용)
 function openTimes() {
   if (typeof EGHeritageTimes === 'undefined') { console.warn('타임즈 엔진 미로드'); return; }
   let inner;
@@ -1537,21 +1596,167 @@ function openTimes() {
   } else {
     inner = buildClosingHtml(EGHeritageTimes.assembleClosing(buildClosingData()));
   }
-  const html = `
-    <div class="sheet-overlay" style="${sheetBackdropStyle()}" onclick="if(event.target===this)closeTimes()">
-      <div class="sheet">
-        <div class="sheet-handle"></div>
-        ${inner}
-        <button class="sheet-btn ghost" onclick="closeTimes()">닫기</button>
-      </div>
-    </div>`;
-  const wrap = document.createElement('div');
-  wrap.innerHTML = html;
-  _timesOverlay = wrap.firstElementChild;
-  document.body.appendChild(_timesOverlay);
+  openTimesModal(inner);
 }
-function closeTimes() {
-  if (_timesOverlay) { _timesOverlay.remove(); _timesOverlay = null; }
+function closeTimes() { closeTimesModal(); }
+
+// ══════════════════════════════════════════════════
+// 📰 헤리티지 타임즈 탭 — 이번 호 + 지난 호 서가
+// ══════════════════════════════════════════════════
+
+// wk_id('2026-W25') → 해당 주 월요일 KST Date
+function wkIdToMonday(wkId) {
+  const [yr, wk] = wkId.split('-W').map(Number);
+  const jan4 = new Date(yr, 0, 4);
+  const dow = jan4.getDay() || 7;
+  const monday = new Date(jan4);
+  monday.setDate(jan4.getDate() - dow + 1 + (wk - 1) * 7);
+  return monday;
+}
+
+// wk_id → 창간 기점(2026-06-15)으로부터의 주 인덱스
+function weekIndexForWkId(wkId) {
+  const monday = wkIdToMonday(wkId);
+  const first = new Date(2026, 5, 15);
+  return Math.max(0, Math.round((monday - first) / (7 * 86400000)));
+}
+
+// 과거 주차 마감호 데이터 빌드 (heritage_items + applications 조회)
+async function buildClosingDataForWeek(wkId) {
+  let items = [], apps = [];
+  try { items = await sbFetch(`/rest/v1/heritage_items?wk_id=eq.${wkId}&category=eq.visual&select=id,name,artist,img,salle_no,grade,layers&order=salle_no.asc`) || []; } catch (e) {}
+  try { apps  = await sbFetch(`/rest/v1/heritage_applications?wk_id=eq.${wkId}&select=item_id`) || []; } catch (e) {}
+  const loveMap = {};
+  apps.forEach(a => { loveMap[a.item_id] = (loveMap[a.item_id] || 0) + 1; });
+  const wkIdx = weekIndexForWkId(wkId);
+  const monday = wkIdToMonday(wkId);
+  const dowLabel = ['일','월','화','수','목','금','토'][monday.getDay()];
+  return {
+    vol: wkIdx * 2 + 1,
+    wkId,
+    dateLabel: `${monday.getMonth() + 1}월 ${monday.getDate()}일 ${dowLabel}요일`,
+    drawLabel: '월요일 정오',
+    items: items.map(it => ({
+      salle: it.salle_no, id: it.id, name: it.name, artist: it.artist,
+      img: it.img, grade: it.grade, lovers: loveMap[it.id] || 0,
+      layers: it.layers || null
+    }))
+  };
+}
+
+// 과거 주차 결과호 데이터 빌드 (heritage_items + results + summary 조회)
+async function buildResultDataForWeek(wkId, summary) {
+  let items = [], nicks = [];
+  try { items = await sbFetch(`/rest/v1/heritage_items?wk_id=eq.${wkId}&category=eq.visual&select=*&order=salle_no.asc`) || []; } catch (e) {}
+  try { nicks = await sbFetch(`/rest/v1/heritage_results?wk_id=eq.${wkId}&select=grade,item_id,winner_nick&order=grade.asc`) || []; } catch (e) {}
+  const sum = summary || {};
+  const copyMap = {};
+  (sum.editions || []).forEach(e => { copyMap[e.item_id] = e.copies; });
+  const wkIdx = weekIndexForWkId(wkId);
+  const monday = wkIdToMonday(wkId);
+  const dowLabel = ['일','월','화','수','목','금','토'][monday.getDay()];
+  return {
+    vol: wkIdx * 2 + 2,
+    wkId,
+    dateLabel: `${monday.getMonth() + 1}월 ${monday.getDate()}일 ${dowLabel}요일`,
+    dateDot: `${monday.getFullYear()}. ${monday.getMonth() + 1}. ${monday.getDate()}`,
+    first: sum.first || { nickname: '한 콩파뇽' },
+    totalTickets: sum.total_tickets || 0,
+    pool: sum.pool || 0,
+    items: items.slice().sort((a, b) => a.salle_no - b.salle_no).map(it => ({
+      salle: it.salle_no, id: it.id, name: it.name, artist: it.artist,
+      img: it.img, layers: it.layers || null,
+      copies: copyMap[it.id] || 0,
+      nicks: nicks.filter(r => r.item_id === it.id).map(r => r.winner_nick)
+    }))
+  };
+}
+
+// 타임즈 탭 진입 시 호출
+let _timesArchiveLoaded = false;
+async function loadTimesTab() {
+  renderTimesCurrentHost();
+  if (!_timesArchiveLoaded) {
+    await renderTimesArchive();
+    _timesArchiveLoaded = true;
+  }
+}
+
+// 이번 호 (시간대 분기)
+function renderTimesCurrentHost() {
+  const host = document.getElementById('times-current-host');
+  if (!host) return;
+  const mode = timesMode();
+  if (typeof EGHeritageTimes === 'undefined') {
+    host.innerHTML = '<div class="void"><div class="void-line">타임즈 엔진 로드 중…</div></div>';
+    return;
+  }
+  if (mode === 'closing' && SALON_ITEMS.length) {
+    host.innerHTML = buildClosingHtml(EGHeritageTimes.assembleClosing(buildClosingData()));
+  } else if (mode === 'result' && RESULT_SUMMARY) {
+    const rd = buildResultData();
+    host.innerHTML = buildResultHtml(EGHeritageTimes.assembleResult(rd), rd);
+  } else if (mode === 'archived' && RESULT_SUMMARY) {
+    // 화~일: 최근 결과호를 탭에서 상시 열람
+    const rd = buildResultData();
+    host.innerHTML = buildResultHtml(EGHeritageTimes.assembleResult(rd), rd);
+  } else {
+    host.innerHTML = `
+      <div class="void" style="padding:36px 0 12px">
+        <div class="void-mark">📰</div>
+        <div class="void-line">다음 마감호까지 살롱은 열려 있습니다.</div>
+        <div class="void-sub">지난 호는 아래 서가에서 열람할 수 있습니다.</div>
+      </div>`;
+  }
+}
+
+// 지난 호 서가 렌더
+async function renderTimesArchive() {
+  const host = document.getElementById('times-archive-host');
+  if (!host) return;
+  host.innerHTML = '<div class="void"><div class="void-line">불러오는 중…</div></div>';
+  let arcs = [];
+  try {
+    arcs = await sbFetch('/rest/v1/heritage_archives?select=wk_id,summary,drawn_at&order=id.desc') || [];
+  } catch (e) { arcs = []; }
+  if (!arcs.length) {
+    host.innerHTML = '<div class="times-arc-empty">아직 발행된 호가 없습니다.</div>';
+    return;
+  }
+  host.innerHTML = arcs.map(arc => {
+    const wkId = arc.wk_id;
+    const wkIdx = weekIndexForWkId(wkId);
+    const closingVol = String(wkIdx * 2 + 1).padStart(2, '0');
+    const resultVol  = String(wkIdx * 2 + 2).padStart(2, '0');
+    const monday = wkIdToMonday(wkId);
+    const dateLabel = `${monday.getFullYear()}. ${monday.getMonth() + 1}. ${String(monday.getDate()).padStart(2,'0')}`;
+    return `
+      <div class="times-arc-card">
+        <div class="times-arc-wk">${wkId} · ${dateLabel}</div>
+        <div class="times-arc-btns">
+          <button class="times-arc-btn" onclick="openArchiveClosing('${wkId}')">제${closingVol}호 마감호 읽기 →</button>
+          <button class="times-arc-btn result" onclick="openArchiveResult('${wkId}')">제${resultVol}호 결과호 읽기 →</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// 아카이브 마감호 모달
+async function openArchiveClosing(wkId) {
+  if (typeof EGHeritageTimes === 'undefined') return;
+  const data = await buildClosingDataForWeek(wkId);
+  openTimesModal(buildClosingHtml(EGHeritageTimes.assembleClosing(data)));
+}
+
+// 아카이브 결과호 모달
+async function openArchiveResult(wkId) {
+  if (typeof EGHeritageTimes === 'undefined') return;
+  let arc = null;
+  try { arc = await sbFetch(`/rest/v1/heritage_archives?wk_id=eq.${wkId}&select=summary,wk_id&limit=1`); } catch (e) {}
+  const summary = (arc && arc[0]) ? arc[0].summary : null;
+  if (!summary) { alert('해당 주차 추첨 결과를 찾을 수 없습니다.'); return; }
+  const data = await buildResultDataForWeek(wkId, summary);
+  openTimesModal(buildResultHtml(EGHeritageTimes.assembleResult(data), data));
 }
 
 // 마감호 모달 본문
@@ -1719,7 +1924,7 @@ function renderDrawButton() {
   const host = document.getElementById('rhythm-line');
   if (!host) return;
   const undrawn = !RESULT_SUMMARY && SALON_ITEMS.length > 0;
-  if (!isSoro() || timesMode() === 'normal' || !undrawn) return;
+  if (!isSoro() || timesMode() === 'archived' || timesMode() === 'normal' || !undrawn) return;
   const bar = document.createElement('div');
   bar.id = 'tm-draw-bar';
   bar.className = 'tm-draw-bar';
