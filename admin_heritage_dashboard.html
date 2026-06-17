@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>헤리티지 운영 현황판 · 은교살롱 admin</title>
+<style>
+  :root{
+    --wine:#3a2222; --wine-deep:#2b1818; --oak:#2c2118;
+    --gold:#C9A84C; --gold-l:#E9C97E; --gold-dim:rgba(201,168,76,0.6);
+    --chalk:#F8F4EE; --chalk-dim:rgba(248,244,238,0.6);
+    --chalk-faint:rgba(248,244,238,0.1);
+    --ok:#52B788; --warn:#E9C97E; --bad:#D85A30;
+    --record:#7EB8C9; --visual:#C97E9A;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background: linear-gradient(180deg,var(--oak) 0%, var(--wine-deep) 100%);
+    background-attachment:fixed;
+    color:var(--chalk);
+    font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    -webkit-font-smoothing:antialiased; padding:0 0 80px;
+    min-height:100vh;
+  }
+  .wrap{max-width:920px; margin:0 auto; padding:20px 16px;}
+
+  /* 게이트 */
+  #gate{display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:80vh;text-align:center;gap:14px;padding:24px;}
+  #gate .lock{font-size:42px;}
+  #gate .msg{color:var(--chalk-dim);font-size:14px;line-height:1.7;}
+  #gate a{color:var(--gold-l);text-decoration:underline;}
+
+  /* 헤더 */
+  .head{display:flex;align-items:flex-end;justify-content:space-between;
+    border-bottom:1px solid var(--chalk-faint);padding-bottom:14px;margin-bottom:20px;gap:12px;flex-wrap:wrap;}
+  .head h1{font-size:19px;margin:0;font-weight:700;letter-spacing:.5px;}
+  .head h1 .sub{display:block;font-size:11px;color:var(--chalk-dim);font-weight:400;margin-top:4px;letter-spacing:1px;}
+  .refresh{background:none;border:1px solid var(--chalk-faint);color:var(--chalk-dim);
+    border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px;font-family:inherit;}
+  .refresh:hover{color:var(--chalk);border-color:var(--gold);}
+
+  /* 요약 카드 */
+  .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
+  .scard{background:rgba(248,244,238,0.05);border:1px solid var(--chalk-faint);
+    border-radius:14px;padding:14px 12px;text-align:center;}
+  .scard .num{font-size:26px;font-weight:800;color:var(--gold-l);line-height:1.1;}
+  .scard .num.warn{color:var(--warn);}
+  .scard .num.bad{color:var(--bad);}
+  .scard .num.ok{color:var(--ok);}
+  .scard .lab{font-size:11px;color:var(--chalk-dim);margin-top:5px;}
+  .scard .note{font-size:10px;color:var(--chalk-dim);margin-top:3px;opacity:.7;}
+  @media(max-width:560px){.summary{grid-template-columns:repeat(2,1fr);}}
+
+  /* 섹션 */
+  .section{margin-bottom:28px;}
+  .section > h2{font-size:13px;font-weight:700;margin:0 0 12px;color:var(--chalk);
+    display:flex;align-items:center;gap:8px;letter-spacing:.04em;}
+  .section > h2 .hint{font-size:11px;color:var(--chalk-dim);font-weight:400;}
+
+  /* 보물 입고 막대 */
+  .stock-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .stock-label{width:50px;font-size:11px;color:var(--chalk-dim);text-align:right;flex-shrink:0;}
+  .stock-track{flex:1;height:26px;background:rgba(248,244,238,0.06);border-radius:7px;display:flex;overflow:hidden;}
+  .stock-seg{display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;
+    transition:width .5s;min-width:0;overflow:hidden;white-space:nowrap;}
+  .stock-seg.standby{background:rgba(201,168,76,.28);color:var(--gold-l);}
+  .stock-seg.active{background:rgba(82,183,136,.35);color:#a7f0c8;}
+  .stock-seg.drawn{background:rgba(122,105,200,.3);color:#c8c0f8;}
+  .stock-seg.shelf{background:rgba(160,140,100,.25);color:var(--gold-dim);}
+  .stock-meta{width:140px;font-size:11px;color:var(--chalk-dim);flex-shrink:0;}
+  .stock-gauge{margin:6px 0 14px 60px;font-size:11px;color:var(--gold-dim);}
+  .stock-gauge b{color:var(--gold-l);}
+  .stock-gauge.bad b{color:var(--bad);}
+
+  /* 4겹 테이블 */
+  .tbl-scroll{border:1px solid var(--chalk-faint);border-radius:12px;overflow:hidden;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th,td{padding:9px 10px;text-align:left;border-bottom:1px solid rgba(248,244,238,0.06);}
+  th{color:var(--chalk-dim);font-weight:600;font-size:11px;background:rgba(0,0,0,.18);}
+  td.c{text-align:center;}
+  .badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;}
+  .badge.ok{background:rgba(82,183,136,.18);color:var(--ok);}
+  .badge.bad{background:rgba(216,90,48,.18);color:var(--bad);}
+  .badge.warn{background:rgba(233,201,126,.18);color:var(--warn);}
+  .badge.info{background:rgba(126,184,201,.18);color:var(--record);}
+  .item-name{font-weight:600;max-width:180px;}
+  .item-artist{font-size:11px;color:var(--chalk-dim);}
+  .cat-v{color:var(--visual);}
+  .cat-r{color:var(--record);}
+
+  /* 음반 스케줄 10주 보드 */
+  .schedule-board{display:flex;flex-direction:column;gap:6px;}
+  .sch-row{display:grid;grid-template-columns:90px 28px 1fr 1fr 1fr 100px;
+    align-items:center;gap:8px;padding:8px 12px;border-radius:9px;
+    background:rgba(248,244,238,.04);border:1px solid var(--chalk-faint);}
+  .sch-row.current{border-color:rgba(201,168,76,.4);background:rgba(201,168,76,.07);}
+  .sch-row.past{opacity:.45;}
+  .sch-wk{font-size:11px;color:var(--chalk-dim);}
+  .sch-wk b{color:var(--chalk);display:block;font-size:12px;}
+  .sch-arrow{font-size:10px;color:var(--chalk-dim);}
+  .sch-slot{text-align:center;}
+  .sch-slot .dot{width:28px;height:28px;border-radius:50%;margin:0 auto;
+    display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;}
+  .sch-slot .dot.filled{background:rgba(126,184,201,.25);border:1px solid var(--record);color:var(--record);}
+  .sch-slot .dot.empty{background:rgba(248,244,238,.05);border:1px dashed rgba(248,244,238,.2);color:var(--chalk-dim);}
+  .sch-slot .dot-name{font-size:9px;color:var(--chalk-dim);margin-top:3px;line-height:1.3;max-width:72px;margin-left:auto;margin-right:auto;}
+  .sch-deadline{font-size:10px;color:var(--chalk-dim);text-align:right;}
+  .sch-deadline.urgent{color:var(--bad);}
+  .sch-deadline.soon{color:var(--warn);}
+  .sch-header{display:grid;grid-template-columns:90px 28px 1fr 1fr 1fr 100px;
+    gap:8px;padding:4px 12px;font-size:10px;color:var(--chalk-dim);letter-spacing:.08em;}
+
+  /* 타임즈 발행대장 */
+  .times-row{display:flex;align-items:center;gap:12px;padding:10px 12px;
+    border-bottom:1px solid rgba(248,244,238,.05);}
+  .times-row:last-child{border-bottom:none;}
+  .times-wk{width:72px;font-size:11px;color:var(--chalk-dim);flex-shrink:0;}
+  .times-badges{display:flex;gap:8px;flex:1;flex-wrap:wrap;}
+
+  /* 대여/에디션 현황 그리드 */
+  .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  .stat-box{background:rgba(248,244,238,.04);border:1px solid var(--chalk-faint);
+    border-radius:12px;padding:14px;text-align:center;}
+  .stat-box .n{font-size:22px;font-weight:800;color:var(--gold-l);}
+  .stat-box .n.bad{color:var(--bad);}
+  .stat-box .n.ok{color:var(--ok);}
+  .stat-box .l{font-size:11px;color:var(--chalk-dim);margin-top:4px;}
+
+  /* 점검 신호 */
+  .warns{background:rgba(216,90,48,.08);border:1px solid rgba(216,90,48,.3);
+    border-radius:12px;padding:14px 16px;}
+  .warns.clean{background:rgba(82,183,136,.08);border-color:rgba(82,183,136,.3);}
+  .warns h3{margin:0 0 8px;font-size:13px;}
+  .warns ul{margin:0;padding-left:18px;font-size:12px;color:var(--chalk-dim);line-height:1.9;}
+  .warns .clean-msg{font-size:13px;color:var(--ok);}
+  .loading{text-align:center;padding:60px 0;color:var(--chalk-dim);}
+  .foot{text-align:center;font-size:11px;color:var(--chalk-dim);margin-top:30px;opacity:.6;}
+</style>
+</head>
+<body>
+
+<div id="gate" style="display:none;">
+  <div class="lock">🔒</div>
+  <div class="msg">
+    헤리티지 운영 현황판은 살롱지기 전용입니다.<br>
+    소로 계정으로 로그인한 뒤 다시 열어 주세요.<br><br>
+    <a href="index.html">← 은교살롱 입구로</a>
+  </div>
+</div>
+
+<div id="dash" class="wrap" style="display:none;">
+  <div class="head">
+    <h1>헤리티지 운영 현황판<span class="sub">EG HERITAGE · 살롱지기 전용</span></h1>
+    <button class="refresh" onclick="load()">↻ 새로고침</button>
+  </div>
+  <div id="body"><div class="loading">현황을 불러오는 중…</div></div>
+  <div class="foot">heritage_items · editions · rentals · archives 실시간 조회</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
+});
+
+function esc(s){ return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// KST 현재 시각
+function kstNow(){ const d=new Date(); return new Date(d.getTime()+(d.getTimezoneOffset()+540)*60000); }
+
+// ISO wk_id ('YYYY-Www') 생성
+function toWkId(d){
+  const tmp=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+  const dow=tmp.getUTCDay()||7;
+  tmp.setUTCDate(tmp.getUTCDate()+4-dow);
+  const yr=tmp.getUTCFullYear();
+  const wk=Math.ceil(((tmp-new Date(Date.UTC(yr,0,1)))/86400000+1)/7);
+  return `${yr}-W${String(wk).padStart(2,'0')}`;
+}
+
+// wk_id → 해당 주 화요일 Date (KST 기준)
+function wkIdToTuesday(wkId){
+  const [yr,wk]=wkId.split('-W').map(Number);
+  const jan4=new Date(yr,0,4);
+  const dow=jan4.getDay()||7;
+  const mon=new Date(jan4);
+  mon.setDate(jan4.getDate()-dow+1+(wk-1)*7);
+  const tue=new Date(mon); tue.setDate(mon.getDate()+1);
+  return tue;
+}
+
+// wk_id 더하기 N주
+function addWeeks(wkId, n){
+  const tue=wkIdToTuesday(wkId);
+  tue.setDate(tue.getDate()+7*n);
+  return toWkId(tue);
+}
+
+// 카리 데드라인: 그 주 월요일 KST (화요일 0시 전 = 직전 월요일)
+function deadlineLabel(wkId){
+  const tue=wkIdToTuesday(wkId);
+  const mon=new Date(tue); mon.setDate(tue.getDate()-1);
+  const now=kstNow();
+  const diffDay=Math.ceil((mon-now)/86400000);
+  const label=`${mon.getMonth()+1}/${mon.getDate()} 월`;
+  if(diffDay<0) return {label:`${label} (지남)`, cls:'past-dead'};
+  if(diffDay<=2) return {label:`${label} (D-${diffDay})`, cls:'urgent'};
+  if(diffDay<=5) return {label:`${label} (D-${diffDay})`, cls:'soon'};
+  return {label, cls:''};
+}
+
+// 타임즈 모드
+function timesMode(){
+  const d=kstNow(); const dow=d.getDay(); const h=d.getHours();
+  if(dow===1 && h<12) return '마감호 발행 중 (월 오전)';
+  if(dow===1) return '결과호 발행 중 (월 오후)';
+  return '평시';
+}
+
+// ── 초기화 ──
+async function init(){
+  const { data:{ session } } = await supa.auth.getSession();
+  if(!session){ showGate(); return; }
+  const { data:u } = await supa.from('users').select('is_admin').eq('id',session.user.id).single();
+  if(!u || !u.is_admin){ showGate(); return; }
+  document.getElementById('gate').style.display='none';
+  document.getElementById('dash').style.display='';
+  await load();
+}
+
+function showGate(){
+  document.getElementById('gate').style.display='flex';
+  document.getElementById('dash').style.display='none';
+}
+
+async function load(){
+  document.getElementById('body').innerHTML='<div class="loading">현황을 불러오는 중…</div>';
+  try {
+    const [items, editions, rentals, waitlist, archives, results] = await Promise.all([
+      supa.from('heritage_items').select('id,name,artist,category,status,wk_id,salle_no,layers,open_at,is_welcome').order('category').order('status').order('open_at'),
+      supa.from('heritage_editions').select('id,item_id,status'),
+      supa.from('heritage_rentals').select('id,item_id,due_at,returned_at,source'),
+      supa.from('heritage_waitlist').select('id,item_id'),
+      supa.from('heritage_archives').select('wk_id,drawn_at').order('id',{ascending:false}),
+      supa.from('heritage_results').select('wk_id').order('wk_id',{ascending:false})
+    ]);
+    render(
+      items.data||[], editions.data||[], rentals.data||[],
+      waitlist.data||[], archives.data||[], results.data||[]
+    );
+  } catch(e){
+    document.getElementById('body').innerHTML=`<div class="loading" style="color:var(--bad)">데이터 로드 실패: ${esc(e.message)}</div>`;
+  }
+}
+
+function render(items, editions, rentals, waitlist, archives, results){
+  const now = kstNow();
+
+  // ── 집계 ──
+  const visual = items.filter(i=>i.category==='visual');
+  const record = items.filter(i=>i.category==='record');
+
+  const vActive  = visual.filter(i=>i.status==='active');
+  const vDrawn   = visual.filter(i=>i.status==='drawn');
+  const vStandby = visual.filter(i=>i.status==='standby');
+
+  const rActive  = record.filter(i=>i.status==='active');
+  const rStandby = record.filter(i=>i.status==='standby');
+  const rShelf   = record.filter(i=>i.status==='shelf');
+
+  const noLayers = items.filter(i=>!i.is_welcome && !(i.layers && JSON.stringify(i.layers)!=='{}'));
+  const noLayersActive = noLayers.filter(i=>i.status==='active');
+
+  const rentalsActive = rentals.filter(r=>!r.returned_at);
+  const rentalsUrgent = rentalsActive.filter(r=>{
+    if(!r.due_at) return false;
+    return (new Date(r.due_at)-now) <= 7*24*3600000;
+  });
+
+  const edPermanent = editions.filter(e=>e.status==='permanent').length;
+  const edOut = editions.filter(e=>e.status==='out').length;
+  const edShelf = editions.filter(e=>e.status==='shelf').length;
+
+  // 음반 standby — wk_id별 슬롯 맵
+  const recMap = {}; // wk_id → {1:item, 2:item, 3:item}
+  record.filter(i=>i.status==='standby'||i.status==='active').forEach(i=>{
+    if(!recMap[i.wk_id]) recMap[i.wk_id]={}; 
+    if(i.salle_no>=1&&i.salle_no<=3) recMap[i.wk_id][i.salle_no]=i;
+  });
+
+  // wk_id별 타임즈 현황
+  const arcSet = new Set((archives||[]).map(a=>a.wk_id));
+  const resSet = new Set((results||[]).map(r=>r.wk_id));
+
+  // 점검 신호
+  const warns=[];
+  if(vStandby.length===0) warns.push(`📦 미술 비축 0주치 — 다음 주 살롱이 비어 있습니다`);
+  else if(vStandby.length<5) warns.push(`⚠️ 미술 비축 ${vStandby.length}점 — ${Math.floor(vStandby.length/5)}주치 미만`);
+  if(noLayersActive.length) warns.push(`🖼 4겹 미작성 active 보물 ${noLayersActive.length}점 — ${noLayersActive.map(i=>esc(i.name)).join(' · ')}`);
+  if(rentalsUrgent.length) warns.push(`⏰ 반납 만기 임박 대여 ${rentalsUrgent.length}건 (7일 이내)`);
+  const overdueStandby = record.filter(i=>i.status==='standby'&&i.open_at&&new Date(i.open_at)<=now);
+  if(overdueStandby.length) warns.push(`📀 open_at 지났는데 standby 음반 ${overdueStandby.length}장 — 지연 개봉 점검 필요`);
+  // W26 신보 체크
+  const curWk = toWkId(now);
+  const nextWk = addWeeks(curWk,1);
+  const nextRec = recMap[nextWk];
+  if(!nextRec||Object.keys(nextRec).length<3) warns.push(`📀 ${nextWk} 신보 미입고 — 카리 ${deadlineLabel(nextWk).label}`);
+
+  // ── HTML 조립 ──
+  let html='';
+
+  // ① 요약 카드
+  const layersBad = noLayersActive.length;
+  html += `<div class="summary">
+    <div class="scard">
+      <div class="num">${vActive.length}</div>
+      <div class="lab">이번 주 살롱 (미술)</div>
+      <div class="note">${vActive[0]?esc(vActive[0].wk_id):'-'}</div>
+    </div>
+    <div class="scard">
+      <div class="num">${rActive.length}</div>
+      <div class="lab">신보 가게 (음반)</div>
+      <div class="note">${rActive[0]?esc(rActive[0].wk_id):'-'}</div>
+    </div>
+    <div class="scard">
+      <div class="num ${layersBad>0?'bad':'ok'}">${layersBad}</div>
+      <div class="lab">4겹 미작성 (active)</div>
+      <div class="note">⚠ = 카리 지시서</div>
+    </div>
+    <div class="scard">
+      <div class="num" style="font-size:13px;padding-top:6px;">${esc(timesMode())}</div>
+      <div class="lab">타임즈 현재 모드</div>
+      <div class="note">archives ${arcSet.size}호 누적</div>
+    </div>
+  </div>`;
+
+  // ② 보물 입고 현황
+  const vTotal = visual.length || 1;
+  const rTotal = Math.max(record.length, 9) || 9;
+  const vWeeks = Math.floor(vStandby.length/5);
+  html += `<div class="section"><h2>🖼 보물 입고 현황 <span class="hint">· 미술 ${visual.length}점 · 음반 ${record.length}장</span></h2>
+    <div class="stock-row">
+      <div class="stock-label">미술</div>
+      <div class="stock-track">
+        ${vStandby.length?`<div class="stock-seg standby" style="width:${vStandby.length/vTotal*100}%">비축 ${vStandby.length}</div>`:''}
+        ${vActive.length?`<div class="stock-seg active" style="width:${vActive.length/vTotal*100}%">살롱 ${vActive.length}</div>`:''}
+        ${vDrawn.length?`<div class="stock-seg drawn" style="width:${vDrawn.length/vTotal*100}%">추첨 ${vDrawn.length}</div>`:''}
+      </div>
+      <div class="stock-meta">standby ${vStandby.length} / active ${vActive.length} / drawn ${vDrawn.length}</div>
+    </div>
+    <div class="stock-gauge ${vWeeks===0?'bad':''}">미술 비축 <b>${vWeeks}주치</b> (standby ${vStandby.length}점 ÷ 5) ${vWeeks===0?'— ⚠ 다음 주 살롱 위험':''}</div>
+    <div class="stock-row">
+      <div class="stock-label">음반</div>
+      <div class="stock-track">
+        ${rStandby.length?`<div class="stock-seg standby" style="width:${rStandby.length/rTotal*100}%">예약 ${rStandby.length}</div>`:''}
+        ${rActive.length?`<div class="stock-seg active" style="width:${rActive.length/rTotal*100}%">신보 ${rActive.length}</div>`:''}
+        ${rShelf.length?`<div class="stock-seg shelf" style="width:${rShelf.length/rTotal*100}%">아카이브 ${rShelf.length}</div>`:''}
+      </div>
+      <div class="stock-meta">standby ${rStandby.length} / active ${rActive.length} / shelf ${rShelf.length}</div>
+    </div>
+    <div class="stock-gauge">음반 아카이브 <b>${rShelf.length}장</b> · 대여 가능</div>
+  </div>`;
+
+  // ③ 4겹 작성판
+  const showItems = items.filter(i=>!i.is_welcome).sort((a,b)=>{
+    const so={active:0,standby:1,drawn:2,shelf:3};
+    return (so[a.status]??9)-(so[b.status]??9)||a.category.localeCompare(b.category);
+  });
+  html += `<div class="section"><h2>✦ 4겹 작성판 <span class="hint">· "4겹 없이 입고 없음" 철칙 · — 목록 = 카리 지시서</span></h2>
+    <div class="tbl-scroll"><table>
+    <thead><tr>
+      <th>보물명</th><th>작가</th><th class="c">매체</th><th class="c">상태</th><th class="c">4겹</th>
+    </tr></thead><tbody>`;
+  showItems.forEach(i=>{
+    const hasL = !!(i.layers && JSON.stringify(i.layers)!=='{}');
+    const catBadge = i.category==='visual'
+      ? `<span class="badge info cat-v">미술</span>`
+      : `<span class="badge info cat-r">음반</span>`;
+    const statusBadge = {
+      active:`<span class="badge ok">active</span>`,
+      standby:`<span class="badge warn">standby</span>`,
+      drawn:`<span class="badge" style="background:rgba(122,105,200,.18);color:#c8c0f8">drawn</span>`,
+      shelf:`<span class="badge" style="background:rgba(160,140,100,.18);color:var(--gold-dim)">shelf</span>`,
+    }[i.status]||`<span class="badge">${esc(i.status)}</span>`;
+    const layerBadge = hasL
+      ? `<span class="badge ok">○</span>`
+      : `<span class="badge bad">—</span>`;
+    html+=`<tr>
+      <td class="item-name">${esc(i.name)}</td>
+      <td class="item-artist">${esc(i.artist)}</td>
+      <td class="c">${catBadge}</td>
+      <td class="c">${statusBadge}</td>
+      <td class="c">${layerBadge}</td>
+    </tr>`;
+  });
+  html+=`</tbody></table></div></div>`;
+
+  // ④ 음반 스케줄 10주 보드
+  const boardStart = curWk;
+  html += `<div class="section"><h2>📀 음반 스케줄 10주 보드 <span class="hint">· 카리 신보 3장/주 · 점진 3주 채움(W26 시작)</span></h2>
+    <div class="sch-header">
+      <div>주차</div><div></div><div style="text-align:center">슬롯 1</div>
+      <div style="text-align:center">슬롯 2</div><div style="text-align:center">슬롯 3</div>
+      <div style="text-align:right">카리 데드라인</div>
+    </div>
+    <div class="schedule-board">`;
+  for(let i=0;i<10;i++){
+    const wk = addWeeks(boardStart,i);
+    const tue = wkIdToTuesday(wk);
+    const tueLabel = `${tue.getMonth()+1}/${tue.getDate()}`;
+    const isPast = tue < now && i>0;
+    const isCurrent = i===0;
+    const slots = recMap[wk]||{};
+    const dl = deadlineLabel(wk);
+    const rowCls = isCurrent?'current':isPast?'past':'';
+    const slotHtml = [1,2,3].map(s=>{
+      const it=slots[s];
+      if(it) return `<div class="sch-slot">
+        <div class="dot filled">${s}</div>
+        <div class="dot-name">${esc(it.name.length>12?it.name.slice(0,12)+'…':it.name)}</div>
+      </div>`;
+      return `<div class="sch-slot"><div class="dot empty">${s}</div><div class="dot-name">미입고</div></div>`;
+    }).join('');
+    html += `<div class="sch-row ${rowCls}">
+      <div class="sch-wk"><b>${wk}</b>${tueLabel} 화</div>
+      <div class="sch-arrow">${isCurrent?'◀':''}</div>
+      ${slotHtml}
+      <div class="sch-deadline ${dl.cls}">${dl.label}</div>
+    </div>`;
+  }
+  html+=`</div></div>`;
+
+  // ⑤ 타임즈 발행대장 + 대여 현황
+  // 발행 가능한 모든 wk_id 수집 (results 기준 — 추첨된 주차는 결과호 가능)
+  const allResWks = [...new Set((results||[]).map(r=>r.wk_id))].sort().reverse();
+  html += `<div class="section"><h2>📰 타임즈 발행대장 <span class="hint">· 마감호(홀) = applications 보존 / 결과호(짝) = archives summary</span></h2>`;
+  if(!allResWks.length){
+    html+=`<div style="font-size:12px;color:var(--chalk-dim);padding:12px 0">추첨 기록이 없습니다.</div>`;
+  } else {
+    html+=`<div style="border:1px solid var(--chalk-faint);border-radius:12px;overflow:hidden;">`;
+    allResWks.forEach((wk,idx)=>{
+      const hasArc = arcSet.has(wk);
+      const closingBadge = `<span class="badge ok">마감호 ○</span>`;
+      const resultBadge  = hasArc
+        ? `<span class="badge ok">결과호 ○</span>`
+        : `<span class="badge bad">결과호 — (archives 누락)</span>`;
+      html+=`<div class="times-row">
+        <div class="times-wk">${esc(wk)}</div>
+        <div class="times-badges">${closingBadge}${resultBadge}</div>
+      </div>`;
+    });
+    html+=`</div>`;
+  }
+  html+=`</div>`;
+
+  // 대여/에디션/대기열 현황
+  html+=`<div class="section"><h2>🔄 대여 · 에디션 · 대기열</h2>
+    <div class="stat-grid">
+      <div class="stat-box">
+        <div class="n ${rentalsUrgent.length>0?'bad':''}">${rentalsUrgent.length}</div>
+        <div class="l">만기 임박 대여<br><span style="font-size:10px;opacity:.7">7일 이내</span></div>
+      </div>
+      <div class="stat-box">
+        <div class="n">${rentalsActive.length}</div>
+        <div class="l">현재 대여 중<br><span style="font-size:10px;opacity:.7">반납 미완료</span></div>
+      </div>
+      <div class="stat-box">
+        <div class="n">${waitlist.length}</div>
+        <div class="l">서가 대기열<br><span style="font-size:10px;opacity:.7">반납 시 자동 초대</span></div>
+      </div>
+      <div class="stat-box">
+        <div class="n">${edPermanent}</div>
+        <div class="l">영구 소장<br><span style="font-size:10px;opacity:.7">editions permanent</span></div>
+      </div>
+      <div class="stat-box">
+        <div class="n">${edOut}</div>
+        <div class="l">나들이 중<br><span style="font-size:10px;opacity:.7">editions out</span></div>
+      </div>
+      <div class="stat-box">
+        <div class="n ${edShelf>0?'ok':''}">${edShelf}</div>
+        <div class="l">서가 반납<br><span style="font-size:10px;opacity:.7">editions shelf</span></div>
+      </div>
+    </div>
+  </div>`;
+
+  // ⑥ 점검 신호
+  if(warns.length){
+    html+=`<div class="section"><div class="warns"><h3>⚠ 점검 신호 ${warns.length}건</h3>
+      <ul>${warns.map(w=>`<li>${w}</li>`).join('')}</ul></div></div>`;
+  } else {
+    html+=`<div class="section"><div class="warns clean">
+      <div class="clean-msg">✓ 미술 비축 · 4겹 · 음반 스케줄 · 타임즈 모두 깨끗합니다.</div>
+    </div></div>`;
+  }
+
+  document.getElementById('body').innerHTML = html;
+}
+
+init();
+</script>
+</body>
+</html>
