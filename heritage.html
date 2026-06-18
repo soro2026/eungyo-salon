@@ -220,16 +220,15 @@ header {
 .plaque-artist { font-size: 14px; color: var(--gold-l); font-style: italic; margin-top: 7px; }
 .plaque-meta { font-size: 13px; color: var(--txt-soft); letter-spacing: 0.03em; margin-top: 5px; }
 
-/* ── 제10실 · 아카이브 서랍 ── */
-.rec-archive {
-  position: relative;
-  background-image: url('concerthall_bg_10.webp');
-  background-size: cover; background-position: center;
-  padding: 42px 16px 84px; margin-top: 6px;
+/* ── 제10실 · 아카이브 서랍 (배경은 fixed record-backdrop이 담당) ── */
+.rec-archive { position: relative; padding: 22px 16px 84px; }
+.arch-inner { max-width: 900px; margin: 0 auto; }
+.arch-head {
+  text-align: center; margin: 0 auto 26px; max-width: 480px;
+  background: rgba(22,12,9,0.55); backdrop-filter: blur(6px);
+  border: 1px solid rgba(212,179,94,0.18); border-radius: 14px;
+  padding: 18px 22px;
 }
-.arch-overlay { position: absolute; inset: 0; background: rgba(22,12,9,0.66); }
-.arch-inner { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; }
-.arch-head { text-align: center; margin-bottom: 26px; }
 .arch-eyebrow { font-size: 11px; letter-spacing: 0.32em; color: var(--gold-dim); margin-bottom: 8px; }
 .arch-title { font-size: 19px; font-weight: 600; color: var(--txt-strong); letter-spacing: 0.04em; }
 .arch-sub { font-size: 12.5px; color: var(--txt-soft); margin-top: 9px; line-height: 1.8; letter-spacing: 0.02em; }
@@ -697,11 +696,10 @@ header {
 <!-- ── 탭 ② 음반 가게 — 아홉 방, 방마다 판 한 장 ── -->
 <section id="tab-record" hidden>
   <nav class="salle-nav" id="record-nav"></nav>
-  <div class="stage-wrap"><div id="record-stage-host"></div></div>
+  <div class="stage-wrap" id="record-stage-wrap"><div id="record-stage-host"></div></div>
 
   <!-- ── 제10실 · 아카이브 서랍 (퇴역 음반 · 청음 없이 대여만) ── -->
-  <section id="record-archive" class="rec-archive">
-    <div class="arch-overlay"></div>
+  <section id="record-archive" class="rec-archive" hidden>
     <div class="arch-inner">
       <div class="arch-head">
         <div class="arch-eyebrow">SALLE Ⅹ</div>
@@ -852,16 +850,18 @@ function setBackdrop(salle) {
 const ROMAN = { 1:'Ⅰ', 2:'Ⅱ', 3:'Ⅲ', 4:'Ⅳ', 5:'Ⅴ' };
 
 /* ── 음반 가게: 아홉 방 — 황금(Ⅰ~Ⅲ)→나무(Ⅳ~Ⅵ)→밤(Ⅶ~Ⅸ), 0607 밝기 실측 배정 ── */
-const ROMAN9 = { 1:'Ⅰ', 2:'Ⅱ', 3:'Ⅲ', 4:'Ⅳ', 5:'Ⅴ', 6:'Ⅵ', 7:'Ⅶ', 8:'Ⅷ', 9:'Ⅸ' };
+const ROMAN9 = { 1:'Ⅰ', 2:'Ⅱ', 3:'Ⅲ', 4:'Ⅳ', 5:'Ⅴ', 6:'Ⅵ', 7:'Ⅶ', 8:'Ⅷ', 9:'Ⅸ', 10:'Ⅹ' };
 const ROOM_NAMES = {
   1: '무지크페어아인 황금홀', 2: '샹들리에 대향연', 3: '취리히 톤할레',
   4: '시드니 오페라하우스',   5: '모던 콘서트홀',   6: '동양 목조홀',
-  7: '파리의 푸른 밤',        8: '엘프필하모니',    9: '빈 객석, 빛 한 줄기'
+  7: '파리의 푸른 밤',        8: '엘프필하모니',    9: '빈 객석, 빛 한 줄기',
+  10: '아카이브 서랍'
 };
 const ROOM_BG = {
   1: 'concerthall_bg_01.webp', 2: 'concerthall_bg_06.webp', 3: 'concerthall_bg_04.webp',
   4: 'concerthall_bg_05.webp', 5: 'concerthall_bg_02.webp', 6: 'concerthall_bg_09.webp',
-  7: 'concerthall_bg_07.webp', 8: 'concerthall_bg_08.webp', 9: 'concerthall_bg_03.webp'
+  7: 'concerthall_bg_07.webp', 8: 'concerthall_bg_08.webp', 9: 'concerthall_bg_03.webp',
+  10: 'concerthall_bg_10.webp'
 };
 let RECORD_ITEMS = [];   // 이번 주 신보 (salle_no = 방 번호 1~9)
 let currentRoom = 1;
@@ -988,19 +988,29 @@ function archGo(p) {
 // ── 음반 가게: 방 네비 (아홉 칩) ──────────
 function renderRecordNav() {
   const host = document.getElementById('record-nav');
-  host.innerHTML = [1,2,3,4,5,6,7,8,9].map(n => `
-    <button class="salle-tab ${n === currentRoom ? 'active' : ''}" data-room="${n}" onclick="switchRoom(${n})">
+  host.innerHTML = [1,2,3,4,5,6,7,8,9,10].map(n => `
+    <button class="salle-tab${n === 10 ? ' arch-tab' : ''}${n === currentRoom ? ' active' : ''}" data-room="${n}" onclick="switchRoom(${n})">
       <span class="num">${ROMAN9[n]}</span>
       <span class="nm">${ROOM_NAMES[n]}</span>
     </button>`).join('');
 }
 
 function switchRoom(n) {
-  if (n < 1 || n > 9) return;
+  if (n < 1 || n > 10) return;
   currentRoom = n;
   setRecordBackdrop(n);
   renderRecordNav();
-  renderRecordStage();
+  const stageWrap = document.getElementById('record-stage-wrap');
+  const archive = document.getElementById('record-archive');
+  if (n === 10) {
+    if (stageWrap) stageWrap.hidden = true;
+    if (archive) archive.hidden = false;
+    loadArchive();
+  } else {
+    if (archive) archive.hidden = true;
+    if (stageWrap) stageWrap.hidden = false;
+    renderRecordStage();
+  }
 }
 
 // 고정 홀 크로스페이드 (살롱 setBackdrop과 같은 2레이어 문법)
@@ -1501,7 +1511,7 @@ function switchMainTab(tab) {
   if (bd) bd.style.opacity = tab === 'salon' ? '1' : '0';
   const rbd = document.getElementById('record-backdrop');
   if (rbd) rbd.classList.toggle('on', tab === 'record');
-  if (tab === 'record') { setRecordBackdrop(currentRoom); loadArchive(); }
+  if (tab === 'record') switchRoom(currentRoom);
   if (tab === 'catalog') ensureCatalog();
   if (tab === 'times') loadTimesTab();
   renderRhythm(tab);
@@ -2634,7 +2644,6 @@ function goHome() { window.location.href = '/eungyo-salon/'; }
   renderDrawButton();           // 소로면 추첨 버튼
   await loadRecords();
   renderRecordStage();
-  loadArchive();
 })();
 </script>
 </body>
