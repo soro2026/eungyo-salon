@@ -1526,84 +1526,47 @@ async function sendHeart() {
 // ── Company 합류 ──────────────────────────────────────────────────
 async function joinCompany() {
   if (!currentUser) { alert('로그인이 필요합니다.'); return; }
-  if (!currentStarData || !currentJoinRank) return;
+  if (!currentStarData) return;
 
   const btn = document.getElementById('btn-join');
-  const rank = currentJoinRank;
-  const price = currentJoinPrice;
-  btn.disabled = true;
-  btn.textContent = '합류하는 중...';
+  if (btn) { btn.disabled = true; btn.textContent = '합류하는 중...'; }
 
   try {
-    // 1. 이미 합류했는지 (1인 1석)
-    const { data: already } = await supa.from('companions')
-      .select('id, status')
-      .eq('star_id', currentStarData.id)
-      .eq('user_id', currentUser.id)
-      .maybeSingle();
-    if (already) {
-      alert('이미 이 별의 콩파뇽입니다.');
+    // 서버 RPC가 원자적으로 처리: 중복·만석·잔액 검증 + rank/누진가격 계산 + 사과 차감 + companions INSERT
+    const { data, error } = await supa.rpc('join_companion', { p_star_id: currentStarData.id });
+    if (error) throw error;
+    if (!data || !data.ok) {
+      alert((data && data.error) || '합류하지 못했습니다.');
       await renderCompanySection(currentStarData);
       return;
     }
 
-    // 2. 황금사과 잔액 확인 (apple_log amount 합산)
-    const { data: apples } = await supa.from('apple_log')
-      .select('amount').eq('uid', currentUser.id);
-    const totalApples = apples
-      ? apples.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0) : 0;
-    if (totalApples < price) {
-      alert(`황금사과가 부족합니다.\n필요: ${price}알 / 보유: ${totalApples.toFixed(1)}알`);
-      await renderCompanySection(currentStarData);
-      return;
-    }
+    // 서버가 정한 rank·가격·반영 잔액 (클라이언트가 정하지 않는다)
+    const rank = data.rank;
+    const price = data.price;
+    const newBalance = (typeof data.balance === 'number' ? data.balance : 0).toFixed(2);
 
-    // 3. 황금사과 차감
-    const { error: appleErr } = await supa.from('apple_log').insert({
-      uid: currentUser.id,
-      amount: -price,
-      reason: `${currentStarData.name} & Company 합류 (${rank}번째 콩파뇽)`,
-      locked: false,
-    });
-    if (appleErr) throw appleErr;
-
-    // 4. companions 합류 INSERT
-    const { error: joinErr } = await supa.from('companions').insert({
-      star_id: currentStarData.id,
-      user_id: currentUser.id,
-      rank: rank,
-      status: 'live',
-      joined_price: price,
-    });
-    if (joinErr) throw joinErr;
-
-    // 5. 100명이 모두 차면 모집 마감 처리
+    // 만석(100명)이면 모집 마감 로컬 표시
     const { count: liveCount } = await supa.from('companions')
       .select('*', { count: 'exact', head: true })
       .eq('star_id', currentStarData.id).eq('status', 'live');
-    if (liveCount >= 100 && currentStarData.stella_status !== 'closed') {
-      await supa.from('stars').update({ stella_status: 'closed' }).eq('id', currentStarData.id);
+    if ((liveCount || 0) >= 100) {
       currentStarData.stella_status = 'closed';
       const fig = FIGURES.find(f => f.id === currentStarData.id);
       if (fig) fig.stella_status = 'closed';
     }
 
-    // 6. 잔액 + 합류 축하
-    const newBalance = (totalApples - price).toFixed(2);
     showCelebration(currentStarData.name, rank, price, newBalance);
-
-    // 7. 모달·콩파뇽 카운트 갱신
     await renderCompanySection(currentStarData);
-    supa.from('companions').select('*', { count: 'exact', head: true })
-      .eq('star_id', currentStarData.id).eq('status', 'live').then(({ count }) => {
-      const el = document.getElementById('eg-holder-val');
-      if (el) el.textContent = count || 0;
-    });
+    const el = document.getElementById('eg-holder-val');
+    if (el) el.textContent = liveCount || 0;
 
   } catch (err) {
     console.error('합류 오류:', err);
     alert('합류 중 오류가 발생했습니다. 다시 시도해 주세요.');
     await renderCompanySection(currentStarData);
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
