@@ -220,6 +220,56 @@ header {
 .plaque-artist { font-size: 14px; color: var(--gold-l); font-style: italic; margin-top: 7px; }
 .plaque-meta { font-size: 13px; color: var(--txt-soft); letter-spacing: 0.03em; margin-top: 5px; }
 
+/* ── 제10실 · 아카이브 서랍 ── */
+.rec-archive {
+  position: relative;
+  background-image: url('concerthall_bg_10.webp');
+  background-size: cover; background-position: center;
+  padding: 42px 16px 84px; margin-top: 6px;
+}
+.arch-overlay { position: absolute; inset: 0; background: rgba(22,12,9,0.66); }
+.arch-inner { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; }
+.arch-head { text-align: center; margin-bottom: 26px; }
+.arch-eyebrow { font-size: 11px; letter-spacing: 0.32em; color: var(--gold-dim); margin-bottom: 8px; }
+.arch-title { font-size: 19px; font-weight: 600; color: var(--txt-strong); letter-spacing: 0.04em; }
+.arch-sub { font-size: 12.5px; color: var(--txt-soft); margin-top: 9px; line-height: 1.8; letter-spacing: 0.02em; }
+.arch-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+@media (max-width: 640px) { .arch-grid { grid-template-columns: 1fr; max-width: 380px; margin: 0 auto; } }
+.arch-card {
+  background: rgba(22,12,9,0.62); backdrop-filter: blur(8px);
+  border: 1px solid rgba(212,179,94,0.22); border-radius: 14px;
+  padding: 16px; display: flex; gap: 16px; align-items: center;
+  animation: artIn 0.5s ease;
+}
+.arch-card .a-jacket {
+  width: 96px; height: 96px; flex: 0 0 96px;
+  border-radius: 3px; object-fit: cover; cursor: pointer;
+  box-shadow: 0 10px 22px rgba(0,0,0,0.55), 0 3px 7px rgba(0,0,0,0.4);
+}
+.arch-card .a-body { flex: 1 1 auto; min-width: 0; }
+.arch-card .a-name { font-size: 15px; font-weight: 600; color: var(--txt-strong); letter-spacing: 0.02em; line-height: 1.4; }
+.arch-card .a-artist { font-size: 12.5px; color: var(--gold-l); font-style: italic; margin-top: 5px; }
+.arch-card .a-rent {
+  margin-top: 12px; font-size: 12px; letter-spacing: 0.04em;
+  color: var(--gold-l); background: none; border: 1px solid rgba(212,179,94,0.35);
+  border-radius: 999px; padding: 7px 14px; cursor: pointer; transition: background 0.2s ease;
+}
+.arch-card .a-rent:hover { background: rgba(212,179,94,0.12); }
+.arch-empty {
+  grid-column: 1 / -1; text-align: center; padding: 48px 20px;
+  background: rgba(22,12,9,0.45); border-radius: 16px;
+}
+.arch-empty .e-mark { font-size: 24px; color: var(--gold-deep); margin-bottom: 14px; }
+.arch-empty .e-line { font-size: 14px; color: var(--txt); line-height: 1.9; letter-spacing: 0.02em; }
+.arch-pager { display: flex; justify-content: center; align-items: center; gap: 6px; margin-top: 30px; }
+.arch-pager button {
+  min-width: 34px; height: 34px; padding: 0 10px;
+  background: none; border: 1px solid rgba(212,179,94,0.25); border-radius: 8px;
+  color: var(--txt-soft); font-size: 13px; cursor: pointer; transition: all 0.2s ease;
+}
+.arch-pager button.on { background: rgba(212,179,94,0.16); color: var(--gold-l); border-color: rgba(212,179,94,0.5); }
+.arch-pager button:disabled { opacity: 0.3; cursor: default; }
+
 .love-line {
   margin-top: 16px;
   font-size: 13.5px; letter-spacing: 0.04em;
@@ -648,6 +698,20 @@ header {
 <section id="tab-record" hidden>
   <nav class="salle-nav" id="record-nav"></nav>
   <div class="stage-wrap"><div id="record-stage-host"></div></div>
+
+  <!-- ── 제10실 · 아카이브 서랍 (퇴역 음반 · 청음 없이 대여만) ── -->
+  <section id="record-archive" class="rec-archive">
+    <div class="arch-overlay"></div>
+    <div class="arch-inner">
+      <div class="arch-head">
+        <div class="arch-eyebrow">SALLE Ⅹ</div>
+        <div class="arch-title">아카이브 서랍</div>
+        <div class="arch-sub">신보 무대에서 세 주를 머문 음반이 이곳으로 내려옵니다.<br>닫히지 않는 문 — 언제든 다시 데려갈 수 있습니다.</div>
+      </div>
+      <div id="archive-grid" class="arch-grid"></div>
+      <div id="archive-pager" class="arch-pager"></div>
+    </div>
+  </section>
 </section>
 
 <!-- ── 탭 ③ 카탈로그 레조네 — 아카이브 + 대여 서가 한 몸 ── -->
@@ -844,6 +908,81 @@ async function loadRecords() {
       `/rest/v1/heritage_items?status=eq.active&category=eq.record&select=*&order=salle_no.asc`
     ) || [];
   } catch (e) { console.warn('음반 가게 로드 실패:', e); RECORD_ITEMS = []; }
+
+  // ── 방식 B — 음반은 가만, 시간만 흐른다 ──
+  // 나이(주) = floor((지금 − 개봉 화요일 0시) / 7일)
+  // 실제 홀 = 나이 × 3 + 슬롯(salle_no 1~3)  →  나이 0→홀 1~3, 1→4~6, 2→7~9
+  const now = Date.now();
+  RECORD_ITEMS.forEach(it => {
+    const opened = it.open_at ? new Date(it.open_at).getTime() : now;
+    const age = Math.max(0, Math.floor((now - opened) / (7 * 86400000)));
+    it.hall = age * 3 + (it.salle_no || 1);
+  });
+}
+
+// ── 제10실 · 아카이브 서랍 (퇴역 shelf 음반) ──
+let ARCHIVE_RECORDS = [];   // 퇴역 음반 전체 (최신 퇴역이 위 — open_at 늦은 순)
+let ARCHIVE_PAGE = 0;
+const ARCHIVE_PER = 6;      // 한 페이지 6장 (노트북 2열 × 3행)
+
+async function loadArchive() {
+  try {
+    ARCHIVE_RECORDS = await sbFetch(
+      `/rest/v1/heritage_items?status=eq.shelf&category=eq.record&select=*&order=open_at.desc`
+    ) || [];
+  } catch (e) { console.warn('아카이브 로드 실패:', e); ARCHIVE_RECORDS = []; }
+  ARCHIVE_PAGE = 0;
+  renderArchive();
+}
+
+function renderArchive() {
+  const grid = document.getElementById('archive-grid');
+  const pager = document.getElementById('archive-pager');
+  if (!grid) return;
+
+  if (!ARCHIVE_RECORDS.length) {
+    grid.innerHTML = `
+      <div class="arch-empty">
+        <div class="e-mark">📀</div>
+        <div class="e-line">아직 떠난 음반이 없습니다.<br>신보가 세 주를 머문 뒤, 이 서랍으로 내려옵니다.</div>
+      </div>`;
+    if (pager) pager.innerHTML = '';
+    return;
+  }
+
+  const pages = Math.ceil(ARCHIVE_RECORDS.length / ARCHIVE_PER);
+  if (ARCHIVE_PAGE >= pages) ARCHIVE_PAGE = pages - 1;
+  const start = ARCHIVE_PAGE * ARCHIVE_PER;
+  const slice = ARCHIVE_RECORDS.slice(start, start + ARCHIVE_PER);
+
+  grid.innerHTML = slice.map(it => `
+    <div class="arch-card">
+      <img class="a-jacket" src="${it.img}" alt="${escapeHtml(it.name)}"
+           onclick="openRent('${it.id}')" onerror="this.style.visibility='hidden'">
+      <div class="a-body">
+        <div class="a-name">${escapeHtml(it.name)}</div>
+        <div class="a-artist">${escapeHtml(it.artist)}</div>
+        <button class="a-rent" onclick="openRent('${it.id}')">🍎 이 판을 집으로 · 1알 · 3주</button>
+      </div>
+    </div>`).join('');
+
+  if (!pager) return;
+  if (pages <= 1) { pager.innerHTML = ''; return; }
+  let html = `<button onclick="archGo(${ARCHIVE_PAGE - 1})" ${ARCHIVE_PAGE === 0 ? 'disabled' : ''}>‹</button>`;
+  for (let p = 0; p < pages; p++) {
+    html += `<button class="${p === ARCHIVE_PAGE ? 'on' : ''}" onclick="archGo(${p})">${p + 1}</button>`;
+  }
+  html += `<button onclick="archGo(${ARCHIVE_PAGE + 1})" ${ARCHIVE_PAGE === pages - 1 ? 'disabled' : ''}>›</button>`;
+  pager.innerHTML = html;
+}
+
+function archGo(p) {
+  const pages = Math.ceil(ARCHIVE_RECORDS.length / ARCHIVE_PER);
+  if (p < 0 || p >= pages) return;
+  ARCHIVE_PAGE = p;
+  renderArchive();
+  const el = document.getElementById('record-archive');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ── 음반 가게: 방 네비 (아홉 칩) ──────────
@@ -886,7 +1025,7 @@ function recordBackdrop() {
 // ── 음반 가게: 무대 렌더 — 방 하나, 판 한 장 ──
 function renderRecordStage() {
   const host = document.getElementById('record-stage-host');
-  const item = RECORD_ITEMS.find(i => i.salle_no === currentRoom);
+  const item = RECORD_ITEMS.find(i => i.hall === currentRoom);
 
   if (!item) {
     host.innerHTML = `
@@ -977,7 +1116,7 @@ function closeLiner() {
 
 // ── 대여 시트 — 창구는 본 공사(rent_record) 후 개점 ──
 function openRent(itemId) {
-  const item = RECORD_ITEMS.find(i => i.id === itemId) || CAT_RECORDS.find(i => i.id === itemId);
+  const item = RECORD_ITEMS.find(i => i.id === itemId) || ARCHIVE_RECORDS.find(i => i.id === itemId) || CAT_RECORDS.find(i => i.id === itemId);
   if (!item) return;
 
   const panel = document.createElement('div');
@@ -1055,8 +1194,7 @@ async function ensureCatalog() {
     const bornWeeks = new Set((born || []).map(e => e.born_week));
     const weeks = new Set();
     for (const it of (allItems || [])) {
-      if (it.category === 'visual' && bornWeeks.has(it.wk_id)) weeks.add(it.wk_id);   // 추첨을 통과한 주만
-      if (it.category === 'record' && it.id.startsWith('htg_m')) weeks.add(it.wk_id); // 정식 신보만
+      if (it.category === 'visual' && bornWeeks.has(it.wk_id)) weeks.add(it.wk_id);   // 추첨을 통과한 주만 (카탈로그 = 미술 전용)
     }
     CAT_WEEKS = [...weeks].sort().reverse();
     CAT_WK = CAT_WEEKS[0] || getWkId();
@@ -1069,7 +1207,7 @@ async function ensureCatalog() {
 async function loadCatWeek(wk) {
   const items = await sbFetch(`/rest/v1/heritage_items?wk_id=eq.${wk}&select=*&order=salle_no.asc`) || [];
   CAT_VISUALS = items.filter(i => i.category === 'visual');
-  CAT_RECORDS = items.filter(i => i.category === 'record' && i.id.startsWith('htg_m'));
+  CAT_RECORDS = [];   // 음반은 음반 가게 탭이 전담 (신보 아홉 방 + 아카이브 서랍)
   CAT_EDITIONS = []; CAT_RENTALS = []; CAT_WAIT = [];
   if (CAT_VISUALS.length) {
     const ids = CAT_VISUALS.map(i => i.id).join(',');
@@ -1363,7 +1501,7 @@ function switchMainTab(tab) {
   if (bd) bd.style.opacity = tab === 'salon' ? '1' : '0';
   const rbd = document.getElementById('record-backdrop');
   if (rbd) rbd.classList.toggle('on', tab === 'record');
-  if (tab === 'record') setRecordBackdrop(currentRoom);
+  if (tab === 'record') { setRecordBackdrop(currentRoom); loadArchive(); }
   if (tab === 'catalog') ensureCatalog();
   if (tab === 'times') loadTimesTab();
   renderRhythm(tab);
@@ -2496,6 +2634,7 @@ function goHome() { window.location.href = '/eungyo-salon/'; }
   renderDrawButton();           // 소로면 추첨 버튼
   await loadRecords();
   renderRecordStage();
+  loadArchive();
 })();
 </script>
 </body>
