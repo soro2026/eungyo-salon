@@ -289,6 +289,7 @@ let viewer, orbiting=false, orbitHeading=0, orbitCenter=null, orbitRange=1000, o
   }
 
   buildJourney();
+  clampSpotsToSurface();   // 마커를 실사 3D 타일 표면에 정확히 달라붙게
 
   // 사용자가 화면을 잡으면 자동 회전을 멈춤
   viewer.canvas.addEventListener("pointerdown", stopOrbit);
@@ -378,6 +379,19 @@ function openStory(spot){
 
 function closeStory(){
   document.getElementById("story").classList.remove("in");
+}
+
+// 마커를 실사 3D 타일(또는 지형) 표면 높이에 정확히 앉힘 — 비스듬한 각도에서도 안 어긋나게
+async function clampSpotsToSurface(){
+  if (!viewer.scene.clampToHeightMostDetailed) return;       // 구버전 안전장치
+  const ents = viewer.entities.values.filter(e => e._spot);
+  if (!ents.length) return;
+  const now = Cesium.JulianDate.now();
+  const carts = ents.map(e => e.position.getValue(now));
+  try{
+    const clamped = await viewer.scene.clampToHeightMostDetailed(carts);
+    clamped.forEach((c, i)=>{ if (Cesium.defined(c)) ents[i].position = c; });
+  }catch(e){ console.warn("마커 표면 고정 실패(해수면 위치 유지):", e); }
 }
 
 function flyTo(i){
