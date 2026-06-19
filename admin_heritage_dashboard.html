@@ -324,7 +324,7 @@ async function load(){
   document.getElementById('body').innerHTML='<div class="loading">현황을 불러오는 중…</div>';
   try {
     const [items, editions, rentals, waitlist, archives, results] = await Promise.all([
-      supa.from('heritage_items').select('id,name,artist,category,status,wk_id,salle_no,layers,open_at,is_welcome').order('category').order('status').order('open_at'),
+      supa.from('heritage_items').select('id,name,artist,category,status,wk_id,salle_no,layers,liner_note,open_at,is_welcome').order('category').order('status').order('open_at'),
       supa.from('heritage_editions').select('id,item_id,status'),
       supa.from('heritage_rentals').select('id,item_id,due_at,returned_at,source'),
       supa.from('heritage_waitlist').select('id,item_id'),
@@ -338,6 +338,15 @@ async function load(){
   } catch(e){
     document.getElementById('body').innerHTML=`<div class="loading" style="color:var(--bad)">데이터 로드 실패: ${esc(e.message)}</div>`;
   }
+}
+
+// 4겹 완비 판정 — 음반은 liner_note, 그림은 layers (매체별로 칸이 다름)
+function has4Layers(i){
+  if(i.category === 'record'){
+    const ln = i.liner_note;
+    return !!(ln && ln.knowledge && ln.thought && ln.connection && ln.curation);
+  }
+  return !!(i.layers && JSON.stringify(i.layers)!=='{}');
 }
 
 function render(items, editions, rentals, waitlist, archives, results){
@@ -355,7 +364,7 @@ function render(items, editions, rentals, waitlist, archives, results){
   const rStandby = record.filter(i=>i.status==='standby');
   const rShelf   = record.filter(i=>i.status==='shelf');
 
-  const noLayers = items.filter(i=>!i.is_welcome && !(i.layers && JSON.stringify(i.layers)!=='{}'));
+  const noLayers = items.filter(i=>!i.is_welcome && !has4Layers(i));
   const noLayersActive = noLayers.filter(i=>i.status==='active');
 
   const rentalsActive = rentals.filter(r=>!r.returned_at);
@@ -459,7 +468,7 @@ function render(items, editions, rentals, waitlist, archives, results){
       <th>보물명</th><th>작가</th><th class="c">매체</th><th class="c">상태</th><th class="c">4겹</th>
     </tr></thead><tbody>`;
   showItems.forEach(i=>{
-    const hasL = !!(i.layers && JSON.stringify(i.layers)!=='{}');
+    const hasL = has4Layers(i);
     const catBadge = i.category==='visual'
       ? `<span class="badge info cat-v">미술</span>`
       : `<span class="badge info cat-r">음반</span>`;
