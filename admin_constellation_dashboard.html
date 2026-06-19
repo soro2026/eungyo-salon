@@ -318,14 +318,15 @@ async function loadSummary(){
 
 // ── ② 분야별 현황 ──
 async function loadFieldStats(){
+  const cNames = await loadContentNames();
   const { data } = await supa.from('stars')
-    .select('field, has_content, photo_url, framed_url');
+    .select('name, field, aliases, photo_url, framed_url');
   if(!data) return;
   const fields = {};
   data.forEach(s=>{
     if(!fields[s.field]) fields[s.field]={n:0,content:0,photo:0,framed:0};
     fields[s.field].n++;
-    if(s.has_content) fields[s.field].content++;
+    if(starHasContent(s,cNames)) fields[s.field].content++;
     if(s.photo_url)   fields[s.field].photo++;
     if(s.framed_url)  fields[s.field].framed++;
   });
@@ -345,13 +346,42 @@ async function loadFieldStats(){
   document.getElementById('field-section').style.display='';
 }
 
+// ── 콘텐츠 판정: 회원 0층(get_star_questions)과 동일 2경로 ──
+// (1) questions.figures(또는 aliases) + constellatio_card.show_in_constellatio=true
+// (2) heritage_items.artist(또는 aliases) + category record/visual + liner_note나 layers 있음
+let _contentNames = null;
+async function loadContentNames(){
+  if(_contentNames) return _contentNames;
+  const [qRes, hRes] = await Promise.all([
+    supa.from('questions').select('figures,constellatio_card').limit(3000),
+    supa.from('heritage_items').select('artist,category,liner_note,layers'),
+  ]);
+  const names = new Set();
+  (qRes.data||[]).forEach(q=>{
+    const cc = q.constellatio_card;
+    const show = cc && (cc.show_in_constellatio===true || cc.show_in_constellatio==='true');
+    if(show && Array.isArray(q.figures)) q.figures.forEach(f=>{ if(f) names.add(f); });
+  });
+  (hRes.data||[]).forEach(h=>{
+    const ok = (h.category==='record'||h.category==='visual') && (h.liner_note!=null||h.layers!=null);
+    if(ok && h.artist) names.add(h.artist);
+  });
+  _contentNames = names;
+  return names;
+}
+function starHasContent(s, names){
+  if(names.has(s.name)) return true;
+  if(Array.isArray(s.aliases)) return s.aliases.some(a=>names.has(a));
+  return false;
+}
+
 // ── ③ 별 상태판 ──
 async function loadTable(){
   document.getElementById('table-host').innerHTML='<div class="loading">불러오는 중…</div>';
   document.getElementById('pagination').style.display='none';
 
   let q = supa.from('stars')
-    .select('id,name,field,grade,has_content,photo_url,framed_url,x_ratio,stella_status,heart_count,aliases',{count:'exact'});
+    .select('id,name,field,grade,has_content,photo_url,framed_url,birth,x_ratio,stella_status,heart_count,aliases',{count:'exact'});
 
   if(searchTerm) q = q.ilike('name',`%${searchTerm}%`);
   if(curField)   q = q.eq('field', curField);
@@ -359,7 +389,7 @@ async function loadTable(){
     case 'empty':    q = q.eq('has_content',false).is('photo_url',null).is('framed_url',null).eq('heart_count',0); break;
     case 'no_photo': q = q.is('photo_url',null); break;
     case 'no_frame': q = q.is('framed_url',null); break;
-    case 'check':    q = q.or('grade.eq.9,x_ratio.is.null'); break;
+    case 'check':    q = q.or('grade.eq.9,birth.is.null'); break;
   }
 
   const offset = curPage * PAGE_SIZE;
@@ -384,12 +414,13 @@ async function loadTable(){
     <th class="c">콘텐츠</th><th class="c">사진#1</th><th class="c">액자</th>
     <th class="c">좌표</th><th class="c">status</th><th class="c">💛</th><th class="c">삭제</th>
   </tr></thead><tbody>`;
+  const cNames = await loadContentNames();
   data.forEach(s=>{
     const gradeB  = s.grade<=3?`<span class="badge ok">${s.grade}</span>`:`<span class="badge bad">${s.grade}</span>`;
-    const contentB= s.has_content?`<span class="badge ok">○</span>`:`<span class="badge bad">—</span>`;
+    const contentB= starHasContent(s,cNames)?`<span class="badge ok">○</span>`:`<span class="badge bad">—</span>`;
     const photoB  = s.photo_url?`<span class="badge ok">○</span>`:`<span class="badge bad">—</span>`;
     const frameB  = s.framed_url?`<span class="badge ok">○</span>`:`<span class="badge bad">—</span>`;
-    const coordB  = s.x_ratio!=null?`<span class="badge ok">○</span>`:`<span class="badge warn">—</span>`;
+    const coordB  = s.birth!=null?`<span class="badge ok">○</span>`:`<span class="badge warn">—</span>`;
     const statusB = s.stella_status==='recruiting'?`<span class="badge star">모집중</span>`:`<span class="badge info">씨앗</span>`;
     html+=`<tr>
       <td class="star-name">${esc(s.name)}</td>
@@ -580,11 +611,12 @@ async function renderWarns(){
   const warns=[];
   const { data: grade9 } = await supa.from('stars').select('name').eq('grade',9).limit(20);
   if(grade9&&grade9.length) warns.push(`⭐ grade 9 숨김 별 ${grade9.length}개 — 콘스텔라티오에서 안 보임: ${grade9.map(s=>esc(s.name)).join(' · ')}`);
-  const { count: noCoord } = await supa.from('stars').select('*',{count:'exact',head:true}).is('x_ratio',null);
-  if(noCoord) warns.push(`📍 좌표(x_ratio) 없는 별 ${noCoord}개 — birth 입력 확인 필요`);
-  const { count: emptyCount } = await supa.from('stars').select('*',{count:'exact',head:true})
-    .eq('has_content',false).is('photo_url',null).is('framed_url',null).eq('heart_count',0);
-  if(emptyCount) warns.push(`🗑 빈 별(삭제 후보) 약 155개 — 일괄 삭제 섹션에서 미리보기 후 실행`);
+  const { count: noBirth } = await supa.from('stars').select('*',{count:'exact',head:true}).is('birth',null);
+  if(noBirth) warns.push(`📍 생년(birth) 없는 별 ${noBirth}개 — 좌표 자동 배치 불가, birth 입력 필요`);
+  const cNames = await loadContentNames();
+  const { data: allS } = await supa.from('stars').select('id,name,aliases');
+  const emptyS = (allS||[]).filter(s=>!starHasContent(s,cNames));
+  if(emptyS.length) warns.push(`🪧 0층 콘텐츠 없는 별 ${emptyS.length}개 — ${emptyS.map(s=>esc(s.name)).join(' · ')}`);
 
   const host=document.getElementById('warns-host');
   if(!warns.length){
