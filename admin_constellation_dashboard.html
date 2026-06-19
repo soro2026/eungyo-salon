@@ -267,6 +267,7 @@ function showGate(){
 }
 
 async function loadAll(){
+  await loadContentNames();
   await Promise.all([loadSummary(), loadFieldStats()]);
   await loadTable();
   renderWarns();
@@ -279,14 +280,10 @@ async function loadSummary(){
     supa.from('stars').select('*', {count:'exact',head:true}).not('photo_url','is',null),
     supa.from('stars').select('*', {count:'exact',head:true}).not('framed_url','is',null),
   ]);
-  // 실제 questions 연결 별 수
-  const { data: figData } = await supa.from('questions').select('figures').limit(500);
-  const figNames = new Set();
-  (figData||[]).forEach(q=>{
-    if(Array.isArray(q.figures)) q.figures.forEach(f=>figNames.add(f));
-  });
-  const { data: starsData } = await supa.from('stars').select('name').limit(300);
-  const linkedCount = (starsData||[]).filter(s=>figNames.has(s.name)).length;
+  // 콘텐츠 연결 별 수 — 회원 0층(get_star_questions)과 동일 2경로
+  const cNames = await loadContentNames();
+  const { data: starsData } = await supa.from('stars').select('name,aliases').limit(1000);
+  const linkedCount = (starsData||[]).filter(s=>starHasContent(s,cNames)).length;
 
   const t = total.count||0;
   const p = photo.count||0;
@@ -301,7 +298,7 @@ async function loadSummary(){
       <div class="scard">
         <div class="num ok">${linkedCount}</div>
         <div class="lab">콘텐츠 연결 (실제)</div>
-        <div class="note">questions.figures 기준</div>
+        <div class="note">회원 0층 표시 기준</div>
       </div>
       <div class="scard">
         <div class="num ${p<t/2?'warn':''}">${p}</div>
