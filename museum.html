@@ -1933,16 +1933,12 @@ function renderCurationLinks(links) {
     const bookCards = links.books.map(b => {
       const title = b.title || '';
       const meta = [b.translator && `${b.translator} 옮김`, b.publisher].filter(Boolean).join(' · ');
-      // 검색어 한 갈래로 통일 (0618 링크 수술):
-      //  1) ISBN 있으면 ISBN — 가장 정확, 그 책 한 권으로 직행
-      //  2) 없으면 제목 + 옮긴이(없으면 출판사)로 좁혀 동명이서 회피
-      //     (옛 버그: 알라딘이 '제목만' 던져 "서곡" 같은 일반 제목이 엉뚱한 책을 띄움)
-      const narrow = b.translator || b.publisher || '';
-      const searchTerm = b.isbn ? b.isbn : (narrow ? `${title} ${narrow}` : title);
-      const q = encodeURIComponent(searchTerm);
+      // 검색어 = 제목 + 저자 + (옮긴이|출판사), ISBN 있으면 ISBN 우선 (0619 구글 전환).
+      //  서점 내부 검색은 제목 한 글자만 어긋나도 0건 → 구글 한 곳으로 통일해 죽은 링크를 없앤다.
+      const parts = b.isbn ? [b.isbn] : [title, b.author, (b.translator || b.publisher)].filter(Boolean);
+      const q = encodeURIComponent(parts.join(' '));
       const stores = [
-        `<a href="https://search.kyobobook.co.kr/search?keyword=${q}" target="_blank" rel="noopener" ${stopProp} style="${linkStyle}">교보</a>`,
-        `<a href="https://www.aladin.co.kr/search/wsearchresult.aspx?SearchTarget=Book&SearchWord=${q}" target="_blank" rel="noopener" ${stopProp} style="${linkStyle}">알라딘</a>`,
+        `<a href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener" ${stopProp} style="${linkStyle}">책 찾기</a>`,
       ];
       const storesHtml = `<div style="margin-top:6px;font-size:11px;letter-spacing:0.05em">${stores.join(' · ')}</div>`;
       return `
