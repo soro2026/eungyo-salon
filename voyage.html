@@ -58,6 +58,37 @@
     transition:color .25s ease,border-color .25s ease;
   }
   #backBtn:hover{color:var(--gold);border-color:var(--gold-soft)}
+
+  /* ── 도시 점프 버튼 + 목록 ── */
+  #cityBtn{
+    position:fixed;top:22px;left:178px;z-index:12;
+    display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+    font-family:var(--sans);font-size:12.5px;letter-spacing:.04em;
+    color:var(--cream-dim);border:1px solid var(--line);border-radius:999px;
+    padding:7px 14px;background:rgba(8,11,22,.55);backdrop-filter:blur(4px);
+    transition:color .25s ease,border-color .25s ease;
+  }
+  #cityBtn:hover{color:var(--gold);border-color:var(--gold-soft)}
+  #cityList{
+    position:fixed;top:60px;left:178px;z-index:13;
+    min-width:210px;max-height:62vh;overflow-y:auto;
+    background:rgba(10,14,26,.96);border:1px solid var(--line);border-radius:12px;
+    backdrop-filter:blur(8px);padding:8px;
+    opacity:0;transform:translateY(-8px);pointer-events:none;
+    transition:opacity .3s ease,transform .3s ease;
+  }
+  #cityList.in{opacity:1;transform:none;pointer-events:auto}
+  .city-item{
+    display:flex;justify-content:space-between;align-items:center;gap:14px;
+    padding:10px 14px;border-radius:8px;cursor:pointer;
+    color:var(--cream);font-family:var(--serif);font-size:15.5px;
+    transition:background .2s ease;
+  }
+  .city-item:hover{background:rgba(201,162,39,.12)}
+  .city-item.active{color:var(--gold)}
+  .city-item .cnt{font-family:var(--sans);font-size:11px;color:var(--cream-dim);letter-spacing:.05em}
+  @media (max-width:640px){ #cityBtn{left:auto;right:18px;top:14px} #cityList{left:auto;right:18px;top:52px} }
+
   #title.in{opacity:1;transform:none}
   #title .eyebrow{font-size:11px;letter-spacing:.42em;color:var(--gold);text-transform:uppercase}
   #title h1{
@@ -176,6 +207,8 @@
 <div id="cesiumContainer"></div>
 
 <a id="backBtn" href="constella.html">← 별로 돌아가기</a>
+<button id="cityBtn">🌍 다른 도시</button>
+<div id="cityList"></div>
 
 <div id="title">
   <div class="eyebrow">Constellatio</div>
@@ -226,6 +259,7 @@ const HEMINGWAY = {
 };
 
 let viewer, orbiting=false, orbitHeading=0, orbitCenter=null, orbitRange=1000, orbitTick=null, activeIdx=-1;
+let CITIES=[], currentCity='paris';
 
 // 돌아가기: 온 별 페이지로 (목업 단계 — id가 있으면 그 별로, 없으면 별자리로)
 (function setBack(){
@@ -281,6 +315,8 @@ let viewer, orbiting=false, orbitHeading=0, orbitCenter=null, orbitRange=1000, o
 
   buildJourney();
   await loadCityMarkers('paris');   // 도시 핀을 DB에서 읽어 띄우고, 그 직후 표면 클램프(함수 내부)
+  loadCityList();                   // 도시 점프 목록을 DB에서 로드
+  document.getElementById("cityBtn").addEventListener("click", ()=> toggleCityList());
 
   // 사용자가 화면을 잡으면 자동 회전을 멈춤
   viewer.canvas.addEventListener("pointerdown", stopOrbit);
@@ -367,6 +403,56 @@ async function loadCityMarkers(city){
 
   // ★ 마커를 모두 띄운 직후 표면 클램프 — 비동기 로드 타이밍의 핵심.
   await clampSpotsToSurface();
+}
+
+// ─── 도시 목록(voyage_cities)을 DB에서 읽어 점프 리스트로 ───
+async function loadCityList(){
+  try{
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_voyage_cities", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
+      body: "{}"
+    });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    CITIES = await res.json();
+  }catch(e){ console.warn("도시 목록 로드 실패:", e); return; }
+  renderCityList();
+}
+
+function renderCityList(){
+  const box = document.getElementById("cityList");
+  box.innerHTML = "";
+  CITIES.forEach(c=>{
+    const it = document.createElement("div");
+    it.className = "city-item" + (c.city === currentCity ? " active" : "");
+    it.innerHTML = '<span>'+c.label_ko+'</span><span class="cnt">'+c.pin_count+'곳</span>';
+    it.addEventListener("click", ()=>{ jumpToCity(c); toggleCityList(false); });
+    box.appendChild(it);
+  });
+}
+
+function toggleCityList(show){
+  const box = document.getElementById("cityList");
+  const on = (show === undefined) ? !box.classList.contains("in") : show;
+  box.classList.toggle("in", on);
+}
+
+// 페이지를 떠나지 않고 도시 전환 — 세션 하나로 여러 도시(과금 1건).
+async function jumpToCity(c){
+  currentCity = c.city;
+  renderCityList();
+  stopOrbit();
+  closeStory();
+  // 이전 도시 마커 제거 (slice로 복제 후 제거 — 순회 중 변경 방지)
+  viewer.entities.values.filter(e=>e._spot).slice().forEach(e=> viewer.entities.remove(e));
+  // 그 도시로 카메라 비행
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(c.center_lng, c.center_lat, c.range),
+    orientation:{ heading:Cesium.Math.toRadians(20), pitch:Cesium.Math.toRadians(-35), roll:0 },
+    duration: 3.5
+  });
+  // 새 도시 마커 로드 (내부에서 표면 클램프)
+  await loadCityMarkers(c.city);
 }
 
 function openStory(spot){
