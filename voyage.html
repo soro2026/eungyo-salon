@@ -445,14 +445,29 @@ async function jumpToCity(c){
   closeStory();
   // 이전 도시 마커 제거 (slice로 복제 후 제거 — 순회 중 변경 방지)
   viewer.entities.values.filter(e=>e._spot).slice().forEach(e=> viewer.entities.remove(e));
-  // 그 도시로 카메라 비행
-  viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(c.center_lng, c.center_lat, c.range),
-    orientation:{ heading:Cesium.Math.toRadians(20), pitch:Cesium.Math.toRadians(-35), roll:0 },
-    duration: 3.5
-  });
-  // 새 도시 마커 로드 (내부에서 표면 클램프)
+  // 새 도시 마커를 먼저 로드 — 1호 핀 좌표를 잡고 표면 클램프(함수 내부)까지 끝낸 뒤 비행
   await loadCityMarkers(c.city);
+
+  // 1호 핀(가장 먼저 입주한 곳 = id 최소)을 중심점으로. 핀이 없으면 도시 중심.
+  let lng = c.center_lng, lat = c.center_lat;
+  const spots = viewer.entities.values.filter(e=>e._spot);
+  if (spots.length){
+    let first = spots[0];
+    spots.forEach(e=>{ if (e._spot.id < first._spot.id) first = e; });
+    const carto = Cesium.Cartographic.fromCartesian(
+      first.position.getValue(Cesium.JulianDate.now()));
+    lng = Cesium.Math.toDegrees(carto.longitude);
+    lat = Cesium.Math.toDegrees(carto.latitude);
+  }
+  const r = c.range || 1000;
+
+  // 파리 초기 진입처럼 — 1호 핀으로 비스듬히 줌인한 뒤, 그 곳을 중심으로 천천히 회전
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, r * 1.6),
+    orientation:{ heading:Cesium.Math.toRadians(20), pitch:Cesium.Math.toRadians(-35), roll:0 },
+    duration: 3.4,
+    complete: ()=> startOrbit(Cesium.Cartesian3.fromDegrees(lng, lat, 0), r)
+  });
 }
 
 function openStory(spot){
