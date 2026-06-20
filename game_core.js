@@ -457,6 +457,8 @@ async function loadQuestions() {
 
 
 const TS=75, CIRC=132, JSEC=5, AI_AVG=0.31;
+// ⏩ 수비(봇 공격) 자동 진행 — "결과 바로 보기" 시 ON, 3아웃 도달 시 OFF
+let AUTO_DEF=false; const AUTO_MS=280;
 const PITCHER=`<svg class="icon" viewBox="0 0 34 34"><circle cx="17" cy="9" r="5" fill="rgba(248,244,238,0.7)"/><rect x="12" y="14" width="10" height="10" rx="3" fill="rgba(248,244,238,0.7)"/><line x1="22" y1="16" x2="30" y2="10" stroke="rgba(248,244,238,0.7)" stroke-width="2.5" stroke-linecap="round"/><line x1="14" y1="24" x2="11" y2="32" stroke="rgba(248,244,238,0.7)" stroke-width="2.5" stroke-linecap="round"/><line x1="20" y1="24" x2="23" y2="32" stroke="rgba(248,244,238,0.7)" stroke-width="2.5" stroke-linecap="round"/></svg>`;
 const CATCHER=`<svg class="icon" viewBox="0 0 34 34"><circle cx="17" cy="9" r="5" fill="rgba(248,244,238,0.7)"/><rect x="10" y="12" width="14" height="4" rx="2" fill="rgba(248,244,238,0.4)"/><rect x="11" y="14" width="12" height="10" rx="3" fill="rgba(248,244,238,0.7)"/><line x1="11" y1="17" x2="4" y2="13" stroke="rgba(248,244,238,0.7)" stroke-width="2.5" stroke-linecap="round"/><circle cx="4" cy="12" r="3.5" fill="rgba(248,244,238,0.4)" stroke="rgba(248,244,238,0.7)" stroke-width="1.5"/><line x1="14" y1="24" x2="12" y2="32" stroke="rgba(248,244,238,0.7)" stroke-width="2.5" stroke-linecap="round"/><line x1="20" y1="24" x2="22" y2="32" stroke="rgba(248,244,238,0.7)" stroke-width="2.5" stroke-linecap="round"/></svg>`;
 const BATTER=`<svg class="icon" viewBox="0 0 34 34"><circle cx="17" cy="9" r="5" fill="rgba(248,244,238,0.7)"/><rect x="12" y="14" width="10" height="10" rx="3" fill="rgba(248,244,238,0.7)"/><line x1="12" y1="16" x2="4" y2="10" stroke="rgba(248,244,238,0.7)" stroke-width="2.5" stroke-linecap="round"/><line x1="4" y1="10" x2="1" y2="6" stroke="rgba(248,244,238,0.7)" stroke-width="3" stroke-linecap="round"/><line x1="14" y1="24" x2="11" y2="32" stroke="rgba(248,244,238,0.7)" stroke-width="2.5" stroke-linecap="round"/><line x1="20" y1="24" x2="23" y2="32" stroke="rgba(248,244,238,0.7)" stroke-width="2.5" stroke-linecap="round"/></svg>`;
@@ -1370,6 +1372,7 @@ function startQ(){
     btn.className='btn-hit pitch-mode';btn.textContent='⚾ 피칭!';
     const aiLbl=document.getElementById('ai-label');
     if(aiLbl){const n=getOppKor();aiLbl.textContent=n+getJosa(n,'ga')+' 공을 노려보고 있습니다.';}
+    if(AUTO_DEF) setTimeout(onAction, AUTO_MS);
   }
 }
 
@@ -1418,7 +1421,7 @@ function onAction(){
         st.elapsed+=100;setBar(Math.max(0,100-st.elapsed/st.totalMs*100));
       },100);
     },400);
-    const aiPct=0.2+Math.random()*0.6,aiMs=st.totalMs*aiPct;
+    const aiPct=0.2+Math.random()*0.6,aiMs=AUTO_DEF?450:st.totalMs*aiPct;
     const aiOnBase = Math.random() < AI_AVG;            // 출루 게이트 (OBP 개념)
     const aiIdx = Math.floor(Math.random()*100);
     const aiMk = aiOnBase ? st.aiHitBoard[aiIdx] : st.aiOutBoard[aiIdx];
@@ -1473,8 +1476,8 @@ function showJudging(msgs,onDone){
   ja.style.display='block';msgEl.textContent=msgs[0];msgEl.classList.remove('fade');
   bar.className='judging-bar-fill';setTimeout(()=>bar.className='judging-bar-fill run',50);
   let mi=0;
-  st.msgTimer=setInterval(()=>{mi++;if(mi<msgs.length){msgEl.classList.add('fade');setTimeout(()=>{msgEl.textContent=msgs[mi];msgEl.classList.remove('fade');},300);}if(mi>=msgs.length-1){clearInterval(st.msgTimer);st.msgTimer=null;}},1000);
-  setTimeout(()=>{if(st.msgTimer){clearInterval(st.msgTimer);st.msgTimer=null;}ja.style.display='none';onDone();},JSEC*1000);
+  if(!AUTO_DEF) st.msgTimer=setInterval(()=>{mi++;if(mi<msgs.length){msgEl.classList.add('fade');setTimeout(()=>{msgEl.textContent=msgs[mi];msgEl.classList.remove('fade');},300);}if(mi>=msgs.length-1){clearInterval(st.msgTimer);st.msgTimer=null;}},1000);
+  setTimeout(()=>{if(st.msgTimer){clearInterval(st.msgTimer);st.msgTimer=null;}ja.style.display='none';onDone();}, AUTO_DEF?550:JSEC*1000);
 }
 
 // ── 사운드 엔진 (Web Audio API) ──────────────────────────
@@ -1812,6 +1815,17 @@ function mkResult(label,cls,sub){
 
 function showReveal() {
   const q = getQ();
+  // ⏩ 자동 진행: 각인 건너뛰고 다음 단계로. 3아웃이면 자동 해제 후 교대/종료 화면은 유저가 봄
+  if(AUTO_DEF){
+    const _done=st.outs>=3;
+    const _go=_done && (currentIsHome?st.isAttack:!st.isAttack);
+    const _ho=_done && !_go;
+    document.getElementById('result-area').style.display='none';
+    document.getElementById('game-area').style.display='none';
+    if(_go){ AUTO_DEF=false; showGameResult(); return; }
+    if(_ho){ AUTO_DEF=false; showHalftime(); return; }
+    nextQ(); return;
+  }
   // 결과 화면 숨기기
   document.getElementById('result-area').style.display = 'none';
   document.getElementById('game-area').style.display = 'none';
@@ -1887,9 +1901,11 @@ function showResultDef(label,cls){
   const ra=document.getElementById('result-area');ra.innerHTML=mkResult(ok?'OUT':label,cls,subText);ra.style.display='block';
   setTimeout(()=>ra.scrollIntoView({behavior:'smooth',block:'start'}),100);
   st.atbat++;document.getElementById('stat-atbat').textContent=st.atbat+'타석';
+  if(AUTO_DEF) setTimeout(showReveal, AUTO_MS);
 }
 
 function animHR(runs,onDone){
+  if(AUTO_DEF){ if(onDone)onDone(); return; }
   if(st.hrTimer)clearInterval(st.hrTimer);
   const ids=['base1','base2','base3','home-plate'];let step=0,cycles=0,max=runs*4+4;
   ids.forEach(id=>{const e=document.getElementById(id);if(e){e.setAttribute('fill','#C9A84C');e.setAttribute('stroke','#A07830');}});
@@ -3044,6 +3060,7 @@ function showAtStep(){
   }
 
   // 수비
+  if(AUTO_DEF){ setTimeout(startDefenseWindup, AUTO_MS); return; }
   const q = getQ();
   const parts = q.cat.split('·');
   const catMain = parts[0]?.trim() || q.cat;
@@ -3107,7 +3124,7 @@ function showAtStep(){
 
       function typeNextLine() {
         if (lineIdx >= msgLines.length) {
-          setTimeout(() => { btn.style.opacity = '1'; }, 300);
+          setTimeout(() => { btn.style.opacity = '1'; const _b2=document.getElementById('dr-btn-auto'); if(_b2)_b2.style.opacity='1'; }, 300);
           return;
         }
         const line = msgLines[lineIdx];
@@ -3128,7 +3145,7 @@ function showAtStep(){
                 typeNextLine();
               }, 600);
             } else {
-              setTimeout(() => { btn.style.opacity = '1'; }, 300);
+              setTimeout(() => { btn.style.opacity = '1'; const _b2=document.getElementById('dr-btn-auto'); if(_b2)_b2.style.opacity='1'; }, 300);
             }
           }
         }, 55);
@@ -3171,6 +3188,11 @@ function requestWindup(){
   document.getElementById('wu-keyword').textContent = document.getElementById('pr-keyword').textContent;
 }
 
+// ⏩ "결과 바로 보기" 진입점 — 자동 모드 ON 후 첫 타석 시작
+function startDefenseAuto(){ AUTO_DEF=true; startDefenseWindup(); }
+// "한 타석씩 진행" 진입점 — 수동 모드 보장 후 첫 타석 시작
+function startDefenseManual(){ AUTO_DEF=false; startDefenseWindup(); }
+
 function startDefenseWindup(){
   // 수비 준비 → 와인드업으로 (수비)
   document.getElementById('defense-ready-screen').style.display = 'none';
@@ -3182,6 +3204,7 @@ function startDefenseWindup(){
   document.getElementById('wu-inning').textContent = document.getElementById('dr-inning').textContent;
   document.getElementById('wu-category').textContent = shortCat(catMain);
   document.getElementById('wu-keyword').textContent = q.keyword || catMain;
+  if(AUTO_DEF) setTimeout(requestPitch, AUTO_MS);
 }
 
 function requestPitch(){

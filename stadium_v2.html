@@ -4407,7 +4407,9 @@ async function loadHomeData() {
   console.log('내 경기:', myGame?.status, '타구장:', otherGame?.status);
   
   // 자동 분기: pending → 매치업, completed → 결과
-  if (myGame.status === 'pending') {
+  if (myGame.status === 'rest') {
+    showRestView(myGame, otherGame);
+  } else if (myGame.status === 'pending') {
     showMatchupView(myGame, otherGame);
   } else if (myGame.status === 'completed') {
     showResultView(myGame, otherGame);
@@ -4422,6 +4424,33 @@ function showNoSeasonView() {
   document.getElementById('state-result').style.display = 'none';
   const ns = document.getElementById('state-noseason');
   if (ns) ns.style.display = 'block';
+}
+
+// ── ⏸ 오늘이 멈춤 기간일 때 (정규시즌 일시멈춤) ──
+function showRestView(myGame, otherGame){
+  ['state-matchup','state-result','state-noseason'].forEach(id=>{
+    const el = document.getElementById(id); if (el) el.style.display = 'none';
+  });
+  let rest = document.getElementById('state-rest');
+  if (!rest){
+    rest = document.createElement('div');
+    rest.id = 'state-rest';
+    const anchor = document.getElementById('state-matchup');
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(rest, anchor);
+    else document.getElementById('screen-home')?.appendChild(rest);
+  }
+  rest.style.display = 'block';
+  const today = getToday();
+  const inj = _myInjury;
+  const dleft = inj ? Math.round((new Date(inj.end_date+'T00:00:00+09:00') - new Date(today+'T00:00:00+09:00'))/864e5) + 1 : null;
+  const span = inj ? `${_dlFmt(inj.start_date)}(${_dlDow(inj.start_date)}) ~ ${_dlFmt(inj.end_date)}(${_dlDow(inj.end_date)})` : '';
+  const ret  = inj ? `${_dlFmt(_dlAddDays(inj.end_date,1))}(${_dlDow(_dlAddDays(inj.end_date,1))})` : '';
+  rest.innerHTML = `<div style="background:var(--bg-card);border:1px solid var(--line-strong);border-radius:18px;padding:38px 26px;text-align:center;margin-top:8px">
+    <div style="font-size:48px;line-height:1">⏸</div>
+    <div style="font-size:19px;font-weight:700;color:var(--ink-primary);margin:12px 0 8px;font-family:'Noto Serif KR',serif">오늘은 멈춤입니다</div>
+    <p style="font-size:13px;color:var(--ink-secondary);line-height:1.75;margin:0">${span}${dleft!=null?`<br><b style="color:var(--ink-primary)">복귀까지 D-${dleft}</b>`:''}${ret?`<br>${ret}부터 멈춘 곳에서 시즌이 다시 이어집니다.`:''}</p>
+    <p style="font-size:12px;color:var(--ink-tertiary);margin:18px 0 0;line-height:1.6">잘 쉬고 계세요 — 타석은 그대로 당신을 기다립니다.</p>
+  </div>`;
 }
 
 // ── 콩파뇽 시즌 시작 — 멘토르 [시범경기 시작하기] 버튼에서 호출 ──
@@ -4512,6 +4541,7 @@ function showMatchupView(myGame, otherGame) {
   // 매치업 화면 표시, 결과 화면 숨김
   document.getElementById('state-matchup').style.display = 'block';
   document.getElementById('state-result').style.display = 'none';
+  { const _r = document.getElementById('state-rest'); if (_r) _r.style.display = 'none'; }
   
   const myIsHome = myGame.home_team === 'soro';
   const homeTeam = myGame.home_team;
@@ -4576,6 +4606,7 @@ function showMatchupView(myGame, otherGame) {
 function showResultView(myGame, otherGame) {
   document.getElementById('state-matchup').style.display = 'none';
   document.getElementById('state-result').style.display = 'block';
+  { const _r = document.getElementById('state-rest'); if (_r) _r.style.display = 'none'; }
   
   const myIsHome = myGame.home_team === 'soro';
   const myScore = myIsHome ? myGame.home_score : myGame.away_score;
