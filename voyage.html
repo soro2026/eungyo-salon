@@ -13,6 +13,9 @@
 ════════════════════════════════════════════════════════════════ -->
 <script>
   const GOOGLE_API_KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A"; // ← 소로님 키 삽입 완료
+  // ── Supabase (voyage_markers 도시 핀을 DB에서 읽어옴) ──
+  const SUPA_URL = "https://cyhlotwdisjvoxvfkpnd.supabase.co";
+  const SUPA_KEY = "sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR";
 </script>
 
 <script>
@@ -208,21 +211,7 @@ const HEMINGWAY = {
   representative: 3, // 대표 착륙지 = 쿠바
   places: [
     { name:"파리 몽파르나스", country:"프랑스 · France", yr:"1921", lat:48.8420, lng:2.3370, range:900,
-      desc:"스물둘에 건너와 카페 구석에서 첫 문장들을 벼린 도시.",
-      spots:[
-        {
-          lat:48.8526, lng:2.3471, icon:"📖", source:"curation",
-          title:"Shakespeare and Company",
-          subtitle:"두 개의 가게, 하나의 이름",
-          body:[
-            "헤밍웨이가 외상으로 책을 빌리던 원조 가게는 여기가 아니다. 실비아 비치가 1919년 문을 연 그곳은 강 건너 rue de l'Odéon에 있었고, 1941년 나치 점령기에 영영 문을 닫았다. 비치는 한 독일 장교에게 마지막 남은 『율리시스』를 팔기를 거부했다가 가게를 잃었다고 전해진다.",
-            "지금 이 자리의 가게는 1951년, 조지 휘트먼이 새로 연 것이다. 그는 훗날 실비아 비치의 허락을 받아 그 전설적인 이름을 물려받았다. 그러니 이곳은 복원이 아니라 이어받음이다 — 한 정신이 다른 손으로 건너간 곳.",
-            "헤밍웨이가 난로 앞에서 투르게네프를 빌리던 그 가게는 사라졌지만, 그가 사랑한 그 환대의 마음은 강을 건너 여기 살아 있다.",
-            "— 그리고 이 이름은, 먼 훗날 한국의 한 살롱이 자기 손님들을 콩파뇽이라 부르게 될 때, 그 단어의 먼 출생지가 된다."
-          ]
-        }
-      ]
-    },
+      desc:"스물둘에 건너와 카페 구석에서 첫 문장들을 벼린 도시." },
     { name:"팜플로나",        country:"스페인 · España", yr:"1923", lat:42.8189, lng:-1.6442, range:1100,
       desc:"산 페르민 축제의 투우를 보고 『해는 또다시 떠오른다』를 끌어낸 곳." },
     { name:"키웨스트",        country:"미국 플로리다 · USA", yr:"1931", lat:24.5511, lng:-81.8009, range:850,
@@ -289,7 +278,7 @@ let viewer, orbiting=false, orbitHeading=0, orbitCenter=null, orbitRange=1000, o
   }
 
   buildJourney();
-  clampSpotsToSurface();   // 마커를 실사 3D 타일 표면에 정확히 달라붙게
+  await loadCityMarkers('paris');   // 도시 핀을 DB에서 읽어 띄우고, 그 직후 표면 클램프(함수 내부)
 
   // 사용자가 화면을 잡으면 자동 회전을 멈춤
   viewer.canvas.addEventListener("pointerdown", stopOrbit);
@@ -320,32 +309,6 @@ function buildJourney(){
               outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
               disableDepthTestDistance:Number.POSITIVE_INFINITY }
     });
-
-    // 도시 안의 스폿 마커 — 가까이 줌인했을 때만 떠오름
-    (p.spots || []).forEach((spot, si)=>{
-      const isCompagnon = (spot.source === 'compagnon');           // 공식/콩파뇽 색 분기 (미래 대비)
-      const spotColor = Cesium.Color.fromCssColorString(isCompagnon ? "#7fb3d5" : "#c9a227");
-      const near = new Cesium.DistanceDisplayCondition(0, 60000);  // 60km 이내에서만 보임
-      const ent = viewer.entities.add({
-        id:"spot-"+i+"-"+si,
-        position: Cesium.Cartesian3.fromDegrees(spot.lng, spot.lat),
-        point:{ pixelSize:8, color:spotColor,
-                outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
-                disableDepthTestDistance:Number.POSITIVE_INFINITY,
-                distanceDisplayCondition:near },
-        label:{ text:(spot.icon ? spot.icon+"  " : "") + spot.title,
-                font:"14px Georgia,'Nanum Myeongjo',serif",
-                fillColor:Cesium.Color.fromCssColorString("#ece5d3"),
-                showBackground:true,
-                backgroundColor:Cesium.Color.fromCssColorString("#0a0e1a").withAlpha(.72),
-                backgroundPadding:new Cesium.Cartesian2(10,7),
-                pixelOffset:new Cesium.Cartesian2(0,-14),
-                verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
-                disableDepthTestDistance:Number.POSITIVE_INFINITY,
-                distanceDisplayCondition:near }
-      });
-      ent._spot = spot;  // 클릭 시 꺼내 쓸 데이터
-    });
   });
 
   // 마커 클릭 → 우측 스토리 패널
@@ -358,6 +321,50 @@ function buildJourney(){
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
   document.getElementById("storyClose").addEventListener("click", closeStory);
+}
+
+// ─── voyage_markers 도시 핀을 DB(RPC)에서 읽어 지구에 띄움 ───
+//  좌표는 lat·lng만(height 없음) → 띄운 직후 clampSpotsToSurface로 타일 표면에 앉힘.
+//  반드시 마커를 모두 추가한 뒤에 clamp를 호출해야 시차 흔들림이 없다.
+async function loadCityMarkers(city){
+  let rows = [];
+  try{
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_voyage_markers", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
+      body: JSON.stringify({ p_city: city })
+    });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    rows = await res.json();
+  }catch(e){ console.warn("voyage_markers 로드 실패:", e); return; }
+
+  const near = new Cesium.DistanceDisplayCondition(0, 60000); // 60km 이내에서만 보임
+  rows.forEach((m)=>{
+    const isCompagnon = (m.source === 'compagnon');            // 큐레이션=금빛 / 콩파뇽 발견=청록
+    const spotColor = Cesium.Color.fromCssColorString(isCompagnon ? "#7fb3d5" : "#c9a227");
+    const ent = viewer.entities.add({
+      id:"marker-"+m.id,
+      position: Cesium.Cartesian3.fromDegrees(m.lng, m.lat),  // height 생략 → 클램프 대상
+      point:{ pixelSize:8, color:spotColor,
+              outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
+              disableDepthTestDistance:Number.POSITIVE_INFINITY,
+              distanceDisplayCondition:near },
+      label:{ text:(m.icon ? m.icon+"  " : "") + m.title,
+              font:"14px Georgia,'Nanum Myeongjo',serif",
+              fillColor:Cesium.Color.fromCssColorString("#ece5d3"),
+              showBackground:true,
+              backgroundColor:Cesium.Color.fromCssColorString("#0a0e1a").withAlpha(.72),
+              backgroundPadding:new Cesium.Cartesian2(10,7),
+              pixelOffset:new Cesium.Cartesian2(0,-14),
+              verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
+              disableDepthTestDistance:Number.POSITIVE_INFINITY,
+              distanceDisplayCondition:near }
+    });
+    ent._spot = m;  // 클릭 시 openStory가 꺼내 씀 (title·subtitle·body·source·figures)
+  });
+
+  // ★ 마커를 모두 띄운 직후 표면 클램프 — 비동기 로드 타이밍의 핵심.
+  await clampSpotsToSurface();
 }
 
 function openStory(spot){
@@ -374,6 +381,14 @@ function openStory(spot){
     pp.textContent = par;
     bodyEl.appendChild(pp);
   });
+  // 이 핀이 닿는 별들 — 한 장소가 여러 별의 교차점임을 보여줌
+  const figs = Array.isArray(spot.figures) ? spot.figures : [];
+  if (figs.length){
+    const fp = document.createElement("p");
+    fp.style.cssText = "color:var(--gold);font-style:normal;border-top:1px solid var(--line);padding-top:14px;margin-top:18px;font-size:12.5px;letter-spacing:.05em";
+    fp.textContent = "이곳에 닿은 별 — " + figs.join(" · ");
+    bodyEl.appendChild(fp);
+  }
   document.getElementById("story").classList.add("in");
 }
 
