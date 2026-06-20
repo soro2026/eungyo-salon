@@ -2381,7 +2381,10 @@ body{
 <nav class="top-nav">
   <div class="brand-row">
     <div class="brand" onclick="goToMain()">EG 스타디움</div>
-    <div class="brand-meta">2026 · ROOKIE</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button id="dl-injury-badge" onclick="openInjuryModal()" style="display:none;align-items:center;gap:4px;background:var(--bg-card-muted);border:1px solid var(--line-strong);border-radius:999px;padding:4px 11px;font-size:10px;color:var(--ink-secondary);font-family:'JetBrains Mono',monospace;letter-spacing:0.04em;cursor:pointer;white-space:nowrap">⏸ 일시멈춤</button>
+      <div class="brand-meta">2026 · ROOKIE</div>
+    </div>
   </div>
   <div class="tabs">
     <div class="tab" onclick="goToMain()">EG메인</div>
@@ -3182,6 +3185,11 @@ async function enterStadium() {
     alert('오늘 경기는 이미 완료되었습니다.');
     return;
   }
+
+  if (todayMatches.status === 'rest') {
+    alert('정규시즌 일시멈춤 기간입니다. 잘 쉬고 계세요 — 시즌은 멈춘 곳에서 다시 이어집니다.');
+    return;
+  }
   
   // 상대팀 + 홈/원정 정보 추출
   const myIsHome = todayMatches.home_team === 'soro';
@@ -3849,7 +3857,9 @@ function updateMyGameCard(matches, date) {
   // 경기 상태 텍스트
   const status = card.querySelector('.game-status');
   if (status) {
-    if (myGame.status === 'completed') {
+    if (myGame.status === 'rest') {
+      status.textContent = '⏸ 멈춤';
+    } else if (myGame.status === 'completed') {
       status.textContent = `완료 · ${myGame.away_score}:${myGame.home_score}`;
     } else {
       status.textContent = (date === getToday()) ? '대기 중 · 18:30' : '예정 · 18:30';
@@ -3885,7 +3895,9 @@ function updateOtherFieldToday(matches, date) {
   // 시간 영역
   const time = card.querySelector('.other-field-time');
   if (time) {
-    if (other.status === 'completed') {
+    if (other.status === 'rest') {
+      time.textContent = '⏸ 멈춤';
+    } else if (other.status === 'completed') {
       time.textContent = `완료 · ${other.home_score}:${other.away_score}`;
     } else {
       time.textContent = (date === getToday()) ? '대기 중 · 18:30' : '예정 · 18:30';
@@ -4010,12 +4022,20 @@ async function reconcileAbsences(uid){
   try {
     const today = getToday();
     const { data: stale } = await supa.from('matches')
-      .select('id,is_my_game,home_team,away_team')
+      .select('id,is_my_game,home_team,away_team,match_date')
       .eq('user_id', uid).gt('week_num', 0)
       .lt('match_date', today).eq('status', 'pending');
     if (!stale || !stale.length) return;
+    // 안전망: 멈춤(정규시즌 일시멈춤) 기간에 떨어진 경기는 결석패가 아니라 rest
+    const { data: _injs } = await supa.from('eg_injury')
+      .select('start_date,end_date').eq('user_id', uid);
+    const _inInjury = (d) => (_injs||[]).some(i => d >= i.start_date && d <= i.end_date);
     const nowIso = new Date().toISOString();
     for (const m of stale) {
+      if (_inInjury(m.match_date)) {           // 멈춤 범위 → 쉼으로
+        await supa.from('matches').update({ status:'rest' }).eq('id', m.id);
+        continue;
+      }
       let patch;
       if (m.is_my_game) {
         // 결석 = 소로 0-3 패 (소로가 home이면 0:3, away면 3:0)
@@ -4080,11 +4100,28 @@ async function settleWeeklyChampions(uid){
         .select('home_team,away_team,home_score,away_score,status')
         .eq('user_id', uid).eq('week_num', k);
       if (!wm || !wm.length) continue;                          // 경기 없는 주
-      if (!wm.every(m => m.status === 'completed')) continue;   // 아직 마감 안 됨
+      // 멈춤(정규시즌 일시멈춤) 인지
+      const myGames = wm.filter(m => m.home_team === 'soro' || m.away_team === 'soro');
+      const restWeek = myGames.length > 0 && myGames.every(m => m.status === 'rest');
+      const nonRest  = wm.filter(m => m.status !== 'rest');
 
-      // 4팀 승패 집계 (loadStandingsData와 동일 규칙)
+      if (restWeek) {
+        // 통째 쉰 주: 우승 판정 제외. 표식 row만 남겨 다음 주가 streak를 건너뛰어 잇게 함.
+        const restRow = { uid, week_num: k, wins: 0, losses: 0,
+          is_champion: false, streak: 0, bonus_apples: 0, is_rest: true,
+          paid_at: new Date().toISOString() };
+        const { error: rErr } = await supa.from('weekly_stats').insert(restRow);
+        if (rErr) { console.warn('[주간우승] 쉰 주 기록 실패:', rErr.message); continue; }
+        doneMap[k] = restRow;
+        continue;
+      }
+
+      // 정상 경기가 다 끝나야 마감 (rest는 마감 판정에서 제외)
+      if (!nonRest.length || !nonRest.every(m => m.status === 'completed')) continue;
+
+      // 4팀 승패 집계 (completed만, rest 제외)
       const t = { soro:{w:0,l:0}, socrates:{w:0,l:0}, proust:{w:0,l:0}, pascal:{w:0,l:0} };
-      wm.forEach(m => {
+      nonRest.filter(m => m.status === 'completed').forEach(m => {
         const homeWin = m.home_score > m.away_score;
         const winner = homeWin ? m.home_team : m.away_team;
         const loser  = homeWin ? m.away_team : m.home_team;
@@ -4097,15 +4134,22 @@ async function settleWeeklyChampions(uid){
       let streak = 0, bonus = 0;
       const perfect = (t.soro.w === 6 && t.soro.l === 0);
       if (soroChamp) {
-        const prev = doneMap[k - 1];
-        const prevStreak = (prev && prev.is_champion) ? prev.streak : 0;
+        // 쉰 주(is_rest)는 건너뛰고 그 이전 우승 주에서 streak를 이어받음
+        let prevStreak = 0;
+        for (let j = k - 1; j >= 1; j--) {
+          const pr = doneMap[j];
+          if (!pr) break;            // 미정산(경기 없는 주 등) → 끊김
+          if (pr.is_rest) continue;  // 쉰 주는 통과
+          prevStreak = pr.is_champion ? pr.streak : 0;
+          break;
+        }
         streak = prevStreak + 1;
         bonus = calcWeeklyBonus(streak, perfect);
       }
 
       const row = {
         uid, week_num: k, wins: t.soro.w, losses: t.soro.l,
-        is_champion: soroChamp, streak, bonus_apples: bonus,
+        is_champion: soroChamp, streak, bonus_apples: bonus, is_rest: false,
         paid_at: new Date().toISOString()
       };
       const { error: insErr } = await supa.from('weekly_stats').insert(row);
@@ -4155,6 +4199,134 @@ function showChampionModal(champions){
   document.body.appendChild(ov);
 }
 
+// ═══════════════════════════════════════════════
+// ⏸ 정규시즌 일시멈춤 (부상자명단 / DL)
+//   정규(week≥1)에만 배지 노출. 신청은 register_injury RPC(서버 검증·사과·rest마킹·정규가드).
+// ═══════════════════════════════════════════════
+let _myInjury = null;                  // 현재 active 멈춤 {start_date,end_date} | null
+let _dlSel = { days: null, start: null };
+
+function _dlAddDays(ymd, n){
+  const d = new Date(ymd + 'T00:00:00+09:00');
+  d.setDate(d.getDate() + n);
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dd = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
+}
+const _dlFmt = ymd => `${(+ymd.slice(5,7))}.${(+ymd.slice(8,10))}`;
+const _dlDow = ymd => ['일','월','화','수','목','금','토'][new Date(ymd+'T00:00:00+09:00').getDay()];
+
+async function loadMyInjuryState(){
+  const badge = document.getElementById('dl-injury-badge');
+  if (!badge) return;
+  if (getCurrentWeek() < 1) { badge.style.display = 'none'; return; }   // 시범경기: 숨김
+  const { data: { session } } = await supa.auth.getSession();
+  if (!session) { badge.style.display = 'none'; return; }
+  const today = getToday();
+  const { data: injs } = await supa.from('eg_injury')
+    .select('start_date,end_date').eq('user_id', session.user.id)
+    .gte('end_date', today).order('end_date', { ascending:false }).limit(1);
+  _myInjury = (injs && injs.length) ? injs[0] : null;
+  badge.style.display = 'inline-flex';
+  if (_myInjury && _myInjury.start_date <= today){
+    const dleft = Math.round((new Date(_myInjury.end_date+'T00:00:00+09:00') - new Date(today+'T00:00:00+09:00'))/864e5) + 1;
+    badge.textContent = `⏸ 멈춤 중 · 복귀 D-${dleft}`;
+  } else if (_myInjury){
+    badge.textContent = '⏸ 멈춤 예정';
+  } else {
+    badge.textContent = '⏸ 일시멈춤';
+  }
+}
+
+function closeInjuryModal(){ document.getElementById('dl-modal')?.remove(); }
+
+function openInjuryModal(){
+  if (document.getElementById('dl-modal')) return;
+  const today = getToday();
+  const ov = document.createElement('div');
+  ov.id = 'dl-modal';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(20,28,24,0.62);padding:24px';
+
+  // 이미 멈춤 중/예정이면 안내만 (중첩 불가)
+  if (_myInjury){
+    const inProg = _myInjury.start_date <= today;
+    ov.innerHTML = `<div style="max-width:360px;width:100%;background:#f8f4ee;border:1px solid rgba(42,38,32,0.16);border-radius:16px;padding:30px 26px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,0.32)">
+      <div style="font-size:40px;line-height:1">⏸</div>
+      <div style="font-size:18px;font-weight:700;color:#2a2620;margin:10px 0 6px;font-family:'Noto Serif KR',serif">${inProg ? '지금은 멈춤 중입니다' : '멈춤이 예약돼 있습니다'}</div>
+      <p style="font-size:13px;color:#6b6358;line-height:1.7;margin:0 0 20px">${_dlFmt(_myInjury.start_date)}(${_dlDow(_myInjury.start_date)}) ~ ${_dlFmt(_myInjury.end_date)}(${_dlDow(_myInjury.end_date)})<br>${_dlFmt(_dlAddDays(_myInjury.end_date,1))}(${_dlDow(_dlAddDays(_myInjury.end_date,1))})부터 멈춘 곳에서 시즌이 다시 이어집니다.<br><span style="color:#a39c8e">한 번에 하나의 멈춤만 둘 수 있어요. 끝난 뒤 다시 신청해 주세요.</span></p>
+      <button onclick="closeInjuryModal()" style="background:#2a2620;color:#f8f4ee;border:none;border-radius:10px;padding:12px 26px;font-size:14px;font-weight:600;cursor:pointer">알겠습니다</button>
+    </div>`;
+    document.body.appendChild(ov);
+    return;
+  }
+
+  // 신청 폼
+  _dlSel = { days: null, start: today };
+  ov.innerHTML = `<div style="max-width:380px;width:100%;background:#f8f4ee;border:1px solid rgba(42,38,32,0.16);border-radius:16px;padding:30px 26px;box-shadow:0 24px 60px rgba(0,0,0,0.32)">
+    <div style="text-align:center;font-size:40px;line-height:1">⏸</div>
+    <div style="text-align:center;font-size:19px;font-weight:700;color:#2a2620;margin:8px 0 6px;font-family:'Noto Serif KR',serif">정규시즌 일시멈춤</div>
+    <p style="font-size:13px;color:#6b6358;line-height:1.7;margin:0 0 20px;text-align:center">며칠 타석에 서기 어려우신가요.<br>미리 알려주시면 그 며칠은 패배가 아니라 <b style="color:#2a2620">멈춤</b>으로 남고,<br>돌아오시면 시즌은 멈춘 곳에서 다시 이어집니다.</p>
+    <div style="font-size:11px;color:#a39c8e;letter-spacing:0.06em;margin-bottom:7px">며칠 멈출까요</div>
+    <div id="dl-days" style="display:flex;gap:8px;margin-bottom:18px">
+      ${[3,5,10].map(d=>`<button data-d="${d}" onclick="_dlPick(${d})" style="flex:1;background:#fff;border:1px solid rgba(42,38,32,0.16);border-radius:10px;padding:12px 0;font-size:14px;font-weight:600;color:#2a2620;cursor:pointer">${d}일</button>`).join('')}
+    </div>
+    <div style="font-size:11px;color:#a39c8e;letter-spacing:0.06em;margin-bottom:7px">언제부터</div>
+    <input id="dl-start" type="date" value="${today}" min="${today}" onchange="_dlSetStart(this.value)" style="width:100%;box-sizing:border-box;background:#fff;border:1px solid rgba(42,38,32,0.16);border-radius:10px;padding:11px 12px;font-size:14px;color:#2a2620;margin-bottom:18px;font-family:inherit">
+    <div id="dl-preview" style="background:#faf7f0;border:1px solid rgba(42,38,32,0.08);border-radius:10px;padding:14px;font-size:13px;color:#6b6358;line-height:1.8;margin-bottom:14px;min-height:20px">기간을 골라 주세요.</div>
+    <p style="font-size:11px;color:#a39c8e;line-height:1.6;margin:0 0 18px">· 이미 지난 날은 멈춤으로 덮을 수 없어요 · 멈춤 중에는 새 멈춤을 추가할 수 없어요 · 기간이 끝나면 자동으로 시즌이 이어집니다</p>
+    <div style="display:flex;gap:8px">
+      <button onclick="closeInjuryModal()" style="flex:1;background:#fff;color:#6b6358;border:1px solid rgba(42,38,32,0.16);border-radius:10px;padding:13px 0;font-size:14px;cursor:pointer">닫기</button>
+      <button id="dl-submit" onclick="submitInjury()" disabled style="flex:2;background:#a39c8e;color:#f8f4ee;border:none;border-radius:10px;padding:13px 0;font-size:14px;font-weight:600;cursor:not-allowed">멈춤 올리기</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+
+function _dlPick(d){
+  _dlSel.days = d;
+  document.querySelectorAll('#dl-days button').forEach(b=>{
+    const on = (+b.dataset.d === d);
+    b.style.background = on ? '#2a2620' : '#fff';
+    b.style.color      = on ? '#f8f4ee' : '#2a2620';
+    b.style.borderColor= on ? '#2a2620' : 'rgba(42,38,32,0.16)';
+  });
+  _dlRefresh();
+}
+function _dlSetStart(v){ _dlSel.start = v; _dlRefresh(); }
+function _dlRefresh(){
+  const box = document.getElementById('dl-preview');
+  const btn = document.getElementById('dl-submit');
+  if (!box) return;
+  if (!_dlSel.days || !_dlSel.start){ box.textContent = '기간을 골라 주세요.'; return; }
+  const start = _dlSel.start, end = _dlAddDays(start, _dlSel.days - 1), ret = _dlAddDays(end, 1);
+  const apples = _dlSel.days * 0.5;
+  box.innerHTML = `<b style="color:#2a2620">${_dlFmt(start)}(${_dlDow(start)}) ~ ${_dlFmt(end)}(${_dlDow(end)})</b> 멈춤<br>받는 황금사과 <b style="color:#2a2620">${apples}알</b> <span style="color:#a39c8e">(하루 0.5알)</span><br><b style="color:#2a2620">${_dlFmt(ret)}(${_dlDow(ret)})</b>부터 타석 복귀`;
+  if (btn){ btn.disabled=false; btn.style.background='#2a2620'; btn.style.cursor='pointer'; }
+}
+
+async function submitInjury(){
+  if (!_dlSel.days || !_dlSel.start) return;
+  const btn = document.getElementById('dl-submit');
+  if (btn){ btn.disabled=true; btn.textContent='올리는 중…'; btn.style.cursor='wait'; }
+  const { data, error } = await supa.rpc('register_injury', { p_days: _dlSel.days, p_start: _dlSel.start });
+  if (error){
+    const box = document.getElementById('dl-preview');
+    if (box) box.innerHTML = `<span style="color:#a05a44">${error.message || '신청에 실패했어요. 잠시 후 다시 시도해 주세요.'}</span>`;
+    if (btn){ btn.disabled=false; btn.textContent='멈춤 올리기'; btn.style.cursor='pointer'; }
+    return;
+  }
+  const r = data || {};
+  const ov = document.getElementById('dl-modal');
+  if (ov){
+    ov.innerHTML = `<div style="max-width:360px;width:100%;background:#f8f4ee;border:1px solid #C9A84C;border-radius:16px;padding:32px 28px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,0.32)">
+      <div style="font-size:46px;line-height:1">⏸</div>
+      <div style="font-size:19px;font-weight:700;color:#2a2620;margin:10px 0 6px;font-family:'Noto Serif KR',serif">멈춤이 올라갔습니다</div>
+      <p style="font-size:13px;color:#6b6358;line-height:1.8;margin:0 0 18px">${_dlFmt(r.start)}(${_dlDow(r.start)}) ~ ${_dlFmt(r.end)}(${_dlDow(r.end)})<br>황금사과 <b style="color:#C9A84C">${r.apples}알</b>이 도착했습니다 🍎<br><b style="color:#2a2620">${_dlFmt(r.return_date)}(${_dlDow(r.return_date)})</b>부터 시즌이 다시 이어집니다.</p>
+      <button onclick="closeInjuryModal()" style="background:#2a2620;color:#f8f4ee;border:none;border-radius:10px;padding:12px 28px;font-size:14px;font-weight:600;cursor:pointer">잘 쉬다 오겠습니다</button>
+    </div>`;
+  }
+  await loadMyInjuryState();
+}
+
 async function loadHomeData() {
   console.log('🏠 홈 데이터 로딩...');
   
@@ -4170,6 +4342,9 @@ async function loadHomeData() {
   // 주간 우승 정산 — 결석 정산으로 마감된 지난 주들을 오래된 것부터 판정·지급. 새 우승이 있으면 축하 모달.
   const _newChamps = await settleWeeklyChampions(session.user.id);
   if (_newChamps.length) showChampionModal(_newChamps);
+
+  // ⏸ 정규시즌 일시멈춤 배지 노출/상태 (정규에만)
+  await loadMyInjuryState();
 
   // 개인 주차 기준점 = 현재 active 시즌의 start_date (단일 진실)
   // 리그 승급(루키→싱글A 등)으로 active 시즌이 바뀌면 자동 갱신 → WEEK 1 리셋
