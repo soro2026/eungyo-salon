@@ -92,6 +92,26 @@
   .city-item .cnt{font-family:var(--sans);font-size:11px;color:var(--cream-dim);letter-spacing:.05em}
   @media (max-width:640px){ #cityBtn{left:auto;right:18px;top:14px} #cityList{left:auto;right:18px;top:52px} }
 
+  /* ── 레이어 토글: 인물 장소 / 콩파뇽 집 ── */
+  .layer-btn{
+    position:fixed;top:22px;z-index:12;
+    display:inline-flex;align-items:center;gap:5px;cursor:pointer;
+    font-family:var(--sans);font-size:12.5px;letter-spacing:.03em;
+    color:var(--cream-dim);border:1px solid var(--line);border-radius:999px;
+    padding:7px 13px;background:rgba(8,11,22,.55);backdrop-filter:blur(4px);
+    transition:color .2s,border-color .2s,background .2s,opacity .2s;
+  }
+  .layer-btn:not(.on){ opacity:.62 }
+  .layer-btn:hover{ color:var(--gold);border-color:var(--gold-soft);opacity:1 }
+  .layer-btn.on{ color:#1a1407;background:var(--gold);border-color:var(--gold);opacity:1 }
+  .layer-btn.on:hover{ color:#1a1407;background:#dab63f }
+  #layerSpots{ left:300px }
+  #layerMaisons{ left:412px }
+  @media (max-width:980px){
+    #layerSpots{left:auto;right:18px;top:54px}
+    #layerMaisons{left:auto;right:18px;top:92px}
+  }
+
   #title.in{opacity:1;transform:none}
   #title .eyebrow{font-size:11px;letter-spacing:.42em;color:var(--gold);text-transform:uppercase}
   #title h1{
@@ -293,6 +313,8 @@
 <a id="backBtn" href="constella.html">← 별로 돌아가기</a>
 <button id="cityBtn">🌍 다른 도시</button>
 <div id="cityList"></div>
+<button id="layerSpots" class="layer-btn on">🏛 인물 장소</button>
+<button id="layerMaisons" class="layer-btn">🏠 콩파뇽 집</button>
 
 <div id="title">
   <div class="eyebrow">Constellatio</div>
@@ -363,6 +385,7 @@ const HEMINGWAY = {
 let viewer, orbiting=false, orbitHeading=0, orbitCenter=null, orbitRange=1000, orbitTick=null, activeIdx=-1;
 let CITIES=[], currentCity='paris';
 let currentMaison=null, doorState='closed';
+let showSpots=true, showMaisons=false;   // voyage 디폴트: 인물 장소 켜짐, 콩파뇽 집 꺼짐
 
 // 돌아가기: 온 별 페이지로 (목업 단계 — id가 있으면 그 별로, 없으면 별자리로)
 (function setBack(){
@@ -426,6 +449,8 @@ let currentMaison=null, doorState='closed';
   loadCityList();                   // 도시 점프 목록을 DB에서 로드
   document.getElementById("cityBtn").addEventListener("click", ()=> toggleCityList());
   document.getElementById("maisonClose").addEventListener("click", closeMaison);
+  document.getElementById("layerSpots").addEventListener("click", ()=>{ showSpots=!showSpots; applyLayerVisibility(); });
+  document.getElementById("layerMaisons").addEventListener("click", ()=>{ showMaisons=!showMaisons; applyLayerVisibility(); });
   document.getElementById("mEnter").addEventListener("click", ()=> enterMaison(currentMaison));
   // 대문(문짝·안내문)을 클릭하면 좌우로 갈라짐, 나가기는 복귀
   document.querySelectorAll(".door-half, #doorHint").forEach(el=>
@@ -441,7 +466,13 @@ let currentMaison=null, doorState='closed';
   });
   document.getElementById("loader").classList.add("gone");
   setTimeout(()=> document.getElementById("title").classList.add("in"), 300);
-  setTimeout(()=> flyTo(HEMINGWAY.representative), 900);
+  // 분더카머에서 ?user=닉네임 으로 들어오면 내 집 핀으로 곧장, 아니면 기존 데모 진입
+  const wantUser = new URLSearchParams(location.search).get('user');
+  if (wantUser){
+    flyToMyMaison(wantUser);
+  } else {
+    setTimeout(()=> flyTo(HEMINGWAY.representative), 900);
+  }
 })();
 
 function buildJourney(){
@@ -574,6 +605,19 @@ async function loadMaisons(city){
     ent._maison = m;  // 클릭 시 openMaison이 꺼내 씀 (nickname·door_no·intro·status)
   });
   await clampSpotsToSurface();
+  applyLayerVisibility();   // 새로 띄운 마커에 현재 토글 상태 반영
+}
+
+// 레이어 토글 — 인물 장소(_spot)와 콩파뇽 집(_maison)을 켜고 끔
+function applyLayerVisibility(){
+  viewer.entities.values.forEach(e=>{
+    if (e._spot) e.show = showSpots;
+    else if (e._maison) e.show = showMaisons;
+  });
+  const ls = document.getElementById("layerSpots");
+  const lm = document.getElementById("layerMaisons");
+  if (ls) ls.classList.toggle("on", showSpots);
+  if (lm) lm.classList.toggle("on", showMaisons);
 }
 
 // ─── 도시 목록(voyage_cities)을 DB에서 읽어 점프 리스트로 ───
@@ -739,6 +783,26 @@ async function clampSpotsToSurface(){
     const clamped = await viewer.scene.clampToHeightMostDetailed(carts);
     clamped.forEach((c, i)=>{ if (Cesium.defined(c)) ents[i].position = c; });
   }catch(e){ console.warn("마커 표면 고정 실패(해수면 위치 유지):", e); }
+}
+
+// 분더카머에서 ?user=닉네임 으로 들어올 때 — 내 메종 핀 중심으로 강하 + 소개 팝업
+function flyToMyMaison(nickname){
+  const ent = viewer.entities.values.find(e => e._maison && e._maison.nickname === nickname);
+  if (!ent || !ent._maison){
+    setTimeout(()=> flyTo(HEMINGWAY.representative), 900);   // 못 찾으면 기본 진입으로
+    return;
+  }
+  stopOrbit();
+  showMaisons = true; applyLayerVisibility();   // 내 집 직행이니 집 레이어 켜기
+  const carto = Cesium.Cartographic.fromCartesian(ent.position.getValue(Cesium.JulianDate.now()));
+  const lng = Cesium.Math.toDegrees(carto.longitude);
+  const lat = Cesium.Math.toDegrees(carto.latitude);
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, 800),
+    orientation:{ heading:Cesium.Math.toRadians(15), pitch:Cesium.Math.toRadians(-42), roll:0 },
+    duration: 4.0,
+    complete: ()=> openMaison(ent._maison)
+  });
 }
 
 function flyTo(i){
