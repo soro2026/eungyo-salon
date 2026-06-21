@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>EG메종 좌표 추출기 — admin</title>
+
+<!-- ════════════════════════════════════════════════════════════════
+     EG메종 집터 좌표를 3D 화면에서 직접 클릭해 모으는 살롱지기 도구.
+     90도 수직으로 내려다보며 집 짓고 싶은 곳을 클릭하면
+     좌표가 우측 목록에 쌓이고, 그대로 INSERT할 SQL이 만들어집니다.
+     구글 타일은 voyage.html과 같은 키 한 곳을 씁니다.
+════════════════════════════════════════════════════════════════ -->
+<script>
+  const GOOGLE_API_KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A";
+  const SUPA_URL = "https://cyhlotwdisjvoxvfkpnd.supabase.co";
+  const SUPA_KEY = "sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR";
+</script>
+<script>
+  window.CESIUM_BASE_URL = "https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/";
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Widgets/widgets.css" rel="stylesheet" />
+
+<style>
+  :root{
+    --bg:#05070f; --cream:#ece5d3; --cream-dim:#a9a290;
+    --gold:#c9a227; --gold-soft:rgba(201,162,39,.5); --line:rgba(201,162,39,.22);
+    --serif:Georgia,'Nanum Myeongjo',serif; --sans:'Helvetica Neue',Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--cream);font-family:var(--sans);overflow:hidden}
+  #cesiumContainer{position:fixed;inset:0;right:340px}
+  .cesium-widget-credits{font-size:9px!important;opacity:.35}
+  .cesium-viewer-bottom{right:6px;bottom:4px}
+
+  /* 좌상단 도구막대 */
+  #topbar{
+    position:fixed;top:16px;left:20px;z-index:20;
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;max-width:calc(100% - 380px);
+  }
+  #topbar .ttl{font-family:var(--serif);font-size:17px;color:var(--gold);letter-spacing:.02em;margin-right:4px}
+  .tbtn{
+    font-family:var(--sans);font-size:12.5px;letter-spacing:.03em;color:var(--cream-dim);cursor:pointer;
+    border:1px solid var(--line);border-radius:999px;padding:7px 13px;
+    background:rgba(8,11,22,.62);backdrop-filter:blur(4px);transition:color .2s,border-color .2s;
+  }
+  .tbtn:hover{color:var(--gold);border-color:var(--gold-soft)}
+  #cityIn{
+    font-family:var(--sans);font-size:12.5px;color:var(--cream);width:92px;
+    border:1px solid var(--line);border-radius:8px;padding:7px 10px;
+    background:rgba(8,11,22,.62);outline:none;
+  }
+  #cityIn:focus{border-color:var(--gold-soft)}
+  #hint{
+    position:fixed;left:20px;bottom:16px;z-index:20;max-width:440px;
+    font-size:12px;line-height:1.6;color:var(--cream-dim);
+    background:rgba(8,11,22,.6);border:1px solid var(--line);border-radius:10px;
+    padding:10px 14px;backdrop-filter:blur(4px);
+  }
+  #hint b{color:var(--gold)}
+
+  /* 우측 좌표 패널 */
+  #panel{
+    position:fixed;top:0;right:0;bottom:0;width:340px;z-index:18;
+    background:rgba(8,11,20,.94);border-left:1px solid var(--line);backdrop-filter:blur(8px);
+    display:flex;flex-direction:column;
+  }
+  #panel h1{font-family:var(--serif);font-size:16px;color:var(--gold);margin:0;padding:18px 18px 6px;letter-spacing:.02em}
+  #panel .sub{font-size:11.5px;color:var(--cream-dim);padding:0 18px 12px;line-height:1.5}
+  #count{color:var(--gold);font-weight:bold}
+  #list{flex:1;overflow-y:auto;padding:4px 12px}
+  .row{
+    display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;
+    font-size:13px;transition:background .15s;
+  }
+  .row:hover{background:rgba(201,162,39,.08)}
+  .row .no{
+    flex:none;width:24px;height:24px;border-radius:50%;background:var(--gold);color:#1a1407;
+    font-weight:bold;font-size:12px;display:flex;align-items:center;justify-content:center;
+  }
+  .row .co{flex:1;font-family:var(--sans);color:var(--cream);font-size:12px;letter-spacing:.01em}
+  .row .co small{color:var(--cream-dim)}
+  .row .del{flex:none;color:var(--cream-dim);cursor:pointer;font-size:15px;padding:0 4px;transition:color .2s}
+  .row .del:hover{color:#e0726a}
+  .empty{color:var(--cream-dim);font-size:12.5px;text-align:center;padding:30px 16px;line-height:1.7}
+
+  #panel .foot{border-top:1px solid var(--line);padding:12px}
+  .frow{display:flex;gap:8px;margin-bottom:9px}
+  .fbtn{
+    flex:1;font-family:var(--sans);font-size:12px;letter-spacing:.03em;color:var(--cream-dim);cursor:pointer;
+    border:1px solid var(--line);border-radius:8px;padding:8px 6px;background:rgba(20,24,38,.6);
+    transition:color .2s,border-color .2s;text-align:center;
+  }
+  .fbtn:hover{color:var(--gold);border-color:var(--gold-soft)}
+  .fbtn.gold{color:#1a1407;background:var(--gold);border-color:var(--gold);font-weight:bold}
+  .fbtn.gold:hover{background:#dab63f}
+  #sql{
+    width:100%;height:96px;resize:vertical;font-family:'SF Mono',Consolas,monospace;font-size:10.5px;
+    line-height:1.5;color:var(--cream);background:#0a0e1a;border:1px solid var(--line);border-radius:8px;
+    padding:9px;outline:none;white-space:pre;overflow:auto;
+  }
+  #sql:focus{border-color:var(--gold-soft)}
+  .toast{
+    position:fixed;left:50%;bottom:60px;transform:translateX(-50%);z-index:30;
+    background:var(--gold);color:#1a1407;font-size:12.5px;font-weight:bold;
+    padding:9px 18px;border-radius:999px;opacity:0;transition:opacity .3s;pointer-events:none;
+  }
+  .toast.in{opacity:1}
+</style>
+</head>
+<body>
+
+<div id="cesiumContainer"></div>
+
+<div id="topbar">
+  <span class="ttl">EG메종 좌표 추출기</span>
+  <button class="tbtn" id="vertBtn">⊹ 수직으로 보기</button>
+  <input id="cityIn" value="paris" title="도시 키 (SQL에 들어갈 city 값)" />
+  <button class="tbtn" id="jumpBtn">↧ 라탱 지구로</button>
+</div>
+
+<div id="hint">
+  <b>집터를 클릭하세요.</b> 화면을 클릭할 때마다 그 곳의 좌표가 우측에 쌓입니다.
+  수직(90도)으로 내려다볼수록 정확합니다. 다 찍으면 아래 <b>SQL 만들기</b>로 INSERT 문을 받으세요.
+</div>
+
+<div id="panel">
+  <h1>모은 좌표 <span id="count">0</span>곳</h1>
+  <div class="sub">클릭 순서가 곧 집 번호(maison_no)가 됩니다. 잘못 찍었으면 × 로 지우세요.</div>
+  <div id="list"></div>
+  <div class="foot">
+    <div class="frow">
+      <button class="fbtn" id="undoBtn">↩ 마지막 취소</button>
+      <button class="fbtn" id="clearBtn">전체 지우기</button>
+    </div>
+    <div class="frow">
+      <button class="fbtn gold" id="sqlBtn">SQL 만들기</button>
+      <button class="fbtn" id="copyBtn">복사</button>
+    </div>
+    <textarea id="sql" placeholder="여기에 INSERT 문이 만들어집니다."></textarea>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let viewer, points = [];
+
+(async function init(){
+  viewer = new Cesium.Viewer("cesiumContainer", {
+    baseLayer:false, baseLayerPicker:false, geocoder:false, homeButton:false,
+    sceneModePicker:false, navigationHelpButton:false, animation:false,
+    timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false,
+    requestRenderMode:false
+  });
+  const s = viewer.scene;
+  s.skyAtmosphere.show = true;
+  s.globe.baseColor = Cesium.Color.fromCssColorString("#0a1326");
+  s.backgroundColor = Cesium.Color.fromCssColorString("#05070f");
+
+  // 바탕 지도(어둡게) — 타일 로드 전에도 거리 보이도록
+  try{
+    const osm = viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+      url:"https://tile.openstreetmap.org/{z}/{x}/{y}.png", maximumLevel:19,
+      credit:"© OpenStreetMap contributors"
+    }));
+    osm.brightness = 0.6; osm.saturation = 0.7;
+  }catch(e){ console.warn("기본 지도 로드 실패:", e); }
+
+  // 구글 실사 3D 타일
+  if (GOOGLE_API_KEY && GOOGLE_API_KEY.trim()){
+    try{
+      let tileset;
+      try { tileset = await Cesium.createGooglePhotorealistic3DTileset({ key: GOOGLE_API_KEY }); }
+      catch(e){ tileset = await Cesium.createGooglePhotorealistic3DTileset(GOOGLE_API_KEY); }
+      s.primitives.add(tileset);
+    }catch(err){ console.warn("3D Tiles load failed:", err); }
+  }
+
+  jumpToLatin();           // 라탱 지구로 진입(수직)
+
+  // ── 좌표 추출: 화면 클릭 → 그 지점 위경도 ──
+  viewer.screenSpaceEventHandler.setInputAction((click)=>{
+    const pos = viewer.scene.pickPosition(click.position);
+    if (!Cesium.defined(pos)) return;                 // 하늘/미로딩 클릭 무시
+    const carto = Cesium.Cartographic.fromCartesian(pos);
+    const lat = +Cesium.Math.toDegrees(carto.latitude).toFixed(5);
+    const lng = +Cesium.Math.toDegrees(carto.longitude).toFixed(5);
+    addPoint(lat, lng);
+  }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+  // 버튼 연결
+  document.getElementById("vertBtn").addEventListener("click", lookStraightDown);
+  document.getElementById("jumpBtn").addEventListener("click", jumpToLatin);
+  document.getElementById("undoBtn").addEventListener("click", undoLast);
+  document.getElementById("clearBtn").addEventListener("click", clearAll);
+  document.getElementById("sqlBtn").addEventListener("click", makeSQL);
+  document.getElementById("copyBtn").addEventListener("click", copySQL);
+})();
+
+// 팡테옹·뤽상부르 둘레(라탱 지구)로 수직 진입
+function jumpToLatin(){
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(2.3450, 48.8460, 850),
+    orientation:{ heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 },
+    duration: 2.0
+  });
+}
+// 지금 보는 곳을 그대로 90도 수직으로
+function lookStraightDown(){
+  const c = viewer.camera.positionCartographic;
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(
+      Cesium.Math.toDegrees(c.longitude), Cesium.Math.toDegrees(c.latitude), c.height),
+    orientation:{ heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 },
+    duration: 1.0
+  });
+}
+
+function addPoint(lat, lng){
+  const no = points.length + 1;
+  const ent = viewer.entities.add({
+    position: Cesium.Cartesian3.fromDegrees(lng, lat),
+    point:{ pixelSize:10, color:Cesium.Color.fromCssColorString("#ffd23f"),
+            outlineColor:Cesium.Color.fromCssColorString("#1a1407"), outlineWidth:2,
+            disableDepthTestDistance:Number.POSITIVE_INFINITY },
+    label:{ text:String(no), font:"bold 13px sans-serif",
+            fillColor:Cesium.Color.fromCssColorString("#1a1407"),
+            showBackground:true, backgroundColor:Cesium.Color.fromCssColorString("#ffd23f"),
+            backgroundPadding:new Cesium.Cartesian2(7,4),
+            pixelOffset:new Cesium.Cartesian2(0,-15),
+            verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
+            disableDepthTestDistance:Number.POSITIVE_INFINITY }
+  });
+  points.push({ lat, lng, ent });
+  renderList();
+}
+
+function renderList(){
+  document.getElementById("count").textContent = points.length;
+  const box = document.getElementById("list");
+  if (!points.length){
+    box.innerHTML = '<div class="empty">아직 찍은 곳이 없습니다.<br>지도에서 집 지을 곳을 클릭해 보세요.</div>';
+    return;
+  }
+  box.innerHTML = "";
+  points.forEach((p, i)=>{
+    const r = document.createElement("div");
+    r.className = "row";
+    r.innerHTML = '<span class="no">'+(i+1)+'</span>'
+      + '<span class="co">'+p.lat+', '+p.lng+'<br><small>위도, 경도</small></span>'
+      + '<span class="del" title="삭제">×</span>';
+    r.querySelector(".del").addEventListener("click", ()=> removePoint(i));
+    box.appendChild(r);
+  });
+}
+
+function removePoint(i){
+  viewer.entities.remove(points[i].ent);
+  points.splice(i, 1);
+  renumber();
+}
+function undoLast(){ if (points.length) removePoint(points.length - 1); }
+function clearAll(){
+  points.forEach(p=> viewer.entities.remove(p.ent));
+  points = [];
+  document.getElementById("sql").value = "";
+  renderList();
+}
+// 번호 라벨 다시 매기기(중간 삭제 후)
+function renumber(){
+  points.forEach((p, i)=>{ if (p.ent.label) p.ent.label.text = String(i+1); });
+  renderList();
+}
+
+function makeSQL(){
+  if (!points.length){ toast("먼저 좌표를 찍어 주세요"); return; }
+  const city = (document.getElementById("cityIn").value || "paris").trim();
+  let sql = "INSERT INTO eg_maison (maison_no, city, lat, lng) VALUES\n";
+  sql += points.map((p, i)=> "  ("+(i+1)+", '"+city+"', "+p.lat+", "+p.lng+")").join(",\n") + ";";
+  document.getElementById("sql").value = sql;
+  toast(points.length + "곳 SQL 생성됨");
+}
+function copySQL(){
+  const t = document.getElementById("sql");
+  if (!t.value){ makeSQL(); }
+  t.select();
+  navigator.clipboard.writeText(t.value).then(()=> toast("복사했습니다")).catch(()=> toast("복사 실패 — 직접 선택하세요"));
+}
+
+let toastTimer = null;
+function toast(msg){
+  const el = document.getElementById("toast");
+  el.textContent = msg; el.classList.add("in");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> el.classList.remove("in"), 1800);
+}
+</script>
+</body>
+</html>
