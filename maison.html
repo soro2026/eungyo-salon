@@ -166,11 +166,32 @@
 
   #loader{
     position:fixed;inset:0;z-index:50;background:var(--night);
-    display:flex;align-items:center;justify-content:center;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px;
     font-family:var(--serif);font-size:15px;letter-spacing:.32em;color:var(--gold);
     transition:opacity 1s ease;
   }
   #loader.gone{opacity:0;pointer-events:none}
+  #loaderMsg{text-align:center;}
+  /* 분더카머로 떠나는 비행 — EG 전용기가 좌→우로 스르르 가로지름 */
+  #jetTrack{position:relative;width:100%;height:130px;overflow:hidden;pointer-events:none;}
+  #jetTrack img{
+    position:absolute;top:50%;left:0;
+    width:clamp(160px,42vw,300px);height:auto;opacity:.94;
+    filter:drop-shadow(0 14px 24px rgba(0,0,0,.55));
+    animation:jetCross 4.2s linear infinite, jetBob 2.6s ease-in-out infinite;
+    will-change:transform;
+  }
+  @keyframes jetCross{
+    from{transform:translate(-46vw,-50%);}
+    to{transform:translate(102vw,-50%);}
+  }
+  @keyframes jetBob{
+    0%,100%{margin-top:0;}
+    50%{margin-top:-13px;}
+  }
+  @media(prefers-reduced-motion:reduce){
+    #jetTrack img{animation:jetCross 5.5s linear infinite;}
+  }
 
   /* ── 나라 이름 자막 (고공 조망 때 잠깐) ── */
   #countryLabel{
@@ -333,7 +354,11 @@
 
 <nav id="journey"></nav>
 
-<div id="loader">당신의 집으로 가는 길을 여는 중…</div>
+<div id="loader">
+  <div id="loaderMsg">당신의 집으로 가는 길을 여는 중…</div>
+  <div id="jetTrack"><img src="EG_jet01.webp" alt="Salon d'Eungyo Air"></div>
+  <audio id="jetSound" src="jet_sound.mp3" preload="auto"></audio>
+</div>
 
 <div id="countryLabel"></div>
 
@@ -365,6 +390,25 @@
 </div>
 
 <script>
+// ── 분더카머로 떠나는 비행: 제트음 (자동재생 막히면 조용히 폴백) ──
+(function(){
+  const jet = document.getElementById("jetSound");
+  if(!jet) return;
+  jet.volume = 0.55;
+  const tryPlay = ()=>{ try{ jet.play().catch(()=>{}); }catch(e){} };
+  tryPlay();                                  // 직전 핀 클릭이 허용해 주면 바로 재생
+  const once = ()=>{ tryPlay(); };            // 막혔으면 첫 사용자 동작 때 한 번 더
+  window.addEventListener("pointerdown", once, {once:true});
+  // 로더가 사라질 때 부드럽게 페이드아웃 (loader.gone 직후 호출)
+  window.__fadeJet = ()=>{
+    window.removeEventListener("pointerdown", once);
+    const step = ()=>{
+      if(jet.volume > 0.06){ jet.volume = Math.max(0, jet.volume - 0.06); setTimeout(step, 60); }
+      else { try{ jet.pause(); }catch(e){} jet.volume = 0; }
+    };
+    step();
+  };
+})();
 // ─── 헤밍웨이: 인물 1 → 장소 N (연대순) ───
 const HEMINGWAY = {
   name: "Ernest Hemingway",
@@ -492,6 +536,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
     orientation:{ heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 }
   });
   document.getElementById("loader").classList.add("gone");
+  if(window.__fadeJet) window.__fadeJet();   // 비행 끝 — 제트음 부드럽게 페이드아웃
   // 세션에서 내 uid 읽어 → 내 집으로 직행 (집이 없으면 자동 배정)
   goToMyHome();
 })();
