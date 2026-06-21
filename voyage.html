@@ -172,6 +172,39 @@
     padding:60px 32px 44px;overflow-y:auto;
   }
   #story.in{transform:none}
+
+  /* ── EG메종 소개 팝업 (옐로 톤 = 사람 사는 집) ── */
+  #maison{
+    position:fixed;top:0;right:0;bottom:0;z-index:31;
+    width:min(390px,88vw);
+    background:linear-gradient(to left,rgba(10,14,26,.97),rgba(10,14,26,.86));
+    border-left:1px solid rgba(255,210,63,.32);
+    backdrop-filter:blur(8px);
+    transform:translateX(100%);
+    transition:transform .55s cubic-bezier(.22,.61,.36,1);
+    padding:60px 32px 36px;overflow-y:auto;
+    display:flex;flex-direction:column;
+  }
+  #maison.in{transform:none}
+  #maison .close{
+    position:absolute;top:18px;right:20px;cursor:pointer;
+    width:30px;height:30px;border:0;border-radius:50%;
+    background:rgba(255,210,63,.12);color:var(--cream-dim);
+    font-size:17px;line-height:1;transition:color .2s,background .2s;
+  }
+  #maison .close:hover{color:#ffd23f;background:rgba(255,210,63,.24)}
+  #maison .m-door{
+    font-family:var(--sans);font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+    color:#ffd23f;margin-bottom:14px;
+  }
+  #maison .m-nick{font-family:var(--serif);font-size:32px;line-height:1.1;margin:0 0 .35em;color:var(--cream)}
+  #maison .m-intro{font-family:var(--serif);font-size:15px;line-height:1.82;color:var(--cream-dim);margin-bottom:28px;flex:1}
+  #maison .m-enter{
+    font-family:var(--sans);font-size:14px;font-weight:bold;letter-spacing:.03em;
+    color:#1a1407;background:#ffd23f;border:none;border-radius:11px;
+    padding:15px;cursor:pointer;transition:background .2s;
+  }
+  #maison .m-enter:hover{background:#ffdf6b}
   #story .close{
     position:absolute;top:18px;right:20px;cursor:pointer;
     width:30px;height:30px;border:0;border-radius:50%;
@@ -237,6 +270,14 @@
   <div class="stitle-ko" id="storyTitleKo"></div>
   <div class="ssub" id="storySub"></div>
   <div class="sbody" id="storyBody"></div>
+</aside>
+
+<aside id="maison">
+  <button class="close" id="maisonClose" aria-label="닫기">×</button>
+  <div class="m-door" id="mDoor"></div>
+  <h2 class="m-nick" id="mNick"></h2>
+  <div class="m-intro" id="mIntro"></div>
+  <button class="m-enter" id="mEnter">대문 열고 들어가기 →</button>
 </aside>
 
 <script>
@@ -315,8 +356,14 @@ let CITIES=[], currentCity='paris';
 
   buildJourney();
   await loadCityMarkers('paris');   // 도시 핀을 DB에서 읽어 띄우고, 그 직후 표면 클램프(함수 내부)
+  await loadMaisons('paris');       // EG메종 집 핀 (옐로 라벨)
   loadCityList();                   // 도시 점프 목록을 DB에서 로드
   document.getElementById("cityBtn").addEventListener("click", ()=> toggleCityList());
+  document.getElementById("maisonClose").addEventListener("click", closeMaison);
+  document.getElementById("mEnter").addEventListener("click", ()=>{
+    // 다음 단계 — 대문 오버레이로 전환(렌더 정지 + 대문 이미지). 지금은 자리만.
+    console.log("입장하기: 대문 오버레이는 다음 단계에서 연결됩니다.");
+  });
 
   // 사용자가 화면을 잡으면 자동 회전을 멈춤
   viewer.canvas.addEventListener("pointerdown", stopOrbit);
@@ -353,8 +400,9 @@ function buildJourney(){
   const handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
   handler.setInputAction((click)=>{
     const picked = viewer.scene.pick(click.position);
-    if (Cesium.defined(picked) && picked.id && picked.id._spot){
-      openStory(picked.id._spot);
+    if (Cesium.defined(picked) && picked.id){
+      if (picked.id._spot) openStory(picked.id._spot);
+      else if (picked.id._maison) openMaison(picked.id._maison);
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
@@ -405,6 +453,59 @@ async function loadCityMarkers(city){
   await clampSpotsToSurface();
 }
 
+// ─── EG메종 집 핀 (옐로 바탕·검은 글씨 = 사람이 사는 곳) ───
+async function loadMaisons(city){
+  let rows = [];
+  try{
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_maisons", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
+      body: JSON.stringify({ p_city: city })
+    });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    rows = await res.json();
+  }catch(e){ console.warn("eg_maison 로드 실패:", e); return; }
+
+  const near = new Cesium.DistanceDisplayCondition(0, 60000);
+  rows.forEach((m)=>{
+    const occupied = (m.status === 'occupied');
+    const ent = viewer.entities.add({
+      id:"maison-"+city+"-"+m.maison_no,
+      position: Cesium.Cartesian3.fromDegrees(m.lng, m.lat),
+      point:{ pixelSize: occupied ? 9 : 6,
+              color: Cesium.Color.fromCssColorString(occupied ? "#ffd23f" : "#6b7280"),
+              outlineColor: Cesium.Color.fromCssColorString("#1a1407"), outlineWidth:2,
+              disableDepthTestDistance:Number.POSITIVE_INFINITY,
+              distanceDisplayCondition:near },
+      label: occupied ? {
+              text: m.nickname || ("메종 "+m.maison_no),
+              font:"bold 13px 'Helvetica Neue',Arial,sans-serif",
+              fillColor:Cesium.Color.fromCssColorString("#1a1407"),                 // 검은 글씨
+              showBackground:true,
+              backgroundColor:Cesium.Color.fromCssColorString("#ffd23f").withAlpha(.96), // 옐로 바탕
+              backgroundPadding:new Cesium.Cartesian2(9,5),
+              pixelOffset:new Cesium.Cartesian2(0,-13),
+              verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
+              disableDepthTestDistance:Number.POSITIVE_INFINITY,
+              distanceDisplayCondition:near
+            } : {
+              text:"빈집",
+              font:"11px 'Helvetica Neue',Arial,sans-serif",
+              fillColor:Cesium.Color.fromCssColorString("#aab0bd"),
+              showBackground:true,
+              backgroundColor:Cesium.Color.fromCssColorString("#141a28").withAlpha(.7),
+              backgroundPadding:new Cesium.Cartesian2(7,4),
+              pixelOffset:new Cesium.Cartesian2(0,-12),
+              verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
+              disableDepthTestDistance:Number.POSITIVE_INFINITY,
+              distanceDisplayCondition:near
+            }
+    });
+    ent._maison = m;  // 클릭 시 openMaison이 꺼내 씀 (nickname·door_no·intro·status)
+  });
+  await clampSpotsToSurface();
+}
+
 // ─── 도시 목록(voyage_cities)을 DB에서 읽어 점프 리스트로 ───
 async function loadCityList(){
   try{
@@ -443,10 +544,12 @@ async function jumpToCity(c){
   renderCityList();
   stopOrbit();
   closeStory();
-  // 이전 도시 마커 제거 (slice로 복제 후 제거 — 순회 중 변경 방지)
-  viewer.entities.values.filter(e=>e._spot).slice().forEach(e=> viewer.entities.remove(e));
+  closeMaison();
+  // 이전 도시 마커 제거 (큐레이션 핀 + 메종 핀 둘 다, slice로 복제 후 제거)
+  viewer.entities.values.filter(e=>e._spot || e._maison).slice().forEach(e=> viewer.entities.remove(e));
   // 새 도시 마커를 먼저 로드 — 1호 핀 좌표를 잡고 표면 클램프(함수 내부)까지 끝낸 뒤 비행
   await loadCityMarkers(c.city);
+  await loadMaisons(c.city);
 
   // 1호 핀(가장 먼저 입주한 곳 = id 최소)을 중심점으로. 핀이 없으면 도시 중심.
   let lng = c.center_lng, lat = c.center_lat;
@@ -500,10 +603,26 @@ function closeStory(){
   document.getElementById("story").classList.remove("in");
 }
 
+// EG메종 소개 팝업 — 콩파뇽이 쓴 소개글(없으면 디폴트), 입장하기 버튼
+function openMaison(m){
+  closeStory();
+  document.getElementById("mDoor").textContent = "파리 · 메종 " + m.maison_no;
+  document.getElementById("mNick").textContent = m.nickname || ("메종 " + m.maison_no);
+  const DEFAULT_INTRO = "아직 주인이 소개글을 남기지 않았습니다. 문 너머에는 이 콩파뇽이 모아온 것들이 조용히 빛나고 있습니다.";
+  document.getElementById("mIntro").textContent = m.intro || DEFAULT_INTRO;
+  // 빈집이면 입장 버튼을 감춤(들어갈 사람이 아직 없음)
+  document.getElementById("mEnter").style.display = m.occupant_id ? "" : "none";
+  if (!m.occupant_id) document.getElementById("mIntro").textContent = "아직 아무도 살지 않는 빈집입니다.";
+  document.getElementById("maison").classList.add("in");
+}
+function closeMaison(){
+  document.getElementById("maison").classList.remove("in");
+}
+
 // 마커를 실사 3D 타일(또는 지형) 표면 높이에 정확히 앉힘 — 비스듬한 각도에서도 안 어긋나게
 async function clampSpotsToSurface(){
   if (!viewer.scene.clampToHeightMostDetailed) return;       // 구버전 안전장치
-  const ents = viewer.entities.values.filter(e => e._spot);
+  const ents = viewer.entities.values.filter(e => e._spot || e._maison);
   if (!ents.length) return;
   const now = Cesium.JulianDate.now();
   const carts = ents.map(e => e.position.getValue(now));
