@@ -23,6 +23,9 @@
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Widgets/widgets.css" rel="stylesheet" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Black+Han+Sans&display=swap" rel="stylesheet">
 
 <style>
   :root{
@@ -205,6 +208,54 @@
     padding:15px;cursor:pointer;transition:background .2s;
   }
   #maison .m-enter:hover{background:#ffdf6b}
+
+  /* ── 대문 오버레이: 좌우로 갈라지는 두 문짝 + 그 뒤 분더카머 ── */
+  #doorway{
+    position:fixed;inset:0;z-index:50;background:#000;
+    display:none;overflow:hidden;
+  }
+  #doorway.in{display:block}
+  #doorFrame{
+    position:absolute;inset:0;width:100%;height:100%;border:0;z-index:1;
+    background:#0a0e1a;
+  }
+  .door-half{
+    position:absolute;inset:0;z-index:2;
+    background:url('maison_door01.webp') center/cover no-repeat;
+    transition:transform 2.2s cubic-bezier(.66,0,.34,1);
+    will-change:transform;
+  }
+  .door-left{ clip-path:inset(0 50% 0 0); }     /* 왼쪽 절반 */
+  .door-right{ clip-path:inset(0 0 0 50%); }    /* 오른쪽 절반 */
+  #doorway.open .door-left{ transform:translateX(-100%); }
+  #doorway.open .door-right{ transform:translateX(100%); }
+  #doorTitle{
+    position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);
+    z-index:4;text-align:center;color:#f3e6c4;
+    font-family:'Archivo Black','Black Han Sans','Arial Black',sans-serif;
+    font-size:clamp(38px,7vw,94px);letter-spacing:.01em;line-height:1.05;
+    text-shadow:0 3px 26px rgba(0,0,0,.85),0 0 60px rgba(0,0,0,.6);
+    transition:opacity 1.1s ease, transform 1.1s ease;pointer-events:none;
+    padding:0 20px;
+  }
+  #doorway.open #doorTitle{ opacity:0;transform:translate(-50%,-70%); }
+  #doorHint{
+    position:absolute;left:50%;bottom:13%;transform:translateX(-50%);
+    z-index:4;color:rgba(243,230,196,.82);
+    font-family:var(--sans);font-size:13.5px;letter-spacing:.12em;
+    text-shadow:0 2px 14px rgba(0,0,0,.9);
+    transition:opacity .6s ease;animation:doorPulse 2.4s ease-in-out infinite;
+  }
+  #doorway.open #doorHint{ opacity:0;animation:none; }
+  @keyframes doorPulse{ 0%,100%{opacity:.5} 50%{opacity:.95} }
+  #doorExit{
+    position:absolute;top:20px;right:24px;z-index:5;cursor:pointer;
+    font-family:var(--sans);font-size:13px;letter-spacing:.04em;color:rgba(243,230,196,.85);
+    border:1px solid rgba(243,230,196,.3);border-radius:999px;
+    padding:8px 15px;background:rgba(0,0,0,.4);backdrop-filter:blur(4px);
+    transition:color .2s,border-color .2s;
+  }
+  #doorExit:hover{color:#fff;border-color:rgba(243,230,196,.7)}
   #story .close{
     position:absolute;top:18px;right:20px;cursor:pointer;
     width:30px;height:30px;border:0;border-radius:50%;
@@ -280,6 +331,16 @@
   <button class="m-enter" id="mEnter">대문 열고 들어가기 →</button>
 </aside>
 
+<div id="doorway">
+  <iframe id="doorFrame" title="분더카머"></iframe>
+  <div class="door-half door-left"></div>
+  <div class="door-half door-right"></div>
+  <div id="doorTitle"></div>
+  <div id="doorHint">대문을 클릭해 들어가세요</div>
+  <button id="doorExit">× 나가기</button>
+  <audio id="doorSound" src="maison_door_open.mp3" preload="auto"></audio>
+</div>
+
 <script>
 // ─── 헤밍웨이: 인물 1 → 장소 N (연대순) ───
 const HEMINGWAY = {
@@ -301,6 +362,7 @@ const HEMINGWAY = {
 
 let viewer, orbiting=false, orbitHeading=0, orbitCenter=null, orbitRange=1000, orbitTick=null, activeIdx=-1;
 let CITIES=[], currentCity='paris';
+let currentMaison=null, doorState='closed';
 
 // 돌아가기: 온 별 페이지로 (목업 단계 — id가 있으면 그 별로, 없으면 별자리로)
 (function setBack(){
@@ -364,10 +426,11 @@ let CITIES=[], currentCity='paris';
   loadCityList();                   // 도시 점프 목록을 DB에서 로드
   document.getElementById("cityBtn").addEventListener("click", ()=> toggleCityList());
   document.getElementById("maisonClose").addEventListener("click", closeMaison);
-  document.getElementById("mEnter").addEventListener("click", ()=>{
-    // 다음 단계 — 대문 오버레이로 전환(렌더 정지 + 대문 이미지). 지금은 자리만.
-    console.log("입장하기: 대문 오버레이는 다음 단계에서 연결됩니다.");
-  });
+  document.getElementById("mEnter").addEventListener("click", ()=> enterMaison(currentMaison));
+  // 대문(문짝·안내문)을 클릭하면 좌우로 갈라짐, 나가기는 복귀
+  document.querySelectorAll(".door-half, #doorHint").forEach(el=>
+    el.addEventListener("click", openDoor));
+  document.getElementById("doorExit").addEventListener("click", exitDoorway);
 
   // 사용자가 화면을 잡으면 자동 회전을 멈춤
   viewer.canvas.addEventListener("pointerdown", stopOrbit);
@@ -613,6 +676,7 @@ function closeStory(){
 // EG메종 소개 팝업 — 콩파뇽이 쓴 소개글(없으면 디폴트), 입장하기 버튼
 function openMaison(m){
   closeStory();
+  currentMaison = m;
   document.getElementById("mDoor").textContent = "파리 · 메종 " + m.maison_no;
   document.getElementById("mNick").textContent = m.nickname || ("메종 " + m.maison_no);
   const DEFAULT_INTRO = "아직 주인이 소개글을 남기지 않았습니다. 문 너머에는 이 콩파뇽이 모아온 것들이 조용히 빛나고 있습니다.";
@@ -624,6 +688,44 @@ function openMaison(m){
 }
 function closeMaison(){
   document.getElementById("maison").classList.remove("in");
+}
+
+// 입장하기 → voyage 렌더 정지(타일 세션 유지 = 과금 0) + 대문 오버레이를 닫힌 채로 띄움
+function enterMaison(m){
+  if (!m || !m.occupant_id) return;
+  closeMaison();
+  viewer.useDefaultRenderLoop = false;          // 지구 렌더 정지(세션은 살아 있음)
+  const dw = document.getElementById("doorway");
+  document.getElementById("doorTitle").textContent = m.nickname || ("메종 " + m.maison_no);
+  document.getElementById("doorFrame").src = "about:blank";
+  dw.classList.remove("open");
+  dw.classList.add("in");
+  doorState = 'closed';
+}
+
+// 대문 클릭 → 두 문짝이 좌우로 갈라지고 그 뒤 분더카머가 드러남
+function openDoor(){
+  if (doorState !== 'closed') return;
+  doorState = 'opening';
+  const m = currentMaison;
+  // 효과음(소로가 maison_door_open.mp3로 올려둘 곳)
+  const snd = document.getElementById("doorSound");
+  if (snd){ try{ snd.currentTime = 0; snd.play().catch(()=>{}); }catch(e){} }
+  // 문 뒤에서 분더카머를 미리 로드해 두고, 문이 갈라지며 드러나게
+  if (m && m.nickname){
+    document.getElementById("doorFrame").src = "wunderkammer_shell_v4_4.html?user=" + encodeURIComponent(m.nickname);
+  }
+  document.getElementById("doorway").classList.add("open");   // CSS transition 2.2s
+  setTimeout(()=>{ doorState = 'open'; }, 2300);
+}
+
+// 나가기 → 오버레이 닫고 voyage 렌더 재개
+function exitDoorway(){
+  const dw = document.getElementById("doorway");
+  dw.classList.remove("in", "open");
+  document.getElementById("doorFrame").src = "about:blank";
+  doorState = 'closed';
+  viewer.useDefaultRenderLoop = true;           // 지구 렌더 재개(재진입 과금 0)
 }
 
 // 마커를 실사 3D 타일(또는 지형) 표면 높이에 정확히 앉힘 — 비스듬한 각도에서도 안 어긋나게
