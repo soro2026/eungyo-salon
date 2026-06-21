@@ -355,6 +355,10 @@ let CITIES=[], currentCity='paris';
   }
 
   buildJourney();
+  // 마커를 더블클릭하면 카메라가 그 점으로 빨려들어가 지표 아래(검은 화면)로 가는 것 방지
+  viewer.screenSpaceEventHandler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+  viewer.trackedEntity = undefined;
+  viewer.scene.screenSpaceCameraController.minimumZoomDistance = 60;   // 지표 60m 위까지만
   await loadCityMarkers('paris');   // 도시 핀을 DB에서 읽어 띄우고, 그 직후 표면 클램프(함수 내부)
   await loadMaisons('paris');       // EG메종 집 핀 (옐로 라벨)
   loadCityList();                   // 도시 점프 목록을 DB에서 로드
@@ -472,9 +476,10 @@ async function loadMaisons(city){
     const ent = viewer.entities.add({
       id:"maison-"+city+"-"+m.maison_no,
       position: Cesium.Cartesian3.fromDegrees(m.lng, m.lat),
-      point:{ pixelSize: occupied ? 9 : 6,
-              color: Cesium.Color.fromCssColorString(occupied ? "#ffd23f" : "#6b7280"),
-              outlineColor: Cesium.Color.fromCssColorString("#1a1407"), outlineWidth:2,
+      point:{ pixelSize: occupied ? 9 : 9,
+              color: Cesium.Color.fromCssColorString(occupied ? "#ffd23f" : "#0a0e1a"),  // 빈집은 속이 빈(어두운) 동그라미
+              outlineColor: Cesium.Color.fromCssColorString(occupied ? "#1a1407" : "#ffd23f"), // 빈집 테두리만 옐로
+              outlineWidth: occupied ? 2 : 2.5,
               disableDepthTestDistance:Number.POSITIVE_INFINITY,
               distanceDisplayCondition:near },
       label: occupied ? {
@@ -490,11 +495,13 @@ async function loadMaisons(city){
               distanceDisplayCondition:near
             } : {
               text:"빈집",
-              font:"11px 'Helvetica Neue',Arial,sans-serif",
-              fillColor:Cesium.Color.fromCssColorString("#aab0bd"),
+              font:"bold 11.5px 'Helvetica Neue',Arial,sans-serif",
+              fillColor:Cesium.Color.fromCssColorString("#ffd23f"),                  // 옐로 글씨
+              outlineColor:Cesium.Color.fromCssColorString("#0a0e1a"), outlineWidth:3,
+              style:Cesium.LabelStyle.FILL_AND_OUTLINE,                              // 글씨에 검은 테두리 → 어디서나 또렷
               showBackground:true,
-              backgroundColor:Cesium.Color.fromCssColorString("#141a28").withAlpha(.7),
-              backgroundPadding:new Cesium.Cartesian2(7,4),
+              backgroundColor:Cesium.Color.fromCssColorString("#0a0e1a").withAlpha(.82),
+              backgroundPadding:new Cesium.Cartesian2(8,4),
               pixelOffset:new Cesium.Cartesian2(0,-12),
               verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
               disableDepthTestDistance:Number.POSITIVE_INFINITY,
