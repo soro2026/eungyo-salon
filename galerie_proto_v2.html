@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover">
+<title>GALERIE · 1층 목업 v2</title>
+<style>
+:root{ --amber:#f0d8a8; --plaque-bg:#efe6d0; }
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#140a0e;
+  font-family:'Cormorant Garamond','Noto Serif KR',serif;color:var(--amber);
+  -webkit-tap-highlight-color:transparent;}
+
+/* ── 스크롤 무대 (스크롤바 숨김, 세로 탐험) ── */
+.scroller{position:fixed;inset:0;overflow-y:auto;overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;
+  touch-action:pan-y pinch-zoom;}
+.scroller::-webkit-scrollbar{display:none}
+.inner{min-height:100%;display:flex;justify-content:center;align-items:flex-start;}
+
+/* ── 전시실(배경) — 세로로 크게 깔아 스크롤 여지 ── */
+.room{position:relative;flex:0 0 auto;
+  background:#3a1820 center center / cover no-repeat;
+  /* 폰(세로): 세로 크게 → 천장↔의자 스크롤 / 가로 넘침은 중앙 흡수 */
+  width:auto;height:132vh;aspect-ratio:16/9;
+  transition:opacity .5s ease;}
+@media (min-aspect-ratio:1/1){          /* 노트북·태블릿 가로 */
+  .room{height:100vh;width:auto;}
+}
+
+/* ── 작품 (벽 중앙 액자 자국 위) ── */
+.art{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);
+  width:clamp(150px,21%,300px);text-align:center;z-index:3;
+  transition:opacity .45s ease;}
+.art img{display:block;width:100%;height:auto;margin:0 auto;
+  filter:drop-shadow(7px 18px 30px rgba(0,0,0,.82));}
+.plaque{display:inline-block;margin-top:3.5%;padding:5px 16px;
+  background:linear-gradient(180deg,var(--plaque-bg),#d8c9a8);
+  border:1px solid rgba(90,58,24,.55);box-shadow:0 3px 10px rgba(0,0,0,.55);
+  color:#3a2a18;line-height:1.32;}
+.plaque .pt{font-size:clamp(12px,1.5vw,15px);font-weight:600;letter-spacing:.5px;display:block;}
+.plaque .pa{font-size:clamp(10px,1.1vw,11.5px);font-style:italic;opacity:.72;letter-spacing:1px;}
+.art.fade{opacity:0}
+
+/* ── 헤더 (방·사조) ── */
+.hd{position:fixed;top:max(14px,env(safe-area-inset-top));left:0;right:0;z-index:30;
+  text-align:center;pointer-events:none;text-shadow:0 2px 16px rgba(0,0,0,.96);}
+.hd .t{font-size:clamp(20px,3.4vw,28px);letter-spacing:.3em;color:#ecd29c;}
+.hd .s{font-size:clamp(10px,1.4vw,12px);letter-spacing:.28em;color:rgba(240,216,168,.62);margin-top:3px;}
+
+/* ── 하단 방 표시 ── */
+.foot{position:fixed;bottom:max(18px,calc(env(safe-area-inset-bottom) + 16px));left:0;right:0;z-index:30;
+  text-align:center;pointer-events:none;text-shadow:0 2px 14px rgba(0,0,0,.96);}
+.foot .rm{font-size:13px;letter-spacing:.24em;color:#e9cf9c;}
+.foot .dots{margin-top:8px;display:flex;gap:7px;justify-content:center;}
+.foot .dot{width:7px;height:7px;border-radius:50%;background:rgba(240,216,168,.32);transition:all .3s;}
+.foot .dot.on{background:#e9cf9c;transform:scale(1.3);}
+
+/* ── 좌우 화살표 ── */
+.nav{position:fixed;top:50%;transform:translateY(-50%);z-index:30;
+  width:54px;height:54px;border-radius:50%;border:1px solid rgba(212,184,120,.66);
+  background:rgba(60,30,22,.62);color:var(--amber);font-size:27px;line-height:1;
+  cursor:pointer;backdrop-filter:blur(8px);
+  display:flex;align-items:center;justify-content:center;
+  transition:background .2s,transform .2s;}
+.nav:active{transform:translateY(-50%) scale(.92)}
+.nav-l{left:14px} .nav-r{right:14px}
+
+/* 진입 힌트 */
+.hint{position:fixed;left:50%;bottom:88px;transform:translateX(-50%);z-index:30;
+  font-size:11px;letter-spacing:.18em;color:rgba(240,216,168,.5);
+  pointer-events:none;animation:fade 4s ease forwards;text-shadow:0 1px 8px rgba(0,0,0,.9);}
+@keyframes fade{0%,60%{opacity:1}100%{opacity:0}}
+</style>
+</head>
+<body>
+<div class="scroller" id="scroller">
+  <div class="inner">
+    <div class="room" id="room">
+      <div class="art" id="art">
+        <img id="artImg" src="" alt="">
+        <div class="plaque"><span class="pt" id="ptT"></span><span class="pa" id="ptA"></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="hd">
+  <div class="t">GALERIE</div>
+  <div class="s" id="sub">ÉTAGE I · 인상 · 후기인상</div>
+</div>
+
+<div class="foot">
+  <div class="rm" id="rm">방 1 · 1 / 5</div>
+  <div class="dots" id="dots"></div>
+</div>
+
+<button class="nav nav-l" id="prev" aria-label="이전">‹</button>
+<button class="nav nav-r" id="next" aria-label="다음">›</button>
+<div class="hint">← 밀어서 다음 작품 · 위아래로 전시실 둘러보기 →</div>
+
+<script>
+const RAW="https://raw.githubusercontent.com/soro2026/eungyo-salon/main/";
+// 데모: 한 방 = 5점. 방을 넘기면 배경 교체(지금은 bg 1장이라 같은 배경 + 방번호 증가로 시연)
+const ROOMS=[
+  { bg:"gallery_bg_01.webp", sub:"ÉTAGE I · 인상 · 후기인상", works:[
+    {img:"htg_p003.webp", t:"수련", a:"클로드 모네"},
+    {img:"htg_p008.webp", t:"파라솔을 든 여인", a:"클로드 모네"},
+    {img:"htg_p004.webp", t:"별이 빛나는 밤", a:"빈센트 반 고흐"},
+    {img:"htg_p007.webp", t:"점심 식사", a:"클로드 모네"},
+    {img:"htg_p009.webp", t:"물랭 드 라 갈레트의 무도회", a:"오귀스트 르누아르"},
+  ]},
+];
+let ri=0, wi=0;
+const room=document.getElementById('room'), art=document.getElementById('art');
+const artImg=document.getElementById('artImg'), ptT=document.getElementById('ptT'), ptA=document.getElementById('ptA');
+const rm=document.getElementById('rm'), sub=document.getElementById('sub'), dots=document.getElementById('dots');
+const scroller=document.getElementById('scroller');
+
+function setBg(){ room.style.backgroundImage=`url(${RAW}${ROOMS[ri].bg})`; sub.textContent=ROOMS[ri].sub; }
+function buildDots(){ dots.innerHTML=''; ROOMS[ri].works.forEach((_,i)=>{
+  const d=document.createElement('span'); d.className='dot'+(i===wi?' on':''); dots.appendChild(d);
+});}
+function renderWork(){
+  const w=ROOMS[ri].works[wi];
+  art.classList.add('fade');
+  setTimeout(()=>{
+    artImg.src=RAW+w.img; artImg.alt=w.t; ptT.textContent=w.t; ptA.textContent=w.a;
+    rm.textContent=`방 ${ri+1} · ${wi+1} / ${ROOMS[ri].works.length}`;
+    buildDots(); art.classList.remove('fade');
+  },220);
+}
+function centerScroll(){ // 진입·방이동 시 벽(작품) 세로 중앙으로
+  const max=scroller.scrollHeight-scroller.clientHeight;
+  scroller.scrollTo({top:max*0.5, behavior:'smooth'});
+}
+function go(dir){
+  const n=ROOMS[ri].works.length;
+  wi+=dir;
+  if(wi>=n){ // 다음 방 (끊김 없이)
+    ri=(ri+1)%ROOMS.length; wi=0;
+    room.style.opacity=0;
+    setTimeout(()=>{ setBg(); room.style.opacity=1; renderWork(); centerScroll(); },300);
+    return;
+  }
+  if(wi<0){
+    ri=(ri-1+ROOMS.length)%ROOMS.length; wi=ROOMS[ri].works.length-1;
+    room.style.opacity=0;
+    setTimeout(()=>{ setBg(); room.style.opacity=1; renderWork(); centerScroll(); },300);
+    return;
+  }
+  renderWork();
+}
+document.getElementById('next').onclick=()=>go(1);
+document.getElementById('prev').onclick=()=>go(-1);
+addEventListener('keydown',e=>{ if(e.key==='ArrowRight')go(1); if(e.key==='ArrowLeft')go(-1); });
+
+// 좌우 스와이프 (세로 스크롤·핀치와 충돌 안 나게: 가로 우세 + 단일 터치일 때만)
+let sx=0,sy=0,touching=false;
+scroller.addEventListener('touchstart',e=>{ if(e.touches.length===1){touching=true;sx=e.touches[0].clientX;sy=e.touches[0].clientY;} else touching=false; },{passive:true});
+scroller.addEventListener('touchend',e=>{
+  if(!touching)return; touching=false;
+  const dx=e.changedTouches[0].clientX-sx, dy=e.changedTouches[0].clientY-sy;
+  if(Math.abs(dx)>55 && Math.abs(dx)>Math.abs(dy)*1.5){ go(dx<0?1:-1); }
+},{passive:true});
+
+setBg(); renderWork();
+addEventListener('load',()=>setTimeout(centerScroll,400));
+</script>
+</body>
+</html>
