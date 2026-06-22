@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover">
+<title>GALERIE · 1층 편집 목업 v6</title>
+<style>
+:root{ --amber:#f0d8a8; --gallery-dark:#140a0e; --guide:rgba(240,216,168,.45); }
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--gallery-dark);
+  font-family:'Cormorant Garamond','Noto Serif KR',serif;color:var(--amber);
+  -webkit-tap-highlight-color:transparent;}
+
+.scroller{position:fixed;inset:0;overflow-y:auto;overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;touch-action:pan-y;background:var(--gallery-dark);}
+.scroller::-webkit-scrollbar{display:none}
+
+.room{position:relative;width:100vw;height:calc(100vw * 16 / 9);
+  background:#3a1820 center center / cover no-repeat;}
+
+.art{position:absolute;z-index:3;cursor:grab;transform:translate(-50%,-50%);touch-action:none;}
+.art img{display:block;width:100%;height:auto;
+  filter:drop-shadow(8px 20px 34px rgba(0,0,0,.82));pointer-events:none;-webkit-user-drag:none;}
+.art.sel{outline:2px dashed rgba(240,216,168,.85);outline-offset:6px;}
+.art .handle{position:absolute;right:-9px;bottom:-9px;width:20px;height:20px;border-radius:50%;
+  background:#e9cf9c;border:2px solid #5a3a18;cursor:nwse-resize;display:none;z-index:5;}
+.art.sel .handle{display:block;}
+
+.plaque{position:absolute;z-index:4;cursor:grab;touch-action:none;
+  transform:translate(-50%,-50%);transform-origin:center;
+  padding:6px 18px;background:linear-gradient(180deg,#efe6d0,#d8c9a8);
+  border:1px solid rgba(90,58,24,.55);box-shadow:0 3px 10px rgba(0,0,0,.55);
+  color:#3a2a18;line-height:1.32;text-align:center;white-space:nowrap;}
+.plaque.sel{outline:2px dashed rgba(240,216,168,.85);outline-offset:5px;}
+.plaque .pt{font-size:16px;font-weight:600;letter-spacing:.5px;display:block;}
+.plaque .pa{font-size:12px;font-style:italic;opacity:.72;letter-spacing:1px;}
+.plaque .handle{position:absolute;right:-9px;bottom:-9px;width:18px;height:18px;border-radius:50%;
+  background:#e9cf9c;border:2px solid #5a3a18;cursor:nwse-resize;display:none;z-index:6;}
+.plaque.sel .handle{display:block;}
+
+/* ── 편집 가이드 (화면 고정, 편집 모드만) ── */
+.guides{position:fixed;inset:0;z-index:25;pointer-events:none;}
+.guides .vline{position:absolute;top:0;bottom:0;left:50%;width:1px;
+  background:repeating-linear-gradient(180deg,var(--guide) 0 8px,transparent 8px 16px);transition:background .15s;}
+.guides .hline{position:absolute;left:0;right:0;top:50%;height:1px;
+  background:repeating-linear-gradient(90deg,var(--guide) 0 8px,transparent 8px 16px);transition:background .15s;}
+.guides.snap .vline,.guides.snap .hline{background:rgba(255,235,180,.95);box-shadow:0 0 10px rgba(255,235,180,.6);}
+/* 세이프 프레임: 이 박스 안에 액자 = 진입 때 안 잘림. 진입 화면(정사각 영역) 표시 */
+.safe{position:absolute;left:6%;right:6%;top:50%;transform:translateY(-50%);
+  border:1px dashed rgba(240,216,168,.5);border-radius:2px;}
+.safe::after{content:'진입 화면 · 이 안에 액자';position:absolute;top:4px;left:8px;
+  font-size:10px;letter-spacing:.1em;color:rgba(240,216,168,.6);font-family:system-ui,sans-serif;}
+.guides .center-dot{position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;
+  border-radius:50%;border:1px solid rgba(255,235,180,.8);}
+
+.hd{position:fixed;top:max(10px,env(safe-area-inset-top));left:0;right:0;z-index:30;text-align:center;
+  pointer-events:none;text-shadow:0 2px 16px rgba(0,0,0,.96);}
+.hd .t{font-size:20px;letter-spacing:.3em;color:#ecd29c;}
+.hd .s{font-size:10px;letter-spacing:.26em;color:rgba(240,216,168,.6);margin-top:2px;}
+
+.panel{position:fixed;left:0;right:0;bottom:0;z-index:40;
+  background:rgba(20,10,14,.94);border-top:1px solid rgba(212,184,120,.35);
+  padding:9px 14px max(9px,env(safe-area-inset-bottom));backdrop-filter:blur(10px);
+  font-family:system-ui,'Noto Sans KR',sans-serif;}
+.prow{display:flex;align-items:center;gap:8px;justify-content:center;flex-wrap:wrap;}
+.prow .nm{font-size:12px;color:#e9cf9c;letter-spacing:.04em;min-width:130px;text-align:center;}
+.btn{font-family:inherit;font-size:13px;letter-spacing:.03em;color:#3a2a18;cursor:pointer;
+  background:linear-gradient(180deg,#efe6d0,#d8c9a8);border:1px solid rgba(90,58,24,.5);
+  border-radius:4px;padding:7px 14px;}
+.btn.ghost{background:rgba(60,40,28,.5);color:#e9cf9c;border:1px solid rgba(212,184,120,.5);}
+.btn.tgl{font-size:12px;padding:6px 12px;}
+.btn:active{transform:scale(.96)}
+.coord{font-size:11px;color:rgba(240,216,168,.72);text-align:center;margin-top:6px;
+  font-variant-numeric:tabular-nums;letter-spacing:.02em;min-height:14px;}
+.tip{font-size:11px;color:rgba(240,216,168,.45);text-align:center;margin-top:4px;letter-spacing:.02em;}
+
+.nav{position:fixed;top:44%;transform:translateY(-50%);z-index:30;
+  width:46px;height:46px;border-radius:50%;border:1px solid rgba(212,184,120,.55);
+  background:rgba(40,22,18,.5);color:var(--amber);font-size:23px;cursor:pointer;
+  backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;}
+.nav-l{left:10px} .nav-r{right:10px}
+.toast{position:fixed;left:50%;top:60px;transform:translateX(-50%);z-index:50;
+  background:rgba(40,80,50,.92);color:#dff0e0;font-family:system-ui,sans-serif;font-size:13px;
+  padding:8px 18px;border-radius:6px;opacity:0;transition:opacity .3s;pointer-events:none;}
+.toast.on{opacity:1}
+</style>
+</head>
+<body>
+<div class="scroller" id="scroller">
+  <div class="room" id="room">
+    <div class="art" id="art"><img id="artImg" src="" alt=""><div class="handle" data-h="art"></div></div>
+    <div class="plaque" id="plaque"><span class="pt" id="ptT"></span><span class="pa" id="ptA"></span><div class="handle" data-h="plaque"></div></div>
+  </div>
+</div>
+
+<div class="guides" id="guides">
+  <div class="safe" id="safe"></div>
+  <div class="vline"></div><div class="hline"></div><div class="center-dot"></div>
+</div>
+
+<div class="hd"><div class="t">GALERIE</div><div class="s">ÉTAGE I · 인상 · 후기인상 · 편집 모드</div></div>
+<button class="nav nav-l" id="prev">‹</button>
+<button class="nav nav-r" id="next">›</button>
+<div class="toast" id="toast">좌표 복사됨</div>
+
+<div class="panel">
+  <div class="prow">
+    <button class="btn ghost" id="prevBtn">‹ 이전</button>
+    <span class="nm" id="nm">방 1 · 1/5 · 수련</span>
+    <button class="btn ghost" id="nextBtn">다음 ›</button>
+    <button class="btn tgl" id="guideBtn">가이드 끄기</button>
+  </div>
+  <div class="prow" style="margin-top:8px"><button class="btn" id="copyBtn">이 작품 확정 복사</button></div>
+  <div class="coord" id="coord">그림·명패 클릭 선택 → 드래그 이동 · 휠/핸들 크기</div>
+  <div class="tip">중앙 십자에 작품 중심을 맞추면 진입 때 정중앙 · 점선 박스 안에 액자가 다 들어오면 안 잘림</div>
+</div>
+
+<script>
+const RAW="https://raw.githubusercontent.com/soro2026/eungyo-salon/main/";
+const ROOM={ bg:"gallery_bg_02.webp", works:[
+  {id:"htg_p003", img:"htg_p003.webp", t:"수련", a:"클로드 모네"},
+  {id:"htg_p008", img:"htg_p008.webp", t:"파라솔을 든 여인", a:"클로드 모네"},
+  {id:"htg_p004", img:"htg_p004.webp", t:"별이 빛나는 밤", a:"빈센트 반 고흐"},
+  {id:"htg_p007", img:"htg_p007.webp", t:"점심 식사", a:"클로드 모네"},
+  {id:"htg_p009", img:"htg_p009.webp", t:"물랭 드 라 갈레트의 무도회", a:"오귀스트 르누아르"},
+]};
+const POS={}; ROOM.works.forEach(w=>POS[w.id]={x:50,y:42,size:34, px:50,py:70,psize:100});
+
+let wi=0, sel='art';
+const room=document.getElementById('room'),art=document.getElementById('art'),plaque=document.getElementById('plaque');
+const artImg=document.getElementById('artImg'),ptT=document.getElementById('ptT'),ptA=document.getElementById('ptA');
+const nm=document.getElementById('nm'),coord=document.getElementById('coord');
+const scroller=document.getElementById('scroller'),toast=document.getElementById('toast');
+const guides=document.getElementById('guides'),safe=document.getElementById('safe');
+
+room.style.backgroundImage=`url(${RAW}${ROOM.bg})`;
+
+// 세이프 프레임 = 진입 화면 높이(= 화면 너비*16/9 가 아니라, 실제 보이는 정사각 영역). 진입은 작품을 화면중앙에 두므로
+// 잘림 경계 = 화면 높이. 박스 높이를 화면 높이의 92%로 그려 "이 안이면 안전" 시각화.
+function layoutSafe(){ safe.style.height = (scroller.clientHeight*0.92)+'px'; }
+addEventListener('resize',layoutSafe);
+
+function cur(){return ROOM.works[wi];}
+function render(){
+  const w=cur(), p=POS[w.id];
+  artImg.src=RAW+w.img; artImg.alt=w.t; ptT.textContent=w.t; ptA.textContent=w.a;
+  art.style.left=p.x+'%'; art.style.top=p.y+'%'; art.style.width=p.size+'%';
+  plaque.style.left=p.px+'%'; plaque.style.top=p.py+'%'; plaque.style.transform=`translate(-50%,-50%) scale(${p.psize/100})`;
+  nm.textContent=`방 1 · ${wi+1}/5 · ${w.t}`;
+  select(sel); snapCheck();
+}
+function select(which){ sel=which;
+  art.classList.toggle('sel',which==='art'); plaque.classList.toggle('sel',which==='plaque');
+}
+// 진입 시작점 = 작품을 화면 정중앙으로 (㉠)
+function enterCenter(){
+  const rh=room.offsetHeight, p=POS[cur().id];
+  const artCenterPx = rh*(p.y/100);             // 벽 기준 작품 중심 y(px)
+  const target = artCenterPx - scroller.clientHeight/2;
+  scroller.scrollTo({top:Math.max(0,target), behavior:'smooth'});
+}
+// 정중앙 스냅 하이라이트: 작품 중심이 화면 정중앙(스크롤 고려)에 닿으면 십자 밝게
+function snapCheck(){
+  const rh=room.offsetHeight, p=POS[cur().id];
+  const artScreenY = rh*(p.y/100) - scroller.scrollTop;   // 화면상 작품중심 y
+  const cx = rh*(p.x/100);                                 // 작품중심 x(=화면x, room이 100vw)
+  const near = Math.abs(artScreenY - scroller.clientHeight/2)<14 && Math.abs(cx - scroller.clientWidth/2)<14;
+  guides.classList.toggle('snap',near);
+}
+scroller.addEventListener('scroll',snapCheck,{passive:true});
+
+art.addEventListener('mousedown',e=>{ if(!e.target.dataset.h) select('art'); });
+plaque.addEventListener('mousedown',e=>{ if(!e.target.dataset.h) select('plaque'); });
+art.addEventListener('touchstart',e=>{ if(!e.target.dataset.h) select('art'); },{passive:true});
+plaque.addEventListener('touchstart',e=>{ if(!e.target.dataset.h) select('plaque'); },{passive:true});
+
+function dragMove(el,key){
+  let drag=false,sx,sy,bx,by;
+  const start=(cx,cy)=>{ drag=true;sx=cx;sy=cy;
+    bx=key==='art'?POS[cur().id].x:POS[cur().id].px; by=key==='art'?POS[cur().id].y:POS[cur().id].py; el.style.cursor='grabbing'; };
+  const move=(cx,cy)=>{ if(!drag)return; const rw=room.offsetWidth,rh=room.offsetHeight;
+    const nx=bx+((cx-sx)/rw)*100, ny=by+((cy-sy)/rh)*100;
+    if(key==='art'){POS[cur().id].x=+nx.toFixed(1);POS[cur().id].y=+ny.toFixed(1);}
+    else{POS[cur().id].px=+nx.toFixed(1);POS[cur().id].py=+ny.toFixed(1);} render(); };
+  const end=()=>{ drag=false;el.style.cursor='grab'; };
+  el.addEventListener('mousedown',e=>{ if(e.target.dataset.h)return; e.preventDefault(); start(e.clientX,e.clientY);
+    const mm=ev=>move(ev.clientX,ev.clientY),mu=()=>{end();removeEventListener('mousemove',mm);removeEventListener('mouseup',mu);};
+    addEventListener('mousemove',mm);addEventListener('mouseup',mu); });
+  el.addEventListener('touchstart',e=>{ if(e.target.dataset.h)return; const t=e.touches[0]; start(t.clientX,t.clientY); },{passive:true});
+  el.addEventListener('touchmove',e=>{ if(!drag)return; e.preventDefault(); const t=e.touches[0]; move(t.clientX,t.clientY); },{passive:false});
+  el.addEventListener('touchend',end);
+}
+dragMove(art,'art'); dragMove(plaque,'plaque');
+
+function wheelSize(el,fn){ el.addEventListener('wheel',e=>{ e.preventDefault(); fn(e.deltaY<0?1:-1); render(); },{passive:false}); }
+wheelSize(art,d=>{ POS[cur().id].size=Math.max(8,Math.min(90,+(POS[cur().id].size+d*1.2).toFixed(1))); });
+wheelSize(plaque,d=>{ POS[cur().id].psize=Math.max(50,Math.min(200,POS[cur().id].psize+d*4)); });
+
+function handleResize(el,key){
+  const h=el.querySelector('.handle');
+  const start=(cx)=>{ const base=key==='art'?POS[cur().id].size:POS[cur().id].psize, sx=cx;
+    return (nx)=>{ const d=(nx-sx)/4;
+      if(key==='art')POS[cur().id].size=Math.max(8,Math.min(90,+(base+d).toFixed(1)));
+      else POS[cur().id].psize=Math.max(50,Math.min(200,base+d*1.5)); render(); }; };
+  h.addEventListener('mousedown',e=>{ e.preventDefault();e.stopPropagation(); const mv=start(e.clientX);
+    const mm=ev=>mv(ev.clientX),mu=()=>{removeEventListener('mousemove',mm);removeEventListener('mouseup',mu);};
+    addEventListener('mousemove',mm);addEventListener('mouseup',mu); });
+  h.addEventListener('touchstart',e=>{ e.stopPropagation(); const mv=start(e.touches[0].clientX);
+    const tm=ev=>{ev.preventDefault();mv(ev.touches[0].clientX);},tu=()=>{removeEventListener('touchmove',tm);removeEventListener('touchend',tu);};
+    addEventListener('touchmove',tm,{passive:false});addEventListener('touchend',tu); },{passive:true});
+}
+handleResize(art,'art'); handleResize(plaque,'plaque');
+
+document.getElementById('copyBtn').onclick=()=>{
+  const w=cur(),p=POS[w.id];
+  const line=`${w.id}: { x:${p.x}, y:${p.y}, size:${p.size}, px:${p.px}, py:${p.py}, psize:${p.psize} },`;
+  coord.textContent=line;
+  navigator.clipboard?.writeText(line).then(()=>showToast(),()=>prompt('복사하세요',line));
+};
+function showToast(){ toast.classList.add('on'); setTimeout(()=>toast.classList.remove('on'),1400); }
+
+function go(d){ wi=(wi+d+ROOM.works.length)%ROOM.works.length; sel='art'; render(); setTimeout(enterCenter,60); }
+document.getElementById('next').onclick=()=>go(1);
+document.getElementById('prev').onclick=()=>go(-1);
+document.getElementById('nextBtn').onclick=()=>go(1);
+document.getElementById('prevBtn').onclick=()=>go(-1);
+
+document.getElementById('guideBtn').onclick=function(){
+  const on=guides.style.display!=='none'; guides.style.display=on?'none':'block';
+  this.textContent=on?'가이드 켜기':'가이드 끄기';
+};
+
+layoutSafe(); render();
+addEventListener('load',()=>{ layoutSafe(); setTimeout(enterCenter,400); });
+</script>
+</body>
+</html>
