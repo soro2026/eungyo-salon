@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover">
+<title>GALERIE · 1층 (확정 v8)</title>
+<style>
+:root{ --amber:#f0d8a8; --gallery-dark:#140a0e; }
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--gallery-dark);
+  font-family:'Cormorant Garamond','Noto Serif KR',serif;color:var(--amber);
+  -webkit-tap-highlight-color:transparent;}
+
+.scroller{position:fixed;inset:0;overflow-y:auto;overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;touch-action:pan-y pinch-zoom;background:var(--gallery-dark);}
+.scroller::-webkit-scrollbar{display:none}
+
+.room{position:relative;left:50%;transform:translateX(-50%);
+  height:115vh;width:calc(115vh * 9 / 16);
+  background:#3a1820 center center / cover no-repeat;transition:opacity .5s ease;}
+@media (min-aspect-ratio:1/1){
+  .room{width:100vw;height:calc(100vw * 16 / 9);}
+}
+
+.art{position:absolute;z-index:3;transform:translate(-50%,-50%);transition:opacity .45s ease;}
+.art img{display:block;width:100%;height:auto;
+  filter:drop-shadow(8px 20px 34px rgba(0,0,0,.82));pointer-events:none;}
+.art.fade{opacity:0}
+
+.plaque{position:absolute;z-index:4;transform:translate(-50%,-50%);transform-origin:center;
+  padding:6px 18px;background:linear-gradient(180deg,#efe6d0,#d8c9a8);
+  border:1px solid rgba(90,58,24,.55);box-shadow:0 3px 10px rgba(0,0,0,.55);
+  color:#3a2a18;line-height:1.32;text-align:center;white-space:nowrap;transition:opacity .45s ease;}
+.plaque.fade{opacity:0}
+.plaque .pt{font-size:16px;font-weight:600;letter-spacing:.5px;display:block;}
+.plaque .pa{font-size:12px;font-style:italic;opacity:.72;letter-spacing:1px;}
+
+.hd{position:fixed;top:max(14px,env(safe-area-inset-top));left:0;right:0;z-index:30;text-align:center;
+  pointer-events:none;text-shadow:0 2px 16px rgba(0,0,0,.96);}
+.hd .t{font-size:clamp(20px,5vw,26px);letter-spacing:.3em;color:#ecd29c;}
+.hd .s{font-size:clamp(10px,2.6vw,12px);letter-spacing:.28em;color:rgba(240,216,168,.62);margin-top:3px;}
+
+.foot{position:fixed;bottom:max(16px,calc(env(safe-area-inset-bottom) + 14px));left:0;right:0;z-index:30;
+  text-align:center;pointer-events:none;text-shadow:0 2px 14px rgba(0,0,0,.96);}
+.foot .rm{font-size:13px;letter-spacing:.24em;color:#e9cf9c;}
+.foot .dots{margin-top:8px;display:flex;gap:7px;justify-content:center;}
+.foot .dot{width:7px;height:7px;border-radius:50%;background:rgba(240,216,168,.3);transition:all .3s;}
+.foot .dot.on{background:#e9cf9c;transform:scale(1.3);}
+
+.nav{position:fixed;top:50%;transform:translateY(-50%);z-index:30;
+  width:52px;height:52px;border-radius:50%;border:1px solid rgba(212,184,120,.62);
+  background:rgba(40,22,18,.5);color:var(--amber);font-size:26px;cursor:pointer;
+  backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;transition:transform .2s;}
+.nav:active{transform:translateY(-50%) scale(.92)}
+.nav-l{left:12px} .nav-r{right:12px}
+
+.hint{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);z-index:30;
+  font-size:11px;letter-spacing:.14em;color:rgba(240,216,168,.5);pointer-events:none;
+  animation:fade 4.5s ease forwards;text-shadow:0 1px 8px rgba(0,0,0,.9);white-space:nowrap;}
+@keyframes fade{0%,55%{opacity:1}100%{opacity:0}}
+</style>
+</head>
+<body>
+<div class="scroller" id="scroller">
+  <div class="room" id="room">
+    <div class="art" id="art"><img id="artImg" src="" alt=""></div>
+    <div class="plaque" id="plaque"><span class="pt" id="ptT"></span><span class="pa" id="ptA"></span></div>
+  </div>
+</div>
+
+<div class="hd"><div class="t">GALERIE</div><div class="s" id="sub">ÉTAGE I · 인상 · 후기인상</div></div>
+<div class="foot"><div class="rm" id="rm">방 1 · 1 / 5</div><div class="dots" id="dots"></div></div>
+<button class="nav nav-l" id="prev" aria-label="이전">‹</button>
+<button class="nav nav-r" id="next" aria-label="다음">›</button>
+<div class="hint">← 밀어서 다음 작품 · 위아래로 전시실 둘러보기 →</div>
+
+<script>
+const RAW="https://raw.githubusercontent.com/soro2026/eungyo-salon/main/";
+// 방 1 — 소로 확정 좌표
+const ROOM={ bg:"gallery_bg_02.webp", sub:"ÉTAGE I · 인상 · 후기인상", works:[
+  {id:"htg_p003", img:"htg_p003.webp", t:"수련", a:"클로드 모네",            x:50,   y:42,   size:29.2, px:50.3, py:55.4, psize:100},
+  {id:"htg_p008", img:"htg_p008.webp", t:"파라솔을 든 여인", a:"클로드 모네", x:50,   y:42,   size:29.2, px:49.9, py:55,   psize:100},
+  {id:"htg_p004", img:"htg_p004.webp", t:"별이 빛나는 밤", a:"빈센트 반 고흐",x:49.7, y:46,   size:46.1, px:50.1, py:58.9, psize:100},
+  {id:"htg_p007", img:"htg_p007.webp", t:"점심 식사", a:"클로드 모네",        x:50,   y:42,   size:31.6, px:49.8, py:56.5, psize:100},
+  {id:"htg_p009", img:"htg_p009.webp", t:"물랭 드 라 갈레트의 무도회", a:"오귀스트 르누아르", x:49.3, y:46.2, size:47.2, px:49.9, py:58.5, psize:100},
+]};
+let wi=0;
+const room=document.getElementById('room'),art=document.getElementById('art'),plaque=document.getElementById('plaque');
+const artImg=document.getElementById('artImg'),ptT=document.getElementById('ptT'),ptA=document.getElementById('ptA');
+const rm=document.getElementById('rm'),sub=document.getElementById('sub'),dots=document.getElementById('dots');
+const scroller=document.getElementById('scroller');
+
+room.style.backgroundImage=`url(${RAW}${ROOM.bg})`; sub.textContent=ROOM.sub;
+
+function buildDots(){ dots.innerHTML=''; ROOM.works.forEach((_,i)=>{
+  const d=document.createElement('span'); d.className='dot'+(i===wi?' on':''); dots.appendChild(d); }); }
+function place(w){
+  art.style.left=w.x+'%'; art.style.top=w.y+'%'; art.style.width=w.size+'%';
+  plaque.style.left=w.px+'%'; plaque.style.top=w.py+'%'; plaque.style.transform=`translate(-50%,-50%) scale(${w.psize/100})`;
+}
+function enterCenter(w){
+  const rh=room.offsetHeight, target=rh*(w.y/100)-scroller.clientHeight/2;
+  scroller.scrollTo({top:Math.max(0,target), behavior:'smooth'});
+}
+function render(animate){
+  const w=ROOM.works[wi];
+  if(animate){ art.classList.add('fade'); plaque.classList.add('fade'); }
+  const apply=()=>{
+    artImg.src=RAW+w.img; artImg.alt=w.t; ptT.textContent=w.t; ptA.textContent=w.a;
+    place(w); rm.textContent=`방 1 · ${wi+1} / ${ROOM.works.length}`; buildDots();
+    art.classList.remove('fade'); plaque.classList.remove('fade');
+    setTimeout(()=>enterCenter(w),60);
+  };
+  animate ? setTimeout(apply,220) : apply();
+}
+function go(d){ wi=(wi+d+ROOM.works.length)%ROOM.works.length; render(true); }
+document.getElementById('next').onclick=()=>go(1);
+document.getElementById('prev').onclick=()=>go(-1);
+addEventListener('keydown',e=>{ if(e.key==='ArrowRight')go(1); if(e.key==='ArrowLeft')go(-1); });
+
+let sx=0,sy=0,touching=false;
+scroller.addEventListener('touchstart',e=>{ if(e.touches.length===1){touching=true;sx=e.touches[0].clientX;sy=e.touches[0].clientY;}else touching=false; },{passive:true});
+scroller.addEventListener('touchend',e=>{ if(!touching)return; touching=false;
+  const dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;
+  if(Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)*1.5) go(dx<0?1:-1);
+},{passive:true});
+
+render(false);
+addEventListener('load',()=>setTimeout(()=>enterCenter(ROOM.works[wi]),400));
+</script>
+</body>
+</html>
