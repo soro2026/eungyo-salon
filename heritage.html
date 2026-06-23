@@ -1,450 +1,138 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>EG헤리티지 — 경매장과 대여 서가</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover">
+<title>EG헤리티지 — 미술관</title>
 <style>
-/* ══════════════════════════════════════════════════
-   EG HERITAGE v4.0 · Phase 1+ — 살롱 다섯 방 + 음반 가게 아홉 방
-   "희소성은 소장에, 풍요는 길 위에 — 보물은 흐른다"
-   설계도: EG헤리티지_종합설계도_v3_0_0606
-   가독성 원칙: 글자 바닥선 12px · 투명도 0.3대 유령 글씨 폐기 · 웹폰트 실로드
-   ══════════════════════════════════════════════════ */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;500;600;700&display=swap');
+:root{ --amber:#f0d8a8; --gallery-dark:#140a0e; --guide:rgba(240,216,168,.45);
+  --gold:#d4b35e; --gold-l:#ecd08a; --gold-dim:rgba(212,179,94,.7); --gold-faint:rgba(212,179,94,.14);
+  --cream:#f4efe4; --txt-strong:rgba(244,239,228,.97); --txt:rgba(244,239,228,.88); --txt-soft:rgba(244,239,228,.66); }
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--gallery-dark);
+  font-family:'Cormorant Garamond','Noto Serif KR',serif;color:var(--amber);
+  -webkit-tap-highlight-color:transparent;}
+.scroller{position:fixed;inset:0;overflow-y:auto;overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;touch-action:pan-y pinch-zoom;background:var(--gallery-dark);}
+.scroller::-webkit-scrollbar{display:none}
 
-* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+.room{position:relative;left:50%;transform:translateX(-50%);
+  height:115vh;width:calc(115vh * 9 / 16);
+  background:#3a1820 center center / cover no-repeat;transition:opacity .5s ease;}
+@media (min-aspect-ratio:1/1){ .room{width:100vw;height:calc(100vw * 16 / 9);} }
 
-:root {
-  --wine:       #3a2222;   /* 배경 깊은 와인 레드 */
-  --wine-deep:  #2b1818;
-  --oak:        #2c2118;
-  --gold:       #d4b35e;   /* 가독 골드 (구 #c9a84c보다 한 단계 밝게) */
-  --gold-l:     #ecd08a;
-  --gold-dim:   rgba(212,179,94,0.7);   /* 구 0.45 → 0.7 */
-  --gold-faint: rgba(212,179,94,0.14);
-  --cream:      #f4efe4;
-  --txt-strong: rgba(244,239,228,0.97); /* 제목 */
-  --txt:        rgba(244,239,228,0.88); /* 본문 */
-  --txt-soft:   rgba(244,239,228,0.66); /* 보조 — 이 밑으로 내려가지 않음 */
-  --warmgrey:   #c2b49e;
-  --ink:        #221510;   /* 크림 아침 방의 글자색 */
-  /* 베이지 크롬 (무대 바깥 페이지) */
-  --page-top:   #efe6d2;
-  --page-bot:   #e3d6ba;
-  --ink-strong: #2a1d12;
-  --ink-txt:    rgba(42,29,18,0.85);
-  --ink-soft:   rgba(42,29,18,0.62);
-  --gold-deep:  #8e6c1d;   /* 밝은 배경 위의 골드 */
-}
+.art{position:absolute;z-index:3;transform:translate(-50%,-50%);transition:opacity .45s ease;}
+.art img{display:block;width:100%;height:auto;filter:drop-shadow(8px 20px 34px rgba(0,0,0,.82));pointer-events:none;-webkit-user-drag:none;}
+.art.fade{opacity:0}
+.plaque{position:absolute;z-index:4;transform:translate(-50%,-50%);transform-origin:center;
+  padding:6px 18px;background:linear-gradient(180deg,#efe6d0,#d8c9a8);
+  border:1px solid rgba(90,58,24,.55);box-shadow:0 3px 10px rgba(0,0,0,.55);
+  color:#3a2a18;line-height:1.32;text-align:center;white-space:nowrap;transition:opacity .45s ease;}
+.plaque.fade{opacity:0}
+.plaque .pt{font-size:16px;font-weight:600;letter-spacing:.5px;display:block;}
+.plaque .pa{font-size:12px;font-style:italic;opacity:.72;letter-spacing:1px;}
 
-html { height: 100%; }
-body {
-  font-family: 'Noto Serif KR', 'Apple SD Gothic Neo', Georgia, serif;
-  font-size: 16px;
-  background:
-    radial-gradient(ellipse 130% 60% at 50% -10%, rgba(255,250,238,0.7), transparent 60%),
-    linear-gradient(180deg, var(--page-top) 0%, var(--page-bot) 100%);
-  background-attachment: fixed;
-  color: var(--ink-txt);
-  min-height: 100vh;
-  position: relative;
-  -webkit-font-smoothing: antialiased;
-  letter-spacing: 0.01em;
-}
+/* ── 편집 모드 전용 ── */
+body.edit .art{cursor:grab;touch-action:none;transition:none;}
+body.edit .plaque{cursor:grab;touch-action:none;transition:none;}
+body.edit .art.fade,body.edit .plaque.fade{opacity:1;}
+.art .handle,.plaque .handle{position:absolute;right:-9px;bottom:-9px;width:20px;height:20px;border-radius:50%;
+  background:#e9cf9c;border:2px solid #5a3a18;cursor:nwse-resize;display:none;z-index:6;}
+body.edit .art.sel,body.edit .plaque.sel{outline:2px dashed rgba(240,216,168,.85);outline-offset:6px;}
+body.edit .art.sel .handle,body.edit .plaque.sel .handle{display:block;}
 
-/* ── 헤더 ───────────────────────────────── */
-header {
-  position: sticky; top: 0; z-index: 100;
-  padding: 8px 16px 0;
-  background: rgba(239,230,210,0.93);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(142,108,29,0.25);
-  box-shadow: 0 6px 24px rgba(60,42,18,0.12);
-}
-.hd-row { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; }
-.hd-back {
-  background: none; border: 1px solid rgba(42,29,18,0.22);
-  border-radius: 8px; color: var(--ink-soft);
-  width: 32px; height: 32px; font-size: 15px; cursor: pointer;
-  flex-shrink: 0; font-family: inherit; line-height: 1;
-}
-.hd-title { flex: 0 0 auto; display: flex; align-items: baseline; gap: 10px; }
-.hd-eyebrow {
-  font-size: 12px; letter-spacing: 0.22em; color: var(--gold-deep);
-  text-transform: uppercase;
-}
-.hd-name { font-size: 16.5px; color: var(--ink-strong); letter-spacing: 0.05em; font-weight: 600; white-space: nowrap; }
-.hd-name .amp { color: var(--gold-deep); font-style: italic; font-size: 13px; }
-.hd-badge {
-  font-size: 12px; color: rgba(42,29,18,0.5);
-  letter-spacing: 0.08em; text-align: right; line-height: 1.5; flex-shrink: 0;
-}
+.guides{position:fixed;inset:0;z-index:25;pointer-events:none;display:none;}
+body.edit .guides{display:block;}
+.guides .vline{position:absolute;top:0;bottom:0;left:50%;width:1px;
+  background:repeating-linear-gradient(180deg,var(--guide) 0 8px,transparent 8px 16px);transition:background .15s;}
+.guides .hline{position:absolute;left:0;right:0;top:50%;height:1px;
+  background:repeating-linear-gradient(90deg,var(--guide) 0 8px,transparent 8px 16px);transition:background .15s;}
+.guides.snap .vline,.guides.snap .hline{background:rgba(255,235,180,.95);box-shadow:0 0 10px rgba(255,235,180,.6);}
+.guides .safe{position:absolute;left:6%;right:6%;top:50%;transform:translateY(-50%);
+  border:1px dashed rgba(240,216,168,.5);border-radius:2px;}
+.guides .safe::after{content:'진입 화면 · 이 안에 액자';position:absolute;top:4px;left:8px;
+  font-size:10px;letter-spacing:.1em;color:rgba(240,216,168,.6);font-family:system-ui,sans-serif;}
+.guides .center-dot{position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;
+  border-radius:50%;border:1px solid rgba(255,235,180,.8);}
 
-/* ── 주간 리듬 한 줄 ─────────────────────── */
-.rhythm {
-  margin: 6px -16px 0;
-  padding: 5px 16px 7px;
-  border-top: 1px solid rgba(42,29,18,0.1);
-  font-size: 12px; color: var(--ink-soft);
-  letter-spacing: 0.03em; text-align: center; line-height: 1.6;
-}
-.rhythm b { color: var(--gold-deep); font-weight: 600; }
+.hd{position:fixed;top:max(58px,calc(env(safe-area-inset-top) + 48px));left:0;right:0;z-index:30;text-align:center;
+  pointer-events:none;text-shadow:0 2px 16px rgba(0,0,0,.96);}
+.hd .t{font-size:clamp(20px,5vw,26px);letter-spacing:.3em;color:#ecd29c;}
+.hd .s{font-size:clamp(10px,2.6vw,12px);letter-spacing:.28em;color:rgba(240,216,168,.62);margin-top:3px;}
 
-/* ── 메인 3탭 ────────────────────────────── */
-.main-tabs {
-  display: flex; flex: 1 1 auto; min-width: 300px;
-  justify-content: center; gap: 6px;
-  margin: 0;
-}
-.main-tab {
-  flex: 0 1 auto; padding: 7px 13px 8px;
-  background: none; border: none;
-  border-bottom: 2px solid transparent;
-  color: rgba(42,29,18,0.58);
-  font-size: 13.5px; letter-spacing: 0.03em;
-  cursor: pointer; font-family: inherit;
-  transition: color 0.25s, border-color 0.25s;
-}
-.main-tab.active { color: var(--gold-deep); border-bottom-color: var(--gold-deep); font-weight: 600; }
+.foot{position:fixed;bottom:max(16px,calc(env(safe-area-inset-bottom) + 14px));left:0;right:0;z-index:30;text-align:center;}
+.foot .rm{font-size:13px;letter-spacing:.24em;color:#e9cf9c;pointer-events:none;}
+.foot .dots{margin-top:8px;display:flex;gap:7px;justify-content:center;pointer-events:none;}
+.foot .dot{width:7px;height:7px;border-radius:50%;background:rgba(240,216,168,.3);transition:all .3s;}
+.foot .dot.on{background:#e9cf9c;transform:scale(1.3);}
+.rent-btn{margin-top:12px;display:inline-block;padding:9px 22px;border-radius:24px;cursor:pointer;
+  font-family:inherit;font-size:14px;letter-spacing:.04em;border:1px solid rgba(212,184,120,.7);
+  background:linear-gradient(180deg,#caa258,#9c7a3a);color:#1a0f08;font-weight:600;transition:transform .15s,opacity .3s;}
+.rent-btn:active{transform:scale(.95)}
+.rent-btn.have{background:rgba(40,22,18,.55);color:#e9cf9c;border-color:rgba(212,184,120,.4);cursor:default;font-weight:400;backdrop-filter:blur(6px);}
+body.edit .foot{display:none;}
 
-/* ── Salle 네비 ──────────────────────────── */
-.salle-nav {
-  display: flex; gap: 8px;
-  justify-content: center; align-items: center;
-  padding: 16px 16px 0;
-  flex-wrap: wrap;
-}
-.salle-tab {
-  padding: 9px 15px;
-  background: rgba(22,12,9,0.52);
-  backdrop-filter: blur(6px);
-  border: 1px solid rgba(212,179,94,0.22);
-  border-radius: 22px;
-  color: rgba(244,239,228,0.75);
-  font-family: inherit; cursor: pointer;
-  transition: all 0.25s;
-  text-align: center;
-  line-height: 1;
-}
-.salle-tab .num { font-size: 15px; letter-spacing: 0.08em; }
-.salle-tab .nm  { display: none; font-size: 13px; letter-spacing: 0.03em; }
-.salle-tab.active {
-  background: rgba(234,217,174,0.95);
-  border-color: rgba(140,105,40,0.6);
-  color: #5e430c;
-  font-weight: 600;
-  padding: 9px 18px;
-}
-.salle-tab.active .nm { display: inline; margin-left: 7px; }
+.nav{position:fixed;top:50%;transform:translateY(-50%);z-index:30;width:52px;height:52px;border-radius:50%;
+  border:1px solid rgba(212,184,120,.62);background:rgba(40,22,18,.5);color:var(--amber);font-size:26px;cursor:pointer;
+  backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;transition:transform .2s;}
+.nav:active{transform:translateY(-50%) scale(.92)}
+.nav-l{left:12px} .nav-r{right:12px}
+.roomtag{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:45;
+  font-size:clamp(22px,6vw,40px);letter-spacing:.3em;color:#f0d8a8;opacity:0;pointer-events:none;
+  text-shadow:0 2px 30px rgba(0,0,0,.9);transition:opacity .4s;text-align:center;}
+.roomtag.on{opacity:1}
+.roomtag small{display:block;font-size:.4em;letter-spacing:.28em;opacity:.7;margin-top:10px}
 
-/* ── 무대 (Salle 방별 테마) ───────────────── */
-.stage-wrap { padding: 12px 16px 40px; }
-.stage {
-  position: relative;
-  min-height: 60vh;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  padding: 18px 18px 26px;
-  animation: stageIn 0.45s ease;
-}
-@keyframes stageIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 92px);transform:translateX(-50%);z-index:60;
+  background:rgba(20,10,14,.92);border:1px solid rgba(212,184,120,.5);color:#f0d8a8;padding:11px 20px;border-radius:14px;
+  font-size:13.5px;letter-spacing:.02em;opacity:0;pointer-events:none;transition:opacity .3s;max-width:86vw;text-align:center;}
+.toast.on{opacity:1}
+.curtain{position:fixed;inset:0;z-index:80;background:var(--gallery-dark);display:flex;align-items:center;justify-content:center;
+  color:#caa258;letter-spacing:.3em;font-size:15px;transition:opacity .5s;}
+.curtain.gone{opacity:0;pointer-events:none;}
 
-/* ── 풀스크린 무대: 화면 전체가 방 (Ⅳ↔bg05, Ⅴ↔bg04 교차) ──
-   두 레이어 크로스페이드 · 살롱 탭에서만 표시 */
-#salon-backdrop { position: absolute; top: 0; left: 0; right: 0; height: 100%; z-index: -1; transition: opacity 0.4s ease; }
-#salon-backdrop .bd {
-  position: absolute; inset: 0;
-  background-size: cover; background-position: center;
-  background-repeat: no-repeat;
-  opacity: 0; transition: opacity 0.7s ease;
-}
-/* 가로 화면: 무대 전체를 페이지에 펼친다 — 첫 화면은 방 중앙부, 스크롤 끝은 마루 끝 (이미지 비율 1:1.25) */
-@media (min-aspect-ratio: 4/5) {
-  body.mode-salon { min-height: calc((125vw + 100vh) / 2); }
-  #salon-backdrop .bd {
-    background-size: 100% auto;
-    background-position: center min(0px, calc((100vh - 125vw) / 2));
-  }
-}
+/* 상단 세그먼트 메뉴 (미술관 ⇄ 음반) */
+.topbar{position:fixed;top:0;left:0;right:0;z-index:35;display:flex;align-items:center;justify-content:space-between;
+  padding:max(10px,env(safe-area-inset-top)) 16px 10px;pointer-events:none;}
+.topbar .home{pointer-events:auto;width:38px;height:38px;border-radius:50%;border:1px solid rgba(212,184,120,.5);
+  background:rgba(20,10,14,.45);color:var(--amber);font-size:18px;display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(8px);cursor:pointer;text-decoration:none;}
+.topbar .spacer{width:38px;}
+.seg{pointer-events:auto;display:flex;border:1px solid rgba(212,184,120,.45);border-radius:22px;overflow:hidden;
+  background:rgba(20,10,14,.45);backdrop-filter:blur(10px);box-shadow:0 2px 14px rgba(0,0,0,.4);}
+.seg button{font-family:inherit;font-size:13px;letter-spacing:.05em;color:rgba(240,216,168,.62);
+  background:transparent;border:none;padding:8px 18px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.seg button.on{background:linear-gradient(180deg,#e2c382,#caa258);color:#1a0f08;font-weight:600;}
+body.edit .topbar{display:none;}
 
-/* ── 음반 가게: 고정 홀 (16:9 cover · 본문만 그 위로 흐름) ── */
-#record-backdrop {
-  position: fixed; inset: 0; z-index: -1;
-  opacity: 0; transition: opacity 0.4s ease;
-  pointer-events: none;
-}
-#record-backdrop.on { opacity: 1; }
-#record-backdrop .bd {
-  position: absolute; inset: 0;
-  background-size: cover; background-position: center;
-  background-repeat: no-repeat;
-  opacity: 0; transition: opacity 0.7s ease;
-}
+/* 살롱지기 편집 토글 + 편집 패널 */
+.edit-toggle{position:fixed;right:14px;bottom:max(16px,calc(env(safe-area-inset-bottom) + 14px));z-index:55;
+  display:none;font-family:system-ui,sans-serif;font-size:12px;letter-spacing:.04em;color:#e9cf9c;cursor:pointer;
+  background:rgba(40,22,18,.7);border:1px solid rgba(212,184,120,.5);border-radius:18px;padding:8px 14px;backdrop-filter:blur(8px);}
+.edit-panel{position:fixed;left:0;right:0;bottom:0;z-index:56;display:none;
+  background:rgba(20,10,14,.95);border-top:1px solid rgba(212,184,120,.35);
+  padding:9px 14px max(9px,env(safe-area-inset-bottom));backdrop-filter:blur(10px);
+  font-family:system-ui,'Noto Sans KR',sans-serif;}
+body.edit .edit-panel{display:block;}
+body.edit .edit-toggle{background:rgba(120,40,40,.7);}
+.ep-row{display:flex;align-items:center;gap:8px;justify-content:center;flex-wrap:wrap;}
+.ep-row .nm{font-size:12px;color:#e9cf9c;letter-spacing:.04em;min-width:150px;text-align:center;}
+.ep-btn{font-family:inherit;font-size:13px;letter-spacing:.03em;color:#3a2a18;cursor:pointer;
+  background:linear-gradient(180deg,#efe6d0,#d8c9a8);border:1px solid rgba(90,58,24,.5);border-radius:4px;padding:7px 14px;}
+.ep-btn.ghost{background:rgba(60,40,28,.5);color:#e9cf9c;border:1px solid rgba(212,184,120,.5);}
+.ep-btn.gold{background:linear-gradient(180deg,#caa258,#9c7a3a);color:#1a0f08;font-weight:600;}
+.ep-btn:active{transform:scale(.96)}
+.ep-coord{font-size:11px;color:rgba(240,216,168,.72);text-align:center;margin-top:6px;
+  font-variant-numeric:tabular-nums;letter-spacing:.02em;min-height:14px;}
+.ep-tip{font-size:11px;color:rgba(240,216,168,.45);text-align:center;margin-top:4px;letter-spacing:.02em;}
 
-/* LP 재킷 — 1254px 정사각 원본, 슬리브 그림자 */
-.jacket {
-  width: min(76vw, 340px); aspect-ratio: 1 / 1;
-  display: block; cursor: pointer;
-  border-radius: 3px;
-  box-shadow: 0 22px 44px rgba(0,0,0,0.62), 0 5px 12px rgba(0,0,0,0.4);
-  animation: artIn 0.6s ease;
-}
-.rent-line { margin-top: 14px; font-size: 13.5px; letter-spacing: 0.05em; color: var(--gold-l); }
-
-.artwork {
-  max-width: 90%; max-height: 50vh;
-  width: auto; height: auto;
-  display: block;
-  filter: drop-shadow(0 18px 30px rgba(0,0,0,0.6)) drop-shadow(0 4px 8px rgba(0,0,0,0.38));
-  animation: artIn 0.6s ease;
-}
-@keyframes artIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: none; } }
-
-/* 명판(플라크) — 반투명 다크 받침, 모든 방 공통 */
-.plaque {
-  margin-top: 20px;
-  text-align: center;
-  max-width: 380px;
-  background: rgba(22,12,9,0.62);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(212,179,94,0.22);
-  border-radius: 14px;
-  padding: 16px 24px 18px;
-}
-.stage .void-line { color: var(--txt); }
-.stage .void-sub  { color: var(--txt-soft); }
-.stage .void-mark { color: var(--gold-dim); }
-.stage .void { background: rgba(22,12,9,0.55); backdrop-filter: blur(8px); border-radius: 16px; min-height: 38vh; padding: 36px 30px; }
-.plaque-name { font-size: 21px; font-weight: 600; color: var(--txt-strong); letter-spacing: 0.03em; line-height: 1.4; }
-.plaque-artist { font-size: 14px; color: var(--gold-l); font-style: italic; margin-top: 7px; }
-.plaque-meta { font-size: 13px; color: var(--txt-soft); letter-spacing: 0.03em; margin-top: 5px; }
-
-/* ── 제10실 · 아카이브 서랍 (배경은 fixed record-backdrop이 담당) ── */
-.rec-archive { position: relative; padding: 22px 16px 84px; }
-.arch-inner { max-width: 900px; margin: 0 auto; }
-.arch-head {
-  text-align: center; margin: 0 auto 26px; max-width: 480px;
-  background: rgba(22,12,9,0.55); backdrop-filter: blur(6px);
-  border: 1px solid rgba(212,179,94,0.18); border-radius: 14px;
-  padding: 18px 22px;
-}
-.arch-eyebrow { font-size: 11px; letter-spacing: 0.32em; color: var(--gold-dim); margin-bottom: 8px; }
-.arch-title { font-size: 19px; font-weight: 600; color: var(--txt-strong); letter-spacing: 0.04em; }
-.arch-sub { font-size: 12.5px; color: var(--txt-soft); margin-top: 9px; line-height: 1.8; letter-spacing: 0.02em; }
-.arch-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-@media (max-width: 640px) { .arch-grid { grid-template-columns: 1fr; max-width: 380px; margin: 0 auto; } }
-.arch-card {
-  background: rgba(22,12,9,0.62); backdrop-filter: blur(8px);
-  border: 1px solid rgba(212,179,94,0.22); border-radius: 14px;
-  padding: 16px; display: flex; gap: 16px; align-items: center;
-  animation: artIn 0.5s ease;
-}
-.arch-card .a-jacket {
-  width: 96px; height: 96px; flex: 0 0 96px;
-  border-radius: 3px; object-fit: cover; cursor: pointer;
-  box-shadow: 0 10px 22px rgba(0,0,0,0.55), 0 3px 7px rgba(0,0,0,0.4);
-}
-.arch-card .a-body { flex: 1 1 auto; min-width: 0; }
-.arch-card .a-name { font-size: 15px; font-weight: 600; color: var(--txt-strong); letter-spacing: 0.02em; line-height: 1.4; }
-.arch-card .a-artist { font-size: 12.5px; color: var(--gold-l); font-style: italic; margin-top: 5px; }
-.arch-card .a-rent {
-  margin-top: 12px; font-size: 12px; letter-spacing: 0.04em;
-  color: var(--gold-l); background: none; border: 1px solid rgba(212,179,94,0.35);
-  border-radius: 999px; padding: 7px 14px; cursor: pointer; transition: background 0.2s ease;
-}
-.arch-card .a-rent:hover { background: rgba(212,179,94,0.12); }
-.arch-empty {
-  grid-column: 1 / -1; text-align: center; padding: 48px 20px;
-  background: rgba(22,12,9,0.45); border-radius: 16px;
-}
-.arch-empty .e-mark { font-size: 24px; color: var(--gold-deep); margin-bottom: 14px; }
-.arch-empty .e-line { font-size: 14px; color: var(--txt); line-height: 1.9; letter-spacing: 0.02em; }
-.arch-pager { display: flex; justify-content: center; align-items: center; gap: 6px; margin-top: 30px; }
-.arch-pager button {
-  min-width: 34px; height: 34px; padding: 0 10px;
-  background: none; border: 1px solid rgba(212,179,94,0.25); border-radius: 8px;
-  color: var(--txt-soft); font-size: 13px; cursor: pointer; transition: all 0.2s ease;
-}
-.arch-pager button.on { background: rgba(212,179,94,0.16); color: var(--gold-l); border-color: rgba(212,179,94,0.5); }
-.arch-pager button:disabled { opacity: 0.3; cursor: default; }
-
-.love-line {
-  margin-top: 16px;
-  font-size: 13.5px; letter-spacing: 0.04em;
-  color: var(--txt-soft);
-}
-.love-line b { color: var(--gold-l); font-weight: 600; }
-
-/* 카드 버튼 줄 */
-.card-actions {
-  margin-top: 18px;
-  display: flex; gap: 10px;
-  width: 100%; max-width: 340px;
-}
-.btn-layers {
-  flex: 1;
-  padding: 12px 8px;
-  background: rgba(22,12,9,0.6);
-  backdrop-filter: blur(6px);
-  border: 1px solid rgba(244,239,228,0.3);
-  border-radius: 12px;
-  color: var(--txt);
-  font-size: 14px; letter-spacing: 0.04em;
-  cursor: pointer; font-family: inherit;
-}
-.btn-apply {
-  flex: 1.4;
-  padding: 12px 8px;
-  background: linear-gradient(135deg, rgba(201,168,76,0.42), rgba(201,168,76,0.16)), rgba(22,12,9,0.6);
-  backdrop-filter: blur(6px);
-  border: 1px solid rgba(212,179,94,0.6);
-  border-radius: 12px;
-  color: var(--gold-l);
-  font-size: 15px; font-weight: 600; letter-spacing: 0.05em;
-  cursor: pointer; font-family: inherit;
-}
-
-/* ── 우아한 비움 ─────────────────────────── */
-.void {
-  min-height: 50vh;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  text-align: center;
-  padding: 40px 28px;
-  animation: stageIn 0.45s ease;
-}
-.void-mark { font-size: 26px; color: var(--gold-deep); margin-bottom: 18px; }
-.void-line { font-size: 16.5px; color: var(--ink-txt); line-height: 1.9; letter-spacing: 0.03em; }
-.void-sub  { font-size: 13px; color: var(--ink-soft); margin-top: 14px; letter-spacing: 0.04em; line-height: 1.9; }
-
-/* ── 응모 패널 / 모달 공통 ────────────────── */
-@keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-@keyframes flowerIn { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
-
-/* ═══ 헤리티지 타임즈 — 신문의 날 무대 + 마감호 모달 (창간 0615) ═══ */
-.times-stage { position: relative; min-height: 56vh; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 20px; padding: 28px 16px; }
-.times-paper-wrap { position: relative; width: min(78vw, 360px); cursor: pointer; }
-.times-paper { width: 100%; display: block; border-radius: 6px;
-  box-shadow: 0 22px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(212,179,94,.25); }
-.times-paper.fly { animation: tmDeliver 1.55s cubic-bezier(.18,.7,.2,1) both; }
-@keyframes tmDeliver {
-  0%   { transform: translateY(-240%) rotate(-720deg) scale(.08); opacity: 0; }
-  82%  { transform: translateY(0) rotate(6deg) scale(1.04); opacity: 1; }
-  100% { transform: translateY(0) rotate(-1.6deg) scale(1); opacity: 1; }
-}
-.times-stamp { position: absolute; inset: 0; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; transform: rotate(-18deg);
-  pointer-events: none; opacity: 0; }
-.times-stamp.hit { animation: tmStamp .42s cubic-bezier(.2,.9,.25,1) 1.5s both; }
-.times-stamp .ts-a { font-family: 'Cormorant Garamond', serif; font-weight: 700;
-  font-size: clamp(18px,5vw,30px); letter-spacing: .14em; color: #fbf7ef;
-  text-shadow: 0 2px 10px rgba(0,0,0,.6); }
-.times-stamp .ts-v { font-family: 'Cormorant Garamond', serif; font-weight: 700;
-  font-size: clamp(40px,12vw,66px); line-height: .92; color: #fbf7ef;
-  text-shadow: 0 3px 14px rgba(0,0,0,.65); }
-@keyframes tmStamp {
-  0%   { transform: rotate(-18deg) scale(2.7); opacity: 0; }
-  68%  { opacity: .96; }
-  100% { transform: rotate(-18deg) scale(1); opacity: .96; }
-}
-.times-tap { font-size: 13px; letter-spacing: .04em; color: var(--gold-dim);
-  text-align: center; animation: tmTap 1.4s ease 1.8s both; }
-@keyframes tmTap { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-/* 마감호 모달 카드 */
-.tm-masthead { text-align: center; border-bottom: 1.5px double var(--gold-dim);
-  padding-bottom: 14px; margin-bottom: 16px; }
-.tm-title { font-family: 'Cormorant Garamond', serif; font-weight: 700;
-  font-size: clamp(22px,6vw,30px); letter-spacing: .04em; color: var(--gold-l); }
-.tm-sub { font-family: 'Cormorant Garamond', serif; font-style: italic;
-  font-size: 15px; color: var(--gold-dim); margin-top: 2px; }
-.tm-meta { font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase;
-  color: var(--txt-soft); margin-top: 9px; }
-.tm-headline { font-size: 21px; font-weight: 700; line-height: 1.4;
-  color: var(--txt-strong); text-align: center; margin: 6px 0 12px; }
-.tm-lead { font-size: 14px; line-height: 1.7; color: var(--txt-soft); margin-bottom: 24px; }
-.tm-articles { display: flex; flex-direction: column; gap: 20px; }
-.tm-art { display: flex; gap: 14px; align-items: flex-start;
-  padding-bottom: 18px; border-bottom: 1px solid var(--gold-faint); }
-.tm-thumb { width: 84px; height: 84px; object-fit: cover; border-radius: 5px;
-  flex-shrink: 0; box-shadow: 0 6px 18px rgba(0,0,0,.4); }
-.tm-art-body { flex: 1; min-width: 0; }
-.tm-art-tag { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
-  color: var(--gold-dim); margin-bottom: 5px; }
-.tm-kicker { font-size: 15px; font-weight: 700; line-height: 1.45;
-  color: var(--txt-strong); margin-bottom: 5px; }
-.tm-name { font-size: 12.5px; color: var(--gold-l); margin-bottom: 8px; }
-.tm-artist { color: var(--txt-soft); }
-.tm-quote { font-size: 13px; line-height: 1.65; color: var(--txt-soft);
-  border-left: 2px solid var(--gold-dim); padding-left: 10px; margin-bottom: 8px; }
-.tm-qlabel { font-size: 10px; letter-spacing: .1em; color: var(--gold-dim);
-  text-transform: uppercase; margin-right: 4px; }
-.tm-lovers { font-size: 12.5px; color: var(--gold-l); font-style: italic; }
-.tm-preview { font-size: 13.5px; line-height: 1.7; color: var(--txt-soft);
-  text-align: center; margin: 22px 0 14px; padding: 14px;
-  border: 1px solid var(--gold-faint); border-radius: 8px; }
-.tm-bridge { font-size: 13px; line-height: 1.7; color: var(--txt-soft);
-  text-align: center; margin-bottom: 16px; }
-.tm-bridge a { color: var(--gold-l); }
-.tm-footer { font-size: 12.5px; color: var(--gold-dim); text-align: center;
-  font-style: italic; margin-bottom: 18px; }
-/* 결과호 1등 특집 — 큰 액자 + 황동 명패 (콘스텔라티오 명패 이식) */
-.tm-feature { text-align: center; margin: 10px 0 26px; }
-.tm-frame { display: inline-block; max-width: 188px; padding: 9px;
-  background: linear-gradient(135deg, #3a2c14, #1c1408); border: 3px solid #6b5226;
-  border-radius: 4px; box-shadow: 0 16px 42px rgba(0,0,0,.62); position: relative; z-index: 2; }
-.tm-frame img { width: 100%; display: block; border-radius: 2px; }
-.tm-plate { position: relative; width: min(88%, 308px); margin: -6px auto 0; aspect-ratio: 3/1;
-  background: url('constellatio_nametag.webp') center/100% 100% no-repeat; z-index: 1; }
-.tm-plate-text { position: absolute; inset: 0; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; text-align: center; line-height: 1.05; padding: 4% 9%; }
-.tm-pc { font-family: 'Cinzel','Noto Serif KR',serif; font-size: 11px; font-weight: 600;
-  letter-spacing: .08em; color: #2a2317; margin-bottom: .35em; white-space: nowrap; }
-.tm-pn { font-family: 'Noto Serif KR',serif; font-size: 22px; font-weight: 500; color: #2a2317;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.tm-pr { font-family: 'Cinzel','Noto Serif KR',serif; font-size: 11px; font-weight: 500;
-  letter-spacing: .04em; color: #2a2317; margin-top: .35em; white-space: nowrap;
-  overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.tm-feature-intro { font-size: 13.5px; line-height: 1.7; color: var(--txt-soft); margin: 18px 0 10px; }
-.tm-feature-quote { font-size: 15px; line-height: 1.6; color: var(--gold-l); font-style: italic;
-  margin: 10px 0; padding: 0 12px; }
-.tm-feature-tail { font-size: 12.5px; color: var(--txt-soft); }
-.tm-result-section { border-top: 1.5px solid var(--gold-dim); margin-top: 22px; padding-top: 18px; }
-.tm-result-line { font-size: 13px; line-height: 1.65; color: var(--txt-soft);
-  padding: 11px 0; border-bottom: 1px solid var(--gold-faint); }
-.tm-result-line b { color: var(--gold-l); font-weight: 600; }
-.tm-result-nicks { margin-top: 5px; font-size: 12px; color: var(--gold-dim); line-height: 1.7; }
-.tm-result-nicks-label { color: var(--gold-l); font-weight: 600; margin-right: 6px; }
-/* Salle 그림 카드 */
-.tm-result-line { display: flex; gap: 16px; align-items: flex-start;
-  padding: 16px 0; border-bottom: 1px solid var(--gold-faint); }
-.tm-salle-thumb { width: 90px; min-width: 90px; height: 68px;
-  object-fit: cover; border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.35); flex-shrink: 0; }
-.tm-salle-body { flex: 1; min-width: 0; }
-.tm-salle-head { font-size: 13px; margin-bottom: 4px; }
-.tm-salle-head b { color: var(--gold-l); font-weight: 600; margin-right: 6px; }
-.tm-salle-name { color: var(--txt-soft); font-style: italic; }
-.tm-salle-line { font-size: 13px; line-height: 1.65; color: var(--txt-soft); margin-bottom: 3px; }
-.tm-result-nicks { font-size: 12px; color: var(--gold-dim); line-height: 1.7; margin-top: 4px; }
-/* 추첨 버튼 — 소로(lonelywalden) 전용 */
-.tm-draw-bar { display: flex; justify-content: center; padding: 10px 16px 0; }
-.tm-draw-btn { font-family: 'Noto Sans KR','Apple SD Gothic Neo',sans-serif; font-size: 14px;
-  font-weight: 600; color: #1c1408; background: linear-gradient(135deg, var(--gold-l), var(--gold));
-  border: none; border-radius: 10px; padding: 11px 24px; cursor: pointer; letter-spacing: .02em;
-  box-shadow: 0 6px 18px rgba(201,168,76,.35); transition: transform .1s; }
-.tm-draw-btn:active { transform: translateY(1px); }
-.tm-draw-btn:disabled { opacity: .55; cursor: default; }
-
+/* ── 카리의 4겹 모달 (heritage 이식) ── */
+@keyframes overlayIn{ from{opacity:0} to{opacity:1} }
+@keyframes sheetUp{ from{transform:translateY(44px);opacity:0} to{transform:translateY(0);opacity:1} }
 .sheet-overlay {
   position: fixed; inset: 0; z-index: 600;
-  background-color: #1a0e0a;              /* 이미지 미도착·무대 아래 폴백 */
-  background-size: 100% auto;
-  background-position: center top;
-  background-repeat: no-repeat;
-  background-attachment: local;            /* 배경이 내용과 함께 스크롤 */
+  background: rgba(10,6,5,0.42);           /* 검정 → 반투명: 뒤 미술관이 비친다 */
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
   overflow-y: auto;
   scrollbar-width: none;
   animation: overlayIn 0.25s ease;
@@ -454,13 +142,29 @@ header {
   width: 100%; max-width: 480px;
   margin: 14vh auto 0;
   min-height: 86vh;
-  background: #241614;
+  background: rgba(36,22,20,0.97);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   border-radius: 20px 20px 0 0;
   border-top: 1px solid rgba(212,179,94,0.35);
   box-shadow: 0 -16px 70px rgba(0,0,0,0.6);
   padding: 26px 26px 46px;
   animation: sheetUp 0.32s cubic-bezier(0.34,1.56,0.64,1);
 }
+/* 데스크탑: 미술관은 뒤에 두고, 4겹은 우측 한켠 사이드패널로 */
+@media (min-width: 781px){
+  .sheet {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: 432px; max-width: 90vw;
+    margin: 0; min-height: 100vh;
+    border-radius: 22px 0 0 22px;
+    border-top: none; border-left: 1px solid rgba(212,179,94,0.35);
+    box-shadow: -18px 0 80px rgba(0,0,0,0.55);
+    overflow-y: auto; scrollbar-width: none;
+    animation: sheetSlideIn 0.36s cubic-bezier(0.34,1.4,0.64,1);
+  }
+  .sheet::-webkit-scrollbar { display: none; }
+}
+@keyframes sheetSlideIn { from{transform:translateX(64px);opacity:0} to{transform:translateX(0);opacity:1} }
 .sheet-handle {
   width: 36px; height: 4px; border-radius: 2px;
   background: rgba(201,168,76,0.25);
@@ -506,341 +210,311 @@ header {
 }
 .sheet-btn:disabled { opacity: 0.5; cursor: default; }
 
-/* 응모 현황 박스 */
-.stat-row { display: flex; gap: 10px; margin-bottom: 20px; }
-.stat-box {
-  flex: 1;
-  background: rgba(201,168,76,0.07);
-  border: 1px solid rgba(201,168,76,0.15);
-  border-radius: 10px;
-  padding: 13px 8px;
-  text-align: center;
-}
-.stat-num { font-size: 26px; color: var(--gold-l); }
-.stat-num small { font-size: 15px; color: var(--gold-dim); }
-.stat-lbl { font-size: 12px; color: var(--txt-soft); letter-spacing: 0.04em; margin-top: 4px; }
+/* 감상모드: 명패는 누를 수 있다 (4겹) */
+body:not(.edit) .plaque{cursor:pointer;transition:filter .2s;}
+body:not(.edit) .plaque:hover{filter:drop-shadow(0 0 10px rgba(240,216,168,.45));}
 
-.confession {
-  background: rgba(201,168,76,0.05);
-  border: 1px solid rgba(201,168,76,0.12);
-  border-radius: 10px;
-  padding: 12px 14px;
-  margin-bottom: 18px;
-  font-size: 13.5px; color: var(--txt-soft);
-  line-height: 1.9; letter-spacing: 0.02em;
-  text-align: center;
-}
-.confession b { color: var(--gold-l); font-weight: 600; }
-
-.ticket-list-tag { font-size: 12px; letter-spacing: 0.16em; color: var(--gold-dim); margin-bottom: 10px; }
-.ticket-row {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 8px 12px;
-  background: rgba(20,10,8,0.4);
-  border: 1px solid rgba(201,168,76,0.1);
-  border-radius: 6px;
-  margin-bottom: 6px;
-  cursor: pointer;
-  transition: border-color 0.25s ease, background 0.25s ease;
-}
-.ticket-row:hover { border-color: rgba(201,168,76,0.45); background: rgba(30,16,12,0.55); }
-.ticket-go { color: var(--gold-dim); font-size: 14px; margin-left: 6px; }
-.ticket-code { font-family: 'Courier New', monospace; font-size: 13.5px; color: var(--gold-l); letter-spacing: 0.05em; }
-.ticket-date { font-size: 12px; color: var(--txt-soft); }
-
-.notice {
-  font-size: 13.5px; color: rgba(244,239,228,0.72);
-  line-height: 2.0; margin: 18px 0;
-  letter-spacing: 0.02em;
-}
-
-/* 티켓 카드 */
-.ticket-card {
-  background: linear-gradient(135deg, rgba(201,168,76,0.15), rgba(140,100,20,0.1));
-  border: 1px solid rgba(201,168,76,0.4);
-  border-radius: 12px;
-  padding: 26px 22px;
-  margin-bottom: 22px;
-  position: relative; overflow: hidden;
-  text-align: center;
-}
-.ticket-hole { position: absolute; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; background: #241614; border-radius: 50%; border: 1px solid rgba(201,168,76,0.2); }
-.ticket-hole.l { left: -10px; } .ticket-hole.r { right: -10px; }
-.ticket-dash { border-top: 1px dashed rgba(201,168,76,0.2); margin: 16px 0; }
-.ticket-big-code { font-family: 'Courier New', monospace; font-size: 17px; color: var(--gold); letter-spacing: 0.08em; font-weight: bold; word-break: break-all; line-height: 1.6; }
-.ticket-img { width: 100%; display: block; border-radius: 12px; box-shadow: 0 14px 34px rgba(0,0,0,0.45); opacity: 0; transition: opacity 0.6s ease; }
-
-/* 토스트 */
-.toast {
-  position: fixed; bottom: 88px; left: 50%; transform: translateX(-50%);
-  background: rgba(36,22,20,0.96);
-  border: 1px solid rgba(201,168,76,0.3);
-  color: var(--cream);
-  padding: 12px 24px;
-  border-radius: 24px;
-  font-size: 14.5px; letter-spacing: 0.04em;
-  z-index: 800;
-  animation: overlayIn 0.25s ease;
-  white-space: nowrap;
-}
-
-/* ── 탭 ③ 카탈로그 레조네 — 종이와 잉크 ──── */
-.cat-wrap { max-width: 720px; margin: 0 auto; padding: 18px 18px 90px; }
-.cat-nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 22px; }
-.cat-chip {
-  border: 1px solid rgba(42,29,18,0.3); background: transparent;
-  color: var(--ink-txt); font-family: inherit; font-size: 13.5px;
-  padding: 7px 14px; border-radius: 18px; cursor: pointer; letter-spacing: 0.03em;
-}
-.cat-chip.active { background: var(--ink-strong); color: #f2ead8; border-color: var(--ink-strong); }
-.cat-sel {
-  border: 1px solid rgba(42,29,18,0.3); background: transparent; color: var(--ink-txt);
-  font-family: inherit; font-size: 13px; padding: 7px 10px; border-radius: 18px;
-}
-.cat-chapter { margin-bottom: 42px; }
-.cat-chapter-head {
-  font-size: 12px; letter-spacing: 0.26em; text-transform: uppercase;
-  color: var(--gold-deep); border-bottom: 1px solid rgba(42,29,18,0.25);
-  padding-bottom: 8px;
-}
-.cat-week-line { font-size: 13px; color: var(--ink-soft); margin: 8px 0 14px; font-style: italic; }
-.cat-card {
-  display: flex; gap: 16px; padding: 16px 2px;
-  border-bottom: 1px dotted rgba(42,29,18,0.22); cursor: pointer;
-}
-.cat-card:hover { background: rgba(42,29,18,0.04); }
-.cat-thumb {
-  width: 86px; min-width: 86px; max-height: 112px; object-fit: contain; align-self: flex-start;
-  filter: drop-shadow(0 4px 10px rgba(42,29,18,0.28));
-}
-.cat-fig { font-size: 11px; letter-spacing: 0.2em; color: var(--gold-deep); margin-bottom: 3px; }
-.cat-title { font-size: 16.5px; font-weight: 600; color: var(--ink-strong); line-height: 1.4; }
-.cat-artist { font-size: 13px; color: var(--ink-soft); margin: 2px 0 8px; }
-.cat-plaque { font-size: 13.5px; color: var(--ink-txt); font-style: italic; }
-.cat-status { font-size: 12.5px; color: var(--ink-soft); margin-top: 6px; letter-spacing: 0.02em; }
-.cat-rec-row { display: flex; gap: 14px; align-items: center; padding: 12px 2px;
-  border-bottom: 1px dotted rgba(42,29,18,0.22); cursor: pointer; }
-.cat-rec-row:hover { background: rgba(42,29,18,0.04); }
-.cat-rec-thumb { width: 58px; min-width: 58px; height: 58px; object-fit: cover;
-  border-radius: 4px; box-shadow: 0 3px 8px rgba(42,29,18,0.3); }
-/* 작품 무대 막 내부 */
-.catw-img { width: 100%; max-height: 46vh; object-fit: contain; display: block; margin: 4px auto 16px;
-  filter: drop-shadow(0 16px 30px rgba(0,0,0,0.5)); }
-.catw-plaque { text-align: center; font-size: 14px; color: var(--gold); font-style: italic; margin-bottom: 16px; }
-.catw-sec { font-size: 11.5px; letter-spacing: 0.22em; text-transform: uppercase;
-  color: var(--gold-dim); margin: 18px 0 8px; }
-.catw-line { font-size: 13.5px; color: var(--txt); padding: 5px 0;
-  border-bottom: 1px dashed rgba(201,168,76,0.16); line-height: 1.55; }
-.catw-line .dim { color: var(--txt-soft); }
-
-/* ── 타임즈 탭 ── */
-.times-tab-wrap { max-width: 680px; margin: 0 auto; padding: 20px 16px 80px; }
-.times-archive-section { margin-top: 36px; border-top: 1px solid rgba(201,168,76,.25); padding-top: 24px; }
-.times-archive-label { font-size: 11px; letter-spacing: .16em; text-transform: uppercase;
-  color: var(--gold-dim); margin-bottom: 18px; }
-.times-arc-card { background: rgba(255,255,255,.04); border: 1px solid rgba(201,168,76,.2);
-  border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
-.times-arc-wk { font-size: 11px; letter-spacing: .1em; color: var(--gold-dim); margin-bottom: 10px; }
-.times-arc-btns { display: flex; gap: 10px; flex-wrap: wrap; }
-.times-arc-btn { background: rgba(201,168,76,.12); border: 1px solid rgba(201,168,76,.32);
-  border-radius: 6px; color: var(--gold-l); font-size: 12.5px; padding: 6px 14px;
-  cursor: pointer; transition: background .15s; font-family: inherit; }
-.times-arc-btn:hover { background: rgba(201,168,76,.24); }
-.times-arc-btn.result { background: rgba(201,168,76,.06); }
-.times-arc-empty { font-size: 13px; color: var(--txt-soft); text-align: center; padding: 24px 0; }
-
-/* 타임즈 탭 배경 — 헤리티지 어두운 톤 */
-#tab-times {
-  background: linear-gradient(180deg, var(--oak) 0%, var(--wine-deep) 100%);
-  min-height: calc(100vh - 80px);
-  color: var(--txt);
-}
-#tab-times .void-line { color: var(--txt); }
-#tab-times .void-sub  { color: var(--txt-soft); }
-#tab-times .void-mark { color: var(--gold-dim); font-size: 28px; }
-
-@media (min-width: 640px) {
-  .stage-wrap, .salle-nav { max-width: 560px; margin-left: auto; margin-right: auto; }
-}
 </style>
 </head>
-<body class="mode-salon">
-
-<div id="salon-backdrop"><div class="bd" id="bd-a"></div><div class="bd" id="bd-b"></div></div>
-<div id="record-backdrop"><div class="bd" id="rbd-a"></div><div class="bd" id="rbd-b"></div></div>
-
-<header>
-  <div class="hd-row">
-    <button class="hd-back" onclick="goHome()" aria-label="홈으로">←</button>
-    <div class="hd-title">
-      <span class="hd-eyebrow">EG Heritage</span>
-      <span class="hd-name">경매장 <span class="amp">&amp;</span> 대여 서가</span>
-    </div>
-    <nav class="main-tabs" id="main-tabs">
-      <button class="main-tab active" data-tab="salon"   onclick="switchMainTab('salon')">🖼 이번 주 살롱</button>
-      <button class="main-tab"        data-tab="record"  onclick="switchMainTab('record')">📀 음반 가게</button>
-    </nav>
-    <div class="hd-badge">heritage v5.1 · Phase 2+3a+4a<br>음반 대여 창구 개통 — 🍎 1알 · 3주</div>
+<body>
+<div class="topbar">
+  <a class="home" href="/eungyo-salon/" aria-label="홈으로">←</a>
+  <div class="seg">
+    <button class="on">🖼 미술관</button>
+    <button onclick="toast('음반 가게는 본 흡수 때 합류해요 📀')">📀 음반</button>
   </div>
-  <div class="rhythm" id="rhythm-line"></div>
-</header>
+  <div class="spacer"></div>
+</div>
 
-<!-- ── 탭 ① 살롱 ─────────────────────────── -->
-<section id="tab-salon">
-  <nav class="salle-nav" id="salle-nav"></nav>
-  <div class="stage-wrap"><div id="stage-host"></div></div>
-</section>
+<div class="scroller" id="scroller">
+  <div class="room" id="room">
+    <div class="art" id="art"><img id="artImg" src="" alt=""><div class="handle" data-h="art"></div></div>
+    <div class="plaque" id="plaque"><span class="pt" id="ptT"></span><span class="pa" id="ptA"></span><div class="handle" data-h="plaque"></div></div>
+  </div>
+</div>
+<div class="guides" id="guides">
+  <div class="safe" id="safe"></div>
+  <div class="vline"></div><div class="hline"></div><div class="center-dot"></div>
+</div>
 
-<!-- ── 탭 ② 음반 가게 — 아홉 방, 방마다 판 한 장 ── -->
-<section id="tab-record" hidden>
-  <nav class="salle-nav" id="record-nav"></nav>
-  <div class="stage-wrap" id="record-stage-wrap"><div id="record-stage-host"></div></div>
+<div class="hd"><div class="t">GALERIE</div><div class="s" id="sub"></div></div>
+<div class="foot">
+  <div class="rm" id="rm"></div>
+  <div class="dots" id="dots"></div>
+  <button class="rent-btn" id="rentBtn" onclick="rentCurrent()" style="display:none"></button>
+</div>
+<button class="nav nav-l" id="prev">‹</button>
+<button class="nav nav-r" id="next">›</button>
+<div class="roomtag" id="roomtag"></div>
+<div class="toast" id="toast"></div>
+<div class="curtain" id="curtain">불을 켜는 중…</div>
 
-  <!-- ── 제10실 · 아카이브 서랍 (퇴역 음반 · 청음 없이 대여만) ── -->
-  <section id="record-archive" class="rec-archive" hidden>
-    <div class="arch-inner">
-      <div class="arch-head">
-        <div class="arch-eyebrow">SALLE Ⅹ</div>
-        <div class="arch-title">아카이브 서랍</div>
-        <div class="arch-sub">신보 무대에서 세 주를 머문 음반이 이곳으로 내려옵니다.<br>닫히지 않는 문 — 언제든 다시 데려갈 수 있습니다.</div>
-      </div>
-      <div id="archive-grid" class="arch-grid"></div>
-      <div id="archive-pager" class="arch-pager"></div>
-    </div>
-  </section>
-</section>
-
-<!-- 카탈로그·타임즈 탭 철거됨 (추첨 구조 폐기 · 0623) -->
+<!-- 살롱지기 전용 -->
+<div class="edit-toggle" id="editToggle" onclick="toggleEdit()">✎ 편집</div>
+<div class="edit-panel" id="editPanel">
+  <div class="ep-row">
+    <button class="ep-btn ghost" onclick="go(-1)">‹ 이전</button>
+    <span class="nm" id="epNm"></span>
+    <button class="ep-btn ghost" onclick="go(1)">다음 ›</button>
+    <button class="ep-btn gold" onclick="saveLayout()">이 자리에 걸기</button>
+  </div>
+  <div class="ep-coord" id="epCoord"></div>
+  <div class="ep-tip">그림·명패 클릭 선택 → 드래그 이동 · 휠/핸들 크기 · 중앙 십자에 맞추면 진입 때 정중앙</div>
+</div>
 
 <script>
-/* ══════════════════════════════════════════════════
-   EG HERITAGE v5.1 · Phase 2+3a+4a — 살롱 + 음반 가게(대여 창구) + 카탈로그 레조네
-   ══════════════════════════════════════════════════ */
+// ── 환경 ──────────────────────────────────
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const RAW = 'https://raw.githubusercontent.com/soro2026/eungyo-salon/main/';
+const SORO_UID = '81ac3dfa-0d44-4ab9-84bf-d630321b0bad';
 
-// ── Supabase 설정 ─────────────────────────
-const SUPABASE_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const BGS = ['gallery_bg_02.webp','gallery_bg_03.webp','gallery_bg_04.webp'];
+const ROOM_META = [
+  { tag:'SALA ROSSA',    tagk:'진홍의 방' },
+  { tag:'SALA VERDE',    tagk:'숲의 방' },
+  { tag:'SALA NOTTURNA', tagk:'한밤의 방' },
+];
+const FALLBACK = {
+  portrait:  { x:50, y:42, size:30, px:50, py:56, psize:100 },
+  landscape: { x:50, y:46, size:46, px:50, py:59, psize:100 },
+};
 
-// ── 토큰 수명 관리 (0607 낮 수술) ──────────
-// 증상: 로그인 1시간 뒤 access_token 만료 → 만료 토큰으로 요청 → 전부 401 → 살롱·가게가 텅 빔.
-// 처방: 만료 임박이면 refresh_token으로 조용히 갱신, 갱신 불가면 익명 키 폴백(공개 읽기는 계속 산다).
-let _refreshing = null; // 동시 요청 단일화 — 갱신은 한 번만
-
-function getSession() {
-  try { return JSON.parse(localStorage.getItem('eungyo-auth')); }
-  catch { return null; }
-}
-
-function tokenExp(tok) { // JWT 만료 시각(초) — 저장 형태와 무관하게 토큰 자체에서 읽음
-  try { return JSON.parse(atob(tok.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).exp || 0; }
-  catch { return 0; }
-}
-
-async function getValidToken() {
-  const s = getSession();
-  if (!s?.access_token) return null;
-  const now = Math.floor(Date.now() / 1000);
-  if (tokenExp(s.access_token) - now > 60) return s.access_token; // 아직 신선
-  if (!s.refresh_token) return null;
-  _refreshing = _refreshing || (async () => {
-    try {
-      const r = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', {
-        method: 'POST',
-        headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: s.refresh_token })
-      });
-      if (!r.ok) return null;
-      const data = await r.json();
-      if (!data.expires_at) data.expires_at = Math.floor(Date.now() / 1000) + (data.expires_in || 3600);
-      localStorage.setItem('eungyo-auth', JSON.stringify(data)); // supabase-js 세션 형태 그대로
-      return data.access_token || null;
-    } catch (e) { return null; }
-  })();
-  const tok = await _refreshing;
-  _refreshing = null;
-  return tok;
-}
-
-async function sbFetch(path, options = {}) {
-  const token = await getValidToken();
-  const res = await fetch(SUPABASE_URL + path, {
+// ── 세션 / DB ─────────────────────────────
+function getSession(){ try{ return JSON.parse(localStorage.getItem('eungyo-auth')); }catch{ return null; } }
+function getUser(){ return getSession()?.user || null; }
+function getToken(){ return getSession()?.access_token || null; }
+async function sbFetch(path, options={}){
+  const token = getToken();
+  const res = await fetch(SUPA_URL + path, {
     ...options,
-    headers: {
-      'apikey': SUPABASE_KEY,
-      'Authorization': 'Bearer ' + (token || SUPABASE_KEY),
-      'Content-Type': 'application/json',
-      'Prefer': 'return=representation',
-      ...options.headers
-    }
+    headers:{ 'apikey':SUPA_KEY, 'Authorization':'Bearer '+(token||SUPA_KEY),
+      'Content-Type':'application/json', 'Prefer':'return=representation', ...options.headers }
   });
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message || res.statusText); }
-  return res.status === 204 ? null : res.json();
-}
-function getUser() {
-  try { const s = JSON.parse(localStorage.getItem('eungyo-auth')); return s?.user || null; }
-  catch { return null; }
+  if(!res.ok){ const e=await res.json().catch(()=>({})); throw new Error(e.message||res.statusText); }
+  return res.status===204 ? null : res.json();
 }
 
-// ISO 주차 (DB 함수 TO_CHAR IYYY-"W"IW 와 정합)
-function getWkId(d = new Date()) {
-  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  const dayNum = date.getUTCDay() || 7;
-  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  const wk = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
-  return `${date.getUTCFullYear()}-W${String(wk).padStart(2, '0')}`;
+// ── 상태 ──────────────────────────────────
+let ROOMS=[], ri=0, wi=0;
+let MY_RENTS = new Set();
+let editMode=false, sel='art';
+const isSalonKeeper = ()=> getUser()?.id === SORO_UID;
+
+// ── 데이터 로드 (wk_id 역순 = 방) ──
+async function loadGalerie(){
+  // 지연 개봉: 개봉 시각이 지난 다음 보물이 있으면 이 진입이 방아쇠가 되어 펼쳐진다 (멱등)
+  try { await sbFetch('/rest/v1/rpc/open_due_treasures', { method:'POST', body:'{}' }); }
+  catch(e){ /* 개봉 실패는 조용히 — 기존 active 보물 표시는 계속 */ }
+  const items = await sbFetch('/rest/v1/heritage_items?category=eq.visual&status=eq.active'
+    + '&select=id,name,artist,img,ratio,wk_id,salle_no,art_layout,layers,curation_links'
+    + '&order=wk_id.desc,salle_no.asc') || [];
+  const byWk={}, order=[];
+  for(const it of items){ if(!byWk[it.wk_id]){ byWk[it.wk_id]=[]; order.push(it.wk_id); } byWk[it.wk_id].push(it); }
+  ROOMS = order.map((wk, idx)=>({
+    wk, bg: BGS[idx % BGS.length],
+    tag:  ROOM_META[idx % ROOM_META.length].tag,
+    tagk: ROOM_META[idx % ROOM_META.length].tagk,
+    sub:  `ÉTAGE ${idx+1} · ${ROOM_META[idx % ROOM_META.length].tag} · ${ROOM_META[idx % ROOM_META.length].tagk}`,
+    works: byWk[wk].map(it=>{
+      const lay = (it.art_layout && Object.keys(it.art_layout).length)
+        ? it.art_layout : FALLBACK[it.ratio==='landscape'?'landscape':'portrait'];
+      return { id:it.id, img:it.img, t:it.name, a:it.artist,
+        x:lay.x, y:lay.y, size:lay.size, px:lay.px, py:lay.py, psize:lay.psize,
+        layers:it.layers||null, curation_links:it.curation_links||null };
+    })
+  }));
+}
+async function loadMyRents(){
+  const user=getUser(); if(!user){ MY_RENTS=new Set(); return; }
+  try{
+    const rows = await sbFetch(`/rest/v1/heritage_rentals?user_id=eq.${user.id}&returned_at=is.null&select=item_id`) || [];
+    MY_RENTS = new Set(rows.map(r=>r.item_id));
+  }catch(e){ MY_RENTS=new Set(); }
 }
 
-// ── 상태 ─────────────────────────────────
-let SALON_ITEMS = [];        // 이번 주 그림 5점 (salle_no 순)
-let LOVE_COUNTS = {};        // item_id → 이번 주 응모한 '사람' 수
-let currentSalle = 1;
+// ── DOM ───────────────────────────────────
+const room=document.getElementById('room'),art=document.getElementById('art'),plaque=document.getElementById('plaque');
+const artImg=document.getElementById('artImg'),ptT=document.getElementById('ptT'),ptA=document.getElementById('ptA');
+const rm=document.getElementById('rm'),sub=document.getElementById('sub'),dots=document.getElementById('dots');
+const scroller=document.getElementById('scroller'),roomtag=document.getElementById('roomtag'),rentBtn=document.getElementById('rentBtn');
+const guides=document.getElementById('guides'),safe=document.getElementById('safe');
+const epNm=document.getElementById('epNm'),epCoord=document.getElementById('epCoord');
 
-const SALLE_NAMES = {
-  1: '와인 다마스크', 2: '진녹 서재', 3: '프러시안 궁전',
-  4: '크림 아침', 5: '렘브란트 명암'
-};
-// 무대 파일 매핑 (Ⅳ↔bg05, Ⅴ↔bg04 교차 — 밝기 실측 확정)
-const SALLE_BG = { 1:'concerthall_bg01.webp', 2:'concerthall_bg02.webp', 3:'concerthall_bg03.webp', 4:'concerthall_bg05.webp', 5:'concerthall_bg04.webp' };
-// 세부 막 배경: 현재 방의 무대를 좌우 여백에 은은히
-function salleBackdrop() {
-  const f = SALLE_BG[currentSalle];
-  return f ? `background-image:url('${f}');` : '';
+function curW(){ return ROOMS[ri].works[wi]; }
+
+// ── 렌더 ──────────────────────────────────
+function setBg(){ room.style.backgroundImage=`url(${RAW}${ROOMS[ri].bg})`; sub.textContent=ROOMS[ri].sub; }
+function buildDots(){ dots.innerHTML=''; ROOMS[ri].works.forEach((_,i)=>{
+  const d=document.createElement('span'); d.className='dot'+(i===wi?' on':''); dots.appendChild(d); }); }
+function place(w){ art.style.left=w.x+'%';art.style.top=w.y+'%';art.style.width=w.size+'%';
+  plaque.style.left=w.px+'%';plaque.style.top=w.py+'%';plaque.style.transform=`translate(-50%,-50%) scale(${w.psize/100})`; }
+// 진입 시 작품을 화면 중앙보다 ENTER_OFFSET 만큼 아래로 (상단 세그먼트·타이틀 회피)
+const ENTER_OFFSET = 62;
+function enterCenter(w){ const rh=room.offsetHeight,target=rh*(w.y/100)-scroller.clientHeight/2 - ENTER_OFFSET;
+  scroller.scrollTo({top:Math.max(0,target),behavior:'smooth'}); }
+function renderRentBtn(){
+  const w=curW();
+  rentBtn.style.display='inline-block';
+  if(MY_RENTS.has(w.id)){ rentBtn.className='rent-btn have'; rentBtn.textContent='내 분더카머에 있습니다 ✦'; }
+  else { rentBtn.className='rent-btn'; rentBtn.textContent='이 작품을 내 분더카머로 — 🍎 1알'; }
 }
-// 풀스크린 무대 크로스페이드
-let bdFlip = false;
-function setBackdrop(salle) {
-  const f = SALLE_BG[salle];
-  const a = document.getElementById('bd-a'), b = document.getElementById('bd-b');
-  if (!f || !a || !b) return;
-  const showEl = bdFlip ? a : b;
-  const hideEl = bdFlip ? b : a;
-  showEl.style.backgroundImage = `url('${f}')`;
-  showEl.style.opacity = '1';
-  hideEl.style.opacity = '0';
-  bdFlip = !bdFlip;
+function render(animate){
+  const w=curW();
+  if(animate && !editMode){art.classList.add('fade');plaque.classList.add('fade');}
+  const apply=()=>{ artImg.src=w.img;artImg.alt=w.t;ptT.textContent=w.t;ptA.textContent=w.a;
+    place(w);rm.textContent=`방 ${ri+1} · ${wi+1} / ${ROOMS[ri].works.length}`;buildDots();renderRentBtn();
+    art.classList.remove('fade');plaque.classList.remove('fade');
+    if(editMode){ selectEl(sel); updateEditInfo(); }
+    setTimeout(()=>enterCenter(w),60); };
+  (animate && !editMode)?setTimeout(apply,220):apply();
 }
-const ROMAN = { 1:'Ⅰ', 2:'Ⅱ', 3:'Ⅲ', 4:'Ⅳ', 5:'Ⅴ' };
+function showRoomTag(){ roomtag.innerHTML=`${ROOMS[ri].tag}<small>${ROOMS[ri].tagk}</small>`;
+  roomtag.classList.add('on'); setTimeout(()=>roomtag.classList.remove('on'),1100); }
+function go(d){
+  const n=ROOMS[ri].works.length; wi+=d;
+  if(wi>=n||wi<0){
+    if(wi>=n){ri=(ri+1)%ROOMS.length;wi=0;}else{ri=(ri-1+ROOMS.length)%ROOMS.length;wi=ROOMS[ri].works.length-1;}
+    if(editMode){ setBg(); render(false); return; }
+    room.style.opacity=0;
+    setTimeout(()=>{ setBg();room.style.opacity=1;showRoomTag();render(false); },320);
+    return;
+  }
+  render(editMode?false:true);
+}
 
-/* ── 음반 가게: 아홉 방 — 황금(Ⅰ~Ⅲ)→나무(Ⅳ~Ⅵ)→밤(Ⅶ~Ⅸ), 0607 밝기 실측 배정 ── */
-const ROMAN9 = { 1:'Ⅰ', 2:'Ⅱ', 3:'Ⅲ', 4:'Ⅳ', 5:'Ⅴ', 6:'Ⅵ', 7:'Ⅶ', 8:'Ⅷ', 9:'Ⅸ', 10:'Ⅹ' };
-const ROOM_NAMES = {
-  1: '무지크페어아인 황금홀', 2: '샹들리에 대향연', 3: '취리히 톤할레',
-  4: '시드니 오페라하우스',   5: '모던 콘서트홀',   6: '동양 목조홀',
-  7: '파리의 푸른 밤',        8: '엘프필하모니',    9: '빈 객석, 빛 한 줄기',
-  10: '아카이브 서랍'
-};
-const ROOM_BG = {
-  1: 'concerthall_bg_01.webp', 2: 'concerthall_bg_06.webp', 3: 'concerthall_bg_04.webp',
-  4: 'concerthall_bg_05.webp', 5: 'concerthall_bg_02.webp', 6: 'concerthall_bg_09.webp',
-  7: 'concerthall_bg_07.webp', 8: 'concerthall_bg_08.webp', 9: 'concerthall_bg_03.webp',
-  10: 'concerthall_bg_10.webp'
-};
-let RECORD_ITEMS = [];   // 이번 주 신보 (salle_no = 방 번호 1~9)
-let currentRoom = 1;
-let rbFlip = false;
+// ── 대여 (rent_item RPC) ──────────────────
+let toastT;
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('on');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),2600); }
+async function rentCurrent(){
+  const user=getUser();
+  if(!user){ toast('입장 후 빌릴 수 있습니다'); return; }
+  const w=curW();
+  if(MY_RENTS.has(w.id)){ return; }
+  const nick = localStorage.getItem('eg_nickname') || user.email?.split('@')[0] || '익명';
+  rentBtn.style.opacity='.5';
+  try{
+    const r = await sbFetch('/rest/v1/rpc/rent_item',{ method:'POST',
+      body:JSON.stringify({ p_item_id:w.id, p_user_id:user.id, p_nickname:nick }) });
+    MY_RENTS.add(w.id);
+    renderRentBtn();
+    toast(`작품이 분더카머로 떠납니다 — 🍎 1알 (미술 ${r.slots_used}/${r.cap}칸)`);
+  }catch(e){ toast(e.message||'대여하지 못했습니다'); }
+  finally{ rentBtn.style.opacity='1'; }
+}
 
-// 4겹 라벨 (layers 신형식 도착 전, library 폴백 공용)
+// ════════ 편집 모드 (살롱지기 전용) ════════
+function toggleEdit(){
+  editMode=!editMode;
+  document.body.classList.toggle('edit', editMode);
+  document.getElementById('editToggle').textContent = editMode ? '✓ 편집 끝' : '✎ 편집';
+  if(editMode){ layoutSafe(); sel='art'; render(false); }
+  else { room.style.opacity=1; render(false); }
+}
+function selectEl(which){ sel=which;
+  art.classList.toggle('sel', which==='art'); plaque.classList.toggle('sel', which==='plaque'); }
+function updateEditInfo(){ const w=curW();
+  epNm.textContent=`방 ${ri+1} · ${wi+1}/${ROOMS[ri].works.length} · ${w.t}`;
+  epCoord.textContent=`x:${w.x} y:${w.y} size:${w.size} · 명패 px:${w.px} py:${w.py} ps:${w.psize}`; }
+function placeCur(){ place(curW()); updateEditInfo(); snapCheck(); }
+
+function layoutSafe(){ safe.style.height = (scroller.clientHeight*0.92)+'px'; }
+addEventListener('resize',()=>{ if(editMode) layoutSafe(); });
+function snapCheck(){ if(!editMode)return; const rh=room.offsetHeight, w=curW();
+  const artScreenY = rh*(w.y/100) - scroller.scrollTop, cx = rh*(w.x/100);
+  const near = Math.abs(artScreenY - scroller.clientHeight/2)<14 && Math.abs(cx - scroller.clientWidth/2)<14;
+  guides.classList.toggle('snap',near); }
+scroller.addEventListener('scroll',snapCheck,{passive:true});
+
+// 선택
+art.addEventListener('mousedown',e=>{ if(editMode && !e.target.dataset.h) selectEl('art'); });
+plaque.addEventListener('mousedown',e=>{ if(editMode && !e.target.dataset.h) selectEl('plaque'); });
+plaque.addEventListener('click',e=>{ if(!editMode && !e.target.dataset.h) openArtLayers(curW()); });
+art.addEventListener('touchstart',e=>{ if(editMode && !e.target.dataset.h) selectEl('art'); },{passive:true});
+plaque.addEventListener('touchstart',e=>{ if(editMode && !e.target.dataset.h) selectEl('plaque'); },{passive:true});
+
+// 드래그 이동
+function dragMove(el,key){
+  let drag=false,sx,sy,bx,by;
+  const start=(cx,cy)=>{ if(!editMode)return; drag=true;sx=cx;sy=cy; const w=curW();
+    bx=key==='art'?w.x:w.px; by=key==='art'?w.y:w.py; el.style.cursor='grabbing'; };
+  const move=(cx,cy)=>{ if(!drag)return; const rw=room.offsetWidth,rh=room.offsetHeight, w=curW();
+    const nx=bx+((cx-sx)/rw)*100, ny=by+((cy-sy)/rh)*100;
+    if(key==='art'){ w.x=+nx.toFixed(1); w.y=+ny.toFixed(1); } else { w.px=+nx.toFixed(1); w.py=+ny.toFixed(1); }
+    placeCur(); };
+  const end=()=>{ drag=false; el.style.cursor='grab'; };
+  el.addEventListener('mousedown',e=>{ if(!editMode||e.target.dataset.h)return; e.preventDefault(); start(e.clientX,e.clientY);
+    const mm=ev=>move(ev.clientX,ev.clientY),mu=()=>{end();removeEventListener('mousemove',mm);removeEventListener('mouseup',mu);};
+    addEventListener('mousemove',mm);addEventListener('mouseup',mu); });
+  el.addEventListener('touchstart',e=>{ if(!editMode||e.target.dataset.h)return; const t=e.touches[0]; start(t.clientX,t.clientY); },{passive:true});
+  el.addEventListener('touchmove',e=>{ if(!drag)return; e.preventDefault(); const t=e.touches[0]; move(t.clientX,t.clientY); },{passive:false});
+  el.addEventListener('touchend',end);
+}
+dragMove(art,'art'); dragMove(plaque,'plaque');
+
+// 휠 크기
+function wheelSize(el,fn){ el.addEventListener('wheel',e=>{ if(!editMode)return; e.preventDefault(); fn(e.deltaY<0?1:-1); placeCur(); },{passive:false}); }
+wheelSize(art,d=>{ const w=curW(); w.size=Math.max(8,Math.min(90,+(w.size+d*1.2).toFixed(1))); });
+wheelSize(plaque,d=>{ const w=curW(); w.psize=Math.max(50,Math.min(200,w.psize+d*4)); });
+
+// 핸들 크기
+function handleResize(el,key){
+  const h=el.querySelector('.handle');
+  const start=(cx)=>{ const w=curW(), base=key==='art'?w.size:w.psize, sx0=cx;
+    return (nx)=>{ const d=(nx-sx0)/4;
+      if(key==='art') w.size=Math.max(8,Math.min(90,+(base+d).toFixed(1)));
+      else w.psize=Math.max(50,Math.min(200,base+d*1.5)); placeCur(); }; };
+  h.addEventListener('mousedown',e=>{ if(!editMode)return; e.preventDefault();e.stopPropagation(); const mv=start(e.clientX);
+    const mm=ev=>mv(ev.clientX),mu=()=>{removeEventListener('mousemove',mm);removeEventListener('mouseup',mu);};
+    addEventListener('mousemove',mm);addEventListener('mouseup',mu); });
+  h.addEventListener('touchstart',e=>{ if(!editMode)return; e.stopPropagation(); const mv=start(e.touches[0].clientX);
+    const tm=ev=>{ev.preventDefault();mv(ev.touches[0].clientX);},tu=()=>{removeEventListener('touchmove',tm);removeEventListener('touchend',tu);};
+    addEventListener('touchmove',tm,{passive:false});addEventListener('touchend',tu); },{passive:true});
+}
+handleResize(art,'art'); handleResize(plaque,'plaque');
+
+// 저장 — art_layout 즉시 DB 기록 (복사 아님)
+async function saveLayout(){
+  const w=curW();
+  const layout={ x:w.x, y:w.y, size:w.size, px:w.px, py:w.py, psize:w.psize };
+  try{
+    await sbFetch(`/rest/v1/heritage_items?id=eq.${w.id}`,{
+      method:'PATCH', headers:{ 'Prefer':'return=minimal' },
+      body:JSON.stringify({ art_layout:layout }) });
+    toast(`${w.t} — 이 자리에 걸렸습니다 ✦`);
+  }catch(e){ toast('저장 실패: '+(e.message||'')); }
+}
+
+// ── 입력 (감상 모드: 스와이프·화살표) ──────
+document.getElementById('next').onclick=()=>go(1);
+document.getElementById('prev').onclick=()=>go(-1);
+addEventListener('keydown',e=>{ if(e.key==='ArrowRight')go(1); if(e.key==='ArrowLeft')go(-1); });
+let sx=0,sy=0,touching=false;
+scroller.addEventListener('touchstart',e=>{ if(editMode){touching=false;return;}
+  if(e.touches.length===1){touching=true;sx=e.touches[0].clientX;sy=e.touches[0].clientY;}else touching=false; },{passive:true});
+scroller.addEventListener('touchend',e=>{ if(!touching||editMode)return;touching=false;
+  const dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;
+  if(Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)*1.5) go(dx<0?1:-1); },{passive:true});
+
+// ── 부팅 ──────────────────────────────────
+(async function boot(){
+  try{
+    await loadGalerie();
+    await loadMyRents();
+  }catch(e){ document.getElementById('curtain').textContent='불러오기 실패: '+e.message; return; }
+  const curtain=document.getElementById('curtain');
+  if(!ROOMS.length){ curtain.textContent='열린 작품이 없습니다.'; return; }
+  setBg(); render(false); showRoomTag();
+  if(isSalonKeeper()) document.getElementById('editToggle').style.display='block';
+  curtain.classList.add('gone');
+  addEventListener('load',()=>setTimeout(()=>enterCenter(curW()),400));
+})();
+
+// ══════════════════════════════════════════════════
+//  카리의 4겹 — 명패 클릭 시 작품 해설 모달 (heritage 이식)
+// ══════════════════════════════════════════════════
+function escapeHtml(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 const LAYER_LABELS = {
   knowledge:  '첫 번째 겹 · 앎',
   thought:    '두 번째 겹 · 사유',
@@ -849,1237 +523,6 @@ const LAYER_LABELS = {
   scene:      '장면'
 };
 
-// ── 데이터 로드 ───────────────────────────
-async function loadSalon() {
-  // 지연 개봉: 개봉 시각이 지난 다음 보물이 있으면 이 진입이 방아쇠가 되어 펼쳐진다 (멱등)
-  try { await sbFetch('/rest/v1/rpc/open_due_treasures', { method: 'POST', body: '{}' }); }
-  catch (e) { /* 개봉 실패는 조용히 — 기존 active 보물 표시는 계속 */ }
-  try {
-    SALON_ITEMS = await sbFetch(
-      `/rest/v1/heritage_items?status=eq.active&category=eq.visual&select=*&order=salle_no.asc`
-    ) || [];
-  } catch (e) { console.warn('살롱 로드 실패:', e); SALON_ITEMS = []; }
-
-  // 응모 현황: 사람 풀 — 작품별 DISTINCT 응모자 수 (RLS 우회 RPC)
-  LOVE_COUNTS = {};
-  if (SALON_ITEMS.length) {
-    try {
-      const ids = SALON_ITEMS.map(i => i.id);
-      const rows = await sbFetch('/rest/v1/rpc/get_heritage_lovers_bulk', {
-        method: 'POST',
-        body: JSON.stringify({ p_item_ids: ids })
-      }) || [];
-      for (const r of rows) LOVE_COUNTS[r.item_id] = r.lovers;
-    } catch (e) { console.warn('응모 현황 로드 실패:', e); }
-  }
-}
-
-// ── 음반 가게: 데이터 로드 ────────────────
-async function loadRecords() {
-  try {
-    RECORD_ITEMS = await sbFetch(
-      `/rest/v1/heritage_items?status=eq.active&category=eq.record&select=*&order=salle_no.asc`
-    ) || [];
-  } catch (e) { console.warn('음반 가게 로드 실패:', e); RECORD_ITEMS = []; }
-
-  // ── 방식 B — 음반은 가만, 시간만 흐른다 ──
-  // 나이(주) = floor((지금 − 개봉 화요일 0시) / 7일)
-  // 실제 홀 = 나이 × 3 + 슬롯(salle_no 1~3)  →  나이 0→홀 1~3, 1→4~6, 2→7~9
-  const now = Date.now();
-  RECORD_ITEMS.forEach(it => {
-    const opened = it.open_at ? new Date(it.open_at).getTime() : now;
-    const age = Math.max(0, Math.floor((now - opened) / (7 * 86400000)));
-    it.hall = age * 3 + (it.salle_no || 1);
-  });
-}
-
-// ── 제10실 · 아카이브 서랍 (퇴역 shelf 음반) ──
-let ARCHIVE_RECORDS = [];   // 퇴역 음반 전체 (최신 퇴역이 위 — open_at 늦은 순)
-let ARCHIVE_PAGE = 0;
-const ARCHIVE_PER = 6;      // 한 페이지 6장 (노트북 2열 × 3행)
-
-async function loadArchive() {
-  try {
-    ARCHIVE_RECORDS = await sbFetch(
-      `/rest/v1/heritage_items?status=eq.shelf&category=eq.record&select=*&order=open_at.desc`
-    ) || [];
-  } catch (e) { console.warn('아카이브 로드 실패:', e); ARCHIVE_RECORDS = []; }
-  ARCHIVE_PAGE = 0;
-  renderArchive();
-}
-
-function renderArchive() {
-  const grid = document.getElementById('archive-grid');
-  const pager = document.getElementById('archive-pager');
-  if (!grid) return;
-
-  if (!ARCHIVE_RECORDS.length) {
-    grid.innerHTML = `
-      <div class="arch-empty">
-        <div class="e-mark">📀</div>
-        <div class="e-line">아직 떠난 음반이 없습니다.<br>신보가 세 주를 머문 뒤, 이 서랍으로 내려옵니다.</div>
-      </div>`;
-    if (pager) pager.innerHTML = '';
-    return;
-  }
-
-  const pages = Math.ceil(ARCHIVE_RECORDS.length / ARCHIVE_PER);
-  if (ARCHIVE_PAGE >= pages) ARCHIVE_PAGE = pages - 1;
-  const start = ARCHIVE_PAGE * ARCHIVE_PER;
-  const slice = ARCHIVE_RECORDS.slice(start, start + ARCHIVE_PER);
-
-  grid.innerHTML = slice.map(it => `
-    <div class="arch-card">
-      <img class="a-jacket" src="${it.img}" alt="${escapeHtml(it.name)}"
-           onclick="openRent('${it.id}')" onerror="this.style.visibility='hidden'">
-      <div class="a-body">
-        <div class="a-name">${escapeHtml(it.name)}</div>
-        <div class="a-artist">${escapeHtml(it.artist)}</div>
-        <button class="a-rent" onclick="openRent('${it.id}')">🍎 이 판을 집으로 · 1알 · 3주</button>
-      </div>
-    </div>`).join('');
-
-  if (!pager) return;
-  if (pages <= 1) { pager.innerHTML = ''; return; }
-  let html = `<button onclick="archGo(${ARCHIVE_PAGE - 1})" ${ARCHIVE_PAGE === 0 ? 'disabled' : ''}>‹</button>`;
-  for (let p = 0; p < pages; p++) {
-    html += `<button class="${p === ARCHIVE_PAGE ? 'on' : ''}" onclick="archGo(${p})">${p + 1}</button>`;
-  }
-  html += `<button onclick="archGo(${ARCHIVE_PAGE + 1})" ${ARCHIVE_PAGE === pages - 1 ? 'disabled' : ''}>›</button>`;
-  pager.innerHTML = html;
-}
-
-function archGo(p) {
-  const pages = Math.ceil(ARCHIVE_RECORDS.length / ARCHIVE_PER);
-  if (p < 0 || p >= pages) return;
-  ARCHIVE_PAGE = p;
-  renderArchive();
-  const el = document.getElementById('record-archive');
-  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-// ── 음반 가게: 방 네비 (아홉 칩) ──────────
-function renderRecordNav() {
-  const host = document.getElementById('record-nav');
-  host.innerHTML = [1,2,3,4,5,6,7,8,9,10].map(n => `
-    <button class="salle-tab${n === 10 ? ' arch-tab' : ''}${n === currentRoom ? ' active' : ''}" data-room="${n}" onclick="switchRoom(${n})">
-      <span class="num">${ROMAN9[n]}</span>
-      <span class="nm">${ROOM_NAMES[n]}</span>
-    </button>`).join('');
-}
-
-function switchRoom(n) {
-  if (n < 1 || n > 10) return;
-  currentRoom = n;
-  setRecordBackdrop(n);
-  renderRecordNav();
-  const stageWrap = document.getElementById('record-stage-wrap');
-  const archive = document.getElementById('record-archive');
-  if (n === 10) {
-    if (stageWrap) stageWrap.hidden = true;
-    if (archive) archive.hidden = false;
-    loadArchive();
-  } else {
-    if (archive) archive.hidden = true;
-    if (stageWrap) stageWrap.hidden = false;
-    renderRecordStage();
-  }
-}
-
-// 고정 홀 크로스페이드 (살롱 setBackdrop과 같은 2레이어 문법)
-function setRecordBackdrop(room) {
-  const f = ROOM_BG[room];
-  const a = document.getElementById('rbd-a'), b = document.getElementById('rbd-b');
-  if (!f || !a || !b) return;
-  const showEl = rbFlip ? a : b;
-  const hideEl = rbFlip ? b : a;
-  showEl.style.backgroundImage = `url('${f}')`;
-  showEl.style.opacity = '1';
-  hideEl.style.opacity = '0';
-  rbFlip = !rbFlip;
-}
-
-// 시트(막) 배경 — 현재 방의 홀이 고정으로 받친다 (16:9 cover)
-function recordBackdrop() {
-  const f = ROOM_BG[currentRoom];
-  return f ? `background-image:url('${f}');background-size:cover;background-position:center;background-attachment:scroll;` : '';
-}
-
-// ── 음반 가게: 무대 렌더 — 방 하나, 판 한 장 ──
-function renderRecordStage() {
-  const host = document.getElementById('record-stage-host');
-  const item = RECORD_ITEMS.find(i => i.hall === currentRoom);
-
-  if (!item) {
-    host.innerHTML = `
-      <div class="stage" data-room="${currentRoom}">
-        <div class="void" style="min-height:40vh;">
-          <div class="void-mark">📀</div>
-          <div class="void-line">이 방은 입고 준비 중입니다.</div>
-          <div class="void-sub">새 판이 도착하면 이 무대에 걸립니다.<br>청음은 없습니다 — 재킷과 라이너 노트만 읽고<br>데려가는 가게입니다.</div>
-        </div>
-      </div>`;
-    return;
-  }
-
-  host.innerHTML = `
-    <div class="stage" data-room="${currentRoom}">
-      <img class="jacket" src="${item.img}" alt="${escapeHtml(item.name)}"
-           onclick="openLiner('${item.id}')" onerror="this.style.display='none'">
-      <div class="plaque">
-        <div class="plaque-name">${escapeHtml(item.name)}</div>
-        <div class="plaque-artist">${escapeHtml(item.artist)}${item.period ? ' · ' + escapeHtml(item.period) : ''}</div>
-        ${item.origin ? `<div class="plaque-meta">${escapeHtml(item.origin)}</div>` : ''}
-        <div class="rent-line">🍎 1알 · 3주 · 상시 대여</div>
-      </div>
-      <div class="card-actions">
-        <button class="btn-layers" onclick="openLiner('${item.id}')">✦ 라이너 노트</button>
-        <button class="btn-apply" onclick="openRent('${item.id}')">🍎 이 판을 집으로</button>
-      </div>
-    </div>`;
-}
-
-// ── 라이너 노트 시트 (재킷 클릭 = 세부) ────
-function openLiner(itemId) {
-  const item = RECORD_ITEMS.find(i => i.id === itemId) || CAT_RECORDS.find(i => i.id === itemId);
-  if (!item) return;
-  const src = item.liner_note || item.library;
-
-  let blocks;
-  if (!src) {
-    blocks = `
-      <div class="layer-block">
-        <div class="layer-text" style="color:var(--txt-soft);">
-          라이너 노트가 인쇄소에 있습니다.<br>
-          카리의 글이 도착하면, 이 판에 끼워집니다.
-        </div>
-      </div>`;
-  } else if (Array.isArray(src)) {
-    blocks = src.map((t, i) => `
-      <div class="layer-block">
-        <div class="layer-tag">${i + 1}번째 겹</div>
-        <div class="layer-text">${renderMarkdownStar(typeof t === 'string' ? t : JSON.stringify(t))}</div>
-      </div>`).join('<div class="layer-divider"></div>');
-  } else if (typeof src === 'object') {
-    const order = ['scene', 'knowledge', 'thought', 'connection', 'curation'];
-    const keys = [...order.filter(k => src[k]), ...Object.keys(src).filter(k => !order.includes(k))];
-    blocks = keys.map(k => `
-      <div class="layer-block">
-        <div class="layer-tag">${LAYER_LABELS[k] || escapeHtml(k)}</div>
-        <div class="layer-text">${renderMarkdownStar(src[k])}</div>
-      </div>`).join('<div class="layer-divider"></div>');
-  } else {
-    blocks = `<div class="layer-text">${renderMarkdownStar(src)}</div>`;
-  }
-
-  const curationHtml = item.curation_links ? renderCurationLinksStar(item.curation_links) : '';
-
-  const panel = document.createElement('div');
-  panel.id = 'liner-panel';
-  panel.innerHTML = `
-    <div class="sheet-overlay" style="${sheetBackdropStyle()}" onclick="if(event.target===this)closeLiner()">
-      <div class="sheet">
-        <div class="sheet-handle"></div>
-        <div class="sheet-eyebrow">Liner Notes · 카리의 라이너 노트</div>
-        <div class="sheet-title">${escapeHtml(item.name)}</div>
-        <div class="sheet-sub">${escapeHtml(item.artist)}${item.origin ? ' · ' + escapeHtml(item.origin) : ''}</div>
-        ${blocks}
-        ${curationHtml}
-        ${linerRentButton(item)}
-        <button class="sheet-btn quiet" onclick="closeLiner()">닫기</button>
-      </div>
-    </div>`;
-  document.body.appendChild(panel);
-  document.body.style.overflow = 'hidden';
-}
-function closeLiner() {
-  const p = document.getElementById('liner-panel'); if (p) p.remove();
-  document.body.style.overflow = '';
-}
-
-// ── 대여 시트 — 창구는 본 공사(rent_record) 후 개점 ──
-function openRent(itemId) {
-  const item = RECORD_ITEMS.find(i => i.id === itemId) || ARCHIVE_RECORDS.find(i => i.id === itemId) || CAT_RECORDS.find(i => i.id === itemId);
-  if (!item) return;
-
-  const panel = document.createElement('div');
-  panel.id = 'rent-panel';
-  panel.innerHTML = `
-    <div class="sheet-overlay" style="${sheetBackdropStyle()}" onclick="if(event.target===this)closeRent()">
-      <div class="sheet">
-        <div class="sheet-handle"></div>
-        <div class="sheet-eyebrow">Disque à la Maison · 음반 대여</div>
-        <div class="sheet-title">${escapeHtml(item.name)}</div>
-        <div class="sheet-sub">${escapeHtml(item.artist)}${item.origin ? ' · ' + escapeHtml(item.origin) : ''}</div>
-
-        <div class="notice">
-          🍎 대여료 황금사과 1알 · 기간 3주<br>
-          📀 청음은 없습니다 — 감상은 당신의 분더카머 2층에서<br>
-          🔁 만기마다 한 번 묻습니다 — “한 계절 더 곁에 두시겠어요?” (1알)<br>
-          ✦ 카탈로그는 닫히지 않습니다 — 언제든 다시 빌릴 수 있습니다
-        </div>
-
-        <button class="sheet-btn gold" onclick="rpcRentRecord('${item.id}')">이 판을 집으로 — 🍎 1알 · 3주</button>
-        <button class="sheet-btn quiet" onclick="closeRent()">닫기</button>
-      </div>
-    </div>`;
-  document.body.appendChild(panel);
-  document.body.style.overflow = 'hidden';
-}
-function closeRent() {
-  const p = document.getElementById('rent-panel'); if (p) p.remove();
-  document.body.style.overflow = '';
-}
-
-// ══════════════════════════════════════════
-// ── 탭 ③ 카탈로그 레조네 — 종이와 잉크 ──────
-// ══════════════════════════════════════════
-let CAT_LOADED  = false;
-let CAT_WEEKS   = [];    // 흐른 주차들 (최신 우선)
-let CAT_WK      = null;  // 펼쳐 둔 주
-let CAT_VISUALS = [], CAT_RECORDS = [], CAT_EDITIONS = [], CAT_RENTALS = [], CAT_WAIT = [];
-
-// 막 배경: 음반 가게에서 열면 그 방, 카탈로그에서 열면 어두운 무대
-function sheetBackdropStyle() {
-  return document.getElementById('tab-catalog').hidden
-    ? recordBackdrop()
-    : 'background:rgba(22,13,9,0.9);';
-}
-
-// ISO 주차 → 그 주 월요일 (UTC)
-function wkMonday(wk) {
-  const [y, w] = wk.split('-W').map(Number);
-  const jan4 = new Date(Date.UTC(y, 0, 4));
-  const day = jan4.getUTCDay() || 7;
-  const mon1 = new Date(jan4); mon1.setUTCDate(jan4.getUTCDate() - day + 1);
-  const d = new Date(mon1); d.setUTCDate(mon1.getUTCDate() + (w - 1) * 7);
-  return d;
-}
-const NTH_KO = ['첫째', '둘째', '셋째', '넷째', '다섯째'];
-function wkLabel(wk) {
-  try {
-    const m = wkMonday(wk);
-    const nth = NTH_KO[Math.min(4, Math.floor((m.getUTCDate() - 1) / 7))];
-    return `${m.getUTCFullYear()}년 ${m.getUTCMonth() + 1}월 ${nth} 주`;
-  } catch { return wk; }
-}
-function fmtMD(s) { const d = new Date(s); return `${d.getMonth() + 1}월 ${d.getDate()}일`; }
-function catFee(n) { return n <= 4 ? 5 : n <= 12 ? 3 : n <= 24 ? 2 : 1; }
-
-async function ensureCatalog() {
-  if (CAT_LOADED) return;
-  CAT_LOADED = true;
-  try {
-    const [allItems, born] = await Promise.all([
-      sbFetch(`/rest/v1/heritage_items?select=id,wk_id,category`),
-      sbFetch(`/rest/v1/heritage_editions?select=born_week`)
-    ]);
-    const bornWeeks = new Set((born || []).map(e => e.born_week));
-    const weeks = new Set();
-    for (const it of (allItems || [])) {
-      if (it.category === 'visual' && bornWeeks.has(it.wk_id)) weeks.add(it.wk_id);   // 추첨을 통과한 주만 (카탈로그 = 미술 전용)
-    }
-    CAT_WEEKS = [...weeks].sort().reverse();
-    CAT_WK = CAT_WEEKS[0] || getWkId();
-    await loadCatWeek(CAT_WK);
-  } catch (e) { console.warn('카탈로그 로드 실패:', e); }
-  renderCatNav();
-  renderCatalog();
-}
-
-async function loadCatWeek(wk) {
-  const items = await sbFetch(`/rest/v1/heritage_items?wk_id=eq.${wk}&select=*&order=salle_no.asc`) || [];
-  CAT_VISUALS = items.filter(i => i.category === 'visual');
-  CAT_RECORDS = [];   // 음반은 음반 가게 탭이 전담 (신보 아홉 방 + 아카이브 서랍)
-  CAT_EDITIONS = []; CAT_RENTALS = []; CAT_WAIT = [];
-  if (CAT_VISUALS.length) {
-    const ids = CAT_VISUALS.map(i => i.id).join(',');
-    [CAT_EDITIONS, CAT_RENTALS, CAT_WAIT] = await Promise.all([
-      sbFetch(`/rest/v1/heritage_editions?item_id=in.(${ids})&select=*&order=edition_no.asc`),
-      sbFetch(`/rest/v1/heritage_rentals?item_id=in.(${ids})&select=*&order=starts_at.asc`),
-      sbFetch(`/rest/v1/heritage_waitlist?item_id=in.(${ids})&select=item_id,user_id,queued_at,notified_at&order=queued_at.asc`)
-    ]).then(r => r.map(x => x || []));
-  }
-}
-
-async function selectCatWeek(wk) {
-  CAT_WK = wk;
-  document.getElementById('cat-host').innerHTML =
-    `<div class="void"><div class="void-mark">📚</div><div class="void-line">페이지를 넘기는 중입니다…</div></div>`;
-  try { await loadCatWeek(wk); } catch (e) { console.warn(e); }
-  renderCatNav();
-  renderCatalog();
-}
-
-// 3계층 네비 — 칩 2개(이번 주·지난 주) + 먼 과거 서랍
-function renderCatNav() {
-  const nav = document.getElementById('cat-nav');
-  if (!nav) return;
-  const thisWk = getWkId();
-  const chips = CAT_WEEKS.slice(0, 2).map((wk, idx) => {
-    const name = wk === thisWk ? '이번 주' : (idx === 0 ? wkLabel(wk) : '지난 주');
-    return `<button class="cat-chip ${wk === CAT_WK ? 'active' : ''}" onclick="selectCatWeek('${wk}')">${name}</button>`;
-  });
-  const older = CAT_WEEKS.slice(2);
-  const sel = older.length
-    ? `<select class="cat-sel" onchange="if(this.value)selectCatWeek(this.value)">
-         <option value="">지난 달 · 지난 해 ▾</option>
-         ${older.map(wk => `<option value="${wk}" ${wk === CAT_WK ? 'selected' : ''}>${wkLabel(wk)}</option>`).join('')}
-       </select>` : '';
-  nav.innerHTML = chips.join('') + sel;
-}
-
-function edsOf(id)   { return CAT_EDITIONS.filter(e => e.item_id === id); }
-function rentsOf(id) { return CAT_RENTALS.filter(r => r.item_id === id); }
-function queueOf(id) { return CAT_WAIT.filter(w => w.item_id === id); }
-
-function catPlaque(it, eds) {
-  if (!eds.length) return '이 주에는 부(部)가 태어나지 않았습니다';
-  if (eds.length === 1 && eds[0].status === 'permanent') return '영원한 1부 — 유일본';
-  return `한정 ${eds.length}부 — 그 주, ${eds.length}명이 이 그림을 사랑했습니다`;
-}
-
-function catStatusLine(it, eds) {
-  if (!eds.length) return '';
-  const parts = [];
-  const perm  = eds.filter(e => e.status === 'permanent').length;
-  const out   = eds.filter(e => e.status === 'out').length;
-  const shelf = eds.filter(e => e.status === 'shelf').length;
-  const q     = queueOf(it.id).length;
-  if (perm)  parts.push(`✦ 영구 소장 ${perm}`);
-  if (out)   parts.push(`나들이 중 ${out}`);
-  if (shelf) parts.push(`서가 ${shelf}`);
-  if (q)     parts.push(`줄 ${q}`);
-  return parts.join(' · ');
-}
-
-function renderCatalog() {
-  const host = document.getElementById('cat-host');
-  if (!host) return;
-  if (!CAT_VISUALS.length && !CAT_RECORDS.length) {
-    host.innerHTML = `<div class="void"><div class="void-mark">📚</div>
-      <div class="void-line">아직 흐른 보물이 없습니다.</div>
-      <div class="void-sub">첫 추첨이 끝나면, 첫 페이지가 제본됩니다.</div></div>`;
-    return;
-  }
-  let html = '';
-  if (CAT_VISUALS.length) {
-    html += `<div class="cat-chapter">
-      <div class="cat-chapter-head">Chapitre Ⅰ · Peintures — 그림</div>
-      <div class="cat-week-line">${wkLabel(CAT_WK)}의 살롱에서</div>`;
-    for (const it of CAT_VISUALS) html += catVisualCard(it);
-    html += `</div>`;
-  }
-  if (CAT_RECORDS.length) {
-    html += `<div class="cat-chapter">
-      <div class="cat-chapter-head">Chapitre Ⅱ · Disques — 음반</div>
-      <div class="cat-week-line">${wkLabel(CAT_WK)}의 신보 — 카탈로그는 닫히지 않습니다</div>`;
-    for (const it of CAT_RECORDS) html += catRecordRow(it);
-    html += `</div>`;
-  }
-  host.innerHTML = html;
-}
-
-function catVisualCard(it) {
-  const eds = edsOf(it.id);
-  const ROMAN = ['', 'Ⅰ', 'Ⅱ', 'Ⅲ', 'Ⅳ', 'Ⅴ'];
-  return `
-    <div class="cat-card" onclick="openCatWork('${it.id}')">
-      <img class="cat-thumb" src="${it.img}" alt="" onerror="this.style.display='none'">
-      <div>
-        <div class="cat-fig">FIG.${it.salle_no || '·'} — SALLE ${ROMAN[it.salle_no] || ''}</div>
-        <div class="cat-title">${escapeHtml(it.name)}</div>
-        <div class="cat-artist">${escapeHtml(it.artist)}${it.period ? ' · ' + escapeHtml(it.period) : ''}</div>
-        <div class="cat-plaque">${catPlaque(it, eds)}</div>
-        <div class="cat-status">${catStatusLine(it, eds)}</div>
-      </div>
-    </div>`;
-}
-
-function catRecordRow(it) {
-  return `
-    <div class="cat-rec-row" onclick="openLiner('${it.id}')">
-      <img class="cat-rec-thumb" src="${it.img}" alt="" onerror="this.style.display='none'">
-      <div>
-        <div class="cat-title" style="font-size:15px">${escapeHtml(it.name)}</div>
-        <div class="cat-artist">${escapeHtml(it.artist)}${it.origin ? ' · ' + escapeHtml(it.origin) : ''}</div>
-      </div>
-    </div>`;
-}
-
-// ── 작품 무대 막: 종이가 무대로 열림 ──────
-function openCatWork(itemId) {
-  const it = CAT_VISUALS.find(i => i.id === itemId);
-  if (!it) return;
-  const eds  = edsOf(itemId);
-  const open = rentsOf(itemId).filter(r => !r.returned_at);
-  const q    = queueOf(itemId);
-  const user = getUser();
-  const fee  = catFee(eds.length);
-
-  const lines = eds.map(e => {
-    if (e.status === 'permanent')
-      return `<div class="catw-line">✦ 제1부 — <b>영구 소장</b> · ${escapeHtml(it.winner_nick || '콩파뇽')}의 분더카머</div>`;
-    if (e.status === 'out') {
-      const r = open.find(o => o.edition_id === e.id);
-      return `<div class="catw-line">제${e.edition_no}부 — ${r
-        ? escapeHtml(r.nickname || '콩파뇽') + '의 집에서 · <b>' + fmtMD(r.due_at) + ' 귀가</b>'
-        : '나들이 중'}</div>`;
-    }
-    return `<div class="catw-line">제${e.edition_no}부 — 서가에서 기다립니다</div>`;
-  }).join('') || `<div class="catw-line dim">이 주에는 부가 태어나지 않았습니다</div>`;
-
-  const SRC_KO = { prize: '추첨의 부상', shelf: '서가에서', renewal: '한 계절 더', welcome: '환대' };
-  const logs = rentsOf(itemId).map(r =>
-    `<div class="catw-line"><b>${escapeHtml(r.nickname || '콩파뇽')}</b>
-       <span class="dim">· ${fmtMD(r.starts_at)} ~ ${r.returned_at ? fmtMD(r.returned_at) : '지금'} · ${SRC_KO[r.source] || r.source}</span></div>`
-  ).join('') || `<div class="catw-line dim">아직 여행이 시작되지 않았습니다</div>`;
-
-  const shelf = eds.filter(e => e.status === 'shelf').length;
-  let btn = '';
-  if (eds.length) {
-    if (user && (eds.some(e => e.permanent_owner === user.id) || open.some(o => o.user_id === user.id)))
-      btn = `<button class="sheet-btn quiet" disabled>지금 당신의 분더카머에 있습니다 ✦</button>`;
-    else if (user && q.some(w => w.user_id === user.id && w.notified_at))
-      btn = `<button class="sheet-btn gold" onclick="rpcRentShelf('${itemId}')">초대장이 도착했습니다 — 🍎 ${fee}알 · 6주</button>`;
-    else if (user && q.some(w => w.user_id === user.id))
-      btn = `<button class="sheet-btn quiet" disabled>줄을 서는 중입니다 — ${q.findIndex(w => w.user_id === user.id) + 1}번째</button>`;
-    else if (shelf > 0 && q.length === 0)
-      btn = user
-        ? `<button class="sheet-btn gold" onclick="rpcRentShelf('${itemId}')">🍎 ${fee}알 · 6주 빌리기</button>`
-        : `<button class="sheet-btn quiet" disabled>입장 후 빌릴 수 있습니다</button>`;
-    else
-      btn = user
-        ? `<button class="sheet-btn ghost" onclick="rpcJoinWaitlist('${itemId}')">대기열 줄서기 (앞에 ${q.length}명)</button>`
-        : `<button class="sheet-btn quiet" disabled>입장 후 줄을 설 수 있습니다</button>`;
-  }
-
-  const panel = document.createElement('div');
-  panel.id = 'cat-panel';
-  panel.innerHTML = `
-    <div class="sheet-overlay" style="background:rgba(22,13,9,0.9);" onclick="if(event.target===this)closeCatWork()">
-      <div class="sheet">
-        <div class="sheet-handle"></div>
-        <div class="sheet-eyebrow">Catalogue Raisonné · ${wkLabel(CAT_WK)}</div>
-        <div class="sheet-title">${escapeHtml(it.name)}</div>
-        <div class="sheet-sub">${escapeHtml(it.artist)}${it.period ? ' · ' + escapeHtml(it.period) : ''}</div>
-        <img class="catw-img" src="${it.img}" alt="" onerror="this.style.display='none'">
-        <div class="catw-plaque">${catPlaque(it, eds)}</div>
-        <div class="catw-sec">Provenance · 부별 현황</div>
-        ${lines}
-        <div class="catw-sec">Journal de Voyage · 여행 일지</div>
-        ${logs}
-        <div style="height:14px"></div>
-        ${btn}
-        <button class="sheet-btn quiet" onclick="closeCatWork()">닫기</button>
-      </div>
-    </div>`;
-  document.body.appendChild(panel);
-  document.body.style.overflow = 'hidden';
-}
-function closeCatWork() {
-  const p = document.getElementById('cat-panel'); if (p) p.remove();
-  document.body.style.overflow = '';
-}
-
-// ── 서가 손잡이 RPC ────────────────────────
-async function rpcRentShelf(itemId) {
-  const user = getUser();
-  if (!user) { showToast('입장 후 빌릴 수 있습니다'); return; }
-  const nickname = localStorage.getItem('eg_nickname') || user.email?.split('@')[0] || '익명';
-  try {
-    const r = await sbFetch('/rest/v1/rpc/rent_from_shelf', {
-      method: 'POST',
-      body: JSON.stringify({ p_item_id: itemId, p_user_id: user.id, p_nickname: nickname })
-    });
-    showToast(`보물이 집으로 떠납니다 — 🍎 ${r.fee}알 · ${fmtMD(r.due_at)} 귀가`);
-    await refreshCatWork(itemId);
-  } catch (e) { showToast(e.message || '대여하지 못했습니다'); }
-}
-async function rpcJoinWaitlist(itemId) {
-  const user = getUser();
-  if (!user) { showToast('입장 후 줄을 설 수 있습니다'); return; }
-  const nickname = localStorage.getItem('eg_nickname') || user.email?.split('@')[0] || '익명';
-  try {
-    const r = await sbFetch('/rest/v1/rpc/join_waitlist', {
-      method: 'POST',
-      body: JSON.stringify({ p_item_id: itemId, p_user_id: user.id, p_nickname: nickname })
-    });
-    showToast(`줄을 섰습니다 — ${r.position}번째`);
-    await refreshCatWork(itemId);
-  } catch (e) { showToast(e.message || '줄을 서지 못했습니다'); }
-}
-async function refreshCatWork(itemId) {
-  try { await loadCatWeek(CAT_WK); } catch (e) { console.warn(e); }
-  renderCatalog();
-  closeCatWork();
-  openCatWork(itemId);
-}
-
-// ── 음반 대여 창구 — 🍎 1알 · 3주 · 서고 27칸 ──
-let MY_REC_RENTS = [];   // 내 서고의 판들 (열린 음반 대여)
-
-async function loadMyRecordRentals() {
-  const user = getUser();
-  if (!user) { MY_REC_RENTS = []; return; }
-  try {
-    MY_REC_RENTS = await sbFetch(
-      `/rest/v1/heritage_rentals?user_id=eq.${user.id}&edition_id=is.null&returned_at=is.null&select=id,item_id,due_at,source`
-    ) || [];
-  } catch (e) { MY_REC_RENTS = []; }
-}
-
-// 라이너 노트 막의 손잡이 — 상태별 옷
-function linerRentButton(item) {
-  const mine = MY_REC_RENTS.find(r => r.item_id === item.id);
-  if (!mine) {
-    return `<button class="sheet-btn gold" onclick="closeLiner();openRent('${item.id}')">이 판을 집으로 — 🍎 1알 · 3주</button>`;
-  }
-  const nearDue = (new Date(mine.due_at) - Date.now()) <= 5 * 24 * 3600 * 1000;
-  return `<button class="sheet-btn quiet" disabled>지금 당신의 서고에 있습니다 — ${fmtMD(mine.due_at)}까지 ✦</button>` +
-    (nearDue
-      ? `<button class="sheet-btn gold" onclick="rpcRenewRecord(${mine.id},'${item.id}')">한 계절 더 곁에 두시겠어요? — 🍎 1알 · 3주</button>`
-      : '');
-}
-
-async function rpcRentRecord(itemId) {
-  const user = getUser();
-  if (!user) { showToast('입장 후 빌릴 수 있습니다'); return; }
-  const nickname = localStorage.getItem('eg_nickname') || user.email?.split('@')[0] || '익명';
-  try {
-    const r = await sbFetch('/rest/v1/rpc/rent_record', {
-      method: 'POST',
-      body: JSON.stringify({ p_item_id: itemId, p_user_id: user.id, p_nickname: nickname })
-    });
-    await loadMyRecordRentals();
-    closeRent(); closeLiner();
-    showToast(`판이 집으로 떠납니다 — 🍎 1알 · ${fmtMD(r.due_at)}까지 (서고 ${r.slots_used}/27칸)`);
-  } catch (e) { showToast(e.message || '대여하지 못했습니다'); }
-}
-
-async function rpcRenewRecord(rentalId, itemId) {
-  const user = getUser();
-  if (!user) { showToast('입장 후 갱신할 수 있습니다'); return; }
-  try {
-    const r = await sbFetch('/rest/v1/rpc/renew_record', {
-      method: 'POST',
-      body: JSON.stringify({ p_rental_id: rentalId, p_user_id: user.id })
-    });
-    await loadMyRecordRentals();
-    closeLiner();
-    showToast(`한 계절 더 — 🍎 1알 · ${fmtMD(r.due_at)}까지`);
-  } catch (e) { showToast(e.message || '갱신하지 못했습니다'); }
-}
-
-// ── 메인 탭 ───────────────────────────────
-function switchMainTab(tab) {
-  document.querySelectorAll('.main-tab').forEach(b =>
-    b.classList.toggle('active', b.dataset.tab === tab));
-  document.getElementById('tab-salon').hidden   = tab !== 'salon';
-  document.getElementById('tab-record').hidden  = tab !== 'record';
-  document.body.classList.toggle('mode-salon', tab === 'salon');
-  const bd = document.getElementById('salon-backdrop');
-  if (bd) bd.style.opacity = tab === 'salon' ? '1' : '0';
-  const rbd = document.getElementById('record-backdrop');
-  if (rbd) rbd.classList.toggle('on', tab === 'record');
-  if (tab === 'record') switchRoom(currentRoom);
-  renderRhythm(tab);
-  window.scrollTo(0, 0);
-}
-
-// ── 주간 리듬 한 줄 ───────────────────────
-function renderRhythm(tab = 'salon') {
-  if (tab === 'record') {
-    document.getElementById('rhythm-line').innerHTML =
-      '신보는 <b>화요일</b>에 아홉 장 · 카탈로그는 닫히지 않습니다 · 대여는 <b>🍎 1알 · 3주</b>';
-    return;
-  }
-  const day = new Date().getDay(); // 0 일 ~ 6 토
-  let line;
-  if (day === 1) {
-    line = '오늘 <b>정오</b>, 다섯 방 동시 추첨 — 보물이 집으로 떠납니다';
-  } else if (day === 0) {
-    line = '응모는 <b>오늘 자정</b> 마감 · 추첨은 <b>월요일 정오</b>';
-  } else if (day === 2) {
-    line = '새 살롱이 열렸습니다 · 응모는 <b>일요일 자정</b>까지 · 추첨은 <b>월요일 정오</b>';
-  } else {
-    line = '응모는 <b>일요일 자정</b>까지 · 추첨은 <b>월요일 정오</b>, 다섯 방 동시에';
-  }
-  document.getElementById('rhythm-line').innerHTML = line;
-}
-
-// ── Salle 네비 ────────────────────────────
-function renderSalleNav() {
-  const host = document.getElementById('salle-nav');
-  host.innerHTML = [1,2,3,4,5].map(n => `
-    <button class="salle-tab ${n === currentSalle ? 'active' : ''}" data-salle="${n}" onclick="switchSalle(${n})">
-      <span class="num">${ROMAN[n]}</span>
-      <span class="nm">${SALLE_NAMES[n]}</span>
-    </button>`).join('');
-}
-
-function switchSalle(n) {
-  if (n < 1 || n > 5) return;
-  currentSalle = n;
-  setBackdrop(n);
-  renderSalleNav();
-  renderStage();
-}
-
-// ── 무대 렌더 ─────────────────────────────
-function renderStage() {
-  const host = document.getElementById('stage-host');
-  const item = SALON_ITEMS.find(i => i.salle_no === currentSalle);
-
-  if (!SALON_ITEMS.length) {
-    host.innerHTML = `
-      <div class="void">
-        <div class="void-mark">✦</div>
-        <div class="void-line">이번 주 살롱이 아직 비어 있습니다.</div>
-        <div class="void-sub">화요일 0시, 새 보물 다섯 점이 도착합니다.</div>
-      </div>`;
-    return;
-  }
-
-  if (!item) {
-    host.innerHTML = `
-      <div class="stage" data-salle="${currentSalle}">
-        <div class="void" style="min-height:40vh;">
-          <div class="void-mark">✦</div>
-          <div class="void-line">이 방은 비어 있습니다.</div>
-          <div class="void-sub">다음 보물을 기다리는 벽입니다.</div>
-        </div>
-      </div>`;
-    return;
-  }
-
-  const loved = LOVE_COUNTS[item.id] || 0;
-  const loveLine = loved > 0
-    ? `이번 주 <b>${loved}명</b>의 콩파뇽이 응모했습니다`
-    : `첫 응모를 기다립니다`;
-  const hasLayers = !!(item.layers || item.library);
-
-  host.innerHTML = `
-    <div class="stage" data-salle="${currentSalle}">
-      <img class="artwork" src="${item.img}" alt="${escapeHtml(item.name)}"
-           onerror="this.style.display='none'">
-      <div class="plaque">
-        <div class="plaque-name">${escapeHtml(item.name)}</div>
-        <div class="plaque-artist">${escapeHtml(item.artist)}${item.period ? ' · ' + escapeHtml(item.period) : ''}</div>
-        ${item.origin ? `<div class="plaque-meta">${escapeHtml(item.origin)}</div>` : ''}
-        <div class="love-line">${loveLine}</div>
-      </div>
-      <div class="card-actions">
-        ${hasLayers ? `<button class="btn-layers" onclick="openLayers('${item.id}')">✦ 카리의 4겹</button>` : ''}
-        <button class="btn-apply" onclick="openBid('${item.id}')">🍎 1알 응모하기</button>
-      </div>
-    </div>`;
-}
-
-function escapeHtml(s) {
-  return String(s ?? '').replace(/[&<>"']/g, c =>
-    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-}
-
-// ══════════════════════════════════════════════════
-// 📰 헤리티지 타임즈 — 신문의 날 (창간 0615)
-//   월 0–12시: 마감호가 다섯 방 무대를 차지. 방을 옮길 때마다 신문이 핑 돌아 도착.
-//   탭하면 엔진(heritage_times.js)이 짠 이번 주 마감호가 펼쳐진다.
-// ══════════════════════════════════════════════════
-const sfxTimesOpen = (() => { try { const a = new Audio('times_open.mp3'); a.preload = 'auto'; return a; } catch (e) { return null; } })();
-
-// KST 벽시계 (실행 환경 TZ 무관)
-function kstDate() { const d = new Date(); return new Date(d.getTime() + (d.getTimezoneOffset() + 540) * 60000); }
-
-// 시간대 판정: 월 0–12시 = 마감호, 월 12–24시 = 결과호, 화~일 = archived(탭으로)
-function timesMode() {
-  const d = kstDate();
-  const dow = d.getDay(); // 0=일 1=월
-  const h = d.getHours();
-  if (dow === 1 && h < 12) return 'closing';  // 월 오전: 마감호 팝업
-  if (dow === 1) return 'result';             // 월 오후: 결과호 팝업
-  return 'archived';  // 화~일: 살롱 무대 반환, 타임즈는 탭에서만
-}
-
-// 호수: 창간 첫 마감호 월요일(2026-06-15)을 기점으로 주차에서 흘러나온다 (저장하지 않음)
-//   마감호 = 홀수(idx*2+1), 결과호 = 짝수(idx*2+2). 오늘 밤이 제 01호.
-function weekIndex() {
-  const d = kstDate();
-  const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  monday.setDate(monday.getDate() - ((d.getDay() + 6) % 7));
-  const first = new Date(2026, 5, 15);
-  return Math.max(0, Math.round((monday - first) / (7 * 86400000)));
-}
-function currentVol(forMode) {
-  const wk = weekIndex();
-  const mode = forMode !== undefined ? forMode : timesMode();
-  return mode === 'closing' ? wk * 2 + 1 : wk * 2 + 2;
-}
-
-// 엔진에 흘려보낼 마감호 데이터 (실데이터 SALON_ITEMS + LOVE_COUNTS)
-function buildClosingData() {
-  const items = SALON_ITEMS.slice().sort((a, b) => a.salle_no - b.salle_no).map(it => ({
-    salle: it.salle_no, id: it.id, name: it.name, artist: it.artist,
-    img: it.img, grade: it.grade, lovers: LOVE_COUNTS[it.id] || 0,
-    layers: it.layers || null
-  }));
-  const d = kstDate();
-  const dow = ['일', '월', '화', '수', '목', '금', '토'][d.getDay()];
-  return {
-    vol: currentVol(),
-    wkId: (SALON_ITEMS[0] && SALON_ITEMS[0].wk_id) || '',
-    dateLabel: `${d.getMonth() + 1}월 ${d.getDate()}일 ${dow}요일`,
-    drawLabel: '오늘 정오',
-    items
-  };
-}
-
-// 무대: 회전 신문 + 스탬프 (방을 옮길 때마다 새로 그려져 핑 돈다)
-function renderTimesStage(host) {
-  const vol = String(currentVol()).padStart(2, '0');
-  const tapMsg = timesMode() === 'result'
-    ? '탭하면 이번 주 추첨 결과가 펼쳐집니다'
-    : '탭하면 이번 주 마감호가 펼쳐집니다';
-  host.innerHTML = `
-    <div class="stage times-stage" data-salle="${currentSalle}">
-      <div class="times-paper-wrap" onclick="openTimes()">
-        <img class="times-paper fly" src="times_paper.webp" alt="EG HERITAGE TIMES" draggable="false"
-             onerror="this.style.opacity=0.001">
-        <div class="times-stamp hit">
-          <div class="ts-a">NEW ARRIVAL</div>
-          <div class="ts-v">VOL. ${vol}</div>
-        </div>
-      </div>
-      <div class="times-tap">${tapMsg}</div>
-    </div>`;
-  animateTimesArrival();
-}
-function animateTimesArrival() {
-  if (!sfxTimesOpen) return;
-  try { sfxTimesOpen.currentTime = 0; sfxTimesOpen.play().catch(() => {}); } catch (e) {}
-}
-
-// 마감호 모달 — 다섯 섬네일 카드 + 카리 4겹 인용
-function renderClosingArticles(o) {
-  return o.articles.map(a => `
-    <div class="tm-art">
-      <img class="tm-thumb" src="${a.img}" alt="${escapeHtml(a.name)}" onerror="this.style.display='none'">
-      <div class="tm-art-body">
-        <div class="tm-art-tag">${ROMAN[a.salle] || a.salle} · ${a.tag}</div>
-        <div class="tm-kicker">${escapeHtml(a.kicker)}</div>
-        <div class="tm-name">${escapeHtml(a.name)} <span class="tm-artist">${escapeHtml(a.artist)}</span></div>
-        <div class="tm-quote">${a.quoteLabel ? `<span class="tm-qlabel">${escapeHtml(a.quoteLabel)}</span>` : ''}${escapeHtml(a.body)}</div>
-        <div class="tm-lovers">${escapeHtml(a.loversLine)}</div>
-      </div>
-    </div>`).join('');
-}
-
-let _timesOverlay = null;
-
-// 타임즈 모달 열기 (살롱 탭 팝업 + 아카이브 서가 공용)
-function openTimesModal(inner) {
-  const html = `
-    <div class="sheet-overlay" style="${sheetBackdropStyle()}" onclick="if(event.target===this)closeTimesModal()">
-      <div class="sheet">
-        <div class="sheet-handle"></div>
-        ${inner}
-        <button class="sheet-btn ghost" onclick="closeTimesModal()">닫기</button>
-      </div>
-    </div>`;
-  const wrap = document.createElement('div');
-  wrap.innerHTML = html;
-  _timesOverlay = wrap.firstElementChild;
-  document.body.appendChild(_timesOverlay);
-}
-function closeTimesModal() {
-  if (_timesOverlay) { _timesOverlay.remove(); _timesOverlay = null; }
-}
-
-// 살롱 탭 신문 무대 클릭 시 팝업 (월요일 전용)
-function openTimes() {
-  if (typeof EGHeritageTimes === 'undefined') { console.warn('타임즈 엔진 미로드'); return; }
-  let inner;
-  if (timesMode() === 'result' && RESULT_SUMMARY) {
-    const rd = buildResultData();
-    inner = buildResultHtml(EGHeritageTimes.assembleResult(rd), rd);
-  } else {
-    inner = buildClosingHtml(EGHeritageTimes.assembleClosing(buildClosingData()));
-  }
-  openTimesModal(inner);
-}
-function closeTimes() { closeTimesModal(); }
-
-// ══════════════════════════════════════════════════
-// 📰 헤리티지 타임즈 탭 — 이번 호 + 지난 호 서가
-// ══════════════════════════════════════════════════
-
-// wk_id('2026-W25') → 해당 주 월요일 KST Date
-function wkIdToMonday(wkId) {
-  const [yr, wk] = wkId.split('-W').map(Number);
-  const jan4 = new Date(yr, 0, 4);
-  const dow = jan4.getDay() || 7;
-  const monday = new Date(jan4);
-  monday.setDate(jan4.getDate() - dow + 1 + (wk - 1) * 7);
-  return monday;
-}
-
-// wk_id → 창간 기점(2026-06-15)으로부터의 주 인덱스
-function weekIndexForWkId(wkId) {
-  const monday = wkIdToMonday(wkId);
-  const first = new Date(2026, 5, 15);
-  return Math.max(0, Math.round((monday - first) / (7 * 86400000)));
-}
-
-// 과거 주차 마감호 데이터 빌드 (heritage_items + applications 조회)
-async function buildClosingDataForWeek(wkId) {
-  let items = [], apps = [];
-  try { items = await sbFetch(`/rest/v1/heritage_items?wk_id=eq.${wkId}&category=eq.visual&select=id,name,artist,img,salle_no,grade,layers&order=salle_no.asc`) || []; } catch (e) {}
-  try { apps  = await sbFetch(`/rest/v1/heritage_applications?wk_id=eq.${wkId}&select=item_id`) || []; } catch (e) {}
-  const loveMap = {};
-  apps.forEach(a => { loveMap[a.item_id] = (loveMap[a.item_id] || 0) + 1; });
-  const wkIdx = weekIndexForWkId(wkId);
-  const monday = wkIdToMonday(wkId);
-  const dowLabel = ['일','월','화','수','목','금','토'][monday.getDay()];
-  return {
-    vol: wkIdx * 2 + 1,
-    wkId,
-    dateLabel: `${monday.getMonth() + 1}월 ${monday.getDate()}일 ${dowLabel}요일`,
-    drawLabel: '월요일 정오',
-    items: items.map(it => ({
-      salle: it.salle_no, id: it.id, name: it.name, artist: it.artist,
-      img: it.img, grade: it.grade, lovers: loveMap[it.id] || 0,
-      layers: it.layers || null
-    }))
-  };
-}
-
-// 과거 주차 결과호 데이터 빌드 (heritage_items + results + summary 조회)
-async function buildResultDataForWeek(wkId, summary) {
-  let items = [], nicks = [];
-  try { items = await sbFetch(`/rest/v1/heritage_items?wk_id=eq.${wkId}&category=eq.visual&select=*&order=salle_no.asc`) || []; } catch (e) {}
-  try { nicks = await sbFetch(`/rest/v1/heritage_results?wk_id=eq.${wkId}&select=grade,item_id,winner_nick&order=grade.asc`) || []; } catch (e) {}
-  const sum = summary || {};
-  const copyMap = {};
-  (sum.editions || []).forEach(e => { copyMap[e.item_id] = e.copies; });
-  const wkIdx = weekIndexForWkId(wkId);
-  const monday = wkIdToMonday(wkId);
-  const dowLabel = ['일','월','화','수','목','금','토'][monday.getDay()];
-  return {
-    vol: wkIdx * 2 + 2,
-    wkId,
-    dateLabel: `${monday.getMonth() + 1}월 ${monday.getDate()}일 ${dowLabel}요일`,
-    dateDot: `${monday.getFullYear()}. ${monday.getMonth() + 1}. ${monday.getDate()}`,
-    first: sum.first || { nickname: '한 콩파뇽' },
-    totalTickets: sum.total_tickets || 0,
-    pool: sum.pool || 0,
-    items: items.slice().sort((a, b) => a.salle_no - b.salle_no).map(it => ({
-      salle: it.salle_no, id: it.id, name: it.name, artist: it.artist,
-      img: it.img, layers: it.layers || null,
-      copies: copyMap[it.id] || 0,
-      nicks: nicks.filter(r => r.item_id === it.id).map(r => r.winner_nick)
-    }))
-  };
-}
-
-// 타임즈 탭 진입 시 호출
-let _timesArchiveLoaded = false;
-async function loadTimesTab() {
-  // archived 모드에서 RESULT_SUMMARY가 없으면 최신 아카이브 직접 로드 → 이번 호 채움
-  if (timesMode() === 'archived' && !RESULT_SUMMARY) {
-    try {
-      const arcs = await sbFetch('/rest/v1/heritage_archives?select=wk_id,summary&order=id.desc&limit=1');
-      if (arcs && arcs[0]) {
-        RESULT_SUMMARY = arcs[0].summary;
-        const realWk = arcs[0].wk_id || (RESULT_SUMMARY && RESULT_SUMMARY.wk);
-        if (realWk) {
-          try { RESULT_ITEMS = await sbFetch(`/rest/v1/heritage_items?wk_id=eq.${realWk}&category=eq.visual&select=*&order=salle_no.asc`) || null; } catch(e) { RESULT_ITEMS = null; }
-          try { RESULT_NICKS = await sbFetch(`/rest/v1/heritage_results?wk_id=eq.${realWk}&select=grade,item_id,winner_nick&order=grade.asc`) || []; } catch(e) { RESULT_NICKS = []; }
-        }
-      }
-    } catch(e) {}
-  }
-  renderTimesCurrentHost();
-  if (!_timesArchiveLoaded) {
-    await renderTimesArchive();
-    _timesArchiveLoaded = true;
-  }
-}
-
-// 이번 호 (시간대 분기)
-function renderTimesCurrentHost() {
-  const host = document.getElementById('times-current-host');
-  if (!host) return;
-  const mode = timesMode();
-  if (typeof EGHeritageTimes === 'undefined') {
-    host.innerHTML = '<div class="void"><div class="void-line">타임즈 엔진 로드 중…</div></div>';
-    return;
-  }
-  if (mode === 'closing' && SALON_ITEMS.length) {
-    host.innerHTML = buildClosingHtml(EGHeritageTimes.assembleClosing(buildClosingData()));
-  } else if (mode === 'result' && RESULT_SUMMARY) {
-    const rd = buildResultData();
-    host.innerHTML = buildResultHtml(EGHeritageTimes.assembleResult(rd), rd);
-  } else if (mode === 'archived' && RESULT_SUMMARY) {
-    // 화~일: 최근 결과호를 탭에서 상시 열람
-    const rd = buildResultData();
-    host.innerHTML = buildResultHtml(EGHeritageTimes.assembleResult(rd), rd);
-  } else {
-    host.innerHTML = `
-      <div class="void" style="padding:36px 0 12px">
-        <div class="void-mark">📰</div>
-        <div class="void-line">다음 마감호까지 살롱은 열려 있습니다.</div>
-        <div class="void-sub">지난 호는 아래 서가에서 열람할 수 있습니다.</div>
-      </div>`;
-  }
-}
-
-// 지난 호 서가 렌더
-async function renderTimesArchive() {
-  const host = document.getElementById('times-archive-host');
-  if (!host) return;
-  host.innerHTML = '<div class="void"><div class="void-line">불러오는 중…</div></div>';
-  let arcs = [];
-  try {
-    arcs = await sbFetch('/rest/v1/heritage_archives?select=wk_id,summary,drawn_at&order=id.desc') || [];
-  } catch (e) { arcs = []; }
-  if (!arcs.length) {
-    host.innerHTML = '<div class="times-arc-empty">아직 발행된 호가 없습니다.</div>';
-    return;
-  }
-  host.innerHTML = arcs.map(arc => {
-    const wkId = arc.wk_id;
-    const wkIdx = weekIndexForWkId(wkId);
-    const closingVol = String(wkIdx * 2 + 1).padStart(2, '0');
-    const resultVol  = String(wkIdx * 2 + 2).padStart(2, '0');
-    const monday = wkIdToMonday(wkId);
-    const dateLabel = `${monday.getFullYear()}. ${monday.getMonth() + 1}. ${String(monday.getDate()).padStart(2,'0')}`;
-    return `
-      <div class="times-arc-card">
-        <div class="times-arc-wk">${wkId} · ${dateLabel}</div>
-        <div class="times-arc-btns">
-          <button class="times-arc-btn" onclick="openArchiveClosing('${wkId}')">제${closingVol}호 마감호 읽기 →</button>
-          <button class="times-arc-btn result" onclick="openArchiveResult('${wkId}')">제${resultVol}호 결과호 읽기 →</button>
-        </div>
-      </div>`;
-  }).join('');
-}
-
-// 아카이브 마감호 모달
-async function openArchiveClosing(wkId) {
-  if (typeof EGHeritageTimes === 'undefined') return;
-  const data = await buildClosingDataForWeek(wkId);
-  openTimesModal(buildClosingHtml(EGHeritageTimes.assembleClosing(data)));
-}
-
-// 아카이브 결과호 모달
-async function openArchiveResult(wkId) {
-  if (typeof EGHeritageTimes === 'undefined') return;
-  let arc = null;
-  try { arc = await sbFetch(`/rest/v1/heritage_archives?wk_id=eq.${wkId}&select=summary,wk_id&limit=1`); } catch (e) {}
-  const summary = (arc && arc[0]) ? arc[0].summary : null;
-  if (!summary) { alert('해당 주차 추첨 결과를 찾을 수 없습니다.'); return; }
-  const data = await buildResultDataForWeek(wkId, summary);
-  openTimesModal(buildResultHtml(EGHeritageTimes.assembleResult(data), data));
-}
-
-// 마감호 모달 본문
-function buildClosingHtml(o) {
-  return `
-    <div class="tm-masthead">
-      <div class="tm-title">${o.masthead.title}</div>
-      <div class="tm-sub">${escapeHtml(o.masthead.sub)}</div>
-      <div class="tm-meta">${escapeHtml(o.masthead.meta)}</div>
-    </div>
-    <h2 class="tm-headline">${escapeHtml(o.headline)}</h2>
-    <p class="tm-lead">${escapeHtml(o.lead)}</p>
-    <div class="tm-articles">${renderClosingArticles(o)}</div>
-    <div class="tm-preview">${escapeHtml(o.preview)}</div>
-    <div class="tm-bridge">${o.bridge}</div>
-    <div class="tm-footer">${escapeHtml(o.footer)}</div>`;
-}
-
-// 결과호 모달 본문 — 1등 특집(큰 액자 + 황동 명패) + 나머지 결과 + 부상·예고
-function buildResultHtml(o, rd) {
-  const perm = o.feature.perm;
-  const plate = `
-    <div class="tm-feature">
-      <div class="tm-frame"><img src="${perm.img}" alt="${escapeHtml(perm.name)}" onerror="this.style.display='none'"></div>
-      <div class="tm-plate">
-        <div class="tm-plate-text">
-          <div class="tm-pc">EG HERITAGE · 영구 소장</div>
-          <div class="tm-pn">${escapeHtml(o.feature.nick)}</div>
-          <div class="tm-pr">${escapeHtml(perm.name)} · ${escapeHtml(rd.dateDot)}</div>
-        </div>
-      </div>
-      <div class="tm-feature-intro">${escapeHtml(o.feature.intro)}</div>
-      <div class="tm-feature-quote">${escapeHtml(o.feature.quote)}</div>
-      <div class="tm-feature-tail">${escapeHtml(o.feature.tail)}</div>
-    </div>`;
-  const rest = o.articles.map(a => {
-    const salleLabel = `Salle ${ROMAN[a.salle] || a.salle}`;
-    // 그림 썸네일
-    const thumb = a.img
-      ? `<img class="tm-salle-thumb" src="${a.img}" alt="${escapeHtml(a.name)}" onerror="this.style.display='none'">`
-      : '';
-    // 닉네임 (Salle 라벨 중복 없이 한 줄)
-    const nickLine = (a.nicks && a.nicks.length)
-      ? `<div class="tm-result-nicks">${a.nicks.map(n => escapeHtml(n)).join(' · ')}</div>`
-      : '';
-    return `
-      <div class="tm-result-line">
-        ${thumb}
-        <div class="tm-salle-body">
-          <div class="tm-salle-head"><b>${salleLabel}</b> <span class="tm-salle-name">${escapeHtml(a.name)}</span></div>
-          <div class="tm-salle-line">${escapeHtml(a.line)}</div>
-          ${nickLine}
-        </div>
-      </div>`;
-  }).join('');
-  return `
-    <div class="tm-masthead">
-      <div class="tm-title">${o.masthead.title}</div>
-      <div class="tm-sub">${escapeHtml(o.masthead.sub)}</div>
-      <div class="tm-meta">${escapeHtml(o.masthead.meta)}</div>
-    </div>
-    <h2 class="tm-headline">${escapeHtml(o.headline)}</h2>
-    <p class="tm-lead">${escapeHtml(o.lead)}</p>
-    ${plate}
-    <div class="tm-result-section">${rest}</div>
-    <div class="tm-preview">${escapeHtml(o.prize)}</div>
-    <div class="tm-bridge" style="margin-top:14px">${escapeHtml(o.nextPreview)}</div>
-    <div class="tm-bridge">${o.bridge}</div>
-    <div class="tm-footer">${escapeHtml(o.footer)}</div>`;
-}
-
-// ── 관리자(소로 · lonelywalden) 추첨 ──────────────────
-const SORO_UID = '81ac3dfa-0d44-4ab9-84bf-d630321b0bad';   // 영구 관리자 uid
-function isSoro() { const u = getUser(); return !!u && u.id === SORO_UID; }
-
-let RESULT_SUMMARY = null;   // 이번 주 추첨 결과 summary (있으면 결과호)
-let RESULT_ITEMS = null;     // 이번 주 5작품 메타 (drawn 포함)
-let RESULT_NICKS = [];       // 2~4등 닉네임 [{grade, item_id, winner_nick}]
-let RESULT_NICKS_5 = [];     // 5등 전원 닉네임 [{nickname}]
-
-function thisWk() {
-  if (SALON_ITEMS[0] && SALON_ITEMS[0].wk_id) return SALON_ITEMS[0].wk_id;
-  if (RESULT_ITEMS && RESULT_ITEMS[0]) return RESULT_ITEMS[0].wk_id;
-  return getWkId(kstDate());
-}
-
-// 이번 주 결과 로드 (월요일 진입 / 추첨 직후)
-async function loadResult(wkId) {
-  let arc = null;
-  if (wkId) {
-    try {
-      arc = await sbFetch(`/rest/v1/heritage_archives?wk_id=eq.${wkId}&select=summary,wk_id&order=id.desc&limit=1`);
-    } catch (e) { arc = null; }
-  }
-  // 폴백: 지정 주차로 못 찾았고 결과호 시간대(월 오후)면, 가장 최근 추첨 결과를 가져온다.
-  //  ─ 추첨이 끝나면 SALON_ITEMS(active)가 비고, 결과호가 뜨는 월요일엔 getWkId가 이미
-  //     다음 주차를 가리켜 thisWk()가 어긋난다. 결과호는 곧 '방금 추첨된 최신 결과'이므로 최신 1건으로 채운다.
-  if ((!arc || !arc[0]) && timesMode() === 'result') {
-    try {
-      arc = await sbFetch(`/rest/v1/heritage_archives?select=summary,wk_id&order=id.desc&limit=1`);
-    } catch (e) { arc = null; }
-  }
-  RESULT_SUMMARY = (arc && arc[0]) ? arc[0].summary : null;
-  if (RESULT_SUMMARY) {
-    const realWk = arc[0].wk_id || RESULT_SUMMARY.wk || wkId;
-    try {
-      RESULT_ITEMS = await sbFetch(`/rest/v1/heritage_items?wk_id=eq.${realWk}&category=eq.visual&select=*&order=salle_no.asc`) || null;
-    } catch (e) { RESULT_ITEMS = null; }
-    // 2~4등 닉네임 (heritage_results)
-    try {
-      RESULT_NICKS = await sbFetch(`/rest/v1/heritage_results?wk_id=eq.${realWk}&select=grade,item_id,winner_nick&order=grade.asc`) || [];
-    } catch (e) { RESULT_NICKS = []; }
-    // 5등 닉네임 전원 (heritage_rentals, salle5 item)
-    if (RESULT_ITEMS) {
-      const s5 = RESULT_ITEMS.find(i => i.salle_no === 5);
-    // 5등 닉네임 전원 (heritage_rentals, salle5 item — wk_id 컬럼 없음)
-      if (s5) {
-        try {
-          RESULT_NICKS_5 = await sbFetch(`/rest/v1/heritage_rentals?item_id=eq.${s5.id}&source=eq.prize&select=nickname&order=nickname.asc`) || [];
-        } catch (e) { RESULT_NICKS_5 = []; }
-      }
-    }
-  }
-}
-
-// 결과호 data 빌드 (summary + 작품 메타 + 부수)
-function buildResultData() {
-  const sum = RESULT_SUMMARY || {};
-  const metas = (RESULT_ITEMS && RESULT_ITEMS.length) ? RESULT_ITEMS : SALON_ITEMS;
-  const copyMap = {};
-  (sum.editions || []).forEach(e => { copyMap[e.item_id] = e.copies; });
-  const items = (metas || []).slice().sort((a, b) => a.salle_no - b.salle_no).map(it => {
-    // 2~4등 닉네임
-    const nicks = (RESULT_NICKS || [])
-      .filter(r => r.item_id === it.id)
-      .map(r => r.winner_nick);
-    // 5등(salle5)은 전원 목록
-    const nicks5 = it.salle_no === 5
-      ? (RESULT_NICKS_5 || []).map(r => r.nickname)
-      : null;
-    return {
-      salle: it.salle_no, id: it.id, name: it.name, artist: it.artist,
-      img: it.img, layers: it.layers || null, copies: copyMap[it.id] || 0,
-      nicks: nicks5 !== null ? nicks5 : nicks
-    };
-  });
-  const d = kstDate();
-  const dow = ['일','월','화','수','목','금','토'][d.getDay()];
-  return {
-    vol: currentVol(),
-    wkId: sum.wk || thisWk(),
-    dateLabel: `${d.getMonth() + 1}월 ${d.getDate()}일 ${dow}요일`,
-    dateDot: `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}`,
-    first: sum.first || { nickname: '한 콩파뇽' },
-    totalTickets: sum.total_tickets || 0,
-    pool: sum.pool || 0,
-    items
-  };
-}
-
-// 추첨 버튼 — 소로일 때, 마감 지난 월요일, 아직 미추첨에만 헤더 아래 뜸
-function renderDrawButton() {
-  const old = document.getElementById('tm-draw-bar');
-  if (old) old.remove();
-  const host = document.getElementById('rhythm-line');
-  if (!host) return;
-  const undrawn = !RESULT_SUMMARY && SALON_ITEMS.length > 0;
-  if (!isSoro() || timesMode() === 'archived' || timesMode() === 'normal' || !undrawn) return;
-  const bar = document.createElement('div');
-  bar.id = 'tm-draw-bar';
-  bar.className = 'tm-draw-bar';
-  bar.innerHTML = `<button class="tm-draw-btn" onclick="doDrawWinners()">🎲 이번 주 추첨하기 · ${thisWk()}</button>`;
-  host.insertAdjacentElement('afterend', bar);
-}
-
-// 추첨 실행 → 결과호 자동 표시
-async function doDrawWinners() {
-  const wk = thisWk();
-  if (!confirm(`이번 주(${wk}) 추첨을 돌립니다.\n당첨자·부상·분더카머 이동이 확정되며 되돌릴 수 없습니다.\n진행할까요?`)) return;
-  const btn = document.querySelector('.tm-draw-btn');
-  if (btn) { btn.disabled = true; btn.textContent = '추첨 중…'; }
-  try {
-    const r = await sbFetch('/rest/v1/rpc/draw_winners', {
-      method: 'POST', body: JSON.stringify({ p_wk: wk })
-    });
-    RESULT_SUMMARY = r || null;
-    await loadResult(wk);     // 작품 메타(drawn) + summary 재확정
-    await loadSalon();        // active 비워짐 반영
-    renderDrawButton();       // 버튼 사라짐
-    renderSalleNav();
-    renderStage();            // 무대 결과호로
-    openTimes();              // 결과호 모달 펼침
-  } catch (e) {
-    alert('추첨 중 문제가 발생했습니다.\n' + (e && e.message ? e.message : e));
-    if (btn) { btn.disabled = false; btn.textContent = `🎲 이번 주 추첨하기 · ${wk}`; }
-  }
-}
-
-// ── 별표 *...* → 굵은 강조 (star.html renderMarkdownStar 이식 · 로직 동일, 색만 헤리티지 어두운 시트 톤) ──
-//    **텍스트**=금색 짙은 볼드(700) / *텍스트*=크림 볼드(600). 콘스텔라티오·뮤세움과 같은 로직.
 function renderMarkdownStar(text) {
   if (!text) return '';
   const e = String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -2088,8 +531,6 @@ function renderMarkdownStar(text) {
     .replace(/\*([^*\n]+?)\*/g, '<strong style="font-family:\'Noto Sans KR\',\'Apple SD Gothic Neo\',sans-serif;font-weight:600;color:var(--cream)">$1</strong>');
 }
 
-// ── 큐레이션 링크 (star.html renderCurationLinksStar 이식 · 로직 동일, 색만 헤리티지 톤) ──
-//    liner_note 4겹과 별개인 heritage_items.curation_links 칸을 읽어 한 번만 그린다.
 function renderCurationLinksStar(links) {
   if (!links) return '';
   const sections = [];
@@ -2132,468 +573,34 @@ function renderCurationLinksStar(links) {
   return sections.length ? `<div style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--gold-faint)">${sections.join('')}</div>` : '';
 }
 
-// ── 카리의 4겹 모달 ───────────────────────
-function openLayers(itemId) {
-  const item = SALON_ITEMS.find(i => i.id === itemId);
-  if (!item) return;
+function openArtLayers(item){
+  if(!item) return;
   const src = item.layers || item.library;
-  if (!src) return;
-
-  let blocks = '';
-  if (Array.isArray(src)) {
-    blocks = src.map((t, i) => `
-      <div class="layer-block">
-        <div class="layer-tag">${i + 1}번째 겹</div>
-        <div class="layer-text">${renderMarkdownStar(typeof t === 'string' ? t : JSON.stringify(t))}</div>
-      </div>`).join('<div class="layer-divider"></div>');
-  } else if (typeof src === 'object') {
-    const order = ['scene', 'knowledge', 'thought', 'connection', 'curation'];
-    const keys = [...order.filter(k => src[k]), ...Object.keys(src).filter(k => !order.includes(k))];
-    blocks = keys.map(k => `
-      <div class="layer-block">
-        <div class="layer-tag">${LAYER_LABELS[k] || escapeHtml(k)}</div>
-        <div class="layer-text">${renderMarkdownStar(src[k])}</div>
-      </div>`).join('<div class="layer-divider"></div>');
+  if(!src){ toast('이 작품의 4겹은 준비 중이에요'); return; }
+  let blocks='';
+  if(Array.isArray(src)){
+    blocks = src.map((t,i)=>`<div class="layer-block"><div class="layer-tag">${i+1}번째 겹</div><div class="layer-text">${renderMarkdownStar(typeof t==='string'?t:JSON.stringify(t))}</div></div>`).join('<div class="layer-divider"></div>');
+  } else if(typeof src==='object'){
+    const order=['scene','knowledge','thought','connection','curation'];
+    const keys=[...order.filter(k=>src[k]),...Object.keys(src).filter(k=>!order.includes(k))];
+    blocks=keys.map(k=>`<div class="layer-block"><div class="layer-tag">${LAYER_LABELS[k]||escapeHtml(k)}</div><div class="layer-text">${renderMarkdownStar(src[k])}</div></div>`).join('<div class="layer-divider"></div>');
   } else {
-    blocks = `<div class="layer-text">${renderMarkdownStar(src)}</div>`;
+    blocks=`<div class="layer-text">${renderMarkdownStar(src)}</div>`;
   }
-
   const curationHtml = item.curation_links ? renderCurationLinksStar(item.curation_links) : '';
-
-  const panel = document.createElement('div');
-  panel.id = 'layers-panel';
-  panel.innerHTML = `
-    <div class="sheet-overlay" style="${salleBackdrop()}" onclick="if(event.target===this)closeLayers()">
-      <div class="sheet">
-        <div class="sheet-handle"></div>
-        <div class="sheet-eyebrow">Quatre Couches · 카리의 4겹</div>
-        <div class="sheet-title">${escapeHtml(item.name)}</div>
-        <div class="sheet-sub">${escapeHtml(item.artist)}</div>
-        ${blocks}
-        ${curationHtml}
-        <button class="sheet-btn quiet" onclick="closeLayers()">닫기</button>
-      </div>
-    </div>`;
-  document.body.appendChild(panel);
-  document.body.style.overflow = 'hidden';
+  const panel=document.createElement('div'); panel.id='layers-panel';
+  panel.innerHTML=`<div class="sheet-overlay" onclick="if(event.target===this)closeArtLayers()">
+    <div class="sheet"><div class="sheet-handle"></div>
+      <div class="sheet-eyebrow">Quatre Couches · 카리의 4겹</div>
+      <div class="sheet-title">${escapeHtml(item.t)}</div>
+      <div class="sheet-sub">${escapeHtml(item.a)}</div>
+      ${blocks}${curationHtml}
+      <button class="sheet-btn quiet" onclick="closeArtLayers()">닫기</button>
+    </div></div>`;
+  document.body.appendChild(panel); document.body.style.overflow='hidden';
 }
-function closeLayers() {
-  const p = document.getElementById('layers-panel'); if (p) p.remove();
-  document.body.style.overflow = '';
-}
+function closeArtLayers(){ const p=document.getElementById('layers-panel'); if(p)p.remove(); document.body.style.overflow=''; }
 
-// ── 응모 패널 (행운의 미소) ────────────────
-async function openBid(itemId) {
-  const user = getUser();
-  if (!user) { showToast('로그인이 필요합니다'); return; }
-
-  const wkId = getWkId();
-  let myTickets = [];
-
-  try {
-    myTickets = await sbFetch(
-      `/rest/v1/heritage_applications?item_id=eq.${itemId}&user_id=eq.${user.id}&wk_id=eq.${wkId}&select=ticket_code,applied_date,created_at&order=created_at.asc`
-    ) || [];
-  } catch (e) { console.warn(e); }
-
-  const todayApplied = myTickets.some(t => t.applied_date === new Date().toISOString().slice(0, 10));
-  const weekCount = myTickets.length;
-  const canApply = !todayApplied && weekCount < 6;
-  const item = SALON_ITEMS.find(i => i.id === itemId);
-  const loved = LOVE_COUNTS[itemId] || 0;
-
-  const panel = document.createElement('div');
-  panel.id = 'bid-panel';
-  panel.innerHTML = `
-    <div class="sheet-overlay" style="${salleBackdrop()}" onclick="if(event.target===this)closeBidPanel()">
-      <div class="sheet" id="bid-sheet">
-        <div class="sheet-handle"></div>
-        <div class="sheet-eyebrow">행운의 미소 · Heritage Lottery</div>
-        <div class="sheet-title">${item ? escapeHtml(item.name) : itemId}</div>
-        <div class="sheet-sub">${item ? escapeHtml(item.artist) : ''}</div>
-
-        <div class="stat-row">
-          <div class="stat-box">
-            <div class="stat-num">${loved}</div>
-            <div class="stat-lbl">이번 주 응모한 콩파뇽</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-num">${weekCount}<small>/6</small></div>
-            <div class="stat-lbl">내 티켓 (이번 주)</div>
-          </div>
-        </div>
-
-        <div class="confession">
-          추첨은 <b>사람</b>에서 뽑습니다 — 1,000알과 1알이 동등합니다.<br>
-          두 번째 티켓부터는, 확률이 아니라 <b>사랑의 고백</b>입니다.
-        </div>
-
-        ${myTickets.length ? `
-        <div style="margin-bottom:18px;">
-          <div class="ticket-list-tag">내 티켓</div>
-          ${myTickets.map(t => `
-            <div class="ticket-row" title="티켓 보기" onclick="viewTicket('${t.ticket_code}','${itemId}')">
-              <span class="ticket-code">${t.ticket_code}</span>
-              <span class="ticket-date">${t.applied_date}<span class="ticket-go">›</span></span>
-            </div>`).join('')}
-        </div>` : ''}
-
-        <div class="notice">
-          🍎 황금사과 1알 = 티켓 1장<br>
-          📅 하루 1회 · 화~일, 한 작품에 주 6장까지<br>
-          🎲 월요일 정오, 다섯 방 동시 추첨<br>
-          🥇 1등은 영구 소장 — 2~5등은 보물이 대여로 집에 머뭅니다<br>
-          ✦ 응모한 황금사과는 환불되지 않습니다
-        </div>
-
-        ${canApply ? `
-          <button class="sheet-btn gold" onclick="submitApplication('${itemId}')">🍎 오늘 응모하기 (황금사과 1알)</button>
-        ` : todayApplied ? `
-          <div class="sheet-btn ghost" style="text-align:center;cursor:default;">✓ 오늘 이미 응모하셨습니다 · 내일 다시 오세요</div>
-        ` : `
-          <div class="sheet-btn ghost" style="text-align:center;cursor:default;">이번 주 응모 6장을 모두 사용하셨습니다</div>
-        `}
-
-        <button class="sheet-btn quiet" onclick="closeBidPanel()">닫기</button>
-      </div>
-    </div>`;
-  document.body.appendChild(panel);
-  document.body.style.overflow = 'hidden';
-}
-
-function closeBidPanel() {
-  const p = document.getElementById('bid-panel'); if (p) p.remove();
-  document.body.style.overflow = '';
-}
-
-// ── 응모 실행 ─────────────────────────────
-async function submitApplication(itemId) {
-  const user = getUser();
-  if (!user) { showToast('로그인이 필요합니다'); return; }
-  const nickname = localStorage.getItem('eg_nickname') || user.email?.split('@')[0] || '익명';
-
-  const btn = document.querySelector('#bid-panel button[onclick*="submitApplication"]');
-  if (btn) { btn.disabled = true; btn.textContent = '응모 중...'; }
-
-  try {
-    const result = await sbFetch('/rest/v1/rpc/apply_heritage', {
-      method: 'POST',
-      body: JSON.stringify({ p_item_id: itemId, p_user_id: user.id, p_nickname: nickname })
-    });
-
-    if (result.ok) {
-      LOVE_COUNTS[itemId] = Math.max(LOVE_COUNTS[itemId] || 0, 0) || 0;
-      showTicketInPanel(result.ticket, itemId);
-      refreshLoveAndStage(itemId);
-    } else {
-      showToast(result.msg);
-      if (btn) { btn.disabled = false; btn.textContent = '🍎 오늘 응모하기 (황금사과 1알)'; }
-    }
-  } catch (e) {
-    showToast('응모 실패: ' + e.message);
-    if (btn) { btn.disabled = false; btn.textContent = '🍎 오늘 응모하기 (황금사과 1알)'; }
-  }
-}
-
-// 응모 후 사람 수 재조회 + 무대 갱신
-async function refreshLoveAndStage(itemId) {
-  try {
-    const n = await sbFetch('/rest/v1/rpc/get_heritage_lovers', {
-      method: 'POST',
-      body: JSON.stringify({ p_item_id: itemId })
-    });
-    LOVE_COUNTS[itemId] = (typeof n === 'number') ? n : (n || 0);
-  } catch (e) { console.warn(e); }
-  renderStage();
-}
-
-// ── 티켓 발급 화면 ────────────────────────
-function showTicketInPanel(ticketCode, itemId) {
-  const item = SALON_ITEMS.find(i => i.id === itemId);
-  const sheet = document.getElementById('bid-sheet');
-  if (!sheet) return;
-
-  sheet.innerHTML = `
-    <div class="sheet-handle"></div>
-    <div class="sheet-eyebrow">티켓 발급 완료</div>
-    <div class="sheet-title" style="margin-bottom:24px;">${item ? escapeHtml(item.name) : itemId}</div>
-
-    <div id="ticket-preview">
-      <div class="ticket-card">
-        <div class="ticket-hole l"></div>
-        <div class="ticket-hole r"></div>
-        <div class="sheet-eyebrow" style="margin-bottom:12px;">EG Heritage · Lottery Ticket</div>
-        <div style="font-size:15px;color:rgba(244,239,228,0.9);margin-bottom:5px;">${item ? escapeHtml(item.name) : itemId}</div>
-        <div style="font-size:13.5px;color:rgba(244,239,228,0.62);">${item ? escapeHtml(item.artist) : ''}</div>
-        <div class="ticket-dash"></div>
-        <div class="ticket-big-code">${ticketCode}</div>
-        <div style="font-size:12px;color:rgba(244,239,228,0.55);margin-top:8px;letter-spacing:0.06em;">${new Date().toLocaleDateString('ko-KR')} 발급</div>
-      </div>
-    </div>
-
-    <div style="font-size:12.5px;color:rgba(244,239,228,0.62);letter-spacing:0.04em;line-height:1.9;text-align:center;margin:16px 0 4px;">
-      월요일 정오, 다섯 방 동시 추첨<br>
-      응모한 황금사과는 환불되지 않습니다
-    </div>
-
-    <button class="sheet-btn gold" onclick="downloadTicket('${ticketCode}','${itemId}')">📥 티켓 이미지 저장</button>
-    <button class="sheet-btn quiet" onclick="closeBidPanel()">닫기</button>
-  `;
-
-  // 새 옷 입은 티켓을 즉석에서 구워 미리보기에 끼움 — 실패하면 위 카드가 그대로 남는다
-  buildTicketImage(ticketCode, itemId).then(url => {
-    const host = document.getElementById('ticket-preview');
-    if (!url || !host) return;
-    host.innerHTML = '<img class="ticket-img" src="' + url + '" alt="응모 티켓">';
-    requestAnimationFrame(() => { const im = host.querySelector('img'); if (im) im.style.opacity = '1'; });
-  });
-}
-
-// ── 티켓 이미지 다운로드 ──────────────────
-// 방(Salle)마다 전용 티켓 한 장 — 무대 색과 짝지은 배정 (0607 소로 결정)
-// 잉크색 = 각 티켓에 인쇄된 글자색 실측값. 짙은 바탕(Ⅲ·Ⅴ)은 크림 화이트.
-const TICKET_DESIGNS = {
-  1: { file: 'ticket_05.webp', ink: '#7A5B58', sub: 'rgba(122,91,88,0.85)'   }, // Ⅰ 와인 다마스크 → 로즈
-  2: { file: 'ticket_04.webp', ink: '#464628', sub: 'rgba(70,70,40,0.85)'    }, // Ⅱ 진녹 서재 → 셀라돈
-  3: { file: 'ticket_03.webp', ink: '#FAFAF0', sub: 'rgba(250,250,240,0.85)' }, // Ⅲ 프러시안 궁전 → 네이비
-  4: { file: 'ticket_01.webp', ink: '#56492E', sub: 'rgba(86,73,46,0.85)'    }, // Ⅳ 크림 아침 → 아이보리
-  5: { file: 'ticket_02.webp', ink: '#FFFDF3', sub: 'rgba(255,253,243,0.88)' }  // Ⅴ 렘브란트 명암 → 토프
-};
-
-// 티켓 번호(HTG_00N-YYYYMMDD-XXXX)에 새겨진 발급일 — 옛 티켓도 제 날짜를 입는다
-function ticketIssueDate(ticketCode) {
-  const m = /-(\d{8})-/.exec(ticketCode);
-  if (!m) return new Date().toLocaleDateString('ko-KR');
-  const s = m[1];
-  return parseInt(s.slice(0, 4), 10) + '. ' + parseInt(s.slice(4, 6), 10) + '. ' + parseInt(s.slice(6, 8), 10) + '.';
-}
-
-let _ticketCache = { code: null, url: null }; // 같은 티켓은 한 번만 굽는다
-
-async function buildTicketImage(ticketCode, itemId) {
-  if (_ticketCache.code === ticketCode && _ticketCache.url) return _ticketCache.url;
-
-  const item = SALON_ITEMS.find(i => String(i.id) === String(itemId));
-  const design = item ? TICKET_DESIGNS[item.salle_no] : null;
-  if (!design) return null;
-  const itemName = item.name;
-
-  try { await document.fonts.ready; } catch (e) {}
-
-  const img = await new Promise(resolve => {
-    const im = new Image();
-    im.onload = () => resolve(im);
-    im.onerror = () => resolve(null); // 자재 못 받으면 null → 호출 쪽 폴백
-    im.src = design.file;
-  });
-  if (!img) return null;
-
-  const W = 2172, H = 724, CX = 810; // 원본 규격 + 본문(반권 제외) 중앙
-  const canvas = document.createElement('canvas');
-  canvas.width = W; canvas.height = H;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(img, 0, 0, W, H);
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-
-  // 작품명 — 부제와 장식선 사이, 길면 자동 축소
-  let size = 66;
-  ctx.font = '600 ' + size + 'px "Noto Serif KR", serif';
-  while (ctx.measureText(itemName).width > 1380 && size > 34) {
-    size -= 4;
-    ctx.font = '600 ' + size + 'px "Noto Serif KR", serif';
-  }
-  ctx.fillStyle = design.ink;
-  ctx.fillText(itemName, CX, 352);
-
-  // 일련번호 — 장식선 아래
-  try { ctx.letterSpacing = '2px'; } catch (e) {}
-  ctx.font = 'bold 46px "Courier New", monospace';
-  ctx.fillText(ticketCode, CX, 510);
-  try { ctx.letterSpacing = '0px'; } catch (e) {}
-
-  // 발급일
-  ctx.font = '500 27px "Noto Serif KR", serif';
-  ctx.fillStyle = design.sub;
-  ctx.fillText(ticketIssueDate(ticketCode) + ' 발급 · 은교살롱', CX, 598);
-
-  const url = canvas.toDataURL('image/png');
-  _ticketCache = { code: ticketCode, url: url };
-  return url;
-}
-
-async function downloadTicket(ticketCode, itemId) {
-  const item = SALON_ITEMS.find(i => String(i.id) === String(itemId));
-  const itemName = item ? item.name : String(itemId);
-  const url = await buildTicketImage(ticketCode, itemId);
-  if (!url) { downloadTicketFallback(ticketCode, itemName); return; } // 자재 못 받으면 옛 티켓으로 정직 폴백
-
-  const a = document.createElement('a');
-  a.download = 'EG_TICKET_' + ticketCode + '.png';
-  a.href = url;
-  a.click();
-  showToast('🎟 티켓이 저장되었습니다!');
-}
-
-// ── 내 티켓 상시 열람 — 응모 패널 위층의 막 ──
-async function viewTicket(ticketCode, itemId) {
-  const item = SALON_ITEMS.find(i => String(i.id) === String(itemId));
-  const panel = document.createElement('div');
-  panel.id = 'ticket-view-panel';
-  panel.innerHTML = `
-    <div class="sheet-overlay" style="${salleBackdrop()}" onclick="if(event.target===this)closeTicketView()">
-      <div class="sheet">
-        <div class="sheet-handle"></div>
-        <div class="sheet-eyebrow">내 티켓</div>
-        <div class="sheet-title" style="margin-bottom:24px;">${item ? escapeHtml(item.name) : ''}</div>
-        <div id="ticket-view-host">
-          <div class="ticket-card">
-            <div class="sheet-eyebrow" style="margin-bottom:12px;">EG Heritage · Lottery Ticket</div>
-            <div class="ticket-big-code">${ticketCode}</div>
-            <div style="font-size:12px;color:rgba(244,239,228,0.55);margin-top:8px;letter-spacing:0.06em;">${ticketIssueDate(ticketCode)} 발급</div>
-          </div>
-        </div>
-        <button class="sheet-btn gold" onclick="downloadTicket('${ticketCode}','${itemId}')">📥 티켓 이미지 저장</button>
-        <button class="sheet-btn quiet" onclick="closeTicketView()">← 돌아가기</button>
-      </div>
-    </div>`;
-  document.body.appendChild(panel);
-
-  buildTicketImage(ticketCode, itemId).then(url => {
-    const host = document.getElementById('ticket-view-host');
-    if (!url || !host) return;
-    host.innerHTML = '<img class="ticket-img" src="' + url + '" alt="응모 티켓">';
-    requestAnimationFrame(() => { const im = host.querySelector('img'); if (im) im.style.opacity = '1'; });
-  });
-}
-function closeTicketView() {
-  const p = document.getElementById('ticket-view-panel'); if (p) p.remove();
-  // body overflow는 아래층 응모 패널 소관 — 건드리지 않는다
-}
-
-// 폴백 — v3.9 캔버스 티켓 (자재 로드 실패 시에만)
-function downloadTicketFallback(ticketCode, itemName) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 600; canvas.height = 320;
-  const ctx = canvas.getContext('2d');
-
-  ctx.fillStyle = '#241614';
-  ctx.fillRect(0, 0, 600, 320);
-
-  ctx.strokeStyle = 'rgba(201,168,76,0.6)';
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(16, 16, 568, 288);
-
-  ctx.setLineDash([6, 4]);
-  ctx.strokeStyle = 'rgba(201,168,76,0.25)';
-  ctx.beginPath(); ctx.moveTo(40, 160); ctx.lineTo(560, 160); ctx.stroke();
-  ctx.setLineDash([]);
-
-  ctx.fillStyle = '#140a08';
-  ctx.beginPath(); ctx.arc(16, 160, 12, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(584, 160, 12, 0, Math.PI * 2); ctx.fill();
-
-  ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(201,168,76,0.6)';
-  ctx.font = '11px "Courier New"';
-  ctx.fillText('EG HERITAGE · LOTTERY TICKET', 300, 60);
-
-  ctx.fillStyle = 'rgba(244,239,228,0.85)';
-  ctx.font = '18px Georgia';
-  ctx.fillText(itemName, 300, 100);
-
-  ctx.fillStyle = '#C9A84C';
-  ctx.font = 'bold 22px "Courier New"';
-  ctx.fillText(ticketCode, 300, 210);
-
-  ctx.fillStyle = 'rgba(244,239,228,0.55)';
-  ctx.font = '11px Georgia';
-  ctx.fillText(new Date().toLocaleDateString('ko-KR') + ' 발급 · 은교살롱', 300, 270);
-
-  const a = document.createElement('a');
-  a.download = `EG_TICKET_${ticketCode}.png`;
-  a.href = canvas.toDataURL('image/png');
-  a.click();
-  showToast('🎟 티켓이 저장되었습니다!');
-}
-
-// ── 토스트 ────────────────────────────────
-function showToast(msg) {
-  const t = document.createElement('div');
-  t.className = 'toast';
-  t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 3000);
-}
-
-// ── 키보드 + 스와이프 ─────────────────────
-document.addEventListener('keydown', (e) => {
-  if (document.getElementById('ticket-view-panel')) {
-    if (e.key === 'Escape') closeTicketView();
-    return;
-  }
-  if (document.getElementById('bid-panel') || document.getElementById('layers-panel') ||
-      document.getElementById('liner-panel') || document.getElementById('rent-panel') ||
-      document.getElementById('cat-panel')) {
-    if (e.key === 'Escape') { closeBidPanel(); closeLayers(); closeLiner(); closeRent(); closeCatWork(); }
-    return;
-  }
-  if (!document.getElementById('tab-salon').hidden) {
-    if (e.key === 'ArrowLeft')  switchSalle(currentSalle - 1);
-    if (e.key === 'ArrowRight') switchSalle(currentSalle + 1);
-    if (['1','2','3','4','5'].includes(e.key)) switchSalle(parseInt(e.key));
-  } else if (!document.getElementById('tab-record').hidden) {
-    if (e.key === 'ArrowLeft')  switchRoom(currentRoom - 1);
-    if (e.key === 'ArrowRight') switchRoom(currentRoom + 1);
-    if (['1','2','3','4','5','6','7','8','9'].includes(e.key)) switchRoom(parseInt(e.key));
-  }
-});
-
-let touchX = null;
-document.addEventListener('touchstart', (e) => {
-  if (document.getElementById('bid-panel') || document.getElementById('layers-panel') ||
-      document.getElementById('liner-panel') || document.getElementById('rent-panel') ||
-      document.getElementById('cat-panel')) return;
-  if (document.getElementById('tab-salon').hidden && document.getElementById('tab-record').hidden) return;
-  touchX = e.touches[0].clientX;
-}, { passive: true });
-document.addEventListener('touchend', (e) => {
-  if (touchX === null) return;
-  const dx = e.changedTouches[0].clientX - touchX;
-  touchX = null;
-  if (Math.abs(dx) < 60) return;
-  if (!document.getElementById('tab-salon').hidden) {
-    if (dx < 0) switchSalle(currentSalle + 1);
-    else        switchSalle(currentSalle - 1);
-  } else if (!document.getElementById('tab-record').hidden) {
-    if (dx < 0) switchRoom(currentRoom + 1);
-    else        switchRoom(currentRoom - 1);
-  }
-}, { passive: true });
-
-// ── 초기화 ────────────────────────────────
-function goHome() { window.location.href = '/eungyo-salon/'; }
-
-(async function init() {
-  renderRhythm();
-  setBackdrop(currentSalle);
-  renderSalleNav();
-  renderRecordNav();
-  document.getElementById('stage-host').innerHTML = `
-    <div class="void">
-      <div class="void-mark">✦</div>
-      <div class="void-line">살롱의 불을 켜는 중입니다…</div>
-    </div>`;
-  loadMyRecordRentals();
-  await loadSalon();
-  renderSalleNav();
-  renderStage();
-  await loadResult(thisWk());   // 이번 주 추첨 결과(있으면 결과호)
-  renderStage();                // 결과 반영
-  renderDrawButton();           // 소로면 추첨 버튼
-  await loadRecords();
-  renderRecordStage();
-})();
 </script>
 </body>
 </html>
