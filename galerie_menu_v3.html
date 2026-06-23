@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover">
 <title>GALERIE · LIVE</title>
 <style>
-:root{ --amber:#f0d8a8; --gallery-dark:#140a0e; --guide:rgba(240,216,168,.45); }
+:root{ --amber:#f0d8a8; --gallery-dark:#140a0e; --guide:rgba(240,216,168,.45);
+  --gold:#d4b35e; --gold-l:#ecd08a; --gold-dim:rgba(212,179,94,.7); --gold-faint:rgba(212,179,94,.14);
+  --cream:#f4efe4; --txt-strong:rgba(244,239,228,.97); --txt:rgba(244,239,228,.88); --txt-soft:rgba(244,239,228,.66); }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;background:var(--gallery-dark);
   font-family:'Cormorant Garamond','Noto Serif KR',serif;color:var(--amber);
@@ -123,6 +125,82 @@ body.edit .edit-toggle{background:rgba(120,40,40,.7);}
 .ep-coord{font-size:11px;color:rgba(240,216,168,.72);text-align:center;margin-top:6px;
   font-variant-numeric:tabular-nums;letter-spacing:.02em;min-height:14px;}
 .ep-tip{font-size:11px;color:rgba(240,216,168,.45);text-align:center;margin-top:4px;letter-spacing:.02em;}
+
+/* ── 카리의 4겹 모달 (heritage 이식) ── */
+@keyframes overlayIn{ from{opacity:0} to{opacity:1} }
+@keyframes sheetUp{ from{transform:translateY(44px);opacity:0} to{transform:translateY(0);opacity:1} }
+.sheet-overlay {
+  position: fixed; inset: 0; z-index: 600;
+  background-color: #1a0e0a;              /* 이미지 미도착·무대 아래 폴백 */
+  background-size: 100% auto;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-attachment: local;            /* 배경이 내용과 함께 스크롤 */
+  overflow-y: auto;
+  scrollbar-width: none;
+  animation: overlayIn 0.25s ease;
+}
+.sheet-overlay::-webkit-scrollbar { display: none; }
+.sheet {
+  width: 100%; max-width: 480px;
+  margin: 14vh auto 0;
+  min-height: 86vh;
+  background: #241614;
+  border-radius: 20px 20px 0 0;
+  border-top: 1px solid rgba(212,179,94,0.35);
+  box-shadow: 0 -16px 70px rgba(0,0,0,0.6);
+  padding: 26px 26px 46px;
+  animation: sheetUp 0.32s cubic-bezier(0.34,1.56,0.64,1);
+}
+.sheet-handle {
+  width: 36px; height: 4px; border-radius: 2px;
+  background: rgba(201,168,76,0.25);
+  margin: 0 auto 22px;
+}
+.sheet-eyebrow { font-size: 12px; letter-spacing: 0.2em; color: var(--gold-dim); margin-bottom: 7px; text-transform: uppercase; }
+.sheet-title { font-size: 20px; font-weight: 600; color: var(--txt-strong); margin-bottom: 6px; line-height: 1.35; }
+.sheet-sub { font-size: 13.5px; color: var(--txt-soft); margin-bottom: 22px; }
+
+/* 4겹 모달 본문 */
+.layer-block { margin-bottom: 20px; }
+.layer-tag {
+  font-size: 12.5px; letter-spacing: 0.18em; color: var(--gold-dim);
+  text-transform: uppercase; margin-bottom: 7px;
+}
+.layer-text { font-size: 15.5px; color: var(--txt); line-height: 1.95; letter-spacing: 0.01em; }
+.layer-divider { height: 1px; margin: 22px 0; background: linear-gradient(90deg, transparent, rgba(201,168,76,0.18), transparent); }
+
+/* 공통 버튼 */
+.sheet-btn {
+  width: 100%; padding: 14px;
+  border-radius: 12px;
+  font-size: 14.5px; letter-spacing: 0.05em;
+  cursor: pointer; font-family: inherit;
+  margin-top: 10px;
+}
+.sheet-btn.gold {
+  background: linear-gradient(135deg, rgba(212,179,94,0.35), rgba(212,179,94,0.14));
+  border: 1px solid rgba(212,179,94,0.55);
+  color: var(--gold-l);
+  font-weight: 600;
+}
+.sheet-btn.ghost {
+  background: rgba(244,239,228,0.06);
+  border: 1px solid rgba(244,239,228,0.18);
+  color: rgba(244,239,228,0.72);
+}
+.sheet-btn.quiet {
+  background: none;
+  border: 1px solid rgba(244,239,228,0.14);
+  color: rgba(244,239,228,0.55);
+  font-size: 13px; padding: 12px;
+}
+.sheet-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* 감상모드: 명패는 누를 수 있다 (4겹) */
+body:not(.edit) .plaque{cursor:pointer;transition:filter .2s;}
+body:not(.edit) .plaque:hover{filter:drop-shadow(0 0 10px rgba(240,216,168,.45));}
+
 </style>
 </head>
 <body>
@@ -213,7 +291,7 @@ const isSalonKeeper = ()=> getUser()?.id === SORO_UID;
 // ── 데이터 로드 (wk_id 역순 = 방) ──
 async function loadGalerie(){
   const items = await sbFetch('/rest/v1/heritage_items?category=eq.visual&status=eq.active'
-    + '&select=id,name,artist,img,ratio,wk_id,salle_no,art_layout'
+    + '&select=id,name,artist,img,ratio,wk_id,salle_no,art_layout,layers,curation_links'
     + '&order=wk_id.desc,salle_no.asc') || [];
   const byWk={}, order=[];
   for(const it of items){ if(!byWk[it.wk_id]){ byWk[it.wk_id]=[]; order.push(it.wk_id); } byWk[it.wk_id].push(it); }
@@ -226,7 +304,8 @@ async function loadGalerie(){
       const lay = (it.art_layout && Object.keys(it.art_layout).length)
         ? it.art_layout : FALLBACK[it.ratio==='landscape'?'landscape':'portrait'];
       return { id:it.id, img:it.img, t:it.name, a:it.artist,
-        x:lay.x, y:lay.y, size:lay.size, px:lay.px, py:lay.py, psize:lay.psize };
+        x:lay.x, y:lay.y, size:lay.size, px:lay.px, py:lay.py, psize:lay.psize,
+        layers:it.layers||null, curation_links:it.curation_links||null };
     })
   }));
 }
@@ -335,6 +414,7 @@ scroller.addEventListener('scroll',snapCheck,{passive:true});
 // 선택
 art.addEventListener('mousedown',e=>{ if(editMode && !e.target.dataset.h) selectEl('art'); });
 plaque.addEventListener('mousedown',e=>{ if(editMode && !e.target.dataset.h) selectEl('plaque'); });
+plaque.addEventListener('click',e=>{ if(!editMode && !e.target.dataset.h) openArtLayers(curW()); });
 art.addEventListener('touchstart',e=>{ if(editMode && !e.target.dataset.h) selectEl('art'); },{passive:true});
 plaque.addEventListener('touchstart',e=>{ if(editMode && !e.target.dataset.h) selectEl('plaque'); },{passive:true});
 
@@ -414,6 +494,97 @@ scroller.addEventListener('touchend',e=>{ if(!touching||editMode)return;touching
   curtain.classList.add('gone');
   addEventListener('load',()=>setTimeout(()=>enterCenter(curW()),400));
 })();
+
+// ══════════════════════════════════════════════════
+//  카리의 4겹 — 명패 클릭 시 작품 해설 모달 (heritage 이식)
+// ══════════════════════════════════════════════════
+function escapeHtml(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+const LAYER_LABELS = {
+  knowledge:  '첫 번째 겹 · 앎',
+  thought:    '두 번째 겹 · 사유',
+  connection: '세 번째 겹 · 연결',
+  curation:   '네 번째 겹 · 큐레이션',
+  scene:      '장면'
+};
+
+function renderMarkdownStar(text) {
+  if (!text) return '';
+  const e = String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return e
+    .replace(/\*\*([^*\n]+?)\*\*/g, '<strong style="font-family:\'Noto Sans KR\',\'Apple SD Gothic Neo\',sans-serif;font-weight:700;color:var(--gold-l)">$1</strong>')
+    .replace(/\*([^*\n]+?)\*/g, '<strong style="font-family:\'Noto Sans KR\',\'Apple SD Gothic Neo\',sans-serif;font-weight:600;color:var(--cream)">$1</strong>');
+}
+
+function renderCurationLinksStar(links) {
+  if (!links) return '';
+  const sections = [];
+  const linkStyle = "color:var(--gold);text-decoration:none;border-bottom:1px solid var(--gold-dim);padding-bottom:1px";
+  const stopProp = `onclick="event.stopPropagation()" ontouchstart="event.stopPropagation()"`;
+  if (links.books && links.books.length > 0) {
+    const bookCards = links.books.map(b => {
+      const title = b.title || '';
+      const meta = [b.translator && `${b.translator} 옮김`, b.publisher].filter(Boolean).join(' · ');
+      const qFull  = encodeURIComponent((b.isbn ? [b.isbn] : [title, b.author, (b.translator || b.publisher)].filter(Boolean)).join(' '));
+      const stores = [
+        `<a href="https://www.google.com/search?q=${qFull}" target="_blank" rel="noopener" ${stopProp} style="${linkStyle}">책 찾기</a>`,
+      ];
+      return `
+        <div style="padding:10px 0;border-bottom:1px solid var(--gold-faint);font-family:'Noto Serif KR',serif">
+          <div style="font-size:13px;color:var(--cream);font-weight:500">${title}</div>
+          ${meta ? `<div style="font-size:11px;color:var(--txt-soft);margin-top:3px">${meta}</div>` : ''}
+          <div style="margin-top:6px;font-size:11px;letter-spacing:0.05em">${stores.join(' · ')}</div>
+        </div>`;
+    }).join('');
+    sections.push(`<div style="margin-top:14px"><div style="font-size:10px;letter-spacing:0.18em;color:var(--gold-dim);margin-bottom:6px">📖 책</div>${bookCards}</div>`);
+  }
+  if (links.library_call_number) {
+    sections.push(`
+      <div style="margin-top:12px;padding:8px 0;border-bottom:1px solid var(--gold-faint);font-family:'Noto Serif KR',serif">
+        <div style="font-size:10px;letter-spacing:0.18em;color:var(--gold-dim);margin-bottom:4px">🏛 도서관 청구기호</div>
+        <div style="font-size:13px;color:var(--cream)">${links.library_call_number}</div>
+      </div>`);
+  }
+  if (links.youtube_keywords && links.youtube_keywords.length > 0) {
+    const ytLinks = links.youtube_keywords.map(kw =>
+      `<a href="https://www.youtube.com/results?search_query=${encodeURIComponent(kw)}" target="_blank" rel="noopener" ${stopProp} style="${linkStyle};display:inline-block;margin-right:10px;margin-top:4px">${kw}</a>`
+    ).join('');
+    sections.push(`
+      <div style="margin-top:12px;padding:8px 0;font-family:'Noto Serif KR',serif">
+        <div style="font-size:10px;letter-spacing:0.18em;color:var(--gold-dim);margin-bottom:4px">🎬 유튜브에서 더 보기</div>
+        <div style="font-size:12px;line-height:2">${ytLinks}</div>
+      </div>`);
+  }
+  return sections.length ? `<div style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--gold-faint)">${sections.join('')}</div>` : '';
+}
+
+function openArtLayers(item){
+  if(!item) return;
+  const src = item.layers || item.library;
+  if(!src){ toast('이 작품의 4겹은 준비 중이에요'); return; }
+  let blocks='';
+  if(Array.isArray(src)){
+    blocks = src.map((t,i)=>`<div class="layer-block"><div class="layer-tag">${i+1}번째 겹</div><div class="layer-text">${renderMarkdownStar(typeof t==='string'?t:JSON.stringify(t))}</div></div>`).join('<div class="layer-divider"></div>');
+  } else if(typeof src==='object'){
+    const order=['scene','knowledge','thought','connection','curation'];
+    const keys=[...order.filter(k=>src[k]),...Object.keys(src).filter(k=>!order.includes(k))];
+    blocks=keys.map(k=>`<div class="layer-block"><div class="layer-tag">${LAYER_LABELS[k]||escapeHtml(k)}</div><div class="layer-text">${renderMarkdownStar(src[k])}</div></div>`).join('<div class="layer-divider"></div>');
+  } else {
+    blocks=`<div class="layer-text">${renderMarkdownStar(src)}</div>`;
+  }
+  const curationHtml = item.curation_links ? renderCurationLinksStar(item.curation_links) : '';
+  const panel=document.createElement('div'); panel.id='layers-panel';
+  panel.innerHTML=`<div class="sheet-overlay" onclick="if(event.target===this)closeArtLayers()">
+    <div class="sheet"><div class="sheet-handle"></div>
+      <div class="sheet-eyebrow">Quatre Couches · 카리의 4겹</div>
+      <div class="sheet-title">${escapeHtml(item.t)}</div>
+      <div class="sheet-sub">${escapeHtml(item.a)}</div>
+      ${blocks}${curationHtml}
+      <button class="sheet-btn quiet" onclick="closeArtLayers()">닫기</button>
+    </div></div>`;
+  document.body.appendChild(panel); document.body.style.overflow='hidden';
+}
+function closeArtLayers(){ const p=document.getElementById('layers-panel'); if(p)p.remove(); document.body.style.overflow=''; }
+
 </script>
 </body>
 </html>

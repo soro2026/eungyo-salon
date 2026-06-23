@@ -324,6 +324,12 @@
   @media (prefers-reduced-motion:reduce){
     #title,#card{transition:none}
   }
+  #editToggle.on{ background:#7fb3d5; color:#05070f; border-color:#7fb3d5 }
+  #editHint{ position:absolute; left:50%; top:62px; transform:translateX(-50%); z-index:22;
+    display:none; background:rgba(127,179,213,.18); border:1px solid #7fb3d5; color:#eaf4fb;
+    padding:9px 17px; border-radius:24px; font-size:13px; backdrop-filter:blur(6px);
+    box-shadow:0 6px 24px rgba(0,0,0,.4); white-space:nowrap }
+  #editHint.in{ display:block }
 </style>
 </head>
 <body>
@@ -334,6 +340,8 @@
 <div id="cityList"></div>
 <button id="layerSpots" class="layer-btn on">🏛 인물 장소</button>
 <button id="layerMaisons" class="layer-btn">🏠 콩파뇽 집</button>
+<button id="editToggle" class="layer-btn" style="display:none">📍 좌표 편집</button>
+<div id="editHint">📍 <b>편집 모드</b> — 옮길 핀을 누른 뒤, 그 지점 <b>지붕</b>을 클릭하세요</div>
 
 <div id="title">
   <div class="eyebrow">Constellatio</div>
@@ -428,6 +436,7 @@ let viewer, orbiting=false, orbitHeading=0, orbitCenter=null, orbitRange=1000, o
 let CITIES=[], currentCity='paris';
 let currentMaison=null, doorState='closed';
 let showSpots=true, showMaisons=false;   // voyage: 인물 장소 켜짐, 콩파뇽 집 꺼짐(토글로 켬)
+let IS_ADMIN=false, EDIT_MODE=false, selEnt=null, MOVING=false;   // admin 좌표 편집
 const STAR_ID = new URLSearchParams(location.search).get('id') || '116';
 let REP=null, REP_CITY='paris';          // 별의 대표 1점 · 도시
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
@@ -498,6 +507,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   document.getElementById("maisonClose").addEventListener("click", closeMaison);
   document.getElementById("layerSpots").addEventListener("click", ()=>{ showSpots=!showSpots; applyLayerVisibility(); });
   document.getElementById("layerMaisons").addEventListener("click", ()=>{ showMaisons=!showMaisons; applyLayerVisibility(); });
+  setupAdminEdit();   // admin이면 📍 좌표 편집 토글 노출
   document.getElementById("mEnter").addEventListener("click", ()=> enterMaison(currentMaison));
   document.querySelectorAll(".door-half, #doorHint").forEach(el=> el.addEventListener("click", openDoor));
   document.getElementById("doorExit").addEventListener("click", exitDoorway);
@@ -506,6 +516,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   // 마커 클릭 + 호버 — init에서 직접 등록(buildJourney를 안 부르므로 여기서 걸어야 함)
   const handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
   handler.setInputAction((click)=>{
+    if (EDIT_MODE){ handleEditClick(click); return; }
     const picked = viewer.scene.pick(click.position);
     if (Cesium.defined(picked) && picked.id){
       if (picked.id._spot) openStory(picked.id._spot);
@@ -567,6 +578,7 @@ function buildJourney(){
   // 마커 클릭 → 우측 스토리 패널
   const handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
   handler.setInputAction((click)=>{
+    if (EDIT_MODE){ handleEditClick(click); return; }
     const picked = viewer.scene.pick(click.position);
     if (Cesium.defined(picked) && picked.id){
       if (picked.id._spot) openStory(picked.id._spot);
@@ -926,6 +938,88 @@ async function loadRep(){
     document.getElementById("cardPl").textContent  = REP.place_name || "";
     document.getElementById("cardDesc").textContent= REP.descr || "";
   }
+}
+
+// ========== admin 좌표 편집 (지붕 클릭으로 핀 이동) ==========
+async function setupAdminEdit(){
+  try{
+    const { data:{ session } } = await supa.auth.getSession();
+    if (!session) return;
+    const { data } = await supa.from('users').select('is_admin').eq('id', session.user.id).single();
+    IS_ADMIN = !!(data && data.is_admin);
+  }catch(e){ console.warn("admin 확인 실패:", e); }
+  if (!IS_ADMIN) return;
+  const btn = document.getElementById("editToggle");
+  btn.style.display = "";
+  btn.addEventListener("click", ()=>{
+    EDIT_MODE = !EDIT_MODE;
+    btn.classList.toggle("on", EDIT_MODE);
+    document.getElementById("editHint").classList.toggle("in", EDIT_MODE);
+    if (EDIT_MODE){ stopOrbit(); }   // 편집 중엔 회전 멈춤(클릭 정확)
+    else { clearSel();
+      document.getElementById("editHint").innerHTML =
+        "📍 <b>편집 모드</b> — 옮길 핀을 누른 뒤, 그 지점 <b>지붕</b>을 클릭하세요"; }
+  });
+}
+function clearSel(){
+  if (selEnt && selEnt.point && selEnt._origColor){ selEnt.point.color = selEnt._origColor; }
+  selEnt = null;
+}
+function selectForEdit(ent){
+  clearSel();
+  selEnt = ent;
+  if (ent.point){
+    if (!ent._origColor) ent._origColor = ent.point.color;
+    ent.point.color = Cesium.Color.fromCssColorString("#7fb3d5");   // 선택 = 시안
+  }
+  let label = ent._spot ? (ent._spot.title_ko || ent._spot.title || "장소")
+            : ent._maison ? ("메종 " + ent._maison.maison_no) : "?";
+  document.getElementById("editHint").innerHTML =
+    "📍 <b>" + label + " 선택됨</b> — 이제 그 <b>지붕</b>을 클릭하면 옮겨집니다";
+}
+async function moveSelected(ent, lng, lat){
+  if (MOVING) return; MOVING = true;
+  let label = "?";
+  try{
+    if (ent._spot){
+      const { error } = await supa.rpc('admin_set_voyage_marker_coords',
+        { p_marker_id: ent._spot.id, p_lat: lat, p_lng: lng });
+      if (error) throw error;
+      ent._spot.lat = lat; ent._spot.lng = lng;
+      label = (ent._spot.title_ko || ent._spot.title || "장소");
+    } else if (ent._maison){
+      const { error } = await supa.rpc('admin_set_maison_coords',
+        { p_maison_no: ent._maison.maison_no, p_lat: lat, p_lng: lng, p_city: ent._maison.city || 'paris' });
+      if (error) throw error;
+      ent._maison.lat = lat; ent._maison.lng = lng;
+      label = "메종 " + ent._maison.maison_no;
+    } else { MOVING=false; return; }
+    ent.position = Cesium.Cartesian3.fromDegrees(lng, lat);
+    const H = await clampPoint(lng, lat);   // 새 지점 지붕에 즉시 고정
+    if (H != null) ent.position = Cesium.Cartesian3.fromDegrees(lng, lat, H);
+    document.getElementById("editHint").innerHTML =
+      "✅ <b>" + label + "</b> 이동·저장 완료 (지붕 H " + (H!=null?H.toFixed(1):"?") + "m) — 다른 핀을 고르세요";
+    console.log("[edit]", label, "→", lng.toFixed(5), lat.toFixed(5), "H=", H);
+  }catch(e){
+    console.warn("좌표 저장 실패:", e);
+    document.getElementById("editHint").innerHTML = "⚠️ 저장 실패 — 콘솔을 확인하세요";
+  }finally{ MOVING = false; clearSel(); }
+}
+function handleEditClick(click){
+  const picked = viewer.scene.pick(click.position);
+  if (Cesium.defined(picked) && picked.id && (picked.id._spot || picked.id._maison)){
+    selectForEdit(picked.id);   // 핀 클릭 → 선택
+    return;
+  }
+  if (!selEnt){
+    document.getElementById("editHint").innerHTML = "먼저 옮길 <b>핀</b>을 눌러 선택하세요";
+    return;
+  }
+  if (!viewer.scene.pickPositionSupported){ console.warn("pickPosition 미지원"); return; }
+  const cart = viewer.scene.pickPosition(click.position);
+  if (!Cesium.defined(cart)) return;
+  const carto = Cesium.Cartographic.fromCartesian(cart);
+  moveSelected(selEnt, Cesium.Math.toDegrees(carto.longitude), Cesium.Math.toDegrees(carto.latitude));
 }
 
 // ── 한 좌표의 타일 표면 높이(H) 측정 — 궤도 중심을 핀과 같은 높이로 두기 위함 ──
