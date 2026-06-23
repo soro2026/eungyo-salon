@@ -764,7 +764,7 @@ async function jumpToCity(c){
     destination: Cesium.Cartesian3.fromDegrees(lng, lat, r * 1.6),
     orientation:{ heading:Cesium.Math.toRadians(20), pitch:Cesium.Math.toRadians(-35), roll:0 },
     duration: 3.4,
-    complete: ()=> startOrbit(Cesium.Cartesian3.fromDegrees(lng, lat, 0), r)
+    complete: async ()=>{ const H=await clampPoint(lng,lat); startOrbit(Cesium.Cartesian3.fromDegrees(lng, lat, (H!=null?H:0)), r); }
   });
 }
 
@@ -897,6 +897,17 @@ function flyToParisOverview(){
 }
 
 // 특정 메종 핀으로 강하 + 소개 팝업 + 부드러운 회전
+// ── 한 좌표의 타일 표면 높이(H) 측정 — 궤도 중심을 핀과 같은 높이로 두기 위함(갭0) ──
+async function clampPoint(lng, lat){
+  if (!viewer.scene.clampToHeightMostDetailed) return null;
+  try{
+    const arr = await viewer.scene.clampToHeightMostDetailed([Cesium.Cartesian3.fromDegrees(lng, lat)]);
+    const c = arr && arr[0];
+    if (Cesium.defined(c)) return Cesium.Cartographic.fromCartesian(c).height;
+  }catch(e){ console.warn("표면 높이 측정 실패:", e); }
+  return null;
+}
+
 function flyToEntity(ent){
   stopOrbit();
   const carto = Cesium.Cartographic.fromCartesian(ent.position.getValue(Cesium.JulianDate.now()));
@@ -906,9 +917,11 @@ function flyToEntity(ent){
     destination: Cesium.Cartesian3.fromDegrees(lng, lat, 700),
     orientation:{ heading:Cesium.Math.toRadians(15), pitch:Cesium.Math.toRadians(-40), roll:0 },
     duration: 3.0,
-    complete: ()=>{
+    complete: async ()=>{
       openMaison(ent._maison);
-      startOrbit(Cesium.Cartesian3.fromDegrees(lng, lat, 0), 700);   // 내 집을 빙그르르
+      const H = await clampPoint(lng, lat);   // 도착 후 재clamp → 정확한 지붕 높이
+      console.log("[clamp] 메종 지붕 H =", H, "m ← 궤도 중심");
+      startOrbit(Cesium.Cartesian3.fromDegrees(lng, lat, (H!=null?H:(carto.height||0))), 700); // 갭0
     }
   });
 }
