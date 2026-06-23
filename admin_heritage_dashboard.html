@@ -196,6 +196,7 @@
     <h1>헤리티지 운영 현황판<span class="sub">EG HERITAGE · 살롱지기 전용</span></h1>
     <button class="refresh" onclick="load()">↻ 새로고침</button>
     <button class="intake-open" onclick="openIntake()">🖼 보물 입고</button>
+    <button class="intake-open" id="migrate-btn" onclick="migrateOldArt()" style="background:#5a3a2a;border-color:#7a5a3a">📦 옛 미술 이관</button>
   </div>
   <div id="body"><div class="loading">현황을 불러오는 중…</div></div>
   <div class="foot">heritage_items · editions · rentals · archives 실시간 조회</div>
@@ -708,6 +709,56 @@ function ibOpenAt(wk){
   const tue=wkIdToTuesday(wk);
   const y=tue.getFullYear(), mo=String(tue.getMonth()+1).padStart(2,'0'), d=String(tue.getDate()).padStart(2,'0');
   return `${y}-${mo}-${d} 00:00:00+09:00`;
+}
+
+// ══════════ 옛 미술 Storage 이관 (일회성) ══════════
+// 깃허브에만 있던 옛 미술(img=파일명)을 heritage-treasures 버킷으로 복사하고
+// img를 public URL로 UPDATE. 행·wk_id·movement·layers는 그대로 보존(img만 교체).
+async function migrateOldArt(){
+  const RAW_BASE = 'https://raw.githubusercontent.com/soro2026/eungyo-salon/main/';
+  const btn = document.getElementById('migrate-btn');
+
+  // 살롱지기 세션 확인 (Storage·UPDATE RLS는 소로 토큰으로만 통과)
+  const { data:{ session } } = await supa.auth.getSession();
+  if(!session){ alert('살롱지기 로그인 세션이 없습니다. 입장 후 다시 시도하세요.'); return; }
+
+  // 대상 자동 수집: visual 중 img가 http로 시작 안 하는 것 (하드코딩 안 함)
+  const { data:targets, error:selErr } = await supa.from('heritage_items')
+    .select('id,img').eq('category','visual').not('img','like','http%');
+  if(selErr){ alert('대상 조회 실패: '+selErr.message); return; }
+  if(!targets || !targets.length){ alert('이관할 옛 미술이 없습니다. 이미 전부 Storage URL입니다. ✦'); return; }
+  if(!confirm(`옛 미술 ${targets.length}점을 Storage로 이관합니다.\n깃허브 이미지를 heritage-treasures 버킷으로 복사하고 img를 URL로 바꿉니다.\n(행·주차·사조·4겹은 그대로, img만 교체)\n\n진행할까요?`)) return;
+
+  btn.disabled = true;
+  let ok=0, fail=0; const errs=[];
+  for(let i=0;i<targets.length;i++){
+    const it = targets[i];
+    btn.textContent = `이관 중… ${i+1}/${targets.length}`;
+    try{
+      const res = await fetch(RAW_BASE + it.img, { cache:'no-store' });
+      if(!res.ok) throw new Error('raw '+res.status);
+      const blob = await res.blob();
+      const fname = it.img;                                  // htg_p001.webp 그대로 (드가와 한 규칙)
+      const { error:upErr } = await supa.storage.from('heritage-treasures')
+        .upload(fname, blob, { upsert:true, contentType: blob.type||'image/webp' });
+      if(upErr) throw new Error('upload '+upErr.message);
+      const { data:u } = supa.storage.from('heritage-treasures').getPublicUrl(fname);
+      const { error:updErr } = await supa.from('heritage_items')
+        .update({ img:u.publicUrl }).eq('id', it.id);       // INSERT 아님 — 기존 행 img만 교체
+      if(updErr) throw new Error('update '+updErr.message);
+      ok++;
+    }catch(e){ fail++; errs.push(`${it.id}: ${e.message}`); }
+  }
+
+  btn.disabled=false; btn.textContent='📦 옛 미술 이관';
+
+  // 검증: 남은 비-URL 미술 재조회 (잘 됐겠지 금지)
+  const { data:left } = await supa.from('heritage_items')
+    .select('id').eq('category','visual').not('img','like','http%');
+  const remain = left ? left.length : '?';
+  alert(`이관 완료 — 성공 ${ok} · 실패 ${fail}\n남은 비-URL 미술: ${remain}점`
+        + (errs.length ? '\n\n'+errs.join('\n') : ''));
+  if(typeof load==='function') load();
 }
 
 async function ibSubmit(){
