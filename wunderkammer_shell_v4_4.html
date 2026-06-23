@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5, user-scalable=yes, viewport-fit=cover">
 <title>EG Wunderkammer · Building Shell v3 (3F books)</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Noto+Serif+KR:wght@300;400;500&display=swap');
@@ -1477,10 +1477,8 @@ const Floor1 = (() => {
     }
     if (!ownerId) return;  // 비로그인·미존재 → 빈 방 (우아한 비움)
     try {
-      const [perm, rents] = await Promise.all([
-        sbFetch(`/rest/v1/wunderkammer_items?owner_id=eq.${ownerId}&category=eq.visual&select=name,artist,img,ratio,acquired_at&order=acquired_at.asc`),
-        sbFetch(`/rest/v1/heritage_rentals?user_id=eq.${ownerId}&returned_at=is.null&select=item_id,starts_at,due_at,source&order=starts_at.asc`)
-      ]);
+      const perm = [];  // 영구 소장 소멸(v61) — 분더카머 1층은 대여작만 진열한다
+      const rents = await sbFetch(`/rest/v1/heritage_rentals?user_id=eq.${ownerId}&returned_at=is.null&select=item_id,starts_at,due_at,source&order=starts_at.asc`);
       let rentArts = [];
       const rentIds = (rents || []).map(r => r.item_id);
       if (rentIds.length) {
@@ -1491,7 +1489,7 @@ const Floor1 = (() => {
       const all = [...(perm || []), ...rentArts].map(d => ({
         t: d.name, a: d.artist, img: d.img, w: (d.ratio === 'portrait') ? 300 : 380
       }));
-      const CAP = [4, 3, 3, 4];   // 정면4 · 우측3 · 뒷벽3 · 좌측4 슬롯
+      const CAP = [3, 3, 3, 0];   // 정면3 · 우측3 · 뒷벽3 = 9점 / 좌측은 메시지 보드(2단계)
       let idx = 0;
       for (let s = 0; s < 4 && idx < all.length; s++)
         for (let k = 0; k < CAP[s] && idx < all.length; k++) ART[s].push(all[idx++]);
