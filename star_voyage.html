@@ -948,10 +948,11 @@ function flyToEntity(ent){
 // ── 별의 대표 1점 + 인물명 로드 ──
 async function loadRep(){
   try{
-    const res = await fetch(
-      SUPA_URL + "/rest/v1/star_voyages?star_id=eq." + encodeURIComponent(STAR_ID)
-        + "&is_representative=eq.true&select=*,stars(name)",
-      { headers:{ "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY } });
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_star_voyage", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
+      body: JSON.stringify({ p_star_id: Number(STAR_ID) })
+    });
     if (!res.ok) throw new Error("HTTP "+res.status);
     const rows = await res.json();
     REP = rows[0] || null;
@@ -959,7 +960,7 @@ async function loadRep(){
   if (REP){
     REP_CITY = REP.city || 'paris';
     currentCity = REP_CITY;
-    const nm = REP.stars ? REP.stars.name : "";
+    const nm = REP.name || "";
     document.getElementById("personName").textContent = nm || "여정";
     document.getElementById("personSpan").textContent = REP.place_name || "";
     document.getElementById("cardYr").textContent  = REP.yr || "";
@@ -1010,8 +1011,8 @@ async function moveSelected(ent, lng, lat){
   let label = "?";
   try{
     if (ent._spot){
-      const { error } = await supa.rpc('admin_set_voyage_marker_coords',
-        { p_marker_id: ent._spot.id, p_lat: lat, p_lng: lng });
+      const { error } = await supa.rpc('admin_set_place_coords',
+        { p_place_id: ent._spot.place_id, p_lat: lat, p_lng: lng });
       if (error) throw error;
       ent._spot.lat = lat; ent._spot.lng = lng;
       label = (ent._spot.title_ko || ent._spot.title || "장소");
