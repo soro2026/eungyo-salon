@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover">
+<title>GALERIE · LIVE</title>
+<style>
+:root{ --amber:#f0d8a8; --gallery-dark:#140a0e; --guide:rgba(240,216,168,.45); }
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--gallery-dark);
+  font-family:'Cormorant Garamond','Noto Serif KR',serif;color:var(--amber);
+  -webkit-tap-highlight-color:transparent;}
+.scroller{position:fixed;inset:0;overflow-y:auto;overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;touch-action:pan-y pinch-zoom;background:var(--gallery-dark);}
+.scroller::-webkit-scrollbar{display:none}
+
+.room{position:relative;left:50%;transform:translateX(-50%);
+  height:115vh;width:calc(115vh * 9 / 16);
+  background:#3a1820 center center / cover no-repeat;transition:opacity .5s ease;}
+@media (min-aspect-ratio:1/1){ .room{width:100vw;height:calc(100vw * 16 / 9);} }
+
+.art{position:absolute;z-index:3;transform:translate(-50%,-50%);transition:opacity .45s ease;}
+.art img{display:block;width:100%;height:auto;filter:drop-shadow(8px 20px 34px rgba(0,0,0,.82));pointer-events:none;-webkit-user-drag:none;}
+.art.fade{opacity:0}
+.plaque{position:absolute;z-index:4;transform:translate(-50%,-50%);transform-origin:center;
+  padding:6px 18px;background:linear-gradient(180deg,#efe6d0,#d8c9a8);
+  border:1px solid rgba(90,58,24,.55);box-shadow:0 3px 10px rgba(0,0,0,.55);
+  color:#3a2a18;line-height:1.32;text-align:center;white-space:nowrap;transition:opacity .45s ease;}
+.plaque.fade{opacity:0}
+.plaque .pt{font-size:16px;font-weight:600;letter-spacing:.5px;display:block;}
+.plaque .pa{font-size:12px;font-style:italic;opacity:.72;letter-spacing:1px;}
+
+/* ── 편집 모드 전용 ── */
+body.edit .art{cursor:grab;touch-action:none;transition:none;}
+body.edit .plaque{cursor:grab;touch-action:none;transition:none;}
+body.edit .art.fade,body.edit .plaque.fade{opacity:1;}
+.art .handle,.plaque .handle{position:absolute;right:-9px;bottom:-9px;width:20px;height:20px;border-radius:50%;
+  background:#e9cf9c;border:2px solid #5a3a18;cursor:nwse-resize;display:none;z-index:6;}
+body.edit .art.sel,body.edit .plaque.sel{outline:2px dashed rgba(240,216,168,.85);outline-offset:6px;}
+body.edit .art.sel .handle,body.edit .plaque.sel .handle{display:block;}
+
+.guides{position:fixed;inset:0;z-index:25;pointer-events:none;display:none;}
+body.edit .guides{display:block;}
+.guides .vline{position:absolute;top:0;bottom:0;left:50%;width:1px;
+  background:repeating-linear-gradient(180deg,var(--guide) 0 8px,transparent 8px 16px);transition:background .15s;}
+.guides .hline{position:absolute;left:0;right:0;top:50%;height:1px;
+  background:repeating-linear-gradient(90deg,var(--guide) 0 8px,transparent 8px 16px);transition:background .15s;}
+.guides.snap .vline,.guides.snap .hline{background:rgba(255,235,180,.95);box-shadow:0 0 10px rgba(255,235,180,.6);}
+.guides .safe{position:absolute;left:6%;right:6%;top:50%;transform:translateY(-50%);
+  border:1px dashed rgba(240,216,168,.5);border-radius:2px;}
+.guides .safe::after{content:'진입 화면 · 이 안에 액자';position:absolute;top:4px;left:8px;
+  font-size:10px;letter-spacing:.1em;color:rgba(240,216,168,.6);font-family:system-ui,sans-serif;}
+.guides .center-dot{position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;
+  border-radius:50%;border:1px solid rgba(255,235,180,.8);}
+
+.hd{position:fixed;top:max(58px,calc(env(safe-area-inset-top) + 48px));left:0;right:0;z-index:30;text-align:center;
+  pointer-events:none;text-shadow:0 2px 16px rgba(0,0,0,.96);}
+.hd .t{font-size:clamp(20px,5vw,26px);letter-spacing:.3em;color:#ecd29c;}
+.hd .s{font-size:clamp(10px,2.6vw,12px);letter-spacing:.28em;color:rgba(240,216,168,.62);margin-top:3px;}
+
+.foot{position:fixed;bottom:max(16px,calc(env(safe-area-inset-bottom) + 14px));left:0;right:0;z-index:30;text-align:center;}
+.foot .rm{font-size:13px;letter-spacing:.24em;color:#e9cf9c;pointer-events:none;}
+.foot .dots{margin-top:8px;display:flex;gap:7px;justify-content:center;pointer-events:none;}
+.foot .dot{width:7px;height:7px;border-radius:50%;background:rgba(240,216,168,.3);transition:all .3s;}
+.foot .dot.on{background:#e9cf9c;transform:scale(1.3);}
+.rent-btn{margin-top:12px;display:inline-block;padding:9px 22px;border-radius:24px;cursor:pointer;
+  font-family:inherit;font-size:14px;letter-spacing:.04em;border:1px solid rgba(212,184,120,.7);
+  background:linear-gradient(180deg,#caa258,#9c7a3a);color:#1a0f08;font-weight:600;transition:transform .15s,opacity .3s;}
+.rent-btn:active{transform:scale(.95)}
+.rent-btn.have{background:rgba(40,22,18,.55);color:#e9cf9c;border-color:rgba(212,184,120,.4);cursor:default;font-weight:400;backdrop-filter:blur(6px);}
+body.edit .foot{display:none;}
+
+.nav{position:fixed;top:50%;transform:translateY(-50%);z-index:30;width:52px;height:52px;border-radius:50%;
+  border:1px solid rgba(212,184,120,.62);background:rgba(40,22,18,.5);color:var(--amber);font-size:26px;cursor:pointer;
+  backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;transition:transform .2s;}
+.nav:active{transform:translateY(-50%) scale(.92)}
+.nav-l{left:12px} .nav-r{right:12px}
+.roomtag{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:45;
+  font-size:clamp(22px,6vw,40px);letter-spacing:.3em;color:#f0d8a8;opacity:0;pointer-events:none;
+  text-shadow:0 2px 30px rgba(0,0,0,.9);transition:opacity .4s;text-align:center;}
+.roomtag.on{opacity:1}
+.roomtag small{display:block;font-size:.4em;letter-spacing:.28em;opacity:.7;margin-top:10px}
+
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 92px);transform:translateX(-50%);z-index:60;
+  background:rgba(20,10,14,.92);border:1px solid rgba(212,184,120,.5);color:#f0d8a8;padding:11px 20px;border-radius:14px;
+  font-size:13.5px;letter-spacing:.02em;opacity:0;pointer-events:none;transition:opacity .3s;max-width:86vw;text-align:center;}
+.toast.on{opacity:1}
+.curtain{position:fixed;inset:0;z-index:80;background:var(--gallery-dark);display:flex;align-items:center;justify-content:center;
+  color:#caa258;letter-spacing:.3em;font-size:15px;transition:opacity .5s;}
+.curtain.gone{opacity:0;pointer-events:none;}
+
+/* 상단 세그먼트 메뉴 (미술관 ⇄ 음반) */
+.topbar{position:fixed;top:0;left:0;right:0;z-index:35;display:flex;align-items:center;justify-content:space-between;
+  padding:max(10px,env(safe-area-inset-top)) 16px 10px;pointer-events:none;}
+.topbar .home{pointer-events:auto;width:38px;height:38px;border-radius:50%;border:1px solid rgba(212,184,120,.5);
+  background:rgba(20,10,14,.45);color:var(--amber);font-size:18px;display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(8px);cursor:pointer;text-decoration:none;}
+.topbar .spacer{width:38px;}
+.seg{pointer-events:auto;display:flex;border:1px solid rgba(212,184,120,.45);border-radius:22px;overflow:hidden;
+  background:rgba(20,10,14,.45);backdrop-filter:blur(10px);box-shadow:0 2px 14px rgba(0,0,0,.4);}
+.seg button{font-family:inherit;font-size:13px;letter-spacing:.05em;color:rgba(240,216,168,.62);
+  background:transparent;border:none;padding:8px 18px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.seg button.on{background:linear-gradient(180deg,#e2c382,#caa258);color:#1a0f08;font-weight:600;}
+body.edit .topbar{display:none;}
+
+/* 살롱지기 편집 토글 + 편집 패널 */
+.edit-toggle{position:fixed;right:14px;bottom:max(16px,calc(env(safe-area-inset-bottom) + 14px));z-index:55;
+  display:none;font-family:system-ui,sans-serif;font-size:12px;letter-spacing:.04em;color:#e9cf9c;cursor:pointer;
+  background:rgba(40,22,18,.7);border:1px solid rgba(212,184,120,.5);border-radius:18px;padding:8px 14px;backdrop-filter:blur(8px);}
+.edit-panel{position:fixed;left:0;right:0;bottom:0;z-index:56;display:none;
+  background:rgba(20,10,14,.95);border-top:1px solid rgba(212,184,120,.35);
+  padding:9px 14px max(9px,env(safe-area-inset-bottom));backdrop-filter:blur(10px);
+  font-family:system-ui,'Noto Sans KR',sans-serif;}
+body.edit .edit-panel{display:block;}
+body.edit .edit-toggle{background:rgba(120,40,40,.7);}
+.ep-row{display:flex;align-items:center;gap:8px;justify-content:center;flex-wrap:wrap;}
+.ep-row .nm{font-size:12px;color:#e9cf9c;letter-spacing:.04em;min-width:150px;text-align:center;}
+.ep-btn{font-family:inherit;font-size:13px;letter-spacing:.03em;color:#3a2a18;cursor:pointer;
+  background:linear-gradient(180deg,#efe6d0,#d8c9a8);border:1px solid rgba(90,58,24,.5);border-radius:4px;padding:7px 14px;}
+.ep-btn.ghost{background:rgba(60,40,28,.5);color:#e9cf9c;border:1px solid rgba(212,184,120,.5);}
+.ep-btn.gold{background:linear-gradient(180deg,#caa258,#9c7a3a);color:#1a0f08;font-weight:600;}
+.ep-btn:active{transform:scale(.96)}
+.ep-coord{font-size:11px;color:rgba(240,216,168,.72);text-align:center;margin-top:6px;
+  font-variant-numeric:tabular-nums;letter-spacing:.02em;min-height:14px;}
+.ep-tip{font-size:11px;color:rgba(240,216,168,.45);text-align:center;margin-top:4px;letter-spacing:.02em;}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <a class="home" href="index.html" aria-label="홈으로">←</a>
+  <div class="seg">
+    <button class="on">🖼 미술관</button>
+    <button onclick="toast('음반 가게는 본 흡수 때 합류해요 📀')">📀 음반</button>
+  </div>
+  <div class="spacer"></div>
+</div>
+
+<div class="scroller" id="scroller">
+  <div class="room" id="room">
+    <div class="art" id="art"><img id="artImg" src="" alt=""><div class="handle" data-h="art"></div></div>
+    <div class="plaque" id="plaque"><span class="pt" id="ptT"></span><span class="pa" id="ptA"></span><div class="handle" data-h="plaque"></div></div>
+  </div>
+</div>
+<div class="guides" id="guides">
+  <div class="safe" id="safe"></div>
+  <div class="vline"></div><div class="hline"></div><div class="center-dot"></div>
+</div>
+
+<div class="hd"><div class="t">GALERIE</div><div class="s" id="sub"></div></div>
+<div class="foot">
+  <div class="rm" id="rm"></div>
+  <div class="dots" id="dots"></div>
+  <button class="rent-btn" id="rentBtn" onclick="rentCurrent()" style="display:none"></button>
+</div>
+<button class="nav nav-l" id="prev">‹</button>
+<button class="nav nav-r" id="next">›</button>
+<div class="roomtag" id="roomtag"></div>
+<div class="toast" id="toast"></div>
+<div class="curtain" id="curtain">불을 켜는 중…</div>
+
+<!-- 살롱지기 전용 -->
+<div class="edit-toggle" id="editToggle" onclick="toggleEdit()">✎ 편집</div>
+<div class="edit-panel" id="editPanel">
+  <div class="ep-row">
+    <button class="ep-btn ghost" onclick="go(-1)">‹ 이전</button>
+    <span class="nm" id="epNm"></span>
+    <button class="ep-btn ghost" onclick="go(1)">다음 ›</button>
+    <button class="ep-btn gold" onclick="saveLayout()">이 자리에 걸기</button>
+  </div>
+  <div class="ep-coord" id="epCoord"></div>
+  <div class="ep-tip">그림·명패 클릭 선택 → 드래그 이동 · 휠/핸들 크기 · 중앙 십자에 맞추면 진입 때 정중앙</div>
+</div>
+
+<script>
+// ── 환경 ──────────────────────────────────
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const RAW = 'https://raw.githubusercontent.com/soro2026/eungyo-salon/main/';
+const SORO_UID = '81ac3dfa-0d44-4ab9-84bf-d630321b0bad';
+
+const BGS = ['gallery_bg_02.webp','gallery_bg_03.webp','gallery_bg_04.webp'];
+const ROOM_META = [
+  { tag:'SALA ROSSA',    tagk:'진홍의 방' },
+  { tag:'SALA VERDE',    tagk:'숲의 방' },
+  { tag:'SALA NOTTURNA', tagk:'한밤의 방' },
+];
+const FALLBACK = {
+  portrait:  { x:50, y:42, size:30, px:50, py:56, psize:100 },
+  landscape: { x:50, y:46, size:46, px:50, py:59, psize:100 },
+};
+
+// ── 세션 / DB ─────────────────────────────
+function getSession(){ try{ return JSON.parse(localStorage.getItem('eungyo-auth')); }catch{ return null; } }
+function getUser(){ return getSession()?.user || null; }
+function getToken(){ return getSession()?.access_token || null; }
+async function sbFetch(path, options={}){
+  const token = getToken();
+  const res = await fetch(SUPA_URL + path, {
+    ...options,
+    headers:{ 'apikey':SUPA_KEY, 'Authorization':'Bearer '+(token||SUPA_KEY),
+      'Content-Type':'application/json', 'Prefer':'return=representation', ...options.headers }
+  });
+  if(!res.ok){ const e=await res.json().catch(()=>({})); throw new Error(e.message||res.statusText); }
+  return res.status===204 ? null : res.json();
+}
+
+// ── 상태 ──────────────────────────────────
+let ROOMS=[], ri=0, wi=0;
+let MY_RENTS = new Set();
+let editMode=false, sel='art';
+const isSalonKeeper = ()=> getUser()?.id === SORO_UID;
+
+// ── 데이터 로드 (wk_id 역순 = 방) ──
+async function loadGalerie(){
+  const items = await sbFetch('/rest/v1/heritage_items?category=eq.visual&status=eq.active'
+    + '&select=id,name,artist,img,ratio,wk_id,salle_no,art_layout'
+    + '&order=wk_id.desc,salle_no.asc') || [];
+  const byWk={}, order=[];
+  for(const it of items){ if(!byWk[it.wk_id]){ byWk[it.wk_id]=[]; order.push(it.wk_id); } byWk[it.wk_id].push(it); }
+  ROOMS = order.map((wk, idx)=>({
+    wk, bg: BGS[idx % BGS.length],
+    tag:  ROOM_META[idx % ROOM_META.length].tag,
+    tagk: ROOM_META[idx % ROOM_META.length].tagk,
+    sub:  `ÉTAGE ${idx+1} · ${ROOM_META[idx % ROOM_META.length].tag} · ${ROOM_META[idx % ROOM_META.length].tagk}`,
+    works: byWk[wk].map(it=>{
+      const lay = (it.art_layout && Object.keys(it.art_layout).length)
+        ? it.art_layout : FALLBACK[it.ratio==='landscape'?'landscape':'portrait'];
+      return { id:it.id, img:it.img, t:it.name, a:it.artist,
+        x:lay.x, y:lay.y, size:lay.size, px:lay.px, py:lay.py, psize:lay.psize };
+    })
+  }));
+}
+async function loadMyRents(){
+  const user=getUser(); if(!user){ MY_RENTS=new Set(); return; }
+  try{
+    const rows = await sbFetch(`/rest/v1/heritage_rentals?user_id=eq.${user.id}&returned_at=is.null&select=item_id`) || [];
+    MY_RENTS = new Set(rows.map(r=>r.item_id));
+  }catch(e){ MY_RENTS=new Set(); }
+}
+
+// ── DOM ───────────────────────────────────
+const room=document.getElementById('room'),art=document.getElementById('art'),plaque=document.getElementById('plaque');
+const artImg=document.getElementById('artImg'),ptT=document.getElementById('ptT'),ptA=document.getElementById('ptA');
+const rm=document.getElementById('rm'),sub=document.getElementById('sub'),dots=document.getElementById('dots');
+const scroller=document.getElementById('scroller'),roomtag=document.getElementById('roomtag'),rentBtn=document.getElementById('rentBtn');
+const guides=document.getElementById('guides'),safe=document.getElementById('safe');
+const epNm=document.getElementById('epNm'),epCoord=document.getElementById('epCoord');
+
+function curW(){ return ROOMS[ri].works[wi]; }
+
+// ── 렌더 ──────────────────────────────────
+function setBg(){ room.style.backgroundImage=`url(${RAW}${ROOMS[ri].bg})`; sub.textContent=ROOMS[ri].sub; }
+function buildDots(){ dots.innerHTML=''; ROOMS[ri].works.forEach((_,i)=>{
+  const d=document.createElement('span'); d.className='dot'+(i===wi?' on':''); dots.appendChild(d); }); }
+function place(w){ art.style.left=w.x+'%';art.style.top=w.y+'%';art.style.width=w.size+'%';
+  plaque.style.left=w.px+'%';plaque.style.top=w.py+'%';plaque.style.transform=`translate(-50%,-50%) scale(${w.psize/100})`; }
+function enterCenter(w){ const rh=room.offsetHeight,target=rh*(w.y/100)-scroller.clientHeight/2;
+  scroller.scrollTo({top:Math.max(0,target),behavior:'smooth'}); }
+function renderRentBtn(){
+  const w=curW();
+  rentBtn.style.display='inline-block';
+  if(MY_RENTS.has(w.id)){ rentBtn.className='rent-btn have'; rentBtn.textContent='내 분더카머에 있습니다 ✦'; }
+  else { rentBtn.className='rent-btn'; rentBtn.textContent='이 작품을 내 분더카머로 — 🍎 1알'; }
+}
+function render(animate){
+  const w=curW();
+  if(animate && !editMode){art.classList.add('fade');plaque.classList.add('fade');}
+  const apply=()=>{ artImg.src=w.img;artImg.alt=w.t;ptT.textContent=w.t;ptA.textContent=w.a;
+    place(w);rm.textContent=`방 ${ri+1} · ${wi+1} / ${ROOMS[ri].works.length}`;buildDots();renderRentBtn();
+    art.classList.remove('fade');plaque.classList.remove('fade');
+    if(editMode){ selectEl(sel); updateEditInfo(); }
+    setTimeout(()=>enterCenter(w),60); };
+  (animate && !editMode)?setTimeout(apply,220):apply();
+}
+function showRoomTag(){ roomtag.innerHTML=`${ROOMS[ri].tag}<small>${ROOMS[ri].tagk}</small>`;
+  roomtag.classList.add('on'); setTimeout(()=>roomtag.classList.remove('on'),1100); }
+function go(d){
+  const n=ROOMS[ri].works.length; wi+=d;
+  if(wi>=n||wi<0){
+    if(wi>=n){ri=(ri+1)%ROOMS.length;wi=0;}else{ri=(ri-1+ROOMS.length)%ROOMS.length;wi=ROOMS[ri].works.length-1;}
+    if(editMode){ setBg(); render(false); return; }
+    room.style.opacity=0;
+    setTimeout(()=>{ setBg();room.style.opacity=1;showRoomTag();render(false); },320);
+    return;
+  }
+  render(editMode?false:true);
+}
+
+// ── 대여 (rent_item RPC) ──────────────────
+let toastT;
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('on');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),2600); }
+async function rentCurrent(){
+  const user=getUser();
+  if(!user){ toast('입장 후 빌릴 수 있습니다'); return; }
+  const w=curW();
+  if(MY_RENTS.has(w.id)){ return; }
+  const nick = localStorage.getItem('eg_nickname') || user.email?.split('@')[0] || '익명';
+  rentBtn.style.opacity='.5';
+  try{
+    const r = await sbFetch('/rest/v1/rpc/rent_item',{ method:'POST',
+      body:JSON.stringify({ p_item_id:w.id, p_user_id:user.id, p_nickname:nick }) });
+    MY_RENTS.add(w.id);
+    renderRentBtn();
+    toast(`작품이 분더카머로 떠납니다 — 🍎 1알 (미술 ${r.slots_used}/${r.cap}칸)`);
+  }catch(e){ toast(e.message||'대여하지 못했습니다'); }
+  finally{ rentBtn.style.opacity='1'; }
+}
+
+// ════════ 편집 모드 (살롱지기 전용) ════════
+function toggleEdit(){
+  editMode=!editMode;
+  document.body.classList.toggle('edit', editMode);
+  document.getElementById('editToggle').textContent = editMode ? '✓ 편집 끝' : '✎ 편집';
+  if(editMode){ layoutSafe(); sel='art'; render(false); }
+  else { room.style.opacity=1; render(false); }
+}
+function selectEl(which){ sel=which;
+  art.classList.toggle('sel', which==='art'); plaque.classList.toggle('sel', which==='plaque'); }
+function updateEditInfo(){ const w=curW();
+  epNm.textContent=`방 ${ri+1} · ${wi+1}/${ROOMS[ri].works.length} · ${w.t}`;
+  epCoord.textContent=`x:${w.x} y:${w.y} size:${w.size} · 명패 px:${w.px} py:${w.py} ps:${w.psize}`; }
+function placeCur(){ place(curW()); updateEditInfo(); snapCheck(); }
+
+function layoutSafe(){ safe.style.height = (scroller.clientHeight*0.92)+'px'; }
+addEventListener('resize',()=>{ if(editMode) layoutSafe(); });
+function snapCheck(){ if(!editMode)return; const rh=room.offsetHeight, w=curW();
+  const artScreenY = rh*(w.y/100) - scroller.scrollTop, cx = rh*(w.x/100);
+  const near = Math.abs(artScreenY - scroller.clientHeight/2)<14 && Math.abs(cx - scroller.clientWidth/2)<14;
+  guides.classList.toggle('snap',near); }
+scroller.addEventListener('scroll',snapCheck,{passive:true});
+
+// 선택
+art.addEventListener('mousedown',e=>{ if(editMode && !e.target.dataset.h) selectEl('art'); });
+plaque.addEventListener('mousedown',e=>{ if(editMode && !e.target.dataset.h) selectEl('plaque'); });
+art.addEventListener('touchstart',e=>{ if(editMode && !e.target.dataset.h) selectEl('art'); },{passive:true});
+plaque.addEventListener('touchstart',e=>{ if(editMode && !e.target.dataset.h) selectEl('plaque'); },{passive:true});
+
+// 드래그 이동
+function dragMove(el,key){
+  let drag=false,sx,sy,bx,by;
+  const start=(cx,cy)=>{ if(!editMode)return; drag=true;sx=cx;sy=cy; const w=curW();
+    bx=key==='art'?w.x:w.px; by=key==='art'?w.y:w.py; el.style.cursor='grabbing'; };
+  const move=(cx,cy)=>{ if(!drag)return; const rw=room.offsetWidth,rh=room.offsetHeight, w=curW();
+    const nx=bx+((cx-sx)/rw)*100, ny=by+((cy-sy)/rh)*100;
+    if(key==='art'){ w.x=+nx.toFixed(1); w.y=+ny.toFixed(1); } else { w.px=+nx.toFixed(1); w.py=+ny.toFixed(1); }
+    placeCur(); };
+  const end=()=>{ drag=false; el.style.cursor='grab'; };
+  el.addEventListener('mousedown',e=>{ if(!editMode||e.target.dataset.h)return; e.preventDefault(); start(e.clientX,e.clientY);
+    const mm=ev=>move(ev.clientX,ev.clientY),mu=()=>{end();removeEventListener('mousemove',mm);removeEventListener('mouseup',mu);};
+    addEventListener('mousemove',mm);addEventListener('mouseup',mu); });
+  el.addEventListener('touchstart',e=>{ if(!editMode||e.target.dataset.h)return; const t=e.touches[0]; start(t.clientX,t.clientY); },{passive:true});
+  el.addEventListener('touchmove',e=>{ if(!drag)return; e.preventDefault(); const t=e.touches[0]; move(t.clientX,t.clientY); },{passive:false});
+  el.addEventListener('touchend',end);
+}
+dragMove(art,'art'); dragMove(plaque,'plaque');
+
+// 휠 크기
+function wheelSize(el,fn){ el.addEventListener('wheel',e=>{ if(!editMode)return; e.preventDefault(); fn(e.deltaY<0?1:-1); placeCur(); },{passive:false}); }
+wheelSize(art,d=>{ const w=curW(); w.size=Math.max(8,Math.min(90,+(w.size+d*1.2).toFixed(1))); });
+wheelSize(plaque,d=>{ const w=curW(); w.psize=Math.max(50,Math.min(200,w.psize+d*4)); });
+
+// 핸들 크기
+function handleResize(el,key){
+  const h=el.querySelector('.handle');
+  const start=(cx)=>{ const w=curW(), base=key==='art'?w.size:w.psize, sx0=cx;
+    return (nx)=>{ const d=(nx-sx0)/4;
+      if(key==='art') w.size=Math.max(8,Math.min(90,+(base+d).toFixed(1)));
+      else w.psize=Math.max(50,Math.min(200,base+d*1.5)); placeCur(); }; };
+  h.addEventListener('mousedown',e=>{ if(!editMode)return; e.preventDefault();e.stopPropagation(); const mv=start(e.clientX);
+    const mm=ev=>mv(ev.clientX),mu=()=>{removeEventListener('mousemove',mm);removeEventListener('mouseup',mu);};
+    addEventListener('mousemove',mm);addEventListener('mouseup',mu); });
+  h.addEventListener('touchstart',e=>{ if(!editMode)return; e.stopPropagation(); const mv=start(e.touches[0].clientX);
+    const tm=ev=>{ev.preventDefault();mv(ev.touches[0].clientX);},tu=()=>{removeEventListener('touchmove',tm);removeEventListener('touchend',tu);};
+    addEventListener('touchmove',tm,{passive:false});addEventListener('touchend',tu); },{passive:true});
+}
+handleResize(art,'art'); handleResize(plaque,'plaque');
+
+// 저장 — art_layout 즉시 DB 기록 (복사 아님)
+async function saveLayout(){
+  const w=curW();
+  const layout={ x:w.x, y:w.y, size:w.size, px:w.px, py:w.py, psize:w.psize };
+  try{
+    await sbFetch(`/rest/v1/heritage_items?id=eq.${w.id}`,{
+      method:'PATCH', headers:{ 'Prefer':'return=minimal' },
+      body:JSON.stringify({ art_layout:layout }) });
+    toast(`${w.t} — 이 자리에 걸렸습니다 ✦`);
+  }catch(e){ toast('저장 실패: '+(e.message||'')); }
+}
+
+// ── 입력 (감상 모드: 스와이프·화살표) ──────
+document.getElementById('next').onclick=()=>go(1);
+document.getElementById('prev').onclick=()=>go(-1);
+addEventListener('keydown',e=>{ if(e.key==='ArrowRight')go(1); if(e.key==='ArrowLeft')go(-1); });
+let sx=0,sy=0,touching=false;
+scroller.addEventListener('touchstart',e=>{ if(editMode){touching=false;return;}
+  if(e.touches.length===1){touching=true;sx=e.touches[0].clientX;sy=e.touches[0].clientY;}else touching=false; },{passive:true});
+scroller.addEventListener('touchend',e=>{ if(!touching||editMode)return;touching=false;
+  const dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;
+  if(Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)*1.5) go(dx<0?1:-1); },{passive:true});
+
+// ── 부팅 ──────────────────────────────────
+(async function boot(){
+  try{
+    await loadGalerie();
+    await loadMyRents();
+  }catch(e){ document.getElementById('curtain').textContent='불러오기 실패: '+e.message; return; }
+  const curtain=document.getElementById('curtain');
+  if(!ROOMS.length){ curtain.textContent='열린 작품이 없습니다.'; return; }
+  setBg(); render(false); showRoomTag();
+  if(isSalonKeeper()) document.getElementById('editToggle').style.display='block';
+  curtain.classList.add('gone');
+  addEventListener('load',()=>setTimeout(()=>enterCenter(curW()),400));
+})();
+</script>
+</body>
+</html>
