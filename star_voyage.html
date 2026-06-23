@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>별을 따라 떠나는 여행 — 콘스텔라티오</title>
+<script>
+  // ── 설정 (voyage.html 검증본에서 그대로) ──
+  const GOOGLE_API_KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A";
+  const SUPA_URL = "https://cyhlotwdisjvoxvfkpnd.supabase.co";
+  const SUPA_KEY = "sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR";
+  window.CESIUM_BASE_URL = "https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/";
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Widgets/widgets.css" rel="stylesheet" />
+<style>
+  :root{
+    --night:#05070f; --gold:#c9a227; --cream:#efe7d2; --cream-dim:#b7ad94;
+    --line:rgba(201,162,39,.28);
+    --serif:"Iowan Old Style","Apple Garamond","Times New Roman",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
+  }
+  html,body{margin:0;height:100%;background:var(--night);overflow:hidden;
+    font-family:var(--sans);color:var(--cream)}
+  #cesiumContainer{position:absolute;inset:0}
+  .cesium-viewer-bottom,.cesium-widget-credits{display:none!important}
+
+  /* 로더 */
+  #loader{position:absolute;inset:0;background:var(--night);z-index:50;
+    display:flex;align-items:center;justify-content:center;flex-direction:column;
+    transition:opacity 1s ease}
+  #loader.gone{opacity:0;pointer-events:none}
+  #loader .lo{font-family:var(--serif);font-size:18px;color:var(--cream-dim);letter-spacing:.04em}
+  #loader .lo small{display:block;margin-top:10px;font-size:12.5px;color:#6b6450;font-family:var(--sans)}
+
+  /* 인물 타이틀 (좌상단) */
+  #title{position:absolute;left:26px;top:24px;z-index:20;
+    opacity:0;transform:translateY(-8px);
+    transition:opacity 1.4s ease,transform 1.4s ease}
+  #title.in{opacity:1;transform:none}
+  #title .eyebrow{font-size:11px;letter-spacing:.34em;text-transform:uppercase;
+    color:var(--gold);margin-bottom:7px}
+  #title h1{font-family:var(--serif);font-weight:400;font-size:30px;line-height:1.05;margin:0;
+    color:var(--cream);text-shadow:0 2px 20px rgba(0,0,0,.6)}
+
+  /* 나라 자막 (중앙) */
+  #countryLabel{position:absolute;left:50%;top:46%;z-index:18;
+    transform:translate(-50%,-50%) scale(.96);
+    font-family:var(--serif);font-size:46px;letter-spacing:.02em;color:#fff;
+    text-shadow:0 4px 30px rgba(0,0,0,.8);text-align:center;
+    opacity:0;pointer-events:none;
+    transition:opacity 1s ease,transform 1s ease}
+  #countryLabel.in{opacity:.96;transform:translate(-50%,-50%) scale(1)}
+
+  /* 장소 카드 (우하단) */
+  #card{position:absolute;right:26px;bottom:30px;z-index:20;max-width:300px;
+    text-align:right;opacity:0;transform:translateY(10px);
+    transition:opacity .8s ease,transform .8s ease}
+  #card.in{opacity:1;transform:none}
+  #card .yr{font-family:var(--serif);font-size:13px;letter-spacing:.18em;color:var(--gold)}
+  #card .pl{font-family:var(--serif);font-size:25px;line-height:1.15;margin:.18em 0 .4em;color:var(--cream)}
+  #card .desc{font-size:13px;line-height:1.7;color:var(--cream-dim)}
+
+  /* 돌아가기 */
+  #backBtn{position:absolute;left:26px;bottom:28px;z-index:20;
+    background:rgba(5,7,15,.62);border:1px solid var(--line);color:var(--cream);
+    font-family:var(--serif);font-size:14px;padding:10px 18px;border-radius:30px;
+    cursor:pointer;backdrop-filter:blur(6px);transition:background .2s,border-color .2s}
+  #backBtn:hover{background:rgba(201,162,39,.16);border-color:var(--gold)}
+
+  /* 모드 힌트(작게, 디버그용) */
+  #hint{position:absolute;right:26px;top:22px;z-index:20;
+    font-size:11px;color:#6b6450;text-align:right;max-width:240px;line-height:1.5}
+
+  @media (max-width:680px){
+    #title h1{font-size:24px} #countryLabel{font-size:34px}
+    #card{max-width:62vw} #card .pl{font-size:21px}
+  }
+</style>
+</head>
+<body>
+<div id="cesiumContainer"></div>
+
+<div id="loader"><div class="lo">밤하늘에서 지상으로 내려가는 중…<small>별이 살던 도시를 펴고 있습니다</small></div></div>
+
+<div id="title"><div class="eyebrow">Constellatio · Voyage</div><h1 id="personName">—</h1></div>
+<div id="countryLabel"></div>
+<div id="card"><div class="yr" id="cardYr"></div><div class="pl" id="cardPl"></div><div class="desc" id="cardDesc"></div></div>
+<button id="backBtn">← 별로 돌아가기</button>
+<div id="hint"></div>
+
+<script>
+let viewer;
+let orbitCenter=null, orbitRange=0, orbiting=false, orbitTick=null, orbitHeading=0;
+
+// 진입할 별 id (?id, 없으면 헤밍웨이 116)
+const STAR_ID = new URLSearchParams(location.search).get('id') || '116';
+
+(async function init(){
+  viewer = new Cesium.Viewer("cesiumContainer", {
+    baseLayer:false, baseLayerPicker:false, geocoder:false, homeButton:false,
+    sceneModePicker:false, navigationHelpButton:false, animation:false,
+    timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false,
+    requestRenderMode:false
+  });
+
+  const s = viewer.scene;
+  s.skyAtmosphere.show = true;
+  s.globe.show = true;
+  s.globe.baseColor = Cesium.Color.fromCssColorString("#0a1326");
+  s.globe.showGroundAtmosphere = true;
+  s.backgroundColor = Cesium.Color.fromCssColorString("#05070f");
+  if (s.fog) s.fog.enabled = true;
+
+  // 세계지도(고공에서 '어느 나라'인지 보이도록 어둡게)
+  try{
+    const osm = viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+      url:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      credit:"© OpenStreetMap contributors", maximumLevel:19
+    }));
+    osm.brightness=0.55; osm.saturation=0.65; osm.gamma=0.8;
+  }catch(e){ console.warn("기본 지도 로드 실패:", e); }
+
+  // 구글 실사 3D 타일
+  const hint = document.getElementById("hint");
+  if (GOOGLE_API_KEY && GOOGLE_API_KEY.trim()){
+    try{
+      let tileset;
+      try { tileset = await Cesium.createGooglePhotorealistic3DTileset({ key: GOOGLE_API_KEY }); }
+      catch(e){ tileset = await Cesium.createGooglePhotorealistic3DTileset(GOOGLE_API_KEY); }
+      s.primitives.add(tileset);
+      hint.textContent = "실사 3D 모드";
+    }catch(err){
+      hint.textContent = "타일 로드 실패 — 기본 지구로 표시";
+      console.warn("3D Tiles load failed:", err);
+    }
+  } else {
+    hint.textContent = "미리보기 모드 (키 없음)";
+  }
+
+  // 더블클릭 추적·지표 통과 방지
+  viewer.screenSpaceEventHandler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+  viewer.trackedEntity = undefined;
+  s.screenSpaceCameraController.minimumZoomDistance = 60;
+  // 사용자가 화면을 잡으면 자동 궤도 멈춤
+  viewer.canvas.addEventListener("pointerdown", stopOrbit);
+
+  // 우주 높은 곳에서 시작 (지구가 1초 안에 뜸)
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(2.3370, 20, 14000000)
+  });
+  document.getElementById("loader").classList.add("gone");
+
+  document.getElementById("backBtn").addEventListener("click", ()=>{
+    location.href = "star.html?id=" + encodeURIComponent(STAR_ID);
+  });
+
+  // 대표 1점을 DB에서 읽어 여정 시작
+  loadAndFly();
+})();
+
+// ── 별의 대표 1점 + 인물명 로드 ──
+async function loadAndFly(){
+  let v=null, personName="";
+  try{
+    const res = await fetch(
+      SUPA_URL + "/rest/v1/star_voyages?star_id=eq." + encodeURIComponent(STAR_ID)
+        + "&is_representative=eq.true&select=*,stars(name)",
+      { headers:{ "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY } });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    const rows = await res.json();
+    v = rows[0];
+    personName = v && v.stars ? v.stars.name : "";
+  }catch(e){ console.warn("대표 좌표 로드 실패:", e); }
+
+  if (!v){
+    document.getElementById("personName").textContent = "여정을 찾지 못했습니다";
+    document.getElementById("title").classList.add("in");
+    return;
+  }
+
+  // 타이틀
+  document.getElementById("personName").textContent = personName || "여정";
+  setTimeout(()=> document.getElementById("title").classList.add("in"), 300);
+
+  // 카드
+  document.getElementById("cardYr").textContent = v.yr || "";
+  document.getElementById("cardPl").textContent = v.place_name || "";
+  document.getElementById("cardDesc").textContent = v.descr || "";
+
+  flyToRep(v);
+}
+
+// ── 핀 하나만 타일 표면 높이에 정확히 앉히고, 그 실제 높이(H)를 돌려줌 ──
+async function clampPin(ent){
+  if (!viewer.scene.clampToHeightMostDetailed) return null;
+  const now = Cesium.JulianDate.now();
+  const pos = ent.position.getValue(now);
+  if (!pos) return null;
+  try{
+    const arr = await viewer.scene.clampToHeightMostDetailed([pos]);
+    const c = arr && arr[0];
+    if (Cesium.defined(c)){
+      ent.position = c;
+      const carto = Cesium.Cartographic.fromCartesian(c);
+      return carto.height;     // 건물 표면의 실제 높이
+    }
+  }catch(e){ console.warn("핀 표면 고정 실패:", e); }
+  return null;
+}
+
+// ── 대표 1점으로 강하 → 도착 후 재clamp → 궤도 중심을 같은 높이 H로 (갭 0) ──
+async function flyToRep(v){
+  const gold = Cesium.Color.fromCssColorString("#c9a227");
+  const dark = Cesium.Color.fromCssColorString("#05070f");
+
+  // 핀 (height 없이 lng·lat만 → 클램프 대상)
+  const pin = viewer.entities.add({
+    id:"rep-pin",
+    position: Cesium.Cartesian3.fromDegrees(v.lng, v.lat),
+    point:{ pixelSize:12, color:gold, outlineColor:dark, outlineWidth:2,
+            disableDepthTestDistance:Number.POSITIVE_INFINITY },
+    label:{ text:"✦  "+(v.place_name||""), font:"14px serif",
+            fillColor:Cesium.Color.fromCssColorString("#efe7d2"),
+            style:Cesium.LabelStyle.FILL, pixelOffset:new Cesium.Cartesian2(0,-22),
+            showBackground:true, backgroundColor:Cesium.Color.fromCssColorString("rgba(5,7,15,0.6)"),
+            backgroundPadding:new Cesium.Cartesian2(8,5),
+            disableDepthTestDistance:Number.POSITIVE_INFINITY,
+            distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0, 120000) }
+  });
+
+  // 1차 clamp (우주 시점 — 대략. 도착 후 다시 정밀 clamp 한다)
+  const h0 = await clampPin(pin);
+  console.log("[clamp] 우주 시점 1차 H =", h0, "m");
+
+  const cl = document.getElementById("countryLabel");
+  const range = v.cam_range || 900;
+
+  // 1단계 — 고공에서 나라 조망 (어느 나라인지 인지)
+  cl.textContent = v.country || "";
+  cl.classList.add("in");
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(v.lng, v.lat, 1200000),
+    orientation:{ heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 },
+    duration: 2.6,
+    complete: ()=>{
+      setTimeout(()=>{
+        cl.classList.remove("in");
+        // 2단계 — 도시로 비스듬히 줌인
+        viewer.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(v.lng, v.lat, range),
+          orientation:{ heading:Cesium.Math.toRadians(15), pitch:Cesium.Math.toRadians(-40), roll:0 },
+          duration: 4.2,
+          complete: async ()=>{
+            document.getElementById("card").classList.add("in");
+            // ★ 표준 — 도착(상세 타일 로드)한 뒤 재clamp → 정확한 H
+            const H = await clampPin(pin);
+            console.log("[clamp] 도착 후 정밀 H =", H, "m  ← 이 높이를 궤도 중심으로");
+            const centerH = (H != null) ? H : 0;
+            // 궤도 중심을 핀과 같은 높이 H로 → 갭 0 → 회전해도 핀 고정
+            startOrbit(Cesium.Cartesian3.fromDegrees(v.lng, v.lat, centerH), range);
+          }
+        });
+      }, 900);
+    }
+  });
+}
+
+function startOrbit(center, range){
+  orbitCenter = center; orbitRange = range; orbiting = true;
+  if (orbitTick) return;
+  orbitTick = viewer.clock.onTick.addEventListener(()=>{
+    if (!orbiting || !orbitCenter) return;
+    orbitHeading += 0.0016;
+    viewer.camera.lookAt(orbitCenter,
+      new Cesium.HeadingPitchRange(orbitHeading, Cesium.Math.toRadians(-28), orbitRange));
+  });
+}
+
+function stopOrbit(){
+  orbiting = false;
+  if (orbitTick){ orbitTick(); orbitTick = null; }
+  viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY); // 자유 조작 복원
+}
+</script>
+</body>
+</html>
