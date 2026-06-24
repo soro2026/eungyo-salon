@@ -93,6 +93,38 @@
   .city-item .cnt{font-family:var(--sans);font-size:11px;color:var(--cream-dim);letter-spacing:.05em}
   @media (max-width:640px){ #cityBtn{left:auto;right:18px;top:14px} #cityList{left:auto;right:18px;top:52px} }
 
+  /* ── 다른 인물 버튼 + 목록 (별 여행과 동일 UX, 클릭 시 그 인물 대표지로 직행) ── */
+  #starBtn{
+    position:fixed;top:22px;left:300px;z-index:12;
+    display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+    font-family:var(--sans);font-size:12.5px;letter-spacing:.04em;
+    color:var(--cream-dim);border:1px solid var(--line);border-radius:999px;
+    padding:7px 14px;background:rgba(8,11,22,.55);backdrop-filter:blur(4px);
+    transition:color .25s ease,border-color .25s ease;
+  }
+  #starBtn:hover{color:var(--gold);border-color:var(--gold-soft)}
+  #starList{
+    position:fixed;top:60px;left:300px;z-index:13;
+    min-width:248px;max-height:64vh;overflow-y:auto;
+    background:rgba(10,14,26,.96);border:1px solid var(--line);border-radius:12px;
+    backdrop-filter:blur(8px);padding:8px;
+    opacity:0;transform:translateY(-8px);pointer-events:none;
+    transition:opacity .3s ease,transform .3s ease;
+  }
+  #starList.in{opacity:1;transform:none;pointer-events:auto}
+  .star-item{
+    display:flex;align-items:center;gap:11px;
+    padding:8px 11px;border-radius:8px;cursor:pointer;
+    color:var(--cream);font-family:var(--serif);font-size:15px;
+    transition:background .2s ease;
+  }
+  .star-item:hover{background:rgba(201,162,39,.12)}
+  .star-item img{ width:34px;height:42px;object-fit:cover;border-radius:3px;flex-shrink:0;
+    border:1px solid var(--gold-soft);background:rgba(255,255,255,.04); }
+  .star-item .who{ display:flex;flex-direction:column;gap:1px;line-height:1.25 }
+  .star-item .who .ct{ font-family:var(--sans);font-size:10.5px;color:var(--cream-dim);letter-spacing:.05em }
+  @media (max-width:640px){ #starBtn{left:auto;right:18px;top:52px} #starList{left:auto;right:18px;top:90px} }
+
   /* ── 레이어 토글: 인물 장소 / 콩파뇽 집 ── */
   .layer-btn{
     position:fixed;top:22px;z-index:12;
@@ -106,11 +138,11 @@
   .layer-btn:hover{ color:var(--gold);border-color:var(--gold-soft);opacity:1 }
   .layer-btn.on{ color:#1a1407;background:var(--gold);border-color:var(--gold);opacity:1 }
   .layer-btn.on:hover{ color:#1a1407;background:#dab63f }
-  #layerSpots{ left:300px }
-  #layerMaisons{ left:412px }
+  #layerSpots{ left:412px }
+  #layerMaisons{ left:524px }
   @media (max-width:980px){
-    #layerSpots{left:auto;right:18px;top:54px}
-    #layerMaisons{left:auto;right:18px;top:92px}
+    #layerSpots{left:auto;right:18px;top:92px}
+    #layerMaisons{left:auto;right:18px;top:130px}
   }
 
   #title.in{opacity:1;transform:none}
@@ -351,6 +383,8 @@
 
 <a id="backBtn" href="index.html">← 살롱으로</a>
 <button id="cityBtn">🌍 다른 도시</button>
+<button id="starBtn">✦ 다른 인물</button>
+<div id="starList"></div>
 <div id="cityList"></div>
 <button id="layerSpots" class="layer-btn on">🏛 인물 장소</button>
 <button id="layerMaisons" class="layer-btn">🏠 콩파뇽 집</button>
@@ -515,7 +549,9 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   await loadCityMarkers('paris');   // 도시 핀(인물 장소)
   await loadMaisons('paris');       // EG메종 집 핀 (옐로 라벨)
   loadCityList();
-  document.getElementById("cityBtn").addEventListener("click", ()=> toggleCityList());
+  document.getElementById("cityBtn").addEventListener("click", ()=> { toggleStarList(false); toggleCityList(); });
+  loadStarList();
+  document.getElementById("starBtn").addEventListener("click", ()=> { toggleCityList(false); toggleStarList(); });
   document.getElementById("maisonClose").addEventListener("click", closeMaison);
   document.getElementById("layerSpots").addEventListener("click", ()=>{ showSpots=!showSpots; applyLayerVisibility(); });
   document.getElementById("layerMaisons").addEventListener("click", ()=>{ showMaisons=!showMaisons; applyLayerVisibility(); });
@@ -795,6 +831,47 @@ async function jumpToCity(c){
   });
 }
 
+// ── 다른 인물: 여행 가능한(대표지 보유) 별 목록을 드롭다운으로. 클릭 시 그 대표지로 직행 ──
+let STARS_LIST = [];
+const CITY_KO = { paris:'파리', arles:'아를', giverny:'지베르니', concord:'콩코드', london:'런던' };
+
+async function loadStarList(){
+  try{
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_voyage_stars", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
+      body: "{}"
+    });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    STARS_LIST = await res.json();
+  }catch(e){ console.warn("인물 목록 로드 실패:", e); return; }
+  renderStarList();
+}
+
+function renderStarList(){
+  const box = document.getElementById("starList");
+  if (!box) return;
+  box.innerHTML = "";
+  STARS_LIST.forEach(s=>{
+    const it = document.createElement("div");
+    it.className = "star-item" + (s.city === currentCity ? " active" : "");
+    const cityKo = CITY_KO[s.city] || s.city || "";
+    const thumb = s.framed_url ? '<img src="'+s.framed_url+'" alt="">' : '<img alt="">';
+    it.innerHTML = thumb +
+      '<div class="who"><span>'+ (s.name||'') +'</span>'+
+      '<span class="ct">'+ cityKo + (s.place_name ? ' · '+s.place_name : '') +'</span></div>';
+    it.addEventListener("click", ()=>{ toggleStarList(false); jumpToStarPlace(s.star_id); });
+    box.appendChild(it);
+  });
+}
+
+function toggleStarList(show){
+  const box = document.getElementById("starList");
+  if (!box) return;
+  const on = (show === undefined) ? !box.classList.contains("in") : show;
+  box.classList.toggle("in", on);
+}
+
 // 페이지를 떠나지 않고 그 인물의 대표지로 직행 — 세션 하나 유지(과금 0).
 // 액자(이곳에 닿은 별)에서 호출. 도시가 다르면 도시 마커만 갈아끼우고 그 장소로 비행.
 async function jumpToStarPlace(starId){
@@ -817,6 +894,7 @@ async function jumpToStarPlace(starId){
   if (rep.city && rep.city !== currentCity){
     currentCity = rep.city;
     if (typeof renderCityList === 'function') renderCityList();
+    if (typeof renderStarList === 'function') renderStarList();
     viewer.entities.values.filter(e=>e._spot || e._maison).slice().forEach(e=> viewer.entities.remove(e));
     await loadCityMarkers(rep.city);
     await loadMaisons(rep.city);
