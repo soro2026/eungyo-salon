@@ -258,7 +258,7 @@ html, body {
 .mw-box input, .mw-box textarea {
   width: 100%; box-sizing: border-box; background: rgba(0,0,0,0.3);
   border: 1px solid rgba(212,184,120,0.35); border-radius: 8px; padding: 11px 13px;
-  color: #f5ead0; font-size: 16px; font-family: inherit; resize: vertical;
+  color: #f5ead0; font-size: 16px; font-family: inherit; resize: vertical; user-select: text;
 }
 .mw-box input:focus, .mw-box textarea:focus { outline: none; border-color: var(--g1-moulding); }
 .mw-hint { font-size: 14px; color: #c8a878; line-height: 1.6; margin: 0 0 6px; }
@@ -1718,7 +1718,7 @@ const Floor1 = (() => {
         btn.className = 'g1-mw-action';
         btn.textContent = MW_isOwner ? '✎ 내 글귀 쓰기' : '🌸 꽃 두고 가기';
         btn.style.left = (wr.left - base.left + wr.width / 2) + 'px';
-        btn.style.top  = (wr.top - base.top + wr.height - 150 - 58) + 'px';   // 티커(150) 바로 위
+        btn.style.top  = (wr.top - base.top + wr.height + 22) + 'px';   // 마루 시작 살짝 아래 (글귀 안 가림)
         btn.addEventListener('click', MW_isOwner ? openWriteModal : openFlowerModal);
         hs.appendChild(btn);
       }
@@ -1794,8 +1794,8 @@ const Floor1 = (() => {
       if (w) w.style.pointerEvents = (i === side) ? 'auto' : 'none';
     });
   }
-  function next() { side = (side + 1) % 4; yaw -= 90; update(); }
-  function prev() { side = (side + 3) % 4; yaw += 90; update(); }
+  function next() { if (document.getElementById('mw-modal')) return; side = (side + 1) % 4; yaw -= 90; update(); }
+  function prev() { if (document.getElementById('mw-modal')) return; side = (side + 3) % 4; yaw += 90; update(); }
 
   function fit() {
     if (!root || !root.isConnected) return;
@@ -2287,6 +2287,8 @@ muteToggle.addEventListener('click', () => {
 
 /* ===== 키보드 ===== */
 document.addEventListener('keydown', (e) => {
+  // 메시지 보드 모달(글귀 쓰기·헌화)이 열려 있으면: ESC 닫기 · 회전·층이동 전부 차단 (입력 중 ←→가 벽을 돌리는 문제)
+  { const mwM = document.getElementById('mw-modal'); if (mwM) { if (e.key === 'Escape') mwM.remove(); return; } }
   // 음반 서고 모달이 열려 있으면: ESC 닫기 · ←→ 디깅 · 나머지(엘리베이터) 차단
   if (document.getElementById('library-modal').classList.contains('open')) {
     if (e.key === 'Escape') Library.close();
