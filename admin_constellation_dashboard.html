@@ -182,6 +182,8 @@
         <button class="ftab"    data-f="empty"  onclick="setFilter('empty')">빈 별 (삭제 후보)</button>
         <button class="ftab"    data-f="no_photo" onclick="setFilter('no_photo')">사진 없음</button>
         <button class="ftab"    data-f="no_frame" onclick="setFilter('no_frame')">액자 없음</button>
+        <button class="ftab"    data-f="in_voyage" onclick="setFilter('in_voyage')">🌍 3D 입주</button>
+        <button class="ftab"    data-f="sky_only" onclick="setFilter('sky_only')">☁ 하늘에만</button>
         <button class="ftab bad" data-f="check" onclick="setFilter('check')">⚠ 점검 필요</button>
       </div>
       <div class="search-wrap">
@@ -247,6 +249,7 @@ let curField  = '';
 let searchTerm = '';
 let searchTimer = null;
 let totalCount = 0;
+let VOYAGE_IDS = new Set();   // 3D 입주 = 대표지(star_places.is_representative) 보유 별 id
 
 function esc(s){ return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
@@ -268,9 +271,16 @@ function showGate(){
 
 async function loadAll(){
   await loadContentNames();
+  await loadVoyageIds();
   await Promise.all([loadSummary(), loadFieldStats()]);
   await loadTable();
   renderWarns();
+}
+
+// 3D 입주 = star_places에 대표지(is_representative)를 가진 별 = 별 여행에서 갈 수 있는 별
+async function loadVoyageIds(){
+  const { data } = await supa.from('star_places').select('star_id').eq('is_representative', true);
+  VOYAGE_IDS = new Set((data||[]).map(r=>r.star_id));
 }
 
 // ── ① 요약 카드 ──
@@ -309,6 +319,11 @@ async function loadSummary(){
         <div class="num ${f<20?'bad':''}">${f}</div>
         <div class="lab">액자(사진#2) 보유</div>
         <div class="note">${Math.round(f/t*100)}%</div>
+      </div>
+      <div class="scard">
+        <div class="num ok">${VOYAGE_IDS.size}</div>
+        <div class="lab">🌍 3D 입주</div>
+        <div class="note">대표지 보유 · 별 여행 가능</div>
       </div>
     </div>`;
 }
@@ -387,6 +402,8 @@ async function loadTable(){
     case 'no_photo': q = q.is('photo_url',null); break;
     case 'no_frame': q = q.is('framed_url',null); break;
     case 'check':    q = q.or('grade.eq.9,birth.is.null'); break;
+    case 'in_voyage': q = q.in('id', VOYAGE_IDS.size ? [...VOYAGE_IDS] : [-1]); break;
+    case 'sky_only':  if(VOYAGE_IDS.size) q = q.not('id','in',`(${[...VOYAGE_IDS].join(',')})`); break;
   }
 
   const offset = curPage * PAGE_SIZE;
@@ -409,7 +426,7 @@ async function loadTable(){
   let html=`<table><thead><tr>
     <th>이름</th><th>분야</th><th class="c">grade</th>
     <th class="c">콘텐츠</th><th class="c">사진#1</th><th class="c">액자</th>
-    <th class="c">좌표</th><th class="c">status</th><th class="c">💛</th><th class="c">삭제</th>
+    <th class="c">좌표</th><th class="c">🌍 3D</th><th class="c">status</th><th class="c">💛</th><th class="c">삭제</th>
   </tr></thead><tbody>`;
   const cNames = await loadContentNames();
   data.forEach(s=>{
@@ -419,6 +436,7 @@ async function loadTable(){
     const frameB  = s.framed_url?`<span class="badge ok">○</span>`:`<span class="badge bad">—</span>`;
     const coordB  = s.birth!=null?`<span class="badge ok">○</span>`:`<span class="badge warn">—</span>`;
     const statusB = s.stella_status==='recruiting'?`<span class="badge star">모집중</span>`:`<span class="badge info">씨앗</span>`;
+    const voyageB = VOYAGE_IDS.has(s.id)?`<span class="badge ok">📍 입주</span>`:`<span class="badge bad">—</span>`;
     html+=`<tr>
       <td class="star-name">${esc(s.name)}</td>
       <td class="star-field">${esc(s.field||'—')}</td>
@@ -427,6 +445,7 @@ async function loadTable(){
       <td class="c">${photoB}</td>
       <td class="c">${frameB}</td>
       <td class="c">${coordB}</td>
+      <td class="c">${voyageB}</td>
       <td class="c">${statusB}</td>
       <td class="c" style="font-size:11px;color:var(--chalk-dim)">${s.heart_count||0}</td>
       <td class="c"><button class="del-btn" onclick="deleteStar(${s.id},'${esc(s.name)}')">🗑</button></td>
