@@ -186,6 +186,54 @@ html, body {
     linear-gradient(180deg, #6a2630, #4a1822);
   box-shadow: inset 0 0 80px rgba(0,0,0,0.5);
 }
+/* ── 좌측 벽 = 메시지 보드 (위 글귀판 + 아래 흐르는 흔적 티커) ── */
+.floor-content[data-floor="1"] .g1-mw {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  padding: 64px 90px 0; box-sizing: border-box;
+}
+.floor-content[data-floor="1"] .g1-mw-top {
+  flex: 1; min-height: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center;
+}
+.floor-content[data-floor="1"] .g1-mw-nick {
+  font-size: 56px; font-weight: 700; letter-spacing: 6px;
+  color: var(--g1-amber); text-shadow: 0 2px 12px rgba(0,0,0,.5);
+}
+.floor-content[data-floor="1"] .g1-mw-title {
+  font-size: 22px; letter-spacing: 4px; color: #caa86a; margin: 18px 0 40px;
+}
+.floor-content[data-floor="1"] .g1-mw-body {
+  font-family: Georgia, 'Nanum Myeongjo', serif; font-size: 40px; line-height: 1.75;
+  color: #f5ead0; max-width: 1300px; text-shadow: 0 2px 10px rgba(0,0,0,.4);
+}
+.floor-content[data-floor="1"] .g1-mw-sig {
+  font-size: 24px; color: #c0a070; margin-top: 34px; font-style: italic;
+}
+.floor-content[data-floor="1"] .g1-mw-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 18px;
+  font-size: 48px; font-weight: 700; letter-spacing: 5px; color: var(--g1-amber); opacity: .8;
+}
+.floor-content[data-floor="1"] .g1-mw-empty span {
+  font-size: 20px; font-weight: 400; letter-spacing: 2px; color: #c0a070; opacity: .7;
+}
+.floor-content[data-floor="1"] .g1-mw-ticker {
+  height: 150px; flex: 0 0 auto; overflow: hidden; position: relative;
+  border-top: 1px solid rgba(212,184,120,.25); padding-top: 6px;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+          mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+}
+.floor-content[data-floor="1"] .g1-mw-track {
+  display: inline-flex; align-items: center; white-space: nowrap;
+  height: 100%; will-change: transform; animation: g1-mw-flow 60s linear infinite;
+}
+.floor-content[data-floor="1"] .g1-mw-track:hover { animation-play-state: paused; }
+.floor-content[data-floor="1"] .g1-mw-chip {
+  display: inline-flex; align-items: center; gap: 12px; padding: 0 34px 0 0; font-size: 26px;
+}
+.floor-content[data-floor="1"] .g1-mw-chip img { width: 44px; height: 44px; object-fit: contain; flex: 0 0 auto; }
+.floor-content[data-floor="1"] .g1-mw-chip b { font-weight: 600; color: var(--g1-amber); }
+.floor-content[data-floor="1"] .g1-mw-chip span { color: #e8d8b8; opacity: .85; }
+@keyframes g1-mw-flow { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 .floor-content[data-floor="1"] .g1-ground {
   width: var(--g1-room-w); height: var(--g1-room-d);
   margin-left: calc(var(--g1-half-w) * -1); margin-top: calc(var(--g1-half-d) * -1);
@@ -1408,6 +1456,7 @@ const Floor1 = (() => {
   ];
 
   let side = 0, yaw = 0, root = null, bound = false;
+  let MW = null;   // get_message_board 결과 (좌측 벽 글귀 + 흔적 티커)
 
   function markup() {
     return `
@@ -1464,6 +1513,31 @@ const Floor1 = (() => {
     return (s === 0 || s === 2) ? HALF + p - w / 2 : HALF - p - w / 2;
   }
 
+  function flowerUrl(ft){ return SUPABASE_URL + '/storage/v1/object/public/flowers/' + ft + '.webp'; }
+
+  // 좌측 벽 = 메시지 보드: 위 글귀판 + 아래 흐르는 흔적 티커
+  function renderMessageWall(){
+    const wall = root && root.querySelector('.g1-wall-left');
+    if(!wall) return;
+    const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    const w = (MW && MW.wall) || {};
+    const traces = (MW && MW.traces) || [];
+    const nick = esc((w.nickname||'').toUpperCase());
+    const hasGlyph = w.body || w.title;
+    const top = hasGlyph
+      ? `<div class="g1-mw-nick">${nick}</div>`
+        + (w.title ? `<div class="g1-mw-title">${esc(w.title)}</div>` : '')
+        + `<div class="g1-mw-body">${esc(w.body)}</div>`
+        + (w.signature ? `<div class="g1-mw-sig">— ${esc(w.signature)}</div>` : '')
+      : `<div class="g1-mw-empty">${nick}<span>아직 글귀가 걸리지 않은 벽</span></div>`;
+    const chip = t => `<span class="g1-mw-chip"><img src="${flowerUrl(esc(t.flower_type))}" alt="" onerror="this.style.display='none'"><b>${esc(t.visitor_nick)}</b>${t.text?`<span>${esc(t.text)}</span>`:''}</span>`;
+    const chips = traces.map(chip).join('');
+    // 끊김 없는 루프 위해 칩 묶음을 2배 복제 (track 폭의 -50% 이동 = 정확히 한 세트)
+    const ticker = traces.length ? `<div class="g1-mw-track">${chips}${chips}</div>` : '';
+    const colorStyle = w.text_color ? ` style="color:${esc(w.text_color)}"` : '';   // 2차 배경풀 글자색 자리
+    wall.innerHTML = `<div class="g1-mw"${colorStyle}><div class="g1-mw-top">${top}</div><div class="g1-mw-ticker">${ticker}</div></div>`;
+  }
+
   function build() {
     const walls = ['front', 'right', 'back', 'left']
       .map(k => root.querySelector('.g1-wall-' + k));
@@ -1498,6 +1572,7 @@ const Floor1 = (() => {
     });
     buildSculpt();
     buildHotspots();
+    renderMessageWall();   // 좌측 벽 글귀판 + 흔적 티커
   }
 
   // 3D 액자(rotateY 벽)는 클릭이 빗나가므로, 화면상 실제 위치에 2D 투명 핫스팟을 깐다.
@@ -1674,6 +1749,11 @@ const Floor1 = (() => {
       ownerId = getUser()?.id || null;
     }
     if (!ownerId) return;  // 비로그인·미존재 → 빈 방 (우아한 비움)
+    // 좌측 벽 메시지 보드 (글귀 + 흔적 티커) — 별도 try라 실패해도 그림 진열엔 영향 없음
+    try {
+      MW = await sbFetch('/rest/v1/rpc/get_message_board',
+        { method: 'POST', body: JSON.stringify({ p_room_owner: ownerId }) });
+    } catch (e) { console.warn('메시지 보드 로드 실패', e); MW = null; }
     try {
       const perm = [];  // 영구 소장 소멸(v61) — 분더카머 1층은 대여작만 진열한다
       const rents = await sbFetch(`/rest/v1/heritage_rentals?user_id=eq.${ownerId}&returned_at=is.null&select=item_id,starts_at,due_at,source&order=starts_at.asc`);
