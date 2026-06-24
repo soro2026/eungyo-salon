@@ -1173,6 +1173,12 @@ html, body {
 .floor-content[data-floor="1"] .g1-note-head .g1-note-t{ font-family:'Cormorant Garamond','Noto Serif KR',serif; font-size:22px; font-weight:600; line-height:1.25; }
 .floor-content[data-floor="1"] .g1-note-head .g1-note-a{ font-size:13px; font-style:italic; opacity:.7; margin-top:5px; }
 .floor-content[data-floor="1"] .g1-note-body{ font-family:'Noto Serif KR',serif; font-size:14px; line-height:1.75; }
+
+/* 2D 클릭 핫스팟 — 3D 액자 위에 화면 좌표로 깔린다 (rotateY 벽 클릭 우회) */
+.floor-content[data-floor="1"] .g1-hotspots{ position:absolute; inset:0; z-index:15; pointer-events:none; }
+.floor-content[data-floor="1"] .g1-hotspot{ position:absolute; pointer-events:auto; }
+.floor-content[data-floor="1"] .g1-hotspot-art{ cursor:zoom-in; }
+.floor-content[data-floor="1"] .g1-hotspot-plaque{ cursor:pointer; }
 </style>
 </head>
 <body>
@@ -1415,6 +1421,7 @@ const Floor1 = (() => {
             <div class="g1-face g1-ground"></div>
             <div class="g1-face g1-ceiling"></div>
           </div>
+          <div class="g1-hotspots" id="g1-hotspots"></div>
         </div>
         <button class="g1-nav g1-nav-left"  id="g1-prev" aria-label="좌로 회전">‹</button>
         <button class="g1-nav g1-nav-right" id="g1-next" aria-label="우로 회전">›</button>
@@ -1476,22 +1483,50 @@ const Floor1 = (() => {
           ? `<img class="g1-fimg" alt="${a.t}">${plaque}`                                       // 헤리티지 — 원본 액자 그대로
           : `<div class="g1-frame" style="width:${w}px"><div class="g1-mat"><img alt="${a.t}"></div></div>${plaque}`; // 임시 — CSS 액자
         const img = d.querySelector('img');
+        img.onload = () => buildHotspots();   // 액자 높이 확정 후 핫스팟 재배치
         img.onerror = () => {  // 이미지 미도착 시 — 명판이 그려진 캔버스로 우아하게
           const lost = `<div class="g1-lost">${a.t}<br><span style="font-size:11px;opacity:.6">${a.a}</span></div>`;
           if (a.img) img.outerHTML =
             `<div class="g1-frame" style="width:${w}px;height:${Math.round(w * 1.06)}px"><div class="g1-mat">${lost}</div></div>`;
           else img.closest('.g1-mat').innerHTML = lost;
+          buildHotspots();
         };
         img.src = a.img || a.src;
-        // 클릭 — 그림: 확대 모달 / 명패: 5겹 팝업
-        const fimg = d.querySelector('.g1-fimg') || d.querySelector('.g1-mat img');
-        if (fimg) { fimg.style.cursor = 'zoom-in'; fimg.addEventListener('click', () => openArtZoom(a)); }
-        const pl = d.querySelector('.g1-plaque');
-        if (pl) { pl.style.cursor = 'pointer'; pl.addEventListener('click', (e) => { e.stopPropagation(); openArtNote(a); }); }
+        d._artData = a;   // 핫스팟(2D)이 참조 — 3D 액자 직접 클릭은 rotateY 벽에서 빗나가므로
         wall.appendChild(d);
       });
     });
     buildSculpt();
+    buildHotspots();
+  }
+
+  // 3D 액자(rotateY 벽)는 클릭이 빗나가므로, 화면상 실제 위치에 2D 투명 핫스팟을 깐다.
+  const SIDE_KEYS = ['front', 'right', 'back', 'left'];
+  function buildHotspots() {
+    const hs = root && root.querySelector('#g1-hotspots');
+    if (!hs) return;
+    hs.innerHTML = '';
+    const base = hs.getBoundingClientRect();
+    const wallEl = root.querySelector('.g1-wall-' + SIDE_KEYS[side]);
+    if (!wallEl) return;
+    const mk = (el, fn, role) => {
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      if (r.width < 6 || r.height < 6) return;   // 안 보이는(접힌) 면은 건너뜀
+      const s = document.createElement('div');
+      s.className = 'g1-hotspot g1-hotspot-' + role;
+      s.style.left = (r.left - base.left) + 'px';
+      s.style.top = (r.top - base.top) + 'px';
+      s.style.width = r.width + 'px';
+      s.style.height = r.height + 'px';
+      s.addEventListener('click', fn);
+      hs.appendChild(s);
+    };
+    wallEl.querySelectorAll('.g1-painting').forEach(p => {
+      const a = p._artData; if (!a) return;
+      mk(p.querySelector('.g1-fimg') || p.querySelector('.g1-mat img'), () => openArtZoom(a), 'art');
+      mk(p.querySelector('.g1-plaque'), () => openArtNote(a), 'plaque');
+    });
   }
 
   function buildSculpt() {
@@ -1572,6 +1607,7 @@ const Floor1 = (() => {
     if (!r.width || !r.height) return;
     const s = Math.min(r.width * 0.92 / 2000, r.height * 0.92 / 700);
     root.style.setProperty('--g1-scale', s.toFixed(4));
+    buildHotspots();   // 화면 크기 바뀌면 핫스팟 재배치
   }
 
   // ── 미술 5겹(layers) — 음반 renderLinerNote 미술 이식 (스코프 분리로 복제) ──
@@ -1686,6 +1722,9 @@ const Floor1 = (() => {
     update(); fit();
     root.querySelector('#g1-prev').addEventListener('click', prev);
     root.querySelector('#g1-next').addEventListener('click', next);
+    // 회전(transform transition)이 끝날 때마다 핫스팟을 새 정면 벽 위치로 재배치
+    const worldEl = root.querySelector('#g1-world');
+    if (worldEl) worldEl.addEventListener('transitionend', (e) => { if (e.propertyName === 'transform') buildHotspots(); });
     SideWall.bind(1);                                  // 인물벽(미술) 90도
     if (!bound) {               // 전역 리스너는 1회만 — root 생존 가드로 층 비종속 안전
       window.addEventListener('resize', fit);
