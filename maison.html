@@ -795,6 +795,48 @@ async function jumpToCity(c){
   });
 }
 
+// 페이지를 떠나지 않고 그 인물의 대표지로 직행 — 세션 하나 유지(과금 0).
+// 액자(이곳에 닿은 별)에서 호출. 도시가 다르면 도시 마커만 갈아끼우고 그 장소로 비행.
+async function jumpToStarPlace(starId){
+  let rep;
+  try{
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_star_voyage", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
+      body: JSON.stringify({ p_star_id: Number(starId) })
+    });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    const rows = await res.json();
+    rep = Array.isArray(rows) ? rows[0] : rows;
+  }catch(e){ console.warn("대표지 로드 실패:", e); return; }
+  if (!rep || rep.lat == null || rep.lng == null) return;
+
+  stopOrbit(); closeStory(); closeMaison();
+
+  // 대표지가 다른 도시면 그 도시 마커로 갈아끼움(세션은 그대로 유지)
+  if (rep.city && rep.city !== currentCity){
+    currentCity = rep.city;
+    if (typeof renderCityList === 'function') renderCityList();
+    viewer.entities.values.filter(e=>e._spot || e._maison).slice().forEach(e=> viewer.entities.remove(e));
+    await loadCityMarkers(rep.city);
+    await loadMaisons(rep.city);
+  }
+
+  const lng = rep.lng, lat = rep.lat, r = rep.cam_range || 1000;
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, r * 1.6),
+    orientation:{ heading:Cesium.Math.toRadians(20), pitch:Cesium.Math.toRadians(-35), roll:0 },
+    duration: 3.4,
+    complete: async ()=>{
+      const H = await clampPoint(lng, lat);
+      startOrbit(Cesium.Cartesian3.fromDegrees(lng, lat, (H!=null?H:0)), r);
+      // 도착한 대표지 핀의 이야기 팝업을 열어줌(닿은 별 액자도 그 장소 기준으로 갱신)
+      const target = viewer.entities.values.find(e=> e._spot && e._spot.place_id === rep.place_id);
+      if (target && target._spot) openStory(target._spot);
+    }
+  });
+}
+
 function openStory(spot){
   const isCompagnon = (spot.source === 'compagnon');
   const badge = document.getElementById("storyBadge");
@@ -843,10 +885,8 @@ function openStory(spot){
         card.appendChild(tag);
       }
       if (can && sid != null){
-        card.title = name + " — 별 여행 떠나기";
-        card.addEventListener("click", ()=>{
-          location.href = "star_voyage.html?id=" + encodeURIComponent(sid);
-        });
+        card.title = name + " — 이 별의 본거지로";
+        card.addEventListener("click", ()=> jumpToStarPlace(sid));
       }
       grid.appendChild(card);
     });
