@@ -198,6 +198,8 @@
     <button class="intake-open" onclick="openIntake()">🖼 보물 입고</button>
     <button class="intake-open" id="flower-btn" onclick="document.getElementById('flower-file').click()" style="background:#5a2a3a;border-color:#7a3a5a">🌸 꽃 업로드</button>
     <input type="file" id="flower-file" accept="image/webp,image/png" multiple style="display:none" onchange="doUploadFlowers(this.files)">
+    <button class="intake-open" id="m3d-btn" onclick="document.getElementById('m3d-file').click()" style="background:#1f3a4a;border-color:#3a6a8a">🗿 3D 보물 입고</button>
+    <input type="file" id="m3d-file" accept=".glb,.gltf" multiple style="display:none" onchange="doUpload3D(this.files)">
   </div>
   <div id="body"><div class="loading">현황을 불러오는 중…</div></div>
   <div class="foot">heritage_items · editions · rentals · archives 실시간 조회</div>
@@ -788,6 +790,31 @@ async function doUploadFlowers(files){
   btn.disabled=false; btn.textContent=orig;
   document.getElementById('flower-file').value='';
   alert(`🌸 꽃 업로드 완료\n성공 ${ok} · 실패 ${fail}`+(errs.length?'\n\n'+errs.join('\n'):''));
+}
+
+// 🗿 3D 보물 업로드 — .glb/.gltf 를 models 버킷에 (파일명 그대로, 공개 URL 발급)
+async function doUpload3D(files){
+  if(!files || !files.length) return;
+  const btn=document.getElementById('m3d-btn');
+  btn.disabled=true; const orig=btn.textContent; btn.textContent='올리는 중…';
+  let ok=0, fail=0; const errs=[], urls=[];
+  for(const f of files){
+    const ext=(f.name.split('.').pop()||'').toLowerCase();
+    const ct = ext==='glb' ? 'model/gltf-binary' : ext==='gltf' ? 'model/gltf+json' : (f.type||'application/octet-stream');
+    const { error } = await supa.storage.from('models')
+      .upload(f.name, f, { upsert:true, contentType:ct });
+    if(error){ fail++; errs.push(f.name+' — '+error.message); }
+    else { ok++; const { data } = supa.storage.from('models').getPublicUrl(f.name); urls.push(data.publicUrl); }
+  }
+  btn.disabled=false; btn.textContent=orig;
+  document.getElementById('m3d-file').value='';
+  let msg = `🗿 3D 보물 입고 완료\n성공 ${ok} · 실패 ${fail}`;
+  if(urls.length){
+    msg += '\n\n공개 URL (전시실 src에 사용):\n'+urls.join('\n');
+    try{ await navigator.clipboard.writeText(urls.join('\n')); msg+='\n\n📋 URL이 클립보드에 복사됐습니다.'; }catch(e){}
+  }
+  if(errs.length) msg += '\n\n⚠ 실패:\n'+errs.join('\n');
+  alert(msg);
 }
 
 init();
