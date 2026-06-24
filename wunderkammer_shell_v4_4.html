@@ -234,6 +234,38 @@ html, body {
 .floor-content[data-floor="1"] .g1-mw-chip b { font-weight: 600; color: var(--g1-amber); }
 .floor-content[data-floor="1"] .g1-mw-chip span { color: #e8d8b8; opacity: .85; }
 @keyframes g1-mw-flow { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+/* 좌측 벽 액션 버튼 (핫스팟 평면 위) */
+.floor-content[data-floor="1"] .g1-mw-action {
+  position: absolute; transform: translateX(-50%); pointer-events: auto;
+  padding: 12px 28px; font-size: 17px; letter-spacing: 1px; white-space: nowrap;
+  color: #f0d8a8; background: rgba(60,30,40,0.9); cursor: pointer;
+  border: 1px solid var(--g1-moulding); border-radius: 24px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+.floor-content[data-floor="1"] .g1-mw-action:hover { background: rgba(90,45,60,0.96); }
+/* 메시지 보드 모달 (글귀 쓰기 / 헌화) */
+.mw-modal {
+  position: fixed; inset: 0; z-index: 9999; background: rgba(20,8,12,0.72);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.mw-box {
+  background: linear-gradient(180deg, #3a1822, #2a1018); border: 1px solid var(--g1-moulding);
+  border-radius: 16px; padding: 28px 30px; width: min(520px, 92vw); box-sizing: border-box;
+  color: #f0e0c8; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+.mw-box h3 { margin: 0 0 16px; font-size: 22px; color: var(--g1-amber); letter-spacing: 1px; }
+.mw-box label { display: block; font-size: 13px; color: #c0a070; margin: 14px 0 6px; letter-spacing: 1px; }
+.mw-box input, .mw-box textarea {
+  width: 100%; box-sizing: border-box; background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(212,184,120,0.35); border-radius: 8px; padding: 11px 13px;
+  color: #f5ead0; font-size: 16px; font-family: inherit; resize: vertical;
+}
+.mw-box input:focus, .mw-box textarea:focus { outline: none; border-color: var(--g1-moulding); }
+.mw-hint { font-size: 14px; color: #c8a878; line-height: 1.6; margin: 0 0 6px; }
+.mw-btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
+.mw-btns button { padding: 10px 22px; font-size: 15px; border-radius: 22px; cursor: pointer; border: 1px solid var(--g1-moulding); }
+.mw-cancel { background: transparent; color: #c0a070; }
+.mw-save { background: var(--g1-moulding); color: #3a1822; font-weight: 600; }
 .floor-content[data-floor="1"] .g1-ground {
   width: var(--g1-room-w); height: var(--g1-room-d);
   margin-left: calc(var(--g1-half-w) * -1); margin-top: calc(var(--g1-half-d) * -1);
@@ -1456,7 +1488,7 @@ const Floor1 = (() => {
   ];
 
   let side = 0, yaw = 0, root = null, bound = false;
-  let MW = null;   // get_message_board 결과 (좌측 벽 글귀 + 흔적 티커)
+  let MW = null, MW_ownerId = null, MW_isOwner = false;   // 좌측 벽 메시지 보드 상태
 
   function markup() {
     return `
@@ -1538,6 +1570,82 @@ const Floor1 = (() => {
     wall.innerHTML = `<div class="g1-mw"${colorStyle}><div class="g1-mw-top">${top}</div><div class="g1-mw-ticker">${ticker}</div></div>`;
   }
 
+  // 서버에서 메시지 보드 다시 읽어 벽·핫스팟 갱신
+  async function refreshMessageWall(){
+    try { MW = await sbFetch('/rest/v1/rpc/get_message_board',
+      { method:'POST', body: JSON.stringify({ p_room_owner: MW_ownerId }) }); } catch(e){}
+    renderMessageWall(); buildHotspots();
+  }
+
+  function closeMwModal(){ const m = document.getElementById('mw-modal'); if(m) m.remove(); }
+
+  // 내 방 — 글귀 쓰기·고치기
+  function openWriteModal(){
+    closeMwModal();
+    const w = (MW && MW.wall) || {};
+    const m = document.createElement('div');
+    m.id = 'mw-modal'; m.className = 'mw-modal';
+    m.innerHTML = `
+      <div class="mw-box">
+        <h3>내 벽의 글귀</h3>
+        <label>타이틀</label>
+        <input id="mw-title" maxlength="40" placeholder="예: 나를 바꾼 문장">
+        <label>글귀</label>
+        <textarea id="mw-body" rows="4" placeholder="벽에 걸 한 문장을 적어 주세요"></textarea>
+        <label>서명 · 출처 (선택)</label>
+        <input id="mw-sig" maxlength="60" placeholder="예: 헨리 데이비드 소로 · 월든">
+        <div class="mw-btns">
+          <button class="mw-cancel">닫기</button>
+          <button class="mw-save">벽에 걸기</button>
+        </div>
+      </div>`;
+    document.body.appendChild(m);
+    m.querySelector('#mw-title').value = w.title || '';
+    m.querySelector('#mw-body').value  = w.body  || '';
+    m.querySelector('#mw-sig').value   = w.signature || '';
+    m.addEventListener('click', e => { if(e.target === m) closeMwModal(); });
+    m.querySelector('.mw-cancel').onclick = closeMwModal;
+    m.querySelector('.mw-save').onclick = async () => {
+      const title = m.querySelector('#mw-title').value.trim();
+      const body  = m.querySelector('#mw-body').value.trim();
+      const sig   = m.querySelector('#mw-sig').value.trim();
+      if(!body){ alert('글귀를 한 줄 적어 주세요'); return; }
+      try {
+        await sbFetch('/rest/v1/rpc/upsert_message_board', { method:'POST',
+          body: JSON.stringify({ p_title: title||null, p_body: body, p_signature: sig||null, p_text_color: null }) });
+        closeMwModal(); await refreshMessageWall();
+      } catch(e){ alert('저장 실패: ' + e.message); }
+    };
+  }
+
+  // 남의 방 — 꽃 두고 가기 (이번 주 꽃 자동 + 한 줄 선택)
+  function openFlowerModal(){
+    closeMwModal();
+    const m = document.createElement('div');
+    m.id = 'mw-modal'; m.className = 'mw-modal';
+    m.innerHTML = `
+      <div class="mw-box">
+        <h3>🌸 꽃 두고 가기</h3>
+        <p class="mw-hint">이번 주의 내 꽃을 한 송이 두고 갑니다. 한 줄은 남겨도 좋고, 비워도 좋습니다 (침묵의 헌화).</p>
+        <textarea id="mw-fbody" rows="2" maxlength="50" placeholder="한 줄 남기기 (50자, 선택)"></textarea>
+        <div class="mw-btns">
+          <button class="mw-cancel">닫기</button>
+          <button class="mw-save">두고 가기</button>
+        </div>
+      </div>`;
+    document.body.appendChild(m);
+    m.addEventListener('click', e => { if(e.target === m) closeMwModal(); });
+    m.querySelector('.mw-cancel').onclick = closeMwModal;
+    m.querySelector('.mw-save').onclick = async () => {
+      const text = m.querySelector('#mw-fbody').value.trim();
+      try {
+        await sbFetch('/rest/v1/rpc/leave_flower', { method:'POST',
+          body: JSON.stringify({ p_room_owner: MW_ownerId, p_text: text||null }) });
+        closeMwModal(); await refreshMessageWall();
+      } catch(e){ alert(e.message); }   // '이번 주 꽃 먼저'·'꽃 떨어짐'·'자기 방' 등 RPC 안내
+    };
+  }
+
   function build() {
     const walls = ['front', 'right', 'back', 'left']
       .map(k => root.querySelector('.g1-wall-' + k));
@@ -1602,6 +1710,19 @@ const Floor1 = (() => {
       mk(p.querySelector('.g1-fimg') || p.querySelector('.g1-mat img'), () => openArtZoom(a), 'art');
       mk(p.querySelector('.g1-plaque'), () => openArtNote(a), 'plaque');
     });
+    // 좌측 벽 = 메시지 보드 → 액션 버튼(내 방=글귀 쓰기 / 남의 방=헌화) 핫스팟
+    if (SIDE_KEYS[side] === 'left') {
+      const wr = wallEl.getBoundingClientRect();
+      if (wr.width > 6) {
+        const btn = document.createElement('button');
+        btn.className = 'g1-mw-action';
+        btn.textContent = MW_isOwner ? '✎ 내 글귀 쓰기' : '🌸 꽃 두고 가기';
+        btn.style.left = (wr.left - base.left + wr.width / 2) + 'px';
+        btn.style.top  = (wr.top - base.top + wr.height - 150 - 58) + 'px';   // 티커(150) 바로 위
+        btn.addEventListener('click', MW_isOwner ? openWriteModal : openFlowerModal);
+        hs.appendChild(btn);
+      }
+    }
   }
 
   function buildSculpt() {
@@ -1749,7 +1870,10 @@ const Floor1 = (() => {
       ownerId = getUser()?.id || null;
     }
     if (!ownerId) return;  // 비로그인·미존재 → 빈 방 (우아한 비움)
-    // 좌측 벽 메시지 보드 (글귀 + 흔적 티커) — 별도 try라 실패해도 그림 진열엔 영향 없음
+    // 좌측 벽 메시지 보드 — 내 방/남의 방 판정 (내 방이면 글귀 쓰기, 남의 방이면 헌화)
+    MW_ownerId = ownerId;
+    { const me = getUser()?.id; MW_isOwner = !!me && ownerId === me; }
+    // 글귀 + 흔적 티커 — 별도 try라 실패해도 그림 진열엔 영향 없음
     try {
       MW = await sbFetch('/rest/v1/rpc/get_message_board',
         { method: 'POST', body: JSON.stringify({ p_room_owner: ownerId }) });
