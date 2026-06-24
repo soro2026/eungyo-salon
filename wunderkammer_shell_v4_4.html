@@ -1111,6 +1111,65 @@ html, body {
   backdrop-filter: blur(4px);
 }
 #arrival-card .ac-close:hover { background: rgba(30,15,5,0.65); }
+
+/* ============================================================
+ *  1층 갤러리 — 그림 확대 모달(+내리기) · 명패 5겹 팝업
+ * ============================================================ */
+.floor-content[data-floor="1"] .g1-zoom{
+  position:absolute; inset:0; z-index:60; display:flex; flex-direction:column;
+  background:rgba(8,5,6,.94);
+}
+.floor-content[data-floor="1"] .g1-zoom[hidden]{ display:none; }
+.floor-content[data-floor="1"] .g1-zoom-stage{
+  flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center;
+  padding:52px 18px 8px;
+}
+.floor-content[data-floor="1"] .g1-zoom-img{
+  max-width:100%; max-height:100%; object-fit:contain;
+  box-shadow:0 18px 60px rgba(0,0,0,.8); border-radius:2px;
+}
+.floor-content[data-floor="1"] .g1-zoom-x{
+  position:absolute; top:14px; right:14px; z-index:2; width:42px; height:42px; border-radius:50%;
+  background:rgba(40,24,20,.85); border:1px solid rgba(212,184,120,.6); color:var(--g1-amber,#e8d4a0);
+  font-size:18px; line-height:1; cursor:pointer;
+}
+.floor-content[data-floor="1"] .g1-zoom-bar{
+  flex:none; display:flex; align-items:center; justify-content:space-between; gap:14px;
+  padding:12px 22px calc(16px + env(safe-area-inset-bottom));
+}
+.floor-content[data-floor="1"] .g1-zoom-cap{
+  font-family:'Cormorant Garamond','Noto Serif KR',serif; color:rgba(240,216,168,.92); min-width:0;
+}
+.floor-content[data-floor="1"] .g1-zoom-cap b{ font-size:16px; font-weight:600; }
+.floor-content[data-floor="1"] .g1-zoom-cap span{ font-size:12px; opacity:.7; margin-left:9px; font-style:italic; }
+.floor-content[data-floor="1"] .g1-zoom-down{
+  flex:none; padding:10px 22px; border-radius:3px; cursor:pointer; white-space:nowrap;
+  background:linear-gradient(180deg,#3a2430,#241016); border:1px solid rgba(212,184,120,.55);
+  color:var(--g1-amber,#e8d4a0); font-size:13px; letter-spacing:1px;
+  font-family:'Cormorant Garamond','Noto Serif KR',serif;
+}
+.floor-content[data-floor="1"] .g1-zoom-down:hover{ background:linear-gradient(180deg,#4a3040,#341622); }
+.floor-content[data-floor="1"] .g1-zoom-down:disabled{ opacity:.5; cursor:default; }
+
+.floor-content[data-floor="1"] .g1-note{
+  position:absolute; inset:0; z-index:61; display:flex; align-items:center; justify-content:center;
+  padding:24px; background:rgba(8,5,6,.72);
+}
+.floor-content[data-floor="1"] .g1-note[hidden]{ display:none; }
+.floor-content[data-floor="1"] .g1-note-sheet{
+  position:relative; width:min(560px,94vw); max-height:84vh; overflow:auto; -webkit-overflow-scrolling:touch;
+  background:linear-gradient(180deg,#efe6d0,#e4d6b8); color:#2a1c08; border-radius:3px;
+  padding:32px 30px 36px; box-shadow:0 24px 70px rgba(0,0,0,.7); border:1px solid #c9b88a;
+}
+.floor-content[data-floor="1"] .g1-note-x{
+  position:absolute; top:12px; right:12px; width:33px; height:33px; border-radius:50%;
+  background:rgba(90,58,24,.12); border:1px solid rgba(90,58,24,.4); color:#5a3a18;
+  font-size:15px; line-height:1; cursor:pointer;
+}
+.floor-content[data-floor="1"] .g1-note-head{ margin-bottom:18px; border-bottom:1px solid rgba(90,58,24,.25); padding-bottom:13px; padding-right:30px; }
+.floor-content[data-floor="1"] .g1-note-head .g1-note-t{ font-family:'Cormorant Garamond','Noto Serif KR',serif; font-size:22px; font-weight:600; line-height:1.25; }
+.floor-content[data-floor="1"] .g1-note-head .g1-note-a{ font-size:13px; font-style:italic; opacity:.7; margin-top:5px; }
+.floor-content[data-floor="1"] .g1-note-body{ font-family:'Noto Serif KR',serif; font-size:14px; line-height:1.75; }
 </style>
 </head>
 <body>
@@ -1359,6 +1418,25 @@ const Floor1 = (() => {
         <div class="g1-compass" id="g1-compass"></div>
         <button class="pw-toggle" aria-label="인물벽으로 돌아서기">✦ 나의 별들</button>
         <div class="pw-face"><div class="pw-canvas"></div></div>
+
+        <!-- 미술 확대 모달 (그림 클릭) + 내리기 -->
+        <div class="g1-zoom" id="g1-zoom" hidden>
+          <button class="g1-zoom-x" id="g1-zoom-x" aria-label="닫기">✕</button>
+          <div class="g1-zoom-stage"><img class="g1-zoom-img" id="g1-zoom-img" alt=""></div>
+          <div class="g1-zoom-bar">
+            <div class="g1-zoom-cap" id="g1-zoom-cap"></div>
+            <button class="g1-zoom-down" id="g1-zoom-down">내리기</button>
+          </div>
+        </div>
+
+        <!-- 미술 5겹 명패 팝업 (명패 클릭) -->
+        <div class="g1-note" id="g1-note" hidden>
+          <div class="g1-note-sheet">
+            <button class="g1-note-x" id="g1-note-x" aria-label="닫기">✕</button>
+            <div class="g1-note-head" id="g1-note-head"></div>
+            <div class="g1-note-body" id="g1-note-body"></div>
+          </div>
+        </div>
       </div>`;
   }
 
@@ -1379,6 +1457,10 @@ const Floor1 = (() => {
   function build() {
     const walls = ['front', 'right', 'back', 'left']
       .map(k => root.querySelector('.g1-wall-' + k));
+    // 재호출(반납 등) 대비 — 기존 액자·조각 비우기 (중복 방지)
+    walls.forEach(wall => wall.querySelectorAll('.g1-painting').forEach(el => el.remove()));
+    const _w = root.querySelector('#g1-world');
+    if (_w) _w.querySelectorAll('.g1-sculpt').forEach(el => el.remove());
     walls.forEach((wall, s) => {
       ART[s].forEach((a, i) => {
         const w = a.w || 320;
@@ -1398,6 +1480,11 @@ const Floor1 = (() => {
           else img.closest('.g1-mat').innerHTML = lost;
         };
         img.src = a.img || a.src;
+        // 클릭 — 그림: 확대 모달 / 명패: 5겹 팝업
+        const fimg = d.querySelector('.g1-fimg') || d.querySelector('.g1-mat img');
+        if (fimg) { fimg.style.cursor = 'zoom-in'; fimg.addEventListener('click', () => openArtZoom(a)); }
+        const pl = d.querySelector('.g1-plaque');
+        if (pl) { pl.style.cursor = 'pointer'; pl.addEventListener('click', (e) => { e.stopPropagation(); openArtNote(a); }); }
         wall.appendChild(d);
       });
     });
@@ -1479,9 +1566,60 @@ const Floor1 = (() => {
     root.style.setProperty('--g1-scale', s.toFixed(4));
   }
 
+  // ── 미술 5겹(layers) — 음반 renderLinerNote 미술 이식 (스코프 분리로 복제) ──
+  const G1_LABELS = { knowledge:'앎', thought:'사유', connection:'연결', curation:'큐레이션' };
+  function g1Md(text){
+    if(!text) return '';
+    const e = String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return e.replace(/\*\*([^*\n]+?)\*\*/g,'<strong style="font-weight:700;color:#2a1c08">$1</strong>')
+            .replace(/\*([^*\n]+?)\*/g,'<strong style="font-weight:600;color:#5a3f14">$1</strong>');
+  }
+  function renderArtNote(ln){
+    if(!ln || typeof ln!=='object') return '<span style="opacity:.6">아직 이야기가 인쇄소에 있습니다.</span>';
+    const blocks=[];
+    if(ln.scene) blocks.push(`<div style="font-size:15px;font-style:italic;color:#3a2a18;margin-bottom:16px;line-height:1.7">${g1Md(ln.scene)}</div>`);
+    ['knowledge','thought','connection','curation'].forEach(k=>{
+      if(!ln[k]) return;
+      blocks.push(`<div style="margin-bottom:14px"><div style="font-size:9px;letter-spacing:2px;color:#8a6a3a;margin-bottom:5px">${G1_LABELS[k]}</div><div>${g1Md(ln[k])}</div></div>`);
+    });
+    return blocks.join('') || '<span style="opacity:.6">아직 이야기가 인쇄소에 있습니다.</span>';
+  }
+  function openArtZoom(a){
+    const z = root.querySelector('#g1-zoom'); if(!z) return;
+    root.querySelector('#g1-zoom-img').src = a.img || a.src || '';
+    root.querySelector('#g1-zoom-cap').innerHTML = `<b>${a.t||''}</b><span>${a.a||''}</span>`;
+    const down = root.querySelector('#g1-zoom-down');
+    const qUser = new URLSearchParams(location.search).get('user');
+    down.style.display = (qUser || !a.id) ? 'none' : '';   // 타인 방·id없음 → 내리기 숨김
+    down.onclick = () => returnArt(a, down);
+    root.querySelector('#g1-zoom-x').onclick = () => { z.hidden = true; };
+    z.onclick = (e) => { if(e.target === z) z.hidden = true; };  // 배경 클릭 닫기
+    z.hidden = false;
+  }
+  function openArtNote(a){
+    const n = root.querySelector('#g1-note'); if(!n) return;
+    root.querySelector('#g1-note-head').innerHTML = `<div class="g1-note-t">${a.t||''}</div><div class="g1-note-a">${a.a||''}</div>`;
+    root.querySelector('#g1-note-body').innerHTML = renderArtNote(a.layers);
+    root.querySelector('#g1-note-x').onclick = () => { n.hidden = true; };
+    n.onclick = (e) => { if(e.target === n) n.hidden = true; };
+    const sheet = n.querySelector('.g1-note-sheet'); if(sheet) sheet.scrollTop = 0;
+    n.hidden = false;
+  }
+  async function returnArt(a, btn){
+    if(!a.id) return;
+    const uid = getUser()?.id; if(!uid){ alert('로그인이 필요합니다.'); return; }
+    if(btn){ btn.disabled = true; btn.textContent = '내리는 중…'; }
+    try{
+      await sbFetch('/rest/v1/rpc/return_item', { method:'POST', body: JSON.stringify({ p_item_id:a.id, p_user_id:uid }) });
+      root.querySelector('#g1-zoom').hidden = true;
+      await loadFloor1(true); build();   // 방 갱신 — 빈 자리 다시 채움 (도착 팝업 스킵)
+    }catch(e){ alert('내리기에 실패했습니다: ' + (e.message||e)); }
+    finally{ if(btn){ btn.disabled = false; btn.textContent = '내리기'; } }
+  }
+
   // 본 공사 A1(0613): 내 1층 = 영구소장(wunderkammer_items) + 지금 머무는 대여작(heritage_rentals).
   // owner = ?user= 우선(순례 동선 입구, 백로그 #24), 없으면 로그인 본인.
-  async function loadFloor1() {
+  async function loadFloor1(skipPopup) {
     ART = [[], [], [], []];
     const qUser = new URLSearchParams(location.search).get('user');
     let ownerId = null;
@@ -1498,12 +1636,13 @@ const Floor1 = (() => {
       let rentArts = [];
       const rentIds = (rents || []).map(r => r.item_id);
       if (rentIds.length) {
-        const items = await sbFetch(`/rest/v1/heritage_items?id=in.(${rentIds.join(',')})&category=eq.visual&select=id,name,artist,img,ratio`);
+        const items = await sbFetch(`/rest/v1/heritage_items?id=in.(${rentIds.join(',')})&category=eq.visual&select=id,name,artist,img,ratio,layers`);
         const map = {}; (items || []).forEach(it => map[it.id] = it);
         rentArts = (rents || []).filter(r => map[r.item_id]).map(r => map[r.item_id]);
       }
       const all = [...(perm || []), ...rentArts].map(d => ({
-        t: d.name, a: d.artist, img: d.img, w: (d.ratio === 'portrait') ? 300 : 380
+        t: d.name, a: d.artist, img: d.img, w: (d.ratio === 'portrait') ? 300 : 380,
+        id: d.id, layers: d.layers
       }));
       const CAP = [3, 3, 3, 0];   // 정면3 · 우측3 · 뒷벽3 = 9점 / 좌측은 메시지 보드(2단계)
       let idx = 0;
@@ -1514,7 +1653,7 @@ const Floor1 = (() => {
       // ?user= 순례 동선(타인 방)에서는 팝업 없음
       const qUser = new URLSearchParams(location.search).get('user');
       const uid = getUser()?.id;
-      if (!qUser && uid) {
+      if (!qUser && uid && !skipPopup) {
         const newPrize = (rents || []).filter(r => r.source === 'prize');
         if (newPrize.length || (perm && perm.length)) {
           const lsKey = `htg_arrival_seen_${uid}`;
