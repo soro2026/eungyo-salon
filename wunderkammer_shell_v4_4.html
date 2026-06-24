@@ -1211,6 +1211,7 @@ html, body {
   background:rgba(8,5,6,.94);
 }
 .floor-content[data-floor="1"] .g1-zoom[hidden]{ display:none; }
+.floor-content[data-floor="1"]:has(.g1-zoom:not([hidden])) .room-elevator{ display:none; }  /* 확대 중 엘리베이터 숨김 — 내리기 버튼 충돌 방지 */
 .floor-content[data-floor="1"] .g1-zoom-stage{
   flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center;
   padding:52px 18px 8px;
@@ -1308,7 +1309,7 @@ html, body {
   <div class="lib-indicator">
     <div class="lib-ind-text"><span id="lib-cur">01</span> / <span id="lib-total">05</span></div>
     <div class="lib-ind-sub">Album in collection</div>
-    <button class="lib-return" id="lib-return" hidden>♪ 이 음반 반납</button>
+    <button class="lib-return" id="lib-return" hidden>♪ 헤리티지에 반환</button>
   </div>
   <div class="lib-toast" id="lib-toast">곧 들려드릴게요</div>
 </div>
@@ -1528,7 +1529,7 @@ const Floor1 = (() => {
           <div class="g1-zoom-bar">
             <button class="g1-zoom-x" id="g1-zoom-x" aria-label="닫기">✕ 닫기</button>
             <div class="g1-zoom-cap" id="g1-zoom-cap"></div>
-            <button class="g1-zoom-down" id="g1-zoom-down">내리기</button>
+            <button class="g1-zoom-down" id="g1-zoom-down">헤리티지에 반환</button>
           </div>
         </div>
 
@@ -1859,13 +1860,14 @@ const Floor1 = (() => {
   async function returnArt(a, btn){
     if(!a.id) return;
     const uid = getUser()?.id; if(!uid){ alert('로그인이 필요합니다.'); return; }
-    if(btn){ btn.disabled = true; btn.textContent = '내리는 중…'; }
+    if(btn){ btn.disabled = true; btn.textContent = '반환 중…'; }
     try{
       await sbFetch('/rest/v1/rpc/return_item', { method:'POST', body: JSON.stringify({ p_item_id:a.id, p_user_id:uid }) });
-      root.querySelector('#g1-zoom').hidden = true;
+      const z = root.querySelector('#g1-zoom'); z.hidden = true;
+      const elev = root.querySelector('.room-elevator'); if(elev) elev.style.display = '';
       await loadFloor1(true); build();   // 방 갱신 — 빈 자리 다시 채움 (도착 팝업 스킵)
-    }catch(e){ alert('내리기에 실패했습니다: ' + (e.message||e)); }
-    finally{ if(btn){ btn.disabled = false; btn.textContent = '내리기'; } }
+    }catch(e){ alert('헤리티지 반환에 실패했습니다: ' + (e.message||e)); }
+    finally{ if(btn){ btn.disabled = false; btn.textContent = '헤리티지에 반환'; } }
   }
 
   // 본 공사 A1(0613): 내 1층 = 영구소장(wunderkammer_items) + 지금 머무는 대여작(heritage_rentals).
@@ -3004,15 +3006,15 @@ const Library = (() => {
     const rb=document.getElementById('lib-return');
     const album=albums[currentIndex]; if(!album || !album.id) return;
     const uid=getUser()?.id; if(!uid){ libToast('로그인이 필요합니다'); return; }
-    if(rb){ rb.disabled=true; rb.textContent='반납 중…'; }
+    if(rb){ rb.disabled=true; rb.textContent='반환 중…'; }
     try{
       await sbFetch('/rest/v1/rpc/return_item', { method:'POST', body: JSON.stringify({ p_item_id:album.id, p_user_id:uid }) });
-      await loadLibrary();                                    // 서고 다시 읽기 (반납 반영)
+      await loadLibrary();                                    // 서고 다시 읽기 (반환 반영)
       if(currentIndex>=albums.length) currentIndex=Math.max(0,albums.length-1);
       build(); layout();
-      libToast('음반을 반납했습니다');
-    }catch(e){ libToast('반납 실패: '+(e.message||e)); }
-    finally{ if(rb){ rb.disabled=false; rb.textContent='♪ 이 음반 반납'; } }
+      libToast('음반을 헤리티지에 반환했습니다');
+    }catch(e){ libToast('헤리티지 반환 실패: '+(e.message||e)); }
+    finally{ if(rb){ rb.disabled=false; rb.textContent='♪ 헤리티지에 반환'; } }
   }
 
   function libToast(msg){
