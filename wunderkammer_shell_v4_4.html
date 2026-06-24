@@ -932,6 +932,14 @@ html, body {
   font-size:22px; cursor:pointer; backdrop-filter:blur(8px); transition:all .25s; line-height:1;
 }
 .library-modal .lib-close:hover { background:rgba(255,250,245,.95); color:#6b3a28; transform:scale(1.08); }
+.library-modal .lib-return {
+  margin-top:12px; padding:9px 22px; border-radius:22px;
+  background:rgba(120,70,50,.14); border:1px solid rgba(140,90,70,.55);
+  color:#9a6248; font-size:13px; letter-spacing:1.5px; cursor:pointer;
+  font-family:inherit; transition:all .2s;
+}
+.library-modal .lib-return:hover { background:rgba(140,90,70,.92); color:#fff5ed; border-color:rgba(140,90,70,.92); }
+.library-modal .lib-return:disabled { opacity:.5; cursor:default; }
 
 .library-modal .lib-header { position:absolute; top:0; left:0; right:0; z-index:6; text-align:center; padding:26px 24px 12px; }
 .library-modal .lib-eyebrow { font-size:11px; letter-spacing:4px; color:#b58a6e; text-transform:uppercase; }
@@ -1300,6 +1308,7 @@ html, body {
   <div class="lib-indicator">
     <div class="lib-ind-text"><span id="lib-cur">01</span> / <span id="lib-total">05</span></div>
     <div class="lib-ind-sub">Album in collection</div>
+    <button class="lib-return" id="lib-return" hidden>♪ 이 음반 반납</button>
   </div>
   <div class="lib-toast" id="lib-toast">곧 들려드릴게요</div>
 </div>
@@ -1832,8 +1841,7 @@ const Floor1 = (() => {
     root.querySelector('#g1-zoom-img').src = a.img || a.src || '';
     root.querySelector('#g1-zoom-cap').innerHTML = `<b>${a.t||''}</b><span>${a.a||''}</span>`;
     const down = root.querySelector('#g1-zoom-down');
-    const qUser = new URLSearchParams(location.search).get('user');
-    down.style.display = (qUser || !a.id) ? 'none' : '';   // 타인 방·id없음 → 내리기 숨김
+    down.style.display = (!MW_isOwner || !a.id) ? 'none' : '';   // 내 방 아님·id없음 → 내리기 숨김 (MW_isOwner = 주인 id===내 id, ?user=내닉이어도 내 방)
     down.onclick = () => returnArt(a, down);
     root.querySelector('#g1-zoom-x').onclick = () => { z.hidden = true; };
     z.onclick = (e) => { if(e.target === z) z.hidden = true; };  // 배경 클릭 닫기
@@ -2870,6 +2878,7 @@ function showToast(msg){
 const Library = (() => {
   // 본 공사 A1-2(0613): 하드코딩 5장 → 내 음반 rentals(반납 안 된 것). loadLibrary()가 채운다.
   let albums = [];
+  let LIB_isOwner = false;
 
   // ── 마리의 라이너 노트 4겹 렌더 (heritage openLiner 로직 이식 · 감상실 양피지 톤) ──
   //    별표 강조는 밝은 양피지 시트에 맞춰 어두운 볼드. scene(시적 표지) + 앎·사유·연결·큐레이션.
@@ -2907,6 +2916,7 @@ const Library = (() => {
     } else {
       ownerId = getUser()?.id || null;
     }
+    { const me = getUser()?.id; LIB_isOwner = !!me && ownerId === me; }   // 내 방 판정 (?user=내닉이어도 내 방)
     if (!ownerId) return;  // 비로그인·미존재 → 빈 서고
     try {
       const rents = await sbFetch(`/rest/v1/heritage_rentals?user_id=eq.${ownerId}&returned_at=is.null&select=item_id,starts_at&order=starts_at.desc`);
@@ -2956,6 +2966,7 @@ const Library = (() => {
       stage.appendChild(card); cards.push(card);
     });
     totalEl.textContent=String(albums.length).padStart(2,'0');
+    refreshReturnBtn();
     built=true;
   }
 
@@ -2983,6 +2994,26 @@ const Library = (() => {
 
   function goPrev(){ if(!isTransitioning && currentIndex>0){ currentIndex--; layout(); } }
   function goNext(){ if(!isTransitioning && currentIndex<albums.length-1){ currentIndex++; layout(); } }
+
+  // 음반 반납 — 그림 [내리기]와 동일한 return_item RPC 재사용 (category 자동 판별)
+  function refreshReturnBtn(){
+    const rb=document.getElementById('lib-return'); if(!rb) return;
+    rb.hidden = !LIB_isOwner || albums.length===0;   // 내 방 아님·빈 서고 → 숨김
+  }
+  async function returnCurrent(){
+    const rb=document.getElementById('lib-return');
+    const album=albums[currentIndex]; if(!album || !album.id) return;
+    const uid=getUser()?.id; if(!uid){ libToast('로그인이 필요합니다'); return; }
+    if(rb){ rb.disabled=true; rb.textContent='반납 중…'; }
+    try{
+      await sbFetch('/rest/v1/rpc/return_item', { method:'POST', body: JSON.stringify({ p_item_id:album.id, p_user_id:uid }) });
+      await loadLibrary();                                    // 서고 다시 읽기 (반납 반영)
+      if(currentIndex>=albums.length) currentIndex=Math.max(0,albums.length-1);
+      build(); layout();
+      libToast('음반을 반납했습니다');
+    }catch(e){ libToast('반납 실패: '+(e.message||e)); }
+    finally{ if(rb){ rb.disabled=false; rb.textContent='♪ 이 음반 반납'; } }
+  }
 
   function libToast(msg){
     toast.textContent=msg; toast.classList.add('show');
@@ -3027,6 +3058,7 @@ const Library = (() => {
   document.getElementById('lib-prev').addEventListener('click', goPrev);
   document.getElementById('lib-next').addEventListener('click', goNext);
   document.getElementById('lib-close').addEventListener('click', close);
+  document.getElementById('lib-return').addEventListener('click', returnCurrent);
   document.addEventListener('keydown', e=>{
     if(!modal.classList.contains('open')) return;
     if(e.key==='ArrowLeft'){ goPrev(); e.preventDefault(); }
