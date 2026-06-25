@@ -435,7 +435,7 @@ html, body {
 .floor-content[data-floor="3"] .room {
   position: relative; width: 100%; max-width: 1672px;
   aspect-ratio: 1672 / 941;
-  background: url('bookshelf_01.png') center/cover no-repeat;
+  background: url('bookshelf_01.webp') center/cover no-repeat;
   background-color: #2a1410; overflow: hidden;
 }
 .floor-content[data-floor="3"] .pendant-sway {
@@ -2339,33 +2339,17 @@ window.addEventListener('resize', () => {
  *    slide(d)  : 진열대 페이지 넘김 (키보드 ←→ 연동)
  * ============================================================ */
 const Floor3 = (() => {
-  const BOOKS = [
-    { id: '001', cover: '001.jpg', title: '월든', author: '헨리 데이비드 소로' },
-    { id: '002', cover: '002.jpg', title: '위로하는 정신', author: '슈테판 츠바이크' },
-    { id: '003', cover: '003.jpg', title: '일리아스', author: '호메로스' },
-    { id: '004', cover: '004.jpg', title: '지하로부터의 수기', author: '도스토옙스키' },
-    { id: '005', cover: '005.jpg', title: '인간의 대지', author: '생텍쥐페리' },
-    { id: '006', cover: '006.jpg', title: '미메시스', author: '에리히 아우어바흐' },
-    { id: '007', cover: '007.jpg', title: '모비 딕', author: '허먼 멜빌' },
-    { id: '008', cover: '008.jpg', title: '필경사 바틀비', author: '허먼 멜빌' },
-    { id: '009', cover: '009.jpg', title: '이처럼 사소한 것들', author: '클레어 키건' },
-    { id: '010', cover: '010.jpg', title: '잃어버린 시간을 찾아서 1', author: '마르셀 프루스트' },
-    { id: '011', cover: '011.jpg', title: '문학과 예술의 사회사', author: '아르놀트 하우저' },
-    { id: '012', cover: '012.jpg', title: '정신의 삶', author: '한나 아렌트' }
-  ];
+  // ── 책은 DB(wunderkammer_books)에서 mount 시 읽어온다 (목업 12권 → 동적) ──
+  let BOOKS = [];
+  // 매대 6칸 (2열 3행) — 새 배경 bookshelf_01.webp의 선반 바닥선·칸 중심에 맞춤.
+  // left=칸 가로중심 / top=선반 바닥선(책 발) / height=책 높이%. transform:translate(-50%,-100%)로 바닥에 섬.
   const SHELF_SLOTS = [
-    { left: 40.8, top: 44.2, height: 8 },   { left: 46.9, top: 44.4, height: 9 },
-    { left: 52.9, top: 44.4, height: 9 },   { left: 59.3, top: 44.3, height: 8.5 },
-    { left: 39.9, top: 60.1, height: 11 },  { left: 46.4, top: 60.1, height: 10.5 },
-    { left: 52.4, top: 60.1, height: 10.5 },{ left: 59.7, top: 59.9, height: 8.5 },
-    { left: 39.0, top: 78.6, height: 14 },  { left: 46.1, top: 78.5, height: 14 },
-    { left: 53.1, top: 78.5, height: 14 },  { left: 60.3, top: 78.4, height: 14 }
+    { left: 42, top: 44, height: 16 }, { left: 58, top: 44, height: 16 },   // 1단(위)
+    { left: 42, top: 64, height: 15 }, { left: 58, top: 64, height: 15 },   // 2단(중간)
+    { left: 41, top: 83, height: 15 }, { left: 59, top: 83, height: 15 }    // 3단(아래)
   ];
-  const PAGES = [
-    BOOKS.map((b, i) => ({ book: b, slot: SHELF_SLOTS[i] })),
-    [...BOOKS].reverse().map((b, i) => ({ book: b, slot: SHELF_SLOTS[i] })),
-    BOOKS.map((b, i) => ({ book: BOOKS[(i + 5) % 12], slot: SHELF_SLOTS[i] }))
-  ];
+  const PER_PAGE = 6;
+  let PAGES = [];   // buildPages()가 BOOKS를 6권씩 잘라 채운다
   const OPINIONS = {
     '012': {
       title: '정신의 삶', author: '한나 아렌트',
@@ -2393,10 +2377,10 @@ const Floor3 = (() => {
     }
   };
   function getDefaultOpinion(book) {
-    return { title: book.title, author: book.author, spreads: [{
+    return { title: book.title, author: book.author || '', spreads: [{
       chapter: '', title: book.title,
-      left: [`여기에 ${book.author}의 『${book.title}』에 대한 오피니언이 들어갑니다.`, '이 자리는 콩파뇽이 책에 대한 자기 글을 쓰는 곳입니다.'],
-      right: ['책과 자기 인생의 만남, 한 책을 사랑하는 이유, 어떤 시기에 어떻게 다가왔는지.', '베타에서는 한나 아렌트의 『정신의 삶』(좌측 맨 아래)만 진짜 오피니언이 들어가 있어요.']
+      left: [`아직 『${book.title}』에 대한 글이 없습니다.`, '이 책과 당신 삶이 어떻게 만났는지, 한 편의 글로 남겨 보세요.'],
+      right: ['어떤 시기에 어떻게 다가왔는지, 왜 이 책을 사랑하는지.', '글은 곧 이 면에 펼쳐집니다.']
     }] };
   }
 
@@ -2424,13 +2408,41 @@ const Floor3 = (() => {
       </div>`;
   }
 
-  function mount() {
+  async function mount() {
     currentShelfPage = 0; isTransitioning = false;
+    await loadBooks();                                 // DB(wunderkammer_books) → BOOKS, PAGES
     buildShelfPages();
     buildDots();
     document.getElementById('bk-prev').addEventListener('click', () => slide(-1));
     document.getElementById('bk-next').addEventListener('click', () => slide(+1));
     SideWall.bind(3);                                  // 인물벽(저술가) 90도
+  }
+
+  // ── DB에서 내 책 읽어오기 (공용 순례 ?user=는 다음 곡괭이) ──
+  async function loadBooks() {
+    BOOKS = []; PAGES = [];
+    const uid = getUser()?.id;
+    if (!uid) { buildPages(); return; }
+    try {
+      const rows = await sbFetch(`/rest/v1/wunderkammer_books?owner_id=eq.${uid}`
+        + `&select=id,title,author,cover_url,cover_w,cover_h,essay_title,essay_body,seq`
+        + `&order=seq.asc.nullslast,created_at.asc`);
+      BOOKS = (rows || []).map(r => ({
+        id: r.id, title: r.title, author: r.author, cover: r.cover_url,
+        cover_w: r.cover_w, cover_h: r.cover_h,
+        essay_title: r.essay_title, essay_body: r.essay_body
+      }));
+    } catch (e) { BOOKS = []; }
+    buildPages();
+  }
+
+  // ── 읽어온 책을 6권씩 페이지로 자른다 ──
+  function buildPages() {
+    PAGES = [];
+    for (let i = 0; i < BOOKS.length; i += PER_PAGE) {
+      PAGES.push(BOOKS.slice(i, i + PER_PAGE).map((b, j) => ({ book: b, slot: SHELF_SLOTS[j] })));
+    }
+    if (!PAGES.length) PAGES = [[]];   // 빈 책방도 한 페이지(화살표·닷 안전)
   }
 
   function buildShelfPages() {
@@ -2486,9 +2498,23 @@ const Floor3 = (() => {
     flipSound.play().catch(() => {});
   }
   function openBook(book) {
-    const opinion = OPINIONS[book.id] || getDefaultOpinion(book);
+    const opinion = essayToOpinion(book);
     buildFlipbook(book, opinion);
     modal.classList.add('open');
+  }
+  // essay_body(긴 글 하나) → 모달 spreads로. 없으면 안내.
+  // (정신의 삶 하드코딩 글 OPINIONS는 보존 — 다음 곡괭이에서 DB essay_body로 이관)
+  function essayToOpinion(book) {
+    const body = (book.essay_body || '').trim();
+    if (!body) return getDefaultOpinion(book);
+    const paras = body.split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
+    const mid = Math.max(1, Math.ceil(paras.length / 2));
+    const right = paras.slice(mid);
+    return { title: book.essay_title || book.title, author: book.author || '', spreads: [{
+      chapter: '', title: book.essay_title || book.title,
+      left: paras.slice(0, mid), right: right.length ? right : [''],
+      signature: true
+    }] };
   }
   function closeBook() {
     modal.classList.remove('open');
