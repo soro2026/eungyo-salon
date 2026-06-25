@@ -494,6 +494,24 @@ html, body {
   transform: translate(-50%, -100%) translateY(-8px) scale(1.05);
   filter: drop-shadow(5px 10px 18px rgba(0,0,0,0.9)); z-index: 10;
 }
+/* ── 편집 모드 (heritage 보물 편집 이식: 선택·드래그·핸들 크기) ── */
+.floor-content[data-floor="3"].editing .cover-book { cursor: grab; }
+.floor-content[data-floor="3"].editing .cover-book:hover { transform: translate(-50%,-100%); filter: drop-shadow(2px 5px 10px rgba(0,0,0,0.75)); }
+.floor-content[data-floor="3"].editing .cover-book.grabbing { cursor: grabbing; }
+.floor-content[data-floor="3"] .cover-book.sel img { outline: 2px solid #e9cf9c; outline-offset: 4px; }
+.floor-content[data-floor="3"] .cover-book .bk-handle {
+  position: absolute; right: -11px; bottom: -11px; width: 24px; height: 24px;
+  border-radius: 50%; background: #e9cf9c; border: 2px solid #5a3a18;
+  cursor: nwse-resize; display: none; z-index: 7; touch-action: none;
+}
+.floor-content[data-floor="3"].editing .cover-book.sel .bk-handle { display: block; }
+.floor-content[data-floor="3"] .bk-edit-toggle {
+  position: absolute; left: 50%; bottom: 54px; transform: translateX(-50%);
+  padding: 9px 18px; border-radius: 20px; font-size: 13px; cursor: pointer;
+  background: rgba(40,25,20,0.82); color: #e8d4a0; border: 1px solid rgba(184,136,76,0.5);
+  z-index: 12; transition: background 0.2s, color 0.2s;
+}
+.floor-content[data-floor="3"] .bk-edit-toggle.on { background: #b8884c; color: #2a1810; font-weight: 600; }
 /* 진열대 UI — fixed → absolute (층 박스 기준) */
 .floor-content[data-floor="3"] .bk-nav-arrow {
   position: absolute; top: 50%; transform: translateY(-50%);
@@ -2387,6 +2405,8 @@ const Floor3 = (() => {
   let currentShelfPage = 0;
   let isTransitioning = false;
   let soundEnabled = true;
+  let editMode = false;     // ✎ 배치 바꾸기 (heritage 보물 편집 이식)
+  let selEl = null;         // 현재 선택된 책 el
 
   function markup() {
     return `
@@ -2403,18 +2423,23 @@ const Floor3 = (() => {
         <button class="bk-nav-arrow bk-nav-right" id="bk-next">›</button>
         <div class="bk-dots" id="bk-dots"></div>
         <div class="bk-hint">책을 클릭해 펼쳐보세요</div>
+        <button class="bk-edit-toggle" id="bk-edit-toggle">✎ 배치 바꾸기</button>
         <button class="pw-toggle" aria-label="인물벽으로 돌아서기">✦ 나의 별들</button>
         <div class="pw-face"><div class="pw-canvas"></div></div>
       </div>`;
   }
 
   async function mount() {
-    currentShelfPage = 0; isTransitioning = false;
+    currentShelfPage = 0; isTransitioning = false; editMode = false; selEl = null;
     await loadBooks();                                 // DB(wunderkammer_books) → BOOKS, PAGES
     buildShelfPages();
     buildDots();
     document.getElementById('bk-prev').addEventListener('click', () => slide(-1));
     document.getElementById('bk-next').addEventListener('click', () => slide(+1));
+    const eb = document.getElementById('bk-edit-toggle');
+    if (eb) { eb.classList.remove('on'); eb.textContent = '✎ 배치 바꾸기'; eb.addEventListener('click', toggleEdit); }
+    const fc = document.querySelector('.floor-content[data-floor="3"]');
+    if (fc) fc.classList.remove('editing');
     SideWall.bind(3);                                  // 인물벽(저술가) 90도
   }
 
@@ -2425,11 +2450,12 @@ const Floor3 = (() => {
     if (!uid) { buildPages(); return; }
     try {
       const rows = await sbFetch(`/rest/v1/wunderkammer_books?owner_id=eq.${uid}`
-        + `&select=id,title,author,cover_url,cover_w,cover_h,essay_title,essay_body,seq`
+        + `&select=id,title,author,cover_url,cover_w,cover_h,pos_x,pos_y,scale,tilt,essay_title,essay_body,seq`
         + `&order=seq.asc.nullslast,created_at.asc`);
       BOOKS = (rows || []).map(r => ({
         id: r.id, title: r.title, author: r.author, cover: r.cover_url,
         cover_w: r.cover_w, cover_h: r.cover_h,
+        pos_x: r.pos_x, pos_y: r.pos_y, scale: r.scale, tilt: r.tilt,
         essay_title: r.essay_title, essay_body: r.essay_body
       }));
     } catch (e) { BOOKS = []; }
@@ -2445,6 +2471,14 @@ const Floor3 = (() => {
     if (!PAGES.length) PAGES = [[]];   // 빈 책방도 한 페이지(화살표·닷 안전)
   }
 
+  // 책 한 권을 칸에 앉힌다 — pos_x/pos_y/scale 있으면 그 값, 없으면 칸 기본(SHELF_SLOTS)
+  function placeBook(el, book, slot) {
+    const x = (book.pos_x != null) ? book.pos_x : slot.left;
+    const y = (book.pos_y != null) ? book.pos_y : slot.top;
+    const h = slot.height * (book.scale != null ? book.scale : 1);
+    el.style.left = x + '%'; el.style.top = y + '%'; el.style.height = h + '%';
+  }
+
   function buildShelfPages() {
     const stack = document.getElementById('bk-cover-stack');
     stack.innerHTML = '';
@@ -2454,13 +2488,109 @@ const Floor3 = (() => {
       pageData.forEach(({ book, slot }) => {
         const el = document.createElement('div');
         el.className = 'cover-book';
-        el.style.left = slot.left + '%'; el.style.top = slot.top + '%'; el.style.height = slot.height + '%';
-        el.innerHTML = `<img src="${book.cover}" alt="${book.title}" title="${book.title} · ${book.author}">`;
-        el.addEventListener('click', () => openBook(book));
+        el._book = book; el._slot = slot;
+        placeBook(el, book, slot);
+        el.innerHTML = `<img src="${book.cover}" alt="${book.title}" title="${book.title} · ${book.author}"><div class="bk-handle" data-h="1"></div>`;
+        el.addEventListener('click', (e) => {
+          if (editMode) { if (!e.target.dataset.h) selectBook(el); return; }  // 편집 중엔 선택만(모달 차단)
+          openBook(book);
+        });
+        bindEdit(el);
         page.appendChild(el);
       });
       stack.appendChild(page);
     });
+  }
+
+  // ════ 편집 모드 (heritage 보물 편집 이식: 선택·드래그·핸들 크기·DB 저장) ════
+  function toggleEdit() {
+    editMode = !editMode;
+    const fc = document.querySelector('.floor-content[data-floor="3"]');
+    if (fc) fc.classList.toggle('editing', editMode);
+    const btn = document.getElementById('bk-edit-toggle');
+    if (btn) { btn.classList.toggle('on', editMode); btn.textContent = editMode ? '✓ 완료' : '✎ 배치 바꾸기'; }
+    if (!editMode && selEl) { selEl.classList.remove('sel'); selEl = null; }
+  }
+  function selectBook(el) {
+    if (selEl && selEl !== el) selEl.classList.remove('sel');
+    selEl = el; el.classList.add('sel');
+  }
+
+  // 드래그 이동 + 휠/핸들 크기 (마우스·터치 양쪽)
+  function bindEdit(el) {
+    const book = el._book, slot = el._slot;
+    // ── 위치 드래그 ──
+    let drag = false, sx, sy, bx, by;
+    const dStart = (cx, cy) => {
+      if (!editMode) return;
+      selectBook(el); drag = true; sx = cx; sy = cy;
+      bx = (book.pos_x != null) ? book.pos_x : slot.left;
+      by = (book.pos_y != null) ? book.pos_y : slot.top;
+      el.classList.add('grabbing');
+    };
+    const dMove = (cx, cy) => {
+      if (!drag) return;
+      const stack = el.closest('.cover-stack'); if (!stack) return;
+      const rw = stack.offsetWidth, rh = stack.offsetHeight;
+      book.pos_x = +(bx + ((cx - sx) / rw) * 100).toFixed(1);
+      book.pos_y = +(by + ((cy - sy) / rh) * 100).toFixed(1);
+      placeBook(el, book, slot);
+    };
+    const dEnd = () => { if (!drag) return; drag = false; el.classList.remove('grabbing'); saveBook(book); };
+    el.addEventListener('mousedown', (e) => {
+      if (!editMode || e.target.dataset.h) return;
+      e.preventDefault(); dStart(e.clientX, e.clientY);
+      const mm = ev => dMove(ev.clientX, ev.clientY);
+      const mu = () => { dEnd(); removeEventListener('mousemove', mm); removeEventListener('mouseup', mu); };
+      addEventListener('mousemove', mm); addEventListener('mouseup', mu);
+    });
+    el.addEventListener('touchstart', (e) => {
+      if (!editMode || e.target.dataset.h) return;
+      const t = e.touches[0]; dStart(t.clientX, t.clientY);
+    }, { passive: true });
+    el.addEventListener('touchmove', (e) => {
+      if (!drag) return; e.preventDefault(); const t = e.touches[0]; dMove(t.clientX, t.clientY);
+    }, { passive: false });
+    el.addEventListener('touchend', dEnd);
+    el.addEventListener('touchcancel', dEnd);
+    // ── 휠 크기 (PC) ──
+    el.addEventListener('wheel', (e) => {
+      if (!editMode) return; e.preventDefault(); selectBook(el);
+      const cur = (book.scale != null) ? book.scale : 1;
+      book.scale = +Math.max(0.4, Math.min(2.5, cur + (e.deltaY < 0 ? 0.04 : -0.04))).toFixed(3);
+      placeBook(el, book, slot);
+      clearTimeout(el._szT); el._szT = setTimeout(() => saveBook(book), 400);
+    }, { passive: false });
+    // ── 핸들 크기 (드래그) ──
+    const handle = el.querySelector('.bk-handle');
+    let hBase, hsx;
+    const hStart = (cx) => { selectBook(el); hBase = (book.scale != null) ? book.scale : 1; hsx = cx; };
+    const hMove = (cx) => {
+      book.scale = +Math.max(0.4, Math.min(2.5, hBase + (cx - hsx) / 120)).toFixed(3);
+      placeBook(el, book, slot);
+    };
+    handle.addEventListener('mousedown', (e) => {
+      if (!editMode) return; e.preventDefault(); e.stopPropagation(); hStart(e.clientX);
+      const mm = ev => hMove(ev.clientX);
+      const mu = () => { saveBook(book); removeEventListener('mousemove', mm); removeEventListener('mouseup', mu); };
+      addEventListener('mousemove', mm); addEventListener('mouseup', mu);
+    });
+    handle.addEventListener('touchstart', (e) => {
+      if (!editMode) return; e.stopPropagation(); hStart(e.touches[0].clientX);
+      const tm = ev => { ev.preventDefault(); hMove(ev.touches[0].clientX); };
+      const tu = () => { saveBook(book); removeEventListener('touchmove', tm); removeEventListener('touchend', tu); };
+      addEventListener('touchmove', tm, { passive: false }); addEventListener('touchend', tu);
+    }, { passive: true });
+  }
+
+  // 저장 — wunderkammer_books PATCH (pos_x/pos_y/scale 즉시 기록, RLS가 본인 책만 허용)
+  async function saveBook(book) {
+    try {
+      await sbFetch(`/rest/v1/wunderkammer_books?id=eq.${book.id}`, {
+        method: 'PATCH', headers: { 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ pos_x: book.pos_x, pos_y: book.pos_y, scale: book.scale })
+      });
+    } catch (e) { /* 저장 실패는 조용히 — 다음 조작에서 재시도 */ }
   }
   function buildDots() {
     const dots = document.getElementById('bk-dots');
