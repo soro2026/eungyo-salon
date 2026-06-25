@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>책 들이기 테스트 · EG 3층 책방</title>
+<style>
+  :root{
+    --wine:#2a1818; --wine2:#3a2222; --oak:#2c2118;
+    --gold:#c9a84c; --cream:#f0ebe0; --warm:#a89a85;
+    --line:rgba(201,168,76,.28); --green:#5a8a5a;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:radial-gradient(120% 90% at 50% 0%, #3a2222 0%, #2a1818 55%, #1d1010 100%);
+    color:var(--cream);
+    font-family:-apple-system,"Apple SD Gothic Neo","Pretendard",system-ui,sans-serif;
+    min-height:100vh; line-height:1.6;
+    padding:env(safe-area-inset-top) 0 40px;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:0 18px;}
+  header{text-align:center;padding:30px 0 18px;border-bottom:1px solid var(--line);margin-bottom:22px;}
+  .eyebrow{font-size:12px;letter-spacing:.32em;color:var(--gold);text-transform:uppercase;opacity:.85;}
+  h1{font-family:Georgia,"Nanum Myeongjo",serif;font-weight:600;font-size:25px;margin:8px 0 6px;color:var(--cream);}
+  .sub{font-size:13.5px;color:var(--warm);}
+  .me{font-size:11.5px;color:var(--warm);margin-top:6px;opacity:.8;}
+  .me b{color:var(--gold);}
+
+  .searchbar{display:flex;gap:9px;margin:6px 0 8px;}
+  .searchbar input{
+    flex:1;min-width:0;padding:15px 16px;font-size:17px;
+    background:rgba(240,235,224,.06);border:1px solid var(--line);border-radius:13px;
+    color:var(--cream);outline:none;}
+  .searchbar input::placeholder{color:rgba(168,154,133,.7);}
+  .searchbar input:focus{border-color:var(--gold);background:rgba(240,235,224,.09);}
+  .searchbar button{flex:0 0 auto;padding:0 20px;font-size:16px;font-weight:600;
+    background:var(--gold);color:#2a1810;border:none;border-radius:13px;cursor:pointer;}
+  .searchbar button:active{transform:translateY(1px);}
+  .searchbar button:disabled{opacity:.5;}
+  .hint{font-size:12.5px;color:var(--warm);margin:0 2px 22px;opacity:.85;}
+  .hint b{color:var(--gold);font-weight:600;}
+
+  .status{text-align:center;padding:30px 10px;color:var(--warm);font-size:15px;}
+  .status.err{color:#e8b4a0;line-height:1.7;}
+  .status.err b{color:var(--gold);}
+
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px 14px;align-items:end;}
+  @media(max-width:520px){.grid{grid-template-columns:repeat(2,1fr);gap:18px 14px;}}
+  .card{cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:7px;
+    background:none;border:none;padding:0;color:inherit;text-align:center;}
+  .cover-shell{width:100%;display:flex;justify-content:center;align-items:flex-end;
+    min-height:60px;filter:drop-shadow(0 8px 14px rgba(0,0,0,.5));transition:transform .15s;}
+  .card:active .cover-shell{transform:translateY(2px);}
+  .cover-shell img{width:100%;height:auto;display:block;border-radius:2px;}
+  .noimg{width:100%;aspect-ratio:2/3;display:flex;align-items:center;justify-content:center;
+    background:repeating-linear-gradient(135deg,#3a2c20,#3a2c20 8px,#332619 8px,#332619 16px);
+    border:1px solid var(--line);border-radius:2px;font-size:11px;color:var(--warm);padding:8px;}
+  .c-title{font-size:12.5px;line-height:1.35;color:var(--cream);max-width:100%;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .c-auth{font-size:11px;color:var(--warm);}
+
+  .picked{margin-top:26px;border-top:1px solid var(--line);padding-top:22px;display:none;}
+  .picked.on{display:block;animation:rise .35s ease;}
+  @keyframes rise{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+  .picked h2{font-family:Georgia,serif;font-size:16px;color:var(--gold);margin:0 0 16px;font-weight:600;}
+  .preview{display:flex;gap:18px;align-items:flex-start;
+    background:rgba(240,235,224,.04);border:1px solid var(--line);border-radius:14px;padding:18px;}
+  .preview .pcover{flex:0 0 110px;filter:drop-shadow(0 10px 18px rgba(0,0,0,.55));}
+  .preview .pcover img{width:110px;height:auto;display:block;border-radius:2px;}
+  .meta{flex:1;min-width:0;}
+  .meta .mt{font-family:Georgia,serif;font-size:17px;color:var(--cream);margin:0 0 6px;line-height:1.35;}
+  .meta .row{font-size:13px;color:var(--warm);margin:3px 0;}
+  .meta .row span{color:var(--cream);}
+
+  .addbtn{display:block;width:100%;margin-top:16px;padding:15px;font-size:16px;font-weight:600;
+    background:var(--green);color:#fff;border:none;border-radius:13px;cursor:pointer;}
+  .addbtn:active{transform:translateY(1px);}
+  .addbtn:disabled{opacity:.55;}
+  .result{margin-top:14px;font-size:13px;text-align:center;line-height:1.7;display:none;}
+  .result.ok{display:block;color:#a8d8a8;}
+  .result.ng{display:block;color:#e8b4a0;}
+  .result b{color:var(--gold);}
+  .result .small{font-size:11px;opacity:.7;color:var(--warm);}
+
+  .shelf{margin-top:30px;border-top:1px dashed var(--line);padding-top:20px;}
+  .shelf h3{font-size:13px;color:var(--gold);letter-spacing:.1em;margin:0 0 12px;}
+  .shelf .row2{font-size:13px;color:var(--cream);padding:6px 0;border-bottom:1px solid rgba(201,168,76,.12);}
+  .shelf .row2 span{color:var(--warm);font-size:11.5px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">ÉTAGE III · 책의 방</div>
+    <h1>내 인생의 책 더하기</h1>
+    <div class="sub">검색 → 표지 선택 → <b style="color:var(--green)">들이기</b>까지 한 바퀴 시험</div>
+    <div class="me" id="me">세션 확인 중…</div>
+  </header>
+
+  <div class="searchbar">
+    <input id="q" type="search" placeholder="예: 월든 / 모비딕 / 데미안" autocomplete="off" enterkeyhint="search">
+    <button id="go">검색</button>
+  </div>
+  <div class="hint"><b>네이버 책</b>으로 검색 → 고른 표지를 <b>우리 Storage에 복사</b>하고 DB에 한 줄 기록합니다.</div>
+
+  <div id="status" class="status">위에 책 제목을 적고 검색을 눌러보세요.</div>
+  <div id="grid" class="grid"></div>
+
+  <div id="picked" class="picked">
+    <h2>이 책을 골랐습니다</h2>
+    <div class="preview">
+      <div class="pcover"><img id="pImg" alt="" crossorigin="anonymous"></div>
+      <div class="meta">
+        <p class="mt" id="pTitle"></p>
+        <div class="row">저자 · <span id="pAuth"></span></div>
+        <div class="row">출판 · <span id="pPub"></span></div>
+        <div class="row">ISBN · <span id="pIsbn"></span></div>
+      </div>
+    </div>
+    <button class="addbtn" id="addBtn">📚 3층 책방에 들이기</button>
+    <div class="result" id="result"></div>
+  </div>
+
+  <div class="shelf" id="shelf" style="display:none">
+    <h3>지금 내 3층 책방 (DB 실측)</h3>
+    <div id="shelfList"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const FN = SUPA_URL + '/functions/v1/naver-book-search';
+const supa = window.supabase.createClient(SUPA_URL, SUPA_KEY, { auth: { storageKey: 'eungyo-auth' } });
+
+const $=id=>document.getElementById(id);
+const qEl=$('q'), grid=$('grid'), status=$('status'), picked=$('picked'), goBtn=$('go'),
+      addBtn=$('addBtn'), result=$('result'), me=$('me'), shelf=$('shelf'), shelfList=$('shelfList');
+let CURRENT=null, OWNER=null;
+
+// ── 세션 확인 + 내 책장 불러오기 ──
+(async()=>{
+  const { data:{ user } } = await supa.auth.getUser();
+  if(user){ OWNER=user.id; me.innerHTML='로그인됨 · <b>'+esc((user.email||user.id).slice(0,18))+'</b>'; loadShelf(); }
+  else{ me.innerHTML='⚠️ 로그인 안 됨 — 은교살롱에 먼저 로그인하고 새로고침하세요'; }
+})();
+
+async function loadShelf(){
+  if(!OWNER) return;
+  const { data, error } = await supa.from('wunderkammer_books')
+    .select('title,author,cover_w,cover_h,created_at').eq('owner_id',OWNER).order('created_at',{ascending:false});
+  if(error){ return; }
+  if(data && data.length){
+    shelf.style.display='block';
+    shelfList.innerHTML = data.map(b=>
+      '<div class="row2">📖 '+esc(b.title)+' <span>· '+esc(b.author||'—')
+      +' · '+(b.cover_w&&b.cover_h?b.cover_w+'×'+b.cover_h:'크기?')+'</span></div>').join('');
+  }
+}
+
+// ── 검색 ──
+async function search(){
+  const q=qEl.value.trim();
+  if(!q){qEl.focus();return;}
+  status.className='status'; status.textContent='찾는 중…'; grid.innerHTML=''; picked.className='picked';
+  goBtn.disabled=true;
+  try{
+    const { data, error } = await supa.functions.invoke('naver-book-search', { body:{ q, display:21 } });
+    if(error) throw error;
+    if(data && data.error) throw new Error(data.error);
+    const books=(data&&data.books)||[];
+    if(!books.length){ status.textContent='검색 결과가 없습니다.'; return; }
+    status.textContent=''; render(books);
+  }catch(e){
+    status.className='status err';
+    status.innerHTML='검색 막힘. <b>은교살롱 로그인</b> 후 새로고침 필요.<br><span style="font-size:11px;opacity:.7">('+esc(e.message||e)+')</span>';
+  }finally{ goBtn.disabled=false; }
+}
+
+function render(books){
+  grid.innerHTML='';
+  books.forEach(b=>{
+    const cover=b.cover_url||'';
+    const card=document.createElement('button');
+    card.className='card';
+    card.innerHTML='<div class="cover-shell">'+
+      (cover?'<img loading="lazy" src="'+esc(cover)+'" alt="">':'<div class="noimg">표지 없음</div>')+
+      '</div><div class="c-title">'+esc(b.title||'')+'</div><div class="c-auth">'+esc(b.author||'—')+'</div>';
+    card.onclick=()=>choose(b);
+    grid.appendChild(card);
+  });
+}
+
+function choose(b){
+  CURRENT=b;
+  $('pImg').src=b.cover_url||''; $('pImg').style.display=b.cover_url?'block':'none';
+  $('pTitle').textContent=b.title||'';
+  $('pAuth').textContent=b.author||'—';
+  $('pPub').textContent=b.publisher||'—';
+  $('pIsbn').textContent=b.isbn||'—';
+  result.className='result'; result.innerHTML='';
+  picked.className='picked on';
+  picked.scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+// ── 표지 복사: 1차 직접 fetch → 막히면 Edge Function 프록시 ──
+async function fetchCoverBlob(coverUrl){
+  // 1차: 브라우저 직접 (네이버가 CORS 허용하면 가장 빠름)
+  try{
+    const r=await fetch(coverUrl,{mode:'cors'});
+    if(r.ok){ const b=await r.blob(); if(b&&b.size>0) return {blob:b, via:'직접'}; }
+  }catch(e){ /* CORS 막힘 → 프록시로 */ }
+  // 2차: Edge Function 프록시 경유 (세션 토큰 달고)
+  const { data:{ session } } = await supa.auth.getSession();
+  const token=session&&session.access_token;
+  if(!token) throw new Error('로그인 세션 없음');
+  const r2=await fetch(FN,{
+    method:'POST',
+    headers:{ 'Authorization':'Bearer '+token, 'apikey':SUPA_KEY, 'Content-Type':'application/json' },
+    body: JSON.stringify({ img: coverUrl })
+  });
+  if(!r2.ok) throw new Error('표지 프록시 실패 '+r2.status);
+  const b2=await r2.blob();
+  if(!b2||b2.size===0) throw new Error('표지 빈 응답');
+  return {blob:b2, via:'프록시'};
+}
+
+function imgSize(blob){
+  return new Promise(res=>{
+    const u=URL.createObjectURL(blob); const im=new Image();
+    im.onload=()=>{ res({w:im.naturalWidth,h:im.naturalHeight}); URL.revokeObjectURL(u); };
+    im.onerror=()=>{ res({w:null,h:null}); URL.revokeObjectURL(u); };
+    im.src=u;
+  });
+}
+
+// ── 들이기 ──
+async function addToShelf(){
+  if(!CURRENT) return;
+  if(!OWNER){ result.className='result ng'; result.innerHTML='⚠️ 로그인이 필요합니다.'; return; }
+  addBtn.disabled=true; result.className='result'; result.innerHTML='표지를 우리 책방으로 옮기는 중…';
+  try{
+    let via='—', w=null, h=null, cover_url=null;
+    if(CURRENT.cover_url){
+      const got=await fetchCoverBlob(CURRENT.cover_url); via=got.via;
+      const sz=await imgSize(got.blob); w=sz.w; h=sz.h;
+      const ext=((got.blob.type.split('/')[1])||'jpg').replace('jpeg','jpg');
+      const path=OWNER+'/'+Date.now()+'_'+Math.random().toString(36).slice(2,8)+'.'+ext;
+      const { error:upErr } = await supa.storage.from('book-covers')
+        .upload(path, got.blob, { contentType:got.blob.type, upsert:false });
+      if(upErr) throw new Error('Storage 업로드 실패: '+upErr.message);
+      cover_url = supa.storage.from('book-covers').getPublicUrl(path).data.publicUrl;
+    }
+    const { data:ins, error:insErr } = await supa.from('wunderkammer_books').insert({
+      owner_id:OWNER, source:'search',
+      title:CURRENT.title, author:CURRENT.author, publisher:CURRENT.publisher, isbn:CURRENT.isbn,
+      cover_url, cover_w:w, cover_h:h
+    }).select('id').single();
+    if(insErr) throw new Error('DB 기록 실패: '+insErr.message);
+    result.className='result ok';
+    result.innerHTML='✅ <b>'+esc(CURRENT.title)+'</b> 들였습니다!<br>'
+      +'<span class="small">표지 '+via+' 복사 · 원본 '+(w&&h?w+'×'+h:'크기?')+' · row '+ins.id.slice(0,8)+'…</span>';
+    loadShelf();
+  }catch(e){
+    result.className='result ng';
+    result.innerHTML='들이기 막힘<br><span class="small">'+esc(e.message||e)+'</span>';
+  }finally{ addBtn.disabled=false; }
+}
+
+function esc(s){return (s||'').toString().replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+goBtn.onclick=search;
+qEl.addEventListener('keydown',e=>{if(e.key==='Enter')search();});
+addBtn.onclick=addToShelf;
+</script>
+</body>
+</html>
