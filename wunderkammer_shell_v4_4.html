@@ -2451,7 +2451,7 @@ const Floor3 = (() => {
     try {
       const rows = await sbFetch(`/rest/v1/wunderkammer_books?owner_id=eq.${uid}`
         + `&select=id,title,author,cover_url,cover_w,cover_h,pos_x,pos_y,scale,tilt,essay_title,essay_body,seq`
-        + `&order=seq.asc.nullslast,created_at.asc`);
+        + `&order=created_at.desc`);
       BOOKS = (rows || []).map(r => ({
         id: r.id, title: r.title, author: r.author, cover: r.cover_url,
         cover_w: r.cover_w, cover_h: r.cover_h,
@@ -2471,12 +2471,19 @@ const Floor3 = (() => {
     if (!PAGES.length) PAGES = [[]];   // 빈 책방도 한 페이지(화살표·닷 안전)
   }
 
-  // 책 한 권을 칸에 앉힌다 — pos_x/pos_y/scale 있으면 그 값, 없으면 칸 기본(SHELF_SLOTS)
+  // 책의 위치 — pos 있으면 그 값, null이거나 (0,0)이면 칸 기본(SHELF_SLOTS). numeric은 문자열로 와서 Number 변환.
+  function bookPos(book, slot) {
+    const px = (book.pos_x != null) ? Number(book.pos_x) : null;
+    const py = (book.pos_y != null) ? Number(book.pos_y) : null;
+    const has = (px != null && py != null && !(px === 0 && py === 0));  // 0,0 = 미설정 구석 → 칸 기본
+    return { x: has ? px : slot.left, y: has ? py : slot.top };
+  }
+  // 책 한 권을 칸에 앉힌다
   function placeBook(el, book, slot) {
-    const x = (book.pos_x != null) ? book.pos_x : slot.left;
-    const y = (book.pos_y != null) ? book.pos_y : slot.top;
-    const h = slot.height * (book.scale != null ? book.scale : 1);
-    el.style.left = x + '%'; el.style.top = y + '%'; el.style.height = h + '%';
+    const p = bookPos(book, slot);
+    const sc = (book.scale != null) ? Number(book.scale) : 1;
+    const h = slot.height * (sc > 0 ? sc : 1);   // scale 문자열·0 방어
+    el.style.left = p.x + '%'; el.style.top = p.y + '%'; el.style.height = h + '%';
   }
 
   function buildShelfPages() {
@@ -2524,8 +2531,7 @@ const Floor3 = (() => {
     const dStart = (cx, cy) => {
       if (!editMode) return;
       selectBook(el); drag = true; sx = cx; sy = cy;
-      bx = (book.pos_x != null) ? book.pos_x : slot.left;
-      by = (book.pos_y != null) ? book.pos_y : slot.top;
+      const p = bookPos(book, slot); bx = p.x; by = p.y;
       el.classList.add('grabbing');
     };
     const dMove = (cx, cy) => {
@@ -2556,7 +2562,7 @@ const Floor3 = (() => {
     // ── 휠 크기 (PC) ──
     el.addEventListener('wheel', (e) => {
       if (!editMode) return; e.preventDefault(); selectBook(el);
-      const cur = (book.scale != null) ? book.scale : 1;
+      const cur = (book.scale != null) ? Number(book.scale) : 1;
       book.scale = +Math.max(0.4, Math.min(2.5, cur + (e.deltaY < 0 ? 0.04 : -0.04))).toFixed(3);
       placeBook(el, book, slot);
       clearTimeout(el._szT); el._szT = setTimeout(() => saveBook(book), 400);
@@ -2564,7 +2570,7 @@ const Floor3 = (() => {
     // ── 핸들 크기 (드래그) ──
     const handle = el.querySelector('.bk-handle');
     let hBase, hsx;
-    const hStart = (cx) => { selectBook(el); hBase = (book.scale != null) ? book.scale : 1; hsx = cx; };
+    const hStart = (cx) => { selectBook(el); hBase = (book.scale != null) ? Number(book.scale) : 1; hsx = cx; };
     const hMove = (cx) => {
       book.scale = +Math.max(0.4, Math.min(2.5, hBase + (cx - hsx) / 120)).toFixed(3);
       placeBook(el, book, slot);
