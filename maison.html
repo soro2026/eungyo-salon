@@ -605,7 +605,16 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   if(window.__fadeJet) window.__fadeJet();   // 비행 끝 — 제트음 부드럽게 페이드아웃
   // 세션에서 내 uid 읽어 → 내 집으로 직행 (집이 없으면 자동 배정)
   await setupAdminEdit();   // admin이면 좌표 편집 토글 노출
-  goToMyHome();
+  // 진입 분기 (분더카머 투어·별 명패 직통 6/27)
+  //  ?enter=1            → 내 집, 도시 강하 생략 → 노커 대문 직행
+  //  ?user=남닉&enter=1  → 남의 집, 강하 생략 → 노커 대문 직행 (별 명패 직통)
+  //  ?user=남닉          → 남의 집, 도시 강하 후 팝업
+  //  (파라미터 없음)      → 기존 그대로 내 집 도시 강하
+  const _p = new URLSearchParams(location.search);
+  const _wantUser  = _p.get('user');
+  const _wantEnter = _p.get('enter') === '1';
+  if (!_wantUser && !_wantEnter){ goToMyHome(); }
+  else { enterByParams(_wantUser, _wantEnter); }
 })();
 
 function buildJourney(){
@@ -1026,6 +1035,7 @@ function closeMaison(){
 // 입장하기 → voyage 렌더 정지(타일 세션 유지 = 과금 0) + 대문 오버레이를 닫힌 채로 띄움
 function enterMaison(m){
   if (!m || !m.occupant_id) return;
+  currentMaison = m;            // openDoor가 currentMaison을 읽으므로(팝업 건너뛴 enter=1 직행 대비)
   closeMaison();
   viewer.useDefaultRenderLoop = false;          // 지구 렌더 정지(세션은 살아 있음)
   const dw = document.getElementById("doorway");
@@ -1225,6 +1235,50 @@ async function goToMyHome(){
   }
   if (ent){ showMaisons = true; applyLayerVisibility(); flyToEntity(ent); }
   else { flyToParisOverview(); }                         // 만석 등
+}
+
+// ?user / ?enter 진입 분기 — 분더카머 투어·별 명패 직통 (6/27)
+async function enterByParams(wantUser, wantEnter){
+  // 1) 대상 메종 entity 찾기
+  let ent = null;
+  if (wantUser){
+    // 남의 집 — 닉네임으로 찾기 (loadMaisons가 띄운 entity에서)
+    ent = viewer.entities.values.find(e => e._maison && e._maison.nickname === wantUser);
+    if (!ent) console.warn("메종을 찾지 못함(닉):", wantUser);   // (향후: 다른 도시 거주 시 도시 조회·로드)
+  } else {
+    // 내 집 — getMyUid → 없으면 자동 배정 (goToMyHome과 같은 로직)
+    const uid = await getMyUid();
+    if (uid){
+      ent = viewer.entities.values.find(e => e._maison && e._maison.occupant_id === uid);
+      if (!ent){
+        const no = await assignMaison(uid);
+        if (no){
+          viewer.entities.values.filter(e=>e._maison).slice().forEach(e=> viewer.entities.remove(e));
+          await loadMaisons('paris');
+          ent = viewer.entities.values.find(e => e._maison && e._maison.occupant_id === uid);
+        }
+      }
+    }
+  }
+
+  // 2) 못 찾으면 기존 동선으로 폴백
+  if (!ent){
+    if (wantUser) flyToParisOverview();   // 남의 집을 못 찾음
+    else goToMyHome();                    // 내 집을 못 찾음 → 기존 강하
+    return;
+  }
+
+  showMaisons = true; applyLayerVisibility();
+
+  // 3) enter=1 → 도시 강하 생략하고 곧장 노커 대문
+  if (wantEnter){
+    if (ent._maison && ent._maison.occupant_id){ enterMaison(ent._maison); }
+    else { flyToEntity(ent); }            // 빈집/예외 → 강하해서 보여주기
+    return;
+  }
+
+  // 4) enter 없음 → 기존처럼 도시 강하 + 팝업
+  flyToEntity(ent);
 }
 
 function flyTo(i){
