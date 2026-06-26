@@ -184,6 +184,7 @@
         <button class="ftab"    data-f="no_frame" onclick="setFilter('no_frame')">액자 없음</button>
         <button class="ftab"    data-f="in_voyage" onclick="setFilter('in_voyage')">🌍 3D 입주</button>
         <button class="ftab"    data-f="sky_only" onclick="setFilter('sky_only')">☁ 하늘에만</button>
+        <button class="ftab"    data-f="excluded" onclick="setFilter('excluded')">🚫 여행 제외</button>
         <button class="ftab bad" data-f="check" onclick="setFilter('check')">⚠ 점검 필요</button>
       </div>
       <div class="search-wrap">
@@ -250,6 +251,7 @@ let searchTerm = '';
 let searchTimer = null;
 let totalCount = 0;
 let VOYAGE_IDS = new Set();   // 3D 입주 = 대표지(star_places.is_representative) 보유 별 id
+let EXCLUDED_IDS = new Set(); // 별 여행 영구 제외(stars.voyage_excluded) 별 id
 
 function esc(s){ return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
@@ -281,6 +283,8 @@ async function loadAll(){
 async function loadVoyageIds(){
   const { data } = await supa.from('star_places').select('star_id').eq('is_representative', true);
   VOYAGE_IDS = new Set((data||[]).map(r=>r.star_id));
+  const { data:ex } = await supa.from('stars').select('id').eq('voyage_excluded', true);
+  EXCLUDED_IDS = new Set((ex||[]).map(r=>r.id));
 }
 
 // ── ① 요약 카드 ──
@@ -393,7 +397,7 @@ async function loadTable(){
   document.getElementById('pagination').style.display='none';
 
   let q = supa.from('stars')
-    .select('id,name,field,grade,has_content,photo_url,framed_url,birth,x_ratio,stella_status,heart_count,aliases',{count:'exact'});
+    .select('id,name,field,grade,has_content,photo_url,framed_url,birth,x_ratio,stella_status,heart_count,aliases,voyage_excluded',{count:'exact'});
 
   if(searchTerm) q = q.ilike('name',`%${searchTerm}%`);
   if(curField)   q = q.eq('field', curField);
@@ -403,7 +407,8 @@ async function loadTable(){
     case 'no_frame': q = q.is('framed_url',null); break;
     case 'check':    q = q.or('grade.eq.9,birth.is.null'); break;
     case 'in_voyage': q = q.in('id', VOYAGE_IDS.size ? [...VOYAGE_IDS] : [-1]); break;
-    case 'sky_only':  if(VOYAGE_IDS.size) q = q.not('id','in',`(${[...VOYAGE_IDS].join(',')})`); break;
+    case 'sky_only':  if(VOYAGE_IDS.size) q = q.not('id','in',`(${[...VOYAGE_IDS].join(',')})`); q = q.eq('voyage_excluded',false); break;
+    case 'excluded':  q = q.eq('voyage_excluded',true); break;
   }
 
   const offset = curPage * PAGE_SIZE;
@@ -436,7 +441,9 @@ async function loadTable(){
     const frameB  = s.framed_url?`<span class="badge ok">○</span>`:`<span class="badge bad">—</span>`;
     const coordB  = s.birth!=null?`<span class="badge ok">○</span>`:`<span class="badge warn">—</span>`;
     const statusB = s.stella_status==='recruiting'?`<span class="badge star">모집중</span>`:`<span class="badge info">씨앗</span>`;
-    const voyageB = VOYAGE_IDS.has(s.id)?`<span class="badge ok">📍 입주</span>`:`<span class="badge bad">—</span>`;
+    const voyageB = s.voyage_excluded
+      ? `<span class="badge" style="background:#3a2a2a;color:#d9a">🚫 제외</span>`
+      : (VOYAGE_IDS.has(s.id)?`<span class="badge ok">📍 입주</span>`:`<span class="badge bad">—</span>`);
     html+=`<tr>
       <td class="star-name">${esc(s.name)}</td>
       <td class="star-field">${esc(s.field||'—')}</td>
