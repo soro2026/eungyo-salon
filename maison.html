@@ -319,14 +319,31 @@
   }
   #doorway.open #doorHint{ opacity:0;animation:none; }
   @keyframes doorPulse{ 0%,100%{opacity:.5} 50%{opacity:.95} }
-  #doorExit{
-    position:absolute;top:20px;right:24px;z-index:5;cursor:pointer;
+  #doorActions{
+    position:absolute;top:20px;right:24px;z-index:5;display:flex;gap:9px;
+  }
+  #doorTour,#doorExit{
+    cursor:pointer;
     font-family:var(--sans);font-size:13px;letter-spacing:.04em;color:rgba(243,230,196,.85);
     border:1px solid rgba(243,230,196,.3);border-radius:999px;
     padding:8px 15px;background:rgba(0,0,0,.4);backdrop-filter:blur(4px);
     transition:color .2s,border-color .2s;
   }
-  #doorExit:hover{color:#fff;border-color:rgba(243,230,196,.7)}
+  #doorTour{color:#f3e6c4;border-color:rgba(201,162,39,.5)}
+  #doorTour:hover,#doorExit:hover{color:#fff;border-color:rgba(243,230,196,.7)}
+  /* 분더카머 투어 — 우측 슬라이드 패널 */
+  #tourBackdrop{
+    position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.5);backdrop-filter:blur(3px);
+    opacity:0;pointer-events:none;transition:opacity .3s;
+  }
+  #tourBackdrop.in{opacity:1;pointer-events:auto}
+  #tourPanel{
+    position:fixed;top:0;right:0;height:100%;width:min(400px,86vw);z-index:61;
+    background:#0a1020;box-shadow:-12px 0 44px rgba(0,0,0,.55);
+    transform:translateX(100%);transition:transform .34s cubic-bezier(.4,0,.2,1);
+  }
+  #tourPanel.in{transform:translateX(0)}
+  #tourFrame{width:100%;height:100%;border:0;background:#0a1020}
   #story .close{
     position:absolute;top:18px;right:20px;cursor:pointer;
     width:30px;height:30px;border:0;border-radius:50%;
@@ -447,9 +464,17 @@
   <div class="door-half door-right"></div>
   <div id="doorTitle"></div>
   <div id="doorHint">대문을 클릭해 들어가세요</div>
-  <button id="doorExit">× 분더카머 떠나기</button>
+  <div id="doorActions">
+    <button id="doorTour">🚪 다른 콩파뇽</button>
+    <button id="doorExit">× 분더카머 떠나기</button>
+  </div>
   <audio id="doorSound" src="maison_door_open.mp3" preload="auto"></audio>
 </div>
+
+<!-- 분더카머 투어 — 우측 슬라이드 패널 (배경 흐림) -->
+<div id="tourBackdrop"></div>
+<div id="tourPanel"><iframe id="tourFrame" title="다른 콩파뇽 찾기"></iframe></div>
+<div style="position:fixed;left:8px;bottom:6px;z-index:70;font-size:9px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.5px;pointer-events:none">maison 0627b</div>
 
 <script>
 // ── 분더카머로 떠나는 비행: 제트음 (자동재생 막히면 조용히 폴백) ──
@@ -516,6 +541,12 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
 })();
 
 (async function init(){
+  const _p = new URLSearchParams(location.search);
+  const _wantUser  = _p.get('user');
+  const _wantEnter = _p.get('enter') === '1';
+  // 빠른 길(enter=1): 무거운 지구를 만들지 않고 노커를 바로 띄움 — 지도를 안 보는 동선
+  if (_wantEnter){ await fastEnter(_wantUser); return; }
+
   viewer = new Cesium.Viewer("cesiumContainer", {
     baseLayer:false, baseLayerPicker:false, geocoder:false, homeButton:false,
     sceneModePicker:false, navigationHelpButton:false, animation:false,
@@ -575,8 +606,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   document.getElementById("layerSpots").addEventListener("click", ()=>{ showSpots=!showSpots; applyLayerVisibility(); });
   document.getElementById("layerMaisons").addEventListener("click", ()=>{ showMaisons=!showMaisons; applyLayerVisibility(); });
   document.getElementById("mEnter").addEventListener("click", ()=> enterMaison(currentMaison));
-  document.querySelectorAll(".door-half, #doorHint").forEach(el=> el.addEventListener("click", openDoor));
-  document.getElementById("doorExit").addEventListener("click", exitDoorway);
+  bindDoorEvents();
   viewer.canvas.addEventListener("pointerdown", stopOrbit);
 
   // 마커 클릭 + 호버 — init에서 직접 등록(buildJourney를 안 부르므로 여기서 걸어야 함)
@@ -616,16 +646,10 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   if(window.__fadeJet) window.__fadeJet();   // 비행 끝 — 제트음 부드럽게 페이드아웃
   // 세션에서 내 uid 읽어 → 내 집으로 직행 (집이 없으면 자동 배정)
   await setupAdminEdit();   // admin이면 좌표 편집 토글 노출
-  // 진입 분기 (분더카머 투어·별 명패 직통 6/27)
-  //  ?enter=1            → 내 집, 도시 강하 생략 → 노커 대문 직행
-  //  ?user=남닉&enter=1  → 남의 집, 강하 생략 → 노커 대문 직행 (별 명패 직통)
-  //  ?user=남닉          → 남의 집, 도시 강하 후 팝업
-  //  (파라미터 없음)      → 기존 그대로 내 집 도시 강하
-  const _p = new URLSearchParams(location.search);
-  const _wantUser  = _p.get('user');
-  const _wantEnter = _p.get('enter') === '1';
-  if (!_wantUser && !_wantEnter){ goToMyHome(); }
-  else { enterByParams(_wantUser, _wantEnter); }
+  // 진입 분기 (enter=1은 위에서 fastEnter로 처리됨)
+  //  ?user=남닉 → 남의 집 도시 강하 후 팝업 / (없음) → 내 집 도시 강하
+  if (!_wantUser){ goToMyHome(); }
+  else { enterByParams(_wantUser, false); }
 })();
 
 function buildJourney(){
@@ -1294,6 +1318,65 @@ async function enterByParams(wantUser, wantEnter){
 
   // 4) enter 없음 → 기존처럼 도시 강하 + 팝업
   flyToEntity(ent);
+}
+
+// 노커 대문 공통 이벤트 (도시 길·빠른 길 공유)
+function bindDoorEvents(){
+  document.querySelectorAll(".door-half, #doorHint").forEach(el=> el.addEventListener("click", openDoor));
+  const ex = document.getElementById("doorExit"); if (ex) ex.addEventListener("click", exitDoorway);
+  const tb = document.getElementById("doorTour"); if (tb) tb.addEventListener("click", openTourPanel);
+  const bd = document.getElementById("tourBackdrop"); if (bd) bd.addEventListener("click", closeTourPanel);
+}
+
+// 투어 패널 (우측 슬라이드 + 배경 흐림)
+function openTourPanel(){
+  const f = document.getElementById('tourFrame');
+  if (!f.src || f.src.indexOf('tour.html') < 0) f.src = 'tour.html?panel=1';   // 1회 로드
+  document.getElementById('tourBackdrop').classList.add('in');
+  document.getElementById('tourPanel').classList.add('in');
+}
+function closeTourPanel(){
+  document.getElementById('tourBackdrop').classList.remove('in');
+  document.getElementById('tourPanel').classList.remove('in');
+}
+window.closeTourPanel = closeTourPanel;   // 패널 안 tour.html에서 호출
+
+// 빠른 길(enter=1) — Cesium 지구 없이 메종 정보만 집어 노커를 즉시 (까만 3초 제거)
+async function fastEnter(wantUser){
+  bindDoorEvents();
+  async function fetchMaisons(){
+    try{
+      const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_maisons", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
+        body: JSON.stringify({ p_city:'paris' })
+      });
+      return res.ok ? await res.json() : [];
+    }catch(e){ console.warn("fastEnter 메종 조회 실패:", e); return []; }
+  }
+  let m = null, rows = await fetchMaisons();
+  if (wantUser){
+    m = rows.find(r => r.nickname === wantUser) || null;          // 남의 집
+  } else {
+    const uid = await getMyUid();                                  // 내 집
+    if (uid){
+      m = rows.find(r => r.occupant_id === uid) || null;
+      if (!m){ await assignMaison(uid); rows = await fetchMaisons(); m = rows.find(r => r.occupant_id === uid) || null; }
+    }
+  }
+  document.getElementById('loader').classList.add('gone');
+  if (!m || !m.occupant_id){ location.href = 'index.html'; return; }  // 못 찾으면 메뉴로
+  enterMaisonLite(m);
+}
+
+// viewer 없이 노커 대문만 띄움 (빠른 길 전용)
+function enterMaisonLite(m){
+  currentMaison = m;
+  const dw = document.getElementById("doorway");
+  document.getElementById("doorTitle").textContent = m.nickname || ("메종 " + m.maison_no);
+  document.getElementById("doorFrame").src = "about:blank";
+  dw.classList.remove("open"); dw.classList.add("in");
+  doorState = 'closed';
 }
 
 function flyTo(i){
