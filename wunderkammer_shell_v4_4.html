@@ -596,10 +596,10 @@ html, body {
 .book-modal .page-content p { font-size: 0.95em; line-height: 1.8; margin-bottom: 0.6em; text-align: justify; text-justify: inter-character; word-break: break-all; line-break: strict; overflow-wrap: anywhere; }
 .book-modal .page-content .author-line { margin-top: auto; padding-top: 1em; font-style: italic; color: #8a7654; text-align: right; font-size: 0.85em; }
 .book-modal .page-content .chapter-mark { font-style: italic; color: #b8a880; font-size: 0.8em; margin-bottom: 0.5em; letter-spacing: 0.1em; }
-.book-modal .page-end { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #2a1810; }
+.book-modal .page-end { width: 100%; height: 100%; box-sizing: border-box; padding: 0 3.6em; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #2a1810; }
 .book-modal .page-end h2 { font-style: italic; margin-bottom: 1em; font-size: 1.3em; }
 .book-modal .page-end .author { font-style: italic; color: #8a7654; margin-top: 1em; }
-.book-modal .page-end .book-title { color: #b8a880; font-size: 0.85em; margin-top: 1.5em; }
+.book-modal .page-end .book-title { color: #b8a880; font-size: 0.8em; margin-top: 1.5em; line-height: 1.75; }
 .book-modal .modal-close {
   position: fixed; top: 24px; right: 24px; width: 42px; height: 42px;
   background: rgba(80,40,28,0.92); border: 1px solid rgba(212,184,120,0.7);
@@ -2496,24 +2496,52 @@ const Floor3 = (() => {
       </div>`;
   }
 
+  // 집(콩파뇽)마다 진열장 배경 고정 배정 — uid 씨앗으로 11장 중 하나 (같은 집=늘 같은 배경)
+  // (미래 순례 ?user= 때는 그 집 주인 uid로 — 다음 곡괭이)
+  function shelfBgIndex(uid){
+    if(!uid) return 1;
+    let sum = 0; for(let i=0;i<uid.length;i++) sum = (sum + uid.charCodeAt(i)) % 100000;
+    return (sum % 11) + 1;
+  }
+  function applyShelfBg(uid){
+    const n = shelfBgIndex(uid || getUser()?.id);
+    const room = document.querySelector('.floor-content[data-floor="3"] .room');
+    if(room) room.style.backgroundImage = `url('bookshelf_${String(n).padStart(2,'0')}.webp')`;
+  }
+  // 순례 동선: ?user=닉네임이면 그 집 주인 uid, 없으면 로그인 본인 (1·2층과 동일 정신)
+  async function resolveOwnerId(){
+    const qUser = new URLSearchParams(location.search).get('user');
+    if (qUser) {
+      try { const u = await sbFetch(`/rest/v1/users?nickname=eq.${encodeURIComponent(qUser)}&select=id`); return u?.[0]?.id || null; }
+      catch(e){ console.warn('owner 조회 실패', e); return null; }
+    }
+    return getUser()?.id || null;
+  }
   async function mount() {
     currentShelfPage = 0; isTransitioning = false; editMode = false; selEl = null;
-    await loadBooks();                                 // DB(wunderkammer_books) → BOOKS, PAGES
+    const ownerId = await resolveOwnerId();           // 순례 ?user= 우선, 없으면 본인
+    applyShelfBg(ownerId);                             // 그 집 주인 배경
+    await loadBooks(ownerId);                          // 그 집 주인 책장 → BOOKS, PAGES
     buildShelfPages();
     buildDots();
     document.getElementById('bk-prev').addEventListener('click', () => slide(-1));
     document.getElementById('bk-next').addEventListener('click', () => slide(+1));
+    const isOwner = !!getUser()?.id && ownerId === getUser()?.id;
     const eb = document.getElementById('bk-edit-toggle');
-    if (eb) { eb.classList.remove('on'); eb.textContent = '✎ 배치 바꾸기'; eb.addEventListener('click', toggleEdit); }
+    if (eb) {
+      eb.classList.remove('on'); eb.textContent = '✎ 배치 바꾸기';
+      eb.style.display = isOwner ? '' : 'none';   // 순례(남의 집)면 편집 숨김
+      eb.addEventListener('click', toggleEdit);
+    }
     const fc = document.querySelector('.floor-content[data-floor="3"]');
     if (fc) fc.classList.remove('editing');
     SideWall.bind(3);                                  // 인물벽(저술가) 90도
   }
 
-  // ── DB에서 내 책 읽어오기 (공용 순례 ?user=는 다음 곡괭이) ──
-  async function loadBooks() {
+  // ── DB에서 그 집 책 읽어오기 (순례 ?user=면 주인 책, 아니면 내 책) ──
+  async function loadBooks(ownerId) {
     BOOKS = []; PAGES = [];
-    const uid = getUser()?.id;
+    const uid = ownerId || getUser()?.id;
     if (!uid) { buildPages(); return; }
     try {
       const rows = await sbFetch(`/rest/v1/wunderkammer_books?owner_id=eq.${uid}`
