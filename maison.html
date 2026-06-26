@@ -454,6 +454,12 @@
 <script>
 // ── 분더카머로 떠나는 비행: 제트음 (자동재생 막히면 조용히 폴백) ──
 (function(){
+  // 빠른 길(enter=1)은 지도 로딩 시간 벌이가 불필요 → 비행기·제트음 생략
+  if(new URLSearchParams(location.search).get('enter')==='1'){
+    const jt = document.getElementById("jetTrack"); if(jt) jt.style.display = "none";
+    window.__fadeJet = ()=>{};   // init이 호출하므로 빈 함수로 둠
+    return;
+  }
   const jet = document.getElementById("jetSound");
   if(!jet) return;
   jet.volume = 0.55;
@@ -498,10 +504,15 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
 });
 
-// 돌아가기: 온 별 페이지로 (목업 단계 — id가 있으면 그 별로, 없으면 별자리로)
+// 돌아가기: 온 경로에 맞춰 — 별 경로면 그 별로, 분더카머 메뉴 경로(enter/home)면 메인 메뉴로, 그 외 별자리로
 (function setBack(){
-  const backId = new URLSearchParams(location.search).get('id');
-  document.getElementById('backBtn').href = backId ? ('star.html?id=' + backId) : 'constella.html';
+  const p = new URLSearchParams(location.search);
+  const backId = p.get('id');
+  const fromMenu = p.get('enter') === '1' || p.get('home') === '1';   // 분더카머 메뉴에서 진입
+  const btn = document.getElementById('backBtn');
+  if (backId){ btn.href = 'star.html?id=' + backId; btn.textContent = '← 별로'; }
+  else if (fromMenu){ btn.href = 'index.html'; btn.textContent = '← 살롱으로'; }
+  else { btn.href = 'constella.html'; btn.textContent = '← 살롱으로'; }
 })();
 
 (async function init(){
@@ -1064,6 +1075,10 @@ function openDoor(){
 
 // 나가기 → 오버레이 닫고 voyage 렌더 재개
 function exitDoorway(){
+  // 빠른 길(enter=1)로 들어왔으면 지도를 안 거치고 곧장 메인 메뉴로
+  if (new URLSearchParams(location.search).get('enter') === '1'){
+    location.href = 'index.html'; return;
+  }
   const dw = document.getElementById("doorway");
   dw.classList.remove("in", "open");
   document.getElementById("doorFrame").src = "about:blank";
