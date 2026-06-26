@@ -2504,7 +2504,7 @@ const Floor3 = (() => {
     return (sum % 11) + 1;
   }
   function applyShelfBg(uid){
-    const n = shelfBgIndex(uid || getUser()?.id);
+    const n = shelfBgIndex(uid);   // uid 없으면 shelfBgIndex가 1(기본) 반환
     const room = document.querySelector('.floor-content[data-floor="3"] .room');
     if(room) room.style.backgroundImage = `url('bookshelf_${String(n).padStart(2,'0')}.webp')`;
   }
@@ -2512,10 +2512,17 @@ const Floor3 = (() => {
   async function resolveOwnerId(){
     const qUser = new URLSearchParams(location.search).get('user');
     if (qUser) {
-      try { const u = await sbFetch(`/rest/v1/users?nickname=eq.${encodeURIComponent(qUser)}&select=id`); return u?.[0]?.id || null; }
-      catch(e){ console.warn('owner 조회 실패', e); return null; }
+      // 순례: 닉→uid. 간헐 실패 대비 한 번 더 재시도. 끝내 실패면 null(빈 방, 내 책으로 폴백 안 함)
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const u = await sbFetch(`/rest/v1/users?nickname=eq.${encodeURIComponent(qUser)}&select=id`);
+          if (u && u[0] && u[0].id) return u[0].id;
+        } catch(e){ console.warn('owner 조회 실패', e); }
+        await new Promise(r => setTimeout(r, 300));
+      }
+      return null;
     }
-    return getUser()?.id || null;
+    return getUser()?.id || null;   // 내 방
   }
   async function mount() {
     currentShelfPage = 0; isTransitioning = false; editMode = false; selEl = null;
@@ -2541,8 +2548,8 @@ const Floor3 = (() => {
   // ── DB에서 그 집 책 읽어오기 (순례 ?user=면 주인 책, 아니면 내 책) ──
   async function loadBooks(ownerId) {
     BOOKS = []; PAGES = [];
-    const uid = ownerId || getUser()?.id;
-    if (!uid) { buildPages(); return; }
+    if (!ownerId) { buildPages(); return; }   // 순례 해석 실패·비로그인 → 빈 방 (내 책 폴백 금지)
+    const uid = ownerId;
     try {
       const rows = await sbFetch(`/rest/v1/wunderkammer_books?owner_id=eq.${uid}`
         + `&select=id,owner_id,title,author,cover_url,cover_w,cover_h,pos_x,pos_y,scale,tilt,essay_title,essay_body,seq`
