@@ -1438,10 +1438,34 @@ html, body {
   background-size:100% 100%; background-position:center; background-repeat:no-repeat;
   transition:opacity .7s ease; pointer-events:none;
 }
-.floor-content[data-floor="4"] .f4-shelf{ position:absolute; inset:0; z-index:2; pointer-events:none; }
+.floor-content[data-floor="4"] .f4-shelf{
+  position:absolute; left:0; right:0; top:50%; transform:translateY(-50%);
+  z-index:2; display:flex; justify-content:center; pointer-events:none;
+}
+.floor-content[data-floor="4"] .f4-shelfwrap{ pointer-events:auto; max-width:min(680px,86vw); width:100%; }
+.floor-content[data-floor="4"] .f4-books{
+  display:flex; align-items:flex-end; justify-content:center; gap:3px;
+  overflow-x:auto; scrollbar-width:none; padding:0 14px; min-height:120px;
+}
+.floor-content[data-floor="4"] .f4-books::-webkit-scrollbar{ display:none; }
+.floor-content[data-floor="4"] .f4-wood{
+  height:6px; background:linear-gradient(to bottom,#3D2A0E,#2A1A08);
+  margin:4px 14px 0; border-radius:1px; box-shadow:0 3px 10px rgba(0,0,0,.55);
+}
+.floor-content[data-floor="4"] .f4-book{ flex:0 0 auto; position:relative; cursor:pointer; }
+.floor-content[data-floor="4"] .f4-book-img{
+  display:block; width:auto; filter:drop-shadow(0 3px 8px rgba(0,0,0,.55)); transition:transform .2s ease;
+}
+.floor-content[data-floor="4"] .f4-book:hover .f4-book-img{ transform:translateY(-6px); }
+.floor-content[data-floor="4"] .f4-book-text{
+  position:absolute; bottom:10px; left:50%; transform:translateX(-50%);
+  writing-mode:vertical-rl; font-size:10px; color:rgba(245,240,225,.82);
+  text-shadow:0 1px 4px rgba(0,0,0,.95); max-height:78%; overflow:hidden;
+  pointer-events:none; letter-spacing:.06em;
+}
 .floor-content[data-floor="4"] .f4-empty{
-  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-  color:rgba(232,212,160,.6); font-size:clamp(13px,1.5vw,17px);
+  position:absolute; left:50%; bottom:66px; transform:translateX(-50%); z-index:20;
+  color:rgba(232,212,160,.55); font-size:clamp(12px,1.4vw,15px);
   letter-spacing:.16em; text-align:center; text-shadow:0 2px 22px rgba(0,0,0,.92);
   white-space:nowrap; pointer-events:none;
 }
@@ -3275,6 +3299,19 @@ const Floor4 = (() => {
   let currentRoom = 0;
   let isTransitioning = false;
   let tagTimer = null;
+  let BOOKS_BY_CAT = {};   // 대분류 → [{answer, seed_id, category}] (quiz_log 우물)
+
+  // 책등 이미지·높이 — 뮤세움과 같은 해시 (book01~10.webp 공유)
+  const F4_BOOK_IMAGES = ['book01','book02','book03','book04','book05','book06','book07','book08','book09','book10'];
+  function f4BookImg(answer){
+    let h=0; for(let i=0;i<answer.length;i++) h=(h*31+answer.charCodeAt(i))&0xfffff;
+    return F4_BOOK_IMAGES[h % F4_BOOK_IMAGES.length];
+  }
+  function f4BookHeight(answer){
+    let h=0; for(let i=0;i<answer.length;i++) h=(h*17+answer.charCodeAt(i))&0xfffff;
+    const hs=[110,118,125,130,135,140,128,122,115,132];
+    return hs[h % hs.length];
+  }
 
   // uid 해시 → 시작 방 (shelfBgIndex와 같은 문법, 0~11)
   function startOffsetOf(uid){
@@ -3290,12 +3327,16 @@ const Floor4 = (() => {
           <div class="f4-stage" id="f4-stage">
             <div class="f4-bgwrap" id="f4-bgwrap"></div>
             <div class="f4-shelf" id="f4-shelf">
-              <div class="f4-empty" id="f4-empty"></div>
+              <div class="f4-shelfwrap" id="f4-shelfwrap">
+                <div class="f4-books" id="f4-books"></div>
+                <div class="f4-wood"></div>
+              </div>
             </div>
           </div>
         </div>
         <button class="f4-nav f4-nav-l" id="f4-prev" aria-label="이전 방">‹</button>
         <button class="f4-nav f4-nav-r" id="f4-next" aria-label="다음 방">›</button>
+        <div class="f4-empty" id="f4-empty"></div>
         <div class="f4-roomtag" id="f4-roomtag"></div>
         <div class="f4-tabs" id="f4-tabs"></div>
       </div>`;
@@ -3347,12 +3388,38 @@ const Floor4 = (() => {
       .forEach((b,i)=>b.classList.toggle('active', i===idx));
   }
 
-  // 방 내용 그리기 — [1단계] 빈 서가 안내만 (2단계에서 책등)
+  // 방 내용 그리기 — [2단계] 그 방 카테고리 책등 진열 (없으면 기다리는 방)
   function renderRoom(idx){
+    const cat = ROOMS[idx].cat;
+    const books = BOOKS_BY_CAT[cat] || [];
+    const shelf = document.getElementById('f4-books');
     const empty = document.getElementById('f4-empty');
-    if(empty){
-      empty.textContent = `이 방은 당신을 기다리고 있습니다`;
-      empty.style.display = '';
+    const wrap  = document.getElementById('f4-shelfwrap');
+    if(!shelf) return;
+    shelf.innerHTML = '';
+    if(books.length === 0){
+      if(wrap)  wrap.style.display = 'none';
+      if(empty){ empty.style.display = ''; empty.textContent = '이 방은 당신을 기다리고 있습니다'; }
+      return;
+    }
+    if(empty) empty.style.display = 'none';
+    if(wrap)  wrap.style.display = '';
+    for(const b of books){
+      const item = document.createElement('div');
+      item.className = 'f4-book';
+      item.title = b.answer;
+      const im = document.createElement('img');
+      im.className = 'f4-book-img';
+      im.src = f4BookImg(b.answer) + '.webp';
+      im.style.height = f4BookHeight(b.answer) + 'px';
+      im.alt = b.answer;
+      const tx = document.createElement('div');
+      tx.className = 'f4-book-text';
+      tx.textContent = b.answer;
+      item.appendChild(im);
+      item.appendChild(tx);
+      item.addEventListener('click', ()=>{ /* [3단계] openBook4(b) — library 4레이어 */ });
+      shelf.appendChild(item);
     }
   }
 
@@ -3383,6 +3450,26 @@ const Floor4 = (() => {
     transitionTo((currentRoom + direction + 12) % 12);
   }
 
+  // quiz_log 우물 → 대분류별 책 묶음 (OX 제외 · answer 중복 제거)
+  async function loadBooks(uid){
+    BOOKS_BY_CAT = {};
+    if(!uid) return;
+    let rows = [];
+    try{
+      rows = await sbFetch(`/rest/v1/quiz_log?uid=eq.${uid}&select=answer,category,seed_id,created_at&order=created_at.desc`) || [];
+    }catch(e){ console.warn('[F4] quiz_log 로드 실패', e); return; }
+    const seen = {};
+    for(const r of rows){
+      if(!r.answer || r.answer==='O' || r.answer==='X') continue;       // OX 제외
+      const cat = (r.category||'').split(' · ')[0];                       // 대분류
+      if(!cat) continue;
+      const key = cat + '|' + r.answer;
+      if(seen[key]) continue;                                            // answer 중복 1권만
+      seen[key] = 1;
+      (BOOKS_BY_CAT[cat] = BOOKS_BY_CAT[cat] || []).push({ answer:r.answer, seed_id:r.seed_id, category:r.category });
+    }
+  }
+
   // 순례 ?user= 우선, 없으면 본인 (3층과 동일 정신)
   async function resolveOwnerId(){
     const qUser = new URLSearchParams(location.search).get('user');
@@ -3399,6 +3486,7 @@ const Floor4 = (() => {
   async function mount(){
     isTransitioning = false;
     const uid = await resolveOwnerId();
+    await loadBooks(uid);                       // quiz_log 우물 → 대분류별 책
     currentRoom = startOffsetOf(uid);          // 콩파뇽마다 시작 방 다름
     setRoomBg(currentRoom, false);
     showRoomTag(currentRoom);
