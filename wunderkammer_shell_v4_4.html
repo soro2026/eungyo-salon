@@ -438,6 +438,10 @@ html, body {
   background: url('bookshelf_01.webp') center/cover no-repeat;
   background-color: #2a1410; overflow: hidden;
 }
+.floor-content[data-floor="3"] .bk-bg-layer {
+  position: absolute; inset: 0; background-size: cover; background-position: center;
+  transition: opacity 0.9s ease; z-index: 0; pointer-events: none;
+}
 .floor-content[data-floor="3"] .pendant-sway {
   position: absolute; left: 50%; top: 0; width: 30%; height: 30%;
   transform: translateX(-50%); pointer-events: none;
@@ -2498,15 +2502,46 @@ const Floor3 = (() => {
 
   // 집(콩파뇽)마다 진열장 배경 고정 배정 — uid 씨앗으로 11장 중 하나 (같은 집=늘 같은 배경)
   // (미래 순례 ?user= 때는 그 집 주인 uid로 — 다음 곡괭이)
+  // 진열장 배경 배정 — 현 13명은 11장이 고루 쓰이도록 강제 배분, 신규는 해시 폴백
+  const BG_OVERRIDE = {
+    '7d5068f1-1da9-429d-927e-dd7a134873ee': 1,   // david
+    'f20f75b6-379e-4af7-9b9a-326f62bfb797': 1,   // soro
+    '33114d04-81b6-4dbd-8730-ae06c1ee367d': 2,   // henry
+    'e4c6c141-5006-4868-a264-db8ead40ce87': 2,   // victor
+    'dfd0cada-b126-498e-9ac1-076973b37b9d': 3,   // homer
+    '63b523ea-5d22-4c38-936b-52e97d7ec83d': 4,   // JACOB
+    'a6e1b928-ba40-4b19-9577-c465f6c112fc': 5,   // jung
+    '2b7967fc-ac19-4e0f-b8ed-cea79a21d917': 6,   // kafka
+    '8fa51989-e539-4cdc-a5d4-607d39d3c2f1': 7,   // marie
+    'fdaf3684-afd7-48aa-aa4d-c34abf0923ad': 8,   // pascal
+    '1b0e9acf-1bd1-4311-acf8-cb1099f3c8df': 9,   // proust
+    '81ac3dfa-0d44-4ab9-84bf-d630321b0bad': 10,  // lonelywalden (소로)
+    '47d803a2-8707-44bd-86c6-3399c692f577': 11   // socrates
+  };
   function shelfBgIndex(uid){
     if(!uid) return 1;
+    if(BG_OVERRIDE[uid]) return BG_OVERRIDE[uid];
     let sum = 0; for(let i=0;i<uid.length;i++) sum = (sum + uid.charCodeAt(i)) % 100000;
     return (sum % 11) + 1;
   }
+  let bgBase = 1;   // 그 집의 시작 배경번호 (uid 씨앗)
+  function setRoomBg(n, animate){
+    const room = document.getElementById('bk-room');
+    if(!room) return;
+    const layer = document.createElement('div');
+    layer.className = 'bk-bg-layer';
+    layer.style.backgroundImage = `url('bookshelf_${String(n).padStart(2,'0')}.webp')`;
+    layer.style.opacity = animate ? '0' : '1';
+    room.insertBefore(layer, room.firstChild);
+    if(animate) requestAnimationFrame(()=>requestAnimationFrame(()=>{ layer.style.opacity = '1'; }));
+    room.querySelectorAll('.bk-bg-layer').forEach(el=>{
+      if(el !== layer){ el.style.opacity = '0'; setTimeout(()=>el.remove(), 950); }
+    });
+  }
+  function roundedBg(idx){ return ((bgBase - 1 + idx) % 11) + 1; }   // 시작점부터 11장 순환
   function applyShelfBg(uid){
-    const n = shelfBgIndex(uid);   // uid 없으면 shelfBgIndex가 1(기본) 반환
-    const room = document.querySelector('.floor-content[data-floor="3"] .room');
-    if(room) room.style.backgroundImage = `url('bookshelf_${String(n).padStart(2,'0')}.webp')`;
+    bgBase = shelfBgIndex(uid);
+    setRoomBg(bgBase, false);
   }
   // 순례 동선: ?user=닉네임이면 그 집 주인 uid, 없으면 로그인 본인 (1·2층과 동일 정신)
   async function resolveOwnerId(){
@@ -2718,6 +2753,7 @@ const Floor3 = (() => {
     pages[currentShelfPage].classList.remove('active');
     pages[idx].classList.add('active');
     currentShelfPage = idx;
+    setRoomBg(roundedBg(idx), true);   // 페이지마다 배경 한 장씩 돌기 (크로스페이드)
     document.querySelectorAll('.floor-content[data-floor="3"] .bk-dot').forEach((d, i) => d.classList.toggle('active', i === currentShelfPage));
     setTimeout(() => { isTransitioning = false; }, 600);
   }
