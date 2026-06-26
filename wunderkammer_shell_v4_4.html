@@ -1470,6 +1470,30 @@ html, body {
 .floor-content[data-floor="4"] .f4-roomtag small{
   display:block; font-size:.4em; letter-spacing:.28em; opacity:.72; margin-top:12px;
 }
+/* 상단 상시 카테고리 (SANCTUAIRE 아래) */
+.floor-label .fl-cat{
+  font-size:11px; letter-spacing:3px; color:var(--floor-accent); margin-top:5px;
+  font-family:'Cormorant Garamond', Georgia, serif;
+}
+.floor-label .fl-cat span{ opacity:.55; font-size:10px; letter-spacing:2px; }
+/* 하단 방 탭 (절충 — 작은 글자 12개) */
+.floor-content[data-floor="4"] .f4-tabs{
+  position:absolute; left:50%; bottom:18px; transform:translateX(-50%); z-index:35;
+  display:flex; gap:1px; flex-wrap:nowrap; padding:6px 10px; border-radius:30px;
+  background:rgba(20,10,8,.42); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  max-width:92vw; overflow-x:auto; scrollbar-width:none;
+}
+.floor-content[data-floor="4"] .f4-tabs::-webkit-scrollbar{ display:none; }
+.floor-content[data-floor="4"] .f4-tab{
+  flex:0 0 auto; background:none; border:none; cursor:pointer;
+  font-family:'Cormorant Garamond', Georgia, serif; font-size:13px;
+  color:rgba(232,212,160,.42); letter-spacing:1px; padding:4px 9px; border-radius:14px;
+  transition:color .25s ease, background .25s ease;
+}
+.floor-content[data-floor="4"] .f4-tab:hover{ color:rgba(232,212,160,.78); }
+.floor-content[data-floor="4"] .f4-tab.active{
+  color:#1a0e08; background:var(--floor-accent); font-weight:600;
+}
 </style>
 </head>
 <body>
@@ -2400,7 +2424,8 @@ function renderFloor(n) {
 
   floorLabel.innerHTML = `
     <div class="fl-name">${f.fr.toUpperCase()}</div>
-    <div class="fl-floor">ÉTAGE ${f.roman} · ${f.kr}</div>`;
+    <div class="fl-floor">ÉTAGE ${f.roman} · ${f.kr}</div>
+    ${n === 4 ? '<div class="fl-cat" id="fl-cat"></div>' : ''}`;
   floorLabel.style.display = (n === 2) ? 'none' : '';  // 2층은 자체 헤더가 있어 겹침 방지
 
   const up = document.getElementById('elevUp');
@@ -3272,6 +3297,7 @@ const Floor4 = (() => {
         <button class="f4-nav f4-nav-l" id="f4-prev" aria-label="이전 방">‹</button>
         <button class="f4-nav f4-nav-r" id="f4-next" aria-label="다음 방">›</button>
         <div class="f4-roomtag" id="f4-roomtag"></div>
+        <div class="f4-tabs" id="f4-tabs"></div>
       </div>`;
   }
 
@@ -3298,7 +3324,27 @@ const Floor4 = (() => {
     tag.innerHTML = `${r.cat}<small>${r.sub}</small>`;
     tag.classList.add('on');
     clearTimeout(tagTimer);
-    tagTimer = setTimeout(()=>tag.classList.remove('on'), 1500);
+    tagTimer = setTimeout(()=>tag.classList.remove('on'), 3700);
+  }
+
+  // 상단 상시 카테고리 타이틀 갱신
+  function setTopCat(idx){
+    const el = document.getElementById('fl-cat');
+    if(el){ const r = ROOMS[idx]; el.innerHTML = `${r.cat} <span>· ${r.sub}</span>`; }
+  }
+
+  // 하단 방 탭 (절충 — 작은 글자 12개, 현재 방 또렷)
+  function buildTabs(){
+    const host = document.getElementById('f4-tabs');
+    if(!host) return;
+    host.innerHTML = ROOMS.map((r,i)=>`<button class="f4-tab" data-i="${i}">${r.cat}</button>`).join('');
+    host.querySelectorAll('.f4-tab').forEach(b=>{
+      b.addEventListener('click', ()=>transitionTo(+b.dataset.i));
+    });
+  }
+  function updateTabs(idx){
+    document.querySelectorAll('.floor-content[data-floor="4"] .f4-tab')
+      .forEach((b,i)=>b.classList.toggle('active', i===idx));
   }
 
   // 방 내용 그리기 — [1단계] 빈 서가 안내만 (2단계에서 책등)
@@ -3325,6 +3371,8 @@ const Floor4 = (() => {
     currentRoom = idx;
     setRoomBg(idx, true);
     showRoomTag(idx);
+    setTopCat(idx);
+    updateTabs(idx);
     renderRoom(idx);
     requestAnimationFrame(()=>centerScroll(false));
     setTimeout(()=>{ isTransitioning = false; }, 650);
@@ -3354,6 +3402,9 @@ const Floor4 = (() => {
     currentRoom = startOffsetOf(uid);          // 콩파뇽마다 시작 방 다름
     setRoomBg(currentRoom, false);
     showRoomTag(currentRoom);
+    setTopCat(currentRoom);
+    buildTabs();
+    updateTabs(currentRoom);
     renderRoom(currentRoom);
     const prev = document.getElementById('f4-prev');
     const next = document.getElementById('f4-next');
