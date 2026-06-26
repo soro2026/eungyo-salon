@@ -559,7 +559,7 @@ html, body {
   position: relative; display: flex; margin: auto;
   width: 32cqmin; pointer-events: none; transform-style: preserve-3d;
   transition: translate 1s; translate: calc(min(var(--c), 1) * 50%) 0%;
-  rotate: 1 0 0 30deg;
+  rotate: 1 0 0 18deg;
 }
 .book-modal .page {
   --thickness: 4; flex: none; display: flex; width: 100%;
@@ -575,7 +575,7 @@ html, body {
   position: relative; flex: none; width: 100%; aspect-ratio: 1 / 1.47; backface-visibility: hidden;
   overflow: hidden; background-color: #fff; translate: 0px;
   display: flex; flex-flow: column nowrap; justify-content: flex-start;
-  padding: 2.2em 2em; border: 1px solid #0002;
+  padding: 2.6em 2.4em 3.4em; border: 1px solid #0002;
 }
 .book-modal .front:has(.cover-bg), .book-modal .back:has(.cover-bg) { padding: 0; }
 .book-modal .back { translate: -100% 0; rotate: 0 1 0 180deg; }
@@ -614,11 +614,13 @@ html, body {
 
 /* ── 3F 책의 방 · 글쓰기 ✎ 버튼 + 입력 레이어 ── */
 .book-modal .essay-write-btn {
-  position: fixed; top: 24px; right: 76px; height: 42px; padding: 0 18px;
-  background: rgba(80,40,28,0.92); border: 1px solid rgba(212,184,120,0.7);
-  color: var(--floor-accent, #f0d8a8); font-size: 14px; border-radius: 21px;
-  cursor: pointer; z-index: 70; backdrop-filter: blur(8px); display: none;
-  font-family: 'Noto Serif KR', serif; letter-spacing: 0.05em;
+  position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%);
+  height: 48px; padding: 0 30px;
+  background: rgba(80,40,28,0.94); border: 1px solid rgba(212,184,120,0.8);
+  color: var(--floor-accent, #f0d8a8); font-size: 15.5px; border-radius: 24px;
+  cursor: pointer; z-index: 75; backdrop-filter: blur(8px); display: none;
+  font-family: 'Noto Serif KR', serif; letter-spacing: 0.06em;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.35);
 }
 .book-modal .essay-write-btn:hover { background: rgba(110,60,40,0.95); }
 .essay-editor {
@@ -2467,14 +2469,6 @@ const Floor3 = (() => {
       ]
     }
   };
-  function getDefaultOpinion(book) {
-    return { title: book.title, author: book.author || '', spreads: [{
-      chapter: '', title: book.title,
-      left: [`아직 『${book.title}』에 대한 글이 없습니다.`, '이 책과 당신 삶이 어떻게 만났는지, 한 편의 글로 남겨 보세요.'],
-      right: ['어떤 시기에 어떻게 다가왔는지, 왜 이 책을 사랑하는지.', '글은 곧 이 면에 펼쳐집니다.']
-    }] };
-  }
-
   let currentShelfPage = 0;
   let isTransitioning = false;
   let soundEnabled = true;
@@ -2709,8 +2703,7 @@ const Floor3 = (() => {
   }
   function openBook(book) {
     currentBook = book;
-    const opinion = essayToOpinion(book);
-    buildFlipbook(book, opinion);
+    buildFlipbook(book, paginateEssay(book));
     modal.classList.add('open');
     // 내 책일 때만 글쓰기 버튼 (미래 순례 ?user= 대비)
     const myUid = getUser()?.id;
@@ -2720,31 +2713,87 @@ const Floor3 = (() => {
   }
   // essay_body(긴 글 하나) → 모달 spreads로. 없으면 안내.
   // (정신의 삶 하드코딩 글 OPINIONS는 보존 — 다음 곡괭이에서 DB essay_body로 이관)
-  function essayToOpinion(book) {
+  function escHtml(s){ return String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+  // 빈 글: 안내 두 면
+  function emptyFaces(book){
+    return [
+      { title: book.title, paras: [`아직 『${book.title}』에 대한 글이 없습니다.`, '이 책과 당신 삶이 어떻게 만났는지, 한 편의 글로 남겨 보세요.'] },
+      { title: null, paras: ['어떤 시기에 어떻게 다가왔는지, 왜 이 책을 사랑하는지.', '글은 곧 이 면에 펼쳐집니다.'] }
+    ];
+  }
+
+  // 실측: 본문을 면 크기에 맞춰 여러 면으로 분할 (넘치면 다음 면 / 단락이 면보다 길면 어절로 쪼갬)
+  function paginateEssay(book){
     const body = (book.essay_body || '').trim();
-    if (!body) return getDefaultOpinion(book);
+    if(!body) return { faces: emptyFaces(book), empty:true };
+    const title = book.essay_title || book.title || '';
     const paras = body.split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
-    const mid = Math.max(1, Math.ceil(paras.length / 2));
-    const right = paras.slice(mid);
-    return { title: book.essay_title || book.title, author: book.author || '', spreads: [{
-      chapter: '', title: book.essay_title || book.title,
-      left: paras.slice(0, mid), right: right.length ? right : [''],
-      signature: true
-    }] };
+
+    // 측정용 면 — 실제 .front 와 동일 클래스·컨텍스트(modal 안), 화면 밖
+    const host = document.createElement('div');
+    host.className = 'book';
+    host.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden;pointer-events:none;';
+    host.innerHTML = '<div class="page"><div class="front"><div class="page-content"></div></div></div>';
+    modal.appendChild(host);
+    const pc = host.querySelector('.page-content');
+    const render = (t, ps) => { pc.innerHTML = (t?`<h2>${escHtml(t)}</h2>`:'') + ps.map(p=>`<p>${escHtml(p)}</p>`).join(''); };
+    const overflow = () => pc.scrollHeight > pc.clientHeight + 1;
+
+    const faces = [];
+    let first = true;
+    const queue = paras.slice();
+    let guard = 0;
+    while(queue.length && guard++ < 300){
+      const t = first ? title : '';
+      const accepted = [];
+      while(queue.length){
+        render(t, [...accepted, queue[0]]);
+        if(!overflow()){ accepted.push(queue.shift()); continue; }
+        if(accepted.length === 0){
+          // 단락 하나가 한 면보다 김 → 어절 단위로 쪼갬
+          const words = queue.shift().split(/(\s+)/);
+          let lo = '';
+          for(let k=0; k<words.length; k++){
+            const test = lo + words[k];
+            render(t, [test]);
+            if(overflow() && lo.trim()) break;
+            lo = test;
+          }
+          lo = lo.trim() || (words[0]||'');
+          accepted.push(lo);
+          const remain = words.join('').slice(lo.length).replace(/^\s+/, '');
+          if(remain) queue.unshift(remain);
+        }
+        break; // 이 면 마감
+      }
+      faces.push({ title: t || null, paras: accepted });
+      first = false;
+    }
+    host.remove();
+    return { faces, empty:false };
   }
   function closeBook() {
     modal.classList.remove('open');
     setTimeout(() => { const b = modal.querySelector('.book'); if (b) b.remove(); }, 500);
   }
-  function buildFlipbook(book, opinion) {
+  function buildFlipbook(book, result) {
     const old = modal.querySelector('.book'); if (old) old.remove();
     const bookEl = document.createElement('div'); bookEl.className = 'book';
-    const spreads = opinion.spreads;
-    bookEl.appendChild(buildPageEl(makeCoverHtml(book), makeLeftPageHtml(spreads[0])));
-    spreads.forEach((spread, i) => {
-      const isLast = i === spreads.length - 1;
-      bookEl.appendChild(buildPageEl(makeRightPageHtml(spread), isLast ? makeEndHtml(opinion) : makeLeftPageHtml(spreads[i + 1])));
-    });
+
+    // 읽기 순서: page0 = 표지(front) + 첫 면(back) / 이후 page = 면(front)+면(back) / 끝 면
+    const seq = result.faces.slice();
+    seq.push({ end:true, book });   // 마지막 끝 면
+
+    bookEl.appendChild(buildPageEl(makeCoverHtml(book), makeFaceHtml(seq[0], 'back')));
+    let i = 1;
+    while (i < seq.length) {
+      const front = makeFaceHtml(seq[i], 'front');
+      const back  = (i+1 < seq.length) ? makeFaceHtml(seq[i+1], 'back') : makeBlankHtml();
+      bookEl.appendChild(buildPageEl(front, back));
+      i += 2;
+    }
+
     modal.insertBefore(bookEl, modal.firstChild);
     bookEl.style.setProperty('--c', 0);
     bookEl.querySelectorAll('.page').forEach((page, idx) => {
@@ -2763,18 +2812,18 @@ const Floor3 = (() => {
     page.innerHTML = frontHtml + backHtml; return page;
   }
   function makeCoverHtml(book) { return `<div class="front cover"><div class="cover-bg" style="background-image:url('${book.cover}')"></div></div>`; }
-  function makeLeftPageHtml(spread) {
-    const ps = spread.left.map(p => `<p>${p}</p>`).join('');
-    const ch = spread.chapter ? `<div class="chapter-mark">${spread.chapter}</div>` : '';
-    return `<div class="back"><div class="page-content">${ch}<h2>${spread.title}</h2>${ps}</div></div>`;
+  function makeFaceHtml(face, side) {
+    const cls = (side === 'back') ? 'back' : 'front';
+    if (face.end) {
+      const b = face.book;
+      return `<div class="${cls} cover" style="background:#faf7f0;color:#2a1810"><div class="page-end"><h2>— 끝 —</h2><p class="author">${escHtml(b.author || '')}</p><p class="book-title">『${escHtml(b.essay_title || b.title || '')}』</p></div></div>`;
+    }
+    const h  = face.title ? `<h2>${escHtml(face.title)}</h2>` : '';
+    const ps = (face.paras || []).map(p => `<p>${escHtml(p)}</p>`).join('');
+    return `<div class="${cls}"><div class="page-content">${h}${ps}</div></div>`;
   }
-  function makeRightPageHtml(spread) {
-    const ps = spread.right.map(p => `<p>${p}</p>`).join('');
-    const sig = spread.signature ? `<div class="author-line">— 한 콩파뇽의 글</div>` : '';
-    return `<div class="front"><div class="page-content">${ps}${sig}</div></div>`;
-  }
-  function makeEndHtml(opinion) {
-    return `<div class="back cover" style="background:#faf7f0;color:#2a1810"><div class="page-end"><h2>— 끝 —</h2><p class="author">${opinion.author}</p><p class="book-title">『${opinion.title}』</p></div></div>`;
+  function makeBlankHtml() {
+    return `<div class="back"><div class="page-content"></div></div>`;
   }
 
   // 모달 닫기 (한 번만 바인딩)
@@ -2811,7 +2860,7 @@ const Floor3 = (() => {
       currentBook.essay_title = title || null;
       currentBook.essay_body  = body || null;
       closeEssayEditor();
-      buildFlipbook(currentBook, essayToOpinion(currentBook));  // 새 글을 면에 다시 흘림
+      buildFlipbook(currentBook, paginateEssay(currentBook));  // 새 글을 면에 다시 흘림
     } catch (e) {
       alert('저장에 실패했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
