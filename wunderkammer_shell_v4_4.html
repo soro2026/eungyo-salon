@@ -1956,6 +1956,39 @@ html, body {
   white-space:nowrap; border-radius:1px;
   box-shadow:0 1px 3px rgba(0,0,0,.4); pointer-events:none;
 }
+/* ── 편집 모드 ── */
+.floor-content[data-floor="5"] .f5-stage.editing .f5-bgwrap{ filter:brightness(.78) saturate(.9); transition:filter .4s ease; }
+.floor-content[data-floor="5"] .f5-stage.editing .f5-frame{ cursor:grab; }
+.floor-content[data-floor="5"] .f5-stage.editing .f5-frame:hover{ transform:translate(-50%,-50%) rotate(var(--rot,0deg)); filter:drop-shadow(0 8px 18px rgba(0,0,0,.6)); }
+.floor-content[data-floor="5"] .f5-frame.selected{ outline:2px solid #e8c987; outline-offset:3px; z-index:6; }
+.floor-content[data-floor="5"] .f5-frame.grabbing{ cursor:grabbing; transition:none; z-index:7; filter:drop-shadow(0 14px 26px rgba(0,0,0,.7)); }
+/* ✎ 편집 토글 버튼 (주인만) */
+.floor-content[data-floor="5"] .f5-edit{
+  position:absolute; top:16px; right:16px; z-index:46;
+  font-family:'Cormorant Garamond','Noto Serif KR',serif; font-style:italic;
+  font-size:14px; letter-spacing:.04em; color:#e9dcc2;
+  background:rgba(30,22,18,.66); border:1px solid rgba(212,165,72,.42);
+  padding:7px 15px; border-radius:3px; cursor:pointer;
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); transition:all .22s;
+}
+.floor-content[data-floor="5"] .f5-edit:hover{ background:rgba(48,36,28,.82); border-color:rgba(212,165,72,.7); }
+.floor-content[data-floor="5"] .f5-edit.on{ color:#1a120c; background:#d4a548; border-color:#d4a548; }
+/* 선택 액자 미니 조절 툴 (편집 중 액자 탭) */
+.floor-content[data-floor="5"] .f5-tool{
+  position:fixed; z-index:60; display:none; align-items:center; gap:6px;
+  transform:translateX(-50%); padding:5px 9px;
+  background:rgba(24,17,13,.92); border:1px solid rgba(212,165,72,.4);
+  border-radius:22px; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  box-shadow:0 6px 20px rgba(0,0,0,.5);
+}
+.floor-content[data-floor="5"] .f5-tool button{
+  width:26px; height:26px; border-radius:50%; line-height:1;
+  border:1px solid rgba(212,165,72,.45); background:rgba(48,34,26,.85);
+  color:#e9dcc2; font-size:15px; cursor:pointer; transition:all .18s;
+}
+.floor-content[data-floor="5"] .f5-tool button:hover{ background:#d4a548; color:#1a120c; }
+.floor-content[data-floor="5"] .f5-tool .f5-tool-lbl{ font-size:10px; color:#b9a986; letter-spacing:.06em; }
+.floor-content[data-floor="5"] .f5-tool .f5-tool-sep{ width:1px; height:16px; background:rgba(212,165,72,.3); margin:0 2px; }
 .floor-content[data-floor="5"] .f5-nav{
   position:absolute; top:50%; transform:translateY(-50%); z-index:30;
   width:52px; height:52px; border-radius:50%;
@@ -2172,7 +2205,7 @@ html, body {
 <audio id="elevatorSfx" preload="auto" src="ding_sound.mp3"></audio>
 
 <div class="boot-hint" id="bootHint">우측 하단 ⌖ 황동판으로 층 점프 · 각 층 우측 엘리베이터 ▲▼로 한 층씩 · Ⅰ층 갤러리는 ‹ › 로 벽 회전 · Ⅱ층은 음악실</div>
-<div class="version-badge">shell v5.2 · build 0628c · 5F 페르소나 월(5f_bg01·16칸·최신순·명패) · 3F 책의 방 · 2F 음반 · 1F 갤러리</div>
+<div class="version-badge">shell v5.2 · build 0628d · 5F 페르소나 월(편집·직행·명패) · 3F 책의 방 · 2F 음반 · 1F 갤러리</div>
 
 <script>
 
@@ -4552,11 +4585,18 @@ const Floor5 = (() => {
   let stars = [];        // 그 콩파뇽이 품은 별(액자 보유) 평면 목록
   let rooms = [];        // 방별 묶음 [[star,...], ...]
   let curRoom = 0, bgStart = 1, isTransitioning = false, tagTimer = null;
+  // ── 편집 모드 상태 (목업 v3 이식) ──
+  let editMode = false, drag = null, selectedId = null;
+  let isOwner = false, ownerUid = null;   // 본인 벽일 때만 편집 허용 (순례자 X)
+  const ASPECT = 941/1672;                 // 벽 종횡비 — y%↔x% 환산
 
   // ── seeded random ──
   function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
   const lerp  = (a,b,t)=> a+(b-a)*t;
   const clamp = (v,lo,hi)=> Math.max(lo, Math.min(hi, v));
+  // 액자 반지름(%) — 드래그 경계 clamp용 (높이는 비율 평균 근사)
+  function half(s){ return (s.size_pct||16)/2; }
+  function halfY(s){ return ((s.size_pct||16)/0.82)*ASPECT/2; }
 
   // ── uid 씨앗 시작 배경 (3층 shelfBgIndex 문법) ──
   function bgStartOf(uid){
@@ -4579,6 +4619,12 @@ const Floor5 = (() => {
         <button class="f5-nav f5-nav-r" id="f5-next" aria-label="다음 방">›</button>
         <div class="f5-empty" id="f5-empty"></div>
         <div class="f5-roomtag" id="f5-roomtag"></div>
+        <button class="f5-edit" id="f5-edit" style="display:none">✎ 배치 바꾸기</button>
+        <div class="f5-tool" id="f5-tool">
+          <button id="f5-size-down" title="작게">−</button><span class="f5-tool-lbl">크기</span><button id="f5-size-up" title="크게">＋</button>
+          <span class="f5-tool-sep"></span>
+          <button id="f5-rot-l" title="왼쪽으로">↺</button><span class="f5-tool-lbl">각도</span><button id="f5-rot-r" title="오른쪽으로">↻</button>
+        </div>
         <div class="f5-zoom" id="f5-zoom">
           <button class="f5-zoom-close" id="f5-zoom-close" aria-label="닫기">×</button>
           <div class="f5-zoom-inner">
@@ -4708,11 +4754,12 @@ const Floor5 = (() => {
     for(const s of roomStars){
       const f = document.createElement('div');
       f.className = 'f5-frame';
+      f.dataset.id = s.id;
       f.style.left = s.x+'%'; f.style.top = s.y+'%';
       f.style.width = s.size_pct+'%';
       f.style.setProperty('--rot', s.rot+'deg');
       const im = document.createElement('img');
-      im.className = 'f5-frame-img'; im.src = s.framed; im.alt = s.name; im.loading='lazy';
+      im.className = 'f5-frame-img'; im.src = s.framed; im.alt = s.name; im.loading='lazy'; im.draggable = false;
       f.appendChild(im);
       if(s.name){
         const pl = document.createElement('div');
@@ -4720,9 +4767,108 @@ const Floor5 = (() => {
         pl.textContent = s.name;       // 작가 한글 표기 (stars.name)
         f.appendChild(pl);
       }
-      f.addEventListener('click', ()=>openZoom(s));
+      bindEvents(f, s);
       wall.appendChild(f);
     }
+    if(selectedId !== null){ const f = frameEl(selectedId); if(f){ f.classList.add('selected'); showTool(); } }
+  }
+
+  // ── 액자 이벤트: 감상=별 탐구 직행 / 편집=드래그·선택 (목업 v3 이식) ──
+  function frameEl(id){ const w=document.getElementById('f5-wall'); return w ? w.querySelector('.f5-frame[data-id="'+id+'"]') : null; }
+  function curStar(){ return stars.find(x=> x.id === selectedId); }
+  function bindEvents(f, s){
+    f.addEventListener('click', ()=>{
+      if(editMode) return;                       // 편집 중엔 클릭=직행 차단
+      location.href = 'star.html?id=' + s.id;     // 감상 클릭 = 별 탐구 페이지로 직행
+    });
+    f.addEventListener('pointerdown', (e)=>{
+      if(!editMode || !isOwner) return;
+      e.preventDefault();
+      const rect = document.getElementById('f5-stage').getBoundingClientRect();
+      drag = { f, s, mx:e.clientX, my:e.clientY, x0:s.x, y0:s.y, w:rect.width, h:rect.height, moved:false };
+      f.classList.add('grabbing');
+      try{ f.setPointerCapture(e.pointerId); }catch(_){}
+    });
+    f.addEventListener('pointermove', (e)=>{
+      if(!drag || drag.f !== f) return;
+      const dxp = e.clientX - drag.mx, dyp = e.clientY - drag.my;
+      if(Math.abs(dxp) > 4 || Math.abs(dyp) > 4) drag.moved = true;
+      s.x = +clamp(drag.x0 + dxp/drag.w*100, half(s)+1, 99-half(s)).toFixed(2);
+      s.y = +clamp(drag.y0 + dyp/drag.h*100, halfY(s)+2, 90-halfY(s)).toFixed(2);
+      f.style.left = s.x + '%'; f.style.top = s.y + '%';
+      if(drag.moved) showTool();
+    });
+    const end = ()=>{
+      if(!drag || drag.f !== f) return;
+      f.classList.remove('grabbing');
+      if(drag.moved){ s._pinned = true; persist(s); }
+      else { selectFrame(s.id); }                // 이동 없이 떼면 = 선택
+      drag = null;
+    };
+    f.addEventListener('pointerup', end);
+    f.addEventListener('pointercancel', end);
+  }
+
+  // ── 편집 토글 / 선택 / 미니툴 ──
+  function setEdit(on){
+    editMode = on;
+    document.getElementById('f5-stage')?.classList.toggle('editing', on);
+    const btn = document.getElementById('f5-edit');
+    if(btn){ btn.classList.toggle('on', on); btn.textContent = on ? '✓ 완료' : '✎ 배치 바꾸기'; }
+    if(!on) clearSelection();
+  }
+  function clearSelection(){
+    selectedId = null;
+    document.querySelectorAll('.floor-content[data-floor="5"] .f5-frame.selected').forEach(el=> el.classList.remove('selected'));
+    const t = document.getElementById('f5-tool'); if(t) t.style.display = 'none';
+  }
+  function selectFrame(id){
+    if(selectedId === id){ clearSelection(); return; }   // 같은 걸 또 누르면 해제
+    selectedId = id;
+    document.querySelectorAll('.floor-content[data-floor="5"] .f5-frame').forEach(el=>
+      el.classList.toggle('selected', +el.dataset.id === id));
+    showTool();
+  }
+  function showTool(){
+    const tool = document.getElementById('f5-tool'); if(!tool) return;
+    if(selectedId === null || !editMode){ tool.style.display='none'; return; }
+    const f = frameEl(selectedId);
+    if(!f){ tool.style.display='none'; return; }
+    const r = f.getBoundingClientRect();
+    tool.style.display = 'flex';
+    tool.style.left = (r.left + r.width/2) + 'px';
+    tool.style.top  = Math.max(8, r.top - 42) + 'px';
+  }
+  function adjSize(d){
+    const s = curStar(); if(!s) return;
+    s.size_pct = +clamp(s.size_pct + d, 7, 30).toFixed(2);
+    s._pinned = true;
+    const f = frameEl(s.id); if(f) f.style.width = s.size_pct + '%';
+    persist(s); showTool();
+  }
+  function adjRot(d){
+    const s = curStar(); if(!s) return;
+    s.rot = +(s.rot + d).toFixed(2);
+    s._pinned = true;
+    const f = frameEl(s.id); if(f) f.style.setProperty('--rot', s.rot + 'deg');
+    persist(s);
+  }
+
+  // ── 저장: persona_wall upsert (본인만 · 3층 saveBook 본보기) ──
+  async function persist(s){
+    if(!isOwner || !ownerUid) return;
+    try{
+      await sbFetch('/rest/v1/persona_wall', {
+        method:'POST',
+        headers:{ 'Prefer':'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({
+          user_id: ownerUid, star_id: s.id,
+          x:+(+s.x).toFixed(2), y:+(+s.y).toFixed(2),
+          size_pct:+(+s.size_pct).toFixed(2), rot:+(+s.rot).toFixed(2),
+          room: curRoom
+        })
+      });
+    }catch(e){ console.warn('[F5] persona_wall 저장 실패', e); }
   }
 
   // ── 확대 모달 (핀치 줌 대체) ──
@@ -4744,7 +4890,7 @@ const Floor5 = (() => {
 
   function transitionTo(idx){
     if(isTransitioning || idx===curRoom || idx<0 || idx>=rooms.length) return;
-    isTransitioning = true; curRoom = idx;
+    isTransitioning = true; curRoom = idx; clearSelection();
     setRoomBg(idx, true); showRoomTag(idx); renderRoom(idx);
     requestAnimationFrame(centerScroll);
     setTimeout(()=>{ isTransitioning=false; }, 650);
@@ -4770,7 +4916,11 @@ const Floor5 = (() => {
 
   async function mount(){
     isTransitioning = false; curRoom = 0;
+    editMode = false; selectedId = null; drag = null;
     const uid = await resolveOwnerId();
+    ownerUid = uid;
+    const me = getUser()?.id || null;
+    isOwner = !!me && me === uid;   // 본인 벽일 때만 편집 (남의 벽 순례 시 X)
     bgStart = bgStartOf(uid);
     await loadStars(uid);
     setRoomBg(0, false); showRoomTag(0); renderRoom(0);
@@ -4782,9 +4932,22 @@ const Floor5 = (() => {
     const one = rooms.length <= 1;
     if(prev) prev.style.display = one ? 'none' : '';
     if(next) next.style.display = one ? 'none' : '';
-    const z = document.getElementById('f5-zoom');
-    document.getElementById('f5-zoom-close')?.addEventListener('click', closeZoom);
-    if(z) z.addEventListener('click', (e)=>{ if(e.target===z) closeZoom(); });
+    // ── 편집 버튼(주인만) + 미니툴 바인딩 ──
+    const eb = document.getElementById('f5-edit');
+    if(eb){ eb.style.display = isOwner ? '' : 'none'; eb.onclick = ()=> setEdit(!editMode); }
+    const bind = (id,fn)=>{ const el=document.getElementById(id); if(el) el.onclick=fn; };
+    bind('f5-size-down', ()=> adjSize(-1.2));
+    bind('f5-size-up',   ()=> adjSize(1.2));
+    bind('f5-rot-l',     ()=> adjRot(-2));
+    bind('f5-rot-r',     ()=> adjRot(2));
+    // 빈 벽 탭 = 선택 해제 (편집 중)
+    const stage = document.getElementById('f5-stage');
+    if(stage) stage.addEventListener('click', (e)=>{
+      if(editMode && (e.target===stage || e.target.id==='f5-wall' || e.target.classList.contains('f5-bgwrap') || e.target.classList.contains('f5-bg-layer'))) clearSelection();
+    });
+    // 스크롤 시 선택 툴 따라가기
+    const sc = document.getElementById('f5-scroll');
+    if(sc) sc.addEventListener('scroll', ()=>{ if(selectedId!==null) showTool(); });
     requestAnimationFrame(centerScroll);
   }
 
