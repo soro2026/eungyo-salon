@@ -1924,7 +1924,12 @@ html, body {
 .floor-content[data-floor="5"] .f5-stage{
   position:relative; width:100%; aspect-ratio:5/9; min-height:100%;
 }
-.floor-content[data-floor="5"] .f5-bgwrap{ position:absolute; inset:0; z-index:0; }
+.floor-content[data-floor="5"] .f5-bgwrap{
+  position:absolute; inset:0; z-index:0;
+  background:
+    radial-gradient(ellipse at 50% 40%, rgba(64,48,34,.42), transparent 72%),
+    linear-gradient(168deg,#241c14 0%,#1a140e 50%,#0e0a07 100%);
+}
 .floor-content[data-floor="5"] .f5-bg-layer{
   position:absolute; inset:0;
   background-size:100% 100%; background-position:center; background-repeat:no-repeat;
@@ -2157,7 +2162,7 @@ html, body {
 <audio id="elevatorSfx" preload="auto" src="ding_sound.mp3"></audio>
 
 <div class="boot-hint" id="bootHint">우측 하단 ⌖ 황동판으로 층 점프 · 각 층 우측 엘리베이터 ▲▼로 한 층씩 · Ⅰ층 갤러리는 ‹ › 로 벽 회전 · Ⅱ층은 음악실</div>
-<div class="version-badge">shell v5.2 · build 0627c · 5F 페르소나 월(보기) · 3F 책의 방 · 2F 음반 · 1F 갤러리</div>
+<div class="version-badge">shell v5.2 · build 0627e · 5F 페르소나 월(보기·2단계조회) · 3F 책의 방 · 2F 음반 · 1F 갤러리</div>
 
 <script>
 
@@ -4623,17 +4628,26 @@ const Floor5 = (() => {
     if(!uid) return;
     let comps = [], layout = [];
     try{
-      comps = await sbFetch(`/rest/v1/companions?user_id=eq.${encodeURIComponent(uid)}&status=eq.live&select=star_id,joined_at,stars(id,name,categories,framed_url)&order=joined_at.asc`) || [];
+      comps = await sbFetch(`/rest/v1/companions?user_id=eq.${encodeURIComponent(uid)}&status=eq.live&select=star_id,joined_at&order=joined_at.asc`) || [];
     }catch(e){ console.warn('[F5] companions 로드 실패', e); return; }
+    // 별 상세는 따로 in 조회 (임베드 회피 — 검증된 단순 패턴)
+    const ids = comps.map(c=>c.star_id).filter(v=>v!=null);
+    const starMap = {};
+    if(ids.length){
+      try{
+        const ss = await sbFetch(`/rest/v1/stars?id=in.(${ids.join(',')})&select=id,name,categories,framed_url`) || [];
+        ss.forEach(s=> starMap[s.id] = s);
+      }catch(e){ console.warn('[F5] stars 로드 실패', e); }
+    }
     try{
       layout = await sbFetch(`/rest/v1/persona_wall?user_id=eq.${encodeURIComponent(uid)}&select=star_id,x,y,size_pct,rot,room`) || [];
     }catch(e){ console.warn('[F5] persona_wall 로드 실패', e); layout = []; }
     const lay = {}; layout.forEach(l=> lay[l.star_id] = l);
 
-    // 액자(framed_url) 있는 별만 벽에 걸림
-    const list = comps.filter(c=> c.stars && c.stars.framed_url);
-    list.forEach((c,i)=>{
-      const s = c.stars, L = lay[c.star_id];
+    // 품은 순서 유지 · 액자(framed_url) 있는 별만 벽에 걸림
+    const list = comps.map(c=> starMap[c.star_id]).filter(s=> s && s.framed_url);
+    list.forEach((s,i)=>{
+      const L = lay[s.id];
       const room = (L && L.room != null) ? L.room : Math.floor(i / ROOM_CAP);
       stars.push({
         id:s.id, name:s.name||'', cat:(s.categories||'').split(/[·,]/)[0].trim(),
