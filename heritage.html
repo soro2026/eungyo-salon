@@ -306,24 +306,39 @@ async function loadGalerie(){
   // 지연 개봉: 개봉 시각이 지난 다음 보물이 있으면 이 진입이 방아쇠가 되어 펼쳐진다 (멱등)
   try { await sbFetch('/rest/v1/rpc/open_due_treasures', { method:'POST', body:'{}' }); }
   catch(e){ /* 개봉 실패는 조용히 — 기존 active 보물 표시는 계속 */ }
-  const items = await sbFetch('/rest/v1/heritage_items?category=eq.visual&status=eq.active'
-    + '&select=id,name,artist,img,ratio,wk_id,salle_no,art_layout,layers,curation_links'
+  const items = await sbFetch('/rest/v1/heritage_items?category=eq.visual'
+    + (isSalonKeeper() ? '' : '&status=eq.active')   // 살롱지기는 미공개(standby)까지 전체, 일반 유저는 active만
+    + '&select=id,name,artist,img,ratio,wk_id,salle_no,status,art_layout,layers,curation_links'
     + '&order=wk_id.desc,salle_no.asc') || [];
   const byWk={}, order=[];
   for(const it of items){ if(!byWk[it.wk_id]){ byWk[it.wk_id]=[]; order.push(it.wk_id); } byWk[it.wk_id].push(it); }
-  ROOMS = order.map((wk, idx)=>({
-    wk, bg: BGS[idx % BGS.length],
-    tag:  ROOM_META[idx % ROOM_META.length].tag,
-    tagk: ROOM_META[idx % ROOM_META.length].tagk,
-    sub:  `ÉTAGE ${idx+1} · ${ROOM_META[idx % ROOM_META.length].tag} · ${ROOM_META[idx % ROOM_META.length].tagk}`,
-    works: byWk[wk].map(it=>{
-      const lay = (it.art_layout && Object.keys(it.art_layout).length)
-        ? it.art_layout : FALLBACK[it.ratio==='landscape'?'landscape':'portrait'];
-      return { id:it.id, img:it.img, t:it.name, a:it.artist,
-        x:lay.x, y:lay.y, size:lay.size, px:lay.px, py:lay.py, psize:lay.psize,
-        layers:it.layers||null, curation_links:it.curation_links||null };
-    })
-  }));
+  const mapWork = it => {
+    const lay = (it.art_layout && Object.keys(it.art_layout).length)
+      ? it.art_layout : FALLBACK[it.ratio==='landscape'?'landscape':'portrait'];
+    return { id:it.id, img:it.img, t:it.name, a:it.artist,
+      x:lay.x, y:lay.y, size:lay.size, px:lay.px, py:lay.py, psize:lay.psize,
+      layers:it.layers||null, curation_links:it.curation_links||null };
+  };
+  // 공개 중(active) 방을 먼저, 미공개 예정(standby) 방은 뒤에 고정 배경으로 분리한다.
+  // 일반 유저는 애초에 standby가 안 오므로(쿼리 필터) 영향 없음. 살롱지기만 미공개 예정실을 본다.
+  const STANDBY_BG = BGS[0];   // 미공개 예정실 고정 배경 (전용 배경 생기면 교체)
+  const activeWks  = order.filter(wk => byWk[wk][0].status === 'active');
+  const standbyWks = order.filter(wk => byWk[wk][0].status !== 'active').sort();   // 가까운 미래(작은 wk)부터
+  ROOMS = [
+    ...activeWks.map((wk, idx)=>({
+      wk, standby:false, bg: BGS[idx % BGS.length],
+      tag:  ROOM_META[idx % ROOM_META.length].tag,
+      tagk: ROOM_META[idx % ROOM_META.length].tagk,
+      sub:  `ÉTAGE ${idx+1} · ${ROOM_META[idx % ROOM_META.length].tag} · ${ROOM_META[idx % ROOM_META.length].tagk}`,
+      works: byWk[wk].map(mapWork)
+    })),
+    ...standbyWks.map((wk)=>({
+      wk, standby:true, bg: STANDBY_BG,
+      tag:'À VENIR', tagk:'미공개 예정',
+      sub:  `🔒 미공개 예정 · ${wk}`,
+      works: byWk[wk].map(mapWork)
+    }))
+  ];
 }
 async function loadMyRents(){
   const user=getUser(); if(!user){ MY_RENTS=new Set(); return; }
