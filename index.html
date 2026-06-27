@@ -1554,6 +1554,19 @@
 .egm-frule{width:40px;height:1px;background:var(--rule);margin-bottom:16px}
 .egm-fquote{font-weight:300;font-size:12.5px;line-height:1.7;color:var(--ink-soft);max-width:280px}
 .egm-fsign{font-family:'JetBrains Mono',monospace;font-size:8.5px;letter-spacing:.28em;color:var(--gold);margin-top:13px}
+/* ── 살롱지기 admin 토글 ── */
+#admin-rail{width:auto !important;align-items:flex-end !important;gap:8px !important}
+.egm-adm-toggle{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:22px;background:rgba(20,16,11,.92);border:1px solid rgba(201,168,76,.45);color:#C9A84C;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 6px 20px -8px rgba(0,0,0,.6);transition:all .18s ease}
+.egm-adm-toggle:hover{border-color:#C9A84C;background:rgba(30,23,14,.95)}
+.egm-adm-key{font-size:13px}
+.egm-adm-panel{display:none;flex-direction:column;gap:7px;width:210px;margin-top:9px;padding:12px;border-radius:12px;background:rgba(14,11,8,.96);border:1px solid rgba(201,168,76,.3);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:0 18px 44px -16px rgba(0,0,0,.7);max-height:70vh;overflow-y:auto}
+.egm-adm-panel.open{display:flex;animation:egmRise .26s ease both}
+.egm-adm-head{font-family:'JetBrains Mono',monospace;font-size:8.5px;letter-spacing:.34em;color:rgba(201,168,76,.6);text-align:center;padding:2px 0 5px}
+.egm-adm-btn{display:flex;flex-direction:column;gap:2px;padding:9px 12px;border-radius:8px;background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.22);text-decoration:none;cursor:pointer;transition:all .16s ease}
+.egm-adm-btn:hover{background:rgba(201,168,76,.16);border-color:rgba(201,168,76,.5)}
+.egm-adm-btn .t{font-family:'Noto Serif KR',serif;font-size:13px;font-weight:500;color:#efe7d6}
+.egm-adm-btn .d{font-family:'Noto Serif KR',serif;font-size:10px;font-weight:300;color:rgba(239,231,214,.5)}
+.egm-adm-btn.soon{opacity:.45;cursor:default;pointer-events:none}
 </style>
 </head>
 <body>
@@ -1613,42 +1626,8 @@
   <!-- ══ 낮↔밤 메인 메뉴 (스크립트가 채움) ══ -->
   <div id="egm"></div>
 
-  <!-- ══ admin 전용 레일 — 소로(살롱지기)만 표시 ══ -->
-  <div id="admin-rail" aria-hidden="true">
-    <div class="ar-label">살롱지기</div>
-    <a class="ar-btn" href="admin_quiz_dashboard.html">
-      <span class="t">🎯 출제 dashboard</span>
-      <span class="d">12카테고리 현황</span>
-    </a>
-    <a class="ar-btn" href="admin_question_freq.html">
-      <span class="t">📊 문항 출제빈도</span>
-      <span class="d">전체 유저 경험 횟수</span>
-    </a>
-    <a class="ar-btn" href="admin.html">
-      <span class="t">✍ 에세이 심사<span class="ar-badge" id="essayBadge" style="display:none"></span></span>
-      <span class="d">응답의 정원 심사</span>
-    </a>
-    <a class="ar-btn" href="admin_new_members.html">
-      <span class="t">🌱 신규 회원<span class="ar-badge" id="newMemberBadge" style="display:none"></span></span>
-      <span class="d">새 회원 명단</span>
-    </a>
-    <a class="ar-btn" href="admin_heritage_dashboard.html">
-      <span class="t">🏛 헤리티지 현황</span>
-      <span class="d">보물·음반·타임즈</span>
-    </a>
-    <a class="ar-btn" href="admin_constellation_dashboard.html">
-      <span class="t">🌌 콘스텔라티오</span>
-      <span class="d">별 관리·정합 체크</span>
-    </a>
-    <a class="ar-btn" href="admin_voyage.html">
-      <span class="t">🗺 EG메종 좌표</span>
-      <span class="d">집터 3D 클릭 추출</span>
-    </a>
-    <div class="ar-btn soon">
-      <span class="t">⭐ star 신청</span>
-      <span class="d">준비 중</span>
-    </div>
-  </div>
+  <!-- ══ admin 전용 레일 — 소로(살롱지기)만 표시 · 버튼은 EGM.admin 배열에서 자동 생성 ══ -->
+  <div id="admin-rail" aria-hidden="true"></div>
 </div>
 
 <!-- ── 게임 화면들은 game_rookie.html로 이동됨 ──
@@ -2211,7 +2190,32 @@ async function closeIncomePopup() {
   EGM.setStats=function(map){ EGM.universes.forEach(function(u){ if(map[u.key]!=null) u.stat=map[u.key]; }); curMode=null; mount(); };
   EGM.refresh=function(){ curMode=null; mount(); };
 
-  function boot(){ var hs=document.getElementById('home-screen'); if(!hs||hs.classList.contains('hidden')) return; mount(); }
+  // ── 살롱지기 admin: EGM.admin 배열 → 토글 패널 자동 생성 (항목 추가 시 자동 버튼) ──
+  EGM.admin = [
+    { icon:'🎯', label:'출제 dashboard', desc:'12카테고리 현황', href:'admin_quiz_dashboard.html' },
+    { icon:'📊', label:'문항 출제빈도', desc:'전체 유저 경험 횟수', href:'admin_question_freq.html' },
+    { icon:'✍', label:'에세이 심사', desc:'응답의 정원 심사', href:'admin.html', badge:'essayBadge' },
+    { icon:'🌱', label:'신규 회원', desc:'새 회원 명단', href:'admin_new_members.html', badge:'newMemberBadge' },
+    { icon:'🏛', label:'헤리티지 현황', desc:'보물·음반·타임즈', href:'admin_heritage_dashboard.html' },
+    { icon:'🌌', label:'콘스텔라티오', desc:'별 관리·정합 체크', href:'admin_constellation_dashboard.html' },
+    { icon:'🗺', label:'EG메종 좌표', desc:'집터 3D 클릭 추출', href:'admin_voyage.html' },
+    { icon:'⭐', label:'star 신청', desc:'준비 중', soon:true }
+  ];
+  function buildAdmin(){
+    var rail=document.getElementById('admin-rail'); if(!rail||rail.__egm) return; rail.__egm=true; rail.innerHTML='';
+    var toggle=document.createElement('button'); toggle.type='button'; toggle.className='egm-adm-toggle'; toggle.innerHTML='<span class="egm-adm-key">🔑</span><span>살롱지기</span>';
+    var panel=document.createElement('div'); panel.className='egm-adm-panel';
+    var head=document.createElement('div'); head.className='egm-adm-head'; head.textContent='SALONNIER'; panel.appendChild(head);
+    (EGM.admin||[]).forEach(function(a){
+      var el; if(a.soon){ el=document.createElement('div'); el.className='egm-adm-btn soon'; } else { el=document.createElement('a'); el.className='egm-adm-btn'; el.href=a.href; }
+      var badge=a.badge?'<span class="ar-badge" id="'+a.badge+'" style="display:none"></span>':'';
+      el.innerHTML='<span class="t">'+(a.icon?esc(a.icon)+' ':'')+esc(a.label)+badge+'</span><span class="d">'+esc(a.desc||'')+'</span>';
+      panel.appendChild(el);
+    });
+    toggle.addEventListener('click',function(){ panel.classList.toggle('open'); });
+    rail.appendChild(toggle); rail.appendChild(panel);
+  }
+  function boot(){ buildAdmin(); var hs=document.getElementById('home-screen'); if(!hs||hs.classList.contains('hidden')) return; mount(); }
   document.addEventListener('DOMContentLoaded', boot);
   window.addEventListener('load', boot);
   var hsEl=document.getElementById('home-screen');
