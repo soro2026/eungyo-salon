@@ -1922,7 +1922,7 @@ html, body {
 }
 .floor-content[data-floor="5"] .f5-scroll::-webkit-scrollbar{ display:none; width:0; height:0; }
 .floor-content[data-floor="5"] .f5-stage{
-  position:relative; width:100%; aspect-ratio:5/9; min-height:100%;
+  position:relative; width:100%; aspect-ratio:941/1672; min-height:100%;
 }
 .floor-content[data-floor="5"] .f5-bgwrap{
   position:absolute; inset:0; z-index:0;
@@ -2162,7 +2162,7 @@ html, body {
 <audio id="elevatorSfx" preload="auto" src="ding_sound.mp3"></audio>
 
 <div class="boot-hint" id="bootHint">우측 하단 ⌖ 황동판으로 층 점프 · 각 층 우측 엘리베이터 ▲▼로 한 층씩 · Ⅰ층 갤러리는 ‹ › 로 벽 회전 · Ⅱ층은 음악실</div>
-<div class="version-badge">shell v5.2 · build 0627g · 5F 페르소나 월(액자뜸) · 3F 책의 방 · 2F 음반 · 1F 갤러리</div>
+<div class="version-badge">shell v5.2 · build 0628a · 5F 페르소나 월(5f_bg01·16칸 표준배치) · 3F 책의 방 · 2F 음반 · 1F 갤러리</div>
 
 <script>
 
@@ -4537,7 +4537,7 @@ const Floor4 = (() => {
  *    f5 접두사로 전역 격리. 4층(Floor4)이 본보기.
  * ============================================================ */
 const Floor5 = (() => {
-  const BG_POOL  = 30;   // 5f_bg01~30 (소로 30장 목표 · 실제 만든 수에 맞춰 조정)
+  const BG_POOL  = 1;    // 5f_bg01 한 장 (소로가 5f_bg02~ 올리면 그 수만큼 늘림)
   const ROOM_CAP = 16;   // 한 방 정원
   let stars = [];        // 그 콩파뇽이 품은 별(액자 보유) 평면 목록
   let rooms = [];        // 방별 묶음 [[star,...], ...]
@@ -4588,7 +4588,7 @@ const Floor5 = (() => {
     const n = bgForRoom(roomIdx);
     const layer = document.createElement('div');
     layer.className = 'f5-bg-layer';
-    layer.style.backgroundImage = `url('4f_bg01.webp')`;  // [임시 디버그] 5f_bg 미존재 → 4층 그림으로 벽 테스트
+    layer.style.backgroundImage = `url('5f_bg${String(n).padStart(2,'0')}.webp')`;  // 5f_bg01~ (BG_POOL 순환)
     layer.style.opacity = animate ? '0' : '1';
     wrap.insertBefore(layer, wrap.firstChild);
     if(animate) requestAnimationFrame(()=>requestAnimationFrame(()=>{ layer.style.opacity = '1'; }));
@@ -4608,18 +4608,33 @@ const Floor5 = (() => {
     tagTimer = setTimeout(()=>tag.classList.remove('on'), 2600);
   }
 
-  // ── 자동 배치(행 없는 별): 방 안 그리드 + seeded 지터 ──
+  // ── 16칸 표준 배치 슬롯 (3층 SHELF_SLOTS 정신 확장) ──
+  //    5f_bg01 중심 빈 벽(가로 28~72%, 세로 등불 아래~마루 위)에 손으로 잡은 좌표.
+  //    품은 순서 1→16번이 좌·우 2열로 위→아래 차곡차곡. 콩파뇽 손 안 대도 셰익스피어 앤 컴퍼니 벽.
+  //    x,y=중심%(translate -50%), w=폭%(높이는 framed 비율 자유), rot=기울기°.
+  const SLOTS = [
+    { x:35, y:25,   w:16, rot:-3   },  //  1  좌
+    { x:63, y:25,   w:15, rot: 2.5 },  //  2  우
+    { x:38, y:33.1, w:17, rot: 2   },  //  3  좌
+    { x:60, y:33.1, w:16, rot:-2   },  //  4  우
+    { x:35, y:41.3, w:16, rot:-2   },  //  5  좌
+    { x:62, y:41.3, w:17, rot: 3   },  //  6  우
+    { x:38, y:49.4, w:17, rot: 2.5 },  //  7  좌
+    { x:61, y:49.4, w:15, rot:-2.5 },  //  8  우
+    { x:36, y:57.6, w:16, rot: 2   },  //  9  좌
+    { x:62, y:57.6, w:17, rot:-1.5 },  // 10  우
+    { x:38, y:65.7, w:17, rot:-2.5 },  // 11  좌
+    { x:60, y:65.7, w:16, rot: 2   },  // 12  우
+    { x:35, y:73.9, w:16, rot: 2   },  // 13  좌
+    { x:62, y:73.9, w:15, rot:-2   },  // 14  우
+    { x:38, y:82,   w:17, rot:-2.5 },  // 15  좌
+    { x:61, y:82,   w:16, rot: 2   },  // 16  우
+  ];
+
+  // ── 자동 배치(행 없는 별): 품은 순서대로 표준 슬롯에 착지 ──
   function autoPlace(star, idxInRoom, nInRoom){
-    const r = mulberry32((star.id>>>0) || 1);
-    const cols = 4;
-    const rows = Math.max(1, Math.ceil(nInRoom/cols));
-    const col = idxInRoom % cols, row = Math.floor(idxInRoom/cols);
-    const cw = 100/cols, ch = 100/rows;
-    const x = cw*(col+0.5) + (r()-0.5)*cw*0.55;
-    const y = ch*(row+0.5) + (r()-0.5)*ch*0.55;
-    const size = lerp(15, 23, r());
-    const rot  = (r()-0.5)*9;
-    return { x:+clamp(x,9,91).toFixed(2), y:+clamp(y,7,93).toFixed(2), size_pct:+size.toFixed(2), rot:+rot.toFixed(2) };
+    const sl = SLOTS[idxInRoom % SLOTS.length];
+    return { x:sl.x, y:sl.y, size_pct:sl.w, rot:sl.rot };
   }
 
   // ── 데이터: 품은 별(액자) + 저장된 배치 ──
