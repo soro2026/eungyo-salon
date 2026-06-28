@@ -90,6 +90,20 @@ body.edit .foot{display:none;}
   text-shadow:0 2px 30px rgba(0,0,0,.9);transition:opacity .4s;text-align:center;}
 .roomtag.on{opacity:1}
 .roomtag small{display:block;font-size:.4em;letter-spacing:.28em;opacity:.7;margin-top:10px}
+.art-zoom{position:fixed;inset:0;z-index:100;background:rgba(8,4,6,.94);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;
+  animation:overlayIn .25s ease;}
+.art-zoom[hidden]{display:none;}
+.art-zoom-img{max-width:96vw;max-height:84vh;object-fit:contain;filter:drop-shadow(0 16px 44px rgba(0,0,0,.75));}
+.art-zoom-x{position:absolute;top:max(16px,calc(env(safe-area-inset-top) + 10px));right:18px;
+  width:42px;height:42px;border-radius:50%;border:1px solid rgba(212,184,120,.5);
+  background:rgba(40,22,18,.82);color:#e9cf9c;font-size:17px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:background .2s;}
+.art-zoom-x:hover{background:rgba(60,36,30,.95);}
+.art-zoom-cap{text-align:center;color:#e9cf9c;font-family:'Cormorant Garamond','Noto Serif KR',serif;}
+.art-zoom-cap b{display:block;font-size:18px;font-weight:600;letter-spacing:.04em;}
+.art-zoom-cap span{display:block;font-size:13px;font-style:italic;opacity:.72;margin-top:3px;}
 
 .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 92px);transform:translateX(-50%);z-index:60;
   background:rgba(20,10,14,.92);border:1px solid rgba(212,184,120,.5);color:#f0d8a8;padding:11px 20px;border-radius:14px;
@@ -254,6 +268,11 @@ body:not(.edit) .plaque:hover{filter:drop-shadow(0 0 10px rgba(240,216,168,.45))
 <button class="nav nav-r" id="next">›</button>
 <div class="roomtag" id="roomtag"></div>
 <div class="toast" id="toast"></div>
+<div class="art-zoom" id="artZoom" hidden onclick="if(event.target===this)closeZoom()">
+  <button class="art-zoom-x" onclick="closeZoom()">✕</button>
+  <img class="art-zoom-img" id="artZoomImg" src="" alt="">
+  <div class="art-zoom-cap" id="artZoomCap"></div>
+</div>
 <div class="curtain" id="curtain">불을 켜는 중…</div>
 
 <!-- 살롱지기 전용 -->
@@ -373,12 +392,8 @@ function buildDots(){ dots.innerHTML=''; ROOMS[ri].works.forEach((_,i)=>{
 const ART_TOP = 44;   // room 기준 %
 function place(){ const rh=room.offsetHeight||1, artHpct=(innerHeight*0.48)/rh*100;
   art.style.width=''; art.style.left='50%'; art.style.top=ART_TOP+'%';
-  // 명패: 작품 오른쪽 가장자리에 우측 정렬, 액자 아래 높이
-  const ih=innerHeight*0.48, nw=artImg.naturalWidth||0, nh=artImg.naturalHeight||0;
-  const artW = nh>0 ? ih*(nw/nh) : innerWidth*0.5, rw=room.offsetWidth||innerWidth;
-  plaque.style.left = (50 + (artW/2)/rw*100) + '%';
-  plaque.style.top  = (ART_TOP + artHpct/2 + 2.6) + '%';
-  plaque.style.transform = 'translate(-100%,0)'; }
+  plaque.style.left='50%'; plaque.style.top=(ART_TOP + artHpct/2 + 2.4)+'%';
+  plaque.style.transform='translate(-50%,-50%)'; }
 // 진입 시 작품을 화면 중앙보다 ENTER_OFFSET 만큼 아래로 (상단 세그먼트·타이틀 회피)
 const ENTER_OFFSET = 62;
 function enterCenter(){ const rh=room.offsetHeight,target=rh*(ART_TOP/100)-scroller.clientHeight/2 - ENTER_OFFSET;
@@ -394,9 +409,8 @@ function render(animate, roomChanged){
   const paint=()=>{
     if(roomChanged){ setBg(); room.style.opacity=1; showRoomTag(); }
     artImg.onerror=()=>{ artImg.src=NOIMG; };
-    artImg.onload=()=>{ place(); };
     artImg.src=w.img||NOIMG; artImg.alt=w.t; ptT.textContent=w.t; ptA.textContent=w.a;
-    place(); rm.textContent=`방 ${ri+1} · ${wi+1} / ${ROOMS[ri].works.length}`;
+    place(); sub.textContent=`${ROOMS[ri].sub}  ·  ${wi+1} / ${ROOMS[ri].works.length}`;
     buildDots(); renderRentBtn();
     art.classList.remove('fade'); plaque.classList.remove('fade');
     setTimeout(()=>enterCenter(),20);
@@ -476,6 +490,7 @@ scroller.addEventListener('scroll',snapCheck,{passive:true});
 art.addEventListener('mousedown',e=>{ if(editMode && !e.target.dataset.h) selectEl('art'); });
 plaque.addEventListener('mousedown',e=>{ if(editMode && !e.target.dataset.h) selectEl('plaque'); });
 plaque.addEventListener('click',e=>{ if(e.target.dataset.h) return; if(e.target.closest('.rent-mini')){ openRentPopup(); return; } openArtLayers(curW()); });
+art.addEventListener('click',e=>{ if(editMode||e.target.dataset.h) return; openZoom(curW()); });
 art.addEventListener('touchstart',e=>{ if(editMode && !e.target.dataset.h) selectEl('art'); },{passive:true});
 plaque.addEventListener('touchstart',e=>{ if(editMode && !e.target.dataset.h) selectEl('plaque'); },{passive:true});
 
@@ -666,6 +681,14 @@ function openRentPopup(){
 }
 function closeRentPopup(){ const p=document.getElementById('rent-popup'); if(p)p.remove(); document.body.style.overflow=''; }
 async function confirmRent(){ closeRentPopup(); await rentCurrent(); }
+
+function openZoom(w){ if(!w) return;
+  const z=document.getElementById('artZoom');
+  document.getElementById('artZoomImg').src = w.img||NOIMG;
+  document.getElementById('artZoomCap').innerHTML = `<b>${escapeHtml(w.t)}</b><span>${escapeHtml(w.a)}</span>`;
+  z.hidden=false; document.body.style.overflow='hidden';
+}
+function closeZoom(){ const z=document.getElementById('artZoom'); if(z)z.hidden=true; document.body.style.overflow=''; }
 
 </script>
 </body>
