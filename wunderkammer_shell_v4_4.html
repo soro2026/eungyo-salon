@@ -295,6 +295,14 @@ html, body {
   color:#f3e8d2; background:linear-gradient(transparent, rgba(0,0,0,0.62)); text-shadow:0 1px 2px #000;
 }
 .floor-content[data-floor="1"] .g1-dp-foot { font-size:12px; color:#a88860; margin-top:12px; line-height:1.5; }
+.floor-content[data-floor="1"] .g1-dp-sliders { display:grid; gap:11px; }
+.floor-content[data-floor="1"] .g1-dp-sliders label { display:grid; grid-template-columns:42px 1fr; align-items:center; gap:10px; font-size:13px; color:#d8c4a0; }
+.floor-content[data-floor="1"] .g1-dp-sliders input[type=range]{ width:100%; accent-color: var(--g1-moulding); }
+.floor-content[data-floor="1"] .g1-dp-save {
+  margin-top:14px; width:100%; padding:11px; font-size:15px; border-radius:22px; cursor:pointer;
+  background:rgba(90,45,60,0.9); color:#f0d8a8; border:1px solid var(--g1-moulding);
+}
+.floor-content[data-floor="1"] .g1-dp-save:hover { background:rgba(110,55,72,0.95); }
 @media (max-width:560px){
   .floor-content[data-floor="1"] .g1-dp-presets { grid-template-columns:repeat(2,1fr); }
 }
@@ -2288,7 +2296,7 @@ html, body {
 <audio id="elevatorSfx" preload="auto" src="ding_sound.mp3"></audio>
 
 <div class="boot-hint" id="bootHint">우측 하단 ⌖ 황동판으로 층 점프 · 각 층 우측 엘리베이터 ▲▼로 한 층씩 · Ⅰ층 갤러리는 ‹ › 로 벽 회전 · Ⅱ층은 음악실</div>
-<div class="version-badge">shell v5.2 · build 0628l · 5F 페르소나 월 · 3F 책의 방 · 2F 음반(순례=서고먼저) · 1F 갤러리(셀프디자인 프리셋8)</div>
+<div class="version-badge">shell v5.2 · build 0628m · 5F 페르소나 월 · 3F 책의 방 · 2F 음반(순례=서고먼저) · 1F 갤러리(셀프디자인 프리셋+슬라이더)</div>
 
 <script>
 
@@ -2451,7 +2459,15 @@ const Floor1 = (() => {
           </div>
           <div class="g1-dp-sect">분위기 고르기</div>
           <div class="g1-dp-presets" id="g1-dp-presets"></div>
-          <div class="g1-dp-foot">프리셋을 누르면 바로 적용·저장돼요. 슬라이더 미세조정은 곧 추가됩니다.</div>
+          <div class="g1-dp-sect" style="margin-top:16px;">벽 미세조정</div>
+          <div class="g1-dp-sliders">
+            <label>색상<input type="range" id="g1-sl-h" min="0" max="360" step="1"></label>
+            <label>밝기<input type="range" id="g1-sl-l" min="10" max="85" step="1"></label>
+            <label>채도<input type="range" id="g1-sl-s" min="0" max="70" step="1"></label>
+            <label>조명<input type="range" id="g1-sl-glow" min="0" max="40" step="1"></label>
+          </div>
+          <button class="g1-dp-save" id="g1-dp-save">이 분위기로 저장</button>
+          <div class="g1-dp-foot">프리셋은 누르면 바로 저장돼요. 슬라이더로 다듬은 뒤엔 ‘이 분위기로 저장’을 눌러주세요.</div>
         </div>
         <button class="pw-toggle" aria-label="인물벽으로 돌아서기">✦ 나의 별들</button>
         <div class="pw-face"><div class="pw-canvas"></div></div>
@@ -2907,10 +2923,35 @@ const Floor1 = (() => {
     });
   }
 
+  // 슬라이더 ↔ 현재 스타일 동기화
+  function syncSliders(){
+    const st = GAL_current || G1_PRESETS[0];
+    const q = id => root && root.querySelector(id);
+    if (q('#g1-sl-h'))    q('#g1-sl-h').value = (st.h != null ? st.h : 347);
+    if (q('#g1-sl-l'))    q('#g1-sl-l').value = (st.l != null ? st.l : 27);
+    if (q('#g1-sl-s'))    q('#g1-sl-s').value = (st.s != null ? st.s : 52);
+    if (q('#g1-sl-glow')) q('#g1-sl-glow').value = Math.round((st.glow != null ? st.glow : 0.18) * 100);
+  }
+
+  // 슬라이더 드래그 → 실시간 미리보기 (바닥값은 보존)
+  function onSlider(){
+    const base = GAL_current ? Object.assign({}, GAL_current) : Object.assign({}, G1_PRESETS[0]);
+    const q = id => root.querySelector(id);
+    base.h    = +q('#g1-sl-h').value;
+    base.l    = +q('#g1-sl-l').value;
+    base.s    = +q('#g1-sl-s').value;
+    base.glow = +q('#g1-sl-glow').value / 100;
+    GAL_current = base;
+    applyStyleObj(base);
+    const wrap = root.querySelector('#g1-dp-presets');   // 손대면 프리셋 금테 풀기
+    if (wrap) wrap.querySelectorAll('.g1-dp-chip').forEach(x => x.classList.remove('sel'));
+  }
+
   function openDesignPanel(){
     const p = root && root.querySelector('#g1-design-panel');
     if (!p) return;
     renderPresetChips();
+    syncSliders();
     p.hidden = false;
   }
   function closeDesignPanel(){
@@ -2990,6 +3031,16 @@ const Floor1 = (() => {
     if (dBtn) dBtn.addEventListener('click', openDesignPanel);
     const dX = root.querySelector('#g1-dp-x');
     if (dX) dX.addEventListener('click', closeDesignPanel);
+    ['#g1-sl-h','#g1-sl-l','#g1-sl-s','#g1-sl-glow'].forEach(id => {
+      const el = root.querySelector(id);
+      if (el) el.addEventListener('input', onSlider);
+    });
+    const dSave = root.querySelector('#g1-dp-save');
+    if (dSave) dSave.addEventListener('click', () => {
+      if (GAL_current) saveGalleryStyle(GAL_current);
+      dSave.textContent = '저장됐어요 ✓';
+      setTimeout(() => { dSave.textContent = '이 분위기로 저장'; }, 1400);
+    });
     // 회전(transform transition)이 끝날 때마다 핫스팟을 새 정면 벽 위치로 재배치
     const worldEl = root.querySelector('#g1-world');
     if (worldEl) worldEl.addEventListener('transitionend', (e) => { if (e.propertyName === 'transform') buildHotspots(); });
