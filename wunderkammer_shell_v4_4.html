@@ -2205,7 +2205,7 @@ html, body {
 <audio id="elevatorSfx" preload="auto" src="ding_sound.mp3"></audio>
 
 <div class="boot-hint" id="bootHint">우측 하단 ⌖ 황동판으로 층 점프 · 각 층 우측 엘리베이터 ▲▼로 한 층씩 · Ⅰ층 갤러리는 ‹ › 로 벽 회전 · Ⅱ층은 음악실</div>
-<div class="version-badge">shell v5.2 · build 0628h · 5F 페르소나 월 · 3F 책의 방 · 2F 음반(순례=서고먼저) · 1F 갤러리</div>
+<div class="version-badge">shell v5.2 · build 0628i · 5F 페르소나 월 · 3F 책의 방 · 2F 음반(순례=서고먼저) · 1F 갤러리(헌화 주1회)</div>
 
 <script>
 
@@ -2492,10 +2492,17 @@ const Floor1 = (() => {
     m.querySelector('.mw-save').onclick = async () => {
       const text = m.querySelector('#mw-fbody').value.trim();
       try {
-        await sbFetch('/rest/v1/rpc/leave_flower', { method:'POST',
+        const res = await sbFetch('/rest/v1/rpc/leave_flower', { method:'POST',
           body: JSON.stringify({ p_room_owner: MW_ownerId, p_text: text||null }) });
         closeMwModal(); await refreshMessageWall();
-      } catch(e){ alert(e.message); }   // '이번 주 꽃 먼저'·'꽃 떨어짐'·'자기 방' 등 RPC 안내
+        const left = (res && typeof res.left === 'number') ? res.left : -1;   // RPC가 남은 꽃 수 반환
+        showToast(left === 0 ? '🌸 이번 주 마지막 꽃을 두고 갑니다'
+                : left > 0  ? `🌸 꽃을 두고 갑니다 · 이번 주 남은 꽃 ${left}송이`
+                :             '🌸 꽃을 두고 갑니다');
+      } catch(e){
+        closeMwModal();
+        showToast(e.message || '잠시 후 다시 시도해 주세요');   // '이미 뒀어요'·'꽃 먼저'·'꽃 떨어짐'·'자기 방' 등 RPC 안내
+      }
     };
   }
 
