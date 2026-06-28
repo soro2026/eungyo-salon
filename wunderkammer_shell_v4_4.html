@@ -285,6 +285,7 @@ html, body {
 .floor-content[data-floor="1"] .g1-dp-x { background:transparent; border:none; color:#c0a070; font-size:22px; cursor:pointer; line-height:1; }
 .floor-content[data-floor="1"] .g1-dp-sect { font-size:12px; color:#c0a070; letter-spacing:1px; margin:6px 0 10px; }
 .floor-content[data-floor="1"] .g1-dp-presets { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; }
+.floor-content[data-floor="1"] .g1-dp-floors { display:grid; grid-template-columns:repeat(6,1fr); gap:8px; }
 .floor-content[data-floor="1"] .g1-dp-chip {
   aspect-ratio: 3/2; border-radius:8px; cursor:pointer; position:relative; overflow:hidden;
   border:2px solid transparent; padding:0;
@@ -305,6 +306,7 @@ html, body {
 .floor-content[data-floor="1"] .g1-dp-save:hover { background:rgba(110,55,72,0.95); }
 @media (max-width:560px){
   .floor-content[data-floor="1"] .g1-dp-presets { grid-template-columns:repeat(2,1fr); }
+  .floor-content[data-floor="1"] .g1-dp-floors { grid-template-columns:repeat(3,1fr); }
 }
 /* 메시지 보드 모달 (글귀 쓰기 / 헌화) */
 .mw-modal {
@@ -2296,7 +2298,7 @@ html, body {
 <audio id="elevatorSfx" preload="auto" src="ding_sound.mp3"></audio>
 
 <div class="boot-hint" id="bootHint">우측 하단 ⌖ 황동판으로 층 점프 · 각 층 우측 엘리베이터 ▲▼로 한 층씩 · Ⅰ층 갤러리는 ‹ › 로 벽 회전 · Ⅱ층은 음악실</div>
-<div class="version-badge">shell v5.2 · build 0628m · 5F 페르소나 월 · 3F 책의 방 · 2F 음반(순례=서고먼저) · 1F 갤러리(셀프디자인 프리셋+슬라이더)</div>
+<div class="version-badge">shell v5.2 · build 0628n · 5F 페르소나 월 · 3F 책의 방 · 2F 음반(순례=서고먼저) · 1F 갤러리(셀프디자인 완성)</div>
 
 <script>
 
@@ -2465,6 +2467,11 @@ const Floor1 = (() => {
             <label>밝기<input type="range" id="g1-sl-l" min="10" max="85" step="1"></label>
             <label>채도<input type="range" id="g1-sl-s" min="0" max="70" step="1"></label>
             <label>조명<input type="range" id="g1-sl-glow" min="0" max="40" step="1"></label>
+          </div>
+          <div class="g1-dp-sect" style="margin-top:16px;">바닥</div>
+          <div class="g1-dp-floors" id="g1-dp-floors"></div>
+          <div class="g1-dp-sliders" style="margin-top:11px;">
+            <label>색조<input type="range" id="g1-sl-fll" min="10" max="80" step="1"></label>
           </div>
           <button class="g1-dp-save" id="g1-dp-save">이 분위기로 저장</button>
           <div class="g1-dp-foot">프리셋은 누르면 바로 저장돼요. 슬라이더로 다듬은 뒤엔 ‘이 분위기로 저장’을 눌러주세요.</div>
@@ -2923,6 +2930,47 @@ const Floor1 = (() => {
     });
   }
 
+  // 바닥 패턴 6
+  const G1_FLOORS = [
+    { key:'herringbone', name:'헤링본' },
+    { key:'checker',     name:'체커' },
+    { key:'wood',        name:'우드' },
+    { key:'stripe',      name:'스트라이프' },
+    { key:'terrazzo',    name:'테라초' },
+    { key:'plain',       name:'민무늬' },
+  ];
+
+  function renderFloorChips(){
+    const wrap = root && root.querySelector('#g1-dp-floors');
+    if (!wrap) return;
+    const st = GAL_current || G1_PRESETS[0];
+    const flh = st.flh!=null?st.flh:28, fls = st.fls!=null?st.fls:42, fll = st.fll!=null?st.fll:25;
+    const cur = st.floor || 'herringbone';
+    const dk = `hsl(${flh} ${fls}% ${fll}%)`, li = `hsl(${flh} ${fls}% ${fll+4}%)`, dd = `hsl(${flh} ${fls}% ${Math.max(0,fll-8)}%)`;
+    wrap.innerHTML = '';
+    G1_FLOORS.forEach(f => {
+      const c = document.createElement('button');
+      c.className = 'g1-dp-chip' + (f.key===cur ? ' sel' : '');
+      if (f.key==='herringbone') c.style.background = `repeating-linear-gradient(45deg, ${dk} 0 7px, ${li} 7px 14px)`;
+      else if (f.key==='checker'){ c.style.background = `conic-gradient(${li} 90deg, ${dk} 90deg 180deg, ${li} 180deg 270deg, ${dk} 270deg)`; c.style.backgroundSize='18px 18px'; }
+      else if (f.key==='wood') c.style.background = `repeating-linear-gradient(90deg, rgba(0,0,0,.4) 0 1px, transparent 1px 22px), repeating-linear-gradient(0deg, ${li} 0 10px, ${dk} 10px 12px)`;
+      else if (f.key==='stripe') c.style.background = `repeating-linear-gradient(0deg, ${li} 0 8px, ${dk} 8px 11px)`;
+      else if (f.key==='terrazzo'){ c.style.backgroundColor = dk; c.style.backgroundImage = `radial-gradient(circle at 30% 35%, ${li} 0 2px, transparent 3px), radial-gradient(circle at 72% 62%, ${dd} 0 2px, transparent 3px), radial-gradient(circle at 50% 80%, ${li} 0 1.5px, transparent 3px)`; c.style.backgroundSize='22px 22px'; }
+      else c.style.background = `radial-gradient(ellipse at 50% 40%, ${li}, ${dk})`;
+      c.innerHTML = `<span>${f.name}</span>`;
+      c.addEventListener('click', () => {
+        const base = GAL_current ? Object.assign({}, GAL_current) : Object.assign({}, G1_PRESETS[0]);
+        base.floor = f.key; GAL_current = base;
+        applyStyleObj(base);
+        wrap.querySelectorAll('.g1-dp-chip').forEach(x => x.classList.remove('sel'));
+        c.classList.add('sel');
+        const pw = root.querySelector('#g1-dp-presets');
+        if (pw) pw.querySelectorAll('.g1-dp-chip').forEach(x => x.classList.remove('sel'));
+      });
+      wrap.appendChild(c);
+    });
+  }
+
   // 슬라이더 ↔ 현재 스타일 동기화
   function syncSliders(){
     const st = GAL_current || G1_PRESETS[0];
@@ -2931,6 +2979,7 @@ const Floor1 = (() => {
     if (q('#g1-sl-l'))    q('#g1-sl-l').value = (st.l != null ? st.l : 27);
     if (q('#g1-sl-s'))    q('#g1-sl-s').value = (st.s != null ? st.s : 52);
     if (q('#g1-sl-glow')) q('#g1-sl-glow').value = Math.round((st.glow != null ? st.glow : 0.18) * 100);
+    if (q('#g1-sl-fll'))  q('#g1-sl-fll').value = (st.fll != null ? st.fll : 25);
   }
 
   // 슬라이더 드래그 → 실시간 미리보기 (바닥값은 보존)
@@ -2941,8 +2990,10 @@ const Floor1 = (() => {
     base.l    = +q('#g1-sl-l').value;
     base.s    = +q('#g1-sl-s').value;
     base.glow = +q('#g1-sl-glow').value / 100;
+    if (q('#g1-sl-fll')) base.fll = +q('#g1-sl-fll').value;
     GAL_current = base;
     applyStyleObj(base);
+    renderFloorChips();   // 바닥 색조 바뀌면 칩 미리보기도 갱신
     const wrap = root.querySelector('#g1-dp-presets');   // 손대면 프리셋 금테 풀기
     if (wrap) wrap.querySelectorAll('.g1-dp-chip').forEach(x => x.classList.remove('sel'));
   }
@@ -2951,6 +3002,7 @@ const Floor1 = (() => {
     const p = root && root.querySelector('#g1-design-panel');
     if (!p) return;
     renderPresetChips();
+    renderFloorChips();
     syncSliders();
     p.hidden = false;
   }
@@ -3031,7 +3083,7 @@ const Floor1 = (() => {
     if (dBtn) dBtn.addEventListener('click', openDesignPanel);
     const dX = root.querySelector('#g1-dp-x');
     if (dX) dX.addEventListener('click', closeDesignPanel);
-    ['#g1-sl-h','#g1-sl-l','#g1-sl-s','#g1-sl-glow'].forEach(id => {
+    ['#g1-sl-h','#g1-sl-l','#g1-sl-s','#g1-sl-glow','#g1-sl-fll'].forEach(id => {
       const el = root.querySelector(id);
       if (el) el.addEventListener('input', onSlider);
     });
