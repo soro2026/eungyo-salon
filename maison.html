@@ -331,6 +331,34 @@
   }
   #doorTour{color:#f3e6c4;border-color:rgba(201,162,39,.5)}
   #doorTour:hover,#doorExit:hover{color:#fff;border-color:rgba(243,230,196,.7)}
+  #doorPick{color:#f3e6c4;border-color:rgba(201,162,39,.5)}
+  #doorPick:hover{color:#fff;border-color:rgba(243,230,196,.7)}
+  /* 내 대문 고르기 모달 */
+  #doorPicker{position:fixed;inset:0;z-index:62;display:none}
+  #doorPicker.in{display:block}
+  #dpBackdrop{position:absolute;inset:0;background:rgba(0,0,0,.62);backdrop-filter:blur(4px)}
+  #dpPanel{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:min(760px,92vw);max-height:86vh;display:flex;flex-direction:column;
+    background:#0e1424;border:1px solid rgba(201,162,39,.3);border-radius:16px;
+    box-shadow:0 20px 60px rgba(0,0,0,.6);overflow:hidden;
+  }
+  #dpHead{display:flex;align-items:center;justify-content:space-between;
+    padding:15px 20px;border-bottom:1px solid rgba(255,255,255,.07)}
+  #dpTitle{font-family:var(--serif);font-size:18px;color:var(--cream);letter-spacing:.02em}
+  #dpClose{cursor:pointer;width:30px;height:30px;border:0;border-radius:50%;
+    background:rgba(201,162,39,.1);color:var(--cream-dim);font-size:18px;line-height:1;
+    transition:color .2s,background .2s}
+  #dpClose:hover{color:var(--gold);background:rgba(201,162,39,.2)}
+  #dpGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:12px;
+    padding:18px 20px;overflow-y:auto}
+  .dp-cell{cursor:pointer;border-radius:10px;overflow:hidden;border:2px solid transparent;
+    background:#000;aspect-ratio:16/9;position:relative;transition:border-color .2s,transform .15s}
+  .dp-cell:hover{transform:translateY(-2px)}
+  .dp-cell img{width:100%;height:100%;object-fit:cover;display:block}
+  .dp-cell.sel{border-color:var(--gold)}
+  .dp-cell .dp-no{position:absolute;left:6px;bottom:5px;font-size:10px;color:rgba(255,255,255,.85);
+    background:rgba(0,0,0,.5);border-radius:4px;padding:1px 5px;font-family:monospace}
   /* 분더카머 투어 — 우측 슬라이드 패널 */
   #tourBackdrop{
     position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.5);backdrop-filter:blur(3px);
@@ -465,16 +493,29 @@
   <div id="doorTitle"></div>
   <div id="doorHint">대문을 클릭해 들어가세요</div>
   <div id="doorActions">
+    <button id="doorPick" style="display:none">✎ 대문 고르기</button>
     <button id="doorTour">🚪 다른 콩파뇽</button>
     <button id="doorExit">× 분더카머 떠나기</button>
   </div>
   <audio id="doorSound" src="maison_door_open.mp3" preload="auto"></audio>
 </div>
 
+<!-- 내 대문 고르기 (본인 집에서만) -->
+<div id="doorPicker">
+  <div id="dpBackdrop"></div>
+  <div id="dpPanel">
+    <div id="dpHead">
+      <span id="dpTitle">내 대문 고르기</span>
+      <button id="dpClose" aria-label="닫기">×</button>
+    </div>
+    <div id="dpGrid"></div>
+  </div>
+</div>
+
 <!-- 분더카머 투어 — 우측 슬라이드 패널 (배경 흐림) -->
 <div id="tourBackdrop"></div>
 <div id="tourPanel"><iframe id="tourFrame" title="다른 콩파뇽 찾기"></iframe></div>
-<div style="position:fixed;left:8px;bottom:6px;z-index:70;font-size:9px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.5px;pointer-events:none">maison 0628a</div>
+<div style="position:fixed;left:8px;bottom:6px;z-index:70;font-size:9px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.5px;pointer-events:none">maison 0628b</div>
 
 <script>
 // ── 분더카머로 떠나는 비행: 제트음 (자동재생 막히면 조용히 폴백) ──
@@ -1084,6 +1125,7 @@ function enterMaison(m){
   const dw = document.getElementById("doorway");
   document.getElementById("doorTitle").textContent = m.nickname || ("메종 " + m.maison_no);
   applyDoorImage(m);
+  refreshDoorPickBtn(m);
   document.getElementById("doorFrame").src = "about:blank";
   dw.classList.remove("open");
   dw.classList.add("in");
@@ -1335,6 +1377,46 @@ function bindDoorEvents(){
   const ex = document.getElementById("doorExit"); if (ex) ex.addEventListener("click", exitDoorway);
   const tb = document.getElementById("doorTour"); if (tb) tb.addEventListener("click", openTourPanel);
   const bd = document.getElementById("tourBackdrop"); if (bd) bd.addEventListener("click", closeTourPanel);
+  const pk = document.getElementById("doorPick"); if (pk) pk.addEventListener("click", openDoorPicker);
+  const dc = document.getElementById("dpClose"); if (dc) dc.addEventListener("click", closeDoorPicker);
+  const db = document.getElementById("dpBackdrop"); if (db) db.addEventListener("click", closeDoorPicker);
+}
+
+// ── 내 대문 고르기 (본인 집에서만) ──────────────────────────────
+// 본인 집이면 "✎ 대문 고르기" 노출, 남의 집·빈집이면 숨김.
+function refreshDoorPickBtn(m){
+  const btn = document.getElementById('doorPick'); if (!btn) return;
+  btn.style.display = 'none';
+  if (!m || !m.occupant_id) return;
+  getMyUid().then(uid => { btn.style.display = (uid && m.occupant_id === uid) ? '' : 'none'; });
+}
+function openDoorPicker(){
+  const grid = document.getElementById('dpGrid'); if (!grid) return;
+  const cur = parseInt(currentMaison && currentMaison.door_no, 10);
+  const curN = (cur >= 1 && cur <= 30) ? cur : 1;
+  let html = '';
+  for (let i = 1; i <= 30; i++){
+    const nn = String(i).padStart(2,'0');
+    html += `<div class="dp-cell${i===curN?' sel':''}" data-n="${i}">`
+          + `<img src="maison_door${nn}.webp" alt="대문 ${i}" loading="lazy">`
+          + `<span class="dp-no">${nn}</span></div>`;
+  }
+  grid.innerHTML = html;
+  grid.querySelectorAll('.dp-cell').forEach(c =>
+    c.addEventListener('click', ()=> pickDoor(parseInt(c.dataset.n,10))));
+  document.getElementById('doorPicker').classList.add('in');
+}
+function closeDoorPicker(){ const p=document.getElementById('doorPicker'); if(p) p.classList.remove('in'); }
+async function pickDoor(n){
+  if (!(n >= 1 && n <= 30)) return;
+  if (currentMaison) currentMaison.door_no = n;          // 즉시 반영(낙관적)
+  applyDoorImage(currentMaison || { door_no:n });
+  closeDoorPicker();
+  try {
+    const uid = await getMyUid(); if (!uid) return;
+    const { error } = await supa.from('wunderkammer').update({ door_no:n }).eq('user_id', uid);  // RLS: 본인만
+    if (error) console.warn('대문 저장 실패', error);
+  } catch(e){ console.warn('대문 저장 예외', e); }
 }
 
 // 투어 패널 (우측 슬라이드 + 배경 흐림)
@@ -1384,6 +1466,7 @@ function enterMaisonLite(m){
   const dw = document.getElementById("doorway");
   document.getElementById("doorTitle").textContent = m.nickname || ("메종 " + m.maison_no);
   applyDoorImage(m);
+  refreshDoorPickBtn(m);
   document.getElementById("doorFrame").src = "about:blank";
   dw.classList.remove("open"); dw.classList.add("in");
   doorState = 'closed';
