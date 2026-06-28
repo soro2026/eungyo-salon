@@ -2205,7 +2205,7 @@ html, body {
 <audio id="elevatorSfx" preload="auto" src="ding_sound.mp3"></audio>
 
 <div class="boot-hint" id="bootHint">우측 하단 ⌖ 황동판으로 층 점프 · 각 층 우측 엘리베이터 ▲▼로 한 층씩 · Ⅰ층 갤러리는 ‹ › 로 벽 회전 · Ⅱ층은 음악실</div>
-<div class="version-badge">shell v5.2 · build 0628g · 5F 페르소나 월 · 3F 책의 방 · 2F 음반(순례=서고먼저) · 1F 갤러리</div>
+<div class="version-badge">shell v5.2 · build 0628h · 5F 페르소나 월 · 3F 책의 방 · 2F 음반(순례=서고먼저) · 1F 갤러리</div>
 
 <script>
 
@@ -3096,6 +3096,9 @@ function playSfx() {
 function goToFloor(target) {
   if (transitioning) return;
   if (target < 1 || target > 5 || target === currentFloor) return;
+  // 층 이동 시 음반서고 모달이 떠 있으면 닫는다 (다른 층까지 따라다니는 것 방지)
+  { const lm = document.getElementById('library-modal');
+    if (lm && lm.classList.contains('open') && window.Library) Library.close(); }
   transitioning = true;
   if (bootHint) bootHint.style.opacity = '0';
 
@@ -3137,11 +3140,20 @@ function goToFloor(target) {
  *  → 자켓 한 장 고르면 기존 동선(close→play)으로 감상실 도킹.
  *  세션 1회 플래그(pilgrimLibAuto)로 재진입·자켓픽 후엔 다시 안 뜸.            */
 let pilgrimLibAuto = false;
-function maybeAutoLibrary(){
+async function maybeAutoLibrary(){
   if (currentFloor !== 2) return;
   const qUser = new URLSearchParams(location.search).get('user');
-  if (!qUser) return;            // 본인 = 감상실 직행
+  if (!qUser) return;            // ?user= 없음(순수 본인) = 감상실 직행
   if (pilgrimLibAuto) return;    // 순례 세션 1회만
+  // ?user= 가 내 닉이면(자기 집을 ?user=내닉 으로 들어온 경우) 서고 자동 안 열기 → 감상실 직행
+  const me = getUser()?.id || null;
+  if (me) {
+    try {
+      const u = await sbFetch(`/rest/v1/users?nickname=eq.${encodeURIComponent(qUser)}&select=id`);
+      if ((u?.[0]?.id || null) === me) return;   // 내 집
+    } catch(e){ /* 조회 실패 시엔 아래로 진행(기존 동작) */ }
+  }
+  if (currentFloor !== 2) return;   // await 사이 층이 바뀌었으면 취소
   pilgrimLibAuto = true;
   if (window.Library) Library.open();
 }
