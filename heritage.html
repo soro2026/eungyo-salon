@@ -269,7 +269,7 @@ const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
 const RAW = 'https://raw.githubusercontent.com/soro2026/eungyo-salon/main/';
 const SORO_UID = '81ac3dfa-0d44-4ab9-84bf-d630321b0bad';
 
-const BGS = ['gallery_bg_02.webp','gallery_bg_03.webp','gallery_bg_04.webp'];
+const BGS = ['room_1.webp','room_2.webp','room_3.webp','room_4.webp','room_5.webp','room_6.webp','room_7.webp','room_8.webp'];
 // 작품 이미지 미입고(빈 img 또는 404 webp) 시 보여줄 플레이스홀더
 const NOIMG = 'data:image/svg+xml,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="440" height="560">' +
@@ -283,6 +283,11 @@ const ROOM_META = [
   { tag:'SALA ROSSA',    tagk:'진홍의 방' },
   { tag:'SALA VERDE',    tagk:'숲의 방' },
   { tag:'SALA NOTTURNA', tagk:'한밤의 방' },
+  { tag:'SALA AMBRA',    tagk:'호박의 방' },
+  { tag:'SALA AMETISTA', tagk:'자수정의 방' },
+  { tag:'SALA BRONZO',   tagk:'청동의 방' },
+  { tag:'SALA SALVIA',   tagk:'세이지의 방' },
+  { tag:'SALA PERLA',    tagk:'진주의 방' },
 ];
 const FALLBACK = {
   portrait:  { x:50, y:42, size:30, px:50, py:56, psize:100 },
@@ -316,7 +321,7 @@ async function loadGalerie(){
   try { await sbFetch('/rest/v1/rpc/open_due_treasures', { method:'POST', body:'{}' }); }
   catch(e){ /* 개봉 실패는 조용히 — 기존 active 보물 표시는 계속 */ }
   const items = await sbFetch('/rest/v1/heritage_items?category=eq.visual'
-    + (isSalonKeeper() ? '' : '&status=eq.active')   // 살롱지기는 미공개(standby)까지 전체, 일반 유저는 active만
+    + '&status=eq.active'   // 0629: 살롱지기 standby 미리보기 제거 — 모두 active만 봄
     + '&select=id,name,artist,img,ratio,wk_id,salle_no,status,art_layout,layers,curation_links'
     + '&order=wk_id.desc,salle_no.asc') || [];
   const byWk={}, order=[];
@@ -328,26 +333,16 @@ async function loadGalerie(){
       x:lay.x, y:lay.y, size:lay.size, px:lay.px, py:lay.py, psize:lay.psize,
       layers:it.layers||null, curation_links:it.curation_links||null };
   };
-  // 공개 중(active) 방을 먼저, 미공개 예정(standby) 방은 뒤에 고정 배경으로 분리한다.
-  // 일반 유저는 애초에 standby가 안 오므로(쿼리 필터) 영향 없음. 살롱지기만 미공개 예정실을 본다.
-  const STANDBY_BG = BGS[0];   // 미공개 예정실 고정 배경 (전용 배경 생기면 교체)
-  const activeWks  = order.filter(wk => byWk[wk][0].status === 'active');
-  const standbyWks = order.filter(wk => byWk[wk][0].status !== 'active').sort();   // 가까운 미래(작은 wk)부터
-  ROOMS = [
-    ...activeWks.map((wk, idx)=>({
-      wk, standby:false, bg: BGS[idx % BGS.length],
-      tag:  ROOM_META[idx % ROOM_META.length].tag,
-      tagk: ROOM_META[idx % ROOM_META.length].tagk,
-      sub:  `ÉTAGE ${idx+1} · ${ROOM_META[idx % ROOM_META.length].tag} · ${ROOM_META[idx % ROOM_META.length].tagk}`,
-      works: byWk[wk].map(mapWork)
-    })),
-    ...standbyWks.map((wk)=>({
-      wk, standby:true, bg: STANDBY_BG,
-      tag:'À VENIR', tagk:'미공개 예정',
-      sub:  `🔒 미공개 예정 · ${wk}`,
-      works: byWk[wk].map(mapWork)
-    }))
-  ];
+  // 0629: standby 미리보기 제거 + 5방 고정 진열.
+  // order = wk_id.desc(최신 먼저) → idx 0 = 1번방(최신 주차) … 작품은 주차 따라 뒤로 밀리고,
+  // 방(배경·이름)은 번호에 고정. 다음 주차가 들어오면 자동으로 1번방, 나머지는 한 칸씩 뒤로.
+  ROOMS = order.map((wk, idx)=>({
+    wk, standby:false, bg: BGS[idx % BGS.length],
+    tag:  ROOM_META[idx % ROOM_META.length].tag,
+    tagk: ROOM_META[idx % ROOM_META.length].tagk,
+    sub:  `ÉTAGE ${idx+1} · ${ROOM_META[idx % ROOM_META.length].tag} · ${ROOM_META[idx % ROOM_META.length].tagk}`,
+    works: byWk[wk].map(mapWork)
+  }));
 }
 async function loadMyRents(){
   const user=getUser(); if(!user){ MY_RENTS=new Set(); return; }
