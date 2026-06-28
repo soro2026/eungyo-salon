@@ -319,11 +319,12 @@
   }
   #doorway.open #doorHint{ opacity:0;animation:none; }
   #doorway.open #doorPick{ display:none; }   /* 입장(문 열림) 후엔 대문 고르기 숨김 */
+  #doorway.open #elevPick{ display:none; }   /* 입장 후엔 엘리베이터 고르기도 숨김 */
   @keyframes doorPulse{ 0%,100%{opacity:.5} 50%{opacity:.95} }
   #doorActions{
     position:absolute;top:20px;right:24px;z-index:5;display:flex;gap:9px;
   }
-  #doorTour,#doorExit,#doorPick{
+  #doorTour,#doorExit,#doorPick,#elevPick{
     cursor:pointer;
     font-family:var(--sans);font-size:13px;letter-spacing:.04em;color:#f3e6c4;
     border:1px solid rgba(243,230,196,.35);border-radius:999px;
@@ -335,6 +336,8 @@
   #doorTour:hover,#doorExit:hover{color:#fff;border-color:rgba(243,230,196,.7)}
   #doorPick{color:#f3e6c4;border-color:rgba(201,162,39,.5)}
   #doorPick:hover{color:#fff;border-color:rgba(243,230,196,.7)}
+  #elevPick{color:#f3e6c4;border-color:rgba(201,162,39,.5)}
+  #elevPick:hover{color:#fff;border-color:rgba(243,230,196,.7)}
   /* 내 대문 고르기 모달 */
   #doorPicker{position:fixed;inset:0;z-index:62;display:none}
   #doorPicker.in{display:block}
@@ -496,6 +499,7 @@
   <div id="doorHint">대문을 클릭해 들어가세요</div>
   <div id="doorActions">
     <button id="doorPick" style="display:none">✎ 대문 고르기</button>
+    <button id="elevPick" style="display:none">✎ 엘리베이터 고르기</button>
     <button id="doorTour">🚪 다른 콩파뇽</button>
     <button id="doorExit">× 분더카머 떠나기</button>
   </div>
@@ -517,7 +521,7 @@
 <!-- 분더카머 투어 — 우측 슬라이드 패널 (배경 흐림) -->
 <div id="tourBackdrop"></div>
 <div id="tourPanel"><iframe id="tourFrame" title="다른 콩파뇽 찾기"></iframe></div>
-<div style="position:fixed;left:8px;bottom:6px;z-index:70;font-size:9px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.5px;pointer-events:none">maison 0628d</div>
+<div style="position:fixed;left:8px;bottom:6px;z-index:70;font-size:9px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.5px;pointer-events:none">maison 0628e</div>
 
 <script>
 // ── 분더카머로 떠나는 비행: 제트음 (자동재생 막히면 조용히 폴백) ──
@@ -1380,6 +1384,7 @@ function bindDoorEvents(){
   const tb = document.getElementById("doorTour"); if (tb) tb.addEventListener("click", openTourPanel);
   const bd = document.getElementById("tourBackdrop"); if (bd) bd.addEventListener("click", closeTourPanel);
   const pk = document.getElementById("doorPick"); if (pk) pk.addEventListener("click", openDoorPicker);
+  const ek = document.getElementById("elevPick"); if (ek) ek.addEventListener("click", openElevPicker);
   const dc = document.getElementById("dpClose"); if (dc) dc.addEventListener("click", closeDoorPicker);
   const db = document.getElementById("dpBackdrop"); if (db) db.addEventListener("click", closeDoorPicker);
 }
@@ -1387,13 +1392,20 @@ function bindDoorEvents(){
 // ── 내 대문 고르기 (본인 집에서만) ──────────────────────────────
 // 본인 집이면 "✎ 대문 고르기" 노출, 남의 집·빈집이면 숨김.
 function refreshDoorPickBtn(m){
-  const btn = document.getElementById('doorPick'); if (!btn) return;
-  btn.style.display = 'none';
+  const dBtn = document.getElementById('doorPick');
+  const eBtn = document.getElementById('elevPick');
+  if (dBtn) dBtn.style.display = 'none';
+  if (eBtn) eBtn.style.display = 'none';
   if (!m || !m.occupant_id) return;
-  getMyUid().then(uid => { btn.style.display = (uid && m.occupant_id === uid) ? '' : 'none'; });
+  getMyUid().then(uid => {
+    const mine = !!(uid && m.occupant_id === uid);   // 본인 집에서만 두 버튼 노출
+    if (dBtn) dBtn.style.display = mine ? '' : 'none';
+    if (eBtn) eBtn.style.display = mine ? '' : 'none';
+  });
 }
 function openDoorPicker(){
   const grid = document.getElementById('dpGrid'); if (!grid) return;
+  const t = document.getElementById('dpTitle'); if (t) t.textContent = '내 대문 고르기';
   const cur = parseInt(currentMaison && currentMaison.door_no, 10);
   const curN = (cur >= 1 && cur <= 30) ? cur : 1;
   let html = '';
@@ -1419,6 +1431,37 @@ async function pickDoor(n){
     const { error } = await supa.from('wunderkammer').update({ door_no:n }).eq('user_id', uid);  // RLS: 본인만
     if (error) console.warn('대문 저장 실패', error);
   } catch(e){ console.warn('대문 저장 예외', e); }
+}
+
+// ── 내 엘리베이터 고르기 (본인 집에서만 · 대문과 같은 모달 공유) ──────────
+// 현관엔 엘리베이터 실물이 없으므로 즉시 시각 반영은 그리드 금테로만,
+// 저장 후 분더카머에 들어가면 셸이 elevator_no 로 문을 표시한다.
+function openElevPicker(){
+  const grid = document.getElementById('dpGrid'); if (!grid) return;
+  const t = document.getElementById('dpTitle'); if (t) t.textContent = '내 엘리베이터 고르기';
+  const cur = parseInt(currentMaison && currentMaison.elevator_no, 10);
+  const curN = (cur >= 1 && cur <= 30) ? cur : 1;
+  let html = '';
+  for (let i = 1; i <= 30; i++){
+    const nn = String(i).padStart(2,'0');
+    html += `<div class="dp-cell${i===curN?' sel':''}" data-n="${i}">`
+          + `<img src="elevator_${nn}.webp" alt="엘리베이터 ${i}" loading="lazy">`
+          + `<span class="dp-no">${nn}</span></div>`;
+  }
+  grid.innerHTML = html;
+  grid.querySelectorAll('.dp-cell').forEach(c =>
+    c.addEventListener('click', ()=> pickElevator(parseInt(c.dataset.n,10))));
+  document.getElementById('doorPicker').classList.add('in');
+}
+async function pickElevator(n){
+  if (!(n >= 1 && n <= 30)) return;
+  if (currentMaison) currentMaison.elevator_no = n;     // 즉시 반영(낙관적)
+  closeDoorPicker();
+  try {
+    const uid = await getMyUid(); if (!uid) return;
+    const { error } = await supa.from('wunderkammer').update({ elevator_no:n }).eq('user_id', uid);  // RLS: 본인만
+    if (error) console.warn('엘리베이터 저장 실패', error);
+  } catch(e){ console.warn('엘리베이터 저장 예외', e); }
 }
 
 // 투어 패널 (우측 슬라이드 + 배경 흐림)
