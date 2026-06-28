@@ -196,6 +196,8 @@
     <h1>헤리티지 운영 현황판<span class="sub">EG HERITAGE · 살롱지기 전용</span></h1>
     <button class="refresh" onclick="load()">↻ 새로고침</button>
     <button class="intake-open" onclick="openIntake()">🖼 보물 입고</button>
+    <button class="intake-open" id="treasure-btn" onclick="document.getElementById('treasure-file').click()" style="background:#4a3a1a;border-color:#7a5a2a">🎨 액자 올리기</button>
+    <input type="file" id="treasure-file" accept="image/webp,image/png" multiple style="display:none" onchange="doUploadTreasures(this.files)">
     <button class="intake-open" id="flower-btn" onclick="document.getElementById('flower-file').click()" style="background:#5a2a3a;border-color:#7a3a5a">🌸 꽃 업로드</button>
     <input type="file" id="flower-file" accept="image/webp,image/png" multiple style="display:none" onchange="doUploadFlowers(this.files)">
     <button class="intake-open" id="m3d-btn" onclick="document.getElementById('m3d-file').click()" style="background:#1f3a4a;border-color:#3a6a8a">🗿 3D 보물 입고</button>
@@ -777,6 +779,38 @@ async function ibSubmit(){
 }
 
 // 🌸 꽃 송이 업로드 — flower01~12.webp 그대로 flowers 버킷에 (파일명 = flower_type 직결)
+// 🎨 미술 액자 일괄 업로드 — htg_pNNN.webp 파일명 그대로 heritage-treasures 버킷에 (파일명=id 직결, DB는 안 건드림)
+//    이미 4겹·메타가 등록된 보물에 '이미지만' 입힐 때. img 칸이 이미 그 파일명을 가리키므로 자동 연결.
+async function doUploadTreasures(files){
+  if(!files || !files.length) return;
+  const btn=document.getElementById('treasure-btn');
+  btn.disabled=true; const orig=btn.textContent; btn.textContent='올리는 중…';
+  let ok=0, fail=0; const errs=[], okIds=[];
+  for(const f of files){
+    const id=f.name.replace(/\.[^.]+$/,'');
+    if(!/^htg_[pm]\d+$/.test(id)){
+      fail++; errs.push(f.name+' — 파일명이 htg_pNNN / htg_mNNN 형식이 아니에요 (건너뜀)');
+      continue;
+    }
+    const { error } = await supa.storage.from('heritage-treasures')
+      .upload(f.name, f, { upsert:true, contentType:f.type||'image/webp' });
+    if(error){ fail++; errs.push(f.name+' — '+error.message); } else { ok++; okIds.push(id); }
+  }
+  // 올라간 파일이 어떤 보물에 붙는지 DB로 확인 (안심용)
+  let linkMsg='';
+  if(okIds.length){
+    try{
+      const { data } = await supa.from('heritage_items').select('id,name').in('id', okIds);
+      const nameById={}; (data||[]).forEach(d=>nameById[d.id]=d.name);
+      linkMsg='\n\n'+okIds.map(id=>`✦ ${id} → ${nameById[id]||'⚠️ DB에 이 id 보물이 없어요'}`).join('\n');
+    }catch(e){ /* 확인 실패해도 업로드 자체는 성공 */ }
+  }
+  btn.disabled=false; btn.textContent=orig;
+  document.getElementById('treasure-file').value='';
+  load();
+  alert(`🎨 액자 업로드 완료\n성공 ${ok} · 실패 ${fail}`+linkMsg+(errs.length?'\n\n'+errs.join('\n'):''));
+}
+
 async function doUploadFlowers(files){
   if(!files || !files.length) return;
   const btn=document.getElementById('flower-btn');
