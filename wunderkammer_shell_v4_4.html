@@ -2298,7 +2298,7 @@ html, body {
 <audio id="elevatorSfx" preload="auto" src="ding_sound.mp3"></audio>
 
 <div class="boot-hint" id="bootHint">우측 하단 ⌖ 황동판으로 층 점프 · 각 층 우측 엘리베이터 ▲▼로 한 층씩 · Ⅰ층 갤러리는 ‹ › 로 벽 회전 · Ⅱ층은 음악실</div>
-<div class="version-badge">shell v5.2 · build 0628o · 엘리베이터 문 이미지(elevator_01) · 5F 페르소나 월 · 3F 책의 방 · 2F 음반</div>
+<div class="version-badge">shell v5.2 · build 0628p · 엘리베이터 집집마다(elevator_no) · 5F 페르소나 월 · 3F 책의 방 · 2F 음반</div>
 
 <script>
 
@@ -3470,6 +3470,30 @@ async function maybeAutoLibrary(){
   if (currentFloor !== 2) return;   // await 사이 층이 바뀌었으면 취소
   pilgrimLibAuto = true;
   if (window.Library) Library.open();
+}
+
+/* ===== 엘리베이터 문 — 그 집 주인 elevator_no 로 표시 (노커 door_no 와 같은 정신) ===== */
+function applyElevatorImage(no){
+  const n = String(no || 1).padStart(2, '0');
+  document.querySelectorAll('.door').forEach(d => {
+    d.style.backgroundImage = `url('elevator_${n}.webp')`;
+  });
+}
+async function applyElevatorByOwner(){
+  try {
+    const qUser = new URLSearchParams(location.search).get('user');
+    let ownerId = null;
+    if (qUser) {
+      const u = await sbFetch(`/rest/v1/users?nickname=eq.${encodeURIComponent(qUser)}&select=id`);
+      ownerId = u?.[0]?.id || null;
+    } else {
+      ownerId = getUser()?.id || null;
+    }
+    if (!ownerId) return;   // 못 찾으면 CSS 기본(elevator_01) 유지
+    const r = await sbFetch(`/rest/v1/wunderkammer?user_id=eq.${ownerId}&select=elevator_no`);
+    const no = r?.[0]?.elevator_no;
+    if (no) applyElevatorImage(no);
+  } catch(e) { /* 조용히 기본 유지 — 콩파뇽 화면에 오류 안 띄움 */ }
 }
 
 /* ===== 닻 ===== */
@@ -6049,6 +6073,7 @@ window.SideWall = SideWall;
 
 /* ===== 첫 진입 ===== */
 buildBar();
+applyElevatorByOwner();   // 그 집 주인 elevator_no 로 문 표시 (없으면 CSS 기본 elevator_01)
 // 콘스텔라티오 순례: ?floor=N 으로 들어오면 그 층부터 시작 (없으면 1층). ?user= 는 loadLibrary가 읽음.
 const _qFloor = parseInt(new URLSearchParams(location.search).get('floor'), 10);
 currentFloor = (_qFloor >= 1 && _qFloor <= 5) ? _qFloor : 1;
