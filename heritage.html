@@ -22,7 +22,7 @@ html,body{height:100%;background:var(--gallery-dark);
 @media (min-aspect-ratio:1/1){ .room{width:100vw;height:calc(100vw * 16 / 9);} }
 
 .art{position:absolute;z-index:3;transform:translate(-50%,-50%);transition:opacity .45s ease;}
-.art img{display:block;width:100%;height:auto;filter:drop-shadow(8px 20px 34px rgba(0,0,0,.82));pointer-events:none;-webkit-user-drag:none;}
+.art img{display:block;height:48vh;width:auto;max-width:82vw;filter:drop-shadow(8px 20px 34px rgba(0,0,0,.82));pointer-events:none;-webkit-user-drag:none;}
 .art.fade{opacity:0}
 .plaque{position:absolute;z-index:4;transform:translate(-50%,-50%);transform-origin:center;
   padding:6px 18px;background:linear-gradient(180deg,#efe6d0,#d8c9a8);
@@ -326,13 +326,9 @@ async function loadGalerie(){
     + '&order=wk_id.desc,salle_no.asc') || [];
   const byWk={}, order=[];
   for(const it of items){ if(!byWk[it.wk_id]){ byWk[it.wk_id]=[]; order.push(it.wk_id); } byWk[it.wk_id].push(it); }
-  const mapWork = it => {
-    const lay = (it.art_layout && Object.keys(it.art_layout).length)
-      ? it.art_layout : FALLBACK[it.ratio==='landscape'?'landscape':'portrait'];
-    return { id:it.id, img:it.img, t:it.name, a:it.artist,
-      x:lay.x, y:lay.y, size:lay.size, px:lay.px, py:lay.py, psize:lay.psize,
-      layers:it.layers||null, curation_links:it.curation_links||null };
-  };
+  // 0629: 통통 튐 제거 — art_layout 무시. 모든 작품 단일 디폴트(place 고정 좌표 + CSS 높이 고정).
+  const mapWork = it => ({ id:it.id, img:it.img, t:it.name, a:it.artist,
+    layers:it.layers||null, curation_links:it.curation_links||null });
   // 0629: standby 미리보기 제거 + 5방 고정 진열.
   // order = wk_id.desc(최신 먼저) → idx 0 = 1번방(최신 주차) … 작품은 주차 따라 뒤로 밀리고,
   // 방(배경·이름)은 번호에 고정. 다음 주차가 들어오면 자동으로 1번방, 나머지는 한 칸씩 뒤로.
@@ -366,11 +362,15 @@ function curW(){ return ROOMS[ri].works[wi]; }
 function setBg(){ room.style.backgroundImage=`url(${RAW}${ROOMS[ri].bg})`; sub.textContent=ROOMS[ri].sub; }
 function buildDots(){ dots.innerHTML=''; ROOMS[ri].works.forEach((_,i)=>{
   const d=document.createElement('span'); d.className='dot'+(i===wi?' on':''); dots.appendChild(d); }); }
-function place(w){ art.style.left=w.x+'%';art.style.top=w.y+'%';art.style.width=w.size+'%';
-  plaque.style.left=w.px+'%';plaque.style.top=w.py+'%';plaque.style.transform=`translate(-50%,-50%) scale(${w.psize/100})`; }
+// 0629: 모든 작품 같은 자리·같은 키. 명패는 작품(48vh) 바로 아래로 동적 배치.
+const ART_TOP = 44;   // room 기준 %
+function place(){ const rh=room.offsetHeight||1, artHpct=(innerHeight*0.48)/rh*100;
+  art.style.width=''; art.style.left='50%'; art.style.top=ART_TOP+'%';
+  plaque.style.left='50%'; plaque.style.top=(ART_TOP + artHpct/2 + 2.4)+'%';
+  plaque.style.transform='translate(-50%,-50%)'; }
 // 진입 시 작품을 화면 중앙보다 ENTER_OFFSET 만큼 아래로 (상단 세그먼트·타이틀 회피)
 const ENTER_OFFSET = 62;
-function enterCenter(w){ const rh=room.offsetHeight,target=rh*(w.y/100)-scroller.clientHeight/2 - ENTER_OFFSET;
+function enterCenter(){ const rh=room.offsetHeight,target=rh*(ART_TOP/100)-scroller.clientHeight/2 - ENTER_OFFSET;
   scroller.scrollTo({top:Math.max(0,target),behavior:'smooth'}); }
 function renderRentBtn(){
   const w=curW();
@@ -380,13 +380,12 @@ function renderRentBtn(){
 }
 function render(animate){
   const w=curW();
-  if(animate && !editMode){art.classList.add('fade');plaque.classList.add('fade');}
+  if(animate){art.classList.add('fade');plaque.classList.add('fade');}
   const apply=()=>{ artImg.onerror=()=>{ artImg.src=NOIMG; }; artImg.src=w.img||NOIMG;artImg.alt=w.t;ptT.textContent=w.t;ptA.textContent=w.a;
-    place(w);rm.textContent=`방 ${ri+1} · ${wi+1} / ${ROOMS[ri].works.length}`;buildDots();renderRentBtn();
+    place();rm.textContent=`방 ${ri+1} · ${wi+1} / ${ROOMS[ri].works.length}`;buildDots();renderRentBtn();
     art.classList.remove('fade');plaque.classList.remove('fade');
-    if(editMode){ selectEl(sel); updateEditInfo(); }
-    setTimeout(()=>enterCenter(w),60); };
-  (animate && !editMode)?setTimeout(apply,220):apply();
+    setTimeout(()=>enterCenter(),60); };
+  animate?setTimeout(apply,220):apply();
 }
 function showRoomTag(){ roomtag.innerHTML=`${ROOMS[ri].tag}<small>${ROOMS[ri].tagk}</small>`;
   roomtag.classList.add('on'); setTimeout(()=>roomtag.classList.remove('on'),1100); }
@@ -394,12 +393,11 @@ function go(d){
   const n=ROOMS[ri].works.length; wi+=d;
   if(wi>=n||wi<0){
     if(wi>=n){ri=(ri+1)%ROOMS.length;wi=0;}else{ri=(ri-1+ROOMS.length)%ROOMS.length;wi=ROOMS[ri].works.length-1;}
-    if(editMode){ setBg(); render(false); return; }
     room.style.opacity=0;
     setTimeout(()=>{ setBg();room.style.opacity=1;showRoomTag();render(false); },320);
     return;
   }
-  render(editMode?false:true);
+  render(true);
 }
 
 // ── 대여 (rent_item RPC) ──────────────────
@@ -449,7 +447,7 @@ scroller.addEventListener('scroll',snapCheck,{passive:true});
 // 선택
 art.addEventListener('mousedown',e=>{ if(editMode && !e.target.dataset.h) selectEl('art'); });
 plaque.addEventListener('mousedown',e=>{ if(editMode && !e.target.dataset.h) selectEl('plaque'); });
-plaque.addEventListener('click',e=>{ if(!editMode && !e.target.dataset.h) openArtLayers(curW()); });
+plaque.addEventListener('click',e=>{ if(!e.target.dataset.h) openArtLayers(curW()); });
 art.addEventListener('touchstart',e=>{ if(editMode && !e.target.dataset.h) selectEl('art'); },{passive:true});
 plaque.addEventListener('touchstart',e=>{ if(editMode && !e.target.dataset.h) selectEl('plaque'); },{passive:true});
 
@@ -510,9 +508,9 @@ document.getElementById('next').onclick=()=>go(1);
 document.getElementById('prev').onclick=()=>go(-1);
 addEventListener('keydown',e=>{ if(e.key==='ArrowRight')go(1); if(e.key==='ArrowLeft')go(-1); });
 let sx=0,sy=0,touching=false;
-scroller.addEventListener('touchstart',e=>{ if(editMode){touching=false;return;}
+scroller.addEventListener('touchstart',e=>{
   if(e.touches.length===1){touching=true;sx=e.touches[0].clientX;sy=e.touches[0].clientY;}else touching=false; },{passive:true});
-scroller.addEventListener('touchend',e=>{ if(!touching||editMode)return;touching=false;
+scroller.addEventListener('touchend',e=>{ if(!touching)return;touching=false;
   const dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;
   if(Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)*1.5) go(dx<0?1:-1); },{passive:true});
 
@@ -525,9 +523,9 @@ scroller.addEventListener('touchend',e=>{ if(!touching||editMode)return;touching
   const curtain=document.getElementById('curtain');
   if(!ROOMS.length){ curtain.textContent='열린 작품이 없습니다.'; return; }
   setBg(); render(false); showRoomTag();
-  if(isSalonKeeper()) document.getElementById('editToggle').style.display='block';
+  // 0629: 편집 기능 제거 — 살롱지기 편집 토글 표시하지 않음
   curtain.classList.add('gone');
-  addEventListener('load',()=>setTimeout(()=>enterCenter(curW()),400));
+  addEventListener('load',()=>setTimeout(()=>enterCenter(),400));
 })();
 
 // ══════════════════════════════════════════════════
