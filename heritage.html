@@ -380,12 +380,25 @@ function renderRentBtn(){
 }
 function render(animate){
   const w=curW();
-  if(animate){art.classList.add('fade');plaque.classList.add('fade');}
-  const apply=()=>{ artImg.onerror=()=>{ artImg.src=NOIMG; }; artImg.src=w.img||NOIMG;artImg.alt=w.t;ptT.textContent=w.t;ptA.textContent=w.a;
-    place();rm.textContent=`방 ${ri+1} · ${wi+1} / ${ROOMS[ri].works.length}`;buildDots();renderRentBtn();
-    art.classList.remove('fade');plaque.classList.remove('fade');
-    setTimeout(()=>enterCenter(),60); };
-  animate?setTimeout(apply,220):apply();
+  const paint=()=>{
+    artImg.onerror=()=>{ artImg.src=NOIMG; };
+    artImg.src=w.img||NOIMG; artImg.alt=w.t; ptT.textContent=w.t; ptA.textContent=w.a;
+    place(); rm.textContent=`방 ${ri+1} · ${wi+1} / ${ROOMS[ri].works.length}`;
+    buildDots(); renderRentBtn();
+    art.classList.remove('fade'); plaque.classList.remove('fade');
+    setTimeout(()=>enterCenter(),20);
+  };
+  if(!animate){ paint(); return; }
+  // 페이드아웃과 새 그림 프리로드를 동시에 — 둘 다 끝난 뒤에만 교체+페이드인.
+  // (새 그림이 아직 안 받아진 채 페이드인하면 직전 그림이 한 번 번쩍이는 현상 방지)
+  art.classList.add('fade'); plaque.classList.add('fade');
+  let faded=false, ready=false;
+  const tryPaint=()=>{ if(faded && ready) paint(); };
+  setTimeout(()=>{ faded=true; tryPaint(); }, 240);
+  const pre=new Image();
+  pre.onload =()=>{ ready=true; tryPaint(); };
+  pre.onerror=()=>{ ready=true; tryPaint(); };
+  pre.src = w.img || NOIMG;
 }
 function showRoomTag(){ roomtag.innerHTML=`${ROOMS[ri].tag}<small>${ROOMS[ri].tagk}</small>`;
   roomtag.classList.add('on'); setTimeout(()=>roomtag.classList.remove('on'),1100); }
