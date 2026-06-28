@@ -2205,7 +2205,7 @@ html, body {
 <audio id="elevatorSfx" preload="auto" src="ding_sound.mp3"></audio>
 
 <div class="boot-hint" id="bootHint">우측 하단 ⌖ 황동판으로 층 점프 · 각 층 우측 엘리베이터 ▲▼로 한 층씩 · Ⅰ층 갤러리는 ‹ › 로 벽 회전 · Ⅱ층은 음악실</div>
-<div class="version-badge">shell v5.2 · build 0628f · 5F 페르소나 월(3열15칸·편집·직행·복귀문) · 3F 책의 방 · 2F 음반 · 1F 갤러리</div>
+<div class="version-badge">shell v5.2 · build 0628g · 5F 페르소나 월 · 3F 책의 방 · 2F 음반(순례=서고먼저) · 1F 갤러리</div>
 
 <script>
 
@@ -3126,8 +3126,24 @@ function goToFloor(target) {
     setTimeout(() => {
       elevator.classList.remove('active');
       transitioning = false;
+      maybeAutoLibrary();   // 순례(?user=) 2층 첫 도착 → 그 집 음반서고부터
     }, 500);
   }, SFX.end);
+}
+
+/* ===== 순례 자동 서고 — 남의 집 2층 첫 진입 시 음반서고부터 ===== *
+ *  본인(?user= 없음) = 감상실 직행(현행 유지).
+ *  순례(?user=닉) = 2층 첫 도착에 Library.open() 1회 → 그 집 rentals 디깅
+ *  → 자켓 한 장 고르면 기존 동선(close→play)으로 감상실 도킹.
+ *  세션 1회 플래그(pilgrimLibAuto)로 재진입·자켓픽 후엔 다시 안 뜸.            */
+let pilgrimLibAuto = false;
+function maybeAutoLibrary(){
+  if (currentFloor !== 2) return;
+  const qUser = new URLSearchParams(location.search).get('user');
+  if (!qUser) return;            // 본인 = 감상실 직행
+  if (pilgrimLibAuto) return;    // 순례 세션 1회만
+  pilgrimLibAuto = true;
+  if (window.Library) Library.open();
 }
 
 /* ===== 닻 ===== */
@@ -5711,6 +5727,7 @@ buildBar();
 const _qFloor = parseInt(new URLSearchParams(location.search).get('floor'), 10);
 currentFloor = (_qFloor >= 1 && _qFloor <= 5) ? _qFloor : 1;
 renderFloor(currentFloor);
+setTimeout(maybeAutoLibrary, 600);   // 순례 ?user=&floor=2 직진입 시 음반서고 자동
 </script>
 
 </body>
