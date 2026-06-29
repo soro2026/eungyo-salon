@@ -234,10 +234,10 @@
       <div class="avatar">🌿</div>
       <div class="avatar-edit">✎</div>
     </div>
-    <div class="nickname">lonelywalden</div>
+    <div class="nickname" id="p-nick">lonelywalden</div>
     <div class="badges">
       <span class="badge">✦ 파운더 37번</span>
-      <span class="badge league">루키리그</span>
+      <span class="badge league" id="p-league">루키리그</span>
     </div>
     <div class="sub-bar">
       <div>
@@ -251,21 +251,21 @@
   <!-- ② 교양 자화상 -->
   <div class="sec-title">교양 자화상</div>
   <div class="stats">
-    <div class="stat"><div class="stat-v">47</div><div class="stat-l">총 완주</div></div>
+    <div class="stat"><div class="stat-v" id="p-finishes">–</div><div class="stat-l">총 완주</div></div>
     <div class="stat"><div class="stat-v"><span id="stat-apples">–</span><span class="u">🍎</span></div><div class="stat-l">황금사과</div></div>
-    <div class="stat"><div class="stat-v">3<span class="u">✦</span></div><div class="stat-l">씨앗을<br>품은 별</div></div>
-    <div class="stat"><div class="stat-v">1</div><div class="stat-l">응답의<br>정원 기고</div></div>
-    <div class="stat"><div class="stat-v">2</div><div class="stat-l">분더카머<br>소장품</div></div>
-    <div class="stat"><div class="stat-v">2</div><div class="stat-l">별자리<br>연결</div></div>
+    <div class="stat"><div class="stat-v"><span id="p-seedstars">–</span><span class="u">✦</span></div><div class="stat-l">씨앗을<br>품은 별</div></div>
+    <div class="stat"><div class="stat-v" id="p-contrib">–</div><div class="stat-l">응답의<br>정원 기고</div></div>
+    <div class="stat"><div class="stat-v" id="p-wk">–</div><div class="stat-l">분더카머<br>소장품</div></div>
+    <div class="stat"><div class="stat-v" id="p-referral">–</div><div class="stat-l">별자리<br>연결</div></div>
   </div>
 
   <div class="league-card">
     <div class="league-top">
-      <span class="league-name">🌱 루키리그</span>
-      <span class="league-frac">47 / 100 완주</span>
+      <span class="league-name" id="p-league-name">🌱 루키리그</span>
+      <span class="league-frac" id="p-league-frac">– / – 완주</span>
     </div>
-    <div class="league-bar"><div class="league-fill"></div></div>
-    <div class="league-next">100완주가 되면 싱글A로 올라갑니다</div>
+    <div class="league-bar"><div class="league-fill" id="p-league-fill" style="width:0%"></div></div>
+    <div class="league-next" id="p-league-next">100완주가 되면 싱글A로 올라갑니다</div>
   </div>
 
   <!-- ③ 황금사과 월렛 -->
@@ -430,7 +430,61 @@ async function loadWallet(){
   }
 }
 
-document.addEventListener('DOMContentLoaded', loadWallet);
+/* ══ 헤더 + 6스탯 + 리그 진척 — get_persona_stats RPC 실연동 ══ */
+// 리그 코드 → 한글
+const LEAGUE_KO = {
+  TUTORIAL:'튜토리얼', ROOKIE:'루키리그', SINGLE_A:'싱글A', DOUBLE_A:'더블A',
+  TRIPLE_A:'트리플A', MAJOR:'메이저리그', FORUM:'리버럴아츠포럼'
+};
+// 리그 코드 → [다음 승급 완주 임계, 다음 리그 한글명]. 없으면 최고 경지
+const LEAGUE_NEXT = {
+  TUTORIAL:[10,'루키리그'], ROOKIE:[100,'싱글A'], SINGLE_A:[350,'더블A'],
+  DOUBLE_A:[725,'트리플A'], TRIPLE_A:[1225,'메이저리그']
+};
+function setText(id, v){ const el = document.getElementById(id); if(el) el.textContent = v; }
+
+async function loadPersona(){
+  const user = getUser();
+  if(!user) return;
+  let p;
+  try{
+    // 인자 없이 호출 → 서버에서 auth.uid()로 본인 것만 (자화상 = 나만 보는 거울)
+    p = await sbFetch('/rest/v1/rpc/get_persona_stats', { method:'POST', body:'{}' });
+  }catch(e){ return; }
+  if(!p) return;
+
+  // ① 헤더
+  if(p.nickname) setText('p-nick', p.nickname);
+  const lgKo = LEAGUE_KO[p.league] || p.league || '';
+  if(lgKo) setText('p-league', lgKo);
+
+  // ② 6스탯
+  setText('p-finishes', p.total_finishes ?? 0);
+  setText('stat-apples', String(Math.round(Number(p.apple_balance) || 0)));
+  setText('p-seedstars', p.seed_stars ?? 0);
+  setText('p-contrib', p.contributions ?? 0);
+  setText('p-wk', p.wunderkammer ?? 0);
+  setText('p-referral', p.referrals ?? 0);
+
+  // ③ 리그 진척
+  const finishes = Number(p.total_finishes) || 0;
+  if(lgKo) setText('p-league-name', '🌱 ' + lgKo);
+  const nx = LEAGUE_NEXT[p.league];
+  const fill = document.getElementById('p-league-fill');
+  if(nx){
+    const need = nx[0], nextName = nx[1];
+    const pct = Math.max(0, Math.min(100, Math.round(finishes / need * 100)));
+    setText('p-league-frac', `${finishes} / ${need} 완주`);
+    if(fill) fill.style.width = pct + '%';
+    setText('p-league-next', `${need}완주가 되면 ${nextName}로 올라갑니다`);
+  }else{
+    setText('p-league-frac', `${finishes} 완주`);
+    if(fill) fill.style.width = '100%';
+    setText('p-league-next', '최고 경지에 닿으셨습니다');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => { loadPersona(); loadWallet(); });
 </script>
 </body>
 </html>
