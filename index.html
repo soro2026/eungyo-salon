@@ -1493,10 +1493,10 @@
 #home-screen:not(.hidden){padding:0 !important;background:#0b0a0c !important}
 #home-screen{scrollbar-width:none;-ms-overflow-style:none}
 #home-screen::-webkit-scrollbar{width:0;height:0;display:none}
-#egm{position:relative;z-index:1}
+#egm{position:absolute;top:0;left:0;width:100%;z-index:1}
 #egm-stage{position:relative;width:100%}
-#egm-bg{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
-#egm-bg img{display:block;width:100%;height:100%;object-fit:cover;object-position:center 62%}
+#egm-bg{position:relative;width:100%;z-index:0;pointer-events:none}
+#egm-bg img{display:block;width:100%;height:auto}
 .egm-sky,.egm-menu{position:relative;z-index:1;max-width:480px;margin:0 auto;min-height:100dvh}
 /* ── 밤 · 별하늘 ── */
 .egm-sky{position:relative;width:100%;box-sizing:border-box;display:flex;flex-direction:column;color:#efe7d6;font-family:'Noto Serif KR',serif;background:radial-gradient(120% 70% at 50% 22%,rgba(54,72,128,.12),transparent 70%),rgba(6,8,18,.5);overflow:hidden}
@@ -2219,15 +2219,23 @@ async function closeIncomePopup() {
     resizeFn=function(){ measure(); }; window.addEventListener('resize',resizeFn);
   }
 
+  function syncStageHeight(){
+    var st=document.getElementById('egm-stage'),bg=document.getElementById('egm-bg'),eg=document.getElementById('egm');
+    if(!st||!bg||!eg) return;
+    st.style.minHeight=Math.max(bg.offsetHeight, eg.scrollHeight)+'px';
+  }
   function mount(){
     var egm=document.getElementById('egm'); if(!egm) return;
     var mode=isDayNow()?'day':'night';
     if(mode===curMode) return;
     clearNight(); curMode=mode; egm.innerHTML='';
     var bgimg=document.getElementById('egm-bg-img');
-    if(bgimg) bgimg.src = (mode==='day') ? 'home_bg01.webp' : 'home_bg02.webp';
+    if(bgimg){ bgimg.onload=syncStageHeight; bgimg.src = (mode==='day') ? 'home_bg01.webp' : 'home_bg02.webp'; if(bgimg.complete) syncStageHeight(); }
     if(mode==='day') buildDay(egm); else buildNight(egm);
+    syncStageHeight();
+    if(document.fonts&&document.fonts.ready) document.fonts.ready.then(syncStageHeight);
   }
+  if(!window.__egmStageResize){ window.__egmStageResize=1; window.addEventListener('resize',syncStageHeight); }
   EGM.setStats=function(map){ EGM.universes.forEach(function(u){ if(map[u.key]!=null) u.stat=map[u.key]; }); curMode=null; mount(); };
   EGM.refresh=function(){ curMode=null; mount(); };
 
