@@ -310,6 +310,14 @@ body.is-admin .framed-wrap:hover .framed-upload { opacity: 1; }
 .story-author {
   font-size: 10px; color: rgba(184,136,30,0.7);
   letter-spacing: 0.08em;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.story-avatar {
+  width: 20px; height: 20px; border-radius: 50%;
+  object-fit: cover; display: inline-flex;
+  align-items: center; justify-content: center;
+  border: 1px solid rgba(184,136,30,0.4);
+  background: rgba(184,136,30,0.10); flex: 0 0 auto;
 }
 .story-date {
   font-size: 10px; color: rgba(26,20,16,0.3);
@@ -1873,25 +1881,29 @@ async function loadContents(starId) {
     return;
   }
 
-  // 작성자 닉네임 매핑 (user_id → users.nickname)
+  // 작성자 닉네임 + 프사 매핑 (user_id → users)
   const uids = [...new Set(contents.map(c => c.user_id))];
   const { data: users } = await supa.rpc('get_nicknames', { p_ids: uids });
   const nickMap = {};
-  (users || []).forEach(u => { nickMap[u.id] = u.nickname; });
+  (users || []).forEach(u => { nickMap[u.id] = { nick: u.nickname, avatar: u.avatar_url }; });
 
   contents.forEach(item => list.appendChild(renderContent(item, nickMap)));
 }
 
 function renderContent(item, nickMap) {
   const date = new Date(item.created_at).toLocaleDateString('ko-KR');
-  const author = (nickMap && nickMap[item.user_id]) || '콩파뇽';
+  const info = (nickMap && nickMap[item.user_id]) || {};
+  const author = info.nick || '콩파뇽';
+  const avatarHtml = info.avatar
+    ? `<img class="story-avatar" src="${info.avatar}" alt="">`
+    : `<span class="story-avatar">✦</span>`;
 
   const div = document.createElement('div');
   div.className = 'story-card';
   const isLong = item.content && item.content.length > 300;
   div.innerHTML = `
     <div class="story-card-header">
-      <span class="story-author">✦ ${author}</span>
+      <span class="story-author">${avatarHtml}${author}</span>
       <span class="story-date">${date}</span>
     </div>
     ${item.title ? `<div style="font-size:16px;font-weight:700;color:#2a2018;margin-bottom:10px;">${item.title}</div>` : ''}
