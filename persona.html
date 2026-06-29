@@ -242,6 +242,60 @@
   .flower-bar{ height:6px; border-radius:3px; background:rgba(154,141,114,0.18); margin-top:10px; overflow:hidden; }
   .flower-bar-fill{ height:100%; background:linear-gradient(90deg,var(--gold-deep),var(--gold)); border-radius:3px; transition:width .4s; }
   .flower-busy{ opacity:.55; pointer-events:none; }
+
+  /* ── 월렛 미니(최근 3건) + 자세히보기 ── */
+  #ledger-mini .row-desc{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ledger-more{
+    margin-top:10px; text-align:center; font-size:12px; color:var(--gold);
+    padding:10px; border:1px solid var(--line); border-radius:9px; cursor:pointer;
+    background:rgba(216,184,96,0.05); letter-spacing:0.5px;
+    transition:border-color .25s, background .25s;
+  }
+  .ledger-more:hover{ border-color:var(--gold-deep); background:rgba(216,184,96,0.10); }
+
+  /* ── 출납부 슬라이드 패널 ── */
+  .ledger-backdrop{
+    position:fixed; inset:0; z-index:40; background:rgba(8,5,2,0.55);
+    opacity:0; pointer-events:none; transition:opacity .3s;
+  }
+  .ledger-backdrop.open{ opacity:1; pointer-events:auto; }
+  .ledger-panel{
+    position:fixed; top:0; right:0; height:100%; width:min(460px,94vw); z-index:41;
+    background:#15100a; border-left:1px solid var(--card-edge);
+    box-shadow:-14px 0 44px rgba(0,0,0,0.5);
+    transform:translateX(100%); transition:transform .32s cubic-bezier(.4,0,.2,1);
+    display:flex; flex-direction:column;
+  }
+  .ledger-panel.open{ transform:translateX(0); }
+  .lp-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 18px 13px; border-bottom:1px solid var(--line);
+  }
+  .lp-title{ font-family:'Cormorant Garamond',serif; font-size:16px; letter-spacing:2.5px; color:var(--gold); text-transform:uppercase; }
+  .lp-close{ font-size:26px; color:var(--ink-dim); cursor:pointer; line-height:1; padding:0 4px; }
+  .lp-close:hover{ color:var(--gold); }
+  .lp-filters{ display:flex; gap:7px; padding:13px 18px 11px; }
+  .lp-table{ flex:1; overflow-y:auto; padding:0 14px 24px; }
+
+  /* 장부 행 — 짝/홀 색 교차 */
+  .lp-row{
+    display:grid; grid-template-columns:60px 1fr 50px 46px; gap:7px;
+    align-items:center; padding:10px 9px; font-size:11px; line-height:1.4;
+  }
+  .lp-header-row{
+    position:sticky; top:0; z-index:1; background:#15100a;
+    color:var(--ink-dim); font-size:10px; letter-spacing:1px;
+    border-bottom:1px solid var(--line);
+  }
+  .lp-body-row:nth-child(odd){ background:rgba(216,184,96,0.055); }
+  .lp-body-row:nth-child(even){ background:rgba(0,0,0,0.20); }
+  .lp-c-date{ color:var(--ink-dim); font-size:10px; }
+  .lp-c-desc{ color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .lp-c-amt{ font-family:'Cormorant Garamond',serif; font-weight:600; text-align:right; }
+  .lp-c-amt.plus{ color:var(--plus); }
+  .lp-c-amt.minus{ color:var(--minus); }
+  .lp-c-bal{ font-family:'Cormorant Garamond',serif; text-align:right; color:var(--ink-dim); }
+  .lp-loading{ text-align:center; font-size:11px; color:var(--ink-dim); padding:14px 0; min-height:10px; }
 </style>
 </head>
 <body>
@@ -308,12 +362,8 @@
     <span class="wallet-label">현재 잔액</span>
     <span class="wallet-bal"><span id="wallet-bal">–</span><span class="u"> 알</span></span>
   </div>
-  <div class="filters">
-    <span class="filter on" data-f="all" onclick="setWalletFilter(this,'all')">전체</span>
-    <span class="filter" data-f="in" onclick="setWalletFilter(this,'in')">수입 +</span>
-    <span class="filter" data-f="out" onclick="setWalletFilter(this,'out')">지출 −</span>
-  </div>
-  <div class="ledger" id="ledger"></div>
+  <div class="ledger" id="ledger-mini"></div>
+  <div class="ledger-more" onclick="openLedger()">출납부 자세히 보기 ›</div>
 
   <!-- ④ 조용한 초대장 -->
   <div class="sec-title">조용한 초대장</div>
@@ -369,6 +419,31 @@
   </div>
 
 </div>
+
+<!-- 황금사과 출납부 — 오른쪽 슬라이드 패널 -->
+<div class="ledger-backdrop" id="ledger-backdrop" onclick="closeLedger()"></div>
+<div class="ledger-panel" id="ledger-panel" aria-hidden="true">
+  <div class="lp-head">
+    <span class="lp-title">황금사과 출납부</span>
+    <span class="lp-close" onclick="closeLedger()">×</span>
+  </div>
+  <div class="lp-filters">
+    <span class="filter on" onclick="setLedgerFilter(this,'all')">전체</span>
+    <span class="filter" onclick="setLedgerFilter(this,'in')">수입 +</span>
+    <span class="filter" onclick="setLedgerFilter(this,'out')">지출 −</span>
+  </div>
+  <div class="lp-table" id="lp-table">
+    <div class="lp-row lp-header-row">
+      <span class="lp-c-date">일시</span>
+      <span class="lp-c-desc">내역</span>
+      <span class="lp-c-amt">증감</span>
+      <span class="lp-c-bal">잔액</span>
+    </div>
+    <div id="lp-body"></div>
+    <div class="lp-loading" id="lp-loading"></div>
+  </div>
+</div>
+
 <script>
 /* ══ 교양자화상 · 황금사과 월렛 — apple_log 실연동 (SSoT = SUM(amount)) ══ */
 const SUPABASE_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
@@ -407,61 +482,107 @@ async function sbFetch(path, options = {}){
 }
 function getUser(){ try{ const s = JSON.parse(localStorage.getItem('eungyo-auth')); return s?.user || null; }catch{ return null; } }
 
-// ── 월렛 상태 ──
-let WALLET_ROWS = [];          // {amount, reason, created_at, locked, balAfter}
-let WALLET_FILTER = 'all';
-
+// ── 월렛 (get_wallet RPC: label 가공 + bal_after) ──
 function fmtDate(iso){
   const d = new Date(iso); const p = n => String(n).padStart(2,'0');
   return `${d.getFullYear()}.${p(d.getMonth()+1)}.${p(d.getDate())} · ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
+function fmtDateShort(iso){
+  const d = new Date(iso); const p = n => String(n).padStart(2,'0');
+  return `${p(d.getMonth()+1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-function renderWallet(){
-  const box = document.getElementById('ledger'); if(!box) return;
-  let rows = WALLET_ROWS;
-  if(WALLET_FILTER === 'in') rows = rows.filter(r => Number(r.amount) > 0);
-  else if(WALLET_FILTER === 'out') rows = rows.filter(r => Number(r.amount) < 0);
-  if(!rows.length){ box.innerHTML = '<div class="wallet-empty">아직 내역이 없습니다.</div>'; return; }
-  box.innerHTML = rows.map(r => {
-    const amt = Number(r.amount);
-    const cls = amt >= 0 ? 'plus' : 'minus';
-    const sign = amt >= 0 ? '+' : '−';
-    const lock = r.locked ? ' locked' : '';
-    return `<div class="row${lock}">
-      <div class="row-top"><span class="row-date">${fmtDate(r.created_at)}</span><span class="row-amt ${cls}">${sign} ${Math.abs(amt).toFixed(2)} 🍎</span></div>
-      <div class="row-desc">${esc(r.reason)}</div>
-      <div class="row-bal">잔액 ${r.balAfter.toFixed(2)} 알</div>
-    </div>`;
-  }).join('');
-}
-
-function setWalletFilter(el, f){
-  WALLET_FILTER = f;
-  document.querySelectorAll('.filters .filter').forEach(x => x.classList.remove('on'));
-  el.classList.add('on');
-  renderWallet();
-}
-
-async function loadWallet(){
-  const box = document.getElementById('ledger');
-  const balEl = document.getElementById('wallet-bal');
-  const statEl = document.getElementById('stat-apples');
+// 메인: 최근 3건만
+async function loadWalletMini(){
+  const box = document.getElementById('ledger-mini');
   const user = getUser();
   if(!user){ if(box) box.innerHTML = '<div class="wallet-empty">로그인이 필요합니다.</div>'; return; }
   try{
-    const data = await sbFetch(`/rest/v1/apple_log?uid=eq.${user.id}&select=amount,reason,created_at,locked&order=created_at.desc,id.desc`);
-    const rows = data || [];
-    const total = rows.reduce((s, r) => s + Number(r.amount), 0);   // 현재 잔액 = 전체 합
-    // 거래 후 누적 잔액: 위(최신)=total, 아래로 내려가며 직전 거래액 차감
-    let running = total;
-    WALLET_ROWS = rows.map(r => { const balAfter = running; running -= Number(r.amount); return { ...r, balAfter }; });
-    if(balEl) balEl.textContent = total.toFixed(2);
-    if(statEl) statEl.textContent = String(Math.round(total));   // 스탯카드는 정수 요약
-    renderWallet();
+    const rows = await sbFetch('/rest/v1/rpc/get_wallet', { method:'POST', body: JSON.stringify({ p_limit:3, p_offset:0 }) });
+    if(!box) return;
+    if(!rows || !rows.length){ box.innerHTML = '<div class="wallet-empty">아직 내역이 없습니다.</div>'; return; }
+    box.innerHTML = rows.map(r => {
+      const amt = Number(r.amount);
+      const cls = amt >= 0 ? 'plus' : 'minus';
+      const sign = amt >= 0 ? '+' : '−';
+      return `<div class="row">
+        <div class="row-top"><span class="row-date">${fmtDate(r.created_at)}</span><span class="row-amt ${cls}">${sign} ${Math.abs(amt).toFixed(2)} 🍎</span></div>
+        <div class="row-desc">${esc(r.label)}</div>
+        <div class="row-bal">잔액 ${Number(r.bal_after).toFixed(2)} 알</div>
+      </div>`;
+    }).join('');
   }catch(e){
-    if(box) box.innerHTML = '<div class="wallet-empty">잔액을 불러오지 못했습니다.</div>';
+    if(box) box.innerHTML = '<div class="wallet-empty">내역을 불러오지 못했습니다.</div>';
   }
+}
+
+// 출납부 패널 — 무한 스크롤 + 필터
+let LP_OFFSET = 0, LP_LIMIT = 30, LP_DONE = false, LP_LOADING = false, LP_FILTER = 'all', LP_ROWS = [];
+
+function openLedger(){
+  document.getElementById('ledger-panel').classList.add('open');
+  document.getElementById('ledger-backdrop').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  if(!LP_ROWS.length) resetLedger();
+}
+function closeLedger(){
+  document.getElementById('ledger-panel').classList.remove('open');
+  document.getElementById('ledger-backdrop').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function resetLedger(){
+  LP_OFFSET = 0; LP_DONE = false; LP_ROWS = [];
+  const body = document.getElementById('lp-body'); if(body) body.innerHTML = '';
+  loadLedgerPage();
+}
+async function loadLedgerPage(){
+  if(LP_LOADING || LP_DONE) return;
+  LP_LOADING = true;
+  const ld = document.getElementById('lp-loading'); if(ld) ld.textContent = '불러오는 중…';
+  try{
+    const rows = await sbFetch('/rest/v1/rpc/get_wallet', { method:'POST', body: JSON.stringify({ p_limit:LP_LIMIT, p_offset:LP_OFFSET }) });
+    const got = rows || [];
+    if(got.length < LP_LIMIT) LP_DONE = true;
+    LP_ROWS = LP_ROWS.concat(got);
+    LP_OFFSET += got.length;
+    renderLedger();
+  }catch(e){
+    if(ld) ld.textContent = '불러오지 못했습니다.';
+  }finally{
+    LP_LOADING = false;
+    const ld2 = document.getElementById('lp-loading'); if(ld2 && LP_DONE) ld2.textContent = '';
+  }
+}
+function renderLedger(){
+  const body = document.getElementById('lp-body'); if(!body) return;
+  let rows = LP_ROWS;
+  if(LP_FILTER === 'in') rows = rows.filter(r => Number(r.amount) > 0);
+  else if(LP_FILTER === 'out') rows = rows.filter(r => Number(r.amount) < 0);
+  if(!rows.length){ body.innerHTML = '<div class="wallet-empty">내역이 없습니다.</div>'; return; }
+  body.innerHTML = rows.map(r => {
+    const amt = Number(r.amount);
+    const cls = amt >= 0 ? 'plus' : 'minus';
+    const sign = amt >= 0 ? '+' : '−';
+    return `<div class="lp-row lp-body-row">
+      <span class="lp-c-date">${fmtDateShort(r.created_at)}</span>
+      <span class="lp-c-desc">${esc(r.label)}</span>
+      <span class="lp-c-amt ${cls}">${sign}${Math.abs(amt).toFixed(2)}</span>
+      <span class="lp-c-bal">${Number(r.bal_after).toFixed(2)}</span>
+    </div>`;
+  }).join('');
+}
+function setLedgerFilter(el, f){
+  LP_FILTER = f;
+  document.querySelectorAll('.lp-filters .filter').forEach(x => x.classList.remove('on'));
+  el.classList.add('on');
+  renderLedger();
+}
+function initLedgerScroll(){
+  const tb = document.getElementById('lp-table');
+  if(tb) tb.addEventListener('scroll', () => {
+    if(tb.scrollTop + tb.clientHeight >= tb.scrollHeight - 80) loadLedgerPage();
+  });
 }
 
 /* ══ 헤더 + 6스탯 + 리그 진척 — get_persona_stats RPC 실연동 ══ */
@@ -492,9 +613,10 @@ async function loadPersona(){
   const lgKo = LEAGUE_KO[p.league] || p.league || '';
   if(lgKo) setText('p-league', lgKo);
 
-  // ② 6스탯
+  // ② 6스탯 + 월렛 잔액
   setText('p-finishes', p.total_finishes ?? 0);
   setText('stat-apples', String(Math.round(Number(p.apple_balance) || 0)));
+  setText('wallet-bal', (Number(p.apple_balance) || 0).toFixed(2));
   setText('p-seedstars', p.seed_stars ?? 0);
   setText('p-contrib', p.contributions ?? 0);
   setText('p-wk', p.wunderkammer ?? 0);
@@ -570,7 +692,7 @@ async function pickFlower(t){
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => { loadPersona(); loadWallet(); });
+document.addEventListener('DOMContentLoaded', () => { loadPersona(); loadWalletMini(); initLedgerScroll(); });
 </script>
 </body>
 </html>
