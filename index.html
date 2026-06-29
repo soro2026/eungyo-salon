@@ -2221,8 +2221,20 @@ async function closeIncomePopup() {
 
   function syncStageHeight(){
     var st=document.getElementById('egm-stage'),bg=document.getElementById('egm-bg'),eg=document.getElementById('egm');
-    if(!st||!bg||!eg) return;
-    st.style.minHeight=Math.max(bg.offsetHeight, eg.scrollHeight)+'px';
+    if(!st||!bg||!eg) return 0;
+    var imgH=bg.offsetHeight, menuH=eg.scrollHeight;
+    st.style.minHeight=Math.max(imgH,menuH)+'px';
+    var top=imgH>menuH?Math.round((imgH-menuH)/2):0;
+    eg.style.top=top+'px';
+    return top;
+  }
+  function egmFirstScroll(){
+    if(EGM._scrolled) return;
+    var bg=document.getElementById('egm-bg-img');
+    if(bg && !bg.complete) return;       // 배경 이미지 로드 전이면 대기
+    EGM._scrolled=true;
+    var hs=document.getElementById('home-screen'), top=syncStageHeight();
+    if(hs) hs.scrollTop=top;              // 첫 진입을 메뉴 상단에 맞춤
   }
   function mount(){
     var egm=document.getElementById('egm'); if(!egm) return;
@@ -2230,10 +2242,10 @@ async function closeIncomePopup() {
     if(mode===curMode) return;
     clearNight(); curMode=mode; egm.innerHTML='';
     var bgimg=document.getElementById('egm-bg-img');
-    if(bgimg){ bgimg.onload=syncStageHeight; bgimg.src = (mode==='day') ? 'home_bg01.webp' : 'home_bg02.webp'; if(bgimg.complete) syncStageHeight(); }
+    if(bgimg){ bgimg.onload=bgimg.onerror=function(){ syncStageHeight(); egmFirstScroll(); }; bgimg.src = (mode==='day') ? 'home_bg01.webp' : 'home_bg02.webp'; if(bgimg.complete){ syncStageHeight(); egmFirstScroll(); } }
     if(mode==='day') buildDay(egm); else buildNight(egm);
     syncStageHeight();
-    if(document.fonts&&document.fonts.ready) document.fonts.ready.then(syncStageHeight);
+    if(document.fonts&&document.fonts.ready) document.fonts.ready.then(function(){ syncStageHeight(); egmFirstScroll(); });
   }
   if(!window.__egmStageResize){ window.__egmStageResize=1; window.addEventListener('resize',syncStageHeight); }
   EGM.setStats=function(map){ EGM.universes.forEach(function(u){ if(map[u.key]!=null) u.stat=map[u.key]; }); curMode=null; mount(); };
