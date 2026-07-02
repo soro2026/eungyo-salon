@@ -179,6 +179,8 @@ const SORO_UID   = '81ac3dfa-0d44-4ab9-84bf-d630321b0bad';
 const SIGNUP_BASE = 'https://soro2026.github.io/eungyo-salon/signup.html?token=';
 
 let AVAILABLE = [];   // 배정 가능한 빈집 [{maison_no, city}] (초대 예약분 제외)
+let APPLIED_MAP = {}; // appId → {email, display_name}  (승인 후 초대 메일 발송용)
+let INVITED_MAP = {}; // appId → {email, display_name, invite_token, invite_expires_at}  (리마인드 발송용)
 
 (async function init(){
   const { data:{ session } } = await supa.auth.getSession();
@@ -200,6 +202,61 @@ function toast(msg){
   setTimeout(()=>t.classList.remove('show'), 1800);
 }
 
+// 만료 ISO → "M월 D일"
+function fmtExpDate(iso){
+  const d = new Date(iso);
+  return `${d.getMonth()+1}월 ${d.getDate()}일`;
+}
+
+// 초대 메일 발송 (승인 직후)
+async function sendInviteMail(appId, token, maisonNo, expiresIso){
+  const info = APPLIED_MAP[appId];
+  if(!info) return;
+  const url = SIGNUP_BASE + token;
+  const { data, error } = await supa.functions.invoke('application-mail', {
+    body: {
+      type: 'invite',
+      to: info.email,
+      display_name: info.display_name,
+      signup_url: url,
+      maison_no: String(maisonNo),
+      expires_date: fmtExpDate(expiresIso)
+    }
+  });
+  if(error || (data && data.ok === false)){
+    toast('초대장 발급됨 · 메일 발송 실패(링크 수동 전달 가능)');
+  }
+}
+
+// 리마인드 발송 (경과에 따라 1차/2차 자동 선택)
+async function sendRemind(appId){
+  const m = INVITED_MAP[appId];
+  if(!m || !m.invite_token){ toast('리마인드할 링크가 없습니다'); return; }
+  const msLeft = new Date(m.invite_expires_at).getTime() - Date.now();
+  const dLeft = msLeft / 86400000;
+  if(dLeft <= 0){ toast('이미 만료됨 · 재승인이 필요합니다'); return; }
+  const kind = (dLeft <= 1) ? 'remind2' : 'remind1';
+  const url = SIGNUP_BASE + m.invite_token;
+  const btn = document.querySelector('#inv-'+appId+' .btn-mini');
+  if(btn){ btn.disabled = true; btn.textContent = '보내는 중…'; }
+  const { data, error } = await supa.functions.invoke('application-mail', {
+    body: {
+      type: kind,
+      to: m.email,
+      display_name: m.display_name,
+      signup_url: url,
+      days_left: String(Math.ceil(dLeft))
+    }
+  });
+  if(error || (data && data.ok === false)){
+    toast('리마인드 발송 실패');
+    if(btn){ btn.disabled = false; btn.textContent = '↻ 리마인드 보내기'; }
+    return;
+  }
+  toast(kind === 'remind2' ? '2차 리마인드 발송됨' : '1차 리마인드 발송됨');
+  if(btn){ btn.textContent = '✓ 보냈습니다'; }
+}
+
 async function loadAll(){
   document.getElementById('applied-list').innerHTML = '<div class="loading">불러오는 중…</div>';
   document.getElementById('members-list').innerHTML = '<div class="loading">불러오는 중…</div>';
@@ -207,7 +264,7 @@ async function loadAll(){
   // 병렬 로드: 신청 목록 · 빈집 · 회원 명단
   const [appsRes, maisonRes, membersRes] = await Promise.all([
     supa.from('applications')
-      .select('id, display_name, email, message, status, maison_no, invited_at, invite_expires_at, created_at')
+      .select('id, display_name, email, message, status, maison_no, invited_at, invite_expires_at, invite_token, created_at')
       .in('status', ['applied','invited'])
       .order('created_at', { ascending: true }),
     supa.from('eg_maison')
@@ -274,7 +331,9 @@ function renderApplied(list){
     : `<div class="sec-note" style="color:#ffab86;">빈집이 ${AVAILABLE.length}채뿐이라 일괄 승인은 잠급니다. 개별 승인하거나 admin에서 빈집을 늘려 주세요.</div>`;
 
   wrap.innerHTML = '';
+  APPLIED_MAP = {};
   list.forEach((a, i)=>{
+    APPLIED_MAP[a.id] = { email: a.email, display_name: a.display_name };
     const defNo = AVAILABLE[i] ? AVAILABLE[i].maison_no : (AVAILABLE[0]?AVAILABLE[0].maison_no:null);
     const msg = (a.message && a.message.trim())
       ? `<div class="msg">${esc(a.message)}</div>`
@@ -311,9 +370,10 @@ async function approveOne(appId){
     if(btn){ btn.disabled = false; btn.textContent = '✦ 승인 → 초대장'; }
     return;
   }
-  // 승인 성공 → 카드에 링크 박스 표시
+  // 승인 성공 → 카드에 링크 박스 표시 + 초대 메일 자동 발송
   showInviteLink(appId, data.token);
-  toast('초대장 발급 완료 · 메종 ' + data.maison_no);
+  await sendInviteMail(appId, data.token, data.maison_no, data.expires_at);
+  toast('초대장 발급 + 메일 발송 · 메종 ' + data.maison_no);
   // 잠시 뒤 전체 리로드(초대됨 섹션으로 이동)
   setTimeout(loadAll, 2200);
 }
@@ -344,7 +404,11 @@ async function approveAll(){
     const maisonNo = sel && sel.value ? parseInt(sel.value,10) : null;
     if(maisonNo == null) continue;
     const { data, error } = await supa.rpc('approve_application', { p_app_id: appId, p_maison_no: maisonNo });
-    if(!error && data && data.ok){ ok++; showInviteLink(appId, data.token); }
+    if(!error && data && data.ok){
+      ok++;
+      showInviteLink(appId, data.token);
+      await sendInviteMail(appId, data.token, data.maison_no, data.expires_at);
+    }
   }
   toast(`${ok}명 승인 완료`);
   setTimeout(loadAll, 2500);
@@ -376,18 +440,27 @@ function renderInvited(list){
     return;
   }
   wrap.innerHTML = '';
+  INVITED_MAP = {};
   list.forEach(a=>{
+    INVITED_MAP[a.id] = {
+      email: a.email, display_name: a.display_name,
+      invite_token: a.invite_token, invite_expires_at: a.invite_expires_at
+    };
     const f = inviteFlag(a.invite_expires_at);
     const invitedTxt = a.invited_at ? `초대 ${fmtDate(a.invited_at)}` : '';
+    const msLeft = a.invite_expires_at ? (new Date(a.invite_expires_at).getTime() - Date.now()) : 1;
+    const expired = msLeft <= 0;
+    const remindBtn = expired
+      ? `<span style="font-size:12px;color:var(--red)">만료 · 재승인 필요</span>`
+      : `<button class="btn-mini" onclick="sendRemind('${a.id}')">↻ 리마인드 보내기</button>`;
     const row = document.createElement('div');
     row.className = 'irow';
+    row.id = 'inv-'+a.id;
     row.innerHTML = `
       <span class="flag">${f.icon}</span>
       <span class="nm">${esc(a.display_name||'—')}</span>
       <span class="st"><span class="${f.cls}">${f.text}</span> · 메종 ${a.maison_no ?? '—'} · ${invitedTxt}</span>
-      <span class="acts">
-        <button class="btn-mini soon" title="레테 문안 도착 후 활성화됩니다">↻ 리마인드(준비 중)</button>
-      </span>`;
+      <span class="acts">${remindBtn}</span>`;
     wrap.appendChild(row);
   });
 }
