@@ -1,4 +1,4 @@
-const CACHE = 'eungyo-v75';
+const CACHE = 'eungyo-v76';
 
 const CORE_FILES = [
   '/eungyo-salon/',
@@ -129,6 +129,28 @@ self.addEventListener('fetch', e => {
   if (e.request.url.includes('supabase.co')) {
     return;
   }
+
+  // ── HTML(페이지)은 네트워크 우선 ──
+  // 이유: cache-first는 maison.html 같은 안정 URL 페이지를 첫 방문 스냅샷에
+  // 영원히 가둔다(0703 분더카머 유령 스크린 사고의 뿌리). 페이지는 항상
+  // 최신을 먼저 받고, 오프라인일 때만 캐시로 대신한다.
+  const isHTML = e.request.mode === 'navigate' ||
+                 (e.request.destination === 'document') ||
+                 new URL(e.request.url).pathname.endsWith('.html');
+  if (isHTML) {
+    e.respondWith(
+      fetch(e.request).then(response => {
+        if (response && response.status === 200 && response.type === 'basic') {
+          const clone = response.clone();
+          caches.open(CACHE).then(cache => cache.put(e.request, clone));
+        }
+        return response;
+      }).catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  // ── 그 외 자산(이미지·오디오·JSON 등)은 기존 cache-first 유지 ──
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
