@@ -5603,19 +5603,28 @@ const MusicPlayer = (() => {
     else { player.classList.add('hidden'); player.classList.remove('priming'); }
   }
 
+  // ── EG 정신: 음악은 감상실(2층)에 두고 온다. 나올 때 끄고 나온다. (2026.07 미니플레이어 층간 잔류 제거) ──
+  function stopAndHide(){
+    iframe.src = '';                  // 유튜브 재생 완전 정지
+    started = false; loadedIdx = -1;  // 재생 상태 리셋 (2층 재진입 시 새로 로드)
+    player.classList.add('hidden');
+    player.classList.remove('priming','dock','mini','folded');
+  }
+
   function onFloorChange(n){
     if(n===2){
       primeIfNeeded();
       if(!player.classList.contains('hidden')){
         requestAnimationFrame(()=>requestAnimationFrame(()=>{ setState('dock'); syncMeta(); }));
       }
+    } else if(currentFloor!==2){
+      // 2층을 실제로 벗어남 → 음악 정지 + 플레이어 완전히 거둠 (더 이상 mini로 따라오지 않음)
+      stopAndHide();
     } else {
-      // 2층을 떠날 때
+      // 2층 내부 상태 변화(인물벽 전환 등, onFloorChange(0)) → 기존 동작 유지
       if(started){
-        // 이미 재생 중 → 좌하단 미니로 따라오게 (접어둔 경우는 그대로)
         if(state!=='folded' && !player.classList.contains('hidden')) setState('mini');
       } else {
-        // 아직 한 번도 재생 안 함(prime 썸네일만) → 영상을 거둠
         player.classList.add('hidden');
         player.classList.remove('priming');
       }
