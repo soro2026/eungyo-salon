@@ -3413,6 +3413,10 @@ function goToFloor(target) {
   // 층 이동 시 음반서고 모달이 떠 있으면 닫는다 (다른 층까지 따라다니는 것 방지)
   { const lm = document.getElementById('library-modal');
     if (lm && lm.classList.contains('open') && window.Library) Library.close(); }
+  // ★ 2층을 떠나는 이동이면 미니플레이어(단일 유튜브 iframe)를 즉시 완전 제거.
+  //   서고 close가 dock으로 되살리는 창을 곧바로 닫아, 유령 스크린이 다른 층 진열장을 덮는 것을 막는다.
+  //   (EG 정신: 음악은 감상실에 두고, 나올 때 끄고 나온다)
+  if (target !== 2 && window.MusicPlayer && MusicPlayer.stopAndHide) MusicPlayer.stopAndHide();
   transitioning = true;
   if (bootHint) bootHint.style.opacity = '0';
 
@@ -5579,6 +5583,7 @@ const MusicPlayer = (() => {
 
   function reposition(){
     if(player.classList.contains('hidden')) return;
+    player.style.pointerEvents='';   // stopAndHide로 껐던 클릭을 복원 (감상실 재진입 시 스크린 조작 가능)
     if(state==='folded'){
       player.style.left='22px'; player.style.top='auto'; player.style.bottom='26px';
       player.style.width='auto'; player.style.height='auto'; return;
@@ -5606,9 +5611,13 @@ const MusicPlayer = (() => {
   // ── EG 정신: 음악은 감상실(2층)에 두고 온다. 나올 때 끄고 나온다. (2026.07 미니플레이어 층간 잔류 제거) ──
   function stopAndHide(){
     iframe.src = '';                  // 유튜브 재생 완전 정지
-    started = false; loadedIdx = -1;  // 재생 상태 리셋 (2층 재진입 시 새로 로드)
+    started = false; loadedIdx = -1;  // 재생 상태 리셋 (2층 재진입 시 primeIfNeeded가 새로 로드)
     player.classList.add('hidden');
     player.classList.remove('priming','dock','mini','folded');
+    // 중첩 iframe(3D 타일 doorFrame 안)에서 좌표가 어긋나도 유령 스크린이 클릭 못 먹게 물리적으로 완전 제거.
+    // (2층 재진입 시 reposition이 위치·클릭을 복원한다)
+    player.style.width='0'; player.style.height='0';
+    player.style.left='-9999px'; player.style.pointerEvents='none';
   }
 
   function onFloorChange(n){
@@ -5644,7 +5653,7 @@ const MusicPlayer = (() => {
   document.getElementById('mpPill').addEventListener('click', ()=>
     setState(currentFloor===2 && !Floor2.isTurned() && !libOpen() ? 'dock' : 'mini'));
 
-  return { play, primeIfNeeded, setState, reposition, onFloorChange, syncMeta, currentTrack, toMiniIfPlaying, getTrack:(i)=>COLLECTION[i], trackCount:COLLECTION.length, resetLibraryTracks, addTrack };
+  return { play, primeIfNeeded, setState, reposition, onFloorChange, stopAndHide, syncMeta, currentTrack, toMiniIfPlaying, getTrack:(i)=>COLLECTION[i], trackCount:COLLECTION.length, resetLibraryTracks, addTrack };
 })();
 window.MusicPlayer = MusicPlayer;
 
