@@ -6104,5 +6104,41 @@ renderFloor(currentFloor);
 setTimeout(maybeAutoLibrary, 600);   // 순례 ?user=&floor=2 직진입 시 음반서고 자동
 </script>
 
+
+<!-- ★★ 진단 HUD (임시 · 유령 스크린 사고 계측용 · 해결 후 제거) ★★ -->
+<script>
+(function(){
+  const hud=document.createElement('div');
+  hud.style.cssText='position:fixed;top:4px;left:4px;z-index:999999;background:rgba(0,0,0,.78);color:#9f9;font:11px/1.5 monospace;padding:6px 8px;max-width:94vw;white-space:pre-wrap;pointer-events:none;border-radius:6px';
+  document.body.appendChild(hud);
+  const mp=document.getElementById('musicPlayer');
+  let lastClick='—', lastGo='—';
+  const _go=window.goToFloor;
+  window.goToFloor=function(t){
+    try{ lastGo=t+' ← '+((new Error().stack.split('\n')[2]||'').trim().slice(0,90)); }catch(e){}
+    return _go.apply(this,arguments);
+  };
+  document.addEventListener('click',function(e){
+    try{
+      lastClick=e.composedPath().slice(0,5).map(function(el){
+        if(!el.tagName) return '';
+        var c=(typeof el.className==='string'&&el.className)?'.'+el.className.trim().split(/\s+/).slice(0,2).join('.'):'';
+        return el.tagName.toLowerCase()+(el.id?'#'+el.id:'')+c;
+      }).filter(Boolean).join(' > ');
+    }catch(err){ lastClick='ERR '+err.message; }
+  },true);
+  setInterval(function(){
+    try{
+      const cs=getComputedStyle(mp);
+      const lm=document.getElementById('library-modal');
+      hud.textContent='F:'+currentFloor
+        +' | mp['+mp.className+'] d:'+cs.display+' pe:'+cs.pointerEvents+' left:'+cs.left
+        +'\nlib.open:'+(lm&&lm.classList.contains('open'))
+        +'\nCLICK: '+lastClick
+        +'\nGOTO: '+lastGo;
+    }catch(err){ hud.textContent='HUD ERR: '+err.message; }
+  },300);
+})();
+</script>
 </body>
 </html>
