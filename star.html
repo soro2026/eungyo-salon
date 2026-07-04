@@ -896,28 +896,30 @@ body.has-salon-bg .floor1-header {
 
 .floor3 .slot{position:relative;transition:transform .15s ease}
 
-/* ① 채워진 칸 — 빈 슬롯과 동일한 3:1 박스로 고정, 명패 png가 그 안을 채우게(정렬 일치) */
-.floor3 .slot.filled{cursor:default;container-type:inline-size}
-/* 명패 이미지 = 일반 흐름(6/27 검증 배치). 이미지 3:1 비율이 칸 높이를 스스로 확보 — aspect-ratio 계산 불필요 */
-.floor3 .plate-bg{display:block;width:100%;height:auto;user-select:none;-webkit-user-drag:none}
+/* ① 채워진 칸 — 신축(0704): 명패 webp를 배경으로, 글씨는 일반 flex 내용물. 절대배치·컨테이너쿼리 없음 */
+.floor3 .slot.filled{
+  cursor:default;aspect-ratio:3/1;
+  background:url('constellatio_nametag.webp') center/100% 100% no-repeat;
+  display:flex;align-items:center;justify-content:center;gap:12px;
+  padding:0 8%;box-sizing:border-box;overflow:hidden;
+}
 .floor3 .slot.filled.voyage{cursor:pointer}
-.floor3 .slot.filled:hover{transform:translateY(-3px)}
-.floor3 .slot.filled:hover .plate-text{filter:drop-shadow(0 0 6px rgba(255,245,220,.5))}
-.floor3 .plate-text{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;line-height:1.05;padding:4% 9%}
-.floor3 .plate-text.has-seal{flex-direction:row;align-items:center;justify-content:flex-start;gap:5%;padding:4% 7% 4% 8%}
+.floor3 .slot.filled:hover{transform:translateY(-3px);filter:drop-shadow(0 0 6px rgba(255,245,220,.35))}
 .floor3 .plate-seal{
-  width:17%;aspect-ratio:1;flex:0 0 auto;border-radius:50%;object-fit:cover;
+  width:44px;height:44px;flex:0 0 auto;border-radius:50%;object-fit:cover;
   filter:grayscale(1) sepia(.55) brightness(.92) contrast(1.05);
   mix-blend-mode:multiply;opacity:.85;
   box-shadow:inset 0 3px 7px rgba(38,24,0,.6),inset 0 -2px 4px rgba(255,242,205,.45),0 1px 0 rgba(255,250,235,.4);
 }
-.floor3 .plate-lines{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;text-align:left;line-height:1.05}
-.floor3 .plate-text.has-seal .pc{font-size:clamp(10px,3.8cqw,14px);letter-spacing:.02em;margin-bottom:.28em}
-.floor3 .plate-text.has-seal .pn{font-size:clamp(16px,7cqw,28px)}
-.floor3 .plate-text.has-seal .pr{font-size:clamp(10px,3.4cqw,12.5px);margin-top:.28em}
-.floor3 .pc{font-family:'Cinzel','Noto Serif KR',serif;font-size:13px;font-weight:600;letter-spacing:.08em;color:var(--f3-ink);margin-bottom:.35em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.floor3 .pn{font-family:'Noto Serif KR',serif;font-size:24px;font-weight:500;color:var(--f3-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.floor3 .plate-lines{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;line-height:1.05}
+.floor3 .slot.filled .plate-seal + .plate-lines{align-items:flex-start;text-align:left}
+.floor3 .pn{font-family:'Noto Serif KR',serif;font-size:22px;font-weight:500;color:var(--f3-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .floor3 .pr{font-family:'Cinzel','Noto Serif KR',serif;font-size:12px;font-weight:500;letter-spacing:.05em;color:var(--f3-ink);margin-top:.35em;white-space:nowrap}
+@media (max-width:640px){
+  .floor3 .plate-seal{width:38px;height:38px}
+  .floor3 .pn{font-size:19px}
+  .floor3 .pr{font-size:11px}
+}
 
 /* ② 빈 칸 — 기다리는 자리 (잠금 아님 · 환대) */
 .floor3 .slot.empty{aspect-ratio:3/1;border:1px dashed rgba(203,185,133,.3);border-radius:14px;background:rgba(203,185,133,.04);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
@@ -1525,14 +1527,13 @@ function renderCompanions() {
     if (s.status === 'filled') {
       d.className = 'slot filled';
       const lines =
-        `<div class="pn">${esc(s.name)}</div>
-           <div class="pr">#${padRank(s.rank)} · ${s.date}</div>`;
-      const inner = s.avatar
-        ? `<img class="plate-seal" src="${s.avatar}" alt="" draggable="false"><div class="plate-lines">${lines}</div>`
+        `<div class="plate-lines">
+           <div class="pn">${esc(s.name)}</div>
+           <div class="pr">#${padRank(s.rank)} · ${s.date}</div>
+         </div>`;
+      d.innerHTML = s.avatar
+        ? `<img class="plate-seal" src="${s.avatar}" alt="" draggable="false">${lines}`
         : lines;
-      d.innerHTML =
-        `<img class="plate-bg" src="constellatio_nametag.webp" alt="" draggable="false">
-         <div class="plate-text${s.avatar ? ' has-seal' : ''}">${inner}</div>`;
       if (s.nick) {   // 닉 있는 명패 → 그 집 분더카머로 순례
         d.classList.add('voyage');
         d.title = `${s.nick}의 분더카머로 →`;
