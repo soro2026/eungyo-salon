@@ -1280,6 +1280,17 @@ html, body {
 
 /* ===== 닻 — 층 안내판 (빠른 길) ===== */
 .anchor { position: fixed; bottom: 26px; right: 22px; }
+.wk-exit-star {
+  position: fixed; top: 14px; left: 14px; z-index: 950;
+  padding: 8px 15px; border-radius: 20px;
+  background: linear-gradient(145deg, #3a2c10, #241809);
+  border: 1px solid rgba(201,168,76,0.5);
+  color: #e9c97e; font-family: 'Cormorant Garamond', serif;
+  font-size: 13px; letter-spacing: 1px; cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.wk-exit-star:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(0,0,0,0.6); }
 .anchor-btn {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
   width: 58px; padding: 9px 6px;
@@ -2152,6 +2163,9 @@ html, body {
 </style>
 </head>
 <body>
+
+<!-- 명패 직행 시에만 뜨는 별 복귀 문 (maison iframe 경유는 self!==top이라 숨김) -->
+<button class="wk-exit-star" id="wkExitStar" aria-label="별로 돌아가기" style="display:none">← 별로</button>
 
 <!-- 레이어 1 -->
 <div class="floor-layer" id="floorLayer"></div>
@@ -6106,6 +6120,18 @@ const SideWall = (() => {
 window.SideWall = SideWall;
 
 /* ===== 첫 진입 ===== */
+// 명패 직행(최상위 페이지 + from_star)일 때만 별 복귀 문 노출.
+// maison iframe 경유(①②⑤)는 self!==top이라 숨김 → 기존 maison "떠나기"와 중복 없음.
+try {
+  const _fromStar = new URLSearchParams(location.search).get('from_star');
+  if (window.self === window.top && _fromStar) {
+    const _eb = document.getElementById('wkExitStar');
+    if (_eb) {
+      _eb.style.display = 'block';
+      _eb.addEventListener('click', () => { location.href = 'star.html?id=' + encodeURIComponent(_fromStar); });
+    }
+  }
+} catch (e) {}
 buildBar();
 applyElevatorByOwner();   // 그 집 주인 elevator_no 로 문 표시 (없으면 CSS 기본 elevator_01)
 // 콘스텔라티오 순례: ?floor=N 으로 들어오면 그 층부터 시작 (없으면 1층). ?user= 는 loadLibrary가 읽음.
