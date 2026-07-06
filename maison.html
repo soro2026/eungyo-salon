@@ -23,6 +23,7 @@
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="eg-crash-guard.js"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Widgets/widgets.css" rel="stylesheet" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -579,6 +580,8 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
 })();
 
 (async function init(){
+  if (window.EGCrashGuard && EGCrashGuard.check()) return;  // 0706 크래시 가드: 지난 크래시면 팝업만, 3D 중단 (enter=1·home=1 두 경로 모두 커버)
+  if (window.EGCrashGuard) EGCrashGuard.mark('maison');
   const _p = new URLSearchParams(location.search);
   const _wantUser  = _p.get('user');
   const _wantEnter = _p.get('enter') === '1';
@@ -591,6 +594,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
     timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false,
     requestRenderMode:false
   });
+  if (window.EGCrashGuard) viewer.canvas.addEventListener('webglcontextlost', EGCrashGuard.markWebGL);  // 0706 GPU 폭발 확정
 
   const s = viewer.scene;
   s.skyAtmosphere.show = true;

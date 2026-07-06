@@ -9,7 +9,7 @@
  *
  * 사용:
  *   ① <script src="eg-crash-guard.js"></script>
- *   ② 페이지 로드 즉시(3D 시작 전):  EGCrashGuard.check();   // 지난 표식 있으면 팝업
+ *   ② 페이지 로드 즉시(3D 시작 전):  if (EGCrashGuard.check()) return;   // 지난 크래시면 팝업만 띄우고 3D 중단
  *   ③ 3D 진입 직전:                 EGCrashGuard.mark('voyage');  // 'maison'|'voyage'|'shell'
  *   ④ (WebGL만) 뷰어 생성 후:
  *        viewer.scene.canvas.addEventListener('webglcontextlost', EGCrashGuard.markWebGL);
@@ -66,7 +66,7 @@
     check: function () {
       var c;
       try { c = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { c = null; }
-      if (!c) return;
+      if (!c) return false;   // 지난 크래시 없음 → 3D 정상 진행
       try { localStorage.removeItem(KEY); } catch (e) {}   // 즉시 리셋 (다음 1회만)
 
       // best-effort 기록 (실패해도 팝업은 뜬다)
@@ -95,6 +95,7 @@
       } catch (e) {}
 
       _showPopup();
+      return true;   // 지난 크래시 감지 → 호출한 페이지는 3D 초기화를 건너뛴다
     }
   };
 
@@ -115,7 +116,7 @@
         '</div>' +
       '</div>';
     document.body.appendChild(ov);
-    document.getElementById('eg-crash-go').onclick = function () { ov.remove(); };
+    document.getElementById('eg-crash-go').onclick = function () { location.reload(); };  // 표식은 이미 지워졌으니 리로드=3D 재시도
     document.getElementById('eg-crash-back').onclick = function () {
       if (history.length > 1) history.back(); else ov.remove();
     };
