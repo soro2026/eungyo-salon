@@ -2796,6 +2796,20 @@ async function showEntryScreen() {
   document.getElementById('entry-screen').style.display = 'flex';
 }
 
+// ── 개인 주차 기준 (stadium_v2.html과 동일 정의 · localStorage 'eg_my_season_start_tue' 캐시 공유) ──
+// 허브(stadium_v2)가 세팅한 시즌 시작 화요일을, 경기장 집(game_rookie)도 같은 도메인 localStorage로 그대로 읽는다.
+// 이 두 함수가 없어 getWeekRecords의 week 필터가 늘 건너뛰어져, 시즌 전체가 '이번 주 전적'으로 뜨던 유령 수정 (0707).
+function getMySeasonStartTue() {
+  const s = localStorage.getItem('eg_my_season_start_tue');
+  return s ? new Date(s + 'T00:00:00+09:00') : null;
+}
+function getCurrentWeek() {
+  const start = getMySeasonStartTue();
+  if (!start) return 0;            // 시즌 시작 전
+  const w = Math.floor((new Date() - start) / (7 * 24 * 60 * 60 * 1000)) + 1;
+  return w < 1 ? 0 : w;            // 정식 화요일 이전(시범경기)은 0
+}
+
 // 이번 주 승패 — 소로 전체 전적 + 현재 상대와의 맞대결(상대 관점) · matches week_num 기준
 async function getWeekRecords(oppKey) {
   const empty = { soro:{w:0,l:0}, opp:{w:0,l:0} };
