@@ -3736,12 +3736,12 @@ const Floor3 = (() => {
     try {
       const rows = await sbFetch(`/rest/v1/wunderkammer_books?owner_id=eq.${uid}`
         + `&select=id,owner_id,title,author,cover_url,cover_w,cover_h,pos_x,pos_y,scale,tilt,essay_title,essay_body,seq`
-        + `&order=created_at.desc`);
+        + `&order=seq.desc`);
       BOOKS = (rows || []).map(r => ({
         id: r.id, owner_id: r.owner_id, title: r.title, author: r.author, cover: r.cover_url,
         cover_w: r.cover_w, cover_h: r.cover_h,
         pos_x: r.pos_x, pos_y: r.pos_y, scale: r.scale, tilt: r.tilt,
-        essay_title: r.essay_title, essay_body: r.essay_body
+        essay_title: r.essay_title, essay_body: r.essay_body, seq: r.seq
       }));
     } catch (e) { BOOKS = []; }
     buildPages();
@@ -3868,13 +3868,19 @@ const Floor3 = (() => {
         if (!up.ok) throw new Error('Storage 업로드 실패 ' + up.status);
         cover_url = SUPABASE_URL + '/storage/v1/object/public/book-covers/' + path;
       }
+      // 새 책은 맨 앞(최신) 칸으로 — 현재 최대 seq + 1 부여 (기존 배치 안 흔듦)
+      let _nextSeq = 0;
+      try {
+        const _mx = await sbFetch(`/rest/v1/wunderkammer_books?owner_id=eq.${BAM_OWNER}&select=seq&order=seq.desc&limit=1`);
+        if (Array.isArray(_mx) && _mx.length && _mx[0].seq != null) _nextSeq = Number(_mx[0].seq) + 1;
+      } catch (e) {}
       const ins = await sbFetch('/rest/v1/wunderkammer_books', {
         method:'POST', headers:{ 'Prefer':'return=representation' },
         body: JSON.stringify({
           owner_id: BAM_OWNER, source:'search',
           title: BAM_CURRENT.title, author: BAM_CURRENT.author,
           publisher: BAM_CURRENT.publisher, isbn: BAM_CURRENT.isbn,
-          cover_url, cover_w:w, cover_h:h
+          cover_url, cover_w:w, cover_h:h, seq: _nextSeq
         })
       });
       const row = Array.isArray(ins) ? ins[0] : ins;
@@ -3901,19 +3907,11 @@ const Floor3 = (() => {
     if (!PAGES.length) PAGES = [[]];   // 빈 책방도 한 페이지(화살표·닷 안전)
   }
 
-  // 책의 위치 — pos 있으면 그 값, null이거나 (0,0)이면 칸 기본(SHELF_SLOTS). numeric은 문자열로 와서 Number 변환.
-  function bookPos(book, slot) {
-    const px = (book.pos_x != null) ? Number(book.pos_x) : null;
-    const py = (book.pos_y != null) ? Number(book.pos_y) : null;
-    const has = (px != null && py != null && !(px === 0 && py === 0));  // 0,0 = 미설정 구석 → 칸 기본
-    return { x: has ? px : slot.left, y: has ? py : slot.top };
-  }
-  // 책 한 권을 칸에 앉힌다
+  // 책 한 권을 칸(SHELF_SLOTS)에 딱 스냅해 앉힌다 — 자유 pos 폐기(0706 스냅 배치). 위치는 오직 칸, 크기만 개별.
   function placeBook(el, book, slot) {
-    const p = bookPos(book, slot);
     const sc = (book.scale != null) ? Number(book.scale) : 1;
     const h = slot.height * (sc > 0 ? sc : 1);   // scale 문자열·0 방어
-    el.style.left = p.x + '%'; el.style.top = p.y + '%'; el.style.height = h + '%';
+    el.style.left = slot.left + '%'; el.style.top = slot.top + '%'; el.style.height = h + '%';
   }
 
   function buildShelfPages() {
@@ -3955,24 +3953,27 @@ const Floor3 = (() => {
 
   // 드래그 이동 + 휠/핸들 크기 (마우스·터치 양쪽)
   function bindEdit(el) {
-    const book = el._book, slot = el._slot;
-    // ── 위치 드래그 ──
+    const book = el._book;
+    // ── 위치 드래그 → 놓으면 가장 가까운 칸에 스냅, 그 칸 책과 자리(seq) 교환 ──
     let drag = false, sx, sy, bx, by;
     const dStart = (cx, cy) => {
       if (!editMode) return;
       selectBook(el); drag = true; sx = cx; sy = cy;
-      const p = bookPos(book, slot); bx = p.x; by = p.y;
+      bx = el._slot.left; by = el._slot.top;   // 현재 칸 좌표에서 출발
       el.classList.add('grabbing');
     };
     const dMove = (cx, cy) => {
       if (!drag) return;
       const stack = el.closest('.cover-stack'); if (!stack) return;
       const rw = stack.offsetWidth, rh = stack.offsetHeight;
-      book.pos_x = +(bx + ((cx - sx) / rw) * 100).toFixed(1);
-      book.pos_y = +(by + ((cy - sy) / rh) * 100).toFixed(1);
-      placeBook(el, book, slot);
+      // 시각 피드백만 — 손을 따라 움직임 (DB 저장 안 함, 놓을 때 스냅)
+      el.style.left = (bx + ((cx - sx) / rw) * 100) + '%';
+      el.style.top  = (by + ((cy - sy) / rh) * 100) + '%';
     };
-    const dEnd = () => { if (!drag) return; drag = false; el.classList.remove('grabbing'); saveBook(book); };
+    const dEnd = () => {
+      if (!drag) return; drag = false; el.classList.remove('grabbing');
+      snapSwap(el, book);
+    };
     el.addEventListener('mousedown', (e) => {
       if (!editMode || e.target.dataset.h) return;
       e.preventDefault(); dStart(e.clientX, e.clientY);
@@ -3994,7 +3995,7 @@ const Floor3 = (() => {
       if (!editMode) return; e.preventDefault(); selectBook(el);
       const cur = (book.scale != null) ? Number(book.scale) : 1;
       book.scale = +Math.max(0.4, Math.min(2.5, cur + (e.deltaY < 0 ? 0.04 : -0.04))).toFixed(3);
-      placeBook(el, book, slot);
+      placeBook(el, book, el._slot);
       clearTimeout(el._szT); el._szT = setTimeout(() => saveBook(book), 400);
     }, { passive: false });
     // ── 핸들 크기 (드래그) ──
@@ -4003,7 +4004,7 @@ const Floor3 = (() => {
     const hStart = (cx) => { selectBook(el); hBase = (book.scale != null) ? Number(book.scale) : 1; hsx = cx; };
     const hMove = (cx) => {
       book.scale = +Math.max(0.4, Math.min(2.5, hBase + (cx - hsx) / 120)).toFixed(3);
-      placeBook(el, book, slot);
+      placeBook(el, book, el._slot);
     };
     handle.addEventListener('mousedown', (e) => {
       if (!editMode) return; e.preventDefault(); e.stopPropagation(); hStart(e.clientX);
@@ -4019,12 +4020,56 @@ const Floor3 = (() => {
     }, { passive: true });
   }
 
+  // 놓은 위치에서 가장 가까운 칸을 찾아, 그 칸 책과 자리(seq)를 맞바꾼다 (같은 페이지 안, 전체 재렌더 없이 DOM만 교환)
+  async function snapSwap(el, book) {
+    const stack = el.closest('.cover-stack');
+    const fromSlot = el._slot;
+    if (!stack) { placeBook(el, book, fromSlot); return; }
+    const sRect = stack.getBoundingClientRect();
+    const eRect = el.getBoundingClientRect();
+    const cx = ((eRect.left + eRect.width / 2 - sRect.left) / sRect.width) * 100;
+    const cy = ((eRect.top + eRect.height / 2 - sRect.top) / sRect.height) * 100;
+    let best = SHELF_SLOTS[0], bestD = Infinity;
+    SHELF_SLOTS.forEach(s => {
+      const d = (s.left - cx) ** 2 + (s.top - cy) ** 2;
+      if (d < bestD) { bestD = d; best = s; }
+    });
+    if (best === fromSlot) { placeBook(el, book, fromSlot); return; }   // 제자리 → 그대로 스냅
+    // 같은 페이지에서 best 칸을 쓰는 다른 책 el 찾기
+    let targetEl = null;
+    el.parentElement.querySelectorAll('.cover-book').forEach(o => {
+      if (o !== el && o._slot === best) targetEl = o;
+    });
+    if (!targetEl) { placeBook(el, book, fromSlot); return; }   // 빈 칸 = 교환 상대 없음 → 제자리 복귀
+    const targetBook = targetEl._book;
+    // 슬롯·위치 교환
+    el._slot = best; targetEl._slot = fromSlot;
+    placeBook(el, book, best);
+    placeBook(targetEl, targetBook, fromSlot);
+    // seq 교환 (메모리 + DB) — 다음 로드 때 seq.desc 정렬에 그대로 반영
+    const a = book.seq, b = targetBook.seq;
+    book.seq = b; targetBook.seq = a;
+    await swapSeq(book.id, b, targetBook.id, a);
+  }
+
+  // 두 책의 seq를 DB에 맞바꿔 기록 (RLS가 본인 책만 허용)
+  async function swapSeq(idA, seqA, idB, seqB) {
+    try {
+      await sbFetch(`/rest/v1/wunderkammer_books?id=eq.${idA}`, {
+        method: 'PATCH', headers: { 'Prefer': 'return=minimal' }, body: JSON.stringify({ seq: seqA })
+      });
+      await sbFetch(`/rest/v1/wunderkammer_books?id=eq.${idB}`, {
+        method: 'PATCH', headers: { 'Prefer': 'return=minimal' }, body: JSON.stringify({ seq: seqB })
+      });
+    } catch (e) { /* 저장 실패는 조용히 — 다음 조작에서 재시도 */ }
+  }
+
   // 저장 — wunderkammer_books PATCH (pos_x/pos_y/scale 즉시 기록, RLS가 본인 책만 허용)
   async function saveBook(book) {
     try {
       await sbFetch(`/rest/v1/wunderkammer_books?id=eq.${book.id}`, {
         method: 'PATCH', headers: { 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ pos_x: book.pos_x, pos_y: book.pos_y, scale: book.scale })
+        body: JSON.stringify({ scale: book.scale })   // 위치는 seq(자리 교환)로 처리, 여기선 크기만
       });
     } catch (e) { /* 저장 실패는 조용히 — 다음 조작에서 재시도 */ }
   }
