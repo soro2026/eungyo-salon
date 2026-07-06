@@ -2406,7 +2406,7 @@ body{
   <div class="brand-row">
     <div class="brand" onclick="goToMain()">EG 스타디움</div>
     <div style="display:flex;align-items:center;gap:8px">
-      <button id="dl-injury-badge" onclick="openInjuryModal()" style="display:none;align-items:center;gap:4px;background:var(--bg-card-muted);border:1px solid var(--line-strong);border-radius:999px;padding:4px 11px;font-size:10px;color:var(--ink-secondary);font-family:'JetBrains Mono',monospace;letter-spacing:0.04em;cursor:pointer;white-space:nowrap">⏸ 일시멈춤</button>
+      <button id="dl-injury-badge" onclick="openInjuryModal()" style="display:none;align-items:center;gap:4px;background:var(--bg-card-muted);border:1px solid var(--line-strong);border-radius:999px;padding:4px 11px;font-size:10px;color:var(--ink-secondary);font-family:'JetBrains Mono',monospace;letter-spacing:0.04em;cursor:pointer;white-space:nowrap">⏸ 출장 신청</button>
       <div class="brand-meta">2026 · ROOKIE</div>
     </div>
   </div>
@@ -3234,7 +3234,7 @@ async function enterStadium() {
   }
 
   if (todayMatches.status === 'rest') {
-    alert('정규시즌 일시멈춤 기간입니다. 잘 쉬고 계세요 — 시즌은 멈춘 곳에서 다시 이어집니다.');
+    alert('정규시즌 출장 기간입니다. 잘 다녀오세요 — 시즌은 출장 시작 지점으로부터 다시 이어집니다.');
     return;
   }
   
@@ -3905,7 +3905,7 @@ function updateMyGameCard(matches, date) {
   const status = card.querySelector('.game-status');
   if (status) {
     if (myGame.status === 'rest') {
-      status.textContent = '⏸ 멈춤';
+      status.textContent = '⏸ 출장';
     } else if (myGame.status === 'completed') {
       status.textContent = `완료 · ${myGame.away_score}:${myGame.home_score}`;
     } else {
@@ -3943,7 +3943,7 @@ function updateOtherFieldToday(matches, date) {
   const time = card.querySelector('.other-field-time');
   if (time) {
     if (other.status === 'rest') {
-      time.textContent = '⏸ 멈춤';
+      time.textContent = '⏸ 출장';
     } else if (other.status === 'completed') {
       time.textContent = `완료 · ${other.home_score}:${other.away_score}`;
     } else {
@@ -4276,11 +4276,19 @@ async function loadMyInjuryState(){
   badge.style.display = 'inline-flex';
   if (_myInjury && _myInjury.start_date <= today){
     const dleft = Math.round((new Date(_myInjury.end_date+'T00:00:00+09:00') - new Date(today+'T00:00:00+09:00'))/864e5) + 1;
-    badge.textContent = `⏸ 멈춤 중 · 복귀 D-${dleft}`;
+    badge.textContent = `⏸ 출장 중 · 복귀 D-${dleft}`;
+    // 멈춤 중이면 Home 진입 시 안내 모달을 자동으로 (세션당 1회 — 이후엔 배지로 확인)
+    try {
+      const _k = 'eg_injury_seen_' + _myInjury.start_date;
+      if (!sessionStorage.getItem(_k)) {
+        sessionStorage.setItem(_k, '1');
+        setTimeout(() => { if (!document.getElementById('dl-modal')) openInjuryModal(); }, 450);
+      }
+    } catch(e){}
   } else if (_myInjury){
-    badge.textContent = '⏸ 멈춤 예정';
+    badge.textContent = '⏸ 출장 예정';
   } else {
-    badge.textContent = '⏸ 일시멈춤';
+    badge.textContent = '⏸ 출장 신청';
   }
 }
 
@@ -4298,8 +4306,8 @@ function openInjuryModal(){
     const inProg = _myInjury.start_date <= today;
     ov.innerHTML = `<div style="max-width:360px;width:100%;background:#f8f4ee;border:1px solid rgba(42,38,32,0.16);border-radius:16px;padding:30px 26px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,0.32)">
       <div style="font-size:40px;line-height:1">⏸</div>
-      <div style="font-size:18px;font-weight:700;color:#2a2620;margin:10px 0 6px;font-family:'Noto Serif KR',serif">${inProg ? '지금은 멈춤 중입니다' : '멈춤이 예약돼 있습니다'}</div>
-      <p style="font-size:13px;color:#6b6358;line-height:1.7;margin:0 0 20px">${_dlFmt(_myInjury.start_date)}(${_dlDow(_myInjury.start_date)}) ~ ${_dlFmt(_myInjury.end_date)}(${_dlDow(_myInjury.end_date)})<br>${_dlFmt(_dlAddDays(_myInjury.end_date,1))}(${_dlDow(_dlAddDays(_myInjury.end_date,1))})부터 멈춘 곳에서 시즌이 다시 이어집니다.<br><span style="color:#a39c8e">한 번에 하나의 멈춤만 둘 수 있어요. 끝난 뒤 다시 신청해 주세요.</span></p>
+      <div style="font-size:18px;font-weight:700;color:#2a2620;margin:10px 0 6px;font-family:'Noto Serif KR',serif">${inProg ? '지금은 출장 중입니다' : '출장이 예약돼 있습니다'}</div>
+      <p style="font-size:13px;color:#6b6358;line-height:1.7;margin:0 0 20px">${_dlFmt(_myInjury.start_date)}(${_dlDow(_myInjury.start_date)}) ~ ${_dlFmt(_myInjury.end_date)}(${_dlDow(_myInjury.end_date)})<br>${_dlFmt(_dlAddDays(_myInjury.end_date,1))}(${_dlDow(_dlAddDays(_myInjury.end_date,1))}), 출장 시작 지점으로부터 시즌이 다시 이어집니다.<br><span style="color:#a39c8e">한 번에 하나의 출장만 둘 수 있어요. 끝난 뒤 다시 신청해 주세요.</span></p>
       <button onclick="closeInjuryModal()" style="background:#2a2620;color:#f8f4ee;border:none;border-radius:10px;padding:12px 26px;font-size:14px;font-weight:600;cursor:pointer">알겠습니다</button>
     </div>`;
     document.body.appendChild(ov);
@@ -4310,8 +4318,8 @@ function openInjuryModal(){
   _dlSel = { days: null, start: today };
   ov.innerHTML = `<div style="max-width:380px;width:100%;background:#f8f4ee;border:1px solid rgba(42,38,32,0.16);border-radius:16px;padding:30px 26px;box-shadow:0 24px 60px rgba(0,0,0,0.32)">
     <div style="text-align:center;font-size:40px;line-height:1">⏸</div>
-    <div style="text-align:center;font-size:19px;font-weight:700;color:#2a2620;margin:8px 0 6px;font-family:'Noto Serif KR',serif">정규시즌 일시멈춤</div>
-    <p style="font-size:13px;color:#6b6358;line-height:1.7;margin:0 0 20px;text-align:center">며칠 타석에 서기 어려우신가요.<br>미리 알려주시면 그 며칠은 패배가 아니라 <b style="color:#2a2620">멈춤</b>으로 남고,<br>돌아오시면 시즌은 멈춘 곳에서 다시 이어집니다.</p>
+    <div style="text-align:center;font-size:19px;font-weight:700;color:#2a2620;margin:8px 0 6px;font-family:'Noto Serif KR',serif">정규시즌 출장 신청</div>
+    <p style="font-size:13px;color:#6b6358;line-height:1.7;margin:0 0 20px;text-align:center">여행이나 휴가, 업무 출장으로 며칠 자리를 비우게 되셨나요.<br>미리 알려주시면 그 며칠은 패배가 아니라 <b style="color:#2a2620">출장</b>으로 남고,<br>돌아오시면 시즌은 출장 시작 지점으로부터 다시 이어집니다.</p>
     <div style="font-size:11px;color:#a39c8e;letter-spacing:0.06em;margin-bottom:7px">며칠 멈출까요</div>
     <div id="dl-days" style="display:flex;gap:8px;margin-bottom:18px">
       ${[3,5,10].map(d=>`<button data-d="${d}" onclick="_dlPick(${d})" style="flex:1;background:#fff;border:1px solid rgba(42,38,32,0.16);border-radius:10px;padding:12px 0;font-size:14px;font-weight:600;color:#2a2620;cursor:pointer">${d}일</button>`).join('')}
@@ -4319,10 +4327,10 @@ function openInjuryModal(){
     <div style="font-size:11px;color:#a39c8e;letter-spacing:0.06em;margin-bottom:7px">언제부터</div>
     <input id="dl-start" type="date" value="${today}" min="${today}" onchange="_dlSetStart(this.value)" style="width:100%;box-sizing:border-box;background:#fff;border:1px solid rgba(42,38,32,0.16);border-radius:10px;padding:11px 12px;font-size:14px;color:#2a2620;margin-bottom:18px;font-family:inherit">
     <div id="dl-preview" style="background:#faf7f0;border:1px solid rgba(42,38,32,0.08);border-radius:10px;padding:14px;font-size:13px;color:#6b6358;line-height:1.8;margin-bottom:14px;min-height:20px">기간을 골라 주세요.</div>
-    <p style="font-size:11px;color:#a39c8e;line-height:1.6;margin:0 0 18px">· 이미 지난 날은 멈춤으로 덮을 수 없어요 · 멈춤 중에는 새 멈춤을 추가할 수 없어요 · 기간이 끝나면 자동으로 시즌이 이어집니다</p>
+    <p style="font-size:11px;color:#a39c8e;line-height:1.6;margin:0 0 18px">· 이미 지난 날은 출장으로 덮을 수 없어요 · 출장 중에는 새 출장을 추가할 수 없어요 · 기간이 끝나면 자동으로 시즌이 이어집니다</p>
     <div style="display:flex;gap:8px">
       <button onclick="closeInjuryModal()" style="flex:1;background:#fff;color:#6b6358;border:1px solid rgba(42,38,32,0.16);border-radius:10px;padding:13px 0;font-size:14px;cursor:pointer">닫기</button>
-      <button id="dl-submit" onclick="submitInjury()" disabled style="flex:2;background:#a39c8e;color:#f8f4ee;border:none;border-radius:10px;padding:13px 0;font-size:14px;font-weight:600;cursor:not-allowed">멈춤 올리기</button>
+      <button id="dl-submit" onclick="submitInjury()" disabled style="flex:2;background:#a39c8e;color:#f8f4ee;border:none;border-radius:10px;padding:13px 0;font-size:14px;font-weight:600;cursor:not-allowed">출장 신청하기</button>
     </div>
   </div>`;
   document.body.appendChild(ov);
@@ -4346,7 +4354,7 @@ function _dlRefresh(){
   if (!_dlSel.days || !_dlSel.start){ box.textContent = '기간을 골라 주세요.'; return; }
   const start = _dlSel.start, end = _dlAddDays(start, _dlSel.days - 1), ret = _dlAddDays(end, 1);
   const apples = _dlSel.days * 0.5;
-  box.innerHTML = `<b style="color:#2a2620">${_dlFmt(start)}(${_dlDow(start)}) ~ ${_dlFmt(end)}(${_dlDow(end)})</b> 멈춤<br>받는 황금사과 <b style="color:#2a2620">${apples}알</b> <span style="color:#a39c8e">(하루 0.5알)</span><br><b style="color:#2a2620">${_dlFmt(ret)}(${_dlDow(ret)})</b>부터 타석 복귀`;
+  box.innerHTML = `<b style="color:#2a2620">${_dlFmt(start)}(${_dlDow(start)}) ~ ${_dlFmt(end)}(${_dlDow(end)})</b> 출장<br>받는 황금사과 <b style="color:#2a2620">${apples}알</b> <span style="color:#a39c8e">(하루 0.5알)</span><br><b style="color:#2a2620">${_dlFmt(ret)}(${_dlDow(ret)})</b>부터 타석 복귀`;
   if (btn){ btn.disabled=false; btn.style.background='#2a2620'; btn.style.cursor='pointer'; }
 }
 
@@ -4358,7 +4366,7 @@ async function submitInjury(){
   if (error){
     const box = document.getElementById('dl-preview');
     if (box) box.innerHTML = `<span style="color:#a05a44">${error.message || '신청에 실패했어요. 잠시 후 다시 시도해 주세요.'}</span>`;
-    if (btn){ btn.disabled=false; btn.textContent='멈춤 올리기'; btn.style.cursor='pointer'; }
+    if (btn){ btn.disabled=false; btn.textContent='출장 신청하기'; btn.style.cursor='pointer'; }
     return;
   }
   const r = data || {};
@@ -4366,7 +4374,7 @@ async function submitInjury(){
   if (ov){
     ov.innerHTML = `<div style="max-width:360px;width:100%;background:#f8f4ee;border:1px solid #C9A84C;border-radius:16px;padding:32px 28px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,0.32)">
       <div style="font-size:46px;line-height:1">⏸</div>
-      <div style="font-size:19px;font-weight:700;color:#2a2620;margin:10px 0 6px;font-family:'Noto Serif KR',serif">멈춤이 올라갔습니다</div>
+      <div style="font-size:19px;font-weight:700;color:#2a2620;margin:10px 0 6px;font-family:'Noto Serif KR',serif">출장이 신청됐습니다</div>
       <p style="font-size:13px;color:#6b6358;line-height:1.8;margin:0 0 18px">${_dlFmt(r.start)}(${_dlDow(r.start)}) ~ ${_dlFmt(r.end)}(${_dlDow(r.end)})<br>황금사과 <b style="color:#C9A84C">${r.apples}알</b>이 도착했습니다 🍎<br><b style="color:#2a2620">${_dlFmt(r.return_date)}(${_dlDow(r.return_date)})</b>부터 시즌이 다시 이어집니다.</p>
       <button onclick="closeInjuryModal()" style="background:#2a2620;color:#f8f4ee;border:none;border-radius:10px;padding:12px 28px;font-size:14px;font-weight:600;cursor:pointer">잘 쉬다 오겠습니다</button>
     </div>`;
@@ -4498,8 +4506,8 @@ function showRestView(myGame, otherGame){
   const ret  = inj ? `${_dlFmt(_dlAddDays(inj.end_date,1))}(${_dlDow(_dlAddDays(inj.end_date,1))})` : '';
   rest.innerHTML = `<div style="background:var(--bg-card);border:1px solid var(--line-strong);border-radius:18px;padding:38px 26px;text-align:center;margin-top:8px">
     <div style="font-size:48px;line-height:1">⏸</div>
-    <div style="font-size:19px;font-weight:700;color:var(--ink-primary);margin:12px 0 8px;font-family:'Noto Serif KR',serif">오늘은 멈춤입니다</div>
-    <p style="font-size:13px;color:var(--ink-secondary);line-height:1.75;margin:0">${span}${dleft!=null?`<br><b style="color:var(--ink-primary)">복귀까지 D-${dleft}</b>`:''}${ret?`<br>${ret}부터 멈춘 곳에서 시즌이 다시 이어집니다.`:''}</p>
+    <div style="font-size:19px;font-weight:700;color:var(--ink-primary);margin:12px 0 8px;font-family:'Noto Serif KR',serif">오늘은 출장입니다</div>
+    <p style="font-size:13px;color:var(--ink-secondary);line-height:1.75;margin:0">${span}${dleft!=null?`<br><b style="color:var(--ink-primary)">복귀까지 D-${dleft}</b>`:''}${ret?`<br>${ret}, 출장 시작 지점으로부터 시즌이 다시 이어집니다.`:''}</p>
     <p style="font-size:12px;color:var(--ink-tertiary);margin:18px 0 0;line-height:1.6">잘 쉬고 계세요 — 타석은 그대로 당신을 기다립니다.</p>
   </div>`;
 }
