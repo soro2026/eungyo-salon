@@ -154,9 +154,9 @@ function getTodayBgIndex() {
   localStorage.setItem('eg_stadium_bg_today', JSON.stringify({ date: today, idx }));
   return idx;
 }
-function applyRandomStadiumBg(fieldBgEl) {
+function applyRandomStadiumBg(fieldBgEl, forceIdx) {
   if (!fieldBgEl) return;
-  const idx = getTodayBgIndex();
+  const idx = (forceIdx != null) ? forceIdx : getTodayBgIndex();
   const num = String(idx).padStart(2, '0');
   const url = `stadium_bg_${num}.webp`;
   // 기존 잔디 클래스 제거 후 풀배경 클래스 적용
@@ -2743,65 +2743,48 @@ function stopCardSlide() {
   if(cardSlideTimer) { clearInterval(cardSlideTimer); cardSlideTimer = null; }
 }
 
-function showEntryScreen() {
+async function showEntryScreen() {
   const opp = currentOpp;
   if(!opp) return;
+  const key = opp.emblemImg.replace('emblem_','').replace('.jpg','');   // socrates / proust / pascal
 
-  // 드론 영상 — 구장별 연동
-  const key = opp.emblemImg.replace('emblem_','').replace('.jpg','');
-  const droneMap = {
-    proust:   'drone_proust.mp4',
-    socrates: 'drone_socrates.mp4',
-    pascal:   'drone_pascal.mp4',
-    soro:     'drone_soro.mp4',
-  };
-  const stadiumKey = currentIsHome ? 'soro' : key;
-  const droneSrc = droneMap[stadiumKey] || 'drone_socrates.mp4';
+  // 함성 (드론 영상 대체 · 0706 개편)
+  try { const a = new Audio('cheer.mp3'); a.volume = 0.7; a.play().catch(()=>{}); } catch(e){}
 
-  const droneVideo = document.getElementById('entry-drone-video');
-  if(droneVideo) {
-    // 소크라테스 구장은 무음, 나머지는 오디오 포함
-    droneVideo.muted = (stadiumKey === 'socrates');
-    droneVideo.src = droneSrc;
-    droneVideo.load();
-    droneVideo.play().catch(()=>{});
+  // 인트로 배경 — startGame이 뽑아둔 겹침 방지 번호
+  const stage = document.getElementById('mu-stage');
+  if (stage) {
+    const bn = window._egIntroBg || 1;
+    stage.style.setProperty('--mu-bg-url', `url('stadium_bg_${String(bn).padStart(2,'0')}.webp')`);
   }
 
-  // 소크라테스 구장 관중 소음 — 추후 다른 파일로 교체 예정
-  // if(stadiumKey === 'socrates' && GAME_ACTIVE) { SND.crowd_ambient(); }
+  // 홈/원정 라벨 + 구장명 (홈=Soro Park / 원정=상대 구장)
+  const sub = document.getElementById('mu-sub');
+  if (sub) sub.textContent = currentIsHome
+    ? '🏠 홈 경기 · 후공 · ' + HOME.stadium
+    : '✈️ 원정 경기 · 선공 · ' + opp.stadium;
 
-  const droneLabel = document.getElementById('entry-drone-label');
-  if(droneLabel) droneLabel.textContent = (currentIsHome ? '🏠 홈 경기' : '✈️ 원정 경기') + ' · ' + (currentIsHome ? HOME.stadium : opp.stadium);
+  // 이번 주 승패 (소로 전체 전적 / 상대와의 맞대결 전적)
+  const recs = await getWeekRecords(key);
 
-  // 상대 카드 이미지 연동
-  const cardMap = {
-    proust:   'card_proust2.png',
-    socrates: 'card_socrates2.png',
-    pascal:   'card_pascal2.png',
+  const soroSide = { face:'face_soro.webp',     name:'YOU, SORO',   role:'Eungyo Salon', color:HOME.color, rec:recs.soro };
+  const oppSide  = { face:`face_${key}.webp`,    name:opp.shortName, role:opp.location,   color:opp.color,  rec:recs.opp };
+  // 홈: 좌=상대·우=소로 / 원정: 좌=소로·우=상대
+  const left  = currentIsHome ? oppSide : soroSide;
+  const right = currentIsHome ? soroSide : oppSide;
+
+  const fill = (pfx, s) => {
+    const f=document.getElementById(pfx+'-face'), n=document.getElementById(pfx+'-name'),
+          r=document.getElementById(pfx+'-role'), rc=document.getElementById(pfx+'-rec'),
+          pl=document.getElementById(pfx);
+    if(f){ f.src=s.face; f.alt=s.name; }
+    if(n) n.textContent=s.name;
+    if(r) r.textContent=s.role;
+    if(rc) rc.textContent=`${s.rec.w}승 ${s.rec.l}패`;
+    if(pl) pl.style.setProperty('--mu-c', s.color);
   };
-  const oppCardSrc = cardMap[key] || 'card_pascal2.png';
-  const oppCardEl = document.getElementById('card-opp-img');
-  if(oppCardEl) oppCardEl.src = oppCardSrc;
-  const oppCardEl2 = document.getElementById('card-opp-img2');
-  if(oppCardEl2) oppCardEl2.src = oppCardSrc;
-
-  // 상대 카드 스탯 업데이트
-  const cs = CARD_STATS[key] || CARD_STATS.pascal;
-  const setEl = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
-  setEl('opp-league', cs.league);
-  setEl('opp-games',  cs.games);
-  setEl('opp-record', cs.record);
-  setEl('opp-avg',    cs.avg);
-  setEl('opp-ops',    cs.ops);
-  setEl('opp-rbi',    cs.rbi);
-  setEl('opp-hr',     cs.hr);
-  setEl('opp-era',    cs.era);
-
-  // 소로 카드 스탯 — Supabase season_stats 연동
-  updateSoroCard();
-
-  // 카드 슬라이드 시작
-  startCardSlide();
+  fill('mu-left', left);
+  fill('mu-right', right);
 
   // 화면 전환
   document.getElementById('pregame-screen').style.display = 'none';
@@ -2811,6 +2794,30 @@ function showEntryScreen() {
   document.getElementById('result-area').style.display = 'none';
   document.getElementById('zone-board-screen').style.display = 'none';
   document.getElementById('entry-screen').style.display = 'flex';
+}
+
+// 이번 주 승패 — 소로 전체 전적 + 현재 상대와의 맞대결(상대 관점) · matches week_num 기준
+async function getWeekRecords(oppKey) {
+  const empty = { soro:{w:0,l:0}, opp:{w:0,l:0} };
+  try {
+    const week = (typeof getCurrentWeek === 'function') ? getCurrentWeek() : null;
+    let q = supa.from('matches')
+      .select('home_team,away_team,home_score,away_score,status')
+      .eq('is_my_game', true).eq('status', 'completed');
+    if (week != null) q = q.eq('week_num', week);
+    const { data } = await q;
+    let sw=0, sl=0, ow=0, ol=0;
+    (data||[]).forEach(m => {
+      const soroHome = m.home_team === 'soro';
+      const ss = soroHome ? m.home_score : m.away_score;   // 소로 점수
+      const os = soroHome ? m.away_score : m.home_score;   // 상대 점수
+      const ot = soroHome ? m.away_team : m.home_team;     // 상대 팀
+      if (ss == null || os == null) return;
+      if (ss > os) sw++; else if (ss < os) sl++;
+      if (ot === oppKey) { if (os > ss) ow++; else if (os < ss) ol++; }
+    });
+    return { soro:{w:sw,l:sl}, opp:{w:ow,l:ol} };
+  } catch(e) { return empty; }
 }
 
 async function enterZoneBoard() {
@@ -3037,7 +3044,12 @@ async function startGame(){
     else fb.classList.add('stadium-soro');
   }
   fb.classList.add('game-active');
-  applyRandomStadiumBg(fb); // 풀배경 이미지 랜덤 적용
+  // 인트로 카드 배경 / 경기 배경 두 장을 겹치지 않게 (매 입장 랜덤 · 0706 개편)
+  const _biG = Math.floor(Math.random() * STADIUM_BG_COUNT) + 1;
+  let _bgG = Math.floor(Math.random() * STADIUM_BG_COUNT) + 1;
+  while (_bgG === _biG) _bgG = Math.floor(Math.random() * STADIUM_BG_COUNT) + 1;
+  window._egIntroBg = _biG;              // 매치업 카드가 쓸 인트로 배경
+  applyRandomStadiumBg(fb, _bgG);        // 경기 배경 = 인트로와 다른 것
   // 홈=후공(말, isAttack=false), 원정=선공(초, isAttack=true)
   st.isAttack = !currentIsHome;
   // B방식: 시범경기면 경험한 문제 회피 준비 (buildZoneBoard 전에 await)
