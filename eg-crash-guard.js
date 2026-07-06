@@ -17,6 +17,7 @@
  */
 (function () {
   var KEY = 'eg-crash-breadcrumb';
+  var NOTIFIED_KEY = 'eg-crash-notified';   // 폰 1회 안내 플래그 (0707)
   var SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
   var SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
 
@@ -43,6 +44,15 @@
     };
   }
 
+  // 폰 판별 — 팝업은 폰에서만 (노트북·데스크톱·태블릿 제외) · 0707
+  function isPhone() {
+    var ua = navigator.userAgent || '';
+    var uaPhone = /iPhone|iPod|Windows Phone|Android.*Mobile/i.test(ua);
+    var sw = (window.screen && screen.width) || 9999;
+    var sh = (window.screen && screen.height) || 9999;
+    return uaPhone || Math.min(sw, sh) <= 500;
+  }
+
   var EGCrashGuard = {
     // 3D 진입 직전 — 표식 ON
     mark: function (page) {
@@ -67,7 +77,13 @@
       var c;
       try { c = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { c = null; }
       if (!c) return false;   // 지난 크래시 없음 → 3D 정상 진행
-      try { localStorage.removeItem(KEY); } catch (e) {}   // 즉시 리셋 (다음 1회만)
+      try { localStorage.removeItem(KEY); } catch (e) {}   // 표식은 항상 즉시 제거
+
+      // 폰이 아니면 팝업·기록 없이 조용히 통과 (0707) — pagehide가 SPA·PWA 환경에서
+      // 표식을 못 지워 남는 오탐이, 노트북·데스크톱에 팝업을 무한 반복시키던 문제 차단.
+      if (!isPhone()) return false;
+      // 폰이라도 이미 한 번 안내했으면 다시 띄우지 않음 (사고 난 폰에 1회)
+      try { if (localStorage.getItem(NOTIFIED_KEY)) return false; } catch (e) {}
 
       // best-effort 기록 (실패해도 팝업은 뜬다)
       var sess = readSession();
@@ -94,6 +110,7 @@
         }).catch(function () {});
       } catch (e) {}
 
+      try { localStorage.setItem(NOTIFIED_KEY, '1'); } catch (e) {}   // 1회 안내 플래그
       _showPopup();
       return true;   // 지난 크래시 감지 → 호출한 페이지는 3D 초기화를 건너뛴다
     }
