@@ -890,36 +890,7 @@ html, body {
   background-size:cover; background-position:center; transition:background-image .6s ease;
 }
 
-/* ── 90도 회전: 무대 두 면 (정면=음악실 ↔ 옆면=인물벽) ──
- *  같은 그리드 칸에 두 면을 포개고 Y축 회전으로 면 교체.
- *  컨테이너 쿼리 비율 가둠(1672/941)은 두 면이 공유 — 절대 안 깨짐.
- *  회전 전 미니 플레이어는 좌하단으로 내려옴(Floor2.turnWall).   */
-.floor-content[data-floor="2"] .ms-room,
-.floor-content[data-floor="2"] .pw-room { grid-area:1/1; backface-visibility:hidden; }
-.floor-content[data-floor="2"] .ms-room {
-  transition:background-image .6s ease, transform .8s cubic-bezier(.55,.05,.3,1), opacity .55s ease .12s;
-}
-.floor-content[data-floor="2"] .pw-room {
-  position:relative; aspect-ratio:1672/941;
-  width:min(100cqw, calc(100cqh * 1672 / 941), 1400px);
-  background-image:url('star_wall_musicroom.png');
-  background-size:cover; background-position:center;
-  box-shadow:0 18px 60px rgba(0,0,0,.55);
-  overflow:hidden;
-  transform:rotateY(92deg); opacity:0; pointer-events:none;
-  transition:transform .8s cubic-bezier(.55,.05,.3,1), opacity .55s ease .12s;
-}
-.floor-content[data-floor="2"] .ms-stage.turned .ms-room { transform:rotateY(-92deg); opacity:0; pointer-events:none; }
-.floor-content[data-floor="2"] .ms-stage.turned .pw-room { transform:rotateY(0deg); opacity:1; pointer-events:auto; }
-/* 인물벽 면에서는 음악 도구·선반·명패를 조용히 거둠 (레이아웃은 유지 — 무대 크기 안 출렁임) */
-.floor-content[data-floor="2"].pw-turned .ms-shuffle,
-.floor-content[data-floor="2"].pw-turned .ms-crate,
-.floor-content[data-floor="2"].pw-turned .ms-shelf,
-.floor-content[data-floor="2"].pw-turned .ms-info { opacity:0; pointer-events:none; transition:opacity .4s; }
-.floor-content[data-floor="2"] .ms-shuffle,
-.floor-content[data-floor="2"] .ms-crate,
-.floor-content[data-floor="2"] .ms-shelf,
-.floor-content[data-floor="2"] .ms-info { transition:opacity .4s; }
+.floor-content[data-floor="2"] .ms-room { grid-area:1/1; }
 .floor-content[data-floor="2"] .ms-room-name { font-size:11px; letter-spacing:2px; color:#8a7654; font-style:italic; margin-top:4px; }
 /* 벽 스크린 = 도킹 타겟 (iframe 없음 · 검은 무대 + 호박빛 글로우) */
 .floor-content[data-floor="2"] .ms-wall {
@@ -947,14 +918,12 @@ html, body {
 }
 /* 헤더 도구: 🎲 다른 음악실 / ♪ 음반 고르기 */
 .floor-content[data-floor="2"] .ms-tools { display:flex; gap:8px; justify-content:center; margin-top:9px; flex-wrap:wrap; }
-.floor-content[data-floor="2"] .ms-shuffle, .floor-content[data-floor="2"] .ms-crate, .floor-content[data-floor="2"] .ms-stars {
+.floor-content[data-floor="2"] .ms-shuffle, .floor-content[data-floor="2"] .ms-crate {
   background:rgba(20,14,8,.6); border:1px solid var(--ms-line); color:var(--ms-dim);
   padding:5px 13px; font-family:inherit; font-size:10px; letter-spacing:1px;
   cursor:pointer; border-radius:2px; transition:all .2s;
 }
-.floor-content[data-floor="2"] .ms-shuffle:hover, .floor-content[data-floor="2"] .ms-crate:hover, .floor-content[data-floor="2"] .ms-stars:hover { color:var(--ms-text); border-color:var(--ms-dim2); }
-/* 인물벽 면에서도 ✦ 버튼만은 남아 무대로 돌아가는 손잡이가 됨 */
-.floor-content[data-floor="2"].pw-turned .ms-stars { color:#d4a548; border-color:rgba(212,165,72,.5); }
+.floor-content[data-floor="2"] .ms-shuffle:hover, .floor-content[data-floor="2"] .ms-crate:hover { color:var(--ms-text); border-color:var(--ms-dim2); }
 
 /* ── 하단 정보: 명패(항상) + 마리 노트(접힘, 버튼으로 펼침) ── */
 .floor-content[data-floor="2"] .ms-info {
@@ -1058,98 +1027,6 @@ html, body {
 .music-player .mp-eq i:nth-child(3){ height:60%; animation-delay:.4s }
 .music-player .mp-eq i:nth-child(4){ height:100%; animation-delay:.1s }
 @keyframes mp-eq { 0%,100%{transform:scaleY(.4)} 50%{transform:scaleY(1)} }
-
-/* ============================================================
- *  인물벽 (PersonaWall) — 독립 부품 · 층 비종속 (.pw- 전역)
- *  근거: 인물액자혁명 의제(0529) + 목업 확정 표정(0603).
- *  셰익스피어 앤 컴퍼니식 흑백 인물 액자 — 삐뚤빼뚤·제각각·다닥다닥.
- *  mulberry32(starSeed) 고정 랜덤 = "내 방 벽 30년 그대로".
- *  본 공사 때 companions → stars.photo_url(field 필터)로 1~4층 동시 연결.
- * ============================================================ */
-.pw-frame {
-  position:absolute;
-  background:#f4ecd8;
-  padding:2.2% 2.2% 5.5%;            /* 아래 여백 큼 = 명판 */
-  box-shadow:0 1px 1px rgba(0,0,0,.2), var(--drop);
-  cursor:pointer;
-  transition:transform .35s cubic-bezier(.34,1.4,.5,1), box-shadow .35s, filter .35s;
-  transform:rotate(var(--rot)) translateZ(0);
-  transform-origin:center center;
-}
-.pw-frame .pw-photo {
-  width:100%; aspect-ratio:3/3.6; object-fit:cover; display:block;
-  filter:grayscale(1) contrast(1.05) sepia(.12) brightness(.96);
-  background:#2a2018;
-}
-.pw-frame .pw-plate {
-  position:absolute; left:0; right:0; bottom:1.4%;
-  text-align:center; font-size:clamp(7px,.85vw,11px);
-  letter-spacing:.5px; color:#4a3a26; font-style:italic;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:0 6%;
-  font-family:'Cormorant Garamond','Noto Serif KR',serif;
-}
-.pw-frame:hover {
-  transform:rotate(0deg) scale(1.06);
-  box-shadow:0 18px 40px rgba(0,0,0,.55);
-  filter:brightness(1.06);
-  z-index:200 !important;
-}
-.pw-frame::after {
-  content:''; position:absolute; inset:2.2% 2.2% 5.5%;
-  box-shadow:inset 0 0 0 1px rgba(0,0,0,.12);
-  pointer-events:none;
-}
-/* 안내 액자 (MES ÉTOILES) — 늘 한 장, 콘스텔라티오로 가는 문 */
-.pw-frame.pw-guide { padding:1.8%; }
-.pw-frame.pw-guide .pw-photo { aspect-ratio:1145/1374; filter:none; }
-.pw-frame.pw-guide::after { inset:1.8%; }
-.pw-frame.pw-guide .pw-hint {
-  position:absolute; left:50%; bottom:-34px; transform:translateX(-50%) translateY(4px);
-  white-space:nowrap; font-size:11px; letter-spacing:2px; color:#d4a548;
-  opacity:0; transition:all .3s; pointer-events:none; font-style:italic;
-  font-family:'Cormorant Garamond','Noto Serif KR',serif;
-}
-.pw-frame.pw-guide:hover .pw-hint { opacity:1; transform:translateX(-50%) translateY(0); }
-.pw-frame.pw-guide:hover {
-  box-shadow:0 18px 44px rgba(0,0,0,.55), 0 0 30px rgba(212,165,72,.35);
-}
-/* ── 인물벽 90도 면 — 1·3층 공용 (2층은 자체 무대 회전 보유) ── */
-.pw-face {
-  position:absolute; inset:0; z-index:25; display:grid; place-items:center;
-  perspective:1800px; container-type:size; pointer-events:none;
-}
-.pw-face::before { content:''; position:absolute; inset:0; background:rgba(16,10,12,0); transition:background .6s ease; }
-.pw-face.on { pointer-events:auto; }
-.pw-face.on::before { background:rgba(16,10,12,.82); }
-.pw-face .pw-canvas {
-  position:relative; aspect-ratio:1672/941;
-  width:min(94cqw, calc(92cqh * 1672 / 941), 1380px);
-  background-image:url('star_wall_musicroom.png');
-  background-size:cover; background-position:center;
-  box-shadow:0 18px 60px rgba(0,0,0,.55); overflow:hidden;
-  transform:rotateY(92deg); opacity:0;
-  transition:transform .8s cubic-bezier(.55,.05,.3,1), opacity .55s ease .12s;
-}
-.pw-face.on .pw-canvas { transform:rotateY(0deg); opacity:1; }
-/* 돌아선 동안 본업 도구는 조용히 거둠 (베일이 위를 덮으니 즉시 숨김으로 충분) */
-.floor-content[data-floor="1"].pw-turned .g1-nav,
-.floor-content[data-floor="1"].pw-turned .g1-compass,
-.floor-content[data-floor="3"].pw-turned .bk-nav-arrow,
-.floor-content[data-floor="3"].pw-turned .bk-dots,
-.floor-content[data-floor="3"].pw-turned .bk-hint { opacity:0; pointer-events:none; }
-/* 토글 손잡이 — 2층 ✦ 버튼과 같은 표정. 위치는 층마다 (좌상단 음소거 토글과 비킴) */
-.pw-toggle {
-  position:absolute; z-index:30;
-  background:rgba(20,14,8,.6); border:1px solid rgba(140,110,70,.45); color:#b09a78;
-  padding:6px 14px; font-family:'Cormorant Garamond','Noto Serif KR',serif;
-  font-size:11px; letter-spacing:1px; cursor:pointer; border-radius:2px; transition:all .2s;
-}
-.pw-toggle:hover { color:#e8d8b8; border-color:rgba(212,165,72,.6); }
-.floor-content.pw-turned .pw-toggle { color:#d4a548; border-color:rgba(212,165,72,.5); }
-/* 1층: 층 표지(GALERIE) 바로 아래 정중앙 */
-.floor-content[data-floor="1"] .pw-toggle { top:68px; left:50%; transform:translateX(-50%); }
-/* 3층: 펜던트 등 오른쪽 위 — 중앙 기준 오프셋이라 화면 폭이 변해도 균형 유지 */
-.floor-content[data-floor="3"] .pw-toggle { top:30px; left:50%; transform:translateX(170px); }
 
 /* ============================================================
  *  음반 서고 모달 (Library) — 레이어2 · 살굿빛 크림 살롱
@@ -2497,9 +2374,6 @@ const Floor1 = (() => {
           <button class="g1-dp-save" id="g1-dp-save">이 분위기로 저장</button>
           <div class="g1-dp-foot">프리셋은 누르면 바로 저장돼요. 슬라이더로 다듬은 뒤엔 ‘이 분위기로 저장’을 눌러주세요.</div>
         </div>
-        <button class="pw-toggle" aria-label="인물벽으로 돌아서기">✦ 나의 별들</button>
-        <div class="pw-face"><div class="pw-canvas"></div></div>
-
         <!-- 미술 확대 모달 (그림 클릭) + 내리기 -->
         <div class="g1-zoom" id="g1-zoom" hidden>
           <div class="g1-zoom-stage"><img class="g1-zoom-img" id="g1-zoom-img" alt=""></div>
@@ -3117,7 +2991,6 @@ const Floor1 = (() => {
     // 회전(transform transition)이 끝날 때마다 핫스팟을 새 정면 벽 위치로 재배치
     const worldEl = root.querySelector('#g1-world');
     if (worldEl) worldEl.addEventListener('transitionend', (e) => { if (e.propertyName === 'transform') buildHotspots(); });
-    SideWall.bind(1);                                  // 인물벽(미술) 90도
     if (!bound) {               // 전역 리스너는 1회만 — root 생존 가드로 층 비종속 안전
       window.addEventListener('resize', fit);
       bound = true;
@@ -3545,19 +3418,15 @@ document.addEventListener('keydown', (e) => {
   }
   // 책방 모달이 열려 있으면 엘리베이터 조작 막음 (모달 자체가 ESC 처리)
   if (document.getElementById('book-modal').classList.contains('open')) return;
-  // 2층 인물벽 면이면 ESC = 무대로 돌아오기
-  if (e.key === 'Escape' && currentFloor === 2 && Floor2.isTurned()) { Floor2.turnBack(); return; }
-  // 1·3층 인물벽 면이면 ESC = 본업으로
-  if (e.key === 'Escape' && SideWall.isTurned(currentFloor)) { SideWall.turnBack(currentFloor); return; }
   // 3층(책방)에서 ←→ 는 진열대 넘김에 양보, ↑↓만 엘리베이터
   if (e.key === 'ArrowUp')   { e.preventDefault(); goToFloor(currentFloor + 1); }
   if (e.key === 'ArrowDown') { e.preventDefault(); goToFloor(currentFloor - 1); }
-  if (currentFloor === 3 && !transitioning && !SideWall.isTurned(3)) {
+  if (currentFloor === 3 && !transitioning) {
     if (e.key === 'ArrowLeft')  Floor3.slide(-1);
     if (e.key === 'ArrowRight') Floor3.slide(+1);
   }
   // 1층(갤러리)에서 ←→ 는 방 회전에 양보
-  if (currentFloor === 1 && !transitioning && !SideWall.isTurned(1)) {
+  if (currentFloor === 1 && !transitioning) {
     if (e.key === 'ArrowLeft')  Floor1.rotate(-1);
     if (e.key === 'ArrowRight') Floor1.rotate(+1);
   }
@@ -3608,8 +3477,6 @@ const Floor3 = (() => {
         <div class="bk-hint">책을 클릭해 펼쳐보세요</div>
         <button class="bk-edit-toggle" id="bk-edit-toggle">✎ 배치 바꾸기</button>
         <button class="bk-add-toggle" id="bk-add-toggle">＋ 책추가하기</button>
-        <button class="pw-toggle" aria-label="인물벽으로 돌아서기">✦ 나의 별들</button>
-        <div class="pw-face"><div class="pw-canvas"></div></div>
         <div id="bk-add-modal">
           <div class="bam-panel">
             <div class="bam-head">
@@ -3725,7 +3592,6 @@ const Floor3 = (() => {
     }
     const fc = document.querySelector('.floor-content[data-floor="3"]');
     if (fc) fc.classList.remove('editing');
-    SideWall.bind(3);                                  // 인물벽(저술가) 90도
   }
 
   // ── DB에서 그 집 책 읽어오기 (순례 ?user=면 주인 책, 아니면 내 책) ──
@@ -5427,7 +5293,6 @@ const Floor2 = (() => {
           <div class="ms-tools">
             <button class="ms-shuffle" id="ms-shuffle">🎲 다른 음악실로</button>
             <button class="ms-crate" id="ms-crate">♪ 음반 고르기</button>
-            <button class="ms-stars" id="ms-stars">✦ 나의 별들</button>
           </div>
           <div class="ms-shelf" id="ms-shelf"></div>
         </div>
@@ -5438,7 +5303,6 @@ const Floor2 = (() => {
             <div class="ms-vu" id="ms-vu-left"><svg viewBox="0 0 100 50"><path class="ms-needle" d="M 50 48 L 50 8"/></svg></div>
             <div class="ms-vu" id="ms-vu-right"><svg viewBox="0 0 100 50"><path class="ms-needle" d="M 50 48 L 50 8"/></svg></div>
           </div>
-          <div class="pw-room" id="pw-room"></div>
         </div>
         <div class="ms-info">
           <div class="ms-plate">
@@ -5492,64 +5356,12 @@ const Floor2 = (() => {
 
   function wallRect(){ const w=document.getElementById('ms-wall'); return w?w.getBoundingClientRect():null; }
 
-  /* ── 90도 회전: 음악실 정면 ↔ 인물벽 옆면 ──
-   *  인물벽 면은 "감상실이 아닌 곳"으로 취급:
-   *  돌아서는 순간 미니 플레이어는 좌하단으로(재생 중) / 거둠(프라임만),
-   *  무대로 돌아오면 onFloorChange(2)가 도킹을 복원. 음악은 안 끊김. */
-  let turned = false;
-  function isTurned(){ return turned; }
-  function turnWall(){
-    const fc = document.querySelector('.floor-content[data-floor="2"]');
-    const stage = document.getElementById('ms-stage');
-    const btn = document.getElementById('ms-stars');
-    if(!fc || !stage || !btn) return;
-    turned = !turned;
-    if(turned){
-      if(window.MusicPlayer) MusicPlayer.onFloorChange(0);  // 감상실 아님과 동일 취급
-      const pw = document.getElementById('pw-room');
-      if(pw && !pw.dataset.built){
-        PersonaWall.render(pw, { seed:183, count:12 });     // 더미 — 본 공사 때 companions
-        pw.dataset.built = '1';
-      }
-      fc.classList.add('pw-turned');
-      stage.classList.add('turned');
-      document.querySelector('.floor-content[data-floor="2"] .ms-eyebrow').textContent = 'MES PERSONNES · 인물벽';
-      document.getElementById('ms-room-name').textContent = '— 내가 사랑한 사람들 —';
-      btn.textContent = '♪ 무대로';
-    } else {
-      fc.classList.remove('pw-turned');
-      stage.classList.remove('turned');
-      document.querySelector('.floor-content[data-floor="2"] .ms-eyebrow').textContent = 'CHAMBRE DE MUSIQUE · 음악실';
-      document.getElementById('ms-room-name').textContent =
-        currentBgIndex >= 0 ? `— ${BACKGROUNDS[currentBgIndex].name} —` : '— 음악실 입장 중 —';
-      btn.textContent = '✦ 나의 별들';
-      // ⚠️ 도킹은 회전이 다 끝난 뒤에 — 회전 중 벽 좌표를 재면 세로 띠처럼 좁게 잡힘
-      const room = document.getElementById('ms-room');
-      let docked = false;
-      const dock = ()=>{
-        if(docked || turned) return;          // 그새 다시 돌렸으면 도킹 안 함
-        docked = true;
-        if(window.MusicPlayer) MusicPlayer.onFloorChange(2);  // 도킹·프라임 복원
-      };
-      const onEnd = (ev)=>{
-        if(ev.propertyName !== 'transform') return;
-        room.removeEventListener('transitionend', onEnd);
-        dock();
-      };
-      room.addEventListener('transitionend', onEnd);
-      setTimeout(dock, 950);                   // transitionend 불발 대비 안전망
-    }
-  }
-  function turnBack(){ if(turned) turnWall(); }
-
   function mount(){
-    turned = false;                    // 층 재진입 시 늘 음악실 정면부터
     randomBackground();
     Shelf.render();              // 음반 선반 그리기 (자켓 5칸)
     MusicPlayer.syncMeta();
     document.getElementById('ms-shuffle').addEventListener('click', randomBackground);
     document.getElementById('ms-crate').addEventListener('click', ()=> Library.open());
-    document.getElementById('ms-stars').addEventListener('click', turnWall);
     // 마리의 노트 시트
     const sheet=document.getElementById('ms-note-sheet');
     document.getElementById('ms-note-btn').addEventListener('click', ()=>{
@@ -5562,7 +5374,7 @@ const Floor2 = (() => {
     });
   }
 
-  return { markup, mount, wallRect, isTurned, turnBack };
+  return { markup, mount, wallRect };
 })();
 
 /* ============================================================
@@ -5717,12 +5529,11 @@ const MusicPlayer = (() => {
   document.getElementById('mpReturn').addEventListener('click', ()=>{
     if(currentFloor!==2) goToFloor(2);
     else if(libOpen()) Library.close();             // 서고 닫기 = close()가 도킹 복원까지
-    else if(Floor2.isTurned()) Floor2.turnBack();   // 인물벽 면이면 먼저 무대로
     else setState('dock');
   });
   document.getElementById('mpFold').addEventListener('click', ()=> setState('folded'));
   document.getElementById('mpPill').addEventListener('click', ()=>
-    setState(currentFloor===2 && !Floor2.isTurned() && !libOpen() ? 'dock' : 'mini'));
+    setState(currentFloor===2 && !libOpen() ? 'dock' : 'mini'));
 
   return { play, primeIfNeeded, setState, reposition, onFloorChange, stopAndHide, syncMeta, currentTrack, toMiniIfPlaying, getTrack:(i)=>COLLECTION[i], trackCount:COLLECTION.length, resetLibraryTracks, addTrack };
 })();
@@ -6014,154 +5825,6 @@ const Shelf = (() => {
   return { touch, render, load:()=>order.slice() };
 })();
 window.Shelf = Shelf;
-
-/* ============================================================
- *  인물벽 (PersonaWall) — 독립 부품 · 층 비종속
- *    render(host, {seed, count}) : host 안에 액자들을 흩뿌림.
- *    mulberry32(starSeed) 고정 랜덤 — 같은 콩파뇽 벽은 늘 같은 배치.
- *    MES ÉTOILES 안내 액자는 늘 한 장 (빈 벽=중앙 초대 / 빼곡=우상단).
- *    render(opts)에 people(명단)·guide(안내 문구)를 층별로 넘김.
- *    지금은 더미 명단 + placeholder 초상 — 본 공사 때
- *    companions → stars.photo_url(field 필터)로 교체 (로직 불변).
- * ============================================================ */
-const PersonaWall = (() => {
-  const PEOPLE = [
-    'Wolfgang Amadeus Mozart','Gustav Mahler','Ludwig van Beethoven','Johann Sebastian Bach',
-    'Claude Debussy','Frédéric Chopin','Pyotr Tchaikovsky','Maria Callas',
-    'Glenn Gould','Jacqueline du Pré','Arturo Toscanini','Clara Schumann',
-    'Franz Schubert','Antonín Dvořák','Sergei Rachmaninoff','Hildegard von Bingen'
-  ];
-  function portrait(seed){ return `https://picsum.photos/seed/persona${seed}/300/360`; }
-
-  function mulberry32(a){
-    return function(){
-      a |= 0; a = a + 0x6D2B79F5 | 0;
-      let t = Math.imul(a ^ a >>> 15, 1 | a);
-      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-      return ((t ^ t >>> 14) >>> 0) / 4294967296;
-    };
-  }
-
-  function render(host, opts){
-    if(!host) return;
-    const seed  = (opts && opts.seed)  || 183;
-    const count = (opts && typeof opts.count === 'number') ? opts.count : 12;
-    const people = (opts && opts.people) || PEOPLE;          // 층별 명단 (기본=음악)
-    const guide  = (opts && opts.guide)  || '콘스텔라티오로 — 음악의 별들 ✦';
-    host.innerHTML = '';
-    const rnd = mulberry32(seed);
-    // 배치 영역(%): 좌우 4~92, 상하 5~74 (맨 아래 책선반 26% 비움)
-    const AX0=4, AX1=92, AY0=5, AY1=74;
-
-    for(let i=0; i<count; i++){
-      const person = people[i % people.length];
-      const w = [8.5, 10.5, 12.5, 15][Math.floor(rnd()*4)];   // 크기 4단계
-      const cols = 5, rows = Math.ceil(count/cols) || 1;
-      const col = i % cols, row = Math.floor(i/cols);
-      const cellW = (AX1-AX0)/cols, cellH = (AY1-AY0)/rows;
-      const jx = (rnd()-.5) * cellW * .7;
-      const jy = (rnd()-.5) * cellH * .7;
-      const cx = AX0 + cellW*(col+.5) + jx;
-      const cy = AY0 + cellH*(row+.5) + jy;
-      const left = Math.max(AX0, Math.min(AX1-w, cx - w/2));
-      const top  = Math.max(AY0, cy - w/2);
-      const rot  = (rnd()-.5) * 8;                            // ±4°
-      const dropX = -Math.sin(rot*Math.PI/180)*8;             // 기울기 반대편 그림자
-
-      const f = document.createElement('div');
-      f.className = 'pw-frame';
-      f.style.left = left + '%';
-      f.style.top  = top + '%';
-      f.style.width = w + '%';
-      f.style.setProperty('--rot', rot.toFixed(2)+'deg');
-      f.style.setProperty('--drop', `${dropX}px 10px 22px rgba(0,0,0,.5)`);
-      f.style.zIndex = String(100 + i);
-      f.innerHTML = `
-        <img class="pw-photo" src="${portrait(seed*100+i)}" alt="${person}" loading="lazy">
-        <div class="pw-plate">${person}</div>`;
-      host.appendChild(f);
-    }
-
-    addGuideFrame(host, count === 0, guide);
-  }
-
-  // 안내 포스터 액자 — 콘스텔라티오로 가는 문 (늘 존재 · 빈 벽은 결핍 아닌 초대)
-  function addGuideFrame(host, isEmpty, hint){
-    const g = document.createElement('div');
-    g.className = 'pw-frame pw-guide';
-    if(isEmpty){
-      g.style.left = '40%'; g.style.top = '14%'; g.style.width = '20%';
-      g.style.setProperty('--rot', '-1.2deg');
-    } else {
-      g.style.left = '79%'; g.style.top = '8%'; g.style.width = '15%';
-      g.style.setProperty('--rot', '2deg');
-    }
-    g.style.setProperty('--drop', '-3px 12px 26px rgba(0,0,0,.55)');
-    g.style.zIndex = '180';
-    g.innerHTML = `
-      <img class="pw-photo" src="poster_01.png" alt="MES ÉTOILES — 별을 품으러">
-      <div class="pw-hint">${hint}</div>`;
-    g.addEventListener('click', ()=>{
-      // 지금은 까딱이기만 — 본 공사 때 콘스텔라티오(음악 별 큐레이션) 연결 (임시 발판 회피)
-      g.animate(
-        [{transform:'rotate(var(--rot)) scale(1.06)'},{transform:'rotate(var(--rot)) scale(1)'}],
-        {duration:300}
-      );
-    });
-    host.appendChild(g);
-  }
-
-  return { render };
-})();
-window.PersonaWall = PersonaWall;
-
-/* ============================================================
- *  SideWall — 1·3층 인물벽 90도 토글 (2층은 자체 무대 회전 보유)
- *    층마다 본업 위로 .pw-face가 rotateY로 돌아 들어옴 (2층과 같은 동작 언어).
- *    명단은 더미 — 본 공사 때 companions → stars(field 필터) 한 줄 교체 (로직 불변).
- * ============================================================ */
-const SideWall = (() => {
-  const PEOPLE_ART = [
-    '레오나르도 다빈치','산드로 보티첼리','요하네스 베르메르','렘브란트 판 레인',
-    '클로드 모네','오귀스트 르누아르','빈센트 반 고흐','구스타프 클림트',
-    '장프랑수아 밀레','귀스타브 카유보트','가쓰시카 호쿠사이','펠릭스 브라르'
-  ];
-  const PEOPLE_LETTERS = [
-    '호메로스','소크라테스','소포클레스','윌리엄 셰익스피어',
-    '요한 볼프강 폰 괴테','빅토르 위고','표도르 도스토옙스키','레프 톨스토이',
-    '안톤 체호프','프란츠 카프카','헨리 데이비드 소로','윤동주',
-    '백석','어니스트 헤밍웨이','에드거 앨런 포','카를 마르크스'
-  ];
-  const CFG = {
-    1: { people: PEOPLE_ART,     guide: '콘스텔라티오로 — 미술의 별들 ✦',           back: '🖼 갤러리로', seed: 411, count: 12 },
-    3: { people: PEOPLE_LETTERS, guide: '콘스텔라티오로 — 문학·철학·역사의 별들 ✦', back: '📖 책방으로', seed: 937, count: 14 },
-  };
-  const turned = {};
-  function isTurned(n){ return !!turned[n]; }
-  function set(n, on){
-    const fc = document.querySelector(`.floor-content[data-floor="${n}"]`);
-    if (!fc) return;
-    const btn = fc.querySelector('.pw-toggle');
-    const face = fc.querySelector('.pw-face');
-    const host = fc.querySelector('.pw-canvas');
-    turned[n] = on;
-    if (on && !host.dataset.built){            // 처음 돌아설 때 한 번만 건다
-      PersonaWall.render(host, CFG[n]);
-      host.dataset.built = '1';
-    }
-    face.classList.toggle('on', on);
-    fc.classList.toggle('pw-turned', on);
-    btn.textContent = on ? CFG[n].back : '✦ 나의 별들';
-  }
-  function bind(n){
-    turned[n] = false;                          // 매 방문 초기화 (innerHTML 재생성 원칙)
-    const fc = document.querySelector(`.floor-content[data-floor="${n}"]`);
-    const btn = fc && fc.querySelector('.pw-toggle');
-    if (btn) btn.addEventListener('click', () => set(n, !turned[n]));
-  }
-  return { bind, isTurned, turnBack: n => set(n, false) };
-})();
-window.SideWall = SideWall;
 
 /* ===== 첫 진입 ===== */
 // 명패 직행(최상위 페이지 + from_star)일 때만 별 복귀 문 노출.
