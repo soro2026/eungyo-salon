@@ -2420,7 +2420,7 @@ const Floor1 = (() => {
   // 본 공사 A1(0613): 하드코딩 14점 → DB 동적 진열. loadFloor1()이 내 소장·대여작으로 채운다.
   let ART = [[], [], [], []];
   const SIDES = [
-    { fr: 'Salle des Trésors',     kr: '정면 — 보물의 방' },
+    { fr: 'Mon Mur',               kr: '정면 — 나의 벽' },
     { fr: "Galerie d'Or",          kr: '우측 — 황금의 회랑' },
     { fr: 'Cabinet de Curiosités', kr: '뒷벽 — 경이의 방' },
     { fr: 'Galerie de Lumière',    kr: '좌측 — 빛의 회랑' },
@@ -2455,7 +2455,7 @@ const Floor1 = (() => {
   ];
 
   let side = 0, yaw = 0, root = null, bound = false;
-  let MW = null, MW_ownerId = null, MW_isOwner = false, GAL_isOwner = false;   // 좌측 벽 메시지 보드 상태 + 갤러리 편집권
+  let MW = null, MW_ownerId = null, MW_isOwner = false, GAL_isOwner = false;   // 정면 벽 메시지 보드 상태 + 갤러리 편집권
 
   function markup() {
     return `
@@ -2497,6 +2497,8 @@ const Floor1 = (() => {
           <button class="g1-dp-save" id="g1-dp-save">이 분위기로 저장</button>
           <div class="g1-dp-foot">프리셋은 누르면 바로 저장돼요. 슬라이더로 다듬은 뒤엔 ‘이 분위기로 저장’을 눌러주세요.</div>
         </div>
+        <button class="pw-toggle" aria-label="인물벽으로 돌아서기">✦ 나의 별들</button>
+        <div class="pw-face"><div class="pw-canvas"></div></div>
 
         <!-- 미술 확대 모달 (그림 클릭) + 내리기 -->
         <div class="g1-zoom" id="g1-zoom" hidden>
@@ -2535,9 +2537,9 @@ const Floor1 = (() => {
 
   function flowerUrl(ft){ return SUPABASE_URL + '/storage/v1/object/public/flowers/' + ft + '.webp'; }
 
-  // 좌측 벽 = 메시지 보드: 위 글귀판 + 아래 흐르는 흔적 티커
+  // 정면 벽 = 메시지 보드: 위 글귀판 + 아래 흐르는 흔적 티커
   function renderMessageWall(){
-    const wall = root && root.querySelector('.g1-wall-left');
+    const wall = root && root.querySelector('.g1-wall-front');
     if(!wall) return;
     const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     const w = (MW && MW.wall) || {};
@@ -2675,7 +2677,7 @@ const Floor1 = (() => {
     });
     buildSculpt();
     buildHotspots();
-    renderMessageWall();   // 좌측 벽 글귀판 + 흔적 티커
+    renderMessageWall();   // 정면 벽 글귀판 + 흔적 티커
   }
 
   // 3D 액자(rotateY 벽)는 클릭이 빗나가므로, 화면상 실제 위치에 2D 투명 핫스팟을 깐다.
@@ -2705,8 +2707,8 @@ const Floor1 = (() => {
       mk(p.querySelector('.g1-fimg') || p.querySelector('.g1-mat img'), () => openArtZoom(a), 'art');
       mk(p.querySelector('.g1-plaque'), () => openArtNote(a), 'plaque');
     });
-    // 좌측 벽 = 메시지 보드 → 액션 버튼(내 방=글귀 쓰기 / 남의 방=헌화) 핫스팟
-    if (SIDE_KEYS[side] === 'left') {
+    // 정면 벽 = 메시지 보드 → 액션 버튼(내 방=글귀 쓰기 / 남의 방=헌화) 핫스팟
+    if (SIDE_KEYS[side] === 'front') {
       const wr = wallEl.getBoundingClientRect();
       if (wr.width > 6) {
         const btn = document.createElement('button');
@@ -3064,7 +3066,7 @@ const Floor1 = (() => {
         t: d.name, a: d.artist, img: d.img, w: (d.ratio === 'portrait') ? 300 : 380,
         id: d.id, layers: d.layers
       }));
-      const CAP = [3, 3, 3, 0];   // 정면3 · 우측3 · 뒷벽3 = 9점 / 좌측은 메시지 보드(2단계)
+      const CAP = [0, 3, 3, 3];   // 정면 = 메시지 보드 / 우측3 · 뒷벽3 · 좌측3 = 그림 9점
       let idx = 0;
       for (let s = 0; s < 4 && idx < all.length; s++)
         for (let k = 0; k < CAP[s] && idx < all.length; k++) ART[s].push(all[idx++]);
@@ -3606,6 +3608,8 @@ const Floor3 = (() => {
         <div class="bk-hint">책을 클릭해 펼쳐보세요</div>
         <button class="bk-edit-toggle" id="bk-edit-toggle">✎ 배치 바꾸기</button>
         <button class="bk-add-toggle" id="bk-add-toggle">＋ 책추가하기</button>
+        <button class="pw-toggle" aria-label="인물벽으로 돌아서기">✦ 나의 별들</button>
+        <div class="pw-face"><div class="pw-canvas"></div></div>
         <div id="bk-add-modal">
           <div class="bam-panel">
             <div class="bam-head">
@@ -5423,6 +5427,7 @@ const Floor2 = (() => {
           <div class="ms-tools">
             <button class="ms-shuffle" id="ms-shuffle">🎲 다른 음악실로</button>
             <button class="ms-crate" id="ms-crate">♪ 음반 고르기</button>
+            <button class="ms-stars" id="ms-stars">✦ 나의 별들</button>
           </div>
           <div class="ms-shelf" id="ms-shelf"></div>
         </div>
@@ -5544,6 +5549,7 @@ const Floor2 = (() => {
     MusicPlayer.syncMeta();
     document.getElementById('ms-shuffle').addEventListener('click', randomBackground);
     document.getElementById('ms-crate').addEventListener('click', ()=> Library.open());
+    document.getElementById('ms-stars').addEventListener('click', turnWall);
     // 마리의 노트 시트
     const sheet=document.getElementById('ms-note-sheet');
     document.getElementById('ms-note-btn').addEventListener('click', ()=>{
