@@ -853,10 +853,7 @@ html, body {
   overflow:hidden; background:#0a0604;
   display:flex; flex-direction:column;
 }
-/* ── 상단: 곡 토글 ── */
-.floor-content[data-floor="2"] .ms-top { position:absolute; top:0; left:0; right:0; z-index:95; padding:clamp(10px,2.2vh,22px) 16px 14px; text-align:center; pointer-events:none; background:linear-gradient(180deg, rgba(8,5,3,.86) 0%, rgba(8,5,3,.5) 52%, rgba(8,5,3,0) 100%); }
-.floor-content[data-floor="2"] .ms-top > * { pointer-events:auto; }
-.floor-content[data-floor="2"] .ms-eyebrow { font-family:'Cormorant Garamond',serif; font-size:10px; letter-spacing:4px; color:var(--ms-dim); }
+/* ── 상단: 비움 (모든 컨트롤은 하단 서랍으로) ── */
 
 /* ── 음반 선반 (자켓 5칸 · LRU · 왼쪽=최근) ── */
 .floor-content[data-floor="2"] .ms-shelf { display:flex; gap:10px; justify-content:center; align-items:flex-start; margin-top:11px; }
@@ -929,10 +926,34 @@ html, body {
 /* ── 하단 정보: 명패(항상) + 마리 노트(접힘, 버튼으로 펼침) ── */
 .floor-content[data-floor="2"] .ms-info {
   position:absolute; bottom:0; left:0; right:0; z-index:95; display:flex; gap:12px; align-items:center; justify-content:center; flex-wrap:wrap;
-  padding:24px 16px clamp(20px,4vh,32px); pointer-events:none;
+  padding:24px 74px clamp(20px,4vh,32px); pointer-events:none;
   background:linear-gradient(0deg, rgba(8,5,3,.9) 0%, rgba(8,5,3,.5) 55%, rgba(8,5,3,0) 100%);
 }
 .floor-content[data-floor="2"] .ms-info > * { pointer-events:auto; }
+
+/* ── 하단 2중 버튼: ☰ 토글 + 슬라이드 서랍 ── */
+.floor-content[data-floor="2"] .ms-menu-toggle {
+  position:absolute; right:18px; top:50%; transform:translateY(-50%);
+  width:46px; height:36px; display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(160deg,#c9a84c,#8a6a2a 60%,#5a3f14); border:1px solid #d8c078;
+  color:#2a1c08; font-size:16px; border-radius:3px; cursor:pointer;
+  box-shadow:0 3px 10px rgba(0,0,0,.4); transition:transform .18s, background .25s;
+}
+.floor-content[data-floor="2"] .ms-menu-toggle:hover { transform:translateY(-50%) scale(1.06); }
+.floor-content[data-floor="2"] .ms-menu-toggle.open { background:linear-gradient(160deg,#7a5c28,#4a3410); color:#e8d9b0; }
+.floor-content[data-floor="2"] .ms-drawer {
+  position:absolute; right:16px; bottom:78px; z-index:96;
+  display:flex; flex-direction:column; align-items:center; gap:10px;
+  padding:14px 18px 16px; border-radius:10px; max-width:min(92vw,380px);
+  background:linear-gradient(180deg, rgba(26,18,10,.96), rgba(14,9,4,.98));
+  border:1px solid var(--ms-line); box-shadow:0 16px 48px rgba(0,0,0,.66);
+  opacity:0; transform:translateY(14px) scale(.97); transform-origin:bottom right; pointer-events:none;
+  transition:opacity .3s ease, transform .32s cubic-bezier(.4,.7,.3,1);
+}
+.floor-content[data-floor="2"] .ms-drawer.open { opacity:1; transform:translateY(0) scale(1); pointer-events:auto; }
+.floor-content[data-floor="2"] .ms-drawer .ms-room-name { margin-top:0; }
+.floor-content[data-floor="2"] .ms-drawer .ms-tools { margin-top:2px; }
+.floor-content[data-floor="2"] .ms-drawer .ms-shelf { margin-top:4px; }
 .floor-content[data-floor="2"] .ms-plate { display:flex; align-items:baseline; gap:14px; padding:9px 18px; background:linear-gradient(180deg,#2a1f15,#1a1208); border:1px solid var(--ms-line); border-radius:2px; box-shadow:0 4px 18px rgba(0,0,0,.5); flex-wrap:wrap; justify-content:center; }
 .floor-content[data-floor="2"] .ms-plate .pt { font-size:15px; color:var(--ms-bright); font-style:italic; }
 .floor-content[data-floor="2"] .ms-plate .pc { font-size:9px; letter-spacing:2px; color:var(--ms-dim); }
@@ -5290,15 +5311,6 @@ const Floor2 = (() => {
     const tubes = TUBE_KEYS.map(k=>`<div class="ms-tube" id="ms-tube-${k}"></div>`).join('');
     return `
       <div class="floor-content" data-floor="2">
-        <div class="ms-top">
-          <div class="ms-eyebrow">CHAMBRE DE MUSIQUE · 음악실</div>
-          <div class="ms-room-name" id="ms-room-name">— 음악실 입장 중 —</div>
-          <div class="ms-tools">
-            <button class="ms-shuffle" id="ms-shuffle">🎲 다른 음악실로</button>
-            <button class="ms-crate" id="ms-crate">♪ 음반 고르기</button>
-          </div>
-          <div class="ms-shelf" id="ms-shelf"></div>
-        </div>
         <div class="ms-stage" id="ms-stage">
           <div class="ms-room" id="ms-room">
             <div class="ms-wall" id="ms-wall"></div>
@@ -5313,7 +5325,16 @@ const Floor2 = (() => {
             <span class="pc" id="ms-plate-cat">REQUIEM IN D MINOR · K. 626</span>
             <span class="pm" id="ms-plate-meta">1791 · 미완성 유작</span>
           </div>
-          <button class="ms-note-btn" id="ms-note-btn">✎ 마리의 노트</button>
+          <button class="ms-menu-toggle" id="ms-menu-toggle" aria-label="메뉴 열기">☰</button>
+        </div>
+        <div class="ms-drawer" id="ms-drawer">
+          <div class="ms-room-name" id="ms-room-name">— 음악실 입장 중 —</div>
+          <div class="ms-tools">
+            <button class="ms-shuffle" id="ms-shuffle">🎲 다른 음악실로</button>
+            <button class="ms-crate" id="ms-crate">♪ 음반 고르기</button>
+            <button class="ms-note-btn" id="ms-note-btn">✎ 마리의 노트</button>
+          </div>
+          <div class="ms-shelf" id="ms-shelf"></div>
         </div>
         <div class="ms-note-sheet" id="ms-note-sheet">
           <button class="sheet-close" id="ms-sheet-close" aria-label="닫기">×</button>
@@ -5363,17 +5384,24 @@ const Floor2 = (() => {
     randomBackground();
     Shelf.render();              // 음반 선반 그리기 (자켓 5칸)
     MusicPlayer.syncMeta();
+
+    // 하단 메뉴 서랍 (2중 버튼: ☰ 누르면 컨트롤이 슬라이드로 열림)
+    const drawer=document.getElementById('ms-drawer');
+    const menuToggle=document.getElementById('ms-menu-toggle');
+    function setDrawer(open){ drawer.classList.toggle('open',open); menuToggle.classList.toggle('open',open); menuToggle.textContent=open?'✕':'☰'; }
+    menuToggle.addEventListener('click', ()=> setDrawer(!drawer.classList.contains('open')));
+
     document.getElementById('ms-shuffle').addEventListener('click', randomBackground);
-    document.getElementById('ms-crate').addEventListener('click', ()=> Library.open());
+    document.getElementById('ms-crate').addEventListener('click', ()=>{ Library.open(); setDrawer(false); });
     // 마리의 노트 시트
     const sheet=document.getElementById('ms-note-sheet');
     document.getElementById('ms-note-btn').addEventListener('click', ()=>{
-      sheet.classList.add('open');
-      if(window.MusicPlayer) MusicPlayer.setState('folded');   // 노트 읽는 동안 라디오 모드(영상 접힘) — 스크린이 노트를 안 가림
+      sheet.classList.add('open'); setDrawer(false);
+      if(window.MusicPlayer) MusicPlayer.setState('folded');   // 노트 읽는 동안 라디오 모드(영상 접힘)
     });
     document.getElementById('ms-sheet-close').addEventListener('click', ()=>{
       sheet.classList.remove('open');
-      if(window.MusicPlayer) MusicPlayer.onFloorChange(2);      // 닫으면 다시 벽에 도킹(영상 복귀)
+      if(window.MusicPlayer) MusicPlayer.onFloorChange(2);      // 닫으면 다시 벽에 도킹
     });
   }
 
