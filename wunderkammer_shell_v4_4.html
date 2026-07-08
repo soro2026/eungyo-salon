@@ -978,6 +978,7 @@ html, body {
 .floor-content[data-floor="2"] .ms-room.ms-editing .ms-wall { outline:2px dashed #d4a548; outline-offset:-1px; cursor:move;
   pointer-events:auto; background:rgba(212,165,72,.12); }
 .floor-content[data-floor="2"] .ms-room.ms-editing .ms-wall-resize { display:block; }
+.floor-content[data-floor="2"] .ms-room.ms-editing { cursor:grab; }
 .floor-content[data-floor="2"] .ms-room.ms-editing .ms-tube { outline:2px solid #ffd86a; outline-offset:3px; cursor:move; pointer-events:auto; z-index:22; }
 .floor-content[data-floor="2"] .ms-room.ms-editing .ms-vu { outline:2px solid #6ad0ff; outline-offset:2px; cursor:move; pointer-events:auto; z-index:22; }
 .floor-content[data-floor="2"] .ms-plate { display:flex; align-items:baseline; gap:14px; padding:9px 18px; background:linear-gradient(180deg,#2a1f15,#1a1208); border:1px solid var(--ms-line); border-radius:2px; box-shadow:0 4px 18px rgba(0,0,0,.5); flex-wrap:wrap; justify-content:center; }
@@ -5385,6 +5386,7 @@ const Floor2 = (() => {
     const room = document.getElementById('ms-room');
     if(!room) return;
     room.style.backgroundImage = `url('${bg.image}')`;
+    room.style.transform = 'translateY('+(bg.yShift||0)+'%)';
     document.getElementById('ms-room-name').textContent = `— ${bg.name} —`;
     const wall = document.getElementById('ms-wall');
     wall.style.left=bg.screen.left+'%'; wall.style.top=bg.screen.top+'%';
@@ -5426,6 +5428,7 @@ const Floor2 = (() => {
           if(row.coords.screen) bg.screen = row.coords.screen;
           if(row.coords.tubes)  bg.tubes  = row.coords.tubes;
           if(row.coords.vu)     bg.vu     = row.coords.vu;
+          if(typeof row.coords.yShift==='number') bg.yShift = row.coords.yShift;
         }
       });
       _cfgLoaded=true;
@@ -5470,6 +5473,7 @@ const Floor2 = (() => {
   function _clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
   function _applyLive(){
     const w=document.getElementById('ms-wall'); if(!w||!_work) return;
+    document.getElementById('ms-room').style.transform='translateY('+(_work.yShift||0)+'%)';
     w.style.left=_work.screen.left+'%'; w.style.top=_work.screen.top+'%';
     w.style.width=_work.screen.width+'%'; w.style.height=_work.screen.height+'%';
     TUBE_KEYS.forEach(k=>{ const el=document.getElementById('ms-tube-'+k); if(el){ el.style.left=_work.tubes[k].left+'%'; el.style.top=_work.tubes[k].top+'%'; } });
@@ -5491,6 +5495,10 @@ const Floor2 = (() => {
     });
   }
   function _bindDrags(){
+    _drag(document.getElementById('ms-room'), (dx,dy)=>{
+      _work.yShift=_clamp((_work.yShift||0)+dy,-45,45);
+      _applyLive(); _readout('배경 \u2195 '+_work.yShift.toFixed(1)+'%   (빈 배경을 끌어 방 전체 이동)');
+    });
     _drag(document.getElementById('ms-wall'), (dx,dy)=>{
       _work.screen.left=_clamp(_work.screen.left+dx,-20,100); _work.screen.top=_clamp(_work.screen.top+dy,-20,100);
       _applyLive(); _readout('스크린  \u2194'+_work.screen.left.toFixed(1)+'  \u2195'+_work.screen.top.toFixed(1)+'  '+_work.screen.width.toFixed(1)+'\u00d7'+_work.screen.height.toFixed(1));
@@ -5514,7 +5522,7 @@ const Floor2 = (() => {
     if(_editing || currentFloor!==2 || !isSoro()) return;
     const bg=BACKGROUNDS[currentBgIndex]; if(!bg) return;
     _editing=true;
-    _work={ bg_id:bg.id, screen:{...bg.screen}, tubes:JSON.parse(JSON.stringify(bg.tubes)), vu:JSON.parse(JSON.stringify(bg.vu)) };
+    _work={ bg_id:bg.id, screen:{...bg.screen}, tubes:JSON.parse(JSON.stringify(bg.tubes)), vu:JSON.parse(JSON.stringify(bg.vu)), yShift:(bg.yShift||0) };
     if(window.MusicPlayer) MusicPlayer.setState('folded');
     document.getElementById('ms-room').classList.add('ms-editing');
     document.getElementById('ms-edit-panel').classList.add('show');
@@ -5533,12 +5541,12 @@ const Floor2 = (() => {
   async function editSave(){
     if(!_editing || !_work) return;
     const bg=BACKGROUNDS.find(b=>b.id===_work.bg_id); if(!bg) return;
-    bg.screen={..._work.screen}; bg.tubes=JSON.parse(JSON.stringify(_work.tubes)); bg.vu=JSON.parse(JSON.stringify(_work.vu));
+    bg.screen={..._work.screen}; bg.tubes=JSON.parse(JSON.stringify(_work.tubes)); bg.vu=JSON.parse(JSON.stringify(_work.vu)); bg.yShift=(_work.yShift||0);
     _readout('저장 중\u2026');
     try {
       await sbFetch('/rest/v1/music_room_config?on_conflict=bg_id', {
         method:'POST', headers:{ 'Prefer':'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify({ bg_id:bg.id, coords:{ screen:bg.screen, tubes:bg.tubes, vu:bg.vu }, updated_at:new Date().toISOString() })
+        body: JSON.stringify({ bg_id:bg.id, coords:{ screen:bg.screen, tubes:bg.tubes, vu:bg.vu, yShift:bg.yShift }, updated_at:new Date().toISOString() })
       });
     } catch(e){ _readout('저장 실패: '+(e.message||e)); return; }
     _editing=false; _work=null;
