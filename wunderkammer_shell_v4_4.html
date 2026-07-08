@@ -954,6 +954,32 @@ html, body {
 .floor-content[data-floor="2"] .ms-drawer .ms-room-name { margin-top:0; }
 .floor-content[data-floor="2"] .ms-drawer .ms-tools { margin-top:2px; }
 .floor-content[data-floor="2"] .ms-drawer .ms-shelf { margin-top:4px; }
+
+/* ── 배치 편집기 (살롱지기 전용) ── */
+.ms-edit-toggle { position:fixed; left:70px; top:20px; z-index:120; display:none;
+  padding:8px 15px; background:rgba(20,14,8,.88); border:1px solid #d4a548; color:#e8d9b0;
+  font-family:'Cormorant Garamond',serif; font-size:12px; letter-spacing:1px; border-radius:20px;
+  cursor:pointer; -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); }
+.ms-edit-toggle.show { display:block; }
+.ms-edit-toggle:hover { background:rgba(44,30,16,.95); }
+.ms-edit-panel { position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:121; display:none;
+  align-items:center; gap:14px; padding:9px 16px; border-radius:12px;
+  background:rgba(16,11,6,.96); border:1px solid #d4a548; color:#e8d9b0;
+  font-family:'Cormorant Garamond',serif; font-size:12px; box-shadow:0 10px 34px rgba(0,0,0,.6);
+  -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); }
+.ms-edit-panel.show { display:flex; }
+.ms-edit-panel .ep-title { letter-spacing:1px; color:#d4a548; white-space:nowrap; }
+.ms-edit-panel .ep-readout { font-family:'Courier New',monospace; font-size:11px; color:#e8d9b0; min-width:220px; text-align:center; }
+.ms-edit-panel button { padding:6px 13px; border-radius:6px; cursor:pointer; font-size:12px; font-family:inherit; border:1px solid; white-space:nowrap; }
+.ms-edit-panel .ep-save { background:linear-gradient(160deg,#c9a84c,#8a6a2a); border-color:#d8c078; color:#2a1c08; }
+.ms-edit-panel .ep-exit { background:rgba(60,40,30,.5); border-color:#7a5a3a; color:#e8d9b0; }
+.floor-content[data-floor="2"] .ms-wall-resize { display:none; position:absolute; right:-9px; bottom:-9px; width:18px; height:18px;
+  border-radius:50%; background:#d4a548; border:2px solid #2a1c08; cursor:nwse-resize; z-index:6; }
+.floor-content[data-floor="2"] .ms-room.ms-editing .ms-wall { outline:2px dashed #d4a548; outline-offset:-1px; cursor:move;
+  pointer-events:auto; background:rgba(212,165,72,.12); }
+.floor-content[data-floor="2"] .ms-room.ms-editing .ms-wall-resize { display:block; }
+.floor-content[data-floor="2"] .ms-room.ms-editing .ms-tube { outline:2px solid #ffd86a; outline-offset:3px; cursor:move; pointer-events:auto; z-index:22; }
+.floor-content[data-floor="2"] .ms-room.ms-editing .ms-vu { outline:2px solid #6ad0ff; outline-offset:2px; cursor:move; pointer-events:auto; z-index:22; }
 .floor-content[data-floor="2"] .ms-plate { display:flex; align-items:baseline; gap:14px; padding:9px 18px; background:linear-gradient(180deg,#2a1f15,#1a1208); border:1px solid var(--ms-line); border-radius:2px; box-shadow:0 4px 18px rgba(0,0,0,.5); flex-wrap:wrap; justify-content:center; }
 .floor-content[data-floor="2"] .ms-plate .pt { font-size:15px; color:var(--ms-bright); font-style:italic; }
 .floor-content[data-floor="2"] .ms-plate .pc { font-size:9px; letter-spacing:2px; color:var(--ms-dim); }
@@ -2207,6 +2233,13 @@ html, body {
 
 <!-- 음소거 -->
 <button class="mute-toggle" id="muteToggle" aria-label="소리 켜기/끄기">♪</button>
+<button class="ms-edit-toggle" id="ms-edit-toggle">✎ 배치 편집</button>
+<div class="ms-edit-panel" id="ms-edit-panel">
+  <span class="ep-title">✎ 배치 편집</span>
+  <span class="ep-readout" id="ms-edit-readout">끌어서 배치</span>
+  <button class="ep-save" id="ms-edit-save">💾 저장</button>
+  <button class="ep-exit" id="ms-edit-exit">✕ 나가기</button>
+</div>
 
 <!-- 전환 — 엘리베이터: 상단 bar + 그 아래 좌우 문 -->
 <div class="elevator" id="elevator">
@@ -3276,6 +3309,7 @@ function renderFloor(n) {
 
   // 미니 플레이어: 층이 바뀔 때마다 도킹(2층)/미니(그 외) 갱신
   if (window.MusicPlayer) MusicPlayer.onFloorChange(n);
+  if (typeof Floor2 !== 'undefined' && Floor2.editSyncToggle) Floor2.editSyncToggle(n);
 }
 
 function renderAnchorList() {
@@ -5313,7 +5347,7 @@ const Floor2 = (() => {
       <div class="floor-content" data-floor="2">
         <div class="ms-stage" id="ms-stage">
           <div class="ms-room" id="ms-room">
-            <div class="ms-wall" id="ms-wall"></div>
+            <div class="ms-wall" id="ms-wall"><div class="ms-wall-resize" id="ms-wall-resize"></div></div>
             ${tubes}
             <div class="ms-vu" id="ms-vu-left"><svg viewBox="0 0 100 50"><path class="ms-needle" d="M 50 48 L 50 8"/></svg></div>
             <div class="ms-vu" id="ms-vu-right"><svg viewBox="0 0 100 50"><path class="ms-needle" d="M 50 48 L 50 8"/></svg></div>
@@ -5380,12 +5414,33 @@ const Floor2 = (() => {
     currentBgIndex=idx; applyBackground(BACKGROUNDS[idx]);
   }
 
+  // 저장된 좌표(music_room_config)를 코드 기본값 위에 덮어씀 · 없거나 실패면 기본값 안전유지
+  let _cfgLoaded=false;
+  async function loadRoomConfig(){
+    if(_cfgLoaded) return;
+    try {
+      const rows = await sbFetch('/rest/v1/music_room_config?select=bg_id,coords');
+      if(Array.isArray(rows)) rows.forEach(row=>{
+        const bg = BACKGROUNDS.find(b=>b.id===row.bg_id);
+        if(bg && row.coords){
+          if(row.coords.screen) bg.screen = row.coords.screen;
+          if(row.coords.tubes)  bg.tubes  = row.coords.tubes;
+          if(row.coords.vu)     bg.vu     = row.coords.vu;
+        }
+      });
+      _cfgLoaded=true;
+      if(currentFloor===2 && BACKGROUNDS[currentBgIndex]) applyBackground(BACKGROUNDS[currentBgIndex]);
+    } catch(e){ /* 설정 없음/실패 → 코드 기본값 유지 (방 안 깨짐) */ }
+  }
+
   function wallRect(){ const w=document.getElementById('ms-wall'); return w?w.getBoundingClientRect():null; }
 
   function mount(){
     randomBackground();
     Shelf.render();              // 음반 선반 그리기 (자켓 5칸)
     MusicPlayer.syncMeta();
+    loadRoomConfig();            // 저장된 좌표가 있으면 읽어 덮어씀 (비동기)
+    _bindDrags();                // 편집기 드래그 핸들러 (평소 no-op, 편집 모드에서만 동작)
 
     // 하단 메뉴 서랍 (2중 버튼: ☰ 누르면 컨트롤이 슬라이드로 열림)
     const drawer=document.getElementById('ms-drawer');
@@ -5407,8 +5462,105 @@ const Floor2 = (() => {
     });
   }
 
-  return { markup, mount, wallRect };
+  /* ── 배치 편집기 (살롱지기 전용) — 스크린·진공관·VU 드래그 배치, 저장하면 전원 반영 ── */
+  const SORO_UID='81ac3dfa-0d44-4ab9-84bf-d630321b0bad';
+  let _editing=false, _work=null;
+  function isSoro(){ try{ return getUser()?.id===SORO_UID; }catch(e){ return false; } }
+  function _readout(m){ const r=document.getElementById('ms-edit-readout'); if(r) r.textContent=m; }
+  function _clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+  function _applyLive(){
+    const w=document.getElementById('ms-wall'); if(!w||!_work) return;
+    w.style.left=_work.screen.left+'%'; w.style.top=_work.screen.top+'%';
+    w.style.width=_work.screen.width+'%'; w.style.height=_work.screen.height+'%';
+    TUBE_KEYS.forEach(k=>{ const el=document.getElementById('ms-tube-'+k); if(el){ el.style.left=_work.tubes[k].left+'%'; el.style.top=_work.tubes[k].top+'%'; } });
+    const vl=document.getElementById('ms-vu-left'), vr=document.getElementById('ms-vu-right');
+    if(vl){ vl.style.left=_work.vu.left.left+'%'; vl.style.top=_work.vu.left.top+'%'; }
+    if(vr){ vr.style.left=_work.vu.right.left+'%'; vr.style.top=_work.vu.right.top+'%'; }
+  }
+  function _drag(el, onDelta){
+    if(!el) return;
+    el.addEventListener('pointerdown', e=>{
+      if(!_editing) return;
+      e.preventDefault(); e.stopPropagation();
+      const room=document.getElementById('ms-room').getBoundingClientRect();
+      let lx=e.clientX, ly=e.clientY;
+      try{ el.setPointerCapture(e.pointerId); }catch(_){ }
+      const mv=ev=>{ const dx=(ev.clientX-lx)/room.width*100, dy=(ev.clientY-ly)/room.height*100; lx=ev.clientX; ly=ev.clientY; onDelta(dx,dy); };
+      const up=()=>{ try{ el.releasePointerCapture(e.pointerId); }catch(_){ } el.removeEventListener('pointermove',mv); el.removeEventListener('pointerup',up); el.removeEventListener('pointercancel',up); };
+      el.addEventListener('pointermove',mv); el.addEventListener('pointerup',up); el.addEventListener('pointercancel',up);
+    });
+  }
+  function _bindDrags(){
+    _drag(document.getElementById('ms-wall'), (dx,dy)=>{
+      _work.screen.left=_clamp(_work.screen.left+dx,-20,100); _work.screen.top=_clamp(_work.screen.top+dy,-20,100);
+      _applyLive(); _readout('스크린  \u2194'+_work.screen.left.toFixed(1)+'  \u2195'+_work.screen.top.toFixed(1)+'  '+_work.screen.width.toFixed(1)+'\u00d7'+_work.screen.height.toFixed(1));
+    });
+    _drag(document.getElementById('ms-wall-resize'), (dx,dy)=>{
+      _work.screen.width=_clamp(_work.screen.width+dx,8,130); _work.screen.height=_clamp(_work.screen.height+dy,8,130);
+      _applyLive(); _readout('스크린 크기  '+_work.screen.width.toFixed(1)+'\u00d7'+_work.screen.height.toFixed(1));
+    });
+    TUBE_KEYS.forEach(k=> _drag(document.getElementById('ms-tube-'+k), (dx,dy)=>{
+      _work.tubes[k].left=_clamp(_work.tubes[k].left+dx,0,100); _work.tubes[k].top=_clamp(_work.tubes[k].top+dy,0,100);
+      _applyLive(); _readout('진공관 '+k+'  \u2194'+_work.tubes[k].left.toFixed(1)+'  \u2195'+_work.tubes[k].top.toFixed(1));
+    }));
+    [['ms-vu-left','left'],['ms-vu-right','right']].forEach(pair=>{ const id=pair[0], side=pair[1];
+      _drag(document.getElementById(id), (dx,dy)=>{
+        _work.vu[side].left=_clamp(_work.vu[side].left+dx,0,100); _work.vu[side].top=_clamp(_work.vu[side].top+dy,0,100);
+        _applyLive(); _readout('VU '+side+'  \u2194'+_work.vu[side].left.toFixed(1)+'  \u2195'+_work.vu[side].top.toFixed(1));
+      });
+    });
+  }
+  function editEnter(){
+    if(_editing || currentFloor!==2 || !isSoro()) return;
+    const bg=BACKGROUNDS[currentBgIndex]; if(!bg) return;
+    _editing=true;
+    _work={ bg_id:bg.id, screen:{...bg.screen}, tubes:JSON.parse(JSON.stringify(bg.tubes)), vu:JSON.parse(JSON.stringify(bg.vu)) };
+    if(window.MusicPlayer) MusicPlayer.setState('folded');
+    document.getElementById('ms-room').classList.add('ms-editing');
+    document.getElementById('ms-edit-panel').classList.add('show');
+    document.getElementById('ms-edit-toggle').classList.remove('show');
+    _readout('스크린\u00b7진공관\u00b7VU를 끌어 배치 \u2192 저장');
+  }
+  function editExit(){
+    if(!_editing) return;
+    _editing=false; _work=null;
+    document.getElementById('ms-room').classList.remove('ms-editing');
+    document.getElementById('ms-edit-panel').classList.remove('show');
+    if(BACKGROUNDS[currentBgIndex]) applyBackground(BACKGROUNDS[currentBgIndex]);
+    if(window.MusicPlayer) MusicPlayer.onFloorChange(2);
+    editSyncToggle(currentFloor);
+  }
+  async function editSave(){
+    if(!_editing || !_work) return;
+    const bg=BACKGROUNDS.find(b=>b.id===_work.bg_id); if(!bg) return;
+    bg.screen={..._work.screen}; bg.tubes=JSON.parse(JSON.stringify(_work.tubes)); bg.vu=JSON.parse(JSON.stringify(_work.vu));
+    _readout('저장 중\u2026');
+    try {
+      await sbFetch('/rest/v1/music_room_config?on_conflict=bg_id', {
+        method:'POST', headers:{ 'Prefer':'resolution=merge-duplicates' },
+        body: JSON.stringify({ bg_id:bg.id, coords:{ screen:bg.screen, tubes:bg.tubes, vu:bg.vu }, updated_at:new Date().toISOString() })
+      });
+    } catch(e){ _readout('저장 실패: '+(e.message||e)); return; }
+    _editing=false; _work=null;
+    document.getElementById('ms-room').classList.remove('ms-editing');
+    document.getElementById('ms-edit-panel').classList.remove('show');
+    applyBackground(bg);
+    if(window.MusicPlayer) MusicPlayer.onFloorChange(2);
+    editSyncToggle(currentFloor);
+  }
+  function editSyncToggle(n){
+    const t=document.getElementById('ms-edit-toggle'); if(!t) return;
+    if(n!==2 && _editing) editExit();
+    t.classList.toggle('show', n===2 && isSoro() && !_editing);
+  }
+
+  return { markup, mount, wallRect, editEnter, editSave, editExit, editSyncToggle };
 })();
+
+/* 배치 편집기 최상위 버튼 배선 (소로 전용) */
+document.getElementById('ms-edit-toggle')?.addEventListener('click', ()=> Floor2.editEnter());
+document.getElementById('ms-edit-save')?.addEventListener('click', ()=> Floor2.editSave());
+document.getElementById('ms-edit-exit')?.addEventListener('click', ()=> Floor2.editExit());
 
 /* ============================================================
  *  음악 미니 플레이어 (MusicPlayer) — 단일 iframe, 층 넘어도 안 끊김
