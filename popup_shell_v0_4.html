@@ -1,0 +1,1856 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<!-- 5.9.1 교훈: 핀치 확대 허용 (user-scalable=no 금지) -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>EG Popup Store · Shell v0.3 (문학동네)</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Noto+Serif+KR:wght@300;400;500&family=Playfair+Display:wght@700;900&display=swap');
+
+/* ============================================================
+ *  EG 팝업스토어 셸 v0.3 — 문학동네 프로토타입 (매대 홀 세로 무대 재건축)
+ *  분더카머 3층(책의 방) 문법 독채 + 좌우 이동 + 대문 열림
+ *
+ *  ⭐ [축 전환 0715저녁 결정문] 그림 축 = 출판사 (도시 아님).
+ *     배경 4장 = popup_{gate|hall|wall|board}_{org코드}.webp (예: _munhak)
+ *     옛 _01 이름도 폴백으로 받음(개명 전 호환). 도시 = EG × {CITY} 배지 + 팔레트 옷.
+ *
+ *  [대문 편집기] 3요소(간판 로고·EG×CITY 배지·입장 안내문) 선택→드래그→크기→값 복사.
+ *  [배경 오면 잡을 것] 책 도배 정밀 좌표 · 배너 걸이 위치 (그림 기준)
+ * ============================================================ */
+
+*{ margin:0; padding:0; box-sizing:border-box; }
+html,body{
+  width:100%; height:100%; overflow:hidden;
+  background:#0d0a08;
+  font-family:'Noto Serif KR','Cormorant Garamond',serif;
+  color:#e8d9b0; user-select:none;
+}
+img{ -webkit-user-drag:none; }
+
+/* ===== 도시·출판사 색 팔레트 (파리) — CSS 변수로 도시 옷 갈아입기 ===== */
+:root{
+  --paris-deep:#12281f;      /* 에메랄드 딥 */
+  --paris-wood:#2a1c12;      /* 월넛 */
+  --paris-gold:#c9a24a;      /* 금장 */
+  --paris-glow:#e9cf9c;      /* 따뜻한 조명 */
+  --ink:#1a1410;
+}
+
+/* ============================================================
+ *  대문 (Gate) — 분더카머 노커 구조와 동일: 클릭 시 스르르 열림
+ * ============================================================ */
+#gate{
+  position:fixed; inset:0; z-index:300;
+  display:flex; align-items:center; justify-content:center;
+  background:transparent; cursor:pointer;
+}
+/* 대문 = 화면 좌우 두 반쪽. 각 반쪽이 대문 이미지의 절반을 담고,
+ * 클릭 시 커튼처럼 좌우로 갈라지며 안쪽 홀이 드러남. (까만 문짝 없음) */
+#gate .gate-half{
+  position:absolute; top:0; bottom:0; width:50%;
+  /* 이미지를 CSS로 직접(즉시 로드). 없으면 아래 폴백 그라데이션이 비침 */
+  background-image:
+    url('popup_gate_munhak.webp'),      /* 신규 규칙 1순위 */
+    url('popup_gate_01.webp'),          /* 옛 이름 폴백 (개명 전 호환) */
+    radial-gradient(ellipse at 50% 42%, rgba(201,162,74,.14), transparent 60%),
+    linear-gradient(180deg,#0f2019 0%,#15281f 45%,#0c1712 100%);
+  background-repeat:no-repeat;
+  transition:transform 1.4s cubic-bezier(.62,.02,.2,1);
+  box-shadow:inset 0 0 80px rgba(0,0,0,.35);
+}
+/* 화면 2배 폭으로 늘려 각 반쪽이 대문 이미지의 좌/우 절반을 담음 */
+#gate .gate-half.left{
+  left:0;
+  background-size:200% 100%, 200% 100%, cover, cover;
+  background-position:left center, left center, center, center;
+}
+#gate .gate-half.right{
+  right:0;
+  background-size:200% 100%, 200% 100%, cover, cover;
+  background-position:right center, right center, center, center;
+}
+/* 커튼 갈라짐 */
+#gate.opening .gate-half.left{  transform:translateX(-101%); }
+#gate.opening .gate-half.right{ transform:translateX(101%); }
+#gate.opening{ pointer-events:none; }
+#gate.opening .gate-sign, #gate.opening .gate-hint{ opacity:0; transition:opacity .4s ease; }
+#gate.gone{ visibility:hidden; }
+
+/* ── ?edit 게이트 (0716 파이스): 주소창 ?edit 없으면 편집 버튼 5종 완전 숨김 (게스트 보호) ── */
+html:not(.edit-on) #gate-edit,
+html:not(.edit-on) #hall-edit,
+html:not(.edit-on) #wall-edit,
+html:not(.edit-on) #board-edit,
+html:not(.edit-on) #bm-intro-btn{ display:none !important; }
+
+/* ── 대문 간판 편집기 (5층 f5 모듈 이식 · 살롱지기 전용) ── */
+.gate-edit{
+  position:fixed; top:16px; right:16px; z-index:320;
+  font-family:'Cormorant Garamond','Noto Serif KR',serif; font-style:italic;
+  font-size:14px; letter-spacing:.04em; color:#e9dcc2;
+  background:rgba(30,22,18,.66); border:1px solid rgba(212,165,72,.42);
+  padding:7px 15px; border-radius:3px; cursor:pointer;
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); transition:all .22s;
+}
+.gate-edit:hover{ background:rgba(48,36,28,.82); border-color:rgba(212,165,72,.7); }
+.gate-edit.on{ color:#1a120c; background:#d4a548; border-color:#d4a548; }
+#gate.editing{ cursor:default; }
+/* 편집 대상 3요소 공통: 간판(.gate-sign) · 배지(.city-mark) · 안내문(.gate-hint) */
+#gate.editing [data-edit]{
+  pointer-events:auto; cursor:grab;
+  outline:2px dashed rgba(212,165,72,.45); outline-offset:6px;
+}
+#gate.editing [data-edit].selected{
+  outline:2px dashed rgba(212,165,72,1); outline-offset:6px;
+  box-shadow:0 0 0 4px rgba(212,165,72,.12);
+}
+#gate.editing [data-edit].grabbing{ cursor:grabbing; }
+#gate.editing .gate-hint{ animation:none; opacity:1; }
+.gate-tool{
+  position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:320;
+  display:none; align-items:center; gap:8px; padding:8px 14px;
+  background:rgba(24,17,13,.92); border:1px solid rgba(212,165,72,.4);
+  border-radius:22px; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  box-shadow:0 6px 20px rgba(0,0,0,.5); font-family:'Noto Serif KR',serif;
+}
+.gate-tool.on{ display:flex; }
+.gate-tool button{
+  height:30px; min-width:32px; padding:0 12px; border-radius:16px;
+  border:1px solid rgba(212,165,72,.45); background:rgba(48,34,26,.85);
+  color:#e9dcc2; font-size:13px; cursor:pointer; transition:all .18s;
+}
+.gate-tool button:hover{ background:#d4a548; color:#1a120c; }
+.gate-tool .lbl{ font-size:11px; color:#b9a986; letter-spacing:.05em; }
+.gate-tool .val{ font-size:11px; color:#e9dcc2; letter-spacing:.03em; font-variant-numeric:tabular-nums; }
+.gate-tool .sep{ width:1px; height:18px; background:rgba(212,165,72,.3); }
+
+/* 간판 자리 — 소로 확정값 고정 (0715저녁 · 문학동네). 로고 webp 있으면 텍스트 대체 */
+.gate-sign{
+  position:absolute; left:44.6%; top:14.5%; transform:translateX(-50%);
+  z-index:2; text-align:center; pointer-events:none;
+  --sign-scale:0.72;   /* 편집기가 조절하는 배율 (확정값) */
+}
+/* 도시 표식 — 대문 페이지 전용 배지 (간판 구석 · 내부 3뷰에는 없음)
+ * 0715저녁: fixed 전역 → #gate 안 absolute로 이주.
+ * (구판 병 2건 완치: z-index 40<300으로 대문에 가려짐 + 내부 페이지 침범) */
+#gate .city-mark{
+  position:absolute; left:57.3%; top:17.9%; z-index:2;
+  transform:translateX(-50%) scale(var(--mark-scale,1.08));
+  transform-origin:center top;
+  font-family:'Playfair Display',serif; font-weight:700;
+  font-size:16px; letter-spacing:.26em; color:#f0dcaa; white-space:nowrap;
+  /* 0715저녁 소로: 받침·테두리 제거 — 투명 배경에 글자만. 그림자만 살짝 남겨 가독 확보 */
+  text-shadow:0 1px 10px rgba(0,0,0,.85), 0 0 22px rgba(0,0,0,.5);
+  pointer-events:none; user-select:none;
+}
+#gate.opening .city-mark{ opacity:0; transition:opacity .4s ease; }
+.gate-sign .logo-img{ display:none; width:calc(240px * var(--sign-scale)); height:auto; max-width:80vw; filter:drop-shadow(0 2px 12px rgba(0,0,0,.5)); }
+.gate-sign.has-logo .logo-img{ display:block; }
+.gate-sign.has-logo .logo-txt,
+.gate-sign.has-logo .logo-sub{ display:none; }
+.gate-sign .logo-txt{
+  font-family:'Playfair Display',serif; font-weight:900;
+  font-size:calc(34px * var(--sign-scale)); color:var(--paris-glow);
+  letter-spacing:.04em; text-shadow:0 2px 16px rgba(0,0,0,.6);
+}
+.gate-sign .logo-sub{
+  font-family:'Cormorant Garamond',serif; font-style:italic;
+  font-size:calc(14px * var(--sign-scale)); color:var(--paris-gold);
+  margin-top:4px; letter-spacing:.14em; text-shadow:0 1px 10px rgba(0,0,0,.6);
+}
+.gate-hint{
+  position:absolute; left:50.6%; top:85.0%;
+  transform:translateX(-50%) scale(var(--hint-scale,1));
+  transform-origin:center top;
+  z-index:2; font-family:'Noto Serif KR','Cormorant Garamond',serif;
+  font-size:clamp(15px,1.4vw,19px); letter-spacing:.12em; color:#f0dcaa;
+  padding:10px 22px; border:1px solid rgba(212,165,72,.45); border-radius:24px;
+  background:rgba(16,12,8,.6); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  text-shadow:0 1px 8px rgba(0,0,0,.8); white-space:nowrap;
+  animation:hintPulse 2.6s ease infinite;
+}
+@keyframes hintPulse{ 0%,100%{opacity:.45} 50%{opacity:.9} }
+
+/* ============================================================
+ *  무대 (Stage) — 3뷰: 매대 홀 / 벽면 진열 / 메시지 보드
+ * ============================================================ */
+#stage{ position:fixed; inset:0; z-index:10; overflow:hidden; }
+.view{
+  position:absolute; inset:0;
+  display:flex; align-items:flex-end; justify-content:center;
+  opacity:0; visibility:hidden; transform:translateX(40px);
+  transition:opacity .5s ease, transform .5s ease, visibility 0s .5s;
+  background-size:cover; background-position:center;
+}
+.view.active{ opacity:1; visibility:visible; transform:translateX(0); transition:opacity .5s ease, transform .5s ease; }
+
+/* 배경 폴백 그라데이션 (webp 없을 때). has-img면 webp가 덮음 */
+/* ═══ 매대 홀 — f5 세로 스크롤 무대 문법 이식 (0715저녁 재건축) ═══
+ * 그림(941×1672)과 같은 비율의 무대 → % 좌표가 언제나 그림 속 같은 가구에 떨어짐.
+ * 상하 스크롤 = 천창→선반→평대→바닥 공간 탐험. 좌우 화살표 = 뷰 전환(축 분리). */
+.view[data-view="hall"]{
+  background-image:
+    radial-gradient(ellipse at 50% 30%, rgba(201,162,74,.14), transparent 60%),
+    linear-gradient(180deg,#0f2019,#16281f 55%,#0b1510);
+}
+.view[data-view="hall"] .hall-scroll{
+  position:absolute; inset:0; overflow-y:auto; overflow-x:hidden;
+  scrollbar-width:none; -ms-overflow-style:none;
+}
+.view[data-view="hall"] .hall-scroll::-webkit-scrollbar{ display:none; width:0; height:0; }
+.view[data-view="hall"] .hall-stage{
+  position:relative; width:100%; aspect-ratio:941/1672; min-height:100%;
+  background-size:100% 100%; background-position:center; background-repeat:no-repeat;
+}
+/* 책 — 입체 목업(책등 포함 누끼)이 물성 담당. 코드에선 바닥 앵커 + 접촉 그림자만 */
+.view[data-view="hall"] .hall-book{
+  position:absolute; transform:translate(-50%,-100%);
+  cursor:pointer; transition:transform .25s ease, filter .25s ease;
+  filter:drop-shadow(3px 6px 7px rgba(30,20,8,.3));
+}
+/* 접촉 그림자 — 매대에 '닿아 있음' */
+.view[data-view="hall"] .hall-book::after{
+  content:""; position:absolute; left:4%; right:-2%; bottom:-4px; height:9px;
+  background:radial-gradient(ellipse at 45% 50%, rgba(25,16,6,.3), transparent 68%);
+  z-index:-1;
+}
+.view[data-view="hall"] .hall-book img{ height:100%; width:auto; display:block; }
+.view[data-view="hall"] .hall-book:hover{
+  transform:translate(-50%,-100%) translateY(-6px) scale(1.04);
+  filter:drop-shadow(5px 10px 15px rgba(30,20,8,.48)); z-index:60 !important;
+}
+.view[data-view="hall"] .hall-book.placeholder{
+  background:linear-gradient(135deg,#2c3d33,#16241b);
+  border:1px solid rgba(201,162,74,.5);
+  display:flex; align-items:center; justify-content:center; padding:6px;
+  text-align:center; font-family:'Playfair Display',serif;
+  color:var(--paris-glow); font-size:clamp(8px,0.9vw,13px); line-height:1.35;
+  aspect-ratio:2/3;
+}
+/* 세로 배너 — 무대에 소속(같이 스크롤), 뒷벽 상단 띠에 걸림 */
+.view[data-view="hall"] .hall-stage .banner{
+  top:29%; transform:none;
+}
+.view[data-view="hall"] .hall-stage .banner.b1{ left:13%; }
+.view[data-view="hall"] .hall-stage .banner.b2{ right:13%; }
+/* ⭐ 이미지 배너 — 천장에서 길게 내려와 매대 시야에 끝단이 걸침 (0715 밤: 미끼 연출)
+ * 봉(::after)은 고정, 천(img)만 부드럽게 너풀 — transform-origin 상단 */
+.view[data-view="hall"] .hall-stage .banner-img{
+  position:absolute; top:30%; width:25%; z-index:2; pointer-events:none;
+  filter:drop-shadow(0 16px 30px rgba(30,22,10,.4));
+}
+.view[data-view="hall"] .hall-stage .banner-img img{
+  display:block; width:100%; height:auto;
+  transform-origin:50% 0;
+  animation:bannerSway 6.5s ease-in-out infinite;
+}
+.view[data-view="hall"] .hall-stage .banner-img.bi2 img{ animation-delay:-3.2s; animation-duration:7.3s; }
+@keyframes bannerSway{
+  0%,100%{ transform:rotate(-1.1deg) skewX(.4deg); }
+  50%    { transform:rotate(1.1deg)  skewX(-.4deg); }
+}
+.view[data-view="hall"] .hall-stage .banner-img::after{ /* 배너 봉 (황동 · 고정) */
+  content:""; position:absolute; left:-2%; right:-2%; top:-6px; height:7px;
+  background:linear-gradient(180deg,#e2c27c,#8a6a2c); border-radius:3px;
+  box-shadow:0 2px 5px rgba(0,0,0,.35);
+}
+.view[data-view="hall"] .hall-stage .banner-img.bi1{ left:9%; }
+.view[data-view="hall"] .hall-stage .banner-img.bi2{ right:9%; }
+/* ── 진열 편집 모드 (대문 편집기 엔진 확장 · 줄 단위) ── */
+.view[data-view="hall"] .hall-stage.editing .hall-book{ cursor:grab; }
+.view[data-view="hall"] .hall-stage.editing .hall-book:hover{
+  transform:translate(-50%,-100%); filter:drop-shadow(2px 5px 9px rgba(20,14,6,.45));
+}
+.view[data-view="hall"] .hall-stage.editing .hall-book.rowsel{
+  outline:2px dashed rgba(212,165,72,.9); outline-offset:3px;
+}
+.view[data-view="hall"] .hall-stage.editing .hall-book.grabbing{ cursor:grabbing; }
+.hall-edit{
+  position:fixed; top:16px; right:150px; z-index:320; display:none;
+  font-family:'Cormorant Garamond','Noto Serif KR',serif; font-style:italic;
+  font-size:14px; letter-spacing:.04em; color:#e9dcc2;
+  background:rgba(30,22,18,.66); border:1px solid rgba(212,165,72,.42);
+  padding:7px 15px; border-radius:3px; cursor:pointer;
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); transition:all .22s;
+}
+.hall-edit.show{ display:block; }
+.hall-edit:hover{ background:rgba(48,36,28,.82); border-color:rgba(212,165,72,.7); }
+.hall-edit.on{ color:#1a120c; background:#d4a548; border-color:#d4a548; }
+.view[data-view="wall"]{
+  background-image:
+    radial-gradient(ellipse at 50% 40%, rgba(201,162,74,.12), transparent 60%),
+    linear-gradient(180deg,#12241b,#1a2c22 55%,#0d1712);
+}
+/* ═══ wall — 저자의 서재 (0716 재건축: 홀 세로무대 이식) ═══
+ * 배경(941×1672)과 같은 비율 무대 → % 좌표가 그림 속 같은 벽면에 떨어짐.
+ * 상하 스크롤 = 천장(별-책)→벽(액자)→바닥(큰 책) 공간 탐험. */
+.view[data-view="wall"] .wall-scroll{
+  position:absolute; inset:0; overflow-y:auto; overflow-x:hidden;
+  overflow-anchor:none;   /* 이미지 지연 로드 시 브라우저가 스크롤 몰래 보정하는 것 차단 (0716 검거) */
+  scrollbar-width:none; -ms-overflow-style:none;
+}
+.view[data-view="wall"] .wall-scroll::-webkit-scrollbar{ display:none; width:0; height:0; }
+.view[data-view="wall"] .wall-stage{
+  position:relative; width:100%; aspect-ratio:941/1672; min-height:100%;
+  background-size:100% 100%; background-position:center; background-repeat:no-repeat;
+}
+/* 저자 액자 — 벽 중앙 픽처라이트 아래 걸림 (정면 고정) */
+.view[data-view="wall"] .wall-frame{
+  position:absolute; left:50%; top:41%; transform:translate(-50%,-50%);
+  width:29%; margin:0;
+  filter:drop-shadow(0 22px 45px rgba(0,0,0,.62)) drop-shadow(0 6px 14px rgba(0,0,0,.5));
+}
+.view[data-view="wall"] .wall-frame .frame-img{
+  width:100%; height:auto; display:block;
+}
+.view[data-view="wall"] .wall-caption{
+  position:absolute; left:50%; top:calc(100% + 20px); transform:translateX(-50%);
+  white-space:nowrap; text-align:center; color:var(--paris-glow);
+  font-family:'Cormorant Garamond','Noto Serif KR',serif;
+  font-size:clamp(13px,1.5vw,19px); letter-spacing:.14em;
+  text-shadow:0 2px 8px rgba(0,0,0,.7);
+}
+/* 발치의 큰 책 — 입체 목업, 바닥 앵커(홀 문법) */
+.view[data-view="wall"] .wall-bigbook{
+  position:absolute; transform:translate(-50%,-100%);
+  filter:drop-shadow(6px 14px 22px rgba(10,6,2,.55));
+  cursor:pointer; transition:filter .25s ease;
+}
+.view[data-view="wall"] .wall-bigbook::after{ /* 접촉 그림자 — 마루에 닿아 있음 */
+  content:""; position:absolute; left:3%; right:-3%; bottom:-6px; height:14px;
+  background:radial-gradient(ellipse at 45% 50%, rgba(15,9,3,.42), transparent 70%);
+  z-index:-1;
+}
+.view[data-view="wall"] .wall-bigbook img{ height:100%; width:auto; display:block; }
+.view[data-view="wall"] .wall-bigbook:hover{ filter:drop-shadow(8px 18px 30px rgba(10,6,2,.7)); }
+/* 천장의 별-책들 — 살짝 흔들리며 부유 (배너 스웨이 계승, 더 잔잔하게) */
+.view[data-view="wall"] .wall-star{
+  position:absolute; transform:translate(-50%,-50%);
+  filter:drop-shadow(0 8px 16px rgba(0,0,0,.55));
+  pointer-events:auto; cursor:pointer;
+}
+.view[data-view="wall"] .wall-star img{
+  height:100%; width:auto; display:block;
+  transform-origin:50% -40%;                 /* 보이지 않는 실에 매달린 축 */
+  animation:starSway 8s ease-in-out infinite;
+}
+@keyframes starSway{
+  0%,100%{ transform:rotate(-2.4deg); }
+  50%    { transform:rotate(2.4deg); }
+}
+/* wall 편집 모드 */
+.view[data-view="wall"] .wall-stage.editing .wall-frame,
+.view[data-view="wall"] .wall-stage.editing .wall-bigbook,
+.view[data-view="wall"] .wall-stage.editing .wall-star{ cursor:grab; }
+.view[data-view="wall"] .wall-stage.editing .sel{
+  outline:2px dashed rgba(212,165,72,.9); outline-offset:4px;
+}
+.view[data-view="wall"] .wall-stage.editing .wall-star img{ animation-play-state:paused; }
+.view[data-view="board"]{
+  background-image:
+    radial-gradient(ellipse at 50% 40%, rgba(201,162,74,.12), transparent 60%),
+    linear-gradient(180deg,#141f18,#1c2820 55%,#0e1611);
+}
+/* ═══ 홀 하단 티커 — 매대 전면 패널 위를 흐르는 방명록 (0716, 분더카머 1층 문법) ═══
+ * 무대 소속(같이 스크롤). 강물 속도 · hover 멈춤 · 클릭=보드로. 좌표 = 배경 패널 실측 후 조정 가능 */
+.hall-ticker{
+  position:absolute; left:9%; right:9%; height:3%;
+  /* top = renderHall()이 진열 최하단에서 자동 계산 (책 발밑 아래 패널) */
+  overflow:hidden; display:flex; align-items:center;
+  pointer-events:auto; cursor:pointer; z-index:4;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);
+}
+.hall-stage.editing .hall-ticker{ pointer-events:none; }  /* 편집 중 드래그 방해 금지 */
+.tk-track{
+  display:inline-flex; align-items:center; white-space:nowrap;
+  animation:tickerFlow 90s linear infinite; will-change:transform;
+  font-family:'Cormorant Garamond','Noto Serif KR',serif; font-style:italic;
+  font-size:clamp(12px,1.15vw,17px); letter-spacing:.05em;
+  color:rgba(238,224,190,.88); text-shadow:0 1px 3px rgba(20,12,4,.75);
+}
+.hall-ticker:hover .tk-track{ animation-play-state:paused; }
+.tk-track .tk-who{ color:rgba(212,178,110,.85); font-size:.85em; margin-left:.5em; }
+.tk-track .tk-sep{ margin:0 2.2em; color:rgba(201,162,74,.6); font-style:normal; }
+.tk-track .tk-flower{
+  height:1.55em; width:auto; margin:0 .55em 0 0; vertical-align:middle;
+  filter:drop-shadow(0 1px 2px rgba(20,12,4,.6));
+}
+@keyframes tickerFlow{ from{ transform:translateX(0); } to{ transform:translateX(-50%); } }
+
+/* ═══ board — 정면 펠트판 포스트잇 (0716 재건축: 최신=좌상단 · 페이지) ═══
+ * 펠트 면 4변·열·행·글자 = BOARD_FACE(JS)가 CSS 변수로 구동. 보드 편집기로 실측 확정 */
+.board-face{
+  position:absolute;
+  left:var(--bl,19%); right:var(--br,19%); top:var(--bt,17%); bottom:var(--bb,33%);
+  display:grid; grid-template-columns:repeat(var(--bcols,6),1fr);
+  grid-auto-rows:min-content; gap:14px 12px; align-content:start;
+  pointer-events:auto;
+}
+.board-face .note{ width:auto; cursor:default; transition:transform .2s; font-size:var(--bfs,13px); min-height:calc(var(--bfs,13px) * 7); }
+.board-face.editing{
+  outline:2px dashed rgba(212,165,72,.85); outline-offset:4px; cursor:grab;
+  background:rgba(201,162,74,.06);
+}
+.board-face.editing .note{ pointer-events:none; }
+.bf-handle{
+  display:none; position:absolute; right:-13px; bottom:-13px; width:26px; height:26px;
+  border-radius:50%; background:#d4a548; border:2px solid #1a120c;
+  cursor:nwse-resize; z-index:6;
+}
+.board-face.editing .bf-handle{ display:block; }
+.board-face .note:hover{ transform:rotate(0deg) scale(1.04); z-index:3; }
+.board-face .note.fresh{ animation:notePop .5s ease; }
+@keyframes notePop{ 0%{ transform:scale(.6) rotate(var(--r)); opacity:0; } 100%{ transform:scale(1) rotate(var(--r)); opacity:1; } }
+/* 페이지 화살표 — 글이 한 면을 넘칠 때만 등장 */
+.board-pager{
+  position:absolute; left:50%; bottom:24%; transform:translateX(-50%);
+  display:none; align-items:center; gap:16px; z-index:5;
+  font-family:'Cormorant Garamond',serif; font-style:italic;
+  color:var(--paris-glow); font-size:15px; letter-spacing:.1em;
+}
+.board-pager.show{ display:flex; }
+.board-pager button{
+  width:34px; height:34px; border-radius:50%; cursor:pointer;
+  background:rgba(22,36,27,.8); color:#e2cf9a;
+  border:1px solid rgba(201,162,74,.5); font-size:16px;
+}
+.board-pager button:hover{ background:rgba(34,54,40,.95); }
+.board-pager button:disabled{ opacity:.3; cursor:default; }
+/* 쓰기 레이어 (경량 모달 — 배관 시 Supabase insert로 교체) */
+.bw-layer{
+  position:fixed; inset:0; z-index:400; display:none;
+  align-items:center; justify-content:center;
+  background:rgba(8,12,9,.66); backdrop-filter:blur(4px);
+}
+.bw-layer.on{ display:flex; }
+.bw-box{
+  width:min(480px,92vw); background:#f7f0d8; border-radius:6px;
+  padding:22px 22px 18px; box-shadow:0 24px 60px rgba(0,0,0,.55);
+  transform:rotate(-.6deg);
+}
+.bw-box h4{ font-family:'Noto Serif KR',serif; color:#3a2c14; font-weight:500; margin-bottom:12px; font-size:16px; }
+.bw-box textarea{
+  width:100%; height:88px; resize:none; border:1px solid #cbbb90; border-radius:4px;
+  background:#fdf8e8; color:#3a2c14; font-family:'Noto Serif KR',serif; font-size:14px;
+  line-height:1.6; padding:10px;
+}
+.bw-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:12px; }
+.bw-actions button{
+  padding:8px 18px; border-radius:4px; cursor:pointer; font-family:'Noto Serif KR',serif; font-size:13px;
+  border:1px solid #b5a374; background:transparent; color:#6a5a34;
+}
+.bw-actions .bw-post{ background:var(--paris-deep); color:#ecdfbc; border-color:var(--paris-deep); }
+/* has-img 배경 url은 tryBg가 인라인으로 물림 (org코드 1순위 → _01 폴백) */
+
+/* ===== 세로 배너 (천장 걸이) — 배경 오면 위치 재조정 ===== */
+.banner{
+  position:absolute; top:0; width:clamp(64px,9vw,120px);
+  padding:16px 8px 40px; text-align:center;
+  background:linear-gradient(180deg,var(--paris-deep),#0c1a13);
+  border:1px solid rgba(201,162,74,.4);
+  border-top:none; color:var(--paris-glow);
+  box-shadow:0 8px 20px rgba(0,0,0,.5);
+  writing-mode:vertical-rl; letter-spacing:.28em;
+  font-family:'Playfair Display',serif; font-size:clamp(13px,1.5vw,18px);
+  transform:translateY(-4px);
+}
+.banner.b1{ left:11%; } .banner.b2{ right:11%; }
+.banner::after{ /* 배너 아랫단 술 */
+  content:""; position:absolute; left:0; right:0; bottom:0; height:16px;
+  background:repeating-linear-gradient(90deg,var(--paris-gold) 0 4px,transparent 4px 9px);
+}
+
+/* ===== 매대·벽 : 같은 책 도배 ===== */
+.tile-field{
+  position:absolute; left:0; right:0; bottom:0;
+  display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:center;
+  gap:clamp(6px,1.4vw,18px); padding:0 6% 6%;
+  pointer-events:none;
+}
+.view[data-view="wall"] .tile-field{ align-content:center; top:14%; bottom:8%; gap:clamp(4px,1vw,12px); }
+.cover-book{
+  height:clamp(120px,26vh,240px); width:auto; cursor:pointer;
+  pointer-events:auto;
+  filter:drop-shadow(3px 8px 14px rgba(0,0,0,.55));
+  transition:transform .18s ease, filter .18s ease;
+  border-radius:2px;
+}
+.view[data-view="wall"] .cover-book{ height:clamp(84px,15vh,150px); }
+.cover-book:hover{ transform:translateY(-8px) scale(1.03); filter:drop-shadow(5px 12px 20px rgba(0,0,0,.7)); }
+/* 표지 원본 비율 보존 (5.9.2) — img가 height 채우고 width auto */
+.cover-book img{ height:100%; width:auto; display:block; border-radius:2px; }
+/* 가상 표지 폴백 (실 표지 없을 때 CSS 책등) */
+.cover-book.placeholder{
+  width:clamp(84px,17vh,168px);
+  background:linear-gradient(135deg,#2c3d33,#16241b);
+  border:1px solid rgba(201,162,74,.5);
+  display:flex; align-items:center; justify-content:center; padding:10px;
+  text-align:center; font-family:'Playfair Display',serif;
+  color:var(--paris-glow); font-size:13px; line-height:1.4;
+}
+
+/* ===== 좌우 이동 화살표 (원본 bk-nav 재활용) ===== */
+.nav-arrow{
+  position:fixed; top:50%; transform:translateY(-50%); z-index:60;
+  width:52px; height:52px; border-radius:50%;
+  background:rgba(18,30,22,.72); border:1px solid rgba(201,162,74,.5);
+  color:var(--paris-glow); font-size:26px; line-height:1;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; backdrop-filter:blur(3px);
+  transition:background .2s;
+}
+.nav-arrow:hover{ background:rgba(28,44,34,.92); }
+#nav-left{ left:20px; } #nav-right{ right:20px; }
+@media(max-width:640px){ .nav-arrow{ width:44px; height:44px; font-size:22px; } #nav-left{left:8px} #nav-right{right:8px} }
+
+/* 뷰 인디케이터 점 */
+.view-dots{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:60; display:flex; gap:10px; }
+.view-dots .dot{ width:9px; height:9px; border-radius:50%; background:rgba(201,162,74,.3); border:1px solid rgba(201,162,74,.6); cursor:pointer; transition:background .2s; }
+.view-dots .dot.active{ background:var(--paris-gold); }
+
+/* 뷰 라벨 (좌상단) */
+.view-label{
+  position:fixed; top:18px; left:20px; z-index:60;
+  font-family:'Cormorant Garamond',serif; font-style:italic;
+  font-size:16px; color:rgba(233,207,156,.85);
+  text-shadow:0 1px 6px rgba(0,0,0,.7);
+}
+.view-label b{ font-style:normal; font-weight:500; color:var(--paris-glow); }
+
+/* ============================================================
+ *  3D 플립북 책 모달 — 분더카머 3층 원전 이식 (0715 밤)
+ *  표지 = 실물 앞표지 / 마지막 장 = 실물 뒤표지 / 본문 = 소개글 면 분할
+ * ============================================================ */
+.book-modal{
+  position:fixed; inset:0; background:rgba(0,0,0,0); z-index:200;
+  pointer-events:none; opacity:0; visibility:hidden;
+  transition:opacity .5s ease, background .5s ease, visibility 0s linear .5s;
+  display:flex; min-height:100dvh; perspective:1500px; overflow:hidden;
+  container-type:size;
+}
+.book-modal.open{
+  pointer-events:auto; opacity:1; visibility:visible;
+  transition:opacity .5s ease, background .5s ease, visibility 0s linear 0s;
+  background:radial-gradient(circle farthest-corner at 50% 50%, hsl(187 20% 88%) 30%, hsl(149 20% 94%) 100%);
+}
+.book-modal .book{
+  position:relative; display:flex; margin:auto;
+  width:34cqmin; pointer-events:none; transform-style:preserve-3d;
+  transition:translate 1s; translate:calc(min(var(--c),1) * 50%) 0%;
+  rotate:1 0 0 18deg;
+}
+.book-modal .page{
+  --thickness:4; flex:none; display:flex; width:100%;
+  font-size:1.8cqmin; pointer-events:all; user-select:none;
+  transform-style:preserve-3d; transform-origin:left center;
+  transition:transform 1s, rotate 1s ease-in calc((min(var(--i),var(--c)) - max(var(--i),var(--c))) * 50ms);
+  translate:calc(var(--i) * -100%) 0px 0px;
+  transform:translateZ(calc((var(--c) - var(--i) - 0.5) * calc(var(--thickness) * .23cqmin)));
+  rotate:0 1 0 calc(clamp(0, var(--c) - var(--i), 1) * -180deg);
+  cursor:pointer; box-shadow:0 .5em 1em -.2em #00000020;
+}
+.book-modal .front,.book-modal .back{
+  position:relative; flex:none; width:100%; aspect-ratio:1/1.47; backface-visibility:hidden;
+  overflow:hidden; background-color:#fff; translate:0px;
+  display:flex; flex-flow:column nowrap; justify-content:flex-start;
+  padding:2.6em 2.4em 3.4em; border:1px solid #0002;
+}
+.book-modal .front:has(.cover-bg),.book-modal .back:has(.cover-bg){ padding:0; }
+.book-modal .back{ translate:-100% 0; rotate:0 1 0 180deg; }
+.book-modal .book{ counter-reset:page -1; }
+.book-modal .front::after,.book-modal .back::after{
+  position:absolute; bottom:1em; counter-increment:page; content:counter(page) ".";
+  font-size:.75em; color:#b8a880; font-style:italic;
+}
+.book-modal .front::after{ right:1.5em; }
+.book-modal .back::after{ left:1.5em; }
+.book-modal .cover::after{ content:""; }
+.book-modal .front{ background:linear-gradient(to left,#faf7f0 80%,#f0ebe0 100%); border-radius:.1em .5em .5em .1em; }
+.book-modal .back{ background-image:linear-gradient(to right,#faf7f0 80%,#f0ebe0 100%); border-radius:.5em .1em .1em .5em; }
+.book-modal .cover{ color:hsl(200 30% 98%); padding:0; }
+.book-modal .cover-bg{ position:absolute; inset:0; background-size:cover; background-position:center; }
+.book-modal .page-content{ width:100%; height:100%; display:flex; flex-direction:column; color:#1a1410; font-family:'Cormorant Garamond','Noto Serif KR',Georgia,serif; }
+.book-modal .page-content h2{ font-size:1.25em; font-weight:600; color:#2a1810; margin-bottom:.9em; line-height:1.4; }
+.book-modal .page-content p{ font-size:.95em; line-height:1.8; margin-bottom:.6em; text-align:justify; text-justify:inter-character; word-break:break-all; line-break:strict; overflow-wrap:anywhere; }
+.book-modal .modal-close{
+  position:fixed; top:18px; right:22px; z-index:210;
+  width:42px; height:42px; border-radius:50%; border:1px solid rgba(110,60,40,.4);
+  background:rgba(250,247,240,.9); color:#6e3c28; font-size:22px; cursor:pointer;
+}
+.book-modal .modal-close:hover{ background:rgba(110,60,40,.95); color:#faf7f0; }
+.book-modal .modal-hint{
+  position:fixed; top:26px; left:50%; transform:translateX(-50%); z-index:205;
+  font-family:'Noto Serif KR',serif; font-size:12.5px; color:#7a6a4e; letter-spacing:.06em;
+}
+/* 팝업 전용 액션바 — 응모·서점·소개입력 (플립북 아래) */
+.book-modal .bm-actions{
+  position:fixed; bottom:22px; left:50%; transform:translateX(-50%); z-index:210;
+  display:flex; gap:10px;
+}
+.bm-btn{
+  font-family:'Noto Serif KR',serif; font-size:13.5px; cursor:pointer;
+  padding:10px 17px; border-radius:20px; border:1px solid transparent;
+  transition:background .2s, transform .1s;
+  box-shadow:0 4px 14px rgba(0,0,0,.18);
+}
+.bm-btn:active{ transform:translateY(1px); }
+.bm-btn.store{ background:#2a1c12; color:var(--paris-glow); border-color:var(--paris-gold); }
+.bm-btn.store:hover{ background:#3a2818; }
+.bm-btn.wk{ background:var(--paris-deep); color:#e9dfc4; }
+.bm-btn.wk:hover{ background:#1a3a2a; }
+.bm-btn.intro{ background:rgba(250,247,240,.92); color:#6e4a32; border-color:rgba(138,118,84,.45); }
+.bm-btn.intro:hover{ background:#efe6d2; }
+/* 소개 입력 레이어 (원본 essay-editor 이식) */
+.intro-editor{
+  position:fixed; inset:0; z-index:230; display:none;
+  align-items:center; justify-content:center; background:rgba(20,14,8,.55); backdrop-filter:blur(3px);
+}
+.intro-editor.open{ display:flex; }
+.intro-editor .ee-paper{
+  width:min(640px,92vw); max-height:88vh; overflow:auto;
+  background:linear-gradient(#fbf8f0,#f4eee0); border-radius:6px;
+  padding:26px 30px 22px; box-shadow:0 24px 70px rgba(0,0,0,.5);
+  font-family:'Cormorant Garamond','Noto Serif KR',serif; color:#3a2a18;
+}
+.intro-editor .ee-eyebrow{ font-style:italic; letter-spacing:.22em; font-size:11px; color:#a08a5e; }
+.intro-editor .ee-book-title{ font-size:1.25em; font-weight:600; margin:6px 0 14px; color:#2a1810; }
+.intro-editor input.ee-title{
+  width:100%; padding:10px 12px; margin-bottom:10px;
+  border:1px solid rgba(138,118,84,.4); border-radius:4px; background:#fffdf8;
+  font-family:inherit; font-size:15px; color:#2a1810;
+}
+.intro-editor textarea.ee-body{
+  width:100%; min-height:260px; padding:12px; resize:vertical;
+  border:1px solid rgba(138,118,84,.4); border-radius:4px; background:#fffdf8;
+  font-family:'Noto Serif KR',serif; font-size:14.5px; line-height:1.8; color:#2a1810;
+}
+.intro-editor .ee-bar{ display:flex; align-items:center; gap:10px; margin-top:12px; }
+.intro-editor .ee-count{ font-size:12px; color:#8a7654; margin-right:auto; }
+.intro-editor .ee-bar button{
+  padding:9px 18px; border-radius:5px; border:1px solid rgba(138,118,84,.45);
+  background:#fffdf8; color:#6e4a32; font-family:'Noto Serif KR',serif; font-size:13.5px; cursor:pointer;
+}
+.intro-editor .ee-bar .ee-save{ background:#6e4a32; color:#f4e8d4; border-color:#6e4a32; }
+
+/* 온라인 서점 선택 시트 */
+.store-sheet{ position:fixed; inset:0; z-index:210; display:none; align-items:center; justify-content:center; background:rgba(8,6,4,.7); }
+.store-sheet.open{ display:flex; }
+.store-sheet .box{ background:#faf7f0; border-radius:.5em; padding:26px 30px; text-align:center; color:var(--ink); min-width:280px; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+.store-sheet h3{ font-family:'Cormorant Garamond',serif; font-size:1.3em; margin-bottom:6px; color:#2a1810; }
+.store-sheet .sub{ font-style:italic; color:#8a7654; font-size:.9em; margin-bottom:18px; }
+.store-sheet .stores{ display:flex; flex-direction:column; gap:9px; }
+.store-sheet a{ display:block; padding:12px; border:1px solid var(--paris-gold); border-radius:6px; color:#2a1c12; text-decoration:none; font-family:'Noto Serif KR',serif; transition:background .2s; }
+.store-sheet a:hover{ background:#f3ecdd; }
+.store-sheet .x{ margin-top:16px; font-size:13px; color:#8a7654; cursor:pointer; }
+
+/* ============================================================
+ *  메시지 보드 (원본 renderMessageWall 문법 계승, 골격)
+ * ============================================================ */
+.board-wrap{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:8% 6% 6%; pointer-events:none; }
+.board-panel{
+  pointer-events:auto;
+  width:min(720px,88vw); max-height:74vh; overflow:auto;
+  background:rgba(20,31,24,.62); border:1px solid rgba(201,162,74,.45);
+  border-radius:8px; padding:22px; backdrop-filter:blur(3px);
+}
+.board-panel h3{ font-family:'Cormorant Garamond',serif; font-style:italic; color:var(--paris-glow); font-size:1.35em; text-align:center; margin-bottom:16px; }
+.board-notes{ display:flex; flex-wrap:wrap; gap:12px; justify-content:center; }
+.note{
+  width:150px; min-height:100px; padding:12px 13px;
+  background:linear-gradient(180deg,var(--np-a,#f7f0d8),var(--np-b,#efe6c4));
+  color:#3a2c14; font-family:'Noto Serif KR',serif; font-size:13px; line-height:1.55;
+  border-radius:3px; box-shadow:2px 4px 10px rgba(0,0,0,.4);
+  transform:rotate(var(--r,-2deg));
+}
+/* 포스트잇 색 변주 — 파리 살롱 저채도 5색 (0716 소로) */
+.note.np0{ --np-a:#f7f0d8; --np-b:#efe6c4; }                    /* 크림 */
+.note.np1{ --np-a:#e9efdd; --np-b:#dde6cb; color:#33402a; }     /* 세이지 */
+.note.np2{ --np-a:#e3ecf2; --np-b:#d4e0ea; color:#2c3a46; }     /* 연하늘 */
+.note.np3{ --np-a:#f5e6e2; --np-b:#eed6d0; color:#4a3230; }     /* 장미빛 */
+.note.np4{ --np-a:#eae6ef; --np-b:#dcd6e4; color:#3a3444; }     /* 라벤더 회색 */
+.note .who{ display:block; margin-top:8px; font-style:italic; color:#8a7a4a; font-size:11px; text-align:right; }
+.board-write{ display:block; margin:18px auto 0; padding:11px 22px; background:var(--paris-deep); color:#e9dfc4; border:1px solid var(--paris-gold); border-radius:6px; font-family:'Noto Serif KR',serif; font-size:14px; cursor:pointer; }
+.board-write:hover{ background:#1a3a2a; }
+</style>
+<!-- Supabase 클라이언트 (0716 파이스 배관) — 다른 EG 셸과 동일 라이브러리 -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- ?edit 게이트 (0716): 주소창에 ?edit 있을 때만 편집 모드. 게스트에게 편집 버튼 숨김 -->
+<script>if(new URLSearchParams(location.search).has('edit'))document.documentElement.classList.add('edit-on');</script>
+</head>
+<body>
+
+<!-- ============ 대문 ============ -->
+<div id="gate">
+  <div class="gate-half left"></div>
+  <div class="gate-half right"></div>
+  <div class="gate-sign" data-edit="sign">
+    <img class="logo-img" id="gate-logo-img" alt="">
+    <div class="logo-txt" id="gate-logo">문학동네</div>
+  </div>
+  <!-- 도시 표식: 대문 전용 배지 (내부 3뷰에는 없음 · 0715저녁 결정) -->
+  <div class="city-mark" id="city-mark" data-edit="mark">EG × PARIS</div>
+  <div class="gate-hint" data-edit="hint">대문을 클릭해 입장하세요</div>
+</div>
+
+<!-- 대문 간판 편집기 (살롱지기 전용) -->
+<button class="gate-edit" id="gate-edit">✎ 대문 편집</button>
+<button class="hall-edit" id="hall-edit">✎ 진열 편집</button>
+<button class="hall-edit" id="wall-edit">✎ 벽면 편집</button>
+<button class="hall-edit" id="board-edit">✎ 보드 편집</button>
+<div class="gate-tool" id="board-tool">
+  <span class="lbl">열</span><button data-act="c-">−</button><button data-act="c+">+</button>
+  <span class="lbl">행</span><button data-act="r-">−</button><button data-act="r+">+</button>
+  <span class="lbl">글자</span><button data-act="f-">−</button><button data-act="f+">+</button>
+  <span class="sep"></span>
+  <button data-act="dummy">더미 +20</button>
+  <button data-act="clear">비우기</button>
+  <span class="sep"></span>
+  <span class="val" id="board-val">—</span>
+  <span class="sep"></span>
+  <button data-act="reset">되돌리기</button>
+  <button data-act="copy">값 복사</button>
+</div>
+<div class="gate-tool" id="wall-tool">
+  <span class="lbl">크기</span>
+  <button data-act="s-">−</button><button data-act="s+">+</button>
+  <span class="sep"></span>
+  <button data-act="dup">별 복제</button>
+  <button data-act="del">별 삭제</button>
+  <span class="sep"></span>
+  <span class="val" id="wall-val">—</span>
+  <span class="sep"></span>
+  <button data-act="reset">되돌리기</button>
+  <button data-act="copy">값 복사</button>
+</div>
+<div class="gate-tool" id="hall-tool">
+  <span class="lbl">크기</span>
+  <button data-act="h-">−</button><button data-act="h+">+</button>
+  <span class="sep"></span>
+  <button data-act="face">앞/뒤</button>
+  <button data-act="dup">복제</button>
+  <button data-act="del">삭제</button>
+  <span class="sep"></span>
+  <span class="val" id="hall-val">—</span>
+  <span class="sep"></span>
+  <button data-act="reset">되돌리기</button>
+  <button data-act="copy">값 복사</button>
+</div>
+<input type="file" id="gate-logo-file" accept="image/png,image/webp,image/*" style="display:none">
+<div class="gate-tool" id="gate-tool">
+  <button data-act="upload">🖼 로고 올리기</button>
+  <button data-act="clearlogo">텍스트로</button>
+  <span class="sep"></span>
+  <span class="lbl">크기</span>
+  <button data-act="smaller">−</button>
+  <button data-act="bigger">+</button>
+  <span class="sep"></span>
+  <span class="val" id="gate-val">—</span>
+  <span class="sep"></span>
+  <button data-act="reset">되돌리기</button>
+  <button data-act="copy">값 복사</button>
+</div>
+
+<!-- ============ 무대 3뷰 ============ -->
+<div id="stage">
+  <!-- 뷰1: 매대 홀 — 세로 스크롤 무대 (0715저녁 재건축) -->
+  <section class="view active" data-view="hall">
+    <div class="hall-scroll" id="hall-scroll">
+      <div class="hall-stage" id="hall-stage">
+        <div class="banner b1" id="banner1">신간</div>
+        <div class="banner b2" id="banner2">도착</div>
+        <!-- 매대 전면 패널 — 흐르는 방명록 (클릭=보드로) -->
+        <div class="hall-ticker" id="hall-ticker" title="벽에 한 줄 남기러 가기">
+          <div class="tk-track" id="tk-track"></div>
+        </div>
+        <!-- 책은 renderHall()이 HALL_BOOKS 슬롯에 앉힘 -->
+      </div>
+    </div>
+  </section>
+  <!-- 뷰2: 벽면 진열 — 저자의 서재 (0716 재건축: 세로 무대 + 액자) -->
+  <section class="view" data-view="wall">
+    <div class="wall-scroll" id="wall-scroll">
+      <div class="wall-stage" id="wall-stage">
+        <!-- 천장 별-책 · 발치 큰 책 = 다음 단계 -->
+        <figure class="wall-frame" id="wall-frame">
+          <img class="frame-img" id="frame-img" alt="저자 초상">
+          <figcaption class="wall-caption" id="wall-caption"></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+  <!-- 뷰3: 메시지 보드 — 정면 펠트판 (0716 재건축: 최신=좌상단·페이지·무한확장) -->
+  <section class="view" data-view="board">
+    <div class="board-face" id="board-face"><div class="bf-handle" id="bf-handle"></div></div>
+    <div class="board-pager" id="board-pager">
+      <button id="bp-prev" aria-label="이전 면">‹</button>
+      <span id="bp-label">1 / 1</span>
+      <button id="bp-next" aria-label="다음 면">›</button>
+    </div>
+    <button class="board-write" style="position:absolute; left:50%; bottom:12%; transform:translateX(-50%); margin:0;" onclick="openWriteLayer()">벽에 한 줄 남기기</button>
+  </section>
+</div>
+
+<!-- 좌우 이동 -->
+<!-- 방명록 쓰기 레이어 (경량 — 배관 시 Supabase insert 교체 자리) -->
+<div class="bw-layer" id="bw-layer">
+  <div class="bw-box">
+    <h4>이 서가에 한 줄 남기기</h4>
+    <textarea id="bw-text" maxlength="120" placeholder="이 책, 이 서가에 스친 마음 한 줄 (120자)"></textarea>
+    <div class="bw-actions">
+      <button onclick="closeWriteLayer()">닫기</button>
+      <button class="bw-post" onclick="postNote()">벽에 남기기</button>
+    </div>
+  </div>
+</div>
+<button class="nav-arrow" id="nav-left" aria-label="이전">‹</button>
+<button class="nav-arrow" id="nav-right" aria-label="다음">›</button>
+<div class="view-dots" id="view-dots"></div>
+<div class="view-label" id="view-label"></div>
+
+<!-- 3D 플립북 책 모달 (분더카머 3층 원전) -->
+<div class="book-modal" id="book-modal">
+  <button class="modal-close" id="modal-close">×</button>
+  <div class="modal-hint">페이지 가장자리를 클릭해 넘기세요 · ESC로 닫기</div>
+  <div class="bm-actions">
+    <button class="bm-btn intro" id="bm-intro-btn">✎ 소개 입력</button>
+    <button class="bm-btn wk" id="bm-wk-btn">내 분더카머에 들이기</button>
+    <button class="bm-btn store" id="bm-store-btn">온라인 서점에서 보기</button>
+  </div>
+</div>
+<!-- 책 소개 입력 레이어 (살롱지기 전용 · 원본 essay-editor 이식) -->
+<div class="intro-editor" id="intro-editor">
+  <div class="ee-paper">
+    <div class="ee-eyebrow">PRÉSENTATION</div>
+    <div class="ee-book-title" id="ie-book-title"></div>
+    <input type="text" class="ee-title" id="ie-title" placeholder="소개 제목 (비워두면 책 제목으로)" maxlength="120">
+    <textarea class="ee-body" id="ie-body" placeholder="온라인 서점의 책 소개를 붙여넣으세요. 빈 줄로 단락을 나누면 면이 나뉩니다."></textarea>
+    <div class="ee-bar">
+      <span class="ee-count" id="ie-count">0자</span>
+      <button id="ie-copy">값 복사</button>
+      <button id="ie-cancel">닫기</button>
+      <button class="ee-save" id="ie-save">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 온라인 서점 시트 -->
+<div class="store-sheet" id="store-sheet">
+  <div class="box">
+    <h3 id="ss-title">온라인 서점에서 만나기</h3>
+    <div class="sub">원하시는 서점으로 이동합니다</div>
+    <div class="stores" id="ss-stores"></div>
+    <div class="x" onclick="document.getElementById('store-sheet').classList.remove('open')">닫기</div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+ *  팝업 데이터 모델 (도시 그림 + 출판사 코드 레이어)
+ *  실전: DB에서 org별 로드. 지금은 가상 출판사 1(문학동네) 목업.
+ * ============================================================ */
+const POPUP = {
+  city: '파리',
+  cityEn: 'PARIS',       // 도시 표식용 영문 (EG × PARIS) — 도시는 이 배지 + 팔레트 옷만
+  org: {
+    code: 'munhak',      // ⭐ 그림 축 = 출판사. 배경 4장 = popup_*_{code}.webp (0715저녁 결정문)
+    name: '문학동네',
+    logo: 'logo_munhakdongne.webp',   // 이 이름으로 폴더에 넣으면 영구 로고. 없으면 텍스트 폴백
+    banner: ['신간', '도착'],          // 텍스트 배너 폴백 (bannerImg 없을 때)
+    bannerImg: 'bn_munhak_01.webp',   // ⭐ 천장 세로 배너 이미지 (흑백판) — 좌우 큼직하게
+    /* 진열 = 같은 책 도배 (실물: 광대한 여정) */
+    books: [
+      { title:'광대한 여정', author:'로렌 아이즐리 · 조은영 옮김',
+        cover:'bk_munhak_01.webp', back:'bk_munhak_01_back.webp',
+        blurb:'사막과 빙하, 강과 심해, 지구와 우주, 그리고 과거와 미래 — 광활한 시공간을 통과해온 모든 생명과 인류의 여행기. 스티븐 제이 굴드, 리처드 도킨스, 칼 세이건에 앞서 눈부신 사유와 문장으로 독자를 사로잡은 과학 에세이의 선구자, 로렌 아이즐리의 대표작입니다.',
+        stores:{ aladin:'#', kyobo:'#', yes24:'#' } },
+    ],
+  },
+};
+
+/* ═══ 매대 홀 진열 줄 (0715저녁 재건축) — 그림(941×1672) 속 가구에 스냅 ═══
+ * y = 책이 '올라서는' 가구 표면선(무대 높이 %) / h = 책 높이(무대 높이 %)
+ * cx = 줄 중심 x(%) / span = 줄 폭(%) / n = 권수
+ * 원근: 앞줄일수록 h 크게. 초기값 — 소로 진열 편집기로 확정 후 코드 고정. */
+/* ═══ 매대 홀 진열 — 권 단위 (0715저녁 입체표지 전환)
+ * 입체 목업 2종: popup_book01a(앞면+책등) / popup_book01b(뒷면+책등)
+ * 배치: 뒷단=앞면 · 중간단=뒷면 · 앞단=앞면 (소로 지정)
+ * 각 권 = { x, y(바닥 앵커 %), h(높이 %), img }. 진열 편집기로 권별 이동·크기·삭제·복제. */
+const BOOK_IMG_FRONT = 'popup_book01a.webp';
+const BOOK_IMG_BACK  = 'popup_book01b.webp';
+function defaultHallBooks(){
+  /* ⭐ 소로 확정 진열 (0715 밤) — 3·4·5 배열: 뒷단 앞면 3권 / 중간단 뒷면 4권 / 앞단 앞면 5권 */
+  return [
+    {x:33.8,y:61.3,h:8.3, img:BOOK_IMG_FRONT},{x:50.9,y:61.6,h:8.3, img:BOOK_IMG_FRONT},{x:68.9,y:61.3,h:8.3, img:BOOK_IMG_FRONT},
+    {x:24.0,y:67.2,h:9.5, img:BOOK_IMG_BACK },{x:41.1,y:67.4,h:9.5, img:BOOK_IMG_BACK },{x:58.4,y:67.6,h:9.5, img:BOOK_IMG_BACK },{x:76.0,y:67.2,h:9.5, img:BOOK_IMG_BACK },
+    {x:15.9,y:74.5,h:10.8,img:BOOK_IMG_FRONT},{x:32.3,y:74.4,h:10.8,img:BOOK_IMG_FRONT},{x:49.5,y:74.7,h:10.8,img:BOOK_IMG_FRONT},{x:67.0,y:74.7,h:10.8,img:BOOK_IMG_FRONT},{x:83.7,y:74.4,h:10.8,img:BOOK_IMG_FRONT},
+  ];
+}
+let HALL_BOOKS = defaultHallBooks();
+
+/* ============================================================
+ *  ⭐ 시간축 (0715저녁 소로 확정) — 한국 하늘의 실제 일출·일몰로 낮/밤 그림 자동 선택
+ *  배경 2벌: popup_*_{org}_d.webp(낮) / popup_*_{org}_n.webp(밤)
+ *  폴백 사다리: 시간판 → 무접미사 → (밤이면 낮판) → 옛 _01 → 그라데이션
+ *  → 한 판만 있어도 완벽히 돌아감. 두 번째 판은 여유 될 때.
+ * ============================================================ */
+/* NOAA 태양 방정식 — 서울 기준 KST 일출·일몰 (외부 API 없음, 오차 ±2분) */
+function sunTimesKST(){
+  const LAT = 37.5665, LNG = 126.9780;                      // 서울
+  const now = new Date();
+  const kst = new Date(now.getTime() + (9*60 + now.getTimezoneOffset())*60000); // 어디서 열어도 KST
+  const N = Math.floor((Date.UTC(kst.getFullYear(),kst.getMonth(),kst.getDate())
+                      - Date.UTC(kst.getFullYear(),0,0)) / 86400000);
+  const g = 2*Math.PI/365 * (N - 1 + (kst.getHours()-12)/24);   // fractional year
+  const eqt = 229.18*(0.000075 + 0.001868*Math.cos(g) - 0.032077*Math.sin(g)
+            - 0.014615*Math.cos(2*g) - 0.040849*Math.sin(2*g)); // 균시차(분)
+  const decl = 0.006918 - 0.399912*Math.cos(g) + 0.070257*Math.sin(g)
+             - 0.006758*Math.cos(2*g) + 0.000907*Math.sin(2*g)
+             - 0.002697*Math.cos(3*g) + 0.00148*Math.sin(3*g);
+  const rad = Math.PI/180;
+  const cosH = ( Math.cos(rad*90.833) / (Math.cos(rad*LAT)*Math.cos(decl)) )
+             - Math.tan(rad*LAT)*Math.tan(decl);
+  if (cosH >= 1)  return { rise: 24, set: 24, kst };  // 해가 안 뜨는 날 방어 (서울엔 없음)
+  if (cosH <= -1) return { rise: 0,  set: 24, kst };  // 해가 안 지는 날 방어
+  const ha = Math.acos(cosH)/rad;                      // 시간각(도)
+  const riseUTC = 720 - 4*(LNG + ha) - eqt;            // 분 (UTC)
+  const setUTC  = 720 - 4*(LNG - ha) - eqt;
+  return { rise: (riseUTC/60 + 9 + 24) % 24, set: (setUTC/60 + 9 + 24) % 24, kst };
+}
+function todSuffix(){
+  const s = sunTimesKST();
+  const h = s.kst.getHours() + s.kst.getMinutes()/60;
+  return (h >= s.rise && h < s.set) ? 'd' : 'n';
+}
+const TOD = todSuffix();
+const C   = POPUP.org.code;
+/* 폴백 사다리 생성 */
+function bgLadder(part){
+  const base = `popup_${part}_${C}`;
+  const l = [`${base}_${TOD}.webp`];
+  if (TOD === 'n') l.push(`${base}_d.webp`);         // 밤판 없으면 '낮판'이 무접미사보다 우선
+  l.push(`${base}.webp`, `popup_${part}_01.webp`);   // 무접미사 → 옛 이름 (개명 전 호환)
+  return l;
+}
+/* 대문: 사다리 전체를 CSS 다중 레이어로 즉시 삽입 (로드 대기 없음 — 폴백 플래시 방지) */
+(function(){
+  const urls = bgLadder('gate').map(u => `url('${u}')`).join(',');
+  const grads = `radial-gradient(ellipse at 50% 42%, rgba(201,162,74,.14), transparent 60%),linear-gradient(180deg,#0f2019 0%,#15281f 45%,#0c1712 100%)`;
+  const n = bgLadder('gate').length;
+  document.querySelectorAll('#gate .gate-half').forEach(h => {
+    const isL = h.classList.contains('left');
+    h.style.backgroundImage = `${urls},${grads}`;
+    h.style.backgroundSize = Array(n).fill('200% 100%').join(',') + ',cover,cover';
+    h.style.backgroundPosition = Array(n).fill(isL?'left center':'right center').join(',') + ',center,center';
+  });
+})();
+/* 내부 3뷰: 사다리 순서대로 로드 시도 → 첫 성공을 물림 */
+function tryBg(el, urls){
+  if (!urls.length) return;
+  const [url, ...rest] = urls;
+  const img = new Image();
+  img.onload  = () => { el.style.backgroundImage = `url('${url}')`; el.classList.add('has-img'); };
+  img.onerror = () => tryBg(el, rest);
+  img.src = url;
+}
+tryBg(document.getElementById('hall-stage'),          bgLadder('hall'));   // 무대에 100%×100%로 물림
+tryBg(document.getElementById('wall-stage'),          bgLadder('wall'));   // wall도 무대에 물림 (0716)
+tryBg(document.querySelector('.view[data-view="board"]'), bgLadder('board'));
+
+/* ═══ wall — 저자의 서재 (0716): 액자 · 발치 큰 책 · 천장 별-책 + 편집기 ═══
+ * 좌표계 = 무대(941×1672) %. x/y = 중심(별·액자) 또는 바닥 앵커(큰 책).
+ * 크기: 액자 w(무대 폭 %) / 큰 책·별 h(무대 높이 %).
+ * 별: d=흔들 주기(s), ph=위상(딜레이 s) — 서로 어긋나게. */
+function defaultWallItems(){ return {
+  /* ⭐ 소로 확정 (0716) — 별 9개 · 큰 책 h34.2 거인 */
+  frame: { x:50, y:41, w:29 },
+  book:  { x:49.2, y:90.9, h:34.2 },
+  stars: [
+    { x:15,   y:6.5,  h:6.4, d:8.2, ph:0    },
+    { x:33,   y:9,    h:5.1, d:7.1, ph:-2.1 },
+    { x:89.1, y:9.1,  h:5.7, d:7.1, ph:-3.4 },
+    { x:22.4, y:15.3, h:6,   d:7.1, ph:-3.4 },
+    { x:43.1, y:5.1,  h:5.1, d:7.1, ph:-3.4 },
+    { x:47.3, y:14.6, h:6.8, d:9,   ph:-4.4 },
+    { x:62.4, y:6.1,  h:6.3, d:7.7, ph:-1.2 },
+    { x:63.6, y:15.1, h:6.2, d:8.6, ph:-3.3 },
+    { x:77,   y:12.8, h:5.3, d:8.6, ph:-4.6 },
+  ],
+};}
+let WALL_ITEMS = defaultWallItems();
+
+(function(){
+  const stage = document.getElementById('wall-stage');
+  const frame = document.getElementById('wall-frame');
+  const frImg = document.getElementById('frame-img');
+
+  /* 액자 이미지 (popup_author_{code}.webp 1순위 → author_01 폴백) */
+  (function next(list){
+    if(!list.length) return;
+    const [u,...rest] = list;
+    const im = new Image();
+    im.onload  = () => { frImg.src = u; };
+    im.onerror = () => next(rest);
+    im.src = u;
+  })([`popup_author_${C}.webp`, 'author_01.webp']);
+
+  /* 이름표 — books[0]의 저자 (역자 떼고) */
+  const au = (POPUP.org.books[0]?.author || '').split('·')[0].trim();
+  if (au) document.getElementById('wall-caption').textContent = au;
+
+  /* ─── 렌더 ─── */
+  window.renderWall = function(){
+    const it = WALL_ITEMS;
+    frame.style.left  = it.frame.x + '%';
+    frame.style.top   = it.frame.y + '%';
+    frame.style.width = it.frame.w + '%';
+    stage.querySelectorAll('.wall-bigbook,.wall-star').forEach(e => e.remove());
+    const book = POPUP.org.books[0];
+    /* 발치 큰 책 (바닥 앵커) */
+    if (it.book){
+      const b = document.createElement('div');
+      b.className = 'wall-bigbook';
+      b.style.left = it.book.x + '%'; b.style.top = it.book.y + '%';
+      b.style.height = it.book.h + '%'; b.style.zIndex = 8;
+      b.innerHTML = `<img src="${BOOK_IMG_FRONT}" alt="${book.title}">`;
+      b.addEventListener('click', ()=> { if (wallEditing){ wallSelect('book'); } else openBook(book); });
+      stage.appendChild(b);
+    }
+    /* 천장 별-책 */
+    it.stars.forEach((s, i)=>{
+      const st = document.createElement('div');
+      st.className = 'wall-star'; st.dataset.star = i;
+      st.style.left = s.x + '%'; st.style.top = s.y + '%';
+      st.style.height = s.h + '%'; st.style.zIndex = 5;
+      st.innerHTML = `<img src="${BOOK_IMG_FRONT}" alt="${book.title}" style="animation-duration:${s.d}s;animation-delay:${s.ph}s">`;
+      st.addEventListener('click', ()=> { if (wallEditing){ wallSelect('star:'+i); } else openBook(book); });
+      stage.appendChild(st);
+    });
+    markSel();
+  };
+
+  /* ─── 편집기 (홀 엔진 계승: 선택→드래그→크기, 좀비 백신 v1) ─── */
+  const WALL_V = 2;   // v2 = 0716 소로 확정 좌표 고정 (판 올림 → 옛 localStorage 자동 폐기)
+  const KEY = 'popup_wall_items_' + POPUP.org.code;
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if (s && s.v === WALL_V && s.items && s.items.frame) WALL_ITEMS = s.items;
+    else if (s) localStorage.removeItem(KEY);
+  } catch(_){}
+
+  let wallEditing = false, sel = 'frame';
+  const btn  = document.getElementById('wall-edit');
+  const tool = document.getElementById('wall-tool');
+  const valEl= document.getElementById('wall-val');
+  window.wallEditing = wallEditing;
+
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify({ v:WALL_V, items:WALL_ITEMS })); } catch(_){} }
+  function getSel(){
+    if (sel === 'frame') return WALL_ITEMS.frame;
+    if (sel === 'book')  return WALL_ITEMS.book;
+    const i = +sel.split(':')[1]; return WALL_ITEMS.stars[i];
+  }
+  function selEl(){
+    if (sel === 'frame') return frame;
+    if (sel === 'book')  return stage.querySelector('.wall-bigbook');
+    return stage.querySelector('.wall-star[data-star="'+sel.split(':')[1]+'"]');
+  }
+  function markSel(){
+    stage.querySelectorAll('.sel').forEach(e=>e.classList.remove('sel'));
+    if (!wallEditing) return;
+    const el = selEl(); if (el) el.classList.add('sel');
+    const o = getSel(); if (!o){ valEl.textContent='—'; return; }
+    const name = sel==='frame' ? '액자' : sel==='book' ? '큰 책' : `별 ${+sel.split(':')[1]+1}/${WALL_ITEMS.stars.length}`;
+    const size = sel==='frame' ? `폭:${o.w.toFixed(1)}%` : `높이:${o.h.toFixed(1)}%`;
+    valEl.textContent = `[${name}]  x:${o.x.toFixed(1)}%  y:${o.y.toFixed(1)}%  ${size}`;
+  }
+  function wallSelect(k){ sel = k; markSel(); }
+
+  btn.addEventListener('click', ()=>{
+    wallEditing = !wallEditing; window.wallEditing = wallEditing;
+    stage.classList.toggle('editing', wallEditing);
+    btn.classList.toggle('on', wallEditing);
+    tool.classList.toggle('on', wallEditing);
+    btn.textContent = wallEditing ? '✓ 완료' : '✎ 벽면 편집';
+    markSel();
+  });
+
+  /* 드래그 이동 (홀과 같은 손맛) */
+  let drag=false, sx=0, sy=0, ox=0, oy=0;
+  stage.addEventListener('pointerdown', (e)=>{
+    if (!wallEditing) return;
+    const t = e.target.closest('.wall-frame,.wall-bigbook,.wall-star'); if (!t) return;
+    e.preventDefault();
+    sel = t.classList.contains('wall-frame') ? 'frame'
+        : t.classList.contains('wall-bigbook') ? 'book'
+        : 'star:' + t.dataset.star;
+    markSel();
+    drag=true; sx=e.clientX; sy=e.clientY;
+    const o = getSel(); ox=o.x; oy=o.y;
+  });
+  stage.addEventListener('pointermove', (e)=>{
+    if (!drag) return;
+    const r = stage.getBoundingClientRect(), o = getSel();
+    o.x = Math.max(1, Math.min(99, +(ox + (e.clientX-sx)/r.width *100).toFixed(1)));
+    o.y = Math.max(1, Math.min(99, +(oy + (e.clientY-sy)/r.height*100).toFixed(1)));
+    renderWall();
+  });
+  const end = ()=>{ if(!drag) return; drag=false; save(); renderWall(); };
+  stage.addEventListener('pointerup', end);
+  stage.addEventListener('pointercancel', end);
+
+  tool.addEventListener('click', (e)=>{
+    const act = e.target.dataset.act; if (!act) return;
+    const o = getSel();
+    if (act==='s-' && o){ if(sel==='frame') o.w=Math.max(8,+(o.w-0.6).toFixed(1)); else o.h=Math.max(1.5,+(o.h-0.3).toFixed(1)); }
+    if (act==='s+' && o){ if(sel==='frame') o.w=Math.min(60,+(o.w+0.6).toFixed(1)); else o.h=Math.min(40,+(o.h+0.3).toFixed(1)); }
+    if (act==='dup'){ 
+      if (sel.startsWith('star:')){ const i=+sel.split(':')[1], s=WALL_ITEMS.stars[i];
+        WALL_ITEMS.stars.splice(i+1,0,{...s, x:Math.min(99,s.x+7), ph:s.ph-1.3}); sel='star:'+(i+1); }
+      else { valEl.textContent='별만 복제할 수 있습니다'; return; }
+    }
+    if (act==='del'){
+      if (sel.startsWith('star:')){ const i=+sel.split(':')[1];
+        WALL_ITEMS.stars.splice(i,1); sel = WALL_ITEMS.stars.length ? 'star:'+Math.max(0,i-1) : 'frame'; }
+      else { valEl.textContent='별만 삭제할 수 있습니다 (액자·큰 책은 크기 0 대신 파이스에게)'; return; }
+    }
+    if (act==='reset'){ WALL_ITEMS = defaultWallItems(); sel='frame'; }
+    if (act==='copy'){
+      const js = 'let WALL_ITEMS = ' + JSON.stringify(WALL_ITEMS) + ';';
+      try { navigator.clipboard.writeText(js); } catch(_){}
+      alert('벽면 값 (복사됨):\n\n' + js + '\n\n이 값을 파이스에게 전달하면 코드에 고정합니다.');
+      return;
+    }
+    save(); renderWall();
+  });
+
+  renderWall();
+})();
+
+/* ---- 대문 로고·배너·도시표식 코드로 얹기 ---- */
+document.getElementById('gate-logo').textContent = POPUP.org.name;
+document.getElementById('city-mark').textContent = `EG × ${POPUP.cityEn}`;
+if (POPUP.org.bannerImg){
+  /* 이미지 배너: 텍스트 배너 숨기고 천장 현수막 2장 */
+  document.getElementById('banner1').style.display = 'none';
+  document.getElementById('banner2').style.display = 'none';
+  const st = document.getElementById('hall-stage');
+  ['bi1','bi2'].forEach(cls => {
+    const d = document.createElement('div');
+    d.className = 'banner-img ' + cls;
+    d.innerHTML = `<img src="${POPUP.org.bannerImg}" alt="">`;
+    st.appendChild(d);
+  });
+} else {
+  document.getElementById('banner1').textContent = POPUP.org.banner[0] || '신간';
+  document.getElementById('banner2').textContent = POPUP.org.banner[1] || '도착';
+}
+
+/* ---- 대문 열림 (편집 모드일 땐 안 열림) ---- */
+const gate = document.getElementById('gate');
+gate.addEventListener('click', () => {
+  if (gate.classList.contains('opening')) return;
+  if (gate.classList.contains('editing')) return;
+  gate.classList.add('opening');
+  setTimeout(() => gate.classList.add('gone'), 1400);
+});
+
+/* ---- 대문 간판 편집기 (5층 f5 드래그+크기 이식 · 살롱지기 전용) ----
+ * 소로가 간판을 빈 패널로 끌어다 놓고 크기 맞춘 뒤 '값 복사' → 파이스가 코드 고정.
+ * localStorage 저장으로 새로고침해도 유지. 이 드래그+크기 엔진은 3페이지 책·포스트잇 공통 부품의 씨앗. */
+(function(){
+  /* ⭐ 0715저녁: 3요소 편집 — sign(간판·좌표 픽스됨) / mark(EG×CITY 배지) / hint(입장 안내문)
+   * 키 = 출판사 축 (축 전환 결정문). 요소 클릭=선택 → 드래그 → 크기 −/+ → 값 복사(3요소 일괄) */
+  const KEY  = 'popup_gate_layout_' + POPUP.org.code;
+  const btn  = document.getElementById('gate-edit');
+  const tool = document.getElementById('gate-tool');
+  const valEl= document.getElementById('gate-val');
+
+  const ITEMS = {
+    sign: { el: gate.querySelector('[data-edit="sign"]'), label:'간판 로고',
+            varName:'--sign-scale', def:{ left:44.6, top:14.5, scale:0.72 } },  // 소로 확정 0715저녁
+    mark: { el: gate.querySelector('[data-edit="mark"]'), label:'EG×'+POPUP.cityEn+' 배지',
+            varName:'--mark-scale', def:{ left:57.3, top:17.9, scale:1.08 } },  // 소로 확정 0715저녁
+    hint: { el: gate.querySelector('[data-edit="hint"]'), label:'입장 안내문',
+            varName:'--hint-scale', def:{ left:50.6, top:85.0, scale:1.00 } },  // 소로 확정 0715저녁
+  };
+  let pos = {};
+  Object.keys(ITEMS).forEach(k => pos[k] = { ...ITEMS[k].def });
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if (s) Object.keys(ITEMS).forEach(k => { if (s[k]) pos[k] = { ...ITEMS[k].def, ...s[k] }; });
+  } catch(_){}
+  let cur = 'sign';   // 현재 선택된 요소
+
+  /* 로고 webp가 있으면 텍스트 대신 로고 */
+  if (POPUP.org.logo){
+    const li = document.getElementById('gate-logo-img');
+    li.src = POPUP.org.logo;
+    li.onload = ()=> ITEMS.sign.el.classList.add('has-logo');
+  }
+
+  function apply(){
+    Object.keys(ITEMS).forEach(k => {
+      const it = ITEMS[k], p = pos[k];
+      it.el.style.left = p.left + '%';
+      it.el.style.top  = p.top  + '%';
+      it.el.style.setProperty(it.varName, p.scale);
+    });
+    const p = pos[cur];
+    valEl.textContent = `[${ITEMS[cur].label}] left:${p.left.toFixed(1)}%  top:${p.top.toFixed(1)}%  크기:${p.scale.toFixed(2)}`;
+  }
+  function select(k){
+    cur = k;
+    Object.keys(ITEMS).forEach(x => ITEMS[x].el.classList.toggle('selected', x===k));
+    apply();
+  }
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(pos)); } catch(_){} }
+  apply(); select('sign');
+
+  btn.addEventListener('click', ()=>{
+    const on = !gate.classList.contains('editing');
+    gate.classList.toggle('editing', on);
+    btn.classList.toggle('on', on);
+    tool.classList.toggle('on', on);
+    btn.textContent = on ? '✓ 완료' : '✎ 대문 편집';
+  });
+
+  /* 선택 + 드래그 이동 (3요소 공통) */
+  let drag=false, sx, sy, sl, st;
+  Object.keys(ITEMS).forEach(k => {
+    const el = ITEMS[k].el;
+    el.addEventListener('pointerdown', (e)=>{
+      if (!gate.classList.contains('editing')) return;
+      e.preventDefault(); e.stopPropagation();
+      select(k);
+      drag=true; el.classList.add('grabbing');
+      sx=e.clientX; sy=e.clientY; sl=pos[k].left; st=pos[k].top;
+      try { el.setPointerCapture(e.pointerId); } catch(_){}
+    });
+    el.addEventListener('pointermove', (e)=>{
+      if (!drag || cur!==k) return;
+      pos[k].left = Math.max(0, Math.min(100, sl + (e.clientX-sx)/window.innerWidth *100));
+      pos[k].top  = Math.max(0, Math.min(100, st + (e.clientY-sy)/window.innerHeight*100));
+      apply();
+    });
+    const endDrag = ()=>{ if(!drag) return; drag=false; el.classList.remove('grabbing'); save(); };
+    el.addEventListener('pointerup', endDrag);
+    el.addEventListener('pointercancel', endDrag);
+  });
+
+  /* 로고 업로드 (목업 미리보기 — 새로고침 시 사라짐. 확정되면 Storage+DB로) */
+  const fileInput = document.getElementById('gate-logo-file');
+  const logoImg   = document.getElementById('gate-logo-img');
+  fileInput.addEventListener('change', (e)=>{
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = ()=>{ logoImg.src = r.result; ITEMS.sign.el.classList.add('has-logo'); };
+    r.readAsDataURL(f);
+    fileInput.value = '';
+  });
+
+  /* 크기 −/+ · 로고 · 되돌리기 · 값 복사 (선택 요소 대상) */
+  tool.addEventListener('click', (e)=>{
+    const act = e.target.dataset.act; if (!act) return;
+    if (act==='upload'){ fileInput.click(); return; }
+    if (act==='clearlogo'){ ITEMS.sign.el.classList.remove('has-logo'); logoImg.removeAttribute('src'); return; }
+    const p = pos[cur];
+    if (act==='smaller') p.scale = Math.max(0.25, +(p.scale - 0.06).toFixed(2));
+    if (act==='bigger')  p.scale = Math.min(3,    +(p.scale + 0.06).toFixed(2));
+    if (act==='reset')   pos[cur] = { ...ITEMS[cur].def };
+    if (act==='copy'){
+      const css = Object.keys(ITEMS).map(k => {
+        const q = pos[k];
+        return `/* ${ITEMS[k].label} */ left:${q.left.toFixed(1)}%; top:${q.top.toFixed(1)}%; ${ITEMS[k].varName}:${q.scale.toFixed(2)};`;
+      }).join('\n');
+      try { navigator.clipboard.writeText(css); } catch(_){}
+      alert('대문 3요소 위치·크기 값 (복사됨):\n\n' + css + '\n\n이 값을 파이스에게 전달하면 코드에 고정합니다.');
+      return;
+    }
+    apply(); save();
+  });
+})();
+
+/* ---- 책 표지 타일 렌더 (도배) ---- */
+function coverEl(book){
+  const el = document.createElement('div');
+  el.className = 'cover-book' + (book.cover ? '' : ' placeholder');
+  if (book.cover){
+    const img = document.createElement('img');
+    img.src = book.cover; img.alt = book.title;
+    el.appendChild(img);
+  } else {
+    el.textContent = book.title;
+  }
+  el.addEventListener('click', () => openBook(book));
+  return el;
+}
+function fillField(id, count){
+  const field = document.getElementById(id);
+  field.innerHTML = '';
+  const books = POPUP.org.books;
+  for (let i=0; i<count; i++){
+    // 도배: 대표 몇 종을 반복 배치 (실물 평대처럼 같은 책 여러 권)
+    field.appendChild(coverEl(books[i % books.length]));
+  }
+}
+/* wall 도배(fillField 20권) 폐기 — 0716 재건축으로 '저자의 서재' 액자로 대체 */
+
+/* ═══ 매대 홀 렌더 — HALL_BOOKS 권 단위 (입체 목업) ═══ */
+function renderHall(){
+  const stage = document.getElementById('hall-stage');
+  stage.querySelectorAll('.hall-book').forEach(e => e.remove());
+  const book = POPUP.org.books[0];
+  /* 티커 = 진열 최하단 발밑 아래 패널에 자동 안착 (0716) */
+  const tkEl = document.getElementById('hall-ticker');
+  if (tkEl && HALL_BOOKS.length){
+    tkEl.style.top = (Math.max(...HALL_BOOKS.map(b=>b.y)) + 2.8) + '%';
+  }
+  HALL_BOOKS.forEach((b, bi) => {
+    const el = document.createElement('div');
+    el.className = 'hall-book';
+    el.dataset.i = bi;
+    el.style.left = b.x + '%';
+    el.style.top  = b.y + '%';
+    el.style.height = b.h + '%';
+    el.style.zIndex = 3 + Math.round(b.y);            // 아래(앞)일수록 위에 — 원근 가림
+    const img = document.createElement('img');
+    img.src = b.img; img.alt = book.title;
+    el.appendChild(img);
+    el.addEventListener('click', () => {
+      if (hallEditing) { hallSelectBook(bi); return; }
+      openBook(book);
+    });
+    stage.appendChild(el);
+  });
+}
+
+/* ═══ 진열 편집기 — 권 단위 (드래그 이동 · 크기 · 삭제 · 복제) ═══ */
+let hallEditing = false, hallSel = 0;
+(function(){
+  const ROWS_V = 3;   // ⭐ 진열 스키마 판번호 — 배치 모델이 바뀔 때 +1 (0715 좀비 사건 방지책)
+  const KEY   = 'popup_hall_books_' + POPUP.org.code;
+  const stage = document.getElementById('hall-stage');
+  const btn   = document.getElementById('hall-edit');
+  const tool  = document.getElementById('hall-tool');
+  const valEl = document.getElementById('hall-val');
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if (s && s.v === ROWS_V && Array.isArray(s.books) && s.books.length) HALL_BOOKS = s.books;
+    else if (s) localStorage.removeItem(KEY);
+  } catch(_){}
+  try { localStorage.removeItem('popup_hall_rows_' + POPUP.org.code); } catch(_){}  // 구모델 키 청소
+
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify({ v: ROWS_V, books: HALL_BOOKS })); } catch(_){} }
+  function refresh(){
+    renderHall();
+    if (!HALL_BOOKS.length){ valEl.textContent = '진열 없음 — 되돌리기로 복원'; return; }
+    hallSel = Math.min(hallSel, HALL_BOOKS.length - 1);
+    if (hallEditing){
+      const el = stage.querySelector('.hall-book[data-i="'+hallSel+'"]');
+      if (el) el.classList.add('rowsel');
+    }
+    const b = HALL_BOOKS[hallSel];
+    const face = b.img === BOOK_IMG_BACK ? '뒷면' : '앞면';
+    valEl.textContent = `${hallSel+1}/${HALL_BOOKS.length}권 [${face}]  x:${b.x.toFixed(1)}%  y:${b.y.toFixed(1)}%  높이:${b.h.toFixed(1)}%`;
+  }
+  window.hallSelectBook = (i)=>{ hallSel = i; refresh(); };
+
+  btn.addEventListener('click', ()=>{
+    hallEditing = !hallEditing;
+    stage.classList.toggle('editing', hallEditing);
+    btn.classList.toggle('on', hallEditing);
+    tool.classList.toggle('on', hallEditing);
+    btn.textContent = hallEditing ? '✓ 완료' : '✎ 진열 편집';
+    refresh();
+  });
+
+  /* 권 드래그 이동 */
+  let drag=false, sx=0, sy=0, ox=0, oy=0;
+  stage.addEventListener('pointerdown', (e)=>{
+    if (!hallEditing) return;
+    const bk = e.target.closest('.hall-book'); if (!bk) return;
+    e.preventDefault();
+    hallSel = +bk.dataset.i; refresh();
+    drag = true; sx = e.clientX; sy = e.clientY;
+    ox = HALL_BOOKS[hallSel].x; oy = HALL_BOOKS[hallSel].y;
+  });
+  stage.addEventListener('pointermove', (e)=>{
+    if (!drag) return;
+    const rect = stage.getBoundingClientRect();
+    HALL_BOOKS[hallSel].x = Math.max(2, Math.min(98, +(ox + (e.clientX-sx)/rect.width *100).toFixed(1)));
+    HALL_BOOKS[hallSel].y = Math.max(2, Math.min(98, +(oy + (e.clientY-sy)/rect.height*100).toFixed(1)));
+    refresh();
+  });
+  const end = ()=>{ if(!drag) return; drag=false; save(); refresh(); };
+  stage.addEventListener('pointerup', end);
+  stage.addEventListener('pointercancel', end);
+
+  tool.addEventListener('click', (e)=>{
+    const act = e.target.dataset.act; if (!act) return;
+    const b = HALL_BOOKS[hallSel];
+    if (act==='h-' && b) b.h = Math.max(2,  +(b.h - 0.4).toFixed(1));
+    if (act==='h+' && b) b.h = Math.min(30, +(b.h + 0.4).toFixed(1));
+    if (act==='face' && b) b.img = (b.img === BOOK_IMG_BACK) ? BOOK_IMG_FRONT : BOOK_IMG_BACK;
+    if (act==='dup' && b){ HALL_BOOKS.splice(hallSel+1, 0, { ...b, x: Math.min(98, b.x+6) }); hallSel++; }
+    if (act==='del' && b){ HALL_BOOKS.splice(hallSel, 1); hallSel = Math.max(0, hallSel-1); }
+    if (act==='reset'){ HALL_BOOKS = defaultHallBooks(); hallSel = 0; }
+    if (act==='copy'){
+      const js = 'let HALL_BOOKS = ' + JSON.stringify(HALL_BOOKS) + ';';
+      try { navigator.clipboard.writeText(js); } catch(_){}
+      alert('진열 값 (복사됨):\n\n' + js + '\n\n이 값을 파이스에게 전달하면 코드에 고정합니다.');
+      return;
+    }
+    save(); refresh();
+  });
+  refresh();
+})();
+
+/* 첫 화면 — 매대 구간(중간~앞 평대)이 보이도록 스크롤 위치 잡기 */
+(function(){
+  const sc = document.getElementById('hall-scroll');
+  const st = document.getElementById('hall-stage');
+  requestAnimationFrame(()=>{
+    const target = st.offsetHeight * 0.63 - sc.clientHeight * 0.5;
+    sc.scrollTop = Math.max(0, target);
+  });
+})();
+
+/* wall 첫 화면 — 카메라 낮춤: 액자 하단+아래 여백까지 (0716 소로 지시) */
+(function(){
+  const sc = document.getElementById('wall-scroll');
+  const st = document.getElementById('wall-stage');
+  if(!sc||!st) return;
+  requestAnimationFrame(()=>{
+    const target = st.offsetHeight * 0.44 - sc.clientHeight * 0.5;
+    sc.scrollTop = Math.max(0, target);
+  });
+})();
+
+/* ═══ 3D 플립북 모달 — 분더카머 3층 원전 이식 (0715 밤) ═══
+ * 표지 = bk_munhak_01(앞표지) / 마지막 장 = bk_munhak_01_back(뒤표지)
+ * 본문 = 소개글(intro)을 면 크기에 맞춰 자동 분할 (원본 paginateEssay 문법)
+ * 소개글: 코드 기본값 → localStorage 덮어씀 → '값 복사'로 파이스가 코드 고정 */
+const modal = document.getElementById('book-modal');
+const INTRO_KEY = 'popup_book_intro_' + POPUP.org.code;
+let currentBook = null;
+
+function escHtml(s){ return String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+function getIntro(book){
+  try {
+    const s = JSON.parse(localStorage.getItem(INTRO_KEY));
+    if (s && (s.body||'').trim()) return { title: s.title||'', body: s.body };
+  } catch(_){}
+  return { title: book.intro_title || '', body: book.intro_body || book.blurb || '' };
+}
+
+/* 본문을 면 크기에 맞춰 분할 (원본 실측 방식) */
+function paginateIntro(book){
+  const intro = getIntro(book);
+  const body = (intro.body||'').trim();
+  const title = intro.title || book.title || '';
+  if (!body) return { faces: [
+    { title: book.title, paras:[`아직 『${book.title}』의 소개가 비어 있습니다.`,'아래 ✎ 소개 입력에서 온라인 서점의 책 소개를 붙여넣어 보세요.'] }
+  ]};
+  const paras = body.split(/\n{2,}/).map(s=>s.trim()).filter(Boolean);
+  const host = document.createElement('div');
+  host.className = 'book';
+  host.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden;pointer-events:none;';
+  host.innerHTML = '<div class="page"><div class="front"><div class="page-content"></div></div></div>';
+  modal.appendChild(host);
+  const pc = host.querySelector('.page-content');
+  const render = (t, ps)=>{ pc.innerHTML = (t?`<h2>${escHtml(t)}</h2>`:'') + ps.map(p=>`<p>${escHtml(p)}</p>`).join(''); };
+  const overflow = ()=> pc.scrollHeight > pc.clientHeight + 1;
+  const faces = []; let first = true; const queue = paras.slice(); let guard = 0;
+  while (queue.length && guard++ < 300){
+    const t = first ? title : '';
+    const accepted = [];
+    while (queue.length){
+      render(t, [...accepted, queue[0]]);
+      if (!overflow()){ accepted.push(queue.shift()); continue; }
+      if (accepted.length === 0){
+        const words = queue.shift().split(/(\s+)/);
+        let lo = '';
+        for (let k=0;k<words.length;k++){
+          const test = lo + words[k];
+          render(t, [test]);
+          if (overflow() && lo.trim()) break;
+          lo = test;
+        }
+        lo = lo.trim() || (words[0]||'');
+        accepted.push(lo);
+        const remain = words.join('').slice(lo.length).replace(/^\s+/,'');
+        if (remain) queue.unshift(remain);
+      }
+      break;
+    }
+    faces.push({ title: t || null, paras: accepted });
+    first = false;
+  }
+  host.remove();
+  return { faces };
+}
+
+function makeCoverHtml(url){ return `<div class="front cover"><div class="cover-bg" style="background-image:url('${url}')"></div></div>`; }
+function makeBackCoverHtml(url){ return `<div class="back cover"><div class="cover-bg" style="background-image:url('${url}')"></div></div>`; }
+function makeFaceHtml(face, side){
+  const cls = (side==='back') ? 'back' : 'front';
+  const h  = face.title ? `<h2>${escHtml(face.title)}</h2>` : '';
+  const ps = (face.paras||[]).map(p=>`<p>${escHtml(p)}</p>`).join('');
+  return `<div class="${cls}"><div class="page-content">${h}${ps}</div></div>`;
+}
+function makeBlankHtml(side){ return `<div class="${side==='front'?'front':'back'}"><div class="page-content"></div></div>`; }
+function buildPageEl(f, b){ const p=document.createElement('div'); p.className='page'; p.innerHTML=f+b; return p; }
+
+function buildFlipbook(book){
+  const old = modal.querySelector('.book'); if (old) old.remove();
+  const result = paginateIntro(book);
+  const bookEl = document.createElement('div'); bookEl.className = 'book';
+  const seq = result.faces.slice();
+  /* page0 = 앞표지(front) + 첫 면(back), 이후 면+면, 마지막 page 뒷면 = 실물 뒤표지 */
+  bookEl.appendChild(buildPageEl(makeCoverHtml(book.cover), seq.length ? makeFaceHtml(seq[0],'back') : makeBlankHtml()));
+  let i = 1;
+  while (i < seq.length){
+    const front = makeFaceHtml(seq[i],'front');
+    const back  = (i+1 < seq.length) ? makeFaceHtml(seq[i+1],'back')
+                : (book.back ? makeBackCoverHtml(book.back) : makeBlankHtml());
+    bookEl.appendChild(buildPageEl(front, back));
+    i += 2;
+  }
+  if (i === seq.length && book.back){        // 면이 짝수로 끝났으면 뒤표지 전용 장 추가
+    bookEl.appendChild(buildPageEl(makeBlankHtml('front'), makeBackCoverHtml(book.back)));
+  }
+  modal.insertBefore(bookEl, modal.firstChild);
+  bookEl.style.setProperty('--c', 0);
+  bookEl.querySelectorAll('.page').forEach((page, idx)=>{
+    page.style.setProperty('--i', idx);
+    page.addEventListener('click', (evt)=>{
+      if (evt.target.closest('a')) return;
+      const curr = evt.target.closest('.back') ? idx : idx + 1;
+      bookEl.style.setProperty('--c', curr);
+    });
+  });
+}
+
+function openBook(book){
+  currentBook = book;
+  buildFlipbook(book);
+  modal.classList.add('open');
+}
+function closeBook(){
+  modal.classList.remove('open');
+  setTimeout(()=>{ const b = modal.querySelector('.book'); if (b) b.remove(); }, 500);
+}
+document.getElementById('modal-close').addEventListener('click', closeBook);
+modal.addEventListener('click', e=>{ if (e.target === modal) closeBook(); });
+document.addEventListener('keydown', e=>{ if (e.key==='Escape'){
+  if (document.getElementById('intro-editor').classList.contains('open')) closeIntroEditor();
+  else if (modal.classList.contains('open')) closeBook();
+}});
+/* 액션바 */
+document.getElementById('bm-wk-btn').addEventListener('click', ()=> currentBook && enterRaffle(currentBook.title));
+document.getElementById('bm-store-btn').addEventListener('click', ()=> currentBook && openStores(currentBook.stores, currentBook.title));
+
+/* ═══ 소개 입력 (살롱지기 전용) — 로컬 저장 + 값 복사로 코드 고정 ═══ */
+function openIntroEditor(){
+  if (!currentBook) return;
+  const intro = getIntro(currentBook);
+  document.getElementById('ie-book-title').textContent = '『' + currentBook.title + '』';
+  document.getElementById('ie-title').value = intro.title || '';
+  document.getElementById('ie-body').value  = intro.body  || '';
+  updateIntroCount();
+  document.getElementById('intro-editor').classList.add('open');
+  setTimeout(()=>document.getElementById('ie-body').focus(), 120);
+}
+function closeIntroEditor(){ document.getElementById('intro-editor').classList.remove('open'); }
+function updateIntroCount(){
+  document.getElementById('ie-count').textContent = document.getElementById('ie-body').value.length.toLocaleString() + '자';
+}
+document.getElementById('bm-intro-btn').addEventListener('click', openIntroEditor);
+document.getElementById('ie-cancel').addEventListener('click', closeIntroEditor);
+document.getElementById('ie-body').addEventListener('input', updateIntroCount);
+document.getElementById('ie-save').addEventListener('click', ()=>{
+  const title = document.getElementById('ie-title').value.trim();
+  const body  = document.getElementById('ie-body').value.trim();
+  try { localStorage.setItem(INTRO_KEY, JSON.stringify({ title, body })); } catch(_){}
+  closeIntroEditor();
+  if (currentBook) buildFlipbook(currentBook);   // 새 소개를 면에 다시 흘림
+});
+document.getElementById('ie-copy').addEventListener('click', ()=>{
+  const v = { intro_title: document.getElementById('ie-title').value.trim(),
+              intro_body:  document.getElementById('ie-body').value.trim() };
+  const js = JSON.stringify(v, null, 2);
+  try { navigator.clipboard.writeText(js); } catch(_){}
+  alert('소개 값 (복사됨):\n\n' + js.slice(0, 400) + (js.length>400?'\n…':'') + '\n\n파이스에게 전달하면 코드에 고정합니다.');
+});
+
+/* ---- 분더카머 들이기 → 이벤트 도서 5권 추첨 응모 (UI만, 배관 후속) ---- */
+function enterRaffle(title){
+  alert(`「${title}」을(를) 내 분더카머 3층 서재에 들였습니다.\n\n+ 이벤트 도서 5권 추첨 응모권 1매 (행사 종료일 추첨 → 당첨자 실물 발송)\n\n※ 헤리티지 응모 티켓 유닛 재활용 · 추첨 배관은 후속 작업`);
+}
+
+/* ---- 온라인 서점 (모달 끝 + 팝업 한쪽 버튼) ---- */
+function openStores(stores, title){
+  const box = document.getElementById('ss-stores');
+  document.getElementById('ss-title').textContent = title ? `「${title}」 만나기` : '온라인 서점에서 만나기';
+  const labels = { aladin:'알라딘', kyobo:'교보문고', yes24:'예스24' };
+  box.innerHTML = Object.keys(labels).map(k =>
+    `<a href="${stores[k]||'#'}" target="_blank" rel="noopener">${labels[k]}</a>`
+  ).join('');
+  document.getElementById('store-sheet').classList.add('open');
+}
+document.getElementById('store-sheet').addEventListener('click', e=>{
+  if(e.target.id==='store-sheet') e.currentTarget.classList.remove('open');
+});
+
+/* ---- 좌우 뷰 이동 (원본 bk-nav 문법) ---- */
+const VIEWS = [
+  { key:'hall',  label:'<b>매대 홀</b> · 이번 계절의 신간' },
+  { key:'wall',  label:'<b>저자의 서재</b> · 별이 된 책들 아래' },
+  { key:'board', label:'<b>메시지 보드</b> · 다녀간 이들의 한 줄' },
+];
+let vi = 0;
+const viewEls = [...document.querySelectorAll('.view')];
+function showView(i){
+  vi = (i + VIEWS.length) % VIEWS.length;
+  viewEls.forEach((v,k)=> v.classList.toggle('active', k===vi));
+  document.querySelectorAll('#view-dots .dot').forEach((d,k)=> d.classList.toggle('active', k===vi));
+  document.getElementById('view-label').innerHTML = VIEWS[vi].label;
+  /* 편집 버튼: 진열=홀 · 벽면=wall · 보드=board 에서만 */
+  document.getElementById('hall-edit').classList.toggle('show', VIEWS[vi].key==='hall');
+  document.getElementById('wall-edit').classList.toggle('show', VIEWS[vi].key==='wall');
+  document.getElementById('board-edit').classList.toggle('show', VIEWS[vi].key==='board');
+}
+document.getElementById('nav-left').onclick  = ()=> showView(vi-1);
+document.getElementById('nav-right').onclick = ()=> showView(vi+1);
+
+/* 뷰 인디케이터 점 */
+const dots = document.getElementById('view-dots');
+dots.innerHTML = VIEWS.map((_,k)=>`<span class="dot" data-i="${k}"></span>`).join('');
+dots.querySelectorAll('.dot').forEach(d=> d.onclick = ()=> showView(+d.dataset.i));
+showView(0);
+
+/* ---- 메시지 보드 목업 노트 (실전: refreshMessageWall DB 로드) ---- */
+/* ═══ 방명록 스트림 (0716) — board(전체 읽기·쓰기) + 홀 티커(흐르는 창)가 한 배관 공유
+ * book 꼬리표 = 아카이빙 서랍 구조: 새 책 입고 시 이전 book 글은 서랍행(스트림에서 제외).
+ * 실전 배관: Supabase select(book=현재)·insert 로 이 배열만 교체하면 두 곳이 같이 산다. */
+const CUR_BOOK = POPUP.org.books[0].cover;   // 현재 책 꼬리표
+
+/* ── Supabase 배관 (0716 파이스) — eungyo-auth 세션을 다른 EG 셸과 공유 ── */
+const SB_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SB_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+let sb = null;
+try {
+  if (window.supabase) {
+    sb = window.supabase.createClient(SB_URL, SB_KEY, {
+      auth: { storageKey: 'eungyo-auth', persistSession: true, autoRefreshToken: true }
+    });
+  } else { console.error('[popup] supabase-js 미로드 — 방명록 비활성, 나머지는 정상'); }
+} catch(e){ console.error('[popup] supabase 초기화 실패:', e && e.message); }
+
+let BOARD_NOTES = [];   /* DB 로드 전 빈 상태 — loadNotes()가 채운 뒤 재렌더 */
+const activeNotes = () => BOARD_NOTES.filter(n => n.book === CUR_BOOK);  // 서랍 제외
+
+/* 방명록 DB 로드: org·현재 책 필터, 최신순 → BOARD_NOTES 교체 → 티커·보드 재렌더.
+ * org 축이라 25개 출판사가 한 테이블에서 각자 자기 글만 봄 (복제 시스템의 첫 관). */
+async function loadNotes(){
+  if (!sb){ boardPage = 0; renderBoard(); renderTicker(); return; }
+  try {
+    const { data, error } = await sb.from('popup_notes')
+      .select('who,msg,book')
+      .eq('org', POPUP.org.code).eq('book', CUR_BOOK)
+      .order('created_at', { ascending:false });
+    if (error) throw error;
+    BOARD_NOTES = data || [];
+  } catch(e){ console.error('[popup_notes] 로드 실패:', e && e.message); BOARD_NOTES = []; }
+  boardPage = 0;
+  renderBoard(); renderTicker();
+}
+
+/* 로그인 닉네임 (게스트 = null). 팝업은 게스트 읽기 / 로그인 콩파뇽만 쓰기 (0716 소로 확정) */
+async function currentNick(){
+  if (!sb) return null;
+  try {
+    const { data:{ user } } = await sb.auth.getUser();
+    if (!user) return null;
+    const { data } = await sb.from('users').select('nickname').eq('id', user.id).single();
+    return (data && data.nickname) || null;
+  } catch(_){ return null; }
+}
+
+/* ── 꽃·색 배정 (0716 소로): 글 내용 해시 → 언제나 같은 꽃·같은 색 ──
+ * 꽃 자산: 분더카머 1층 방명록 헌화 재활용. ⚠️ 파일명·개수는 소로 확인 후 이 두 줄만 조정 */
+const FLOWER_N   = 12;
+const flowerSrc  = (i) => `flower${String(i+1).padStart(2,'0')}.webp`;   /* 실물: flower01~12.webp (0716 소로 확인) */
+function noteHash(n){ let h=0; const s=n.who+n.msg; for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))>>>0; } return h; }
+const noteFlower = (n) => flowerSrc(noteHash(n) % FLOWER_N);
+const noteColor  = (n) => 'np' + (noteHash(n) % 5);
+
+/* ── board 면 설정 — 보드 편집기로 실측 확정 (4변 %·열·행·글자px) ── */
+function defaultBoardFace(){ return { l:19, r:19, t:17, b:33, cols:6, rows:3, fs:13 }; }
+let BOARD_FACE = defaultBoardFace();
+const BFACE_V = 1;
+const BFACE_KEY = 'popup_board_face_' + POPUP.org.code;
+try {
+  const s = JSON.parse(localStorage.getItem(BFACE_KEY));
+  if (s && s.v === BFACE_V && s.face) BOARD_FACE = s.face;
+  else if (s) localStorage.removeItem(BFACE_KEY);
+} catch(_){}
+function saveBFace(){ try { localStorage.setItem(BFACE_KEY, JSON.stringify({v:BFACE_V, face:BOARD_FACE})); } catch(_){} }
+
+/* ── board 렌더: 최신=좌상단, 한 칸씩 밀림, 넘치면 페이지 ── */
+let boardPage = 0;
+function renderBoard(freshTop){
+  const face = document.getElementById('board-face');
+  const F = BOARD_FACE;
+  face.style.setProperty('--bl', F.l+'%'); face.style.setProperty('--br', F.r+'%');
+  face.style.setProperty('--bt', F.t+'%'); face.style.setProperty('--bb', F.b+'%');
+  face.style.setProperty('--bcols', F.cols); face.style.setProperty('--bfs', F.fs+'px');
+  const per = F.cols * F.rows;
+  const notes = activeNotes();
+  const pages = Math.max(1, Math.ceil(notes.length / per));
+  boardPage = Math.min(boardPage, pages-1);
+  const slice = notes.slice(boardPage*per, boardPage*per + per);
+  face.querySelectorAll('.note').forEach(e => e.remove());   /* 핸들 보존 */
+  face.insertAdjacentHTML('beforeend', slice.map((n,i)=>
+    `<div class="note ${noteColor(n)}${(freshTop && boardPage===0 && i===0)?' fresh':''}" style="--r:${(i%2?1.6:-1.6)}deg">${n.msg}<span class="who">— ${n.who}</span></div>`
+  ).join(''));
+  const pager = document.getElementById('board-pager');
+  pager.classList.toggle('show', pages > 1);          /* 넘칠 때만 화살표 등장 */
+  document.getElementById('bp-label').textContent = `${boardPage+1} / ${pages}`;
+  document.getElementById('bp-prev').disabled = boardPage === 0;
+  document.getElementById('bp-next').disabled = boardPage === pages-1;
+  if (typeof updateBoardVal === 'function') updateBoardVal();
+}
+document.getElementById('bp-prev').onclick = ()=>{ boardPage--; renderBoard(); };
+document.getElementById('bp-next').onclick = ()=>{ boardPage++; renderBoard(); };
+
+/* ── 홀 티커: 같은 스트림의 최신 창 — 강물 속도, hover 멈춤, 클릭=보드 ── */
+function renderTicker(){
+  const tk = document.getElementById('tk-track');
+  const notes = activeNotes().slice(0, 8);             /* 최신 8개만 흐름 */
+  if (!notes.length){ tk.innerHTML=''; return; }
+  const one = notes.map(n =>
+    `<img class="tk-flower" src="${noteFlower(n)}" alt="" onerror="this.remove()"><span>${n.msg}</span><span class="tk-who">— ${n.who}</span><span class="tk-sep">❦</span>`
+  ).join('');
+  tk.innerHTML = one + one;                            /* 2배 복제 = 이음새 없는 순환 */
+  const secs = Math.max(46, notes.length * 16);        /* 글 수에 비례, 최저 46s — 강물 */
+  tk.style.animationDuration = secs + 's';
+}
+document.getElementById('hall-ticker').addEventListener('click', ()=> showView(2));
+
+/* ── 쓰기 레이어 (배관 시: postNote 안 한 줄을 Supabase insert로) ── */
+function openWriteLayer(){ document.getElementById('bw-layer').classList.add('on'); document.getElementById('bw-text').focus(); }
+function closeWriteLayer(){ document.getElementById('bw-layer').classList.remove('on'); }
+async function postNote(){
+  const t = document.getElementById('bw-text');
+  const msg = t.value.trim();
+  if (!msg) { t.focus(); return; }
+  const who = await currentNick();
+  if (!who){ alert('로그인하시면 한 줄 남기실 수 있어요.'); return; }  /* 게스트 쓰기 금지 */
+  const btn = document.querySelector('.bw-post'); if (btn) btn.disabled = true;
+  try {
+    const { error } = await sb.from('popup_notes')
+      .insert({ org:POPUP.org.code, book:CUR_BOOK, who, msg });   /* author_id = auth.uid() 자동 */
+    if (error) throw error;
+    t.value=''; closeWriteLayer();
+    boardPage = 0;                                     /* 새 글은 항상 1면 좌상단 */
+    await loadNotes();                                 /* 재조회 = 최신 반영 (잘 됐겠지 금지) */
+  } catch(e){
+    console.error('[popup_notes] 저장 실패:', e && e.message);
+    alert('잠시 후 다시 시도해 주세요.');
+  } finally { if (btn) btn.disabled = false; }
+}
+document.getElementById('bw-layer').addEventListener('click', e=>{ if(e.target.id==='bw-layer') closeWriteLayer(); });
+
+renderBoard(); renderTicker();   /* 빈 상태 즉시 (구조 먼저) */
+loadNotes();                     /* 비동기 → 물 도착하면 재렌더 */
+
+/* ═══ 보드 편집기 (0716) — 면 드래그 이동 · 우하단 핸들 리사이즈 · 열/행/글자 · 더미 ═══ */
+let boardEditing = false;
+function updateBoardVal(){
+  const F = BOARD_FACE;
+  const el = document.getElementById('board-val');
+  if (el) el.textContent = `면 좌:${F.l.toFixed(1)} 우:${F.r.toFixed(1)} 상:${F.t.toFixed(1)} 하:${F.b.toFixed(1)}%  ${F.cols}열×${F.rows}행  글자:${F.fs}px`;
+}
+(function(){
+  const view  = document.querySelector('.view[data-view="board"]');
+  const face  = document.getElementById('board-face');
+  const hndl  = document.getElementById('bf-handle');
+  const btn   = document.getElementById('board-edit');
+  const tool  = document.getElementById('board-tool');
+
+  btn.addEventListener('click', ()=>{
+    boardEditing = !boardEditing;
+    face.classList.toggle('editing', boardEditing);
+    btn.classList.toggle('on', boardEditing);
+    tool.classList.toggle('on', boardEditing);
+    btn.textContent = boardEditing ? '✓ 완료' : '✎ 보드 편집';
+    updateBoardVal();
+  });
+
+  /* 드래그: 면 안 = 이동 / 핸들 = 리사이즈(우·하변) */
+  let mode=null, sx=0, sy=0, o=null;
+  face.addEventListener('pointerdown', (e)=>{
+    if (!boardEditing) return;
+    e.preventDefault();
+    mode = (e.target === hndl) ? 'resize' : 'move';
+    sx = e.clientX; sy = e.clientY; o = { ...BOARD_FACE };
+    face.setPointerCapture(e.pointerId);
+  });
+  face.addEventListener('pointermove', (e)=>{
+    if (!mode) return;
+    const r = view.getBoundingClientRect();
+    const dx = (e.clientX - sx)/r.width*100, dy = (e.clientY - sy)/r.height*100;
+    const F = BOARD_FACE;
+    if (mode === 'move'){
+      F.l = +(o.l + dx).toFixed(1); F.r = +(o.r - dx).toFixed(1);
+      F.t = +(o.t + dy).toFixed(1); F.b = +(o.b - dy).toFixed(1);
+    } else {
+      F.r = Math.max(2, +(o.r - dx).toFixed(1));   /* 핸들 → 우변·하변 */
+      F.b = Math.max(2, +(o.b - dy).toFixed(1));
+    }
+    renderBoard();
+  });
+  const end = (e)=>{ if(!mode) return; mode=null; saveBFace(); renderBoard(); };
+  face.addEventListener('pointerup', end);
+  face.addEventListener('pointercancel', end);
+
+  tool.addEventListener('click', (e)=>{
+    const act = e.target.dataset.act; if (!act) return;
+    const F = BOARD_FACE;
+    if (act==='c-') F.cols = Math.max(2, F.cols-1);
+    if (act==='c+') F.cols = Math.min(10, F.cols+1);
+    if (act==='r-') F.rows = Math.max(1, F.rows-1);
+    if (act==='r+') F.rows = Math.min(8, F.rows+1);
+    if (act==='f-') F.fs = Math.max(9,  F.fs-1);
+    if (act==='f+') F.fs = Math.min(22, F.fs+1);
+    if (act==='dummy'){
+      const seeds = ['이 책, 표지부터 파도 소리가 난다.','오늘 처음 들렀는데 오래 머물렀다.','한 줄 남기고 갑니다 — 다녀갔어요.','점이 선으로 이어지는 기분.','서가 앞에서 한참을 서 있었다.'];
+      for(let i=0;i<20;i++){
+        const n = BOARD_NOTES.filter(x=>x.book===CUR_BOOK).length + 1;
+        BOARD_NOTES.push({ who:'compagnon_'+String((n%40)+1).padStart(2,'0'), msg:seeds[n%seeds.length]+' ('+n+')', book:CUR_BOOK });
+      }
+      renderTicker();
+    }
+    if (act==='clear'){ BOARD_NOTES = BOARD_NOTES.filter(n=>n.book!==CUR_BOOK).concat([
+      { who:'compagnon_07', msg:'벽 한 면이 같은 책으로 도배된 걸 보니 괜히 설렌다.', book:CUR_BOOK },
+      { who:'compagnon_02', msg:'표지만 보고 지나쳤는데, 오피니언을 읽고 마음이 바뀌었어요.', book:CUR_BOOK },
+      { who:'lonelywalden', msg:'파리의 서가에서 이 책을 다시 만났다.', book:CUR_BOOK },
+    ]); boardPage=0; renderTicker(); }
+    if (act==='reset'){ BOARD_FACE = defaultBoardFace(); }
+    if (act==='copy'){
+      const js = 'let BOARD_FACE = ' + JSON.stringify(BOARD_FACE) + ';';
+      try { navigator.clipboard.writeText(js); } catch(_){}
+      alert('보드 면 값 (복사됨):\n\n' + js + '\n\n이 값을 파이스에게 전달하면 코드에 고정합니다.');
+      return;
+    }
+    saveBFace(); renderBoard();
+  });
+})();
+</script>
+</body>
+</html>
