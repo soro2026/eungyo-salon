@@ -851,7 +851,10 @@ html:not(.edit-on) #bm-intro-btn{ display:none !important; }
  *  팝업 데이터 모델 (도시 그림 + 출판사 코드 레이어)
  *  실전: DB에서 org별 로드. 지금은 가상 출판사 1(문학동네) 목업.
  * ============================================================ */
-const POPUP = {
+/* ⭐ (2)회차: ?org= URL 스위치 — 25개 출판사 복제 척추 (기본 munhak) */
+const ORG_CODE = (new URLSearchParams(location.search).get('org') || 'munhak').trim();
+/* 아래는 문학동네 '씨앗'(폴백). loadOrg()가 DB(popup_orgs)에서 ORG_CODE를 로드해 덮어씀 */
+let POPUP = {
   city: '파리',
   cityEn: 'PARIS',       // 도시 표식용 영문 (EG × PARIS) — 도시는 이 배지 + 팔레트 옷만
   org: {
@@ -925,17 +928,27 @@ function todSuffix(){
   return (h >= s.rise && h < s.set) ? 'd' : 'n';
 }
 const TOD = todSuffix();
-const C   = POPUP.org.code;
-/* 폴백 사다리 생성 */
+/* 폴백 사다리 (C = 호출 시점 POPUP.org.code — org 스위치 후 재계산되도록 지역화) */
 function bgLadder(part){
+  const C = POPUP.org.code;
   const base = `popup_${part}_${C}`;
   const l = [`${base}_${TOD}.webp`];
   if (TOD === 'n') l.push(`${base}_d.webp`);         // 밤판 없으면 '낮판'이 무접미사보다 우선
   l.push(`${base}.webp`, `popup_${part}_01.webp`);   // 무접미사 → 옛 이름 (개명 전 호환)
   return l;
 }
-/* 대문: 사다리 전체를 CSS 다중 레이어로 즉시 삽입 (로드 대기 없음 — 폴백 플래시 방지) */
-(function(){
+/* 내부 3뷰: 사다리 순서대로 로드 시도 → 첫 성공을 물림 */
+function tryBg(el, urls){
+  if (!el || !urls.length) return;
+  const [url, ...rest] = urls;
+  const img = new Image();
+  img.onload  = () => { el.style.backgroundImage = `url('${url}')`; el.classList.add('has-img'); };
+  img.onerror = () => tryBg(el, rest);
+  img.src = url;
+}
+/* 배경 4장 적용 — org 스위치 후 재호출하면 배경을 갈아입힘 (bgLadder가 POPUP.org.code 재참조) */
+function applyBackgrounds(){
+  /* 대문: 사다리 전체를 CSS 다중 레이어로 즉시 삽입 (로드 대기 없음 — 폴백 플래시 방지) */
   const urls = bgLadder('gate').map(u => `url('${u}')`).join(',');
   const grads = `radial-gradient(ellipse at 50% 42%, rgba(201,162,74,.14), transparent 60%),linear-gradient(180deg,#0f2019 0%,#15281f 45%,#0c1712 100%)`;
   const n = bgLadder('gate').length;
@@ -945,19 +958,12 @@ function bgLadder(part){
     h.style.backgroundSize = Array(n).fill('200% 100%').join(',') + ',cover,cover';
     h.style.backgroundPosition = Array(n).fill(isL?'left center':'right center').join(',') + ',center,center';
   });
-})();
-/* 내부 3뷰: 사다리 순서대로 로드 시도 → 첫 성공을 물림 */
-function tryBg(el, urls){
-  if (!urls.length) return;
-  const [url, ...rest] = urls;
-  const img = new Image();
-  img.onload  = () => { el.style.backgroundImage = `url('${url}')`; el.classList.add('has-img'); };
-  img.onerror = () => tryBg(el, rest);
-  img.src = url;
+  /* 내부 3뷰 (무대에 100%×100%로 물림) */
+  tryBg(document.getElementById('hall-stage'),  bgLadder('hall'));
+  tryBg(document.getElementById('wall-stage'),  bgLadder('wall'));
+  tryBg(document.querySelector('.view[data-view="board"]'), bgLadder('board'));
 }
-tryBg(document.getElementById('hall-stage'),          bgLadder('hall'));   // 무대에 100%×100%로 물림
-tryBg(document.getElementById('wall-stage'),          bgLadder('wall'));   // wall도 무대에 물림 (0716)
-tryBg(document.querySelector('.view[data-view="board"]'), bgLadder('board'));
+applyBackgrounds();
 
 /* ═══ wall — 저자의 서재 (0716): 액자 · 발치 큰 책 · 천장 별-책 + 편집기 ═══
  * 좌표계 = 무대(941×1672) %. x/y = 중심(별·액자) 또는 바닥 앵커(큰 책).
@@ -986,19 +992,21 @@ let WALL_ITEMS = defaultWallItems();
   const frame = document.getElementById('wall-frame');
   const frImg = document.getElementById('frame-img');
 
-  /* 액자 이미지 (popup_author_{code}.webp 1순위 → author_01 폴백) */
-  (function next(list){
-    if(!list.length) return;
-    const [u,...rest] = list;
-    const im = new Image();
-    im.onload  = () => { frImg.src = u; };
-    im.onerror = () => next(rest);
-    im.src = u;
-  })([`popup_author_${C}.webp`, 'author_01.webp']);
-
-  /* 이름표 — books[0]의 저자 (역자 떼고) */
-  const au = (POPUP.org.books[0]?.author || '').split('·')[0].trim();
-  if (au) document.getElementById('wall-caption').textContent = au;
+  /* 액자 이미지 + 이름표 (org 스위치 후 재호출 → 저자 갈아입힘) */
+  window.applyWallAuthor = function(){
+    (function next(list){
+      if(!list.length) return;
+      const [u,...rest] = list;
+      const im = new Image();
+      im.onload  = () => { frImg.src = u; };
+      im.onerror = () => next(rest);
+      im.src = u;
+    })([`popup_author_${POPUP.org.code}.webp`, 'author_01.webp']);
+    /* 이름표 — books[0]의 저자 (역자 떼고) */
+    const au = (POPUP.org.books[0]?.author || '').split('·')[0].trim();
+    if (au) document.getElementById('wall-caption').textContent = au;
+  };
+  applyWallAuthor();
 
   /* ─── 렌더 ─── */
   window.renderWall = function(){
@@ -1129,24 +1137,29 @@ let WALL_ITEMS = defaultWallItems();
   renderWall();
 })();
 
-/* ---- 대문 로고·배너·도시표식 코드로 얹기 ---- */
-document.getElementById('gate-logo').textContent = POPUP.org.name;
-document.getElementById('city-mark').textContent = `EG × ${POPUP.cityEn}`;
-if (POPUP.org.bannerImg){
-  /* 이미지 배너: 텍스트 배너 숨기고 천장 현수막 2장 */
-  document.getElementById('banner1').style.display = 'none';
-  document.getElementById('banner2').style.display = 'none';
+/* ---- 대문 로고·배너·도시표식 (org 스위치 후 재호출 → 크롬 갈아입힘) ---- */
+function applyOrgChrome(){
+  document.getElementById('gate-logo').textContent = POPUP.org.name;
+  document.getElementById('city-mark').textContent = `EG × ${POPUP.cityEn}`;
   const st = document.getElementById('hall-stage');
-  ['bi1','bi2'].forEach(cls => {
-    const d = document.createElement('div');
-    d.className = 'banner-img ' + cls;
-    d.innerHTML = `<img src="${POPUP.org.bannerImg}" alt="">`;
-    st.appendChild(d);
-  });
-} else {
-  document.getElementById('banner1').textContent = POPUP.org.banner[0] || '신간';
-  document.getElementById('banner2').textContent = POPUP.org.banner[1] || '도착';
+  st.querySelectorAll('.banner-img').forEach(e => e.remove());   /* 재호출 대비: 이전 이미지 배너 제거 */
+  const b1 = document.getElementById('banner1'), b2 = document.getElementById('banner2');
+  if (POPUP.org.bannerImg){
+    /* 이미지 배너: 텍스트 배너 숨기고 천장 현수막 2장 */
+    b1.style.display = 'none'; b2.style.display = 'none';
+    ['bi1','bi2'].forEach(cls => {
+      const d = document.createElement('div');
+      d.className = 'banner-img ' + cls;
+      d.innerHTML = `<img src="${POPUP.org.bannerImg}" alt="">`;
+      st.appendChild(d);
+    });
+  } else {
+    b1.style.display = ''; b2.style.display = '';
+    b1.textContent = POPUP.org.banner[0] || '신간';
+    b2.textContent = POPUP.org.banner[1] || '도착';
+  }
 }
+applyOrgChrome();
 
 /* ---- 대문 열림 (편집 모드일 땐 안 열림) ---- */
 const gate = document.getElementById('gate');
@@ -1637,7 +1650,7 @@ showView(0);
 /* ═══ 방명록 스트림 (0716) — board(전체 읽기·쓰기) + 홀 티커(흐르는 창)가 한 배관 공유
  * book 꼬리표 = 아카이빙 서랍 구조: 새 책 입고 시 이전 book 글은 서랍행(스트림에서 제외).
  * 실전 배관: Supabase select(book=현재)·insert 로 이 배열만 교체하면 두 곳이 같이 산다. */
-const CUR_BOOK = POPUP.org.books[0].cover;   // 현재 책 꼬리표
+let CUR_BOOK = POPUP.org.books[0]?.cover;   // 현재 책 꼬리표 (org 스위치 후 loadOrg가 재설정)
 
 /* ── Supabase 배관 (0716 파이스) — eungyo-auth 세션을 다른 EG 셸과 공유 ── */
 const SB_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
@@ -1766,8 +1779,38 @@ async function postNote(){
 }
 document.getElementById('bw-layer').addEventListener('click', e=>{ if(e.target.id==='bw-layer') closeWriteLayer(); });
 
+/* ⭐ (2)회차 org 스위치 — DB(popup_orgs)에서 ORG_CODE 로드 → POPUP 덮어쓰기 → 렌더 재적용.
+ * munhak(기본)은 씨앗=DB라 화면 불변(회귀 대조). 다른 org면 배경·크롬·저자·방명록 전부 갈아입힘.
+ * 입체 목업(popup_book01a/b)은 아직 org 무관 — 민음사 삽에서 org별로 확장 (v110 인계). */
+async function loadOrg(){
+  if (sb){
+    try {
+      const { data, error } = await sb.from('popup_orgs').select('*').eq('code', ORG_CODE).single();
+      if (error || !data){
+        console.warn('[popup_orgs] 로드 실패/없음 — 씨앗(munhak) 유지:', ORG_CODE, error && error.message);
+      } else {
+        POPUP.city          = data.city_ko || POPUP.city;
+        POPUP.cityEn        = data.city_en || POPUP.cityEn;
+        POPUP.org.code      = data.code;
+        POPUP.org.name      = data.name;
+        POPUP.org.logo      = data.logo;
+        POPUP.org.banner    = data.banner || ['신간','도착'];
+        POPUP.org.bannerImg = data.banner_img;
+        POPUP.org.books     = Array.isArray(data.books) ? data.books : [];
+        CUR_BOOK            = POPUP.org.books[0]?.cover;
+        /* 렌더 재적용 (POPUP 의존 전부) */
+        applyBackgrounds();
+        applyOrgChrome();
+        if (window.applyWallAuthor) applyWallAuthor();
+        if (window.renderWall) renderWall();
+      }
+    } catch(e){ console.error('[popup_orgs] 로드 오류 — 씨앗 유지:', e && e.message); }
+  }
+  await loadNotes();   /* org 확정 후 방명록 (org·CUR_BOOK 최신 반영) */
+}
+
 renderBoard(); renderTicker();   /* 빈 상태 즉시 (구조 먼저) */
-loadNotes();                     /* 비동기 → 물 도착하면 재렌더 */
+loadOrg();                       /* org 로드 → POPUP 덮어쓰기 → 재렌더 → loadNotes */
 
 /* ═══ 보드 편집기 (0716) — 면 드래그 이동 · 우하단 핸들 리사이즈 · 열/행/글자 · 더미 ═══ */
 let boardEditing = false;
