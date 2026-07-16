@@ -1207,12 +1207,23 @@ gate.addEventListener('click', () => {
   } catch(_){}
   let cur = 'sign';   // 현재 선택된 요소
 
-  /* 로고 webp가 있으면 텍스트 대신 로고 */
-  if (POPUP.org.logo){
+  /* 로고 사다리: Storage({org}/logo.webp) → GitHub(POPUP.org.logo) → 실패 시 텍스트 유지.
+   * window로 노출 → org 스위치 후 loadOrg가 재호출(IIFE 클로저로 ITEMS.sign 접근) */
+  window.applyGateLogo = function(){
     const li = document.getElementById('gate-logo-img');
-    li.src = POPUP.org.logo;
-    li.onload = ()=> ITEMS.sign.el.classList.add('has-logo');
-  }
+    const sign = ITEMS.sign.el;
+    const ladder = [stUrl(POPUP.org.code + '/logo.webp')];
+    if (POPUP.org.logo) ladder.push(POPUP.org.logo);   // GitHub 폴백
+    (function tryLogo(list){
+      if (!list.length){ sign.classList.remove('has-logo'); li.removeAttribute('src'); return; }  // 다 실패 = 텍스트
+      const [u, ...rest] = list;
+      const im = new Image();
+      im.onload  = ()=>{ li.src = u; sign.classList.add('has-logo'); };
+      im.onerror = ()=> tryLogo(rest);
+      im.src = u;
+    })(ladder);
+  };
+  applyGateLogo();
 
   function apply(){
     Object.keys(ITEMS).forEach(k => {
@@ -1813,6 +1824,7 @@ async function loadOrg(){
         /* 렌더 재적용 (POPUP 의존 전부) */
         applyBackgrounds();
         applyOrgChrome();
+        if (window.applyGateLogo) applyGateLogo();   /* 로고 이미지 갈아입힘 (org 스위치) */
         if (window.applyWallAuthor) applyWallAuthor();
         if (window.renderWall) renderWall();
       }
