@@ -219,7 +219,7 @@ html:not(.edit-on) #bm-intro-btn{ display:none !important; }
 .view[data-view="hall"] .hall-book img{ height:100%; width:auto; display:block; }
 .view[data-view="hall"] .hall-book:hover{
   transform:translate(-50%,-100%) translateY(-6px) scale(1.04);
-  filter:drop-shadow(5px 10px 15px rgba(30,20,8,.48)); z-index:60 !important;
+  filter:drop-shadow(5px 10px 15px rgba(30,20,8,.48)); z-index:150 !important;
 }
 .view[data-view="hall"] .hall-book.placeholder{
   background:linear-gradient(135deg,#2c3d33,#16241b);
@@ -858,6 +858,13 @@ const ORG_CODE = (new URLSearchParams(location.search).get('org') || 'munhak').t
  * SB_URL(1656행)은 뒤에 선언되므로 TDZ 회피 위해 여기서 베이스를 독립 상수로 둠 */
 const ST_BASE = 'https://cyhlotwdisjvoxvfkpnd.supabase.co/storage/v1/object/public/popup-assets/';
 const stUrl = p => ST_BASE + p;
+/* 책 이미지(목업·표지)를 org별 Storage 슬롯으로 매핑 — 옛 GitHub 이름은 그대로 반환(폴백은 onerror) */
+const _ASSET_MAP = { 'popup_book01a.webp':'book_a.webp', 'popup_book01b.webp':'book_b.webp' };
+function storageAsset(val){
+  if (!val) return val;
+  const slot = _ASSET_MAP[val] || (/^(cover|cover_back|book_a|book_b)\.webp$/.test(val) ? val : null);
+  return slot ? stUrl(POPUP.org.code + '/' + slot) : val;   // 매핑 안 되면 옛 이름 그대로
+}
 /* 아래는 문학동네 '씨앗'(폴백). loadOrg()가 DB(popup_orgs)에서 ORG_CODE를 로드해 덮어씀 */
 let POPUP = {
   city: '파리',
@@ -1032,7 +1039,7 @@ let WALL_ITEMS = defaultWallItems();
       b.className = 'wall-bigbook';
       b.style.left = it.book.x + '%'; b.style.top = it.book.y + '%';
       b.style.height = it.book.h + '%'; b.style.zIndex = 8;
-      b.innerHTML = `<img src="${BOOK_IMG_FRONT}" alt="${book.title}">`;
+      b.innerHTML = `<img src="${storageAsset(BOOK_IMG_FRONT)}" data-fb="${BOOK_IMG_FRONT}" alt="${book.title}" onerror="if(this.dataset.fb){this.src=this.dataset.fb;this.removeAttribute('data-fb');}">`;
       b.addEventListener('click', ()=> { if (wallEditing){ wallSelect('book'); } else openBook(book); });
       stage.appendChild(b);
     }
@@ -1042,7 +1049,7 @@ let WALL_ITEMS = defaultWallItems();
       st.className = 'wall-star'; st.dataset.star = i;
       st.style.left = s.x + '%'; st.style.top = s.y + '%';
       st.style.height = s.h + '%'; st.style.zIndex = 5;
-      st.innerHTML = `<img src="${BOOK_IMG_FRONT}" alt="${book.title}" style="animation-duration:${s.d}s;animation-delay:${s.ph}s">`;
+      st.innerHTML = `<img src="${storageAsset(BOOK_IMG_FRONT)}" data-fb="${BOOK_IMG_FRONT}" alt="${book.title}" style="animation-duration:${s.d}s;animation-delay:${s.ph}s" onerror="if(this.dataset.fb){this.src=this.dataset.fb;this.removeAttribute('data-fb');}">`;
       st.addEventListener('click', ()=> { if (wallEditing){ wallSelect('star:'+i); } else openBook(book); });
       stage.appendChild(st);
     });
@@ -1154,20 +1161,33 @@ function applyOrgChrome(){
   const st = document.getElementById('hall-stage');
   st.querySelectorAll('.banner-img').forEach(e => e.remove());   /* 재호출 대비: 이전 이미지 배너 제거 */
   const b1 = document.getElementById('banner1'), b2 = document.getElementById('banner2');
-  if (POPUP.org.bannerImg){
-    /* 이미지 배너: 텍스트 배너 숨기고 천장 현수막 2장 */
-    b1.style.display = 'none'; b2.style.display = 'none';
-    ['bi1','bi2'].forEach(cls => {
-      const d = document.createElement('div');
-      d.className = 'banner-img ' + cls;
-      d.innerHTML = `<img src="${POPUP.org.bannerImg}" alt="">`;
-      st.appendChild(d);
-    });
-  } else {
+  /* 배너: Storage banner_0N (3시간마다 순환, 하루 8바퀴) → GitHub bannerImg → 텍스트 */
+  const bannerText = () => {
+    st.querySelectorAll('.banner-img').forEach(e => e.remove());
     b1.style.display = ''; b2.style.display = '';
     b1.textContent = POPUP.org.banner[0] || '신간';
     b2.textContent = POPUP.org.banner[1] || '도착';
-  }
+  };
+  const bannerImgShow = (url) => {
+    b1.style.display = 'none'; b2.style.display = 'none';
+    st.querySelectorAll('.banner-img').forEach(e => e.remove());
+    ['bi1','bi2'].forEach(cls => {
+      const d = document.createElement('div');
+      d.className = 'banner-img ' + cls;
+      d.innerHTML = `<img src="${url}" alt="">`;
+      st.appendChild(d);
+    });
+  };
+  const bn = Math.floor(new Date().getHours() / 3) % 3;   // 0·1·2 — 3시간 단위
+  const bnUrl = stUrl(POPUP.org.code + '/banner_0' + (bn + 1) + '.webp');
+  const fb = POPUP.org.bannerImg;   // GitHub 폴백
+  const im = new Image();
+  im.onload  = () => bannerImgShow(bnUrl);
+  im.onerror = () => {
+    if (fb){ const im2 = new Image(); im2.onload = () => bannerImgShow(fb); im2.onerror = bannerText; im2.src = fb; }
+    else bannerText();
+  };
+  im.src = bnUrl;
 }
 applyOrgChrome();
 
@@ -1313,7 +1333,8 @@ function coverEl(book){
   el.className = 'cover-book' + (book.cover ? '' : ' placeholder');
   if (book.cover){
     const img = document.createElement('img');
-    img.src = book.cover; img.alt = book.title;
+    img.src = storageAsset(book.cover); img.alt = book.title;
+    img.onerror = ()=>{ img.onerror = null; img.src = book.cover; };   /* Storage 실패 → 옛 GitHub */
     el.appendChild(img);
   } else {
     el.textContent = book.title;
@@ -1351,7 +1372,8 @@ function renderHall(){
     el.style.height = b.h + '%';
     el.style.zIndex = 3 + Math.round(b.y);            // 아래(앞)일수록 위에 — 원근 가림
     const img = document.createElement('img');
-    img.src = b.img; img.alt = book.title;
+    img.src = storageAsset(b.img); img.alt = book.title;
+    img.onerror = ()=>{ img.onerror = null; img.src = b.img; };   /* Storage 실패 → 옛 GitHub */
     el.appendChild(img);
     el.addEventListener('click', () => {
       if (hallEditing) { hallSelectBook(bi); return; }
@@ -1528,8 +1550,8 @@ function paginateIntro(book){
   return { faces };
 }
 
-function makeCoverHtml(url){ return `<div class="front cover"><div class="cover-bg" style="background-image:url('${url}')"></div></div>`; }
-function makeBackCoverHtml(url){ return `<div class="back cover"><div class="cover-bg" style="background-image:url('${url}')"></div></div>`; }
+function makeCoverHtml(url){ return `<div class="front cover"><div class="cover-bg" style="background-image:url('${storageAsset(url)}')"></div></div>`; }
+function makeBackCoverHtml(url){ return `<div class="back cover"><div class="cover-bg" style="background-image:url('${storageAsset(url)}')"></div></div>`; }
 function makeFaceHtml(face, side){
   const cls = (side==='back') ? 'back' : 'front';
   const h  = face.title ? `<h2>${escHtml(face.title)}</h2>` : '';
