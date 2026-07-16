@@ -1011,7 +1011,7 @@ let WALL_ITEMS = defaultWallItems();
       im.onload  = () => { frImg.src = u; };
       im.onerror = () => next(rest);
       im.src = u;
-    })([`popup_author_${POPUP.org.code}.webp`, 'author_01.webp']);
+    })([stUrl(POPUP.org.code+'/author.webp'), `popup_author_${POPUP.org.code}.webp`, 'author_01.webp']);
     /* 이름표 — books[0]의 저자 (역자 떼고) */
     const au = (POPUP.org.books[0]?.author || '').split('·')[0].trim();
     if (au) document.getElementById('wall-caption').textContent = au;
@@ -1707,9 +1707,11 @@ async function currentNick(){
 /* ── 꽃·색 배정 (0716 소로): 글 내용 해시 → 언제나 같은 꽃·같은 색 ──
  * 꽃 자산: 분더카머 1층 방명록 헌화 재활용. ⚠️ 파일명·개수는 소로 확인 후 이 두 줄만 조정 */
 const FLOWER_N   = 12;
-const flowerSrc  = (i) => `flower${String(i+1).padStart(2,'0')}.webp`;   /* 실물: flower01~12.webp (0716 소로 확인) */
+const flowerName = (i) => `flower${String(i+1).padStart(2,'0')}.webp`;   /* 실물: flower01~12.webp (0716 소로 확인) */
+const flowerSrc  = (i) => stUrl('_shared/' + flowerName(i));             /* ⭐ Storage 1순위 (_shared 공용) */
 function noteHash(n){ let h=0; const s=n.who+n.msg; for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))>>>0; } return h; }
-const noteFlower = (n) => flowerSrc(noteHash(n) % FLOWER_N);
+const noteFlower     = (n) => flowerSrc(noteHash(n) % FLOWER_N);          /* Storage URL */
+const noteFlowerRoot = (n) => flowerName(noteHash(n) % FLOWER_N);        /* 루트 폴백 (Storage 실패 시) */
 const noteColor  = (n) => 'np' + (noteHash(n) % 5);
 
 /* ── board 면 설정 — 보드 편집기로 실측 확정 (4변 %·열·행·글자px) ── */
@@ -1757,7 +1759,7 @@ function renderTicker(){
   const notes = activeNotes().slice(0, 8);             /* 최신 8개만 흐름 */
   if (!notes.length){ tk.innerHTML=''; return; }
   const one = notes.map(n =>
-    `<img class="tk-flower" src="${noteFlower(n)}" alt="" onerror="this.remove()"><span>${n.msg}</span><span class="tk-who">— ${n.who}</span><span class="tk-sep">❦</span>`
+    `<img class="tk-flower" src="${noteFlower(n)}" data-fb="${noteFlowerRoot(n)}" alt="" onerror="if(this.dataset.fb){this.src=this.dataset.fb;this.removeAttribute('data-fb');}else{this.remove();}"><span>${n.msg}</span><span class="tk-who">— ${n.who}</span><span class="tk-sep">❦</span>`
   ).join('');
   tk.innerHTML = one + one;                            /* 2배 복제 = 이음새 없는 순환 */
   const secs = Math.max(46, notes.length * 16);        /* 글 수에 비례, 최저 46s — 강물 */
