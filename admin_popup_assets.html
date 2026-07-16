@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>팝업 자산 · SALONNIER</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --green-deep:#1B4332; --green-mid:#2D6A4F; --green-light:#52B788;
+    --gold:#C9A84C; --gold-l:#E9C97E;
+    --chalk:#F8F4EE; --chalk-dim:rgba(248,244,238,.66); --chalk-faint:rgba(248,244,238,.14);
+    --ok:#7FD1A0; --bad:#E4936F;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--green-deep); color:var(--chalk);
+    font-family:'-apple-system','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    -webkit-font-smoothing:antialiased; line-height:1.5;
+  }
+  a{ color:var(--gold-l); }
+
+  /* ── 로그인 게이트 ── */
+  #gate{ display:none; min-height:100vh; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; padding:24px; }
+  #gate h1{ font-size:20px; color:var(--gold-l); margin:0; }
+  #gate p{ color:var(--chalk-dim); margin:0; font-size:14px; }
+  #gate a{ text-decoration:underline; }
+
+  /* ── 레이아웃 ── */
+  #app{ display:none; max-width:1080px; margin:0 auto; padding:22px 20px 80px; }
+  header{ display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:6px; }
+  header .back{ color:var(--chalk-dim); text-decoration:none; font-size:13px; }
+  header .back:hover{ color:var(--chalk); }
+  h1.title{ font-size:22px; font-weight:800; margin:0; color:var(--chalk); }
+  .sub{ color:var(--chalk-dim); font-size:12px; letter-spacing:.14em; margin:2px 0 20px; }
+
+  .panel{ background:rgba(248,244,238,.04); border:1px solid var(--chalk-faint); border-radius:14px; padding:18px; margin-bottom:18px; }
+  .panel h2{ font-size:14px; color:var(--gold-l); margin:0 0 14px; font-weight:700; letter-spacing:.02em; }
+  .panel h2 .en{ color:var(--chalk-dim); font-weight:400; font-style:italic; margin-left:6px; font-size:12px; }
+
+  /* ── 출판사 선택 ── */
+  .org-row{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  select, input, textarea{
+    background:rgba(248,244,238,.06); border:1px solid var(--chalk-faint); color:var(--chalk);
+    border-radius:8px; padding:8px 11px; font-family:inherit; font-size:13px;
+  }
+  select:focus, input:focus, textarea:focus{ outline:none; border-color:var(--gold); }
+  select{ min-width:200px; }
+  .btn{ background:var(--green-light); border:none; color:var(--green-deep); font-weight:700;
+    border-radius:8px; padding:8px 15px; cursor:pointer; font-family:inherit; font-size:13px; }
+  .btn:hover{ background:var(--gold-l); }
+  .btn.ghost{ background:none; border:1px solid var(--chalk-faint); color:var(--chalk-dim); }
+  .btn.ghost:hover{ color:var(--chalk); border-color:var(--gold); }
+  .btn:disabled{ opacity:.5; cursor:default; }
+
+  /* ── 텍스트 필드 ── */
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .grid3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  .field{ display:flex; flex-direction:column; gap:5px; }
+  .field label{ font-size:11px; color:var(--chalk-dim); letter-spacing:.02em; }
+  .field .hint{ font-size:10px; color:var(--chalk-dim); opacity:.7; }
+  textarea{ resize:vertical; min-height:64px; line-height:1.65; }
+  textarea.big{ min-height:180px; }
+  .charcount{ font-size:10px; color:var(--chalk-dim); text-align:right; }
+
+  /* ── 이미지 슬롯 그리드 ── */
+  .slot-group-title{ font-size:12px; color:var(--chalk-dim); margin:16px 0 8px; letter-spacing:.04em; }
+  .slot-group-title:first-child{ margin-top:0; }
+  .slots{ display:grid; grid-template-columns:repeat(auto-fill, minmax(148px,1fr)); gap:12px; }
+  .slot{
+    border:1.5px dashed var(--chalk-faint); border-radius:10px; overflow:hidden; position:relative;
+    background:rgba(0,0,0,.18); aspect-ratio:1/1; cursor:pointer; transition:border-color .15s;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .slot:hover{ border-color:var(--gold); }
+  .slot.dragover{ border-color:var(--green-light); border-style:solid; background:rgba(82,183,136,.12); }
+  .slot.has{ border-style:solid; border-color:var(--chalk-faint); }
+  .slot img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .slot .ph{ text-align:center; color:var(--chalk-dim); font-size:11px; padding:8px; z-index:1; }
+  .slot .cap{
+    position:absolute; left:0; right:0; bottom:0; z-index:2;
+    background:linear-gradient(to top, rgba(10,20,16,.86), transparent);
+    color:var(--chalk); font-size:10.5px; padding:14px 8px 6px; letter-spacing:.02em;
+  }
+  .slot .badge{
+    position:absolute; top:6px; right:6px; z-index:3; font-size:9px; font-weight:700;
+    padding:2px 6px; border-radius:20px;
+  }
+  .slot .badge.up{ background:rgba(82,183,136,.9); color:var(--green-deep); }
+  .slot .badge.busy{ background:rgba(233,201,126,.9); color:var(--green-deep); }
+  .slot input[type=file]{ display:none; }
+
+  /* ── 상태줄 ── */
+  #status{ position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:50;
+    background:rgba(27,67,50,.96); border:1px solid var(--gold); color:var(--chalk);
+    padding:10px 18px; border-radius:24px; font-size:13px; box-shadow:0 8px 30px rgba(0,0,0,.4);
+    display:none; max-width:90vw; }
+  #status.ok{ border-color:var(--ok); }
+  #status.bad{ border-color:var(--bad); color:#ffd9c9; }
+
+  .save-bar{ position:sticky; bottom:0; margin-top:20px; padding:14px 0;
+    background:linear-gradient(to top, var(--green-deep) 60%, transparent);
+    display:flex; gap:10px; justify-content:flex-end; }
+  .save-bar .btn{ padding:11px 26px; font-size:14px; }
+
+  .note{ font-size:12px; color:var(--chalk-dim); line-height:1.7; margin-top:4px; }
+  .empty{ color:var(--chalk-dim); text-align:center; padding:30px; font-size:13px; }
+  @media (max-width:640px){ .grid2,.grid3{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+
+<!-- ══ 로그인 게이트 ══ -->
+<div id="gate">
+  <h1>🔑 살롱지기 전용</h1>
+  <p>이 문은 소로만 엽니다. <a href="index.html">은교살롱으로 돌아가</a> 로그인해 주세요.</p>
+</div>
+
+<!-- ══ 관리 화면 ══ -->
+<div id="app">
+  <header>
+    <div>
+      <h1 class="title">🏪 팝업 자산</h1>
+    </div>
+    <a class="back" href="index.html">← 살롱으로</a>
+  </header>
+  <div class="sub">POPUP STORE · PUBLISHER ASSETS</div>
+
+  <!-- 출판사 선택/생성 -->
+  <div class="panel">
+    <h2>출판사 <span class="en">Maison d'Édition</span></h2>
+    <div class="org-row">
+      <select id="orgSelect"><option value="">— 출판사 선택 —</option></select>
+      <button class="btn ghost" id="newOrgBtn">+ 새 출판사</button>
+      <span class="note" id="orgCount"></span>
+    </div>
+  </div>
+
+  <!-- 편집 영역 -->
+  <div id="editor" style="display:none">
+
+    <!-- 정체성 텍스트 -->
+    <div class="panel">
+      <h2>정체성 <span class="en">Identité</span></h2>
+      <div class="grid3">
+        <div class="field"><label>출판사 코드 (URL 열쇠 · 수정 불가)</label><input id="f_code" readonly></div>
+        <div class="field"><label>출판사명</label><input id="f_name" placeholder="문학동네"></div>
+        <div class="field"><label>공개 (tier)</label>
+          <select id="f_tier"><option value="open">open · 공개</option><option value="reserved">reserved · 예약</option></select>
+        </div>
+        <div class="field"><label>도시 (한글)</label><input id="f_city_ko" placeholder="파리"></div>
+        <div class="field"><label>도시 배지 (EG × ___)</label><input id="f_city_en" placeholder="PARIS"></div>
+        <div class="field"><label>담당자 uid (선택)</label><input id="f_manager" placeholder="비우면 소로만 관리"></div>
+      </div>
+      <div class="grid2" style="margin-top:12px">
+        <div class="field"><label>위도 lat (지도 핀 · 나중에 채워도 됨)</label><input id="f_lat" placeholder="48.85107"></div>
+        <div class="field"><label>경도 lng</label><input id="f_lng" placeholder="2.34698"></div>
+      </div>
+      <div class="grid3" style="margin-top:12px">
+        <div class="field"><label>텍스트 배너 1 (이미지 없을 때 폴백)</label><input id="f_banner0" placeholder="신간"></div>
+        <div class="field"><label>텍스트 배너 2</label><input id="f_banner1" placeholder="도착"></div>
+        <div class="field"><label>텍스트 배너 3</label><input id="f_banner2" placeholder=""></div>
+      </div>
+    </div>
+
+    <!-- 책 -->
+    <div class="panel">
+      <h2>진열 도서 <span class="en">Le Livre</span></h2>
+      <div class="grid2">
+        <div class="field"><label>제목</label><input id="b_title" placeholder="광대한 여정"></div>
+        <div class="field"><label>저자 (· 역자)</label><input id="b_author" placeholder="로렌 아이즐리 · 조은영 옮김"></div>
+      </div>
+      <div class="field" style="margin-top:12px">
+        <label>홀·배너 요약 (blurb · 짧게)</label>
+        <textarea id="b_blurb" placeholder="한 문단짜리 소개…"></textarea>
+        <div class="charcount"><span id="blurbCount">0</span>자</div>
+      </div>
+      <div class="field" style="margin-top:8px">
+        <label>플립북 본문 소개 (intro · 길게 · 온라인 서점 소개 붙여넣기)</label>
+        <textarea id="b_intro" class="big" placeholder="여기에 긴 책 소개를 붙여넣으면 플립북이 두툼해집니다. 문단은 빈 줄로 나눠 주세요."></textarea>
+        <div class="charcount"><span id="introCount">0</span>자</div>
+      </div>
+      <div class="grid3" style="margin-top:12px">
+        <div class="field"><label>구매 링크 · 알라딘</label><input id="s_aladin" placeholder="https://…"></div>
+        <div class="field"><label>구매 링크 · 교보</label><input id="s_kyobo" placeholder="https://…"></div>
+        <div class="field"><label>구매 링크 · YES24</label><input id="s_yes24" placeholder="https://…"></div>
+      </div>
+    </div>
+
+    <!-- 이미지 슬롯 -->
+    <div class="panel">
+      <h2>이미지 <span class="en">Images · Supabase Storage</span></h2>
+      <p class="note">칸을 클릭하거나 이미지를 끌어다 놓으면 <b>Supabase</b>에 올라갑니다(GitHub 아님). 각 칸은 <code>{출판사}/{슬롯}.webp</code>로 저장돼 덮어쓰기됩니다. 밤(_n)이 없으면 낮(_d)으로 폴백됩니다.</p>
+      <div id="slotHost"></div>
+    </div>
+
+    <div class="save-bar">
+      <button class="btn" id="saveBtn">텍스트 저장</button>
+    </div>
+  </div>
+
+  <!-- 공용 꽃 -->
+  <div class="panel">
+    <h2>공용 꽃 <span class="en">Fleurs · 전 출판사 공유</span></h2>
+    <p class="note">방명록 티커의 꽃 12종입니다. <b>모든 출판사가 함께</b> 쓰므로 <code>_shared/</code>에 한 번만 올립니다.</p>
+    <div class="slots" id="flowerHost"></div>
+  </div>
+</div>
+
+<div id="status"></div>
+
+<script>
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const BUCKET   = 'popup-assets';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
+});
+const SORO_EMAIL = 'lonelywalden@gmail.com';
+const SORO_UID   = '81ac3dfa-0d44-4ab9-84bf-d630321b0bad';
+
+/* 슬롯 정의 — {slot 키, 라벨, 그룹} */
+const SLOT_GROUPS = [
+  { title:'배경 · 낮 (필수)', items:[
+    ['gate_d','대문'],['hall_d','매대 홀'],['wall_d','저자의 서재'],['board_d','메시지 보드'] ]},
+  { title:'배경 · 밤 (선택 · 없으면 낮 폴백)', items:[
+    ['gate_n','대문 밤'],['hall_n','매대 홀 밤'],['wall_n','서재 밤'],['board_n','보드 밤'] ]},
+  { title:'정체성', items:[ ['logo','간판 로고'],['author','저자 유화'] ]},
+  { title:'입체 목업', items:[ ['book_a','앞면+책등'],['book_b','뒷면+책등'] ]},
+  { title:'플립북 표지', items:[ ['cover','앞표지'],['cover_back','뒤표지'] ]},
+  { title:'천장 배너 · 3시간 순환', items:[ ['banner_01','배너 ①'],['banner_02','배너 ②'],['banner_03','배너 ③'] ]},
+];
+
+let CUR_ORG = null;   // 현재 선택된 출판사 코드
+const $ = id => document.getElementById(id);
+
+function pubUrl(path){ return SUPA_URL + '/storage/v1/object/public/' + BUCKET + '/' + path; }
+function toast(msg, kind){ const s=$('status'); s.textContent=msg; s.className=kind||''; s.style.display='block';
+  clearTimeout(toast._t); if(kind!=='busy') toast._t=setTimeout(()=>{ s.style.display='none'; }, 2600); }
+
+/* ── 시작: 세션 → 게이트 ── */
+(async function init(){
+  const { data:{ session } } = await supa.auth.getSession();
+  const u = session && session.user;
+  const isSoro = u && (u.email === SORO_EMAIL || u.id === SORO_UID);
+  if(!isSoro){ $('gate').style.display='flex'; return; }
+  $('app').style.display='block';
+  buildSlotHost();
+  buildFlowerHost();
+  bindCharCounts();
+  await loadOrgs();
+  $('orgSelect').onchange = ()=>{ const v=$('orgSelect').value; if(v) selectOrg(v); else { $('editor').style.display='none'; CUR_ORG=null; } };
+  $('newOrgBtn').onclick = newOrg;
+  $('saveBtn').onclick = saveText;
+})();
+
+/* ── 출판사 목록 ── */
+async function loadOrgs(keep){
+  const { data, error } = await supa.from('popup_orgs').select('code,name').order('code');
+  if(error){ toast('목록 로드 실패: '+error.message,'bad'); return; }
+  const sel = $('orgSelect');
+  sel.innerHTML = '<option value="">— 출판사 선택 —</option>' +
+    (data||[]).map(o=>`<option value="${o.code}">${o.name} (${o.code})</option>`).join('');
+  $('orgCount').textContent = (data||[]).length + '개 출판사';
+  if(keep){ sel.value = keep; }
+}
+
+/* ── 새 출판사 ── */
+async function newOrg(){
+  const code = (prompt('새 출판사 코드 (로마자 소문자, 출판사 표기법 그대로 — 예: minum, changbi)')||'').trim().toLowerCase();
+  if(!code) return;
+  if(!/^[a-z0-9_]+$/.test(code)){ toast('코드는 로마자 소문자·숫자·_만 됩니다.','bad'); return; }
+  const name = (prompt('출판사명 (예: 민음사)', code)||'').trim() || code;
+  toast('만드는 중…','busy');
+  const { error } = await supa.from('popup_orgs').upsert({ code, name, city:'paris', city_ko:'파리', city_en:'PARIS', tier:'open' });
+  if(error){ toast('생성 실패: '+error.message,'bad'); return; }
+  await loadOrgs(code);
+  selectOrg(code);
+  toast('“'+name+'” 생겼어요. 이미지와 소개를 채워 주세요.','ok');
+}
+
+/* ── 출판사 선택 → 폼·슬롯 채움 ── */
+async function selectOrg(code){
+  CUR_ORG = code;
+  $('orgSelect').value = code;
+  const { data, error } = await supa.from('popup_orgs').select('*').eq('code',code).single();
+  if(error){ toast('로드 실패: '+error.message,'bad'); return; }
+  $('editor').style.display='block';
+  $('f_code').value = data.code;
+  $('f_name').value = data.name||'';
+  $('f_tier').value = data.tier||'open';
+  $('f_city_ko').value = data.city_ko||'';
+  $('f_city_en').value = data.city_en||'';
+  $('f_manager').value = data.manager_id||'';
+  $('f_lat').value = data.lat==null?'':data.lat;
+  $('f_lng').value = data.lng==null?'':data.lng;
+  const bn = data.banner||[];
+  $('f_banner0').value = bn[0]||''; $('f_banner1').value = bn[1]||''; $('f_banner2').value = bn[2]||'';
+  const book = (Array.isArray(data.books)&&data.books[0]) ? data.books[0] : {};
+  $('b_title').value = book.title||'';
+  $('b_author').value = book.author||'';
+  $('b_blurb').value = book.blurb||'';
+  $('b_intro').value = book.intro_body||'';
+  const st = book.stores||{};
+  $('s_aladin').value = st.aladin&&st.aladin!=='#'?st.aladin:'';
+  $('s_kyobo').value = st.kyobo&&st.kyobo!=='#'?st.kyobo:'';
+  $('s_yes24').value = st.yes24&&st.yes24!=='#'?st.yes24:'';
+  updateCharCounts();
+  refreshSlots();
+}
+
+/* ── 이미지 슬롯 UI ── */
+function buildSlotHost(){
+  const host = $('slotHost');
+  host.innerHTML = SLOT_GROUPS.map(g=>`
+    <div class="slot-group-title">${g.title}</div>
+    <div class="slots">${g.items.map(([slot,label])=>slotHtml(slot,label)).join('')}</div>
+  `).join('');
+  host.querySelectorAll('.slot').forEach(bindSlot);
+}
+function slotHtml(slot,label){
+  return `<div class="slot" data-slot="${slot}">
+    <div class="ph">＋<br>${label}</div>
+    <div class="cap">${label} · <code>${slot}</code></div>
+    <input type="file" accept="image/*">
+  </div>`;
+}
+function bindSlot(el){
+  const input = el.querySelector('input');
+  el.addEventListener('click', ()=>{ if(!CUR_ORG){ toast('먼저 출판사를 선택하세요.','bad'); return; } input.click(); });
+  input.addEventListener('change', ()=>{ if(input.files[0]) uploadSlot(el, input.files[0]); input.value=''; });
+  el.addEventListener('dragover', e=>{ e.preventDefault(); el.classList.add('dragover'); });
+  el.addEventListener('dragleave', ()=> el.classList.remove('dragover'));
+  el.addEventListener('drop', e=>{
+    e.preventDefault(); el.classList.remove('dragover');
+    if(!CUR_ORG){ toast('먼저 출판사를 선택하세요.','bad'); return; }
+    const f = e.dataTransfer.files[0]; if(f) uploadSlot(el, f);
+  });
+}
+async function uploadSlot(el, file){
+  const slot = el.dataset.slot;
+  const path = CUR_ORG + '/' + slot + '.webp';
+  setSlotBadge(el,'busy','올리는 중');
+  const { error } = await supa.storage.from(BUCKET).upload(path, file, { upsert:true, contentType:'image/webp' });
+  if(error){ setSlotBadge(el,null); toast(slot+' 업로드 실패: '+error.message,'bad'); return; }
+  paintSlot(el, pubUrl(path)+'?t='+Date.now());
+  setSlotBadge(el,'up','완료');
+  toast(slot+' 올렸어요.','ok');
+}
+function paintSlot(el, url){
+  el.classList.add('has');
+  let img = el.querySelector('img');
+  if(!img){ img=document.createElement('img'); el.insertBefore(img, el.firstChild); }
+  img.src = url;
+}
+function setSlotBadge(el, kind, text){
+  let b = el.querySelector('.badge');
+  if(!kind){ if(b) b.remove(); return; }
+  if(!b){ b=document.createElement('div'); b.className='badge'; el.appendChild(b); }
+  b.className='badge '+kind; b.textContent=text||'';
+  if(kind==='up') setTimeout(()=>{ if(b) b.remove(); }, 1400);
+}
+/* 선택된 org의 슬롯 미리보기를 Storage에서 로드 (있으면 뜨고 없으면 빈 칸) */
+function refreshSlots(){
+  document.querySelectorAll('#slotHost .slot').forEach(el=>{
+    const slot = el.dataset.slot;
+    const img = el.querySelector('img'); if(img) img.remove();
+    el.classList.remove('has'); setSlotBadge(el,null);
+    const probe = new Image();
+    const url = pubUrl(CUR_ORG+'/'+slot+'.webp')+'?t='+Date.now();
+    probe.onload = ()=> paintSlot(el, url);
+    probe.onerror = ()=>{};  // 없으면 빈 칸 유지
+    probe.src = url;
+  });
+}
+
+/* ── 공용 꽃 12칸 ── */
+function buildFlowerHost(){
+  const host = $('flowerHost');
+  host.innerHTML = Array.from({length:12}, (_,i)=>{
+    const n = String(i+1).padStart(2,'0');
+    return `<div class="slot" data-flower="${n}">
+      <div class="ph">＋<br>꽃 ${n}</div>
+      <div class="cap">flower${n}</div>
+      <input type="file" accept="image/*"></div>`;
+  }).join('');
+  host.querySelectorAll('.slot').forEach(el=>{
+    const input = el.querySelector('input');
+    el.addEventListener('click', ()=> input.click());
+    input.addEventListener('change', ()=>{ if(input.files[0]) uploadFlower(el, input.files[0]); input.value=''; });
+    el.addEventListener('dragover', e=>{ e.preventDefault(); el.classList.add('dragover'); });
+    el.addEventListener('dragleave', ()=> el.classList.remove('dragover'));
+    el.addEventListener('drop', e=>{ e.preventDefault(); el.classList.remove('dragover'); const f=e.dataTransfer.files[0]; if(f) uploadFlower(el,f); });
+    // 미리보기 로드
+    const n = el.dataset.flower;
+    const url = pubUrl('_shared/flower'+n+'.webp')+'?t='+Date.now();
+    const probe = new Image(); probe.onload=()=>paintSlot(el,url); probe.src=url;
+  });
+}
+async function uploadFlower(el, file){
+  const n = el.dataset.flower;
+  const path = '_shared/flower'+n+'.webp';
+  setSlotBadge(el,'busy','올리는 중');
+  const { error } = await supa.storage.from(BUCKET).upload(path, file, { upsert:true, contentType:'image/webp' });
+  if(error){ setSlotBadge(el,null); toast('꽃 '+n+' 실패: '+error.message,'bad'); return; }
+  paintSlot(el, pubUrl(path)+'?t='+Date.now());
+  setSlotBadge(el,'up','완료');
+  toast('꽃 '+n+' 올렸어요 (공용).','ok');
+}
+
+/* ── 글자 수 ── */
+function bindCharCounts(){
+  $('b_blurb').addEventListener('input', updateCharCounts);
+  $('b_intro').addEventListener('input', updateCharCounts);
+}
+function updateCharCounts(){
+  $('blurbCount').textContent = $('b_blurb').value.length;
+  $('introCount').textContent = $('b_intro').value.length;
+}
+
+/* ── 텍스트 저장 (popup_orgs upsert) ── */
+async function saveText(){
+  if(!CUR_ORG){ toast('출판사를 먼저 선택하세요.','bad'); return; }
+  const banner = [$('f_banner0').value.trim(), $('f_banner1').value.trim(), $('f_banner2').value.trim()].filter(Boolean);
+  const stores = {};
+  if($('s_aladin').value.trim()) stores.aladin=$('s_aladin').value.trim();
+  if($('s_kyobo').value.trim())  stores.kyobo =$('s_kyobo').value.trim();
+  if($('s_yes24').value.trim())  stores.yes24 =$('s_yes24').value.trim();
+  const book = {
+    title:  $('b_title').value.trim(),
+    author: $('b_author').value.trim(),
+    blurb:  $('b_blurb').value.trim(),
+    intro_body: $('b_intro').value.trim(),
+    cover:'cover.webp', back:'cover_back.webp',   // Storage 슬롯 규칙 (셸 전환 삽에서 {org}/ 접두사)
+    book_a:'book_a.webp', book_b:'book_b.webp',
+    stores
+  };
+  const lat = $('f_lat').value.trim(), lng = $('f_lng').value.trim();
+  const row = {
+    code: CUR_ORG,
+    name: $('f_name').value.trim() || CUR_ORG,
+    tier: $('f_tier').value,
+    city_ko: $('f_city_ko').value.trim() || '파리',
+    city_en: $('f_city_en').value.trim() || 'PARIS',
+    manager_id: $('f_manager').value.trim() || null,
+    lat: lat===''?null:parseFloat(lat),
+    lng: lng===''?null:parseFloat(lng),
+    banner: banner.length?banner:['신간','도착'],
+    books: [book]
+  };
+  toast('저장 중…','busy');
+  const { error } = await supa.from('popup_orgs').update(row).eq('code', CUR_ORG);
+  if(error){ toast('저장 실패: '+error.message,'bad'); return; }
+  toast('저장됐어요. 팝업 새로고침하면 반영됩니다.','ok');
+  loadOrgs(CUR_ORG);
+}
+</script>
+</body>
+</html>
