@@ -853,6 +853,11 @@ html:not(.edit-on) #bm-intro-btn{ display:none !important; }
  * ============================================================ */
 /* ⭐ (2)회차: ?org= URL 스위치 — 25개 출판사 복제 척추 (기본 munhak) */
 const ORG_CODE = (new URLSearchParams(location.search).get('org') || 'munhak').trim();
+/* ⭐ (2)회차 저녁 대전환: 이미지 = Supabase Storage 우물 (GitHub는 폴백)
+ * 경로 계약(v111 §3): {org}/{slot}.webp · 공용 _shared/flowerNN.webp
+ * SB_URL(1656행)은 뒤에 선언되므로 TDZ 회피 위해 여기서 베이스를 독립 상수로 둠 */
+const ST_BASE = 'https://cyhlotwdisjvoxvfkpnd.supabase.co/storage/v1/object/public/popup-assets/';
+const stUrl = p => ST_BASE + p;
 /* 아래는 문학동네 '씨앗'(폴백). loadOrg()가 DB(popup_orgs)에서 ORG_CODE를 로드해 덮어씀 */
 let POPUP = {
   city: '파리',
@@ -932,9 +937,14 @@ const TOD = todSuffix();
 function bgLadder(part){
   const C = POPUP.org.code;
   const base = `popup_${part}_${C}`;
-  const l = [`${base}_${TOD}.webp`];
-  if (TOD === 'n') l.push(`${base}_d.webp`);         // 밤판 없으면 '낮판'이 무접미사보다 우선
-  l.push(`${base}.webp`, `popup_${part}_01.webp`);   // 무접미사 → 옛 이름 (개명 전 호환)
+  const l = [];
+  /* ⭐ Storage 1순위 (새 우물): {org}/{part}_{TOD}.webp — 밤판 없으면 낮판 */
+  l.push(stUrl(`${C}/${part}_${TOD}.webp`));
+  if (TOD === 'n') l.push(stUrl(`${C}/${part}_d.webp`));
+  /* GitHub 폴백 (Storage에 파일 없으면 여기로 — 전환 중에도 안 깨짐) */
+  l.push(`${base}_${TOD}.webp`);
+  if (TOD === 'n') l.push(`${base}_d.webp`);          // 밤판 없으면 '낮판'이 무접미사보다 우선
+  l.push(`${base}.webp`, `popup_${part}_01.webp`);    // 무접미사 → 옛 이름 (개명 전 호환)
   return l;
 }
 /* 내부 3뷰: 사다리 순서대로 로드 시도 → 첫 성공을 물림 */
