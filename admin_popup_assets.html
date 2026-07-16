@@ -337,7 +337,17 @@ function bindSlot(el){
     const f = e.dataTransfer.files[0]; if(f) uploadSlot(el, f);
   });
 }
+/* 업로드 직전 세션 검문 — 토큰 없이 나가면 RLS에 막히므로 여기서 먼저 잡는다 */
+async function requireSession(){
+  const { data:{ session } } = await supa.auth.getSession();
+  if(!session){ toast('로그인 세션이 없어요 — 은교살롱(index)에서 로그인한 같은 창으로 열어 주세요. (시크릿 창은 세션이 격리됩니다)','bad'); return null; }
+  if(session.expires_at && session.expires_at*1000 < Date.now()){
+    toast('로그인 토큰이 만료됐어요 — 은교살롱에서 다시 로그인 후 이 페이지를 새로고침해 주세요.','bad'); return null;
+  }
+  return session;
+}
 async function uploadSlot(el, file){
+  if(!await requireSession()) return;
   const slot = el.dataset.slot;
   const path = CUR_ORG + '/' + slot + '.webp';
   setSlotBadge(el,'busy','올리는 중');
@@ -398,6 +408,7 @@ function buildFlowerHost(){
   });
 }
 async function uploadFlower(el, file){
+  if(!await requireSession()) return;
   const n = el.dataset.flower;
   const path = '_shared/flower'+n+'.webp';
   setSlotBadge(el,'busy','올리는 중');
