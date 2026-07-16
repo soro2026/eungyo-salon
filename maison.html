@@ -293,6 +293,8 @@
     display:none;overflow:hidden;
   }
   #doorway.in{display:block}
+  #doorway.popup .door-half{display:none}
+  #doorway.popup #doorHint{display:none}
   #doorFrame{
     position:absolute;inset:0;width:100%;height:100%;border:0;z-index:1;
     background:#0a0e1a;
@@ -561,7 +563,7 @@ const HEMINGWAY = {
 
 let viewer, orbiting=false, orbitHeading=0, orbitCenter=null, orbitRange=1000, orbitTick=null, activeIdx=-1;
 let CITIES=[], currentCity='paris';
-let currentMaison=null, doorState='closed';
+let currentMaison=null, currentPopup=null, doorState='closed';
 let showSpots=false, showMaisons=true;   // maison: 콩파뇽 집 켜짐, 인물 장소 꺼짐(원하면 토글)
 let IS_ADMIN=false, EDIT_MODE=false, selEnt=null, MOVING=false;   // admin 좌표 편집
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
@@ -640,6 +642,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   viewer.scene.screenSpaceCameraController.minimumZoomDistance = 60;   // 지표 60m 위까지만
   await loadCityMarkers('paris');   // 도시 핀(인물 장소)
   await loadMaisons('paris');       // EG메종 집 핀 (옐로 라벨)
+  await loadPopups('paris');        // 출판사 팝업 명패 핀
   loadCityList();
   document.getElementById("cityBtn").addEventListener("click", ()=> { toggleStarList(false); toggleCityList(); });
   loadStarList();
@@ -659,12 +662,13 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
     if (Cesium.defined(picked) && picked.id){
       if (picked.id._spot) openStory(picked.id._spot);
       else if (picked.id._maison) openMaison(picked.id._maison);
+      else if (picked.id._popup) openPopup(picked.id._popup);
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
   let hoveredEnt = null;
   handler.setInputAction((mv)=>{
     const picked = viewer.scene.pick(mv.endPosition);
-    const ent = (Cesium.defined(picked) && picked.id && (picked.id._maison || picked.id._spot)) ? picked.id : null;
+    const ent = (Cesium.defined(picked) && picked.id && (picked.id._maison || picked.id._spot || picked.id._popup)) ? picked.id : null;
     if (ent === hoveredEnt) return;
     if (hoveredEnt && hoveredEnt.point) hoveredEnt.point.pixelSize = hoveredEnt._basePx || 9;
     if (ent && ent.point){
@@ -721,6 +725,7 @@ function buildJourney(){
     if (Cesium.defined(picked) && picked.id){
       if (picked.id._spot) openStory(picked.id._spot);
       else if (picked.id._maison) openMaison(picked.id._maison);
+      else if (picked.id._popup) openPopup(picked.id._popup);
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
@@ -728,7 +733,7 @@ function buildJourney(){
   let hoveredEnt = null;
   handler.setInputAction((mv)=>{
     const picked = viewer.scene.pick(mv.endPosition);
-    const ent = (Cesium.defined(picked) && picked.id && (picked.id._maison || picked.id._spot)) ? picked.id : null;
+    const ent = (Cesium.defined(picked) && picked.id && (picked.id._maison || picked.id._spot || picked.id._popup)) ? picked.id : null;
     if (ent === hoveredEnt) return;
     if (hoveredEnt && hoveredEnt.point) hoveredEnt.point.pixelSize = hoveredEnt._basePx || 9;
     if (ent && ent.point){
@@ -846,6 +851,124 @@ async function loadMaisons(city){
   applyLayerVisibility();   // 새로 띄운 마커에 현재 토글 상태 반영
 }
 
+// ══════════════════════════════════════════════════════════════════
+//  EG 팝업스토어 핀 — 출판사 명패(로고 배지)를 지구에 세운다.
+//  · 색: pin_color 지정값 우선 → 없으면 code 해시로 짙은 팔레트에서 고정 배정
+//        (같은 출판사는 세계 어느 도시에서나 늘 같은 색 = 브랜드 정체성)
+//  · 명패: 가로 라운드 사각 + 금박 테두리 + 아래 삼각 꼭지(좌표를 가리킴)
+//         짙은 바탕에 흰 로고를 여백 두고 합성 (Storage {org}/logo.webp)
+//  · 진입: 핀 클릭 → doorway에 셸 iframe 직행(문짝 연출 없음 = 셸 gate가 곧 대문)
+// ══════════════════════════════════════════════════════════════════
+const POPUP_ST_BASE = SUPA_URL + "/storage/v1/object/public/popup-assets/";
+// 흰 로고가 또렷이 빛나는 짙은 색만 (밝은 바탕 금지 — 흰 로고가 묻힘)
+const POPUP_PALETTE = ["#6e1f2a","#1f2d4e","#1e3f2f","#45254a","#2b2b30","#16413f","#3d2817","#3a1f3d"];
+function popupColor(p){
+  if (p.pin_color) return p.pin_color;                 // 소로 지정색이 있으면 최우선(세계 공통 고정)
+  let h = 0; const c = p.code || "";
+  for (let i=0;i<c.length;i++){ h = (h*31 + c.charCodeAt(i)) >>> 0; }
+  return POPUP_PALETTE[h % POPUP_PALETTE.length];       // 코드 해시 → 결정론적 자동색
+}
+function loadPopupImg(url){
+  return new Promise((res)=>{
+    const im = new Image();
+    im.crossOrigin = "anonymous";                       // 캔버스 합성 위해 CORS 요청
+    im.onload  = ()=> res(im);
+    im.onerror = ()=> res(null);                        // 실패 시 null → 텍스트 폴백
+    im.src = url;
+  });
+}
+// 명패 캔버스 한 장을 그려 반환 (billboard image로 사용)
+function makePopupPlate(bgColor, logoImg){
+  const DPR = 2, W = 220, H = 92, TIP = 15, r = 14, pad = 22;
+  const cv = document.createElement("canvas");
+  cv.width = W*DPR; cv.height = (H+TIP)*DPR;
+  const g = cv.getContext("2d");
+  g.scale(DPR, DPR);
+  // 본체(라운드 사각) + 아래 중앙 삼각 꼭지
+  g.beginPath();
+  g.moveTo(r,0); g.lineTo(W-r,0); g.arcTo(W,0,W,r,r);
+  g.lineTo(W,H-r); g.arcTo(W,H,W-r,H,r);
+  g.lineTo(W/2+TIP,H); g.lineTo(W/2,H+TIP); g.lineTo(W/2-TIP,H);
+  g.lineTo(r,H); g.arcTo(0,H,0,H-r,r);
+  g.lineTo(0,r); g.arcTo(0,0,r,0,r);
+  g.closePath();
+  // 은은한 그림자 → 위성 이미지 위에서 떠 보이게
+  g.save(); g.shadowColor = "rgba(0,0,0,.55)"; g.shadowBlur = 8; g.shadowOffsetY = 3;
+  g.fillStyle = bgColor; g.fill(); g.restore();
+  // 금박 테두리
+  g.lineWidth = 2; g.strokeStyle = "#c9a227"; g.stroke();
+  // 흰 로고를 여백 두고 중앙 정렬(본래 비율 유지)
+  if (logoImg && logoImg.width){
+    const availW = W - pad*2, availH = H - pad*1.1;
+    const ar = logoImg.width / logoImg.height;
+    let lw = availW, lh = lw/ar;
+    if (lh > availH){ lh = availH; lw = lh*ar; }
+    g.drawImage(logoImg, (W-lw)/2, (H-lh)/2 - TIP*0.25, lw, lh);
+  }
+  return cv;
+}
+// ─── EG 팝업 핀을 DB(get_popups)에서 읽어 지구에 세움 ───
+async function loadPopups(city){
+  let rows = [];
+  try{
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_popups", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
+      body: JSON.stringify({ p_city: city })
+    });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    rows = await res.json();
+  }catch(e){ console.warn("팝업 로드 실패:", e); return; }
+
+  const near = new Cesium.DistanceDisplayCondition(0, 60000);   // 60km 이내에서만
+  for (const p of rows){
+    const bg = popupColor(p);
+    const logo = await loadPopupImg(POPUP_ST_BASE + p.code + "/logo.webp");
+    const plate = makePopupPlate(bg, logo);
+    const ent = viewer.entities.add({
+      id: "popup-"+city+"-"+p.code,
+      position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),    // height 생략 → 표면 클램프 대상
+      billboard: {
+        image: plate,
+        scale: 0.5,
+        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,           // 삼각 꼭지 끝이 좌표를 가리킴
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        distanceDisplayCondition: near
+      },
+      // 로고 합성 실패 시에만 이름 텍스트로 폴백
+      label: (logo && logo.width) ? undefined : {
+        text: p.name || p.code,
+        font: "bold 14px 'Nanum Myeongjo',Georgia,serif",
+        fillColor: Cesium.Color.WHITE,
+        showBackground: true,
+        backgroundColor: Cesium.Color.fromCssColorString(bg).withAlpha(.96),
+        backgroundPadding: new Cesium.Cartesian2(12,7),
+        pixelOffset: new Cesium.Cartesian2(0,-16),
+        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        distanceDisplayCondition: near
+      }
+    });
+    ent._popup = p;   // 클릭 시 openPopup이 꺼내 씀
+  }
+  await clampSpotsToSurface();
+  applyLayerVisibility();
+}
+// 팝업 핀 클릭 → doorway에 셸을 iframe으로 직행(문짝 없음). 렌더 정지=과금 0.
+function openPopup(p){
+  closeStory(); closeMaison();
+  currentPopup = p;
+  viewer.useDefaultRenderLoop = false;
+  const dw = document.getElementById("doorway");
+  document.getElementById("doorTitle").textContent = (p.name||"") + (p.city_ko ? " · "+p.city_ko : "");
+  const dp = document.getElementById("doorPick"); if (dp) dp.style.display = "none";
+  const ep = document.getElementById("elevPick"); if (ep) ep.style.display = "none";
+  document.getElementById("doorFrame").src = "popup_shell_v0_4.html?org=" + encodeURIComponent(p.code) + "&v=" + Date.now();
+  dw.classList.add("popup","in","open");   // popup=문짝 숨김 / open=열린 상태로 iframe 노출
+  doorState = 'open';
+}
+
+
 // 레이어 토글 — 인물 장소(_spot)와 콩파뇽 집(_maison)을 켜고 끔
 function applyLayerVisibility(){
   viewer.entities.values.forEach(e=>{
@@ -898,10 +1021,11 @@ async function jumpToCity(c){
   closeStory();
   closeMaison();
   // 이전 도시 마커 제거 (큐레이션 핀 + 메종 핀 둘 다, slice로 복제 후 제거)
-  viewer.entities.values.filter(e=>e._spot || e._maison).slice().forEach(e=> viewer.entities.remove(e));
+  viewer.entities.values.filter(e=>e._spot || e._maison || e._popup).slice().forEach(e=> viewer.entities.remove(e));
   // 새 도시 마커를 먼저 로드 — 1호 핀 좌표를 잡고 표면 클램프(함수 내부)까지 끝낸 뒤 비행
   await loadCityMarkers(c.city);
   await loadMaisons(c.city);
+  await loadPopups(c.city);
 
   // 1호 핀(가장 먼저 입주한 곳 = id 최소)을 중심점으로. 핀이 없으면 도시 중심.
   let lng = c.center_lng, lat = c.center_lat;
@@ -989,9 +1113,10 @@ async function jumpToStarPlace(starId){
     currentCity = rep.city;
     if (typeof renderCityList === 'function') renderCityList();
     if (typeof renderStarList === 'function') renderStarList();
-    viewer.entities.values.filter(e=>e._spot || e._maison).slice().forEach(e=> viewer.entities.remove(e));
+    viewer.entities.values.filter(e=>e._spot || e._maison || e._popup).slice().forEach(e=> viewer.entities.remove(e));
     await loadCityMarkers(rep.city);
     await loadMaisons(rep.city);
+    await loadPopups(rep.city);
   }
 
   const lng = rep.lng, lat = rep.lat, r = rep.cam_range || 1000;
@@ -1159,7 +1284,7 @@ function exitDoorway(){
     location.href = 'index.html'; return;
   }
   const dw = document.getElementById("doorway");
-  dw.classList.remove("in", "open");
+  dw.classList.remove("in", "open", "popup");
   document.getElementById("doorFrame").src = "about:blank";
   doorState = 'closed';
   viewer.useDefaultRenderLoop = true;           // 지구 렌더 재개(재진입 과금 0)
@@ -1168,7 +1293,7 @@ function exitDoorway(){
 // 마커를 실사 3D 타일(또는 지형) 표면 높이에 정확히 앉힘 — 비스듬한 각도에서도 안 어긋나게
 async function clampSpotsToSurface(){
   if (!viewer.scene.clampToHeightMostDetailed) return;       // 구버전 안전장치
-  const ents = viewer.entities.values.filter(e => e._spot || e._maison);
+  const ents = viewer.entities.values.filter(e => e._spot || e._maison || e._popup);
   if (!ents.length) return;
   const now = Cesium.JulianDate.now();
   const carts = ents.map(e => e.position.getValue(now));
