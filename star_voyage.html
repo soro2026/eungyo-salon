@@ -295,6 +295,8 @@
     display:none;overflow:hidden;
   }
   #doorway.in{display:block}
+  #doorway.popup .door-half{display:none}
+  #doorway.popup #doorHint{display:none}
   #doorFrame{
     position:absolute;inset:0;width:100%;height:100%;border:0;z-index:1;
     background:#0a0e1a;
@@ -503,7 +505,7 @@ const HEMINGWAY = {
 let viewer, orbiting=false, orbitHeading=0, orbitCenter=null, orbitRange=1000, orbitTick=null, activeIdx=-1;
 let CITIES=[], currentCity='paris';
 let STARS_LIST=[];   // 여행 준비된 인물 목록 (맵 안 전환용)
-let currentMaison=null, doorState='closed';
+let currentMaison=null, currentPopup=null, doorState='closed';
 let showSpots=true, showMaisons=false;   // voyage: 인물 장소 켜짐, 콩파뇽 집 꺼짐(토글로 켬)
 let IS_ADMIN=false, EDIT_MODE=false, selEnt=null, MOVING=false;   // admin 좌표 편집
 let STAR_ID = new URLSearchParams(location.search).get('id') || '116';
@@ -574,6 +576,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   await loadRep();                  // 별의 대표 1점 + 인물명 로드 → REP_CITY 결정
   await loadCityMarkers(null);  // 모든 도시의 큐레이션 핀 (60km 거리조건 → 가까이서만 떠오름)
   await loadMaisons(null);      // 모든 EG메종 집 핀
+  await loadPopups(null);       // 모든 출판사 팝업 핀
   loadCityList();
   loadStarList();
   document.getElementById("cityBtn").addEventListener("click", ()=> { toggleStarList(false); toggleCityList(); });
@@ -595,12 +598,13 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
     if (Cesium.defined(picked) && picked.id){
       if (picked.id._spot) openStory(picked.id._spot);
       else if (picked.id._maison) openMaison(picked.id._maison);
+      else if (picked.id._popup) openPopup(picked.id._popup);
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
   let hoveredEnt = null;
   handler.setInputAction((mv)=>{
     const picked = viewer.scene.pick(mv.endPosition);
-    const ent = (Cesium.defined(picked) && picked.id && (picked.id._maison || picked.id._spot)) ? picked.id : null;
+    const ent = (Cesium.defined(picked) && picked.id && (picked.id._maison || picked.id._spot || picked.id._popup)) ? picked.id : null;
     if (ent === hoveredEnt) return;
     if (hoveredEnt && hoveredEnt.point) hoveredEnt.point.pixelSize = hoveredEnt._basePx || 9;
     if (ent && ent.point){
@@ -657,6 +661,7 @@ function buildJourney(){
     if (Cesium.defined(picked) && picked.id){
       if (picked.id._spot) openStory(picked.id._spot);
       else if (picked.id._maison) openMaison(picked.id._maison);
+      else if (picked.id._popup) openPopup(picked.id._popup);
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
@@ -664,7 +669,7 @@ function buildJourney(){
   let hoveredEnt = null;
   handler.setInputAction((mv)=>{
     const picked = viewer.scene.pick(mv.endPosition);
-    const ent = (Cesium.defined(picked) && picked.id && (picked.id._maison || picked.id._spot)) ? picked.id : null;
+    const ent = (Cesium.defined(picked) && picked.id && (picked.id._maison || picked.id._spot || picked.id._popup)) ? picked.id : null;
     if (ent === hoveredEnt) return;
     if (hoveredEnt && hoveredEnt.point) hoveredEnt.point.pixelSize = hoveredEnt._basePx || 9;
     if (ent && ent.point){
@@ -1034,16 +1039,81 @@ function openDoor(){
 // 나가기 → 오버레이 닫고 voyage 렌더 재개
 function exitDoorway(){
   const dw = document.getElementById("doorway");
-  dw.classList.remove("in", "open");
+  dw.classList.remove("in", "open", "popup");
+  { const _ex = document.getElementById("doorExit"); if (_ex) _ex.textContent = "× 나가기"; }   // 기본 문패 원복
   document.getElementById("doorFrame").src = "about:blank";
   doorState = 'closed';
   viewer.useDefaultRenderLoop = true;           // 지구 렌더 재개(재진입 과금 0)
 }
 
+// ══════════════════════════════════════════════════════════════════
+//  EG 팝업스토어 핀 — 출판사 이름표(고유색) + 좌표점, 클릭 시 셸 iframe 진입
+//  (maison.html과 동일 문법 · 두 관문 일관 유지)
+// ══════════════════════════════════════════════════════════════════
+const POPUP_PALETTE = ["#c0392b","#2980b9","#8e44ad","#16a085","#d35400","#2c3e9e","#c0398a","#1e8449"];
+function popupColor(p){
+  if (p.pin_color) return p.pin_color;                 // 소로 지정색 최우선(세계 공통 고정)
+  let h = 0; const c = p.code || "";
+  for (let i=0;i<c.length;i++){ h = (h*31 + c.charCodeAt(i)) >>> 0; }
+  return POPUP_PALETTE[h % POPUP_PALETTE.length];       // 코드 해시 → 결정론적 자동색
+}
+async function loadPopups(city){
+  let rows = [];
+  try{
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_popups", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
+      body: JSON.stringify({ p_city: city })
+    });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    rows = await res.json();
+  }catch(e){ console.warn("팝업 로드 실패:", e); return; }
+  const near = new Cesium.DistanceDisplayCondition(0, 60000);
+  for (const p of rows){
+    const bg = popupColor(p);   // 출판사 고유색 (pin_color 지정값 → 없으면 코드 해시)
+    const ent = viewer.entities.add({
+      id: "popup-"+city+"-"+p.code,
+      position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),
+      point:{ pixelSize:9, color:Cesium.Color.fromCssColorString(bg),
+              outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
+              disableDepthTestDistance:Number.POSITIVE_INFINITY,
+              distanceDisplayCondition:near },   // 다른 핀과 같은 원 + 고유색 · 호버 부풀기 자동
+      label: {
+        text: p.name || p.code,
+        font: "bold 14px 'Helvetica Neue',Arial,sans-serif",   // 메종(13px)보다 한 급 큼
+        fillColor: Cesium.Color.WHITE,
+        outlineColor: Cesium.Color.fromCssColorString("#0a0e1a"),
+        outlineWidth: 3,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,             // 흰 글씨 + 검은 테두리 = 어디서나 또렷
+        showBackground: true,
+        backgroundColor: Cesium.Color.fromCssColorString(bg).withAlpha(.95),   // 출판사 고유 컬러풀 바탕
+        backgroundPadding: new Cesium.Cartesian2(11,6),
+        pixelOffset: new Cesium.Cartesian2(0,-12),
+        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        distanceDisplayCondition: near
+      }
+    });
+    ent._popup = p;   // 클릭 시 openPopup이 꺼내 씀
+  }
+  await clampSpotsToSurface();
+  applyLayerVisibility();
+}
+function openPopup(p){
+  closeStory(); closeMaison();
+  currentPopup = p;
+  viewer.useDefaultRenderLoop = false;
+  document.getElementById("doorTitle").textContent = (p.name||"") + (p.city_ko ? " · "+p.city_ko : "");
+  const ex = document.getElementById("doorExit"); if (ex) ex.textContent = "× 도시로 나가기";   // 팝업은 도시로 나감
+  document.getElementById("doorFrame").src = "popup_shell_v0_4.html?org=" + encodeURIComponent(p.code) + "&v=" + Date.now();
+  document.getElementById("doorway").classList.add("popup","in","open");   // popup=문짝 숨김 / open=iframe 노출
+  doorState = 'open';
+}
+
 // 마커를 실사 3D 타일(또는 지형) 표면 높이에 정확히 앉힘 — 비스듬한 각도에서도 안 어긋나게
 async function clampSpotsToSurface(){
   if (!viewer.scene.clampToHeightMostDetailed) return;       // 구버전 안전장치
-  const ents = viewer.entities.values.filter(e => e._spot || e._maison);
+  const ents = viewer.entities.values.filter(e => e._spot || e._maison || e._popup);
   if (!ents.length) return;
   const now = Cesium.JulianDate.now();
   const carts = ents.map(e => e.position.getValue(now));
