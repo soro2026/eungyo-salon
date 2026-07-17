@@ -363,7 +363,8 @@ html:not(.edit-on) #bm-intro-btn{ display:none !important; }
   -webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);
   mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);
 }
-.hall-stage.editing .hall-ticker{ pointer-events:none; }  /* 편집 중 드래그 방해 금지 */
+.hall-stage.editing .hall-ticker{ pointer-events:auto; cursor:ns-resize;
+  outline:2px dashed rgba(212,165,72,.7); outline-offset:3px; }  /* 0717: 편집 중 티커 위치 드래그 */
 .tk-track{
   display:inline-flex; align-items:center; white-space:nowrap;
   animation:tickerFlow 90s linear infinite; will-change:transform;
@@ -905,6 +906,23 @@ function defaultHallBooks(){
 }
 let HALL_BOOKS = defaultHallBooks();
 
+/* ═══ 0717 ③ 편집 DB 직결 — 소로가 저장하면 popup_orgs.layout에 바로 정착 ═══
+ * dbSaveLayout(view, data): 드래그 연타 중 스팸 방지 디바운스 0.7초. 실패는 콘솔 경고(화면 방해 X).
+ * TICKER_TOP: 홀 티커 top(%). null = 기존 자동(진열 발밑). DB layout.hall.ticker.top이 채움. */
+let TICKER_TOP = null;
+const _dbSaveTimers = {};
+function dbSaveLayout(view, data){
+  clearTimeout(_dbSaveTimers[view]);
+  _dbSaveTimers[view] = setTimeout(async () => {
+    if (!sb) return;
+    try {
+      const { data:res, error } = await sb.rpc('wk_save_popup_layout',
+        { p_org: POPUP.org.code, p_view: view, p_data: data });
+      if (error || !(res && res.ok)) console.warn('[layout] DB 저장 실패:', view, (error && error.message) || (res && res.err));
+    } catch(e){ console.warn('[layout] DB 저장 오류:', view, e && e.message); }
+  }, 700);
+}
+
 /* ============================================================
  *  ⭐ 시간축 (0715저녁 소로 확정) — 한국 하늘의 실제 일출·일몰로 낮/밤 그림 자동 선택
  *  배경 2벌: popup_*_{org}_d.webp(낮) / popup_*_{org}_n.webp(밤)
@@ -1077,7 +1095,16 @@ let WALL_ITEMS = defaultWallItems();
   const valEl= document.getElementById('wall-val');
   window.wallEditing = wallEditing;
 
-  function save(){ try { localStorage.setItem(KEY, JSON.stringify({ v:WALL_V, items:WALL_ITEMS })); } catch(_){} }
+  function save(){
+    try { localStorage.setItem(KEY, JSON.stringify({ v:WALL_V, items:WALL_ITEMS })); } catch(_){}
+    dbSaveLayout('wall', { v: WALL_V, items: WALL_ITEMS });   /* 0717 ③ DB 직결 */
+  }
+  /* 0717: loadOrg가 DB layout.wall을 적용. 없으면 씨앗 기본값으로 리셋(타 org localStorage 오염 방지) */
+  window.applyWallDBLayout = function(saved){
+    if (saved && saved.v === WALL_V && saved.items && saved.items.frame) WALL_ITEMS = saved.items;
+    else WALL_ITEMS = defaultWallItems();
+    if (window.renderWall) renderWall();
+  };
   function getSel(){
     if (sel === 'frame') return WALL_ITEMS.frame;
     if (sel === 'book')  return WALL_ITEMS.book;
@@ -1266,7 +1293,17 @@ gate.addEventListener('click', () => {
     Object.keys(ITEMS).forEach(x => ITEMS[x].el.classList.toggle('selected', x===k));
     apply();
   }
-  function save(){ try { localStorage.setItem(KEY, JSON.stringify(pos)); } catch(_){} }
+  function save(){
+    try { localStorage.setItem(KEY, JSON.stringify(pos)); } catch(_){}
+    dbSaveLayout('gate', pos);   /* 0717 ③ DB 직결 */
+  }
+  /* 0717: loadOrg가 DB layout.gate를 적용. 없으면 씨앗 기본값으로 리셋 */
+  window.applyGateDBLayout = function(saved){
+    Object.keys(ITEMS).forEach(k => {
+      pos[k] = (saved && saved[k]) ? { ...ITEMS[k].def, ...saved[k] } : { ...ITEMS[k].def };
+    });
+    apply();
+  };
   apply(); select('sign');
 
   btn.addEventListener('click', ()=>{
@@ -1366,8 +1403,9 @@ function renderHall(){
   const book = POPUP.org.books[0];
   /* 티커 = 진열 최하단 발밑 아래 패널에 자동 안착 (0716) */
   const tkEl = document.getElementById('hall-ticker');
-  if (tkEl && HALL_BOOKS.length){
-    tkEl.style.top = (Math.max(...HALL_BOOKS.map(b=>b.y)) + 2.8) + '%';
+  if (tkEl && (TICKER_TOP != null || HALL_BOOKS.length)){
+    tkEl.style.top = (TICKER_TOP != null ? TICKER_TOP
+                      : (Math.max(...HALL_BOOKS.map(b=>b.y)) + 2.8)) + '%';
   }
   HALL_BOOKS.forEach((b, bi) => {
     const el = document.createElement('div');
@@ -1405,7 +1443,40 @@ let hallEditing = false, hallSel = 0;
   } catch(_){}
   try { localStorage.removeItem('popup_hall_rows_' + POPUP.org.code); } catch(_){}  // 구모델 키 청소
 
-  function save(){ try { localStorage.setItem(KEY, JSON.stringify({ v: ROWS_V, books: HALL_BOOKS })); } catch(_){} }
+  function save(){
+    try { localStorage.setItem(KEY, JSON.stringify({ v: ROWS_V, books: HALL_BOOKS })); } catch(_){}
+    dbSaveLayout('hall', { v: ROWS_V, books: HALL_BOOKS,
+      ticker: (TICKER_TOP != null ? { top: TICKER_TOP } : null) });   /* 0717 ③ DB 직결 */
+  }
+  /* 0717: loadOrg가 DB layout.hall을 적용. 없으면 씨앗 기본값으로 리셋 */
+  window.applyHallDBLayout = function(saved){
+    if (saved && saved.v === ROWS_V && Array.isArray(saved.books) && saved.books.length) HALL_BOOKS = saved.books;
+    else HALL_BOOKS = defaultHallBooks();
+    TICKER_TOP = (saved && saved.ticker && typeof saved.ticker.top === 'number') ? saved.ticker.top : null;
+    renderHall();
+  };
+  /* 0717 소로: 편집 모드에서 티커를 위 벽으로 — 세로 드래그 → TICKER_TOP → save()가 DB까지 */
+  (function(){
+    const tk = document.getElementById('hall-ticker');
+    if (!tk) return;
+    tk.addEventListener('mousedown', (e) => {
+      if (!hallEditing) return;
+      e.preventDefault(); e.stopPropagation();
+      const r = stage.getBoundingClientRect();
+      const move = (ev) => {
+        TICKER_TOP = Math.min(96, Math.max(2, ((ev.clientY - r.top) / r.height) * 100));
+        tk.style.top = TICKER_TOP.toFixed(1) + '%';
+        valEl.textContent = `방명록 티커  top:${TICKER_TOP.toFixed(1)}%  (세로 드래그)`;
+      };
+      const up = () => {
+        document.removeEventListener('mousemove', move);
+        document.removeEventListener('mouseup', up);
+        save();
+      };
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', up);
+    });
+  })();
   function refresh(){
     renderHall();
     if (!HALL_BOOKS.length){ valEl.textContent = '진열 없음 — 되돌리기로 복원'; return; }
@@ -1779,7 +1850,10 @@ try {
   if (s && s.v === BFACE_V && s.face) BOARD_FACE = s.face;
   else if (s) localStorage.removeItem(BFACE_KEY);
 } catch(_){}
-function saveBFace(){ try { localStorage.setItem(BFACE_KEY, JSON.stringify({v:BFACE_V, face:BOARD_FACE})); } catch(_){} }
+function saveBFace(){
+  try { localStorage.setItem(BFACE_KEY, JSON.stringify({v:BFACE_V, face:BOARD_FACE})); } catch(_){}
+  dbSaveLayout('board', { v: BFACE_V, face: BOARD_FACE });   /* 0717 ③ DB 직결 */
+}
 
 /* ── board 렌더: 최신=좌상단, 한 칸씩 밀림, 넘치면 페이지 ── */
 let boardPage = 0;
@@ -1820,7 +1894,7 @@ function renderTicker(){
   const secs = Math.max(46, notes.length * 16);        /* 글 수에 비례, 최저 46s — 강물 */
   tk.style.animationDuration = secs + 's';
 }
-document.getElementById('hall-ticker').addEventListener('click', ()=> showView(2));
+document.getElementById('hall-ticker').addEventListener('click', ()=> { if (!hallEditing) showView(2); });
 
 /* ── 쓰기 레이어 (배관 시: postNote 안 한 줄을 Supabase insert로) ── */
 function openWriteLayer(){ document.getElementById('bw-layer').classList.add('on'); document.getElementById('bw-text').focus(); }
@@ -1870,12 +1944,28 @@ async function loadOrg(){
         applyOrgChrome();
         if (window.applyGateLogo) applyGateLogo();   /* 로고 이미지 갈아입힘 (org 스위치) */
         if (window.applyWallAuthor) applyWallAuthor();
-        if (window.renderWall) renderWall();
-        renderHall();   /* 0717: 홀 진열도 org 전환 반영 (누락 버그 수복 — book_a/b는 storageAsset이 org별로 물림) */
+        /* 0717 ③: DB layout 적용 (뷰 4벌). 없으면 각 훅이 씨앗 기본값으로 리셋 — 타 org 오염 방지 */
+        const LY = (data.layout && typeof data.layout === 'object') ? data.layout : {};
+        if (window.applyGateDBLayout) applyGateDBLayout(LY.gate);
+        if (window.applyWallDBLayout) applyWallDBLayout(LY.wall); else if (window.renderWall) renderWall();
+        if (window.applyHallDBLayout) applyHallDBLayout(LY.hall); else renderHall();
+        if (LY.board && LY.board.v === BFACE_V && LY.board.face){ BOARD_FACE = LY.board.face; }
+        else { BOARD_FACE = defaultBoardFace(); }
+        renderBoard();
       }
     } catch(e){ console.error('[popup_orgs] 로드 오류 — 씨앗 유지:', e && e.message); }
   }
   await loadNotes();   /* org 확정 후 방명록 (org·CUR_BOOK 최신 반영) */
+  /* 0717 ②: 소로(관리자)·org 매니저 로그인 시 편집 버튼 자동 노출. ?edit 수동 게이트도 유지 */
+  try {
+    if (sb){
+      const { data:{ user } } = await sb.auth.getUser();
+      if (user){
+        const { data: ok } = await sb.rpc('can_edit_popup', { p_org: POPUP.org.code });
+        if (ok === true) document.documentElement.classList.add('edit-on');
+      }
+    }
+  } catch(_){}
 }
 
 renderBoard(); renderTicker();   /* 빈 상태 즉시 (구조 먼저) */
