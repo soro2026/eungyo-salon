@@ -1607,7 +1607,7 @@ document.addEventListener('keydown', e=>{ if (e.key==='Escape'){
   else if (modal.classList.contains('open')) closeBook();
 }});
 /* 액션바 */
-document.getElementById('bm-wk-btn').addEventListener('click', ()=> currentBook && enterRaffle(currentBook.title));
+document.getElementById('bm-wk-btn').addEventListener('click', ()=> currentBook && enterWunderkammer(currentBook));
 document.getElementById('bm-store-btn').addEventListener('click', ()=> currentBook && openStores(currentBook.stores, currentBook.title));
 
 /* ═══ 소개 입력 (살롱지기 전용) — 로컬 저장 + 값 복사로 코드 고정 ═══ */
@@ -1643,9 +1643,25 @@ document.getElementById('ie-copy').addEventListener('click', ()=>{
   alert('소개 값 (복사됨):\n\n' + js.slice(0, 400) + (js.length>400?'\n…':'') + '\n\n파이스에게 전달하면 코드에 고정합니다.');
 });
 
-/* ---- 분더카머 들이기 → 이벤트 도서 5권 추첨 응모 (UI만, 배관 후속) ---- */
-function enterRaffle(title){
-  alert(`「${title}」을(를) 내 분더카머 3층 서재에 들였습니다.\n\n+ 이벤트 도서 5권 추첨 응모권 1매 (행사 종료일 추첨 → 당첨자 실물 발송)\n\n※ 헤리티지 응모 티켓 유닛 재활용 · 추첨 배관은 후속 작업`);
+/* ---- 분더카머 들이기 → 3층 서재 최우선 칸(seq 0)에 실제 소장 (0717, 응모 유닛 폐기) ---- */
+async function enterWunderkammer(book){
+  if (!sb){ alert('연결이 잠시 불안정합니다. 새로고침 후 다시 시도해 주세요.'); return; }
+  const btn = document.getElementById('bm-wk-btn');
+  if (btn) btn.disabled = true;
+  try{
+    const cover = book.cover ? storageAsset(book.cover) : null;   // 홀 진열과 같은 해석 → 실패시 원값
+    const { data, error } = await sb.rpc('wk_add_popup_book', {
+      p_title: book.title, p_author: book.author || null,
+      p_publisher: POPUP.org.name || null, p_cover_url: cover
+    });
+    if (error) throw error;
+    if (data === 'login_required'){ alert('로그인 후 들일 수 있습니다.'); return; }
+    if (data === 'moved_front'){ alert(`「${book.title}」은 이미 서재에 있어, 맨 앞 칸으로 옮겨 두었습니다.`); return; }
+    alert(`「${book.title}」을(를) 내 분더카머 3층 서재\n맨 앞 칸에 들였습니다. 📚`);
+  }catch(e){
+    console.warn('[popup] 들이기 실패:', e);
+    alert('들이기에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+  }finally{ if (btn) btn.disabled = false; }
 }
 
 /* ---- 온라인 서점 (모달 끝 + 팝업 한쪽 버튼) ---- */
