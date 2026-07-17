@@ -150,6 +150,10 @@ html:not(.edit-on) #bm-intro-btn{ display:none !important; }
 .gate-sign.has-logo .logo-img{ display:block; }
 .gate-sign.has-logo .logo-txt,
 .gate-sign.has-logo .logo-sub{ display:none; }
+/* 0717: 로고 로드 판가름 전까지 텍스트 침묵 — 이름 텍스트가 찰나 번쩍이는 것 소멸.
+ *   로고 성공 → has-logo가 숨김 유지 / 로고 전부 실패 → pending 해제되어 텍스트 등판 */
+.gate-sign.logo-pending .logo-txt,
+.gate-sign.logo-pending .logo-sub{ opacity:0; }
 .gate-sign .logo-txt{
   font-family:'Playfair Display',serif; font-weight:900;
   font-size:calc(34px * var(--sign-scale)); color:var(--paris-glow);
@@ -1076,7 +1080,9 @@ let WALL_ITEMS = defaultWallItems();
       b.className = 'wall-bigbook';
       b.style.left = it.book.x + '%'; b.style.top = it.book.y + '%';
       b.style.height = it.book.h + '%'; b.style.zIndex = 8;
-      b.innerHTML = `<img src="${storageAsset(BOOK_IMG_FRONT)}" data-fb="${BOOK_IMG_FRONT}" alt="${book.title}" onerror="if(this.dataset.fb){this.src=this.dataset.fb;this.removeAttribute('data-fb');}">`;
+      const spreadUrl = stUrl(POPUP.org.code + '/spread.webp');   /* 0717: 펼침 입체표지(앞+책등+뒤) 1순위 */
+      const frontUrl  = storageAsset(BOOK_IMG_FRONT);              /* 폴백1: 기존 입체 앞표지 {org}/book_a */
+      b.innerHTML = `<img src="${spreadUrl}" data-fb="${frontUrl}" data-fb2="${BOOK_IMG_FRONT}" alt="${book.title}" onerror="if(this.dataset.fb){this.src=this.dataset.fb;this.removeAttribute('data-fb');}else if(this.dataset.fb2){this.src=this.dataset.fb2;this.removeAttribute('data-fb2');}">`;
       b.addEventListener('click', ()=> { if (wallEditing){ wallSelect('book'); } else openBook(book); });
       stage.appendChild(b);
     }
@@ -1286,13 +1292,14 @@ gate.addEventListener('click', () => {
     const gen = BG_GEN;   /* 0717 org 세대 가드 — 늦게 온 옛 org 로고가 간판을 덮지 못하게 */
     const li = document.getElementById('gate-logo-img');
     const sign = ITEMS.sign.el;
+    sign.classList.add('logo-pending');   /* 0717: 판가름 전까지 텍스트 재움 (찰나 번쩍임 소멸) */
     const ladder = [stUrl(POPUP.org.code + '/logo.webp')];
     if (POPUP.org.logo) ladder.push(POPUP.org.logo);   // GitHub 폴백
     (function tryLogo(list){
-      if (!list.length){ if (gen === BG_GEN){ sign.classList.remove('has-logo'); li.removeAttribute('src'); } return; }  // 다 실패 = 텍스트
+      if (!list.length){ if (gen === BG_GEN){ sign.classList.remove('has-logo'); sign.classList.remove('logo-pending'); li.removeAttribute('src'); } return; }  // 다 실패 = 텍스트 등판
       const [u, ...rest] = list;
       const im = new Image();
-      im.onload  = ()=>{ if (gen === BG_GEN){ li.src = u; sign.classList.add('has-logo'); } };
+      im.onload  = ()=>{ if (gen === BG_GEN){ li.src = u; sign.classList.add('has-logo'); sign.classList.remove('logo-pending'); } };
       im.onerror = ()=> tryLogo(rest);
       im.src = u;
     })(ladder);
