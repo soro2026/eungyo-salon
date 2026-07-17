@@ -954,17 +954,23 @@ function bgLadder(part){
   l.push(`${base}.webp`, `popup_${part}_01.webp`);    // 무접미사 → 옛 이름 (개명 전 호환)
   return l;
 }
-/* 내부 3뷰: 사다리 순서대로 로드 시도 → 첫 성공을 물림 */
-function tryBg(el, urls){
+/* 내부 3뷰: 사다리 순서대로 로드 시도 → 첫 성공을 물림
+ * ⭐ 0717 세대 가드(BG_GEN): org 스위치 race 차단. applyBackgrounds가 초기(munhak 씨앗)와
+ *   loadOrg 성공 후(minum) 두 번 불리는데, 늦게 도착한 옛 org 이미지가 최신을 덮던 버그.
+ *   각 호출에 gen을 매기고, onload 시점에 최신 세대일 때만 배경을 물린다. */
+let BG_GEN = 0;
+function tryBg(el, urls, gen){
   if (!el || !urls.length) return;
+  if (gen === undefined) gen = BG_GEN;
   const [url, ...rest] = urls;
   const img = new Image();
-  img.onload  = () => { el.style.backgroundImage = `url('${url}')`; el.classList.add('has-img'); };
-  img.onerror = () => tryBg(el, rest);
+  img.onload  = () => { if (gen === BG_GEN){ el.style.backgroundImage = `url('${url}')`; el.classList.add('has-img'); } };
+  img.onerror = () => tryBg(el, rest, gen);
   img.src = url;
 }
 /* 배경 4장 적용 — org 스위치 후 재호출하면 배경을 갈아입힘 (bgLadder가 POPUP.org.code 재참조) */
 function applyBackgrounds(){
+  const gen = ++BG_GEN;   /* 0717: 이 호출의 세대 — 늦게 온 옛 org 배경이 최신을 덮지 못하게 */
   /* 대문: 사다리 전체를 CSS 다중 레이어로 즉시 삽입 (로드 대기 없음 — 폴백 플래시 방지) */
   const urls = bgLadder('gate').map(u => `url('${u}')`).join(',');
   const grads = `radial-gradient(ellipse at 50% 42%, rgba(201,162,74,.14), transparent 60%),linear-gradient(180deg,#0f2019 0%,#15281f 45%,#0c1712 100%)`;
@@ -976,9 +982,9 @@ function applyBackgrounds(){
     h.style.backgroundPosition = Array(n).fill(isL?'left center':'right center').join(',') + ',center,center';
   });
   /* 내부 3뷰 (무대에 100%×100%로 물림) */
-  tryBg(document.getElementById('hall-stage'),  bgLadder('hall'));
-  tryBg(document.getElementById('wall-stage'),  bgLadder('wall'));
-  tryBg(document.querySelector('.view[data-view="board"]'), bgLadder('board'));
+  tryBg(document.getElementById('hall-stage'),  bgLadder('hall'), gen);
+  tryBg(document.getElementById('wall-stage'),  bgLadder('wall'), gen);
+  tryBg(document.querySelector('.view[data-view="board"]'), bgLadder('board'), gen);
 }
 applyBackgrounds();
 
@@ -1865,6 +1871,7 @@ async function loadOrg(){
         if (window.applyGateLogo) applyGateLogo();   /* 로고 이미지 갈아입힘 (org 스위치) */
         if (window.applyWallAuthor) applyWallAuthor();
         if (window.renderWall) renderWall();
+        renderHall();   /* 0717: 홀 진열도 org 전환 반영 (누락 버그 수복 — book_a/b는 storageAsset이 org별로 물림) */
       }
     } catch(e){ console.error('[popup_orgs] 로드 오류 — 씨앗 유지:', e && e.message); }
   }
