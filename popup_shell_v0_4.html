@@ -1035,11 +1035,12 @@ let WALL_ITEMS = defaultWallItems();
 
   /* 액자 이미지 + 이름표 (org 스위치 후 재호출 → 저자 갈아입힘) */
   window.applyWallAuthor = function(){
+    const gen = BG_GEN;   /* 0717 org 세대 가드 — 늦게 온 옛 org 저자가 액자를 덮지 못하게 */
     (function next(list){
       if(!list.length) return;
       const [u,...rest] = list;
       const im = new Image();
-      im.onload  = () => { frImg.src = u; };
+      im.onload  = () => { if (gen === BG_GEN) frImg.src = u; };
       im.onerror = () => next(rest);
       im.src = u;
     })([stUrl(POPUP.org.code+'/author.webp'), `popup_author_${POPUP.org.code}.webp`, 'author_01.webp']);
@@ -1189,6 +1190,7 @@ let WALL_ITEMS = defaultWallItems();
 
 /* ---- 대문 로고·배너·도시표식 (org 스위치 후 재호출 → 크롬 갈아입힘) ---- */
 function applyOrgChrome(){
+  const gen = BG_GEN;   /* 0717 org 세대 가드 — 늦게 도착한 옛 org 배너가 최신을 덮지 못하게 */
   document.getElementById('gate-logo').textContent = POPUP.org.name;
   document.getElementById('city-mark').textContent = `EG × ${POPUP.cityEn}`;
   const st = document.getElementById('hall-stage');
@@ -1215,9 +1217,15 @@ function applyOrgChrome(){
   const bnUrl = stUrl(POPUP.org.code + '/banner_0' + (bn + 1) + '.webp');
   const fb = POPUP.org.bannerImg;   // GitHub 폴백
   const im = new Image();
-  im.onload  = () => bannerImgShow(bnUrl);
+  im.onload  = () => { if (gen === BG_GEN) bannerImgShow(bnUrl); };
   im.onerror = () => {
-    if (fb){ const im2 = new Image(); im2.onload = () => bannerImgShow(fb); im2.onerror = bannerText; im2.src = fb; }
+    if (gen !== BG_GEN) return;
+    if (fb){
+      const im2 = new Image();
+      im2.onload  = () => { if (gen === BG_GEN) bannerImgShow(fb); };
+      im2.onerror = () => { if (gen === BG_GEN) bannerText(); };
+      im2.src = fb;
+    }
     else bannerText();
   };
   im.src = bnUrl;
@@ -1263,15 +1271,16 @@ gate.addEventListener('click', () => {
   /* 로고 사다리: Storage({org}/logo.webp) → GitHub(POPUP.org.logo) → 실패 시 텍스트 유지.
    * window로 노출 → org 스위치 후 loadOrg가 재호출(IIFE 클로저로 ITEMS.sign 접근) */
   window.applyGateLogo = function(){
+    const gen = BG_GEN;   /* 0717 org 세대 가드 — 늦게 온 옛 org 로고가 간판을 덮지 못하게 */
     const li = document.getElementById('gate-logo-img');
     const sign = ITEMS.sign.el;
     const ladder = [stUrl(POPUP.org.code + '/logo.webp')];
     if (POPUP.org.logo) ladder.push(POPUP.org.logo);   // GitHub 폴백
     (function tryLogo(list){
-      if (!list.length){ sign.classList.remove('has-logo'); li.removeAttribute('src'); return; }  // 다 실패 = 텍스트
+      if (!list.length){ if (gen === BG_GEN){ sign.classList.remove('has-logo'); li.removeAttribute('src'); } return; }  // 다 실패 = 텍스트
       const [u, ...rest] = list;
       const im = new Image();
-      im.onload  = ()=>{ li.src = u; sign.classList.add('has-logo'); };
+      im.onload  = ()=>{ if (gen === BG_GEN){ li.src = u; sign.classList.add('has-logo'); } };
       im.onerror = ()=> tryLogo(rest);
       im.src = u;
     })(ladder);
