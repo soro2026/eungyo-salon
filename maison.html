@@ -64,6 +64,67 @@
   }
   #backBtn:hover{color:var(--gold);border-color:var(--gold-soft)}
 
+  /* ══════ 0717 나침반 통합 메뉴 (기획결정문 v1.0) ══════ */
+  /* 기존 6버튼 중 5개는 나침반 패널로 이주 — HTML·핸들러는 재활용, 화면에서만 숨김 */
+  #cityBtn,#starBtn,#layerSpots,#layerMaisons,#editToggle{ display:none !important; }
+
+  #compassBtn{
+    position:fixed; top:14px; left:150px; z-index:14; width:58px; height:58px;
+    padding:0; border:none; background:none; cursor:pointer;
+    filter:drop-shadow(0 3px 10px rgba(0,0,0,.55));
+    transition:transform .45s cubic-bezier(.4,0,.2,1);
+  }
+  #compassBtn:hover{ transform:scale(1.07); }
+  #compassBtn.open{ transform:rotate(20deg); }
+  #compassImg{ width:100%; height:100%; display:block; }
+  #compassFallback{ display:none; width:100%; height:100%; align-items:center; justify-content:center; font-size:30px; }
+  #compassBtn.noimg #compassImg{ display:none; }
+  #compassBtn.noimg #compassFallback{ display:flex; }
+  /* 흰 바늘 (CSS) — 북침 크림흰색 · 남침 놋쇠 · 열리면 회전 */
+  #compassNeedle{
+    position:absolute; top:19%; left:calc(50% - 1.5px); width:3px; height:62%;
+    transform-origin:50% 50%; transform:rotate(0deg); pointer-events:none; border-radius:2px;
+    background:linear-gradient(to bottom,#fff8ec 0%,#fff8ec 44%,rgba(92,62,20,.75) 56%,rgba(92,62,20,.75) 100%);
+    box-shadow:0 0 3px rgba(255,245,220,.7);
+    transition:transform .65s cubic-bezier(.4,0,.2,1);
+  }
+  #compassNeedle::after{ content:""; position:absolute; top:50%; left:50%; width:6px; height:6px;
+    transform:translate(-50%,-50%); border-radius:50%; background:#d4af27; box-shadow:0 0 2px rgba(0,0,0,.6); }
+  #compassBtn.open #compassNeedle{ transform:rotate(155deg); }
+
+  #navPanel{
+    position:fixed; top:84px; left:20px; z-index:14; width:214px;
+    background:rgba(10,14,26,.96); border:1px solid var(--line); border-radius:14px;
+    backdrop-filter:blur(8px); padding:10px;
+    opacity:0; transform:translateY(-10px); pointer-events:none;
+    transition:opacity .3s ease, transform .3s ease;
+  }
+  #navPanel.in{ opacity:1; transform:none; pointer-events:auto; }
+  .nav-group{ padding:2px 0; }
+  .nav-group + .nav-group{ border-top:1px solid var(--line); margin-top:4px; padding-top:8px; }
+  .nav-label{ font-family:var(--sans); font-size:10px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--cream-dim); padding:2px 10px 6px; }
+  .nav-item{
+    display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;
+    padding:9px 12px; border:none; border-radius:8px; cursor:pointer; background:none;
+    color:var(--cream); font-family:var(--serif); font-size:14.5px; text-align:left;
+    transition:background .2s ease, color .2s ease;
+  }
+  .nav-item:hover{ background:rgba(201,162,39,.12); color:var(--gold); }
+  .nav-item .chev{ color:var(--cream-dim); font-size:15px; }
+  .nav-item.toggle .dot{ width:8px; height:8px; border-radius:50%; border:1px solid var(--cream-dim); flex-shrink:0; }
+  .nav-item.toggle.on{ color:var(--gold); }
+  .nav-item.toggle.on .dot{ background:var(--gold); border-color:var(--gold); }
+  /* 목록(도시·인물)을 패널 오른쪽으로 재배치 (2단 전개) */
+  #cityList{ left:244px !important; top:84px !important; }
+  #starList{ left:244px !important; top:84px !important; }
+  @media (max-width:640px){
+    #compassBtn{ left:auto; right:16px; top:12px; }
+    #navPanel{ left:auto; right:16px; top:80px; }
+    #cityList{ left:auto !important; right:16px !important; top:80px !important; }
+    #starList{ left:auto !important; right:16px !important; top:80px !important; }
+  }
+
   /* ── 도시 점프 버튼 + 목록 ── */
   #cityBtn{
     position:fixed;top:22px;left:178px;z-index:12;
@@ -435,6 +496,29 @@
 <div id="cesiumContainer"></div>
 
 <a id="backBtn" href="index.html">← 살롱으로</a>
+
+<button id="compassBtn" class="noimg" aria-label="메뉴 열기">
+  <img id="compassImg" src="compass.webp" alt="" onload="this.closest('#compassBtn').classList.remove('noimg')">
+  <span id="compassFallback" aria-hidden="true">🧭</span>
+  <span id="compassNeedle" aria-hidden="true"></span>
+</button>
+<div id="navPanel">
+  <div class="nav-group">
+    <div class="nav-label">떠나기</div>
+    <button class="nav-item" id="navCity">🌍 다른 도시 <span class="chev" aria-hidden="true">›</span></button>
+    <button class="nav-item" id="navStar">✦ 다른 인물 <span class="chev" aria-hidden="true">›</span></button>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">보기</div>
+    <button class="nav-item toggle" id="navSpots">🏛 인물 장소 <span class="dot" aria-hidden="true"></span></button>
+    <button class="nav-item toggle on" id="navMaisons">🏠 콩파뇽 집 <span class="dot" aria-hidden="true"></span></button>
+  </div>
+  <div class="nav-group" id="navAdminGroup" style="display:none">
+    <div class="nav-label">관리</div>
+    <button class="nav-item toggle" id="navEdit">📍 좌표 편집 <span class="dot" aria-hidden="true"></span></button>
+  </div>
+</div>
+
 <button id="cityBtn">🌍 다른 도시</button>
 <button id="starBtn">✦ 다른 인물</button>
 <div id="starList"></div>
@@ -650,6 +734,30 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   document.getElementById("maisonClose").addEventListener("click", closeMaison);
   document.getElementById("layerSpots").addEventListener("click", ()=>{ showSpots=!showSpots; applyLayerVisibility(); });
   document.getElementById("layerMaisons").addEventListener("click", ()=>{ showMaisons=!showMaisons; applyLayerVisibility(); });
+
+  /* ══ 0717 나침반 통합 메뉴 배선 — 기존 핸들러 재활용 ══ */
+  (function(){
+    const cBtn = document.getElementById("compassBtn");
+    const panel = document.getElementById("navPanel");
+    const openPanel = (on)=>{
+      const show = (on===undefined) ? !panel.classList.contains("in") : on;
+      panel.classList.toggle("in", show);
+      cBtn.classList.toggle("open", show);
+      if (!show){ toggleCityList(false); toggleStarList(false); }   /* 패널 닫으면 목록도 */
+    };
+    cBtn.addEventListener("click", (e)=>{ e.stopPropagation(); openPanel(); });
+    /* 떠나기 — 기존 목록 토글 그대로 (2단 전개) */
+    document.getElementById("navCity").addEventListener("click", ()=>{ toggleStarList(false); toggleCityList(); });
+    document.getElementById("navStar").addEventListener("click", ()=>{ toggleCityList(false); toggleStarList(); });
+    /* 보기 — 기존 레이어 상태 토글. applyLayerVisibility가 nav 항목 on도 동기화 */
+    document.getElementById("navSpots").addEventListener("click", ()=>{ showSpots=!showSpots; applyLayerVisibility(); });
+    document.getElementById("navMaisons").addEventListener("click", ()=>{ showMaisons=!showMaisons; applyLayerVisibility(); });
+    applyLayerVisibility();   /* 초기 on 상태 동기화 */
+    /* 지도 빈 곳 클릭 · ESC → 패널 닫기 */
+    document.addEventListener("keydown", (e)=>{ if (e.key==="Escape") openPanel(false); });
+    document.getElementById("cesiumContainer").addEventListener("click", ()=> openPanel(false));
+    window._openNavPanel = openPanel;
+  })();
   document.getElementById("mEnter").addEventListener("click", ()=> enterMaison(currentMaison));
   bindDoorEvents();
   viewer.canvas.addEventListener("pointerdown", stopOrbit);
@@ -977,6 +1085,10 @@ function applyLayerVisibility(){
   const lm = document.getElementById("layerMaisons");
   if (ls) ls.classList.toggle("on", showSpots);
   if (lm) lm.classList.toggle("on", showMaisons);
+  const ns = document.getElementById("navSpots");
+  const nm = document.getElementById("navMaisons");
+  if (ns) ns.classList.toggle("on", showSpots);
+  if (nm) nm.classList.toggle("on", showMaisons);
 }
 
 // ─── 도시 목록(voyage_cities)을 DB에서 읽어 점프 리스트로 ───
@@ -1342,8 +1454,8 @@ async function setupAdminEdit(){
     IS_ADMIN = !!(data && data.is_admin);
   }catch(e){ console.warn("admin 확인 실패:", e); }
   if (!IS_ADMIN) return;
-  const btn = document.getElementById("editToggle");
-  btn.style.display = "";
+  document.getElementById("navAdminGroup").style.display = "";   /* 0717: 관리 그룹 노출(admin만) */
+  const btn = document.getElementById("navEdit");
   btn.addEventListener("click", ()=>{
     EDIT_MODE = !EDIT_MODE;
     btn.classList.toggle("on", EDIT_MODE);
