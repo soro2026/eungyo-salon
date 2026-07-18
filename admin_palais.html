@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EG 전당 관리 콘솔</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* ============================================================
+ *  admin_palais.html — 전당(Palais) 관리 콘솔  v1.0 · 0718
+ *  소로 수작업만으로 한 채가 지어진다:
+ *   ① 채널 등록  ② 그림 12장 업로드  ③ 스크린 좌표 드래그 확정
+ *   ④ 큐레이션 10~30편 입고  ⑤ 편지 문장  → 저장
+ *  Storage: popup-assets / palais/{org}/{slot}.webp
+ *  DB:      palais_orgs
+ * ============================================================ */
+:root{
+  --bg:#141210; --panel:#1d1a16; --line:#3a332a;
+  --ink:#e8e1d4; --dim:#9a8f7d; --gold:#d9b168; --bronze:#a67c3d;
+  --ok:#7fbf7f; --bad:#e08a7a;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--ink);font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;font-size:14px;line-height:1.6;}
+main{max-width:980px;margin:0 auto;padding:28px 18px 100px;}
+h1{font-size:19px;letter-spacing:.06em;margin-bottom:4px;}
+h1 small{color:var(--dim);font-weight:400;font-size:12px;margin-left:10px;}
+h2{font-size:14px;color:var(--gold);letter-spacing:.14em;margin:34px 0 12px;padding-bottom:7px;border-bottom:1px solid var(--line);}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;}
+.row{display:flex;gap:12px;flex-wrap:wrap;}
+.field{flex:1;min-width:180px;}
+.field label{display:block;font-size:11.5px;color:var(--dim);margin-bottom:4px;letter-spacing:.04em;}
+input,select,textarea{
+  width:100%;background:#26221c;border:1px solid var(--line);border-radius:6px;
+  color:var(--ink);padding:8px 10px;font:inherit;
+}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--bronze);}
+textarea{resize:vertical;min-height:110px;font-size:13px;}
+button{
+  font:inherit;cursor:pointer;border:1px solid var(--bronze);border-radius:7px;
+  background:transparent;color:var(--gold);padding:9px 18px;letter-spacing:.06em;transition:.2s;
+}
+button:hover{background:rgba(217,177,104,.12);}
+button.primary{background:var(--bronze);color:#1a150d;font-weight:700;}
+button.primary:hover{background:var(--gold);}
+.hint{font-size:12px;color:var(--dim);margin-top:6px;}
+.hint b{color:var(--gold);font-weight:600;}
+
+/* 슬롯 격자 */
+.slot-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+.slot-grid .head{font-size:11px;color:var(--dim);text-align:center;letter-spacing:.1em;padding-bottom:2px;}
+.slot-row-label{display:flex;align-items:center;font-size:12px;color:var(--gold);letter-spacing:.08em;}
+.slot{
+  position:relative;aspect-ratio:16/9;border:1px dashed var(--line);border-radius:8px;
+  display:grid;place-items:center;cursor:pointer;overflow:hidden;background:#221e18;transition:.2s;
+}
+.slot.tall{aspect-ratio:9/16;}
+.slot:hover,.slot.dragover{border-color:var(--gold);}
+.slot .ph{color:var(--dim);font-size:11px;text-align:center;line-height:1.5;pointer-events:none;}
+.slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+.slot input{display:none;}
+.slot .badge{
+  position:absolute;right:6px;top:6px;font-size:10px;padding:2px 8px;border-radius:99px;
+  background:rgba(0,0,0,.65);color:var(--gold);z-index:2;
+}
+.slot .badge.up{color:var(--ok);} .slot .badge.busy{color:var(--gold);}
+.grid5{display:grid;grid-template-columns:110px repeat(4,1fr);gap:10px;align-items:stretch;}
+
+/* 스크린 좌표 편집기 */
+#rectStage{
+  position:relative;margin-top:12px;border:1px solid var(--line);border-radius:8px;
+  overflow:hidden;background:#0d0b08;user-select:none;touch-action:none;
+}
+#rectImg{display:block;width:100%;}
+#rectBox{
+  position:absolute;border:2px solid var(--gold);
+  background:rgba(217,177,104,.14);cursor:move;
+  box-shadow:0 0 0 9999px rgba(0,0,0,.35);
+}
+#rectBox .grip{
+  position:absolute;right:-7px;bottom:-7px;width:14px;height:14px;border-radius:3px;
+  background:var(--gold);cursor:nwse-resize;
+}
+.rect-nums{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px;}
+
+/* 상태 토스트 */
+#toast{
+  position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
+  background:#26221c;border:1px solid var(--line);border-radius:99px;
+  padding:9px 22px;font-size:13px;display:none;z-index:99;white-space:nowrap;
+}
+#toast.ok{color:var(--ok);border-color:var(--ok);}
+#toast.bad{color:var(--bad);border-color:var(--bad);}
+#toast.busy{color:var(--gold);}
+.count{color:var(--gold);}
+.topbar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
+.topbar .field{max-width:260px;}
+@media (max-width:640px){ .grid5{grid-template-columns:74px repeat(4,1fr);} }
+</style>
+</head>
+<body>
+<main>
+  <h1>EG 전당 관리 콘솔 <small>PALAIS · 소로 전용</small></h1>
+  <div class="hint">은교살롱에 로그인한 같은 브라우저 창에서 열어야 저장이 됩니다. (시크릿 창 불가)</div>
+
+  <!-- ① 채널 선택/등록 -->
+  <h2>① 채널</h2>
+  <div class="card">
+    <div class="topbar">
+      <div class="field"><label>기존 채널</label>
+        <select id="orgSel"><option value="">— 선택 —</option></select>
+      </div>
+      <div class="field"><label>새 채널 코드 (영문 소문자)</label><input id="newCode" placeholder="ildangbaek"></div>
+      <div class="field"><label>새 채널 이름</label><input id="newName" placeholder="일당백"></div>
+      <button id="btnCreate">등록</button>
+    </div>
+    <div class="row" style="margin-top:16px;">
+      <div class="field"><label>이름</label><input id="f_name"></div>
+      <div class="field"><label>라틴 부제 (프리즈 각인 기록)</label><input id="f_latin" placeholder="CENTUM LIBRI IN VITA LEGENDI"></div>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <div class="field"><label>위도 (소수점 5자리 이상)</label><input id="f_lat" placeholder="48.85341"></div>
+      <div class="field"><label>경도 (소수점 5자리 이상)</label><input id="f_lng" placeholder="2.34880"></div>
+      <div class="field"><label>유튜브 채널 ID (기록용)</label><input id="f_yt" placeholder="UC..."></div>
+      <div class="field"><label>순환 기산일 (오늘의 한 편 1편이 뜨는 날)</label><input id="f_epoch" type="date"></div>
+    </div>
+  </div>
+
+  <!-- ② 그림 12장 -->
+  <h2>② 그림 16장 <span style="color:var(--dim);font-weight:400;letter-spacing:0;">— 대문·헌사홀(세로/가로)·무대 × 아침·낮·저녁·밤</span></h2>
+  <div class="card">
+    <div class="grid5">
+      <div></div>
+      <div class="head">아침 _m</div><div class="head">낮 _d</div><div class="head">저녁 _e</div><div class="head">밤 _n</div>
+      <div class="slot-row-label">대문 16:9</div>
+      <div class="slot" data-slot="gate_m"><div class="ph">＋</div><input type="file" accept="image/*"></div>
+      <div class="slot" data-slot="gate_d"><div class="ph">＋</div><input type="file" accept="image/*"></div>
+      <div class="slot" data-slot="gate_e"><div class="ph">＋</div><input type="file" accept="image/*"></div>
+      <div class="slot" data-slot="gate_n"><div class="ph">＋</div><input type="file" accept="image/*"></div>
+      <div class="slot-row-label">헌사홀 9:16<br><small style="color:var(--dim)">폰 세로</small></div>
+      <div class="slot tall" data-slot="hall_m"><div class="ph">＋</div><input type="file" accept="image/*"></div>
+      <div class="slot tall" data-slot="hall_d"><div class="ph">＋</div><input type="file" accept="image/*"></div>
+      <div class="slot tall" data-slot="hall_e"><div class="ph">＋</div><input type="file" accept="image/*"></div>
+      <div class="slot tall" data-slot="hall_n"><div class="ph">＋</div><input type="file" accept="image/*"></div>
+      <div class="slot-row-label">헌사홀 16:9<br><small style="color:var(--dim)">노트북 가로</small></div>
+      <div class="slot" data-slot="hall_wide_m"><div class="ph">＋</div><input type="file" accept="image/*"></div>
+      <div class="slot" data-slot="hall_wide_d"><div class="ph">＋</div><input type="file" accept="image/*"></div>
+      <div class="slot" data-slot="hall_wide_e"><div class="ph">＋</div><input type="file" accept="image/*"></div>
+      <div class="slot" data-slot="hall_wide_n"><div class="ph">＋</div><input type="file" accept="image/*"></div>
+      <div class="slot-row-label">무대 9:16</div>
+      <div class="slot tall" data-slot="screen_m"><div class="ph">＋</div><input type="file" accept="image/*"></div>
+      <div class="slot tall" data-slot="screen_d"><div class="ph">＋</div><input type="file" accept="image/*"></div>
+      <div class="slot tall" data-slot="screen_e"><div class="ph">＋</div><input type="file" accept="image/*"></div>
+      <div class="slot tall" data-slot="screen_n"><div class="ph">＋</div><input type="file" accept="image/*"></div>
+    </div>
+    <div class="hint">칸을 눌러 고르거나 파일을 끌어다 놓으세요. 같은 칸에 다시 올리면 교체됩니다. 시간대판이 비면 셸은 낮판으로, 가로판이 비면 세로판으로 대신 섭니다.</div>
+  </div>
+
+  <!-- ③ 스크린 좌표 -->
+  <h2>③ 스크린 좌표 <span style="color:var(--dim);font-weight:400;letter-spacing:0;">— 무대 낮판 위에 금색 상자를 끌어 흰 막에 정확히 포개기</span></h2>
+  <div class="card">
+    <div id="rectStage">
+      <img id="rectImg" alt="무대 낮판을 먼저 올려 주세요">
+      <div id="rectBox"><div class="grip"></div></div>
+    </div>
+    <div class="rect-nums">
+      <div class="field"><label>왼쪽 L %</label><input id="r_L" type="number" step="0.1"></div>
+      <div class="field"><label>위 T %</label><input id="r_T" type="number" step="0.1"></div>
+      <div class="field"><label>폭 W %</label><input id="r_W" type="number" step="0.1"></div>
+      <div class="field"><label>높이 H %</label><input id="r_H" type="number" step="0.1"></div>
+    </div>
+    <div class="hint">상자 몸통을 끌면 이동, 오른쪽 아래 <b>금색 손잡이</b>를 끌면 크기 조절. 숫자로 미세 조정도 됩니다.</div>
+  </div>
+
+  <!-- ④ 오늘의 한 편 -->
+  <h2>④ 오늘의 한 편 큐레이션 <span class="count" id="curCount">0</span><span style="color:var(--dim)">편</span></h2>
+  <div class="card">
+    <textarea id="f_curation" placeholder="한 줄에 한 편 — 유튜브 링크(또는 영상 ID)만 붙여도 되고, 제목을 함께 적으려면 | 뒤에:
+https://youtu.be/XXXXXXXXXXX | 정승민의 월든 완독
+https://www.youtube.com/watch?v=YYYYYYYYYYY | 손자병법 특별편
+ZZZZZZZZZZZ | 제목 없이 ID만도 가능"></textarea>
+    <div class="hint">순번 = (오늘 − 기산일) % 편수. 하루 한 편씩 위에서 아래로 돌고, 끝나면 처음으로 돌아갑니다.</div>
+  </div>
+
+  <!-- ⑤ 흐르는 편지 -->
+  <h2>⑤ 흐르는 편지</h2>
+  <div class="card">
+    <textarea id="f_letters" placeholder="한 줄에 한 문장 — 무대 하단을 조용히 흐릅니다."></textarea>
+  </div>
+
+  <div style="margin-top:26px;text-align:right;">
+    <button class="primary" id="btnSave">저장</button>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+const SUPA_URL='https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const BUCKET='popup-assets';
+const PREFIX='palais/';                               // palais/{org}/{slot}.webp
+const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{
+  auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
+});
+const $=id=>document.getElementById(id);
+let CUR_ORG=null;
+let RECT={L:14.6,T:53.1,W:71.0,H:18.6};
+
+/* ── 토스트 ── */
+let toastT;
+function toast(msg,kind){
+  const t=$('toast'); t.textContent=msg; t.className=kind||''; t.style.display='block';
+  clearTimeout(toastT); if(kind!=='busy') toastT=setTimeout(()=>t.style.display='none',3200);
+}
+
+/* ── 세션 검문 (팝업 admin 계보) ── */
+async function requireSession(){
+  const { data:{ session } } = await supa.auth.getSession();
+  if(!session){ toast('로그인 세션이 없어요 — 은교살롱에서 로그인한 같은 창으로 열어 주세요.','bad'); return null; }
+  if(session.expires_at && session.expires_at*1000 < Date.now()){
+    toast('토큰 만료 — 은교살롱에서 재로그인 후 새로고침해 주세요.','bad'); return null;
+  }
+  return session;
+}
+const pubUrl=p=>`${SUPA_URL}/storage/v1/object/public/${BUCKET}/${PREFIX}${p}`;
+
+/* ── 채널 목록/등록/불러오기 ── */
+async function loadOrgs(sel){
+  const { data, error } = await supa.from('palais_orgs').select('code,name').order('code');
+  if(error){ toast('목록 실패: '+error.message,'bad'); return; }
+  $('orgSel').innerHTML='<option value="">— 선택 —</option>'+
+    data.map(o=>`<option value="${o.code}">${o.name} (${o.code})</option>`).join('');
+  if(sel){ $('orgSel').value=sel; pickOrg(sel); }
+}
+$('btnCreate').addEventListener('click', async ()=>{
+  if(!await requireSession()) return;
+  const code=$('newCode').value.trim().toLowerCase(), name=$('newName').value.trim();
+  if(!/^[a-z][a-z0-9_]{1,30}$/.test(code)){ toast('코드는 영문 소문자·숫자·_ 만, 2자 이상.','bad'); return; }
+  if(!name){ toast('이름을 적어 주세요.','bad'); return; }
+  const { error } = await supa.from('palais_orgs').insert({ code, name });
+  if(error){ toast('등록 실패: '+error.message,'bad'); return; }
+  toast(name+' 등록됐어요.','ok');
+  $('newCode').value=''; $('newName').value='';
+  loadOrgs(code);
+});
+$('orgSel').addEventListener('change', e=>{ if(e.target.value) pickOrg(e.target.value); });
+
+async function pickOrg(code){
+  const { data, error } = await supa.from('palais_orgs').select('*').eq('code',code).single();
+  if(error){ toast('불러오기 실패: '+error.message,'bad'); return; }
+  CUR_ORG=code;
+  $('f_name').value  = data.name||'';
+  $('f_latin').value = data.name_latin||'';
+  $('f_lat').value   = data.lat??'';
+  $('f_lng').value   = data.lng??'';
+  $('f_yt').value    = data.yt_channel||'';
+  $('f_epoch').value = data.epoch||'';
+  RECT = Object.assign({L:14.6,T:53.1,W:71.0,H:18.6}, data.screen_rect||{});
+  syncRectInputs(); placeRectBox();
+  $('f_curation').value=(data.curation||[]).map(c=>(c.id||'')+(c.t?' | '+c.t:'')).join('\n');
+  $('f_letters').value =(data.letters||[]).join('\n');
+  updateCurCount();
+  refreshSlots(); loadRectImg();
+  toast(data.name+' 불러왔어요.','ok');
+}
+
+/* ── 그림 12장 업로드 ── */
+function bindSlots(){
+  document.querySelectorAll('.slot').forEach(el=>{
+    const input=el.querySelector('input');
+    el.addEventListener('click', ()=>{ if(!CUR_ORG){toast('채널을 먼저 선택하세요.','bad');return;} input.click(); });
+    input.addEventListener('change', ()=>{ if(input.files[0]) uploadSlot(el,input.files[0]); input.value=''; });
+    el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('dragover');});
+    el.addEventListener('dragleave',()=>el.classList.remove('dragover'));
+    el.addEventListener('drop',e=>{
+      e.preventDefault();el.classList.remove('dragover');
+      if(!CUR_ORG){toast('채널을 먼저 선택하세요.','bad');return;}
+      const f=e.dataTransfer.files[0]; if(f) uploadSlot(el,f);
+    });
+  });
+}
+async function uploadSlot(el,file){
+  if(!await requireSession()) return;
+  const slot=el.dataset.slot;
+  const path=CUR_ORG+'/'+slot+'.webp';
+  setBadge(el,'busy','올리는 중');
+  const { error } = await supa.storage.from(BUCKET).upload(PREFIX+path, file, { upsert:true, contentType:'image/webp' });
+  if(error){ setBadge(el,null); toast(slot+' 실패: '+error.message,'bad'); return; }
+  paintSlot(el, pubUrl(path)+'?t='+Date.now());
+  setBadge(el,'up','완료'); toast(slot+' 올렸어요.','ok');
+  if(slot==='screen_d') loadRectImg();          // 무대 낮판이 오면 좌표 편집기 즉시 갱신
+}
+function paintSlot(el,url){
+  el.classList.add('has');
+  let img=el.querySelector('img');
+  if(!img){ img=document.createElement('img'); el.insertBefore(img,el.firstChild); }
+  img.src=url;
+}
+function setBadge(el,kind,text){
+  let b=el.querySelector('.badge');
+  if(!kind){ if(b) b.remove(); return; }
+  if(!b){ b=document.createElement('div'); b.className='badge'; el.appendChild(b); }
+  b.className='badge '+kind; b.textContent=text||'';
+  if(kind==='up') setTimeout(()=>{ if(b) b.remove(); },1400);
+}
+function refreshSlots(){
+  document.querySelectorAll('.slot').forEach(el=>{
+    const img=el.querySelector('img'); if(img) img.remove();
+    el.classList.remove('has'); setBadge(el,null);
+    const url=pubUrl(CUR_ORG+'/'+el.dataset.slot+'.webp')+'?t='+Date.now();
+    const probe=new Image();
+    probe.onload=()=>paintSlot(el,url);
+    probe.src=url;
+  });
+}
+
+/* ── 스크린 좌표 편집기 ── */
+function loadRectImg(){
+  if(!CUR_ORG) return;
+  const url=pubUrl(CUR_ORG+'/screen_d.webp')+'?t='+Date.now();
+  const probe=new Image();
+  probe.onload=()=>{ $('rectImg').src=url; requestAnimationFrame(placeRectBox); };
+  probe.onerror=()=>{ $('rectImg').removeAttribute('src'); };
+  probe.src=url;
+}
+function placeRectBox(){
+  const img=$('rectImg'); if(!img.clientWidth) return;
+  const b=$('rectBox');
+  b.style.left  =(RECT.L/100*img.clientWidth)+'px';
+  b.style.top   =(RECT.T/100*img.clientHeight)+'px';
+  b.style.width =(RECT.W/100*img.clientWidth)+'px';
+  b.style.height=(RECT.H/100*img.clientHeight)+'px';
+}
+function syncRectInputs(){
+  $('r_L').value=RECT.L.toFixed(1); $('r_T').value=RECT.T.toFixed(1);
+  $('r_W').value=RECT.W.toFixed(1); $('r_H').value=RECT.H.toFixed(1);
+}
+['r_L','r_T','r_W','r_H'].forEach(id=>{
+  $(id).addEventListener('input',()=>{
+    RECT={ L:+$('r_L').value||0, T:+$('r_T').value||0, W:+$('r_W').value||1, H:+$('r_H').value||1 };
+    placeRectBox();
+  });
+});
+(function bindRectDrag(){
+  const box=$('rectBox'), img=$('rectImg');
+  let mode=null, sx=0, sy=0, s={};
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  box.addEventListener('pointerdown',e=>{
+    mode=e.target.classList.contains('grip')?'size':'move';
+    sx=e.clientX; sy=e.clientY; s={...RECT};
+    box.setPointerCapture(e.pointerId); e.preventDefault();
+  });
+  box.addEventListener('pointermove',e=>{
+    if(!mode||!img.clientWidth) return;
+    const dx=(e.clientX-sx)/img.clientWidth*100;
+    const dy=(e.clientY-sy)/img.clientHeight*100;
+    if(mode==='move'){
+      RECT.L=clamp(s.L+dx,0,100-s.W); RECT.T=clamp(s.T+dy,0,100-s.H);
+    }else{
+      RECT.W=clamp(s.W+dx,4,100-s.L); RECT.H=clamp(s.H+dy,3,100-s.T);
+    }
+    syncRectInputs(); placeRectBox();
+  });
+  box.addEventListener('pointerup',()=>mode=null);
+  addEventListener('resize',placeRectBox);
+})();
+
+/* ── 큐레이션 파싱 — 링크·ID 무엇이든 ID로 ── */
+function parseYtId(s){
+  s=s.trim();
+  const m = s.match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([A-Za-z0-9_-]{11})/);
+  if(m) return m[1];
+  if(/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+  return null;
+}
+function parseCuration(){
+  const out=[]; const bad=[];
+  $('f_curation').value.split('\n').map(l=>l.trim()).filter(Boolean).forEach(line=>{
+    const [left, ...rest]=line.split('|');
+    const id=parseYtId(left);
+    if(!id){ bad.push(line); return; }
+    out.push({ id, t:rest.join('|').trim() || '' });
+  });
+  return { out, bad };
+}
+function updateCurCount(){ $('curCount').textContent=parseCuration().out.length; }
+$('f_curation').addEventListener('input',updateCurCount);
+
+/* ── 저장 ── */
+$('btnSave').addEventListener('click', async ()=>{
+  if(!CUR_ORG){ toast('채널을 먼저 선택하세요.','bad'); return; }
+  if(!await requireSession()) return;
+  const { out:curation, bad } = parseCuration();
+  if(bad.length){ toast('영상 ID를 못 읽은 줄이 있어요: '+bad[0],'bad'); return; }
+  const lat=$('f_lat').value.trim(), lng=$('f_lng').value.trim();
+  const row={
+    name: $('f_name').value.trim()||CUR_ORG,
+    name_latin: $('f_latin').value.trim()||null,
+    lat: lat===''?null:parseFloat(lat),
+    lng: lng===''?null:parseFloat(lng),
+    yt_channel: $('f_yt').value.trim()||null,
+    epoch: $('f_epoch').value||null,
+    screen_rect: RECT,
+    curation,
+    letters: $('f_letters').value.split('\n').map(l=>l.trim()).filter(Boolean)
+  };
+  toast('저장 중…','busy');
+  const { error } = await supa.from('palais_orgs').update(row).eq('code',CUR_ORG);
+  if(error){ toast('저장 실패: '+error.message,'bad'); return; }
+  toast('저장됐어요 — 한 채가 지어졌습니다.','ok');
+});
+
+bindSlots();
+loadOrgs('ildangbaek');
+</script>
+</body>
+</html>

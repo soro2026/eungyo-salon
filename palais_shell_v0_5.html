@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>전당 · 일당백 — EG Paris</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400&family=Gowun+Batang:wght@400;700&family=Noto+Serif+KR:wght@200;300;400&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+ *  EG 전당(Palais) 셸 v0.4 — 0718 저녁
+ *  3뷰: 대문(gate) → 헌사홀(hall) → 무대(stage)
+ *  · 대문: palais_gate_{m|d|e|n}.webp — 간판·헌사 전부 그림에 구움 (코드 간판 폐기)
+ *  · 홀:   palais_hall_{m|d|e|n}.webp — 헌사 각인만. 클릭 → 페이드 → 무대
+ *  · 무대: palais_screen_{m|d|e|n}.webp — 흰 스크린 면(실측 L14.6 T53.1 W71 H18.6%)에 영상
+ *  · 진입: 빛이 3초에 걸쳐 화면을 삼킴 / 홀→무대는 페이드아웃·인
+ *  · 오늘의 한 편: 큐레이션 목록을 달력으로 하루 1편 순환
+ * ============================================================ */
+
+:root{
+  --marble : #ece5d9;
+  --bronze : #a67c3d;
+  --bronze-lit : #d9b168;
+  --lamp   : #f6e0a8;
+  --void   : #0d0b08;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;overflow:hidden;background:var(--void);}
+body{font-family:'Gowun Batang','Noto Serif KR',serif;color:var(--marble);-webkit-font-smoothing:antialiased;}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;}
+:focus-visible{outline:2px solid var(--bronze-lit);outline-offset:3px;}
+
+.view{position:fixed;inset:0;opacity:0;pointer-events:none;transition:opacity 1.1s ease;}
+.view.on{opacity:1;pointer-events:auto;}
+
+/* ═════════ 1. 대문 ═════════ */
+#gate{cursor:pointer;z-index:10;}
+#gateBg{
+  position:absolute;inset:0;
+  background-size:cover;background-position:center;
+  background-color:#1a1712;
+  transition:background-image .6s ease;
+}
+.gate-hint{
+  position:absolute;left:50%;bottom:clamp(26px,5vh,60px);transform:translateX(-50%);
+  font-size:clamp(12px,1.3vw,15px);letter-spacing:.26em;text-indent:.26em;
+  color:rgba(246,224,168,.0);text-shadow:0 1px 10px rgba(0,0,0,.5);
+  animation:hintIn 2s 1.4s ease forwards;white-space:nowrap;
+}
+@keyframes hintIn{to{color:rgba(246,224,168,.82);}}
+
+/* 진입 — 빛이 천천히 화면을 삼킨다 (3.2s) */
+#flash{
+  position:fixed;z-index:60;left:50%;top:58%;
+  width:10px;height:10px;border-radius:50%;
+  background:radial-gradient(circle,#fffdf4 0%,var(--lamp) 38%,rgba(246,224,168,0) 70%);
+  transform:translate(-50%,-50%) scale(0);opacity:0;pointer-events:none;
+}
+#flash.go{animation:swallow 3.2s cubic-bezier(.42,0,.2,1) forwards;}
+@keyframes swallow{
+  0%  {transform:translate(-50%,-50%) scale(0);   opacity:0;}
+  12% {opacity:.55;}
+  38% {opacity:.9;}
+  78% {transform:translate(-50%,-50%) scale(190); opacity:1;}
+  100%{transform:translate(-50%,-50%) scale(280); opacity:0;}
+}
+
+/* ═════════ 2. 헌사홀 ═════════ */
+#hall{overflow-y:auto;overflow-x:hidden;scrollbar-width:none;cursor:pointer;z-index:9;}
+#hall::-webkit-scrollbar{display:none;}
+#camera{
+  position:relative;width:100%;
+  background-size:cover;background-position:center top;background-color:#141210;
+}
+.hall-hint{
+  position:fixed;left:50%;bottom:clamp(22px,4vh,48px);transform:translateX(-50%);
+  font-size:clamp(11px,1.15vw,14px);letter-spacing:.3em;text-indent:.3em;
+  color:rgba(166,124,61,.0);white-space:nowrap;pointer-events:none;
+  transition:color 1s ease;
+}
+#hall.on .hall-hint{color:rgba(166,124,61,.75);transition-delay:2.4s;}
+
+/* ═════════ 3. 무대 ═════════ */
+#stage{z-index:8;background:var(--void);overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+#stage::-webkit-scrollbar{display:none;}
+#stageFit{position:relative;margin:0 auto;}       /* 세로: 꽉 채움 / 가로: 폭 맞춤 + 상하 스크롤 */
+#stageImg{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;display:block;}
+
+/* 영상 자리 — 그림 속 흰 스크린 면(%)에 고정 */
+#play{
+  position:absolute;
+  left:14.6%; top:53.1%; width:71%; height:18.6%;
+  cursor:pointer; overflow:hidden;
+  background:transparent;
+}
+#play .veil{                                   /* 파사드: 흰 막 위 살포시 */
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:.9em;
+  background:linear-gradient(180deg, rgba(250,247,240,.0), rgba(240,234,222,.06));
+  transition:background .5s ease;
+}
+#play:hover .veil{background:linear-gradient(180deg, rgba(250,247,240,.04), rgba(240,234,222,.12));}
+.play-eyebrow{
+  font-family:'Cormorant Garamond',serif;
+  font-size:clamp(8px,1.9vmin,13px);letter-spacing:.5em;text-indent:.5em;
+  color:rgba(120,96,52,.85);
+}
+.play-title{
+  font-family:'Noto Serif KR',serif;font-weight:300;
+  font-size:clamp(12px,2.6vmin,20px);line-height:1.55;text-align:center;
+  color:#42392c;max-width:86%;
+}
+.play-ring{
+  width:clamp(34px,7vmin,54px);aspect-ratio:1;border-radius:50%;
+  border:1px solid rgba(120,96,52,.6);display:grid;place-items:center;
+  transition:transform .4s ease,border-color .4s ease;
+}
+.play-ring::after{
+  content:'';width:0;height:0;margin-left:3px;
+  border-left:clamp(9px,1.8vmin,13px) solid rgba(120,96,52,.85);
+  border-top:clamp(6px,1.1vmin,8px) solid transparent;
+  border-bottom:clamp(6px,1.1vmin,8px) solid transparent;
+}
+#play:hover .play-ring{transform:scale(1.08);border-color:rgba(120,96,52,.95);}
+#playerBox{position:absolute;inset:0;display:none;background:#000;}
+#playerBox.on{display:block;}
+#playerBox .mock{
+  position:absolute;inset:0;display:grid;place-items:center;text-align:center;
+  color:rgba(243,236,224,.6);font-size:clamp(10px,2vmin,14px);line-height:2;letter-spacing:.08em;
+}
+#playerBox .stop{color:var(--bronze-lit);border-bottom:1px solid rgba(217,177,104,.4);padding-bottom:2px;}
+
+/* 무대 하단 — 흐르는 편지 */
+#letters{
+  position:fixed;left:0;right:0;bottom:0;height:42px;z-index:20;
+  display:flex;align-items:center;overflow:hidden;pointer-events:none;
+  background:linear-gradient(to top,rgba(8,7,5,.6),rgba(8,7,5,0));
+  opacity:0;transition:opacity 1.2s ease;
+}
+#stage.on ~ #letters, #letters.show{opacity:.5;}
+#letters.dim{opacity:.14;}
+#lettersTrack{
+  display:flex;gap:5.5em;white-space:nowrap;
+  font-size:12.5px;letter-spacing:.06em;color:rgba(236,229,217,.8);
+  animation:drift 64s linear infinite;
+}
+@keyframes drift{from{transform:translateX(0);}to{transform:translateX(-50%);}}
+.letter-item::before{content:'✎';margin-right:.7em;color:var(--bronze);opacity:.65;}
+
+/* 뷰 사이 페이드 장막 */
+#fader{
+  position:fixed;inset:0;z-index:55;background:var(--void);
+  opacity:0;pointer-events:none;transition:opacity 1.1s ease;
+}
+#fader.on{opacity:1;}
+
+/* 목업 전용 — 시간대 강제 전환 */
+#tod{
+  position:fixed;right:12px;top:12px;z-index:80;
+  display:flex;align-items:center;gap:2px;padding:5px 7px;border-radius:99px;
+  background:rgba(10,9,7,.62);border:1px solid rgba(166,124,61,.3);backdrop-filter:blur(6px);
+  font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:.14em;
+}
+#tod b{color:rgba(217,177,104,.9);font-weight:400;padding:0 7px 0 4px;}
+#tod button{padding:4px 8px;border-radius:99px;color:rgba(236,229,217,.55);transition:.25s;}
+#tod button:hover{color:var(--marble);}
+#tod button.on{background:rgba(217,177,104,.2);color:var(--bronze-lit);}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important;}
+}
+</style>
+</head>
+<body>
+
+<!-- 1. 대문 -->
+<div id="gate" class="view on" role="button" tabindex="0" aria-label="전당에 들어가기">
+  <div id="gateBg"></div>
+  <div class="gate-hint">언제나 열려 있습니다</div>
+</div>
+
+<div id="flash"></div>
+
+<!-- 2. 헌사홀 -->
+<div id="hall" class="view" role="button" tabindex="0" aria-label="무대로 들어가기">
+  <div id="camera"></div>
+  <div class="hall-hint">화면을 누르면 무대로 이어집니다</div>
+</div>
+
+<!-- 3. 무대 -->
+<div id="stage" class="view">
+  <div id="stageFit">
+    <img id="stageImg" alt="">
+    <div id="play" role="button" tabindex="0" aria-label="오늘의 한 편 재생">
+      <div class="veil">
+        <div class="play-eyebrow">HODIE · 오늘의 한 편</div>
+        <div id="playTitle" class="play-title"></div>
+        <div class="play-ring"></div>
+      </div>
+      <div id="playerBox">
+        <div class="mock">여기서 유튜브 플레이어가 열립니다<br>— 목업 —<br><span class="stop">돌아가기</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="letters"><div id="lettersTrack"></div></div>
+<div id="fader"></div>
+
+<script>
+/* ============================================================
+ *  설정 — 채널별로 이 덩어리만 DB에서 갈아 끼운다
+ * ============================================================ */
+const PALAIS = {
+  code : 'ildangbaek',
+  name : '일당백',
+  /* 오늘의 한 편 순환 목록 — 유튜브 영상 ID + 표시 제목
+     순번 = (오늘 − epoch일) % 목록길이. 서버·타이머 없음. */
+  epoch: '2026-07-20',
+  curation: [
+    { id:'', t:'(1편 제목 — 실제 영상 ID 입고 대기)' },
+    { id:'', t:'(2편 제목)' },
+    { id:'', t:'(3편 제목)' },
+    { id:'', t:'(4편 제목)' },
+    { id:'', t:'(5편 제목)' }
+  ],
+  letters: [
+    '이 채널 덕분에 스무 해 만에 책을 다시 폈습니다.',
+    '출퇴근길이 강의실이 되었습니다. 고맙습니다.',
+    '아이가 옆에서 같이 듣다가 그 책을 사 왔어요.',
+    '어려워서 덮었던 책을 이번엔 끝까지 읽었습니다.',
+    '오래 하셔야 합니다. 저희가 듣고 있습니다.'
+  ]
+};
+
+/* 무대 그림 속 흰 스크린 면 — palais_screen_d.webp 실측값(%) */
+const SCREEN_RECT = { L:14.6, T:53.1, W:71.0, H:18.6 };
+const STAGE_RATIO = 1080/1920;          // 무대 그림 가로/세로
+
+/* ============================================================
+ *  서울 하늘 4구간 (아침 m: 일출−2h~+2h / 낮 d / 저녁 e: 일몰−2h~일몰 / 밤 n)
+ * ============================================================ */
+function sunTimesKST(){
+  const LAT=37.5665, LNG=126.9780;
+  const now=new Date();
+  const kst=new Date(now.getTime()+(9*60+now.getTimezoneOffset())*60000);
+  const N=Math.floor((Date.UTC(kst.getFullYear(),kst.getMonth(),kst.getDate())-Date.UTC(kst.getFullYear(),0,0))/86400000);
+  const g=2*Math.PI/365*(N-1+(kst.getHours()-12)/24);
+  const eqt=229.18*(0.000075+0.001868*Math.cos(g)-0.032077*Math.sin(g)-0.014615*Math.cos(2*g)-0.040849*Math.sin(2*g));
+  const decl=0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)-0.006758*Math.cos(2*g)+0.000907*Math.sin(2*g)-0.002697*Math.cos(3*g)+0.00148*Math.sin(3*g);
+  const rad=Math.PI/180;
+  const cosH=(Math.cos(rad*90.833)/(Math.cos(rad*LAT)*Math.cos(decl)))-Math.tan(rad*LAT)*Math.tan(decl);
+  if(cosH>=1)  return {rise:24,set:24,kst};
+  if(cosH<=-1) return {rise:0, set:24,kst};
+  const ha=Math.acos(cosH)/rad;
+  return { rise:((720-4*(LNG+ha)-eqt)/60+9+24)%24, set:((720-4*(LNG-ha)-eqt)/60+9+24)%24, kst };
+}
+function todPhase(){
+  const s=sunTimesKST();
+  const h=s.kst.getHours()+s.kst.getMinutes()/60;
+  const inSpan=(x,a,b)=> a<=b ? (x>=a&&x<b) : (x>=a||x<b);
+  const mS=(s.rise-2+24)%24, mE=(s.rise+2)%24, dE=(s.set-2+24)%24;
+  if(inSpan(h,mS,mE)) return 'm';
+  if(inSpan(h,mE,dE)) return 'd';
+  if(inSpan(h,dE,s.set%24)) return 'e';
+  return 'n';
+}
+
+const $=s=>document.querySelector(s);
+let FORCED=null, CUR=null;
+
+/* 그림 물리기 — 후보를 순서대로 시도 (시간대판 없으면 낮판 등) */
+function setBgChain(el, cands, asImg=false){
+  const step=i=>{
+    if(i>=cands.length) return;
+    const im=new Image();
+    im.onload=()=>{ asImg ? el.src=cands[i] : el.style.backgroundImage=`url(${cands[i]})`; };
+    im.onerror=()=>step(i+1);
+    im.src=cands[i];
+  };
+  step(0);
+}
+const isLandscape=()=> innerWidth > innerHeight;
+let CUR_ORIENT=null;
+function applyTOD(){
+  const t=FORCED||todPhase();
+  const orient=isLandscape()?'w':'p';
+  if(t===CUR && orient===CUR_ORIENT) return;
+  CUR=t; CUR_ORIENT=orient;
+  setBgChain($('#gateBg'),[`palais_gate_${t}.webp`,`palais_gate_d.webp`]);
+  /* 홀: 가로 화면은 가로판(wide) 우선 — 세로 1080px 그림을 노트북 폭으로 늘리면 각인이 뭉개진다 */
+  const hallCands = orient==='w'
+    ? [`palais_hall_wide_${t}.webp`,`palais_hall_wide_d.webp`,`palais_hall_${t}.webp`,`palais_hall_d.webp`]
+    : [`palais_hall_${t}.webp`,`palais_hall_d.webp`];
+  setBgChain($('#camera'),hallCands);
+  setBgChain($('#stageImg'),[`palais_screen_${t}.webp`,`palais_screen_d.webp`],true);
+  $('#todNow').textContent={m:'아침',d:'낮',e:'저녁',n:'밤'}[t];
+}
+
+/* ============================================================
+ *  홀 배치 + 하강
+ *  · 세로 화면: 9:16 그림 세로로 세우고 천장→헌사 하강 (기존)
+ *  · 가로 화면: 16:9 가로판을 화면에 꽉 채움 — 하강 대신 즉시 헌사 대면
+ * ============================================================ */
+function layoutHall(){
+  const vw=innerWidth, vh=innerHeight;
+  const camH = isLandscape() ? vh : Math.max(vh*1.5, vw*16/9);
+  $('#camera').style.height=camH+'px';
+  return camH;
+}
+let descended=false;
+function descend(){
+  const camH=layoutHall();
+  const hall=$('#hall'), vh=innerHeight;
+  if(isLandscape()){ hall.scrollTop=0; descended=true; return; }
+  const target=Math.max(0, camH*0.52 - vh*0.5);   // 헌사 각인이 화면 중앙에
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches || descended){ hall.scrollTop=target; return; }
+  hall.scrollTop=0;
+  const t0=performance.now(), DUR=2600;
+  const ease=x=>1-Math.pow(1-x,3);
+  let cancelled=false;
+  hall.addEventListener('pointerdown',()=>{cancelled=true;hall.scrollTop=target;},{once:true});
+  (function step(now){
+    if(cancelled) return;
+    const p=Math.min(1,(now-t0)/DUR);
+    hall.scrollTop=target*ease(p);
+    if(p<1) requestAnimationFrame(step); else descended=true;
+  })(performance.now());
+}
+
+/* ============================================================
+ *  무대 배치
+ *  · 세로 화면: 그림이 화면을 꽉 채움(cover)
+ *  · 가로 화면: 그림 폭 = 화면 폭, 위아래 스크롤. 입장 시 스크린이 화면 중앙에.
+ *  영상 자리는 그림 %에 절대 고정이라 어느 쪽이든 어긋나지 않는다.
+ * ============================================================ */
+function layoutStage(){
+  const vw=innerWidth, vh=innerHeight;
+  const fit=$('#stageFit');
+  if(vw/vh < STAGE_RATIO){                 // 세로 화면 → cover
+    let h=vh, w=h*STAGE_RATIO;
+    if(w<vw){ w=vw; h=w/STAGE_RATIO; }
+    fit.style.width=w+'px'; fit.style.height=h+'px';
+    fit.style.marginLeft=((vw-w)/2)+'px'; fit.style.marginTop=((vh-h)/2)+'px';
+  }else{                                   // 가로 화면 → 폭 맞춤 + 세로 스크롤
+    const w=vw, h=w/STAGE_RATIO;
+    fit.style.width=w+'px'; fit.style.height=h+'px';
+    fit.style.marginLeft='0'; fit.style.marginTop='0';
+  }
+}
+function centerStageScreen(){              // 스크린 중심을 화면 중앙에
+  const vh=innerHeight;
+  const h=$('#stageFit').getBoundingClientRect().height;
+  const mid=(SCREEN_RECT.T + SCREEN_RECT.H/2)/100*h;
+  $('#stage').scrollTop=Math.max(0, mid - vh*0.5);
+}
+
+/* ============================================================
+ *  오늘의 한 편 — 달력이 회전판
+ * ============================================================ */
+function todaysPick(){
+  const days=Math.floor((Date.now()-new Date(PALAIS.epoch+'T00:00:00+09:00'))/86400000);
+  const i=((days % PALAIS.curation.length)+PALAIS.curation.length)%PALAIS.curation.length;
+  return PALAIS.curation[i];
+}
+
+/* ============================================================
+ *  전환들
+ * ============================================================ */
+function goHall(){                       // 대문 → (빛 3.2s) → 홀
+  const f=$('#flash');
+  f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
+  setTimeout(()=>{
+    $('#gate').classList.remove('on');
+    $('#hall').classList.add('on');
+    descend();
+  }, 1750);                              // 빛이 화면을 다 덮은 시점에 교대
+}
+function goStage(){                      // 홀 → 페이드아웃 → 무대 페이드인
+  const fd=$('#fader');
+  fd.classList.add('on');
+  setTimeout(()=>{
+    $('#hall').classList.remove('on');
+    layoutStage();
+    $('#stage').classList.add('on');
+    centerStageScreen();
+    $('#letters').classList.add('show');
+    fd.classList.remove('on');
+  }, 1150);
+}
+$('#gate').addEventListener('click', goHall);
+$('#gate').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();goHall();}});
+$('#hall').addEventListener('click', ()=>{ if(descended) goStage(); });
+$('#hall').addEventListener('keydown',e=>{if(e.key==='Enter') goStage();});
+
+/* 무대 스크린 재생 (목업) */
+function play(){
+  $('#playerBox').classList.add('on');
+  $('#letters').classList.add('dim');
+  /* 실배관:
+     const pick=todaysPick();
+     playerBox.innerHTML=`<iframe src="https://www.youtube.com/embed/${pick.id}?autoplay=1&rel=0"
+       allow="autoplay; encrypted-media" allowfullscreen frameborder="0"
+       style="width:100%;height:100%"></iframe>`; */
+}
+function stop(){
+  $('#playerBox').classList.remove('on');
+  $('#letters').classList.remove('dim');
+}
+$('#play').addEventListener('click', e=>{
+  if(e.target.classList.contains('stop')){ stop(); return; }
+  if(!$('#playerBox').classList.contains('on')) play();
+});
+
+/* ============================================================
+ *  붓질
+ * ============================================================ */
+function paint(){
+  document.title=`전당 · ${PALAIS.name} — EG Paris`;
+  $('#playTitle').textContent=todaysPick().t;
+  const one=PALAIS.letters.map(l=>`<span class="letter-item">${l}</span>`).join('');
+  $('#lettersTrack').innerHTML=one+one;
+}
+
+/* 목업 전용 — 시간대 막대 */
+(function todBar(){
+  const bar=document.createElement('div');
+  bar.id='tod';
+  bar.innerHTML=`<b id="todNow">—</b>
+    <button data-t="auto" class="on">AUTO</button>
+    <button data-t="m">아침</button><button data-t="d">낮</button>
+    <button data-t="e">저녁</button><button data-t="n">밤</button>`;
+  document.body.appendChild(bar);
+  bar.addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    bar.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    FORCED=b.dataset.t==='auto'?null:b.dataset.t;
+    CUR=null; applyTOD();
+  });
+})();
+
+/* ============================================================
+ *  목업 전용 — 스크린 좌표 편집기 (무대 화면에서 키 E 또는 ⊞)
+ *  새 채널 무대 그림마다 흰 막 위치를 눈으로 잡고 수치 복사 → 파이스에게 전달
+ *  · 드래그: 이동  · 모서리 핸들: 크기  · 화살표키: 0.1% 미세조정(Shift=1%)
+ * ============================================================ */
+(function rectEditor(){
+  let onEdit=false;
+  const play=$('#play'), fit=$('#stageFit');
+  const R={...SCREEN_RECT};
+
+  const panel=document.createElement('div');
+  panel.style.cssText=`position:fixed;left:12px;top:12px;z-index:90;display:none;
+    background:rgba(10,9,7,.86);border:1px solid rgba(166,124,61,.4);border-radius:8px;
+    padding:12px 14px;font-family:'Cormorant Garamond',serif;font-size:12px;
+    letter-spacing:.08em;color:#ece5d9;backdrop-filter:blur(8px);`;
+  panel.innerHTML=`
+    <div style="letter-spacing:.3em;color:#d9b168;margin-bottom:7px;">SCREEN RECT <span style="opacity:.5;letter-spacing:.05em;">— 키 E로 여닫기</span></div>
+    <div id="rectVals" style="line-height:1.9;color:#d9b168;"></div>
+    <div style="opacity:.6;margin:6px 0 8px;line-height:1.7;">드래그=이동 · 모서리=크기<br>화살표=0.1% (Shift=1%)</div>
+    <button id="rectCopy" style="width:100%;padding:6px;border:1px solid rgba(166,124,61,.5);
+      border-radius:4px;letter-spacing:.18em;color:#d9b168;">수치 복사</button>`;
+  document.body.appendChild(panel);
+
+  const handles=['nw','ne','sw','se'].map(pos=>{
+    const hd=document.createElement('div');
+    hd.dataset.pos=pos;
+    hd.style.cssText=`position:absolute;width:14px;height:14px;border:1px solid #d9b168;
+      background:rgba(217,177,104,.25);display:none;z-index:5;
+      ${pos.includes('n')?'top:-7px;':'bottom:-7px;'}${pos.includes('w')?'left:-7px;':'right:-7px;'}
+      cursor:${pos}-resize;`;
+    play.appendChild(hd);
+    return hd;
+  });
+
+  function applyR(){
+    play.style.left=R.L+'%'; play.style.top=R.T+'%';
+    play.style.width=R.W+'%'; play.style.height=R.H+'%';
+    panel.querySelector('#rectVals').textContent=
+      `L ${R.L.toFixed(1)} · T ${R.T.toFixed(1)} · W ${R.W.toFixed(1)} · H ${R.H.toFixed(1)}`;
+  }
+  function setEdit(v){
+    onEdit=v;
+    panel.style.display=v?'block':'none';
+    play.style.outline=v?'1px dashed rgba(217,177,104,.85)':'none';
+    handles.forEach(hd=>hd.style.display=v?'block':'none');
+    if(v) applyR();
+  }
+
+  let drag=null;
+  play.addEventListener('pointerdown',e=>{
+    if(!onEdit) return;
+    e.preventDefault(); e.stopPropagation();
+    const fw=fit.getBoundingClientRect().width, fh=fit.getBoundingClientRect().height;
+    const pos=e.target.dataset?.pos||null;
+    drag={x:e.clientX,y:e.clientY,R:{...R},pos,fw,fh};
+    play.setPointerCapture(e.pointerId);
+  });
+  play.addEventListener('pointermove',e=>{
+    if(!drag) return;
+    const dx=(e.clientX-drag.x)/drag.fw*100, dy=(e.clientY-drag.y)/drag.fh*100;
+    const o=drag.R;
+    if(!drag.pos){ R.L=o.L+dx; R.T=o.T+dy; }
+    else{
+      if(drag.pos.includes('w')){ R.L=o.L+dx; R.W=o.W-dx; }
+      if(drag.pos.includes('e')){ R.W=o.W+dx; }
+      if(drag.pos.includes('n')){ R.T=o.T+dy; R.H=o.H-dy; }
+      if(drag.pos.includes('s')){ R.H=o.H+dy; }
+      R.W=Math.max(5,R.W); R.H=Math.max(3,R.H);
+    }
+    applyR();
+  });
+  play.addEventListener('pointerup',()=>{drag=null;});
+  play.addEventListener('click',e=>{ if(onEdit){e.stopPropagation();} },true);
+
+  document.addEventListener('keydown',e=>{
+    if(e.key==='e'||e.key==='E'||e.key==='ㄷ'){
+      if($('#stage').classList.contains('on')) setEdit(!onEdit);
+      return;
+    }
+    if(!onEdit) return;
+    const s=e.shiftKey?1:0.1;
+    if(e.key==='ArrowLeft'){R.L-=s;} else if(e.key==='ArrowRight'){R.L+=s;}
+    else if(e.key==='ArrowUp'){R.T-=s;} else if(e.key==='ArrowDown'){R.T+=s;}
+    else return;
+    e.preventDefault(); applyR();
+  });
+  panel.querySelector('#rectCopy').addEventListener('click',()=>{
+    const out=`SCREEN_RECT = { L:${R.L.toFixed(1)}, T:${R.T.toFixed(1)}, W:${R.W.toFixed(1)}, H:${R.H.toFixed(1)} }`;
+    navigator.clipboard?.writeText(out);
+    panel.querySelector('#rectCopy').textContent='복사됨 — 파이스에게 붙여넣기';
+    setTimeout(()=>panel.querySelector('#rectCopy').textContent='수치 복사',1800);
+  });
+
+  // 폰에서도 열 수 있게 ⊞ (무대에서만 노출)
+  const btn=document.createElement('button');
+  btn.textContent='⊞';
+  btn.style.cssText=`position:fixed;left:12px;bottom:12px;z-index:89;width:34px;height:34px;
+    border-radius:50%;background:rgba(10,9,7,.6);border:1px solid rgba(166,124,61,.35);
+    color:#d9b168;font-size:15px;`;
+  btn.addEventListener('click',()=>{ if($('#stage').classList.contains('on')) setEdit(!onEdit); });
+  document.body.appendChild(btn);
+})();
+
+setInterval(applyTOD,10*60*1000);
+addEventListener('resize',()=>{
+  layoutHall(); layoutStage(); applyTOD();
+  if($('#hall').classList.contains('on')) descend();
+  if($('#stage').classList.contains('on')) centerStageScreen();
+});
+addEventListener('load',()=>{
+  ['m','d','e','n'].forEach(t=>{
+    ['gate','hall','hall_wide','screen'].forEach(k=>{ new Image().src=`palais_${k}_${t}.webp`; });
+  });
+});
+</script>
+</body>
+</html>
