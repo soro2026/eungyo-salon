@@ -876,7 +876,7 @@ async function loadCityMarkers(city){
     rows = await res.json();
   }catch(e){ console.warn("voyage_markers 로드 실패:", e); return; }
 
-  const near = new Cesium.DistanceDisplayCondition(0, 60000); // 60km 이내에서만 보임
+  const near = range(PIN_RANGE.spot);          // 인물 장소 — 1.5km부터
   rows.forEach((m)=>{
     const isCompagnon = (m.source === 'compagnon');            // 큐레이션=금빛 / 콩파뇽 발견=청록
     const spotColor = Cesium.Color.fromCssColorString(isCompagnon ? "#7fb3d5" : "#c9a227");
@@ -918,9 +918,15 @@ async function loadMaisons(city){
     rows = await res.json();
   }catch(e){ console.warn("eg_maison 로드 실패:", e); return; }
 
-  const near = new Cesium.DistanceDisplayCondition(0, 60000);
+  const near     = range(PIN_RANGE.maison);      // 이웃 콩파뇽 — 500m
+  const nearMine = range(PIN_RANGE.maisonMine);  // 강하 대상 분더카머 — 600m
+  const myUid = await getMyUid().catch(()=>null);
+  const wantU = new URLSearchParams(location.search).get('user');
   rows.forEach((m)=>{
     const occupied = (m.status === 'occupied');
+    // 강하 대상(내 집 또는 ?user=닉 상대)만 600m, 나머지 이웃은 500m
+    const isMine = (myUid && m.occupant_id === myUid) || (wantU && m.nickname === wantU);
+    const dd = isMine ? nearMine : near;
     const ent = viewer.entities.add({
       id:"maison-"+city+"-"+m.maison_no,
       position: Cesium.Cartesian3.fromDegrees(m.lng, m.lat),
@@ -929,7 +935,7 @@ async function loadMaisons(city){
               outlineColor: Cesium.Color.fromCssColorString(occupied ? "#1a1407" : "#ffd23f"), // 빈집 테두리만 옐로
               outlineWidth: occupied ? 2 : 2.5,
               disableDepthTestDistance:Number.POSITIVE_INFINITY,
-              distanceDisplayCondition:near },
+              distanceDisplayCondition:dd },
       label: occupied ? {
               text: m.nickname || ("메종 "+m.maison_no),
               font:"bold 13px 'Helvetica Neue',Arial,sans-serif",
@@ -940,7 +946,7 @@ async function loadMaisons(city){
               pixelOffset:new Cesium.Cartesian2(0,-13),
               verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
               disableDepthTestDistance:Number.POSITIVE_INFINITY,
-              distanceDisplayCondition:near
+              distanceDisplayCondition:dd
             } : {
               text:"메종 "+m.maison_no,
               font:"bold 11.5px 'Helvetica Neue',Arial,sans-serif",
@@ -953,7 +959,7 @@ async function loadMaisons(city){
               pixelOffset:new Cesium.Cartesian2(0,-12),
               verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
               disableDepthTestDistance:Number.POSITIVE_INFINITY,
-              distanceDisplayCondition:near
+              distanceDisplayCondition:dd
             }
     });
     ent._maison = m;  // 클릭 시 openMaison이 꺼내 씀 (nickname·door_no·intro·status)
@@ -1030,7 +1036,7 @@ async function loadPopups(city){
     rows = await res.json();
   }catch(e){ console.warn("팝업 로드 실패:", e); return; }
 
-  const near = new Cesium.DistanceDisplayCondition(0, 60000);   // 60km 이내에서만
+  const near = range(PIN_RANGE.popup);          // 출판사 팝업 — 400m
   for (const p of rows){
     const bg = popupColor(p);   // 출판사 고유색 (pin_color 지정값 → 없으면 코드 해시)
     const ent = viewer.entities.add({
@@ -1078,6 +1084,24 @@ function openPopup(p){
 
 
 // ══════════════════════════════════════════════════════════════════
+//  핀 등장 거리 (0718 저녁 · 소로 지정)
+//  카메라가 내려올수록 종족이 차례로 나타난다. 한꺼번에 우르르 뜨지 않게.
+//   1500m 인물 장소 → 600m 분더카머(강하 대상) → 500m 이웃 콩파뇽·살롱·
+//   콤포스텔라·굿즈샵 → 400m 출판사 팝업·지식채널 전당
+// ══════════════════════════════════════════════════════════════════
+const PIN_RANGE = {
+  spot      : 1500,   // 인물 장소
+  maisonMine:  600,   // 강하 대상 분더카머 (가장 먼저 맞이한다)
+  maison    :  500,   // 이웃 콩파뇽
+  salon     :  500,   // 파트너 살롱 (핀 생기면 이 값)
+  sanctuary :  500,   // 콤포스텔라·273학술원
+  goods     :  500,   // EG 굿즈샵
+  popup     :  400,   // 출판사 팝업
+  palais    :  400    // 지식채널 전당
+};
+const range = (m)=> new Cesium.DistanceDisplayCondition(0, m);
+
+// ══════════════════════════════════════════════════════════════════
 //  EG 전당(Palais) 핀 — 2차 협업 파트너(지식채널) 센터
 //  · 색: 청록 #16a085 고정 (지도핀 종족 범례 결정문 0718)
 //  · 진입: 핀 클릭 → doorway에 palais.html 직행 (셸 gate가 곧 대문)
@@ -1094,7 +1118,7 @@ async function loadPalais(city){
     rows = await res.json();
   }catch(e){ console.warn("전당 로드 실패:", e); return; }
 
-  const near = new Cesium.DistanceDisplayCondition(0, 60000);   // 60km 이내에서만
+  const near = range(PIN_RANGE.palais);         // 지식채널 전당 — 400m
   for (const p of rows){
     if (p.lat == null || p.lng == null) continue;
     const ent = viewer.entities.add({
