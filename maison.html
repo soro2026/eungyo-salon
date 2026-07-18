@@ -727,6 +727,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   await loadCityMarkers('paris');   // 도시 핀(인물 장소)
   await loadMaisons('paris');       // EG메종 집 핀 (옐로 라벨)
   await loadPopups('paris');        // 출판사 팝업 명패 핀
+  await loadPalais('paris');        // 전당(지식채널) 청록 핀
   loadCityList();
   document.getElementById("cityBtn").addEventListener("click", ()=> { toggleStarList(false); toggleCityList(); });
   loadStarList();
@@ -771,12 +772,13 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
       if (picked.id._spot) openStory(picked.id._spot);
       else if (picked.id._maison) openMaison(picked.id._maison);
       else if (picked.id._popup) openPopup(picked.id._popup);
+      else if (picked.id._palais) openPalais(picked.id._palais);
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
   let hoveredEnt = null;
   handler.setInputAction((mv)=>{
     const picked = viewer.scene.pick(mv.endPosition);
-    const ent = (Cesium.defined(picked) && picked.id && (picked.id._maison || picked.id._spot || picked.id._popup)) ? picked.id : null;
+    const ent = (Cesium.defined(picked) && picked.id && (picked.id._maison || picked.id._spot || picked.id._popup || picked.id._palais)) ? picked.id : null;
     if (ent === hoveredEnt) return;
     if (hoveredEnt && hoveredEnt.point) hoveredEnt.point.pixelSize = hoveredEnt._basePx || 9;
     if (ent && ent.point){
@@ -834,6 +836,7 @@ function buildJourney(){
       if (picked.id._spot) openStory(picked.id._spot);
       else if (picked.id._maison) openMaison(picked.id._maison);
       else if (picked.id._popup) openPopup(picked.id._popup);
+      else if (picked.id._palais) openPalais(picked.id._palais);
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
@@ -841,7 +844,7 @@ function buildJourney(){
   let hoveredEnt = null;
   handler.setInputAction((mv)=>{
     const picked = viewer.scene.pick(mv.endPosition);
-    const ent = (Cesium.defined(picked) && picked.id && (picked.id._maison || picked.id._spot || picked.id._popup)) ? picked.id : null;
+    const ent = (Cesium.defined(picked) && picked.id && (picked.id._maison || picked.id._spot || picked.id._popup || picked.id._palais)) ? picked.id : null;
     if (ent === hoveredEnt) return;
     if (hoveredEnt && hoveredEnt.point) hoveredEnt.point.pixelSize = hoveredEnt._basePx || 9;
     if (ent && ent.point){
@@ -968,13 +971,12 @@ async function loadMaisons(city){
 //  · 진입: 핀 클릭 → doorway에 셸 iframe 직행(문짝 연출 없음 = 셸 gate가 곧 대문)
 // ══════════════════════════════════════════════════════════════════
 const POPUP_ST_BASE = SUPA_URL + "/storage/v1/object/public/popup-assets/";
-// 흰 로고가 또렷이 빛나는 짙은 색만 (밝은 바탕 금지 — 흰 로고가 묻힘)
-const POPUP_PALETTE = ["#c0392b","#2980b9","#8e44ad","#16a085","#d35400","#2c3e9e","#c0398a","#1e8449"];
+// 종족색 체계(0718 범례 결정문): 출판사 스토어는 전부 버건디 한 색.
+// 색=범주, 이름=개체 — 개체마다 색을 낭비하지 않는다. pin_color·해시 배정은 은퇴.
+const POPUP_BURGUNDY = "#8e2d2d";
+const POPUP_PALETTE = ["#c0392b","#2980b9","#8e44ad","#16a085","#d35400","#2c3e9e","#c0398a","#1e8449"]; // (휴면: 미지정 폴백 잔존)
 function popupColor(p){
-  if (p.pin_color) return p.pin_color;                 // 소로 지정색이 있으면 최우선(세계 공통 고정)
-  let h = 0; const c = p.code || "";
-  for (let i=0;i<c.length;i++){ h = (h*31 + c.charCodeAt(i)) >>> 0; }
-  return POPUP_PALETTE[h % POPUP_PALETTE.length];       // 코드 해시 → 결정론적 자동색
+  return POPUP_BURGUNDY;
 }
 function loadPopupImg(url){
   return new Promise((res)=>{
@@ -1075,6 +1077,70 @@ function openPopup(p){
 }
 
 
+// ══════════════════════════════════════════════════════════════════
+//  EG 전당(Palais) 핀 — 2차 협업 파트너(지식채널) 센터
+//  · 색: 청록 #16a085 고정 (지도핀 종족 범례 결정문 0718)
+//  · 진입: 핀 클릭 → doorway에 palais.html 직행 (셸 gate가 곧 대문)
+// ══════════════════════════════════════════════════════════════════
+const PALAIS_COLOR = "#16a085";
+async function loadPalais(city){
+  let rows = [];
+  try{
+    const res = await fetch(SUPA_URL + "/rest/v1/palais_orgs?select=code,name,lat,lng,city&city=eq."
+                 + encodeURIComponent(city), {
+      headers:{ "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY }
+    });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    rows = await res.json();
+  }catch(e){ console.warn("전당 로드 실패:", e); return; }
+
+  const near = new Cesium.DistanceDisplayCondition(0, 60000);   // 60km 이내에서만
+  for (const p of rows){
+    if (p.lat == null || p.lng == null) continue;
+    const ent = viewer.entities.add({
+      id: "palais-"+city+"-"+p.code,
+      position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),
+      point:{ pixelSize:9, color:Cesium.Color.fromCssColorString(PALAIS_COLOR),
+              outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
+              disableDepthTestDistance:Number.POSITIVE_INFINITY,
+              distanceDisplayCondition:near },
+      label: {
+        text: p.name || p.code,
+        font: "bold 14px 'Helvetica Neue',Arial,sans-serif",
+        fillColor: Cesium.Color.WHITE,
+        outlineColor: Cesium.Color.fromCssColorString("#0a0e1a"),
+        outlineWidth: 3,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        showBackground: true,
+        backgroundColor: Cesium.Color.fromCssColorString(PALAIS_COLOR).withAlpha(.95),
+        backgroundPadding: new Cesium.Cartesian2(11,6),
+        pixelOffset: new Cesium.Cartesian2(0,-12),
+        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        distanceDisplayCondition: near
+      }
+    });
+    ent._palais = p;
+  }
+  await clampSpotsToSurface();
+  applyLayerVisibility();
+}
+// 전당 핀 클릭 → doorway에 palais.html iframe 직행
+function openPalais(p){
+  closeStory(); closeMaison();
+  currentPopup = null;
+  viewer.useDefaultRenderLoop = false;
+  const dw = document.getElementById("doorway");
+  document.getElementById("doorTitle").textContent = (p.name||"") + " 전당";
+  const dp = document.getElementById("doorPick"); if (dp) dp.style.display = "none";
+  const ep = document.getElementById("elevPick"); if (ep) ep.style.display = "none";
+  const ex = document.getElementById("doorExit"); if (ex) ex.textContent = "× 도시로 나가기";
+  document.getElementById("doorFrame").src = "palais.html?org=" + encodeURIComponent(p.code) + "&v=" + Date.now();
+  dw.classList.add("popup","in","open");
+  doorState = 'open';
+}
+
+
 // 레이어 토글 — 인물 장소(_spot)와 콩파뇽 집(_maison)을 켜고 끔
 function applyLayerVisibility(){
   viewer.entities.values.forEach(e=>{
@@ -1131,11 +1197,12 @@ async function jumpToCity(c){
   closeStory();
   closeMaison();
   // 이전 도시 마커 제거 (큐레이션 핀 + 메종 핀 둘 다, slice로 복제 후 제거)
-  viewer.entities.values.filter(e=>e._spot || e._maison || e._popup).slice().forEach(e=> viewer.entities.remove(e));
+  viewer.entities.values.filter(e=>e._spot || e._maison || e._popup || e._palais).slice().forEach(e=> viewer.entities.remove(e));
   // 새 도시 마커를 먼저 로드 — 1호 핀 좌표를 잡고 표면 클램프(함수 내부)까지 끝낸 뒤 비행
   await loadCityMarkers(c.city);
   await loadMaisons(c.city);
   await loadPopups(c.city);
+  await loadPalais(c.city);
 
   // 1호 핀(가장 먼저 입주한 곳 = id 최소)을 중심점으로. 핀이 없으면 도시 중심.
   let lng = c.center_lng, lat = c.center_lat;
@@ -1223,10 +1290,11 @@ async function jumpToStarPlace(starId){
     currentCity = rep.city;
     if (typeof renderCityList === 'function') renderCityList();
     if (typeof renderStarList === 'function') renderStarList();
-    viewer.entities.values.filter(e=>e._spot || e._maison || e._popup).slice().forEach(e=> viewer.entities.remove(e));
+    viewer.entities.values.filter(e=>e._spot || e._maison || e._popup || e._palais).slice().forEach(e=> viewer.entities.remove(e));
     await loadCityMarkers(rep.city);
     await loadMaisons(rep.city);
     await loadPopups(rep.city);
+    await loadPalais(rep.city);
   }
 
   const lng = rep.lng, lat = rep.lat, r = rep.cam_range || 1000;
@@ -1404,7 +1472,7 @@ function exitDoorway(){
 // 마커를 실사 3D 타일(또는 지형) 표면 높이에 정확히 앉힘 — 비스듬한 각도에서도 안 어긋나게
 async function clampSpotsToSurface(){
   if (!viewer.scene.clampToHeightMostDetailed) return;       // 구버전 안전장치
-  const ents = viewer.entities.values.filter(e => e._spot || e._maison || e._popup);
+  const ents = viewer.entities.values.filter(e => e._spot || e._maison || e._popup || e._palais);
   if (!ents.length) return;
   const now = Cesium.JulianDate.now();
   const carts = ents.map(e => e.position.getValue(now));
