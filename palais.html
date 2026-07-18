@@ -132,22 +132,83 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;}
 }
 #playerBox .stop{color:var(--bronze-lit);border-bottom:1px solid rgba(217,177,104,.4);padding-bottom:2px;}
 
-/* 무대 하단 — 흐르는 편지 */
-#letters{
-  position:fixed;left:0;right:0;bottom:0;height:42px;z-index:20;
-  display:flex;align-items:center;overflow:hidden;pointer-events:none;
-  background:linear-gradient(to top,rgba(8,7,5,.6),rgba(8,7,5,0));
-  opacity:0;transition:opacity 1.2s ease;
+/* ═════════ 헌사홀 바닥 — 방명록 ═════════
+   꽃을 놓고 한 줄 남긴다. 메시지는 흐르지 않고 한 행씩 떠오른다. */
+#guest{
+  position:fixed;left:0;right:0;bottom:0;z-index:22;
+  display:none;flex-direction:column;align-items:center;
+  padding-bottom:clamp(10px,2vh,20px);
+  pointer-events:none;
 }
-#stage.on ~ #letters, #letters.show{opacity:.5;}
-#letters.dim{opacity:.14;}
-#lettersTrack{
-  display:flex;gap:5.5em;white-space:nowrap;
-  font-size:12.5px;letter-spacing:.06em;color:rgba(236,229,217,.8);
-  animation:drift 64s linear infinite;
+#hall.on ~ #guest{display:flex;}
+
+/* 떠오르는 메시지 — 아래에서 위로 한 행씩 */
+#guestFloat{
+  position:relative;width:min(92vw,760px);height:clamp(120px,20vh,190px);
+  overflow:hidden;pointer-events:none;
 }
-@keyframes drift{from{transform:translateX(0);}to{transform:translateX(-50%);}}
-.letter-item::before{content:'✎';margin-right:.7em;color:var(--bronze);opacity:.65;}
+.gf-line{
+  position:absolute;left:50%;bottom:0;transform:translateX(-50%);
+  max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  padding:7px 16px;border-radius:99px;
+  background:rgba(6,5,4,.62);                    /* 낮·밤 모두 읽히도록 검은 바닥 */
+  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+  border:1px solid rgba(166,124,61,.28);
+  font-size:13px;letter-spacing:.03em;color:rgba(243,237,226,.95);
+  text-shadow:0 1px 3px rgba(0,0,0,.85);
+  animation:rise 7.5s ease-out forwards;
+}
+.gf-line b{color:var(--bronze-lit);font-weight:400;margin-right:.6em;}
+@keyframes rise{
+  0%   {opacity:0; transform:translate(-50%, 18px);}
+  14%  {opacity:1; transform:translate(-50%, 0);}
+  72%  {opacity:1;}
+  100% {opacity:0; transform:translate(-50%, -110px);}
+}
+
+/* 바닥 줄 — 놓인 꽃 + 버튼 */
+#guestBar{
+  display:flex;align-items:flex-end;gap:14px;pointer-events:auto;
+  padding:8px 14px;border-radius:99px;
+  background:rgba(6,5,4,.5);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+}
+#flowerRow{display:flex;align-items:flex-end;gap:2px;height:26px;}
+#flowerRow svg{width:17px;height:26px;opacity:.92;}
+#guestBtn{
+  font-size:12px;letter-spacing:.18em;text-indent:.18em;white-space:nowrap;
+  color:var(--bronze-lit);border:1px solid rgba(166,124,61,.45);
+  border-radius:99px;padding:6px 15px;transition:.25s;
+}
+#guestBtn:hover{background:rgba(217,177,104,.14);border-color:var(--bronze-lit);}
+
+/* 작성 패널 */
+#guestForm{
+  display:none;pointer-events:auto;width:min(92vw,520px);margin-bottom:10px;
+  background:rgba(8,7,5,.9);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);
+  border:1px solid rgba(166,124,61,.4);border-radius:12px;padding:16px 16px 14px;
+}
+#guestForm.on{display:block;}
+.gfm-row{display:flex;gap:8px;align-items:center;margin-bottom:9px;}
+.gfm-flowers{display:flex;gap:6px;}
+.gfm-flowers button{
+  width:34px;height:38px;border-radius:8px;border:1px solid transparent;
+  display:grid;place-items:center;opacity:.5;transition:.2s;
+}
+.gfm-flowers button.on{opacity:1;border-color:rgba(217,177,104,.6);background:rgba(217,177,104,.1);}
+.gfm-flowers svg{width:18px;height:28px;}
+#guestForm input,#guestForm textarea{
+  width:100%;background:rgba(38,34,28,.9);border:1px solid rgba(166,124,61,.3);
+  border-radius:7px;color:var(--marble);padding:8px 11px;font:inherit;font-size:13px;
+}
+#guestForm textarea{resize:vertical;min-height:64px;line-height:1.7;}
+#guestForm input:focus,#guestForm textarea:focus{outline:none;border-color:var(--bronze);}
+.gfm-foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px;}
+.gfm-msg{font-size:11.5px;color:rgba(236,229,217,.55);line-height:1.6;}
+.gfm-send{
+  font-size:12px;letter-spacing:.16em;color:#1a150d;background:var(--bronze);
+  border-radius:99px;padding:7px 18px;white-space:nowrap;font-weight:700;
+}
+.gfm-send:hover{background:var(--bronze-lit);}
 
 /* 뷰 사이 페이드 장막 */
 #fader{
@@ -188,14 +249,31 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;}
         <div id="playTitle" class="play-title"></div>
         <div class="play-ring"></div>
       </div>
-      <div id="playerBox">
-        <div class="mock">여기서 유튜브 플레이어가 열립니다<br>— 목업 —<br><span class="stop">돌아가기</span></div>
-      </div>
+      <div id="playerBox"></div>
     </div>
   </div>
 </div>
 
-<div id="letters"><div id="lettersTrack"></div></div>
+<!-- 헌사홀 바닥 — 방명록 -->
+<div id="guest">
+  <div id="guestFloat"></div>
+  <div id="guestForm">
+    <div class="gfm-row">
+      <div class="gfm-flowers" id="gfmFlowers"></div>
+      <input id="gfmWho" placeholder="이름" maxlength="20" style="max-width:140px;">
+    </div>
+    <textarea id="gfmMsg" placeholder="이 전당에 한 줄 남겨 주세요." maxlength="120"></textarea>
+    <div class="gfm-foot">
+      <div class="gfm-msg" id="gfmNote"></div>
+      <button class="gfm-send" id="gfmSend">놓기</button>
+    </div>
+  </div>
+  <div id="guestBar">
+    <div id="flowerRow"></div>
+    <button id="guestBtn">방명록</button>
+  </div>
+</div>
+
 <div id="fader"></div>
 
 <script>
@@ -369,7 +447,7 @@ function goStage(){                      // 홀 → 페이드아웃 → 무대 �
     layoutStage();
     $('#stage').classList.add('on');
     centerStageScreen();
-    $('#letters').classList.add('show');
+    $('#guestForm').classList.remove('on');
     fd.classList.remove('on');
   }, 1150);
 }
@@ -389,12 +467,10 @@ function play(){
     <button class="stop" style="position:absolute;right:6px;top:6px;z-index:3;font-size:11px;
       letter-spacing:.16em;color:#d9b168;background:rgba(0,0,0,.55);padding:3px 10px;border-radius:99px;">닫기</button>`;
   box.classList.add('on');
-  $('#letters').classList.add('dim');
 }
 function stop(){
   $('#playerBox').classList.remove('on');
   $('#playerBox').innerHTML='';
-  $('#letters').classList.remove('dim');
 }
 $('#play').addEventListener('click', e=>{
   if(e.target.classList.contains('stop')){ stop(); return; }
@@ -415,11 +491,103 @@ function paint(){
       .then(j=>{ if(j&&j.title) $('#playTitle').textContent=j.title; })
       .catch(()=>{});
   }
-  const ls=PALAIS.letters||[];
-  if(!ls.length){ $('#letters').style.display='none'; return; }
-  const one=ls.map(l=>`<span class="letter-item">${l.replace(/[<>]/g,'')}</span>`).join('');
-  $('#lettersTrack').innerHTML=one+one;
 }
+
+/* ============================================================
+ *  방명록 — 헌사홀 바닥. 꽃을 놓고 한 줄 남긴다.
+ *  · 메시지는 흐르지 않고 한 행씩 아래에서 위로 떠오른다
+ *  · 글자 바닥에 검은 막 → 낮·밤 어느 홀에서도 읽힌다
+ * ============================================================ */
+const FLOWERS=[
+  {n:'장미', c:'#c0556a', p:'M9 27V13M9 13c-3.2 0-5-2.2-5-4.6C4 6 5.8 4 9 4s5 2 5 4.4C14 10.8 12.2 13 9 13z'},
+  {n:'들꽃', c:'#e0c568', p:'M9 27V14M9 5.2 A2.6 2.6 0 1 1 9 5.3zM9 14c-2.6-1-4.4-2.6-4.4-4.6M9 14c2.6-1 4.4-2.6 4.4-4.6M9 14V7'},
+  {n:'수국', c:'#8fa6d8', p:'M9 27V15M6 7a2.6 2.6 0 1 1 0 .1zM12 7a2.6 2.6 0 1 1 0 .1zM9 12a2.6 2.6 0 1 1 0 .1zM9 15V12'},
+  {n:'백합', c:'#e8e2d4', p:'M9 27V12M9 12c-2.4-1.6-4-4-4-6.4M9 12c2.4-1.6 4-4 4-6.4M9 12V4.4'}
+];
+function flowerSVG(i,size){
+  const f=FLOWERS[i%FLOWERS.length];
+  return `<svg viewBox="0 0 18 28" fill="none" xmlns="http://www.w3.org/2000/svg" ${size?`width="${size}"`:''}>
+    <path d="M9 27V13" stroke="#5f7a4a" stroke-width="1.3" stroke-linecap="round"/>
+    <path d="M9 20c-2.4-.6-3.6-2-3.8-3.4 1.8-.2 3.2.9 3.8 3.4z" fill="#5f7a4a" opacity=".85"/>
+    <path d="${f.p}" stroke="${f.c}" stroke-width="1.5" fill="${f.c}" fill-opacity=".55" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
+}
+
+let NOTES=[], floatTimer=null, floatIdx=0, myFlower=0;
+
+async function loadNotes(){
+  const { data, error } = await sb.from('palais_notes')
+    .select('who,msg,flower').eq('org',ORG).order('created_at',{ascending:false}).limit(60);
+  if(error){ console.warn('방명록 읽기 실패:',error.message); return; }
+  NOTES=data||[];
+  paintFlowers();
+  startFloat();
+}
+function paintFlowers(){
+  const row=$('#flowerRow');
+  const n=Math.min(NOTES.length,14);
+  row.innerHTML=Array.from({length:n},(_,i)=>flowerSVG(NOTES[i].flower||0)).join('');
+}
+function startFloat(){
+  clearInterval(floatTimer);
+  if(!NOTES.length) return;
+  const show=()=>{
+    const n=NOTES[floatIdx%NOTES.length]; floatIdx++;
+    const el=document.createElement('div');
+    el.className='gf-line';
+    el.innerHTML=(n.who?`<b>${esc(n.who)}</b>`:'')+esc(n.msg);
+    $('#guestFloat').appendChild(el);
+    setTimeout(()=>el.remove(),7600);
+  };
+  show();
+  floatTimer=setInterval(show, 3400);
+}
+const esc=s=>String(s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+
+/* 작성 패널 */
+(function guestUI(){
+  $('#gfmFlowers').innerHTML=FLOWERS.map((f,i)=>
+    `<button data-i="${i}" title="${f.n}" class="${i===0?'on':''}">${flowerSVG(i)}</button>`).join('');
+  $('#gfmFlowers').addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    myFlower=+b.dataset.i;
+    $('#gfmFlowers').querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+  });
+  $('#guestBtn').addEventListener('click',async e=>{
+    e.stopPropagation();
+    const form=$('#guestForm');
+    form.classList.toggle('on');
+    if(form.classList.contains('on')){
+      const { data:{ session } } = await sb.auth.getSession();
+      $('#gfmNote').textContent = session
+        ? '남기신 꽃과 한 줄이 이 홀 바닥에 놓입니다.'
+        : '은교살롱에 로그인하시면 남길 수 있습니다.';
+      $('#gfmSend').style.display = session ? '' : 'none';
+      if(session && !$('#gfmWho').value){
+        const meta=session.user?.user_metadata||{};
+        $('#gfmWho').value = meta.nickname || meta.name || '';
+      }
+      $('#gfmMsg').focus();
+    }
+  });
+  ['#guestForm','#guestBar'].forEach(sel=>{
+    $(sel).addEventListener('click',e=>e.stopPropagation());   // 홀 클릭(무대 진입)과 분리
+  });
+  $('#gfmSend').addEventListener('click',async e=>{
+    e.stopPropagation();
+    const msg=$('#gfmMsg').value.trim();
+    if(!msg){ $('#gfmNote').textContent='한 줄만 적어 주세요.'; return; }
+    $('#gfmSend').disabled=true; $('#gfmNote').textContent='놓는 중…';
+    const { error } = await sb.from('palais_notes')
+      .insert({ org:ORG, who:$('#gfmWho').value.trim()||null, msg, flower:myFlower });
+    $('#gfmSend').disabled=false;
+    if(error){ $('#gfmNote').textContent='실패했습니다: '+error.message; return; }
+    $('#gfmMsg').value=''; $('#gfmNote').textContent='놓였습니다. 고맙습니다.';
+    await loadNotes();
+    setTimeout(()=>$('#guestForm').classList.remove('on'),1200);
+  });
+})();
 
 /* ── DB에서 이 전당을 불러온다 ── */
 async function loadOrg(){
@@ -429,7 +597,7 @@ async function loadOrg(){
            curation:Array.isArray(data.curation)?data.curation:[],
            letters:Array.isArray(data.letters)?data.letters:[] };
   if(data.screen_rect) SCREEN_RECT=Object.assign({},SCREEN_RECT,data.screen_rect);
-  applyRect(); paint();
+  applyRect(); paint(); loadNotes();
 }
 
 
