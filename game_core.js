@@ -1471,6 +1471,37 @@ function onConfirm(){
 
 function norm(s){return s.replace(/[\s\-_]/g,'').toLowerCase();}
 
+/* ── 관용 정규화 (0719 테라 창): 외래어 한글 표기 변형을 정답으로 품는다.
+   모음 접기: ㅐ↔ㅔ · ㅒ↔ㅖ · ㅟ↔ㅣ (맨/멘 · 쉬/시 · 위/이 류)
+   양쪽 답을 같은 규칙으로 접은 뒤 비교하므로 편파 없음. exact·aliases 실패 후 최후 안전망. */
+function normLoose(s){
+  const base = norm(String(s));
+  let out = '';
+  for (const ch of base){
+    const code = ch.charCodeAt(0);
+    if (code >= 0xAC00 && code <= 0xD7A3){
+      const off = code - 0xAC00;
+      const jong = off % 28;
+      let jung = Math.floor(off / 28) % 21;
+      const cho = Math.floor(off / 28 / 21);
+      if (jung === 1) jung = 5;        // ㅐ → ㅔ
+      else if (jung === 3) jung = 7;   // ㅒ → ㅖ
+      else if (jung === 16) jung = 20; // ㅟ → ㅣ
+      out += String.fromCharCode(0xAC00 + (cho*21 + jung)*28 + jong);
+    } else out += ch;
+  }
+  return out;
+}
+
+/* ── 테라 귀환 (0719): 지구 셸(terra) 안에서 경기했다면 메뉴 경유 없이 곧장 지구로 ── */
+function egGoHome(){
+  if (new URLSearchParams(location.search).get('terra') === '1' && window.parent !== window){
+    window.parent.postMessage({ type:'eg-game-done' }, '*');
+    return;
+  }
+  location.href = 'index.html';
+}
+
 function showJudging(msgs,onDone){
   const ja=document.getElementById('judging-area'),msgEl=document.getElementById('judging-msg'),bar=document.getElementById('judging-bar');
   ja.style.display='block';msgEl.textContent=msgs[0];msgEl.classList.remove('fade');
@@ -1719,6 +1750,14 @@ function processAns(ans){
           ok = true;
           break;
         }
+      }
+    }
+    // 관용 폴백 (0719): 외래어 표기 변형 흡수 — 위버멘쉬=위버맨쉬=위버멘시=위버맨시
+    if (!ok){
+      const la = normLoose(ans), lc = normLoose(q.answer);
+      ok = la === lc;
+      if (!ok && Array.isArray(q.aliases)){
+        for (const alias of q.aliases){ if (la === normLoose(alias)){ ok = true; break; } }
       }
     }
   }
@@ -2089,7 +2128,7 @@ function showFinalResult(result, resultColor, emoji){
     </div>
     <div style="display:flex;gap:10px;margin-bottom:10px">
       <button class="btn-next" style="flex:1" onclick="showOtherFieldFinal()">🏟 타구장 결과 보기</button>
-      <button class="btn-next" style="flex:1" onclick="location.href='index.html'">🏠 홈으로</button>
+      <button class="btn-next" style="flex:1" onclick="egGoHome()">🏠 홈으로</button>
     </div>
     <div id="otherfield-final-panel" style="display:none;text-align:center;font-size:14px;font-family:'Courier New';color:#E9C97E;background:rgba(0,0,0,0.25);border-radius:10px;padding:12px"></div>
   `;

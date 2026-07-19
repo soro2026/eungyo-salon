@@ -493,18 +493,19 @@
 
   /* ═══ EG테라 0719 — 통합위젯 도크 + 스타디움 카드 팝업 + 구장 입장 카드 ═══ */
   #egDock{ position:fixed; top:20px; right:20px; z-index:28; display:flex; flex-direction:column;
-    gap:10px; width:236px; }
-  .dock-card{ background:linear-gradient(to left,rgba(10,14,26,.97),rgba(10,14,26,.88));
-    border:1px solid var(--line); border-radius:15px; padding:13px 16px 12px; cursor:pointer;
-    backdrop-filter:blur(8px); transition:border-color .2s, transform .15s; }
-  .dock-card:hover{ border-color:var(--gold); transform:translateY(-1px); }
-  .dock-cap{ font-size:9.5px; letter-spacing:.26em; color:var(--cream-dim); margin-bottom:7px; }
-  .dock-main{ font-size:14.5px; font-weight:700; display:flex; align-items:baseline;
+    gap:9px; width:208px; }
+  .dock-card{ background:linear-gradient(160deg,rgba(248,244,234,.95),rgba(238,231,216,.92));
+    border:1px solid rgba(158,127,58,.35); border-radius:14px; padding:11px 14px 10px; cursor:pointer;
+    color:#2b2318; box-shadow:0 8px 26px rgba(0,0,0,.28);
+    backdrop-filter:blur(6px); transition:border-color .2s, transform .15s, box-shadow .2s; }
+  .dock-card:hover{ border-color:#9e7f3a; transform:translateY(-1px); box-shadow:0 12px 32px rgba(0,0,0,.34); }
+  .dock-cap{ font-size:9px; letter-spacing:.24em; color:#8a7a5c; margin-bottom:6px; }
+  .dock-main{ font-size:13.5px; font-weight:700; display:flex; align-items:baseline;
     justify-content:space-between; gap:6px; }
-  .dock-main .vs{ font-size:10px; color:var(--cream-dim); font-weight:400; }
-  .dock-sub{ font-size:11px; color:var(--cream-dim); margin-top:4px; }
-  .dock-count{ margin-top:8px; font-variant-numeric:tabular-nums; font-size:19px;
-    letter-spacing:.06em; color:var(--gold); }
+  .dock-main .vs{ font-size:9.5px; color:#a8987a; font-weight:400; font-style:italic; }
+  .dock-sub{ font-size:10.5px; color:#8a7a5c; margin-top:3px; letter-spacing:.03em; }
+  .dock-count{ margin-top:7px; font-variant-numeric:tabular-nums; font-size:17px;
+    letter-spacing:.05em; color:#8a5f18; font-weight:700; }
   /* 스타디움 카드 팝업 — 지구 타일 위에 뜨는 창. 홈·경기·기록·리그·나 5탭 원본 그대로 */
   #stadCard{ position:fixed; inset:0; z-index:45; display:none; align-items:center; justify-content:center;
     background:rgba(3,5,11,.45); backdrop-filter:blur(3px); }
@@ -517,20 +518,8 @@
     border:0; border-radius:50%; background:rgba(10,14,26,.85); color:var(--cream-dim);
     font-size:17px; cursor:pointer; border:1px solid var(--line); }
   #stadClose:hover{ color:var(--gold); border-color:var(--gold); }
-  /* 구장 착륙 입장 카드 */
-  #parkCard{ position:fixed; left:50%; bottom:46px; transform:translateX(-50%) translateY(12px);
-    z-index:29; background:linear-gradient(to top,rgba(10,14,26,.97),rgba(10,14,26,.88));
-    border:1px solid var(--line); border-radius:16px; padding:16px 24px; text-align:center;
-    backdrop-filter:blur(8px); opacity:0; pointer-events:none; transition:opacity .3s, transform .3s; }
-  #parkCard.in{ opacity:1; pointer-events:auto; transform:translateX(-50%); }
-  #pcName{ font-family:var(--serif); font-size:16px; font-weight:700; }
-  #pcCity{ font-size:10.5px; color:var(--cream-dim); margin-top:3px; letter-spacing:.14em; }
-  #pcBtn{ margin-top:11px; background:var(--gold); color:#141005; border:0; border-radius:10px;
-    padding:9px 22px; font-size:13.5px; font-weight:700; cursor:pointer; }
-  #pcBtn:hover{ filter:brightness(1.08); }
   @media (max-width:640px){
     #egDock{ width:calc(100vw - 40px); top:auto; bottom:16px; right:20px; }
-    #parkCard{ bottom:130px; }
     #stadCardBox{ width:100vw; height:100vh; border-radius:0; }
   }
 
@@ -608,9 +597,6 @@
   </div>
 </div>
 
-<!-- ═══ EG테라: 구장 착륙 입장 카드 ═══ -->
-<div id="parkCard">
-  <div id="pcName">펜웨이파크</div>
   <div id="pcCity">BOSTON</div>
   <button id="pcBtn">⚾ 경기 입장하기</button>
 </div>
@@ -2024,7 +2010,7 @@ function freeCamera(){
 function flyToPark(p){
   if (!p) return;
   currentPark = p;
-  hideParkCard(); closeStadCard();
+  closeStadCard();
   try{ closeStory(); }catch(e){}
   try{ closeMaison(); }catch(e){}
   freeCamera();
@@ -2034,22 +2020,18 @@ function flyToPark(p){
     orientation:{ heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 },
     duration: 4.0,
     complete: ()=>{
-      /* 2단 — 구장으로 강하 */
+      /* 2단 — 구장으로 강하 → 착륙 즉시 메종식 회전 카메라 (0719 소로 피드백) */
       viewer.camera.flyTo({
         destination: Cesium.Cartesian3.fromDegrees(p.lng, p.lat - 0.0048, 620),
         orientation:{ heading:0, pitch:Cesium.Math.toRadians(-32), roll:0 },
         duration: 4.5,
-        complete: ()=> showParkCard(p)
+        complete: ()=>{
+          try{ startOrbit(Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 0), 620); }catch(e){}
+        }
       });
     }
   });
 }
-function showParkCard(p){
-  document.getElementById("pcName").textContent = p.name;
-  document.getElementById("pcCity").textContent = (p.city||"").toUpperCase();
-  document.getElementById("parkCard").classList.add("in");
-}
-function hideParkCard(){ document.getElementById("parkCard").classList.remove("in"); }
 
 /* ── 스타디움 카드 팝업 (원본 5탭 그대로) — 열리면 지구 잠들기 ── */
 function openStadCard(){
@@ -2058,7 +2040,7 @@ function openStadCard(){
   hideParkCard();
   viewer.useDefaultRenderLoop = false;   /* 마지막 프레임이 배경으로 남는다 */
   const f = document.getElementById("stadFrame");
-  if (!f.src || f.src === "about:blank") f.src = "stadium_v2.html?terra=1";
+  if (!f.src || f.src.endsWith("about:blank")) f.src = "stadium_v2.html?terra=1";
   document.getElementById("stadCard").classList.add("in");
 }
 function closeStadCard(){
@@ -2070,12 +2052,12 @@ function closeStadCard(){
 function enterGame(){
   let url;
   if (gameParams){
-    url = "game_rookie.html?game=true&opp=" + encodeURIComponent(gameParams.opp)
+    url = "game_rookie.html?game=true&terra=1&opp=" + encodeURIComponent(gameParams.opp)
         + "&isHome=" + gameParams.isHome + "&matchId=" + encodeURIComponent(gameParams.matchId);
   } else if (todayMatch){
     const myIsHome = todayMatch.home_team === "soro";
     const opp = myIsHome ? todayMatch.away_team : todayMatch.home_team;
-    url = "game_rookie.html?game=true&opp=" + encodeURIComponent(opp)
+    url = "game_rookie.html?game=true&terra=1&opp=" + encodeURIComponent(opp)
         + "&isHome=" + (myIsHome?"1":"0") + "&matchId=" + encodeURIComponent(todayMatch.id);
   } else { url = "stadium_v2.html"; }
   viewer.useDefaultRenderLoop = false;
@@ -2083,7 +2065,6 @@ function enterGame(){
   const dp = document.getElementById("doorPick"); if (dp) dp.style.display = "none";
   const ep = document.getElementById("elevPick"); if (ep) ep.style.display = "none";
   const ex = document.getElementById("doorExit"); if (ex) ex.textContent = "× 지구로 돌아가기";
-  hideParkCard();
   document.getElementById("doorFrame").src = url;
   document.getElementById("doorway").classList.add("popup","in","open");
   doorState = "open";
@@ -2096,26 +2077,42 @@ function wireTerra(){
     const picked = viewer.scene.pick(mv.position);
     if (picked && picked.id && picked.id._terra){
       const p = picked.id._terra;
-      if (currentPark && currentPark.code === p.code &&
-          document.getElementById("parkCard").classList.contains("in")) enterGame();
+      if (currentPark && currentPark.code === p.code) enterGame();   /* 착륙해 있으면 핀 = 경기장 문 */
       else flyToPark(p);
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
-  document.getElementById("pcBtn").addEventListener("click", enterGame);
   document.getElementById("stadClose").addEventListener("click", closeStadCard);
+  /* 카드 팝업 스크롤바 숨김 (스크롤 기능은 유지 — 0719 소로 피드백) */
+  document.getElementById("stadFrame").addEventListener("load", function(){
+    try{
+      const doc = this.contentDocument;
+      if (!doc) return;
+      const st = doc.createElement("style");
+      st.textContent = "::-webkit-scrollbar{width:0;height:0} html{scrollbar-width:none}";
+      doc.head.appendChild(st);
+    }catch(e){}
+  });
   document.getElementById("stadCard").addEventListener("click", (e)=>{
     if (e.target.id === "stadCard") closeStadCard();   /* 바깥 클릭 닫기 */
   });
   /* 다리: 스타디움 카드 안 "경기 입장하기" → 카드 닫고 구장 비행 */
   window.addEventListener("message", (ev)=>{
     const d = ev.data;
-    if (!d || d.type !== "eg-start-game") return;
-    gameParams = { opp: d.opp, isHome: d.isHome, matchId: d.matchId };
-    const parkCode = d.isHome === "1" ? "fenway" : (TEAM_PARK[d.opp] || "fenway");
-    const park = terraPins[parkCode];
-    closeStadCard();
-    if (park) flyToPark(park);
-    else enterGame();   /* 핀이 없으면 그냥 문으로 (안전망) */
+    if (!d) return;
+    if (d.type === "eg-start-game"){
+      gameParams = { opp: d.opp, isHome: d.isHome, matchId: d.matchId };
+      const parkCode = d.isHome === "1" ? "fenway" : (TEAM_PARK[d.opp] || "fenway");
+      const park = terraPins[parkCode];
+      closeStadCard();
+      if (park) flyToPark(park);
+      else enterGame();   /* 핀이 없으면 그냥 문으로 (안전망) */
+    }
+    if (d.type === "eg-game-done"){
+      /* 경기 종료 → 문 닫고 곧장 지구 (구장 상공 회전 재개) */
+      try{ exitDoorway(); }catch(e){}
+      document.getElementById("stadFrame").src = "about:blank";   /* 다음 열람 때 결과 반영 새로고침 */
+      loadDock();                                                  /* 위젯: FINAL + 스코어 */
+    }
   });
 }
 
@@ -2142,14 +2139,18 @@ async function loadDock(){
     if (!m) return;
     todayMatch = m;
     const done = m.status === "completed";
+    if (done && cdTimer){ clearTimeout(cdTimer); cdTimer = null; }
+    const score = done
+      ? (m.away_score!=null ? m.away_score : "-") + '&nbsp;&minus;&nbsp;' + (m.home_score!=null ? m.home_score : "-")
+      : "--:--:--";
     renderDock([{
       id:"stadium",
-      html: '<div class="dock-cap">⚾ TODAY MATCHUP</div>'
+      html: '<div class="dock-cap">⚾ ' + (done ? "TODAY RESULT" : "TODAY MATCHUP") + '</div>'
           + '<div class="dock-main"><span>' + (TEAM_KO[m.away_team]||m.away_team)
           + '</span><span class="vs">vs</span><span>' + (TEAM_KO[m.home_team]||m.home_team) + '</span></div>'
           + '<div class="dock-sub">' + (m.home_team==="soro" ? "HOME" : "AWAY")
-          + (done ? " · 경기 종료" : "") + '</div>'
-          + '<div class="dock-count" id="dockCount">' + (done ? "FINAL" : "--:--:--") + '</div>',
+          + (done ? " · FINAL" : "") + '</div>'
+          + '<div class="dock-count" id="dockCount">' + score + '</div>',
       onClick: openStadCard
     }]);
     if (!done) startCountdown(["dockCount"]);
