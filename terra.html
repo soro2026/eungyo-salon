@@ -1991,8 +1991,29 @@ async function loadTerraPins(){
           disableDepthTestDistance:Number.POSITIVE_INFINITY }
       });
       ent._terra = p;
+      ent._basePx = 9;
     }
+    clampTerraPins();   /* 실사 타일 지붕 높이에 앉힘 — 어긋남 방지 */
   }catch(e){ console.warn("terra 핀 로딩 실패:", e); }
+}
+
+/* 구장 핀을 타일 표면 높이로 재고정 (maison clampSpotsToSurface 계보) */
+async function clampTerraPins(){
+  try{
+    if (!viewer.scene.clampToHeightMostDetailed) return;
+    for (const code in terraPins){
+      const p = terraPins[code];
+      const ent = viewer.entities.getById("terra-"+code);
+      if (!ent) continue;
+      const arr = await viewer.scene.clampToHeightMostDetailed([Cesium.Cartesian3.fromDegrees(p.lng, p.lat)]);
+      const c = arr && arr[0];
+      if (Cesium.defined(c)){
+        const h = Cesium.Cartographic.fromCartesian(c).height;
+        ent.position = Cesium.Cartesian3.fromDegrees(p.lng, p.lat, h);
+        p._h = h;
+      }
+    }
+  }catch(e){ console.warn("terra 핀 표면 고정 실패:", e); }
 }
 
 /* ── 카메라 사슬 해방 ── */
@@ -2022,8 +2043,16 @@ function flyToPark(p){
         destination: Cesium.Cartesian3.fromDegrees(p.lng, p.lat - 0.0048, 620),
         orientation:{ heading:0, pitch:Cesium.Math.toRadians(-32), roll:0 },
         duration: 4.5,
-        complete: ()=>{
-          try{ startOrbit(Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 0), 620); }catch(e){}
+        complete: async ()=>{
+          /* 도착 후 재클램프 → 핀·궤도 중심을 타일 지붕 높이에 (maison 갭0 계보) */
+          let h = 0;
+          try{
+            const arr = await viewer.scene.clampToHeightMostDetailed([Cesium.Cartesian3.fromDegrees(p.lng, p.lat)]);
+            if (arr && Cesium.defined(arr[0])) h = Cesium.Cartographic.fromCartesian(arr[0]).height;
+            const ent = viewer.entities.getById("terra-"+p.code);
+            if (ent && h) ent.position = Cesium.Cartesian3.fromDegrees(p.lng, p.lat, h);
+          }catch(e){}
+          try{ startOrbit(Cesium.Cartesian3.fromDegrees(p.lng, p.lat, h), 620); }catch(e){}
         }
       });
     }
@@ -2069,14 +2098,46 @@ function enterGame(){
 /* ── 배선 ── */
 function wireTerra(){
   const h = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+  let terraSel = null;
   h.setInputAction((mv)=>{
     const picked = viewer.scene.pick(mv.position);
+    /* ── 편집 모드: 구장 핀도 maison 편집기와 같은 손짓으로 (핀 선택 → 새 지점 클릭 → 저장) ── */
+    if (typeof EDIT_MODE !== "undefined" && EDIT_MODE){
+      if (picked && picked.id && picked.id._terra){
+        terraSel = picked.id;
+        if (!terraSel._origColor) terraSel._origColor = terraSel.point.color;
+        terraSel.point.color = Cesium.Color.fromCssColorString("#7fb3d5");
+        setTimeout(()=>{ document.getElementById("editHint").innerHTML =
+          "⚾ <b>" + terraSel._terra.name + " 선택됨</b> — 새 지점을 클릭하면 옮겨집니다"; }, 0);
+        return;
+      }
+      if (terraSel){
+        if (!viewer.scene.pickPositionSupported) return;
+        const cart = viewer.scene.pickPosition(mv.position);
+        if (!Cesium.defined(cart)) return;
+        const carto = Cesium.Cartographic.fromCartesian(cart);
+        moveTerraPin(terraSel, Cesium.Math.toDegrees(carto.longitude), Cesium.Math.toDegrees(carto.latitude));
+        terraSel = null;
+        return;
+      }
+      return;   /* 편집 중엔 비행·입장 금지 */
+    }
     if (picked && picked.id && picked.id._terra){
       const p = picked.id._terra;
       if (currentPark && currentPark.code === p.code) enterGame();   /* 착륙해 있으면 핀 = 경기장 문 */
       else flyToPark(p);
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+  /* ── 호버: 점 불쑥 커짐 (maison 계보) ── */
+  let terraHover = null;
+  h.setInputAction((mv)=>{
+    const picked = viewer.scene.pick(mv.position);
+    const ent = (picked && picked.id && picked.id._terra) ? picked.id : null;
+    if (terraHover && terraHover !== ent && terraHover.point)
+      terraHover.point.pixelSize = terraHover._basePx || 9;
+    if (ent && ent.point){ ent.point.pixelSize = (ent._basePx || 9) + 9; }
+    terraHover = ent;
+  }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
   document.getElementById("stadClose").addEventListener("click", closeStadCard);
   /* 카드 팝업 스크롤바 숨김 (스크롤 기능은 유지 — 0719 소로 피드백) */
   document.getElementById("stadFrame").addEventListener("load", function(){
@@ -2110,6 +2171,29 @@ function wireTerra(){
       loadDock();                                                  /* 위젯: FINAL + 스코어 */
     }
   });
+}
+
+/* ── 구장 핀 좌표 저장 (편집 모드) ── */
+async function moveTerraPin(ent, lng, lat){
+  try{
+    const code = ent._terra.code;
+    const { error } = await supa.from("terra_pins").update({ lat: lat, lng: lng }).eq("code", code);
+    if (error) throw error;
+    ent._terra.lat = lat; ent._terra.lng = lng;
+    let hh = 0;
+    try{
+      const arr = await viewer.scene.clampToHeightMostDetailed([Cesium.Cartesian3.fromDegrees(lng, lat)]);
+      if (arr && Cesium.defined(arr[0])) hh = Cesium.Cartographic.fromCartesian(arr[0]).height;
+    }catch(e){}
+    ent.position = Cesium.Cartesian3.fromDegrees(lng, lat, hh);
+    document.getElementById("editHint").innerHTML =
+      "✅ <b>" + ent._terra.name + "</b> 이동·저장 완료 (" + lat.toFixed(5) + ", " + lng.toFixed(5) + ")";
+  }catch(e){
+    console.warn("구장 핀 저장 실패:", e);
+    document.getElementById("editHint").innerHTML = "⚠️ 구장 핀 저장 실패 — 콘솔 확인";
+  }finally{
+    if (ent && ent.point && ent._origColor) ent.point.color = ent._origColor;
+  }
 }
 
 /* ── 통합위젯 도크 ── */
