@@ -2,521 +2,347 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>EG테라 — 나의 교양 과수원</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>EG테라 — 지구가 로비다</title>
+<!--
+  terra.html v0.1 (0719) — EG 단일 3D 지구 셸
+  · 원칙: 3D 코드는 이 파일 한 채에만 산다 (단일 셸 원칙, 0719 결정문 §5.3)
+  · 핀 = terra_pins 테이블 (코드 수정 없이 DB로 증설)
+  · 지구는 복도, 콘텐츠는 방 — 문(doorway) 열면 렌더 루프 정지 (maison 검증 패턴)
+  · 1호 이식: 스타디움 4구장 (펜웨이·양키스·리글리·오라클)
+-->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Widgets/widgets.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
+  :root{
+    --ink:#e8e4d8; --dim:#8a8676; --bg:#05070f; --panel:rgba(10,14,26,.92);
+    --line:rgba(232,228,216,.14); --accent:#c8a96a;
+  }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{ width:100%; height:100%; overflow:hidden; background:var(--bg);
+    font-family:'Helvetica Neue',Arial,'Apple SD Gothic Neo','Noto Sans KR',sans-serif; color:var(--ink); }
+  #cesiumContainer{ position:absolute; inset:0; }
+  .cesium-viewer-bottom{ display:none !important; }
+  .cesium-credit-logoContainer{ display:none !important; }
 
-body {
-  font-family: -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
-  background: #0E1A0F;
-  color: #F0EBE0;
-  min-height: 100vh;
-  overflow-x: hidden;
-}
+  /* ── 좌상단: 살롱으로(독립) + 나침반 (0717 체계) ── */
+  #backBtn{ position:fixed; top:18px; left:18px; z-index:40; text-decoration:none;
+    color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:9px 13px; font-size:13px; letter-spacing:.02em; }
+  #backBtn:hover{ border-color:var(--accent); }
+  #compassBtn{ position:fixed; top:18px; left:118px; z-index:40; width:40px; height:40px;
+    border-radius:50%; background:var(--panel); border:1px solid var(--line); color:var(--ink);
+    font-size:19px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    transition:transform .3s; }
+  #compassBtn:hover{ border-color:var(--accent); }
+  #compassBtn.open{ transform:rotate(45deg); border-color:var(--accent); }
 
-/* ── 헤더 ── */
-.terra-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px 12px;
-  position: relative;
-  z-index: 10;
-}
-.back-btn {
-  background: none;
-  border: none;
-  color: rgba(201,168,76,0.7);
-  font-size: 20px;
-  cursor: pointer;
-  padding: 4px 8px;
-}
-.terra-title {
-  font-size: 13px;
-  letter-spacing: 0.15em;
-  color: rgba(201,168,76,0.8);
-  font-weight: 500;
-}
-.apple-count-badge {
-  background: rgba(201,168,76,0.15);
-  border: 1px solid rgba(201,168,76,0.4);
-  border-radius: 20px;
-  padding: 4px 12px;
-  font-size: 12px;
-  color: #C9A84C;
-}
+  /* 나침반 패널 */
+  #navPanel{ position:fixed; top:68px; left:18px; z-index:39; width:230px;
+    background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px 0;
+    backdrop-filter:blur(8px); opacity:0; pointer-events:none; transform:translateX(-8px);
+    transition:opacity .22s, transform .22s; }
+  #navPanel.in{ opacity:1; pointer-events:auto; transform:none; }
+  .nav-group{ padding:4px 0; }
+  .nav-group + .nav-group{ border-top:1px solid var(--line); margin-top:4px; }
+  .nav-cap{ font-size:10px; letter-spacing:.22em; color:var(--dim); padding:6px 18px 4px; }
+  .nav-item{ display:flex; align-items:center; gap:10px; padding:9px 18px; font-size:13.5px;
+    cursor:pointer; }
+  .nav-item:hover{ background:rgba(200,169,106,.08); }
+  .nav-item .ic{ width:18px; text-align:center; }
 
-/* ── 나무 영역 ── */
-.tree-wrap {
-  position: relative;
-  width: 100%;
-  max-width: 480px;
-  margin: 0 auto;
-  padding: 0 16px 40px;
-}
-.tree-img {
-  width: 100%;
-  display: block;
-  border-radius: 16px;
-}
-.apple-on-tree {
-  position: absolute;
-  width: 48px;
-  height: 48px;
-  pointer-events: none;
-  animation: float 3s ease-in-out infinite;
-}
-.apple-on-tree.locked {
-  filter: grayscale(0.6) brightness(0.7);
-}
-@keyframes float {
-  0%, 100% { transform: translateY(0px) rotate(-5deg); }
-  50% { transform: translateY(-4px) rotate(3deg); }
-}
+  /* ── 우측: 오늘의 대진표 위젯 ── */
+  #matchWidget{ position:fixed; top:18px; right:18px; z-index:38; width:250px;
+    background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    padding:16px 18px 14px; backdrop-filter:blur(8px); cursor:pointer;
+    transition:border-color .2s; display:none; }
+  #matchWidget:hover{ border-color:var(--accent); }
+  #mwCap{ font-size:10px; letter-spacing:.24em; color:var(--dim); margin-bottom:9px; }
+  #mwTeams{ display:flex; align-items:baseline; justify-content:space-between; gap:8px;
+    font-size:16px; font-weight:700; letter-spacing:.01em; }
+  #mwTeams .vs{ font-size:11px; color:var(--dim); font-weight:400; }
+  #mwSub{ font-size:11.5px; color:var(--dim); margin-top:5px; }
+  #mwCount{ margin-top:10px; font-variant-numeric:tabular-nums; font-size:21px;
+    letter-spacing:.06em; color:var(--accent); }
+  #mwHint{ font-size:10.5px; color:var(--dim); margin-top:7px; }
 
-/* ── 정보 카드 ── */
-.info-section {
-  padding: 0 20px 40px;
-  max-width: 480px;
-  margin: 0 auto;
-}
-.info-card {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(201,168,76,0.2);
-  border-radius: 14px;
-  padding: 18px;
-  margin-bottom: 12px;
-}
-.info-card-title {
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  color: rgba(201,168,76,0.6);
-  margin-bottom: 12px;
-}
-.apple-stat-row {
-  display: flex;
-  justify-content: space-around;
-  text-align: center;
-}
-.apple-stat {
-  flex: 1;
-}
-.apple-stat-num {
-  font-size: 26px;
-  font-weight: 700;
-  color: #C9A84C;
-  font-family: 'Courier New', monospace;
-}
-.apple-stat-label {
-  font-size: 11px;
-  color: rgba(240,235,224,0.4);
-  margin-top: 4px;
-}
+  /* ── 구장 도착 후 입장 카드 ── */
+  #enterCard{ position:fixed; left:50%; bottom:44px; transform:translateX(-50%) translateY(12px);
+    z-index:38; background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    padding:16px 22px; text-align:center; backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .3s, transform .3s; }
+  #enterCard.in{ opacity:1; pointer-events:auto; transform:translateX(-50%); }
+  #ecName{ font-size:15px; font-weight:700; }
+  #ecCity{ font-size:11px; color:var(--dim); margin-top:3px; letter-spacing:.08em; }
+  #ecBtn{ margin-top:11px; background:var(--accent); color:#141005; border:none; border-radius:10px;
+    padding:9px 20px; font-size:13.5px; font-weight:700; cursor:pointer; }
+  #ecBtn:hover{ filter:brightness(1.08); }
 
-/* ── 황금나무 완성 오버레이 ── */
-.golden-overlay {
-  display: none;
-  position: fixed;
-  top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(0,0,0,0.9);
-  z-index: 999;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  box-sizing: border-box;
-}
-.golden-overlay.show { display: flex; }
-.golden-overlay video {
-  width: 100%; max-width: 360px;
-  border-radius: 16px;
-  margin-bottom: 20px;
-}
-.golden-overlay-title {
-  font-size: 20px; font-weight: 700;
-  color: #C9A84C; letter-spacing: 0.08em;
-  text-align: center; margin-bottom: 8px;
-}
-.golden-overlay-sub {
-  font-size: 13px; color: rgba(240,235,224,0.6);
-  text-align: center; margin-bottom: 24px; line-height: 1.6;
-}
-.golden-overlay-btn {
-  width: 100%; max-width: 360px; padding: 14px;
-  background: linear-gradient(135deg, rgba(201,168,76,0.4), rgba(201,168,76,0.15));
-  border: 1px solid rgba(201,168,76,0.6);
-  border-radius: 10px; color: #C9A84C;
-  font-size: 14px; letter-spacing: 0.1em; cursor: pointer;
-}
+  /* ── 문(doorway): 콘텐츠 iframe. 열리면 지구는 잠든다 ── */
+  #doorway{ position:fixed; inset:0; z-index:60; background:var(--bg); display:none; }
+  #doorway.open{ display:block; }
+  #doorway iframe{ width:100%; height:100%; border:0; }
+  #dwBack{ position:fixed; top:14px; right:14px; z-index:61; background:var(--panel);
+    color:var(--ink); border:1px solid var(--line); border-radius:10px; padding:8px 14px;
+    font-size:12.5px; cursor:pointer; display:none; }
+  #doorway.open ~ #dwBack, #dwBack.show{ display:block; }
+  #dwBack:hover{ border-color:var(--accent); }
 
-/* ── 로딩 ── */
-.loading-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
-  color: rgba(240,235,224,0.4);
-  font-size: 13px;
-  gap: 12px;
-}
-.loading-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: rgba(201,168,76,0.5);
-  animation: pulse 1.2s ease-in-out infinite;
-}
-@keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
+  /* 우하단 힌트 */
+  #hint{ position:fixed; right:16px; bottom:14px; z-index:30; font-size:11px; color:var(--dim);
+    background:rgba(5,7,15,.6); padding:7px 11px; border-radius:9px; max-width:250px; line-height:1.5; }
 
-/* ── 빈 상태 ── */
-.empty-wrap {
-  text-align: center;
-  padding: 40px 20px;
-}
-.empty-msg {
-  font-size: 14px;
-  color: rgba(240,235,224,0.4);
-  line-height: 1.7;
-  margin-bottom: 8px;
-}
-.empty-sub {
-  font-size: 12px;
-  color: rgba(240,235,224,0.25);
-}
-
-/* ── 안내 텍스트 ── */
-.guide-text {
-  text-align: center;
-  font-size: 12px;
-  color: rgba(240,235,224,0.3);
-  padding: 12px 20px 0;
-  line-height: 1.6;
-}
+  @media (max-width:640px){
+    #matchWidget{ width:calc(100% - 36px); top:auto; bottom:18px; }
+    #enterCard{ bottom:120px; }
+  }
 </style>
 </head>
 <body>
+<div id="cesiumContainer"></div>
 
-<div class="terra-header">
-  <button class="back-btn" onclick="goHome()">←</button>
-  <div class="terra-title">E G  T E R R A</div>
-  <div class="apple-count-badge" id="header-count">🍎 0</div>
-</div>
-
-<!-- ── 황금나무 완성 오버레이 ── -->
-<div class="golden-overlay" id="golden-overlay">
-  <video id="golden-video" playsinline>
-    <source src="terra_golden_complete.mp4" type="video/mp4">
-  </video>
-  <div class="golden-overlay-title">🌳 황금 과수원 완성!</div>
-  <div class="golden-overlay-sub">10알의 교양이 황금빛 과수원을<br>아름답게 물들였습니다 ✨</div>
-  <button class="golden-overlay-btn" onclick="closeGoldenOverlay()">
-    🍎 새로운 나무를 심으러 가기
-  </button>
-</div>
-
-<div id="loading-state" class="loading-wrap">
-  <div class="loading-dot"></div>
-  <span>과수원을 불러오는 중...</span>
-</div>
-
-<div id="main-content" style="display:none">
-  <div class="tree-wrap">
-    <img class="tree-img" src="terra_seedling.png" alt="황금사과나무" id="tree-img">
+<a id="backBtn" href="index.html">← 살롱으로</a>
+<button id="compassBtn" title="나침반">🧭</button>
+<div id="navPanel">
+  <div class="nav-group">
+    <div class="nav-cap">떠나기</div>
+    <div class="nav-item" data-fly="fenway"><span class="ic">⚾</span>펜웨이파크 (홈)</div>
+    <div class="nav-item" data-fly="yankee"><span class="ic">⚾</span>양키스타디움</div>
+    <div class="nav-item" data-fly="wrigley"><span class="ic">⚾</span>리글리필드</div>
+    <div class="nav-item" data-fly="oracle"><span class="ic">⚾</span>오라클파크</div>
   </div>
-
-  <div style="display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:10px;padding:12px 20px;min-height:52px;max-width:480px;margin:0 auto;" id="mini-trees-wrap"></div>
-
-  <div class="guide-text" id="guide-text"></div>
-
-  <div class="info-section">
-    <div class="info-card">
-      <div class="info-card-title">▲ 나의 황금사과 현황</div>
-      <div class="apple-stat-row">
-        <div class="apple-stat">
-          <div class="apple-stat-num" id="stat-total">0</div>
-          <div class="apple-stat-label">총 사과</div>
-        </div>
-        <div class="apple-stat">
-          <div class="apple-stat-num" id="stat-available">0</div>
-          <div class="apple-stat-label">사용 가능</div>
-        </div>
-        <div class="apple-stat">
-          <div class="apple-stat-num" id="stat-locked">0</div>
-          <div class="apple-stat-label">경매 사용</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="info-card" id="empty-card" style="display:none">
-      <div class="empty-wrap">
-        <div class="empty-msg">아직 과수원에 사과가 없어요.<br>경기에서 승리하면 황금사과를 받을 수 있어요!</div>
-        <div class="empty-sub">EG스타디움에서 첫 승리를 거둬보세요 ⚾</div>
-      </div>
-    </div>
+  <div class="nav-group">
+    <div class="nav-cap">직행</div>
+    <div class="nav-item" data-go="stadium_v2.html"><span class="ic">🏟</span>스타디움 라운지</div>
   </div>
 </div>
+
+<div id="matchWidget">
+  <div id="mwCap">TODAY MATCHUP</div>
+  <div id="mwTeams"><span id="mwAway">—</span><span class="vs">vs</span><span id="mwHome">—</span></div>
+  <div id="mwSub">—</div>
+  <div id="mwCount">--:--:--</div>
+  <div id="mwHint">클릭하면 스타디움 라운지가 열립니다</div>
+</div>
+
+<div id="enterCard">
+  <div id="ecName">펜웨이파크</div>
+  <div id="ecCity">BOSTON</div>
+  <button id="ecBtn">⚾ 경기 입장하기</button>
+</div>
+
+<div id="doorway"><iframe id="dwFrame" title="EG"></iframe></div>
+<button id="dwBack">🌍 지구로 돌아가기</button>
+
+<div id="hint">EG테라 v0.1 — 지구를 드래그해 보세요</div>
 
 <script>
-const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
-const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+/* ═══════ 상수 ═══════ */
+const GOOGLE_API_KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A";
+const SUPA_URL = "https://cyhlotwdisjvoxvfkpnd.supabase.co";
+const SUPA_KEY = "sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR";
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY,
+  { auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true } });
 
-function showGoldenOverlay(auto = true) {
-  const overlay = document.getElementById('golden-overlay');
-  const video = document.getElementById('golden-video');
-  overlay.classList.add('show');
-  video.currentTime = 0;
-  video.play().catch(() => {});
-}
+const TEAM_KO = { soro:"SORO", socrates:"소크라테스", pascal:"파스칼", proust:"프루스트" };
+const TEAM_PARK = { soro:"fenway", socrates:"yankee", pascal:"wrigley", proust:"oracle" };
 
-function closeGoldenOverlay() {
-  const overlay = document.getElementById('golden-overlay');
-  const video = document.getElementById('golden-video');
-  video.pause();
-  overlay.classList.remove('show');
-  // 새 나무 시작을 위해 페이지 새로고침
-  init();
-}
+let viewer, pins = {}, currentPin = null, todayMatch = null;
 
-function goHome() {
-  stopNatureSound();
-  window.location.href = './';
-}
-
-async function getSession() {
-  try {
-    const stored = localStorage.getItem('sb-cyhlotwdisjvoxvfkpnd-auth-token')
-      || localStorage.getItem('eungyo-auth');
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return parsed?.access_token || parsed?.session?.access_token || null;
-    }
-  } catch(e) {}
-  return null;
-}
-
-async function fetchApples(userId, token) {
-  const res = await fetch(
-    `${SUPA_URL}/rest/v1/apple_log?uid=eq.${userId}&order=created_at.asc`,
-    {
-      headers: {
-        'apikey': SUPA_KEY,
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    }
-  );
-  if (!res.ok) throw new Error('fetch failed');
-  return res.json();
-}
-
-async function getCurrentUser(token) {
-  const res = await fetch(`${SUPA_URL}/auth/v1/user`, {
-    headers: {
-      'apikey': SUPA_KEY,
-      'Authorization': `Bearer ${token}`
-    }
+/* ═══════ 초기화 ═══════ */
+(async function init(){
+  viewer = new Cesium.Viewer("cesiumContainer", {
+    baseLayer:false, baseLayerPicker:false, geocoder:false, homeButton:false,
+    sceneModePicker:false, navigationHelpButton:false, animation:false,
+    timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false
   });
-  if (!res.ok) throw new Error('auth failed');
-  return res.json();
-}
+  const s = viewer.scene;
+  s.skyAtmosphere.show = true;
+  s.globe.show = true;
+  s.globe.baseColor = Cesium.Color.fromCssColorString("#0a1326");
+  s.globe.showGroundAtmosphere = true;
+  s.backgroundColor = Cesium.Color.fromCssColorString("#05070f");
+  if (s.fog) s.fog.enabled = true;
 
-// ── 성장 단계 설정 ──────────────────────────────
-const TREE_STAGES = [
-  { img: 'terra_seedling.png', min: 0, max: 3, label: '묘목이 자라고 있어요 🌱',
-    zones: [
-      { x: 42, y: 38 }, { x: 55, y: 32 }, { x: 65, y: 40 },
-    ]
-  },
-  { img: 'terra_sapling.png', min: 4, max: 6, label: '작은 나무가 열매를 맺기 시작했어요 🌿',
-    zones: [
-      { x: 38, y: 38 }, { x: 55, y: 32 }, { x: 68, y: 40 },
-      { x: 30, y: 50 }, { x: 50, y: 46 }, { x: 65, y: 52 },
-    ]
-  },
-  { img: 'terra_tree.png', min: 7, max: 9, label: '과수원이 점점 풍성해지고 있어요 🍎',
-    zones: [
-      { x: 35, y: 38 }, { x: 50, y: 32 }, { x: 65, y: 38 },
-      { x: 25, y: 48 }, { x: 45, y: 44 }, { x: 62, y: 50 },
-      { x: 75, y: 42 }, { x: 38, y: 55 }, { x: 58, y: 55 },
-    ]
-  },
-  { img: 'terra_golden_tree.png', min: 10, max: 999, label: '황금 과수원이 완성되었습니다! ✨',
-    zones: [
-      { x: 30, y: 18 }, { x: 45, y: 13 }, { x: 58, y: 10 },
-      { x: 70, y: 18 }, { x: 22, y: 28 }, { x: 38, y: 25 },
-      { x: 55, y: 22 }, { x: 68, y: 30 }, { x: 28, y: 38 },
-      { x: 52, y: 35 },
-    ]
-  },
-];
+  /* 고공 세계지도 (어두운 톤) */
+  try{
+    const osm = viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+      url:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      credit:"© OpenStreetMap contributors", maximumLevel:19 }));
+    osm.brightness=.55; osm.saturation=.65; osm.gamma=.8;
+  }catch(e){ console.warn("기본 지도 실패:", e); }
 
-function getStage(count) {
-  return TREE_STAGES.find(s => count <= s.max) || TREE_STAGES[3];
-}
+  /* 구글 실사 3D 타일 */
+  try{
+    let tileset;
+    try { tileset = await Cesium.createGooglePhotorealistic3DTileset({ key: GOOGLE_API_KEY }); }
+    catch(e){ tileset = await Cesium.createGooglePhotorealistic3DTileset(GOOGLE_API_KEY); }
+    s.primitives.add(tileset);
+  }catch(err){
+    document.getElementById("hint").innerHTML = "<b>타일 오류</b><br>기본 지구로 표시합니다.";
+    console.warn("3D Tiles 실패:", err);
+  }
 
-function placeApples(apples) {
-  const treeWrap = document.querySelector('.tree-wrap');
-  const treeImg = document.getElementById('tree-img');
+  viewer.screenSpaceEventHandler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+  viewer.trackedEntity = undefined;
+  viewer.scene.screenSpaceCameraController.minimumZoomDistance = 60;
 
-  // 현재 단계 결정
-  // 완성된 나무 수 (10알 단위)
-  const completedTrees = Math.floor(apples.length / 10);
-  // 현재 나무에 달린 사과 수 (나머지, 0이면 10으로)
-  const remainder = apples.length % 10;
-  const displayCount = remainder === 0 && apples.length > 0 ? 10 : remainder;
+  await loadPins();
+  wireCompass();
+  wireClicks();
+  loadTodayMatch();
 
-  const stage = getStage(displayCount);
+  /* ?fly=코드 — 콘텐츠에서 귀환 시 그 구장으로 */
+  const want = new URLSearchParams(location.search).get("fly");
+  if (want && pins[want]) flyToPin(pins[want], true);
+  else flyAmerica();
+})();
 
-  // 10알 완성 — 팡파레 영상 표시 (나무당 한 번만)
-  if (displayCount === 10) {
-    const key = `golden_shown_tree_${completedTrees}`;
-    if (!sessionStorage.getItem(key)) {
-      sessionStorage.setItem(key, '1');
-      setTimeout(() => showGoldenOverlay(), 800);
+/* ═══════ 핀 — terra_pins에서 로딩 (단일 셸 원칙: 핀=데이터) ═══════ */
+async function loadPins(){
+  try{
+    const r = await fetch(SUPA_URL + "/rest/v1/terra_pins?active=eq.true&order=sort",
+      { headers:{ apikey:SUPA_KEY, Authorization:"Bearer "+SUPA_KEY } });
+    const rows = await r.json();
+    for (const p of rows){
+      pins[p.code] = p;
+      const ent = viewer.entities.add({
+        id:"terra-"+p.code,
+        position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),
+        point:{ pixelSize:9, color:Cesium.Color.fromCssColorString(p.color||"#8e2d2d"),
+          outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
+          disableDepthTestDistance:Number.POSITIVE_INFINITY },
+        label:{ text:p.name,
+          font:"bold 14px 'Helvetica Neue',Arial,sans-serif",
+          fillColor:Cesium.Color.WHITE,
+          outlineColor:Cesium.Color.fromCssColorString("#0a0e1a"), outlineWidth:3,
+          style:Cesium.LabelStyle.FILL_AND_OUTLINE,
+          showBackground:true,
+          backgroundColor:Cesium.Color.fromCssColorString(p.color||"#8e2d2d").withAlpha(.95),
+          backgroundPadding:new Cesium.Cartesian2(11,6),
+          pixelOffset:new Cesium.Cartesian2(0,-12),
+          verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
+          disableDepthTestDistance:Number.POSITIVE_INFINITY }
+      });
+      ent._pin = p;
     }
-  }
-
-  // 나무 이미지 교체
-  treeImg.src = stage.img;
-
-  // 안내 텍스트 업데이트
-  document.getElementById('guide-text').textContent = stage.label;
-
-  // 기존 사과 + 미니 나무 제거
-  treeWrap.querySelectorAll('.apple-on-tree, .mini-tree').forEach(el => el.remove());
-
-  // 완성된 나무 미니 썸네일 (오른쪽에 쌓기)
-  const miniWrap = document.getElementById('mini-trees-wrap');
-  miniWrap.innerHTML = '';
-  for (let i = 0; i < completedTrees; i++) {
-    const mini = document.createElement('img');
-    mini.src = 'terra_golden_mini.png';
-    mini.style.cssText = 'width:52px;height:52px;object-fit:contain;cursor:pointer;transition:transform 0.2s;';
-    mini.title = `${i+1}번째 황금 과수원 — 클릭하면 다시 볼 수 있어요`;
-    mini.onclick = () => showGoldenOverlay(false);
-    mini.onmouseover = () => mini.style.transform = 'scale(1.15)';
-    mini.onmouseout = () => mini.style.transform = 'scale(1)';
-    miniWrap.appendChild(mini);
-  }
-
-  // 사과 배치
-  const zones = stage.zones;
-  const showCount = Math.min(displayCount, zones.length);
-
-  for (let i = 0; i < showCount; i++) {
-    const zone = zones[i];
-    const apple = apples[i] || { locked: false };
-    const img = document.createElement('img');
-    img.src = 'terra_apple.png';
-    img.className = 'apple-on-tree' + (apple.locked ? ' locked' : '');
-
-    const offsetX = (Math.random() - 0.5) * 3;
-    const offsetY = (Math.random() - 0.5) * 3;
-    const delay = (Math.random() * 2).toFixed(1);
-    const size = 30 + Math.floor(Math.random() * 6);
-
-    img.style.position = 'absolute';
-    img.style.width = size + 'px';
-    img.style.height = size + 'px';
-    img.style.animationDelay = delay + 's';
-    img.style.animationDuration = (2.5 + Math.random()).toFixed(1) + 's';
-
-    const setPos = () => {
-      const iw = treeImg.offsetWidth;
-      const ih = treeImg.offsetHeight;
-      const it = treeImg.offsetTop;
-      const il = treeImg.offsetLeft;
-      const left = il + iw * (zone.x + offsetX) / 100 - size / 2;
-      const top  = it + ih * (zone.y + offsetY) / 100 - size / 2;
-      img.style.left = left + 'px';
-      img.style.top  = top + 'px';
-    };
-
-    if (treeImg.complete) setPos();
-    else treeImg.addEventListener('load', setPos);
-
-    treeWrap.appendChild(img);
-  }
+  }catch(e){ console.warn("핀 로딩 실패:", e); }
 }
 
-function updateStats(apples) {
-  const total = apples.length;
-  const locked = apples.filter(a => a.locked).length;
-  const available = total - locked;
+/* ═══════ 카메라 ═══════ */
+function flyAmerica(){
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(-95.0, 39.0, 5200000),
+    duration: 0 });
+}
+function flyToPin(p, instant){
+  currentPin = p;
+  hideEnterCard();
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(p.lng, p.lat - 0.0048, 620),
+    orientation:{ heading:0, pitch:Cesium.Math.toRadians(-32), roll:0 },
+    duration: instant ? 0 : 5.2,
+    complete: ()=> showEnterCard(p)
+  });
+}
+function showEnterCard(p){
+  document.getElementById("ecName").textContent = p.name;
+  document.getElementById("ecCity").textContent = (p.city||"").toUpperCase();
+  document.getElementById("enterCard").classList.add("in");
+}
+function hideEnterCard(){ document.getElementById("enterCard").classList.remove("in"); }
 
-  document.getElementById('stat-total').textContent = total;
-  document.getElementById('stat-available').textContent = available;
-  document.getElementById('stat-locked').textContent = locked;
-  document.getElementById('header-count').textContent = '🍎 ' + total;
+/* ═══════ 문(doorway) — 지구는 복도, 콘텐츠는 방 ═══════ */
+function openDoor(url){
+  viewer.useDefaultRenderLoop = false;                 // 지구 잠들기 (과금·부하 0)
+  document.getElementById("dwFrame").src = url;
+  document.getElementById("doorway").classList.add("open");
+  document.getElementById("dwBack").classList.add("show");
+  hideEnterCard();
+}
+function closeDoor(){
+  document.getElementById("doorway").classList.remove("open");
+  document.getElementById("dwBack").classList.remove("show");
+  document.getElementById("dwFrame").src = "about:blank";
+  viewer.useDefaultRenderLoop = true;                  // 지구 깨우기
+  if (currentPin) showEnterCard(currentPin);
+}
+document.getElementById("dwBack").addEventListener("click", closeDoor);
 
-  // 안내 텍스트
-  const guide = document.getElementById('guide-text');
-  if (total === 0) {
-    guide.textContent = '';
-    document.getElementById('empty-card').style.display = 'block';
-  } else if (total < 5) {
-    guide.textContent = `사과 ${total}알이 나무에 열렸어요. 더 많은 승리로 과수원을 채워보세요!`;
-  } else if (total < 10) {
-    guide.textContent = `과수원이 점점 풍성해지고 있어요 🍎`;
-  } else {
-    guide.textContent = `황금빛으로 가득 찬 과수원이네요! ✨`;
-  }
+/* ═══════ 클릭 배선 ═══════ */
+function wireClicks(){
+  const h = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+  h.setInputAction((mv)=>{
+    const picked = viewer.scene.pick(mv.position);
+    if (picked && picked.id && picked.id._pin) flyToPin(picked.id._pin);
+  }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+  document.getElementById("ecBtn").addEventListener("click", ()=>{
+    const p = currentPin; if (!p) return;
+    openDoor(p.target_url || "stadium_v2.html");
+  });
+  document.getElementById("matchWidget").addEventListener("click", ()=> openDoor("stadium_v2.html"));
 }
 
-// ── 자연의 소리 (테라 입장 BGM) ──────────────────
-let terraNatureAudio = null;
-
-function playNatureSound() {
-  try {
-    if (terraNatureAudio) {
-      terraNatureAudio.pause();
-      terraNatureAudio.currentTime = 0;
-    }
-    terraNatureAudio = new Audio('terra_nature.mp3');
-    terraNatureAudio.loop = true;
-    terraNatureAudio.volume = 0.35;
-    terraNatureAudio.play().catch(() => {});
-  } catch(e) {}
+/* ═══════ 나침반 (0717 체계 축약판) ═══════ */
+function wireCompass(){
+  const cBtn = document.getElementById("compassBtn");
+  const panel = document.getElementById("navPanel");
+  const open = (on)=>{
+    const show = (on===undefined) ? !panel.classList.contains("in") : on;
+    panel.classList.toggle("in", show); cBtn.classList.toggle("open", show);
+  };
+  cBtn.addEventListener("click",(e)=>{ e.stopPropagation(); open(); });
+  document.addEventListener("keydown",(e)=>{ if(e.key==="Escape"){ open(false); } });
+  document.getElementById("cesiumContainer").addEventListener("click", ()=> open(false));
+  panel.querySelectorAll("[data-fly]").forEach(el=> el.addEventListener("click", ()=>{
+    open(false); const p = pins[el.dataset.fly]; if (p) flyToPin(p);
+  }));
+  panel.querySelectorAll("[data-go]").forEach(el=> el.addEventListener("click", ()=>{
+    open(false); openDoor(el.dataset.go);
+  }));
 }
 
-function stopNatureSound() {
-  if (terraNatureAudio) {
-    terraNatureAudio.pause();
-    terraNatureAudio.currentTime = 0;
-  }
+/* ═══════ 오늘의 대진표 위젯 (개인 데이터 결선) ═══════ */
+async function loadTodayMatch(){
+  try{
+    const { data:{ session } } = await supa.auth.getSession();
+    const uid = session?.user?.id;
+    if (!uid) return;                                  // 미로그인 = 위젯 숨김 유지
+    const today = new Date().toLocaleDateString("sv-SE", { timeZone:"Asia/Seoul" });
+    const { data:m } = await supa.from("matches").select("*")
+      .eq("user_id", uid).eq("match_date", today).eq("is_my_game", true).maybeSingle();
+    if (!m) return;
+    todayMatch = m;
+    document.getElementById("mwAway").textContent = TEAM_KO[m.away_team] || m.away_team;
+    document.getElementById("mwHome").textContent = TEAM_KO[m.home_team] || m.home_team;
+    const myIsHome = m.home_team === "soro";
+    const park = pins[ TEAM_PARK[m.home_team] ];   // 경기는 항상 홈팀 구장에서
+    document.getElementById("mwSub").textContent =
+      (myIsHome ? "HOME · " : "AWAY · ") + (park ? park.city : "") +
+      (m.status==="completed" ? " · 경기 종료" : "");
+    document.getElementById("matchWidget").style.display = "block";
+    if (m.status !== "completed") startCountdown();
+    else document.getElementById("mwCount").textContent = "FINAL";
+  }catch(e){ console.warn("대진표 로딩 실패:", e); }
 }
-
-async function init() {
-  try {
-    const token = await getSession();
-    if (!token) {
-      window.location.href = './';
-      return;
-    }
-
-    const user = await getCurrentUser(token);
-    const apples = await fetchApples(user.id, token);
-
-    document.getElementById('loading-state').style.display = 'none';
-    document.getElementById('main-content').style.display = 'block';
-
-    // 🌿 자연의 소리 재생 (로딩 완료 후)
-    playNatureSound();
-
-    updateStats(apples);
-    if (apples.length > 0) {
-      placeApples(apples);
-    }
-
-  } catch(e) {
-    console.error('테라 로드 오류:', e);
-    document.getElementById('loading-state').innerHTML =
-      '<span style="color:rgba(240,235,224,0.4);font-size:13px">불러오기에 실패했어요. 잠시 후 다시 시도해주세요.</span>';
-  }
+function startCountdown(){
+  const el = document.getElementById("mwCount");
+  const tick = ()=>{
+    const now = new Date();
+    const kst = new Date(now.toLocaleString("en-US", { timeZone:"Asia/Seoul" }));
+    const start = new Date(kst); start.setHours(18,30,0,0);
+    let diff = start - kst;
+    if (diff <= 0){ el.textContent = "PLAY BALL"; return; }
+    const hh = String(Math.floor(diff/3600000)).padStart(2,"0");
+    const mm = String(Math.floor(diff%3600000/60000)).padStart(2,"0");
+    const ss = String(Math.floor(diff%60000/1000)).padStart(2,"0");
+    el.textContent = `${hh}:${mm}:${ss}`;
+    setTimeout(tick, 1000);
+  };
+  tick();
 }
-
-window.addEventListener('load', init);
 </script>
 </body>
 </html>
