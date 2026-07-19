@@ -3045,8 +3045,13 @@ async function startGame(){
     }
   } catch(e) { /* 폴백 'SORO' 유지 */ }
   if(!QS_LOADED || QS.length === 0){
-    alert("문제를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
-    return;
+    // 0719 자가 치유: 첫 로딩이 딸꾹질하면 빈 풀이 박제되던 고질 수술 —
+    // 이 자리에서 다시 불러오고, 성공하면 그대로 경기 진행.
+    try { await loadQuestions(); } catch(e) { console.warn('[문제] 재로딩 실패:', e); }
+    if(!QS_LOADED || QS.length === 0){
+      alert("문제를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
   }
   // 오르간은 타석 선택하기 버튼 누를 때 재생
   // 혹시 매트릭스가 ··· 상태면 다시 채우기
