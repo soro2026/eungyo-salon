@@ -1,162 +1,766 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 <title>EG테라 — 지구가 로비다</title>
-<!--
-  terra.html v0.1 (0719) — EG 단일 3D 지구 셸
-  · 원칙: 3D 코드는 이 파일 한 채에만 산다 (단일 셸 원칙, 0719 결정문 §5.3)
-  · 핀 = terra_pins 테이블 (코드 수정 없이 DB로 증설)
-  · 지구는 복도, 콘텐츠는 방 — 문(doorway) 열면 렌더 루프 정지 (maison 검증 패턴)
-  · 1호 이식: 스타디움 4구장 (펜웨이·양키스·리글리·오라클)
--->
+
+<!-- ════════════════════════════════════════════════════════════════
+     소로님께: API 키는 아래 단 한 곳입니다.
+     구글 클라우드에서 Map Tiles API 키를 발급받아 따옴표 사이에 넣으시면
+     실사 3D 건물이 떠오릅니다. 비워두면 매끈한 지구 위에서
+     '대표 착륙 + 핀 선택' 혼합 흐름만 그대로 체험됩니다.
+════════════════════════════════════════════════════════════════ -->
+<script>
+  const GOOGLE_API_KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A"; // ← 소로님 키 삽입 완료
+  // ── Supabase (voyage_markers 도시 핀을 DB에서 읽어옴) ──
+  const SUPA_URL = "https://cyhlotwdisjvoxvfkpnd.supabase.co";
+  const SUPA_KEY = "sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR";
+</script>
+
+<script>
+  window.CESIUM_BASE_URL = "https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/";
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Widgets/widgets.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="eg-crash-guard.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Widgets/widgets.css" rel="stylesheet" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Black+Han+Sans&display=swap" rel="stylesheet">
+
 <style>
   :root{
-    --ink:#e8e4d8; --dim:#8a8676; --bg:#05070f; --panel:rgba(10,14,26,.92);
-    --line:rgba(232,228,216,.14); --accent:#c8a96a;
+    --night:#0a0e1a;
+    --night-2:#10172b;
+    --gold:#c9a227;
+    --gold-soft:#9a8138;
+    --cream:#ece5d3;
+    --cream-dim:#9a9482;
+    --line:rgba(201,162,39,.28);
+    --serif:Georgia,"Nanum Myeongjo","Apple SD Gothic Neo",serif;
+    --sans:"Helvetica Neue","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
   }
-  *{ margin:0; padding:0; box-sizing:border-box; }
-  html,body{ width:100%; height:100%; overflow:hidden; background:var(--bg);
-    font-family:'Helvetica Neue',Arial,'Apple SD Gothic Neo','Noto Sans KR',sans-serif; color:var(--ink); }
-  #cesiumContainer{ position:absolute; inset:0; }
-  .cesium-viewer-bottom{ display:none !important; }
-  .cesium-credit-logoContainer{ display:none !important; }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--night);overflow:hidden;font-family:var(--sans);color:var(--cream)}
+  #cesiumContainer{position:fixed;inset:0}
+  .cesium-widget-credits{font-size:9px!important;opacity:.35}
+  .cesium-viewer-bottom{right:6px;bottom:4px}
 
-  /* ── 좌상단: 살롱으로(독립) + 나침반 (0717 체계) ── */
-  #backBtn{ position:fixed; top:18px; left:18px; z-index:40; text-decoration:none;
-    color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:10px;
-    padding:9px 13px; font-size:13px; letter-spacing:.02em; }
-  #backBtn:hover{ border-color:var(--accent); }
-  #compassBtn{ position:fixed; top:18px; left:118px; z-index:40; width:40px; height:40px;
-    border-radius:50%; background:var(--panel); border:1px solid var(--line); color:var(--ink);
-    font-size:19px; cursor:pointer; display:flex; align-items:center; justify-content:center;
-    transition:transform .3s; }
-  #compassBtn:hover{ border-color:var(--accent); }
-  #compassBtn.open{ transform:rotate(45deg); border-color:var(--accent); }
+  /* ── 좌상단 인물 표제 ── */
+  #title{
+    position:fixed;top:62px;left:30px;z-index:10;pointer-events:none;
+    opacity:0;transform:translateY(-8px);transition:opacity 1.4s ease,transform 1.4s ease;
+  }
+  /* ── 별로 돌아가기 ── */
+  #backBtn{
+    position:fixed;top:22px;left:30px;z-index:12;
+    display:inline-flex;align-items:center;gap:6px;
+    font-family:var(--sans);font-size:12.5px;letter-spacing:.04em;
+    color:var(--cream-dim);text-decoration:none;
+    border:1px solid var(--line);border-radius:999px;
+    padding:7px 14px;background:rgba(8,11,22,.55);backdrop-filter:blur(4px);
+    transition:color .25s ease,border-color .25s ease;
+  }
+  #backBtn:hover{color:var(--gold);border-color:var(--gold-soft)}
 
-  /* 나침반 패널 */
-  #navPanel{ position:fixed; top:68px; left:18px; z-index:39; width:230px;
-    background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px 0;
-    backdrop-filter:blur(8px); opacity:0; pointer-events:none; transform:translateX(-8px);
-    transition:opacity .22s, transform .22s; }
-  #navPanel.in{ opacity:1; pointer-events:auto; transform:none; }
-  .nav-group{ padding:4px 0; }
-  .nav-group + .nav-group{ border-top:1px solid var(--line); margin-top:4px; }
-  .nav-cap{ font-size:10px; letter-spacing:.22em; color:var(--dim); padding:6px 18px 4px; }
-  .nav-item{ display:flex; align-items:center; gap:10px; padding:9px 18px; font-size:13.5px;
-    cursor:pointer; }
-  .nav-item:hover{ background:rgba(200,169,106,.08); }
-  .nav-item .ic{ width:18px; text-align:center; }
+  /* ══════ 0717 나침반 통합 메뉴 (기획결정문 v1.0) ══════ */
+  /* 기존 6버튼 중 5개는 나침반 패널로 이주 — HTML·핸들러는 재활용, 화면에서만 숨김 */
+  #cityBtn,#starBtn,#layerSpots,#layerMaisons,#editToggle{ display:none !important; }
 
-  /* ── 우측: 오늘의 대진표 위젯 ── */
-  #matchWidget{ position:fixed; top:18px; right:18px; z-index:38; width:250px;
-    background:var(--panel); border:1px solid var(--line); border-radius:16px;
-    padding:16px 18px 14px; backdrop-filter:blur(8px); cursor:pointer;
-    transition:border-color .2s; display:none; }
-  #matchWidget:hover{ border-color:var(--accent); }
-  #mwCap{ font-size:10px; letter-spacing:.24em; color:var(--dim); margin-bottom:9px; }
-  #mwTeams{ display:flex; align-items:baseline; justify-content:space-between; gap:8px;
-    font-size:16px; font-weight:700; letter-spacing:.01em; }
-  #mwTeams .vs{ font-size:11px; color:var(--dim); font-weight:400; }
-  #mwSub{ font-size:11.5px; color:var(--dim); margin-top:5px; }
-  #mwCount{ margin-top:10px; font-variant-numeric:tabular-nums; font-size:21px;
-    letter-spacing:.06em; color:var(--accent); }
-  #mwHint{ font-size:10.5px; color:var(--dim); margin-top:7px; }
+  #compassBtn{
+    position:fixed; top:14px; left:150px; z-index:14; width:58px; height:58px;
+    padding:0; border:none; background:none; cursor:pointer;
+    filter:drop-shadow(0 3px 10px rgba(0,0,0,.55));
+    transition:transform .45s cubic-bezier(.4,0,.2,1);
+  }
+  #compassBtn:hover{ transform:scale(1.07); }
+  #compassBtn.open{ transform:rotate(20deg); }
+  #compassImg{ width:100%; height:100%; display:block; }
+  #compassFallback{ display:none; width:100%; height:100%; align-items:center; justify-content:center; font-size:30px; }
+  #compassBtn.noimg #compassImg{ display:none; }
+  #compassBtn.noimg #compassFallback{ display:flex; }
+  /* 흰 바늘 (CSS) — 북침 크림흰색 · 남침 놋쇠 · 열리면 회전 */
+  #compassNeedle{
+    position:absolute; top:19%; left:calc(50% - 1.5px); width:3px; height:62%;
+    transform-origin:50% 50%; transform:rotate(0deg); pointer-events:none; border-radius:2px;
+    background:linear-gradient(to bottom,#fff8ec 0%,#fff8ec 44%,rgba(92,62,20,.75) 56%,rgba(92,62,20,.75) 100%);
+    box-shadow:0 0 3px rgba(255,245,220,.7);
+    transition:transform .65s cubic-bezier(.4,0,.2,1);
+  }
+  #compassNeedle::after{ content:""; position:absolute; top:50%; left:50%; width:6px; height:6px;
+    transform:translate(-50%,-50%); border-radius:50%; background:#d4af27; box-shadow:0 0 2px rgba(0,0,0,.6); }
+  #compassBtn.open #compassNeedle{ transform:rotate(155deg); }
 
-  /* ── 구장 도착 후 입장 카드 ── */
-  #enterCard{ position:fixed; left:50%; bottom:44px; transform:translateX(-50%) translateY(12px);
-    z-index:38; background:var(--panel); border:1px solid var(--line); border-radius:16px;
-    padding:16px 22px; text-align:center; backdrop-filter:blur(8px);
-    opacity:0; pointer-events:none; transition:opacity .3s, transform .3s; }
-  #enterCard.in{ opacity:1; pointer-events:auto; transform:translateX(-50%); }
-  #ecName{ font-size:15px; font-weight:700; }
-  #ecCity{ font-size:11px; color:var(--dim); margin-top:3px; letter-spacing:.08em; }
-  #ecBtn{ margin-top:11px; background:var(--accent); color:#141005; border:none; border-radius:10px;
-    padding:9px 20px; font-size:13.5px; font-weight:700; cursor:pointer; }
-  #ecBtn:hover{ filter:brightness(1.08); }
+  #navPanel{
+    position:fixed; top:84px; left:20px; z-index:14; width:214px;
+    background:rgba(10,14,26,.96); border:1px solid var(--line); border-radius:14px;
+    backdrop-filter:blur(8px); padding:10px;
+    opacity:0; transform:translateY(-10px); pointer-events:none;
+    transition:opacity .3s ease, transform .3s ease;
+  }
+  #navPanel.in{ opacity:1; transform:none; pointer-events:auto; }
+  .nav-group{ padding:2px 0; }
+  .nav-group + .nav-group{ border-top:1px solid var(--line); margin-top:4px; padding-top:8px; }
+  .nav-label{ font-family:var(--sans); font-size:10px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--cream-dim); padding:2px 10px 6px; }
+  .nav-item{
+    display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;
+    padding:9px 12px; border:none; border-radius:8px; cursor:pointer; background:none;
+    color:var(--cream); font-family:var(--serif); font-size:14.5px; text-align:left;
+    transition:background .2s ease, color .2s ease;
+  }
+  .nav-item:hover{ background:rgba(201,162,39,.12); color:var(--gold); }
+  .nav-item .chev{ color:var(--cream-dim); font-size:15px; }
+  .nav-item.toggle .dot{ width:8px; height:8px; border-radius:50%; border:1px solid var(--cream-dim); flex-shrink:0; }
+  .nav-item.toggle.on{ color:var(--gold); }
+  .nav-item.toggle.on .dot{ background:var(--gold); border-color:var(--gold); }
+  /* 목록(도시·인물)을 패널 오른쪽으로 재배치 (2단 전개) */
+  #cityList{ left:244px !important; top:84px !important; }
+  #starList{ left:244px !important; top:84px !important; }
+  @media (max-width:640px){
+    #compassBtn{ left:auto; right:16px; top:12px; }
+    #navPanel{ left:auto; right:16px; top:80px; }
+    #cityList{ left:auto !important; right:16px !important; top:80px !important; }
+    #starList{ left:auto !important; right:16px !important; top:80px !important; }
+  }
 
-  /* ── 문(doorway): 콘텐츠 iframe. 열리면 지구는 잠든다 ── */
-  #doorway{ position:fixed; inset:0; z-index:60; background:var(--bg); display:none; }
-  #doorway.open{ display:block; }
-  #doorway iframe{ width:100%; height:100%; border:0; }
-  #dwBack{ position:fixed; top:14px; right:14px; z-index:61; background:var(--panel);
-    color:var(--ink); border:1px solid var(--line); border-radius:10px; padding:8px 14px;
-    font-size:12.5px; cursor:pointer; display:none; }
-  #doorway.open ~ #dwBack, #dwBack.show{ display:block; }
-  #dwBack:hover{ border-color:var(--accent); }
+  /* ── 도시 점프 버튼 + 목록 ── */
+  #cityBtn{
+    position:fixed;top:22px;left:178px;z-index:12;
+    display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+    font-family:var(--sans);font-size:12.5px;letter-spacing:.04em;
+    color:var(--cream-dim);border:1px solid var(--line);border-radius:999px;
+    padding:7px 14px;background:rgba(8,11,22,.55);backdrop-filter:blur(4px);
+    transition:color .25s ease,border-color .25s ease;
+  }
+  #cityBtn:hover{color:var(--gold);border-color:var(--gold-soft)}
+  #cityList{
+    position:fixed;top:60px;left:178px;z-index:13;
+    min-width:210px;max-height:62vh;overflow-y:auto;
+    background:rgba(10,14,26,.96);border:1px solid var(--line);border-radius:12px;
+    backdrop-filter:blur(8px);padding:8px;
+    opacity:0;transform:translateY(-8px);pointer-events:none;
+    transition:opacity .3s ease,transform .3s ease;
+  }
+  #cityList.in{opacity:1;transform:none;pointer-events:auto}
+  .city-item{
+    display:flex;justify-content:space-between;align-items:center;gap:14px;
+    padding:10px 14px;border-radius:8px;cursor:pointer;
+    color:var(--cream);font-family:var(--serif);font-size:15.5px;
+    transition:background .2s ease;
+  }
+  .city-item:hover{background:rgba(201,162,39,.12)}
+  .city-item.active{color:var(--gold)}
+  .city-item .cnt{font-family:var(--sans);font-size:11px;color:var(--cream-dim);letter-spacing:.05em}
+  @media (max-width:640px){ #cityBtn{left:auto;right:18px;top:14px} #cityList{left:auto;right:18px;top:52px} }
 
-  /* 우하단 힌트 */
-  #hint{ position:fixed; right:16px; bottom:14px; z-index:30; font-size:11px; color:var(--dim);
-    background:rgba(5,7,15,.6); padding:7px 11px; border-radius:9px; max-width:250px; line-height:1.5; }
+  /* ── 다른 인물 버튼 + 목록 (별 여행과 동일 UX, 클릭 시 그 인물 대표지로 직행) ── */
+  #starBtn{
+    position:fixed;top:22px;left:300px;z-index:12;
+    display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+    font-family:var(--sans);font-size:12.5px;letter-spacing:.04em;
+    color:var(--cream-dim);border:1px solid var(--line);border-radius:999px;
+    padding:7px 14px;background:rgba(8,11,22,.55);backdrop-filter:blur(4px);
+    transition:color .25s ease,border-color .25s ease;
+  }
+  #starBtn:hover{color:var(--gold);border-color:var(--gold-soft)}
+  #starList{
+    position:fixed;top:60px;left:300px;z-index:13;
+    min-width:248px;max-height:64vh;overflow-y:auto;
+    background:rgba(10,14,26,.96);border:1px solid var(--line);border-radius:12px;
+    backdrop-filter:blur(8px);padding:8px;
+    opacity:0;transform:translateY(-8px);pointer-events:none;
+    transition:opacity .3s ease,transform .3s ease;
+  }
+  #starList.in{opacity:1;transform:none;pointer-events:auto}
+  .star-item{
+    display:flex;align-items:center;gap:11px;
+    padding:8px 11px;border-radius:8px;cursor:pointer;
+    color:var(--cream);font-family:var(--serif);font-size:15px;
+    transition:background .2s ease;
+  }
+  .star-item:hover{background:rgba(201,162,39,.12)}
+  .star-item img{ width:34px;height:42px;object-fit:cover;border-radius:3px;flex-shrink:0;
+    border:1px solid var(--gold-soft);background:rgba(255,255,255,.04); }
+  .star-item .who{ display:flex;flex-direction:column;gap:1px;line-height:1.25 }
+  .star-item .who .ct{ font-family:var(--sans);font-size:10.5px;color:var(--cream-dim);letter-spacing:.05em }
+  @media (max-width:640px){ #starBtn{left:auto;right:18px;top:52px} #starList{left:auto;right:18px;top:90px} }
+
+  /* ── 레이어 토글: 인물 장소 / 콩파뇽 집 ── */
+  .layer-btn{
+    position:fixed;top:22px;z-index:12;
+    display:inline-flex;align-items:center;gap:5px;cursor:pointer;
+    font-family:var(--sans);font-size:12.5px;letter-spacing:.03em;
+    color:var(--cream-dim);border:1px solid var(--line);border-radius:999px;
+    padding:7px 13px;background:rgba(8,11,22,.55);backdrop-filter:blur(4px);
+    transition:color .2s,border-color .2s,background .2s,opacity .2s;
+  }
+  .layer-btn:not(.on){ opacity:.62 }
+  .layer-btn:hover{ color:var(--gold);border-color:var(--gold-soft);opacity:1 }
+  .layer-btn.on{ color:#1a1407;background:var(--gold);border-color:var(--gold);opacity:1 }
+  .layer-btn.on:hover{ color:#1a1407;background:#dab63f }
+  #layerSpots{ left:412px }
+  #layerMaisons{ left:524px }
+  @media (max-width:980px){
+    #layerSpots{left:auto;right:18px;top:92px}
+    #layerMaisons{left:auto;right:18px;top:130px}
+  }
+
+  #title.in{opacity:1;transform:none}
+  #title .eyebrow{font-size:11px;letter-spacing:.42em;color:var(--gold);text-transform:uppercase}
+  #title h1{
+    font-family:var(--serif);font-weight:400;margin:.28em 0 .1em;
+    font-size:clamp(28px,4vw,46px);line-height:1;letter-spacing:.01em;
+  }
+  #title .span{font-size:13px;color:var(--cream-dim);letter-spacing:.18em}
+
+  /* ── 우상단 안내 ── */
+  #hint{
+    position:fixed;top:28px;right:30px;z-index:10;max-width:230px;
+    font-size:11.5px;line-height:1.6;color:var(--cream-dim);text-align:right;
+    border-right:1px solid var(--line);padding:2px 12px 2px 0;
+  }
+  #hint b{color:var(--gold-soft);font-weight:600}
+
+  /* ── 현재 장소 카드 ── */
+  #card{
+    position:fixed;left:30px;bottom:128px;z-index:10;max-width:340px;
+    opacity:0;transform:translateY(10px);transition:opacity .7s ease,transform .7s ease;
+  }
+  #card.in{opacity:1;transform:none}
+  #card .yr{font-size:12px;letter-spacing:.3em;color:var(--gold)}
+  #card .pl{font-family:var(--serif);font-size:24px;margin:.18em 0 .35em}
+  #card .desc{font-size:13.5px;line-height:1.65;color:var(--cream-dim)}
+
+  /* ── 하단 여정 띠 ── */
+  #journey{
+    position:fixed;left:0;right:0;bottom:0;z-index:10;
+    display:flex;align-items:flex-end;gap:0;
+    padding:16px 24px 18px;
+    background:linear-gradient(to top,rgba(8,11,22,.92),rgba(8,11,22,0));
+  }
+  .stop{
+    flex:1;min-width:0;cursor:pointer;border:0;background:none;color:inherit;
+    text-align:left;padding:8px 14px 8px 0;position:relative;
+    border-top:1px solid rgba(154,148,130,.18);
+    transition:border-color .4s ease;
+  }
+  .stop:hover{border-top-color:var(--gold-soft)}
+  .stop.active{border-top-color:var(--gold)}
+  .stop .dot{
+    position:absolute;top:-5px;left:0;width:9px;height:9px;border-radius:50%;
+    background:var(--night);border:1.5px solid var(--cream-dim);transition:all .4s ease;
+  }
+  .stop:hover .dot{border-color:var(--gold-soft)}
+  .stop.active .dot{background:var(--gold);border-color:var(--gold);box-shadow:0 0 12px 2px rgba(201,162,39,.6)}
+  .stop .yr{font-size:10.5px;letter-spacing:.2em;color:var(--cream-dim);margin-top:6px}
+  .stop.active .yr{color:var(--gold)}
+  .stop .nm{font-family:var(--serif);font-size:15px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  #loader{
+    position:fixed;inset:0;z-index:50;background:var(--night);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px;
+    font-family:var(--serif);font-size:15px;letter-spacing:.32em;color:var(--gold);
+    transition:opacity 1s ease;
+  }
+  #loader.gone{opacity:0;pointer-events:none}
+  #loaderMsg{text-align:center;}
+  /* 분더카머로 떠나는 비행 — EG 전용기가 중앙에 떠 있음 */
+  #jetTrack{position:relative;width:100%;height:130px;overflow:hidden;pointer-events:none;}
+  #jetTrack img{
+    position:absolute;top:50%;left:50%;
+    transform:translate(-50%,-50%);
+    width:clamp(160px,42vw,300px);height:auto;opacity:.94;
+    filter:drop-shadow(0 14px 24px rgba(0,0,0,.55));
+    animation:jetBob 2.8s ease-in-out infinite;
+    will-change:margin-top;
+  }
+  @keyframes jetBob{
+    0%,100%{margin-top:0;}
+    50%{margin-top:-13px;}
+  }
+  @media(prefers-reduced-motion:reduce){
+    #jetTrack img{animation:none;}
+  }
+
+  /* ── 나라 이름 자막 (고공 조망 때 잠깐) ── */
+  #countryLabel{
+    position:fixed;top:50%;left:50%;z-index:20;
+    transform:translate(-50%,-50%) scale(.96);
+    font-family:var(--serif);font-size:clamp(30px,5vw,60px);font-weight:400;
+    letter-spacing:.08em;color:var(--cream);
+    text-shadow:0 2px 30px rgba(0,0,0,.9);
+    opacity:0;pointer-events:none;
+    transition:opacity 1s ease,transform 1.4s ease;
+  }
+  #countryLabel.in{opacity:.95;transform:translate(-50%,-50%) scale(1)}
+
+  /* ── 우측 스토리 패널 (마커 클릭 시) ── */
+  #story{
+    position:fixed;top:0;right:0;bottom:0;z-index:30;
+    width:min(390px,88vw);
+    background:linear-gradient(to left,rgba(10,14,26,.97),rgba(10,14,26,.86));
+    border-left:1px solid var(--line);
+    backdrop-filter:blur(8px);
+    transform:translateX(100%);
+    transition:transform .55s cubic-bezier(.22,.61,.36,1);
+    padding:60px 32px 44px;overflow-y:auto;
+  }
+  #story.in{transform:none}
+
+  /* ── EG메종 소개 팝업 (옐로 톤 = 사람 사는 집) ── */
+  #maison{
+    position:fixed;top:0;right:0;bottom:0;z-index:31;
+    width:min(390px,88vw);
+    background:linear-gradient(to left,rgba(10,14,26,.97),rgba(10,14,26,.86));
+    border-left:1px solid rgba(255,210,63,.32);
+    backdrop-filter:blur(8px);
+    transform:translateX(100%);
+    transition:transform .55s cubic-bezier(.22,.61,.36,1);
+    padding:60px 32px 36px;overflow-y:auto;
+    display:flex;flex-direction:column;
+  }
+  #maison.in{transform:none}
+  #maison .close{
+    position:absolute;top:18px;right:20px;cursor:pointer;
+    width:30px;height:30px;border:0;border-radius:50%;
+    background:rgba(255,210,63,.12);color:var(--cream-dim);
+    font-size:17px;line-height:1;transition:color .2s,background .2s;
+  }
+  #maison .close:hover{color:#ffd23f;background:rgba(255,210,63,.24)}
+  #maison .m-door{
+    font-family:var(--sans);font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+    color:#ffd23f;margin-bottom:14px;
+  }
+  #maison .m-avatar{
+    width:72px;height:72px;border-radius:50%;object-fit:cover;
+    border:2px solid rgba(255,210,63,.55);
+    box-shadow:0 4px 18px rgba(0,0,0,.4);
+    margin-bottom:16px;display:block;
+  }
+  #maison .m-nick{font-family:var(--serif);font-size:32px;line-height:1.1;margin:0 0 .35em;color:var(--cream)}
+  #maison .m-intro{font-family:var(--serif);font-size:15px;line-height:1.82;color:var(--cream-dim);margin-bottom:28px;flex:1}
+  #maison .m-enter{
+    font-family:var(--sans);font-size:14px;font-weight:bold;letter-spacing:.03em;
+    color:#1a1407;background:#ffd23f;border:none;border-radius:11px;
+    padding:15px;cursor:pointer;transition:background .2s;
+  }
+  #maison .m-enter:hover{background:#ffdf6b}
+
+  /* ── 대문 오버레이: 좌우로 갈라지는 두 문짝 + 그 뒤 분더카머 ── */
+  #doorway{
+    position:fixed;inset:0;z-index:50;background:#000;
+    display:none;overflow:hidden;
+  }
+  #doorway.in{display:block}
+  #doorway.popup .door-half{display:none}
+  #doorway.popup #doorHint{display:none}
+  #doorFrame{
+    position:absolute;inset:0;width:100%;height:100%;border:0;z-index:1;
+    background:#0a0e1a;
+  }
+  .door-half{
+    position:absolute;inset:0;z-index:2;
+    background:url('maison_door01.webp') center/cover no-repeat;
+    transition:transform 2.2s cubic-bezier(.66,0,.34,1);
+    will-change:transform;
+  }
+  .door-left{ clip-path:inset(0 50% 0 0); }     /* 왼쪽 절반 */
+  .door-right{ clip-path:inset(0 0 0 50%); }    /* 오른쪽 절반 */
+  #doorway.open .door-left{ transform:translateX(-100%); }
+  #doorway.open .door-right{ transform:translateX(100%); }
+  #doorTitle{
+    position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);
+    z-index:4;text-align:center;color:#f3e6c4;
+    font-family:'Archivo Black','Black Han Sans','Arial Black',sans-serif;
+    font-size:clamp(38px,7vw,94px);letter-spacing:.01em;line-height:1.05;
+    text-shadow:0 3px 26px rgba(0,0,0,.85),0 0 60px rgba(0,0,0,.6);
+    transition:opacity 1.1s ease, transform 1.1s ease;pointer-events:none;
+    padding:0 20px;
+  }
+  #doorway.open #doorTitle{ opacity:0;transform:translate(-50%,-70%); }
+  #doorHint{
+    position:absolute;left:50%;bottom:13%;transform:translateX(-50%);
+    z-index:4;color:rgba(243,230,196,.82);
+    font-family:var(--sans);font-size:13.5px;letter-spacing:.12em;
+    text-shadow:0 2px 14px rgba(0,0,0,.9);
+    transition:opacity .6s ease;animation:doorPulse 2.4s ease-in-out infinite;
+  }
+  #doorway.open #doorHint{ opacity:0;animation:none; }
+  #doorway.open #doorPick{ display:none; }   /* 입장(문 열림) 후엔 대문 고르기 숨김 */
+  #doorway.open #elevPick{ display:none; }   /* 입장 후엔 엘리베이터 고르기도 숨김 */
+  @keyframes doorPulse{ 0%,100%{opacity:.5} 50%{opacity:.95} }
+  #doorActions{
+    position:absolute;top:20px;right:24px;z-index:5;display:flex;gap:9px;
+  }
+  #doorExit,#doorPick,#elevPick{
+    cursor:pointer;
+    font-family:var(--sans);font-size:13px;letter-spacing:.04em;color:#f3e6c4;
+    border:1px solid rgba(243,230,196,.35);border-radius:999px;
+    padding:8px 15px;background:rgba(8,11,20,.72);backdrop-filter:blur(6px);
+    text-shadow:0 1px 3px rgba(0,0,0,.75);
+    transition:color .2s,border-color .2s,background .2s;
+  }
+  #doorExit:hover{color:#fff;border-color:rgba(243,230,196,.7)}
+  #doorPick{color:#f3e6c4;border-color:rgba(201,162,39,.5)}
+  #doorPick:hover{color:#fff;border-color:rgba(243,230,196,.7)}
+  #elevPick{color:#f3e6c4;border-color:rgba(201,162,39,.5)}
+  #elevPick:hover{color:#fff;border-color:rgba(243,230,196,.7)}
+  /* 내 대문 고르기 모달 */
+  #doorPicker{position:fixed;inset:0;z-index:62;display:none}
+  #doorPicker.in{display:block}
+  #dpBackdrop{position:absolute;inset:0;background:rgba(0,0,0,.62);backdrop-filter:blur(4px)}
+  #dpPanel{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:min(760px,92vw);max-height:86vh;display:flex;flex-direction:column;
+    background:#0e1424;border:1px solid rgba(201,162,39,.3);border-radius:16px;
+    box-shadow:0 20px 60px rgba(0,0,0,.6);overflow:hidden;
+  }
+  #dpHead{display:flex;align-items:center;justify-content:space-between;
+    padding:15px 20px;border-bottom:1px solid rgba(255,255,255,.07)}
+  #dpTitle{font-family:var(--serif);font-size:18px;color:var(--cream);letter-spacing:.02em}
+  #dpClose{cursor:pointer;width:30px;height:30px;border:0;border-radius:50%;
+    background:rgba(201,162,39,.1);color:var(--cream-dim);font-size:18px;line-height:1;
+    transition:color .2s,background .2s}
+  #dpClose:hover{color:var(--gold);background:rgba(201,162,39,.2)}
+  #dpGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:12px;
+    padding:18px 20px;overflow-y:auto}
+  .dp-cell{cursor:pointer;border-radius:10px;overflow:hidden;border:2px solid transparent;
+    background:#000;aspect-ratio:16/9;position:relative;transition:border-color .2s,transform .15s}
+  .dp-cell:hover{transform:translateY(-2px)}
+  .dp-cell img{width:100%;height:100%;object-fit:cover;display:block}
+  .dp-cell.sel{border-color:var(--gold)}
+  .dp-cell .dp-no{position:absolute;left:6px;bottom:5px;font-size:10px;color:rgba(255,255,255,.85);
+    background:rgba(0,0,0,.5);border-radius:4px;padding:1px 5px;font-family:monospace}
+  /* 분더카머 투어 — 우측 슬라이드 패널 */
+  #story .close{
+    position:absolute;top:18px;right:20px;cursor:pointer;
+    width:30px;height:30px;border:0;border-radius:50%;
+    background:rgba(201,162,39,.10);color:var(--cream-dim);
+    font-size:17px;line-height:1;transition:color .2s,background .2s;
+  }
+  #story .close:hover{color:var(--gold);background:rgba(201,162,39,.2)}
+  #story .badge{
+    display:inline-block;font-size:10px;letter-spacing:.28em;text-transform:uppercase;
+    color:var(--gold);border:1px solid var(--line);border-radius:999px;
+    padding:4px 11px;margin-bottom:18px;
+  }
+  #story .badge.compagnon{color:#7fb3d5;border-color:rgba(127,179,213,.35)}
+  #story .stitle{font-family:var(--serif);font-size:27px;line-height:1.15;margin:0 0 .08em}
+  #story .stitle-ko{font-family:var(--serif);font-size:16px;color:var(--cream-dim);letter-spacing:.02em;margin:0 0 .5em}
+  #story .ssub{font-family:var(--serif);font-style:italic;font-size:15px;color:var(--gold-soft);margin-bottom:22px}
+  #story .sbody p{font-size:14px;line-height:1.78;color:var(--cream-dim);margin:0 0 1.05em}
+  #story .sbody p:last-child{color:var(--cream);font-style:italic;border-top:1px solid var(--line);padding-top:16px;margin-top:20px}
 
   @media (max-width:640px){
-    #matchWidget{ width:calc(100% - 36px); top:auto; bottom:18px; }
-    #enterCard{ bottom:120px; }
+    #title{left:18px;top:52px}
+    #backBtn{left:18px;top:14px}
+    #card{left:18px;bottom:148px;max-width:72vw}
+    #hint{display:none}
+    .stop .nm{font-size:13px}
   }
+  @media (prefers-reduced-motion:reduce){
+    #title,#card{transition:none}
+  }
+  #editToggle.on{ background:#7fb3d5; color:#05070f; border-color:#7fb3d5 }
+  #editHint{ position:absolute; left:50%; top:62px; transform:translateX(-50%); z-index:22;
+    display:none; background:rgba(127,179,213,.18); border:1px solid #7fb3d5; color:#eaf4fb;
+    padding:9px 17px; border-radius:24px; font-size:13px; backdrop-filter:blur(6px);
+    box-shadow:0 6px 24px rgba(0,0,0,.4); white-space:nowrap }
+  #editHint.in{ display:block }
+  /* 장소 사진 갤러리 (별 여행과 동일 — places.photos 3장) */
+  #storyPhotos{ margin:16px 0 6px }
+  #storyPhotos figure{ margin:0 0 14px }
+  #storyPhotos img{ width:100%; border-radius:10px; display:block;
+    box-shadow:0 6px 20px rgba(0,0,0,.45); background:#1a1d28; min-height:60px }
+  #storyPhotos figcaption{ font-size:11.5px; color:var(--cream-dim); margin-top:6px; line-height:1.55 }
+  #storyPhotos figcaption .credit{ opacity:.55; font-size:10.5px }
+  /* 이곳에 닿은 별 — 액자 벽 (메종: 클릭 시 별 여행으로 떠남) */
+  #storyStars{ margin-top:22px; padding-top:16px; border-top:1px solid var(--line) }
+  #storyStars .lbl{ color:var(--gold); font-size:12.5px; letter-spacing:.05em; margin-bottom:14px }
+  #storyStars .grid{ display:flex; flex-wrap:wrap; gap:15px }
+  .svstar{ width:66px; text-align:center }
+  .svstar img{ width:66px; height:82px; object-fit:cover; border-radius:4px; display:block;
+    border:1px solid var(--gold-soft); background:rgba(255,255,255,.04) }
+  .svstar .nm{ font-family:var(--serif); font-size:11.5px; color:var(--cream-dim); margin-top:6px; line-height:1.3 }
+  .svstar .tag{ font-family:var(--sans); font-size:9px; color:var(--cream-dim); letter-spacing:.04em; margin-top:2px; opacity:.6 }
+  .svstar.go{ cursor:pointer }
+  .svstar.go img{ transition:border-color .2s ease, box-shadow .2s ease }
+  .svstar.go:hover img{ border-color:var(--gold); box-shadow:0 0 14px rgba(201,162,39,.38) }
+  .svstar.go:hover .nm{ color:var(--gold) }
+  .svstar.wait{ opacity:.42 }
+
+  /* ═══ EG테라 0719 이식 — 통합위젯 도크 (스타디움 1호 칸 · 뮤세움/헤리티지/콘스텔라티오 확장 예정) ═══ */
+  #egDock{ position:fixed; top:20px; right:20px; z-index:28; display:flex; flex-direction:column;
+    gap:10px; width:236px; }
+  .dock-card{ background:linear-gradient(to left,rgba(10,14,26,.97),rgba(10,14,26,.88));
+    border:1px solid var(--line); border-radius:15px; padding:13px 16px 12px; cursor:pointer;
+    backdrop-filter:blur(8px); transition:border-color .2s, transform .15s; }
+  .dock-card:hover{ border-color:var(--gold); transform:translateY(-1px); }
+  .dock-cap{ font-size:9.5px; letter-spacing:.26em; color:var(--cream-dim); margin-bottom:7px; }
+  .dock-main{ font-size:14.5px; font-weight:700; letter-spacing:.01em; display:flex;
+    align-items:baseline; justify-content:space-between; gap:6px; }
+  .dock-main .vs{ font-size:10px; color:var(--cream-dim); font-weight:400; }
+  .dock-sub{ font-size:11px; color:var(--cream-dim); margin-top:4px; }
+  .dock-count{ margin-top:8px; font-variant-numeric:tabular-nums; font-size:19px;
+    letter-spacing:.06em; color:var(--gold); }
+  /* 매치 패널 — 인물장소 스토리 패널과 같은 몸짓, 우측 슬라이드 */
+  #matchPanel{ position:fixed; top:0; right:0; bottom:0; z-index:33; width:min(390px,88vw);
+    background:linear-gradient(to left,rgba(10,14,26,.97),rgba(10,14,26,.86));
+    border-left:1px solid var(--line); backdrop-filter:blur(8px);
+    transform:translateX(100%); transition:transform .55s cubic-bezier(.22,.61,.36,1);
+    padding:60px 32px 44px; overflow-y:auto; }
+  #matchPanel.in{ transform:none; }
+  #matchPanel .close{ position:absolute; top:18px; right:20px; cursor:pointer; width:30px; height:30px;
+    border:0; border-radius:50%; background:rgba(201,162,39,.10); color:var(--cream-dim);
+    font-size:17px; line-height:1; }
+  #matchPanel .close:hover{ color:var(--gold); background:rgba(201,162,39,.2); }
+  #mpBadge{ display:inline-block; font-size:10px; letter-spacing:.28em; text-transform:uppercase;
+    color:var(--gold); border:1px solid var(--line); border-radius:999px; padding:4px 11px; margin-bottom:20px; }
+  #mpMatch{ font-family:var(--serif); font-size:26px; line-height:1.25; }
+  #mpMatch .vs{ font-size:14px; color:var(--cream-dim); font-style:italic; padding:0 6px; }
+  #mpMeta{ font-size:12.5px; color:var(--cream-dim); margin-top:8px; letter-spacing:.04em; }
+  #mpCount{ margin-top:22px; font-variant-numeric:tabular-nums; font-size:34px;
+    letter-spacing:.08em; color:var(--gold); }
+  #mpCountCap{ font-size:10px; letter-spacing:.24em; color:var(--cream-dim); margin-top:5px; }
+  #mpStart{ margin-top:26px; width:100%; background:var(--gold); color:#141005; border:0;
+    border-radius:11px; padding:13px 0; font-size:14.5px; font-weight:700; cursor:pointer; }
+  #mpStart:hover{ filter:brightness(1.08); }
+  #mpStart:disabled{ background:rgba(201,162,39,.22); color:var(--cream-dim); cursor:default; }
+  #mpNote{ font-size:12px; line-height:1.7; color:var(--cream-dim); margin-top:18px;
+    border-top:1px solid var(--line); padding-top:14px; }
+  /* 구장 착륙 후 입장 카드 */
+  #parkCard{ position:fixed; left:50%; bottom:46px; transform:translateX(-50%) translateY(12px);
+    z-index:29; background:linear-gradient(to top,rgba(10,14,26,.97),rgba(10,14,26,.88));
+    border:1px solid var(--line); border-radius:16px; padding:16px 24px; text-align:center;
+    backdrop-filter:blur(8px); opacity:0; pointer-events:none; transition:opacity .3s, transform .3s; }
+  #parkCard.in{ opacity:1; pointer-events:auto; transform:translateX(-50%); }
+  #pcName{ font-family:var(--serif); font-size:16px; font-weight:700; }
+  #pcCity{ font-size:10.5px; color:var(--cream-dim); margin-top:3px; letter-spacing:.14em; }
+  #pcBtn{ margin-top:11px; background:var(--gold); color:#141005; border:0; border-radius:10px;
+    padding:9px 22px; font-size:13.5px; font-weight:700; cursor:pointer; }
+  #pcBtn:hover{ filter:brightness(1.08); }
+  @media (max-width:640px){
+    #egDock{ width:calc(100vw - 40px); top:auto; bottom:16px; right:20px; }
+    #parkCard{ bottom:130px; }
+  }
+
 </style>
 </head>
 <body>
 <div id="cesiumContainer"></div>
 
 <a id="backBtn" href="index.html">← 살롱으로</a>
-<button id="compassBtn" title="나침반">🧭</button>
+
+<button id="compassBtn" class="noimg" aria-label="메뉴 열기">
+  <img id="compassImg" src="compass.webp" alt="" onload="this.closest('#compassBtn').classList.remove('noimg')">
+  <span id="compassFallback" aria-hidden="true">🧭</span>
+  <span id="compassNeedle" aria-hidden="true"></span>
+</button>
 <div id="navPanel">
   <div class="nav-group">
-    <div class="nav-cap">떠나기</div>
-    <div class="nav-item" data-fly="fenway"><span class="ic">⚾</span>펜웨이파크 (홈)</div>
-    <div class="nav-item" data-fly="yankee"><span class="ic">⚾</span>양키스타디움</div>
-    <div class="nav-item" data-fly="wrigley"><span class="ic">⚾</span>리글리필드</div>
-    <div class="nav-item" data-fly="oracle"><span class="ic">⚾</span>오라클파크</div>
+    <div class="nav-label">떠나기</div>
+    <button class="nav-item" id="navCity">🌍 다른 도시 <span class="chev" aria-hidden="true">›</span></button>
+    <button class="nav-item" id="navStar">✦ 다른 인물 <span class="chev" aria-hidden="true">›</span></button>
   </div>
   <div class="nav-group">
-    <div class="nav-cap">직행</div>
-    <div class="nav-item" data-go="stadium_v2.html"><span class="ic">🏟</span>스타디움 라운지</div>
+    <div class="nav-label">보기</div>
+    <button class="nav-item toggle" id="navSpots">🏛 인물 장소 <span class="dot" aria-hidden="true"></span></button>
+    <button class="nav-item toggle on" id="navMaisons">🏠 콩파뇽 집 <span class="dot" aria-hidden="true"></span></button>
+  </div>
+  <div class="nav-group" id="navAdminGroup" style="display:none">
+    <div class="nav-label">관리</div>
+    <button class="nav-item toggle" id="navEdit">📍 좌표 편집 <span class="dot" aria-hidden="true"></span></button>
   </div>
 </div>
 
-<div id="matchWidget">
-  <div id="mwCap">TODAY MATCHUP</div>
-  <div id="mwTeams"><span id="mwAway">—</span><span class="vs">vs</span><span id="mwHome">—</span></div>
-  <div id="mwSub">—</div>
-  <div id="mwCount">--:--:--</div>
-  <div id="mwHint">클릭하면 스타디움 라운지가 열립니다</div>
+<button id="cityBtn">🌍 다른 도시</button>
+<button id="starBtn">✦ 다른 인물</button>
+<div id="starList"></div>
+<div id="cityList"></div>
+<button id="layerSpots" class="layer-btn on">🏛 인물 장소</button>
+<button id="layerMaisons" class="layer-btn">🏠 콩파뇽 집</button>
+<button id="editToggle" class="layer-btn" style="display:none">📍 좌표 편집</button>
+<div id="editHint">📍 <b>편집 모드</b> — 옮길 메종 핀을 누른 뒤, 그 집 <b>지붕</b>을 클릭하세요</div>
+
+<div id="title">
+  <div class="eyebrow">Constellatio</div>
+  <h1>Ernest Hemingway</h1>
+  <div class="span">한 별의 다섯 착지 · 1899–1961</div>
 </div>
 
-<div id="enterCard">
-  <div id="ecName">펜웨이파크</div>
-  <div id="ecCity">BOSTON</div>
-  <button id="ecBtn">⚾ 경기 입장하기</button>
+<div id="hint"></div>
+
+<div id="card">
+  <div class="yr" id="cardYr"></div>
+  <div class="pl" id="cardPl"></div>
+  <div class="desc" id="cardDesc"></div>
 </div>
 
-<div id="doorway"><iframe id="dwFrame" title="EG"></iframe></div>
-<button id="dwBack">🌍 지구로 돌아가기</button>
+<nav id="journey"></nav>
 
-<div id="hint">EG테라 v0.1 — 지구를 드래그해 보세요</div>
+<div id="loader">
+  <div id="loaderMsg">당신의 집으로 가는 길을 여는 중…</div>
+  <div id="jetTrack"><img src="EG_jet01.webp" alt="Salon d'Eungyo Air"></div>
+  <audio id="jetSound" src="jet_sound.mp3" preload="auto"></audio>
+</div>
+
+<div id="countryLabel"></div>
+
+
+<!-- ═══ EG테라: 통합위젯 도크 ═══ -->
+<div id="egDock"></div>
+
+<!-- ═══ EG테라: 오늘의 경기 패널 (스토리 패널의 야구판) ═══ -->
+<aside id="matchPanel">
+  <button class="close" id="mpClose" aria-label="닫기">×</button>
+  <div id="mpBadge">TODAY MATCHUP</div>
+  <div id="mpMatch"><span id="mpAway">—</span><span class="vs">vs</span><span id="mpHome">—</span></div>
+  <div id="mpMeta">—</div>
+  <div id="mpCount">--:--:--</div>
+  <div id="mpCountCap">경기 시작까지 · 18:30 KST</div>
+  <button id="mpStart">⚾ 경기 시작하기</button>
+  <div id="mpNote">정식 경기는 18:30 시작. 오전 10:00 ~ 자정 23:59 사이 진행하실 수 있습니다.</div>
+</aside>
+
+<!-- ═══ EG테라: 구장 착륙 입장 카드 ═══ -->
+<div id="parkCard">
+  <div id="pcName">펜웨이파크</div>
+  <div id="pcCity">BOSTON</div>
+  <button id="pcBtn">⚾ 경기 입장하기</button>
+</div>
+
+<aside id="story">
+  <button class="close" id="storyClose" aria-label="닫기">×</button>
+  <div class="badge" id="storyBadge">큐레이션</div>
+  <h2 class="stitle" id="storyTitle"></h2>
+  <div class="stitle-ko" id="storyTitleKo"></div>
+  <div class="ssub" id="storySub"></div>
+  <div id="storyPhotos"></div>
+  <div class="sbody" id="storyBody"></div>
+  <div id="storyStars"></div>
+</aside>
+
+<aside id="maison">
+  <button class="close" id="maisonClose" aria-label="닫기">×</button>
+  <div class="m-door" id="mDoor"></div>
+  <img class="m-avatar" id="mAvatar" alt="" style="display:none">
+  <h2 class="m-nick" id="mNick"></h2>
+  <div class="m-intro" id="mIntro"></div>
+  <button class="m-enter" id="mEnter">대문 열고 들어가기 →</button>
+</aside>
+
+<div id="doorway">
+  <iframe id="doorFrame" title="분더카머"></iframe>
+  <div class="door-half door-left"></div>
+  <div class="door-half door-right"></div>
+  <div id="doorTitle"></div>
+  <div id="doorHint">대문을 클릭해 들어가세요</div>
+  <div id="doorActions">
+    <button id="doorPick" style="display:none">✎ 대문 고르기</button>
+    <button id="elevPick" style="display:none">✎ 엘리베이터 고르기</button>
+    <button id="doorExit">× 분더카머 떠나기</button>
+  </div>
+  <audio id="doorSound" src="maison_door_open.mp3" preload="auto"></audio>
+</div>
+
+<!-- 내 대문 고르기 (본인 집에서만) -->
+<div id="doorPicker">
+  <div id="dpBackdrop"></div>
+  <div id="dpPanel">
+    <div id="dpHead">
+      <span id="dpTitle">내 대문 고르기</span>
+      <button id="dpClose" aria-label="닫기">×</button>
+    </div>
+    <div id="dpGrid"></div>
+  </div>
+</div>
+
+<!-- 분더카머 투어 — 우측 슬라이드 패널 (배경 흐림) -->
+<div style="position:fixed;left:8px;bottom:6px;z-index:70;font-size:9px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.5px;pointer-events:none">maison 0628e</div>
 
 <script>
-/* ═══════ 상수 ═══════ */
-const GOOGLE_API_KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A";
-const SUPA_URL = "https://cyhlotwdisjvoxvfkpnd.supabase.co";
-const SUPA_KEY = "sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR";
-const supa = supabase.createClient(SUPA_URL, SUPA_KEY,
-  { auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true } });
+// ── 분더카머로 떠나는 비행: 제트음 (자동재생 막히면 조용히 폴백) ──
+(function(){
+  // 빠른 길(enter=1)은 지도 로딩 시간 벌이가 불필요 → 비행기·제트음 생략
+  if(new URLSearchParams(location.search).get('enter')==='1'){
+    const jt = document.getElementById("jetTrack"); if(jt) jt.style.display = "none";
+    window.__fadeJet = ()=>{};   // init이 호출하므로 빈 함수로 둠
+    return;
+  }
+  const jet = document.getElementById("jetSound");
+  if(!jet) return;
+  jet.volume = 0.55;
+  const tryPlay = ()=>{ try{ jet.play().catch(()=>{}); }catch(e){} };
+  tryPlay();                                  // 직전 핀 클릭이 허용해 주면 바로 재생
+  const once = ()=>{ tryPlay(); };            // 막혔으면 첫 사용자 동작 때 한 번 더
+  window.addEventListener("pointerdown", once, {once:true});
+  // 로더가 사라질 때 부드럽게 페이드아웃 (loader.gone 직후 호출)
+  window.__fadeJet = ()=>{
+    window.removeEventListener("pointerdown", once);
+    const step = ()=>{
+      if(jet.volume > 0.06){ jet.volume = Math.max(0, jet.volume - 0.06); setTimeout(step, 60); }
+      else { try{ jet.pause(); }catch(e){} jet.volume = 0; }
+    };
+    step();
+  };
+})();
+// ─── 헤밍웨이: 인물 1 → 장소 N (연대순) ───
+const HEMINGWAY = {
+  name: "Ernest Hemingway",
+  representative: 3, // 대표 착륙지 = 쿠바
+  places: [
+    { name:"파리 몽파르나스", country:"프랑스 · France", yr:"1921", lat:48.8420, lng:2.3370, range:900,
+      desc:"스물둘에 건너와 카페 구석에서 첫 문장들을 벼린 도시." },
+    { name:"팜플로나",        country:"스페인 · España", yr:"1923", lat:42.8189, lng:-1.6442, range:1100,
+      desc:"산 페르민 축제의 투우를 보고 『해는 또다시 떠오른다』를 끌어낸 곳." },
+    { name:"키웨스트",        country:"미국 플로리다 · USA", yr:"1931", lat:24.5511, lng:-81.8009, range:850,
+      desc:"낚싯배와 술집 사이에서 단편을 쏟아낸 플로리다 남단의 집." },
+    { name:"쿠바 핀카 비히아", country:"쿠바 · Cuba", yr:"1939", lat:23.0494, lng:-82.2706, range:1000,
+      desc:"가장 오래 머물며 『노인과 바다』를 써낸 언덕 위의 농장." },
+    { name:"케첨, 아이다호",   country:"미국 아이다호 · USA", yr:"1959", lat:43.6805, lng:-114.3637, range:3500,
+      desc:"산과 강으로 둘러싸인 마지막 거처." },
+  ]
+};
 
-const TEAM_KO = { soro:"SORO", socrates:"소크라테스", pascal:"파스칼", proust:"프루스트" };
-const TEAM_PARK = { soro:"fenway", socrates:"yankee", pascal:"wrigley", proust:"oracle" };
+let viewer, orbiting=false, orbitHeading=0, orbitCenter=null, orbitRange=1000, orbitTick=null, activeIdx=-1;
+let CITIES=[], currentCity='paris';
+let currentMaison=null, currentPopup=null, doorState='closed';
+let showSpots=false, showMaisons=true;   // maison: 콩파뇽 집 켜짐, 인물 장소 꺼짐(원하면 토글)
+let IS_ADMIN=false, EDIT_MODE=false, selEnt=null, MOVING=false;   // admin 좌표 편집
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
+});
 
-let viewer, pins = {}, currentPin = null, todayMatch = null;
+// 돌아가기: 온 경로에 맞춰 — 별 경로면 그 별로, 분더카머 메뉴 경로(enter/home)면 메인 메뉴로, 그 외 별자리로
+(function setBack(){
+  const p = new URLSearchParams(location.search);
+  const backId = p.get('id');
+  const fromMenu = p.get('enter') === '1' || p.get('home') === '1';   // 분더카머 메뉴에서 진입
+  const btn = document.getElementById('backBtn');
+  if (backId){ btn.href = 'star.html?id=' + backId; btn.textContent = '← 별로'; }
+  else if (fromMenu){ btn.href = 'index.html'; btn.textContent = '← 살롱으로'; }
+  else { btn.href = 'constella.html'; btn.textContent = '← 살롱으로'; }
+})();
 
-/* ═══════ 초기화 ═══════ */
 (async function init(){
+  if (window.EGCrashGuard && EGCrashGuard.check()) return;  // 0706 크래시 가드: 지난 크래시면 팝업만, 3D 중단 (enter=1·home=1 두 경로 모두 커버)
+  if (window.EGCrashGuard) EGCrashGuard.mark('maison');
+  const _p = new URLSearchParams(location.search);
+  const _wantUser  = _p.get('user');
+  const _wantEnter = _p.get('enter') === '1';
+  // 빠른 길(enter=1): 무거운 지구를 만들지 않고 노커를 바로 띄움 — 지도를 안 보는 동선
+  if (_wantEnter){ await fastEnter(_wantUser); return; }
+
   viewer = new Cesium.Viewer("cesiumContainer", {
     baseLayer:false, baseLayerPicker:false, geocoder:false, homeButton:false,
     sceneModePicker:false, navigationHelpButton:false, animation:false,
-    timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false
+    timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false,
+    requestRenderMode:false
   });
+  if (window.EGCrashGuard) viewer.canvas.addEventListener('webglcontextlost', EGCrashGuard.markWebGL);  // 0706 GPU 폭발 확정
+
   const s = viewer.scene;
   s.skyAtmosphere.show = true;
   s.globe.show = true;
@@ -165,184 +769,1420 @@ let viewer, pins = {}, currentPin = null, todayMatch = null;
   s.backgroundColor = Cesium.Color.fromCssColorString("#05070f");
   if (s.fog) s.fog.enabled = true;
 
-  /* 고공 세계지도 (어두운 톤) */
+  // ── 세계지도 입히기 (고공에서 '어느 나라'인지 보이도록, 어둡게 톤다운) ──
   try{
     const osm = viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
-      url:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-      credit:"© OpenStreetMap contributors", maximumLevel:19 }));
-    osm.brightness=.55; osm.saturation=.65; osm.gamma=.8;
-  }catch(e){ console.warn("기본 지도 실패:", e); }
+      url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      credit: "© OpenStreetMap contributors",
+      maximumLevel: 19
+    }));
+    osm.brightness = 0.55;   // 어둡게
+    osm.saturation = 0.65;   // 채도 낮춰 콘스텔라티오 톤에 맞춤
+    osm.gamma = 0.8;
+  }catch(e){ console.warn("기본 지도 로드 실패:", e); }
 
-  /* 구글 실사 3D 타일 */
-  try{
-    let tileset;
-    try { tileset = await Cesium.createGooglePhotorealistic3DTileset({ key: GOOGLE_API_KEY }); }
-    catch(e){ tileset = await Cesium.createGooglePhotorealistic3DTileset(GOOGLE_API_KEY); }
-    s.primitives.add(tileset);
-  }catch(err){
-    document.getElementById("hint").innerHTML = "<b>타일 오류</b><br>기본 지구로 표시합니다.";
-    console.warn("3D Tiles 실패:", err);
+  // ── 구글 실사 3D 타일 (키가 있을 때만) ──
+  const hint = document.getElementById("hint");
+  if (GOOGLE_API_KEY && GOOGLE_API_KEY.trim()){
+    try{
+      let tileset;
+      try { tileset = await Cesium.createGooglePhotorealistic3DTileset({ key: GOOGLE_API_KEY }); }
+      catch(e){ tileset = await Cesium.createGooglePhotorealistic3DTileset(GOOGLE_API_KEY); }
+      s.primitives.add(tileset);
+      // globe.show 는 끄지 않음 — 실사 타일이 없는 시골(케첨 등)에서도 지도가 보이도록
+      hint.innerHTML = "<b>실사 3D 모드</b><br>구글 포토리얼 타일이 켜졌습니다.";
+    }catch(err){
+      hint.innerHTML = "<b>키 오류</b><br>타일을 불러오지 못해 기본 지구로 표시합니다.";
+      console.warn("3D Tiles load failed:", err);
+    }
+  } else {
+    hint.innerHTML = "<b>흐름 미리보기 모드</b><br>GOOGLE_API_KEY 한 줄을 채우면 이 지면 위로 실사 건물이 떠오릅니다.";
   }
 
+  // 마커를 더블클릭하면 카메라가 그 점으로 빨려들어가 지표 아래(검은 화면)로 가는 것 방지
   viewer.screenSpaceEventHandler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
   viewer.trackedEntity = undefined;
-  viewer.scene.screenSpaceCameraController.minimumZoomDistance = 60;
+  viewer.scene.screenSpaceCameraController.minimumZoomDistance = 60;   // 지표 60m 위까지만
+  await loadCityMarkers('paris');   // 도시 핀(인물 장소)
+  await loadMaisons('paris');       // EG메종 집 핀 (옐로 라벨)
+  await loadPopups('paris');        // 출판사 팝업 명패 핀
+  await loadPalais('paris');        // 전당(지식채널) 청록 핀
+  loadCityList();
+  document.getElementById("cityBtn").addEventListener("click", ()=> { toggleStarList(false); toggleCityList(); });
+  loadStarList();
+  document.getElementById("starBtn").addEventListener("click", ()=> { toggleCityList(false); toggleStarList(); });
+  document.getElementById("maisonClose").addEventListener("click", closeMaison);
+  document.getElementById("layerSpots").addEventListener("click", ()=>{ showSpots=!showSpots; applyLayerVisibility(); });
+  document.getElementById("layerMaisons").addEventListener("click", ()=>{ showMaisons=!showMaisons; applyLayerVisibility(); });
 
-  await loadPins();
-  wireCompass();
-  wireClicks();
-  loadTodayMatch();
+  /* ══ 0717 나침반 통합 메뉴 배선 — 기존 핸들러 재활용 ══ */
+  (function(){
+    const cBtn = document.getElementById("compassBtn");
+    const panel = document.getElementById("navPanel");
+    const openPanel = (on)=>{
+      const show = (on===undefined) ? !panel.classList.contains("in") : on;
+      panel.classList.toggle("in", show);
+      cBtn.classList.toggle("open", show);
+      if (!show){ toggleCityList(false); toggleStarList(false); }   /* 패널 닫으면 목록도 */
+    };
+    cBtn.addEventListener("click", (e)=>{ e.stopPropagation(); openPanel(); });
+    /* 떠나기 — 기존 목록 토글 그대로 (2단 전개) */
+    document.getElementById("navCity").addEventListener("click", ()=>{ toggleStarList(false); toggleCityList(); });
+    document.getElementById("navStar").addEventListener("click", ()=>{ toggleCityList(false); toggleStarList(); });
+    /* 보기 — 기존 레이어 상태 토글. applyLayerVisibility가 nav 항목 on도 동기화 */
+    document.getElementById("navSpots").addEventListener("click", ()=>{ showSpots=!showSpots; applyLayerVisibility(); });
+    document.getElementById("navMaisons").addEventListener("click", ()=>{ showMaisons=!showMaisons; applyLayerVisibility(); });
+    applyLayerVisibility();   /* 초기 on 상태 동기화 */
+    /* 지도 빈 곳 클릭 · ESC → 패널 닫기 */
+    document.addEventListener("keydown", (e)=>{ if (e.key==="Escape") openPanel(false); });
+    document.getElementById("cesiumContainer").addEventListener("click", ()=> openPanel(false));
+    window._openNavPanel = openPanel;
+  })();
+  document.getElementById("mEnter").addEventListener("click", ()=> enterMaison(currentMaison));
+  bindDoorEvents();
+  viewer.canvas.addEventListener("pointerdown", stopOrbit);
 
-  /* ?fly=코드 — 콘텐츠에서 귀환 시 그 구장으로 */
-  const want = new URLSearchParams(location.search).get("fly");
-  if (want && pins[want]) flyToPin(pins[want], true);
-  else flyAmerica();
+  // 마커 클릭 + 호버 — init에서 직접 등록(buildJourney를 안 부르므로 여기서 걸어야 함)
+  const handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
+  handler.setInputAction((click)=>{
+    if (EDIT_MODE){ handleEditClick(click); return; }
+    const picked = viewer.scene.pick(click.position);
+    if (Cesium.defined(picked) && picked.id){
+      if (picked.id._spot) openStory(picked.id._spot);
+      else if (picked.id._maison) openMaison(picked.id._maison);
+      else if (picked.id._popup) openPopup(picked.id._popup);
+      else if (picked.id._palais) openPalais(picked.id._palais);
+    }
+  }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+  let hoveredEnt = null;
+  handler.setInputAction((mv)=>{
+    const picked = viewer.scene.pick(mv.endPosition);
+    const ent = (Cesium.defined(picked) && picked.id && (picked.id._maison || picked.id._spot || picked.id._popup || picked.id._palais)) ? picked.id : null;
+    if (ent === hoveredEnt) return;
+    if (hoveredEnt && hoveredEnt.point) hoveredEnt.point.pixelSize = hoveredEnt._basePx || 9;
+    if (ent && ent.point){
+      if (ent._basePx == null){
+        const v = ent.point.pixelSize;
+        ent._basePx = (v && v.getValue) ? v.getValue(Cesium.JulianDate.now()) : (typeof v==='number'?v:9);
+      }
+      ent.point.pixelSize = ent._basePx + 9;   // 호버 시 불쑥 커짐
+    }
+    viewer.canvas.style.cursor = ent ? 'pointer' : 'default';
+    hoveredEnt = ent;
+  }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+  { const sc = document.getElementById("storyClose"); if (sc) sc.addEventListener("click", closeStory); }
+
+  // 시작: 파리 상공 높은 곳(지구가 1초 안에 뜸) → 내 집까지 하강
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(2.3440, 48.8530, 1000000),
+    orientation:{ heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 }
+  });
+  document.getElementById("loader").classList.add("gone");
+  if(window.__fadeJet) window.__fadeJet();   // 비행 끝 — 제트음 부드럽게 페이드아웃
+  // 세션에서 내 uid 읽어 → 내 집으로 직행 (집이 없으면 자동 배정)
+  await setupAdminEdit();   // admin이면 좌표 편집 토글 노출
+  // 진입 분기 (enter=1은 위에서 fastEnter로 처리됨)
+  //  ?user=남닉 → 남의 집 도시 강하 후 팝업 / (없음) → 내 집 도시 강하
+  if (!_wantUser){ goToMyHome(); }
+  else { enterByParams(_wantUser, false); }
 })();
 
-/* ═══════ 핀 — terra_pins에서 로딩 (단일 셸 원칙: 핀=데이터) ═══════ */
-async function loadPins(){
+function buildJourney(){
+  const nav = document.getElementById("journey");
+  HEMINGWAY.places.forEach((p,i)=>{
+    const b = document.createElement("button");
+    b.className = "stop"; b.dataset.idx = i;
+    b.innerHTML = `<span class="dot"></span><div class="yr">${p.yr}</div><div class="nm">${p.name}</div>`;
+    b.addEventListener("click", ()=> flyTo(i));
+    nav.appendChild(b);
+
+    // 지구 위 핀 (도시)
+    viewer.entities.add({
+      id:"pin-"+i,
+      position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),
+      point:{ pixelSize:9, color:Cesium.Color.fromCssColorString("#c9a227"),
+              outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
+              disableDepthTestDistance:Number.POSITIVE_INFINITY }
+    });
+  });
+
+  // 마커 클릭 → 우측 스토리 패널
+  const handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
+  handler.setInputAction((click)=>{
+    if (EDIT_MODE){ handleEditClick(click); return; }
+    const picked = viewer.scene.pick(click.position);
+    if (Cesium.defined(picked) && picked.id){
+      if (picked.id._spot) openStory(picked.id._spot);
+      else if (picked.id._maison) openMaison(picked.id._maison);
+      else if (picked.id._popup) openPopup(picked.id._popup);
+      else if (picked.id._palais) openPalais(picked.id._palais);
+    }
+  }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+  // 핀 호버 → 불쑥 커지고 커서가 손가락으로 (클릭 가능함을 알림)
+  let hoveredEnt = null;
+  handler.setInputAction((mv)=>{
+    const picked = viewer.scene.pick(mv.endPosition);
+    const ent = (Cesium.defined(picked) && picked.id && (picked.id._maison || picked.id._spot || picked.id._popup || picked.id._palais)) ? picked.id : null;
+    if (ent === hoveredEnt) return;
+    if (hoveredEnt && hoveredEnt.point) hoveredEnt.point.pixelSize = hoveredEnt._basePx || 9;
+    if (ent && ent.point){
+      if (ent._basePx == null){
+        const v = ent.point.pixelSize;
+        ent._basePx = (v && v.getValue) ? v.getValue(Cesium.JulianDate.now()) : (typeof v === 'number' ? v : 9);
+      }
+      ent.point.pixelSize = ent._basePx + 9;   // 불쑥 커짐
+    }
+    viewer.canvas.style.cursor = ent ? 'pointer' : 'default';
+    hoveredEnt = ent;
+  }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+  document.getElementById("storyClose").addEventListener("click", closeStory);
+}
+
+// ─── voyage_markers 도시 핀을 DB(RPC)에서 읽어 지구에 띄움 ───
+//  좌표는 lat·lng만(height 없음) → 띄운 직후 clampSpotsToSurface로 타일 표면에 앉힘.
+//  반드시 마커를 모두 추가한 뒤에 clamp를 호출해야 시차 흔들림이 없다.
+async function loadCityMarkers(city){
+  let rows = [];
   try{
-    const r = await fetch(SUPA_URL + "/rest/v1/terra_pins?active=eq.true&order=sort",
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_voyage_markers", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
+      body: JSON.stringify({ p_city: city })
+    });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    rows = await res.json();
+  }catch(e){ console.warn("voyage_markers 로드 실패:", e); return; }
+
+  const near = range(PIN_RANGE.spot);          // 인물 장소 — 1.5km부터
+  rows.forEach((m)=>{
+    const isCompagnon = (m.source === 'compagnon');            // 큐레이션=금빛 / 콩파뇽 발견=청록
+    const spotColor = Cesium.Color.fromCssColorString(isCompagnon ? "#7fb3d5" : "#c9a227");
+    const ent = viewer.entities.add({
+      id:"marker-"+m.id,
+      position: Cesium.Cartesian3.fromDegrees(m.lng, m.lat),  // height 생략 → 클램프 대상
+      point:{ pixelSize:8, color:spotColor,
+              outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
+              disableDepthTestDistance:Number.POSITIVE_INFINITY,
+              distanceDisplayCondition:near },
+      label:{ text:(m.icon ? m.icon+"  " : "") + m.title,
+              font:"14px Georgia,'Nanum Myeongjo',serif",
+              fillColor:Cesium.Color.fromCssColorString("#ece5d3"),
+              showBackground:true,
+              backgroundColor:Cesium.Color.fromCssColorString("#0a0e1a").withAlpha(.72),
+              backgroundPadding:new Cesium.Cartesian2(10,7),
+              pixelOffset:new Cesium.Cartesian2(0,-14),
+              verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
+              disableDepthTestDistance:Number.POSITIVE_INFINITY,
+              distanceDisplayCondition:near }
+    });
+    ent._spot = m;  // 클릭 시 openStory가 꺼내 씀 (title·subtitle·body·source·figures)
+  });
+
+  // ★ 마커를 모두 띄운 직후 표면 클램프 — 비동기 로드 타이밍의 핵심.
+  await clampSpotsToSurface();
+}
+
+// ─── EG메종 집 핀 (옐로 바탕·검은 글씨 = 사람이 사는 곳) ───
+async function loadMaisons(city){
+  let rows = [];
+  try{
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_maisons", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
+      body: JSON.stringify({ p_city: city })
+    });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    rows = await res.json();
+  }catch(e){ console.warn("eg_maison 로드 실패:", e); return; }
+
+  const near     = range(PIN_RANGE.maison);      // 이웃 콩파뇽 — 500m
+  const nearMine = range(PIN_RANGE.maisonMine);  // 강하 대상 분더카머 — 600m
+  const myUid = await getMyUid().catch(()=>null);
+  const wantU = new URLSearchParams(location.search).get('user');
+  rows.forEach((m)=>{
+    const occupied = (m.status === 'occupied');
+    // 강하 대상(내 집 또는 ?user=닉 상대)만 600m, 나머지 이웃은 500m
+    const isMine = (myUid && m.occupant_id === myUid) || (wantU && m.nickname === wantU);
+    const dd = isMine ? nearMine : near;
+    const ent = viewer.entities.add({
+      id:"maison-"+city+"-"+m.maison_no,
+      position: Cesium.Cartesian3.fromDegrees(m.lng, m.lat),
+      point:{ pixelSize: occupied ? 9 : 9,
+              color: Cesium.Color.fromCssColorString(occupied ? "#ffd23f" : "#0a0e1a"),  // 빈집은 속이 빈(어두운) 동그라미
+              outlineColor: Cesium.Color.fromCssColorString(occupied ? "#1a1407" : "#ffd23f"), // 빈집 테두리만 옐로
+              outlineWidth: occupied ? 2 : 2.5,
+              disableDepthTestDistance:Number.POSITIVE_INFINITY,
+              distanceDisplayCondition:dd },
+      label: occupied ? {
+              text: m.nickname || ("메종 "+m.maison_no),
+              font:"bold 13px 'Helvetica Neue',Arial,sans-serif",
+              fillColor:Cesium.Color.fromCssColorString("#1a1407"),                 // 검은 글씨
+              showBackground:true,
+              backgroundColor:Cesium.Color.fromCssColorString("#ffd23f").withAlpha(.96), // 옐로 바탕
+              backgroundPadding:new Cesium.Cartesian2(9,5),
+              pixelOffset:new Cesium.Cartesian2(0,-13),
+              verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
+              disableDepthTestDistance:Number.POSITIVE_INFINITY,
+              distanceDisplayCondition:dd
+            } : {
+              text:"메종 "+m.maison_no,
+              font:"bold 11.5px 'Helvetica Neue',Arial,sans-serif",
+              fillColor:Cesium.Color.fromCssColorString("#ffd23f"),                  // 옐로 글씨
+              outlineColor:Cesium.Color.fromCssColorString("#0a0e1a"), outlineWidth:3,
+              style:Cesium.LabelStyle.FILL_AND_OUTLINE,                              // 글씨에 검은 테두리 → 어디서나 또렷
+              showBackground:true,
+              backgroundColor:Cesium.Color.fromCssColorString("#0a0e1a").withAlpha(.82),
+              backgroundPadding:new Cesium.Cartesian2(8,4),
+              pixelOffset:new Cesium.Cartesian2(0,-12),
+              verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
+              disableDepthTestDistance:Number.POSITIVE_INFINITY,
+              distanceDisplayCondition:dd
+            }
+    });
+    ent._maison = m;  // 클릭 시 openMaison이 꺼내 씀 (nickname·door_no·intro·status)
+  });
+  await clampSpotsToSurface();
+  applyLayerVisibility();   // 새로 띄운 마커에 현재 토글 상태 반영
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  EG 팝업스토어 핀 — 출판사 명패(로고 배지)를 지구에 세운다.
+//  · 색: pin_color 지정값 우선 → 없으면 code 해시로 짙은 팔레트에서 고정 배정
+//        (같은 출판사는 세계 어느 도시에서나 늘 같은 색 = 브랜드 정체성)
+//  · 명패: 가로 라운드 사각 + 금박 테두리 + 아래 삼각 꼭지(좌표를 가리킴)
+//         짙은 바탕에 흰 로고를 여백 두고 합성 (Storage {org}/logo.webp)
+//  · 진입: 핀 클릭 → doorway에 셸 iframe 직행(문짝 연출 없음 = 셸 gate가 곧 대문)
+// ══════════════════════════════════════════════════════════════════
+const POPUP_ST_BASE = SUPA_URL + "/storage/v1/object/public/popup-assets/";
+// 종족색 체계(0718 범례 결정문): 출판사 스토어는 전부 버건디 한 색.
+// 색=범주, 이름=개체 — 개체마다 색을 낭비하지 않는다. pin_color·해시 배정은 은퇴.
+const POPUP_BURGUNDY = "#8e2d2d";
+const POPUP_PALETTE = ["#c0392b","#2980b9","#8e44ad","#16a085","#d35400","#2c3e9e","#c0398a","#1e8449"]; // (휴면: 미지정 폴백 잔존)
+function popupColor(p){
+  return POPUP_BURGUNDY;
+}
+function loadPopupImg(url){
+  return new Promise((res)=>{
+    const im = new Image();
+    im.crossOrigin = "anonymous";                       // 캔버스 합성 위해 CORS 요청
+    im.onload  = ()=> res(im);
+    im.onerror = ()=> res(null);                        // 실패 시 null → 텍스트 폴백
+    im.src = url;
+  });
+}
+// 명패 캔버스 한 장을 그려 반환 (billboard image로 사용)
+function makePopupPlate(bgColor, logoImg){
+  const DPR = 2, W = 220, H = 92, TIP = 15, r = 14, pad = 22;
+  const cv = document.createElement("canvas");
+  cv.width = W*DPR; cv.height = (H+TIP)*DPR;
+  const g = cv.getContext("2d");
+  g.scale(DPR, DPR);
+  // 본체(라운드 사각) + 아래 중앙 삼각 꼭지
+  g.beginPath();
+  g.moveTo(r,0); g.lineTo(W-r,0); g.arcTo(W,0,W,r,r);
+  g.lineTo(W,H-r); g.arcTo(W,H,W-r,H,r);
+  g.lineTo(W/2+TIP,H); g.lineTo(W/2,H+TIP); g.lineTo(W/2-TIP,H);
+  g.lineTo(r,H); g.arcTo(0,H,0,H-r,r);
+  g.lineTo(0,r); g.arcTo(0,0,r,0,r);
+  g.closePath();
+  // 은은한 그림자 → 위성 이미지 위에서 떠 보이게
+  g.save(); g.shadowColor = "rgba(0,0,0,.55)"; g.shadowBlur = 8; g.shadowOffsetY = 3;
+  g.fillStyle = bgColor; g.fill(); g.restore();
+  // 금박 테두리
+  g.lineWidth = 2; g.strokeStyle = "#c9a227"; g.stroke();
+  // 흰 로고를 여백 두고 중앙 정렬(본래 비율 유지)
+  if (logoImg && logoImg.width){
+    const availW = W - pad*2, availH = H - pad*1.1;
+    const ar = logoImg.width / logoImg.height;
+    let lw = availW, lh = lw/ar;
+    if (lh > availH){ lh = availH; lw = lh*ar; }
+    g.drawImage(logoImg, (W-lw)/2, (H-lh)/2 - TIP*0.25, lw, lh);
+  }
+  return cv;
+}
+// ─── EG 팝업 핀을 DB(get_popups)에서 읽어 지구에 세움 ───
+async function loadPopups(city){
+  let rows = [];
+  try{
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_popups", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
+      body: JSON.stringify({ p_city: city })
+    });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    rows = await res.json();
+  }catch(e){ console.warn("팝업 로드 실패:", e); return; }
+
+  const near = range(PIN_RANGE.popup);          // 출판사 팝업 — 400m
+  for (const p of rows){
+    const bg = popupColor(p);   // 출판사 고유색 (pin_color 지정값 → 없으면 코드 해시)
+    const ent = viewer.entities.add({
+      id: "popup-"+city+"-"+p.code,
+      position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),   // height 생략 → 표면 클램프 대상
+      point:{ pixelSize:9, color:Cesium.Color.fromCssColorString(bg),
+              outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
+              disableDepthTestDistance:Number.POSITIVE_INFINITY,
+              distanceDisplayCondition:near },   // 다른 핀과 같은 원 + 고유색 · 호버 부풀기는 hover 핸들러가 자동 처리
+      label: {
+        text: p.name || p.code,
+        font: "bold 14px 'Helvetica Neue',Arial,sans-serif",   // 메종(13px)보다 한 급 큼
+        fillColor: Cesium.Color.WHITE,
+        outlineColor: Cesium.Color.fromCssColorString("#0a0e1a"),
+        outlineWidth: 3,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,             // 흰 글씨 + 검은 테두리 = 어디서나 또렷
+        showBackground: true,
+        backgroundColor: Cesium.Color.fromCssColorString(bg).withAlpha(.95),   // 출판사 고유 컬러풀 바탕
+        backgroundPadding: new Cesium.Cartesian2(11,6),
+        pixelOffset: new Cesium.Cartesian2(0,-12),
+        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        distanceDisplayCondition: near
+      }
+    });
+    ent._popup = p;   // 클릭 시 openPopup이 꺼내 씀
+  }
+  await clampSpotsToSurface();
+  applyLayerVisibility();
+}
+// 팝업 핀 클릭 → doorway에 셸을 iframe으로 직행(문짝 없음). 렌더 정지=과금 0.
+function openPopup(p){
+  closeStory(); closeMaison();
+  currentPopup = p;
+  viewer.useDefaultRenderLoop = false;
+  const dw = document.getElementById("doorway");
+  document.getElementById("doorTitle").textContent = (p.name||"") + (p.city_ko ? " · "+p.city_ko : "");
+  const dp = document.getElementById("doorPick"); if (dp) dp.style.display = "none";
+  const ep = document.getElementById("elevPick"); if (ep) ep.style.display = "none";
+  const ex = document.getElementById("doorExit"); if (ex) ex.textContent = "× 도시로 나가기";   // 팝업은 도시로 나감
+  document.getElementById("doorFrame").src = "popup_shell_v0_4.html?org=" + encodeURIComponent(p.code) + "&v=" + Date.now();
+  dw.classList.add("popup","in","open");   // popup=문짝 숨김 / open=열린 상태로 iframe 노출
+  doorState = 'open';
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+//  핀 등장 거리 (0718 저녁 · 소로 지정)
+//  카메라가 내려올수록 종족이 차례로 나타난다. 한꺼번에 우르르 뜨지 않게.
+//   1500m 인물 장소 → 600m 분더카머(강하 대상) → 500m 이웃 콩파뇽·살롱·
+//   콤포스텔라·굿즈샵 → 400m 출판사 팝업·지식채널 전당
+// ══════════════════════════════════════════════════════════════════
+const PIN_RANGE = {
+  spot      : 1500,   // 인물 장소
+  maisonMine:  600,   // 강하 대상 분더카머 (가장 먼저 맞이한다)
+  maison    :  500,   // 이웃 콩파뇽
+  salon     :  500,   // 파트너 살롱 (핀 생기면 이 값)
+  sanctuary :  500,   // 콤포스텔라·273학술원
+  goods     :  500,   // EG 굿즈샵
+  popup     :  400,   // 출판사 팝업
+  palais    :  400    // 지식채널 전당
+};
+const range = (m)=> new Cesium.DistanceDisplayCondition(0, m);
+
+// ══════════════════════════════════════════════════════════════════
+//  EG 전당(Palais) 핀 — 2차 협업 파트너(지식채널) 센터
+//  · 색: 청록 #16a085 고정 (지도핀 종족 범례 결정문 0718)
+//  · 진입: 핀 클릭 → doorway에 palais.html 직행 (셸 gate가 곧 대문)
+// ══════════════════════════════════════════════════════════════════
+const PALAIS_COLOR = "#16a085";
+async function loadPalais(city){
+  let rows = [];
+  try{
+    const res = await fetch(SUPA_URL + "/rest/v1/palais_orgs?select=code,name,lat,lng,city&city=eq."
+                 + encodeURIComponent(city), {
+      headers:{ "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY }
+    });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    rows = await res.json();
+  }catch(e){ console.warn("전당 로드 실패:", e); return; }
+
+  const near = range(PIN_RANGE.palais);         // 지식채널 전당 — 400m
+  for (const p of rows){
+    if (p.lat == null || p.lng == null) continue;
+    const ent = viewer.entities.add({
+      id: "palais-"+city+"-"+p.code,
+      position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),
+      point:{ pixelSize:9, color:Cesium.Color.fromCssColorString(PALAIS_COLOR),
+              outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
+              disableDepthTestDistance:Number.POSITIVE_INFINITY,
+              distanceDisplayCondition:near },
+      label: {
+        text: p.name || p.code,
+        font: "bold 14px 'Helvetica Neue',Arial,sans-serif",
+        fillColor: Cesium.Color.WHITE,
+        outlineColor: Cesium.Color.fromCssColorString("#0a0e1a"),
+        outlineWidth: 3,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        showBackground: true,
+        backgroundColor: Cesium.Color.fromCssColorString(PALAIS_COLOR).withAlpha(.95),
+        backgroundPadding: new Cesium.Cartesian2(11,6),
+        pixelOffset: new Cesium.Cartesian2(0,-12),
+        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        distanceDisplayCondition: near
+      }
+    });
+    ent._palais = p;
+  }
+  await clampSpotsToSurface();
+  applyLayerVisibility();
+}
+// 전당 핀 클릭 → doorway에 palais.html iframe 직행
+function openPalais(p){
+  closeStory(); closeMaison();
+  currentPopup = null;
+  viewer.useDefaultRenderLoop = false;
+  const dw = document.getElementById("doorway");
+  document.getElementById("doorTitle").textContent = (p.name||"") + " 전당";
+  const dp = document.getElementById("doorPick"); if (dp) dp.style.display = "none";
+  const ep = document.getElementById("elevPick"); if (ep) ep.style.display = "none";
+  const ex = document.getElementById("doorExit"); if (ex) ex.textContent = "× 도시로 나가기";
+  document.getElementById("doorFrame").src = "palais.html?org=" + encodeURIComponent(p.code) + "&v=" + Date.now();
+  dw.classList.add("popup","in","open");
+  doorState = 'open';
+}
+
+
+// 레이어 토글 — 인물 장소(_spot)와 콩파뇽 집(_maison)을 켜고 끔
+function applyLayerVisibility(){
+  viewer.entities.values.forEach(e=>{
+    if (e._spot) e.show = showSpots;
+    else if (e._maison) e.show = showMaisons;
+  });
+  const ls = document.getElementById("layerSpots");
+  const lm = document.getElementById("layerMaisons");
+  if (ls) ls.classList.toggle("on", showSpots);
+  if (lm) lm.classList.toggle("on", showMaisons);
+  const ns = document.getElementById("navSpots");
+  const nm = document.getElementById("navMaisons");
+  if (ns) ns.classList.toggle("on", showSpots);
+  if (nm) nm.classList.toggle("on", showMaisons);
+}
+
+// ─── 도시 목록(voyage_cities)을 DB에서 읽어 점프 리스트로 ───
+async function loadCityList(){
+  try{
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_voyage_cities", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
+      body: "{}"
+    });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    CITIES = await res.json();
+  }catch(e){ console.warn("도시 목록 로드 실패:", e); return; }
+  renderCityList();
+}
+
+function renderCityList(){
+  const box = document.getElementById("cityList");
+  box.innerHTML = "";
+  CITIES.forEach(c=>{
+    const it = document.createElement("div");
+    it.className = "city-item" + (c.city === currentCity ? " active" : "");
+    it.innerHTML = '<span>'+c.label_ko+'</span><span class="cnt">'+c.pin_count+'곳</span>';
+    it.addEventListener("click", ()=>{ jumpToCity(c); toggleCityList(false); });
+    box.appendChild(it);
+  });
+}
+
+function toggleCityList(show){
+  const box = document.getElementById("cityList");
+  const on = (show === undefined) ? !box.classList.contains("in") : show;
+  box.classList.toggle("in", on);
+}
+
+// 페이지를 떠나지 않고 도시 전환 — 세션 하나로 여러 도시(과금 1건).
+async function jumpToCity(c){
+  currentCity = c.city;
+  renderCityList();
+  stopOrbit();
+  closeStory();
+  closeMaison();
+  // 이전 도시 마커 제거 (큐레이션 핀 + 메종 핀 둘 다, slice로 복제 후 제거)
+  viewer.entities.values.filter(e=>e._spot || e._maison || e._popup || e._palais).slice().forEach(e=> viewer.entities.remove(e));
+  // 새 도시 마커를 먼저 로드 — 1호 핀 좌표를 잡고 표면 클램프(함수 내부)까지 끝낸 뒤 비행
+  await loadCityMarkers(c.city);
+  await loadMaisons(c.city);
+  await loadPopups(c.city);
+  await loadPalais(c.city);
+
+  // 1호 핀(가장 먼저 입주한 곳 = id 최소)을 중심점으로. 핀이 없으면 도시 중심.
+  let lng = c.center_lng, lat = c.center_lat;
+  const spots = viewer.entities.values.filter(e=>e._spot);
+  if (spots.length){
+    let first = spots[0];
+    spots.forEach(e=>{ if (e._spot.id < first._spot.id) first = e; });
+    const carto = Cesium.Cartographic.fromCartesian(
+      first.position.getValue(Cesium.JulianDate.now()));
+    lng = Cesium.Math.toDegrees(carto.longitude);
+    lat = Cesium.Math.toDegrees(carto.latitude);
+  }
+  const r = c.range || 1000;
+
+  // 파리 초기 진입처럼 — 1호 핀으로 비스듬히 줌인한 뒤, 그 곳을 중심으로 천천히 회전
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, r * 1.6),
+    orientation:{ heading:Cesium.Math.toRadians(20), pitch:Cesium.Math.toRadians(-35), roll:0 },
+    duration: 3.4,
+    complete: async ()=>{ const H=await clampPoint(lng,lat); startOrbit(Cesium.Cartesian3.fromDegrees(lng, lat, (H!=null?H:0)), r); }
+  });
+}
+
+// ── 다른 인물: 여행 가능한(대표지 보유) 별 목록을 드롭다운으로. 클릭 시 그 대표지로 직행 ──
+let STARS_LIST = [];
+const CITY_KO = { paris:'파리', arles:'아를', giverny:'지베르니', concord:'콩코드', london:'런던' };
+
+async function loadStarList(){
+  try{
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_voyage_stars", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
+      body: "{}"
+    });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    STARS_LIST = await res.json();
+  }catch(e){ console.warn("인물 목록 로드 실패:", e); return; }
+  renderStarList();
+}
+
+function renderStarList(){
+  const box = document.getElementById("starList");
+  if (!box) return;
+  box.innerHTML = "";
+  STARS_LIST.forEach(s=>{
+    const it = document.createElement("div");
+    it.className = "star-item" + (s.city === currentCity ? " active" : "");
+    const cityKo = CITY_KO[s.city] || s.city || "";
+    const thumb = s.framed_url ? '<img src="'+s.framed_url+'" alt="">' : '<img alt="">';
+    it.innerHTML = thumb +
+      '<div class="who"><span>'+ (s.name||'') +'</span>'+
+      '<span class="ct">'+ cityKo + (s.place_name ? ' · '+s.place_name : '') +'</span></div>';
+    it.addEventListener("click", ()=>{ toggleStarList(false); jumpToStarPlace(s.star_id); });
+    box.appendChild(it);
+  });
+}
+
+function toggleStarList(show){
+  const box = document.getElementById("starList");
+  if (!box) return;
+  const on = (show === undefined) ? !box.classList.contains("in") : show;
+  box.classList.toggle("in", on);
+}
+
+// 페이지를 떠나지 않고 그 인물의 대표지로 직행 — 세션 하나 유지(과금 0).
+// 액자(이곳에 닿은 별)에서 호출. 도시가 다르면 도시 마커만 갈아끼우고 그 장소로 비행.
+async function jumpToStarPlace(starId){
+  let rep;
+  try{
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_star_voyage", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
+      body: JSON.stringify({ p_star_id: Number(starId) })
+    });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    const rows = await res.json();
+    rep = Array.isArray(rows) ? rows[0] : rows;
+  }catch(e){ console.warn("대표지 로드 실패:", e); return; }
+  if (!rep || rep.lat == null || rep.lng == null) return;
+
+  stopOrbit(); closeStory(); closeMaison();
+
+  // 대표지가 다른 도시면 그 도시 마커로 갈아끼움(세션은 그대로 유지)
+  if (rep.city && rep.city !== currentCity){
+    currentCity = rep.city;
+    if (typeof renderCityList === 'function') renderCityList();
+    if (typeof renderStarList === 'function') renderStarList();
+    viewer.entities.values.filter(e=>e._spot || e._maison || e._popup || e._palais).slice().forEach(e=> viewer.entities.remove(e));
+    await loadCityMarkers(rep.city);
+    await loadMaisons(rep.city);
+    await loadPopups(rep.city);
+    await loadPalais(rep.city);
+  }
+
+  const lng = rep.lng, lat = rep.lat, r = rep.cam_range || 1000;
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, r * 1.6),
+    orientation:{ heading:Cesium.Math.toRadians(20), pitch:Cesium.Math.toRadians(-35), roll:0 },
+    duration: 3.4,
+    complete: async ()=>{
+      const H = await clampPoint(lng, lat);
+      startOrbit(Cesium.Cartesian3.fromDegrees(lng, lat, (H!=null?H:0)), r);
+      // 도착한 대표지 핀의 이야기 팝업을 열어줌(닿은 별 액자도 그 장소 기준으로 갱신)
+      const target = viewer.entities.values.find(e=> e._spot && e._spot.place_id === rep.place_id);
+      if (target && target._spot) openStory(target._spot);
+    }
+  });
+}
+
+function openStory(spot){
+  const isCompagnon = (spot.source === 'compagnon');
+  const badge = document.getElementById("storyBadge");
+  badge.textContent = isCompagnon ? "콩파뇽의 발견" : "큐레이션";
+  badge.classList.toggle("compagnon", isCompagnon);
+  document.getElementById("storyTitle").textContent = spot.title || "";
+  document.getElementById("storyTitleKo").textContent = spot.title_ko || "";
+  document.getElementById("storySub").textContent  = spot.subtitle || "";
+  // 장소 사진 갤러리 (places.photos 3장)
+  const photoEl = document.getElementById("storyPhotos");
+  photoEl.innerHTML = "";
+  (Array.isArray(spot.photos) ? spot.photos : []).forEach(ph=>{
+    if (!ph || !ph.url) return;
+    const fig = document.createElement("figure");
+    const img = document.createElement("img");
+    img.src = ph.url; img.alt = ph.cap || ""; img.loading = "lazy";
+    fig.appendChild(img);
+    if (ph.cap || ph.credit){
+      const fc = document.createElement("figcaption");
+      fc.textContent = ph.cap || "";
+      if (ph.credit){
+        const cr = document.createElement("span");
+        cr.className = "credit"; cr.textContent = "　" + ph.credit;
+        fc.appendChild(cr);
+      }
+      fig.appendChild(fc);
+    }
+    photoEl.appendChild(fig);
+  });
+  const bodyEl = document.getElementById("storyBody");
+  bodyEl.innerHTML = "";
+  (Array.isArray(spot.body) ? spot.body : [spot.body||""]).forEach(par=>{
+    const pp = document.createElement("p");
+    pp.textContent = par;
+    bodyEl.appendChild(pp);
+  });
+  // 이곳에 닿은 별 — 액자 벽 (메종엔 인물전환 엔진이 없어, 클릭 시 별 여행 페이지로 떠남)
+  const starsEl = document.getElementById("storyStars");
+  starsEl.innerHTML = "";
+  const figs = Array.isArray(spot.figures) ? spot.figures : [];
+  if (figs.length){
+    const lbl = document.createElement("div");
+    lbl.className = "lbl";
+    lbl.textContent = "이곳에 닿은 별";
+    starsEl.appendChild(lbl);
+    const grid = document.createElement("div");
+    grid.className = "grid";
+    figs.forEach(f=>{
+      // 하위호환: 문자열(옛 RPC)이면 이름만, 객체(새 RPC)면 액자
+      const isObj = f && typeof f === "object";
+      const name  = isObj ? (f.name || "") : String(f);
+      const sid   = isObj ? f.star_id : null;
+      const url   = isObj ? f.framed_url : null;
+      const can   = isObj ? !!f.can_travel : false;
+      const card = document.createElement("div");
+      card.className = "svstar " + (can ? "go" : "wait");
+      const img = document.createElement("img");
+      if (url) img.src = url;
+      img.alt = name; img.loading = "lazy";
+      card.appendChild(img);
+      const nm = document.createElement("div");
+      nm.className = "nm"; nm.textContent = name;
+      card.appendChild(nm);
+      if (!can){
+        const tag = document.createElement("div");
+        tag.className = "tag"; tag.textContent = "항로 준비 중";
+        card.appendChild(tag);
+      }
+      if (can && sid != null){
+        card.title = name + " — 이 별의 본거지로";
+        card.addEventListener("click", ()=> jumpToStarPlace(sid));
+      }
+      grid.appendChild(card);
+    });
+    starsEl.appendChild(grid);
+  }
+  document.getElementById("story").classList.add("in");
+}
+
+function closeStory(){
+  document.getElementById("story").classList.remove("in");
+}
+
+// EG메종 소개 팝업 — 콩파뇽이 쓴 소개글(없으면 디폴트), 입장하기 버튼
+function openMaison(m){
+  closeStory();
+  currentMaison = m;
+  document.getElementById("mDoor").textContent = "파리 · 메종 " + m.maison_no;
+  document.getElementById("mNick").textContent = m.nickname || ("메종 " + m.maison_no);
+  const _mAv = document.getElementById("mAvatar");
+  if (m.avatar_url) { _mAv.src = m.avatar_url; _mAv.style.display = ""; }
+  else { _mAv.removeAttribute("src"); _mAv.style.display = "none"; }
+  const DEFAULT_INTRO = "아직 주인이 소개글을 남기지 않았습니다. 문 너머에는 이 콩파뇽이 모아온 것들이 조용히 빛나고 있습니다.";
+  document.getElementById("mIntro").textContent = m.intro || DEFAULT_INTRO;
+  // 빈집이면 입장 버튼을 감춤(들어갈 사람이 아직 없음)
+  document.getElementById("mEnter").style.display = m.occupant_id ? "" : "none";
+  if (!m.occupant_id) document.getElementById("mIntro").textContent = "아직 아무도 살지 않는 빈집입니다.";
+  document.getElementById("maison").classList.add("in");
+}
+function closeMaison(){
+  document.getElementById("maison").classList.remove("in");
+}
+
+// 입장하기 → voyage 렌더 정지(타일 세션 유지 = 과금 0) + 대문 오버레이를 닫힌 채로 띄움
+// 그 집에 배정된 대문(wunderkammer.door_no, 1~30) 이미지로 노커 교체. 미배정·범위밖 → 1번.
+function applyDoorImage(m){
+  let n = parseInt(m && m.door_no, 10);
+  if (!(n >= 1 && n <= 30)) n = 1;
+  const url = `maison_door${String(n).padStart(2,'0')}.webp`;
+  document.querySelectorAll('.door-half').forEach(el => { el.style.backgroundImage = `url('${url}')`; });
+}
+
+function enterMaison(m){
+  if (!m || !m.occupant_id) return;
+  currentMaison = m;            // openDoor가 currentMaison을 읽으므로(팝업 건너뛴 enter=1 직행 대비)
+  closeMaison();
+  viewer.useDefaultRenderLoop = false;          // 지구 렌더 정지(세션은 살아 있음)
+  const dw = document.getElementById("doorway");
+  document.getElementById("doorTitle").textContent = m.nickname || ("메종 " + m.maison_no);
+  { const _ex = document.getElementById("doorExit"); if (_ex) _ex.textContent = "× 분더카머 떠나기"; }   // 메종 문패로 원복
+  applyDoorImage(m);
+  refreshDoorPickBtn(m);
+  document.getElementById("doorFrame").src = "about:blank";
+  dw.classList.remove("open");
+  dw.classList.add("in");
+  doorState = 'closed';
+}
+
+// 대문 클릭 → 두 문짝이 좌우로 갈라지고 그 뒤 분더카머가 드러남
+function openDoor(){
+  if (doorState !== 'closed') return;
+  doorState = 'opening';
+  const m = currentMaison;
+  // 효과음(소로가 maison_door_open.mp3로 올려둘 곳)
+  const snd = document.getElementById("doorSound");
+  if (snd){ try{ snd.currentTime = 0; snd.play().catch(()=>{}); }catch(e){} }
+  // 문 뒤에서 분더카머를 미리 로드해 두고, 문이 갈라지며 드러나게
+  if (m && m.nickname){
+    document.getElementById("doorFrame").src = "wunderkammer_shell_v4_4.html?user=" + encodeURIComponent(m.nickname) + "&v=" + Date.now();
+  }
+  document.getElementById("doorway").classList.add("open");   // CSS transition 2.2s
+  setTimeout(()=>{ doorState = 'open'; }, 2300);
+}
+
+// 나가기 → 오버레이 닫고 voyage 렌더 재개
+function exitDoorway(){
+  // 빠른 길(enter=1)로 들어왔으면 지도를 안 거치고 곧장 메인 메뉴로
+  if (new URLSearchParams(location.search).get('enter') === '1'){
+    location.href = 'index.html'; return;
+  }
+  const dw = document.getElementById("doorway");
+  dw.classList.remove("in", "open", "popup");
+  document.getElementById("doorFrame").src = "about:blank";
+  doorState = 'closed';
+  viewer.useDefaultRenderLoop = true;           // 지구 렌더 재개(재진입 과금 0)
+}
+
+// 마커를 실사 3D 타일(또는 지형) 표면 높이에 정확히 앉힘 — 비스듬한 각도에서도 안 어긋나게
+async function clampSpotsToSurface(){
+  if (!viewer.scene.clampToHeightMostDetailed) return;       // 구버전 안전장치
+  const ents = viewer.entities.values.filter(e => e._spot || e._maison || e._popup || e._palais);
+  if (!ents.length) return;
+  const now = Cesium.JulianDate.now();
+  const carts = ents.map(e => e.position.getValue(now));
+  try{
+    const clamped = await viewer.scene.clampToHeightMostDetailed(carts);
+    clamped.forEach((c, i)=>{ if (Cesium.defined(c)) ents[i].position = c; });
+  }catch(e){ console.warn("마커 표면 고정 실패(해수면 위치 유지):", e); }
+}
+
+// 분더카머에서 ?user=닉네임 으로 들어올 때 — 내 메종 핀 중심으로 강하 + 소개 팝업
+// 세션에서 로그인한 콩파뇽의 uid 읽기
+async function getMyUid(){
+  try{
+    const { data:{ session } } = await supa.auth.getSession();
+    return session?.user?.id || null;
+  }catch(e){ console.warn("세션 읽기 실패:", e); return null; }
+}
+
+// 집이 없는 콩파뇽에게 가장 낮은 빈집을 자동 배정
+async function assignMaison(uid){
+  try{
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/assign_maison", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
+      body: JSON.stringify({ p_uid: uid, p_city: 'paris' })
+    });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    return await res.json();   // 배정된 maison_no (만석이면 null)
+  }catch(e){ console.warn("집 배정 실패:", e); return null; }
+}
+
+// 파리 전경으로 (로그인 전 / 만석 등 예외 시)
+function flyToParisOverview(){
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(2.3440, 48.8530, 4200),
+    orientation:{ heading:0, pitch:Cesium.Math.toRadians(-50), roll:0 }, duration: 3.0
+  });
+}
+
+// 특정 메종 핀으로 강하 + 소개 팝업 + 부드러운 회전
+// ========== admin 좌표 편집 (지붕 클릭으로 메종 이동) ==========
+async function setupAdminEdit(){
+  try{
+    const { data:{ session } } = await supa.auth.getSession();
+    if (!session) return;
+    const { data } = await supa.from('users').select('is_admin').eq('id', session.user.id).single();
+    IS_ADMIN = !!(data && data.is_admin);
+  }catch(e){ console.warn("admin 확인 실패:", e); }
+  if (!IS_ADMIN) return;
+  document.getElementById("navAdminGroup").style.display = "";   /* 0717: 관리 그룹 노출(admin만) */
+  const btn = document.getElementById("navEdit");
+  btn.addEventListener("click", ()=>{
+    EDIT_MODE = !EDIT_MODE;
+    btn.classList.toggle("on", EDIT_MODE);
+    document.getElementById("editHint").classList.toggle("in", EDIT_MODE);
+    if (EDIT_MODE){ stopOrbit(); }   // 편집 중엔 회전 멈춤(클릭 정확)
+    else { clearSel();
+      document.getElementById("editHint").innerHTML =
+        "📍 <b>편집 모드</b> — 옮길 메종 핀을 누른 뒤, 그 집 <b>지붕</b>을 클릭하세요"; }
+  });
+}
+
+function clearSel(){
+  if (selEnt && selEnt.point && selEnt._origColor){ selEnt.point.color = selEnt._origColor; }
+  selEnt = null;
+}
+
+function selectMaisonForEdit(ent){
+  clearSel();
+  selEnt = ent;
+  if (ent.point){
+    if (!ent._origColor) ent._origColor = ent.point.color;
+    ent.point.color = Cesium.Color.fromCssColorString("#7fb3d5");   // 선택 = 시안
+  }
+  const no = ent._maison ? ent._maison.maison_no : "?";
+  document.getElementById("editHint").innerHTML =
+    "📍 <b>메종 " + no + " 선택됨</b> — 이제 그 집 <b>지붕</b>을 클릭하면 옮겨집니다";
+}
+
+async function moveMaison(ent, lng, lat){
+  if (MOVING) return; MOVING = true;
+  try{
+    const no = ent._maison.maison_no;
+    const { error } = await supa.rpc('admin_set_maison_coords',
+      { p_maison_no: no, p_lat: lat, p_lng: lng, p_city: ent._maison.city || 'paris' });
+    if (error) throw error;
+    ent._maison.lat = lat; ent._maison.lng = lng;
+    ent.position = Cesium.Cartesian3.fromDegrees(lng, lat);
+    const H = await clampPoint(lng, lat);   // 새 자리 지붕에 즉시 고정
+    if (H != null) ent.position = Cesium.Cartesian3.fromDegrees(lng, lat, H);
+    document.getElementById("editHint").innerHTML =
+      "✅ <b>메종 " + no + "</b> 이동·저장 완료 (지붕 H " + (H!=null?H.toFixed(1):"?") + "m) — 다른 집을 고르세요";
+    console.log("[edit] 메종", no, "→", lng.toFixed(5), lat.toFixed(5), "H=", H);
+  }catch(e){
+    console.warn("좌표 저장 실패:", e);
+    document.getElementById("editHint").innerHTML = "⚠️ 저장 실패 — 콘솔을 확인하세요";
+  }finally{ MOVING = false; clearSel(); }
+}
+
+function handleEditClick(click){
+  const picked = viewer.scene.pick(click.position);
+  if (Cesium.defined(picked) && picked.id && picked.id._maison){
+    selectMaisonForEdit(picked.id);   // 핀 클릭 → 그 메종 선택
+    return;
+  }
+  if (!selEnt){
+    document.getElementById("editHint").innerHTML = "먼저 옮길 <b>메종 핀</b>을 눌러 선택하세요";
+    return;
+  }
+  if (!viewer.scene.pickPositionSupported){ console.warn("pickPosition 미지원"); return; }
+  const cart = viewer.scene.pickPosition(click.position);
+  if (!Cesium.defined(cart)) return;
+  const carto = Cesium.Cartographic.fromCartesian(cart);
+  moveMaison(selEnt, Cesium.Math.toDegrees(carto.longitude), Cesium.Math.toDegrees(carto.latitude));
+}
+
+// ── 한 좌표의 타일 표면 높이(H) 측정 — 궤도 중심을 핀과 같은 높이로 두기 위함(갭0) ──
+async function clampPoint(lng, lat){
+  if (!viewer.scene.clampToHeightMostDetailed) return null;
+  try{
+    const arr = await viewer.scene.clampToHeightMostDetailed([Cesium.Cartesian3.fromDegrees(lng, lat)]);
+    const c = arr && arr[0];
+    if (Cesium.defined(c)) return Cesium.Cartographic.fromCartesian(c).height;
+  }catch(e){ console.warn("표면 높이 측정 실패:", e); }
+  return null;
+}
+
+function flyToEntity(ent){
+  stopOrbit();
+  const carto = Cesium.Cartographic.fromCartesian(ent.position.getValue(Cesium.JulianDate.now()));
+  const lng = Cesium.Math.toDegrees(carto.longitude);
+  const lat = Cesium.Math.toDegrees(carto.latitude);
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, 700),
+    orientation:{ heading:Cesium.Math.toRadians(15), pitch:Cesium.Math.toRadians(-40), roll:0 },
+    duration: 3.0,
+    complete: async ()=>{
+      openMaison(ent._maison);
+      const H = await clampPoint(lng, lat);   // 도착 후 재clamp → 정확한 지붕 높이
+      console.log("[clamp] 메종 지붕 H =", H, "m ← 궤도 중심");
+      startOrbit(Cesium.Cartesian3.fromDegrees(lng, lat, (H!=null?H:(carto.height||0))), 700); // 갭0
+    }
+  });
+}
+
+// 메인 분더카머 버튼 → 내 집으로 직행 (없으면 자동 배정)
+async function goToMyHome(){
+  const uid = await getMyUid();
+  if (!uid){ flyToParisOverview(); return; }            // 로그인 전
+  let ent = viewer.entities.values.find(e => e._maison && e._maison.occupant_id === uid);
+  if (!ent){
+    const no = await assignMaison(uid);                  // 집 없으면 배정
+    if (no){
+      viewer.entities.values.filter(e=>e._maison).slice().forEach(e=> viewer.entities.remove(e));
+      await loadMaisons('paris');                        // 새 배정 반영해 다시 로드
+      ent = viewer.entities.values.find(e => e._maison && e._maison.occupant_id === uid);
+    }
+  }
+  if (ent){ showMaisons = true; applyLayerVisibility(); flyToEntity(ent); }
+  else { flyToParisOverview(); }                         // 만석 등
+}
+
+// ?user / ?enter 진입 분기 — 분더카머 투어·별 명패 직통 (6/27)
+async function enterByParams(wantUser, wantEnter){
+  // 1) 대상 메종 entity 찾기
+  let ent = null;
+  if (wantUser){
+    // 남의 집 — 닉네임으로 찾기 (loadMaisons가 띄운 entity에서)
+    ent = viewer.entities.values.find(e => e._maison && e._maison.nickname === wantUser);
+    if (!ent) console.warn("메종을 찾지 못함(닉):", wantUser);   // (향후: 다른 도시 거주 시 도시 조회·로드)
+  } else {
+    // 내 집 — getMyUid → 없으면 자동 배정 (goToMyHome과 같은 로직)
+    const uid = await getMyUid();
+    if (uid){
+      ent = viewer.entities.values.find(e => e._maison && e._maison.occupant_id === uid);
+      if (!ent){
+        const no = await assignMaison(uid);
+        if (no){
+          viewer.entities.values.filter(e=>e._maison).slice().forEach(e=> viewer.entities.remove(e));
+          await loadMaisons('paris');
+          ent = viewer.entities.values.find(e => e._maison && e._maison.occupant_id === uid);
+        }
+      }
+    }
+  }
+
+  // 2) 못 찾으면 기존 동선으로 폴백
+  if (!ent){
+    if (wantUser) flyToParisOverview();   // 남의 집을 못 찾음
+    else goToMyHome();                    // 내 집을 못 찾음 → 기존 강하
+    return;
+  }
+
+  showMaisons = true; applyLayerVisibility();
+
+  // 3) enter=1 → 도시 강하 생략하고 곧장 노커 대문
+  if (wantEnter){
+    if (ent._maison && ent._maison.occupant_id){ enterMaison(ent._maison); }
+    else { flyToEntity(ent); }            // 빈집/예외 → 강하해서 보여주기
+    return;
+  }
+
+  // 4) enter 없음 → 기존처럼 도시 강하 + 팝업
+  flyToEntity(ent);
+}
+
+// 노커 대문 공통 이벤트 (도시 길·빠른 길 공유)
+function bindDoorEvents(){
+  document.querySelectorAll(".door-half, #doorHint").forEach(el=> el.addEventListener("click", openDoor));
+  const ex = document.getElementById("doorExit"); if (ex) ex.addEventListener("click", exitDoorway);
+  const pk = document.getElementById("doorPick"); if (pk) pk.addEventListener("click", openDoorPicker);
+  const ek = document.getElementById("elevPick"); if (ek) ek.addEventListener("click", openElevPicker);
+  const dc = document.getElementById("dpClose"); if (dc) dc.addEventListener("click", closeDoorPicker);
+  const db = document.getElementById("dpBackdrop"); if (db) db.addEventListener("click", closeDoorPicker);
+}
+
+// ── 내 대문 고르기 (본인 집에서만) ──────────────────────────────
+// 본인 집이면 "✎ 대문 고르기" 노출, 남의 집·빈집이면 숨김.
+function refreshDoorPickBtn(m){
+  const dBtn = document.getElementById('doorPick');
+  const eBtn = document.getElementById('elevPick');
+  if (dBtn) dBtn.style.display = 'none';
+  if (eBtn) eBtn.style.display = 'none';
+  if (!m || !m.occupant_id) return;
+  getMyUid().then(uid => {
+    const mine = !!(uid && m.occupant_id === uid);   // 본인 집에서만 두 버튼 노출
+    if (dBtn) dBtn.style.display = mine ? '' : 'none';
+    if (eBtn) eBtn.style.display = mine ? '' : 'none';
+  });
+}
+function openDoorPicker(){
+  const grid = document.getElementById('dpGrid'); if (!grid) return;
+  const t = document.getElementById('dpTitle'); if (t) t.textContent = '내 대문 고르기';
+  const cur = parseInt(currentMaison && currentMaison.door_no, 10);
+  const curN = (cur >= 1 && cur <= 30) ? cur : 1;
+  let html = '';
+  for (let i = 1; i <= 30; i++){
+    const nn = String(i).padStart(2,'0');
+    html += `<div class="dp-cell${i===curN?' sel':''}" data-n="${i}">`
+          + `<img src="maison_door${nn}.webp" alt="대문 ${i}" loading="lazy">`
+          + `<span class="dp-no">${nn}</span></div>`;
+  }
+  grid.innerHTML = html;
+  grid.querySelectorAll('.dp-cell').forEach(c =>
+    c.addEventListener('click', ()=> pickDoor(parseInt(c.dataset.n,10))));
+  document.getElementById('doorPicker').classList.add('in');
+}
+function closeDoorPicker(){ const p=document.getElementById('doorPicker'); if(p) p.classList.remove('in'); }
+async function pickDoor(n){
+  if (!(n >= 1 && n <= 30)) return;
+  if (currentMaison) currentMaison.door_no = n;          // 즉시 반영(낙관적)
+  applyDoorImage(currentMaison || { door_no:n });
+  closeDoorPicker();
+  try {
+    const uid = await getMyUid(); if (!uid) return;
+    const { error } = await supa.from('wunderkammer').update({ door_no:n }).eq('user_id', uid);  // RLS: 본인만
+    if (error) console.warn('대문 저장 실패', error);
+  } catch(e){ console.warn('대문 저장 예외', e); }
+}
+
+// ── 내 엘리베이터 고르기 (본인 집에서만 · 대문과 같은 모달 공유) ──────────
+// 현관엔 엘리베이터 실물이 없으므로 즉시 시각 반영은 그리드 금테로만,
+// 저장 후 분더카머에 들어가면 셸이 elevator_no 로 문을 표시한다.
+function openElevPicker(){
+  const grid = document.getElementById('dpGrid'); if (!grid) return;
+  const t = document.getElementById('dpTitle'); if (t) t.textContent = '내 엘리베이터 고르기';
+  const cur = parseInt(currentMaison && currentMaison.elevator_no, 10);
+  const curN = (cur >= 1 && cur <= 30) ? cur : 1;
+  let html = '';
+  for (let i = 1; i <= 30; i++){
+    const nn = String(i).padStart(2,'0');
+    html += `<div class="dp-cell${i===curN?' sel':''}" data-n="${i}">`
+          + `<img src="elevator_${nn}.webp" alt="엘리베이터 ${i}" loading="lazy">`
+          + `<span class="dp-no">${nn}</span></div>`;
+  }
+  grid.innerHTML = html;
+  grid.querySelectorAll('.dp-cell').forEach(c =>
+    c.addEventListener('click', ()=> pickElevator(parseInt(c.dataset.n,10))));
+  document.getElementById('doorPicker').classList.add('in');
+}
+async function pickElevator(n){
+  if (!(n >= 1 && n <= 30)) return;
+  if (currentMaison) currentMaison.elevator_no = n;     // 즉시 반영(낙관적)
+  closeDoorPicker();
+  try {
+    const uid = await getMyUid(); if (!uid) return;
+    const { error } = await supa.from('wunderkammer').update({ elevator_no:n }).eq('user_id', uid);  // RLS: 본인만
+    if (error) console.warn('엘리베이터 저장 실패', error);
+  } catch(e){ console.warn('엘리베이터 저장 예외', e); }
+}
+
+// 투어 패널 (우측 슬라이드 + 배경 흐림)
+
+// 빠른 길(enter=1) — Cesium 지구 없이 메종 정보만 집어 노커를 즉시 (까만 3초 제거)
+async function fastEnter(wantUser){
+  bindDoorEvents();
+  async function fetchMaisons(){
+    try{
+      const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_maisons", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
+        body: JSON.stringify({ p_city:'paris' })
+      });
+      return res.ok ? await res.json() : [];
+    }catch(e){ console.warn("fastEnter 메종 조회 실패:", e); return []; }
+  }
+  let m = null, rows = await fetchMaisons();
+  if (wantUser){
+    m = rows.find(r => r.nickname === wantUser) || null;          // 남의 집
+  } else {
+    const uid = await getMyUid();                                  // 내 집
+    if (uid){
+      m = rows.find(r => r.occupant_id === uid) || null;
+      if (!m){ await assignMaison(uid); rows = await fetchMaisons(); m = rows.find(r => r.occupant_id === uid) || null; }
+    }
+  }
+  document.getElementById('loader').classList.add('gone');
+  if (!m || !m.occupant_id){ location.href = 'index.html'; return; }  // 못 찾으면 메뉴로
+  enterMaisonLite(m);
+}
+
+// viewer 없이 노커 대문만 띄움 (빠른 길 전용)
+function enterMaisonLite(m){
+  currentMaison = m;
+  const dw = document.getElementById("doorway");
+  document.getElementById("doorTitle").textContent = m.nickname || ("메종 " + m.maison_no);
+  { const _ex = document.getElementById("doorExit"); if (_ex) _ex.textContent = "× 분더카머 떠나기"; }   // 메종 문패로 원복
+  applyDoorImage(m);
+  refreshDoorPickBtn(m);
+  document.getElementById("doorFrame").src = "about:blank";
+  dw.classList.remove("open"); dw.classList.add("in");
+  doorState = 'closed';
+}
+
+function flyTo(i){
+  stopOrbit();
+  const p = HEMINGWAY.places[i];
+  setActive(i);
+
+  // 나라 이름 자막 띄우기
+  const cl = document.getElementById("countryLabel");
+  cl.textContent = p.country || "";
+  cl.classList.add("in");
+
+  // 1단계 — 고공에서 그 나라를 내려다봄 (어느 나라인지 인지할 시간)
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 1200000), // 약 1,200km 상공
+    orientation:{ heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 }, // 지도처럼 수직
+    duration: 2.6,
+    complete: ()=>{
+      // 잠깐 머물러 나라를 눈에 담게 한 뒤
+      setTimeout(()=>{
+        cl.classList.remove("in"); // 자막 사라짐
+        // 2단계 — 천천히 도시로 줌인
+        viewer.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, p.range),
+          orientation:{ heading:Cesium.Math.toRadians(20), pitch:Cesium.Math.toRadians(-35), roll:0 },
+          duration: 4.2,
+          complete: ()=> startOrbit(Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 0), p.range)
+        });
+      }, 900);
+    }
+  });
+}
+
+function setActive(i){
+  activeIdx = i;
+  document.querySelectorAll(".stop").forEach(el=>{
+    el.classList.toggle("active", +el.dataset.idx === i);
+  });
+  const p = HEMINGWAY.places[i];
+  document.getElementById("cardYr").textContent = p.yr;
+  document.getElementById("cardPl").textContent = p.name;
+  document.getElementById("cardDesc").textContent = p.desc;
+  document.getElementById("card").classList.add("in");
+}
+
+function startOrbit(center, range){
+  orbitCenter = center; orbitRange = range; orbiting = true;
+  if (orbitTick) return;
+  orbitTick = viewer.clock.onTick.addEventListener(()=>{
+    if (!orbiting || !orbitCenter) return;
+    orbitHeading += 0.0016;
+    viewer.camera.lookAt(orbitCenter,
+      new Cesium.HeadingPitchRange(orbitHeading, Cesium.Math.toRadians(-28), orbitRange));
+  });
+}
+
+function stopOrbit(){
+  orbiting = false;
+  if (orbitTick){ orbitTick(); orbitTick = null; }
+  viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY); // 자유 조작 복원
+}
+</script>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   EG테라 스타디움 겹 v0.2 (0719)
+   · 단일 셸 원칙: 이 블록이 maison 몸체 위에 얹히는 유일한 추가분
+   · 핀 = terra_pins (DB) · 통합위젯 도크 = 뮤세움/헤리티지/콘스텔라티오 확장 예정
+   ═══════════════════════════════════════════════════════════════════ */
+(function(){
+const TEAM_KO   = { soro:"SORO", socrates:"소크라테스", pascal:"파스칼", proust:"프루스트" };
+const TEAM_PARK = { soro:"fenway", socrates:"yankee", pascal:"wrigley", proust:"oracle" };
+let terraPins = {}, currentPark = null, todayMatch = null, cdTimer = null;
+
+/* viewer가 태어날 때까지 대기 (enter=1 빠른 길이면 조용히 은퇴) */
+let tries = 0;
+const boot = setInterval(()=>{
+  tries++;
+  if (typeof viewer !== "undefined" && viewer && viewer.scene){ clearInterval(boot); terraInit(); }
+  else if (tries > 100) clearInterval(boot);
+}, 200);
+
+async function terraInit(){
+  await loadTerraPins();
+  wireTerraClicks();
+  wireMatchPanel();
+  loadDock();
+}
+
+/* ── 핀: terra_pins에서 (kind=stadium) ── */
+async function loadTerraPins(){
+  try{
+    const r = await fetch(SUPA_URL + "/rest/v1/terra_pins?active=eq.true&kind=eq.stadium&order=sort",
       { headers:{ apikey:SUPA_KEY, Authorization:"Bearer "+SUPA_KEY } });
     const rows = await r.json();
     for (const p of rows){
-      pins[p.code] = p;
+      terraPins[p.code] = p;
       const ent = viewer.entities.add({
         id:"terra-"+p.code,
         position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),
-        point:{ pixelSize:9, color:Cesium.Color.fromCssColorString(p.color||"#8e2d2d"),
+        point:{ pixelSize:9, color:Cesium.Color.fromCssColorString(p.color||"#c62828"),
           outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
           disableDepthTestDistance:Number.POSITIVE_INFINITY },
-        label:{ text:p.name,
+        label:{ text:"⚾ " + p.name,
           font:"bold 14px 'Helvetica Neue',Arial,sans-serif",
           fillColor:Cesium.Color.WHITE,
           outlineColor:Cesium.Color.fromCssColorString("#0a0e1a"), outlineWidth:3,
           style:Cesium.LabelStyle.FILL_AND_OUTLINE,
           showBackground:true,
-          backgroundColor:Cesium.Color.fromCssColorString(p.color||"#8e2d2d").withAlpha(.95),
+          backgroundColor:Cesium.Color.fromCssColorString(p.color||"#c62828").withAlpha(.95),
           backgroundPadding:new Cesium.Cartesian2(11,6),
           pixelOffset:new Cesium.Cartesian2(0,-12),
           verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
           disableDepthTestDistance:Number.POSITIVE_INFINITY }
       });
-      ent._pin = p;
+      ent._terra = p;
     }
-  }catch(e){ console.warn("핀 로딩 실패:", e); }
+  }catch(e){ console.warn("terra 핀 로딩 실패:", e); }
 }
 
-/* ═══════ 카메라 ═══════ */
-function flyAmerica(){
-  viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(-95.0, 39.0, 5200000),
-    duration: 0 });
-}
-function flyToPin(p, instant){
-  currentPin = p;
-  hideEnterCard();
+/* ── 구장 비행·착륙 ── */
+function flyToPark(p){
+  if (!p) return;
+  currentPark = p;
+  hideParkCard();
+  try{ closeStory(); }catch(e){}
+  try{ closeMaison(); }catch(e){}
+  closeMatchPanel();
   viewer.camera.flyTo({
     destination: Cesium.Cartesian3.fromDegrees(p.lng, p.lat - 0.0048, 620),
     orientation:{ heading:0, pitch:Cesium.Math.toRadians(-32), roll:0 },
-    duration: instant ? 0 : 5.2,
-    complete: ()=> showEnterCard(p)
+    duration: 5.2,
+    complete: ()=> showParkCard(p)
   });
 }
-function showEnterCard(p){
-  document.getElementById("ecName").textContent = p.name;
-  document.getElementById("ecCity").textContent = (p.city||"").toUpperCase();
-  document.getElementById("enterCard").classList.add("in");
+function showParkCard(p){
+  document.getElementById("pcName").textContent = p.name;
+  document.getElementById("pcCity").textContent = (p.city||"").toUpperCase();
+  document.getElementById("parkCard").classList.add("in");
 }
-function hideEnterCard(){ document.getElementById("enterCard").classList.remove("in"); }
+function hideParkCard(){ document.getElementById("parkCard").classList.remove("in"); }
 
-/* ═══════ 문(doorway) — 지구는 복도, 콘텐츠는 방 ═══════ */
-function openDoor(url){
-  viewer.useDefaultRenderLoop = false;                 // 지구 잠들기 (과금·부하 0)
-  document.getElementById("dwFrame").src = url;
-  document.getElementById("doorway").classList.add("open");
-  document.getElementById("dwBack").classList.add("show");
-  hideEnterCard();
+/* ── 경기 입장: doorway 재사용 (문 열면 지구 잠들기 — 기존 exitDoorway로 귀환) ── */
+function enterGame(){
+  if (!todayMatch){ openDoorwayTo("stadium_v2.html", "EG 스타디움"); return; }
+  const myIsHome = todayMatch.home_team === "soro";
+  const opp = myIsHome ? todayMatch.away_team : todayMatch.home_team;
+  const url = "game_rookie.html?game=true&opp=" + encodeURIComponent(opp)
+            + "&isHome=" + (myIsHome ? "1" : "0")
+            + "&matchId=" + encodeURIComponent(todayMatch.id);
+  openDoorwayTo(url, (currentPark ? currentPark.name : "EG 스타디움"));
 }
-function closeDoor(){
-  document.getElementById("doorway").classList.remove("open");
-  document.getElementById("dwBack").classList.remove("show");
-  document.getElementById("dwFrame").src = "about:blank";
-  viewer.useDefaultRenderLoop = true;                  // 지구 깨우기
-  if (currentPin) showEnterCard(currentPin);
+function openDoorwayTo(url, title){
+  try{ closeStory(); }catch(e){}
+  try{ closeMaison(); }catch(e){}
+  closeMatchPanel(); hideParkCard();
+  viewer.useDefaultRenderLoop = false;
+  document.getElementById("doorTitle").textContent = title || "";
+  const dp = document.getElementById("doorPick"); if (dp) dp.style.display = "none";
+  const ep = document.getElementById("elevPick"); if (ep) ep.style.display = "none";
+  const ex = document.getElementById("doorExit"); if (ex) ex.textContent = "× 지구로 돌아가기";
+  document.getElementById("doorFrame").src = url;
+  document.getElementById("doorway").classList.add("popup","in","open");
+  doorState = "open";
 }
-document.getElementById("dwBack").addEventListener("click", closeDoor);
 
-/* ═══════ 클릭 배선 ═══════ */
-function wireClicks(){
+/* ── 클릭 배선 (별도 핸들러 — maison 핸들러와 공존) ── */
+function wireTerraClicks(){
   const h = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
   h.setInputAction((mv)=>{
     const picked = viewer.scene.pick(mv.position);
-    if (picked && picked.id && picked.id._pin) flyToPin(picked.id._pin);
+    if (picked && picked.id && picked.id._terra){
+      const p = picked.id._terra;
+      if (currentPark && currentPark.code === p.code &&
+          document.getElementById("parkCard").classList.contains("in")){ enterGame(); }
+      else flyToPark(p);
+    }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
-
-  document.getElementById("ecBtn").addEventListener("click", ()=>{
-    const p = currentPin; if (!p) return;
-    openDoor(p.target_url || "stadium_v2.html");
-  });
-  document.getElementById("matchWidget").addEventListener("click", ()=> openDoor("stadium_v2.html"));
+  document.getElementById("pcBtn").addEventListener("click", enterGame);
 }
 
-/* ═══════ 나침반 (0717 체계 축약판) ═══════ */
-function wireCompass(){
-  const cBtn = document.getElementById("compassBtn");
-  const panel = document.getElementById("navPanel");
-  const open = (on)=>{
-    const show = (on===undefined) ? !panel.classList.contains("in") : on;
-    panel.classList.toggle("in", show); cBtn.classList.toggle("open", show);
-  };
-  cBtn.addEventListener("click",(e)=>{ e.stopPropagation(); open(); });
-  document.addEventListener("keydown",(e)=>{ if(e.key==="Escape"){ open(false); } });
-  document.getElementById("cesiumContainer").addEventListener("click", ()=> open(false));
-  panel.querySelectorAll("[data-fly]").forEach(el=> el.addEventListener("click", ()=>{
-    open(false); const p = pins[el.dataset.fly]; if (p) flyToPin(p);
-  }));
-  panel.querySelectorAll("[data-go]").forEach(el=> el.addEventListener("click", ()=>{
-    open(false); openDoor(el.dataset.go);
-  }));
+/* ── 통합위젯 도크 ──
+   items 배열이 카드가 된다. 오늘은 스타디움 한 칸.
+   뮤세움(오늘의 책)·헤리티지(이번 주 살롱)·콘스텔라티오(오늘의 별)·분더카머가 여기에 매달릴 예정. */
+function renderDock(items){
+  const dock = document.getElementById("egDock");
+  dock.innerHTML = "";
+  for (const it of items){
+    const el = document.createElement("div");
+    el.className = "dock-card";
+    el.innerHTML = it.html;
+    el.addEventListener("click", it.onClick);
+    dock.appendChild(el);
+  }
 }
-
-/* ═══════ 오늘의 대진표 위젯 (개인 데이터 결선) ═══════ */
-async function loadTodayMatch(){
+async function loadDock(){
   try{
     const { data:{ session } } = await supa.auth.getSession();
-    const uid = session?.user?.id;
-    if (!uid) return;                                  // 미로그인 = 위젯 숨김 유지
+    const uid = session && session.user ? session.user.id : null;
+    if (!uid) return;
     const today = new Date().toLocaleDateString("sv-SE", { timeZone:"Asia/Seoul" });
     const { data:m } = await supa.from("matches").select("*")
       .eq("user_id", uid).eq("match_date", today).eq("is_my_game", true).maybeSingle();
     if (!m) return;
     todayMatch = m;
-    document.getElementById("mwAway").textContent = TEAM_KO[m.away_team] || m.away_team;
-    document.getElementById("mwHome").textContent = TEAM_KO[m.home_team] || m.home_team;
-    const myIsHome = m.home_team === "soro";
-    const park = pins[ TEAM_PARK[m.home_team] ];   // 경기는 항상 홈팀 구장에서
-    document.getElementById("mwSub").textContent =
-      (myIsHome ? "HOME · " : "AWAY · ") + (park ? park.city : "") +
-      (m.status==="completed" ? " · 경기 종료" : "");
-    document.getElementById("matchWidget").style.display = "block";
-    if (m.status !== "completed") startCountdown();
-    else document.getElementById("mwCount").textContent = "FINAL";
-  }catch(e){ console.warn("대진표 로딩 실패:", e); }
+    const done = m.status === "completed";
+    renderDock([{
+      id: "stadium",
+      html: '<div class="dock-cap">⚾ TODAY MATCHUP</div>'
+          + '<div class="dock-main"><span>' + (TEAM_KO[m.away_team]||m.away_team)
+          + '</span><span class="vs">vs</span><span>' + (TEAM_KO[m.home_team]||m.home_team) + '</span></div>'
+          + '<div class="dock-sub">' + (m.home_team==="soro" ? "HOME" : "AWAY")
+          + (done ? " · 경기 종료" : "") + '</div>'
+          + '<div class="dock-count" id="dockCount">' + (done ? "FINAL" : "--:--:--") + '</div>',
+      onClick: openMatchPanel
+    }]);
+    if (!done) startCountdown(["dockCount","mpCount"]);
+  }catch(e){ console.warn("도크 로딩 실패:", e); }
 }
-function startCountdown(){
-  const el = document.getElementById("mwCount");
+
+/* ── 매치 패널 (인물장소 패널의 야구판) ── */
+function openMatchPanel(){
+  if (!todayMatch) return;
+  const m = todayMatch;
+  const done = m.status === "completed";
+  const myIsHome = m.home_team === "soro";
+  const park = terraPins[ TEAM_PARK[m.home_team] ];
+  document.getElementById("mpAway").textContent = TEAM_KO[m.away_team]||m.away_team;
+  document.getElementById("mpHome").textContent = TEAM_KO[m.home_team]||m.home_team;
+  document.getElementById("mpMeta").textContent =
+    (myIsHome ? "HOME · " : "AWAY · ") + (park ? park.name + " · " + (park.city||"") : "")
+    + " · " + m.match_date;
+  const btn = document.getElementById("mpStart");
+  if (done){
+    document.getElementById("mpCount").textContent =
+      (m.away_score!=null ? m.away_score : "-") + " − " + (m.home_score!=null ? m.home_score : "-");
+    document.getElementById("mpCountCap").textContent = "FINAL";
+    btn.textContent = "오늘 경기 종료"; btn.disabled = true;
+  } else {
+    document.getElementById("mpCountCap").textContent = "경기 시작까지 · 18:30 KST";
+    btn.textContent = "⚾ 경기 시작하기"; btn.disabled = false;
+  }
+  document.getElementById("matchPanel").classList.add("in");
+}
+function closeMatchPanel(){ document.getElementById("matchPanel").classList.remove("in"); }
+function wireMatchPanel(){
+  document.getElementById("mpClose").addEventListener("click", closeMatchPanel);
+  document.getElementById("mpStart").addEventListener("click", ()=>{
+    if (!todayMatch) return;
+    const park = terraPins[ TEAM_PARK[todayMatch.home_team] ];   /* 경기는 항상 홈팀 구장에서 */
+    if (park) flyToPark(park);
+  });
+}
+
+/* ── 카운트다운 (여러 표시 칸 동시 갱신) ── */
+function startCountdown(ids){
+  if (cdTimer) clearTimeout(cdTimer);
   const tick = ()=>{
-    const now = new Date();
-    const kst = new Date(now.toLocaleString("en-US", { timeZone:"Asia/Seoul" }));
+    const kst = new Date(new Date().toLocaleString("en-US", { timeZone:"Asia/Seoul" }));
     const start = new Date(kst); start.setHours(18,30,0,0);
-    let diff = start - kst;
-    if (diff <= 0){ el.textContent = "PLAY BALL"; return; }
-    const hh = String(Math.floor(diff/3600000)).padStart(2,"0");
-    const mm = String(Math.floor(diff%3600000/60000)).padStart(2,"0");
-    const ss = String(Math.floor(diff%60000/1000)).padStart(2,"0");
-    el.textContent = `${hh}:${mm}:${ss}`;
-    setTimeout(tick, 1000);
+    let txt;
+    const diff = start - kst;
+    if (diff <= 0) txt = "PLAY BALL";
+    else {
+      const hh=String(Math.floor(diff/3600000)).padStart(2,"0");
+      const mm=String(Math.floor(diff%3600000/60000)).padStart(2,"0");
+      const ss=String(Math.floor(diff%60000/1000)).padStart(2,"0");
+      txt = hh+":"+mm+":"+ss;
+    }
+    for (const id of ids){ const el=document.getElementById(id); if (el) el.textContent = txt; }
+    if (diff > 0) cdTimer = setTimeout(tick, 1000);
   };
   tick();
 }
+})();
 </script>
 </body>
 </html>
