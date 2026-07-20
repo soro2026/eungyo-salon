@@ -1747,10 +1747,13 @@ function initStars() {
 
   // 배경 미세 별 (장식용) — 3000×3000 전체에 400개
   for (let i = 0; i < 400; i++) {
+    const bx = Math.random() * WORLD_W, by = Math.random() * WORLD_H;
     stars.push({
       type: 'bg',
-      x: Math.random() * WORLD_W,
-      y: Math.random() * WORLD_H,
+      x: bx,
+      y: by,
+      R0: Math.hypot(bx - WORLD_W/2, by - WORLD_H/2),           // 북극성 기준 극좌표 (0720 자전)
+      th0: Math.atan2(by - WORLD_H/2, bx - WORLD_W/2),
       r: Math.random() * 0.7 + 0.2,
       alpha: Math.random() * 0.25 + 0.04,
       twinkleSpeed: Math.random() * 0.02 + 0.005,
@@ -1773,6 +1776,8 @@ function initStars() {
     fig.y_ratio = parseFloat((y / WORLD_H).toFixed(4));
     stars.push({
       type: 'figure', figure: fig, x, y,
+      R0: Math.hypot(x - WORLD_W/2, y - WORLD_H/2),             // 북극성 기준 극좌표 (0720 자전)
+      th0: Math.atan2(y - WORLD_H/2, x - WORLD_W/2),
       r: baseR, baseAlpha, ...props, highlighted: false,
     });
   }
@@ -1836,12 +1841,17 @@ function gradeProps(grade, seed) {
   } else {
     hue = 210 + r(0) * 50; sat = 15 + r(1) * 25; light = 48 + r(2) * 18;
   }
+  // 0720 소로: 온기 팔레트 — 일부 별에 붉은 기운·초록·하늘빛 (밝기는 등급 유지)
+  const tint = r(7);
+  if (tint < 0.10)      { hue = 8   + r(8) * 18; sat = Math.min(85, sat + 22); }   // 살짝 붉은 (안타레스풍)
+  else if (tint < 0.19) { hue = 146 + r(8) * 20; sat = Math.max(30, sat * 0.8); }  // 초록빛
+  else if (tint < 0.30) { hue = 190 + r(8) * 18; sat = Math.min(70, sat + 10); }   // 맑은 하늘빛
   const glowR = (GRADE_R[grade] || 0.7) * (grade <= 2 ? 13 : grade <= 4 ? 8 : grade <= 6 ? 5.5 : 3);
   const glowAlpha = [0,0.26,0.20,0.14,0.10,0.08,0.05,0.035,0.025,0.015][grade] || 0.015;
   const pulseType = Math.floor(r(3) * 8);
   const pulseSpeed = 0.3 + r(4) * 3.2;
   const pulsePhase = r(5) * Math.PI * 2;
-  const pulseDepth = 0.07 + r(6) * 0.22;
+  const pulseDepth = 0.13 + r(6) * 0.30;   // 0720 소로: 반짝임 깊이 강화 (0.07~0.29 → 0.13~0.43)
   return { hue, sat, light, glowR, glowAlpha, pulseType, pulseSpeed, pulsePhase, pulseDepth };
 }
 
@@ -2038,11 +2048,52 @@ function drawShootingStars() {
 
 // ── 메인 루프 ────────────────────────────────────────────────────
 let startTime = performance.now();
+/* ── 달 (0720 소로) — 실제 오늘 위상. 기준 삭 2000-01-06 18:14 UTC · 삭망월 29.530588일 ── */
+const MOON = { x: WORLD_W/2 + 880, y: WORLD_H/2 - 720, r: 26 };
+function moonPhase(){
+  const days = (Date.now() - Date.UTC(2000,0,6,18,14)) / 86400000;
+  return ((days / 29.530588) % 1 + 1) % 1;   // 0=삭 · 0.5=보름
+}
+function drawMoon(){
+  const sx = MOON.x - viewX, sy = MOON.y - viewY, r = MOON.r;
+  const vw = canvas.width / scale, vh = canvas.height / scale;
+  if (sx < -60 || sx > vw + 60 || sy < -60 || sy > vh + 60) return;
+  const ph = moonPhase();
+  const w = Math.cos(2 * Math.PI * ph);          // 1=삭 · -1=보름 (터미네이터 곡률)
+  const waxing = ph < 0.5;                        // 차는 달 = 북반구(한국)에서 오른쪽이 밝음
+  // 은은한 달무리
+  const halo = ctx.createRadialGradient(sx, sy, r*0.6, sx, sy, r*3.2);
+  halo.addColorStop(0, 'rgba(255,250,235,0.16)');
+  halo.addColorStop(1, 'transparent');
+  ctx.beginPath(); ctx.arc(sx, sy, r*3.2, 0, Math.PI*2); ctx.fillStyle = halo; ctx.fill();
+  // 지구조(어두운 면) 원반
+  ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(180,185,200,0.10)'; ctx.fill();
+  // 밝은 면 — 밝은 쪽 반원 + 터미네이터 타원
+  ctx.beginPath();
+  if (waxing){ ctx.arc(sx, sy, r, -Math.PI/2, Math.PI/2, false); }          // 오른쪽 반원
+  else       { ctx.arc(sx, sy, r, Math.PI/2, -Math.PI/2, false); }          // 왼쪽 반원
+  ctx.ellipse(sx, sy, Math.abs(w) * r, r, 0, waxing ? Math.PI/2 : -Math.PI/2,
+              waxing ? -Math.PI/2 : Math.PI/2, w < 0);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(255,249,228,0.94)'; ctx.fill();
+}
+
+const SKY_OMEGA = (Math.PI * 2) / 900;   /* 0720 소로: 북극성 기준 15분에 1회전 */
 function loop() {
   const t = (performance.now() - startTime) / 1000;
+  // 하늘의 자전 — 모든 별이 소로 북극성(1500,1500)을 중심으로 아주 미세하게 돈다
+  const skyA = t * SKY_OMEGA, CX = WORLD_W/2, CY = WORLD_H/2;
+  for (const s of stars){
+    if (s.R0){
+      s.x = CX + s.R0 * Math.cos(s.th0 + skyA);
+      s.y = CY + s.R0 * Math.sin(s.th0 + skyA);
+    }
+  }
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.save();
   ctx.scale(scale, scale);
+  drawMoon();
   stars.forEach(s => drawStar(s, t));
   ctx.restore();
   // 유성은 scale 무관하게 화면 좌표로
