@@ -1611,7 +1611,7 @@ async function assignMaison(uid){
 
 // 파리 전경으로 (로그인 전 / 만석 등 예외 시)
 function flyToParisOverview(opts){
-  if (!(opts && opts.nolog)) logPush("overview:paris", ()=> flyToParisOverview({ nolog:true }));
+  if (!(opts && opts.nolog) && window.logPush) window.logPush("overview:paris", ()=> flyToParisOverview({ nolog:true }));
   viewer.camera.flyTo({
     destination: Cesium.Cartesian3.fromDegrees(2.3440, 48.8530, 800),
     orientation:{ heading:0, pitch:Cesium.Math.toRadians(-38), roll:0 }, duration: 3.0,
@@ -1708,8 +1708,8 @@ async function clampPoint(lng, lat){
 }
 
 function flyToEntity(ent, opts){
-  if (ent && ent._maison && !(opts && opts.nolog))
-    logPush("maison:"+(ent._maison.city||"")+":"+ent._maison.maison_no, ()=> flyToEntity(ent, { nolog:true }));
+  if (ent && ent._maison && !(opts && opts.nolog) && window.logPush)
+    window.logPush("maison:"+(ent._maison.city||"")+":"+ent._maison.maison_no, ()=> flyToEntity(ent, { nolog:true }));
   stopOrbit();
   const carto = Cesium.Cartographic.fromCartesian(ent.position.getValue(Cesium.JulianDate.now()));
   const lng = Cesium.Math.toDegrees(carto.longitude);
@@ -2023,6 +2023,8 @@ function updateBackChip(){
   const c = document.getElementById("backChip");
   if (c) c.style.display = (egLog.length > 1) ? "flex" : "none";
 }
+window.logPush = logPush;   /* 메종 겹(flyToEntity·flyToParisOverview)에서도 쓰도록 전역 개방 */
+window.logBack = logBack;
 
 async function terraInit(){
   await loadTerraPins();
