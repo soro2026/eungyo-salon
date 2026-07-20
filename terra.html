@@ -2205,18 +2205,42 @@ async function loadDock(){
     const uid = session && session.user ? session.user.id : null;
     if (!uid) return;
     const today = new Date().toLocaleDateString("sv-SE", { timeZone:"Asia/Seoul" });
-    const { data:m } = await supa.from("matches").select("*")
+    let { data:m } = await supa.from("matches").select("*")
       .eq("user_id", uid).eq("match_date", today).eq("is_my_game", true).maybeSingle();
-    if (!m) return;
+    let isNext = false;
+    if (!m){
+      /* 휴식일: 다음 경기 예고 카드 (위젯은 365일 근무) */
+      const { data:n } = await supa.from("matches").select("*")
+        .eq("user_id", uid).eq("is_my_game", true).gt("match_date", today)
+        .order("match_date", { ascending:true }).limit(1).maybeSingle();
+      if (!n){
+        renderDock([{ id:"stadium",
+          html: '<div class="dock-cap">⚾ EG STADIUM</div>'
+              + '<div class="dock-main"><span>휴식일</span></div>'
+              + '<div class="dock-sub">다음 대진 편성 대기</div>',
+          onClick: openStadCard }]);
+        return;
+      }
+      m = n; isNext = true;
+    }
     todayMatch = m;
     const done = m.status === "completed";
     if (done && cdTimer){ clearTimeout(cdTimer); cdTimer = null; }
+    const nextLabel = (function(){
+      if (!isNext) return "";
+      const kstToday = new Date(new Date().toLocaleString("en-US", { timeZone:"Asia/Seoul" }));
+      const md = new Date(m.match_date + "T00:00:00");
+      const dd = Math.round((md - new Date(kstToday.toLocaleDateString("sv-SE"))) / 86400000);
+      const wk = ["일","월","화","수","목","금","토"][md.getDay()];
+      return (dd === 1 ? "내일" : (parseInt(m.match_date.slice(5,7),10) + "/" + parseInt(m.match_date.slice(8,10),10)))
+             + " (" + wk + ")";
+    })();
     const score = done
       ? (m.away_score!=null ? m.away_score : "-") + '&nbsp;&minus;&nbsp;' + (m.home_score!=null ? m.home_score : "-")
-      : "--:--:--";
+      : (isNext ? nextLabel : "--:--:--");
     renderDock([{
       id:"stadium",
-      html: '<div class="dock-cap">⚾ ' + (done ? "TODAY RESULT" : "TODAY MATCHUP") + '</div>'
+      html: '<div class="dock-cap">⚾ ' + (isNext ? "NEXT MATCHUP" : (done ? "TODAY RESULT" : "TODAY MATCHUP")) + '</div>'
           + '<div class="dock-main"><span>' + (TEAM_KO[m.away_team]||m.away_team)
           + '</span><span class="vs">vs</span><span>' + (TEAM_KO[m.home_team]||m.home_team) + '</span></div>'
           + '<div class="dock-sub">' + (m.home_team==="soro" ? "HOME" : "AWAY")
@@ -2224,7 +2248,7 @@ async function loadDock(){
           + '<div class="dock-count" id="dockCount">' + score + '</div>',
       onClick: openStadCard
     }]);
-    if (!done) startCountdown(["dockCount"]);
+    if (!done && !isNext) startCountdown(["dockCount"]);
   }catch(e){ console.warn("도크 로딩 실패:", e); }
 }
 
