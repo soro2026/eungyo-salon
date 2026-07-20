@@ -1614,7 +1614,8 @@ function flyToParisOverview(opts){
   if (!(opts && opts.nolog)) logPush("overview:paris", ()=> flyToParisOverview({ nolog:true }));
   viewer.camera.flyTo({
     destination: Cesium.Cartesian3.fromDegrees(2.3440, 48.8530, 800),
-    orientation:{ heading:0, pitch:Cesium.Math.toRadians(-38), roll:0 }, duration: 3.0
+    orientation:{ heading:0, pitch:Cesium.Math.toRadians(-38), roll:0 }, duration: 3.0,
+    complete: ()=>{ try{ startOrbit(Cesium.Cartesian3.fromDegrees(2.3440, 48.8530, 60), 850); }catch(e){} }
   });
 }
 
@@ -1721,7 +1722,7 @@ function flyToEntity(ent, opts){
       openMaison(ent._maison);
       const H = await clampPoint(lng, lat);   // 도착 후 재clamp → 정확한 지붕 높이
       console.log("[clamp] 메종 지붕 H =", H, "m ← 궤도 중심");
-      startOrbit(Cesium.Cartesian3.fromDegrees(lng, lat, (H!=null?H:(carto.height||0))), 700); // 갭0
+      startOrbit(Cesium.Cartesian3.fromDegrees(lng, lat, (H!=null?H:(carto.height||0))), 600, 300); // 600→300 서서히 줌인
     }
   });
 }
@@ -1958,19 +1959,25 @@ function setActive(i){
   document.getElementById("card").classList.add("in");
 }
 
-function startOrbit(center, range){
+let orbitTarget = null;   // 서서히 다가갈 목표 반경 (null = 고정 궤도)
+function startOrbit(center, range, targetRange){
   orbitCenter = center; orbitRange = range; orbiting = true;
+  orbitTarget = (typeof targetRange === "number") ? targetRange : null;
   if (orbitTick) return;
   orbitTick = viewer.clock.onTick.addEventListener(()=>{
     if (!orbiting || !orbitCenter) return;
     orbitHeading += 0.0016;
+    if (orbitTarget != null){
+      orbitRange += (orbitTarget - orbitRange) * 0.0012;   /* 숨 쉬듯 느린 접근 (~40초) */
+      if (Math.abs(orbitRange - orbitTarget) < 2) orbitTarget = null;
+    }
     viewer.camera.lookAt(orbitCenter,
       new Cesium.HeadingPitchRange(orbitHeading, Cesium.Math.toRadians(-28), orbitRange));
   });
 }
 
 function stopOrbit(){
-  orbiting = false;
+  orbiting = false; orbitTarget = null;
   if (orbitTick){ orbitTick(); orbitTick = null; }
   viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY); // 자유 조작 복원
 }
