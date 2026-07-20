@@ -1722,7 +1722,7 @@ function flyToEntity(ent, opts){
       openMaison(ent._maison);
       const H = await clampPoint(lng, lat);   // 도착 후 재clamp → 정확한 지붕 높이
       console.log("[clamp] 메종 지붕 H =", H, "m ← 궤도 중심");
-      startOrbit(Cesium.Cartesian3.fromDegrees(lng, lat, (H!=null?H:(carto.height||0))), 600, 300); // 600→300 서서히 줌인
+      startOrbit(Cesium.Cartesian3.fromDegrees(lng, lat, (H!=null?H:(carto.height||0))), 500); // 표준 궤도: 900→300 회전 줌인
     }
   });
 }
@@ -1965,14 +1965,14 @@ function startOrbit(center, range, targetRange){
   if (typeof targetRange === "number"){
     orbitRange = range; orbitTarget = targetRange;           /* 명시 지정 (예: 내 분더카머 600→300) */
   } else {
-    orbitRange = range * 1.8; orbitTarget = range;           /* 표준: 1.8배 반경에서 시작 → 지정 반경까지 회전 줌인 */
+    orbitRange = range * 1.8; orbitTarget = range * 0.6;     /* 표준: 1.8배 반경 → 0.6배까지 깊은 회전 줌인 */
   }
   if (orbitTick) return;
   orbitTick = viewer.clock.onTick.addEventListener(()=>{
     if (!orbiting || !orbitCenter) return;
     orbitHeading += 0.0016;
     if (orbitTarget != null){
-      orbitRange += (orbitTarget - orbitRange) * 0.0024;   /* 0720 소로: 2배 상향 (~20초 체감) */
+      orbitRange += (orbitTarget - orbitRange) * 0.005;    /* 0720 소로 2차: ~10초 체감 */
       if (Math.abs(orbitRange - orbitTarget) < 2) orbitTarget = null;
     }
     viewer.camera.lookAt(orbitCenter,
