@@ -492,8 +492,20 @@
   .svstar.wait{ opacity:.42 }
 
   /* ═══ EG테라 0719 — 통합위젯 도크 + 스타디움 카드 팝업 + 구장 입장 카드 ═══ */
-  #egDock{ position:fixed; top:20px; right:20px; z-index:28; display:flex; flex-direction:column;
+  /* 타륜(舵輪) — 우측 상단 항해 키. 호버 시 스르륵 반 바퀴 */
+  #helmBtn{ position:fixed; top:10px; right:16px; z-index:29; width:74px; height:74px;
+    padding:0; border:none; background:none; cursor:pointer;
+    filter:drop-shadow(0 3px 12px rgba(0,0,0,.55)); }
+  #helmBtn img{ width:100%; height:100%; display:block;
+    transition:transform .8s cubic-bezier(.4,0,.2,1); }
+  #helmBtn:hover img{ transform:rotate(180deg); }
+  #helmBadge{ position:absolute; top:5px; right:5px; width:11px; height:11px; border-radius:50%;
+    background:#c62828; border:2px solid rgba(248,244,234,.9); display:none;
+    box-shadow:0 0 8px rgba(198,40,40,.7); }
+  #egDock{ position:fixed; top:92px; right:20px; z-index:28; display:none; flex-direction:column;
     gap:9px; width:208px; }
+  #egDock.open{ display:flex; animation:dockIn .28s ease; }
+  @keyframes dockIn{ from{ opacity:0; transform:translateY(-8px); } to{ opacity:1; transform:none; } }
   .dock-card{ background:linear-gradient(160deg,rgba(248,244,234,.95),rgba(238,231,216,.92));
     border:1px solid rgba(158,127,58,.35); border-radius:14px; padding:11px 14px 10px; cursor:pointer;
     color:#2b2318; box-shadow:0 8px 26px rgba(0,0,0,.28);
@@ -522,7 +534,8 @@
     font-size:17px; cursor:pointer; border:1px solid var(--line); }
   #stadClose:hover{ color:var(--gold); border-color:var(--gold); }
   @media (max-width:640px){
-    #egDock{ width:calc(100vw - 40px); top:auto; bottom:16px; right:20px; }
+    #egDock{ width:min(260px, calc(100vw - 40px)); top:92px; right:16px; max-height:calc(100vh - 110px); overflow-y:auto; }
+    #helmBtn{ width:64px; height:64px; }
     #stadCardBox{ width:100vw; height:100vh; border-radius:0; }
   }
 
@@ -590,6 +603,10 @@
 
 
 <!-- ═══ EG테라: 통합위젯 도크 (뮤세움·헤리티지·콘스텔라티오 확장 예정) ═══ -->
+<button id="helmBtn" aria-label="EG 우주 열기">
+  <img src="terra_helm.webp" alt="" onerror="this.style.display='none';this.parentNode.classList.add('noimg')">
+  <span id="helmBadge"></span>
+</button>
 <div id="egDock"></div>
 
 <!-- ═══ EG테라: 스타디움 카드 팝업 — 원본 5탭이 지구 위에 뜬다 ═══ -->
@@ -1992,7 +2009,7 @@ async function loadTerraPins(){
         position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),
         point:{ pixelSize:9, color:Cesium.Color.fromCssColorString(p.color||"#c62828"),
           outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
-          disableDepthTestDistance:Number.POSITIVE_INFINITY },
+          disableDepthTestDistance:10000 },   /* 10km 안에서만 타일 위 우선 — 지구 관통 방지 */
         label:{ text:kk.icon + " " + p.name + (kk.tag ? "  ·  " + kk.tag : ""),
           font:"bold 14px 'Helvetica Neue',Arial,sans-serif",
           fillColor:Cesium.Color.WHITE,
@@ -2003,7 +2020,7 @@ async function loadTerraPins(){
           backgroundPadding:new Cesium.Cartesian2(11,6),
           pixelOffset:new Cesium.Cartesian2(0,-12),
           verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
-          disableDepthTestDistance:Number.POSITIVE_INFINITY }
+          disableDepthTestDistance:10000 }
       });
       ent._terra = p;
       ent._basePx = 9;
@@ -2168,6 +2185,15 @@ function wireTerra(){
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
+  /* 타륜 토글 — 클릭 펼침, 바깥 클릭 접힘 */
+  const helm = document.getElementById("helmBtn");
+  const dockEl = document.getElementById("egDock");
+  helm.addEventListener("click", (e)=>{ e.stopPropagation(); dockEl.classList.toggle("open"); });
+  document.addEventListener("click", (e)=>{
+    if (dockEl.classList.contains("open") && !dockEl.contains(e.target) && e.target !== helm && !helm.contains(e.target))
+      dockEl.classList.remove("open");
+  });
+
   document.getElementById("stadClose").addEventListener("click", closeStadCard);
   /* 카드 팝업 스크롤바 숨김 (스크롤 기능은 유지 — 0719 소로 피드백) */
   document.getElementById("stadFrame").addEventListener("load", function(){
@@ -2255,6 +2281,7 @@ async function loadDock(){
       } });
 
     /* ② ⚾ 스타디움 — 매치업 카드 (오늘 → 다음 → 대기, 365일 근무) */
+    let cdTarget = null;
     let stadItem = { id:"stadium",
       html: '<div class="dock-cap">⚾ EG STADIUM</div>'
           + '<div class="dock-main"><span>휴식일</span></div>'
@@ -2287,16 +2314,18 @@ async function loadDock(){
         })();
         const score = done
           ? (m.away_score!=null ? m.away_score : "-") + '&nbsp;&minus;&nbsp;' + (m.home_score!=null ? m.home_score : "-")
-          : (isNext ? nextLabel : "--:--:--");
+          : "--:--:--";
         stadItem = { id:"stadium",
           html: '<div class="dock-cap">⚾ ' + (isNext ? "NEXT MATCHUP" : (done ? "TODAY RESULT" : "TODAY MATCHUP")) + '</div>'
               + '<div class="dock-main"><span>' + (TEAM_KO[m.away_team]||m.away_team)
               + '</span><span class="vs">vs</span><span>' + (TEAM_KO[m.home_team]||m.home_team) + '</span></div>'
               + '<div class="dock-sub">' + (m.home_team==="soro" ? "HOME" : "AWAY")
-              + (done ? " · FINAL" : "") + '</div>'
+              + (done ? " · FINAL" : "") + (isNext ? " · " + nextLabel + " 18:30" : "") + '</div>'
               + '<div class="dock-count" id="dockCount">' + score + '</div>',
           onClick: openStadCard };
-        liveCountdown = (!done && !isNext);
+        liveCountdown = !done;
+        cdTarget = isNext ? m.match_date : null;
+        if (!done && !isNext){ const b=document.getElementById("helmBadge"); if (b) b.style.display="block"; }  /* 경기일 등불 */
       }
     }
     items.push(stadItem);
@@ -2321,19 +2350,25 @@ async function loadDock(){
       html: '<div class="dock-main"><span>🗝 분더카머</span></div>',
       onClick: ()=> goToMyHome() });
 
+    /* ⑦ 🪞 교양 자화상 — 직행 문 */
+    items.push({ id:"persona", cls:"uni",
+      html: '<div class="dock-main"><span>🪞 교양 자화상</span></div>',
+      onClick: ()=> enterRoomUrl("persona.html", "교양 자화상") });
+
     renderDock(items);
     (function(){ let p=null; for (const c in terraPins){ if (terraPins[c].kind==="hansfoon"){ p=terraPins[c]; break; } }
       const el=document.getElementById("spoonSub"); if (el && p) el.textContent = p.name; })();
-    if (liveCountdown) startCountdown(["dockCount"]);
+    if (liveCountdown) startCountdown(["dockCount"], cdTarget);
   }catch(e){ console.warn("도크 로딩 실패:", e); }
 }
 
 /* ── 카운트다운 ── */
-function startCountdown(ids){
+function startCountdown(ids, dateStr){
   if (cdTimer) clearTimeout(cdTimer);
   const tick = ()=>{
     const kst = new Date(new Date().toLocaleString("en-US", { timeZone:"Asia/Seoul" }));
-    const start = new Date(kst); start.setHours(18,30,0,0);
+    const start = dateStr ? new Date(dateStr + "T18:30:00") : new Date(kst);
+    if (!dateStr) start.setHours(18,30,0,0);
     const diff = start - kst;
     let txt;
     if (diff <= 0) txt = "PLAY BALL";
