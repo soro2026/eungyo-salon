@@ -1851,7 +1851,7 @@ function gradeProps(grade, seed) {
   const pulseType = Math.floor(r(3) * 8);
   const pulseSpeed = 0.3 + r(4) * 3.2;
   const pulsePhase = r(5) * Math.PI * 2;
-  const pulseDepth = 0.13 + r(6) * 0.30;   // 0720 소로: 반짝임 깊이 강화 (0.07~0.29 → 0.13~0.43)
+  const pulseDepth = 0.22 + r(6) * 0.36;   // 0720 소로 2차: 반짝임 확실히 (0.22~0.58)
   return { hue, sat, light, glowR, glowAlpha, pulseType, pulseSpeed, pulsePhase, pulseDepth };
 }
 
@@ -1907,11 +1907,11 @@ function drawStar(s, t) {
   const pulseV = pulseCalc(s.pulseType, t, s.pulseSpeed, s.pulsePhase, s.pulseDepth);
   const hb = s.highlighted ? 1.5 : 1;
   const r = s.r * (1 + pulseV * 0.35) * hb;
-  const a = Math.min(1, s.baseAlpha + pulseV * 0.1) * hb;
+  const a = Math.min(1, s.baseAlpha + pulseV * 0.22) * hb;   // 0720: 밝기 요동 강화
 
   // 글로우 — 색온도 기반 + 등급별 강도
   if (grade <= 7) {
-    const ga = s.glowAlpha * (1 + pulseV * 0.4);
+    const ga = s.glowAlpha * (1 + pulseV * 0.7);   // 0720: 글로우 숨결 강화
     const gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, s.glowR * hb);
     gr.addColorStop(0, `hsla(${s.hue},${s.sat}%,${s.light}%,${ga})`);
     gr.addColorStop(0.45, `hsla(${s.hue},${s.sat}%,${s.light}%,${ga * 0.28})`);
@@ -2048,14 +2048,16 @@ function drawShootingStars() {
 
 // ── 메인 루프 ────────────────────────────────────────────────────
 let startTime = performance.now();
-/* ── 달 (0720 소로) — 실제 오늘 위상. 기준 삭 2000-01-06 18:14 UTC · 삭망월 29.530588일 ── */
-const MOON = { x: WORLD_W/2 + 880, y: WORLD_H/2 - 720, r: 26 };
+/* ── 달 (0720 소로) — 실제 오늘 위상 + 1시간에 하늘 한 번 횡단(동→서) ── */
+const MOON = { x0: WORLD_W/2 + 880, y: WORLD_H/2 - 720, r: 26, span: WORLD_W + 600 };
 function moonPhase(){
   const days = (Date.now() - Date.UTC(2000,0,6,18,14)) / 86400000;
   return ((days / 29.530588) % 1 + 1) % 1;   // 0=삭 · 0.5=보름
 }
-function drawMoon(){
-  const sx = MOON.x - viewX, sy = MOON.y - viewY, r = MOON.r;
+function drawMoon(t){
+  const drift = ((t / 3600) % 1) * MOON.span;                 // 1시간 = 1횡단
+  const sx = ((MOON.x0 + drift + 300) % MOON.span) - 300 - viewX;  // 동(왼)에서 떠서 서(오른)로, 끝나면 다시 동쪽
+  const sy = MOON.y - viewY, r = MOON.r;
   const vw = canvas.width / scale, vh = canvas.height / scale;
   if (sx < -60 || sx > vw + 60 || sy < -60 || sy > vh + 60) return;
   const ph = moonPhase();
@@ -2093,7 +2095,7 @@ function loop() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.save();
   ctx.scale(scale, scale);
-  drawMoon();
+  drawMoon(t);
   stars.forEach(s => drawStar(s, t));
   ctx.restore();
   // 유성은 scale 무관하게 화면 좌표로
