@@ -504,6 +504,9 @@
     justify-content:space-between; gap:6px; }
   .dock-main .vs{ font-size:9.5px; color:#a8987a; font-weight:400; font-style:italic; }
   .dock-sub{ font-size:10.5px; color:#8a7a5c; margin-top:3px; letter-spacing:.03em; }
+  .dock-card.uni{ padding:9px 14px; }
+  .dock-card.uni .dock-main{ font-size:12.5px; justify-content:flex-start; }
+  .dock-card.uni .dock-sub{ margin-top:2px; font-size:9.5px; }
   .dock-count{ margin-top:7px; font-variant-numeric:tabular-nums; font-size:17px;
     letter-spacing:.05em; color:#8a5f18; font-weight:700; }
   /* 스타디움 카드 팝업 — 지구 타일 위에 뜨는 창. 홈·경기·기록·리그·나 5탭 원본 그대로 */
@@ -1967,13 +1970,20 @@ async function terraInit(){
 /* ── 핀: terra_pins (전 우주 공용) ── */
 const TERRA_KIND = {
   stadium:{ icon:"⚾" },
-  museum:{ icon:"📚" }
+  museum:{ icon:"📚", tag:"EG뮤세움" },
+  constellatio:{ icon:"✨", tag:"EG콘스텔라티오" },
+  heritage:{ icon:"🖼", tag:"EG헤리티지" },
+  hansfoon:{ icon:"🥄", tag:"EG교양한스푼" }
 };
 async function loadTerraPins(){
   try{
-    const r = await fetch(SUPA_URL + "/rest/v1/terra_pins?active=eq.true&kind=in.(stadium,museum)&order=sort",
+    const r = await fetch(SUPA_URL + "/rest/v1/terra_pins?active=eq.true&kind=in.(stadium,museum,constellatio,heritage,hansfoon)&order=sort",
       { headers:{ apikey:SUPA_KEY, Authorization:"Bearer "+SUPA_KEY } });
-    const rows = await r.json();
+    let rows = await r.json();
+    /* 당번 기간 필터 — 행을 미리 넣어두면 날짜가 되는 날 핀이 스스로 교대 (관리자 예약 배관) */
+    const todayStr = new Date().toLocaleDateString("sv-SE", { timeZone:"Asia/Seoul" });
+    rows = rows.filter(p => (!p.active_from || p.active_from <= todayStr)
+                         && (!p.active_to   || p.active_to   >= todayStr));
     for (const p of rows){
       const kk = TERRA_KIND[p.kind] || { icon:"📍" };
       terraPins[p.code] = p;
@@ -1983,7 +1993,7 @@ async function loadTerraPins(){
         point:{ pixelSize:9, color:Cesium.Color.fromCssColorString(p.color||"#c62828"),
           outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
           disableDepthTestDistance:Number.POSITIVE_INFINITY },
-        label:{ text:kk.icon + " " + p.name,
+        label:{ text:kk.icon + " " + p.name + (kk.tag ? "  ·  " + kk.tag : ""),
           font:"bold 14px 'Helvetica Neue',Arial,sans-serif",
           fillColor:Cesium.Color.WHITE,
           outlineColor:Cesium.Color.fromCssColorString("#0a0e1a"), outlineWidth:3,
@@ -2029,7 +2039,7 @@ function freeCamera(){
   try{ viewer.camera.cancelFlight(); }catch(e){}
 }
 
-/* ── 2단 대륙 횡단 비행: 고공 아크 → 구장 강하 ── */
+/* ── 2단 대륙 횡단 비행: 고공 아크 → 강하 (핀별 카메라 = meta {alt,dist,pitch,orbit}) ── */
 function flyToPark(p){
   if (!p) return;
   currentPark = p;
@@ -2037,27 +2047,32 @@ function flyToPark(p){
   try{ closeStory(); }catch(e){}
   try{ closeMaison(); }catch(e){}
   freeCamera();
+  const cam = (p.meta && typeof p.meta === "object") ? p.meta : {};
+  const ALT  = Number(cam.alt)   || 600;      /* 지면 위 상대 고도 */
+  const DIST = Number(cam.dist)  || 0.0048;   /* 남쪽 물러남 (도 단위) */
+  const PITCH= Number(cam.pitch) || -32;
   /* 1단 — 목적지 상공 2,500km, 수직 부감 (대륙을 건너는 시간) */
   viewer.camera.flyTo({
     destination: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 2500000),
     orientation:{ heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 },
     duration: 4.0,
-    complete: ()=>{
-      /* 2단 — 구장으로 강하 → 착륙 즉시 메종식 회전 카메라 (0719 소로 피드백) */
+    complete: async ()=>{
+      /* 지형 높이 선측정 — 산꼭대기(몽블랑 4,808m)에서도 파묻히지 않게 */
+      let h = 0;
+      try{
+        const arr = await viewer.scene.clampToHeightMostDetailed([Cesium.Cartesian3.fromDegrees(p.lng, p.lat)]);
+        if (arr && Cesium.defined(arr[0])) h = Cesium.Cartographic.fromCartesian(arr[0]).height;
+      }catch(e){}
+      /* 2단 — 강하 → 착륙 즉시 메종식 회전 카메라 (0719 소로 피드백) */
       viewer.camera.flyTo({
-        destination: Cesium.Cartesian3.fromDegrees(p.lng, p.lat - 0.0048, 620),
-        orientation:{ heading:0, pitch:Cesium.Math.toRadians(-32), roll:0 },
+        destination: Cesium.Cartesian3.fromDegrees(p.lng, p.lat - DIST, h + ALT),
+        orientation:{ heading:0, pitch:Cesium.Math.toRadians(PITCH), roll:0 },
         duration: 4.5,
-        complete: async ()=>{
-          /* 도착 후 재클램프 → 핀·궤도 중심을 타일 지붕 높이에 (maison 갭0 계보) */
-          let h = 0;
-          try{
-            const arr = await viewer.scene.clampToHeightMostDetailed([Cesium.Cartesian3.fromDegrees(p.lng, p.lat)]);
-            if (arr && Cesium.defined(arr[0])) h = Cesium.Cartographic.fromCartesian(arr[0]).height;
-            const ent = viewer.entities.getById("terra-"+p.code);
-            if (ent && h) ent.position = Cesium.Cartesian3.fromDegrees(p.lng, p.lat, h);
-          }catch(e){}
-          try{ startOrbit(Cesium.Cartesian3.fromDegrees(p.lng, p.lat, h), 620); }catch(e){}
+        complete: ()=>{
+          const ent = viewer.entities.getById("terra-"+p.code);
+          if (ent && h) ent.position = Cesium.Cartesian3.fromDegrees(p.lng, p.lat, h);
+          const orbitR = Number(cam.orbit) || (ALT + 20);
+          try{ startOrbit(Cesium.Cartesian3.fromDegrees(p.lng, p.lat, h), orbitR); }catch(e){}
         }
       });
     }
@@ -2100,12 +2115,14 @@ function enterGame(){
   doorState = "open";
 }
 
-/* ── 공용 문: 스타디움 외 우주 (뮤세움 등) — 지구는 잠들고 방이 열린다 ── */
+/* ── 공용 문: 스타디움 외 우주 — 지구는 잠들고 방이 열린다 ── */
 function enterRoom(p){
-  let url = (p && p.target_url) ? p.target_url : "museum.html";
+  enterRoomUrl((p && p.target_url) ? p.target_url : "museum.html", p ? p.name : "");
+}
+function enterRoomUrl(url, title){
   url += (url.indexOf("?") >= 0 ? "&" : "?") + "terra=1";
   viewer.useDefaultRenderLoop = false;
-  document.getElementById("doorTitle").textContent = p ? p.name : "";
+  document.getElementById("doorTitle").textContent = title || "";
   const dp = document.getElementById("doorPick"); if (dp) dp.style.display = "none";
   const ep = document.getElementById("elevPick"); if (ep) ep.style.display = "none";
   const ex = document.getElementById("doorExit"); if (ex) ex.textContent = "× 지구로 돌아가기";
@@ -2215,7 +2232,7 @@ function renderDock(items){
   dock.innerHTML = "";
   for (const it of items){
     const el = document.createElement("div");
-    el.className = "dock-card";
+    el.className = "dock-card" + (it.cls ? " " + it.cls : "");
     el.innerHTML = it.html;
     el.addEventListener("click", it.onClick);
     dock.appendChild(el);
@@ -2225,52 +2242,89 @@ async function loadDock(){
   try{
     const { data:{ session } } = await supa.auth.getSession();
     const uid = session && session.user ? session.user.id : null;
-    if (!uid) return;
-    const today = new Date().toLocaleDateString("sv-SE", { timeZone:"Asia/Seoul" });
-    let { data:m } = await supa.from("matches").select("*")
-      .eq("user_id", uid).eq("match_date", today).eq("is_my_game", true).maybeSingle();
-    let isNext = false;
-    if (!m){
-      /* 휴식일: 다음 경기 예고 카드 (위젯은 365일 근무) */
-      const { data:n } = await supa.from("matches").select("*")
-        .eq("user_id", uid).eq("is_my_game", true).gt("match_date", today)
-        .order("match_date", { ascending:true }).limit(1).maybeSingle();
-      if (!n){
-        renderDock([{ id:"stadium",
-          html: '<div class="dock-cap">⚾ EG STADIUM</div>'
-              + '<div class="dock-main"><span>휴식일</span></div>'
-              + '<div class="dock-sub">다음 대진 편성 대기</div>',
-          onClick: openStadCard }]);
-        return;
+    const items = [];
+
+    /* ① 🥄 교양 한스푼 — 당번 레스토랑으로 비행 후 자동 입장 (주차 교대) */
+    items.push({ id:"spoon", cls:"uni",
+      html: '<div class="dock-main"><span>🥄 교양 한스푼</span></div>'
+          + '<div class="dock-sub" id="spoonSub"></div>',
+      onClick: ()=>{
+        let p = null; for (const c in terraPins){ if (terraPins[c].kind === "hansfoon"){ p = terraPins[c]; break; } }
+        if (p) flyToPark(p);
+        else enterRoomUrl("hello_spoon_v1.html", "교양 한스푼");   /* 당번 없으면 직행 문 (안전망) */
+      } });
+
+    /* ② ⚾ 스타디움 — 매치업 카드 (오늘 → 다음 → 대기, 365일 근무) */
+    let stadItem = { id:"stadium",
+      html: '<div class="dock-cap">⚾ EG STADIUM</div>'
+          + '<div class="dock-main"><span>휴식일</span></div>'
+          + '<div class="dock-sub">다음 대진 편성 대기</div>',
+      onClick: openStadCard };
+    let liveCountdown = false;
+    if (uid){
+      const today = new Date().toLocaleDateString("sv-SE", { timeZone:"Asia/Seoul" });
+      let { data:m } = await supa.from("matches").select("*")
+        .eq("user_id", uid).eq("match_date", today).eq("is_my_game", true).maybeSingle();
+      let isNext = false;
+      if (!m){
+        const { data:n } = await supa.from("matches").select("*")
+          .eq("user_id", uid).eq("is_my_game", true).gt("match_date", today)
+          .order("match_date", { ascending:true }).limit(1).maybeSingle();
+        if (n){ m = n; isNext = true; }
       }
-      m = n; isNext = true;
+      if (m){
+        todayMatch = m;
+        const done = m.status === "completed";
+        if (done && cdTimer){ clearTimeout(cdTimer); cdTimer = null; }
+        const nextLabel = (function(){
+          if (!isNext) return "";
+          const kstToday = new Date(new Date().toLocaleString("en-US", { timeZone:"Asia/Seoul" }));
+          const md = new Date(m.match_date + "T00:00:00");
+          const dd = Math.round((md - new Date(kstToday.toLocaleDateString("sv-SE"))) / 86400000);
+          const wk = ["일","월","화","수","목","금","토"][md.getDay()];
+          return (dd === 1 ? "내일" : (parseInt(m.match_date.slice(5,7),10) + "/" + parseInt(m.match_date.slice(8,10),10)))
+                 + " (" + wk + ")";
+        })();
+        const score = done
+          ? (m.away_score!=null ? m.away_score : "-") + '&nbsp;&minus;&nbsp;' + (m.home_score!=null ? m.home_score : "-")
+          : (isNext ? nextLabel : "--:--:--");
+        stadItem = { id:"stadium",
+          html: '<div class="dock-cap">⚾ ' + (isNext ? "NEXT MATCHUP" : (done ? "TODAY RESULT" : "TODAY MATCHUP")) + '</div>'
+              + '<div class="dock-main"><span>' + (TEAM_KO[m.away_team]||m.away_team)
+              + '</span><span class="vs">vs</span><span>' + (TEAM_KO[m.home_team]||m.home_team) + '</span></div>'
+              + '<div class="dock-sub">' + (m.home_team==="soro" ? "HOME" : "AWAY")
+              + (done ? " · FINAL" : "") + '</div>'
+              + '<div class="dock-count" id="dockCount">' + score + '</div>',
+          onClick: openStadCard };
+        liveCountdown = (!done && !isNext);
+      }
     }
-    todayMatch = m;
-    const done = m.status === "completed";
-    if (done && cdTimer){ clearTimeout(cdTimer); cdTimer = null; }
-    const nextLabel = (function(){
-      if (!isNext) return "";
-      const kstToday = new Date(new Date().toLocaleString("en-US", { timeZone:"Asia/Seoul" }));
-      const md = new Date(m.match_date + "T00:00:00");
-      const dd = Math.round((md - new Date(kstToday.toLocaleDateString("sv-SE"))) / 86400000);
-      const wk = ["일","월","화","수","목","금","토"][md.getDay()];
-      return (dd === 1 ? "내일" : (parseInt(m.match_date.slice(5,7),10) + "/" + parseInt(m.match_date.slice(8,10),10)))
-             + " (" + wk + ")";
-    })();
-    const score = done
-      ? (m.away_score!=null ? m.away_score : "-") + '&nbsp;&minus;&nbsp;' + (m.home_score!=null ? m.home_score : "-")
-      : (isNext ? nextLabel : "--:--:--");
-    renderDock([{
-      id:"stadium",
-      html: '<div class="dock-cap">⚾ ' + (isNext ? "NEXT MATCHUP" : (done ? "TODAY RESULT" : "TODAY MATCHUP")) + '</div>'
-          + '<div class="dock-main"><span>' + (TEAM_KO[m.away_team]||m.away_team)
-          + '</span><span class="vs">vs</span><span>' + (TEAM_KO[m.home_team]||m.home_team) + '</span></div>'
-          + '<div class="dock-sub">' + (m.home_team==="soro" ? "HOME" : "AWAY")
-          + (done ? " · FINAL" : "") + '</div>'
-          + '<div class="dock-count" id="dockCount">' + score + '</div>',
-      onClick: openStadCard
-    }]);
-    if (!done && !isNext) startCountdown(["dockCount"]);
+    items.push(stadItem);
+
+    /* ③④⑤ 📚✨🖼 — kind의 현재 당번 핀으로 비행 후 자동 입장 (주차·월차 교대 자동 반영) */
+    const pinOf = (kind)=>{ for (const c in terraPins){ if (terraPins[c].kind === kind) return terraPins[c]; } return null; };
+    const uni = [
+      { kind:"museum",       icon:"📚", name:"뮤세움" },
+      { kind:"constellatio", icon:"✨", name:"콘스텔라티오" },
+      { kind:"heritage",     icon:"🖼", name:"헤리티지" }
+    ];
+    for (const u of uni){
+      const p = pinOf(u.kind);
+      items.push({ id:u.kind, cls:"uni",
+        html: '<div class="dock-main"><span>' + u.icon + ' ' + u.name + '</span></div>'
+            + '<div class="dock-sub">' + (p ? p.name : "") + '</div>',
+        onClick: ()=>{ if (p) flyToPark(p); } });
+    }
+
+    /* ⑥ 🗝 분더카머 — 내 집 상공 회전 + 대문 팝업 (goToMyHome 그대로) */
+    items.push({ id:"wunder", cls:"uni",
+      html: '<div class="dock-main"><span>🗝 분더카머</span></div>',
+      onClick: ()=> goToMyHome() });
+
+    renderDock(items);
+    (function(){ let p=null; for (const c in terraPins){ if (terraPins[c].kind==="hansfoon"){ p=terraPins[c]; break; } }
+      const el=document.getElementById("spoonSub"); if (el && p) el.textContent = p.name; })();
+    if (liveCountdown) startCountdown(["dockCount"]);
   }catch(e){ console.warn("도크 로딩 실패:", e); }
 }
 
