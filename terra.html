@@ -2068,11 +2068,42 @@ function flyToPark(p){
   const ALT  = Number(cam.alt)   || 600;      /* 지면 위 상대 고도 */
   const DIST = Number(cam.dist)  || 0.0048;   /* 남쪽 물러남 (도 단위) */
   const PITCH= Number(cam.pitch) || -32;
-  /* 1단 — 목적지 상공 2,500km, 수직 부감 (대륙을 건너는 시간) */
+  /* ── 거리 비례 항로: 가까우면 직행, 멀수록 아크가 높아짐 ── */
+  let kmAway = 8000;
+  try{
+    const camCarto = Cesium.Cartographic.fromCartesian(viewer.camera.positionWC);
+    const g = new Cesium.EllipsoidGeodesic(camCarto, Cesium.Cartographic.fromDegrees(p.lng, p.lat));
+    kmAway = g.surfaceDistance / 1000;
+  }catch(e){}
+  if (kmAway < 200){
+    /* 근거리 — 성층권 생략, 직행 강하 */
+    (async ()=>{
+      let h = 0;
+      try{
+        const arr = await viewer.scene.clampToHeightMostDetailed([Cesium.Cartesian3.fromDegrees(p.lng, p.lat)]);
+        if (arr && Cesium.defined(arr[0])) h = Cesium.Cartographic.fromCartesian(arr[0]).height;
+      }catch(e){}
+      viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(p.lng, p.lat - DIST, h + ALT),
+        orientation:{ heading:0, pitch:Cesium.Math.toRadians(PITCH), roll:0 },
+        duration: 3.0,
+        complete: ()=>{
+          const ent = viewer.entities.getById("terra-"+p.code);
+          if (ent && h) ent.position = Cesium.Cartesian3.fromDegrees(p.lng, p.lat, h);
+          const orbitR = Number(cam.orbit) || (ALT + 20);
+          try{ startOrbit(Cesium.Cartesian3.fromDegrees(p.lng, p.lat, h), orbitR); }catch(e){}
+        }
+      });
+    })();
+    return;
+  }
+  /* 1단 — 아크 높이·시간 = 거리 비례 (최대 2,000km·2.2초) */
+  const arcAlt = Math.min(Math.max(kmAway * 600, 150000), 2000000);
+  const d1 = kmAway > 3000 ? 2.2 : 1.8;
   viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 2500000),
+    destination: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, arcAlt),
     orientation:{ heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 },
-    duration: 4.0,
+    duration: d1,
     complete: async ()=>{
       /* 지형 높이 선측정 — 산꼭대기(몽블랑 4,808m)에서도 파묻히지 않게 */
       let h = 0;
@@ -2084,7 +2115,7 @@ function flyToPark(p){
       viewer.camera.flyTo({
         destination: Cesium.Cartesian3.fromDegrees(p.lng, p.lat - DIST, h + ALT),
         orientation:{ heading:0, pitch:Cesium.Math.toRadians(PITCH), roll:0 },
-        duration: 4.5,
+        duration: 3.0,
         complete: ()=>{
           const ent = viewer.entities.getById("terra-"+p.code);
           if (ent && h) ent.position = Cesium.Cartesian3.fromDegrees(p.lng, p.lat, h);
