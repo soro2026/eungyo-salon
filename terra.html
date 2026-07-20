@@ -492,6 +492,16 @@
   .svstar.wait{ opacity:.42 }
 
   /* ═══ EG테라 0719 — 통합위젯 도크 + 스타디움 카드 팝업 + 구장 입장 카드 ═══ */
+  /* 되짚기 칩 — 항해일지의 한 계단 뒤 */
+  #backChip{ position:fixed; top:32px; right:100px; z-index:29;
+    display:none; align-items:center; gap:4px;
+    padding:6px 12px; border-radius:999px; cursor:pointer;
+    background:rgba(10,14,26,.82); color:var(--cream);
+    border:1px solid var(--line); font-family:var(--serif); font-size:12.5px;
+    backdrop-filter:blur(6px); transition:color .2s, border-color .2s; }
+  #backChip:hover{ color:var(--gold); border-color:var(--gold); }
+  @media (max-width:640px){ #backChip{ top:26px; right:90px; } }
+
   /* 타륜(舵輪) — 우측 상단 항해 키. 호버 시 스르륵 반 바퀴 */
   #helmBtn{ position:fixed; top:10px; right:16px; z-index:29; width:74px; height:74px;
     padding:0; border:none; background:none; cursor:pointer;
@@ -607,6 +617,7 @@
 
 
 <!-- ═══ EG테라: 통합위젯 도크 (뮤세움·헤리티지·콘스텔라티오 확장 예정) ═══ -->
+<button id="backChip" aria-label="항로 되짚기" style="display:none">↩ 되짚기</button>
 <button id="helmBtn" aria-label="EG 우주 열기">
   <img src="terra_helm.webp" alt="" onerror="this.style.display='none';this.parentNode.classList.add('noimg')">
   <span id="helmBadge"></span>
@@ -1599,7 +1610,8 @@ async function assignMaison(uid){
 }
 
 // 파리 전경으로 (로그인 전 / 만석 등 예외 시)
-function flyToParisOverview(){
+function flyToParisOverview(opts){
+  if (!(opts && opts.nolog)) logPush("overview:paris", ()=> flyToParisOverview({ nolog:true }));
   viewer.camera.flyTo({
     destination: Cesium.Cartesian3.fromDegrees(2.3440, 48.8530, 800),
     orientation:{ heading:0, pitch:Cesium.Math.toRadians(-38), roll:0 }, duration: 3.0
@@ -1694,7 +1706,9 @@ async function clampPoint(lng, lat){
   return null;
 }
 
-function flyToEntity(ent){
+function flyToEntity(ent, opts){
+  if (ent && ent._maison && !(opts && opts.nolog))
+    logPush("maison:"+(ent._maison.city||"")+":"+ent._maison.maison_no, ()=> flyToEntity(ent, { nolog:true }));
   stopOrbit();
   const carto = Cesium.Cartographic.fromCartesian(ent.position.getValue(Cesium.JulianDate.now()));
   const lng = Cesium.Math.toDegrees(carto.longitude);
@@ -1982,10 +1996,33 @@ const boot = setInterval(()=>{
   else if (tries > 100) clearInterval(boot);
 }, 200);
 
+/* ══ 항해일지 (0720 1단계) — 발자국 스택. "되짚기"는 왔던 길을 한 계단씩 거꾸로 걷는다 ══ */
+const egLog = [];
+function logPush(key, go){
+  const top = egLog[egLog.length - 1];
+  if (top && top.key === key) return;          /* 같은 자리 중복 방지 */
+  egLog.push({ key, go });
+  if (egLog.length > 20) egLog.shift();        /* 일지는 스무 걸음까지 */
+  updateBackChip();
+}
+function logBack(){
+  if (egLog.length < 2) return;
+  egLog.pop();                                  /* 지금 장면을 접고 */
+  const prev = egLog[egLog.length - 1];
+  updateBackChip();
+  if (prev && prev.go) prev.go();               /* 직전 발자국으로 (go는 재기록 없음) */
+}
+function updateBackChip(){
+  const c = document.getElementById("backChip");
+  if (c) c.style.display = (egLog.length > 1) ? "flex" : "none";
+}
+
 async function terraInit(){
   await loadTerraPins();
   wireTerra();
   loadDock();
+  const bc = document.getElementById("backChip");
+  if (bc) bc.addEventListener("click", logBack);
 }
 
 /* ── 핀: terra_pins (전 우주 공용) ── */
@@ -2061,8 +2098,9 @@ function freeCamera(){
 }
 
 /* ── 2단 대륙 횡단 비행: 고공 아크 → 강하 (핀별 카메라 = meta {alt,dist,pitch,orbit}) ── */
-function flyToPark(p){
+function flyToPark(p, opts){
   if (!p) return;
+  if (!(opts && opts.nolog)) logPush("pin:"+p.code, ()=> flyToPark(p, { nolog:true }));
   currentPark = p;
   closeStadCard();
   try{ closeStory(); }catch(e){}
