@@ -884,8 +884,10 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   // 세션에서 내 uid 읽어 → 내 집으로 직행 (집이 없으면 자동 배정)
   await setupAdminEdit();   // admin이면 좌표 편집 토글 노출
   // 진입 분기 (enter=1은 위에서 fastEnter로 처리됨)
-  //  ?user=남닉 → 남의 집 도시 강하 후 팝업 / (없음) → 내 집 도시 강하
-  if (!_wantUser){ goToMyHome(); }
+  //  ?id=별ID → 그 별의 대표지로 비행 (star_voyage 흡수, 0720) / ?user=남닉 → 남의 집 / (없음) → 내 집
+  const _wantStar = _p.get('id');
+  if (_wantStar){ jumpToStarPlace(_wantStar); }
+  else if (!_wantUser){ goToMyHome(); }
   else { enterByParams(_wantUser, false); }
 })();
 
@@ -1374,7 +1376,8 @@ function toggleStarList(show){
 
 // 페이지를 떠나지 않고 그 인물의 대표지로 직행 — 세션 하나 유지(과금 0).
 // 액자(이곳에 닿은 별)에서 호출. 도시가 다르면 도시 마커만 갈아끼우고 그 장소로 비행.
-async function jumpToStarPlace(starId){
+async function jumpToStarPlace(starId, opts){
+  if (!(opts && opts.nolog) && window.logPush) window.logPush("star:"+starId, ()=> jumpToStarPlace(starId, { nolog:true }));
   let rep;
   try{
     const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_star_voyage", {
