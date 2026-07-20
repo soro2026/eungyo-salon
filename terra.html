@@ -1964,13 +1964,18 @@ async function terraInit(){
   loadDock();
 }
 
-/* ── 핀: terra_pins (kind=stadium) ── */
+/* ── 핀: terra_pins (전 우주 공용) ── */
+const TERRA_KIND = {
+  stadium:{ icon:"⚾" },
+  museum:{ icon:"📚" }
+};
 async function loadTerraPins(){
   try{
-    const r = await fetch(SUPA_URL + "/rest/v1/terra_pins?active=eq.true&kind=eq.stadium&order=sort",
+    const r = await fetch(SUPA_URL + "/rest/v1/terra_pins?active=eq.true&kind=in.(stadium,museum)&order=sort",
       { headers:{ apikey:SUPA_KEY, Authorization:"Bearer "+SUPA_KEY } });
     const rows = await r.json();
     for (const p of rows){
+      const kk = TERRA_KIND[p.kind] || { icon:"📍" };
       terraPins[p.code] = p;
       const ent = viewer.entities.add({
         id:"terra-"+p.code,
@@ -1978,7 +1983,7 @@ async function loadTerraPins(){
         point:{ pixelSize:9, color:Cesium.Color.fromCssColorString(p.color||"#c62828"),
           outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
           disableDepthTestDistance:Number.POSITIVE_INFINITY },
-        label:{ text:"⚾ " + p.name,
+        label:{ text:kk.icon + " " + p.name,
           font:"bold 14px 'Helvetica Neue',Arial,sans-serif",
           fillColor:Cesium.Color.WHITE,
           outlineColor:Cesium.Color.fromCssColorString("#0a0e1a"), outlineWidth:3,
@@ -2095,6 +2100,20 @@ function enterGame(){
   doorState = "open";
 }
 
+/* ── 공용 문: 스타디움 외 우주 (뮤세움 등) — 지구는 잠들고 방이 열린다 ── */
+function enterRoom(p){
+  let url = (p && p.target_url) ? p.target_url : "museum.html";
+  url += (url.indexOf("?") >= 0 ? "&" : "?") + "terra=1";
+  viewer.useDefaultRenderLoop = false;
+  document.getElementById("doorTitle").textContent = p ? p.name : "";
+  const dp = document.getElementById("doorPick"); if (dp) dp.style.display = "none";
+  const ep = document.getElementById("elevPick"); if (ep) ep.style.display = "none";
+  const ex = document.getElementById("doorExit"); if (ex) ex.textContent = "× 지구로 돌아가기";
+  document.getElementById("doorFrame").src = url;
+  document.getElementById("doorway").classList.add("popup","in","open");
+  doorState = "open";
+}
+
 /* ── 배선 ── */
 function wireTerra(){
   const h = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
@@ -2124,7 +2143,10 @@ function wireTerra(){
     }
     if (picked && picked.id && picked.id._terra){
       const p = picked.id._terra;
-      if (currentPark && currentPark.code === p.code) enterGame();   /* 착륙해 있으면 핀 = 경기장 문 */
+      if (currentPark && currentPark.code === p.code){
+        if (p.kind === "stadium") enterGame();     /* 착륙해 있으면 핀 = 문 */
+        else enterRoom(p);
+      }
       else flyToPark(p);
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
