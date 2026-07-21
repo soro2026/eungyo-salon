@@ -257,8 +257,11 @@ async function handleFile(file){
     top=Math.max(0,top-PAD); bot=Math.min(h,bot+PAD);
     const cw=x1-x0, ch=bot-top;
     const oc=document.createElement('canvas'); oc.width=cw; oc.height=ch;
-    oc.getContext('2d').drawImage(cv, x0,top,cw,ch, 0,0,cw,ch);
-    const blob=await new Promise(res=>oc.toBlob(res,'image/webp',0.9));
+    const octx=oc.getContext('2d');
+    octx.drawImage(cv, x0,top,cw,ch, 0,0,cw,ch);
+    // ── 배경 흰색 → 투명 (모서리에서 스며드는 flood fill, 밝은 표지 보호) ──
+    floodTransparent(octx, cw, ch);
+    const blob=await new Promise(res=>oc.toBlob(res,'image/webp',0.92));
     const url=URL.createObjectURL(blob);
     const meta=CUR_SHEET[i];
     PIECES.push({id:meta[0], eg:meta[1], title:meta[2], blob, url});
@@ -274,6 +277,32 @@ function loadImg(file){
     img.onload=()=>res(img); img.onerror=rej;
     img.src=URL.createObjectURL(file);
   });
+}
+
+// 모서리에서 시작해 흰색이 이어지는 '배경'만 투명화.
+// 책 안쪽에 갇힌 밝은 표지(아이보리 등)는 배경과 끊겨 있어 안전하게 보존된다.
+function floodTransparent(ctx, W, H){
+  const THR=238;                       // 이 값 이상 = 흰 후보
+  const imgd=ctx.getImageData(0,0,W,H);
+  const d=imgd.data;
+  const isWhite=i=>(d[i]>=THR && d[i+1]>=THR && d[i+2]>=THR);
+  const visited=new Uint8Array(W*H);
+  const stack=[];
+  const push=(x,y)=>{ const p=y*W+x, i=p*4; if(!visited[p] && isWhite(i)){ visited[p]=1; stack.push(p); } };
+  // 네 변 테두리에서 씨앗 뿌리기
+  for(let x=0;x<W;x++){ push(x,0); push(x,H-1); }
+  for(let y=0;y<H;y++){ push(0,y); push(W-1,y); }
+  // 스택 기반 4방향 확장 (재귀 아님 — 큰 이미지 안전)
+  while(stack.length){
+    const p=stack.pop(); const x=p%W, y=(p-x)/W;
+    if(x>0)   push(x-1,y);
+    if(x<W-1) push(x+1,y);
+    if(y>0)   push(x,y-1);
+    if(y<H-1) push(x,y+1);
+  }
+  // 배경으로 판정된 픽셀 알파 0
+  for(let p=0;p<W*H;p++){ if(visited[p]) d[p*4+3]=0; }
+  ctx.putImageData(imgd,0,0);
 }
 
 // ---- 업로드 ----
