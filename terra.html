@@ -1575,7 +1575,15 @@ function closeCollegeCard(){
 }
 function enterCollege(){
   closeCollegeCard();
-  enterRoomUrl("college.html", "콜레주 드 콤포스텔라");
+  viewer.useDefaultRenderLoop = false;
+  const dw = document.getElementById("doorway");
+  document.getElementById("doorTitle").textContent = "콜레주 드 콤포스텔라";
+  const dp = document.getElementById("doorPick"); if (dp) dp.style.display = "none";
+  const ep = document.getElementById("elevPick"); if (ep) ep.style.display = "none";
+  const ex = document.getElementById("doorExit"); if (ex) ex.textContent = "× 지구로 돌아가기";
+  document.getElementById("doorFrame").src = "college.html?terra=1&v=" + Date.now();
+  dw.classList.add("popup","in","open");   // popup=문짝 숨김 / open=iframe 노출 (openPopup 혈통)
+  doorState = "open";
 }
 function openMaison(m){
   closeStory(); closeCollegeCard();
@@ -2355,9 +2363,23 @@ function wireTerra(){
     }
     if (picked && picked.id && picked.id._terra){
       const p = picked.id._terra;
-      if (currentPark && currentPark.code === p.code){
+      if (p.kind === "college"){
+        /* 콜레주 (0721): 10km 안이면 솟구침 없이 스르르 + 패널 즉시. 멀면 정규 비행 */
+        const cCart = Cesium.Cartesian3.fromDegrees(p.lng, p.lat, p._h || 0);
+        const cDist = Cesium.Cartesian3.distance(viewer.camera.positionWC, cCart);
+        if (cDist < 10000){
+          freeCamera();
+          const cEnt = viewer.entities.getById("terra-" + p.code);
+          if (cEnt) viewer.flyTo(cEnt, { duration: 2.2,
+            offset: new Cesium.HeadingPitchRange(viewer.camera.heading, Cesium.Math.toRadians(-32), 700) });
+          currentPark = p;
+          openCollegeCard();
+        }
+        else if (currentPark && currentPark.code === p.code) openCollegeCard();
+        else flyToPark(p);
+      }
+      else if (currentPark && currentPark.code === p.code){
         if (p.kind === "stadium") enterGame();     /* 착륙해 있으면 핀 = 문 */
-                else if (p.kind === "college") openCollegeCard();   /* 콜레주 = 우측 소개 패널 (0721) */
         else enterRoom(p);
       }
       else flyToPark(p);
