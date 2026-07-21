@@ -34,10 +34,24 @@ img{-webkit-user-drag:none;}
 .view{position:fixed;inset:0;opacity:0;pointer-events:none;transition:opacity 1.1s ease;}
 .view.on{opacity:1;pointer-events:auto;}
 
-/* ═════════ 1. 대문 ═════════ */
+/* ═════════ 1. 대문 — 화면 좌우 두 반쪽 커튼 (팝업 문법) ═════════ */
 #gate{cursor:pointer;z-index:10;}
-#gateBg{position:absolute;inset:0;background:#14100b center/cover no-repeat;
-  transition:background-image .6s ease;}
+#gate .gate-half{
+  position:absolute;top:0;bottom:0;width:50%;
+  background-color:#14100b;
+  background-repeat:no-repeat;
+  background-size:200% 100%;
+  transition:transform 1.5s cubic-bezier(.62,.02,.2,1);
+  box-shadow:inset 0 0 80px rgba(0,0,0,.3);}
+#gate .gate-half.left{left:0;background-position:left center;}
+#gate .gate-half.right{right:0;background-position:right center;}
+/* 커튼 갈라짐 */
+#gate.opening .gate-half.left{transform:translateX(-101%);}
+#gate.opening .gate-half.right{transform:translateX(101%);}
+#gate.opening{pointer-events:none;}
+#gate.opening #parisMark,#gate.opening .gate-hint,
+#gate.opening .corner-btn{opacity:0;transition:opacity .4s ease;}
+#gate.gone{visibility:hidden;}
 .gate-hint{
   position:absolute;left:50%;bottom:clamp(26px,5vh,60px);transform:translateX(-50%);
   font-size:clamp(12px,1.3vw,15px);letter-spacing:.26em;text-indent:.26em;
@@ -57,22 +71,25 @@ body.editing #parisMark{pointer-events:auto;cursor:grab;
   outline:1px dashed rgba(233,207,156,.7);outline-offset:8px;}
 body.editing #parisMark:active{cursor:grabbing;}
 #editBadge{
-  position:fixed;top:14px;left:14px;z-index:70;display:none;
+  position:fixed;top:56px;left:14px;z-index:70;display:none;
   font-size:11px;letter-spacing:.14em;color:#1a120c;background:var(--gold);
   padding:5px 12px;border-radius:16px;}
 body.editing #editBadge{display:block;}
 
-/* 진입 — 문틈의 금빛이 화면을 삼킨다 */
-#flash{
-  position:fixed;z-index:60;left:50%;top:56%;
-  width:12px;height:12px;border-radius:50%;
-  background:radial-gradient(circle,#fffdf4 0%,var(--gold-l) 40%,rgba(233,207,156,0) 70%);
-  transform:translate(-50%,-50%) scale(0);opacity:0;pointer-events:none;}
-#flash.go{animation:swallow 2.6s ease forwards;}
-@keyframes swallow{
-  8%{opacity:.9;}
-  100%{transform:translate(-50%,-50%) scale(240);opacity:1;}
-}
+/* 대문 모서리 버튼 — 지구로(우) · 나침반(좌, 살롱지기 전용) */
+.corner-btn{
+  position:absolute;top:16px;z-index:15;
+  font-family:'Gowun Batang',serif;font-size:12px;letter-spacing:.12em;
+  color:rgba(233,207,156,.85);text-decoration:none;
+  background:rgba(20,14,9,.55);border:1px solid rgba(201,162,74,.4);
+  border-radius:20px;padding:7px 14px;
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+  transition:background .2s,color .2s;}
+.corner-btn:hover{background:rgba(20,14,9,.8);color:var(--gold-l);}
+.corner-right{right:16px;}
+.corner-left{left:16px;display:none;font-size:15px;padding:6px 11px;}
+body.is-admin .corner-left{display:block;}
+body.editing .corner-left{background:var(--gold);color:#1a120c;border-color:var(--gold);}
 
 /* ═════════ 2. 메인홀 (임시 실내 — 실사판 나오면 대체) ═════════ */
 #hall{background:
@@ -186,7 +203,7 @@ body.editing #editBadge{display:block;}
 :focus-visible{outline:2px solid var(--gold-l);outline-offset:3px;}
 @media (max-width:480px){ .book-author{display:none;} .hall-title{font-size:21px;} }
 @media (prefers-reduced-motion:reduce){
-  #flash.go{animation:none;opacity:0;}
+  #gate .gate-half{transition:none;}
   .gate-hint{animation:none;color:rgba(233,207,156,.85);}
 }
 </style>
@@ -195,11 +212,15 @@ body.editing #editBadge{display:block;}
 
 <!-- ═════ 대문 ═════ -->
 <div class="view on" id="gate" role="button" aria-label="콜레주 입장">
-  <div id="gateBg"></div>
+  <div class="gate-half left"></div>
+  <div class="gate-half right"></div>
   <div id="parisMark">PARIS</div>
   <div class="gate-hint">문을 두드리세요</div>
+  <a class="corner-btn corner-right" href="terra.html" target="_top"
+     onclick="event.stopPropagation()">지구로 ↗</a>
+  <button class="corner-btn corner-left" id="compassBtn"
+     onclick="event.stopPropagation(); toggleEdit()" title="간판 편집">🧭</button>
 </div>
-<div id="flash"></div>
 <div id="editBadge">명패 편집 — 드래그 이동 · 휠 크기 · E 좌표복사</div>
 
 <!-- ═════ 메인홀 (임시 실내) ═════ -->
@@ -281,45 +302,58 @@ function todPhase(){
   if(inSpan(h,dE,s.set%24)) return 'e';
   return 'n';
 }
-/* 그림 물리기 — 시간대판 없으면 낮판 폴백 */
-function setBgChain(el,cands){
+/* 그림 물리기 함수는 setGate(대문 반쪽 2장 전용) 하나만 유지 */
+
+/* ══ 대문 ══ */
+const P=new URLSearchParams(location.search);
+const TOD=['m','d','e','n'].includes(P.get('tod')) ? P.get('tod') : todPhase();
+/* 그림 물리기 — 반쪽 두 장에 같은 이미지, 시간대판 없으면 낮판 폴백 */
+function setGate(cands){
+  const halves=document.querySelectorAll('#gate .gate-half');
   const step=i=>{
     if(i>=cands.length) return;
     const im=new Image();
-    im.onload=()=>{ el.style.backgroundImage=`url(${cands[i]})`; };
+    im.onload=()=>{ halves.forEach(h=>h.style.backgroundImage=`url(${cands[i]})`); };
     im.onerror=()=>step(i+1);
     im.src=cands[i];
   };
   step(0);
 }
-
-/* ══ 대문 ══ */
-const P=new URLSearchParams(location.search);
-const TOD=['m','d','e','n'].includes(P.get('tod')) ? P.get('tod') : todPhase();
-setBgChain(document.getElementById('gateBg'),
-  [`college_gate_${TOD}.webp`,'college_gate_d.webp']);
+setGate([`college_gate_${TOD}.webp`,'college_gate_d.webp']);
 
 let entered=false;
 document.getElementById('gate').addEventListener('click', e=>{
   if(document.body.classList.contains('editing')) return;
   if(entered) return; entered=true;
-  const flash=document.getElementById('flash');
-  flash.classList.add('go');
+  const gate=document.getElementById('gate');
+  // 홀을 문 뒤에서 먼저 켜고, 문이 좌우로 갈라지며 드러남
+  document.getElementById('hall').classList.add('on');
+  gate.classList.add('opening');
   setTimeout(()=>{
-    document.getElementById('gate').classList.remove('on');
-    document.getElementById('hall').classList.add('on');
-  }, 1500);
-  setTimeout(()=>{ flash.classList.remove('go'); flash.style.opacity=0; }, 2800);
+    gate.classList.remove('on'); gate.classList.add('gone');
+    renderBellHand();
+  }, 1550);
 });
 
-/* ══ PARIS 명패 편집기 (?edit) ══ */
-if(P.has('edit')){
-  document.body.classList.add('editing');
+/* ══ PARIS 명패 편집기 — 나침반 토글 (살롱지기) / ?edit 폴백 ══ */
+let editWired=false;
+function toggleEdit(){
+  document.body.classList.toggle('editing');
+  if(document.body.classList.contains('editing')){
+    wireEdit();
+    toast('간판 편집 — 드래그 이동 · 휠 크기 · E 좌표복사');
+  }else{
+    toast('편집 종료');
+  }
+}
+function wireEdit(){
+  if(editWired) return; editWired=true;
   const mark=document.getElementById('parisMark');
   const gate=document.getElementById('gate');
   let drag=null;
   const getV=n=>parseFloat(getComputedStyle(document.documentElement).getPropertyValue(n));
   mark.addEventListener('pointerdown',e=>{
+    if(!document.body.classList.contains('editing')) return;
     e.stopPropagation();
     drag={sx:e.clientX,sy:e.clientY,x:getV('--paris-x'),y:getV('--paris-y')};
     mark.setPointerCapture(e.pointerId);
@@ -332,16 +366,19 @@ if(P.has('edit')){
   });
   mark.addEventListener('pointerup',()=>{drag=null;});
   window.addEventListener('wheel',e=>{
+    if(!document.body.classList.contains('editing')) return;
     const s=Math.max(.4,Math.min(3,getV('--paris-s')+(e.deltaY<0?.05:-.05)));
     document.documentElement.style.setProperty('--paris-s',s.toFixed(2));
   },{passive:true});
   window.addEventListener('keydown',e=>{
+    if(!document.body.classList.contains('editing')) return;
     if(e.key.toLowerCase()!=='e') return;
     const v=`--paris-x:${getV('--paris-x')}%; --paris-y:${getV('--paris-y')}%; --paris-s:${getV('--paris-s')};`;
     navigator.clipboard && navigator.clipboard.writeText(v);
     toast('복사됨 → '+v);
   });
 }
+if(P.has('edit')){ document.body.classList.add('editing'); wireEdit(); }
 
 /* ══ 홀 데이터 (v0.1 장기 이식) ══ */
 const BELL_LIMIT = 5;
@@ -354,8 +391,9 @@ async function init(){
   const { data:{ user } } = await supa.auth.getUser();
   currentUser=user;
   if(user){
-    const { data:u } = await supa.from('users').select('tier').eq('id',user.id).single();
+    const { data:u } = await supa.from('users').select('tier,is_admin').eq('id',user.id).single();
     userTier = u ? u.tier : 'member';
+    if(u && u.is_admin) document.body.classList.add('is-admin');
   }
   await Promise.all([loadBooks(), loadBells(), loadCohorts()]);
   renderShelf(); renderBellHand();
@@ -486,7 +524,7 @@ async function reserve(cohortId){
 }
 function renderBellHand(){
   const hand=document.getElementById('bell-hand');
-  if(currentUser && userTier!=='member'){
+  if(entered && currentUser && userTier!=='member'){
     document.getElementById('bell-used').textContent=myBells.size;
     hand.classList.add('show');
   } else hand.classList.remove('show');
