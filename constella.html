@@ -27,11 +27,11 @@ html, body {
   user-select: none;
 }
 
-/* ── 배경 우주 레이어 ── */
+/* ── 배경 우주 레이어 — 0722: 은하수는 캔버스 최원경 층으로 승격(차등 자전). CSS는 어둠 베이스만 ── */
 #sky {
   position: fixed; inset: 0;
   background:
-    url('milkyway_bg.jpg') center center / cover no-repeat;
+    radial-gradient(ellipse at 50% 42%, rgba(14,18,34,0.9) 0%, rgba(2,4,12,1) 72%);
   z-index: 0;
 }
 #sky::after {
@@ -1688,7 +1688,7 @@ let viewX = 0; // 현재 뷰 오프셋
 let viewY = 0;
 let scale = 1.0; // 줌 배율
 let viewInitialized = false; // 첫 로드 시 북극성 중앙·줌맞춤 1회
-const SCALE_MIN = 0.3;
+const SCALE_MIN = 0.45;   /* 0722: 0.3→0.45 — 연대기 띠가 도넛으로 노출되지 않는 한도 */
 const SCALE_MAX = 3.0;
 let isDragging = false;
 let dragStartX = 0;
@@ -1745,20 +1745,27 @@ function bandOf(birth) {
 function initStars() {
   stars = [];
 
-  // 배경 미세 별 (장식용) — 3000×3000 전체에 400개
-  for (let i = 0; i < 400; i++) {
-    const bx = Math.random() * WORLD_W, by = Math.random() * WORLD_H;
-    stars.push({
-      type: 'bg',
-      x: bx,
-      y: by,
-      R0: Math.hypot(bx - WORLD_W/2, by - WORLD_H/2),           // 북극성 기준 극좌표 (0720 자전)
-      th0: Math.atan2(by - WORLD_H/2, bx - WORLD_W/2),
-      r: Math.random() * 0.7 + 0.2,
-      alpha: Math.random() * 0.25 + 0.04,
-      twinkleSpeed: Math.random() * 0.02 + 0.005,
-      twinklePhase: Math.random() * Math.PI * 2,
-    });
+  // ── 0722 깊이 3겹 — 배경별을 시차(패럴랙스) 층으로 재건축 ──
+  // 각 층: 타일(TILE×TILE) 공간에 살고, 팬 시 par 비율만 따라오며(멀수록 덜 움직임),
+  // 자전도 rot 비율로 층마다 다르게(차등 자전) → 팬 한 번에 하늘이 겹겹이 흐름.
+  // 무한 랩어라운드 — 어느 방향으로 가도, 얼마나 줌아웃해도 별하늘이 끝나지 않는다.
+  bgLayers = [
+    { par: 0.22, rot: 0.35, count: 200, rMin: 0.15, rMax: 0.55, aMin: 0.04, aMax: 0.15, stars: [] }, // 원경
+    { par: 0.50, rot: 0.60, count: 180, rMin: 0.30, rMax: 0.85, aMin: 0.07, aMax: 0.23, stars: [] }, // 중경
+    { par: 0.85, rot: 1.00, count: 160, rMin: 0.50, rMax: 1.20, aMin: 0.10, aMax: 0.32, stars: [] }, // 근경
+  ];
+  for (const L of bgLayers) {
+    for (let i = 0; i < L.count; i++) {
+      const bx = Math.random() * BG_TILE, by = Math.random() * BG_TILE;
+      L.stars.push({
+        R0: Math.hypot(bx - BG_TILE/2, by - BG_TILE/2),
+        th0: Math.atan2(by - BG_TILE/2, bx - BG_TILE/2),
+        r: L.rMin + Math.random() * (L.rMax - L.rMin),
+        alpha: L.aMin + Math.random() * (L.aMax - L.aMin),
+        twinkleSpeed: Math.random() * 0.02 + 0.005,
+        twinklePhase: Math.random() * Math.PI * 2,
+      });
+    }
   }
 
   // 중심·단위거리
@@ -2048,11 +2055,84 @@ function drawShootingStars() {
 
 // ── 메인 루프 ────────────────────────────────────────────────────
 let startTime = performance.now();
+/* ── 0722 깊이 3겹 + 은하수 승격 ─────────────────────────────── */
+const BG_TILE = 3000;                       // 배경별 층의 타일 한 변 (무한 랩어라운드 단위)
+let bgLayers = [];                          // initStars가 채움
+const MW_OMEGA = (Math.PI * 2) / 5400;      // 은하수 자전 — 90분 1회전 (별 15분의 1/6, 차등 자전)
+const MW_PARALLAX = 0.15;                   // 은하수 시차 — 팬의 15%만 따라옴 (가장 먼 우주)
+const mwImg = new Image();
+mwImg.src = 'milkyway_bg.jpg';
+
+// 은하수 — 스크린 공간에 그림 (줌 무관 크기 → 액자 테두리 원천 봉쇄)
+function drawMilkyWay(t){
+  const cw = canvas.width, chh = canvas.height;
+  if (mwImg.complete && mwImg.naturalWidth) {
+    const diag = Math.hypot(cw, chh), S = diag * 1.35;   // 회전해도 내접원이 화면을 덮는 크기
+    // 시차 앵커 — 북극성 화면 위치를 15%만 반영 (팬 시 아주 먼 배경처럼 미세 이동)
+    const px = (WORLD_W/2 - viewX) * scale, py = (WORLD_H/2 - viewY) * scale;
+    const cx = cw/2 + (px - cw/2) * MW_PARALLAX;
+    const cy = chh/2 + (py - chh/2) * MW_PARALLAX;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(t * MW_OMEGA);                            // 초저속 자전 — 은밀한 살아있음
+    ctx.globalAlpha = 0.62;                              // 구 CSS 어둠 오버레이(0.38)와 동일 톤
+    const iw = mwImg.naturalWidth, ih = mwImg.naturalHeight;
+    const cs = Math.max(S/iw, S/ih), dw = iw*cs, dh = ih*cs;  // cover 크롭
+    ctx.drawImage(mwImg, -dw/2, -dh/2, dw, dh);
+    ctx.restore();
+  }
+  // 가장자리 방사형 페이드 — 은하수가 어둠으로 스르르 녹음 (모서리·경계 삼킴)
+  const diag2 = Math.hypot(cw, chh);
+  const fade = ctx.createRadialGradient(cw/2, chh/2, diag2*0.26, cw/2, chh/2, diag2*0.60);
+  fade.addColorStop(0, 'rgba(2,4,12,0)');
+  fade.addColorStop(1, 'rgba(2,4,12,0.55)');
+  ctx.fillStyle = fade;
+  ctx.fillRect(0, 0, cw, chh);
+}
+
+// 배경별 3겹 — 층별 시차·차등 자전·무한 랩어라운드 (scaled 컨텍스트 안에서 호출)
+function drawBgLayers(t, skyA){
+  const vw = canvas.width / scale, vh = canvas.height / scale;
+  for (const L of bgLayers){
+    const a2 = skyA * L.rot;
+    const offX = ((viewX * L.par) % BG_TILE + BG_TILE) % BG_TILE;
+    const offY = ((viewY * L.par) % BG_TILE + BG_TILE) % BG_TILE;
+    for (const s of L.stars){
+      const x = BG_TILE/2 + s.R0 * Math.cos(s.th0 + a2);
+      const y = BG_TILE/2 + s.R0 * Math.sin(s.th0 + a2);
+      let sx0 = ((x - offX) % BG_TILE + BG_TILE) % BG_TILE - BG_TILE;
+      let sy0 = ((y - offY) % BG_TILE + BG_TILE) % BG_TILE - BG_TILE;
+      const twinkle = Math.sin(t * s.twinkleSpeed * 60 + s.twinklePhase);
+      const al = Math.max(0, s.alpha + twinkle * 0.04);
+      ctx.fillStyle = `rgba(255,248,231,${al})`;
+      for (let ox = sx0; ox < vw + BG_TILE; ox += BG_TILE){
+        if (ox < -6) continue;
+        for (let oy = sy0; oy < vh + BG_TILE; oy += BG_TILE){
+          if (oy < -6 || ox > vw + 6 || oy > vh + 6) continue;
+          ctx.beginPath();
+          ctx.arc(ox, oy, s.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+  }
+}
+
 /* ── 달 (0720 소로) — 실제 오늘 위상 + 1시간에 하늘 한 번 횡단(동→서) ── */
 const MOON = { x0: WORLD_W/2 + 880, y: WORLD_H/2 - 720, r: 26, span: WORLD_W + 600 };
 function moonPhase(){
-  const days = (Date.now() - Date.UTC(2000,0,6,18,14)) / 86400000;
-  return ((days / 29.530588) % 1 + 1) % 1;   // 0=삭 · 0.5=보름
+  /* 0722 타원 보정 — 평균 삭망월만 쓰면 ±0.7일 어긋남 (달 궤도가 타원).
+     Meeus 간이 산법: 평균 이각 D에 주요 보정 4항(달·태양 근점이각, evection, variation).
+     실측 대조: 상현 7/21=0.252 · 보름 7/29 14:35UTC=0.500 정각. 0=삭 · 0.5=보름 */
+  const T  = (Date.now()/86400000 - 10957.5) / 36525;   // J2000 기준 율리우스 세기
+  const rad = Math.PI/180;
+  const D  = (297.8501921 + 445267.1114034*T) * rad;    // 평균 이각 (달-태양)
+  const M  = (357.5291092 + 35999.0502909*T)  * rad;    // 태양 평균 근점이각
+  const Mp = (134.9633964 + 477198.8675055*T) * rad;    // 달 평균 근점이각
+  const elong = D/rad
+    + 6.289*Math.sin(Mp) - 2.100*Math.sin(M)
+    + 1.274*Math.sin(2*D - Mp) + 0.658*Math.sin(2*D);
+  return ((elong/360) % 1 + 1) % 1;
 }
 function drawMoon(t){
   const drift = ((t / 3600) % 1) * MOON.span;                 // 1시간 = 1횡단
@@ -2093,8 +2173,10 @@ function loop() {
     }
   }
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawMilkyWay(t);                 // 최원경 — 은하수 (스크린 공간, 초저속 자전 + 시차 15%)
   ctx.save();
   ctx.scale(scale, scale);
+  drawBgLayers(t, skyA);           // 원경·중경·근경 — 배경별 3겹 (시차 + 차등 자전 + 무한)
   drawMoon(t);
   stars.forEach(s => drawStar(s, t));
   ctx.restore();
