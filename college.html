@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>콜레주 드 콤포스텔라</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Gowun+Batang:wght@400;700&family=Noto+Serif+KR:wght@200;300;400;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+ *  콜레주 드 콤포스텔라 셸 v0.2 — 0721
+ *  뷰: 대문(gate) → 메인홀(hall, 임시 실내 — 실사판 대체 예정)
+ *  그림: 저장소 루트 college_gate_{m|d|e|n}.webp (1672×941, 16:9)
+ *  하늘 4구간: 전당(palais) NOAA 계산 이식
+ *  ?edit  → PARIS 명패 편집기 (드래그·휠 크기·좌표 복사)
+ *  ?tod=m|d|e|n → 시간대 강제 (테스트)
+ * ============================================================ */
+:root{
+  --ink-blue:#2E4A7A;          /* 콜레주 종족색 */
+  --gold:#c9a24a; --gold-l:#e9cf9c;
+  --stone:#e8ddc4; --void:#0d0b08;
+  --paper:rgba(24,19,13,.86);
+  /* PARIS 명패 (편집기로 조정 → 값 복사해 여기 갱신) */
+  --paris-x:66.4%; --paris-y:57.5%; --paris-s:1;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;overflow:hidden;background:var(--void);}
+body{font-family:'Gowun Batang','Noto Serif KR',serif;color:var(--stone);
+  -webkit-font-smoothing:antialiased;user-select:none;}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;}
+img{-webkit-user-drag:none;}
+.view{position:fixed;inset:0;opacity:0;pointer-events:none;transition:opacity 1.1s ease;}
+.view.on{opacity:1;pointer-events:auto;}
+
+/* ═════════ 1. 대문 ═════════ */
+#gate{cursor:pointer;z-index:10;}
+#gateBg{position:absolute;inset:0;background:#14100b center/cover no-repeat;
+  transition:background-image .6s ease;}
+.gate-hint{
+  position:absolute;left:50%;bottom:clamp(26px,5vh,60px);transform:translateX(-50%);
+  font-size:clamp(12px,1.3vw,15px);letter-spacing:.26em;text-indent:.26em;
+  color:rgba(233,207,156,0);text-shadow:0 1px 10px rgba(0,0,0,.6);
+  animation:hintIn 2s 1.4s ease forwards;white-space:nowrap;}
+@keyframes hintIn{to{color:rgba(233,207,156,.85);}}
+
+/* PARIS 명패 — 청동판 위 흰 각인 */
+#parisMark{
+  position:absolute;left:var(--paris-x);top:var(--paris-y);
+  transform:translate(-50%,-50%) scale(var(--paris-s));
+  font-family:'Cormorant Garamond',serif;font-weight:500;
+  font-size:clamp(11px,1.35vw,18px);letter-spacing:.42em;text-indent:.42em;
+  color:rgba(250,248,242,.92);text-shadow:0 1px 4px rgba(0,0,0,.55);
+  pointer-events:none;white-space:nowrap;}
+body.editing #parisMark{pointer-events:auto;cursor:grab;
+  outline:1px dashed rgba(233,207,156,.7);outline-offset:8px;}
+body.editing #parisMark:active{cursor:grabbing;}
+#editBadge{
+  position:fixed;top:14px;left:14px;z-index:70;display:none;
+  font-size:11px;letter-spacing:.14em;color:#1a120c;background:var(--gold);
+  padding:5px 12px;border-radius:16px;}
+body.editing #editBadge{display:block;}
+
+/* 진입 — 문틈의 금빛이 화면을 삼킨다 */
+#flash{
+  position:fixed;z-index:60;left:50%;top:56%;
+  width:12px;height:12px;border-radius:50%;
+  background:radial-gradient(circle,#fffdf4 0%,var(--gold-l) 40%,rgba(233,207,156,0) 70%);
+  transform:translate(-50%,-50%) scale(0);opacity:0;pointer-events:none;}
+#flash.go{animation:swallow 2.6s ease forwards;}
+@keyframes swallow{
+  8%{opacity:.9;}
+  100%{transform:translate(-50%,-50%) scale(240);opacity:1;}
+}
+
+/* ═════════ 2. 메인홀 (임시 실내 — 실사판 나오면 대체) ═════════ */
+#hall{background:
+  radial-gradient(ellipse at 50% 0%, rgba(201,162,74,.10) 0%, transparent 55%),
+  linear-gradient(180deg,#1b140d 0%,#14100b 100%);
+  overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;cursor:default;}
+#hall::-webkit-scrollbar{width:4px;}
+#hall::-webkit-scrollbar-thumb{background:rgba(201,162,74,.3);border-radius:2px;}
+.hall-inner{max-width:720px;margin:0 auto;padding:0 20px 100px;}
+
+.hall-head{padding:60px 0 30px;text-align:center;}
+.hall-eyebrow{font-family:'Cormorant Garamond',serif;font-size:12px;
+  letter-spacing:.34em;text-indent:.34em;color:rgba(201,162,74,.75);margin-bottom:14px;}
+.hall-title{font-size:25px;font-weight:700;letter-spacing:.08em;color:#f0e8d4;}
+.hall-sub{font-size:12.5px;color:rgba(232,221,196,.5);margin-top:10px;}
+.hall-rule{width:56px;height:1px;margin:26px auto 0;
+  background:linear-gradient(to right,transparent,var(--gold),transparent);}
+.exit-link{display:inline-flex;gap:6px;margin-top:20px;font-size:11px;
+  letter-spacing:.12em;color:rgba(201,162,74,.6);text-decoration:none;transition:color .2s;}
+.exit-link:hover{color:var(--gold-l);}
+
+.zone{margin-top:44px;}
+.zone-label{font-size:11px;letter-spacing:.24em;color:rgba(201,162,74,.85);
+  margin-bottom:16px;display:flex;align-items:baseline;gap:10px;}
+.zone-label small{letter-spacing:.04em;color:rgba(232,221,196,.35);font-size:11px;}
+
+.panel{background:var(--paper);border:1px solid rgba(201,162,74,.22);
+  border-radius:14px;box-shadow:0 6px 26px rgba(0,0,0,.4);}
+.notice{padding:24px 22px;}
+.notice .empty{text-align:center;color:rgba(232,221,196,.45);font-size:13px;padding:6px 0;line-height:1.9;}
+.cohort-row{display:flex;justify-content:space-between;align-items:center;gap:14px;
+  padding:13px 4px;border-bottom:1px dashed rgba(201,162,74,.2);}
+.cohort-row:last-child{border-bottom:none;}
+.cohort-info b{font-size:14.5px;color:#f0e8d4;}
+.cohort-info .meta{font-size:11.5px;color:rgba(232,221,196,.45);margin-top:3px;}
+.cohort-badge{display:inline-block;font-size:10px;letter-spacing:.08em;
+  border-radius:20px;padding:2px 10px;margin-left:7px;vertical-align:2px;}
+.badge-announced{background:rgba(201,162,74,.15);color:var(--gold-l);}
+.badge-recruiting{background:rgba(46,74,122,.4);color:#b9cbe8;}
+.btn{border-radius:22px;padding:8px 18px;font-size:12.5px;letter-spacing:.05em;
+  transition:opacity .2s,transform .15s;white-space:nowrap;}
+.btn:active{transform:scale(.97);}
+.btn-primary{background:var(--ink-blue);color:#f2f0ea;}
+.btn-primary:hover{opacity:.85;}
+
+.running-strip{display:flex;gap:14px;overflow-x:auto;padding:4px 2px 10px;}
+.running-strip::-webkit-scrollbar{height:4px;}
+.running-strip::-webkit-scrollbar-thumb{background:rgba(201,162,74,.3);border-radius:2px;}
+.poster{flex-shrink:0;width:150px;background:var(--paper);
+  border:1px solid rgba(201,162,74,.25);border-radius:12px;padding:18px 14px 14px;
+  cursor:pointer;transition:transform .2s,border-color .2s;}
+.poster:hover{transform:translateY(-2px);border-color:rgba(201,162,74,.5);}
+.poster b{font-size:13px;display:block;line-height:1.5;color:#f0e8d4;}
+.poster .p-author{font-size:11px;color:rgba(232,221,196,.45);margin-top:5px;}
+.poster .p-meta{font-size:10.5px;color:var(--gold-l);margin-top:10px;letter-spacing:.04em;}
+
+/* 서가 */
+.stream{background:var(--paper);border:1px solid rgba(201,162,74,.22);
+  border-radius:14px;margin-bottom:14px;overflow:hidden;}
+.stream-head{display:flex;align-items:baseline;gap:12px;padding:17px 20px;cursor:pointer;}
+.stream-head:hover{background:rgba(201,162,74,.06);}
+.stream-num{font-family:'Cormorant Garamond',serif;font-size:17px;
+  color:var(--gold-l);width:30px;flex-shrink:0;}
+.stream-name{font-size:15px;font-weight:700;letter-spacing:.05em;flex:1;color:#f0e8d4;}
+.stream-count{font-size:11.5px;color:rgba(232,221,196,.35);letter-spacing:.05em;}
+.stream-arrow{font-size:11px;color:rgba(201,162,74,.5);transition:transform .25s;}
+.stream.open .stream-arrow{transform:rotate(90deg);}
+.stream-body{display:none;border-top:1px solid rgba(201,162,74,.14);}
+.stream.open .stream-body{display:block;}
+.subgroup-label{font-size:10.5px;letter-spacing:.18em;color:rgba(185,203,232,.55);
+  padding:14px 20px 4px;}
+.book-row{display:flex;align-items:center;gap:12px;padding:9px 20px;
+  border-bottom:1px solid rgba(201,162,74,.08);font-size:13.5px;}
+.book-row:hover{background:rgba(46,74,122,.12);}
+.book-title{flex:1;line-height:1.5;color:rgba(240,232,212,.92);}
+.book-title .mark{color:var(--gold-l);font-size:12px;margin-left:4px;}
+.book-author{font-size:11.5px;color:rgba(232,221,196,.4);white-space:nowrap;}
+.book-weeks{font-size:10.5px;color:#b9cbe8;white-space:nowrap;width:46px;text-align:right;
+  font-family:'Cormorant Garamond',serif;letter-spacing:.02em;}
+.bell-btn{font-size:14px;padding:3px 6px;border-radius:8px;
+  display:inline-flex;align-items:center;gap:3px;
+  color:rgba(232,221,196,.3);transition:background .15s;}
+.bell-btn:hover{background:rgba(201,162,74,.14);}
+.bell-btn.mine{color:var(--gold-l);}
+.bell-btn .cnt{font-size:10.5px;}
+
+/* 종 손패 */
+.bell-hand{position:fixed;right:18px;bottom:18px;z-index:20;
+  background:var(--paper);border:1px solid rgba(201,162,74,.35);
+  border-radius:24px;padding:9px 16px;box-shadow:0 4px 18px rgba(0,0,0,.5);
+  font-size:12px;display:none;align-items:center;gap:7px;color:rgba(232,221,196,.85);}
+.bell-hand.show{display:inline-flex;}
+.bell-hand b{color:var(--gold-l);}
+
+/* 모달·토스트 */
+.modal-bg{position:fixed;inset:0;z-index:50;background:rgba(8,6,4,.6);
+  display:none;align-items:center;justify-content:center;padding:24px;}
+.modal-bg.show{display:flex;}
+.modal{background:#1e160e;border:1px solid rgba(201,162,74,.35);border-radius:16px;
+  max-width:360px;width:100%;padding:32px 28px;text-align:center;
+  box-shadow:0 12px 44px rgba(0,0,0,.6);}
+.modal-icon{font-size:30px;margin-bottom:12px;}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:10px;color:#f0e8d4;}
+.modal-body{font-size:13px;color:rgba(232,221,196,.65);margin-bottom:22px;line-height:1.8;}
+#toast{position:fixed;left:50%;bottom:76px;transform:translateX(-50%);z-index:60;
+  background:rgba(240,232,212,.94);color:#241a10;font-size:12.5px;
+  padding:10px 20px;border-radius:22px;opacity:0;pointer-events:none;
+  transition:opacity .3s;max-width:88vw;text-align:center;}
+#toast.show{opacity:1;}
+
+:focus-visible{outline:2px solid var(--gold-l);outline-offset:3px;}
+@media (max-width:480px){ .book-author{display:none;} .hall-title{font-size:21px;} }
+@media (prefers-reduced-motion:reduce){
+  #flash.go{animation:none;opacity:0;}
+  .gate-hint{animation:none;color:rgba(233,207,156,.85);}
+}
+</style>
+</head>
+<body>
+
+<!-- ═════ 대문 ═════ -->
+<div class="view on" id="gate" role="button" aria-label="콜레주 입장">
+  <div id="gateBg"></div>
+  <div id="parisMark">PARIS</div>
+  <div class="gate-hint">문을 두드리세요</div>
+</div>
+<div id="flash"></div>
+<div id="editBadge">명패 편집 — 드래그 이동 · 휠 크기 · E 좌표복사</div>
+
+<!-- ═════ 메인홀 (임시 실내) ═════ -->
+<div class="view" id="hall">
+  <div class="hall-inner">
+    <header class="hall-head">
+      <div class="hall-eyebrow">COLLÈGE DE COMPOSTELLA</div>
+      <h1 class="hall-title">콜레주 드 콤포스텔라</h1>
+      <p class="hall-sub">273권의 서가에 매달 새 배가 뜹니다</p>
+      <div class="hall-rule"></div>
+      <a class="exit-link" href="terra.html" target="_top">← 지구로</a>
+    </header>
+
+    <section class="zone">
+      <div class="zone-label">이번 달의 배 <small>모집 · 안내</small></div>
+      <div class="panel notice" id="notice-zone">
+        <div class="empty">개관 준비 중입니다<br>9월 6일, 서가의 문이 열립니다</div>
+      </div>
+    </section>
+
+    <section class="zone" id="running-zone" style="display:none">
+      <div class="zone-label">항해 중 <small>진행 중인 북클럽</small></div>
+      <div class="running-strip" id="running-strip"></div>
+    </section>
+
+    <section class="zone">
+      <div class="zone-label">273의 서가 <small>일곱 강줄기 · 종을 달아 다음 배를 부르세요</small></div>
+      <div id="shelf"></div>
+    </section>
+  </div>
+</div>
+
+<div class="bell-hand" id="bell-hand">🔔 내 종 <b id="bell-used">0</b> / 5</div>
+
+<div class="modal-bg" id="gate-modal">
+  <div class="modal">
+    <div class="modal-icon">🔔</div>
+    <div class="modal-title">연구원의 문</div>
+    <div class="modal-body">
+      종을 달고 배에 오르는 일은<br>연구원(월 29,000원)부터 가능합니다.<br>
+      서가는 언제나 열려 있으니, 천천히 둘러보세요.
+    </div>
+    <button class="btn btn-primary" onclick="closeGateModal()">둘러볼게요</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth: { storageKey: 'eungyo-auth' }
+});
+
+/* ══ 하늘 4구간 — 전당(palais) NOAA 이식 ══ */
+function sunTimesKST(){
+  const LAT=37.5665, LNG=126.9780;
+  const now=new Date();
+  const kst=new Date(now.getTime()+(9*60+now.getTimezoneOffset())*60000);
+  const N=Math.floor((Date.UTC(kst.getFullYear(),kst.getMonth(),kst.getDate())-Date.UTC(kst.getFullYear(),0,0))/86400000);
+  const g=2*Math.PI/365*(N-1+(kst.getHours()-12)/24);
+  const eqt=229.18*(0.000075+0.001868*Math.cos(g)-0.032077*Math.sin(g)-0.014615*Math.cos(2*g)-0.040849*Math.sin(2*g));
+  const decl=0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)-0.006758*Math.cos(2*g)+0.000907*Math.sin(2*g)-0.002697*Math.cos(3*g)+0.00148*Math.sin(3*g);
+  const rad=Math.PI/180;
+  const cosH=(Math.cos(rad*90.833)/(Math.cos(rad*LAT)*Math.cos(decl)))-Math.tan(rad*LAT)*Math.tan(decl);
+  if(cosH>=1)  return {rise:24,set:24,kst};
+  if(cosH<=-1) return {rise:0, set:24,kst};
+  const ha=Math.acos(cosH)/rad;
+  return { rise:((720-4*(LNG+ha)-eqt)/60+9+24)%24, set:((720-4*(LNG-ha)-eqt)/60+9+24)%24, kst };
+}
+function todPhase(){
+  const s=sunTimesKST();
+  const h=s.kst.getHours()+s.kst.getMinutes()/60;
+  const inSpan=(x,a,b)=> a<=b ? (x>=a&&x<b) : (x>=a||x<b);
+  const mS=(s.rise-2+24)%24, mE=(s.rise+2)%24, dE=(s.set-2+24)%24;
+  if(inSpan(h,mS,mE)) return 'm';
+  if(inSpan(h,mE,dE)) return 'd';
+  if(inSpan(h,dE,s.set%24)) return 'e';
+  return 'n';
+}
+/* 그림 물리기 — 시간대판 없으면 낮판 폴백 */
+function setBgChain(el,cands){
+  const step=i=>{
+    if(i>=cands.length) return;
+    const im=new Image();
+    im.onload=()=>{ el.style.backgroundImage=`url(${cands[i]})`; };
+    im.onerror=()=>step(i+1);
+    im.src=cands[i];
+  };
+  step(0);
+}
+
+/* ══ 대문 ══ */
+const P=new URLSearchParams(location.search);
+const TOD=['m','d','e','n'].includes(P.get('tod')) ? P.get('tod') : todPhase();
+setBgChain(document.getElementById('gateBg'),
+  [`college_gate_${TOD}.webp`,'college_gate_d.webp']);
+
+let entered=false;
+document.getElementById('gate').addEventListener('click', e=>{
+  if(document.body.classList.contains('editing')) return;
+  if(entered) return; entered=true;
+  const flash=document.getElementById('flash');
+  flash.classList.add('go');
+  setTimeout(()=>{
+    document.getElementById('gate').classList.remove('on');
+    document.getElementById('hall').classList.add('on');
+  }, 1500);
+  setTimeout(()=>{ flash.classList.remove('go'); flash.style.opacity=0; }, 2800);
+});
+
+/* ══ PARIS 명패 편집기 (?edit) ══ */
+if(P.has('edit')){
+  document.body.classList.add('editing');
+  const mark=document.getElementById('parisMark');
+  const gate=document.getElementById('gate');
+  let drag=null;
+  const getV=n=>parseFloat(getComputedStyle(document.documentElement).getPropertyValue(n));
+  mark.addEventListener('pointerdown',e=>{
+    e.stopPropagation();
+    drag={sx:e.clientX,sy:e.clientY,x:getV('--paris-x'),y:getV('--paris-y')};
+    mark.setPointerCapture(e.pointerId);
+  });
+  mark.addEventListener('pointermove',e=>{
+    if(!drag) return;
+    const r=gate.getBoundingClientRect();
+    document.documentElement.style.setProperty('--paris-x',(drag.x+(e.clientX-drag.sx)/r.width*100).toFixed(2)+'%');
+    document.documentElement.style.setProperty('--paris-y',(drag.y+(e.clientY-drag.sy)/r.height*100).toFixed(2)+'%');
+  });
+  mark.addEventListener('pointerup',()=>{drag=null;});
+  window.addEventListener('wheel',e=>{
+    const s=Math.max(.4,Math.min(3,getV('--paris-s')+(e.deltaY<0?.05:-.05)));
+    document.documentElement.style.setProperty('--paris-s',s.toFixed(2));
+  },{passive:true});
+  window.addEventListener('keydown',e=>{
+    if(e.key.toLowerCase()!=='e') return;
+    const v=`--paris-x:${getV('--paris-x')}%; --paris-y:${getV('--paris-y')}%; --paris-s:${getV('--paris-s')};`;
+    navigator.clipboard && navigator.clipboard.writeText(v);
+    toast('복사됨 → '+v);
+  });
+}
+
+/* ══ 홀 데이터 (v0.1 장기 이식) ══ */
+const BELL_LIMIT = 5;
+const STREAMS = ['I. 문학','II. 시와 극','III. 철학과 사상','IV. 역사','V. 자연','VI. 예술','VII. 삶의 기록'];
+const ROMAN = {'I. 문학':'Ⅰ','II. 시와 극':'Ⅱ','III. 철학과 사상':'Ⅲ','IV. 역사':'Ⅳ','V. 자연':'Ⅴ','VI. 예술':'Ⅵ','VII. 삶의 기록':'Ⅶ'};
+
+let currentUser=null, userTier=null, books=[], bellCounts={}, myBells=new Set(), busy=false;
+
+async function init(){
+  const { data:{ user } } = await supa.auth.getUser();
+  currentUser=user;
+  if(user){
+    const { data:u } = await supa.from('users').select('tier').eq('id',user.id).single();
+    userTier = u ? u.tier : 'member';
+  }
+  await Promise.all([loadBooks(), loadBells(), loadCohorts()]);
+  renderShelf(); renderBellHand();
+}
+async function loadBooks(){
+  const { data, error } = await supa.from('college_books')
+    .select('id,title,author,stream,subgroup,weeks_raw,founding,reserved,status,sort_order')
+    .order('sort_order');
+  if(error){ toast('서가를 불러오지 못했습니다'); return; }
+  books = data || [];
+}
+async function loadBells(){
+  const { data } = await supa.from('college_bells').select('book_id,user_id').eq('status','active');
+  bellCounts={}; myBells=new Set();
+  (data||[]).forEach(b=>{
+    bellCounts[b.book_id]=(bellCounts[b.book_id]||0)+1;
+    if(currentUser && b.user_id===currentUser.id) myBells.add(b.book_id);
+  });
+}
+async function loadCohorts(){
+  const { data } = await supa.from('college_cohorts')
+    .select('id,book_id,cohort_no,kind,status,start_date,apply_end')
+    .in('status',['announced','recruiting','running']);
+  const cohorts=data||[];
+  renderNotice(cohorts.filter(c=>c.status!=='running'));
+  renderRunning(cohorts.filter(c=>c.status==='running'));
+}
+function renderNotice(list){
+  const zone=document.getElementById('notice-zone');
+  if(!list.length) return;
+  const bookOf=id=>books.find(b=>b.id===id)||{};
+  zone.innerHTML=list.map(c=>{
+    const b=bookOf(c.book_id);
+    const isAnn=c.status==='announced';
+    const badge=isAnn
+      ?'<span class="cohort-badge badge-announced">다음 달 공개</span>'
+      :'<span class="cohort-badge badge-recruiting">예약 중</span>';
+    const btn=isAnn?'':`<button class="btn btn-primary" onclick="reserve(${c.id})">예약하기</button>`;
+    return `<div class="cohort-row"><div class="cohort-info"><b>${esc(b.title||'')}</b>${badge}
+      <div class="meta">${esc(b.author||'')} · ${esc(b.weeks_raw||'')} 여정 · ${c.cohort_no}기${c.start_date?' · '+c.start_date+' 출항':''}</div>
+      </div>${btn}</div>`;
+  }).join('');
+}
+function renderRunning(list){
+  if(!list.length) return;
+  document.getElementById('running-zone').style.display='';
+  const bookOf=id=>books.find(b=>b.id===id)||{};
+  document.getElementById('running-strip').innerHTML=list.map(c=>{
+    const b=bookOf(c.book_id);
+    return `<div class="poster"><b>${esc(b.title||'')}</b>
+      <div class="p-author">${esc(b.author||'')}</div>
+      <div class="p-meta">${c.cohort_no}기 · 항해 중</div></div>`;
+  }).join('');
+}
+function renderShelf(){
+  const shelf=document.getElementById('shelf');
+  shelf.innerHTML=STREAMS.map((s,si)=>{
+    const rows=books.filter(b=>b.stream===s);
+    let html='', lastSub=null;
+    rows.forEach(b=>{
+      if(b.subgroup!==lastSub){
+        html+=`<div class="subgroup-label">${esc(b.subgroup||'')}</div>`;
+        lastSub=b.subgroup;
+      }
+      const mark=(b.founding?'<span class="mark">★</span>':'')+(b.reserved?'<span class="mark">◎</span>':'');
+      const cnt=bellCounts[b.id]||0;
+      const mine=myBells.has(b.id);
+      html+=`<div class="book-row">
+        <div class="book-title">${esc(b.title)}${mark}</div>
+        <div class="book-author">${esc(b.author||'')}</div>
+        <div class="book-weeks">${esc(b.weeks_raw||'')}</div>
+        <button class="bell-btn ${mine?'mine':''}" onclick="toggleBell(${b.id})"
+          title="${mine?'종 거두기':'종 달기'}">🔔${cnt?`<span class="cnt">${cnt}</span>`:''}</button>
+      </div>`;
+    });
+    return `<div class="stream" id="stream-${si}">
+      <div class="stream-head" onclick="toggleStream(${si})">
+        <span class="stream-num">${ROMAN[s]}</span>
+        <span class="stream-name">${s.replace(/^[IVX]+\. /,'')}</span>
+        <span class="stream-count">${rows.length}권</span>
+        <span class="stream-arrow">▶</span>
+      </div>
+      <div class="stream-body">${html}</div>
+    </div>`;
+  }).join('');
+}
+function toggleStream(i){ document.getElementById('stream-'+i).classList.toggle('open'); }
+
+async function toggleBell(bookId){
+  if(busy) return;
+  if(!currentUser){ toast('로그인 후 종을 달 수 있습니다'); return; }
+  if(userTier==='member'){ openGateModal(); return; }
+  busy=true;
+  try{
+    if(myBells.has(bookId)){
+      const { error } = await supa.from('college_bells')
+        .update({ status:'withdrawn', released_at:new Date().toISOString() })
+        .eq('user_id',currentUser.id).eq('book_id',bookId).eq('status','active');
+      if(error) throw error;
+      toast('종을 거두었습니다 — 손에 돌아왔습니다');
+    }else{
+      if(myBells.size>=BELL_LIMIT){
+        toast(`활성 종은 ${BELL_LIMIT}개까지입니다 — 하나를 거두고 옮겨 달 수 있어요`);
+        busy=false; return;
+      }
+      const { error } = await supa.from('college_bells')
+        .insert({ user_id:currentUser.id, book_id:bookId });
+      if(error) throw error;
+      toast('종을 달았습니다 — 열리면 걷겠다는 예약입니다');
+    }
+    await loadBells(); renderShelf(); renderBellHand();
+  }catch(e){
+    toast(e.message && e.message.includes('BELL_LIMIT')
+      ? '활성 종은 5개까지입니다' : '잠시 후 다시 시도해 주세요');
+  }
+  busy=false;
+}
+async function reserve(cohortId){
+  if(!currentUser){ toast('로그인 후 예약할 수 있습니다'); return; }
+  if(userTier==='member'){ openGateModal(); return; }
+  const { error } = await supa.from('college_enrollments')
+    .insert({ cohort_id:cohortId, user_id:currentUser.id, status:'reserved' });
+  if(error){
+    toast(error.code==='23505' ? '이미 이 배에 예약하셨습니다' : '잠시 후 다시 시도해 주세요');
+    return;
+  }
+  toast('예약되었습니다 — 21일에 좌석 확정이 열립니다');
+}
+function renderBellHand(){
+  const hand=document.getElementById('bell-hand');
+  if(currentUser && userTier!=='member'){
+    document.getElementById('bell-used').textContent=myBells.size;
+    hand.classList.add('show');
+  } else hand.classList.remove('show');
+}
+function openGateModal(){ document.getElementById('gate-modal').classList.add('show'); }
+function closeGateModal(){ document.getElementById('gate-modal').classList.remove('show'); }
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._tm); t._tm=setTimeout(()=>t.classList.remove('show'),2600);
+}
+function esc(s){
+  return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+init();
+</script>
+</body>
+</html>
