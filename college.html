@@ -112,11 +112,12 @@ body.editing .corner-left{background:var(--gold);color:#1a120c;border-color:var(
 .slab::after{content:'';position:absolute;left:0;right:0;top:50%;height:1px;
   background:linear-gradient(to right,transparent,rgba(201,162,74,.25),transparent);}
 
-/* 층 배경 겹 (패럴랙스 대상) */
-.f-bg{position:absolute;left:0;top:0;width:100%;height:160vh;
+/* 층 배경 겹 (패럴랙스 대상) — 그림 전체(941×1672)를 꼭대기→바닥 종주 */
+.f-bg{position:absolute;left:0;top:0;width:100%;
+  aspect-ratio:941/1672;height:auto;min-height:120vh;
   background-repeat:no-repeat;background-size:cover;background-position:center top;
   will-change:transform;pointer-events:none;}
-.f-bg.static{height:100%;background-position:center;}
+.f-bg.static{height:100%;aspect-ratio:auto;min-height:0;background-position:center;}
 /* 배경 폴백 (그림 없을 때) */
 .f-fallback{background-image:
   radial-gradient(ellipse at 50% 0%, rgba(201,162,74,.10) 0%, transparent 55%),
@@ -279,29 +280,30 @@ body.hall-editing .hall-compass{background:var(--gold);color:#1a120c;border-colo
 .btn-primary:hover{opacity:.85;}
 
 /* ── 2층 273 서가 (패럴랙스) ── */
+:root{--sp-h:clamp(150px,24vh,250px);}   /* 책등 기준 높이 (0722 확대) */
 .lib-head{padding:70px 20px 8px;text-align:center;}
 .lib-head .hall-eyebrow{margin-bottom:8px;}
 .lib-sub{font-size:11.5px;color:rgba(240,232,212,.65);margin-top:8px;
   text-shadow:0 1px 6px rgba(0,0,0,.7);line-height:1.8;}
-.shelfwall{max-width:720px;margin:22px auto 0;padding:0 12px 40px;}
-.case{margin-bottom:6px;}
-.case-row{display:flex;align-items:flex-end;justify-content:center;gap:2px;
-  padding:0 10px;min-height:calc(clamp(96px,17vh,170px) + 6px);}
-.spine{height:clamp(96px,17vh,170px);width:auto;max-width:9.2%;
+.shelfwall{max-width:700px;margin:22px auto 0;padding:0 8px 40px;}
+.case{margin-bottom:4px;}
+.case-row{display:flex;align-items:flex-end;justify-content:center;gap:0;
+  padding:0 4px;min-height:calc(var(--sp-h) + 6px);}
+.spine{height:var(--sp-h);width:auto;max-width:10%;
   object-fit:contain;object-position:bottom;cursor:pointer;
   filter:drop-shadow(0 3px 5px rgba(0,0,0,.55));
   transition:transform .22s ease;}
-.spine:hover{transform:translateY(-7px);}
+.spine:hover{transform:translateY(-8px);}
 .spine.ghost{opacity:0;pointer-events:none;}   /* 마지막 칸 자리맞춤 */
 /* 선반 널 — CSS 오크 */
-.plank{height:13px;border-radius:2px;margin-top:-2px;position:relative;
+.plank{height:14px;border-radius:2px;margin:-2px 2px 0;position:relative;
   background:linear-gradient(180deg,#5a4020 0%,#3d2a13 42%,#2a1c0c 100%);
   box-shadow:0 5px 12px rgba(0,0,0,.55), inset 0 1px 0 rgba(201,162,74,.28);}
 .plank::after{content:'';position:absolute;left:0;right:0;bottom:-4px;height:4px;
   background:linear-gradient(180deg,rgba(0,0,0,.4),transparent);}
 .case-label{font-family:'Cormorant Garamond',serif;font-size:10.5px;
   letter-spacing:.18em;color:rgba(233,207,156,.45);text-align:right;
-  padding:3px 14px 12px 0;}
+  padding:3px 10px 10px 0;}
 .lib-tail{text-align:center;padding:10px 20px 130px;font-size:11.5px;
   color:rgba(233,207,156,.55);line-height:2;text-shadow:0 1px 6px rgba(0,0,0,.7);}
 
@@ -586,6 +588,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   auth: { storageKey: 'eungyo-auth' }
 });
 const SPINE = id => `${SUPA_URL}/storage/v1/object/public/college-assets/spines/spine_${id}.webp`;
+const ASSET = p => `${SUPA_URL}/storage/v1/object/public/college-assets/${p}`;
 
 /* ══ 하늘 4구간 — 전당(palais) NOAA 이식 ══ */
 function sunTimesKST(){
@@ -672,8 +675,6 @@ async function loadHallLayout(){
 }
 loadHallLayout();
 
-const ASSET = p => `${SUPA_URL}/storage/v1/object/public/college-assets/${p}`;
-
 /* 건물 정렬 — 단면은 3·2·1층(위→아래), 카메라는 1층에서 시작 */
 function positionFloors(instant){
   const fl=document.getElementById('floors');
@@ -742,10 +743,10 @@ async function goFloor(n){
   });
   await new Promise(r=>setTimeout(r,1750));
 
-  /* 3악장 — 도착 층 안에서 시선이 걸어 들어간다 */
+  /* 3악장 — 도착 층 안에서 시선이 걸어 들어간다 (올라감 = 벽면 문턱 정지) */
   if(scTo){
     wireParallax(n);
-    await smoothScroll(scTo, up?0:scTo.scrollHeight-scTo.clientHeight, 1150);
+    await smoothScroll(scTo, up?arrivalTop(n):scTo.scrollHeight-scTo.clientHeight, 1150);
   }
   document.body.classList.remove('moving');
   elevating=false;
@@ -753,19 +754,30 @@ async function goFloor(n){
 window.addEventListener('resize',()=>{ positionFloors(true); parallaxCalcAll(); });
 
 /* ══ 패럴랙스 — 2층 전용 (1층은 그림=본문, 벽과 한 몸)
- *  속도비 = (배경높이-화면) / (본문전체-화면)
- *  → 본문 끝에 닿는 순간 배경도 정확히 바닥에 닿는다 (0722 소로 방정식) ══ */
+ *  배경은 그림 전체 높이를 실측, 속도비 = (배경높이-화면)/(본문전체-화면)
+ *  → 서가 끝에 닿는 순간 배경 그림도 정확히 바닥에 닿는다 (0722 소로 방정식) ══ */
 const PX={};   /* n → {sc,bg,ratio,wired} */
 function parallaxCalc(n){
   const sc=scOf(n), bg=document.getElementById('bg'+(n+1));
   if(!sc||!bg) return;
-  const vh=window.innerHeight, bgH=vh*1.6;
-  bg.style.height=bgH+'px';
+  const vh=window.innerHeight;
+  const bgH=Math.max(bg.offsetHeight, vh);   /* CSS aspect-ratio 실측 */
   const span=sc.scrollHeight-sc.clientHeight;
   PX[n]=PX[n]||{sc,bg,wired:false};
   PX[n].ratio = span>0 ? (bgH-vh)/span : 0;
 }
 function parallaxCalcAll(){ [1].forEach(parallaxCalc); }
+
+/* 도착 지점 — 2층은 천장이 아니라 벽면(서가 첫 칸) 문턱에서 멈춘다 */
+function arrivalTop(n){
+  if(n===1){
+    const sw=document.getElementById('shelfwall');
+    const sc=scOf(1);
+    if(sw&&sc) return Math.max(0, Math.min(sw.offsetTop - window.innerHeight*0.12,
+                                           sc.scrollHeight-sc.clientHeight));
+  }
+  return 0;
+}
 function wireParallax(n){
   parallaxCalc(n);
   const p=PX[n]; if(!p||p.wired) return; p.wired=true;
@@ -1088,10 +1100,13 @@ function renderShelf(){
   for(let i=0;i<books.length;i+=PER_SHELF){
     const row=books.slice(i,i+PER_SHELF);
     const caseNo=i/PER_SHELF+1;
-    let cells=row.map(b=>
-      `<img class="spine" loading="lazy" src="${SPINE(b.id)}"
-        alt="${esc(b.title)}" onclick="openBook(${b.id})"
-        onerror="this.style.display='none'">`).join('');
+    let cells=row.map(b=>{
+      /* 책마다 키 변주 — id 결정론 해시로 88~100% (실물 서가의 들쭉날쭉) */
+      const f=(88+((b.id*7919)%13))/100;
+      return `<img class="spine" loading="lazy" src="${SPINE(b.id)}"
+        alt="${esc(b.title)}" style="height:calc(var(--sp-h)*${f})"
+        onclick="openBook(${b.id})" onerror="this.style.display='none'">`;
+    }).join('');
     /* 마지막 칸 자리맞춤 — 투명 유령으로 폭 유지 */
     for(let g=row.length; g<PER_SHELF; g++){
       cells+=`<img class="spine ghost" src="${SPINE(books[0].id)}" alt="">`;
