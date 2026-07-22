@@ -827,6 +827,12 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   });
   if (window.EGCrashGuard) viewer.canvas.addEventListener('webglcontextlost', EGCrashGuard.markWebGL);  // 0706 GPU 폭발 확정
 
+  /* ── 0722 소로 발주 후속: 어제 조명은 켰지만 시계가 안 돌아 태양이 로드 시각에 얼어있던 문제 ──
+     기본 Clock은 shouldAnimate=false로 시작해 currentTime이 흐르지 않는다.
+     SYSTEM_CLOCK: currentTime이 항상 실제 지금 이 순간을 그대로 따라감(멀티플라이어 무관, flightradar24 방식) */
+  viewer.clock.clockStep = Cesium.ClockStep.SYSTEM_CLOCK;
+  viewer.clock.shouldAnimate = true;
+
   const s = viewer.scene;
   s.skyAtmosphere.show = true;
   s.globe.show = true;
@@ -834,6 +840,16 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   s.globe.showGroundAtmosphere = true;
   s.backgroundColor = Cesium.Color.fromCssColorString("#05070f");
   if (s.fog) s.fog.enabled = true;
+
+  /* ── 0722 소로 발주: "밤엔 밤의 하늘이 뜨게" — 실시간 낮밤 조명 ──
+     enableLighting=true: 태양 실제 위치에 따라 지형(실사 타일 포함)에 명암 부여
+     dynamicAtmosphereLighting: 대기·지평선도 태양 각도 따라 황혼·밤빛 반응
+     각 지점의 로컬 시간대 기준(Cesium 실제 천문 계산) — 파리는 파리 시각으로 밤낮 판정 */
+  s.globe.enableLighting = true;
+  s.globe.dynamicAtmosphereLighting = true;
+  s.globe.dynamicAtmosphereLightingFromSun = true;
+  if (s.skyAtmosphere) s.skyAtmosphere.dynamicLighting = Cesium.DynamicAtmosphereLightingType.SUNLIGHT;
+  if (s.moon) s.moon.show = true;   // 밤에 뜨는 Cesium 기본 달 — 콘스텔라티오 전용 달과는 별개
 
   // ── 세계지도 입히기 (고공에서 '어느 나라'인지 보이도록, 어둡게 톤다운) ──
   try{

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>콜레주 자산 관리 — 살롱지기 전용</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Cormorant+Garamond:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+ *  admin_college_assets v1.0 — 0722 · 살롱지기 전용
+ *  배너 2슬롯: college-assets/banners/slot{1|2}.webp (1층 천장)
+ *  포스터:     college-assets/posters/{cohort_id}.webp (1층 무대·상세)
+ *  쓰기 정책: can_write_college_asset (is_admin, SECURITY DEFINER)
+ * ============================================================ */
+:root{--ink:#2E4A7A;--gold:#c9a24a;--gold-l:#e9cf9c;--bg:#14100b;--paper:#1e160e;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:#e8ddc4;font-family:'Gowun Batang',serif;
+  min-height:100vh;padding:36px 18px 80px;}
+.wrap{max-width:680px;margin:0 auto;}
+h1{font-size:20px;letter-spacing:.06em;color:#f0e8d4;}
+.eyebrow{font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:.3em;
+  color:rgba(201,162,74,.8);margin-bottom:8px;}
+.sub{font-size:12px;color:rgba(232,221,196,.5);margin-top:8px;line-height:1.8;}
+.card{background:var(--paper);border:1px solid rgba(201,162,74,.25);
+  border-radius:14px;padding:22px;margin-top:22px;}
+h2{font-size:13px;letter-spacing:.18em;color:var(--gold-l);margin-bottom:6px;}
+.hint{font-size:11.5px;color:rgba(232,221,196,.45);line-height:1.8;margin-bottom:16px;}
+.slot-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.slot{border:1px dashed rgba(201,162,74,.35);border-radius:12px;
+  padding:12px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;}
+.slot:hover,.slot.drag{border-color:var(--gold-l);background:rgba(201,162,74,.06);}
+.slot img{max-width:100%;max-height:190px;border-radius:6px;display:block;margin:0 auto 10px;}
+.slot .s-name{font-size:12px;color:var(--gold-l);letter-spacing:.1em;}
+.slot .s-state{font-size:11px;color:rgba(232,221,196,.45);margin-top:6px;}
+.row{display:flex;align-items:center;gap:14px;padding:13px 4px;
+  border-bottom:1px dashed rgba(201,162,74,.18);}
+.row:last-child{border-bottom:none;}
+.row .thumb{width:52px;height:70px;border-radius:5px;object-fit:cover;
+  background:rgba(46,74,122,.3);flex-shrink:0;}
+.row .info{flex:1;min-width:0;}
+.row .info b{font-size:13.5px;color:#f0e8d4;display:block;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.row .meta{font-size:11px;color:rgba(232,221,196,.45);margin-top:3px;}
+.badge{display:inline-block;font-size:9.5px;letter-spacing:.06em;border-radius:12px;
+  padding:2px 8px;margin-left:6px;vertical-align:1px;}
+.b-ann{background:rgba(201,162,74,.15);color:var(--gold-l);}
+.b-rec{background:rgba(46,74,122,.45);color:#c3d2ec;}
+.b-run{background:rgba(30,132,73,.3);color:#bfe8cf;}
+.btn{font:inherit;font-size:11.5px;letter-spacing:.06em;color:#f2f0ea;
+  background:var(--ink);border:none;border-radius:18px;padding:7px 14px;
+  cursor:pointer;white-space:nowrap;}
+.btn:hover{opacity:.85;}
+.btn.ghost{background:none;border:1px solid rgba(201,162,74,.4);color:rgba(233,207,156,.85);}
+.empty{text-align:center;font-size:12.5px;color:rgba(232,221,196,.45);
+  padding:18px 0;line-height:1.9;}
+#gateMsg{margin-top:60px;text-align:center;font-size:13px;
+  color:rgba(232,221,196,.6);line-height:2;}
+#toast{position:fixed;left:50%;bottom:40px;transform:translateX(-50%);z-index:60;
+  background:rgba(240,232,212,.94);color:#241a10;font-size:12.5px;
+  padding:10px 20px;border-radius:22px;opacity:0;pointer-events:none;
+  transition:opacity .3s;max-width:88vw;text-align:center;}
+#toast.show{opacity:1;}
+input[type=file]{display:none;}
+a.back{font-size:11px;color:rgba(201,162,74,.7);text-decoration:none;letter-spacing:.1em;}
+a.back:hover{color:var(--gold-l);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">COLLÈGE DE COMPOSTELLA · 학장실</div>
+  <h1>🏛 콜레주 자산 관리</h1>
+  <p class="sub">1층 천장 배너와 클래스 포스터를 겁니다 — 올리면 셸이 즉시 알아봅니다.<br>
+  <a class="back" href="college.html">→ 콜레주로 가서 확인</a></p>
+
+  <div id="gateMsg" style="display:none"></div>
+
+  <div id="panel" style="display:none">
+    <div class="card">
+      <h2>천장 배너 (2슬롯)</h2>
+      <div class="hint">1층에서 위로 스크롤하면 살랑이는 홍보 배너입니다.
+        세로로 긴 그림 권장(예: 600×1000). 클릭 또는 드래그로 교체 —
+        슬롯을 비우면 셸이 기본 문안 배너로 돌아갑니다.</div>
+      <div class="slot-grid">
+        <div class="slot" data-path="banners/slot1.webp" id="slot1">
+          <div class="s-name">SLOT 1 (좌)</div><div class="s-state">확인 중…</div>
+        </div>
+        <div class="slot" data-path="banners/slot2.webp" id="slot2">
+          <div class="s-name">SLOT 2 (우)</div><div class="s-state">확인 중…</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>클래스 포스터</h2>
+      <div class="hint">기수마다 포스터 한 장 — 1층 무대와 상세 모달에 걸립니다.
+        비율 3:4 권장(예: 900×1200). 포스터가 없으면 셸이 글자 포스터로 대신합니다.</div>
+      <div id="cohortList"><div class="empty">불러오는 중…</div></div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="filePick" accept="image/webp,image/png,image/jpeg">
+<div id="toast"></div>
+
+<script>
+const SUPA_URL='https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth'}});
+const PUB=p=>`${SUPA_URL}/storage/v1/object/public/college-assets/${p}`;
+let pickTarget=null;   /* {path, after} */
+
+function toast(m){const t=document.getElementById('toast');t.textContent=m;
+  t.classList.add('show');clearTimeout(t._tm);t._tm=setTimeout(()=>t.classList.remove('show'),2600);}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+async function init(){
+  const { data:{ user } } = await supa.auth.getUser();
+  const gate=document.getElementById('gateMsg');
+  if(!user){ gate.style.display='block';
+    gate.innerHTML='살롱지기 전용 콘솔입니다.<br>은교살롱에 로그인한 뒤 다시 들러 주세요.'; return; }
+  const { data:u } = await supa.from('users').select('is_admin').eq('id',user.id).single();
+  if(!u || !u.is_admin){ gate.style.display='block';
+    gate.innerHTML='이 문은 살롱지기의 열쇠로만 열립니다. 🗝️'; return; }
+  document.getElementById('panel').style.display='block';
+  refreshSlots(); loadCohorts();
+}
+
+/* ── 배너 슬롯 ── */
+function refreshSlots(){
+  ['slot1','slot2'].forEach(id=>{
+    const el=document.getElementById(id);
+    const path=el.dataset.path;
+    const name=el.querySelector('.s-name').outerHTML;
+    const im=new Image();
+    im.onload=()=>{ el.innerHTML=`<img src="${im.src}">${name}
+      <div class="s-state">걸려 있음 · 클릭해 교체</div>
+      <button class="btn ghost" style="margin-top:8px" onclick="event.stopPropagation();clearAsset('${path}')">내리기</button>`; };
+    im.onerror=()=>{ el.innerHTML=`${name}<div class="s-state">비어 있음 · 클릭해 걸기</div>`; };
+    im.src=PUB(path)+'?v='+Date.now();
+  });
+}
+document.querySelectorAll('.slot').forEach(el=>{
+  el.addEventListener('click',()=>pickFile(el.dataset.path,refreshSlots));
+  el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('drag');});
+  el.addEventListener('dragleave',()=>el.classList.remove('drag'));
+  el.addEventListener('drop',e=>{e.preventDefault();el.classList.remove('drag');
+    if(e.dataTransfer.files[0]) upload(el.dataset.path,e.dataTransfer.files[0],refreshSlots);});
+});
+
+/* ── 기수 포스터 ── */
+async function loadCohorts(){
+  const { data } = await supa.from('college_cohorts')
+    .select('id,book_id,cohort_no,status,start_date').order('id',{ascending:false});
+  const list=data||[];
+  const box=document.getElementById('cohortList');
+  if(!list.length){
+    box.innerHTML='<div class="empty">아직 개설된 기수가 없습니다.<br>기수가 생기면 이 자리에 포스터 걸이가 나타납니다.</div>';
+    return;
+  }
+  const ids=[...new Set(list.map(c=>c.book_id))];
+  const { data:bs } = await supa.from('college_books').select('id,title,author').in('id',ids);
+  const bookOf=id=>(bs||[]).find(b=>b.id===id)||{};
+  const BADGE={announced:['b-ann','다음 달 공개'],recruiting:['b-rec','예약 중'],
+    running:['b-run','항해 중'],closed:['b-ann','닫힘']};
+  box.innerHTML=list.map(c=>{
+    const b=bookOf(c.book_id);
+    const bd=BADGE[c.status]||['b-ann',c.status];
+    return `<div class="row" id="co-${c.id}">
+      <img class="thumb" id="th-${c.id}" alt="">
+      <div class="info"><b>${esc(b.title||'')}<span class="badge ${bd[0]}">${bd[1]}</span></b>
+        <div class="meta">${esc(b.author||'')} · ${c.cohort_no}기${c.start_date?' · '+c.start_date+' 출항':''}</div>
+      </div>
+      <button class="btn" onclick="pickFile('posters/${c.id}.webp',()=>thumb(${c.id}))">포스터</button>
+    </div>`;
+  }).join('');
+  list.forEach(c=>thumb(c.id));
+}
+function thumb(cid){
+  const el=document.getElementById('th-'+cid); if(!el) return;
+  const im=new Image();
+  im.onload=()=>{ el.src=im.src; };
+  im.onerror=()=>{ el.removeAttribute('src'); };
+  im.src=PUB(`posters/${cid}.webp`)+'?v='+Date.now();
+}
+
+/* ── 공용 업로드 ── */
+function pickFile(path, after){
+  pickTarget={path,after};
+  document.getElementById('filePick').click();
+}
+document.getElementById('filePick').addEventListener('change',e=>{
+  if(e.target.files[0] && pickTarget) upload(pickTarget.path,e.target.files[0],pickTarget.after);
+  e.target.value='';
+});
+async function upload(path,file,after){
+  if(file.size>8*1024*1024){ toast('8MB 이하로 부탁드립니다'); return; }
+  toast('올리는 중…');
+  const { error } = await supa.storage.from('college-assets')
+    .upload(path,file,{ upsert:true, contentType:file.type||'image/webp', cacheControl:'300' });
+  if(error){ toast('실패: '+error.message); return; }
+  /* 잘 됐겠지 금지 — 실제로 다시 읽어 확인 */
+  const chk=new Image();
+  chk.onload=()=>{ toast('걸렸습니다 ✔'); after&&after(); };
+  chk.onerror=()=>{ toast('올렸으나 확인 실패 — 새로고침해 보세요'); };
+  chk.src=PUB(path)+'?v='+Date.now();
+}
+async function clearAsset(path){
+  if(!confirm('이 배너를 내릴까요? 셸은 기본 문안 배너로 돌아갑니다.')) return;
+  const { error } = await supa.storage.from('college-assets').remove([path]);
+  if(error){ toast('실패: '+error.message); return; }
+  toast('내렸습니다'); refreshSlots();
+}
+
+init();
+</script>
+</body>
+</html>
