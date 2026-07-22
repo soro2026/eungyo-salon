@@ -2119,15 +2119,23 @@ function drawBgLayers(t, skyA){
   }
 }
 
-/* ── 달 (0720 소로) — 실제 오늘 위상 + 1시간에 하늘 한 번 횡단(동→서) ── */
-/* ── 0723 소로 발주: 달이 퇴근하면 안 돌아옴 + 늘 비슷한 자리 = 신비감 없음 ──
-   기존: 월드좌표 3600칸 여정 中 뷰포트가 일부만 보여줘 "왼쪽 재출근" 구간이 화면 밖 먼 곳을 지남.
-   개선: 은하수처럼 화면 픽셀 공간에서 왕복 → 줌·팬 무관하게 항상 화면 폭 전체를 정직히 왕복(즉시 재출근 보장).
-   MOON_SEED·MOON_CYCLE·MOON_Y_FRAC를 접속마다 무작위 배정 → 시작 위치·속도·고도가 매번 달라짐(신비감). */
-const MOON = { r: 26 };
-const MOON_SEED   = Math.random() * 3000;              // 접속마다 다른 시작 지점
-const MOON_CYCLE  = 2100 + Math.random() * 900;         // 35~50분 사이 무작위 1회 완주 주기
-const MOON_Y_FRAC = 0.16 + Math.random() * 0.14;        // 화면 상단 16~30% 사이 무작위 고도
+/* ── 달 ── 0720 소로 발주 · 0723 새벽 화면공간 이주 · 0723 심야 하늘 합류 ────────────
+   [0723 심야 개정] 소로 진단: "별은 5겹이라 입체인데 달만 화면에 못 박혀 거북하다"
+   실측으로 확인된 깊이 사다리 — 은하수 0.15 · 원경 0.22 · 중경 0.50 · 근경 0.85 · 인물별 1.00 · 달 0.00.
+   하늘에서 가장 가까운 물체가 가장 먼 은하수보다도 안 움직이는 역전 상태였음(달은 ctx.scale 바깥에서
+   그려지고 viewX·viewY·scale을 한 번도 참조하지 않았다). 개정 3종:
+     ① 시차 0.85(근경 겹 동급) + 줌 크기 반응 scale^0.6.
+        화면공간 왕복은 유지 — 0723 새벽 이주의 취지(퇴근한 달의 재출근 보장)는 옳았으므로 지킨다.
+        깊은 줌에서 달이 화면 밖으로 영영 밀려나지 않도록 시차 오프셋에 tanh 포화를 건다.
+     ② 무작위 3종(SEED·CYCLE·Y_FRAC) 전면 폐지 → 실제 천문으로 대체.
+        위상은 Meeus 보정까지 넣어 정직한데 위치만 주사위여서 "거짓말하는 느낌"(소로)이 났다.
+        신비감은 무작위가 아니라 진짜에서 나온다.
+     ③ 달의 바다(maria) 실제 배치 — 토끼를 그리지 않는다. 진짜를 옅게 얹으면 한국 눈에 저절로 보인다. */
+const MOON       = { r: 26 };   // 기준 반경(줌 1.0)
+const MOON_CYCLE = 3600;        // 60분 1회 횡단 — 고정 (0723 소로 확정)
+const MOON_PAR   = 0.85;        // 시차 — 근경 겹과 동급
+const MOON_GAP   = 0.05;        // 월몰~월출 공백 = 주기의 5% ≈ 3분 (0723 소로 승인)
+
 function moonPhase(){
   /* 0722 타원 보정 — 평균 삭망월만 쓰면 ±0.7일 어긋남 (달 궤도가 타원).
      Meeus 간이 산법: 평균 이각 D에 주요 보정 4항(달·태양 근점이각, evection, variation).
@@ -2142,34 +2150,112 @@ function moonPhase(){
     + 1.274*Math.sin(2*D - Mp) + 0.658*Math.sin(2*D);
   return ((elong/360) % 1 + 1) % 1;
 }
+
+/* 밝은 면 윤곽 — 반원 + 터미네이터 타원. 채우기와 클리핑 두 곳에서 같은 길을 써야 하므로 함수로 뺀다. */
+function moonLitPath(sx, sy, r, w, waxing){
+  ctx.beginPath();
+  if (waxing){ ctx.arc(sx, sy, r, -Math.PI/2,  Math.PI/2, false); }   // 오른쪽 반원
+  else       { ctx.arc(sx, sy, r,  Math.PI/2, -Math.PI/2, false); }   // 왼쪽 반원
+  ctx.ellipse(sx, sy, Math.abs(w) * r, r, 0,
+              waxing ?  Math.PI/2 : -Math.PI/2,
+              waxing ? -Math.PI/2 :  Math.PI/2, w > 0);
+  /* 0723 새벽 검거(소로 3일 육안 관측): w<0 → w>0 방향 반전 버그.
+     초승달(w>0)은 터미네이터가 밝은 쪽으로 휘어 반원을 깎고,
+     볼록달(w<0)은 어두운 쪽으로 휘어 반원에 배를 더한다. 이 값 건드리지 말 것. */
+  ctx.closePath();
+}
+
+/* 달의 바다 — 실제 앞면 배치(북쪽 위). [x, y, rx, ry, 진하기] · 반경 1 기준 정규 좌표.
+   토끼의 귀는 풍요·감로주의 바다, 몸통은 고요·맑음의 바다, 절구는 구름의 바다 언저리.
+   일부러 토끼를 그리지 않는다 — 진짜 지형을 얹으면 한국 눈에는 방아 찧는 토끼가,
+   서양 눈에는 사람 얼굴이 보인다. 그것이 이 하늘의 예법. */
+const MARIA = [
+  [-0.30, -0.34, 0.30, 0.24, 0.30],  // 비의 바다 Mare Imbrium
+  [ 0.08, -0.30, 0.20, 0.17, 0.28],  // 맑음의 바다 Mare Serenitatis
+  [ 0.30, -0.06, 0.21, 0.20, 0.30],  // 고요의 바다 Mare Tranquillitatis
+  [ 0.46,  0.16, 0.14, 0.16, 0.26],  // 풍요의 바다 Mare Fecunditatis  ← 토끼 귀
+  [ 0.28,  0.24, 0.10, 0.11, 0.22],  // 감로주의 바다 Mare Nectaris     ← 토끼 귀
+  [ 0.60, -0.34, 0.10, 0.09, 0.24],  // 위난의 바다 Mare Crisium
+  [-0.52,  0.02, 0.26, 0.44, 0.26],  // 폭풍의 대양 Oceanus Procellarum
+  [-0.18,  0.36, 0.17, 0.13, 0.24],  // 구름의 바다 Mare Nubium
+  [-0.44,  0.34, 0.11, 0.10, 0.20]   // 습기의 바다 Mare Humorum
+];
+function drawMaria(sx, sy, r, mul){
+  if (r < 9) return;                                   // 아주 작을 땐 얼룩만 지저분해지므로 생략
+  for (const [mx, my, rx, ry, a] of MARIA){
+    const gx = sx + mx*r, gy = sy + my*r, R = Math.max(rx, ry) * r;
+    const g = ctx.createRadialGradient(gx, gy, R*0.12, gx, gy, R);
+    g.addColorStop(0, `rgba(104,111,130,${(a*mul).toFixed(3)})`);
+    g.addColorStop(1, 'rgba(104,111,130,0)');
+    ctx.beginPath();
+    ctx.ellipse(gx, gy, rx*r, ry*r, 0, 0, Math.PI*2);
+    ctx.fillStyle = g;
+    ctx.fill();
+  }
+}
+
 function drawMoon(t){
-  const cw = canvas.width, chh = canvas.height, r = MOON.r;
-  const span = cw + 240;                                       // 완전 왼쪽 밖 ~ 완전 오른쪽 밖
-  const f = (((t + MOON_SEED) / MOON_CYCLE) % 1 + 1) % 1;       // 0→1 한 왕복
-  const sx = -120 + f * span;                                  // 화면 기준 — 줌·팬 무관, 반드시 왕복
-  const sy = chh * MOON_Y_FRAC - Math.sin(f * Math.PI) * chh * 0.05;  // 뜨고 질 때 살짝 낮게, 중천에서 살짝 높게(완만한 호)
-  if (sx < -60 || sx > cw + 60) return;
-  const ph = moonPhase();
-  const w = Math.cos(2 * Math.PI * ph);          // 1=삭 · -1=보름 (터미네이터 곡률)
-  const waxing = ph < 0.5;                        // 차는 달 = 북반구(한국)에서 오른쪽이 밝음
-  // 은은한 달무리
-  const halo = ctx.createRadialGradient(sx, sy, r*0.6, sx, sy, r*3.2);
+  const cw = canvas.width, chh = canvas.height;
+  const r  = MOON.r * Math.pow(scale, 0.6);      // ① 줌 반응 — 0.45배 16px ~ 3.0배 50px
+
+  const ph     = moonPhase();
+  const w      = Math.cos(2 * Math.PI * ph);     // 1=삭 · -1=보름 (터미네이터 곡률)
+  const waxing = ph < 0.5;                       // 차는 달 = 북반구(한국)에서 오른쪽이 밝음
+  const illum  = (1 - w) / 2;                    // 0=삭 · 1=보름
+
+  /* ② 실제 시각 기준 횡단 — 무작위 폐지.
+     남중 시각: 삭=정오 · 상현=18시 · 보름=자정 · 하현=06시 (교과서 근사).
+     실제 남중 순간에 달이 화면 정중앙(f=0.5)에 온다. 새로고침해도 같은 곳, 날짜가 바뀌면 저절로 달라짐.
+     60분이 하루를 정확히 24등분하므로 자정에 f가 튀지 않는다. */
+  const d      = new Date();
+  const nowSec = d.getHours()*3600 + d.getMinutes()*60 + d.getSeconds() + d.getMilliseconds()/1000;
+  const transit= ((12 + ph * 24) % 24) * 3600;
+  const f      = ((((nowSec - transit) / MOON_CYCLE) + 0.5) % 1 + 1) % 1;
+
+  /* 여백을 화면폭·줌에 자동 적응 — 어느 기기·어느 배율에서도 공백이 주기의 정확히 5%(≈3분).
+     옛 고정값 120px은 폰(390px)에서 공백이 최대 15분까지 벌어지는 병이 있었다. */
+  const marg  = (MOON_GAP * cw + 2 * r) / (2 * (1 - MOON_GAP));
+  const yFrac = 0.30 - illum * 0.14;             // 삭 30% ↔ 보름 16% — 보름달이 높이 뜬다
+  let sx = -marg + f * (cw + 2 * marg);
+  let sy = chh * yFrac - Math.sin(f * Math.PI) * chh * 0.05;   // 뜨고 질 때 낮게, 중천에서 높게
+
+  /* ③ 시차 — 은하수와 같은 앵커(북극성 화면 위치)를 쓰되 배율만 0.85.
+     tanh 포화: 깊은 줌에서 오프셋이 수천 px까지 튀어 달이 영영 사라지는 것을 막는다.
+     하드 클램프와 달리 어느 지점에서도 멈춘 느낌 없이 늘 조금씩 따라온다. */
+  const px = (WORLD_W/2 - viewX) * scale, py = (WORLD_H/2 - viewY) * scale;
+  const KX = cw * 0.30, KY = chh * 0.15;
+  sx += KX * Math.tanh((px - cw/2)  * MOON_PAR / KX);
+  sy += KY * Math.tanh((py - chh/2) * MOON_PAR / KY);
+
+  const haloR = r * 3.2;
+  if (sx < -haloR || sx > cw + haloR || sy < -haloR || sy > chh + haloR) return;
+
+  // 은은한 달무리 — 컬링 경계를 달무리 반경에 맞춰 잡아, 옛판처럼 툭 꺼지지 않고 곱게 사그라든다
+  const halo = ctx.createRadialGradient(sx, sy, r*0.6, sx, sy, haloR);
   halo.addColorStop(0, 'rgba(255,250,235,0.16)');
   halo.addColorStop(1, 'transparent');
-  ctx.beginPath(); ctx.arc(sx, sy, r*3.2, 0, Math.PI*2); ctx.fillStyle = halo; ctx.fill();
-  // 지구조(어두운 면) 원반
+  ctx.beginPath(); ctx.arc(sx, sy, haloR, 0, Math.PI*2);
+  ctx.fillStyle = halo; ctx.fill();
+
+  // 지구조(어두운 면) 원반 + 그 위 바다의 흔적
   ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2);
   ctx.fillStyle = 'rgba(180,185,200,0.10)'; ctx.fill();
-  // 밝은 면 — 밝은 쪽 반원 + 터미네이터 타원
-  ctx.beginPath();
-  if (waxing){ ctx.arc(sx, sy, r, -Math.PI/2, Math.PI/2, false); }          // 오른쪽 반원
-  else       { ctx.arc(sx, sy, r, Math.PI/2, -Math.PI/2, false); }          // 왼쪽 반원
-  ctx.ellipse(sx, sy, Math.abs(w) * r, r, 0, waxing ? Math.PI/2 : -Math.PI/2,
-              waxing ? -Math.PI/2 : Math.PI/2, w > 0);   /* 0723: w<0 → w>0 — 방향 반전 버그.
-              초승달(w>0)은 터미네이터가 밝은 쪽으로 휘어 반원을 깎고, 볼록달(w<0)은 어두운 쪽으로 휘어 반원에 배를 더해야 함.
-              뒤집혀 있어 상현 이후 볼록달이 나날이 얇아지는 초승달로 그려짐 — 소로 3일 연속 육안 관측으로 검거 */
-  ctx.closePath();
-  ctx.fillStyle = 'rgba(255,249,228,0.94)'; ctx.fill();
+  ctx.save();
+  ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2); ctx.clip();
+  drawMaria(sx, sy, r, 0.18);
+  ctx.restore();
+
+  // 밝은 면
+  moonLitPath(sx, sy, r, w, waxing);
+  ctx.fillStyle = 'rgba(255,249,228,0.94)';
+  ctx.fill();
+
+  // 바다 — 밝은 면 안에만. 위상에 잘리므로 초승달이면 초승 부분의 바다만 보인다
+  ctx.save();
+  moonLitPath(sx, sy, r, w, waxing);
+  ctx.clip();
+  drawMaria(sx, sy, r, 1);
+  ctx.restore();
 }
 
 const SKY_OMEGA = (Math.PI * 2) / 900;   /* 0720 소로: 북극성 기준 15분에 1회전 */
@@ -2185,7 +2271,7 @@ function loop() {
   }
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawMilkyWay(t);                 // 최원경 — 은하수 (스크린 공간, 초저속 자전 + 시차 15%)
-  drawMoon(t);                     // 0723: 달도 스크린 공간 — 줌·팬 무관 정직한 좌→우 왕복
+  drawMoon(t);                     // 0723심야: 화면공간 왕복(재출근 보장) + 시차 0.85·줌 반응 — 하늘에 합류
   ctx.save();
   ctx.scale(scale, scale);
   drawBgLayers(t, skyA);           // 원경·중경·근경 — 배경별 3겹 (시차 + 차등 자전 + 무한)
