@@ -2120,7 +2120,14 @@ function drawBgLayers(t, skyA){
 }
 
 /* ── 달 (0720 소로) — 실제 오늘 위상 + 1시간에 하늘 한 번 횡단(동→서) ── */
-const MOON = { x0: WORLD_W/2 + 880, y: WORLD_H/2 - 720, r: 26, span: WORLD_W + 600 };
+/* ── 0723 소로 발주: 달이 퇴근하면 안 돌아옴 + 늘 비슷한 자리 = 신비감 없음 ──
+   기존: 월드좌표 3600칸 여정 中 뷰포트가 일부만 보여줘 "왼쪽 재출근" 구간이 화면 밖 먼 곳을 지남.
+   개선: 은하수처럼 화면 픽셀 공간에서 왕복 → 줌·팬 무관하게 항상 화면 폭 전체를 정직히 왕복(즉시 재출근 보장).
+   MOON_SEED·MOON_CYCLE·MOON_Y_FRAC를 접속마다 무작위 배정 → 시작 위치·속도·고도가 매번 달라짐(신비감). */
+const MOON = { r: 26 };
+const MOON_SEED   = Math.random() * 3000;              // 접속마다 다른 시작 지점
+const MOON_CYCLE  = 2100 + Math.random() * 900;         // 35~50분 사이 무작위 1회 완주 주기
+const MOON_Y_FRAC = 0.16 + Math.random() * 0.14;        // 화면 상단 16~30% 사이 무작위 고도
 function moonPhase(){
   /* 0722 타원 보정 — 평균 삭망월만 쓰면 ±0.7일 어긋남 (달 궤도가 타원).
      Meeus 간이 산법: 평균 이각 D에 주요 보정 4항(달·태양 근점이각, evection, variation).
@@ -2136,11 +2143,12 @@ function moonPhase(){
   return ((elong/360) % 1 + 1) % 1;
 }
 function drawMoon(t){
-  const drift = ((t / 3600) % 1) * MOON.span;                 // 1시간 = 1횡단
-  const sx = ((MOON.x0 + drift + 300) % MOON.span) - 300 - viewX;  // 동(왼)에서 떠서 서(오른)로, 끝나면 다시 동쪽
-  const sy = MOON.y - viewY, r = MOON.r;
-  const vw = canvas.width / scale, vh = canvas.height / scale;
-  if (sx < -60 || sx > vw + 60 || sy < -60 || sy > vh + 60) return;
+  const cw = canvas.width, chh = canvas.height, r = MOON.r;
+  const span = cw + 240;                                       // 완전 왼쪽 밖 ~ 완전 오른쪽 밖
+  const f = (((t + MOON_SEED) / MOON_CYCLE) % 1 + 1) % 1;       // 0→1 한 왕복
+  const sx = -120 + f * span;                                  // 화면 기준 — 줌·팬 무관, 반드시 왕복
+  const sy = chh * MOON_Y_FRAC - Math.sin(f * Math.PI) * chh * 0.05;  // 뜨고 질 때 살짝 낮게, 중천에서 살짝 높게(완만한 호)
+  if (sx < -60 || sx > cw + 60) return;
   const ph = moonPhase();
   const w = Math.cos(2 * Math.PI * ph);          // 1=삭 · -1=보름 (터미네이터 곡률)
   const waxing = ph < 0.5;                        // 차는 달 = 북반구(한국)에서 오른쪽이 밝음
@@ -2157,7 +2165,9 @@ function drawMoon(t){
   if (waxing){ ctx.arc(sx, sy, r, -Math.PI/2, Math.PI/2, false); }          // 오른쪽 반원
   else       { ctx.arc(sx, sy, r, Math.PI/2, -Math.PI/2, false); }          // 왼쪽 반원
   ctx.ellipse(sx, sy, Math.abs(w) * r, r, 0, waxing ? Math.PI/2 : -Math.PI/2,
-              waxing ? -Math.PI/2 : Math.PI/2, w < 0);
+              waxing ? -Math.PI/2 : Math.PI/2, w > 0);   /* 0723: w<0 → w>0 — 방향 반전 버그.
+              초승달(w>0)은 터미네이터가 밝은 쪽으로 휘어 반원을 깎고, 볼록달(w<0)은 어두운 쪽으로 휘어 반원에 배를 더해야 함.
+              뒤집혀 있어 상현 이후 볼록달이 나날이 얇아지는 초승달로 그려짐 — 소로 3일 연속 육안 관측으로 검거 */
   ctx.closePath();
   ctx.fillStyle = 'rgba(255,249,228,0.94)'; ctx.fill();
 }
@@ -2175,10 +2185,10 @@ function loop() {
   }
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawMilkyWay(t);                 // 최원경 — 은하수 (스크린 공간, 초저속 자전 + 시차 15%)
+  drawMoon(t);                     // 0723: 달도 스크린 공간 — 줌·팬 무관 정직한 좌→우 왕복
   ctx.save();
   ctx.scale(scale, scale);
   drawBgLayers(t, skyA);           // 원경·중경·근경 — 배경별 3겹 (시차 + 차등 자전 + 무한)
-  drawMoon(t);
   stars.forEach(s => drawStar(s, t));
   ctx.restore();
   // 유성은 scale 무관하게 화면 좌표로
