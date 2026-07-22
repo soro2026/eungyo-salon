@@ -810,11 +810,22 @@ async function loadCohorts(){
 }
 const bookOf=id=>books.find(b=>b.id===id)||{};
 
-/* ── 1층 · 천장 배너 — 소로가 구운 실사(Storage) 우선, 없으면 CSS 폴백 ── */
+/* ── 1층 · 천장 배너 — 시안 3벌(A·B·C) 3시간 로테이션 (팝업 홀 혈통) ──
+ *  0~3시 A, 3~6시 B, 6~9시 C, 9~12시 A … 하루 A→B→C 순환
+ *  파일: banners/{a|b|c}{1|2}.webp — 현재 시안이 비면 다음 시안으로 물림 */
+let bannerSet=null, bannerTm=null;
+function activeBannerSet(){
+  const h=new Date().getHours();
+  return 'abc'[Math.floor(h/3)%3];
+}
 function renderBanners(){
   const bay=document.getElementById('bannerBay');
-  const slots=['banners/slot1.webp','banners/slot2.webp'];
-  let loaded=0, done=0;
+  const cur=activeBannerSet();
+  bannerSet=cur;
+  /* 순환 순서대로 후보 시안 — 현재 시안부터, 비면 다음 시안 (legacy slot도 마지막 후보) */
+  const start='abc'.indexOf(cur);
+  const sets=[0,1,2].map(k=>'abc'[(start+k)%3]);
+  const candsOf=pos=>[...sets.map(s=>`banners/${s}${pos}.webp`),`banners/slot${pos}.webp`];
   const fallback=()=>{
     const ann=cohortsAll.filter(c=>c.status==='announced').slice(0,2);
     let items;
@@ -839,21 +850,32 @@ function renderBanners(){
         <div class="b-sub">${it.sub}</div>
       </div>`).join('');
   };
-  const imgs=[];
-  slots.forEach((p,i)=>{
-    const im=new Image();
-    im.onload=()=>{ imgs[i]=ASSET(p); loaded++; step(); };
-    im.onerror=()=>{ step(); };
-    im.src=ASSET(p);
+  /* 위치별로 후보 사슬을 타고 첫 성공 이미지를 문다 */
+  const found=[null,null];
+  let done=0;
+  [1,2].forEach((pos,idx)=>{
+    const cands=candsOf(pos);
+    const step=i=>{
+      if(i>=cands.length){ done++; finish(); return; }
+      const im=new Image();
+      im.onload=()=>{ found[idx]=ASSET(cands[i]); done++; finish(); };
+      im.onerror=()=>step(i+1);
+      im.src=ASSET(cands[i]);
+    };
+    step(0);
   });
-  function step(){
-    done++;
-    if(done<slots.length) return;
-    if(!loaded){ fallback(); return; }
-    bay.innerHTML=imgs.map((src,i)=> src
+  function finish(){
+    if(done<2) return;
+    if(!found[0] && !found[1]){ fallback(); return; }
+    bay.innerHTML=found.map((src,i)=> src
       ? `<img class="banner-img sway${i+1}" src="${src}" alt="공지 배너">` : ''
     ).join('');
   }
+  /* 시간대가 넘어가면 다음 시안으로 교대 — 1분마다 보초 */
+  clearInterval(bannerTm);
+  bannerTm=setInterval(()=>{
+    if(activeBannerSet()!==bannerSet) renderBanners();
+  },60000);
 }
 
 /* ── 1층 · 포스터 무대 — 실사 포스터(Storage) + 상세 모달 ── */
