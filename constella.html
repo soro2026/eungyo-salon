@@ -2151,47 +2151,119 @@ function moonPhase(){
   return ((elong/360) % 1 + 1) % 1;
 }
 
-/* 밝은 면 윤곽 — 반원 + 터미네이터 타원. 채우기와 클리핑 두 곳에서 같은 길을 써야 하므로 함수로 뺀다. */
-function moonLitPath(sx, sy, r, w, waxing){
-  ctx.beginPath();
-  if (waxing){ ctx.arc(sx, sy, r, -Math.PI/2,  Math.PI/2, false); }   // 오른쪽 반원
-  else       { ctx.arc(sx, sy, r,  Math.PI/2, -Math.PI/2, false); }   // 왼쪽 반원
-  ctx.ellipse(sx, sy, Math.abs(w) * r, r, 0,
-              waxing ?  Math.PI/2 : -Math.PI/2,
-              waxing ? -Math.PI/2 :  Math.PI/2, w > 0);
-  /* 0723 새벽 검거(소로 3일 육안 관측): w<0 → w>0 방향 반전 버그.
-     초승달(w>0)은 터미네이터가 밝은 쪽으로 휘어 반원을 깎고,
-     볼록달(w<0)은 어두운 쪽으로 휘어 반원에 배를 더한다. 이 값 건드리지 말 것. */
-  ctx.closePath();
-}
-
-/* 달의 바다 — 실제 앞면 배치(북쪽 위). [x, y, rx, ry, 진하기] · 반경 1 기준 정규 좌표.
+/* 달의 바다 — 실제 앞면 배치(북쪽 위). [x, y, rx, ry, 기울기(도), 진하기] · 반경 1 기준 정규 좌표.
+   [0723 심야 2차 개정] 소로 진단: "실물은 넓은 검은 대륙인데 우리 건 점 몇 개 찍은 듯"
+   1차판의 두 결함 — ① 그라디언트가 가장자리에서 0까지 떨어져 가운데만 진한 '점'으로 보임
+                     ② 아홉 개가 따로 떨어져 있었으나 실제 바다는 서로 이어져 하나의 대륙을 이룸
+   개정: 다리(bridge) 항목을 넣어 이어붙이고, 그라디언트가 62%까지 진하기를 유지한 뒤 풀리게 함.
    토끼의 귀는 풍요·감로주의 바다, 몸통은 고요·맑음의 바다, 절구는 구름의 바다 언저리.
    일부러 토끼를 그리지 않는다 — 진짜 지형을 얹으면 한국 눈에는 방아 찧는 토끼가,
    서양 눈에는 사람 얼굴이 보인다. 그것이 이 하늘의 예법. */
 const MARIA = [
-  [-0.30, -0.34, 0.30, 0.24, 0.30],  // 비의 바다 Mare Imbrium
-  [ 0.08, -0.30, 0.20, 0.17, 0.28],  // 맑음의 바다 Mare Serenitatis
-  [ 0.30, -0.06, 0.21, 0.20, 0.30],  // 고요의 바다 Mare Tranquillitatis
-  [ 0.46,  0.16, 0.14, 0.16, 0.26],  // 풍요의 바다 Mare Fecunditatis  ← 토끼 귀
-  [ 0.28,  0.24, 0.10, 0.11, 0.22],  // 감로주의 바다 Mare Nectaris     ← 토끼 귀
-  [ 0.60, -0.34, 0.10, 0.09, 0.24],  // 위난의 바다 Mare Crisium
-  [-0.52,  0.02, 0.26, 0.44, 0.26],  // 폭풍의 대양 Oceanus Procellarum
-  [-0.18,  0.36, 0.17, 0.13, 0.24],  // 구름의 바다 Mare Nubium
-  [-0.44,  0.34, 0.11, 0.10, 0.20]   // 습기의 바다 Mare Humorum
+  [-0.05, -0.58, 0.42, 0.07,  -8, 0.20],  // 추위의 바다 Mare Frigoris — 북쪽 가장자리 띠
+  [-0.30, -0.32, 0.30, 0.25,  15, 0.34],  // 비의 바다 Mare Imbrium
+  [-0.44, -0.26, 0.18, 0.20,   0, 0.26],  //   ↳ 다리: 비의 바다 ↔ 폭풍의 대양
+  [ 0.04, -0.30, 0.22, 0.20,   0, 0.34],  // 맑음의 바다 Mare Serenitatis
+  [ 0.16, -0.18, 0.13, 0.13,   0, 0.28],  //   ↳ 다리: 맑음 ↔ 고요
+  [ 0.29, -0.06, 0.25, 0.22, -20, 0.34],  // 고요의 바다 Mare Tranquillitatis   ← 토끼 몸통
+  [ 0.60, -0.32, 0.12, 0.10, -15, 0.32],  // 위난의 바다 Mare Crisium — 동쪽 끝 홀로 뜬 타원
+  [ 0.40,  0.05, 0.11, 0.11,   0, 0.22],  //   ↳ 다리: 고요 ↔ 풍요
+  [ 0.47,  0.16, 0.15, 0.19,  10, 0.30],  // 풍요의 바다 Mare Fecunditatis      ← 토끼 귀
+  [ 0.28,  0.24, 0.12, 0.12,   0, 0.28],  // 감로주의 바다 Mare Nectaris        ← 토끼 귀
+  [-0.55,  0.02, 0.26, 0.46,   5, 0.30],  // 폭풍의 대양 Oceanus Procellarum
+  [-0.29,  0.09, 0.15, 0.17,   0, 0.22],  //   ↳ 다리: 대양 ↔ 구름
+  [-0.19,  0.38, 0.19, 0.14, -10, 0.28],  // 구름의 바다 Mare Nubium            ← 절구
+  [-0.47,  0.34, 0.12, 0.11,   0, 0.26]   // 습기의 바다 Mare Humorum
 ];
-function drawMaria(sx, sy, r, mul){
-  if (r < 9) return;                                   // 아주 작을 땐 얼룩만 지저분해지므로 생략
-  for (const [mx, my, rx, ry, a] of MARIA){
-    const gx = sx + mx*r, gy = sy + my*r, R = Math.max(rx, ry) * r;
-    const g = ctx.createRadialGradient(gx, gy, R*0.12, gx, gy, R);
-    g.addColorStop(0, `rgba(104,111,130,${(a*mul).toFixed(3)})`);
-    g.addColorStop(1, 'rgba(104,111,130,0)');
-    ctx.beginPath();
-    ctx.ellipse(gx, gy, rx*r, ry*r, 0, 0, Math.PI*2);
-    ctx.fillStyle = g;
-    ctx.fill();
+function paintMaria(c, cx, cy, r, mul){
+  for (const [mx, my, rx, ry, rot, a] of MARIA){
+    const gx = cx + mx*r, gy = cy + my*r, R = Math.max(rx, ry) * r;
+    const g = c.createRadialGradient(gx, gy, R*0.10, gx, gy, R);
+    const A = a * mul;
+    g.addColorStop(0,    `rgba(96,104,124,${A.toFixed(3)})`);
+    g.addColorStop(0.62, `rgba(96,104,124,${(A*0.92).toFixed(3)})`);  // 62%까지 진하기 유지 — '점'이 아니라 '지대'
+    g.addColorStop(1,    'rgba(96,104,124,0)');
+    c.save();
+    c.translate(gx, gy);
+    c.rotate(rot * Math.PI / 180);
+    c.beginPath();
+    c.ellipse(0, 0, rx*r, ry*r, 0, 0, Math.PI*2);
+    c.translate(-gx, -gy);
+    c.fillStyle = g;
+    c.fill();
+    c.restore();
   }
+}
+
+/* 달 원반 스프라이트 — 오프스크린 1회 제작 후 재사용.
+   반경·위상이 바뀔 때만 다시 굽는다(위상은 몇 시간에 걸쳐 변하고, 반경은 줌 때만).
+   덕분에 매 프레임 비용은 drawImage 한 번뿐이라, 바다·구면감·터미네이터를 마음껏 얹을 수 있다. */
+let moonSpriteCache = { key: '', cv: null, pad: 0 };
+function moonSprite(r, ph){
+  const key = Math.round(r*2) + '|' + Math.round(ph*4000);
+  if (moonSpriteCache.key === key) return moonSpriteCache;
+  const w = Math.cos(2 * Math.PI * ph);
+  const waxing = ph < 0.5;
+  const pad = Math.ceil(r * 3.2) + 3;
+  const S = pad * 2;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const c = cv.getContext('2d');
+  const cx = pad, cy = pad;
+
+  // 은은한 달무리
+  const halo = c.createRadialGradient(cx, cy, r*0.6, cx, cy, r*3.2);
+  halo.addColorStop(0, 'rgba(255,250,235,0.16)');
+  halo.addColorStop(1, 'rgba(255,250,235,0)');
+  c.beginPath(); c.arc(cx, cy, r*3.2, 0, Math.PI*2);
+  c.fillStyle = halo; c.fill();
+
+  // 지구조(어두운 면) 원반 + 그 위 바다의 흔적
+  c.beginPath(); c.arc(cx, cy, r, 0, Math.PI*2);
+  c.fillStyle = 'rgba(180,185,200,0.10)'; c.fill();
+  c.save();
+  c.beginPath(); c.arc(cx, cy, r, 0, Math.PI*2); c.clip();
+  paintMaria(c, cx, cy, r, 0.30);
+  c.restore();
+
+  // 밝은 면
+  c.beginPath();
+  if (waxing){ c.arc(cx, cy, r, -Math.PI/2,  Math.PI/2, false); }
+  else       { c.arc(cx, cy, r,  Math.PI/2, -Math.PI/2, false); }
+  c.ellipse(cx, cy, Math.abs(w)*r, r, 0,
+            waxing ?  Math.PI/2 : -Math.PI/2,
+            waxing ? -Math.PI/2 :  Math.PI/2, w > 0);
+  /* 0723 새벽 검거(소로 3일 육안 관측): w<0 → w>0 방향 반전 버그.
+     초승달(w>0)은 터미네이터가 밝은 쪽으로 휘어 반원을 깎고,
+     볼록달(w<0)은 어두운 쪽으로 휘어 반원에 배를 더한다. 이 값 건드리지 말 것. */
+  c.closePath();
+  c.fillStyle = 'rgba(255,249,228,0.94)';
+  c.fill();
+
+  // 밝은 면 안쪽 마감 3종 — 위상에 잘리므로 초승달이면 초승 부분만 보인다
+  c.save();
+  c.clip();                                   // 방금 만든 밝은 면 길을 그대로 클리핑에 재사용
+
+  paintMaria(c, cx, cy, r, 1);                // ① 바다
+
+  const ld = c.createRadialGradient(cx, cy, r*0.50, cx, cy, r*1.02);   // ② 가장자리 어둡기 — 평면이 아니라 구
+  ld.addColorStop(0, 'rgba(38,42,56,0)');
+  ld.addColorStop(1, 'rgba(38,42,56,0.34)');
+  c.beginPath(); c.arc(cx, cy, r, 0, Math.PI*2);
+  c.fillStyle = ld; c.fill();
+
+  const dir = waxing ? 1 : -1;                                          // ③ 터미네이터 풀기
+  const xt  = cx + dir * w * r;                 // 터미네이터 극점 — 여기서 밝은 쪽으로 스며들며 풀린다
+  const tg  = c.createLinearGradient(xt, 0, xt + dir * r * 0.24, 0);
+  tg.addColorStop(0, 'rgba(26,30,42,0.50)');
+  tg.addColorStop(1, 'rgba(26,30,42,0)');
+  c.fillStyle = tg;
+  c.fillRect(Math.min(xt, xt + dir*r*0.24), 0, r*0.24, S);
+
+  c.restore();
+
+  moonSpriteCache = { key, cv, pad };
+  return moonSpriteCache;
 }
 
 function drawMoon(t){
@@ -2200,7 +2272,6 @@ function drawMoon(t){
 
   const ph     = moonPhase();
   const w      = Math.cos(2 * Math.PI * ph);     // 1=삭 · -1=보름 (터미네이터 곡률)
-  const waxing = ph < 0.5;                       // 차는 달 = 북반구(한국)에서 오른쪽이 밝음
   const illum  = (1 - w) / 2;                    // 0=삭 · 1=보름
 
   /* ② 실제 시각 기준 횡단 — 무작위 폐지.
@@ -2230,32 +2301,8 @@ function drawMoon(t){
   const haloR = r * 3.2;
   if (sx < -haloR || sx > cw + haloR || sy < -haloR || sy > chh + haloR) return;
 
-  // 은은한 달무리 — 컬링 경계를 달무리 반경에 맞춰 잡아, 옛판처럼 툭 꺼지지 않고 곱게 사그라든다
-  const halo = ctx.createRadialGradient(sx, sy, r*0.6, sx, sy, haloR);
-  halo.addColorStop(0, 'rgba(255,250,235,0.16)');
-  halo.addColorStop(1, 'transparent');
-  ctx.beginPath(); ctx.arc(sx, sy, haloR, 0, Math.PI*2);
-  ctx.fillStyle = halo; ctx.fill();
-
-  // 지구조(어두운 면) 원반 + 그 위 바다의 흔적
-  ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2);
-  ctx.fillStyle = 'rgba(180,185,200,0.10)'; ctx.fill();
-  ctx.save();
-  ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2); ctx.clip();
-  drawMaria(sx, sy, r, 0.18);
-  ctx.restore();
-
-  // 밝은 면
-  moonLitPath(sx, sy, r, w, waxing);
-  ctx.fillStyle = 'rgba(255,249,228,0.94)';
-  ctx.fill();
-
-  // 바다 — 밝은 면 안에만. 위상에 잘리므로 초승달이면 초승 부분의 바다만 보인다
-  ctx.save();
-  moonLitPath(sx, sy, r, w, waxing);
-  ctx.clip();
-  drawMaria(sx, sy, r, 1);
-  ctx.restore();
+  const sp = moonSprite(r, ph);
+  ctx.drawImage(sp.cv, sx - sp.pad, sy - sp.pad);
 }
 
 const SKY_OMEGA = (Math.PI * 2) / 900;   /* 0720 소로: 북극성 기준 15분에 1회전 */
