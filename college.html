@@ -295,12 +295,21 @@ body.hall-editing .hall-compass{background:var(--gold);color:#1a120c;border-colo
   transition:transform .22s ease;}
 .spine:hover{transform:translateY(-8px);}
 .spine.ghost{opacity:0;pointer-events:none;}   /* 마지막 칸 자리맞춤 */
-/* 선반 널 — CSS 오크 */
-.plank{height:14px;border-radius:2px;margin:-2px 2px 0;position:relative;
+/* 선반 널 — CSS 오크 + 강줄기 각인 (음각 금박) */
+.plank{height:22px;border-radius:2px;margin:-2px 2px 0;position:relative;
   background:linear-gradient(180deg,#5a4020 0%,#3d2a13 42%,#2a1c0c 100%);
   box-shadow:0 5px 12px rgba(0,0,0,.55), inset 0 1px 0 rgba(201,162,74,.28);}
 .plank::after{content:'';position:absolute;left:0;right:0;bottom:-4px;height:4px;
   background:linear-gradient(180deg,rgba(0,0,0,.4),transparent);}
+.pl-label,.pl-range{position:absolute;top:50%;transform:translateY(-50%);
+  font-size:10px;letter-spacing:.22em;white-space:nowrap;
+  color:rgba(222,186,118,.92);
+  text-shadow:0 -1px 0 rgba(0,0,0,.75), 0 1px 0 rgba(255,232,180,.14);}
+.pl-label{left:12px;font-family:'Gowun Batang',serif;font-weight:700;}
+.pl-label .pl-num{font-family:'Cormorant Garamond',serif;font-weight:500;
+  margin-right:6px;letter-spacing:.08em;}
+.pl-range{right:12px;font-family:'Cormorant Garamond',serif;font-weight:500;
+  letter-spacing:.14em;font-size:10.5px;color:rgba(222,186,118,.7);}
 .case-label{font-family:'Cormorant Garamond',serif;font-size:10.5px;
   letter-spacing:.18em;color:rgba(233,207,156,.45);text-align:right;
   padding:3px 10px 10px 0;}
@@ -1096,6 +1105,8 @@ function reserveFromModal(){ if(modalCohort) reserve(modalCohort.id); }
 /* ── 2층 · 서가 — 한 칸 10권 · 실사 책등 273 ── */
 function renderShelf(){
   const wall=document.getElementById('shelfwall');
+  const short=s=>s.replace(/^[IVX]+\. /,'');
+  const eg=id=>'EG'+String(id).padStart(3,'0');
   let html='';
   for(let i=0;i<books.length;i+=PER_SHELF){
     const row=books.slice(i,i+PER_SHELF);
@@ -1105,20 +1116,52 @@ function renderShelf(){
       const f=(88+((b.id*7919)%13))/100;
       return `<img class="spine" loading="lazy" src="${SPINE(b.id)}"
         alt="${esc(b.title)}" style="height:calc(var(--sp-h)*${f})"
-        onclick="openBook(${b.id})" onerror="this.style.display='none'">`;
+        onclick="openBook(${b.id})" onload="schedulePlank()"
+        onerror="this.style.display='none'">`;
     }).join('');
     /* 마지막 칸 자리맞춤 — 투명 유령으로 폭 유지 */
     for(let g=row.length; g<PER_SHELF; g++){
       cells+=`<img class="spine ghost" src="${SPINE(books[0].id)}" alt="">`;
     }
+    /* 각인 — 널 왼끝: 첫 책의 강줄기 / 칸 중간 경계: 새 강줄기 시작 책 발밑 */
+    const marks=[];
+    row.forEach((b,j)=>{
+      if(j===0 || b.stream!==row[j-1].stream)
+        marks.push({j, num:ROMAN[b.stream]||'', name:short(b.stream||'')});
+    });
+    const labels=marks.map((m,k)=>
+      `<span class="pl-label" data-j="${m.j}"><span class="pl-num">${m.num}</span>${esc(m.name)}</span>`
+    ).join('');
+    const range=`<span class="pl-range">${eg(row[0].id)} – ${eg(row[row.length-1].id)}</span>`;
     html+=`<div class="case">
       <div class="case-row">${cells}</div>
-      <div class="plank"></div>
+      <div class="plank">${labels}${range}</div>
       <div class="case-label">${String(caseNo).padStart(2,'0')} / 28</div>
     </div>`;
   }
   wall.innerHTML=html;
+  schedulePlank();
 }
+/* 각인 좌표 실측 — 경계 책의 발밑 x를 재서 널에 새김 (그림 로드마다 재측정) */
+let plankTm=null;
+function schedulePlank(){ clearTimeout(plankTm); plankTm=setTimeout(positionPlanks,180); }
+function positionPlanks(){
+  document.querySelectorAll('#shelfwall .case').forEach(cs=>{
+    const row=cs.querySelector('.case-row');
+    const plank=cs.querySelector('.plank');
+    if(!row||!plank) return;
+    const spines=row.querySelectorAll('.spine');
+    const pr=plank.getBoundingClientRect();
+    plank.querySelectorAll('.pl-label').forEach(lb=>{
+      const j=+lb.dataset.j;
+      if(j===0){ lb.style.left='12px'; return; }
+      const sp=spines[j]; if(!sp){ lb.style.left='12px'; return; }
+      const x=sp.getBoundingClientRect().left - pr.left;
+      lb.style.left=Math.max(12,x+4)+'px';
+    });
+  });
+}
+window.addEventListener('resize',schedulePlank);
 
 /* 책 상세 모달 */
 function openBook(id){
