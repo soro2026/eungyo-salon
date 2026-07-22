@@ -755,7 +755,14 @@ async function goFloor(n){
   /* 3악장 — 도착 층 안에서 시선이 걸어 들어간다 (올라감 = 벽면 문턱 정지) */
   if(scTo){
     wireParallax(n);
-    await smoothScroll(scTo, up?arrivalTop(n):scTo.scrollHeight-scTo.clientHeight, 1150);
+    if(!up && n===0){
+      /* 1층 귀환 특별 예법 — 바닥을 찍고, 숨 고르고, 포스터 정면으로 반등 */
+      await smoothScroll(scTo, scTo.scrollHeight-scTo.clientHeight, 950);
+      await new Promise(r=>setTimeout(r,180));
+      await smoothScroll(scTo, stageFocusTop(), 1050);
+    }else{
+      await smoothScroll(scTo, up?arrivalTop(n):scTo.scrollHeight-scTo.clientHeight, 1150);
+    }
   }
   document.body.classList.remove('moving');
   elevating=false;
@@ -786,6 +793,13 @@ function arrivalTop(n){
                                            sc.scrollHeight-sc.clientHeight));
   }
   return 0;
+}
+/* 포스터 정면 — 무대가 화면 한가운데 오는 스크롤 좌표 */
+function stageFocusTop(){
+  const st=document.getElementById('tg-stage'), sc=scOf(0);
+  if(!st||!sc) return 0;
+  const t=st.offsetTop - (window.innerHeight - st.offsetHeight)/2;
+  return Math.max(0, Math.min(t, sc.scrollHeight-sc.clientHeight));
 }
 function wireParallax(n){
   parallaxCalc(n);
@@ -843,6 +857,7 @@ if(P.has('edit')){ document.body.classList.add('editing'); wireEdit(); }
 /* ══ 데이터 ══ */
 const BELL_LIMIT = 5;
 const PER_SHELF = 10;
+const ROMAN={'I. 문학':'Ⅰ','II. 시와 극':'Ⅱ','III. 철학과 사상':'Ⅲ','IV. 역사':'Ⅳ','V. 자연':'Ⅴ','VI. 예술':'Ⅵ','VII. 삶의 기록':'Ⅶ'};
 
 let currentUser=null, userTier=null, books=[], bellCounts={}, myBells=new Set(), busy=false;
 let cohortsAll=[], modalBook=null;
