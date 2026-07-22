@@ -285,6 +285,19 @@ body.hall-editing .hall-compass{background:var(--gold);color:#1a120c;border-colo
 .lib-head .hall-eyebrow{margin-bottom:8px;}
 .lib-sub{font-size:11.5px;color:rgba(240,232,212,.65);margin-top:8px;
   text-shadow:0 1px 6px rgba(0,0,0,.7);line-height:1.8;}
+/* 두 개의 방 — 일곱 강줄기 ⇄ 문명의 강 (연대기) */
+.mode-tabs{display:inline-flex;gap:0;margin-top:16px;
+  border:1px solid rgba(201,162,74,.45);border-radius:22px;overflow:hidden;
+  background:rgba(16,12,8,.55);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);}
+.mode-tabs button{font-size:11.5px;letter-spacing:.14em;padding:8px 18px;
+  color:rgba(233,207,156,.65);transition:background .25s,color .25s;}
+.mode-tabs button.at{background:rgba(201,162,74,.22);color:var(--gold-l);}
+#wing{transition:transform .65s cubic-bezier(.55,.05,.3,1),opacity .65s ease;}
+#wing.exit-l{transform:translateX(-14%);opacity:0;}
+#wing.enter-r{transform:translateX(14%);opacity:0;transition:none;}
+/* 연대기의 방 — 배경이 고문서 톤으로 물든다 */
+#f2 .f-bg{transition:filter 1s ease;}
+#f2.era .f-bg{filter:sepia(.3) saturate(.82) brightness(.96);}
 .shelfwall{max-width:700px;margin:22px auto 0;padding:0 8px 40px;}
 .case{margin-bottom:4px;}
 .case-row{display:flex;align-items:flex-end;justify-content:center;gap:0;
@@ -443,12 +456,18 @@ body.hall-editing .hall-compass{background:var(--gold);color:#1a120c;border-colo
     <section class="floor" id="f2">
       <div class="f-bg f-fallback" id="bg2"></div>
       <div class="f-scroll" id="sc2">
-        <div class="lib-head">
-          <div class="hall-eyebrow">BIBLIOTHÈQUE · 273</div>
-          <p class="lib-sub">일곱 강줄기 · 책등을 눌러 종을 달 수 있습니다</p>
+        <div id="wing">
+          <div class="lib-head">
+            <div class="hall-eyebrow" id="lib-eyebrow">BIBLIOTHÈQUE · 273</div>
+            <p class="lib-sub" id="lib-sub">일곱 강줄기 · 책등을 눌러 종을 달 수 있습니다</p>
+            <div class="mode-tabs">
+              <button id="tab-stream" class="at" onclick="setShelfMode('stream')">일곱 강줄기</button>
+              <button id="tab-era" onclick="setShelfMode('era')">문명의 강</button>
+            </div>
+          </div>
+          <div class="shelfwall" id="shelfwall"></div>
+          <div class="lib-tail" id="lib-tail">서가의 끝입니다 — 273번째 책까지 함께 걸었습니다 ⚓</div>
         </div>
-        <div class="shelfwall" id="shelfwall"></div>
-        <div class="lib-tail">서가의 끝입니다 — 273번째 책까지 함께 걸었습니다 ⚓</div>
       </div>
       <button class="lift lift-up" onclick="goFloor(2)">▲ 3층 · 내 클래스</button>
       <button class="lift lift-down" onclick="goFloor(0)">▼ 1층 · 모집 홀</button>
@@ -655,10 +674,24 @@ function setBg(el,cands){
   };
   step(0);
 }
+/* 층 배경 — 연대기의 방(hall2e)은 그림이 오르면 전용 배경, 없으면 hall2+세피아 폴백 */
 setGate([`college_gate_${TOD}.webp`,'college_gate_d.webp']);
 setBg(document.getElementById('canvas1'),[`college_hall1_${TOD}.webp`,'college_hall1_d.webp']);
 setBg(document.getElementById('bg2'),[`college_hall2_${TOD}.webp`,'college_hall2_d.webp',`college_hall1_${TOD}.webp`,'college_hall1_d.webp']);
 setBg(document.getElementById('bg3'),[`college_hall3_${TOD}.webp`,'college_hall3_d.webp',`college_hall1_${TOD}.webp`,'college_hall1_d.webp']);
+/* 연대기의 방 전용 배경 — 있으면 예열해 두고, 방 전환 때 갈아끼움 */
+let ERA_BG=null;
+(function preloadEraBg(){
+  const cands=[`college_hall2e_${TOD}.webp`,'college_hall2e_d.webp'];
+  const step=i=>{
+    if(i>=cands.length) return;   /* 없으면 ERA_BG=null → hall2+세피아 폴백 */
+    const im=new Image();
+    im.onload=()=>{ ERA_BG=cands[i]; };
+    im.onerror=()=>step(i+1);
+    im.src=cands[i];
+  };
+  step(0);
+})();
 
 /* ══ 1층 레이아웃 — 배너·제목·무대 좌표 (Storage JSON, 살롱지기 편집) ══ */
 const HALL_DEF={
@@ -877,7 +910,7 @@ async function init(){
 }
 async function loadBooks(){
   const { data, error } = await supa.from('college_books')
-    .select('id,title,author,stream,subgroup,weeks_raw,founding,reserved,status,sort_order')
+    .select('id,title,author,stream,subgroup,weeks_raw,founding,reserved,status,sort_order,era_order,year_raw,era_chapter')
     .order('sort_order');
   if(error){ toast('서가를 불러오지 못했습니다'); return; }
   books = data || [];
@@ -1119,13 +1152,32 @@ function closeCohort(){ document.getElementById('cohort-modal').classList.remove
 function reserveFromModal(){ if(modalCohort) reserve(modalCohort.id); }
 
 /* ── 2층 · 서가 — 한 칸 10권 · 실사 책등 273 ── */
+/* ── 2층 · 서가 — 두 개의 방: 일곱 강줄기(stream) ⇄ 문명의 강(era) ── */
+let SHELF_MODE='stream';
+const ROMAN_N=n=>{ /* 1~39 로마자 */
+  const T=[[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']]; let s='';
+  for(const [v,r] of T){ while(n>=v){ s+=r; n-=v; } } return s;
+};
+const cleanYear=y=>String(y||'').replace(/c\./g,'').replace(/^AD\s*/,'').replace(/\s*\(사후 출간\)/,'').trim();
+
 function renderShelf(){
   const wall=document.getElementById('shelfwall');
-  const short=s=>s.replace(/^[IVX]+\. /,'');
+  const era=SHELF_MODE==='era';
+  const list=era
+    ? [...books].sort((a,b)=>(a.era_order||999)-(b.era_order||999))
+    : books;
+  const short=s=>String(s||'').replace(/^[IVX]+\. /,'');
   const eg=id=>'EG'+String(id).padStart(3,'0');
+  const groupOf=b=> era ? (b.era_chapter||'') : (b.stream||'');
+  const labelOf=b=>{
+    if(!era) return { num:ROMAN[b.stream]||'', name:short(b.stream) };
+    const [numPart,name]=(b.era_chapter||' · ').split(' · ');
+    const n=parseInt(String(numPart).replace(/\D/g,''))||0;
+    return { num:ROMAN_N(n), name:name||numPart };
+  };
   let html='';
-  for(let i=0;i<books.length;i+=PER_SHELF){
-    const row=books.slice(i,i+PER_SHELF);
+  for(let i=0;i<list.length;i+=PER_SHELF){
+    const row=list.slice(i,i+PER_SHELF);
     const caseNo=i/PER_SHELF+1;
     let cells=row.map(b=>{
       /* 책마다 키 변주 — id 결정론 해시로 88~100% (실물 서가의 들쭉날쭉) */
@@ -1137,18 +1189,19 @@ function renderShelf(){
     }).join('');
     /* 마지막 칸 자리맞춤 — 투명 유령으로 폭 유지 */
     for(let g=row.length; g<PER_SHELF; g++){
-      cells+=`<img class="spine ghost" src="${SPINE(books[0].id)}" alt="">`;
+      cells+=`<img class="spine ghost" src="${SPINE(list[0].id)}" alt="">`;
     }
-    /* 각인 — 널 왼끝: 첫 책의 강줄기 / 칸 중간 경계: 새 강줄기 시작 책 발밑 */
+    /* 각인 — 널 왼끝: 첫 책의 무리 / 칸 중간 경계: 새 무리 시작 책 발밑 */
     const marks=[];
     row.forEach((b,j)=>{
-      if(j===0 || b.stream!==row[j-1].stream)
-        marks.push({j, num:ROMAN[b.stream]||'', name:short(b.stream||'')});
+      if(j===0 || groupOf(b)!==groupOf(row[j-1])) marks.push({j, ...labelOf(b)});
     });
-    const labels=marks.map((m,k)=>
+    const labels=marks.map(m=>
       `<span class="pl-label" data-j="${m.j}"><span class="pl-num">${m.num}</span>${esc(m.name)}</span>`
     ).join('');
-    const range=`<span class="pl-range">${eg(row[0].id)} – ${eg(row[row.length-1].id)}</span>`;
+    const range=era
+      ? `<span class="pl-range">${esc(cleanYear(row[0].year_raw))} – ${esc(cleanYear(row[row.length-1].year_raw))}</span>`
+      : `<span class="pl-range">${eg(row[0].id)} – ${eg(row[row.length-1].id)}</span>`;
     html+=`<div class="case">
       <div class="case-row">${cells}</div>
       <div class="plank">${labels}${range}</div>
@@ -1157,6 +1210,50 @@ function renderShelf(){
   }
   wall.innerHTML=html;
   schedulePlank();
+}
+/* 방 전환 — 서가가 옆으로 밀려나가고 새 방이 들어온다 */
+let wingBusy=false;
+function setShelfMode(m){
+  if(m===SHELF_MODE || wingBusy) return;
+  wingBusy=true;
+  SHELF_MODE=m;
+  const era=m==='era';
+  document.getElementById('tab-stream').classList.toggle('at',!era);
+  document.getElementById('tab-era').classList.toggle('at',era);
+  /* 배경: 전용 그림(hall2e)이 있으면 진짜 옆방 — 세피아 필터는 폴백일 때만 */
+  const f2=document.getElementById('f2');
+  const bg2=document.getElementById('bg2');
+  if(era && ERA_BG){
+    f2.classList.remove('era');
+    bg2.style.backgroundImage=`url(${ERA_BG})`;
+  }else if(era){
+    f2.classList.add('era');
+  }else{
+    f2.classList.remove('era');
+    setBg(bg2,[`college_hall2_${TOD}.webp`,'college_hall2_d.webp',`college_hall1_${TOD}.webp`,'college_hall1_d.webp']);
+  }
+  const wing=document.getElementById('wing');
+  const sc2=document.getElementById('sc2');
+  wing.classList.add('exit-l');
+  setTimeout(()=>{
+    /* 방 갈아끼우기 */
+    document.getElementById('lib-eyebrow').textContent = era ? 'FLEUVE DES CIVILISATIONS · 273' : 'BIBLIOTHÈQUE · 273';
+    document.getElementById('lib-sub').textContent = era
+      ? '문명의 강 · 길가메시에서 오늘까지, 시대순으로 흐릅니다'
+      : '일곱 강줄기 · 책등을 눌러 종을 달 수 있습니다';
+    document.getElementById('lib-tail').textContent = era
+      ? '강의 하구입니다 — 4천 년의 물길이 여기 닿았습니다 🌊'
+      : '서가의 끝입니다 — 273번째 책까지 함께 걸었습니다 ⚓';
+    renderShelf();
+    sc2.scrollTop=0;
+    wing.classList.remove('exit-l');
+    wing.classList.add('enter-r');
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      wing.classList.remove('enter-r');
+      parallaxCalc(1);
+      setTimeout(()=>{ wingBusy=false; },700);
+    }));
+  },660);
 }
 /* 각인 좌표 실측 — 경계 책의 발밑 x를 재서 널에 새김 (그림 로드마다 재측정) */
 let plankTm=null;
@@ -1196,7 +1293,7 @@ function openBook(id){
   document.getElementById('bm-title').innerHTML=esc(b.title)+mark;
   document.getElementById('bm-author').textContent=b.author||'';
   document.getElementById('bm-meta').textContent=
-    `${b.stream||''} · ${b.weeks_raw||''} 여정`;
+    `${b.stream||''} · ${b.weeks_raw||''} 여정${b.year_raw?' · '+b.year_raw:''}`;
   refreshBookModal();
   document.getElementById('book-modal').classList.add('show');
 }
