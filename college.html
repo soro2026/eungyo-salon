@@ -596,7 +596,9 @@ const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   auth: { storageKey: 'eungyo-auth' }
 });
-const SPINE = id => `${SUPA_URL}/storage/v1/object/public/college-assets/spines/spine_${id}.webp`;
+/* 책등 날짜 도장 — 재입고 시 CDN·브라우저 옛 캐시 무효화 (하루 단위) */
+const SPINE_V=(d=>`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`)(new Date());
+const SPINE = id => `${SUPA_URL}/storage/v1/object/public/college-assets/spines/spine_${id}.webp?v=${SPINE_V}`;
 const ASSET = p => `${SUPA_URL}/storage/v1/object/public/college-assets/${p}`;
 
 /* ══ 하늘 4구간 — 전당(palais) NOAA 이식 ══ */
@@ -705,9 +707,8 @@ document.getElementById('gate').addEventListener('click', e=>{
   setTimeout(()=>{
     gate.classList.remove('on'); gate.classList.add('gone');
     renderBellHand();
-    /* 1층 입장 — 본문에서 시작 (위로 스크롤하면 천장 배너) */
-    const sc1=document.getElementById('sc1');
-    sc1.scrollTop = sc1.scrollHeight - sc1.clientHeight;
+    /* 1층 입장 — 천장 배너를 올려다보며 시작 (아래로 스크롤하면 무대) */
+    document.getElementById('sc1').scrollTop = 0;
   }, 1550);
 });
 
@@ -1167,12 +1168,20 @@ function positionPlanks(){
     if(!row||!plank) return;
     const spines=row.querySelectorAll('.spine');
     const pr=plank.getBoundingClientRect();
-    plank.querySelectorAll('.pl-label').forEach(lb=>{
+    const rangeEl=plank.querySelector('.pl-range');
+    const rangeW=rangeEl?rangeEl.getBoundingClientRect().width:0;
+    const labels=plank.querySelectorAll('.pl-label');
+    labels.forEach(lb=>{
       const j=+lb.dataset.j;
-      if(j===0){ lb.style.left='12px'; return; }
-      const sp=spines[j]; if(!sp){ lb.style.left='12px'; return; }
-      const x=sp.getBoundingClientRect().left - pr.left;
-      lb.style.left=Math.max(12,x+4)+'px';
+      let x=12;
+      if(j>0){
+        const sp=spines[j];
+        if(sp) x=Math.max(12, sp.getBoundingClientRect().left - pr.left + 4);
+      }
+      /* 오른끝 번호 영토 침범 시 후퇴 (충돌 불상사 방지 — 0722 소로 지적) */
+      const lw=lb.getBoundingClientRect().width;
+      const limit=pr.width - rangeW - lw - 22;
+      lb.style.left=Math.min(x, Math.max(12,limit))+'px';
     });
   });
 }
