@@ -377,8 +377,8 @@ body.hall-editing .hall-compass{background:var(--gold);color:#1a120c;border-colo
   background:linear-gradient(160deg,#b08c3e 0%,#d8b25c 45%,#a37f34 100%);
   border:1px solid #6a5220;box-shadow:inset 0 0 14px rgba(60,42,10,.5),0 3px 12px rgba(0,0,0,.5);
   font-family:'Cormorant Garamond',serif;color:#3a2a0e;text-align:center;padding:6% 4%;}
-.plate-css .pc-name{font-size:clamp(10px,1.6vw,15px);letter-spacing:.12em;font-weight:700;}
-.plate-css .pc-lab{font-size:clamp(11px,1.9vw,18px);letter-spacing:.4em;text-indent:.4em;margin-top:4%;}
+.plate-css .pc-no{font-size:clamp(8px,1.2vw,11px);letter-spacing:.3em;text-indent:.3em;opacity:.75;}
+.plate-css .pc-name{font-size:clamp(11px,1.9vw,17px);letter-spacing:.1em;font-weight:700;margin-top:3%;}
 /* 기수 리본 — DB에서 오는 가변 정보 (CSS, 재굽기 없음) */
 .door-t .ribbon{margin:6% auto 0;width:92%;
   background:rgba(22,15,9,.82);border:1px solid rgba(201,162,74,.45);border-radius:4px;
@@ -389,13 +389,18 @@ body.hall-editing .hall-compass{background:var(--gold);color:#1a120c;border-colo
 .ribbon .rb-date{font-family:'Cormorant Garamond',serif;font-size:clamp(9px,1.3vw,12px);
   letter-spacing:.08em;color:var(--gold-l);margin-top:4px;}
 .ribbon .rb-more{font-size:clamp(8.5px,1.15vw,11px);color:rgba(233,225,205,.55);margin-top:4px;}
+/* 연구실 명부 드롭다운 — LAB 10개 초과 시 */
+#labIndex{position:absolute;top:64px;left:50%;transform:translateX(-50%);z-index:8;
+  font-size:12px;color:rgba(233,207,156,.9);background:rgba(16,12,8,.72);
+  border:1px solid rgba(201,162,74,.45);border-radius:20px;padding:8px 14px;
+  font-family:inherit;max-width:82%;
+  -webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);}
 /* LAB 모달 — 기수별 분산 */
 .lab-modal{max-width:380px;text-align:left;}
 .lab-modal .lm-head{display:flex;align-items:center;gap:14px;margin-bottom:18px;}
 .lab-modal .lm-med{width:56px;height:auto;flex:none;}
 .lab-modal .lm-name{font-size:15px;font-weight:700;color:#f0e8d4;line-height:1.5;}
-.lab-modal .lm-sub{font-family:'Cormorant Garamond',serif;font-size:11px;
-  letter-spacing:.22em;color:rgba(233,207,156,.7);margin-top:3px;}
+.lab-modal .lm-book{font-size:12px;color:rgba(233,225,205,.6);margin-top:4px;word-break:keep-all;}
 .lab-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
   padding:12px 12px;border:1px solid rgba(201,162,74,.22);border-radius:10px;
   margin-top:10px;transition:background .2s;}
@@ -498,6 +503,7 @@ body.hall-editing .hall-compass{background:var(--gold);color:#1a120c;border-colo
       <div class="f-scroll" id="sc3">
         <div id="corridor"></div>
       </div>
+      <select id="labIndex" style="display:none" onchange="jumpToLab(this.value)"></select>
       <button class="hall-compass" onclick="toggleLabEdit()" title="문 좌표 편집">🧭</button>
       <button class="lift lift-up" style="top:16px;bottom:auto" onclick="goFloor(1)">▼ 2층 · 273의 서가</button>
     </section>
@@ -577,7 +583,7 @@ body.hall-editing .hall-compass{background:var(--gold);color:#1a120c;border-colo
       <img class="lm-med" id="lm-med" alt="" style="display:none">
       <div>
         <div class="lm-name" id="lm-name"></div>
-        <div class="lm-sub">LABORATOIRE</div>
+        <div class="lm-book" id="lm-book"></div>
       </div>
     </div>
     <div id="lm-rows"></div>
@@ -809,7 +815,9 @@ loadHallLayout();
 const LAB_CODES={'소로':'thoreau','헨리 데이비드 소로':'thoreau',
   '톨스토이':'tolstoy','도스토옙스키':'dostoevsky','멜빌':'melville','플라톤':'plato'};
 const labCode=a=>LAB_CODES[a]||null;
-const LAB_IMG=(code,part)=>[`lab_${part}_${code}.webp`, ASSET(`labs/${code}_${part}.webp`)];
+const pad3=n=>String(n).padStart(3,'0');
+const MED_IMG=code=>[`lab_medallion_${code}.webp`, ASSET(`labs/medallion_${code}.webp`)];
+const PLATE_IMG=(no,code)=>[`lab_plate_${pad3(no)}.webp`, ...(code?[`lab_plate_${code}.webp`]:[]), ASSET(`labs/plate_${pad3(no)}.webp`)];
 const LAB3_DEF={ doorL:{x:23,y:15,w:19}, doorR:{x:76.5,y:15,w:19} };
 let LAB3=JSON.parse(JSON.stringify(LAB3_DEF));
 let myEnrollCids=new Set();
@@ -845,19 +853,19 @@ function chainImg(img,cands,onFail){
   };
   step();
 }
-/* LAB 목록 — 진행·모집·예고 기수를 저자로 묶는다. 내 클래스 LAB이 앞줄 */
+/* LAB 목록 — 책 = LAB. lab_no 연번(초연 개설 순, 영구)이 문패 번호.
+ *  같은 저자가 여러 LAB을 갖는다(도스토옙스키 LAB 004·0XX…). 내 클래스 LAB이 앞줄 */
 function buildLabs(){
-  const byAuthor={};
-  cohortsAll.forEach(c=>{
-    const b=bookOf(c.book_id); if(!b.author) return;
-    (byAuthor[b.author]=byAuthor[b.author]||[]).push(c);
-  });
-  const labs=Object.keys(byAuthor).map(a=>{
-    const cs=byAuthor[a].sort((x,y)=>(x.cohort_no||0)-(y.cohort_no||0));
-    return { author:a, code:labCode(a), cohorts:cs,
+  const byBook={};
+  cohortsAll.forEach(c=>{ (byBook[c.book_id]=byBook[c.book_id]||[]).push(c); });
+  const labs=Object.keys(byBook).map(bid=>{
+    const b=bookOf(+bid);
+    const cs=byBook[bid].sort((x,y)=>(x.cohort_no||0)-(y.cohort_no||0));
+    return { bookId:+bid, book:b, no:b.lab_no||null, author:b.author||'',
+      code:labCode(b.author||''), cohorts:cs,
       mine:cs.some(c=>myEnrollCids.has(c.id)) };
   });
-  labs.sort((a,b)=>(b.mine?1:0)-(a.mine?1:0));
+  labs.sort((a,b)=>(b.mine?1:0)-(a.mine?1:0) || (a.no||999)-(b.no||999));
   return labs;
 }
 function renderCorridor(){
@@ -877,45 +885,63 @@ function renderCorridor(){
   }
   cor.innerHTML=html;
   applyLabLayout();
-  /* 이미지 사슬 연결 */
+  /* 이미지 사슬 연결 — 메달리온=저자 공용, 문패=LAB 번호 */
   cor.querySelectorAll('.door-t').forEach(el=>{
-    const code=el.dataset.code; if(!code) return;
+    const code=el.dataset.code, no=el.dataset.no;
     const med=el.querySelector('.med');
-    if(med) chainImg(med,LAB_IMG(code,'medallion'),()=>{ med.style.display='none'; });
+    if(med){ if(code) chainImg(med,MED_IMG(code),()=>{ med.style.display='none'; });
+             else med.style.display='none'; }
     const pl=el.querySelector('.plate');
-    if(pl) chainImg(pl,LAB_IMG(code,'plate'),()=>{
-      pl.outerHTML=`<div class="plate-css"><div class="pc-name">${esc(el.dataset.author)}</div><div class="pc-lab">LAB</div></div>`;
+    if(pl) chainImg(pl,PLATE_IMG(no,code),()=>{
+      pl.outerHTML=`<div class="plate-css"><div class="pc-no">LAB ${pad3(no)}</div><div class="pc-name">${esc(el.dataset.author)}</div></div>`;
     });
   });
+  renderLabIndex(labs);
+}
+/* 연구실 명부 — LAB 10개 초과 시 바로가기 드롭다운 (엘베 도착 지점) */
+function renderLabIndex(labs){
+  const sel=document.getElementById('labIndex'); if(!sel) return;
+  if(labs.length<=10){ sel.style.display='none'; return; }
+  sel.style.display='';
+  sel.innerHTML='<option value="">🗂 연구실 명부 — 바로가기</option>'+
+    labs.map((l,i)=>`<option value="${i}">LAB ${l.no?pad3(l.no):'—'} · ${esc(l.book.title||'')} (${esc(l.author)})</option>`).join('');
+}
+function jumpToLab(v){
+  if(v==='') return;
+  const sc=document.getElementById('sc3');
+  const bay=Math.floor(+v/2);
+  const bays=document.querySelectorAll('#corridor .bay');
+  if(bays[bay]) sc.scrollTo({top:bays[bay].offsetTop, behavior:'smooth'});
+  document.getElementById('labIndex').value='';
 }
 function doorHTML(lab,slot){
   if(!lab) return '';
   const active=lab.cohorts.find(c=>c.status==='running')||lab.cohorts.find(c=>c.status==='recruiting')||lab.cohorts[0];
-  const b=bookOf(active.book_id);
   const STATUS={announced:'다음 달 공개',recruiting:'예약 중',running:'항해 중'};
   const dateLine=active.start_date?`${active.start_date} 개강`:(STATUS[active.status]||'');
   const more=lab.cohorts.length>1?`<div class="rb-more">외 ${lab.cohorts.length-1}개 기수</div>`:'';
   return `<div class="door-t${lab.mine?' lit':''}" data-slot="${slot}" data-code="${lab.code||''}"
-    data-author="${esc(lab.author)}" onclick="openLab('${esc(lab.author)}')">
-    ${lab.code?`<img class="med" alt="">`:''}
-    ${lab.code?`<img class="plate" alt="${esc(lab.author)} LAB">`
-              :`<div class="plate-css"><div class="pc-name">${esc(lab.author)}</div><div class="pc-lab">LAB</div></div>`}
+    data-no="${lab.no||''}" data-author="${esc(lab.author)}" onclick="openLab(${lab.bookId})">
+    <img class="med" alt="">
+    <img class="plate" alt="LAB ${lab.no?pad3(lab.no):''} ${esc(lab.author)}">
     <div class="ribbon">
-      <div class="rb-book">${esc(b.title||'')} · ${active.cohort_no}기</div>
+      <div class="rb-book">${esc(lab.book.title||'')} · ${active.cohort_no}기</div>
       <div class="rb-date">${esc(dateLine)}</div>${more}
     </div>
   </div>`;
 }
 /* LAB 모달 — 기수별 분산 */
-function openLab(author){
+function openLab(bookId){
   if(document.body.classList.contains('lab-editing')) return;
   const labs=buildLabs();
-  const lab=labs.find(l=>l.author===author); if(!lab) return;
-  document.getElementById('lm-name').textContent=author+' LAB';
+  const lab=labs.find(l=>l.bookId===bookId); if(!lab) return;
+  document.getElementById('lm-name').textContent=
+    `LAB ${lab.no?pad3(lab.no):''} · ${lab.author}`;
+  document.getElementById('lm-book').textContent=lab.book.title||'';
   const med=document.getElementById('lm-med');
   med.style.display='none';
-  if(lab.code) chainImg(med,LAB_IMG(lab.code,'medallion'),null),
-    med.onload=()=>{ med.style.display='block'; };
+  if(lab.code){ med.onload=()=>{ med.style.display='block'; };
+    chainImg(med,MED_IMG(lab.code),null); }
   const STATUS={announced:['announced','다음 달 공개'],recruiting:['recruiting','예약 중'],running:['running','항해 중']};
   document.getElementById('lm-rows').innerHTML=lab.cohorts.map(c=>{
     const b=bookOf(c.book_id);
@@ -1042,7 +1068,8 @@ async function goFloor(n){
   if(scFrom) await smoothScroll(scFrom, up?0:scFrom.scrollHeight-scFrom.clientHeight, 950);
 
   /* 2악장 — 건물 활강. 도착 층 시선은 들어올 문턱에 미리 세워둔다 */
-  if(scTo) scTo.scrollTop = up ? scTo.scrollHeight-scTo.clientHeight : 0;
+  if(scTo) scTo.scrollTop = (up && n===2) ? 0
+    : up ? scTo.scrollHeight-scTo.clientHeight : 0;   /* 3층은 입구(천장)에서 진입 */
   curFloor=n;
   positionFloors(false);
   document.querySelectorAll('#floorDots .dot').forEach((d,i)=>{
@@ -1058,6 +1085,10 @@ async function goFloor(n){
       await smoothScroll(scTo, scTo.scrollHeight-scTo.clientHeight, 950);
       await new Promise(r=>setTimeout(r,180));
       await smoothScroll(scTo, stageFocusTop(), 1050);
+    }else if(up && n===2){
+      /* 3층 도착 특별 예법 — 복도 입구에서 첫 연구실 문 앞으로 스르르 하강 */
+      await new Promise(r=>setTimeout(r,150));
+      await smoothScroll(scTo, labFocusTop(), 1100);
     }else{
       await smoothScroll(scTo, up?arrivalTop(n):scTo.scrollHeight-scTo.clientHeight, 1150);
     }
@@ -1097,6 +1128,15 @@ function stageFocusTop(){
   const st=document.getElementById('tg-stage'), sc=scOf(0);
   if(!st||!sc) return 0;
   const t=st.offsetTop - (window.innerHeight - st.offsetHeight)/2;
+  return Math.max(0, Math.min(t, sc.scrollHeight-sc.clientHeight));
+}
+/* 3층 첫 연구실 문 정면 — 문 조립(메달리온~리본)을 화면 중앙에 */
+function labFocusTop(){
+  const door=document.querySelector('#corridor .door-t'), sc=scOf(2);
+  if(!door||!sc) return 0;
+  const bay=door.closest('.bay');
+  const top=(bay?bay.offsetTop:0)+door.offsetTop;
+  const t=top - (window.innerHeight - door.offsetHeight)/2;
   return Math.max(0, Math.min(t, sc.scrollHeight-sc.clientHeight));
 }
 function wireParallax(n){
@@ -1174,7 +1214,7 @@ async function init(){
 }
 async function loadBooks(){
   const { data, error } = await supa.from('college_books')
-    .select('id,title,author,stream,subgroup,weeks_raw,founding,reserved,status,sort_order,era_order,year_raw,era_chapter')
+    .select('id,title,author,stream,subgroup,weeks_raw,founding,reserved,status,sort_order,era_order,year_raw,era_chapter,lab_no')
     .order('sort_order');
   if(error){ toast('서가를 불러오지 못했습니다'); return; }
   books = data || [];
