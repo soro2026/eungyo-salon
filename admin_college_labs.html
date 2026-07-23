@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LAB 자산 관리 — 살롱지기 전용</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Cormorant+Garamond:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+ *  admin_college_labs v1.0 — 0723 · 살롱지기 전용
+ *  복도 배경: college-assets/shell/hall3_{m|d|e|n}.webp
+ *  문패:      college-assets/labs/plate_{lab_no 3자리}.webp
+ *  메달리온:  college-assets/labs/medallion_{author_code}.webp (저자 공용)
+ *  쓰기 정책: can_write_college_asset (is_admin, SECURITY DEFINER)
+ * ============================================================ */
+:root{--ink:#2E4A7A;--gold:#c9a24a;--gold-l:#e9cf9c;--bg:#14100b;--paper:#1e160e;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:#e8ddc4;font-family:'Gowun Batang',serif;
+  min-height:100vh;padding:36px 18px 80px;}
+.wrap{max-width:680px;margin:0 auto;}
+h1{font-size:20px;letter-spacing:.06em;color:#f0e8d4;}
+.eyebrow{font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:.3em;
+  color:rgba(201,162,74,.8);margin-bottom:8px;}
+.sub{font-size:12px;color:rgba(232,221,196,.5);margin-top:8px;line-height:1.8;}
+.card{background:var(--paper);border:1px solid rgba(201,162,74,.25);
+  border-radius:14px;padding:22px;margin-top:22px;}
+h2{font-size:13px;letter-spacing:.18em;color:var(--gold-l);margin-bottom:6px;}
+.hint{font-size:11.5px;color:rgba(232,221,196,.45);line-height:1.8;margin-bottom:16px;}
+.slot-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.slot{border:1px dashed rgba(201,162,74,.35);border-radius:12px;
+  padding:12px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;}
+.slot:hover,.slot.drag{border-color:var(--gold-l);background:rgba(201,162,74,.06);}
+.slot img{max-width:100%;max-height:190px;border-radius:6px;display:block;margin:0 auto 10px;}
+.slot .s-name{font-size:12px;color:var(--gold-l);letter-spacing:.1em;}
+.slot .s-state{font-size:11px;color:rgba(232,221,196,.45);margin-top:6px;}
+.row{display:flex;align-items:center;gap:14px;padding:13px 4px;
+  border-bottom:1px dashed rgba(201,162,74,.18);}
+.row:last-child{border-bottom:none;}
+.row .thumb{width:86px;height:52px;border-radius:5px;object-fit:contain;
+  background:rgba(46,74,122,.25);flex-shrink:0;}
+.row .thumb.oval{width:52px;height:64px;}
+.row .info{flex:1;min-width:0;}
+.row .info b{font-size:13.5px;color:#f0e8d4;display:block;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.row .meta{font-size:11px;color:rgba(232,221,196,.45);margin-top:3px;}
+.btn{font:inherit;font-size:11.5px;letter-spacing:.06em;color:#f2f0ea;
+  background:var(--ink);border:none;border-radius:18px;padding:7px 14px;
+  cursor:pointer;white-space:nowrap;}
+.btn:hover{opacity:.85;}
+.btn.ghost{background:none;border:1px solid rgba(201,162,74,.4);color:rgba(233,207,156,.85);}
+.empty{text-align:center;font-size:12.5px;color:rgba(232,221,196,.45);
+  padding:18px 0;line-height:1.9;}
+#gateMsg{margin-top:60px;text-align:center;font-size:13px;
+  color:rgba(232,221,196,.6);line-height:2;}
+#toast{position:fixed;left:50%;bottom:40px;transform:translateX(-50%);z-index:60;
+  background:rgba(240,232,212,.94);color:#241a10;font-size:12.5px;
+  padding:10px 20px;border-radius:22px;opacity:0;pointer-events:none;
+  transition:opacity .3s;max-width:88vw;text-align:center;}
+#toast.show{opacity:1;}
+input[type=file]{display:none;}
+a.back{font-size:11px;color:rgba(201,162,74,.7);text-decoration:none;letter-spacing:.1em;}
+a.back:hover{color:var(--gold-l);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">COLLÈGE DE COMPOSTELLA · 학장실</div>
+  <h1>🚪 LAB 자산 관리</h1>
+  <p class="sub">3층 연구실 복도의 문패·메달리온·배경을 겁니다 — 올리면 셸이 즉시 알아봅니다.<br>
+  루트 파일보다 여기 올린 것이 우선합니다 (하루 단위 캐시).<br>
+  <a class="back" href="college.html">→ 콜레주로 가서 확인</a></p>
+
+  <div id="gateMsg" style="display:none"></div>
+
+  <div id="panel" style="display:none">
+    <div class="card">
+      <h2>복도 배경 — 밤낮 4벌</h2>
+      <div class="hint">941×1672 세로, 무텍스트, 구도 고정·조명만 전환.
+        아침(m)·낮(d)·저녁(e)·밤(n). 낮판만 있어도 전 시간대 폴백으로 걸립니다.</div>
+      <div class="slot-grid" id="bgSlots"></div>
+    </div>
+
+    <div class="card">
+      <h2>문패 — LAB 번호별</h2>
+      <div class="hint">투명 배경 webp 권장 (가로 판, 예: 1000×470).
+        어두운 단색 배경으로 구운 원판을 올리면 그대로 걸립니다 — 오려내기가 필요하면 파이스 창에.
+        문패가 없으면 셸이 황동 CSS 문패로 대신합니다.</div>
+      <div id="plateList"><div class="empty">불러오는 중…</div></div>
+    </div>
+
+    <div class="card">
+      <h2>메달리온 — 저자 공용</h2>
+      <div class="hint">타원 투명 webp 권장 (예: 800×1050).
+        같은 저자의 모든 LAB이 한 메달리온을 공유합니다 — 도스토옙스키가 문을 세 개 열어도 얼굴은 하나.</div>
+      <div id="medList"><div class="empty">불러오는 중…</div></div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="filePick" accept="image/webp,image/png,image/jpeg">
+<div id="toast"></div>
+
+<script>
+const SUPA_URL='https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth'}});
+const PUB=p=>`${SUPA_URL}/storage/v1/object/public/college-assets/${p}`;
+const pad3=n=>String(n).padStart(3,'0');
+let pickTarget=null;
+
+function toast(m){const t=document.getElementById('toast');t.textContent=m;
+  t.classList.add('show');clearTimeout(t._tm);t._tm=setTimeout(()=>t.classList.remove('show'),2600);}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+async function init(){
+  const { data:{ user } } = await supa.auth.getUser();
+  const gate=document.getElementById('gateMsg');
+  if(!user){ gate.style.display='block';
+    gate.innerHTML='살롱지기 전용 콘솔입니다.<br>은교살롱에 로그인한 뒤 다시 들러 주세요.'; return; }
+  const { data:u } = await supa.from('users').select('is_admin').eq('id',user.id).single();
+  if(!u || !u.is_admin){ gate.style.display='block';
+    gate.innerHTML='이 문은 살롱지기의 열쇠로만 열립니다. 🗝️'; return; }
+  document.getElementById('panel').style.display='block';
+  buildBgSlots(); loadLabs();
+}
+
+/* ── 복도 배경 4벌 — shell/hall3_{m|d|e|n}.webp ── */
+const TODS=[['m','아침'],['d','낮'],['e','저녁'],['n','밤']];
+function buildBgSlots(){
+  const box=document.getElementById('bgSlots');
+  box.innerHTML=TODS.map(([t,label])=>`
+    <div class="slot" data-path="shell/hall3_${t}.webp" id="bg-${t}">
+      <div class="s-name">${label} (${t})</div><div class="s-state">확인 중…</div>
+    </div>`).join('');
+  document.querySelectorAll('#bgSlots .slot').forEach(el=>{
+    el.addEventListener('click',()=>pickFile(el.dataset.path,refreshBg));
+    el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('drag');});
+    el.addEventListener('dragleave',()=>el.classList.remove('drag'));
+    el.addEventListener('drop',e=>{e.preventDefault();el.classList.remove('drag');
+      if(e.dataTransfer.files[0]) upload(el.dataset.path,e.dataTransfer.files[0],refreshBg);});
+  });
+  refreshBg();
+}
+function refreshBg(){
+  TODS.forEach(([t,label])=>{
+    const el=document.getElementById('bg-'+t); if(!el) return;
+    const path=el.dataset.path;
+    const name=`<div class="s-name">${label} (${t})</div>`;
+    const im=new Image();
+    im.onload=()=>{ el.innerHTML=`<img src="${im.src}">${name}
+      <div class="s-state">걸려 있음 · 클릭해 교체</div>
+      <button class="btn ghost" style="margin-top:8px" onclick="event.stopPropagation();clearAsset('${path}',refreshBg)">내리기</button>`; };
+    im.onerror=()=>{ el.innerHTML=`${name}<div class="s-state">비어 있음 · 클릭해 걸기<br><span style="font-size:10px">(비면 저장소 루트 파일로 폴백)</span></div>`; };
+    im.src=PUB(path)+'?v='+Date.now();
+  });
+}
+
+/* ── LAB 목록 — 문패(번호별)·메달리온(저자 공용) ── */
+async function loadLabs(){
+  const { data } = await supa.from('college_books')
+    .select('id,title,author,author_code,lab_no').not('lab_no','is',null)
+    .order('lab_no');
+  const labs=data||[];
+  const pbox=document.getElementById('plateList');
+  const mbox=document.getElementById('medList');
+  if(!labs.length){
+    pbox.innerHTML=mbox.innerHTML='<div class="empty">아직 LAB 번호가 각인된 책이 없습니다.</div>';
+    return;
+  }
+  /* 문패 — LAB 번호별 */
+  pbox.innerHTML=labs.map(l=>{
+    const p=`labs/plate_${pad3(l.lab_no)}.webp`;
+    return `<div class="row">
+      <img class="thumb" id="pt-${l.lab_no}" alt="">
+      <div class="info"><b>LAB ${pad3(l.lab_no)} · ${esc(l.author)}</b>
+        <div class="meta">${esc(l.title)}</div></div>
+      <button class="btn" onclick="pickFile('${p}',()=>thumb('pt-${l.lab_no}','${p}'))">문패</button>
+      <button class="btn ghost" onclick="clearAsset('${p}',()=>thumb('pt-${l.lab_no}','${p}'))">내리기</button>
+    </div>`;
+  }).join('');
+  labs.forEach(l=>thumb('pt-'+l.lab_no,`labs/plate_${pad3(l.lab_no)}.webp`));
+
+  /* 메달리온 — 저자 공용 (코드 중복 제거) */
+  const seen={}, authors=[];
+  labs.forEach(l=>{
+    const code=l.author_code;
+    if(!code){ authors.push({author:l.author,code:null,labs:[l.lab_no]}); return; }
+    if(seen[code]){ seen[code].labs.push(l.lab_no); return; }
+    seen[code]={author:l.author,code,labs:[l.lab_no]}; authors.push(seen[code]);
+  });
+  mbox.innerHTML=authors.map(a=>{
+    if(!a.code) return `<div class="row">
+      <div class="thumb oval"></div>
+      <div class="info"><b>${esc(a.author)}</b>
+        <div class="meta">author_code 미등록 — 파이스 창에서 등록 후 사용</div></div></div>`;
+    const p=`labs/medallion_${a.code}.webp`;
+    return `<div class="row">
+      <img class="thumb oval" id="md-${a.code}" alt="">
+      <div class="info"><b>${esc(a.author)}</b>
+        <div class="meta">${a.code} · LAB ${a.labs.map(pad3).join(', ')} 공유</div></div>
+      <button class="btn" onclick="pickFile('${p}',()=>thumb('md-${a.code}','${p}'))">메달리온</button>
+      <button class="btn ghost" onclick="clearAsset('${p}',()=>thumb('md-${a.code}','${p}'))">내리기</button>
+    </div>`;
+  }).join('');
+  authors.forEach(a=>{ if(a.code) thumb('md-'+a.code,`labs/medallion_${a.code}.webp`); });
+}
+function thumb(id,path){
+  const el=document.getElementById(id); if(!el) return;
+  const im=new Image();
+  im.onload=()=>{ el.src=im.src; };
+  im.onerror=()=>{ el.removeAttribute('src'); };
+  im.src=PUB(path)+'?v='+Date.now();
+}
+
+/* ── 공용 업로드 — 걸고 나서 실제로 다시 읽어 확인 (잘 됐겠지 금지) ── */
+function pickFile(path, after){
+  pickTarget={path,after};
+  document.getElementById('filePick').click();
+}
+document.getElementById('filePick').addEventListener('change',e=>{
+  if(e.target.files[0] && pickTarget) upload(pickTarget.path,e.target.files[0],pickTarget.after);
+  e.target.value='';
+});
+async function upload(path,file,after){
+  if(file.size>8*1024*1024){ toast('8MB 이하로 부탁드립니다'); return; }
+  toast('올리는 중…');
+  const { error } = await supa.storage.from('college-assets')
+    .upload(path,file,{ upsert:true, contentType:file.type||'image/webp', cacheControl:'300' });
+  if(error){ toast('실패: '+error.message); return; }
+  const chk=new Image();
+  chk.onload=()=>{ toast('걸렸습니다 ✔ — 셸에는 하루 안에(캐시) 반영, 새로고침으로 즉시 확인'); after&&after(); };
+  chk.onerror=()=>{ toast('올렸으나 확인 실패 — 새로고침해 보세요'); };
+  chk.src=PUB(path)+'?v='+Date.now();
+}
+async function clearAsset(path,after){
+  if(!confirm('이 자산을 내릴까요? 셸은 저장소 루트 파일 또는 CSS 폴백으로 돌아갑니다.')) return;
+  const { error } = await supa.storage.from('college-assets').remove([path]);
+  if(error){ toast('실패: '+error.message); return; }
+  toast('내렸습니다'); after&&after();
+}
+
+init();
+</script>
+</body>
+</html>

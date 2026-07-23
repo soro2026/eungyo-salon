@@ -781,7 +781,9 @@ setBg(document.getElementById('bg2'),
 /* 3층 복도 배경 — bay 전 구간 공용 (프리로드 후 renderCorridor가 바름) */
 let COR_BG=null;
 (function preloadCorBg(){
-  const cands=[`college_hall3_${TOD}.webp`,'college_hall3_d.webp'];
+  const cands=[ASSET(`shell/hall3_${TOD}.webp`)+'?v='+(new Date().toISOString().slice(0,10).replace(/-/g,'')),
+    ASSET('shell/hall3_d.webp')+'?v='+(new Date().toISOString().slice(0,10).replace(/-/g,'')),
+    `college_hall3_${TOD}.webp`,'college_hall3_d.webp'];
   const step=i=>{
     if(i>=cands.length) return;
     const im=new Image();
@@ -840,8 +842,10 @@ const LAB_CODES={'소로':'thoreau','헨리 데이비드 소로':'thoreau',
   '톨스토이':'tolstoy','도스토옙스키':'dostoevsky','멜빌':'melville','플라톤':'plato'};
 const labCode=a=>LAB_CODES[a]||null;
 const pad3=n=>String(n).padStart(3,'0');
-const MED_IMG=code=>[`lab_medallion_${code}.webp`, ASSET(`labs/medallion_${code}.webp`)];
-const PLATE_IMG=(no,code)=>[`lab_plate_${pad3(no)}.webp`, ...(code?[`lab_plate_${code}.webp`]:[]), ASSET(`labs/plate_${pad3(no)}.webp`)];
+const DAYV=new Date().toISOString().slice(0,10).replace(/-/g,'');  /* Storage 캐시 하루 도장 */
+const MED_IMG=code=>[ASSET(`labs/medallion_${code}.webp`)+'?v='+DAYV, `lab_medallion_${code}.webp`];
+const PLATE_IMG=(no,code)=>[ASSET(`labs/plate_${pad3(no)}.webp`)+'?v='+DAYV,
+  `lab_plate_${pad3(no)}.webp`, ...(code?[`lab_plate_${code}.webp`]:[])];
 const LAB3_DEF={ doorL:{x:29,y:45,w:16}, doorR:{x:71,y:45,w:16} };
 let LAB3=JSON.parse(JSON.stringify(LAB3_DEF));
 let myEnrollCids=new Set();
@@ -886,9 +890,10 @@ function buildLabs(){
     const b=bookOf(+bid);
     const cs=byBook[bid].sort((x,y)=>(x.cohort_no||0)-(y.cohort_no||0));
     return { bookId:+bid, book:b, no:b.lab_no||null, author:b.author||'',
-      code:labCode(b.author||''), cohorts:cs,
+      code:(b.author_code||labCode(b.author||'')), cohorts:cs,
       mine:cs.some(c=>myEnrollCids.has(c.id)) };
   });
+  labs.forEach(l=>{ if(!l.code && l.book.author_code) l.code=l.book.author_code; });
   labs.sort((a,b)=>(b.mine?1:0)-(a.mine?1:0) || (a.no||999)-(b.no||999));
   return labs;
 }
@@ -1268,7 +1273,7 @@ async function init(){
 }
 async function loadBooks(){
   const { data, error } = await supa.from('college_books')
-    .select('id,title,author,stream,subgroup,weeks_raw,founding,reserved,status,sort_order,era_order,year_raw,era_chapter,lab_no')
+    .select('id,title,author,stream,subgroup,weeks_raw,founding,reserved,status,sort_order,era_order,year_raw,era_chapter,lab_no,author_code')
     .order('sort_order');
   if(error){ toast('서가를 불러오지 못했습니다'); return; }
   books = data || [];
