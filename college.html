@@ -353,9 +353,30 @@ body.hall-editing .hall-compass{background:var(--gold);color:#1a120c;border-colo
 .bm-cnt{font-size:11px;color:rgba(232,221,196,.45);margin-top:10px;}
 
 /* ── 3층 연구실 복도 — bay(화면 구간) 문법: 그림이 곧 복도, 문 위에 문패 조립 ── */
-#corridor{position:relative;width:100%;}
+#corridor{position:relative;width:100%;
+  transition:transform .6s cubic-bezier(.4,.05,.25,1),opacity .6s ease;}
+#corridor.exit-l{transform:translateX(-12%);opacity:0;}
+#corridor.exit-r{transform:translateX(12%);opacity:0;}
+#corridor.enter-r{transform:translateX(12%);opacity:0;transition:none;}
+#corridor.enter-l{transform:translateX(-12%);opacity:0;transition:none;}
 .bay{position:relative;width:100%;aspect-ratio:941/1672;
   background-repeat:no-repeat;background-size:cover;background-position:center top;}
+/* 복도 좌우 화살표 — 옆으로 걷기 */
+.cor-arrow{position:absolute;top:50%;transform:translateY(-50%);z-index:9;
+  width:46px;height:46px;border-radius:50%;display:none;align-items:center;justify-content:center;
+  font-size:18px;color:rgba(233,207,156,.9);background:rgba(16,12,8,.6);
+  border:1px solid rgba(201,162,74,.45);cursor:pointer;
+  -webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);
+  transition:background .2s,color .2s;box-shadow:0 4px 16px rgba(0,0,0,.5);}
+.cor-arrow:hover{background:rgba(16,12,8,.88);color:var(--gold-l);}
+.cor-arrow.show{display:flex;}
+#corPrev{left:14px;} #corNext{right:14px;}
+.cor-pos{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);z-index:9;
+  font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:.22em;text-indent:.22em;
+  color:rgba(233,207,156,.75);background:rgba(16,12,8,.55);border:1px solid rgba(201,162,74,.3);
+  border-radius:16px;padding:5px 14px;display:none;
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);}
+.cor-pos.show{display:block;}
 .bay.f-fallback{background-image:
   radial-gradient(ellipse at 50% 0%, rgba(201,162,74,.10) 0%, transparent 55%),
   linear-gradient(180deg,#241a10 0%,#14100b 100%);}
@@ -503,6 +524,9 @@ body.hall-editing .hall-compass{background:var(--gold);color:#1a120c;border-colo
       <div class="f-scroll" id="sc3">
         <div id="corridor"></div>
       </div>
+      <button class="cor-arrow" id="corPrev" onclick="walkCorridor(-1)" title="이전 연구실">◀</button>
+      <button class="cor-arrow" id="corNext" onclick="walkCorridor(1)" title="다음 연구실">▶</button>
+      <div class="cor-pos" id="corPos"></div>
       <select id="labIndex" style="display:none" onchange="jumpToLab(this.value)"></select>
       <button class="hall-compass" onclick="toggleLabEdit()" title="문 좌표 편집">🧭</button>
       <button class="lift lift-up" style="top:16px;bottom:auto" onclick="goFloor(1)">▼ 2층 · 273의 서가</button>
@@ -868,24 +892,26 @@ function buildLabs(){
   labs.sort((a,b)=>(b.mine?1:0)-(a.mine?1:0) || (a.no||999)-(b.no||999));
   return labs;
 }
+/* ── 복도는 옆으로 걷는다 — 한 화면 = 한 구간(문 2짝), 좌우 화살표 슬라이딩 ── */
+let corBay=0, corLabs=[], corWalking=false;
 function renderCorridor(){
   const cor=document.getElementById('corridor'); if(!cor) return;
-  const labs=buildLabs();
-  const bays=Math.max(1, Math.ceil(labs.length/2));
-  let html='';
-  for(let i=0;i<bays;i++){
-    const L=labs[i*2], R=labs[i*2+1];
-    html+=`<div class="bay${COR_BG?'':' f-fallback'}"${COR_BG?` style="background-image:url(${COR_BG})"`:''}>`;
-    if(i===0){
-      html+=`<div class="cor-head">
-        <div class="hall-eyebrow">MES CLASSES · 연구실 복도</div></div>`;
-    }
-    html+=doorHTML(L,'doorL')+doorHTML(R,'doorR');
-    html+=`</div>`;
-  }
+  corLabs=buildLabs();
+  corBay=Math.min(corBay, Math.max(0, bayCount()-1));
+  paintBay();
+  renderLabIndex(corLabs);
+}
+function bayCount(){ return Math.max(1, Math.ceil(corLabs.length/2)); }
+function paintBay(){
+  const cor=document.getElementById('corridor');
+  const i=corBay;
+  const L=corLabs[i*2], R=corLabs[i*2+1];
+  let html=`<div class="bay${COR_BG?'':' f-fallback'}"${COR_BG?` style="background-image:url(${COR_BG})"`:''}>`;
+  html+=`<div class="cor-head"><div class="hall-eyebrow">MES CLASSES · 연구실 복도</div></div>`;
+  html+=doorHTML(L,'doorL')+doorHTML(R,'doorR');
+  html+=`</div>`;
   cor.innerHTML=html;
   applyLabLayout();
-  /* 이미지 사슬 연결 — 메달리온=저자 공용, 문패=LAB 번호 */
   cor.querySelectorAll('.door-t').forEach(el=>{
     const code=el.dataset.code, no=el.dataset.no;
     const med=el.querySelector('.med');
@@ -896,7 +922,33 @@ function renderCorridor(){
       pl.outerHTML=`<div class="plate-css"><div class="pc-no">LAB ${pad3(no)}</div><div class="pc-name">${esc(el.dataset.author)}</div></div>`;
     });
   });
-  renderLabIndex(labs);
+  /* 화살표·위치 문패 */
+  const n=bayCount();
+  document.getElementById('corPrev').classList.toggle('show', corBay>0);
+  document.getElementById('corNext').classList.toggle('show', corBay<n-1);
+  const pos=document.getElementById('corPos');
+  pos.textContent=`COULOIR ${corBay+1} / ${n}`;
+  pos.classList.toggle('show', n>1);
+}
+/* 복도 걷기 — 2층 서가 슬라이딩 혈통 (exit → enter) */
+function walkCorridor(dir){
+  const n=bayCount();
+  const to=corBay+dir;
+  if(corWalking || to<0 || to>=n) return;
+  corWalking=true;
+  const cor=document.getElementById('corridor');
+  cor.classList.add(dir>0?'exit-l':'exit-r');
+  setTimeout(()=>{
+    corBay=to;
+    paintBay();
+    document.getElementById('sc3').scrollTop=labFocusTop();  /* 새 구간도 문 정면에서 */
+    cor.classList.remove('exit-l','exit-r');
+    cor.classList.add(dir>0?'enter-r':'enter-l');
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      cor.classList.remove('enter-r','enter-l');
+      setTimeout(()=>{ corWalking=false; }, 620);
+    }));
+  }, 600);
 }
 /* 연구실 명부 — LAB 10개 초과 시 바로가기 드롭다운 (엘베 도착 지점) */
 function renderLabIndex(labs){
@@ -908,10 +960,12 @@ function renderLabIndex(labs){
 }
 function jumpToLab(v){
   if(v==='') return;
-  const sc=document.getElementById('sc3');
   const bay=Math.floor(+v/2);
-  const bays=document.querySelectorAll('#corridor .bay');
-  if(bays[bay]) sc.scrollTo({top:bays[bay].offsetTop, behavior:'smooth'});
+  if(bay!==corBay){
+    const dir=bay>corBay?1:-1;
+    corBay=bay-dir;          /* walkCorridor가 한 걸음 옮기며 도착 */
+    walkCorridor(dir);
+  }
   document.getElementById('labIndex').value='';
 }
 function doorHTML(lab,slot){
