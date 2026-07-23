@@ -2163,39 +2163,54 @@ const TERRA_KIND = {
   college:{ icon:"📖" }
 };
 async function loadTerraPins(){
+  /* 재시도 3회 — 순간 네트워크 삐끗으로 핀 전멸하던 사고 봉합 */
+  let rows=null;
+  for(let t=0;t<3;t++){
+    try{
+      const r = await fetch(SUPA_URL + "/rest/v1/terra_pins?active=eq.true&kind=in.(stadium,museum,constellatio,heritage,hansfoon,college)&order=sort",
+        { headers:{ apikey:SUPA_KEY, Authorization:"Bearer "+SUPA_KEY } });
+      const j = await r.json();
+      if (Array.isArray(j)){ rows=j; break; }      /* 오류 객체면 배열 아님 → 재시도 */
+      console.warn("terra 핀 응답 비정상 ("+(t+1)+"/3):", j);
+    }catch(e){ console.warn("terra 핀 로딩 실패 ("+(t+1)+"/3):", e); }
+    await new Promise(res=>setTimeout(res, 800*(t+1)));
+  }
+  if(!rows){ console.warn("terra 핀 최종 실패 — 핀 없이 진행"); return; }
   try{
-    const r = await fetch(SUPA_URL + "/rest/v1/terra_pins?active=eq.true&kind=in.(stadium,museum,constellatio,heritage,hansfoon,college)&order=sort",
-      { headers:{ apikey:SUPA_KEY, Authorization:"Bearer "+SUPA_KEY } });
-    let rows = await r.json();
     /* 당번 기간 필터 — 행을 미리 넣어두면 날짜가 되는 날 핀이 스스로 교대 (관리자 예약 배관) */
     const todayStr = new Date().toLocaleDateString("sv-SE", { timeZone:"Asia/Seoul" });
     rows = rows.filter(p => (!p.active_from || p.active_from <= todayStr)
                          && (!p.active_to   || p.active_to   >= todayStr));
     for (const p of rows){
-      const kk = TERRA_KIND[p.kind] || { icon:"📍" };
-      terraPins[p.code] = p;
-      const ent = viewer.entities.add({
-        id:"terra-"+p.code,
-        position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),
-        point:{ pixelSize:9, color:Cesium.Color.fromCssColorString(p.color||"#c62828"),
-          outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
-          disableDepthTestDistance:10000 },   /* 10km 안에서만 타일 위 우선 — 지구 관통 방지 */
-        label:{ text:kk.icon + " " + p.name + (kk.tag ? "  ·  " + kk.tag : ""),
-          font:"bold 14px 'Helvetica Neue',Arial,sans-serif",
-          fillColor:Cesium.Color.WHITE,
-          outlineColor:Cesium.Color.fromCssColorString("#0a0e1a"), outlineWidth:3,
-          style:Cesium.LabelStyle.FILL_AND_OUTLINE,
-          showBackground:true,
-          backgroundColor:Cesium.Color.fromCssColorString(p.color||"#c62828").withAlpha(.95),
-          backgroundPadding:new Cesium.Cartesian2(11,6),
-          pixelOffset:new Cesium.Cartesian2(0,-12),
-          verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
-          disableDepthTestDistance:10000 }
-      });
-      ent._terra = p;
-      ent._basePx = 9;
+      try{
+        const kk = TERRA_KIND[p.kind] || { icon:"📍" };
+        terraPins[p.code] = p;
+        if (viewer.entities.getById("terra-"+p.code)) continue;  /* 중복 add 예외 방지 */
+        const ent = viewer.entities.add({
+          id:"terra-"+p.code,
+          /* 기본 고도 60m — 표면 고정 실패해도 파리 지반 밑에 묻히지 않게 */
+          position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 60),
+          point:{ pixelSize:9, color:Cesium.Color.fromCssColorString(p.color||"#c62828"),
+            outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
+            disableDepthTestDistance:10000 },   /* 10km 안에서만 타일 위 우선 — 지구 관통 방지 */
+          label:{ text:kk.icon + " " + p.name + (kk.tag ? "  ·  " + kk.tag : ""),
+            font:"bold 14px 'Helvetica Neue',Arial,sans-serif",
+            fillColor:Cesium.Color.WHITE,
+            outlineColor:Cesium.Color.fromCssColorString("#0a0e1a"), outlineWidth:3,
+            style:Cesium.LabelStyle.FILL_AND_OUTLINE,
+            showBackground:true,
+            backgroundColor:Cesium.Color.fromCssColorString(p.color||"#c62828").withAlpha(.95),
+            backgroundPadding:new Cesium.Cartesian2(11,6),
+            pixelOffset:new Cesium.Cartesian2(0,-12),
+            verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
+            disableDepthTestDistance:10000 }
+        });
+        ent._terra = p;
+        ent._basePx = 9;
+      }catch(e){ console.warn("terra 핀 개별 실패:", p && p.code, e); }
     }
     clampTerraPins();   /* 실사 타일 지붕 높이에 앉힘 — 어긋남 방지 */
+    setTimeout(clampTerraPins, 9000);   /* 타일 예열 후 2차 고정 — 초탄 실패 보험 */
   }catch(e){ console.warn("terra 핀 로딩 실패:", e); }
 }
 
@@ -2211,8 +2226,10 @@ async function clampTerraPins(){
       const c = arr && arr[0];
       if (Cesium.defined(c)){
         const h = Cesium.Cartographic.fromCartesian(c).height;
-        ent.position = Cesium.Cartesian3.fromDegrees(p.lng, p.lat, h);
-        p._h = h;
+        if (isFinite(h) && h > -50 && h < 1000){   /* 비정상 표본 방어 — 실패 시 기본 60m 유지 */
+          ent.position = Cesium.Cartesian3.fromDegrees(p.lng, p.lat, h);
+          p._h = h;
+        }
       }
     }
   }catch(e){ console.warn("terra 핀 표면 고정 실패:", e); }
