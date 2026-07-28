@@ -223,6 +223,26 @@
   }
   #hint b{color:var(--gold-soft);font-weight:600}
 
+  /* ── 구장 안내판 (0728) — 오늘 경기가 없는 구장에 내렸을 때 ── */
+  #parkNote{
+    position:fixed;left:50%;bottom:96px;z-index:32;transform:translate(-50%,14px);
+    width:min(340px,86vw);padding:16px 18px;box-sizing:border-box;
+    background:linear-gradient(165deg,rgba(10,14,26,.96),rgba(10,14,26,.88));
+    border:1px solid rgba(201,162,39,.4);border-radius:14px;
+    box-shadow:0 18px 50px rgba(0,0,0,.55);backdrop-filter:blur(6px);
+    opacity:0;pointer-events:none;transition:opacity .45s ease,transform .45s ease;
+    font-family:var(--serif);text-align:center;cursor:pointer;
+  }
+  #parkNote.in{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+  #parkNote .pn-park{font-family:var(--sans);font-size:9.5px;letter-spacing:.2em;
+    text-transform:uppercase;color:rgba(201,162,39,.75);margin-bottom:9px}
+  #parkNote .pn-main{font-size:15px;color:var(--cream);line-height:1.55}
+  #parkNote .pn-score{font-family:'Courier New',monospace;font-size:20px;font-weight:700;
+    color:#E9C97E;letter-spacing:.06em;margin:7px 0 3px}
+  #parkNote .pn-sub{font-size:11.5px;color:var(--cream-dim);margin-top:10px;line-height:1.6}
+  #parkNote .pn-x{font-family:var(--sans);font-size:9px;letter-spacing:.14em;
+    color:rgba(248,244,234,.3);margin-top:12px}
+
   /* ── 현재 장소 카드 ── */
   #card{
     position:fixed;left:30px;bottom:128px;z-index:10;max-width:340px;
@@ -657,6 +677,8 @@
 </div>
 
 <div id="hint"></div>
+
+<div id="parkNote"></div>
 
 <div id="card">
   <div class="yr" id="cardYr"></div>
@@ -2146,6 +2168,54 @@ let cdGen = 0;                     /* 카운트다운 세대 — 옛 체인이 �
                                       ⚠ 반드시 renderDock보다 위에. 밑그림이 파싱 중에 그려지므로
                                         아래에 두면 TDZ에 걸려 typeof로도 못 막는다. */
 let dockAgainTimer = null;
+/* ── 오늘의 경기 두 판 (내 경기 + 봇끼리) · 0728 ──
+   구장이 넷인데 매일 불이 켜지는 곳은 둘뿐이다. 어느 핀이 문인지 가리려면
+   오늘 어느 구장에서 무슨 경기가 열리는지를 알아야 한다. 홈팀의 구장이 곧 경기장. */
+let todayGames = [], todayGamesLoaded = false;
+const parkOfGame = (g)=> g ? (TEAM_PARK[g.home_team] || null) : null;
+const myGameToday = ()=> todayGames.find(g=> g.is_my_game) || null;
+
+let pnTimer = null;
+function hideParkNote(){
+  const el = document.getElementById("parkNote"); if (el) el.classList.remove("in");
+  if (pnTimer){ clearTimeout(pnTimer); pnTimer = null; }
+}
+/* 오늘 내 경기가 없는 구장에 내렸을 때 — 문 대신 안내판 한 장.
+   ❌ "잘못 오셨습니다" 류 금지. 여기서 무슨 일이 있는지 알려주고, 내 경기가
+      어디서 열리는지만 조용히 덧붙인다. */
+function showParkNote(p){
+  const el = document.getElementById("parkNote"); if (!el) return;
+  const here = todayGames.find(g=> parkOfGame(g) === p.code) || null;
+  const mine = myGameToday();
+  const myPark = parkOfGame(mine);
+  const myParkName = (myPark && terraPins[myPark]) ? terraPins[myPark].name : null;
+  const ko = (t)=> TEAM_KO[t] || t;
+
+  let body;
+  if (here){
+    const done = here.status === "completed";
+    body = '<div class="pn-main">' + ko(here.away_team) + ' vs ' + ko(here.home_team) + '</div>'
+         + (done
+             ? '<div class="pn-score">' + (here.away_score!=null?here.away_score:'-') + ' &minus; '
+               + (here.home_score!=null?here.home_score:'-') + '</div>'
+               + '<div class="pn-sub">오늘 이곳의 경기는 끝났습니다.</div>'
+             : '<div class="pn-sub">오늘 이곳에서 열리는 경기입니다. 아직 치러지지 않았습니다.</div>');
+  } else {
+    body = '<div class="pn-main">오늘 이 구장은 쉽니다.</div>';
+  }
+
+  let tail;
+  if (!mine) tail = '오늘 당신의 경기는 없습니다.';
+  else if (myParkName) tail = '당신의 경기는 <b style="color:#E9C97E">' + myParkName + '</b>에서 열립니다.';
+  else tail = '';
+
+  el.innerHTML = '<div class="pn-park">' + (p.name || '') + '</div>' + body
+    + (tail ? '<div class="pn-sub">' + tail + '</div>' : '')
+    + '<div class="pn-x">눌러서 닫기</div>';
+  el.classList.add("in");
+  if (pnTimer) clearTimeout(pnTimer);
+  pnTimer = setTimeout(hideParkNote, 7000);
+}
 /* 도크 새로고침 한 벌 — 문이 닫힐 때마다 부른다.
    twice=true면 1.8초 뒤 한 번 더. 경기 결과 저장(saveStatsToSupabase)이
    await 없이 날아가므로, 손님이 결과를 보자마자 나가면 PATCH가 아직
@@ -2286,6 +2356,7 @@ function freeCamera(){
 
 /* ── 2단 대륙 횡단 비행: 고공 아크 → 강하 (핀별 카메라 = meta {alt,dist,pitch,orbit}) ── */
 function flyToPark(p, opts){
+  try{ hideParkNote(); }catch(e){}   /* 다른 곳으로 떠나면 안내판은 걷는다 (0728) */
   if (!p) return;
   if (!(opts && opts.nolog)) logPush("pin:"+p.code, ()=> flyToPark(p, { nolog:true }));
   currentPark = p;
@@ -2372,7 +2443,16 @@ function closeStadCard(){
 }
 
 /* ── 경기 입장 (구장 착륙 후) ── */
-function enterGame(){
+function enterGame(p){
+  /* ── 0728 · 구장 대조 ──
+     예전엔 kind가 stadium이기만 하면 어느 구장이든 오늘의 내 경기가 열렸다.
+     오라클파크에 놀러 가서 누른 핀이 보스턴 경기의 문이 되던 사고. 
+     오늘 내 경기가 열리는 구장에서 누른 것만 문으로 친다. */
+  if (p && p.code && todayGamesLoaded){
+    const mine = myGameToday();
+    const myPark = parkOfGame(mine);
+    if (!mine || !myPark || p.code !== myPark){ showParkNote(p); return; }
+  }
   /* 0728 — 하루 한 경기. 이미 끝난 경기면 문을 열지 않고 결과 카드로 보낸다.
      옛 액자가 남아 재입장시키던 사고의 마지막 그물. */
   if (todayMatch && todayMatch.status === "completed"){
@@ -2407,7 +2487,8 @@ function enterRoom(p){
 }
 function enterRoomUrl(url, title){
   url += (url.indexOf("?") >= 0 ? "&" : "?") + "terra=1";
-  viewer.useDefaultRenderLoop = false;
+  window.doorWasGame = false;                 /* 경기 문이 아님 (0728) */
+  viewer.useDefaultRenderLoop = false;        /* 지구 잠듦 → 타일 요청 멎음 */
   document.getElementById("doorTitle").textContent = title || "";
   const dp = document.getElementById("doorPick"); if (dp) dp.style.display = "none";
   const ep = document.getElementById("elevPick"); if (ep) ep.style.display = "none";
@@ -2462,12 +2543,14 @@ function wireTerra(){
         else flyToPark(p);
       }
       else if (currentPark && currentPark.code === p.code){
-        if (p.kind === "stadium") enterGame();     /* 착륙해 있으면 핀 = 문 */
+        if (p.kind === "stadium") enterGame(p);    /* 착륙해 있으면 핀 = 문 — 단, 오늘 경기가 열리는 구장만 (0728) */
         else enterRoom(p);
       }
       else flyToPark(p);
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+  { const pn = document.getElementById("parkNote"); if (pn) pn.addEventListener("click", hideParkNote); }   /* 0728 */
 
   /* 타륜 토글 — 클릭 펼침, 바깥 클릭 접힘 */
   const helm = document.getElementById("helmBtn");
@@ -2505,6 +2588,7 @@ function wireTerra(){
     if (!d) return;
     if (d.type === "eg-start-game"){
       gameParams = { opp: d.opp, isHome: d.isHome, matchId: d.matchId };
+      try{ if (typeof doorState !== "undefined" && doorState !== "closed") exitDoorway(); }catch(e){}   /* 0728 */
       const parkCode = d.isHome === "1" ? "fenway" : (TEAM_PARK[d.opp] || "fenway");
       const park = terraPins[parkCode];
       closeStadCard();
@@ -2560,6 +2644,11 @@ const DOCK_DIRECT = {
   college:      "college.html"
 };
 
+const DOCK_NAME = {
+  spoon:"교양 한스푼", stadium:"EG스타디움", museum:"뮤세움", constellatio:"콘스텔라티오",
+  heritage:"헤리티지", wunder:"분더카머", persona:"교양 자화상", college:"콜레주 드 콤포스텔라"
+};
+
 /* 아직 셸이 없는 방 — 문패만 걸고 눌리면 이 말을 한다 (0728) */
 const DOCK_SOON = {
   salon: "준비 중입니다 · 설계 회차 대기"
@@ -2590,8 +2679,24 @@ function addDockShortcut(el, id){
   b.className = "dock-go";
   b.textContent = "직행";
   b.title = "지구를 거치지 않고 곧장 들어갑니다";
-  b.addEventListener("click", (e)=>{ e.stopPropagation(); location.href = url; });  /* 카드 본체(비행)로 번지지 않게 */
+  b.addEventListener("click", (e)=>{ e.stopPropagation(); egDirectOpen(id); });  /* 카드 본체(비행)로 번지지 않게 */
   el.appendChild(b);
+}
+
+/* ── 직행 (0728 개정) ──
+   처음에는 location.href로 페이지를 통째로 옮겼다. 두 가지가 잘못됐다.
+     1) 셸 8곳 중 7곳에 지구로 돌아오는 링크가 없어 손님이 갇혔다.
+     2) 페이지를 떠나면 Cesium과 구글 타일을 버리게 되어, 돌아올 때마다
+        타일을 처음부터 다시 받는다. 오갈수록 요금이 늘어난다.
+   그래서 페이지를 떠나지 않고 지구 위 팝업(iframe)으로 연다.
+   팝업이 열리면 지구는 렌더 루프를 멈추고 잠든다 → 타일 요청도 멎는다.
+   팝업에는 「× 지구로 돌아가기」가 이미 달려 있어 셸을 하나도 고칠 필요가 없다. */
+function egDirectOpen(id){
+  const url = DOCK_DIRECT[id];
+  if (!url) return;
+  if (typeof viewer === "undefined" || !viewer){ location.href = url; return; }  /* 지구가 아직 없으면 옛 방식 */
+  if (id === "stadium"){ openStadCard(); return; }                               /* 스타디움은 전용 팝업이 따로 있다 */
+  enterRoomUrl(url, DOCK_NAME[id] || "");
 }
 
 function renderDock(items){
@@ -2669,8 +2774,12 @@ async function loadDock(){
     let liveCountdown = false;
     if (uid){
       const today = new Date().toLocaleDateString("sv-SE", { timeZone:"Asia/Seoul" });
-      let { data:m } = await supa.from("matches").select("*")
-        .eq("user_id", uid).eq("match_date", today).eq("is_my_game", true).maybeSingle();
+      /* 0728 — 오늘 두 판을 한 번에. 봇 경기는 구장 안내판이 쓴다. */
+      const { data: allToday } = await supa.from("matches").select("*")
+        .eq("user_id", uid).eq("match_date", today);
+      todayGames = Array.isArray(allToday) ? allToday : [];
+      todayGamesLoaded = true;
+      let m = todayGames.find(g=> g.is_my_game) || null;
       let isNext = false;
       if (!m){
         const { data:n } = await supa.from("matches").select("*")
