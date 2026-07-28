@@ -44,7 +44,7 @@
   @media(max-width:640px){ .slots{grid-template-columns:repeat(2,1fr)} }
   .slot{
     position:relative;border:1px dashed var(--line);border-radius:10px;overflow:hidden;
-    aspect-ratio:941/1672;background:#0d111c;cursor:pointer;
+    aspect-ratio:2/3;background:#0d111c;cursor:pointer;   /* 슬롯 칸 어림 — 실제 그림은 cover */
     display:flex;align-items:center;justify-content:center;
   }
   .slot:hover{border-color:var(--gold)}
@@ -57,7 +57,8 @@
   .badge.bad{background:var(--bad);color:#fff}
 
   /* 좌표 편집 무대 */
-  .stage{position:relative;border-radius:10px;overflow:hidden;background:#0d111c;aspect-ratio:941/1672;max-height:62vh;margin:0 auto}
+  .stage{position:relative;border-radius:10px;overflow:hidden;background:#0d111c;max-height:62vh;margin:0 auto;line-height:0}
+  .stage img{position:static;width:100%;height:auto;max-height:62vh;object-fit:contain}   /* 무대가 그림 비율을 따라간다 */
   .stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
   .frame{
     position:absolute;border:2px solid var(--gold);background:rgba(201,162,39,.14);
@@ -98,7 +99,7 @@
   <h1>거 실 &nbsp; 자 산</h1>
   <div class="lead">
     분더카머 1층 거실 배경과 그림 자리를 관리합니다. 거실은 계속 늘릴 수 있습니다.<br>
-    올리는 그림은 <b>941 × 1672 (세로 9:16)</b>. 다른 크기로 올려도 <b>자동으로 규격에 맞춰집니다.</b>
+    <b>비율은 자유입니다</b> — 구워 온 그대로 올라갑니다. 긴 변이 1680px을 넘을 때만 비례 축소합니다.
   </div>
 
   <div id="gate">확인하는 중…</div>
@@ -160,7 +161,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
 const SORO_EMAIL = 'lonelywalden@gmail.com';
 
 const TIMES = [['m','아침'],['d','낮'],['e','저녁'],['n','밤']];
-const STD_W = 941, STD_H = 1672;
+const MAX_EDGE = 1680;   /* 긴 변 상한. 비율은 건드리지 않는다 — 0728밤 소로 결정 */
 
 const $ = id => document.getElementById(id);
 let ROOMS = [], CUR = null;
@@ -250,16 +251,22 @@ function pick(el, t){
   inp.click();
 }
 
-/* 규격 맞추기 — 941×1672가 아니면 그 자리에서 줄인다.
-   0728에 4배 크기 그림이 올라온 적이 있다. 사람 손을 믿지 말고 기계가 맞춘다. */
+/* 크기만 다듬고 비율은 그대로 둔다.
+   ⚠ 0728밤 정정: 처음엔 941×1672로 못을 박았더니, 비율을 바꾸는 순간
+     구워 온 그림을 죄다 찌그러뜨렸다. 규격을 강요하지 말고 판을 넓힌다.
+     여기서 막는 것은 오직 하나 — 4배 크기 그림이 올라와 폰을 무겁게 하는 일.
+     (그날 3752×6680짜리가 올라왔다. 사람 손을 믿지 말되, 손을 묶지도 말 것.) */
 async function toStandard(file){
   const bmp = await createImageBitmap(file);
-  if (bmp.width === STD_W && bmp.height === STD_H) return { blob:file, resized:false };
+  const long = Math.max(bmp.width, bmp.height);
+  if (long <= MAX_EDGE) return { blob:file, resized:false, size:bmp.width+'×'+bmp.height };
+  const k = MAX_EDGE / long;
+  const w = Math.round(bmp.width * k), h = Math.round(bmp.height * k);
   const c = document.createElement('canvas');
-  c.width = STD_W; c.height = STD_H;
-  c.getContext('2d').drawImage(bmp, 0, 0, STD_W, STD_H);
+  c.width = w; c.height = h;
+  c.getContext('2d').drawImage(bmp, 0, 0, w, h);
   const blob = await new Promise(r=> c.toBlob(r, 'image/webp', 0.88));
-  return { blob, resized:true, from:bmp.width+'×'+bmp.height };
+  return { blob, resized:true, from:bmp.width+'×'+bmp.height, size:w+'×'+h };
 }
 
 async function upload(el, t, file){
@@ -279,7 +286,8 @@ async function upload(el, t, file){
   if(!im){ im=document.createElement('img'); el.insertBefore(im, el.firstChild); }
   im.src = url;
   badge(el,'up','완료');
-  toast(std.resized ? ('올렸습니다 — '+std.from+'을 941×1672로 맞췄습니다.') : '올렸습니다.', 'ok');
+  toast(std.resized ? ('올렸습니다 — '+std.from+' → '+std.size+' (비율 그대로)')
+                  : ('올렸습니다 — '+std.size), 'ok');
   if(t==='d'){ $('stageImg').src = url; }
 }
 
