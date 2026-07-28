@@ -297,12 +297,6 @@
   #title .span{font-size:13px;color:var(--cream-dim);letter-spacing:.18em}
 
   /* ── 우상단 안내 ── */
-  #hint{
-    position:fixed;top:28px;right:30px;z-index:10;max-width:230px;
-    font-size:11.5px;line-height:1.6;color:var(--cream-dim);text-align:right;
-    border-right:1px solid var(--line);padding:2px 12px 2px 0;
-  }
-  #hint b{color:var(--gold-soft);font-weight:600}
 
   /* ── 구장 안내판 (0728) — 오늘 경기가 없는 구장에 내렸을 때 ── */
   #parkNote{
@@ -558,7 +552,6 @@
     #title{left:18px;top:52px}
     #backBtn{left:18px;top:14px}
     #card{left:18px;bottom:148px;max-width:72vw}
-    #hint{display:none}
     .stop .nm{font-size:13px}
   }
   @media (prefers-reduced-motion:reduce){
@@ -607,6 +600,21 @@
   #helmBtn{ position:fixed; top:10px; right:16px; z-index:29; width:74px; height:74px;
     padding:0; border:none; background:none; cursor:pointer;
     filter:drop-shadow(0 3px 12px rgba(0,0,0,.55)); }
+  /* 0728 — 타륜 뒤 후광.
+     drop-shadow는 살(spoke) 실루엣만 따라가므로 살 사이 틈으로 밝은 지붕이 그대로 비쳐
+     황동이 도시에 묻혔다. 뒤에 어두운 원반 한 장을 깔아 금색이 도드라지게 한다.
+     ⚠ 크기 계산: 버튼 아래끝 84px + 14px = 98px… 이 아니라, 가장자리 투명 구간(78%~)
+       덕에 실제로 눈에 잡히는 건 90px 언저리다. 타륜 패널(#egDock, top:92px)과 안 겹친다. */
+  #helmBtn::before{
+    content:""; position:absolute; inset:-14px; border-radius:50%; z-index:-1;
+    pointer-events:none;
+    background:radial-gradient(circle,
+      rgba(26,19,10,.60) 0%,
+      rgba(26,19,10,.46) 40%,
+      rgba(26,19,10,.22) 62%,
+      rgba(26,19,10,.06) 78%,
+      rgba(26,19,10,0)  100%);
+  }
   #helmBtn img{ width:100%; height:100%; display:block;
     transition:transform .8s cubic-bezier(.4,0,.2,1); }
   #helmBtn:hover img{ transform:rotate(180deg); }
@@ -784,7 +792,6 @@
   <div class="span">한 별의 다섯 착지 · 1899–1961</div>
 </div>
 
-<div id="hint"></div>
 
 <div id="parkNote"></div>
 
@@ -1048,8 +1055,10 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
     osm.gamma = 0.8;
   }catch(e){ console.warn("기본 지도 로드 실패:", e); }
 
-  // ── 구글 실사 3D 타일 (키가 있을 때만) ──
-  const hint = document.getElementById("hint");
+  /* ── 구글 실사 3D 타일 (키가 있을 때만) ──
+     0728 — 화면 오른쪽 위 안내판(#hint)을 걷었다. 손님에게 타일 종류는 알 바가 아니고,
+     결정문 2호는 연결 상태를 알리는 배너 일체를 금지한다. 게다가 그 글씨가 하필
+     타륜 뒤에 겹쳐 자잘하게 비쳤다. 진단이 필요한 건 살롱지기뿐이므로 콘솔로 남긴다. */
   if (GOOGLE_API_KEY && GOOGLE_API_KEY.trim()){
     try{
       let tileset;
@@ -1057,13 +1066,12 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
       catch(e){ tileset = await Cesium.createGooglePhotorealistic3DTileset(GOOGLE_API_KEY); }
       s.primitives.add(tileset);
       // globe.show 는 끄지 않음 — 실사 타일이 없는 시골(케첨 등)에서도 지도가 보이도록
-      hint.innerHTML = "<b>실사 3D 모드</b><br>구글 포토리얼 타일이 켜졌습니다.";
+      console.log("[EG] 실사 3D 모드 — 구글 포토리얼 타일이 켜졌습니다.");
     }catch(err){
-      hint.innerHTML = "<b>키 오류</b><br>타일을 불러오지 못해 기본 지구로 표시합니다.";
-      console.warn("3D Tiles load failed:", err);
+      console.warn("[EG] 타일을 불러오지 못해 기본 지구로 표시합니다. 3D Tiles load failed:", err);
     }
   } else {
-    hint.innerHTML = "<b>흐름 미리보기 모드</b><br>GOOGLE_API_KEY 한 줄을 채우면 이 지면 위로 실사 건물이 떠오릅니다.";
+    console.warn("[EG] 흐름 미리보기 모드 — GOOGLE_API_KEY가 비어 있습니다.");
   }
 
   // 마커를 더블클릭하면 카메라가 그 점으로 빨려들어가 지표 아래(검은 화면)로 가는 것 방지
