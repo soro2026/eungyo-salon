@@ -116,8 +116,9 @@
   .nav-item.toggle.on{ color:var(--gold); }
   .nav-item.toggle.on .dot{ background:var(--gold); border-color:var(--gold); }
   /* 목록(도시·인물)을 패널 오른쪽으로 재배치 (2단 전개) */
-  #cityList{ left:244px !important; top:84px !important; }
-  #starList{ left:244px !important; top:84px !important; }
+  /* 0728: 패널이 우측으로 갔으므로 목록도 그 왼편으로 */
+  #cityList{ left:auto !important; right:244px !important; top:92px !important; }
+  #starList{ left:auto !important; right:244px !important; top:92px !important; }
   @media (max-width:640px){
     #compassBtn{ left:16px; right:auto; top:12px; }   /* 타륜(우측)과 자리 분리 */
     #navPanel{ left:16px; right:auto; top:80px; }
@@ -532,14 +533,47 @@
   #helmBadge{ position:absolute; top:5px; right:5px; width:11px; height:11px; border-radius:50%;
     background:#c62828; border:2px solid rgba(248,244,234,.9); display:none;
     box-shadow:0 0 8px rgba(198,40,40,.7); }
+  /* 0728 — 황금사과 입금 표시. 빨간 점(오늘 경기)과 대각선 반대편에 두어
+     둘이 동시에 켜져도 겹치지 않고 각자 읽힌다. 색을 더 늘리지 않고 사물로 구분한다. */
+  #helmApple{ position:absolute; bottom:1px; left:1px; width:25px; height:25px; border-radius:50%;
+    background:radial-gradient(circle at 34% 30%, #fff7e2, #f1d68c 52%, #c39a30);
+    border:2px solid rgba(248,244,234,.92); display:none;
+    align-items:center; justify-content:center; font-size:12px; line-height:1;
+    box-shadow:0 2px 9px rgba(0,0,0,.5); animation:appleBob 2.8s ease-in-out infinite; }
+  #helmApple.on{ display:flex; }
+  @keyframes appleBob{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.09); } }
+  @media (prefers-reduced-motion:reduce){ #helmApple{ animation:none; } }
+  #dockApple{ display:none; }
+  #dockApple.on{ display:block; }
+  .dock-apple{ display:flex; align-items:center; gap:8px; padding:9px 11px; margin-bottom:7px;
+    border:1px solid rgba(158,127,58,.45); border-radius:10px; cursor:pointer;
+    background:linear-gradient(135deg, rgba(201,168,76,.2), rgba(201,168,76,.05));
+    color:#6b4f14; font-family:var(--serif); font-size:12.8px; line-height:1.45;
+    transition:background .2s ease; }
+  .dock-apple:hover{ background:rgba(201,168,76,.3); }
   #egDock{ position:fixed; top:92px; right:16px; z-index:28; width:214px;
+    max-height:calc(100vh - 118px); overflow-y:auto;
+    scrollbar-width:none; -ms-overflow-style:none;
     background:linear-gradient(165deg,rgba(248,244,234,.97),rgba(236,228,211,.95));
     border:1px solid rgba(158,127,58,.45); border-radius:14px;
     backdrop-filter:blur(8px); padding:10px; box-shadow:0 14px 40px rgba(0,0,0,.35);
     display:none; flex-direction:column; }
   #egDock.open{ display:flex; animation:dockIn .28s ease; }
-  #egDock::before{ content:"EG 우주"; display:block; font-family:var(--sans); font-size:10px;
+  #egDock::-webkit-scrollbar{ width:0; height:0; display:none; }
+  #dockUni::before{ content:"EG 우주"; display:block; font-family:var(--sans); font-size:10px;
     letter-spacing:.14em; text-transform:uppercase; color:#8a7a5c; padding:2px 10px 6px; }
+  /* ── 0728: 나침반 통합 — 어두운 패널용 .nav-* 를 밝은 타륜 바탕에 맞춰 덧칠 ── */
+  #dockNav{ margin-top:8px; border-top:1px solid rgba(158,127,58,.3); padding-top:8px; }
+  #egDock .nav-group + .nav-group{ border-top:1px solid rgba(158,127,58,.22); }
+  #egDock .nav-label{ color:#8a7a5c; }
+  #egDock .nav-item{ color:#2b2318; font-size:13.5px; padding:8px 12px; }
+  #egDock .nav-item:hover{ background:rgba(158,127,58,.13); color:#8a5f18; }
+  #egDock .nav-item .chev{ color:#a8987a; }
+  #egDock .nav-item.toggle .dot{ border-color:#a8987a; }
+  #egDock .nav-item.toggle.on{ color:#8a5f18; }
+  #egDock .nav-item.toggle.on .dot{ background:#8a5f18; border-color:#8a5f18; }
+  #egDock .nav-item.adm{ font-size:12.5px; padding:6px 12px; color:#5c5140; }
+  #egDock .nav-item.logout{ font-size:12.5px; color:#9a8d72; }
   @keyframes dockIn{ from{ opacity:0; transform:translateY(-8px); } to{ opacity:1; transform:none; } }
   .dock-card{ background:none; border:none; border-radius:8px; padding:9px 12px; cursor:pointer;
     color:#2b2318; transition:background .2s ease, color .2s ease; }
@@ -637,29 +671,7 @@
 <body>
 <div id="cesiumContainer"></div>
 
-<a id="backBtn" href="index.html">← 살롱으로</a>
-
-<button id="compassBtn" class="noimg" aria-label="메뉴 열기">
-  <img id="compassImg" src="compass.webp" alt="" onload="this.closest('#compassBtn').classList.remove('noimg')">
-  <span id="compassFallback" aria-hidden="true">🧭</span>
-  <span id="compassNeedle" aria-hidden="true"></span>
-</button>
-<div id="navPanel">
-  <div class="nav-group">
-    <div class="nav-label">떠나기</div>
-    <button class="nav-item" id="navCity">🌍 다른 도시 <span class="chev" aria-hidden="true">›</span></button>
-    <button class="nav-item" id="navStar">✦ 다른 인물 <span class="chev" aria-hidden="true">›</span></button>
-  </div>
-  <div class="nav-group">
-    <div class="nav-label">보기</div>
-    <button class="nav-item toggle" id="navSpots">🏛 인물 장소 <span class="dot" aria-hidden="true"></span></button>
-    <button class="nav-item toggle on" id="navMaisons">🏠 콩파뇽 집 <span class="dot" aria-hidden="true"></span></button>
-  </div>
-  <div class="nav-group" id="navAdminGroup" style="display:none">
-    <div class="nav-label">관리</div>
-    <button class="nav-item toggle" id="navEdit">📍 좌표 편집 <span class="dot" aria-hidden="true"></span></button>
-  </div>
-</div>
+<!-- 0728: 「← 살롱으로」·나침반 폐기. 나침반 항목은 타륜 안으로 이사(ID 그대로). -->
 
 <button id="cityBtn">🌍 다른 도시</button>
 <button id="starBtn">✦ 다른 인물</button>
@@ -698,12 +710,46 @@
 
 
 <!-- ═══ EG테라: 통합위젯 도크 (뮤세움·헤리티지·콘스텔라티오 확장 예정) ═══ -->
-<button id="backChip" aria-label="항로 되짚기" style="display:none">↩ 되짚기</button>
 <button id="helmBtn" aria-label="EG 우주 열기">
   <img src="terra_helm.webp" alt="" onerror="this.style.display='none';this.parentNode.classList.add('noimg')">
   <span id="helmBadge"></span>
+  <span id="helmApple" aria-label="도착한 황금사과">🍎</span>
 </button>
-<div id="egDock"></div>
+<div id="egDock">
+  <div id="dockApple"></div>
+  <div id="dockUni"></div>
+  <div id="dockNav">
+    <div class="nav-group">
+      <div class="nav-label">떠나기</div>
+      <button class="nav-item" id="navCity">🌍 다른 도시 <span class="chev" aria-hidden="true">›</span></button>
+      <button class="nav-item" id="navStar">✦ 다른 인물 <span class="chev" aria-hidden="true">›</span></button>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">보기</div>
+      <button class="nav-item toggle" id="navSpots">🏛 인물 장소 <span class="dot" aria-hidden="true"></span></button>
+      <button class="nav-item toggle on" id="navMaisons">🏠 콩파뇽 집 <span class="dot" aria-hidden="true"></span></button>
+    </div>
+    <div class="nav-group" id="navAdminGroup" style="display:none">
+      <div class="nav-label">살롱지기</div>
+      <button class="nav-item toggle" id="navEdit">📍 좌표 편집 <span class="dot" aria-hidden="true"></span></button>
+      <div id="navAdminLinks"></div>
+    </div>
+    <div class="nav-group">
+      <button class="nav-item logout" id="navLogout">⎋ 로그아웃</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 황금사과 입금 (0728 index.html에서 이사) ═══ -->
+<div id="income-overlay" style="display:none;position:fixed;inset:0;z-index:60;background:rgba(0,0,0,0.82);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:24px">
+  <div style="background:#faf6ee;border:1px solid rgba(184,136,30,0.3);border-top:3px solid #C9A84C;border-radius:20px;padding:34px 28px;max-width:380px;width:100%;text-align:center;box-shadow:0 12px 48px rgba(0,0,0,0.4)">
+    <div style="font-size:42px;margin-bottom:10px">🍎</div>
+    <div style="font-size:19px;font-weight:700;color:#2a2018;margin-bottom:14px">그동안 황금사과가 도착했어요</div>
+    <div style="font-size:15px;color:#3a2f22;margin-bottom:6px">받은 황금사과 <b style="color:#B8881E;font-size:1.15em"><span id="inc-amount">—</span></b>알 <span style="color:#9a8a6a;font-size:13px">(<span id="inc-count">—</span>건)</span></div>
+    <div style="font-size:14px;color:#8a6d2e;margin-bottom:24px">현재 잔액 <b style="color:#B8881E"><span id="inc-balance">—</span></b>알</div>
+    <button onclick="closeIncomePopup()" style="font-family:inherit;font-size:15px;font-weight:600;padding:12px 0;width:100%;border:none;border-radius:12px;background:#C9A84C;color:#2a2018;cursor:pointer">확인</button>
+  </div>
+</div>
 
 <!-- ═══ EG테라: 스타디움 카드 팝업 — 원본 5탭이 지구 위에 뜬다 ═══ -->
 <div id="stadCard">
@@ -837,16 +883,8 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
 });
 
-// 돌아가기: 온 경로에 맞춰 — 별 경로면 그 별로, 분더카머 메뉴 경로(enter/home)면 메인 메뉴로, 그 외 별자리로
-(function setBack(){
-  const p = new URLSearchParams(location.search);
-  const backId = p.get('id');
-  const fromMenu = p.get('enter') === '1' || p.get('home') === '1';   // 분더카머 메뉴에서 진입
-  const btn = document.getElementById('backBtn');
-  if (backId){ btn.href = 'star.html?id=' + backId; btn.textContent = '← 별로'; }
-  else if (fromMenu){ btn.href = 'index.html'; btn.textContent = '← 살롱으로'; }
-  else { btn.href = 'constella.html'; btn.textContent = '← 살롱으로'; }
-})();
+/* 0728 — 「← 살롱으로」 폐기. terra가 곧 살롱의 첫 화면이 되었으므로
+   옛 메뉴판으로 돌아갈 문이 필요 없어졌다. 나가는 길은 타륜 안에 있다. */
 
 (async function init(){
   if (window.EGCrashGuard && EGCrashGuard.check()) return;  // 0706 크래시 가드: 지난 크래시면 팝업만, 3D 중단 (enter=1·home=1 두 경로 모두 커버)
@@ -937,15 +975,14 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
 
   /* ══ 0717 나침반 통합 메뉴 배선 — 기존 핸들러 재활용 ══ */
   (function(){
-    const cBtn = document.getElementById("compassBtn");
-    const panel = document.getElementById("navPanel");
+    /* 0728 — 나침반을 타륜에 합쳤다. 패널은 이제 #egDock 하나뿐이고
+       버튼도 타륜 하나뿐이다. openPanel은 그 도크를 여닫는다. */
+    const panel = document.getElementById("egDock");
     const openPanel = (on)=>{
-      const show = (on===undefined) ? !panel.classList.contains("in") : on;
-      panel.classList.toggle("in", show);
-      cBtn.classList.toggle("open", show);
+      const show = (on===undefined) ? !panel.classList.contains("open") : on;
+      panel.classList.toggle("open", show);
       if (!show){ toggleCityList(false); toggleStarList(false); }   /* 패널 닫으면 목록도 */
     };
-    cBtn.addEventListener("click", (e)=>{ e.stopPropagation(); openPanel(); });
     /* 떠나기 — 기존 목록 토글 그대로 (2단 전개) */
     document.getElementById("navCity").addEventListener("click", ()=>{ toggleStarList(false); toggleCityList(); });
     document.getElementById("navStar").addEventListener("click", ()=>{ toggleCityList(false); toggleStarList(); });
@@ -956,6 +993,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
     /* 지도 빈 곳 클릭 · ESC → 패널 닫기 */
     document.addEventListener("keydown", (e)=>{ if (e.key==="Escape") openPanel(false); });
     document.getElementById("cesiumContainer").addEventListener("click", ()=> openPanel(false));
+    { const lo = document.getElementById("navLogout"); if (lo) lo.addEventListener("click", egLogout); }
     window._openNavPanel = openPanel;
   })();
   document.getElementById("mEnter").addEventListener("click", ()=> enterMaison(currentMaison));
@@ -1779,6 +1817,7 @@ async function setupAdminEdit(){
   }catch(e){ console.warn("admin 확인 실패:", e); }
   if (!IS_ADMIN) return;
   document.getElementById("navAdminGroup").style.display = "";   /* 0717: 관리 그룹 노출(admin만) */
+  buildAdminLinks();                                             /* 0728: 대시보드 10종 */
   const btn = document.getElementById("navEdit");
   btn.addEventListener("click", ()=>{
     EDIT_MODE = !EDIT_MODE;
@@ -2552,20 +2591,19 @@ function wireTerra(){
 
   { const pn = document.getElementById("parkNote"); if (pn) pn.addEventListener("click", hideParkNote); }   /* 0728 */
 
-  /* 타륜 토글 — 클릭 펼침, 바깥 클릭 접힘 */
+  /* ── 타륜 토글 (0728 개정) ──
+     예전엔 타륜 바깥이면 어디를 눌러도 접혔다. 레이어 토글 하나 누르려다
+     메뉴가 닫히곤 했다. 이제 접힘 방아쇠는 오직 "지구 클릭" 하나다
+     (나침반 패널이 쓰던 방식 그대로 — cesiumContainer 클릭에서 닫는다). */
   const helm = document.getElementById("helmBtn");
   const dockEl = document.getElementById("egDock");
   helm.addEventListener("click", (e)=>{
     e.stopPropagation();
-    dockEl.classList.toggle("open");
-    /* 0728 — 펼치는 순간이 곧 "보러 온 순간"이다. 그때 한 번 돌아본다.
-       예전엔 eg-game-done 신호 하나에만 갱신을 걸어두어, 그 신호가 새면
-       리로드 전까지 경기 전 화면이 그대로 남았다. */
-    if (dockEl.classList.contains("open") && typeof refreshDock === "function") refreshDock(false);
-  });
-  document.addEventListener("click", (e)=>{
-    if (dockEl.classList.contains("open") && !dockEl.contains(e.target) && e.target !== helm && !helm.contains(e.target))
-      dockEl.classList.remove("open");
+    const willOpen = !dockEl.classList.contains("open");
+    if (window._openNavPanel) window._openNavPanel(willOpen);
+    else dockEl.classList.toggle("open", willOpen);
+    /* 펼치는 순간이 곧 "보러 온 순간" — 그때 한 번 돌아본다 */
+    if (willOpen && typeof refreshDock === "function") refreshDock(false);
   });
 
   document.getElementById("stadClose").addEventListener("click", closeStadCard);
@@ -2604,6 +2642,80 @@ function wireTerra(){
       refreshDock(true);                                           /* 위젯: FINAL + 스코어 */
     }
   });
+}
+
+/* ── 황금사과 입금 알림 (0728) ──
+   옛 메뉴판이 웹에서 물러나면서 입금 팝업도 갈 곳을 잃었다. 타륜으로 옮긴다.
+   자동 팝업으로 띄우지 않는다(결정문 10장 "자동 팝업 없음"). 타륜 버튼에 사과가
+   붙고, 열어보면 거기 있다. 사과는 도망가지 않으므로 재촉할 이유가 없다. */
+let appleIncome = null, appleFetchedAt = 0;
+async function loadAppleIncome(force){
+  const now = Date.now();
+  if (!force && appleFetchedAt && now - appleFetchedAt < 60000) return;   /* 잦은 갱신 방아쇠 대비 */
+  appleFetchedAt = now;
+  try{
+    const { data, error } = await supa.rpc('apple_income_unseen');
+    if (error || !data) return;
+    appleIncome = ((data.count || 0) > 0 && Number(data.income) > 0) ? data : null;
+  }catch(e){ console.warn("입금 확인 실패:", e); }
+  renderAppleNotice();
+}
+function renderAppleNotice(){
+  const box = document.getElementById("dockApple");
+  const badge = document.getElementById("helmApple");
+  if (!box || !badge) return;
+  if (!appleIncome){ box.classList.remove("on"); box.innerHTML = ""; badge.classList.remove("on"); return; }
+  box.innerHTML = '<div class="dock-apple"><span style="font-size:15px">🍎</span>'
+    + '<span>황금사과 <b>' + appleIncome.income + '</b>알이 도착해 있습니다</span></div>';
+  const row = box.querySelector(".dock-apple");
+  if (row) row.addEventListener("click", openIncome);
+  box.classList.add("on");
+  badge.classList.add("on");
+}
+function openIncome(){
+  if (!appleIncome) return;
+  document.getElementById("inc-amount").textContent  = appleIncome.income;
+  document.getElementById("inc-count").textContent   = appleIncome.count;
+  document.getElementById("inc-balance").textContent = appleIncome.balance;
+  document.getElementById("income-overlay").style.display = "flex";
+}
+async function closeIncomePopup(){
+  document.getElementById("income-overlay").style.display = "none";
+  try{ await supa.rpc('mark_apple_seen'); }catch(e){ console.warn("입금 확인 표시 실패:", e); }
+  appleIncome = null;
+  renderAppleNotice();
+}
+
+/* ── 로그아웃 · 살롱지기 대시보드 (0728) ──
+   옛 메뉴판이 웹에서 물러나면서 둘 다 갈 곳을 잃었다. 타륜 안으로 옮긴다. */
+async function egLogout(){
+  try{ await supa.auth.signOut(); }catch(e){ console.warn("로그아웃 실패:", e); }
+  location.href = "index.html";
+}
+const EG_ADMIN_LINKS = [
+  { icon:"🎯", label:"출제 대시보드",  href:"admin_quiz_dashboard.html" },
+  { icon:"📊", label:"문항 출제빈도",  href:"admin_question_freq.html" },
+  { icon:"✍",  label:"에세이 심사",    href:"admin.html" },
+  { icon:"🌱", label:"신규 회원",      href:"admin_new_members.html" },
+  { icon:"🏛", label:"헤리티지 현황",  href:"admin_heritage_dashboard.html" },
+  { icon:"🌌", label:"콘스텔라티오",   href:"admin_constellation_dashboard.html" },
+  { icon:"🗺", label:"EG메종 좌표",    href:"admin_voyage.html" },
+  { icon:"🏪", label:"팝업 자산",      href:"admin_popup_assets.html" },
+  { icon:"📖", label:"콜레주 자산",    href:"admin_college_assets.html" },
+  { icon:"🚪", label:"LAB 자산",       href:"admin_college_labs.html" }
+];
+function buildAdminLinks(){
+  const box = document.getElementById("navAdminLinks");
+  if (!box || box.dataset.built) return;
+  box.dataset.built = "1";
+  for (const it of EG_ADMIN_LINKS){
+    const b = document.createElement("button");
+    b.className = "nav-item adm";
+    b.textContent = it.icon + " " + it.label;
+    /* 팝업으로 연다 — 페이지를 떠나지 않으므로 지구를 다시 안 짓는다 */
+    b.addEventListener("click", ()=> enterRoomUrl(it.href, it.label));
+    box.appendChild(b);
+  }
 }
 
 /* ── 구장 핀 좌표 저장 (편집 모드) ── */
@@ -2700,7 +2812,8 @@ function egDirectOpen(id){
 }
 
 function renderDock(items){
-  const dock = document.getElementById("egDock");
+  const dock = document.getElementById("dockUni");   /* 0728: 우주 목록만 다시 그린다 (나침반 구획 보존) */
+  if (!dock) return;
   cdGen++;                                         /* 옛 체인 무효화 (0728) */
   if (cdTimer){ clearTimeout(cdTimer); cdTimer = null; }
   dock.innerHTML = "";
@@ -2732,7 +2845,7 @@ const DOCK_SKELETON = [
 ];
 function buildDockSkeleton(){
   const dock = document.getElementById("egDock");
-  if (!dock) return;
+  if (!dock || !document.getElementById("dockUni")) return;
   renderDock(DOCK_SKELETON.map(function(u){
     return { id:u.id, cls:"uni", waiting:true,
       html: '<div class="dock-main"><span>' + u.name + '</span></div>'
@@ -2858,6 +2971,7 @@ async function loadDock(){
     (function(){ let p=null; for (const c in terraPins){ if (terraPins[c].kind==="hansfoon"){ p=terraPins[c]; break; } }
       const el=document.getElementById("spoonSub"); if (el && p) el.textContent = p.name; })();
     if (liveCountdown) startCountdown(["dockCount"], cdTarget);
+    loadAppleIncome();                     /* 0728 — 사과 표시도 함께 (60초 스로틀) */
   }catch(e){ console.warn("도크 로딩 실패:", e); }
 }
 
