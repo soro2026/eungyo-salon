@@ -259,7 +259,18 @@ function pick(el, t){
 async function toStandard(file){
   const bmp = await createImageBitmap(file);
   const long = Math.max(bmp.width, bmp.height);
-  if (long <= MAX_EDGE) return { blob:file, resized:false, size:bmp.width+'×'+bmp.height };
+  /* 이미 webp이고 크기도 넉넉하면 그대로 — 재압축은 손해만 본다.
+     PNG·JPG로 구워 오셨으면 여기서 webp로 바꾼다 (0728밤: .webp 이름에
+     PNG 알맹이가 들어간 적이 있다. 브라우저는 대개 읽지만 깔끔하지 않다) */
+  if (long <= MAX_EDGE && file.type === 'image/webp')
+    return { blob:file, resized:false, size:bmp.width+'×'+bmp.height };
+  if (long <= MAX_EDGE){
+    const c0 = document.createElement('canvas');
+    c0.width = bmp.width; c0.height = bmp.height;
+    c0.getContext('2d').drawImage(bmp, 0, 0);
+    const b0 = await new Promise(r=> c0.toBlob(r, 'image/webp', 0.90));
+    return { blob:b0, resized:false, converted:true, size:bmp.width+'×'+bmp.height };
+  }
   const k = MAX_EDGE / long;
   const w = Math.round(bmp.width * k), h = Math.round(bmp.height * k);
   const c = document.createElement('canvas');
@@ -280,14 +291,20 @@ async function upload(el, t, file){
     .upload(path(CUR.no,t), std.blob, { upsert:true, contentType:'image/webp' });
   if(error){ badge(el,'bad','실패'); toast('업로드 실패: '+error.message,'bad'); return; }
 
+  /* 배경이 바뀐 시각을 찍는다 — 셸이 이 값을 URL 뒤에 붙여 CDN 캐시를 건너뛴다.
+     이 한 줄이 없으면 새 그림을 올려도 손님 화면엔 한 시간 동안 옛 그림이 나온다. */
+  try{ await supa.from('living_rooms').update({ updated_at:new Date().toISOString() }).eq('no', CUR.no); }
+  catch(e){ console.warn('updated_at 갱신 실패', e); }
+
   const url = pubUrl(path(CUR.no,t)) + '?t=' + Date.now();
   el.classList.add('has');
   let im = el.querySelector('img');
   if(!im){ im=document.createElement('img'); el.insertBefore(im, el.firstChild); }
   im.src = url;
   badge(el,'up','완료');
-  toast(std.resized ? ('올렸습니다 — '+std.from+' → '+std.size+' (비율 그대로)')
-                  : ('올렸습니다 — '+std.size), 'ok');
+  toast(std.resized   ? ('올렸습니다 — '+std.from+' → '+std.size+' (비율 그대로)')
+      : std.converted ? ('올렸습니다 — '+std.size+' · webp로 바꿨습니다')
+      :                 ('올렸습니다 — '+std.size), 'ok');
   if(t==='d'){ $('stageImg').src = url; }
 }
 
