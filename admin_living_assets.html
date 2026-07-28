@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EG 살롱지기 · 거실 자산</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --ink:#0b0e18; --panel:#141926; --line:rgba(201,162,39,.20);
+    --cream:#efe7d6; --dim:#948c79; --gold:#c9a227; --gold-soft:#e0c46a;
+    --ok:#7fa86b; --bad:#d4674a;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;padding:26px 20px 80px;background:var(--ink);color:var(--cream);
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif;
+  }
+  .wrap{max-width:1080px;margin:0 auto}
+  h1{font-family:Georgia,serif;font-size:19px;font-weight:400;letter-spacing:.12em;color:var(--gold-soft);margin:0 0 4px}
+  .lead{font-size:12px;color:var(--dim);margin-bottom:24px;line-height:1.7}
+
+  .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:20px}
+  button{
+    font:inherit;font-size:13px;padding:8px 15px;border-radius:8px;cursor:pointer;
+    background:transparent;color:var(--cream);border:1px solid var(--line);
+  }
+  button:hover{border-color:var(--gold);color:var(--gold-soft)}
+  button.pri{background:var(--gold);color:#1a1408;border-color:var(--gold);font-weight:600}
+  button.on{background:rgba(201,162,39,.16);border-color:var(--gold);color:var(--gold-soft)}
+  input[type=text],input[type=number]{
+    font:inherit;font-size:13px;padding:7px 11px;border-radius:8px;
+    background:#0d111c;color:var(--cream);border:1px solid var(--line);
+  }
+
+  .cols{display:grid;grid-template-columns:1fr 380px;gap:22px;align-items:start}
+  @media(max-width:900px){ .cols{grid-template-columns:1fr} }
+
+  .card{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:16px}
+  .card h2{font-size:12px;letter-spacing:.14em;color:var(--dim);font-weight:400;margin:0 0 13px}
+
+  /* 슬롯 4개 */
+  .slots{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  @media(max-width:640px){ .slots{grid-template-columns:repeat(2,1fr)} }
+  .slot{
+    position:relative;border:1px dashed var(--line);border-radius:10px;overflow:hidden;
+    aspect-ratio:941/1672;background:#0d111c;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .slot:hover{border-color:var(--gold)}
+  .slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .slot .lab{position:relative;z-index:2;font-size:11px;color:var(--dim);text-align:center;line-height:1.6}
+  .slot.has .lab{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.62);color:var(--cream);padding:5px 0}
+  .slot .badge{position:absolute;top:6px;right:6px;z-index:3;font-size:9.5px;padding:2px 7px;border-radius:99px}
+  .badge.up{background:var(--ok);color:#0b1207}
+  .badge.busy{background:var(--gold);color:#1a1408}
+  .badge.bad{background:var(--bad);color:#fff}
+
+  /* 좌표 편집 무대 */
+  .stage{position:relative;border-radius:10px;overflow:hidden;background:#0d111c;aspect-ratio:941/1672;max-height:62vh;margin:0 auto}
+  .stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .frame{
+    position:absolute;border:2px solid var(--gold);background:rgba(201,162,39,.14);
+    cursor:grab;box-shadow:0 0 0 1px rgba(0,0,0,.5);
+  }
+  .frame:active{cursor:grabbing}
+  .frame .hh{position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);
+    width:34px;height:11px;border-radius:4px;background:var(--gold);cursor:ns-resize}
+  .frame .tag{position:absolute;top:-21px;left:0;font-size:10px;color:var(--gold-soft);white-space:nowrap}
+
+  .fields{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:13px}
+  .fields label{font-size:10px;letter-spacing:.1em;color:var(--dim);display:block;margin-bottom:4px}
+  .fields input{width:100%}
+
+  .rooms{display:flex;flex-direction:column;gap:7px;margin-bottom:15px}
+  .room{display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid var(--line);
+    border-radius:9px;cursor:pointer;font-size:13.5px}
+  .room:hover{border-color:var(--gold)}
+  .room.on{background:rgba(201,162,39,.13);border-color:var(--gold);color:var(--gold-soft)}
+  .room .n{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .room .off{margin-left:auto;font-size:10px;color:var(--bad)}
+
+  #status{
+    position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:99;display:none;
+    padding:10px 18px;border-radius:99px;font-size:13px;background:var(--panel);
+    border:1px solid var(--line);color:var(--cream);
+  }
+  #status.ok{border-color:var(--ok);color:var(--ok)}
+  #status.bad{border-color:var(--bad);color:var(--bad)}
+  #gate{text-align:center;padding:70px 20px;color:var(--dim);font-size:14px;line-height:1.9}
+  .note{font-size:11px;color:var(--dim);line-height:1.8;margin-top:12px}
+  .note b{color:var(--gold-soft)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>거 실 &nbsp; 자 산</h1>
+  <div class="lead">
+    분더카머 1층 거실 배경과 그림 자리를 관리합니다. 거실은 계속 늘릴 수 있습니다.<br>
+    올리는 그림은 <b>941 × 1672 (세로 9:16)</b>. 다른 크기로 올려도 <b>자동으로 규격에 맞춰집니다.</b>
+  </div>
+
+  <div id="gate">확인하는 중…</div>
+
+  <div id="main" style="display:none">
+    <div class="cols">
+
+      <div class="card">
+        <h2>배 경 &nbsp;·&nbsp; 네 시 간 대</h2>
+        <div class="slots" id="slots"></div>
+        <div class="note">
+          <b>m</b> 아침 &nbsp;·&nbsp; <b>d</b> 낮 &nbsp;·&nbsp; <b>e</b> 저녁 &nbsp;·&nbsp; <b>n</b> 밤<br>
+          네 장의 구도가 같아야 시간이 흘러도 그림이 안 움직입니다.
+        </div>
+
+        <h2 style="margin-top:24px">그 림 &nbsp; 자 리</h2>
+        <div class="stage" id="stage">
+          <img id="stageImg" alt="">
+          <div class="frame" id="frame"><span class="tag">그림</span><span class="hh"></span></div>
+        </div>
+        <div class="fields">
+          <div><label>가로 중심 %</label><input type="number" id="fx" step="0.1"></div>
+          <div><label>상단 %</label><input type="number" id="fy" step="0.1"></div>
+          <div><label>높이 %</label><input type="number" id="fh" step="0.1"></div>
+        </div>
+        <div class="bar" style="margin-top:13px">
+          <button class="pri" id="save">저장</button>
+          <button id="reload">되돌리기</button>
+          <span class="note" style="margin:0">틀을 끌어 옮기고, 아래 손잡이로 크기를 바꿉니다.</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>거 실 &nbsp; 목 록</h2>
+        <div class="rooms" id="rooms"></div>
+        <div class="bar">
+          <input type="text" id="newName" placeholder="새 거실 이름" style="flex:1;min-width:120px">
+          <button id="add">추가</button>
+        </div>
+        <div class="note">
+          추가하면 다음 번호가 자동으로 붙습니다. 배경을 올리기 전에는 콩파뇽에게 안 보입니다.<br><br>
+          <b>내리기</b>를 누르면 목록에서 감춰집니다. 이미 그 거실을 쓰던 콩파뇽에게는 그대로 보입니다 —
+          고른 것을 말없이 빼앗지 않습니다.
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="status"></div>
+
+<script>
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const BUCKET   = 'wk-assets';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
+});
+const SORO_EMAIL = 'lonelywalden@gmail.com';
+
+const TIMES = [['m','아침'],['d','낮'],['e','저녁'],['n','밤']];
+const STD_W = 941, STD_H = 1672;
+
+const $ = id => document.getElementById(id);
+let ROOMS = [], CUR = null;
+
+function pad(n){ return String(n).padStart(2,'0'); }
+function path(no, t){ return 'living/living_' + pad(no) + '_' + t + '.webp'; }
+function pubUrl(p){ return SUPA_URL + '/storage/v1/object/public/' + BUCKET + '/' + p; }
+function toast(msg, kind){
+  const s = $('status'); s.textContent = msg; s.className = kind||''; s.style.display='block';
+  clearTimeout(toast._t); if(kind!=='busy') toast._t = setTimeout(()=>{ s.style.display='none'; }, 2800);
+}
+
+/* ── 게이트 ── */
+(async function gate(){
+  const { data:{ session } } = await supa.auth.getSession();
+  const u = session && session.user;
+  if(!u || u.email !== SORO_EMAIL){
+    $('gate').innerHTML = '살롱지기만 들어올 수 있는 방입니다.<br>은교살롱에서 로그인한 뒤 이 페이지를 새로고침해 주세요.';
+    return;
+  }
+  $('gate').style.display='none';
+  $('main').style.display='';
+  await loadRooms();
+})();
+
+async function requireSession(){
+  const { data:{ session } } = await supa.auth.getSession();
+  if(!session){ toast('로그인이 풀렸습니다 — 은교살롱에서 다시 로그인해 주세요.','bad'); return null; }
+  return session;
+}
+
+/* ── 거실 목록 ── */
+async function loadRooms(keepNo){
+  const { data, error } = await supa.from('living_rooms').select('*').order('no');
+  if(error){ toast('목록을 못 읽었습니다: '+error.message,'bad'); return; }
+  ROOMS = data || [];
+  renderRooms();
+  const want = keepNo || (CUR && CUR.no) || (ROOMS[0] && ROOMS[0].no);
+  if(want) select(want);
+}
+
+function renderRooms(){
+  const box = $('rooms'); box.innerHTML = '';
+  ROOMS.forEach(r=>{
+    const d = document.createElement('div');
+    d.className = 'room' + (CUR && r.no===CUR.no ? ' on' : '');
+    d.innerHTML = '<span class="n">'+pad(r.no)+'</span><span>'+r.name+'</span>'
+                + (r.active ? '' : '<span class="off">내림</span>');
+    d.onclick = ()=> select(r.no);
+    box.appendChild(d);
+  });
+}
+
+function select(no){
+  CUR = ROOMS.find(r=>r.no===no);
+  if(!CUR) return;
+  renderRooms();
+  renderSlots();
+  $('fx').value = CUR.art_x;
+  $('fy').value = CUR.art_y;
+  $('fh').value = CUR.art_h;
+  $('stageImg').src = pubUrl(path(CUR.no,'d')) + '?t=' + Date.now();
+  drawFrame();
+}
+
+/* ── 슬롯 ── */
+function renderSlots(){
+  const box = $('slots'); box.innerHTML = '';
+  TIMES.forEach(([t,ko])=>{
+    const el = document.createElement('div');
+    el.className = 'slot'; el.dataset.t = t;
+    el.innerHTML = '<span class="lab">'+ko+'<br>'+t+'</span>';
+    const url = pubUrl(path(CUR.no,t)) + '?t=' + Date.now();
+    const probe = new Image();
+    probe.onload = ()=>{ el.classList.add('has');
+      const im=document.createElement('img'); im.src=url; el.insertBefore(im, el.firstChild); };
+    probe.src = url;
+    el.onclick = ()=> pick(el, t);
+    box.appendChild(el);
+  });
+}
+
+function pick(el, t){
+  const inp = document.createElement('input');
+  inp.type='file'; inp.accept='image/*';
+  inp.onchange = ()=>{ if(inp.files[0]) upload(el, t, inp.files[0]); };
+  inp.click();
+}
+
+/* 규격 맞추기 — 941×1672가 아니면 그 자리에서 줄인다.
+   0728에 4배 크기 그림이 올라온 적이 있다. 사람 손을 믿지 말고 기계가 맞춘다. */
+async function toStandard(file){
+  const bmp = await createImageBitmap(file);
+  if (bmp.width === STD_W && bmp.height === STD_H) return { blob:file, resized:false };
+  const c = document.createElement('canvas');
+  c.width = STD_W; c.height = STD_H;
+  c.getContext('2d').drawImage(bmp, 0, 0, STD_W, STD_H);
+  const blob = await new Promise(r=> c.toBlob(r, 'image/webp', 0.88));
+  return { blob, resized:true, from:bmp.width+'×'+bmp.height };
+}
+
+async function upload(el, t, file){
+  if(!await requireSession()) return;
+  badge(el,'busy','올리는 중');
+  let std;
+  try{ std = await toStandard(file); }
+  catch(e){ badge(el,'bad','실패'); toast('그림을 읽지 못했습니다.','bad'); return; }
+
+  const { error } = await supa.storage.from(BUCKET)
+    .upload(path(CUR.no,t), std.blob, { upsert:true, contentType:'image/webp' });
+  if(error){ badge(el,'bad','실패'); toast('업로드 실패: '+error.message,'bad'); return; }
+
+  const url = pubUrl(path(CUR.no,t)) + '?t=' + Date.now();
+  el.classList.add('has');
+  let im = el.querySelector('img');
+  if(!im){ im=document.createElement('img'); el.insertBefore(im, el.firstChild); }
+  im.src = url;
+  badge(el,'up','완료');
+  toast(std.resized ? ('올렸습니다 — '+std.from+'을 941×1672로 맞췄습니다.') : '올렸습니다.', 'ok');
+  if(t==='d'){ $('stageImg').src = url; }
+}
+
+function badge(el, kind, text){
+  let b = el.querySelector('.badge');
+  if(!kind){ if(b) b.remove(); return; }
+  if(!b){ b=document.createElement('div'); b.className='badge'; el.appendChild(b); }
+  b.className='badge '+kind; b.textContent=text||'';
+}
+
+/* ── 그림 자리 ── */
+function drawFrame(){
+  const f = $('frame');
+  const x = +$('fx').value, y = +$('fy').value, h = +$('fh').value;
+  const st = $('stage').getBoundingClientRect();
+  const hpx = st.height * h/100;
+  const wpx = hpx * 0.78;                 /* 세로형 액자 어림 — 실제 그림은 비율대로 얹힌다 */
+  f.style.height = h + '%';
+  f.style.width  = (wpx / st.width * 100) + '%';
+  f.style.top    = y + '%';
+  f.style.left   = (x - (wpx/st.width*100)/2) + '%';
+}
+['fx','fy','fh'].forEach(id=> $(id).addEventListener('input', drawFrame));
+window.addEventListener('resize', drawFrame);
+
+(function drag(){
+  const f = $('frame'), st = $('stage');
+  let mode=null, sy=0, sx=0, y0=0, x0=0, h0=0;
+  f.addEventListener('pointerdown', e=>{
+    mode = e.target.classList.contains('hh') ? 'size' : 'move';
+    const r = st.getBoundingClientRect();
+    sy=e.clientY; sx=e.clientX;
+    y0=+$('fy').value; x0=+$('fx').value; h0=+$('fh').value;
+    f.setPointerCapture(e.pointerId); e.preventDefault();
+  });
+  f.addEventListener('pointermove', e=>{
+    if(!mode) return;
+    const r = st.getBoundingClientRect();
+    if(mode==='move'){
+      $('fy').value = (y0 + (e.clientY-sy)/r.height*100).toFixed(1);
+      $('fx').value = (x0 + (e.clientX-sx)/r.width *100).toFixed(1);
+    } else {
+      $('fh').value = Math.max(6, h0 + (e.clientY-sy)/r.height*100).toFixed(1);
+    }
+    drawFrame();
+  });
+  f.addEventListener('pointerup', ()=> mode=null);
+})();
+
+$('save').onclick = async ()=>{
+  if(!CUR || !await requireSession()) return;
+  const patch = { art_x:+$('fx').value, art_y:+$('fy').value, art_h:+$('fh').value };
+  const { error } = await supa.from('living_rooms').update(patch).eq('no', CUR.no);
+  if(error){ toast('저장 실패: '+error.message,'bad'); return; }
+  Object.assign(CUR, patch);
+  toast('그림 자리를 저장했습니다.','ok');
+};
+$('reload').onclick = ()=> select(CUR.no);
+
+$('add').onclick = async ()=>{
+  const name = $('newName').value.trim();
+  if(!name){ toast('이름을 적어주세요.','bad'); return; }
+  if(!await requireSession()) return;
+  const next = ROOMS.length ? Math.max(...ROOMS.map(r=>r.no)) + 1 : 1;
+  const { error } = await supa.from('living_rooms').insert({ no:next, name });
+  if(error){ toast('추가 실패: '+error.message,'bad'); return; }
+  $('newName').value='';
+  toast(pad(next)+'번 거실을 만들었습니다. 네 시간대를 올려주세요.','ok');
+  await loadRooms(next);
+};
+</script>
+</body>
+</html>
