@@ -574,6 +574,22 @@
   #egDock .nav-item.toggle.on .dot{ background:#8a5f18; border-color:#8a5f18; }
   #egDock .nav-item.adm{ font-size:12.5px; padding:6px 12px; color:#5c5140; }
   #egDock .nav-item.logout{ font-size:12.5px; color:#9a8d72; }
+  /* 0728 — 여럿인 것(출판사 팝업·지식채널 전당)은 2단 전개 목록으로.
+     25곳까지 늘어나도 타륜이 길어지지 않게 목록 자체에 최대 높이를 건다. */
+  #egDock .nav-item .chev{ display:inline-block; transition:transform .22s ease; }
+  #egDock .nav-item.open .chev{ transform:rotate(90deg); color:#8a5f18; }
+  #egDock .sub-list{ display:none; margin:1px 0 5px; padding-left:5px;
+    max-height:212px; overflow-y:auto; scrollbar-width:none; -ms-overflow-style:none; }
+  #egDock .sub-list::-webkit-scrollbar{ width:0; height:0; display:none; }
+  #egDock .sub-list.on{ display:block; }
+  #egDock .sub-item{ display:flex; align-items:baseline; justify-content:space-between; gap:7px;
+    width:100%; padding:6px 10px; border:none; background:none; border-radius:7px; cursor:pointer;
+    color:#2b2318; font-family:var(--serif); font-size:12.8px; text-align:left;
+    transition:background .18s ease, color .18s ease; }
+  #egDock .sub-item:hover{ background:rgba(158,127,58,.14); color:#8a5f18; }
+  #egDock .sub-city{ font-family:var(--sans); font-size:9.5px; letter-spacing:.06em;
+    color:#a8987a; flex-shrink:0; }
+  #egDock .sub-empty{ padding:6px 10px; font-size:11.5px; color:#a8987a; font-family:var(--serif); }
   @keyframes dockIn{ from{ opacity:0; transform:translateY(-8px); } to{ opacity:1; transform:none; } }
   .dock-card{ background:none; border:none; border-radius:8px; padding:9px 12px; cursor:pointer;
     color:#2b2318; transition:background .2s ease, color .2s ease; }
@@ -719,6 +735,13 @@
   <div id="dockApple"></div>
   <div id="dockUni"></div>
   <div id="dockNav">
+    <div class="nav-group">
+      <div class="nav-label">들르기</div>
+      <button class="nav-item" id="navPopups">🏪 출판사 팝업 <span class="chev" aria-hidden="true">›</span></button>
+      <div class="sub-list" id="subPopups"></div>
+      <button class="nav-item" id="navPalais">🏛 지식채널 전당 <span class="chev" aria-hidden="true">›</span></button>
+      <div class="sub-list" id="subPalais"></div>
+    </div>
     <div class="nav-group">
       <div class="nav-label">떠나기</div>
       <button class="nav-item" id="navCity">🌍 다른 도시 <span class="chev" aria-hidden="true">›</span></button>
@@ -981,11 +1004,13 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
     const openPanel = (on)=>{
       const show = (on===undefined) ? !panel.classList.contains("open") : on;
       panel.classList.toggle("open", show);
-      if (!show){ toggleCityList(false); toggleStarList(false); }   /* 패널 닫으면 목록도 */
+      if (!show){ toggleCityList(false); toggleStarList(false); closeOrgLists(); }   /* 패널 닫으면 목록도 */
     };
     /* 떠나기 — 기존 목록 토글 그대로 (2단 전개) */
-    document.getElementById("navCity").addEventListener("click", ()=>{ toggleStarList(false); toggleCityList(); });
-    document.getElementById("navStar").addEventListener("click", ()=>{ toggleCityList(false); toggleStarList(); });
+    { const bp = document.getElementById("navPopups"); if (bp) bp.addEventListener("click", ()=> toggleOrgList("popup")); }
+    { const bl = document.getElementById("navPalais"); if (bl) bl.addEventListener("click", ()=> toggleOrgList("palais")); }
+    document.getElementById("navCity").addEventListener("click", ()=>{ closeOrgLists(); toggleStarList(false); toggleCityList(); });
+    document.getElementById("navStar").addEventListener("click", ()=>{ closeOrgLists(); toggleCityList(false); toggleStarList(); });
     /* 보기 — 기존 레이어 상태 토글. applyLayerVisibility가 nav 항목 on도 동기화 */
     document.getElementById("navSpots").addEventListener("click", ()=>{ showSpots=!showSpots; applyLayerVisibility(); });
     document.getElementById("navMaisons").addEventListener("click", ()=>{ showMaisons=!showMaisons; applyLayerVisibility(); });
@@ -2642,6 +2667,79 @@ function wireTerra(){
       refreshDock(true);                                           /* 위젯: FINAL + 스코어 */
     }
   });
+}
+
+/* ── 들르기: 출판사 팝업 · 지식채널 전당 (0728) ──
+   이 둘은 다른 우주와 성격이 다르다. 뮤세움은 하나지만 출판사는 스물다섯이 되고
+   지식채널도 계속 는다. 핀은 도시마다 뿌려지지만 셸의 원형은 곳마다 하나다.
+   그래서 타륜에는 "그 곳들의 목록"을 걸고, 누르면 지구를 거치지 않고 곧장 연다. */
+const EG_ORG_UI = {
+  popup:  { btn:"navPopups", box:"subPopups", tbl:"popup_orgs",  sel:"code,name", shell:"popup_shell_v0_4.html" },
+  palais: { btn:"navPalais", box:"subPalais", tbl:"palais_orgs", sel:"code,name", shell:"palais.html" }
+};
+const egOrgs = { popup:null, palais:null };
+
+async function loadOrgs(kind){
+  if (egOrgs[kind]) return egOrgs[kind];
+  const u = EG_ORG_UI[kind];
+  try{
+    const res = await fetch(SUPA_URL + "/rest/v1/" + u.tbl + "?select=" + u.sel + "&order=name",
+      { headers:{ apikey:SUPA_KEY, Authorization:"Bearer " + SUPA_KEY } });
+    const j = await res.json();
+    /* 0728 — 셸은 곳마다 하나다. 핀은 도시마다 뿌려지지만 목록은 협업 대상 한 곳당 한 줄. */
+    const seen = new Set(), out = [];
+    if (Array.isArray(j)) for (const o of j){ if (!o || seen.has(o.code)) continue; seen.add(o.code); out.push(o); }
+    egOrgs[kind] = out;
+  }catch(e){ console.warn(u.tbl + " 로드 실패:", e); egOrgs[kind] = []; }
+  return egOrgs[kind];
+}
+
+function egOpenOrg(kind, code, name){
+  const url = EG_ORG_UI[kind].shell + "?org=" + encodeURIComponent(code) + "&v=" + Date.now();
+  if (typeof viewer === "undefined" || !viewer){ location.href = url; return; }
+  enterRoomUrl(url, name || "");
+}
+
+function closeOrgLists(){
+  for (const k in EG_ORG_UI){
+    const b = document.getElementById(EG_ORG_UI[k].btn);
+    const x = document.getElementById(EG_ORG_UI[k].box);
+    if (b) b.classList.remove("open");
+    if (x) x.classList.remove("on");
+  }
+}
+
+async function toggleOrgList(kind){
+  const u = EG_ORG_UI[kind];
+  const btn = document.getElementById(u.btn), box = document.getElementById(u.box);
+  if (!btn || !box) return;
+  const willOpen = !box.classList.contains("on");
+  closeOrgLists();                                  /* 한 번에 하나만 편다 */
+  try{ toggleCityList(false); toggleStarList(false); }catch(e){}
+  if (!willOpen) return;
+  box.classList.add("on"); btn.classList.add("open");
+  if (box.dataset.built) return;
+
+  const wait = document.createElement("div");
+  wait.className = "sub-empty"; wait.textContent = "불러오는 중…";
+  box.appendChild(wait);
+  const rows = await loadOrgs(kind);
+  box.innerHTML = "";
+  if (!rows.length){
+    const e0 = document.createElement("div");
+    e0.className = "sub-empty"; e0.textContent = "아직 없습니다";
+    box.appendChild(e0);
+    return;                                          /* 나중에 생기면 다시 읽도록 built 표시 안 함 */
+  }
+  for (const o of rows){
+    const b = document.createElement("button");
+    b.className = "sub-item";
+    const n = document.createElement("span"); n.textContent = o.name || o.code;
+    b.appendChild(n);
+    b.addEventListener("click", ()=> egOpenOrg(kind, o.code, o.name));
+    box.appendChild(b);
+  }
+  box.dataset.built = "1";
 }
 
 /* ── 황금사과 입금 알림 (0728) ──
