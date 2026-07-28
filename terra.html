@@ -926,6 +926,19 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   });
   if (window.EGCrashGuard) viewer.canvas.addEventListener('webglcontextlost', EGCrashGuard.markWebGL);  // 0706 GPU 폭발 확정
 
+  /* ── 0728 로더 안전장치 ──
+     init이 도중에 터지면 로더가 영원히 남아 비행기만 계속 난다. 손님은 고장인 줄도
+     모르고 기다린다. 14초가 지나도 안 걷혔으면 강제로 걷고 콘솔에 이유를 남긴다.
+     증상을 감추는 게 아니라, 갇히지 않게 하고 원인은 로그로 남기는 장치다. */
+  setTimeout(()=>{
+    const _ld = document.getElementById("loader");
+    if (_ld && !_ld.classList.contains("gone")){
+      console.error("[EG] 로더 안전장치 발동 — init이 끝까지 가지 못했습니다. 위쪽 빨간 오류를 확인하세요.");
+      _ld.classList.add("gone");
+      if (window.__fadeJet) window.__fadeJet();
+    }
+  }, 14000);
+
   /* ── 0722 소로 발주 후속: 어제 조명은 켰지만 시계가 안 돌아 태양이 로드 시각에 얼어있던 문제 ──
      기본 Clock은 shouldAnimate=false로 시작해 currentTime이 흐르지 않는다.
      SYSTEM_CLOCK: currentTime이 항상 실제 지금 이 순간을 그대로 따라감(멀티플라이어 무관, flightradar24 방식) */
@@ -1018,7 +1031,9 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
     /* 지도 빈 곳 클릭 · ESC → 패널 닫기 */
     document.addEventListener("keydown", (e)=>{ if (e.key==="Escape") openPanel(false); });
     document.getElementById("cesiumContainer").addEventListener("click", ()=> openPanel(false));
-    { const lo = document.getElementById("navLogout"); if (lo) lo.addEventListener("click", egLogout); }
+    /* ⚠ egLogout은 아래쪽 <script> 블록에서 선언된다. 값으로 넘기면 이 줄이 실행되는
+       시점에 아직 없을 수 있으므로(블록 경계), 반드시 호출로 감싼다. */
+    { const lo = document.getElementById("navLogout"); if (lo) lo.addEventListener("click", ()=> egLogout()); }
     window._openNavPanel = openPanel;
   })();
   document.getElementById("mEnter").addEventListener("click", ()=> enterMaison(currentMaison));
