@@ -1936,8 +1936,9 @@ async function clampPoint(lng, lat){
 }
 
 function flyToEntity(ent, opts){
+  const _noPanel = !!(opts && opts.noPanel);   /* 0728 — 도착해도 소개 패널을 열지 않음 */
   if (ent && ent._maison && !(opts && opts.nolog) && window.logPush)
-    window.logPush("maison:"+(ent._maison.city||"")+":"+ent._maison.maison_no, ()=> flyToEntity(ent, { nolog:true }));
+    window.logPush("maison:"+(ent._maison.city||"")+":"+ent._maison.maison_no, ()=> flyToEntity(ent, { nolog:true, noPanel:_noPanel }));
   stopOrbit();
   const carto = Cesium.Cartographic.fromCartesian(ent.position.getValue(Cesium.JulianDate.now()));
   const lng = Cesium.Math.toDegrees(carto.longitude);
@@ -1947,7 +1948,7 @@ function flyToEntity(ent, opts){
     orientation:{ heading:Cesium.Math.toRadians(15), pitch:Cesium.Math.toRadians(-40), roll:0 },
     duration: 3.0,
     complete: async ()=>{
-      openMaison(ent._maison);
+      if (!_noPanel) openMaison(ent._maison);
       const H = await clampPoint(lng, lat);   // 도착 후 재clamp → 정확한 지붕 높이
       console.log("[clamp] 메종 지붕 H =", H, "m ← 궤도 중심");
       startOrbit(Cesium.Cartesian3.fromDegrees(lng, lat, (H!=null?H:(carto.height||0))), 600, 200, 0.010, 0.0032); // 내 집 전용: 600→200 · 줌 2배 · 회전 2배 (0720 소로)
@@ -1979,7 +1980,11 @@ async function goToMyHome(){
       ent = viewer.entities.values.find(e => e._maison && e._maison.occupant_id === uid);
     }
   }
-  if (ent){ showMaisons = true; applyLayerVisibility(); flyToEntity(ent); }
+  /* 0728 — 도착해서 자기 집 소개 패널을 자동으로 펴지 않는다. 화면 한가운데서
+     자기 집이 돌고 있으니 그것으로 인사는 끝났고, 들어가고 싶으면 핀을 누르면 된다.
+     자동으로 뜨던 패널이 타륜을 가려 첫 화면의 메뉴를 덮고 있었다.
+     (결정문 10장 "자동 팝업 없음") */
+  if (ent){ showMaisons = true; applyLayerVisibility(); flyToEntity(ent, { noPanel:true }); }
   else { flyToParisOverview(); }                         // 만석 등
 }
 
