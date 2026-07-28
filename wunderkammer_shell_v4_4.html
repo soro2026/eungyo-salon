@@ -137,10 +137,28 @@ html, body {
   scrollbar-width:none; -ms-overflow-style:none;
 }
 .floor-content[data-floor="1"] .sl-scroll::-webkit-scrollbar{ display:none; width:0; height:0; }
+/* 무대 — 그림의 비율을 따라간다. 가로 폭은 상한을 둔다.
+   ⚠ 0728밤 정정: 처음엔 width:100% + aspect-ratio:941/1672로 못을 박았다.
+     그러면 ① 넓은 화면에서 방이 2.5m로 펼쳐져 박물관이 되고
+            ② 어떤 비율로 구워 와도 9:16으로 잘린다.
+     이제 비율은 JS가 그림에서 재서 넣고(--sl-ar), 폭만 여기서 잡는다. */
 .floor-content[data-floor="1"] .sl-stage{
-  position:relative; width:100%; aspect-ratio:941/1672; min-height:100%;
+  position:relative;
+  width:min(100%, var(--sl-maxw, 1200px));
+  margin:0 auto;
+  aspect-ratio:var(--sl-ar, 2/3);
   background:linear-gradient(168deg,#2a1d18 0%,#20160f 55%,#120c08 100%);
   background-size:cover; background-position:center top;
+  transition:background-image .8s ease;
+  z-index:1;
+}
+/* 좌우 여백 — 까맣게 두지 않는다. 같은 그림을 크게 흐려 뒤에 깔면
+   방의 빛깔이 이어져 액자처럼 감싼다(극장 스크린 주변과 같은 이치). */
+.floor-content[data-floor="1"] .sl-blur{
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-size:cover; background-position:center;
+  filter:blur(42px) brightness(.45) saturate(.85);
+  transform:scale(1.12);
   transition:background-image .8s ease;
 }
 /* 그림 — 좌표는 living_rooms(art_x·art_y·art_h)가 정한다 */
@@ -2044,6 +2062,7 @@ const Salon = (() => {
   function markup(){
     return `
       <div class="floor-content" data-floor="1">
+        <div class="sl-blur" id="sl-blur"></div>
         <div class="sl-scroll" id="sl-scroll"><div class="sl-stage" id="sl-stage"></div></div>
         <div class="g1-zoom" id="sl-zoom" hidden>
           <div class="g1-zoom-stage">
@@ -2096,14 +2115,23 @@ const Salon = (() => {
   }
   function hide(id){ const el=document.getElementById(id); if(el) el.hidden = true; }
 
-  /* 그 시간대가 아직 안 구워졌으면 낮으로 물러선다. 낮마저 없으면 CSS 그라데이션. */
+  /* 그 시간대가 아직 안 구워졌으면 낮으로 물러선다. 낮마저 없으면 CSS 그라데이션.
+     ⭐ 무대 비율은 여기서 그림을 재서 정한다 — 어떤 비율로 구워 와도 안 잘린다. */
   function paintBg(stage, no, t){
+    const put = (url, im)=>{
+      stage.style.backgroundImage = `url('${url}')`;
+      const blur = document.getElementById('sl-blur');
+      if (blur) blur.style.backgroundImage = `url('${url}')`;
+      if (im && im.naturalWidth && im.naturalHeight){
+        stage.style.setProperty('--sl-ar', im.naturalWidth + '/' + im.naturalHeight);
+      }
+    };
     const probe = new Image();
-    probe.onload  = ()=>{ stage.style.backgroundImage = `url('${bgUrl(no,t)}')`; };
+    probe.onload  = ()=> put(bgUrl(no,t), probe);
     probe.onerror = ()=>{
       if (t === 'd') return;
       const d = new Image();
-      d.onload = ()=>{ stage.style.backgroundImage = `url('${bgUrl(no,'d')}')`; };
+      d.onload = ()=> put(bgUrl(no,'d'), d);
       d.src = bgUrl(no,'d');
     };
     probe.src = bgUrl(no, t);
