@@ -533,6 +533,22 @@
   .dock-main .vs{ font-size:9.5px; color:#a8987a; font-weight:400; font-style:italic; }
   .dock-sub{ font-size:10.5px; color:#8a7a5c; margin-top:2px; letter-spacing:.03em; }
   .dock-card.uni .dock-main{ justify-content:flex-start; }
+  /* ── 직행 문(숏컷) — 지구를 거치지 않고 그 셸로 곧장 · 0728 입구 공사 ──
+     옆문은 값을 치르기 직전에 보여야 하므로 호버가 아니라 늘 보이게 둔다. */
+  .dock-card{ position:relative; padding-right:54px; }
+  .dock-go{ position:absolute; top:50%; right:9px; transform:translateY(-50%);
+    font-family:var(--sans); font-size:9.5px; letter-spacing:.09em; line-height:1;
+    padding:5px 8px; border-radius:999px; cursor:pointer; white-space:nowrap;
+    color:#8a5f18; background:rgba(255,252,244,.78);
+    border:1px solid rgba(158,127,58,.5);
+    transition:background .18s ease, color .18s ease, border-color .18s ease; }
+  .dock-go:hover{ background:#8a5f18; color:#fdf9ef; border-color:#8a5f18; }
+  /* 아직 안 지어진 방 — 문패는 걸되 문처럼 보이지는 않게 */
+  .dock-go.soon{ color:#9a8d72; background:rgba(255,252,244,.5);
+    border-color:rgba(158,127,58,.28); border-style:dashed; cursor:default; }
+  .dock-go.soon:hover{ color:#9a8d72; background:rgba(255,252,244,.5);
+    border-color:rgba(158,127,58,.28); }
+  .dock-card.waiting .dock-sub{ opacity:.55; font-style:italic; }
   .dock-count{ margin-top:6px; font-variant-numeric:tabular-nums; font-size:16.5px;
     letter-spacing:.05em; color:#8a5f18; font-weight:700; }
   /* 스타디움 카드 팝업 — 지구 타일 위에 뜨는 창. 홈·경기·기록·리그·나 5탭 원본 그대로 */
@@ -1672,6 +1688,17 @@ function exitDoorway(){
   document.getElementById("doorFrame").src = "about:blank";
   doorState = 'closed';
   viewer.useDefaultRenderLoop = true;           // 지구 렌더 재개(재진입 과금 0)
+  /* 0728 — 문이 어디로 열렸든 나올 땐 타륜을 돌아본다.
+     예전엔 경기 화면의 「홈으로」 버튼만 도크를 새로 그렸다. 문틀의
+     「× 지구로 돌아가기」로 나오면 경기 전 화면이 그대로 남아, 타이머가
+     계속 돌고 매치업 액자도 안 비워져 재입장까지 벌어졌다. */
+  const _wasGame = !!window.doorWasGame;
+  window.doorWasGame = false;
+  if (_wasGame){
+    const sf = document.getElementById("stadFrame");
+    if (sf) sf.src = "about:blank";             /* 다음 열람 때 결과 반영 새로고침 */
+  }
+  if (typeof refreshDock === "function") refreshDock(_wasGame);
 }
 
 // 마커를 실사 3D 타일(또는 지형) 표면 높이에 정확히 앉힘 — 비스듬한 각도에서도 안 어긋나게
@@ -2114,6 +2141,20 @@ function stopOrbit(){
 const TEAM_KO   = { soro:"SORO", socrates:"소크라테스", pascal:"파스칼", proust:"프루스트" };
 const TEAM_PARK = { soro:"fenway", socrates:"yankee", pascal:"wrigley", proust:"oracle" };
 let terraPins = {}, currentPark = null, todayMatch = null, cdTimer = null, gameParams = null;
+window.doorWasGame = false;        /* 방금 닫은 문이 경기장이었나 (0728) */
+let cdGen = 0;                     /* 카운트다운 세대 — 옛 체인이 새 도크에 글씨 쓰는 것을 막는다 (0728).
+                                      ⚠ 반드시 renderDock보다 위에. 밑그림이 파싱 중에 그려지므로
+                                        아래에 두면 TDZ에 걸려 typeof로도 못 막는다. */
+let dockAgainTimer = null;
+/* 도크 새로고침 한 벌 — 문이 닫힐 때마다 부른다.
+   twice=true면 1.8초 뒤 한 번 더. 경기 결과 저장(saveStatsToSupabase)이
+   await 없이 날아가므로, 손님이 결과를 보자마자 나가면 PATCH가 아직
+   안 닿았을 수 있다. 그 한 박자를 메운다. */
+function refreshDock(twice){
+  try{ loadDock(); }catch(e){ console.warn("도크 새로고침 실패:", e); }
+  if (dockAgainTimer){ clearTimeout(dockAgainTimer); dockAgainTimer = null; }
+  if (twice) dockAgainTimer = setTimeout(()=>{ try{ loadDock(); }catch(e){} }, 1800);
+}
 
 let tries = 0;
 const boot = setInterval(()=>{
@@ -2327,10 +2368,18 @@ function openStadCard(){
 function closeStadCard(){
   document.getElementById("stadCard").classList.remove("in");
   viewer.useDefaultRenderLoop = true;
+  if (typeof refreshDock === "function") refreshDock(false);   /* 0728 */
 }
 
 /* ── 경기 입장 (구장 착륙 후) ── */
 function enterGame(){
+  /* 0728 — 하루 한 경기. 이미 끝난 경기면 문을 열지 않고 결과 카드로 보낸다.
+     옛 액자가 남아 재입장시키던 사고의 마지막 그물. */
+  if (todayMatch && todayMatch.status === "completed"){
+    const sf = document.getElementById("stadFrame"); if (sf) sf.src = "about:blank";
+    openStadCard();
+    return;
+  }
   let url;
   if (gameParams){
     url = "game_rookie.html?game=true&terra=1&opp=" + encodeURIComponent(gameParams.opp)
@@ -2349,6 +2398,7 @@ function enterGame(){
   document.getElementById("doorFrame").src = url;
   document.getElementById("doorway").classList.add("popup","in","open");
   doorState = "open";
+  window.doorWasGame = true;                 /* 나올 때 도크를 두 번 돌아보게 (0728) */
 }
 
 /* ── 공용 문: 스타디움 외 우주 — 지구는 잠들고 방이 열린다 ── */
@@ -2422,7 +2472,14 @@ function wireTerra(){
   /* 타륜 토글 — 클릭 펼침, 바깥 클릭 접힘 */
   const helm = document.getElementById("helmBtn");
   const dockEl = document.getElementById("egDock");
-  helm.addEventListener("click", (e)=>{ e.stopPropagation(); dockEl.classList.toggle("open"); });
+  helm.addEventListener("click", (e)=>{
+    e.stopPropagation();
+    dockEl.classList.toggle("open");
+    /* 0728 — 펼치는 순간이 곧 "보러 온 순간"이다. 그때 한 번 돌아본다.
+       예전엔 eg-game-done 신호 하나에만 갱신을 걸어두어, 그 신호가 새면
+       리로드 전까지 경기 전 화면이 그대로 남았다. */
+    if (dockEl.classList.contains("open") && typeof refreshDock === "function") refreshDock(false);
+  });
   document.addEventListener("click", (e)=>{
     if (dockEl.classList.contains("open") && !dockEl.contains(e.target) && e.target !== helm && !helm.contains(e.target))
       dockEl.classList.remove("open");
@@ -2456,9 +2513,11 @@ function wireTerra(){
     }
     if (d.type === "eg-game-done"){
       /* 경기 종료 → 문 닫고 곧장 지구 (구장 상공 회전 재개) */
+      console.log("[EG] eg-game-done 수신 — 도크 갱신");   /* 신호 도착 확인용 표식 (0728) */
       try{ exitDoorway(); }catch(e){}
-      document.getElementById("stadFrame").src = "about:blank";   /* 다음 열람 때 결과 반영 새로고침 */
-      loadDock();                                                  /* 위젯: FINAL + 스코어 */
+      const _sf = document.getElementById("stadFrame");
+      if (_sf) _sf.src = "about:blank";                            /* 다음 열람 때 결과 반영 새로고침 */
+      refreshDock(true);                                           /* 위젯: FINAL + 스코어 */
     }
   });
 }
@@ -2487,17 +2546,103 @@ async function moveTerraPin(ent, lng, lat){
 }
 
 /* ── 통합위젯 도크 ── */
+
+/* 직행 문 주소표 (0728) — 액자(iframe)가 아니라 생짜 이동.
+   여기 있는 주소는 Cesium을 한 줄도 켜지 않는다. */
+const DOCK_DIRECT = {
+  spoon:        "hello_spoon_v1.html",
+  stadium:      "stadium_v2.html",
+  museum:       "museum.html",
+  constellatio: "constella.html",
+  heritage:     "heritage.html",
+  wunder:       "wunderkammer_shell_v4_4.html",   /* user 없으면 본인 방 (셸 폴백 확인 완료) */
+  persona:      "persona.html",
+  college:      "college.html"
+};
+
+/* 아직 셸이 없는 방 — 문패만 걸고 눌리면 이 말을 한다 (0728) */
+const DOCK_SOON = {
+  salon: "준비 중입니다 · 설계 회차 대기"
+};
+function addDockShortcut(el, id){
+  /* 아직 안 지어진 방 — 문패만 걸어둔다 (0728 소로) */
+  if (DOCK_SOON[id]){
+    const s = document.createElement("div");
+    s.className = "dock-go soon";
+    s.textContent = "준비 중";
+    const say = (e)=>{
+      if (e) e.stopPropagation();
+      const sub = el.querySelector(".dock-sub");
+      if (!sub || sub.dataset.saying) return;
+      const keep = sub.textContent;
+      sub.dataset.saying = "1";
+      sub.textContent = DOCK_SOON[id];
+      setTimeout(()=>{ sub.textContent = keep; delete sub.dataset.saying; }, 2200);
+    };
+    s.addEventListener("click", say);
+    el.addEventListener("click", say);   /* 본체를 눌러도 같은 말 */
+    el.appendChild(s);
+    return;
+  }
+  const url = DOCK_DIRECT[id];
+  if (!url) return;
+  const b = document.createElement("div");
+  b.className = "dock-go";
+  b.textContent = "직행";
+  b.title = "지구를 거치지 않고 곧장 들어갑니다";
+  b.addEventListener("click", (e)=>{ e.stopPropagation(); location.href = url; });  /* 카드 본체(비행)로 번지지 않게 */
+  el.appendChild(b);
+}
+
 function renderDock(items){
   const dock = document.getElementById("egDock");
+  cdGen++;                                         /* 옛 체인 무효화 (0728) */
+  if (cdTimer){ clearTimeout(cdTimer); cdTimer = null; }
   dock.innerHTML = "";
   for (const it of items){
     const el = document.createElement("div");
-    el.className = "dock-card" + (it.cls ? " " + it.cls : "");
+    el.className = "dock-card" + (it.cls ? " " + it.cls : "") + (it.waiting ? " waiting" : "");
     el.innerHTML = it.html;
-    el.addEventListener("click", it.onClick);
+    if (it.onClick) el.addEventListener("click", it.onClick);
+    addDockShortcut(el, it.id);
     dock.appendChild(el);
   }
 }
+
+/* ── 타륜 밑그림 — 핀·타일보다 먼저 그린다 (0728 입구 공사) ──
+   지금까지 타륜은 terraInit() 안 loadTerraPins() 뒤에 그려졌다. 즉 타일이 다
+   내려온 다음에야 나타나서, 정작 타륜이 절실한 느린 연결에는 영영 안 떴다.
+   순서를 뒤집는다. z-index 28 < 로더 50이므로 비행 중에는 EG Air 뒤에 숨어
+   있다가, 로더가 걷히는 순간 이미 펼쳐진 채로 나타난다. */
+const DOCK_SKELETON = [
+  { id:"spoon",        name:"교양 한스푼" },
+  { id:"stadium",      name:"EG스타디움" },
+  { id:"museum",       name:"뮤세움" },
+  { id:"constellatio", name:"콘스텔라티오" },
+  { id:"heritage",     name:"헤리티지" },
+  { id:"wunder",       name:"분더카머" },
+  { id:"persona",      name:"교양 자화상" },
+  { id:"college",      name:"콜레주 드 콤포스텔라" },
+  { id:"salon",        name:"살롱 드 콩파뇽" }
+];
+function buildDockSkeleton(){
+  const dock = document.getElementById("egDock");
+  if (!dock) return;
+  renderDock(DOCK_SKELETON.map(function(u){
+    return { id:u.id, cls:"uni", waiting:true,
+      html: '<div class="dock-main"><span>' + u.name + '</span></div>'
+          + '<div class="dock-sub">' + (DOCK_SOON[u.id] ? "곧 문을 엽니다" : "지구 도착 대기…") + '</div>',
+      onClick: null };   /* 타일 오기 전 본체 클릭은 조용히 무시 — 숏컷은 살아 있다 */
+  }));
+  dock.classList.add("open");   /* 펼친 채로 등장 */
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", buildDockSkeleton);
+else buildDockSkeleton();
+
+/* 다른 창·앱에 다녀와 돌아왔을 때도 한 번 돌아본다 (0728) */
+document.addEventListener("visibilitychange", ()=>{
+  if (!document.hidden && typeof refreshDock === "function") refreshDock(false);
+});
 async function loadDock(){
   try{
     const { data:{ session } } = await supa.auth.getSession();
@@ -2589,6 +2734,17 @@ async function loadDock(){
       html: '<div class="dock-main"><span>교양 자화상</span></div>',
       onClick: ()=> enterRoomUrl("persona.html", "교양 자화상") });
 
+    /* ⑧ 📖 콜레주 드 콤포스텔라 — 핀으로 비행 (핀 없으면 직행 문) · 0728 */
+    items.push({ id:"college", cls:"uni",
+      html: '<div class="dock-main"><span>콜레주 드 콤포스텔라</span></div>',
+      onClick: ()=>{ const p = pinOf("college"); if (p) flyToPark(p); else location.href = "college.html"; } });
+
+    /* ⑨ 🍷 살롱 드 콩파뇽 — 셸 미착공. 문패만 (0728 소로) */
+    items.push({ id:"salon", cls:"uni",
+      html: '<div class="dock-main"><span>살롱 드 콩파뇽</span></div>'
+          + '<div class="dock-sub">곧 문을 엽니다</div>',
+      onClick: null });
+
     renderDock(items);
     (function(){ let p=null; for (const c in terraPins){ if (terraPins[c].kind==="hansfoon"){ p=terraPins[c]; break; } }
       const el=document.getElementById("spoonSub"); if (el && p) el.textContent = p.name; })();
@@ -2599,7 +2755,9 @@ async function loadDock(){
 /* ── 카운트다운 ── */
 function startCountdown(ids, dateStr){
   if (cdTimer) clearTimeout(cdTimer);
+  const myGen = ++cdGen;
   const tick = ()=>{
+    if (myGen !== cdGen) return;      /* 나는 지난 세대 — 조용히 물러난다 */
     const kst = new Date(new Date().toLocaleString("en-US", { timeZone:"Asia/Seoul" }));
     const start = dateStr ? new Date(dateStr + "T18:30:00") : new Date(kst);
     if (!dateStr) start.setHours(18,30,0,0);
