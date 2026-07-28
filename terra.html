@@ -20,6 +20,86 @@
 
 <script>
   window.CESIUM_BASE_URL = "https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/";
+
+  /* ══════════════════════════════════════════════════════════════════════
+     EG 전체 화면 (0728)
+
+     방아쇠는 "지구 클릭" 하나다 — 결정문 2호 3항의 바로 그 손동작.
+     "나는 여기 남겠다"고 선언한 순간, 메뉴가 물러나고 화면이 세계로 찬다.
+     직행이 팝업(iframe)으로 바뀌어 손님이 terra를 떠나지 않게 된 덕에,
+     한 번 들어가면 콜레주를 돌든 팝업스토어를 돌든 풀리지 않는다.
+
+     ⚠ 왜 하필 여기(맨 위 블록)인가
+        마지막 <script>는 통째로 IIFE라 거기 만든 함수는 위 블록에서 안 보인다
+        (0728에 지구를 두 번 죽인 그 함정). 이 블록은 어디에도 안 갇혀 있으므로
+        아래 두 블록 어디서든 부를 수 있다.
+     ⚠ 왜 새 <script> 블록을 만들지 않았나
+        배포 전 검사기가 블록을 번호로 집는다(b[2]·b[3]). 블록을 하나 늘리면
+        그 검사기가 엉뚱한 곳을 들여다본다. 그래서 기존 블록에 얹었다.
+     ══════════════════════════════════════════════════════════════════════ */
+  (function(){
+    let asked = false;   /* 자동으로 청하는 건 한 세션에 한 번뿐 */
+    let left  = false;   /* Esc로 물러난 사람에게는 두 번 다시 안 청한다 */
+
+    const root = document.documentElement;
+    const req  = root.requestFullscreen || root.webkitRequestFullscreen || null;
+    const exi  = document.exitFullscreen || document.webkitExitFullscreen || null;
+
+    function isFull(){
+      return !!(document.fullscreenElement || document.webkitFullscreenElement);
+    }
+    /* F11로 이미 전체화면인 사람은 JS로 감지되지 않는다(브라우저 UI 차원이라).
+       크기로 어림한다. 빗나가도 손해는 "자동 진입이 안 됨"뿐 — 안전한 쪽으로 기울여 뒀다. */
+    function looksFull(){
+      try{ return Math.abs(window.innerHeight - screen.height) <= 2; }catch(e){ return false; }
+    }
+    function go(){
+      if (!req) return;                     /* 아이폰 사파리엔 이 API가 없다 */
+      try{
+        const p = req.call(root, { navigationUI:"hide" });
+        if (p && p.catch) p.catch(function(){});   /* 거부돼도 조용히 — 콘솔 오염 금지 */
+      }catch(e){}
+    }
+
+    /* ① 지구 클릭이 부른다. 조건이 하나라도 어긋나면 아무 일도 일어나지 않는다 */
+    window.egEnterFullscreen = function(){
+      if (asked || left || !req || isFull() || looksFull()) return;
+      asked = true;
+      go();
+    };
+
+    /* ② 타륜 「보기 · 전체 화면」이 부른다.
+          손님이 손으로 청한 것이므로 위 조건을 보지 않는다 — 돌아올 길은 늘 열려 있어야 한다 */
+    window.egToggleFullscreen = function(){
+      if (isFull()){ left = true; try{ exi && exi.call(document); }catch(e){} }
+      else { asked = true; left = false; go(); }
+    };
+
+    /* 타륜 점등만 담당. left를 여기서 건드리면 초기 호출에 자동 진입이 막힌다.
+       ⚠ 안 열리는 문은 아예 그리지 않는다(자물쇠가 아니라 복도를 안 내는 쪽):
+         · API가 없는 기기(아이폰 사파리) — 눌러도 아무 일이 안 일어난다
+         · F11로 이미 전체화면인 사람 — 이미 다 찼고, 그 F11은 JS로 끌 수도 없다 */
+    function paint(){
+      const b = document.getElementById("navFull");
+      if (!b) return;
+      const hide = !req || (!isFull() && looksFull());
+      b.style.display = hide ? "none" : "";
+      b.classList.toggle("on", isFull());
+    }
+    function onChange(){
+      if (!isFull()) left = true;           /* 한 번 물러난 건 그 사람의 선택이다 */
+      paint();
+      /* 전체화면 전환 = 창 크기 변경. Cesium이 스스로 맞추지만 못 미더워 한 번 더 민다 */
+      setTimeout(function(){
+        try{ if (window.viewer && window.viewer.resize) window.viewer.resize(); }catch(e){}
+      }, 80);
+    }
+    document.addEventListener("fullscreenchange", onChange);
+    document.addEventListener("webkitfullscreenchange", onChange);
+    /* F11은 이벤트를 안 준다. 창 크기가 바뀌면 다시 어림해 본다 */
+    window.addEventListener("resize", function(){ setTimeout(paint, 120); });
+    window.egSyncFullBtn = paint;
+  })();
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -751,6 +831,7 @@
       <div class="nav-label">보기</div>
       <button class="nav-item toggle" id="navSpots">🏛 인물 장소 <span class="dot" aria-hidden="true"></span></button>
       <button class="nav-item toggle on" id="navMaisons">🏠 콩파뇽 집 <span class="dot" aria-hidden="true"></span></button>
+      <button class="nav-item toggle" id="navFull">⛶ 전체 화면 <span class="dot" aria-hidden="true"></span></button>
     </div>
     <div class="nav-group" id="navAdminGroup" style="display:none">
       <div class="nav-label">살롱지기</div>
@@ -925,6 +1006,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
     requestRenderMode:false
   });
   if (window.EGCrashGuard) viewer.canvas.addEventListener('webglcontextlost', EGCrashGuard.markWebGL);  // 0706 GPU 폭발 확정
+  window.viewer = viewer;   /* 0728 창구 — viewer는 let이라 window에 안 붙는다. 맨 위 전체화면 블록이 캔버스를 되맞출 때 쓴다 */
 
   /* ── 0728 로더 안전장치 ──
      init이 도중에 터지면 로더가 영원히 남아 비행기만 계속 난다. 손님은 고장인 줄도
@@ -1027,10 +1109,19 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
     /* 보기 — 기존 레이어 상태 토글. applyLayerVisibility가 nav 항목 on도 동기화 */
     document.getElementById("navSpots").addEventListener("click", ()=>{ showSpots=!showSpots; applyLayerVisibility(); });
     document.getElementById("navMaisons").addEventListener("click", ()=>{ showMaisons=!showMaisons; applyLayerVisibility(); });
+    /* 0728 전체 화면 — 손으로 청하는 문. Esc로 나간 손님이 돌아올 유일한 길이다 */
+    { const nf = document.getElementById("navFull");
+      if (nf) nf.addEventListener("click", ()=>{ try{ egToggleFullscreen(); }catch(e){} }); }
+    if (window.egSyncFullBtn) window.egSyncFullBtn();   /* 초기 점등 */
     applyLayerVisibility();   /* 초기 on 상태 동기화 */
     /* 지도 빈 곳 클릭 · ESC → 패널 닫기 */
     document.addEventListener("keydown", (e)=>{ if (e.key==="Escape") openPanel(false); });
-    document.getElementById("cesiumContainer").addEventListener("click", ()=> openPanel(false));
+    /* 0728 — 지구 클릭 = "나는 여기 남겠다"는 선언. 메뉴가 물러나고 화면이 세계로 찬다.
+       try로 감싼 이유: 전체화면이 실패해도 접힘(본래 임무)은 반드시 일어나야 한다. */
+    document.getElementById("cesiumContainer").addEventListener("click", ()=>{
+      try{ egEnterFullscreen(); }catch(e){}
+      openPanel(false);
+    });
     /* ⚠ egLogout은 아래쪽 <script> 블록에서 선언된다. 값으로 넘기면 이 줄이 실행되는
        시점에 아직 없을 수 있으므로(블록 경계), 반드시 호출로 감싼다. */
     { const lo = document.getElementById("navLogout"); if (lo) lo.addEventListener("click", ()=> egLogout()); }
