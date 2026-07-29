@@ -119,6 +119,8 @@ body.dim .amuse{background:linear-gradient(180deg,rgba(255,240,208,.3),rgba(255,
 .a-team.me{color:var(--gold)}
 .a-mid{justify-self:center;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:15px;color:var(--soft);opacity:.8;padding:0 12px}
 .a-clock{font-family:'JetBrains Mono',monospace;font-weight:500;font-size:15px;letter-spacing:.2em;color:var(--gold);opacity:.95;margin-top:14px;min-height:19px}
+.a-lab{font-size:9.5px;letter-spacing:.16em;color:var(--soft);opacity:.72;margin-top:14px;font-weight:300}
+.a-lab + .a-clock{margin-top:5px}
 .a-done{font-size:11.5px;color:var(--soft);margin-top:12px;font-weight:300}
 
 /* ── 차림표 제목 ── */
@@ -191,6 +193,8 @@ body.dim .sub{background:rgba(255,240,208,.12)}
 }
 @media (prefers-reduced-motion:reduce){#room,.caret{transition:none}}
 </style>
+<!-- EG 하늘 한 벌 (0729) — 시각 구간은 여기 하나에서만 정한다. eg_sky.js 참조 -->
+<script src="eg_sky.js?v=20260729"></script>
 </head>
 <body>
 
@@ -213,13 +217,7 @@ var DAYV = "20260729";
 /* ══ 배경 넉 장 — 거실(0728)과 같은 시각 구간 ══
    아침 5~9 · 낮 9~17 · 저녁 17~20 · 밤 20~5
    한 세계에 시계가 둘이면 안 된다. 거실 쪽에 맞춘다. */
-function slotNow(){
-  var h = new Date().getHours();
-  if (h >= 5  && h <  9) return "m";
-  if (h >= 9  && h < 17) return "d";
-  if (h >= 17 && h < 20) return "e";
-  return "n";
-}
+function slotNow(){ return egSky.phase(); }
 var DIM = { m:false, d:false, e:true, n:true };   /* 촛불이 켜진 시간대 */
 var curSlot = null;
 
@@ -296,9 +294,16 @@ function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").rep
 function nl(s){ return esc(s).replace(/\n/g,"<br>"); }
 function pad(n){ return ("0"+n).slice(-2); }
 var DOW = ["일","월","화","수","목","금","토"];
-function dstamp(){ var n=new Date();
-  return n.getFullYear()+"."+pad(n.getMonth()+1)+"."+pad(n.getDate())+" ("+DOW[n.getDay()]+")"; }
-function today(){ var n=new Date(); return n.getFullYear()+"-"+pad(n.getMonth()+1)+"-"+pad(n.getDate()); }
+
+/* ══ 시각 — eg_sky.js 한 벌 (0729) ══════════════════════════════════════
+   날짜·경기·타석 마감·창밖, 넷 다 egSky가 정한다. 여기서 시각을 새로 계산
+   하지 않는다.  ⚠ 0729 오전 「창밖만은 손님 시각」 예외는 같은 날 거뒀다 —
+   콜레주·전당·팝업이 이미 서울로 돌고 있어, 파리 콩파뇽이 차림표에서 밤을
+   보고 콜레주에서 낮 하늘을 만나면 한 손님 안에서 세계가 갈린다. */
+function dstamp(){ var n=egSky.parts();
+  return n.y+"."+pad(n.mo)+"."+pad(n.d)+" ("+DOW[n.dow]+")"; }
+function today(){ return egSky.today(); }
+function secToSeoulMidnight(){ return egSky.secToMidnight(); }
 function go(url){ if(url) location.href = url; }
 
 /* ══ 차림표 그리기 ══ */
@@ -508,13 +513,21 @@ async function loadMatch(){
   }
 }
 
-/* 자정까지 — 하루 한 경기가 닫히는 시각 */
+/* 서울 자정까지 — 하루 한 경기가 닫히는 시각.
+   ⚠ 스타디움의 「정식 경기까지」(18:30)와는 재는 것이 다르다.
+     18:30은 야구장의 정식 시각일 뿐이고, 타석이 실제로 닫히는 것은 자정이다.
+     두 숫자가 다른 것이 옳으므로, 무엇까지인지 라벨로 밝힌다. */
 function startClock(){
   var el = document.getElementById("aClock");
   if (!el) return;
+  if (!document.getElementById("aClockLab")){
+    var lab = document.createElement("div");
+    lab.id = "aClockLab"; lab.className = "a-lab";
+    lab.textContent = "타석 마감까지";
+    el.parentNode.insertBefore(lab, el);
+  }
   function tick(){
-    var n = new Date(), end = new Date(n.getFullYear(), n.getMonth(), n.getDate()+1, 0, 0, 0);
-    var s = Math.max(0, Math.floor((end - n)/1000));
+    var s = secToSeoulMidnight();
     el.textContent = pad(Math.floor(s/3600))+":"+pad(Math.floor(s%3600/60))+":"+pad(s%60);
   }
   tick(); setInterval(tick, 1000);

@@ -491,6 +491,8 @@ body.hall-editing .hall-compass{background:var(--gold);color:#1a120c;border-colo
   .slide{transition:opacity .3s;}
 }
 </style>
+<!-- EG 하늘 한 벌 (0729) — 시각 구간은 여기 하나에서만 정한다. eg_sky.js 참조 -->
+<script src="eg_sky.js?v=20260729"></script>
 </head>
 <body>
 
@@ -716,32 +718,12 @@ const SPINE_V=(d=>`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${
 const SPINE = id => `${SUPA_URL}/storage/v1/object/public/college-assets/spines/spine_${id}.webp?v=${SPINE_V}`;
 const ASSET = p => `${SUPA_URL}/storage/v1/object/public/college-assets/${p}`;
 
-/* ══ 하늘 4구간 — 전당(palais) NOAA 이식 ══ */
-function sunTimesKST(){
-  const LAT=37.5665, LNG=126.9780;
-  const now=new Date();
-  const kst=new Date(now.getTime()+(9*60+now.getTimezoneOffset())*60000);
-  const N=Math.floor((Date.UTC(kst.getFullYear(),kst.getMonth(),kst.getDate())-Date.UTC(kst.getFullYear(),0,0))/86400000);
-  const g=2*Math.PI/365*(N-1+(kst.getHours()-12)/24);
-  const eqt=229.18*(0.000075+0.001868*Math.cos(g)-0.032077*Math.sin(g)-0.014615*Math.cos(2*g)-0.040849*Math.sin(2*g));
-  const decl=0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)-0.006758*Math.cos(2*g)+0.000907*Math.sin(2*g)-0.002697*Math.cos(3*g)+0.00148*Math.sin(3*g);
-  const rad=Math.PI/180;
-  const cosH=(Math.cos(rad*90.833)/(Math.cos(rad*LAT)*Math.cos(decl)))-Math.tan(rad*LAT)*Math.tan(decl);
-  if(cosH>=1)  return {rise:24,set:24,kst};
-  if(cosH<=-1) return {rise:0, set:24,kst};
-  const ha=Math.acos(cosH)/rad;
-  return { rise:((720-4*(LNG+ha)-eqt)/60+9+24)%24, set:((720-4*(LNG-ha)-eqt)/60+9+24)%24, kst };
-}
-function todPhase(){
-  const s=sunTimesKST();
-  const h=s.kst.getHours()+s.kst.getMinutes()/60;
-  const inSpan=(x,a,b)=> a<=b ? (x>=a&&x<b) : (x>=a||x<b);
-  const mS=(s.rise-2+24)%24, mE=(s.rise+2)%24, dE=(s.set-2+24)%24;
-  if(inSpan(h,mS,mE)) return 'm';
-  if(inSpan(h,mE,dE)) return 'd';
-  if(inSpan(h,dE,s.set%24)) return 'e';
-  return 'n';
-}
+/* ══ 하늘 4구간 — eg_sky.js 한 벌로 이관 (0729) ══
+   NOAA 계산은 eg_sky.js에 있다. 여기서 다시 재지 않는다.
+   옛 방식(getTimezoneOffset 보정)은 손님 지역 서머타임 전환일에
+   한 시간 어긋났다 — 부품은 Date.now() 눈금만 보므로 그 병이 없다. */
+function todPhase(){ return egSky.phase(); }
+
 
 /* ══ 대문 ══ */
 const P=new URLSearchParams(location.search);
@@ -1299,7 +1281,7 @@ const bookOf=id=>books.find(b=>b.id===id)||{};
  *  파일: banners/{a|b|c}{1|2}.webp — 현재 시안이 비면 다음 시안으로 물림 */
 let bannerSet=null, bannerTm=null;
 function activeBannerSet(){
-  const h=new Date().getHours();
+  const h=egSky.hour();          /* 서울 시각 — 온 우주가 같은 시계 (0729) */
   return 'abc'[Math.floor(h/3)%3];
 }
 function renderBanners(){

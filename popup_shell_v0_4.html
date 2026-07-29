@@ -684,6 +684,8 @@ html:not(.edit-on) #bm-intro-btn{ display:none !important; }
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- ?edit 게이트 (0716): 주소창에 ?edit 있을 때만 편집 모드. 게스트에게 편집 버튼 숨김 -->
 <script>if(new URLSearchParams(location.search).has('edit'))document.documentElement.classList.add('edit-on');</script>
+<!-- EG 하늘 한 벌 (0729) — 시각 구간은 여기 하나에서만 정한다. eg_sky.js 참조 -->
+<script src="eg_sky.js?v=20260729"></script>
 </head>
 <body>
 
@@ -945,34 +947,10 @@ function dbSaveLayout(view, data){
  *  폴백 사다리: 시간판 → 무접미사 → (밤이면 낮판) → 옛 _01 → 그라데이션
  *  → 한 판만 있어도 완벽히 돌아감. 두 번째 판은 여유 될 때.
  * ============================================================ */
-/* NOAA 태양 방정식 — 서울 기준 KST 일출·일몰 (외부 API 없음, 오차 ±2분) */
-function sunTimesKST(){
-  const LAT = 37.5665, LNG = 126.9780;                      // 서울
-  const now = new Date();
-  const kst = new Date(now.getTime() + (9*60 + now.getTimezoneOffset())*60000); // 어디서 열어도 KST
-  const N = Math.floor((Date.UTC(kst.getFullYear(),kst.getMonth(),kst.getDate())
-                      - Date.UTC(kst.getFullYear(),0,0)) / 86400000);
-  const g = 2*Math.PI/365 * (N - 1 + (kst.getHours()-12)/24);   // fractional year
-  const eqt = 229.18*(0.000075 + 0.001868*Math.cos(g) - 0.032077*Math.sin(g)
-            - 0.014615*Math.cos(2*g) - 0.040849*Math.sin(2*g)); // 균시차(분)
-  const decl = 0.006918 - 0.399912*Math.cos(g) + 0.070257*Math.sin(g)
-             - 0.006758*Math.cos(2*g) + 0.000907*Math.sin(2*g)
-             - 0.002697*Math.cos(3*g) + 0.00148*Math.sin(3*g);
-  const rad = Math.PI/180;
-  const cosH = ( Math.cos(rad*90.833) / (Math.cos(rad*LAT)*Math.cos(decl)) )
-             - Math.tan(rad*LAT)*Math.tan(decl);
-  if (cosH >= 1)  return { rise: 24, set: 24, kst };  // 해가 안 뜨는 날 방어 (서울엔 없음)
-  if (cosH <= -1) return { rise: 0,  set: 24, kst };  // 해가 안 지는 날 방어
-  const ha = Math.acos(cosH)/rad;                      // 시간각(도)
-  const riseUTC = 720 - 4*(LNG + ha) - eqt;            // 분 (UTC)
-  const setUTC  = 720 - 4*(LNG - ha) - eqt;
-  return { rise: (riseUTC/60 + 9 + 24) % 24, set: (setUTC/60 + 9 + 24) % 24, kst };
-}
-function todSuffix(){
-  const s = sunTimesKST();
-  const h = s.kst.getHours() + s.kst.getMinutes()/60;
-  return (h >= s.rise && h < s.set) ? 'd' : 'n';
-}
+/* ══ 하늘 두 칸 — eg_sky.js 한 벌로 이관 (0729) ══
+   해가 떠 있으면 d, 아니면 n. 판정 근거는 eg_sky.js. */
+function todSuffix(){ return egSky.phase2(); }
+
 const TOD = todSuffix();
 /* 폴백 사다리 (C = 호출 시점 POPUP.org.code — org 스위치 후 재계산되도록 지역화) */
 function bgLadder(part){
@@ -1231,7 +1209,7 @@ function applyOrgChrome(){
       st.appendChild(d);
     });
   };
-  const bn = Math.floor(new Date().getHours() / 3) % 3;   // 0·1·2 — 3시간 단위
+  const bn = Math.floor(egSky.hour() / 3) % 3;   // 0·1·2 — 3시간 단위 · 서울 시각(0729)
   const bnUrl = stUrl(POPUP.org.code + '/banner_0' + (bn + 1) + '.webp');
   const fb = POPUP.org.bannerImg;   // GitHub 폴백
   const im = new Image();
