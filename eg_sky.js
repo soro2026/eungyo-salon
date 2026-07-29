@@ -50,6 +50,7 @@
      egSky.parts()          {y, mo, d, h, mi, dow}
      egSky.today()          '2026-07-29'  ← 서울 날짜
      egSky.secToMidnight()  서울 자정까지 남은 초
+     egSky.secToSeoul(18,30) 오늘 서울 18:30까지 남은 초 (지났으면 음수)
      egSky.watch(fn)        구간이 바뀌면 fn(새 구간) — 60초 보초. 끄려면 반환값()
      egSky.report()         진단 한 줄
 
@@ -83,6 +84,13 @@
 
   function secToMidnight(){
     return Math.floor((DAY_MS - ((Date.now() + KST_MS) % DAY_MS)) / 1000);
+  }
+
+  /* 오늘 서울 hh:mm 까지 남은 초. 이미 지났으면 음수를 준다 —
+     부르는 쪽이 「지났는가」를 판단할 수 있게, 여기서 0으로 뭉개지 않는다. */
+  function secToSeoul(h, m){
+    var now = (Date.now() + KST_MS) % DAY_MS;
+    return Math.round(((h||0)*3600000 + (m||0)*60000 - now) / 1000);
   }
 
   /* NOAA 태양 방정식 — 서울 일출·일몰(시 단위 소수, KST) */
@@ -147,6 +155,7 @@
   window.egSky = {
     phase: phase, phase2: phase2, sun: sun, hour: hour,
     parts: parts, today: today, secToMidnight: secToMidnight,
+    secToSeoul: secToSeoul,
     watch: watch,
     report: function(){
       var s = sun(), p = parts();

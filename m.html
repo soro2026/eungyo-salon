@@ -123,6 +123,55 @@ body.dim .amuse{background:linear-gradient(180deg,rgba(255,240,208,.3),rgba(255,
 .a-lab + .a-clock{margin-top:5px}
 .a-done{font-size:11.5px;color:var(--soft);margin-top:12px;font-weight:300}
 
+/* ══ 경기 결과 — 스타디움 showResultView() 이식 (0729) ══
+   클래스 얼개·수치·사과 낙하는 stadium_v2.html 그대로. 색만 차림표 것으로
+   갈았다(--week-text → --ink). 진 날도 같은 CSS를 쓰되 lose 갈래만 켠다. */
+.a-res{position:relative;margin-top:15px}
+.a-res-in{position:relative;z-index:2}
+.a-stamp-row{display:flex;justify-content:center;margin-bottom:12px}
+.win-stamp{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;
+  letter-spacing:.18em;color:#fffaf0;background:var(--ink);padding:5px 13px;border-radius:7px;
+  box-shadow:0 4px 12px rgba(44,35,23,.18),inset 0 1px 1px rgba(255,255,255,.28);
+  transform:rotate(-3deg)}
+.lose-stamp{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;
+  letter-spacing:.18em;color:var(--soft);background:rgba(255,255,255,.5);padding:5px 13px;
+  border-radius:7px;box-shadow:0 2px 6px rgba(44,35,23,.08)}
+.score-board{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;margin:6px 0 2px}
+.score-team{display:flex;flex-direction:column;align-items:center;gap:5px}
+.score-emblem-wrap{position:relative;width:56px;height:56px;display:flex;align-items:center;justify-content:center}
+.score-emblem-wrap::before{content:'';position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);
+  width:60%;height:8px;background:radial-gradient(ellipse,rgba(44,35,23,.18),transparent 70%);
+  filter:blur(3px);z-index:-1}
+.score-emblem-img{width:100%;height:100%;object-fit:contain;
+  filter:drop-shadow(0 4px 10px rgba(44,35,23,.22))}
+.score-emblem-img.lose{opacity:.65;filter:drop-shadow(0 4px 10px rgba(44,35,23,.15)) saturate(.7)}
+.score-team-name{font-size:10.5px;font-weight:600;letter-spacing:.02em;color:var(--ink)}
+.score-team.lose .score-team-name{opacity:.7}
+.score-num-large{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:44px;line-height:1;
+  letter-spacing:-.06em;color:var(--ink);text-shadow:0 2px 6px rgba(255,255,255,.4)}
+.score-num-large.lose{opacity:.5}
+.score-divider{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:18px;
+  color:var(--ink);opacity:.4;align-self:center}
+
+/* 사과 흩날림 (WIN 시만) — 스타디움 keyframes 그대로 */
+.apple-rain{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:3}
+.apple{position:absolute;top:-20px;font-size:18px;opacity:0;
+  animation:apple-fall 6s linear infinite;filter:drop-shadow(0 2px 4px rgba(44,35,23,.2))}
+@keyframes apple-fall{
+  0%{opacity:0;transform:translateY(0) rotate(0deg) translateX(0)}
+  10%{opacity:.85} 85%{opacity:.85}
+  100%{opacity:0;transform:translateY(240px) rotate(360deg) translateX(var(--drift,20px))}}
+.apple:nth-child(1){left:8%;animation-delay:0s;--drift:30px;font-size:14px}
+.apple:nth-child(2){left:22%;animation-delay:1.2s;--drift:-20px;font-size:18px}
+.apple:nth-child(3){left:38%;animation-delay:2.5s;--drift:25px;font-size:12px}
+.apple:nth-child(4){left:55%;animation-delay:.8s;--drift:-30px;font-size:16px}
+.apple:nth-child(5){left:72%;animation-delay:3s;--drift:15px;font-size:14px}
+.apple:nth-child(6){left:88%;animation-delay:1.8s;--drift:-25px;font-size:18px}
+.apple:nth-child(7){left:15%;animation-delay:4.2s;--drift:-15px;font-size:12px}
+.apple:nth-child(8){left:65%;animation-delay:5s;--drift:25px;font-size:14px}
+/* 움직임을 줄여 달라고 한 손님에게는 떨어뜨리지 않는다 */
+@media (prefers-reduced-motion: reduce){ .apple{animation:none;opacity:.5} }
+
 /* ── 차림표 제목 ── */
 .menuhead{margin:28px 0 4px;display:flex;flex-direction:column;align-items:center}
 .flo{display:block;width:64%;max-width:196px;height:auto;margin:0 auto 10px;opacity:.9;color:var(--gold)}
@@ -194,7 +243,7 @@ body.dim .sub{background:rgba(255,240,208,.12)}
 @media (prefers-reduced-motion:reduce){#room,.caret{transition:none}}
 </style>
 <!-- EG 하늘 한 벌 (0729) — 시각 구간은 여기 하나에서만 정한다. eg_sky.js 참조 -->
-<script src="eg_sky.js?v=20260729"></script>
+<script src="eg_sky.js?v=20260729b"></script>
 </head>
 <body>
 
@@ -303,7 +352,6 @@ var DOW = ["일","월","화","수","목","금","토"];
 function dstamp(){ var n=egSky.parts();
   return n.y+"."+pad(n.mo)+"."+pad(n.d)+" ("+DOW[n.dow]+")"; }
 function today(){ return egSky.today(); }
-function secToSeoulMidnight(){ return egSky.secToMidnight(); }
 function go(url){ if(url) location.href = url; }
 
 /* ══ 차림표 그리기 ══ */
@@ -458,11 +506,12 @@ function emblem(t, isMine){
 
 /* 그림을 못 받으면 팀 이름으로 물러난다. 인라인 onerror를 쓰지 않는다 — 이 파일 규칙 3. */
 function wireEmblemFallback(box){
-  box.querySelectorAll("img.a-em").forEach(function(img){
+  if (!box) return;
+  box.querySelectorAll("img[data-fb]").forEach(function(img){
     img.addEventListener("error", function(){
-      var me = img.classList.contains("me") ? " me" : "";
       var s = document.createElement("span");
-      s.className = "a-team" + me;
+      s.className = img.getAttribute("data-fbc")
+                 || ("a-team" + (img.classList.contains("me") ? " me" : ""));
       s.textContent = img.getAttribute("data-fb") || "";
       img.replaceWith(s);
     });
@@ -494,6 +543,14 @@ async function loadMatch(){
     return;
   }
 
+  /* ── 갈래 둘 (0729) ──
+     ① 끝난 경기 → 스코어보드 + WIN/LOSE 도장 (+ 이긴 날 사과)
+     ② 그 밖     → 대진 + 시계
+     ⚠ 휴식일(status='rest')도 ②로 간다. 소로 원안 — 카드가 죽으면 아무도
+       누르지 않고, 눌러야 나오는 휴일 안내를 영영 못 본다. 결정문 5호의
+       「권유가 아니라 결과」와 같은 문법. 스타디움도 쉬는 날 시계를 돌린다. */
+  if (m.status === "completed" || m.home_score !== null){ showResult(m); return; }
+
   /* 내 경기에서 콩파뇽의 팀은 언제나 soro다 (0729 실측 — is_my_game 14건 전부).
      terra 안내판 관례를 따라 내 팀을 앞에 놓고, 내 엠블럼에만 금빛 후광을 둔다. */
   var left, right, mine = m.is_my_game ? "soro" : null;
@@ -505,29 +562,95 @@ async function loadMatch(){
                + emblem(right, right===mine);
   wireEmblemFallback(vs);
 
-  if (m.status === "completed" || m.home_score !== null){
-    document.getElementById("aClock").outerHTML =
-      '<div class="a-done">오늘 경기는 끝났습니다 · 내일 또</div>';
-  } else {
-    startClock();
-  }
+  startClock(m.status === "rest");
 }
 
-/* 서울 자정까지 — 하루 한 경기가 닫히는 시각.
-   ⚠ 스타디움의 「정식 경기까지」(18:30)와는 재는 것이 다르다.
-     18:30은 야구장의 정식 시각일 뿐이고, 타석이 실제로 닫히는 것은 자정이다.
-     두 숫자가 다른 것이 옳으므로, 무엇까지인지 라벨로 밝힌다. */
-function startClock(){
+/* ══ 끝난 경기 — 스타디움 showResultView() 이식 (0729) ══
+   야구 정석대로 AWAY가 왼쪽·HOME이 오른쪽. 진 쪽만 lose 갈래를 켠다.
+   사과는 이긴 날에만, 카드 전체에 걸쳐 떨어진다.
+   엠블럼은 여기서도 144×144 경량판을 쓴다 — 스타디움의 720px 원본이 아니다. */
+function showResult(m){
+  var vs = document.getElementById("aVs");
+  var homeWin = m.home_score > m.away_score;
+  var tie     = m.home_score === m.away_score;
+  var myIsHome = m.home_team === "soro";
+  var isWin = tie ? false : (myIsHome ? homeWin : !homeWin);
+
+  function col(team, score, lost){
+    var L = lost ? " lose" : "";
+    return '<div class="score-team'+L+'">'
+         +   '<div class="score-emblem-wrap">'
+         +     '<img class="score-emblem-img'+L+'" src="emblem_'+team+'_s.webp?v='+DAYV+'"'
+         +     ' alt="'+esc(teamName(team))+'" data-fb="'+esc(teamName(team))+'"'
+         +     ' data-fbc="score-team-name">'
+         +   '</div>'
+         +   '<div class="score-team-name">'+esc(teamName(team))+'</div>'
+         +   '<div class="score-num-large'+L+'">'+(score==null?"-":score)+'</div>'
+         + '</div>';
+  }
+
+  var stamp = tie   ? '<span class="lose-stamp">DRAW</span>'
+            : isWin ? '<span class="win-stamp">WIN</span>'
+                    : '<span class="lose-stamp">LOSE</span>';
+
+  vs.outerHTML =
+      '<div class="a-res" id="aRes"><div class="a-res-in">'
+    +   '<div class="a-stamp-row">'+stamp+'</div>'
+    +   '<div class="score-board">'
+    +     col(m.away_team, m.away_score, tie ? false : homeWin)
+    +     '<div class="score-divider">\u2212</div>'
+    +     col(m.home_team, m.home_score, tie ? false : !homeWin)
+    +   '</div>'
+    + '</div></div>';
+  wireEmblemFallback(document.getElementById("aRes"));
+
+  /* 이긴 날에만, 카드 한 판 전체에 */
+  if (isWin){
+    var r = '';
+    for (var i=0;i<8;i++) r += '<div class="apple">\uD83C\uDF4E</div>';
+    document.getElementById("amuse")
+            .insertAdjacentHTML("afterbegin", '<div class="apple-rain">'+r+'</div>');
+  }
+
+  var note = m.forfeit ? "몰수 경기 · 내일 또"
+           : m.decided_by_dice ? "주사위 결판 · 내일 또"
+           : "내일 또";
+  document.getElementById("aClock").outerHTML = '<div class="a-done">'+note+'</div>';
+}
+
+/* ══ 아뮈즈부슈 시계 — 세 다리 (0729) ══
+   ① 18:30까지 「정식 경기까지」 — KBO 주중 경기 시작 시각. 스타디움과 같은 과녁.
+   ② 18:30을 넘기면 「타석 마감까지」로 이어 달린다.
+   ③ 쉬는 날은 「다음 경기까지」 — 다음 화요일 18:30. 시계는 멈추지 않는다.
+      스타디움은 18:30 이후 자정까지 다섯 시간 반을 00:00:00으로 죽어 있는데,
+      하필 사람들이 폰을 손에 쥐는 시간대다. 여기서는 시계를 세우지 않는다.
+      타석은 실제로 자정까지 열려 있으므로 거짓말도 아니다. */
+var GAME_H = 18, GAME_M = 30;
+/* 쉬는 날의 과녁 — 다음 화요일 18:30. 스타디움 startRestCountdown()과 같은 셈법.
+   두 화면이 다른 숫자를 내놓는 일을 오늘만 두 번 겪었으므로 과녁을 맞춰 둔다. */
+function secToNextTue(){
+  var left = egSky.secToSeoul(GAME_H, GAME_M);
+  var add  = (2 - egSky.parts().dow + 7) % 7;      /* 0=일 … 2=화 */
+  if (add === 0 && left <= 0) add = 7;
+  return add*86400 + left;
+}
+function startClock(isRest){
   var el = document.getElementById("aClock");
   if (!el) return;
-  if (!document.getElementById("aClockLab")){
-    var lab = document.createElement("div");
+  var lab = document.getElementById("aClockLab");
+  if (!lab){
+    lab = document.createElement("div");
     lab.id = "aClockLab"; lab.className = "a-lab";
-    lab.textContent = "타석 마감까지";
     el.parentNode.insertBefore(lab, el);
   }
   function tick(){
-    var s = secToSeoulMidnight();
+    var s, t;
+    if (isRest){ s = secToNextTue(); t = "다음 경기까지"; }
+    else {
+      s = egSky.secToSeoul(GAME_H, GAME_M); t = "정식 경기까지";
+      if (s <= 0){ s = egSky.secToMidnight(); t = "타석 마감까지"; }
+    }
+    if (lab.textContent !== t) lab.textContent = t;
     el.textContent = pad(Math.floor(s/3600))+":"+pad(Math.floor(s%3600/60))+":"+pad(s%60);
   }
   tick(); setInterval(tick, 1000);
