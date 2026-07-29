@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d1f1d">
+<title>EG UNIVERSE</title>
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,400;1,500;1,600&family=Noto+Serif+KR:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="eg_device.js?v=20260729"></script>
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   m.html — 폰 셸 (2026.07.29 · 120일차)
+
+   근거: 「EG 입구 결정문 v1.0」(0727) 3·4·5호
+         「모바일 초기 메뉴 설계 결정문 v1.0」(0729) 1~6호
+         「발주서 — 입구 공사 v1.0」 작업 B
+
+   ⚠ 이 파일이 지키는 것 여섯
+     1. 3D 지구(terra)로 가는 링크가 한 줄도 없다.        결정문 4호
+     2. 차림표에 통계·성적 줄을 두지 않는다.               설계 4호
+     3. 인라인 onclick을 쓰지 않는다 (전부 addEventListener). 0728 함정 B
+     4. 자동 팝업·모달·토스트가 없다.                      입구 2호
+     5. 배경은 시각에 따라 넉 장. 안 구워진 시간대는 낮으로 폴백.
+     6. 낮과 밤은 같은 방이다. 바뀌는 것은 창밖과 촛불뿐.
+
+   ⚠ 배경 넉 장은 저장소 루트에 있다 (Storage 아님).
+     서비스워커가 같은 출처만 미리 받아두기 때문. 0728 CDN 캐시 사고 회피.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;min-height:100%}
+body{
+  font-family:'Noto Serif KR',serif;
+  background:#0d1f1d;
+  color:#2c2317;
+  overflow-x:hidden;
+}
+
+/* ── 방 : 배경 넉 장이 화면에 고정된다 ── */
+#room{
+  position:fixed;inset:0;z-index:0;
+  background-position:center top;
+  background-size:cover;
+  background-repeat:no-repeat;
+  background-color:#0d1f1d;
+  transition:opacity .6s ease;
+}
+
+/* ── 차림표 종이 : 식탁 위에 놓인 카드 ──
+   폭 84% — 왼쪽 장미와 오른쪽 촛대가 양옆으로 삐져나온다.
+   위 여백 48.2% — 실측한 창턱 아랫끝. 창을 덮지 않고 그 아래에서 시작. */
+#paper{
+  position:relative;z-index:1;
+  width:84%;max-width:420px;
+  /* 창턱 아랫끝 = 그림 높이의 48.2% (넉 장 실측 편차 0.68%p).
+     cover가 고른 배율이 무엇이든 맞도록 두 값 중 큰 쪽을 쓴다.
+       · 폭이 기준일 때  → 0.482 × (100vw × 2.1667) = 104.4vw
+       · 높이가 기준일 때 → 0.482 × 100vh          =  48.2vh
+     화면 비율이 그림(1:2.167)보다 길든 짧든 종이가 창을 안 덮는다. */
+  margin:max(48.2vh, 104.4vw) auto 0;
+  padding:26px 20px 30px;
+  background:rgba(244,238,226,.965);
+  box-shadow:0 3px 30px rgba(0,0,0,.42),0 0 0 1px rgba(120,96,44,.18);
+  text-align:center;
+}
+#paper::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(130% 42% at 50% 0%,rgba(255,253,246,.5),transparent 58%);
+}
+/* 밤·저녁엔 종이도 촛불 아래 놓인다 */
+body.dim #paper{
+  background:rgba(233,220,192,.955);
+  box-shadow:0 3px 34px rgba(0,0,0,.6),0 0 0 1px rgba(110,84,34,.24);
+}
+body.dim #paper::after{
+  background:radial-gradient(150% 60% at 50% 20%,rgba(255,238,200,.4),transparent 60%),
+             radial-gradient(140% 100% at 50% 52%,transparent 44%,rgba(38,24,8,.26));
+}
+
+:root{
+  --ink:#2c2317; --soft:rgba(44,35,23,.64); --dim:rgba(44,35,23,.42);
+  --gold:#a8802f; --rule:rgba(168,128,47,.42);
+}
+body.dim{--ink:#2a2116;--soft:rgba(42,33,22,.68);--dim:rgba(42,33,22,.44);--gold:#8f6b23;--rule:rgba(143,107,35,.46)}
+#paper{color:var(--ink)}
+
+/* ── 머리 ── */
+.mest{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.42em;color:var(--gold);text-indent:.42em}
+.mdate{font-family:'JetBrains Mono',monospace;font-size:8.5px;letter-spacing:.2em;color:var(--dim);margin-top:10px}
+
+/* ── 아뮈즈부슈 ── */
+.amuse{
+  position:relative;margin:22px 0 4px;padding:16px 14px 15px;
+  border:1px solid var(--rule);
+  background:linear-gradient(180deg,rgba(255,252,242,.62),rgba(255,250,236,.12));
+  cursor:pointer;
+}
+body.dim .amuse{background:linear-gradient(180deg,rgba(255,240,208,.3),rgba(255,236,196,.05))}
+.amuse:active{background:rgba(168,128,47,.13)}
+.amuse::before,.amuse::after{content:'';position:absolute;width:9px;height:9px;border:1px solid var(--gold);opacity:.55}
+.amuse::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
+.amuse::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
+.a-fr{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:15px;letter-spacing:.05em;color:var(--gold)}
+.a-ko{font-size:10px;letter-spacing:.26em;color:var(--soft);margin-top:5px;text-indent:.26em}
+.a-vs{display:flex;align-items:baseline;justify-content:center;gap:11px;margin-top:14px;flex-wrap:wrap}
+.a-team{font-weight:600;font-size:17px;letter-spacing:.1em}
+.a-team.me{color:var(--gold)}
+.a-mid{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:14px;color:var(--soft);opacity:.82}
+.a-clock{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.22em;color:var(--gold);opacity:.88;margin-top:13px;min-height:14px}
+.a-done{font-size:11.5px;color:var(--soft);margin-top:12px;font-weight:300}
+
+/* ── 차림표 제목 ── */
+.menuhead{margin:28px 0 4px;display:flex;flex-direction:column;align-items:center}
+.flo{display:block;width:64%;max-width:196px;height:auto;margin:0 auto 10px;opacity:.9;color:var(--gold)}
+.menuko{font-size:12.5px;letter-spacing:.32em;color:var(--soft);text-indent:.32em}
+.menufr{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:17px;color:var(--gold);margin-top:6px}
+
+/* ── 구획 ── */
+.sec{margin:20px 0 22px}
+.shead{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:12px}
+.sorn{width:22px;height:1px;background:linear-gradient(90deg,transparent,var(--rule),transparent)}
+.sko{font-weight:500;font-size:11.5px;letter-spacing:.2em;color:var(--soft)}
+.sfr{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:13px;color:var(--gold)}
+
+/* 값이 따로 붙는 코스는 조용히 다른 종이 위에 */
+.sec.special{
+  border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);
+  padding:16px 8px 12px;margin:26px -6px;
+  background:linear-gradient(180deg,rgba(255,250,236,.42),transparent);
+}
+body.dim .sec.special{background:linear-gradient(180deg,rgba(255,240,208,.14),transparent)}
+
+.course{padding:12px 6px;cursor:pointer}
+.course:active{background:rgba(168,128,47,.1)}
+.cname{font-weight:500;font-size:16.5px;letter-spacing:.01em}
+.clatin{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:13.5px;color:var(--gold);opacity:.82;margin-left:7px}
+.cnote{font-weight:300;font-size:11.5px;color:var(--soft);margin-top:6px;line-height:1.6}
+.cstat{font-family:'JetBrains Mono',monospace;font-size:8.5px;letter-spacing:.16em;color:var(--gold);opacity:.86;margin-top:8px}
+.heart .cname::after{content:'✦';color:var(--gold);font-size:11px;margin-left:7px;vertical-align:2px}
+.soon{opacity:.55}
+.soon .cnote{font-style:italic}
+.hr{width:34px;height:1px;margin:14px auto;background:var(--rule);opacity:.7}
+
+.caret{color:var(--gold);font-size:9px;margin-left:6px;opacity:.7;display:inline-block;transition:transform .22s ease}
+.open>.caret,.open .cname .caret,.open .subname .caret{transform:rotate(180deg)}
+
+.subs{max-width:296px;margin:10px auto 0;display:flex;flex-direction:column;gap:6px}
+.sub{padding:10px 12px;border:1px solid var(--rule);background:rgba(255,252,242,.36);text-align:left;cursor:pointer}
+body.dim .sub{background:rgba(255,240,208,.12)}
+.subname{font-size:13px;font-weight:500}
+.subnote{font-size:10.5px;font-weight:300;color:var(--soft);margin-top:4px;line-height:1.55}
+
+.listwrap{display:none;margin:9px auto 2px;max-width:290px;text-align:left}
+.open>.listwrap{display:block}
+.li{display:flex;align-items:baseline;gap:8px;padding:8px 2px;border-top:1px solid var(--rule);cursor:pointer}
+.li:first-child{border-top:0}
+.li:active{background:rgba(168,128,47,.1)}
+.li-n{font-size:12.5px;font-weight:500}
+.li-c{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:11.5px;color:var(--gold);opacity:.8}
+.li-s{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:.14em;color:var(--soft);opacity:.8;white-space:nowrap}
+.li.empty{color:var(--soft);font-weight:300;font-size:11.5px;cursor:default}
+
+/* ── 발치 ── */
+.mfoot{margin-top:22px}
+.mfoot .flo{margin:2px auto 14px}
+.fquote{font-weight:300;font-size:12px;color:var(--soft);line-height:1.75}
+.mlogout{margin-top:26px;padding-top:16px;border-top:1px solid var(--rule)}
+.mlogout button{background:none;border:0;cursor:pointer;font-family:'Noto Serif KR',serif;font-size:11.5px;letter-spacing:.14em;color:var(--dim)}
+#tail{position:relative;z-index:1;height:44px}
+
+/* 안전 영역 (노치·홈바) */
+@supports(padding:max(0px)){
+  #tail{height:calc(44px + env(safe-area-inset-bottom))}
+}
+@media (prefers-reduced-motion:reduce){#room,.caret{transition:none}}
+</style>
+</head>
+<body>
+
+<div id="room"></div>
+<div id="paper"></div>
+<div id="tail"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ══ Supabase ══ */
+var SUPA_URL = "https://cyhlotwdisjvoxvfkpnd.supabase.co";
+var SUPA_KEY = "sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR";
+var supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth:{ persistSession:true, autoRefreshToken:true, storageKey:"eungyo-auth" }
+});
+var DAYV = "20260729";
+
+/* ══ 배경 넉 장 — 거실(0728)과 같은 시각 구간 ══
+   아침 5~9 · 낮 9~17 · 저녁 17~20 · 밤 20~5
+   한 세계에 시계가 둘이면 안 된다. 거실 쪽에 맞춘다. */
+function slotNow(){
+  var h = new Date().getHours();
+  if (h >= 5  && h <  9) return "m";
+  if (h >= 9  && h < 17) return "d";
+  if (h >= 17 && h < 20) return "e";
+  return "n";
+}
+var DIM = { m:false, d:false, e:true, n:true };   /* 촛불이 켜진 시간대 */
+var curSlot = null;
+
+function paintRoom(){
+  var s = slotNow();
+  if (s === curSlot) return;
+  curSlot = s;
+  document.body.classList.toggle("dim", !!DIM[s]);
+  var room = document.getElementById("room");
+  var url  = "m_bg_" + s + ".webp?v=" + DAYV;
+  /* 안 구워진 시간대는 조용히 낮으로 물러난다 (0728 거실 규칙) */
+  var img = new Image();
+  img.onload  = function(){ room.style.backgroundImage = 'url("' + url + '")'; };
+  img.onerror = function(){ room.style.backgroundImage = 'url("m_bg_d.webp?v=' + DAYV + '")'; };
+  img.src = url;
+}
+
+/* ══ 차림 ══ */
+var U = {
+  spoon:    {name:"교양한스푼", latin:"Une Cuillère", note:"아침마다 도착하는 한 모금의 교양",
+             go:"hello_spoon_v1.html"},
+  museum:   {name:"EG뮤세움", latin:"Mouseion", note:"나에게 스며든 교양이 쌓이는 서재",
+             go:"museum.html"},
+  constella:{name:"EG콘스텔라티오", latin:"Constellatio", note:"별이 된 인물을 함께 빛내는 콩파뇽",
+             heart:true, after:"hr", go:"constella.html"},
+  tour:     {name:"EG 르 그랑 투르", latin:"Le Grand Tour", note:"미술관과 공연장을 투어하며 스며드는 교양",
+             after:"hr",
+             children:[
+               {label:"미술관", desc:"파리 오르세를 1호관으로, 계속해서 늘어납니다",
+                list:[{n:"오르세", c:"Paris", s:"문 열림", go:"heritage.html"},
+                      {n:"내셔널 갤러리", c:"London", s:"준비 중"}]},
+               {label:"콘서트", desc:"공연장마다 아름다운 연주를 경험할 수 있습니다",
+                list:[{n:"첫 공연장을 고르는 중입니다"}]}
+             ]},
+  wunder:   {name:"EG분더카머", latin:"Wunderkammer", note:"내 교양이 모이는 호기심의 방",
+             go:"wunderkammer_shell_v4_4.html"},
+
+  college:  {name:"콜레주 드 콤포스텔라", latin:"Collège de Compostella",
+             note:"혼자 읽기 어려운 273권의 명저를 함께 탐구하는 EG학술원",
+             go:"college.html"},
+  salon:    {name:"살롱 드 콩파뇽", latin:"Salon de Compagnon",
+             note:"12명이 둘러앉아 위대한 저서를 통해 대화하는 영혼의 식탁",
+             stat:"곧 문을 엽니다", soon:true},
+
+  popup:    {name:"신간 팝업스토어", latin:"Les Éditeurs", note:"출판사 × EG, 새로운 책을 소개합니다",
+             org:"popup"},
+  palais:   {name:"지식채널 전당", latin:"Le Palais", note:"명강의, 심도 깊은 토론, 펼쳐지는 지식의 향연",
+             org:"palais"},
+
+  persona:  {name:"교양자화상", latin:"Autoportrait", note:"모든 우주가 모여 그리는 한 장의 거울",
+             go:"persona.html"}
+};
+
+var SECTIONS = [
+  {ko:"오늘의 차림", fr:"Le Menu du Jour",  keys:["spoon","museum","constella","tour","wunder"], title:true},
+  {ko:"스페셜 코스", fr:"Menu Dégustation", keys:["college","salon"], special:true},
+  {ko:"디저트",     fr:"Le Dessert",       keys:["popup","palais"]},
+  {ko:"마무리",     fr:"Le Miroir",        keys:["persona"]}
+];
+
+/* 들르기 두 곳 — terra.html 2822줄 문법 승계. 셸은 곳마다 하나, 핀은 도시마다. */
+var ORG = {
+  popup:  { tbl:"popup_orgs",  shell:"popup_shell_v0_4.html" },
+  palais: { tbl:"palais_orgs", shell:"palais.html" }
+};
+var orgCache = { popup:null, palais:null };
+
+var FLO='<svg class="flo" viewBox="0 0 320 40" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"><path d="M160,12 L166,20 L160,28 L154,20 Z" stroke-width="1"/><circle cx="160" cy="20" r="1.4" fill="currentColor" stroke="none"/><path d="M154,20 C134,20 128,13 112,15 C98,16.8 95,26 80,24.5 C69,23.4 67,15.5 76,14 C82.5,13 83.5,19.5 76.5,20.2"/><path d="M112,15 C106,12 98,11 92,13"/><path d="M48,20 C58,20 66,18 74,19"/><circle cx="46" cy="20" r="1.6" fill="currentColor" stroke="none"/><path d="M166,20 C186,20 192,13 208,15 C222,16.8 225,26 240,24.5 C251,23.4 253,15.5 244,14 C237.5,13 236.5,19.5 243.5,20.2"/><path d="M208,15 C214,12 222,11 228,13"/><path d="M272,20 C262,20 254,18 246,19"/><circle cx="274" cy="20" r="1.6" fill="currentColor" stroke="none"/></g></svg>';
+var CARET = '<span class="caret">▾</span>';
+
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function pad(n){ return ("0"+n).slice(-2); }
+function dstamp(){ var n=new Date(); return n.getFullYear()+"."+pad(n.getMonth()+1)+"."+pad(n.getDate()); }
+function today(){ var n=new Date(); return n.getFullYear()+"-"+pad(n.getMonth()+1)+"-"+pad(n.getDate()); }
+function go(url){ if(url) location.href = url; }
+
+/* ══ 차림표 그리기 ══ */
+function render(){
+  var h = "";
+  h += '<div class="mest">EG UNIVERSE · 2026</div><div class="mdate">'+dstamp()+'</div>';
+
+  /* 아뮈즈부슈 — 대진과 시계만. 소리치지 않는다. */
+  h += '<div class="amuse" id="amuse"><div class="a-fr">Amuse-bouche</div><div class="a-ko">아뮈즈부슈</div>'
+     +   '<div class="a-vs" id="aVs"><span class="a-mid">오늘의 대진을 부르는 중</span></div>'
+     +   '<div class="a-clock" id="aClock"></div></div>';
+
+  SECTIONS.forEach(function(s){
+    if (s.title){
+      h += '<div class="menuhead">'+FLO+'<div class="menuko">'+s.ko+'</div><div class="menufr">'+s.fr+'</div></div><div class="sec">';
+    } else {
+      h += '<div class="sec'+(s.special?" special":"")+'"><div class="shead"><span class="sorn"></span><span class="sko">'+s.ko+'</span><span class="sfr">'+s.fr+'</span><span class="sorn"></span></div>';
+    }
+    s.keys.forEach(function(k){
+      var u = U[k], fold = !!(u.org || u.list);
+      h += '<div class="course'+(u.heart?" heart":"")+(u.soon?" soon":"")+(fold?" js-fold":"")+'" data-k="'+k+'">'
+         +   '<div class="cname">'+esc(u.name)+'<span class="clatin">'+esc(u.latin)+'</span>'+(fold?CARET:"")+'</div>'
+         +   '<div class="cnote">'+esc(u.note)+'</div>'
+         +   (u.stat ? '<div class="cstat">'+esc(u.stat)+'</div>' : "");
+      if (u.org) h += '<div class="listwrap" data-org="'+u.org+'"><div class="li empty">불러오는 중…</div></div>';
+      if (u.children){
+        h += '<div class="subs">';
+        u.children.forEach(function(c,ci){
+          h += '<div class="sub'+(c.list?" js-fold":"")+'" data-k="'+k+'" data-ci="'+ci+'">'
+             +   '<div class="subname">'+esc(c.label)+(c.list?CARET:"")+'</div>'
+             +   '<div class="subnote">'+esc(c.desc)+'</div>'
+             +   (c.list ? listHtml(c.list) : "")
+             + '</div>';
+        });
+        h += '</div>';
+      }
+      h += '</div>';
+      if (u.after === "hr") h += '<div class="hr"></div>';
+    });
+    h += '</div>';
+  });
+
+  h += '<div class="mfoot">'+FLO
+     +   '<div class="fquote">혼자 있어도 외롭지 않고,<br>함께여도 부대끼지 않는 식탁.</div></div>';
+  h += '<div class="mlogout"><button type="button" id="btnOut">⎋ 로그아웃</button></div>';
+
+  document.getElementById("paper").innerHTML = h;
+  wire();
+}
+
+function listHtml(rows){
+  var h = '<div class="listwrap">';
+  rows.forEach(function(r){
+    if (!r.c && !r.s){ h += '<div class="li empty">'+esc(r.n)+'</div>'; return; }
+    h += '<div class="li'+(r.go?" js-go":"")+'"'+(r.go?' data-go="'+esc(r.go)+'"':"")+'>'
+       +   '<span class="li-n">'+esc(r.n)+'</span>'
+       +   (r.c ? '<span class="li-c">'+esc(r.c)+'</span>' : "")
+       +   (r.s ? '<span class="li-s">'+esc(r.s)+'</span>' : "")
+       + '</div>';
+  });
+  return h + '</div>';
+}
+
+/* ══ 손가락 배선 — 인라인 onclick 없음 (0728 함정 B) ══ */
+function wire(){
+  var paper = document.getElementById("paper");
+
+  paper.addEventListener("click", function(e){
+    /* ① 목록 한 줄 → 그 곳으로 */
+    var li = e.target.closest(".li.js-go");
+    if (li){ e.stopPropagation(); go(li.getAttribute("data-go")); return; }
+
+    /* ② 하위 카드 (미술관·콘서트) */
+    var sub = e.target.closest(".sub");
+    if (sub){
+      e.stopPropagation();
+      if (sub.classList.contains("js-fold")) sub.classList.toggle("open");
+      return;
+    }
+
+    /* ③ 코스 한 줄 */
+    var c = e.target.closest(".course");
+    if (!c) return;
+    var u = U[c.getAttribute("data-k")];
+    if (!u) return;
+    if (c.classList.contains("js-fold")){
+      c.classList.toggle("open");
+      if (u.org && c.classList.contains("open")) loadOrgs(u.org, c.querySelector(".listwrap"));
+      return;
+    }
+    if (u.soon) return;                 /* 거절이 아니라 예고. 아무 일도 안 일어난다 */
+    go(u.go);
+  });
+
+  document.getElementById("amuse").addEventListener("click", function(){
+    location.href = "stadium_v2.html";
+  });
+
+  document.getElementById("btnOut").addEventListener("click", async function(){
+    try{ await supa.auth.signOut({ scope:"local" }); }catch(e){}
+    location.replace("index.html");
+  });
+}
+
+/* ══ 들르기 목록 — code 기준 한 곳당 한 줄 (0728 규칙 7) ══ */
+async function loadOrgs(kind, box){
+  if (!box) return;
+  if (orgCache[kind]){ paintOrgs(kind, box); return; }
+  try{
+    var res = await fetch(SUPA_URL+"/rest/v1/"+ORG[kind].tbl+"?select=code,name,city&order=name",
+      { headers:{ apikey:SUPA_KEY, Authorization:"Bearer "+SUPA_KEY } });
+    var j = await res.json();
+    var seen = {}, out = [];
+    if (Array.isArray(j)) j.forEach(function(o){
+      if (!o || !o.code || seen[o.code]) return;
+      seen[o.code] = 1; out.push(o);
+    });
+    orgCache[kind] = out;
+  }catch(e){
+    console.warn(ORG[kind].tbl+" 로드 실패:", e);
+    orgCache[kind] = [];
+  }
+  paintOrgs(kind, box);
+}
+
+function paintOrgs(kind, box){
+  var rows = orgCache[kind] || [];
+  if (!rows.length){ box.innerHTML = '<div class="li empty">아직 준비 중입니다</div>'; return; }
+  box.innerHTML = rows.map(function(o){
+    var url = ORG[kind].shell + "?org=" + encodeURIComponent(o.code) + "&v=" + Date.now();
+    return '<div class="li js-go" data-go="'+esc(url)+'">'
+         +   '<span class="li-n">'+esc(o.name || o.code)+'</span>'
+         +   (o.city ? '<span class="li-c">'+esc(o.city)+'</span>' : "")
+         + '</div>';
+  }).join("");
+}
+
+/* ══ 아뮈즈부슈 — 오늘의 대진 ══ */
+var TEAM_KO = { soro:"SORO", socrates:"SOCRATES", pascal:"PASCAL", proust:"PROUST" };
+function teamName(t){ return TEAM_KO[t] || String(t||"").toUpperCase(); }
+
+/* ⚠ matches는 익명 키로 못 읽는다 — 0729 RLS 실측.
+     정책: SELECT USING (auth.uid() = user_id)
+   그러니 raw fetch에 SUPA_KEY를 얹으면 auth.uid()가 NULL이 되어 0건이 온다.
+   supa.from(...)을 쓰면 로그인한 손님의 토큰이 자동으로 실린다.
+   (popup_orgs·palais_orgs는 read all이라 raw fetch로도 읽힌다 — 그쪽은 그대로 둔다.) */
+async function loadMatch(){
+  var vs = document.getElementById("aVs");
+
+  var m = null;
+  try{
+    var r = await supa
+      .from("matches")
+      .select("home_team,away_team,is_my_game,status,home_score,away_score")
+      .eq("match_date", today())
+      .eq("is_my_game", true)
+      .limit(1);
+    if (r.error) throw r.error;
+    if (r.data && r.data.length) m = r.data[0];
+  }catch(e){ console.warn("matches 로드 실패:", e); }
+
+  if (!m){
+    vs.innerHTML = '<span class="a-mid">오늘 경기는 곧 열립니다</span>';
+    return;
+  }
+
+  /* 내 경기에서 콩파뇽의 팀은 언제나 soro다 (0729 실측 — is_my_game 14건 전부).
+     terra 안내판 관례를 따라 내 팀을 앞에 놓고 금색으로 둔다.
+     봇끼리 경기는 강조 없이 대진 그대로. */
+  var left, right, mine = m.is_my_game ? "soro" : null;
+  if (mine && m.home_team === mine){ left = m.home_team; right = m.away_team; }
+  else                             { left = m.away_team; right = m.home_team; }
+
+  vs.innerHTML = '<span class="a-team'+(left===mine?" me":"")+'">'+esc(teamName(left))+'</span>'
+               + '<span class="a-mid">vs</span>'
+               + '<span class="a-team'+(right===mine?" me":"")+'">'+esc(teamName(right))+'</span>';
+
+  if (m.status === "completed" || m.home_score !== null){
+    document.getElementById("aClock").outerHTML =
+      '<div class="a-done">오늘 경기는 끝났습니다 · 내일 또</div>';
+  } else {
+    startClock();
+  }
+}
+
+/* 자정까지 — 하루 한 경기가 닫히는 시각 */
+function startClock(){
+  var el = document.getElementById("aClock");
+  if (!el) return;
+  function tick(){
+    var n = new Date(), end = new Date(n.getFullYear(), n.getMonth(), n.getDate()+1, 0, 0, 0);
+    var s = Math.max(0, Math.floor((end - n)/1000));
+    el.textContent = pad(Math.floor(s/3600))+":"+pad(Math.floor(s%3600/60))+":"+pad(s%60);
+  }
+  tick(); setInterval(tick, 1000);
+}
+
+/* ══ 문 열기 ══ */
+async function boot(){
+  paintRoom();
+  setInterval(paintRoom, 60000);      /* 보초 60초 — 시간대가 넘어가면 방이 스스로 바뀐다 */
+  render();
+
+  /* 로그인 안 한 손님은 현관으로. 묻지 않고 조용히. */
+  try{
+    var s = await supa.auth.getSession();
+    if (!s || !s.data || !s.data.session){ location.replace("index.html"); return; }
+  }catch(e){}
+
+  loadMatch();
+}
+
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+else boot();
+})();
+</script>
+</body>
+</html>

@@ -87,7 +87,7 @@
      ⚠ 스위치가 꺼져 있는 동안은 아무 일도 하지 않는다.
        m.html이 서기 전에 켜면 폰 손님이 없는 파일로 간다.
        m.html을 올리는 날 아래 한 줄만 true로 바꾼다. */
-  var PHONE_SHELL_READY = false;
+  var PHONE_SHELL_READY = true;   /* 0729 — m.html 착공 완료. 되돌림 작동. */
 
   function egPhoneGuard(){
     if (!PHONE_SHELL_READY) return false;

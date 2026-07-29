@@ -1,8 +1,11 @@
-const CACHE = 'eungyo-v77';
+const CACHE = 'eungyo-v78';
 
 const CORE_FILES = [
   '/eungyo-salon/',
   '/eungyo-salon/index.html',
+  '/eungyo-salon/m.html',
+  '/eungyo-salon/eg_device.js',
+  '/eungyo-salon/m_bg_d.webp',   /* 낮 한 장만 미리 받는다 — 나머지 셋은 그때 받아 저장 */
   '/eungyo-salon/stadium_v2.html',
   '/eungyo-salon/museum.html',
   '/eungyo-salon/heritage.html',
