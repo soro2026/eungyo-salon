@@ -207,7 +207,7 @@ async function loadClasses(){
 
   /* 명단 — FK가 있으니 한 번에 (0730) */
   const { data:en } = await supa.from('college_enrollments')
-    .select('id,cohort_id,user_id,status,created_at,notified_at,users(nickname,tier)')
+    .select('id,cohort_id,user_id,status,enrolled_at,notified_at,users(nickname,tier)')
     .in('status',['reserved','confirmed','active']);
   const BY=new Map();
   (en||[]).forEach(e=>{ if(!BY.has(e.cohort_id)) BY.set(e.cohort_id,[]); BY.get(e.cohort_id).push(e); });
@@ -260,11 +260,11 @@ function rosterHtml(r){
   const ST={reserved:'예약',confirmed:'신청 완료',active:'진행 중'};
   const order={reserved:0,confirmed:1,active:2};
   const sorted=[...r.rows].sort((a,b)=>(order[a.status]??9)-(order[b.status]??9)
-    || String(a.created_at).localeCompare(String(b.created_at)));
+    || String(a.enrolled_at||'').localeCompare(String(b.enrolled_at||'')));
   const anyToNotify=sorted.some(x=>x.status==='reserved'&&!x.notified_at);
   return sorted.map(e=>{
     const nk=(e.users&&e.users.nickname)||'(이름 없음)';
-    const when=e.created_at?dstr(String(e.created_at).slice(0,10)):'';
+    const when=e.enrolled_at?dstr(String(e.enrolled_at).slice(0,10)):'';
     const noti=e.notified_at
       ? `<span class="r-noti yes">알림 ✔</span>`
       : (e.status==='reserved'?`<span class="r-noti no">알림 —</span>`:'');
