@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>콜레주 · 클래스 현황 — 살롱지기</title>
+<!-- ═══════════════════════════════════════════════════════════════════
+     콜레주 클래스 현황 (0730)
+     · 예약 → 신청 전환을 본다. 예약은 마음, 신청은 발.
+     · 공지선 7만 화면에 쓴다. 바닥선 3은 규정상 비공개 — 숫자로 박지 않는다.
+     · 구간은 날짜가 정한다(college.html phaseOf와 같은 규칙).
+     · 연구원 권한은 admin_set_tier RPC로만 — users 테이블을 직접 만지지 않는다.
+     ═══════════════════════════════════════════════════════════════════ -->
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Cormorant+Garamond:wght@300;400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --ink:#12100b; --ink2:#1b1710; --gold:#c9a24a; --gold-l:#e9cf9c;
+  --cream:#f0e8d4; --dim:rgba(232,221,196,.55);
+  --ok:#7fb069; --warn:#d99a4e; --off:rgba(232,221,196,.3);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--ink);color:var(--cream);
+  font-family:'Gowun Batang',serif;-webkit-font-smoothing:antialiased;}
+.wrap{max-width:1000px;margin:0 auto;padding:44px 22px 90px;}
+.eyebrow{font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:.3em;
+  text-indent:.3em;color:rgba(201,162,74,.85);}
+h1{font-size:25px;font-weight:700;margin-top:12px;letter-spacing:-.01em;}
+.sub{font-size:13px;color:var(--dim);margin-top:10px;line-height:1.9;}
+.today{font-family:'Cormorant Garamond',serif;font-size:13px;letter-spacing:.1em;
+  color:var(--gold-l);margin-top:8px;}
+.card{margin-top:26px;padding:24px 22px;border:1px solid rgba(201,162,74,.22);
+  border-radius:12px;background:var(--ink2);}
+h2{font-size:14px;letter-spacing:.18em;color:var(--gold-l);
+  padding-bottom:11px;border-bottom:1px solid rgba(201,162,74,.18);}
+.hint{font-size:12px;color:var(--dim);line-height:1.9;margin-top:12px;}
+.empty{font-size:13px;color:var(--dim);padding:22px 2px;}
+
+/* 클래스 줄 */
+.cls{padding:16px 4px;border-bottom:1px dashed rgba(201,162,74,.15);cursor:pointer;
+  transition:background .15s;border-radius:6px;}
+.cls:hover{background:rgba(201,162,74,.05);}
+.cls:last-child{border-bottom:none;}
+.cls-top{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;}
+.lab-no{font-family:'Cormorant Garamond',serif;font-size:12px;letter-spacing:.14em;
+  color:rgba(201,162,74,.8);}
+.cls-t{font-size:15px;font-weight:700;color:var(--cream);}
+.cls-a{font-size:12px;color:var(--dim);}
+.ph{margin-left:auto;font-size:11px;letter-spacing:.08em;padding:3px 11px;border-radius:12px;
+  border:1px solid rgba(201,162,74,.4);color:var(--gold-l);white-space:nowrap;}
+.ph.reserving,.ph.enrolling{background:rgba(201,162,74,.16);}
+.ph.running{background:rgba(127,176,105,.14);border-color:rgba(127,176,105,.4);color:#a8cf94;}
+.ph.hidden,.ph.preview{opacity:.6;}
+.ph.held{background:rgba(217,154,78,.16);border-color:rgba(217,154,78,.45);color:#e8b878;}
+.cls-mid{display:flex;gap:22px;align-items:center;flex-wrap:wrap;margin-top:12px;}
+.flow{display:flex;align-items:center;gap:9px;font-size:13px;}
+.flow b{font-family:'Cormorant Garamond',serif;font-size:21px;font-weight:600;
+  color:var(--gold-l);line-height:1;}
+.flow .arw{color:rgba(201,162,74,.5);font-size:14px;}
+.flow .lb{font-size:11px;color:var(--dim);letter-spacing:.06em;}
+.gate{font-size:11.5px;padding:3px 10px;border-radius:10px;letter-spacing:.04em;}
+.gate.pass{background:rgba(127,176,105,.14);color:#a8cf94;}
+.gate.short{background:rgba(217,154,78,.14);color:#e8b878;}
+.cls-dates{font-size:11.5px;color:rgba(232,221,196,.45);margin-top:10px;line-height:1.85;}
+.dday{color:var(--gold-l);}
+
+/* 명단 */
+.roster{margin-top:14px;padding:16px 14px;border:1px solid rgba(201,162,74,.16);
+  border-radius:8px;background:rgba(9,7,5,.5);display:none;}
+.roster.open{display:block;}
+.r-line{display:flex;gap:12px;align-items:center;padding:8px 2px;font-size:12.5px;
+  border-bottom:1px solid rgba(201,162,74,.08);}
+.r-line:last-child{border-bottom:none;}
+.r-nick{flex:1;min-width:0;color:var(--cream);}
+.r-st{font-size:11px;padding:2px 9px;border-radius:9px;letter-spacing:.04em;}
+.r-st.reserved{background:rgba(201,162,74,.14);color:var(--gold-l);}
+.r-st.confirmed{background:rgba(127,176,105,.16);color:#a8cf94;}
+.r-st.active{background:rgba(127,176,105,.22);color:#b8dfa4;}
+.r-when{font-family:'Cormorant Garamond',serif;font-size:11.5px;color:rgba(232,221,196,.4);
+  white-space:nowrap;}
+.r-noti{font-size:11px;white-space:nowrap;}
+.r-noti.yes{color:#a8cf94;} .r-noti.no{color:rgba(232,221,196,.32);}
+
+/* 티어 */
+.tier-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:9px;
+  margin-top:16px;}
+.tw{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:8px;
+  border:1px solid rgba(201,162,74,.16);background:rgba(9,7,5,.4);font-size:12.5px;}
+.tw .nk{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tw .tg{font-size:10.5px;padding:2px 8px;border-radius:9px;letter-spacing:.04em;}
+.tg.member{background:rgba(232,221,196,.1);color:var(--dim);}
+.tg.researcher{background:rgba(201,162,74,.16);color:var(--gold-l);}
+.tg.compagnon{background:rgba(127,176,105,.16);color:#a8cf94;}
+.btn{font:inherit;font-size:11.5px;padding:5px 12px;border-radius:14px;cursor:pointer;
+  border:1px solid rgba(201,162,74,.4);background:none;color:rgba(233,207,156,.9);
+  letter-spacing:.04em;white-space:nowrap;transition:background .15s;}
+.btn:hover{background:rgba(201,162,74,.12);color:var(--gold-l);}
+.btn:disabled{opacity:.4;cursor:default;}
+.back{display:inline-block;margin-bottom:6px;font-size:12px;letter-spacing:.08em;
+  color:rgba(233,207,156,.8);text-decoration:none;}
+.back:hover{color:var(--gold-l);}
+#toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);
+  background:rgba(16,12,8,.94);border:1px solid rgba(201,162,74,.4);border-radius:20px;
+  padding:11px 22px;font-size:12.5px;color:var(--gold-l);opacity:0;pointer-events:none;
+  transition:opacity .25s;z-index:50;max-width:88vw;text-align:center;}
+#toast.on{opacity:1;}
+@media (max-width:640px){
+  .wrap{padding:34px 16px 80px;}
+  .ph{margin-left:0;}
+  .cls-mid{gap:14px;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="terra.html">← 타륜으로</a>
+  <div class="eyebrow">COLLÈGE DE COMPOSTELLA · 학장실</div>
+  <h1>🎓 클래스 현황</h1>
+  <div class="sub">예약은 마음이고 수강신청은 발입니다. 두 숫자 사이의 화살표를 봅니다.</div>
+  <div class="today" id="today"></div>
+
+  <div class="card">
+    <h2>클래스</h2>
+    <div class="hint">줄을 누르면 예약·신청 명단이 펼쳐집니다.
+      공지 기준 <b>7명</b> 대비만 표시합니다 — 개강 여부는 언제나 살롱지기가 정합니다.</div>
+    <div id="list"><div class="empty">불러오는 중…</div></div>
+  </div>
+
+  <div class="card">
+    <h2>연구원 권한</h2>
+    <div class="hint">콜레주는 연구원부터 들어옵니다. 베타 기간에는 초대 손님에게 연구원 권한을 부여합니다.<br>
+      이 버튼은 <b>티어 한 칸만</b> 바꿉니다 — 결제와는 무관하며, 결제 배관이 서면 같은 문을 거치게 됩니다.</div>
+    <div class="tier-grid" id="tiers"><div class="empty">불러오는 중…</div></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const SUPA_URL='https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth',persistSession:true}});
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad3=n=>String(n).padStart(3,'0');
+let TOAST_T=null;
+function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('on');
+  clearTimeout(TOAST_T); TOAST_T=setTimeout(()=>t.classList.remove('on'),2600); }
+
+/* ── 서울 날짜. college.html은 eg_sky.js를 쓰지만 여기선 한 줄로 족하다 ── */
+const TODAY=()=>new Date(Date.now()+324e5).toISOString().slice(0,10);
+const WD=['일','월','화','수','목','금','토'];
+function dstr(iso){
+  if(!iso) return '';
+  const d=new Date(iso+'T00:00:00'); if(isNaN(d)) return iso;
+  return `${d.getMonth()+1}.${d.getDate()}(${WD[d.getDay()]})`;
+}
+function dday(iso){
+  if(!iso) return '';
+  const a=new Date(TODAY()+'T00:00:00'), b=new Date(iso+'T00:00:00');
+  const n=Math.round((b-a)/864e5);
+  return n>0?`D-${n}`:(n===0?'오늘':`${-n}일 지남`);
+}
+/* college.html phaseOf와 같은 규칙. 두 곳이 어긋나면 화면과 콘솔이 다른 말을 한다 */
+const PHASE={teaser:'예고',reserving:'예약 중',enrolling:'수강신청',prep:'개강 준비',
+  running:'진행 중',held:'개강 보류',closed:'마감',hidden:'미공개',preview:'미공개'};
+function phaseOf(c){
+  if(c.status==='held')    return 'held';
+  if(c.status==='closed')  return 'closed';
+  if(c.status==='running') return 'running';
+  const t=TODAY();
+  if(c.announce_at   && t <  c.announce_at)   return 'hidden';
+  if(c.apply_start   && t <  c.apply_start)   return 'teaser';
+  if(c.apply_end     && t <= c.apply_end)     return 'reserving';
+  if(c.confirm_start && t <  c.confirm_start) return 'reserving';
+  if(c.confirm_end   && t <= c.confirm_end)   return 'enrolling';
+  if(c.start_date    && t <  c.start_date)    return 'prep';
+  return 'running';
+}
+
+let ME=null, ROWS=[], OPEN=new Set();
+
+async function init(){
+  $('today').textContent=`오늘 ${dstr(TODAY())}`;
+  const { data:{ user } } = await supa.auth.getUser();
+  if(!user){ $('list').innerHTML='<div class="empty">로그인이 필요합니다.</div>';
+    $('tiers').innerHTML=''; return; }
+  const { data:u } = await supa.from('users').select('is_admin').eq('id',user.id).single();
+  if(!u || !u.is_admin){
+    $('list').innerHTML='<div class="empty">살롱지기만 볼 수 있습니다.</div>';
+    $('tiers').innerHTML=''; return;
+  }
+  ME=user;
+  await loadClasses();
+  await loadTiers();
+}
+
+async function loadClasses(){
+  const { data:co, error } = await supa.from('college_cohorts')
+    .select('id,book_id,cohort_no,kind,status,announce_at,apply_start,apply_end,'+
+            'confirm_start,confirm_end,start_date,min_members')
+    .order('start_date');
+  if(error){ $('list').innerHTML='<div class="empty">불러오지 못했습니다.</div>'; return; }
+  const ids=[...new Set((co||[]).map(c=>c.book_id))];
+  const { data:bk } = await supa.from('college_books')
+    .select('id,title,author,lab_no,weeks_raw').in('id',ids);
+  const BK=new Map((bk||[]).map(b=>[b.id,b]));
+
+  /* 명단 — FK가 있으니 한 번에 (0730) */
+  const { data:en } = await supa.from('college_enrollments')
+    .select('id,cohort_id,user_id,status,created_at,notified_at,users(nickname,tier)')
+    .in('status',['reserved','confirmed','active']);
+  const BY=new Map();
+  (en||[]).forEach(e=>{ if(!BY.has(e.cohort_id)) BY.set(e.cohort_id,[]); BY.get(e.cohort_id).push(e); });
+
+  ROWS=(co||[]).map(c=>({...c, book:BK.get(c.book_id)||{}, rows:BY.get(c.id)||[]}));
+  if(!ROWS.length){ $('list').innerHTML='<div class="empty">아직 개설된 클래스가 없습니다.</div>'; return; }
+  render();
+}
+
+function render(){
+  $('list').innerHTML=ROWS.map(r=>{
+    const b=r.book, ph=phaseOf(r);
+    const res=r.rows.filter(x=>x.status==='reserved').length;
+    const con=r.rows.filter(x=>x.status==='confirmed'||x.status==='active').length;
+    const total=res+con;
+    const need=r.min_members||7;
+    const gate=r.kind==='premiere'
+      ? (total>=need ? `<span class="gate pass">공지선 ${need} 넘음</span>`
+                     : `<span class="gate short">공지선 ${need}까지 ${need-total}명</span>`)
+      : `<span class="gate pass">재연 · 인원 무관</span>`;
+    const open=OPEN.has(r.id);
+    return `<div class="cls" onclick="toggleRoster(${r.id})">
+      <div class="cls-top">
+        <span class="lab-no">${b.lab_no?'LAB '+pad3(b.lab_no):'—'}</span>
+        <span class="cls-t">${esc(b.title||'')}</span>
+        <span class="cls-a">${esc(b.author||'')} · ${esc(b.weeks_raw||'')}</span>
+        <span class="ph ${ph}">${PHASE[ph]||ph}</span>
+      </div>
+      <div class="cls-mid">
+        <span class="flow"><b>${res}</b><span class="lb">예약</span>
+          <span class="arw">→</span><b>${con}</b><span class="lb">신청</span></span>
+        ${gate}
+      </div>
+      <div class="cls-dates">
+        ${r.cohort_no}기${r.kind==='premiere'?' · 초연':' · 재연'}
+        ${r.announce_at?' · 예고 '+dstr(r.announce_at):''}
+        ${r.apply_start?' · 예약 '+dstr(r.apply_start)+'~'+dstr(r.apply_end):''}
+        ${r.confirm_start?' · 신청 '+dstr(r.confirm_start)+'~'+dstr(r.confirm_end):''}
+        ${r.start_date?' · <span class="dday">개강 '+dstr(r.start_date)+' '+dday(r.start_date)+'</span>':''}
+      </div>
+      <div class="roster ${open?'open':''}" onclick="event.stopPropagation()">
+        ${rosterHtml(r)}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function rosterHtml(r){
+  if(!r.rows.length) return '<div class="empty" style="padding:8px 2px">아직 예약이 없습니다.</div>';
+  const ST={reserved:'예약',confirmed:'신청 완료',active:'진행 중'};
+  const order={reserved:0,confirmed:1,active:2};
+  const sorted=[...r.rows].sort((a,b)=>(order[a.status]??9)-(order[b.status]??9)
+    || String(a.created_at).localeCompare(String(b.created_at)));
+  const anyToNotify=sorted.some(x=>x.status==='reserved'&&!x.notified_at);
+  return sorted.map(e=>{
+    const nk=(e.users&&e.users.nickname)||'(이름 없음)';
+    const when=e.created_at?dstr(String(e.created_at).slice(0,10)):'';
+    const noti=e.notified_at
+      ? `<span class="r-noti yes">알림 ✔</span>`
+      : (e.status==='reserved'?`<span class="r-noti no">알림 —</span>`:'');
+    return `<div class="r-line">
+      <span class="r-nick">${esc(nk)}</span>
+      <span class="r-st ${e.status}">${ST[e.status]||e.status}</span>
+      <span class="r-when">${when}</span>${noti}</div>`;
+  }).join('')
+  + (anyToNotify ? `<div style="margin-top:14px;display:flex;gap:9px;flex-wrap:wrap">
+      <button class="btn" onclick="markNotified(${r.id})">알림 보낸 것으로 기록</button>
+      <span style="font-size:11px;color:rgba(232,221,196,.4);align-self:center">
+        쪽지·메일 발송 배관은 준비 중입니다</span></div>` : '');
+}
+
+function toggleRoster(cid){
+  OPEN.has(cid)?OPEN.delete(cid):OPEN.add(cid);
+  render();
+}
+
+/* 알림 기록 — 발송 배관이 서면 이 함수가 실제 발송까지 맡는다 */
+async function markNotified(cid){
+  const r=ROWS.find(x=>x.id===cid); if(!r) return;
+  const ids=r.rows.filter(x=>x.status==='reserved'&&!x.notified_at).map(x=>x.id);
+  if(!ids.length){ toast('기록할 대상이 없습니다'); return; }
+  const { error } = await supa.from('college_enrollments')
+    .update({ notified_at:new Date().toISOString() }).in('id',ids);
+  if(error){ toast('기록하지 못했습니다'); return; }
+  toast(`${ids.length}명 알림 기록 완료`);
+  await loadClasses();
+}
+
+async function loadTiers(){
+  const { data, error } = await supa.from('users')
+    .select('id,nickname,tier,is_admin').order('created_at');
+  if(error){ $('tiers').innerHTML='<div class="empty">불러오지 못했습니다.</div>'; return; }
+  const TN={member:'정회원',researcher:'연구원',compagnon:'콩파뇽'};
+  $('tiers').innerHTML=(data||[]).map(u=>{
+    const t=u.tier||'member';
+    const to=t==='researcher'?'member':'researcher';
+    const lb=t==='researcher'?'내리기':'연구원으로';
+    const lock=t==='compagnon';
+    return `<div class="tw">
+      <span class="nk">${esc(u.nickname||'(이름 없음)')}${u.is_admin?' ★':''}</span>
+      <span class="tg ${t}">${TN[t]||t}</span>
+      ${lock?'':`<button class="btn" onclick="setTier('${u.id}','${to}')">${lb}</button>`}
+    </div>`;
+  }).join('');
+}
+
+async function setTier(uid,tier){
+  const { error } = await supa.rpc('admin_set_tier',{ p_user:uid, p_tier:tier });
+  if(error){ toast(error.message||'바꾸지 못했습니다'); return; }
+  toast(tier==='researcher'?'연구원으로 올렸습니다':'정회원으로 내렸습니다');
+  await loadTiers();
+}
+
+init();
+</script>
+</body>
+</html>
