@@ -12,6 +12,7 @@
  *  복도 배경: college-assets/shell/hall3_{m|d|e|n}.webp
  *  문패:      college-assets/labs/plate_{lab_no 3자리}.webp
  *  메달리온:  college-assets/labs/medallion_{author_code}.webp (저자 공용)
+ *  방 그림:   college-assets/labs/room_{lab_no 3자리}_v{1..7}_{m|d|e|n}.webp  (0730 추가)
  *  쓰기 정책: can_write_college_asset (is_admin, SECURITY DEFINER)
  * ============================================================ */
 :root{--ink:#2E4A7A;--gold:#c9a24a;--gold-l:#e9cf9c;--bg:#14100b;--paper:#1e160e;}
@@ -32,6 +33,12 @@ h2{font-size:13px;letter-spacing:.18em;color:var(--gold-l);margin-bottom:6px;}
   padding:12px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;}
 .slot:hover,.slot.drag{border-color:var(--gold-l);background:rgba(201,162,74,.06);}
 .slot img{max-width:100%;max-height:190px;border-radius:6px;display:block;margin:0 auto 10px;}
+.slot.tall img{max-height:230px;}            /* 방 그림은 9:16 세로 */
+.slot .s-sub{font-family:'Cormorant Garamond',serif;font-size:9.5px;letter-spacing:.2em;
+  color:rgba(201,162,74,.6);margin-top:3px;}
+select.pick{font:inherit;font-size:12.5px;color:#f0e8d4;background:var(--ink);
+  border:1px solid rgba(201,162,74,.35);border-radius:18px;padding:8px 14px;
+  margin-bottom:16px;cursor:pointer;max-width:100%;}
 .slot .s-name{font-size:12px;color:var(--gold-l);letter-spacing:.1em;}
 .slot .s-state{font-size:11px;color:rgba(232,221,196,.45);margin-top:6px;}
 .row{display:flex;align-items:center;gap:14px;padding:13px 4px;
@@ -94,6 +101,16 @@ a.back:hover{color:var(--gold-l);}
       <div class="hint">타원 투명 webp 권장 (예: 800×1050).
         같은 저자의 모든 LAB이 한 메달리온을 공유합니다 — 도스토옙스키가 문을 세 개 열어도 얼굴은 하나.</div>
       <div id="medList"><div class="empty">불러오는 중…</div></div>
+    </div>
+
+    <div class="card">
+      <h2>방 그림 — SALLE 7장</h2>
+      <div class="hint">941×1672 세로(9:16), 무텍스트. <b>가구가 놓일 벽·판·서랍장을 비워둔 채</b> 구워야
+        그 위에 항해도·명패·서랍이 앉습니다.<br>
+        LAB 하나당 7장이므로 방을 먼저 고릅니다. 지금은 낮판(d) 한 벌만 씁니다 —
+        아침·저녁·밤은 낮판으로 폴백합니다.</div>
+      <select class="pick" id="roomLab" onchange="renderRoomSlots()"></select>
+      <div class="slot-grid" id="roomSlots"></div>
     </div>
   </div>
 </div>
@@ -162,6 +179,8 @@ async function loadLabs(){
     .select('id,title,author,author_code,lab_no').not('lab_no','is',null)
     .order('lab_no');
   const labs=data||[];
+  LABS=labs;                                  /* 방 그림 카드가 같은 목록을 쓴다 */
+  buildRoomCard();
   const pbox=document.getElementById('plateList');
   const mbox=document.getElementById('medList');
   if(!labs.length){
@@ -205,6 +224,63 @@ async function loadLabs(){
   }).join('');
   authors.forEach(a=>{ if(a.code) thumb('md-'+a.code,`labs/medallion_${a.code}.webp`); });
 }
+/* ── 방 그림 7칸 — labs/room_{NNN}_v{n}_d.webp (0730) ──
+ *  SALLE 이름은 목업 v2의 scene 정의와 같은 순서·같은 말을 쓴다.
+ *  두 곳에 다른 이름이 살면 반년 뒤에 어느 쪽이 진짜인지 못 가린다. */
+let LABS=[];
+const SALLES=[
+  ['현관','VESTIBULE'], ['항해도','CARTE DE ROUTE'], ['이번 주','BUREAU'],
+  ['동료들','COMPAGNONS'], ['흔적의 책상','TRACES'], ['지나간 배들','ARCHIVES'],
+  ['완주자의 벽','LE MUR']
+];
+const roomPath=(no,n)=>`labs/room_${pad3(no)}_v${n}_d.webp`;
+
+function buildRoomCard(){
+  const sel=document.getElementById('roomLab'); if(!sel) return;
+  if(!LABS.length){
+    document.getElementById('roomSlots').innerHTML=
+      '<div class="empty">아직 LAB 번호가 각인된 책이 없습니다.</div>';
+    return;
+  }
+  const keep=sel.value;
+  sel.innerHTML=LABS.map(l=>
+    `<option value="${l.lab_no}">LAB ${pad3(l.lab_no)} · ${esc(l.title)}</option>`).join('');
+  if(keep && LABS.some(l=>String(l.lab_no)===keep)) sel.value=keep;
+  renderRoomSlots();
+}
+function renderRoomSlots(){
+  const sel=document.getElementById('roomLab');
+  const box=document.getElementById('roomSlots');
+  const no=+sel.value; if(!no) return;
+  box.innerHTML=SALLES.map(([ko,lat],i)=>{
+    const n=i+1;
+    return `<div class="slot tall" data-path="${roomPath(no,n)}" id="rm-${n}">
+      <div class="s-name">SALLE ${n} · ${ko}</div>
+      <div class="s-sub">${lat}</div>
+      <div class="s-state">확인 중…</div>
+    </div>`;
+  }).join('');
+  box.querySelectorAll('.slot').forEach(el=>{
+    el.addEventListener('click',()=>pickFile(el.dataset.path,renderRoomSlots));
+    el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('drag');});
+    el.addEventListener('dragleave',()=>el.classList.remove('drag'));
+    el.addEventListener('drop',e=>{e.preventDefault();el.classList.remove('drag');
+      if(e.dataTransfer.files[0]) upload(el.dataset.path,e.dataTransfer.files[0],renderRoomSlots);});
+  });
+  SALLES.forEach(([ko,lat],i)=>{
+    const n=i+1, el=document.getElementById('rm-'+n); if(!el) return;
+    const path=roomPath(no,n);
+    const head=`<div class="s-name">SALLE ${n} · ${ko}</div><div class="s-sub">${lat}</div>`;
+    const im=new Image();
+    im.onload=()=>{ el.innerHTML=`<img src="${im.src}" alt="">${head}
+      <div class="s-state">걸려 있음 · 클릭해 교체</div>
+      <button class="btn ghost" style="margin-top:8px"
+        onclick="event.stopPropagation();clearAsset('${path}',renderRoomSlots)">내리기</button>`; };
+    im.onerror=()=>{ el.innerHTML=`${head}<div class="s-state">비어 있음 · 클릭해 걸기</div>`; };
+    im.src=PUB(path)+'?v='+Date.now();
+  });
+}
+
 function thumb(id,path){
   const el=document.getElementById(id); if(!el) return;
   const im=new Image();
