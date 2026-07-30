@@ -682,7 +682,7 @@ body.hall-editing .hall-compass{background:var(--gold);color:#1a120c;border-colo
             <header class="hall-head">
               <div class="hall-eyebrow">COLLÈGE DE COMPOSTELLA</div>
               <h1 class="hall-title">콜레주 드 콤포스텔라</h1>
-              <p class="hall-sub">273권의 서가에 매달 새 배가 뜹니다</p>
+              <p class="hall-sub">273권의 서가에서 매달 새 클래스가 열립니다</p>
               <div class="hall-rule"></div>
               <div class="hall-links">
                 <button class="exit-link" onclick="openAbout()">📜 콜레주 안내</button>
@@ -775,7 +775,7 @@ body.hall-editing .hall-compass{background:var(--gold);color:#1a120c;border-colo
       </div>
 
       <div class="cv-sec">
-        <div class="cv-h">이 배에 대하여</div>
+        <div class="cv-h">이 클래스에 대하여</div>
         <dl class="cv-dl" id="cv-facts"></dl>
       </div>
 
@@ -894,7 +894,7 @@ body.hall-editing .hall-compass{background:var(--gold);color:#1a120c;border-colo
     <div class="modal-icon">🔔</div>
     <div class="modal-title">연구원의 문</div>
     <div class="modal-body">
-      종을 달고 배에 오르는 일은<br>연구원(월 29,000원)부터 가능합니다.<br>
+      종을 달고 클래스를 신청하는 일은<br>연구원(월 29,000원)부터 가능합니다.<br>
       서가는 언제나 열려 있으니, 천천히 둘러보세요.
     </div>
     <button class="btn btn-primary" onclick="closeGateModal()">둘러볼게요</button>
@@ -1027,6 +1027,7 @@ const PLATE_IMG=(no,code)=>[ASSET(`labs/plate_${pad3(no)}.webp`)+'?v='+DAYV,
 const LAB3_DEF={ doorL:{x:29,y:45,w:16}, doorR:{x:71,y:45,w:16} };
 let LAB3=JSON.parse(JSON.stringify(LAB3_DEF));
 let myEnrollCids=new Set();
+let myEnrollStat=new Map();      /* cohort_id → 'reserved'|'confirmed'|'active' (0730) */
 
 async function loadMyEnrollments(){
   if(!currentUser) return;
@@ -1034,6 +1035,7 @@ async function loadMyEnrollments(){
     .select('cohort_id,status').eq('user_id',currentUser.id)
     .in('status',['reserved','confirmed','active']);
   myEnrollCids=new Set((data||[]).map(e=>e.cohort_id));
+  myEnrollStat=new Map((data||[]).map(e=>[e.cohort_id,e.status]));
 }
 async function loadLabLayout(){
   try{
@@ -1154,7 +1156,7 @@ function jumpToLab(v){
 function doorHTML(lab,slot){
   if(!lab) return '';
   const active=lab.cohorts.find(c=>c.status==='running')||lab.cohorts.find(c=>c.status==='recruiting')||lab.cohorts[0];
-  const STATUS={announced:'다음 달 공개',recruiting:'예약 중',running:'항해 중'};
+  const STATUS={announced:'다음 달 공개',recruiting:'예약 중',running:'진행 중'};
   const dateLine=active.start_date?`${active.start_date} 개강`:(STATUS[active.status]||'');
   const more=lab.cohorts.length>1?`<div class="rb-more">외 ${lab.cohorts.length-1}개 기수</div>`:'';
   return `<div class="door-t${lab.mine?' lit':''}" data-slot="${slot}" data-code="${lab.code||''}"
@@ -1179,7 +1181,7 @@ function openLab(bookId){
   med.style.display='none';
   if(lab.code){ med.onload=()=>{ med.style.display='block'; };
     chainImg(med,MED_IMG(lab.code),null); }
-  const STATUS={announced:['announced','다음 달 공개'],recruiting:['recruiting','예약 중'],running:['running','항해 중']};
+  const STATUS={announced:['announced','다음 달 공개'],recruiting:['recruiting','예약 중'],running:['running','진행 중']};
   document.getElementById('lm-rows').innerHTML=lab.cohorts.map(c=>{
     const b=bookOf(c.book_id);
     const bd=STATUS[c.status]||['announced',c.status];
@@ -1435,6 +1437,7 @@ const PER_SHELF = 10;
 const ROMAN={'I. 문학':'Ⅰ','II. 시와 극':'Ⅱ','III. 철학과 사상':'Ⅲ','IV. 역사':'Ⅳ','V. 자연':'Ⅴ','VI. 예술':'Ⅵ','VII. 삶의 기록':'Ⅶ'};
 
 let currentUser=null, userTier=null, books=[], bellCounts={}, myBells=new Set(), busy=false;
+let isSalonKeeper=false;   /* 살롱지기 — 공개 전 기수를 미리 본다 (0730) */
 let cohortsAll=[], modalBook=null;
 
 async function init(){
@@ -1442,6 +1445,7 @@ async function init(){
   currentUser=user;
   if(user){
     const { data:u } = await supa.from('users').select('tier,is_admin').eq('id',user.id).single();
+    isSalonKeeper = !!(u && u.is_admin);
     userTier = u ? u.tier : 'member';
     if(u && u.is_admin) document.body.classList.add('is-admin');
   }
@@ -1467,7 +1471,7 @@ async function loadBells(){
 }
 async function loadCohorts(){
   const { data } = await supa.from('college_cohorts')
-    .select('id,book_id,cohort_no,kind,status,start_date,apply_start,apply_end,min_members,session_plan')
+    .select('id,book_id,cohort_no,kind,status,start_date,announce_at,apply_start,apply_end,confirm_start,confirm_end,min_members,session_plan')
     .in('status',['announced','recruiting','running']);
   cohortsAll=data||[];
 }
@@ -1495,13 +1499,13 @@ function renderBanners(){
       items=ann.map(c=>{
         const b=bookOf(c.book_id);
         return { eyebrow:'PROCHAINEMENT', title:esc(b.title||''),
-          sub:`${esc(b.author||'')} · ${esc(b.weeks_raw||'')} 여정<br>다음 달, 배가 뜹니다` };
+          sub:`${esc(b.author||'')} · ${esc(b.weeks_raw||'')} 여정<br>다음 달에 열립니다` };
       });
     }else{
       items=[
         { eyebrow:'GRAND OUVERTURE', title:'9월 6일<br>콜레주 개관',
           sub:'서가와 종이 열립니다' },
-        { eyebrow:'PREMIÈRE FLOTTE', title:'창립 5종<br>동시 출항',
+        { eyebrow:'PREMIÈRE FLOTTE', title:'창립 5종<br>동시 개강',
           sub:'10월 5일 · 월든 외 4종' }
       ];
     }
@@ -1599,9 +1603,53 @@ async function saveHallLayout(){
 /* ── 1층 · 포스터 무대 — 실사 포스터(Storage) + 상세 모달 ── */
 let slideIdx=0, slideTm=null, modalCohort=null, slideCount=0;
 const POSTER = id => ASSET(`posters/${id}.webp`);
+/* ══════════════════════════════════════════════════════════════════
+ *  클래스 구간 판정 (0730)
+ *  날짜가 구간을 정한다 — 매달 손으로 열고 닫지 않는다.
+ *  사람이 정하는 것은 하나뿐: 미달일 때 열까 말까 → status='held'
+ *
+ *    예고(teaser)    announce_at ~ 예약 전     상세 페이지 잠김
+ *    예약(reserving) apply_start ~ apply_end   자리 표시. 결제·정원 없음
+ *    신청(enrolling) confirm_start ~ confirm_end  좌석 확정
+ *    준비(prep)      신청 마감 ~ 개강 전        세션표 제작 · 미달 판단
+ *    진행(running)   개강 이후
+ * ══════════════════════════════════════════════════════════════════ */
+const TODAY=()=>(window.egSky&&egSky.today)?egSky.today()
+  :new Date(Date.now()+324e5).toISOString().slice(0,10);   /* 폴백: UTC+9 */
+const PHASE={
+  teaser   :['announced', '예고'],
+  reserving:['recruiting','예약 중'],
+  enrolling:['recruiting','수강신청'],
+  prep     :['announced', '개강 준비'],
+  running  :['running',   '진행 중'],
+  held     :['announced', '개강 보류'],
+  closed   :['running',   '마감'],
+  preview  :['announced', '미공개 · 살롱지기']
+};
+const PH_ORDER={enrolling:0,reserving:1,prep:2,running:3,teaser:4,preview:6,held:5,closed:9};
+
+function phaseOf(c){
+  if(c.status==='held')    return 'held';
+  if(c.status==='closed')  return 'closed';
+  if(c.status==='running') return 'running';
+  const t=TODAY();
+  /* 공개 전 — 손님에게는 없는 것, 살롱지기에게는 점검용으로 보인다 */
+  if(c.announce_at   && t <  c.announce_at)   return isSalonKeeper?'preview':'hidden';
+  if(c.apply_start   && t <  c.apply_start)   return 'teaser';
+  if(c.apply_end     && t <= c.apply_end)     return 'reserving';
+  if(c.confirm_start && t <  c.confirm_start) return 'reserving';   /* 틈 없이 잇는다 */
+  if(c.confirm_end   && t <= c.confirm_end)   return 'enrolling';
+  if(c.start_date    && t <  c.start_date)    return 'prep';
+  return 'running';
+}
+/* 예고 구간에는 상세 페이지를 열지 않는다 — 「스르르 예고편만」 */
+const isTeaser=c=>phaseOf(c)==='teaser';
+
 function renderStage(){
-  const order={recruiting:0,announced:1,running:2};
-  const list=[...cohortsAll].sort((a,b)=>(order[a.status]??9)-(order[b.status]??9));
+  /* 예고 전(hidden)은 목록에 없다. 정렬은 구간 우선 → 개강 이른 순 */
+  const list=cohortsAll.filter(c=>phaseOf(c)!=='hidden')
+    .sort((a,b)=>(PH_ORDER[phaseOf(a)]??9)-(PH_ORDER[phaseOf(b)]??9)
+      || String(a.start_date||'').localeCompare(String(b.start_date||'')));
   const wrap=document.getElementById('slides');
   const nav=document.getElementById('stageNav');
   if(!list.length){
@@ -1609,24 +1657,22 @@ function renderStage(){
       <div class="s-badge announced">개관 준비 중</div>
       <div class="s-title">9월 6일,<br>서가의 문이 열립니다</div>
       <div class="s-note" style="margin-top:16px">창립 5종 — 월든 · 소크라테스 4부작<br>모비딕 · 카라마조프가의 형제들 · 전쟁과 평화</div>
-      <div class="s-meta">10월 5일 동시 출항</div>
+      <div class="s-meta">10월 5일 창립 5종 동시 개강</div>
     </div>`;
     nav.innerHTML='';
     return;
   }
-  const BADGE={announced:['announced','다음 달 공개'],
-               recruiting:['recruiting','예약 중'],
-               running:['running','항해 중']};
   wrap.innerHTML=list.map((c,i)=>{
     const b=bookOf(c.book_id);
-    const bd=BADGE[c.status];
+    const bd=PHASE[phaseOf(c)]||PHASE.teaser;
+    const tz=isTeaser(c);
     return `<div class="slide${i===0?' at':''}" data-i="${i}" data-cid="${c.id}"
       onclick="openClass(${c.id})">
       <div class="s-badge ${bd[0]}">${bd[1]}</div>
       <div class="s-title">${esc(b.title||'')}</div>
       <div class="s-author">${esc(b.author||'')}</div>
-      <div class="s-meta">${esc(b.weeks_raw||'')} 여정 · ${c.cohort_no}기${c.start_date?' · '+c.start_date+' 출항':''}</div>
-      <div class="s-note">눌러서 자세히 보기</div>
+      <div class="s-meta">${esc(b.weeks_raw||'')} 여정 · ${c.cohort_no}기${c.start_date?' · '+dstr(c.start_date)+' 개강':''}</div>
+      <div class="s-note">${tz?'예고':'눌러서 자세히 보기'}</div>
     </div>`;
   }).join('');
   /* 실사 포스터가 있으면 슬라이드를 그림판으로 승격 */
@@ -1635,7 +1681,7 @@ function renderStage(){
     im.onload=()=>{
       const el=wrap.querySelector(`.slide[data-i="${i}"]`);
       if(!el) return;
-      const b=bookOf(c.book_id), bd=BADGE[c.status];
+      const b=bookOf(c.book_id), bd=PHASE[phaseOf(c)]||PHASE.teaser;
       el.classList.add('has-img');
       el.innerHTML=`<img class="s-poster" src="${POSTER(c.id)}" alt="${esc(b.title||'')} 포스터">
         <div class="s-caption"><div class="s-badge ${bd[0]}">${bd[1]}</div></div>`;
@@ -1693,7 +1739,7 @@ function openCohort(cid){
   const b=bookOf(c.book_id);
   const BADGE={announced:['announced','다음 달 공개'],
                recruiting:['recruiting','예약 중'],
-               running:['running','항해 중']};
+               running:['running','진행 중']};
   const bd=BADGE[c.status]||['announced',c.status];
   const badge=document.getElementById('cm-badge');
   badge.className='s-badge '+bd[0]; badge.textContent=bd[1];
@@ -1709,7 +1755,7 @@ function openCohort(cid){
   if(c.start_date)  rows.push(`개강 <b>${dstr(c.start_date)}</b>`);
   const fin=endDate(c.start_date,wk);
   if(fin) rows.push(`완주 예정 <b>${fin}</b>`);
-  if(c.kind==='premiere'&&c.min_members) rows.push(`최소 ${c.min_members}명 신청 시 출항`);
+  if(c.kind==='premiere'&&c.min_members) rows.push(`최소 ${c.min_members}명이 모이면 개강합니다`);
   document.getElementById('cm-dates').innerHTML=rows.join('<br>');
 
   const note=document.getElementById('cm-note');
@@ -1721,7 +1767,7 @@ function openCohort(cid){
     note.textContent='다음 달 1일, 예약이 열립니다';
     btn.style.display='none';
   }else{
-    note.textContent='지금 항해 중인 배입니다 — 다음 기수에서 함께 걸을 수 있습니다';
+    note.textContent='지금 진행 중입니다 — 다음 기수에서 함께 읽을 수 있습니다';
     btn.style.display='none';
   }
 
@@ -1945,13 +1991,37 @@ async function toggleBell(bookId){
 async function reserve(cohortId){
   if(!currentUser){ toast('로그인 후 예약할 수 있습니다'); return; }
   if(userTier==='member'){ openGateModal(); return; }
+  const c=cohortsAll.find(x=>x.id===cohortId);
   const { error } = await supa.from('college_enrollments')
     .insert({ cohort_id:cohortId, user_id:currentUser.id, status:'reserved' });
   if(error){
-    toast(error.code==='23505' ? '이미 이 배에 예약하셨습니다' : '잠시 후 다시 시도해 주세요');
+    toast(error.code==='23505' ? '이미 예약하셨습니다' : '잠시 후 다시 시도해 주세요');
     return;
   }
-  toast('예약되었습니다 — 21일에 좌석 확정이 열립니다');
+  await loadMyEnrollments();
+  const d=c&&c.confirm_start?dstr(c.confirm_start):'수강신청 기간';
+  toast(`예약되었습니다 — ${d}에 수강신청이 열립니다`);
+  if(classCohort&&classCohort.id===cohortId) renderApply(classCohort,bookOf(classCohort.book_id)||{});
+}
+/* 수강신청 = 좌석 확정. 예약(마음 붙잡기)과 다른 행위다 (0730) */
+async function confirmSeat(cohortId){
+  if(!currentUser){ toast('로그인 후 신청할 수 있습니다'); return; }
+  if(userTier==='member'){ openGateModal(); return; }
+  const have=myEnrollStat.get(cohortId);
+  if(have==='confirmed'||have==='active'){ toast('이미 신청하셨습니다'); return; }
+  let error;
+  if(have==='reserved'){
+    ({ error } = await supa.from('college_enrollments')
+      .update({ status:'confirmed' })
+      .eq('cohort_id',cohortId).eq('user_id',currentUser.id));
+  }else{
+    ({ error } = await supa.from('college_enrollments')
+      .insert({ cohort_id:cohortId, user_id:currentUser.id, status:'confirmed' }));
+  }
+  if(error){ toast('잠시 후 다시 시도해 주세요'); return; }
+  await loadMyEnrollments();
+  toast('수강신청이 접수되었습니다');
+  if(classCohort&&classCohort.id===cohortId) renderApply(classCohort,bookOf(classCohort.book_id)||{});
 }
 function renderBellHand(){
   const hand=document.getElementById('bell-hand');
@@ -1981,6 +2051,12 @@ function sessionDue(startIso,n){
 
 function openClass(cid){
   const c=cohortsAll.find(x=>x.id===cid); if(!c) return;
+  /* 예고 구간 — 상세 페이지를 잠근다. 포스터와 제목만 보는 때다 */
+  if(isTeaser(c)){
+    toast(c.apply_start ? `${dstr(c.apply_start)}부터 예약이 열립니다`
+                        : '아직 예고 중입니다');
+    return;
+  }
   classCohort=c;
   const b=bookOf(c.book_id)||{};
   const wk=weeksOf(b.weeks_raw);
@@ -1990,9 +2066,7 @@ function openClass(cid){
   document.getElementById('cv-title').textContent=b.title||'';
   document.getElementById('cv-sub').innerHTML=
     `${esc(b.author||'')}${b.stream?' · '+esc(b.stream):''}${b.weeks_raw?' · '+esc(b.weeks_raw)+' 여정':''}`;
-  const BADGE={announced:['announced','다음 달 공개'],recruiting:['recruiting','예약 중'],
-               running:['running','항해 중']};
-  const bd=BADGE[c.status]||['announced',c.status];
+  const bd=PHASE[phaseOf(c)]||PHASE.teaser;
   const bg=document.getElementById('cv-badge');
   bg.className='s-badge '+bd[0]; bg.textContent=bd[1];
 
@@ -2004,14 +2078,15 @@ function openClass(cid){
     pw.href=url; pw.style.display=''; };
   probe.src=url;
 
-  /* 이 배에 대하여 */
+  /* 이 클래스에 대하여 */
   const f=[];
   f.push(['기수', `${c.cohort_no}기${c.kind==='premiere'?' · 초연':(c.kind==='rerun'?' · 재연':'')}`]);
-  if(c.apply_start) f.push(['신청', dstr(c.apply_start)+(c.apply_end?' — '+dstr(c.apply_end,false):'')]);
+  if(c.apply_start) f.push(['예약', dstr(c.apply_start)+(c.apply_end?' — '+dstr(c.apply_end,false):'')]);
+  if(c.confirm_start) f.push(['수강신청', dstr(c.confirm_start)+(c.confirm_end?' — '+dstr(c.confirm_end,false):'')]);
   if(c.start_date)  f.push(['개강', dstr(c.start_date)]);
   const fin=endDate(c.start_date,wk);
   if(fin) f.push(['완주 예정', fin]);
-  if(c.kind==='premiere'&&c.min_members) f.push(['출항 조건', `최소 ${c.min_members}명 신청`]);
+  if(c.kind==='premiere'&&c.min_members) f.push(['개강 조건', `최소 ${c.min_members}명이 모이면 개강합니다`]);
   f.push(['자격', '콤포스텔라 연구원 이상']);
   document.getElementById('cv-facts').innerHTML=
     f.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${v}</dd>`).join('');
@@ -2045,51 +2120,107 @@ function openClass(cid){
   const sc=document.getElementById('cvScroll'); if(sc) sc.scrollTop=0;
 }
 
-/* 신청 구획 — 손님 상태 넷. 결제 배관이 서면 ② 갈래의 버튼만 갈아끼운다 */
+/* 신청 구획 — 구간(날짜) × 내 상태(예약·신청) 격자 (0730)
+ *  결제 배관이 서면 정회원 갈래의 버튼 목적지만 갈아끼운다. */
 function renderApply(c,b){
   const h=document.getElementById('cv-a-h');
   const p=document.getElementById('cv-a-p');
   const pr=document.getElementById('cv-a-price');
   const ac=document.getElementById('cv-a-acts');
   pr.textContent=''; ac.innerHTML='';
+  const ph=phaseOf(c);
+  const mine=currentUser?myEnrollStat.get(c.id):null;
+  const shelf=`<button class="btn btn-ghost" onclick="closeClass();goFloor(1)">2층 · 273의 서가</button>`;
 
-  /* ④ 이미 오른 배 */
-  if(currentUser && myEnrollCids.has(c.id)){
-    h.textContent='이미 이 배에 오르셨습니다';
-    p.textContent='3층 연구실 복도에서 이 방으로 들어가면 회차별 흔적을 남길 수 있습니다.';
-    ac.innerHTML=`<button class="btn btn-primary" onclick="closeClass();goFloor(2)">3층 · 내 클래스로</button>`;
-    return;
-  }
-  /* ① 아직 문 밖 */
+  /* ① 문 밖 */
   if(!currentUser){
     h.textContent='로그인이 필요합니다';
-    p.textContent='콜레주는 EG 회원의 공간입니다. 로그인하시면 신청 상태를 확인할 수 있습니다.';
+    p.textContent='콜레주는 EG 회원의 공간입니다. 로그인하시면 예약과 신청 상태를 확인할 수 있습니다.';
     ac.innerHTML=`<button class="btn btn-primary" onclick="location.href='index.html'">EG로 가기</button>`;
     return;
   }
   /* ② 정회원 — 연구원의 문 */
   if(userTier==='member'){
-    h.textContent='연구원부터 배에 오릅니다';
+    h.textContent='연구원부터 신청할 수 있습니다';
     p.innerHTML='콜레주 드 콤포스텔라는 <b>연구원</b>의 공간입니다. 273권의 서가 전체가 열리고, '+
-      '동시에 세 권까지 걸을 수 있습니다. 읽고 싶은 책에 종을 달아 다음 달 개설을 요청할 수도 있습니다.';
+      '동시에 세 권까지 읽을 수 있습니다. 읽고 싶은 책에 종을 달아 다음 달 개설을 요청할 수도 있습니다.';
     pr.innerHTML='정회원 <b>15,000원</b> → 연구원 <b>29,000원</b> · 월';
     ac.innerHTML=`<button class="btn btn-primary" onclick="upgradeToResearcher()">연구원으로 올리기</button>
       <button class="btn btn-ghost" onclick="closeClass();openAbout()">콜레주 안내 먼저 보기</button>`;
     return;
   }
-  /* ③ 연구원 이상 — 상태별 */
-  if(c.status==='recruiting'){
-    h.textContent='이 배에 오르시겠습니까';
-    p.textContent='예약은 자리 표시입니다. 21일부터 좌석 확정이 열립니다.';
-    ac.innerHTML=`<button class="btn btn-primary" onclick="applyFromClass()">수강신청</button>`;
-  }else if(c.status==='announced'){
-    h.textContent='다음 달 1일, 예약이 열립니다';
-    p.textContent='그때 이 페이지에서 바로 신청하실 수 있습니다. 서가에서 종을 달아두면 개설 요청으로 함께 셉니다.';
-    ac.innerHTML=`<button class="btn btn-ghost" onclick="closeClass();goFloor(1)">2층 서가에서 종 달기</button>`;
+  /* ③ 이미 좌석을 확정한 사람 */
+  if(mine==='confirmed'||mine==='active'){
+    if(ph==='running'){
+      h.textContent='진행 중입니다';
+      p.textContent='3층 연구실 복도에서 이 방으로 들어가면 회차별 기록을 남길 수 있습니다.';
+      ac.innerHTML=`<button class="btn btn-primary" onclick="closeClass();goFloor(2)">3층 · 내 클래스로</button>`;
+    }else{
+      h.textContent='수강신청이 접수되었습니다';
+      p.innerHTML=`${c.start_date?'<b>'+dstr(c.start_date)+'</b> 개강합니다. ':''}`+
+        '개강일에 3층 연구실에 이 방이 열립니다.';
+      ac.innerHTML=shelf;
+    }
+    return;
+  }
+  /* ④ 예약만 해둔 사람 */
+  if(mine==='reserved'){
+    if(ph==='enrolling'){
+      h.textContent='수강신청이 열렸습니다';
+      p.textContent='예약해 두신 자리를 확정하시면 됩니다.';
+      ac.innerHTML=`<button class="btn btn-primary" onclick="confirmSeat(${c.id})">수강신청 완료하기</button>`;
+    }else if(ph==='reserving'){
+      h.textContent='예약해 두셨습니다';
+      p.innerHTML=`${c.confirm_start?'<b>'+dstr(c.confirm_start)+'</b>':'수강신청 기간'}에 수강신청이 열립니다. `+
+        '그날 아침 쪽지와 메일로 알려드립니다.';
+      ac.innerHTML=shelf;
+    }else{
+      h.textContent='예약해 두셨습니다';
+      p.textContent='수강신청 기간이 지났습니다. 다음 기수에 다시 열립니다.';
+      ac.innerHTML=shelf;
+    }
+    return;
+  }
+  /* ⑤ 연구원 이상 · 아직 아무것도 안 한 사람 — 구간별 */
+  if(ph==='reserving'){
+    h.textContent='예약해 두시겠습니까';
+    p.innerHTML='예약은 자리 표시입니다 — 결제도 정원도 없습니다. '+
+      `${c.confirm_start?'<b>'+dstr(c.confirm_start)+'</b>':'수강신청 기간'}에 쪽지와 메일로 알려드리니, `+
+      '그때 신청을 마치시면 됩니다.';
+    ac.innerHTML=`<button class="btn btn-primary" onclick="applyFromClass()">예약하기</button>`;
+  }else if(ph==='enrolling'){
+    h.textContent='수강신청 기간입니다';
+    p.innerHTML=`${c.confirm_end?'<b>'+dstr(c.confirm_end)+'</b>까지 신청할 수 있습니다. ':''}`+
+      `${c.start_date?dstr(c.start_date)+' 개강합니다.':''}`;
+    ac.innerHTML=`<button class="btn btn-primary" onclick="confirmSeat(${c.id})">수강신청</button>`;
+  }else if(ph==='preview'){
+    h.textContent='아직 공개되지 않은 기수입니다';
+    p.innerHTML=`살롱지기에게만 보입니다. `+
+      `${c.announce_at?'<b>'+dstr(c.announce_at)+'</b>부터 손님에게 예고편이 뜨고, ':''}`+
+      `${c.apply_start?dstr(c.apply_start)+'부터 예약이 열립니다.':''}`;
+    ac.innerHTML=shelf;
+  }else if(ph==='teaser'){
+    h.textContent='예고';
+    p.innerHTML=`${c.apply_start?'<b>'+dstr(c.apply_start)+'</b>부터 예약이 열립니다.':'곧 예약이 열립니다.'}`;
+    ac.innerHTML=shelf;
+  }else if(ph==='prep'){
+    h.textContent='개강을 준비하고 있습니다';
+    p.innerHTML='수강신청이 마감되었습니다. '+
+      `${c.start_date?'<b>'+dstr(c.start_date)+'</b> 개강 예정이며, ':''}`+
+      '다음 기수는 개강 후에 다시 열립니다.';
+    ac.innerHTML=shelf;
+  }else if(ph==='held'){
+    h.textContent='개강이 보류되었습니다';
+    p.textContent='신청 인원이 모이지 않아 다음 기수로 넘어갑니다. 예약해 두신 분의 자리는 그대로 이어집니다.';
+    ac.innerHTML=shelf;
+  }else if(ph==='running'){
+    h.textContent='지금 진행 중입니다';
+    p.textContent='다음 기수에서 함께 읽을 수 있습니다. 매월 새 기수가 열립니다.';
+    ac.innerHTML=shelf;
   }else{
-    h.textContent='지금 항해 중인 배입니다';
-    p.textContent='다음 기수에서 함께 걸을 수 있습니다. 매월 21~30일에 신청이 열립니다.';
-    ac.innerHTML=`<button class="btn btn-ghost" onclick="closeClass();goFloor(1)">2층 서가로</button>`;
+    h.textContent='마감된 기수입니다';
+    p.textContent='다음 기수를 기다려 주십시오.';
+    ac.innerHTML=shelf;
   }
 }
 function applyFromClass(){ if(classCohort) reserve(classCohort.id); }
