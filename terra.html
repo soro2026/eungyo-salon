@@ -604,6 +604,11 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   #storyPhotos figcaption{ font-size:11.5px; color:var(--cream-dim); margin-top:6px; line-height:1.55 }
   #storyPhotos figcaption .credit{ opacity:.55; font-size:10.5px }
   /* 이곳에 닿은 별 — 액자 벽 (메종: 클릭 시 별 여행으로 떠남) */
+  #storyEnter{ display:block; width:100%; margin-top:24px; font:inherit;
+    font-size:13.5px; letter-spacing:.06em; color:#241a10; background:var(--gold);
+    border:none; border-radius:26px; padding:13px 18px; cursor:pointer;
+    transition:filter .25s; }
+  #storyEnter:hover{ filter:brightness(1.08) }
   #storyStars{ margin-top:22px; padding-top:16px; border-top:1px solid var(--line) }
   #storyStars .lbl{ color:var(--gold); font-size:12.5px; letter-spacing:.05em; margin-bottom:14px }
   #storyStars .grid{ display:flex; flex-wrap:wrap; gap:15px }
@@ -995,6 +1000,7 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   <div id="storyPhotos"></div>
   <div class="sbody" id="storyBody"></div>
   <div id="storyStars"></div>
+  <button id="storyEnter" style="display:none">🎼 콘서트홀 입장하기</button>
 </aside>
 
 <aside id="collegeCard">
@@ -1848,6 +1854,15 @@ async function jumpToStarPlace(starId, opts){
 
 function openStory(spot){
   const isCompagnon = (spot.source === 'compagnon');
+  /* 콘서트홀(0731): 팝업 맨 아래에 입장 버튼. 다른 장소에선 숨는다.
+     spot._concert는 terra 핀 클릭에서 meta로 빚어 넣어 준다. */
+  { const be = document.getElementById("storyEnter");
+    if (be){
+      if (spot._concert){
+        be.style.display = "block";
+        be.onclick = ()=> enterRoomUrl("concert.html?code=" + encodeURIComponent(spot._concert), spot.title_ko || "");
+      } else be.style.display = "none";
+    } }
   const badge = document.getElementById("storyBadge");
   badge.textContent = isCompagnon ? "콩파뇽의 발견" : "큐레이션";
   badge.classList.toggle("compagnon", isCompagnon);
@@ -2608,14 +2623,15 @@ const TERRA_KIND = {
   constellatio:{ icon:"✨", tag:"EG콘스텔라티오" },
   heritage:{ icon:"🖼", tag:"EG헤리티지" },
   hansfoon:{ icon:"🥄", tag:"EG교양한스푼" },
-  college:{ icon:"📖" }
+  college:{ icon:"📖" },
+  concert:{ icon:"🎼", tag:"EG음악관" }
 };
 async function loadTerraPins(){
   /* 재시도 3회 — 순간 네트워크 삐끗으로 핀 전멸하던 사고 봉합 */
   let rows=null;
   for(let t=0;t<3;t++){
     try{
-      const r = await fetch(SUPA_URL + "/rest/v1/terra_pins?active=eq.true&kind=in.(stadium,museum,constellatio,heritage,hansfoon,college)&order=sort",
+      const r = await fetch(SUPA_URL + "/rest/v1/terra_pins?active=eq.true&kind=in.(stadium,museum,constellatio,heritage,hansfoon,college,concert)&order=sort",
         { headers:{ apikey:SUPA_KEY, Authorization:"Bearer "+SUPA_KEY } });
       const j = await r.json();
       if (Array.isArray(j)){ rows=j; break; }      /* 오류 객체면 배열 아님 → 재시도 */
@@ -2819,6 +2835,23 @@ function enterGame(p){
 }
 
 /* ── 공용 문: 스타디움 외 우주 — 지구는 잠들고 방이 열린다 ── */
+/* ── 음악관 팝업 (0731) ──
+   콘서트홀은 별 여행 장소가 아니므로 places/get_voyage_markers를 오염시키지 않는다.
+   terra_pins.meta 한 곳에 원고가 살고, 여기서 spot 모양으로 빚어 openStory에 넘긴다. */
+function openConcertStory(p){
+  const m = (p && p.meta) || {};
+  openStory({
+    source:   m.source || "curation",
+    title:    m.title || p.name || "",
+    title_ko: m.title_ko || p.name || "",
+    subtitle: m.subtitle || "",
+    photos:   Array.isArray(m.photos) ? m.photos : [],
+    body:     Array.isArray(m.body) ? m.body : [],
+    figures:  [],
+    _concert: p.code
+  });
+}
+
 function enterRoom(p){
   enterRoomUrl((p && p.target_url) ? p.target_url : "museum.html", p ? p.name : "");
 }
@@ -2878,6 +2911,12 @@ function wireTerra(){
         }
         else if (currentPark && currentPark.code === p.code) openCollegeCard();
         else flyToPark(p);
+      }
+      else if (p.kind === "concert"){
+        /* 음악관 (0731): 핀 = 팝업. 대문을 거치지 않고 홀의 내력을 먼저 읽는다.
+           멀면 날아간 뒤 열고, 이미 와 있으면 바로 연다. */
+        if (currentPark && currentPark.code === p.code) openConcertStory(p);
+        else { flyToPark(p); setTimeout(()=>openConcertStory(p), 3400); }
       }
       else if (currentPark && currentPark.code === p.code){
         if (p.kind === "stadium") enterGame(p);    /* 착륙해 있으면 핀 = 문 — 단, 오늘 경기가 열리는 구장만 (0728) */

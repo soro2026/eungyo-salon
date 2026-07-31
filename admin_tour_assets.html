@@ -3,31 +3,67 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>르 그랑 투르 자산 — 살롱지기 전용</title>
+<title>르 그랑 투르 · 음악관 — 살롱지기 전용</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Cormorant+Garamond:wght@400;500&display=swap" rel="stylesheet">
 <style>
 /* ============================================================
- *  admin_tour_assets v1.0 — 0731 · 살롱지기 전용
- *  버킷: tour-assets   (정책 4개 · is_salon_keeper)
- *  정문:  concert/{code}_gate_{m|d|e|n}.webp   1672×941 (16:9)
- *  실내:  concert/{code}_hall.webp             1080×1920 (9:16) · 한 장
- *  홀 목록은 terra_pins(kind='concert')에서 읽는다 — 두 곳에 적지 않는다.
- *  혈통: admin_college_labs v1.0 (0723)
+ *  admin_tour_assets v2.0 — 0731 · 살롱지기 전용
+ *
+ *  ① 오늘의 편성표 — 다섯 홀에 오늘 어떤 곡이 흐르는지 (셸과 같은 공식으로 계산)
+ *  ② 홀 탭  — 정문 4벌 + 홀 안 1장 (tour-assets 버킷)
+ *  ③ 곡 탭  — 영상 교체 · 시작 지점 · 무대 올림/내림 · 미리보기
+ *
+ *  로테이션 공식은 concert.html과 반드시 같아야 한다.
+ *      곡 = 배열[ (KST날수 + floor(hall_no × N ÷ H)) mod N ]
+ *  한쪽만 고치면 콘솔이 거짓말을 한다.
  * ============================================================ */
-:root{--ink:#2E4A7A;--gold:#c9a24a;--gold-l:#e9cf9c;--bg:#14100b;--paper:#1e160e;}
+:root{--ink:#2E4A7A;--gold:#c9a24a;--gold-l:#e9cf9c;--bg:#14100b;--paper:#1e160e;
+  --ok:#7aa86e;--warn:#c98b4a;}
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:var(--bg);color:#e8ddc4;font-family:'Gowun Batang',serif;
-  min-height:100vh;padding:36px 18px 80px;}
-.wrap{max-width:680px;margin:0 auto;}
+  min-height:100vh;padding:36px 18px 90px;}
+.wrap{max-width:700px;margin:0 auto;}
 h1{font-size:20px;letter-spacing:.06em;color:#f0e8d4;}
 .eyebrow{font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:.3em;
   color:rgba(201,162,74,.8);margin-bottom:8px;}
 .sub{font-size:12px;color:rgba(232,221,196,.5);margin-top:8px;line-height:1.8;}
+a.back{font-size:11px;color:rgba(201,162,74,.7);text-decoration:none;letter-spacing:.1em;}
+a.back:hover{color:var(--gold-l);}
 .card{background:var(--paper);border:1px solid rgba(201,162,74,.25);
-  border-radius:14px;padding:22px;margin-top:22px;}
+  border-radius:14px;padding:22px;margin-top:20px;}
 h2{font-size:13px;letter-spacing:.18em;color:var(--gold-l);margin-bottom:6px;}
 .hint{font-size:11.5px;color:rgba(232,221,196,.45);line-height:1.8;margin-bottom:16px;}
+.hint b{color:rgba(233,207,156,.8);font-weight:400;}
+
+/* ── 오늘의 편성표 ── */
+#today{background:linear-gradient(160deg,rgba(201,162,74,.09),rgba(30,22,14,.6));
+  border-color:rgba(201,162,74,.4);}
+.prog{display:flex;align-items:baseline;gap:10px;padding:11px 0;
+  border-bottom:1px solid rgba(201,162,74,.13);}
+.prog:last-child{border-bottom:none;}
+.prog .no{font-family:'Cormorant Garamond',serif;font-size:12px;
+  color:rgba(201,162,74,.65);width:20px;flex:none;}
+.prog .hall{font-size:12.5px;color:var(--gold-l);width:118px;flex:none;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.prog .song{font-size:12.5px;color:rgba(232,221,196,.9);line-height:1.6;}
+.prog .song i{font-style:normal;color:rgba(232,221,196,.45);font-size:11px;}
+.prog.sleep .hall,.prog.sleep .song{opacity:.42;}
+.prog .zzz{font-size:10px;color:rgba(232,221,196,.35);}
+.stamp{font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:.2em;
+  color:rgba(201,162,74,.6);margin-bottom:14px;}
+
+/* ── 탭 ── */
+.tabs{display:flex;gap:8px;margin-top:26px;}
+.tab{flex:1;font:inherit;font-size:12.5px;letter-spacing:.14em;
+  color:rgba(232,221,196,.55);background:none;
+  border:1px solid rgba(201,162,74,.25);border-radius:22px;padding:10px;
+  cursor:pointer;transition:all .25s;}
+.tab.on{background:rgba(201,162,74,.16);border-color:var(--gold-l);color:#f0e8d4;}
+.pane{display:none;}
+.pane.on{display:block;}
+
+/* ── 홀 자산 ── */
 .slot-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
 .slot{border:1px dashed rgba(201,162,74,.35);border-radius:12px;
   padding:12px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;}
@@ -49,13 +85,40 @@ select.pick{font:inherit;font-size:12.5px;color:#f0e8d4;background:var(--ink);
 .chip:hover{border-color:var(--gold-l);color:var(--gold-l);}
 .chip b{color:var(--gold-l);font-weight:400;}
 .chip.done{border-color:rgba(122,168,110,.5);color:rgba(180,214,170,.9);}
-.btn{font:inherit;font-size:11.5px;letter-spacing:.06em;color:#f2f0ea;
-  background:var(--ink);border:none;border-radius:18px;padding:7px 14px;
+
+/* ── 곡 ── */
+.song-row{border-bottom:1px solid rgba(201,162,74,.13);padding:15px 0;}
+.song-row:last-child{border-bottom:none;}
+.song-row.off{opacity:.45;}
+.sr-head{display:flex;align-items:baseline;gap:9px;margin-bottom:9px;}
+.sr-no{font-family:'Cormorant Garamond',serif;font-size:12px;
+  color:rgba(201,162,74,.6);width:22px;flex:none;}
+.sr-name{font-size:13px;color:#f0e8d4;line-height:1.5;}
+.sr-artist{font-size:11px;color:rgba(232,221,196,.5);margin-left:31px;margin-bottom:9px;}
+.sr-fields{display:flex;gap:7px;flex-wrap:wrap;margin-left:31px;align-items:center;}
+.sr-fields input{font:inherit;font-size:11.5px;color:#f0e8d4;
+  background:rgba(0,0,0,.28);border:1px solid rgba(201,162,74,.24);
+  border-radius:8px;padding:7px 10px;}
+.in-vid{width:200px;} .in-st{width:74px;}
+.btn{font:inherit;font-size:11px;letter-spacing:.05em;color:#f2f0ea;
+  background:var(--ink);border:none;border-radius:16px;padding:7px 13px;
   cursor:pointer;white-space:nowrap;}
 .btn:hover{opacity:.85;}
 .btn.ghost{background:none;border:1px solid rgba(201,162,74,.4);color:rgba(233,207,156,.85);}
+.btn.warn{background:none;border:1px solid rgba(201,139,74,.5);color:rgba(233,180,140,.9);}
 .empty{text-align:center;font-size:12.5px;color:rgba(232,221,196,.45);
-  padding:18px 0;line-height:1.9;}
+  padding:20px 0;line-height:1.9;}
+
+/* ── 미리보기 ── */
+#pv{position:fixed;inset:0;z-index:40;display:none;place-items:center;
+  background:rgba(6,4,3,.92);backdrop-filter:blur(6px);padding:5vw;}
+#pv.on{display:grid;}
+.pv-box{width:min(92vw,720px);}
+.pv-t{font-size:13px;color:var(--gold-l);margin-bottom:11px;text-align:center;line-height:1.6;}
+.pv-f{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:10px;overflow:hidden;}
+.pv-f iframe{width:100%;height:100%;border:0;display:block;}
+.pv-x{display:block;margin:16px auto 0;}
+
 #gateMsg{margin-top:60px;text-align:center;font-size:13px;
   color:rgba(232,221,196,.6);line-height:2;}
 #toast{position:fixed;left:50%;bottom:40px;transform:translateX(-50%);z-index:60;
@@ -64,48 +127,82 @@ select.pick{font:inherit;font-size:12.5px;color:#f0e8d4;background:var(--ink);
   transition:opacity .3s;max-width:88vw;text-align:center;}
 #toast.show{opacity:1;}
 input[type=file]{display:none;}
-a.back{font-size:11px;color:rgba(201,162,74,.7);text-decoration:none;letter-spacing:.1em;}
-a.back:hover{color:var(--gold-l);}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="eyebrow">LE GRAND TOUR · 음악관</div>
-  <h1>🎼 콘서트홀 자산</h1>
+  <h1>🎼 콘서트홀</h1>
   <p class="sub">핀을 누르면 팝업이 열리고, 입장하면 정문에 섰다가 어두워진 뒤 홀 안에 도착합니다.<br>
-  그 두 화면을 여기서 겁니다 — 올리면 셸이 즉시 알아봅니다.<br>
   <a class="back" href="terra.html">→ 지구로 가서 확인</a></p>
 
   <div id="gateMsg" style="display:none"></div>
 
   <div id="panel" style="display:none">
-    <div class="card">
-      <h2>홀 고르기</h2>
-      <div class="hint">다섯 홀의 채움 상태입니다. 다섯 칸이 다 차면 초록으로 바뀝니다.</div>
-      <div class="tally" id="tally"></div>
-      <select class="pick" id="hallPick" onchange="renderHall()"></select>
-      <div class="hint" id="hallInfo" style="margin-bottom:0"></div>
+
+    <!-- 오늘의 편성표 -->
+    <div class="card" id="today">
+      <h2>오늘의 편성</h2>
+      <div class="stamp" id="stamp"></div>
+      <div id="progList"><div class="empty">불러오는 중…</div></div>
+      <div class="hint" id="progNote" style="margin:14px 0 0"></div>
     </div>
 
-    <div class="card">
-      <h2>정문 — 밤낮 4벌</h2>
-      <div class="hint"><b>1672 × 941 가로(16:9)</b>, 무텍스트. 정면 대칭·눈높이, 구도 고정하고 조명만 전환.<br>
-        아침(m)·낮(d)·저녁(e)·밤(n). <b>낮판만 있어도 전 시간대 폴백으로 걸립니다.</b><br>
-        상단 하늘을 넉넉히 비워야 홀 이름이 그 위에 앉습니다.</div>
-      <div class="slot-grid" id="gateSlots"></div>
+    <div class="tabs">
+      <button class="tab on" id="tabHall" onclick="showPane('hall')">홀 · 그림</button>
+      <button class="tab" id="tabSong" onclick="showPane('song')">곡 · 영상</button>
     </div>
 
-    <div class="card">
-      <h2>홀 안 — 한 장</h2>
-      <div class="hint"><b>1080 × 1920 세로(9:16)</b>, 무텍스트. 실내는 밖이 보이지 않으므로 밤낮을 나누지 않습니다.<br>
-        <b>스크린은 완전한 백색 무지</b>로, 가로 폭을 거의 채우고 화면 중앙 3분의 1에 정면으로 서야 합니다 —
-        그 위에 오늘의 곡이 얹힙니다. 기울어지면 영상도 따라 눕습니다.</div>
-      <div class="slot-grid" id="hallSlots"></div>
+    <!-- ═══ 홀 탭 ═══ -->
+    <div class="pane on" id="paneHall">
+      <div class="card">
+        <h2>홀 고르기</h2>
+        <div class="hint">다섯 칸이 다 차면 초록으로 바뀝니다.</div>
+        <div class="tally" id="tally"></div>
+        <select class="pick" id="hallPick" onchange="renderHall()"></select>
+        <div class="hint" id="hallInfo" style="margin-bottom:0"></div>
+      </div>
+
+      <div class="card">
+        <h2>정문 — 밤낮 4벌</h2>
+        <div class="hint"><b>1672 × 941 가로(16:9)</b>, 무텍스트. 정면 대칭·눈높이, 구도 고정하고 조명만 전환.<br>
+          아침(m)·낮(d)·저녁(e)·밤(n). <b>낮판만 있어도 전 시간대 폴백으로 걸립니다.</b><br>
+          상단 하늘을 넉넉히 비워야 홀 이름이 그 위에 앉습니다.</div>
+        <div class="slot-grid" id="gateSlots"></div>
+      </div>
+
+      <div class="card">
+        <h2>홀 안 — 한 장</h2>
+        <div class="hint"><b>1080 × 1920 세로(9:16)</b>, 무텍스트. 실내는 밖이 안 보이므로 밤낮을 나누지 않습니다.<br>
+          <b>스크린은 완전한 백색 무지</b>로, 가로 폭을 거의 채우고 정면으로 서야 합니다.
+          비율은 <b>정확히 16:9</b>여야 영상이 눕지 않습니다.</div>
+        <div class="slot-grid" id="hallSlots"></div>
+      </div>
     </div>
+
+    <!-- ═══ 곡 탭 ═══ -->
+    <div class="pane" id="paneSong">
+      <div class="card">
+        <h2>곡 · 영상</h2>
+        <div class="hint">
+          <b>유튜브 주소를 통째로 붙여넣어도 됩니다</b> — 영상 ID만 뽑아냅니다.<br>
+          시작 지점은 <b>4:32</b> 처럼 적어도 되고 초로 적어도 됩니다. 광고를 건너뛰거나 특정 악장부터 틀 때 쓰세요.<br>
+          <b>미리보기로 꼭 한 번 틀어보세요</b> — 광고·길이·실황 여부는 눈으로만 확인됩니다.<br>
+          내린 곡은 지워지지 않고 배열에서만 빠지므로 언제든 되살릴 수 있습니다.
+        </div>
+        <div id="songList"><div class="empty">불러오는 중…</div></div>
+      </div>
+    </div>
+
   </div>
 </div>
 
 <input type="file" id="filePick" accept="image/webp,image/png,image/jpeg">
+<div id="pv"><div class="pv-box">
+  <div class="pv-t" id="pvTitle"></div>
+  <div class="pv-f" id="pvFrame"></div>
+  <button class="btn ghost pv-x" onclick="closePv()">닫기</button>
+</div></div>
 <div id="toast"></div>
 
 <script>
@@ -114,15 +211,35 @@ const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
 const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth'}});
 const BUCKET='tour-assets';
 const PUB=p=>`${SUPA_URL}/storage/v1/object/public/${BUCKET}/${p}`;
-let pickTarget=null, HALLS=[];
+let pickTarget=null, HALLS=[], SONGS=[];
 
 const TODS=[['m','아침'],['d','낮'],['e','저녁'],['n','밤']];
 const gatePath=(code,t)=>`concert/${code}_gate_${t}.webp`;
 const hallPath=code=>`concert/${code}_hall.webp`;
 
 function toast(m){const t=document.getElementById('toast');t.textContent=m;
-  t.classList.add('show');clearTimeout(t._tm);t._tm=setTimeout(()=>t.classList.remove('show'),2600);}
-function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  t.classList.add('show');clearTimeout(t._tm);t._tm=setTimeout(()=>t.classList.remove('show'),2800);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+/* KST 날수 — concert.html과 같은 눈금이어야 한다 */
+function kstDay(){ return Math.floor((Date.now() + 9*3600*1000) / 86400000); }
+
+/* ── 로테이션 (결정문 3호) — 셸과 동일 공식 ── */
+function songOf(hallNo, hallCount){
+  const N=SONGS.filter(s=>s.status==='active').length;
+  if(!N) return null;
+  const act=SONGS.filter(s=>s.status==='active');
+  const H=Math.max(hallCount,1);
+  const offset=Math.floor(hallNo*N/H);
+  return { song: act[((kstDay()+offset)%N+N)%N], idx: ((kstDay()+offset)%N+N)%N, N:N };
+}
+
+function showPane(k){
+  document.getElementById('paneHall').classList.toggle('on', k==='hall');
+  document.getElementById('paneSong').classList.toggle('on', k==='song');
+  document.getElementById('tabHall').classList.toggle('on', k==='hall');
+  document.getElementById('tabSong').classList.toggle('on', k==='song');
+}
 
 async function init(){
   const { data:{ user } } = await supa.auth.getUser();
@@ -133,10 +250,11 @@ async function init(){
   if(!u || !u.is_admin){ gate.style.display='block';
     gate.innerHTML='이 문은 살롱지기의 열쇠로만 열립니다. 🗝️'; return; }
   document.getElementById('panel').style.display='block';
-  loadHalls();
+  await loadSongs();
+  await loadHalls();
 }
 
-/* ── 홀 목록 — terra_pins(kind='concert') ── */
+/* ═══ 홀 ═══ */
 async function loadHalls(){
   const { data, error } = await supa.from('terra_pins')
     .select('code,name,city,active,meta').eq('kind','concert').order('sort');
@@ -144,22 +262,43 @@ async function loadHalls(){
   HALLS=data||[];
   const sel=document.getElementById('hallPick');
   if(!HALLS.length){
-    document.getElementById('tally').innerHTML=
-      '<div class="empty">아직 심어진 콘서트홀 핀이 없습니다.</div>';
+    document.getElementById('tally').innerHTML='<div class="empty">아직 심어진 콘서트홀 핀이 없습니다.</div>';
+    document.getElementById('progList').innerHTML='<div class="empty">홀이 없습니다.</div>';
     return;
   }
-  sel.innerHTML=HALLS.map(h=>
-    `<option value="${esc(h.code)}">${esc(h.name)} · ${esc(h.city)}</option>`).join('');
-  renderHall();
-  refreshTally();
+  sel.innerHTML=HALLS.map(h=>`<option value="${esc(h.code)}">${esc(h.name)} · ${esc(h.city)}</option>`).join('');
+  renderHall(); refreshTally(); renderToday();
 }
 
-/* ── 채움 현황 칩 (홀당 5칸) ── */
+function renderToday(){
+  const box=document.getElementById('progList');
+  const act=SONGS.filter(s=>s.status==='active');
+  if(!HALLS.length || !act.length){ box.innerHTML='<div class="empty">편성할 곡이나 홀이 없습니다.</div>'; return; }
+  const d=new Date(Date.now()+9*3600*1000);
+  document.getElementById('stamp').textContent=
+    `${d.getUTCFullYear()}. ${d.getUTCMonth()+1}. ${d.getUTCDate()}  ·  KST`;
+  box.innerHTML=HALLS.map(h=>{
+    const no=(h.meta && h.meta.hall_no!=null)?h.meta.hall_no:0;
+    const r=songOf(no, HALLS.length);
+    if(!r) return '';
+    return `<div class="prog ${h.active?'':'sleep'}">
+      <div class="no">${no}</div>
+      <div class="hall">${esc(h.name)}${h.active?'':' <span class="zzz">·잠듦</span>'}</div>
+      <div class="song">${esc(r.song.name)}<br><i>${esc(r.song.artist)} — ${r.idx+1}번째 곡</i></div>
+    </div>`;
+  }).join('');
+  const N=act.length, H=HALLS.length;
+  const gap=Math.floor(N/H);
+  document.getElementById('progNote').innerHTML=
+    `곡 <b>${N}</b>장 · 홀 <b>${H}</b>곳 → 홀 사이 간격 <b>${gap}</b>칸 · 한 바퀴 <b>${N}일</b>.<br>`
+    + (N<=H ? '⚠ 곡이 홀보다 적거나 같아 같은 곡이 겹칠 수 있습니다. 곡을 늘려 주세요.'
+            : '내일 자정에 모든 홀이 한 칸씩 미끄러집니다.');
+}
+
 async function refreshTally(){
   const box=document.getElementById('tally');
   box.innerHTML=HALLS.map(h=>
-    `<div class="chip" id="tl-${h.code}" onclick="jumpHall('${h.code}')">${esc(h.name)} <b>…</b></div>`
-  ).join('');
+    `<div class="chip" id="tl-${h.code}" onclick="jumpHall('${h.code}')">${esc(h.name)} <b>…</b></div>`).join('');
   for(const h of HALLS){
     const paths=[...TODS.map(([t])=>gatePath(h.code,t)), hallPath(h.code)];
     const n=(await Promise.all(paths.map(exists))).filter(Boolean).length;
@@ -169,49 +308,38 @@ async function refreshTally(){
   }
 }
 function exists(path){
-  return new Promise(res=>{
-    const im=new Image();
+  return new Promise(res=>{ const im=new Image();
     im.onload=()=>res(true); im.onerror=()=>res(false);
-    im.src=PUB(path)+'?v='+Date.now();
-  });
+    im.src=PUB(path)+'?v='+Date.now(); });
 }
 function jumpHall(code){
+  showPane('hall');
   const sel=document.getElementById('hallPick'); sel.value=code; renderHall();
-  window.scrollTo({top:document.querySelector('.card:nth-of-type(2)').offsetTop-20,behavior:'smooth'});
 }
-
 function currentHall(){
   const code=document.getElementById('hallPick').value;
-  return HALLS.find(h=>h.code===code) || null;
+  return HALLS.find(h=>h.code===code)||null;
 }
 function renderHall(){
   const h=currentHall(); if(!h) return;
   const m=h.meta||{};
   document.getElementById('hallInfo').innerHTML=
-    `코드 <b>${esc(h.code)}</b> · 순번 ${m.hall_no ?? '—'}번 홀 · 개관 ${m.opened ?? '—'}`
+    `코드 <b>${esc(h.code)}</b> · 순번 <b>${m.hall_no ?? '—'}</b>번 홀 · 개관 ${m.opened ?? '—'}`
     + (h.active ? ' · <span style="color:rgba(180,214,170,.9)">지도에 서 있음</span>'
-                : ' · <span style="color:rgba(232,180,150,.8)">아직 잠들어 있음(셸 착공 전)</span>');
+                : ' · <span style="color:rgba(232,180,150,.85)">아직 잠들어 있음</span>');
   buildSlots();
 }
-
 function buildSlots(){
   const h=currentHall(); if(!h) return;
-  /* 정문 4벌 */
   const gbox=document.getElementById('gateSlots');
   gbox.innerHTML=TODS.map(([t,label])=>`
     <div class="slot" data-path="${gatePath(h.code,t)}" id="gt-${t}">
-      <div class="s-name">${label} (${t})</div>
-      <div class="s-sub">1672 × 941</div>
-      <div class="s-state">확인 중…</div>
-    </div>`).join('');
-  /* 홀 안 1장 */
+      <div class="s-name">${label} (${t})</div><div class="s-sub">1672 × 941</div>
+      <div class="s-state">확인 중…</div></div>`).join('');
   const hbox=document.getElementById('hallSlots');
-  hbox.innerHTML=`
-    <div class="slot tall" data-path="${hallPath(h.code)}" id="hl-1">
-      <div class="s-name">홀 안</div>
-      <div class="s-sub">1080 × 1920</div>
-      <div class="s-state">확인 중…</div>
-    </div>`;
+  hbox.innerHTML=`<div class="slot tall" data-path="${hallPath(h.code)}" id="hl-1">
+      <div class="s-name">홀 안</div><div class="s-sub">1080 × 1920</div>
+      <div class="s-state">확인 중…</div></div>`;
   wire(gbox); wire(hbox);
   TODS.forEach(([t,label])=>paint('gt-'+t, gatePath(h.code,t),
     `<div class="s-name">${label} (${t})</div><div class="s-sub">1672 × 941</div>`));
@@ -239,11 +367,7 @@ function paint(id,path,head){
 }
 function afterWrite(){ buildSlots(); refreshTally(); }
 
-/* ── 공용 업로드 — 걸고 나서 실제로 다시 읽어 확인 (잘 됐겠지 금지) ── */
-function pickFile(path, after){
-  pickTarget={path,after};
-  document.getElementById('filePick').click();
-}
+function pickFile(path, after){ pickTarget={path,after}; document.getElementById('filePick').click(); }
 document.getElementById('filePick').addEventListener('change',e=>{
   if(e.target.files[0] && pickTarget) upload(pickTarget.path,e.target.files[0],pickTarget.after);
   e.target.value='';
@@ -265,6 +389,101 @@ async function clearAsset(path,after){
   if(error){ toast('실패: '+error.message); return; }
   toast('내렸습니다'); after&&after();
 }
+
+/* ═══ 곡 ═══ */
+async function loadSongs(){
+  const { data, error } = await supa.from('heritage_items')
+    .select('id,name,artist,period,video_id,start_seconds,status')
+    .eq('category','record').order('id');
+  if(error){ toast('곡 목록을 못 읽었습니다: '+error.message); return; }
+  SONGS=data||[];
+  renderSongs();
+}
+function renderSongs(){
+  const box=document.getElementById('songList');
+  if(!SONGS.length){ box.innerHTML='<div class="empty">입고된 곡이 없습니다.</div>'; return; }
+  let n=0;
+  box.innerHTML=SONGS.map(s=>{
+    const on=(s.status==='active');
+    if(on) n++;
+    return `<div class="song-row ${on?'':'off'}" id="sr-${s.id}">
+      <div class="sr-head">
+        <div class="sr-no">${on?n:'—'}</div>
+        <div class="sr-name">${esc(s.name)}</div>
+      </div>
+      <div class="sr-artist">${esc(s.artist)} · ${esc(s.period)} · <span style="opacity:.6">${esc(s.id)}</span></div>
+      <div class="sr-fields">
+        <input class="in-vid" id="v-${s.id}" value="${esc(s.video_id)}" placeholder="유튜브 주소 또는 ID">
+        <input class="in-st"  id="t-${s.id}" value="${s.start_seconds||0}" placeholder="0:00">
+        <button class="btn" onclick="saveSong('${s.id}')">저장</button>
+        <button class="btn ghost" onclick="preview('${s.id}')">미리보기</button>
+        <button class="btn ${on?'warn':'ghost'}" onclick="toggleSong('${s.id}')">${on?'무대에서 내림':'무대에 올림'}</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+/* 유튜브 주소에서 ID만 — 통째로 붙여넣어도 되게 */
+function ytId(s){
+  s=(s||'').trim(); if(!s) return '';
+  const m=s.match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/live\/|\/shorts\/)([\w-]{11})/);
+  if(m) return m[1];
+  return /^[\w-]{11}$/.test(s) ? s : '';
+}
+/* 4:32 → 272 · 1:02:10 → 3730 · 272 → 272 */
+function toSec(s){
+  s=(s||'').trim(); if(!s) return 0;
+  if(/^\d+$/.test(s)) return parseInt(s,10);
+  if(!/^\d{1,2}(:\d{1,2}){1,2}$/.test(s)) return null;
+  return s.split(':').map(Number).reduce((a,b)=>a*60+b,0);
+}
+async function saveSong(id){
+  const vRaw=document.getElementById('v-'+id).value;
+  const tRaw=document.getElementById('t-'+id).value;
+  const vid=ytId(vRaw);
+  if(!vid){ toast('유튜브 주소나 11자리 ID를 확인해 주세요'); return; }
+  const sec=toSec(tRaw);
+  if(sec===null){ toast('시작 지점은 4:32 또는 272 형식으로 적어 주세요'); return; }
+  const { error } = await supa.from('heritage_items')
+    .update({ video_id:vid, start_seconds:sec }).eq('id',id);
+  if(error){ toast('저장 실패: '+error.message); return; }
+  /* 잘 됐겠지 금지 — 실제로 다시 읽어 확인 */
+  const { data:chk } = await supa.from('heritage_items')
+    .select('video_id,start_seconds').eq('id',id).single();
+  if(chk && chk.video_id===vid && chk.start_seconds===sec){
+    const s=SONGS.find(x=>x.id===id);
+    if(s){ s.video_id=vid; s.start_seconds=sec; }
+    document.getElementById('v-'+id).value=vid;
+    document.getElementById('t-'+id).value=sec;
+    toast('저장했습니다 ✔');
+  } else toast('저장했으나 확인 실패 — 새로고침해 보세요');
+}
+async function toggleSong(id){
+  const s=SONGS.find(x=>x.id===id); if(!s) return;
+  const next=(s.status==='active')?'hidden':'active';
+  if(next==='hidden' && !confirm('무대에서 내리면 오늘 편성이 한 번 바뀝니다.\n(행은 지워지지 않으니 언제든 되살릴 수 있습니다)')) return;
+  const { error } = await supa.from('heritage_items').update({ status:next }).eq('id',id);
+  if(error){ toast('실패: '+error.message); return; }
+  s.status=next;
+  renderSongs(); renderToday();
+  toast(next==='active' ? '무대에 올렸습니다' : '무대에서 내렸습니다');
+}
+function preview(id){
+  const s=SONGS.find(x=>x.id===id); if(!s) return;
+  const vid=ytId(document.getElementById('v-'+id).value) || s.video_id;
+  const sec=toSec(document.getElementById('t-'+id).value) || 0;
+  if(!vid){ toast('영상 ID가 없습니다'); return; }
+  document.getElementById('pvTitle').innerHTML=`${esc(s.name)}<br><span style="opacity:.6;font-size:11.5px">${esc(s.artist)}${sec?' · '+sec+'초부터':''}</span>`;
+  document.getElementById('pvFrame').innerHTML=
+    `<iframe src="https://www.youtube.com/embed/${vid}?autoplay=1&start=${sec}&rel=0&modestbranding=1"
+      allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>`;
+  document.getElementById('pv').classList.add('on');
+}
+function closePv(){
+  document.getElementById('pv').classList.remove('on');
+  document.getElementById('pvFrame').innerHTML='';
+}
+document.getElementById('pv').addEventListener('click',e=>{ if(e.target.id==='pv') closePv(); });
+addEventListener('keydown',e=>{ if(e.key==='Escape') closePv(); });
 
 init();
 </script>
