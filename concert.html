@@ -96,14 +96,34 @@ html,body{height:100%;background:#000;overflow:hidden;
   letter-spacing:.42em;text-indent:.42em;color:rgba(233,207,156,.62);}
 
 /* ═════════ 곡 소개 — 라이너 4겹 ═════════ */
+/* 오늘의 곡 바 — 홀에 들어서면 무엇이 흐르는지 먼저 읽힌다.
+   누르면 라이너가 열린다. 버튼이되 문패이기도 하다. */
 #linerBtn{position:fixed;left:clamp(14px,3vw,30px);
   bottom:clamp(16px,3.6vh,34px);z-index:12;
-  font-family:inherit;font-size:clamp(10px,1.8vmin,13px);letter-spacing:.14em;
-  color:rgba(233,207,156,.86);background:rgba(20,16,11,.55);
-  border:1px solid rgba(201,162,74,.4);border-radius:22px;
-  padding:.62em 1.5em;cursor:pointer;backdrop-filter:blur(6px);
-  transition:border-color .3s,color .3s;}
-#linerBtn:hover{border-color:var(--gold-l);color:#f4ead6;}
+  display:flex;align-items:center;gap:clamp(10px,1.6vw,18px);
+  max-width:min(76vw,620px);text-align:left;
+  font-family:inherit;color:rgba(233,207,156,.86);
+  background:rgba(20,16,11,.62);
+  border:1px solid rgba(201,162,74,.35);border-radius:30px;
+  padding:.62em 1.35em .62em 1.2em;cursor:pointer;backdrop-filter:blur(8px);
+  transition:border-color .3s,background .3s;}
+#linerBtn:hover{border-color:var(--gold-l);background:rgba(28,22,14,.78);}
+#linerBtn .bar-note{font-size:clamp(13px,2vmin,16px);color:rgba(201,162,74,.75);flex:none;}
+#linerBtn .bar-txt{min-width:0;}
+#linerBtn .bar-title{display:block;font-size:clamp(11px,1.75vmin,13.5px);
+  line-height:1.45;color:#f0e6d2;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#linerBtn .bar-sub{display:block;font-size:clamp(9.5px,1.5vmin,11.5px);
+  line-height:1.5;color:rgba(232,221,196,.55);margin-top:1px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#linerBtn .bar-go{flex:none;font-family:'Cormorant Garamond',serif;
+  font-size:clamp(8.5px,1.4vmin,10.5px);letter-spacing:.22em;
+  color:rgba(201,162,74,.7);padding-left:clamp(8px,1.4vw,14px);
+  border-left:1px solid rgba(201,162,74,.22);}
+@media (max-width:620px){
+  #linerBtn{max-width:calc(100vw - 28px);}
+  #linerBtn .bar-go{display:none;}
+}
 /* 우측 서랍 — 연주는 멈추지 않는다. 들으면서 읽는 곳이다.
    뒤 홀은 흐려지되 스크린만은 또렷이 남긴다(무대가 죽으면 읽을 이유도 없다). */
 #liner{position:fixed;top:0;right:0;bottom:0;width:min(92vw,430px);z-index:20;
@@ -226,7 +246,14 @@ html,body{height:100%;background:#000;overflow:hidden;
     </div>
   </div>
   <div id="hallHead"><span class="h-name" id="hName"></span></div>
-  <button id="linerBtn">곡 소개</button>
+  <button id="linerBtn">
+    <span class="bar-note">♪</span>
+    <span class="bar-txt">
+      <span class="bar-title" id="barTitle"></span>
+      <span class="bar-sub" id="barSub"></span>
+    </span>
+    <span class="bar-go">곡 소개</span>
+  </button>
 </div>
 
 <!-- 곡 소개 -->
@@ -274,6 +301,7 @@ const asset=(code,slot)=>`${SUPA_URL}/storage/v1/object/public/${BUCKET}/concert
 const HALL_RATIO=1080/1920;                 /* 홀 그림 가로/세로 (9:16) */
 const $=s=>document.querySelector(s);
 
+console.log("%c[EG] concert v1.2 · 0731 (스크롤+서랍+편집기+곡바)", "color:#c9a24a");
 const qs=new URLSearchParams(location.search);
 const CODE=qs.get('code')||'wien';
 let HALL=null, SONG=null;
@@ -369,6 +397,8 @@ async function boot(){
   $('#hName').textContent = (HALL.meta && HALL.meta.title) ? HALL.meta.title : HALL.name;
   $('#sTitle').textContent  = SONG.name || '';
   $('#sArtist').textContent = [SONG.artist, SONG.period].filter(Boolean).join(' · ');
+  $('#barTitle').textContent = SONG.name || '';
+  $('#barSub').textContent   = [SONG.artist, SONG.period].filter(Boolean).join(' · ');
   /* 스크린 좌표 — 홀마다 그림이 다르므로 meta가 있으면 그것이 먼저다 */
   const r = HALL.meta && HALL.meta.screen_rect;
   if(r) RECT = Object.assign({}, RECT, r);
