@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>르 그랑 투르 자산 — 살롱지기 전용</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Cormorant+Garamond:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+ *  admin_tour_assets v1.0 — 0731 · 살롱지기 전용
+ *  버킷: tour-assets   (정책 4개 · is_salon_keeper)
+ *  정문:  concert/{code}_gate_{m|d|e|n}.webp   1672×941 (16:9)
+ *  실내:  concert/{code}_hall.webp             1080×1920 (9:16) · 한 장
+ *  홀 목록은 terra_pins(kind='concert')에서 읽는다 — 두 곳에 적지 않는다.
+ *  혈통: admin_college_labs v1.0 (0723)
+ * ============================================================ */
+:root{--ink:#2E4A7A;--gold:#c9a24a;--gold-l:#e9cf9c;--bg:#14100b;--paper:#1e160e;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:#e8ddc4;font-family:'Gowun Batang',serif;
+  min-height:100vh;padding:36px 18px 80px;}
+.wrap{max-width:680px;margin:0 auto;}
+h1{font-size:20px;letter-spacing:.06em;color:#f0e8d4;}
+.eyebrow{font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:.3em;
+  color:rgba(201,162,74,.8);margin-bottom:8px;}
+.sub{font-size:12px;color:rgba(232,221,196,.5);margin-top:8px;line-height:1.8;}
+.card{background:var(--paper);border:1px solid rgba(201,162,74,.25);
+  border-radius:14px;padding:22px;margin-top:22px;}
+h2{font-size:13px;letter-spacing:.18em;color:var(--gold-l);margin-bottom:6px;}
+.hint{font-size:11.5px;color:rgba(232,221,196,.45);line-height:1.8;margin-bottom:16px;}
+.slot-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.slot{border:1px dashed rgba(201,162,74,.35);border-radius:12px;
+  padding:12px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;}
+.slot:hover,.slot.drag{border-color:var(--gold-l);background:rgba(201,162,74,.06);}
+.slot img{max-width:100%;max-height:150px;border-radius:6px;display:block;margin:0 auto 10px;}
+.slot.tall{grid-column:1 / -1;}
+.slot.tall img{max-height:340px;}
+.slot .s-name{font-size:12px;color:var(--gold-l);letter-spacing:.1em;}
+.slot .s-sub{font-family:'Cormorant Garamond',serif;font-size:9.5px;letter-spacing:.2em;
+  color:rgba(201,162,74,.6);margin-top:3px;}
+.slot .s-state{font-size:11px;color:rgba(232,221,196,.45);margin-top:6px;}
+select.pick{font:inherit;font-size:12.5px;color:#f0e8d4;background:var(--ink);
+  border:1px solid rgba(201,162,74,.35);border-radius:18px;padding:8px 14px;
+  margin-bottom:16px;cursor:pointer;max-width:100%;}
+.tally{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+.chip{font-size:11px;letter-spacing:.06em;padding:6px 12px;border-radius:16px;
+  border:1px solid rgba(201,162,74,.28);color:rgba(232,221,196,.6);cursor:pointer;
+  transition:border-color .2s,color .2s;}
+.chip:hover{border-color:var(--gold-l);color:var(--gold-l);}
+.chip b{color:var(--gold-l);font-weight:400;}
+.chip.done{border-color:rgba(122,168,110,.5);color:rgba(180,214,170,.9);}
+.btn{font:inherit;font-size:11.5px;letter-spacing:.06em;color:#f2f0ea;
+  background:var(--ink);border:none;border-radius:18px;padding:7px 14px;
+  cursor:pointer;white-space:nowrap;}
+.btn:hover{opacity:.85;}
+.btn.ghost{background:none;border:1px solid rgba(201,162,74,.4);color:rgba(233,207,156,.85);}
+.empty{text-align:center;font-size:12.5px;color:rgba(232,221,196,.45);
+  padding:18px 0;line-height:1.9;}
+#gateMsg{margin-top:60px;text-align:center;font-size:13px;
+  color:rgba(232,221,196,.6);line-height:2;}
+#toast{position:fixed;left:50%;bottom:40px;transform:translateX(-50%);z-index:60;
+  background:rgba(240,232,212,.94);color:#241a10;font-size:12.5px;
+  padding:10px 20px;border-radius:22px;opacity:0;pointer-events:none;
+  transition:opacity .3s;max-width:88vw;text-align:center;}
+#toast.show{opacity:1;}
+input[type=file]{display:none;}
+a.back{font-size:11px;color:rgba(201,162,74,.7);text-decoration:none;letter-spacing:.1em;}
+a.back:hover{color:var(--gold-l);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">LE GRAND TOUR · 음악관</div>
+  <h1>🎼 콘서트홀 자산</h1>
+  <p class="sub">핀을 누르면 팝업이 열리고, 입장하면 정문에 섰다가 어두워진 뒤 홀 안에 도착합니다.<br>
+  그 두 화면을 여기서 겁니다 — 올리면 셸이 즉시 알아봅니다.<br>
+  <a class="back" href="terra.html">→ 지구로 가서 확인</a></p>
+
+  <div id="gateMsg" style="display:none"></div>
+
+  <div id="panel" style="display:none">
+    <div class="card">
+      <h2>홀 고르기</h2>
+      <div class="hint">다섯 홀의 채움 상태입니다. 다섯 칸이 다 차면 초록으로 바뀝니다.</div>
+      <div class="tally" id="tally"></div>
+      <select class="pick" id="hallPick" onchange="renderHall()"></select>
+      <div class="hint" id="hallInfo" style="margin-bottom:0"></div>
+    </div>
+
+    <div class="card">
+      <h2>정문 — 밤낮 4벌</h2>
+      <div class="hint"><b>1672 × 941 가로(16:9)</b>, 무텍스트. 정면 대칭·눈높이, 구도 고정하고 조명만 전환.<br>
+        아침(m)·낮(d)·저녁(e)·밤(n). <b>낮판만 있어도 전 시간대 폴백으로 걸립니다.</b><br>
+        상단 하늘을 넉넉히 비워야 홀 이름이 그 위에 앉습니다.</div>
+      <div class="slot-grid" id="gateSlots"></div>
+    </div>
+
+    <div class="card">
+      <h2>홀 안 — 한 장</h2>
+      <div class="hint"><b>1080 × 1920 세로(9:16)</b>, 무텍스트. 실내는 밖이 보이지 않으므로 밤낮을 나누지 않습니다.<br>
+        <b>스크린은 완전한 백색 무지</b>로, 가로 폭을 거의 채우고 화면 중앙 3분의 1에 정면으로 서야 합니다 —
+        그 위에 오늘의 곡이 얹힙니다. 기울어지면 영상도 따라 눕습니다.</div>
+      <div class="slot-grid" id="hallSlots"></div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="filePick" accept="image/webp,image/png,image/jpeg">
+<div id="toast"></div>
+
+<script>
+const SUPA_URL='https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth'}});
+const BUCKET='tour-assets';
+const PUB=p=>`${SUPA_URL}/storage/v1/object/public/${BUCKET}/${p}`;
+let pickTarget=null, HALLS=[];
+
+const TODS=[['m','아침'],['d','낮'],['e','저녁'],['n','밤']];
+const gatePath=(code,t)=>`concert/${code}_gate_${t}.webp`;
+const hallPath=code=>`concert/${code}_hall.webp`;
+
+function toast(m){const t=document.getElementById('toast');t.textContent=m;
+  t.classList.add('show');clearTimeout(t._tm);t._tm=setTimeout(()=>t.classList.remove('show'),2600);}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+async function init(){
+  const { data:{ user } } = await supa.auth.getUser();
+  const gate=document.getElementById('gateMsg');
+  if(!user){ gate.style.display='block';
+    gate.innerHTML='살롱지기 전용 콘솔입니다.<br>은교살롱에 로그인한 뒤 다시 들러 주세요.'; return; }
+  const { data:u } = await supa.from('users').select('is_admin').eq('id',user.id).single();
+  if(!u || !u.is_admin){ gate.style.display='block';
+    gate.innerHTML='이 문은 살롱지기의 열쇠로만 열립니다. 🗝️'; return; }
+  document.getElementById('panel').style.display='block';
+  loadHalls();
+}
+
+/* ── 홀 목록 — terra_pins(kind='concert') ── */
+async function loadHalls(){
+  const { data, error } = await supa.from('terra_pins')
+    .select('code,name,city,active,meta').eq('kind','concert').order('sort');
+  if(error){ toast('홀 목록을 못 읽었습니다: '+error.message); return; }
+  HALLS=data||[];
+  const sel=document.getElementById('hallPick');
+  if(!HALLS.length){
+    document.getElementById('tally').innerHTML=
+      '<div class="empty">아직 심어진 콘서트홀 핀이 없습니다.</div>';
+    return;
+  }
+  sel.innerHTML=HALLS.map(h=>
+    `<option value="${esc(h.code)}">${esc(h.name)} · ${esc(h.city)}</option>`).join('');
+  renderHall();
+  refreshTally();
+}
+
+/* ── 채움 현황 칩 (홀당 5칸) ── */
+async function refreshTally(){
+  const box=document.getElementById('tally');
+  box.innerHTML=HALLS.map(h=>
+    `<div class="chip" id="tl-${h.code}" onclick="jumpHall('${h.code}')">${esc(h.name)} <b>…</b></div>`
+  ).join('');
+  for(const h of HALLS){
+    const paths=[...TODS.map(([t])=>gatePath(h.code,t)), hallPath(h.code)];
+    const n=(await Promise.all(paths.map(exists))).filter(Boolean).length;
+    const el=document.getElementById('tl-'+h.code); if(!el) continue;
+    el.innerHTML=`${esc(h.name)} <b>${n}/5</b>`;
+    el.classList.toggle('done', n===5);
+  }
+}
+function exists(path){
+  return new Promise(res=>{
+    const im=new Image();
+    im.onload=()=>res(true); im.onerror=()=>res(false);
+    im.src=PUB(path)+'?v='+Date.now();
+  });
+}
+function jumpHall(code){
+  const sel=document.getElementById('hallPick'); sel.value=code; renderHall();
+  window.scrollTo({top:document.querySelector('.card:nth-of-type(2)').offsetTop-20,behavior:'smooth'});
+}
+
+function currentHall(){
+  const code=document.getElementById('hallPick').value;
+  return HALLS.find(h=>h.code===code) || null;
+}
+function renderHall(){
+  const h=currentHall(); if(!h) return;
+  const m=h.meta||{};
+  document.getElementById('hallInfo').innerHTML=
+    `코드 <b>${esc(h.code)}</b> · 순번 ${m.hall_no ?? '—'}번 홀 · 개관 ${m.opened ?? '—'}`
+    + (h.active ? ' · <span style="color:rgba(180,214,170,.9)">지도에 서 있음</span>'
+                : ' · <span style="color:rgba(232,180,150,.8)">아직 잠들어 있음(셸 착공 전)</span>');
+  buildSlots();
+}
+
+function buildSlots(){
+  const h=currentHall(); if(!h) return;
+  /* 정문 4벌 */
+  const gbox=document.getElementById('gateSlots');
+  gbox.innerHTML=TODS.map(([t,label])=>`
+    <div class="slot" data-path="${gatePath(h.code,t)}" id="gt-${t}">
+      <div class="s-name">${label} (${t})</div>
+      <div class="s-sub">1672 × 941</div>
+      <div class="s-state">확인 중…</div>
+    </div>`).join('');
+  /* 홀 안 1장 */
+  const hbox=document.getElementById('hallSlots');
+  hbox.innerHTML=`
+    <div class="slot tall" data-path="${hallPath(h.code)}" id="hl-1">
+      <div class="s-name">홀 안</div>
+      <div class="s-sub">1080 × 1920</div>
+      <div class="s-state">확인 중…</div>
+    </div>`;
+  wire(gbox); wire(hbox);
+  TODS.forEach(([t,label])=>paint('gt-'+t, gatePath(h.code,t),
+    `<div class="s-name">${label} (${t})</div><div class="s-sub">1672 × 941</div>`));
+  paint('hl-1', hallPath(h.code),
+    `<div class="s-name">홀 안</div><div class="s-sub">1080 × 1920</div>`);
+}
+function wire(box){
+  box.querySelectorAll('.slot').forEach(el=>{
+    el.addEventListener('click',()=>pickFile(el.dataset.path,afterWrite));
+    el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('drag');});
+    el.addEventListener('dragleave',()=>el.classList.remove('drag'));
+    el.addEventListener('drop',e=>{e.preventDefault();el.classList.remove('drag');
+      if(e.dataTransfer.files[0]) upload(el.dataset.path,e.dataTransfer.files[0],afterWrite);});
+  });
+}
+function paint(id,path,head){
+  const el=document.getElementById(id); if(!el) return;
+  const im=new Image();
+  im.onload=()=>{ el.innerHTML=`<img src="${im.src}" alt="">${head}
+    <div class="s-state">걸려 있음 · 클릭해 교체</div>
+    <button class="btn ghost" style="margin-top:8px"
+      onclick="event.stopPropagation();clearAsset('${path}',afterWrite)">내리기</button>`; };
+  im.onerror=()=>{ el.innerHTML=`${head}<div class="s-state">비어 있음 · 클릭해 걸기</div>`; };
+  im.src=PUB(path)+'?v='+Date.now();
+}
+function afterWrite(){ buildSlots(); refreshTally(); }
+
+/* ── 공용 업로드 — 걸고 나서 실제로 다시 읽어 확인 (잘 됐겠지 금지) ── */
+function pickFile(path, after){
+  pickTarget={path,after};
+  document.getElementById('filePick').click();
+}
+document.getElementById('filePick').addEventListener('change',e=>{
+  if(e.target.files[0] && pickTarget) upload(pickTarget.path,e.target.files[0],pickTarget.after);
+  e.target.value='';
+});
+async function upload(path,file,after){
+  if(file.size>8*1024*1024){ toast('8MB 이하로 부탁드립니다'); return; }
+  toast('올리는 중…');
+  const { error } = await supa.storage.from(BUCKET)
+    .upload(path,file,{ upsert:true, contentType:file.type||'image/webp', cacheControl:'300' });
+  if(error){ toast('실패: '+error.message); return; }
+  const chk=new Image();
+  chk.onload=()=>{ toast('걸렸습니다 ✔'); after&&after(); };
+  chk.onerror=()=>{ toast('올렸으나 확인 실패 — 새로고침해 보세요'); };
+  chk.src=PUB(path)+'?v='+Date.now();
+}
+async function clearAsset(path,after){
+  if(!confirm('이 자산을 내릴까요?')) return;
+  const { error } = await supa.storage.from(BUCKET).remove([path]);
+  if(error){ toast('실패: '+error.message); return; }
+  toast('내렸습니다'); after&&after();
+}
+
+init();
+</script>
+</body>
+</html>
