@@ -58,9 +58,12 @@ html,body{height:100%;background:#000;overflow:hidden;
 @keyframes breathe{0%,100%{opacity:.55}50%{opacity:1}}
 
 /* ═════════ 2. 공연장 ═════════ */
-#hall{background:#000;}
-#hallFit{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);}
-#hallImg{display:block;width:100%;height:100%;object-fit:cover;}
+/* 세로 화면은 꽉 채우고, 가로 화면은 폭을 맞춰 위아래로 흐르게 둔다.
+   홀은 높은 방이다. 한 화면에 다 담기면 깊이가 죽는다. (palais layoutStage 계보) */
+#hall{background:#000;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+#hall::-webkit-scrollbar{display:none;}
+#hallFit{position:relative;margin:0 auto;}
+#hallImg{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;display:block;}
 
 /* 스크린 — 실측값(0731): 그림 안 백색 무지 판 */
 #screen{position:absolute;left:18.70%;top:41.51%;width:63.02%;height:20.16%;
@@ -93,19 +96,34 @@ html,body{height:100%;background:#000;overflow:hidden;
   letter-spacing:.42em;text-indent:.42em;color:rgba(233,207,156,.62);}
 
 /* ═════════ 곡 소개 — 라이너 4겹 ═════════ */
-#linerBtn{position:absolute;left:50%;transform:translateX(-50%);
-  bottom:clamp(18px,4.2vh,44px);z-index:6;
+#linerBtn{position:fixed;left:clamp(14px,3vw,30px);
+  bottom:clamp(16px,3.6vh,34px);z-index:12;
   font-family:inherit;font-size:clamp(10px,1.8vmin,13px);letter-spacing:.14em;
   color:rgba(233,207,156,.86);background:rgba(20,16,11,.55);
   border:1px solid rgba(201,162,74,.4);border-radius:22px;
   padding:.62em 1.5em;cursor:pointer;backdrop-filter:blur(6px);
   transition:border-color .3s,color .3s;}
 #linerBtn:hover{border-color:var(--gold-l);color:#f4ead6;}
-#liner{position:fixed;inset:0;z-index:20;display:none;
-  background:rgba(9,7,5,.93);backdrop-filter:blur(9px);
-  overflow-y:auto;-webkit-overflow-scrolling:touch;padding:clamp(28px,7vh,72px) 0;}
+/* 우측 서랍 — 연주는 멈추지 않는다. 들으면서 읽는 곳이다.
+   뒤 홀은 흐려지되 스크린만은 또렷이 남긴다(무대가 죽으면 읽을 이유도 없다). */
+#liner{position:fixed;top:0;right:0;bottom:0;width:min(92vw,430px);z-index:20;
+  display:none;background:rgba(9,7,5,.94);backdrop-filter:blur(14px);
+  border-left:1px solid rgba(201,162,74,.22);
+  box-shadow:-18px 0 60px rgba(0,0,0,.6);
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:clamp(24px,5vh,52px) clamp(20px,4vw,32px) clamp(40px,8vh,80px);
+  transform:translateX(102%);transition:transform .55s cubic-bezier(.22,.9,.3,1);}
 #liner.on{display:block;}
-.liner-in{width:min(90vw,640px);margin:0 auto;}
+#liner.slide{transform:translateX(0);}
+#linerClose2{position:absolute;top:14px;right:16px;width:32px;height:32px;
+  font:inherit;font-size:17px;line-height:1;color:rgba(243,236,224,.55);
+  background:none;border:none;cursor:pointer;}
+#linerClose2:hover{color:#f4ead6;}
+.liner-in{width:100%;margin:0;}
+/* 홀 배경만 아웃포커싱 — 스크린(#screen)은 blur에서 뺀다 */
+#hall.reading #hallImg{filter:blur(7px) brightness(.5);transition:filter .55s ease;}
+#hall.reading #hallHead{opacity:.25;transition:opacity .55s ease;}
+#hallImg{transition:filter .55s ease;}
 .l-eyebrow{font-family:'Cormorant Garamond',serif;font-size:11px;
   letter-spacing:.34em;color:rgba(201,162,74,.8);text-align:center;}
 .l-title{font-weight:300;font-size:clamp(17px,3.2vmin,25px);line-height:1.45;
@@ -126,6 +144,42 @@ html,body{height:100%;background:#000;overflow:hidden;
   background:none;border:1px solid rgba(201,162,74,.32);border-radius:20px;
   padding:.6em 1.7em;cursor:pointer;}
 #linerClose:hover{color:#f4ead6;border-color:var(--gold-l);}
+
+/* ═════════ 스크린 좌표 편집기 — 살롱지기만 ═════════
+   그림마다 흰 판의 자리가 미세하게 다르다. 눈으로 밀어 맞추고 저장한다. */
+#screen.editing{outline:2px dashed rgba(233,207,156,.9);outline-offset:-1px;}
+#edit{position:fixed;left:clamp(12px,3vw,26px);top:clamp(12px,3vh,26px);z-index:25;
+  display:none;background:rgba(16,12,8,.92);backdrop-filter:blur(8px);
+  border:1px solid rgba(201,162,74,.35);border-radius:12px;
+  padding:14px 16px;font-size:11.5px;color:rgba(232,221,196,.85);
+  min-width:210px;}
+#edit.on{display:block;}
+#edit h5{font-family:'Cormorant Garamond',serif;font-size:10px;letter-spacing:.28em;
+  color:rgba(201,162,74,.85);margin-bottom:10px;}
+.ed-row{display:flex;align-items:center;gap:7px;margin-bottom:7px;}
+.ed-row label{width:14px;color:rgba(201,162,74,.75);font-family:'Cormorant Garamond',serif;}
+.ed-row input{flex:1;font:inherit;font-size:11.5px;width:60px;
+  color:#f0e8d4;background:rgba(0,0,0,.32);
+  border:1px solid rgba(201,162,74,.25);border-radius:6px;padding:5px 8px;}
+.ed-row .nudge{display:flex;gap:3px;}
+.ed-row .nudge button{font:inherit;font-size:11px;width:22px;height:24px;
+  color:rgba(233,207,156,.85);background:none;
+  border:1px solid rgba(201,162,74,.22);border-radius:5px;cursor:pointer;}
+.ed-row .nudge button:hover{border-color:rgba(233,207,156,.7);}
+#edit .acts{display:flex;gap:7px;margin-top:11px;}
+#edit .acts button{flex:1;font:inherit;font-size:11px;letter-spacing:.05em;
+  padding:7px 0;border-radius:14px;cursor:pointer;
+  color:#241a10;background:var(--gold);border:none;}
+#edit .acts button.ghost{background:none;color:rgba(233,207,156,.85);
+  border:1px solid rgba(201,162,74,.35);}
+#edit .tip{margin-top:9px;font-size:10px;line-height:1.7;color:rgba(232,221,196,.4);}
+#editOpen{position:fixed;right:clamp(12px,3vw,26px);bottom:clamp(16px,3.6vh,34px);
+  z-index:12;display:none;font:inherit;font-size:11px;letter-spacing:.1em;
+  color:rgba(233,207,156,.7);background:rgba(20,16,11,.5);
+  border:1px solid rgba(201,162,74,.3);border-radius:20px;
+  padding:.55em 1.1em;cursor:pointer;backdrop-filter:blur(6px);}
+#editOpen.on{display:block;}
+#editOpen:hover{color:#f4ead6;border-color:var(--gold-l);}
 
 /* ═════════ 암전막 · 로더 ═════════ */
 #fade{position:fixed;inset:0;background:#000;z-index:15;
@@ -177,6 +231,7 @@ html,body{height:100%;background:#000;overflow:hidden;
 
 <!-- 곡 소개 -->
 <div id="liner">
+  <button id="linerClose2" aria-label="닫기">×</button>
   <div class="liner-in">
     <div class="l-eyebrow">LINER NOTE</div>
     <div class="l-title" id="lTitle"></div>
@@ -185,6 +240,25 @@ html,body{height:100%;background:#000;overflow:hidden;
     <div id="lBody"></div>
     <button id="linerClose">닫기</button>
   </div>
+</div>
+
+<!-- 스크린 좌표 편집기 (살롱지기 전용) -->
+<button id="editOpen">⚙ 스크린 맞추기</button>
+<div id="edit">
+  <h5>SCREEN RECT</h5>
+  <div class="ed-row"><label>L</label><input id="edL" type="number" step="0.05">
+    <span class="nudge"><button onclick="nudge('L',-0.2)">−</button><button onclick="nudge('L',0.2)">+</button></span></div>
+  <div class="ed-row"><label>T</label><input id="edT" type="number" step="0.05">
+    <span class="nudge"><button onclick="nudge('T',-0.2)">−</button><button onclick="nudge('T',0.2)">+</button></span></div>
+  <div class="ed-row"><label>W</label><input id="edW" type="number" step="0.05">
+    <span class="nudge"><button onclick="nudge('W',-0.2)">−</button><button onclick="nudge('W',0.2)">+</button></span></div>
+  <div class="ed-row"><label>H</label><input id="edH" type="number" step="0.05">
+    <span class="nudge"><button onclick="nudge('H',-0.2)">−</button><button onclick="nudge('H',0.2)">+</button></span></div>
+  <div class="acts">
+    <button onclick="saveRect()">저장</button>
+    <button class="ghost" onclick="closeEdit()">닫기</button>
+  </div>
+  <div class="tip">방향키로도 밀 수 있습니다 (Shift = 크기).<br>흰 테두리가 안 보일 때까지 조이세요.</div>
 </div>
 
 <div id="fade"></div>
@@ -203,6 +277,13 @@ const $=s=>document.querySelector(s);
 const qs=new URLSearchParams(location.search);
 const CODE=qs.get('code')||'wien';
 let HALL=null, SONG=null;
+/* 스크린 자리 — 빈 실측 기본값(0731). meta.screen_rect가 있으면 그쪽이 이긴다 */
+let RECT={L:18.70,T:41.51,W:63.02,H:20.16};
+function applyRect(){
+  const e=$('#screen');
+  e.style.left=RECT.L+'%'; e.style.top=RECT.T+'%';
+  e.style.width=RECT.W+'%'; e.style.height=RECT.H+'%';
+}
 
 /* 시각 구간 — eg_sky 한 벌에서만 읽는다 (v128 함정 F) */
 function phase(){
@@ -225,15 +306,27 @@ function bgChain(el, cands, asImg){
   step(0);
 }
 
-/* 홀 그림을 화면에 꽉 채우되 비율 유지 — 스크린이 안 눕도록 */
+/* 세로 화면은 채우고, 가로 화면은 폭을 맞춰 위아래로 흐르게 (palais layoutStage) */
 function fitHall(){
-  const box=$('#hallFit'), vw=innerWidth, vh=innerHeight;
-  let w,h;
-  if(vw/vh > HALL_RATIO){ w=vw; h=vw/HALL_RATIO; }   /* 가로가 넓으면 세로를 넘김 */
-  else { h=vh; w=vh*HALL_RATIO; }
-  box.style.width=w+'px'; box.style.height=h+'px';
+  const vw=innerWidth, vh=innerHeight, fit=$('#hallFit');
+  if(vw/vh < HALL_RATIO){                       /* 세로 화면 → cover */
+    let h=vh, w=h*HALL_RATIO;
+    if(w<vw){ w=vw; h=w/HALL_RATIO; }
+    fit.style.width=w+'px'; fit.style.height=h+'px';
+    fit.style.marginLeft=((vw-w)/2)+'px'; fit.style.marginTop=((vh-h)/2)+'px';
+  }else{                                        /* 가로 화면 → 폭 맞춤 + 세로 스크롤 */
+    const w=vw, h=w/HALL_RATIO;
+    fit.style.width=w+'px'; fit.style.height=h+'px';
+    fit.style.marginLeft='0'; fit.style.marginTop='0';
+  }
 }
-addEventListener('resize', fitHall);
+/* 스크린 중심을 화면 한가운데로 — 들어서면 무대가 정면에 온다 */
+function centerScreen(){
+  const h=$('#hallFit').getBoundingClientRect().height;
+  const mid=(RECT.T + RECT.H/2)/100*h;
+  $('#hall').scrollTop=Math.max(0, mid - innerHeight*0.5);
+}
+addEventListener('resize', ()=>{ fitHall(); centerScreen(); });
 
 function fail(msg){
   $('#boot').classList.add('gone');
@@ -276,15 +369,15 @@ async function boot(){
   $('#hName').textContent = (HALL.meta && HALL.meta.title) ? HALL.meta.title : HALL.name;
   $('#sTitle').textContent  = SONG.name || '';
   $('#sArtist').textContent = [SONG.artist, SONG.period].filter(Boolean).join(' · ');
-  /* 스크린 좌표를 meta로 덮어쓸 수 있게 — 홀마다 그림이 다르므로 */
+  /* 스크린 좌표 — 홀마다 그림이 다르므로 meta가 있으면 그것이 먼저다 */
   const r = HALL.meta && HALL.meta.screen_rect;
-  if(r){ const s=$('#screen');
-    if(r.L!=null) s.style.left=r.L+'%'; if(r.T!=null) s.style.top=r.T+'%';
-    if(r.W!=null) s.style.width=r.W+'%'; if(r.H!=null) s.style.height=r.H+'%'; }
+  if(r) RECT = Object.assign({}, RECT, r);
+  applyRect();
 
-  fitHall();
+  fitHall(); centerScreen();
   $('#boot').classList.add('gone');
   $('#gate').classList.add('on');
+  setupEditor();
 }
 
 /* ── 정문 → 암전 → 공연장 ──
@@ -296,7 +389,7 @@ function enterHall(){
   setTimeout(()=>{
     $('#gate').classList.remove('on');
     $('#hall').classList.add('on');
-    fitHall();
+    fitHall(); centerScreen();
     setTimeout(()=>$('#fade').classList.remove('on'), 60);   /* 다시 밝아지며 홀 도착 */
   }, 1050);
 }
@@ -346,12 +439,91 @@ function openLiner(){
     box.appendChild(sec);
   });
   if(!box.children.length) box.innerHTML='<div class="l-sec"><p>이 곡의 소개는 곧 도착합니다.</p></div>';
-  $('#liner').classList.add('on');
+  const d=$('#liner');
+  d.classList.add('on');
+  requestAnimationFrame(()=>d.classList.add('slide'));   /* 오른쪽에서 밀려 들어옴 */
+  $('#hall').classList.add('reading');                   /* 홀만 흐려진다 — 연주는 그대로 */
+  d.scrollTop=0;
 }
-$('#linerBtn').addEventListener('click', openLiner);
-$('#linerClose').addEventListener('click', ()=>$('#liner').classList.remove('on'));
-$('#liner').addEventListener('click', e=>{ if(e.target.id==='liner') $('#liner').classList.remove('on'); });
-addEventListener('keydown', e=>{ if(e.key==='Escape') $('#liner').classList.remove('on'); });
+function closeLiner(){
+  const d=$('#liner');
+  d.classList.remove('slide');
+  $('#hall').classList.remove('reading');
+  setTimeout(()=>d.classList.remove('on'), 560);
+}
+$('#linerBtn').addEventListener('click', ()=>{
+  $('#liner').classList.contains('slide') ? closeLiner() : openLiner(); });
+$('#linerClose').addEventListener('click', closeLiner);
+$('#linerClose2').addEventListener('click', closeLiner);
+addEventListener('keydown', e=>{ if(e.key==='Escape') closeLiner(); });
+
+/* ══════════ 스크린 좌표 편집기 — 살롱지기 전용 (0731) ══════════
+   그림마다 흰 판의 자리가 미세하게 다르다. 눈으로 맞춘 값을 meta.screen_rect에 적어두면
+   다음부터 셸이 그것을 먼저 읽는다. 코드를 고치러 오지 않아도 된다. */
+let EDITABLE=false;
+async function setupEditor(){
+  try{
+    const { data:{ user } } = await supa.auth.getUser();
+    if(!user) return;
+    const { data:u } = await supa.from('users').select('is_admin').eq('id',user.id).single();
+    if(!u || !u.is_admin) return;
+    EDITABLE=true;
+    $('#editOpen').classList.add('on');
+  }catch(e){}
+}
+function openEdit(){
+  if(!EDITABLE) return;
+  ['L','T','W','H'].forEach(k=> $('#ed'+k).value = RECT[k]);
+  $('#edit').classList.add('on');
+  $('#screen').classList.add('editing');
+  $('#editOpen').classList.remove('on');
+}
+function closeEdit(){
+  $('#edit').classList.remove('on');
+  $('#screen').classList.remove('editing');
+  if(EDITABLE) $('#editOpen').classList.add('on');
+}
+function nudge(k, d){
+  RECT[k] = Math.round((RECT[k] + d) * 100) / 100;
+  $('#ed'+k).value = RECT[k];
+  applyRect();
+}
+['L','T','W','H'].forEach(k=>{
+  const el=document.getElementById('ed'+k);
+  if(el) el.addEventListener('input', ()=>{
+    const v=parseFloat(el.value);
+    if(!isNaN(v)){ RECT[k]=v; applyRect(); }
+  });
+});
+/* 방향키 — Shift면 크기, 아니면 위치 */
+addEventListener('keydown', e=>{
+  if(!$('#edit').classList.contains('on')) return;
+  const step = e.altKey ? 0.05 : 0.2;
+  const map = e.shiftKey
+    ? { ArrowLeft:['W',-step], ArrowRight:['W',step], ArrowUp:['H',-step], ArrowDown:['H',step] }
+    : { ArrowLeft:['L',-step], ArrowRight:['L',step], ArrowUp:['T',-step], ArrowDown:['T',step] };
+  const m = map[e.key];
+  if(!m) return;
+  e.preventDefault();
+  nudge(m[0], m[1]);
+});
+async function saveRect(){
+  if(!EDITABLE || !HALL) return;
+  const meta = Object.assign({}, HALL.meta || {}, { screen_rect:{
+    L:+RECT.L, T:+RECT.T, W:+RECT.W, H:+RECT.H } });
+  const { error } = await supa.from('terra_pins').update({ meta }).eq('code', HALL.code).eq('kind','concert');
+  if(error){ alert('저장 실패: ' + error.message); return; }
+  /* 잘 됐겠지 금지 — 실제로 다시 읽어 확인 */
+  const { data:chk } = await supa.from('terra_pins')
+    .select('meta').eq('code', HALL.code).eq('kind','concert').single();
+  const r = chk && chk.meta && chk.meta.screen_rect;
+  if(r && Math.abs(r.L-RECT.L)<0.001 && Math.abs(r.T-RECT.T)<0.001){
+    HALL.meta = meta;
+    alert('저장했습니다 ✔\nL ' + RECT.L + ' · T ' + RECT.T + ' · W ' + RECT.W + ' · H ' + RECT.H);
+    closeEdit();
+  } else alert('저장했으나 확인이 안 됩니다. 새로고침해 보세요.');
+}
+$('#editOpen').addEventListener('click', openEdit);
 
 boot().catch(e=>{ console.warn('concert boot 실패:', e);
   fail('음악관 문이 잠시 열리지 않습니다.<br>잠시 뒤 다시 들러 주세요.'); });
