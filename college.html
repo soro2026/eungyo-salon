@@ -681,6 +681,28 @@ body.is-admin .hall-sticker{display:block;}
 .bd-row.cur{color:#7d1d14;}
 .bd-row.cur .n::before{content:'●';margin-right:.4em;font-size:.8em;}
 .bd-row.past{opacity:.55;}
+/* ── SALLE 03 · 이번 회차 — 벽의 명판 (네이비+금테, 상태 명패 혈통 확대판) ── */
+.rv-week{text-align:center;color:#f0e4c8;
+  background:linear-gradient(180deg,rgba(24,34,52,.88),rgba(18,26,40,.88));
+  border:1px solid rgba(201,162,74,.6);border-radius:12px;
+  box-shadow:0 10px 30px rgba(0,0,0,.45), inset 0 0 0 4px rgba(201,162,74,.12);
+  padding:5% 6%;
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);}
+.rv-week .wk-eyebrow{font-family:'Cormorant Garamond',serif;
+  font-size:clamp(10px,1.2vw,15px);letter-spacing:.3em;text-indent:.3em;
+  color:rgba(233,207,156,.9);}
+.rv-week .wk-no{font-weight:800;margin-top:.5em;
+  font-family:'Pretendard','Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+  font-size:clamp(26px,4.6vw,64px);line-height:1;}
+.rv-week .wk-no .wk-total{font-size:.42em;font-weight:600;opacity:.6;}
+.rv-week .wk-title{font-weight:800;margin-top:.55em;word-break:keep-all;
+  font-family:'Pretendard','Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+  font-size:clamp(15px,2.3vw,31px);line-height:1.4;}
+.rv-week .wk-range{font-size:clamp(11px,1.5vw,19px);font-weight:600;
+  margin-top:.6em;opacity:.8;}
+.rv-week .wk-due{font-size:clamp(12px,1.7vw,22px);margin-top:.9em;
+  color:rgba(233,207,156,.95);}
+.rv-week .wk-due b{font-weight:800;}
 #rvBack{position:fixed;top:16px;left:16px;z-index:28;cursor:pointer;font-family:inherit;
   font-size:12px;letter-spacing:.1em;color:rgba(233,207,156,.85);
   background:rgba(20,14,9,.55);border:1px solid rgba(201,162,74,.4);
@@ -2484,15 +2506,17 @@ function esc(s){
 /* ══ SALLE — LAB 방 안 (책=방 · SALLE 01~07) · 0801 방 안 걷기 + SALLE 02 진도표 ══
  *  그림: labs/room_{lab}_v{n}_d.webp — n = SALLE 번호 (941×1672)
  *  좌표: Storage layout/lab_{lab}.json 한 파일에 전 SALLE 키 (살롱지기 🧭 편집) */
-console.info('[EG] college v0.8 · 0801 SALLE02 진도표 + 방 안 걷기(화살표·←→·스와이프)');
+console.info('[EG] college v0.9 · 0801 SALLE03 이번 회차');
 const ROOM_DEF={
   poster:{x:26.99,y:33.43,w:41.76},          /* SALLE 01 */
   status:{x:30,y:69.5,w:40},                 /* SALLE 01 */
-  board :{x:16.26,y:27.69,w:64.29}           /* SALLE 02 — 펠트판 안전역 실측 0801 */
+  board :{x:16.26,y:27.69,w:64.29},          /* SALLE 02 — 펠트판 안전역 실측 0801 */
+  week  :{x:22,y:33,w:40}                    /* SALLE 03 — 빈 벽 실측 0801 */
 };
 const SALLES=[
-  { no:1, name:'현관',   render:()=>renderSalle1(), focus:'poster' },
-  { no:2, name:'진도표', render:()=>renderSalle2(), focus:'board'  }
+  { no:1, name:'현관',      render:()=>renderSalle1(), focus:'poster', fr:4/3 },
+  { no:2, name:'진도표',    render:()=>renderSalle2(), focus:'board',  fr:597/605 },
+  { no:3, name:'이번 회차', render:()=>renderSalle3(), focus:'week',   fr:.72 }
 ];
 let ROOM=JSON.parse(JSON.stringify(ROOM_DEF));
 let roomLab=null, roomEditWired=false, roomHover=null, salleIdx=0, salleWalking=false;
@@ -2589,6 +2613,41 @@ function renderSalle2(){
   </div>`;
 }
 
+/* SALLE 03 · 이번 회차 — 오늘 하나만 남기고 다 지운다 */
+function renderSalle3(){
+  const b=roomLab.book, c=repCohort(roomLab);
+  const plan=sessionPlanOf(c,b)||[];
+  const today=TODAY();
+  const dueIso=n=>{ const d=new Date(c.start_date+'T00:00:00');
+    d.setDate(d.getDate()+7*n-1); return d.toISOString().slice(0,10); };
+  const dayGap=(a,z)=>Math.round((new Date(z+'T00:00:00')-new Date(a+'T00:00:00'))/864e5);
+  let body='';
+  if(!c || !c.start_date || !plan.length){
+    body=`<div class="wk-eyebrow">이번 회차</div>
+      <div class="wk-title">진도표가 준비되고 있습니다</div>`;
+  }else if(phaseOf(c)!=='running'){
+    const d=dayGap(today,c.start_date);
+    body=`<div class="wk-eyebrow">이번 회차</div>
+      <div class="wk-title">첫 회차는 ${dstr(c.start_date)}에 열립니다</div>
+      ${d>0?`<div class="wk-due"><b>D-${d}</b></div>`:''}`;
+  }else{
+    const cur=plan.find(sn=>dueIso(sn.n)>=today);
+    if(!cur){
+      body=`<div class="wk-eyebrow">이번 회차</div>
+        <div class="wk-title">${plan.length}회차가 모두 지났습니다</div>
+        <div class="wk-range">완주 에세이의 시간입니다</div>`;
+    }else{
+      const iso=dueIso(cur.n), left=dayGap(today,iso);
+      body=`<div class="wk-eyebrow">이번 회차</div>
+        <div class="wk-no">${String(cur.n).padStart(2,'0')} <span class="wk-total">/ ${plan.length}</span></div>
+        <div class="wk-title">${esc(cur.t||'')}</div>
+        ${cur.r?`<div class="wk-range">${esc(cur.r)}</div>`:''}
+        <div class="wk-due">~${dstr(iso)} · <b>${left<=0?'오늘 마감':left+'일 남음'}</b></div>`;
+    }
+  }
+  return `<div class="rv-tgt rv-week" data-rk="week">${body}</div>`;
+}
+
 /* 입장 예법 — 창을 올려다보고, 스르륵 내려와 그 SALLE의 주인공 앞에 선다 */
 function roomArrive(first){
   const sc=document.getElementById('rvScroll');
@@ -2596,7 +2655,7 @@ function roomArrive(first){
   const s=SALLES[salleIdx];
   const v=ROOM[s.focus]||ROOM_DEF[s.focus];
   const H=cv.clientHeight, W=cv.clientWidth;
-  const fh=(W*v.w/100) * (s.focus==='poster' ? 4/3 : 597/605);
+  const fh=(W*v.w/100) * (s.fr||1);
   const centerY=H*v.y/100 + fh/2;
   const target=Math.max(0, Math.min(centerY - sc.clientHeight/2, H - sc.clientHeight));
   if(first){ sc.scrollTop=0; setTimeout(()=>{ smoothScroll(sc, target, 1350); }, 620); }
