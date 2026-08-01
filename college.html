@@ -627,6 +627,55 @@ body.is-admin .hall-sticker{display:block;}
   background:rgba(46,74,122,.16);border:1px solid rgba(46,74,122,.42);
   border-radius:12px;color:rgba(236,227,207,.8);}
 
+/* ══ SALLE — LAB 방 안 (책=방 · SALLE 01~07) · 0801 착공: SALLE 01 현관 ══
+ *  캔버스 문법(1층 혈통): 그림이 곧 방, 벽에 걸린 것은 %좌표로 벽과 한 몸 */
+#roomview{position:fixed;inset:0;z-index:26;display:none;
+  background:linear-gradient(180deg,#141d31 0%,#0d0b07 100%);}
+#roomview.on{display:block;}
+#rvScroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+#rvScroll::-webkit-scrollbar{display:none;}
+#rvCanvas{position:relative;width:min(100%, calc(100dvh * .72));margin:0 auto;
+  aspect-ratio:941/1672;
+  background-repeat:no-repeat;background-size:cover;background-position:center top;}
+#rvCanvas .rv-tgt{position:absolute;}
+.rv-poster{display:block;cursor:zoom-in;background:rgba(20,26,42,.35);
+  box-shadow:0 6px 14px rgba(0,0,0,.38), 0 18px 44px rgba(0,0,0,.42);}
+.rv-poster img{display:block;width:100%;aspect-ratio:3/4;object-fit:cover;}
+.rv-status{text-align:center;font-size:clamp(11px,1.4vw,14px);letter-spacing:.06em;
+  color:#f0e4c8;background:rgba(24,34,52,.82);
+  border:1px solid rgba(201,162,74,.55);border-radius:9px;padding:7px 4px;
+  white-space:nowrap;overflow:hidden;
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);}
+#rvBack{position:fixed;top:16px;left:16px;z-index:28;cursor:pointer;font-family:inherit;
+  font-size:12px;letter-spacing:.1em;color:rgba(233,207,156,.85);
+  background:rgba(20,14,9,.55);border:1px solid rgba(201,162,74,.4);
+  border-radius:18px;padding:7px 14px;
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);}
+#rvBack:hover{color:var(--gold-l);}
+#rvFoot{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:28;
+  font-size:11.5px;letter-spacing:.22em;text-indent:.22em;color:rgba(233,207,156,.9);
+  background:rgba(20,14,9,.55);border:1px solid rgba(201,162,74,.4);
+  border-radius:18px;padding:7px 16px;
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);}
+.rv-compass{position:fixed;top:16px;right:16px;z-index:28;display:none;cursor:pointer;
+  font-size:15px;color:rgba(233,207,156,.85);background:rgba(20,14,9,.55);
+  border:1px solid rgba(201,162,74,.4);border-radius:20px;padding:6px 11px;
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);}
+body.is-admin #roomview .rv-compass{display:block;}
+body.room-editing #roomview .rv-compass{background:var(--gold);color:#1a120c;border-color:var(--gold);}
+body.room-editing .rv-tgt{outline:1px dashed rgba(233,207,156,.75);outline-offset:6px;cursor:grab;}
+body.room-editing .rv-tgt:active{cursor:grabbing;}
+body.room-editing .rv-tgt *{pointer-events:none;}
+#roomEditBar{position:fixed;top:56px;left:14px;z-index:70;display:none;gap:8px;flex-wrap:wrap;}
+body.room-editing #roomEditBar{display:flex;}
+#roomEditBar .heb{font-size:11px;letter-spacing:.1em;color:#1a120c;
+  background:var(--gold);padding:6px 13px;border-radius:16px;}
+#roomEditBar button.heb{cursor:pointer;border:none;font-family:inherit;}
+#posterZoom{position:fixed;inset:0;z-index:40;display:none;place-items:center;
+  background:rgba(8,7,5,.88);cursor:zoom-out;}
+#posterZoom.show{display:grid;}
+#posterZoom img{max-width:92vw;max-height:92dvh;box-shadow:0 24px 70px rgba(0,0,0,.7);}
+
 :focus-visible{outline:2px solid var(--gold-l);outline-offset:3px;}
 @media (max-width:480px){ .hall-title{font-size:21px;} }
 @media (prefers-reduced-motion:reduce){
@@ -750,6 +799,23 @@ body.is-admin .hall-sticker{display:block;}
   </div>
 </div>
 
+<!-- ═════ SALLE — LAB 방 안 (0801 · SALLE 01 현관) ═════ -->
+<div id="roomview">
+  <div id="rvScroll"><div id="rvCanvas">
+    <a class="rv-tgt rv-poster" data-rk="poster" onclick="openPosterZoom(event)"><img id="rvPosterImg" alt="포스터"></a>
+    <div class="rv-tgt rv-status" data-rk="status" id="rvStatus"></div>
+  </div></div>
+  <button id="rvBack" onclick="closeRoom()">← 3층 복도로</button>
+  <div id="rvFoot">SALLE 01 / 07 · 현관</div>
+  <button class="rv-compass" onclick="toggleRoomEdit()" title="방 좌표 편집">🧭</button>
+  <div id="roomEditBar">
+    <span class="heb">SALLE 편집 — 드래그 이동 · 휠 크기</span>
+    <button class="heb" onclick="saveRoomLayout()">💾 저장</button>
+    <button class="heb" onclick="resetRoomLayout()">↺ 기본값</button>
+  </div>
+</div>
+<div id="posterZoom" onclick="this.classList.remove('show')"><img id="pzImg" alt="포스터 원본"></div>
+
 <div id="floorDots">
   <div class="dot" onclick="goFloor(2)" title="3층"></div>
   <div class="dot" onclick="goFloor(1)" title="2층"></div>
@@ -828,7 +894,7 @@ body.is-admin .hall-sticker{display:block;}
       </div>
 
       <div class="cv-sec">
-        <div class="cv-h" id="cv-plan-h">여정</div>
+        <div class="cv-h" id="cv-plan-h">진도표</div>
         <div class="cv-plan" id="cv-plan"></div>
         <div class="cv-plan-note">날짜는 각 회차의 표준 마감일입니다.
           늦어도 벌점은 없고, 이번 기수에 못 마치면 다음 기수에서 멈춘 지점부터 다시 걷습니다.</div>
@@ -1188,7 +1254,7 @@ function jumpToLab(v){
   const bay=Math.floor(+v/2);
   if(bay!==corBay){
     const dir=bay>corBay?1:-1;
-    corBay=bay-dir;          /* walkCorridor가 한 걸음 옮기며 도착 */
+    corBay=bay-dir;          /* walkCorridor가 한 칸 옮기며 도착 */
     walkCorridor(dir);
   }
   document.getElementById('labIndex').value='';
@@ -1209,11 +1275,22 @@ function doorHTML(lab,slot){
     </div>
   </div>`;
 }
-/* LAB 모달 — 기수별 분산 */
+/* 문 클릭 — 방 그림이 있는 LAB은 방(SALLE)으로, 없으면 기수 목록 모달로 */
 function openLab(bookId){
   if(document.body.classList.contains('lab-editing')) return;
   const labs=buildLabs();
   const lab=labs.find(l=>l.bookId===bookId); if(!lab) return;
+  if(lab.no){
+    const probe=new Image();
+    probe.onload =()=>openLabRoom(lab);
+    probe.onerror=()=>openLabModal(lab);
+    probe.src=ASSET(`labs/room_${pad3(lab.no)}_v1_d.webp`)+'?v='+DAYV;
+    return;
+  }
+  openLabModal(lab);
+}
+/* LAB 모달 — 기수별 분산 */
+function openLabModal(lab){
   document.getElementById('lm-name').textContent=
     `LAB ${lab.no?pad3(lab.no):''} · ${lab.author}`;
   document.getElementById('lm-book').textContent=lab.book.title||'';
@@ -1229,7 +1306,7 @@ function openLab(bookId){
     return `<button class="lab-row" onclick="closeLab();openClass(${c.id})">
       <div class="lr-main">
         <div class="lr-title">${esc(b.title||'')} · ${c.cohort_no}기</div>
-        <div class="lr-meta">${esc(b.weeks_raw||'')} 여정${c.start_date?' · '+c.start_date+' 개강':''}${mine}</div>
+        <div class="lr-meta">${esc(b.weeks_raw||'')} 과정${c.start_date?' · '+c.start_date+' 개강':''}${mine}</div>
       </div>
       <span class="s-badge ${bd[0]}">${bd[1]}</span>
     </button>`;
@@ -1539,7 +1616,7 @@ function renderBanners(){
       items=ann.map(c=>{
         const b=bookOf(c.book_id);
         return { eyebrow:'PROCHAINEMENT', title:esc(b.title||''),
-          sub:`${esc(b.author||'')} · ${esc(b.weeks_raw||'')} 여정<br>다음 달에 열립니다` };
+          sub:`${esc(b.author||'')} · ${esc(b.weeks_raw||'')} 과정<br>다음 달에 열립니다` };
       });
     }else{
       items=[
@@ -1776,7 +1853,7 @@ function renderStage(){
       <div class="s-badge ${bd[0]}">${bd[1]}</div>
       <div class="s-title">${esc(b.title||'')}</div>
       <div class="s-author">${esc(b.author||'')}</div>
-      <div class="s-meta">${esc(b.weeks_raw||'')} 여정 · ${c.cohort_no}기${c.start_date?' · '+dstr(c.start_date)+' 개강':''}</div>
+      <div class="s-meta">${esc(b.weeks_raw||'')} 과정 · ${c.cohort_no}기${c.start_date?' · '+dstr(c.start_date)+' 개강':''}</div>
       <div class="s-note">${tz?'예고':'눌러서 자세히 보기'}</div>
     </div>`;
   }).join('');
@@ -1852,7 +1929,7 @@ function openCohort(cid){
   document.getElementById('cm-title').textContent=b.title||'';
   document.getElementById('cm-author').textContent=b.author||'';
   document.getElementById('cm-meta').innerHTML=
-    `${esc(b.stream||'')} · ${esc(b.weeks_raw||'')} 여정<br>${c.cohort_no}기${c.kind==='premiere'?' · 초연':''}`;
+    `${esc(b.stream||'')} · ${esc(b.weeks_raw||'')} 과정<br>${c.cohort_no}기${c.kind==='premiere'?' · 초연':''}`;
 
   /* 날짜 — 신청·개강·완주. 기수마다 바뀌는 값은 전부 여기 모은다 */
   const wk=weeksOf(b.weeks_raw);
@@ -2048,7 +2125,7 @@ function openBook(id){
   document.getElementById('bm-title').innerHTML=esc(b.title)+mark;
   document.getElementById('bm-author').textContent=b.author||'';
   document.getElementById('bm-meta').textContent=
-    `${b.stream||''} · ${b.weeks_raw||''} 여정${b.year_raw?' · '+b.year_raw:''}`;
+    `${b.stream||''} · ${b.weeks_raw||''} 과정${b.year_raw?' · '+b.year_raw:''}`;
   refreshBookModal();
   document.getElementById('book-modal').classList.add('show');
 }
@@ -2171,7 +2248,7 @@ function openClass(cid){
     (b.lab_no?'LAB '+pad3(b.lab_no)+' · ':'')+'COLLÈGE DE COMPOSTELLA';
   document.getElementById('cv-title').textContent=b.title||'';
   document.getElementById('cv-sub').innerHTML=
-    `${esc(b.author||'')}${b.stream?' · '+esc(b.stream):''}${b.weeks_raw?' · '+esc(b.weeks_raw)+' 여정':''}`;
+    `${esc(b.author||'')}${b.stream?' · '+esc(b.stream):''}${b.weeks_raw?' · '+esc(b.weeks_raw)+' 과정':''}`;
   const bd=PHASE[phaseOf(c)]||PHASE.teaser;
   const bg=document.getElementById('cv-badge');
   bg.className='s-badge '+bd[0]; bg.textContent=bd[1];
@@ -2202,10 +2279,10 @@ function openClass(cid){
     ? `권장 판본 — <b>${esc(b.edition)} 『${esc(b.title||'')}』</b>${b.author?' · '+esc(b.author):''}`
     : `판본은 자유롭게 고르시면 됩니다.`;
 
-  /* 여정 — 회차 · 범위 · 마감이 한 줄에 */
+  /* 진도표 — 회차 · 범위 · 마감이 한 줄에 */
   const plan=sessionPlanOf(c,b);
   document.getElementById('cv-plan-h').textContent =
-    plan ? `여정 · ${plan.length} 걸음` : '여정';
+    plan ? `진도표 · ${plan.length}회차` : '진도표';
   const box=document.getElementById('cv-plan');
   if(plan){
     box.innerHTML=plan.map(sn=>{
@@ -2218,7 +2295,7 @@ function openClass(cid){
     }).join('');
   }else{
     box.innerHTML=`<div class="cv-note" style="margin-top:0">세션표는 개강 전에 공개됩니다.
-      ${b.weeks_raw?esc(b.weeks_raw)+' 여정입니다.':''}</div>`;
+      ${b.weeks_raw?esc(b.weeks_raw)+' 과정입니다.':''}</div>`;
   }
 
   renderApply(c,b);
@@ -2368,6 +2445,122 @@ function toast(msg){
 }
 function esc(s){
   return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ══ SALLE — LAB 방 안 (책=방 · SALLE 01~07) · 0801 SALLE 01 현관 ══
+ *  그림: labs/room_{lab}_v1_d.webp (941×1672 · 책 전용)
+ *  좌표: Storage layout/lab_{lab}.json — 방마다 한 파일 (살롱지기 🧭 편집) */
+console.info('[EG] college v0.5 · 0801 SALLE01 현관 + 용어(회차·과정)');
+const ROOM_DEF={ poster:{x:26.99,y:33.43,w:41.76}, status:{x:30,y:69.5,w:40} };
+let ROOM=JSON.parse(JSON.stringify(ROOM_DEF));
+let roomLab=null, roomEditWired=false, roomHover=null;
+
+function openLabRoom(lab){
+  roomLab=lab;
+  document.getElementById('rvCanvas').style.backgroundImage=
+    `url(${ASSET(`labs/room_${pad3(lab.no)}_v1_d.webp`)+'?v='+DAYV})`;
+  /* 대표 기수 — 진행 중 > 모집 중 > 첫 기수 */
+  const c=lab.cohorts.find(x=>x.status==='running')
+        ||lab.cohorts.find(x=>x.status==='recruiting')||lab.cohorts[0];
+  /* 벽의 포스터 — 실물이 확인될 때만 건다 */
+  const pa=document.querySelector('#rvCanvas .rv-poster');
+  const pi=document.getElementById('rvPosterImg');
+  pa.style.display='none'; pi.removeAttribute('src');
+  if(c){ const purl=POSTER(c.id), probe=new Image();
+    probe.onload=()=>{ pi.src=purl; pi.alt=(lab.book.title||'')+' 포스터';
+      pa.style.display='block'; };
+    probe.src=purl; }
+  /* 콘솔 위 상태 한 줄 — DB가 말한다 */
+  const st=document.getElementById('rvStatus');
+  if(c){ const nm=(PHASE[phaseOf(c)]||PHASE.teaser)[1];
+    st.textContent=`${c.cohort_no}기 · ${c.start_date?dstr(c.start_date)+' 개강 · ':''}${nm}`;
+    st.style.display=''; }
+  else st.style.display='none';
+  loadRoomLayout(lab.no);
+  document.getElementById('roomview').classList.add('on');
+  document.getElementById('rvScroll').scrollTop=0;
+}
+function closeRoom(){
+  document.getElementById('roomview').classList.remove('on');
+  document.body.classList.remove('room-editing');
+  roomLab=null;
+}
+function applyRoomLayout(){
+  document.querySelectorAll('#rvCanvas .rv-tgt').forEach(el=>{
+    const v=ROOM[el.dataset.rk]||ROOM_DEF[el.dataset.rk];
+    el.style.left=v.x+'%'; el.style.top=v.y+'%'; el.style.width=v.w+'%';
+  });
+}
+async function loadRoomLayout(no){
+  ROOM=JSON.parse(JSON.stringify(ROOM_DEF));
+  try{
+    const r=await fetch(ASSET(`layout/lab_${pad3(no)}.json`)+'?v='+Date.now());
+    if(r.ok){ const j=await r.json();
+      Object.keys(ROOM_DEF).forEach(k=>{ if(j[k]) ROOM[k]={...ROOM_DEF[k],...j[k]}; });
+    }
+  }catch(e){}
+  applyRoomLayout();
+}
+function toggleRoomEdit(){
+  document.body.classList.toggle('room-editing');
+  if(document.body.classList.contains('room-editing')){
+    wireRoomEdit();
+    toast('SALLE 편집 — 드래그 이동 · 휠 크기 · 💾로 저장');
+  }else{
+    toast('편집 종료 (저장 안 한 이동은 새로고침 시 사라집니다)');
+  }
+}
+function wireRoomEdit(){
+  if(roomEditWired) return; roomEditWired=true;
+  const canvas=document.getElementById('rvCanvas');
+  let drag=null;
+  canvas.querySelectorAll('.rv-tgt').forEach(el=>{
+    const k=el.dataset.rk;
+    el.addEventListener('pointerenter',()=>{ roomHover=k; });
+    el.addEventListener('pointerleave',()=>{ if(roomHover===k) roomHover=null; });
+    el.addEventListener('pointerdown',e=>{
+      if(!document.body.classList.contains('room-editing')) return;
+      e.preventDefault(); e.stopPropagation();
+      const r=canvas.getBoundingClientRect();
+      drag={k, sx:e.clientX, sy:e.clientY, x:ROOM[k].x, y:ROOM[k].y, r};
+      el.setPointerCapture(e.pointerId);
+    });
+    el.addEventListener('pointermove',e=>{
+      if(!drag || drag.k!==k) return;
+      ROOM[k].x=+(drag.x+(e.clientX-drag.sx)/drag.r.width*100).toFixed(2);
+      ROOM[k].y=+(drag.y+(e.clientY-drag.sy)/drag.r.height*100).toFixed(2);
+      applyRoomLayout();
+    });
+    el.addEventListener('pointerup',()=>{ drag=null; });
+  });
+  window.addEventListener('wheel',e=>{
+    if(!document.body.classList.contains('room-editing') || !roomHover) return;
+    e.preventDefault();
+    const v=ROOM[roomHover];
+    v.w=+Math.max(6,Math.min(96, v.w+(e.deltaY<0?1:-1))).toFixed(1);
+    applyRoomLayout();
+  },{passive:false});
+}
+async function saveRoomLayout(){
+  if(!roomLab){ toast('열린 방이 없습니다'); return; }
+  const blob=new Blob([JSON.stringify(ROOM,null,1)],{type:'application/json'});
+  const { error } = await supa.storage.from('college-assets')
+    .upload(`layout/lab_${pad3(roomLab.no)}.json`,blob,
+      {upsert:true,contentType:'application/json',cacheControl:'60'});
+  if(error){ toast('저장 실패: '+error.message); return; }
+  toast('좌표가 벽에 박혔습니다 💾 — 이 방에만 적용');
+}
+function resetRoomLayout(){
+  ROOM=JSON.parse(JSON.stringify(ROOM_DEF));
+  applyRoomLayout();
+  toast('기본 위치로 되돌렸습니다 (저장해야 남습니다)');
+}
+function openPosterZoom(e){
+  if(document.body.classList.contains('room-editing')) return;
+  e.preventDefault();
+  const src=document.getElementById('rvPosterImg').getAttribute('src'); if(!src) return;
+  document.getElementById('pzImg').src=src;
+  document.getElementById('posterZoom').classList.add('show');
 }
 
 init();
