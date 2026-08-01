@@ -2719,6 +2719,20 @@ const TERRA_KIND = {
 };
 /* 핀에 새길 이름 — 원문이 있으면 원문, 없으면 한국어 */
 function terraLabel(p){ return (p.meta && p.meta.name_en) || p.name; }
+/* ── 라벨 바탕색 (0801 소로) ──
+   검은 테두리를 걷어내고 글씨를 순백으로 뽑으면, 바탕이 밝은 핀에서 글씨가 묽어진다.
+   그래서 바탕만 따로 잰다 — 흰 글씨 대비가 5:1에 못 미치는 색만 눌러 어둡게 한다.
+   점 색(종족 범례 · 0731)은 손대지 않는다. 회색 핀은 여전히 회색 점이고 바탕만 짙어진다.
+   ⭐ 표를 손으로 적지 않는다. 새 색을 DB에 넣어도 코드를 안 고친다. */
+function terraLabelBg(hex){
+  const c = String(hex || "#c62828");
+  const ch = [1,3,5].map(i=> parseInt(c.substr(i,2),16)/255);
+  const f = (v)=> v <= 0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4);
+  const L = 0.2126*f(ch[0]) + 0.7152*f(ch[1]) + 0.0722*f(ch[2]);
+  if (1.05/(L+0.05) >= 5) return c;      /* 이미 충분히 짙다 — 붉은 천문대가 여기 */
+  return "#" + [1,3,5].map(i=>
+    Math.round(parseInt(c.substr(i,2),16) * 0.62).toString(16).padStart(2,"0")).join("");
+}
 /* ══ 천문대 시각 순회 (0801 · 천문대 결정문 v1.0 §2) ══
    두 축으로 오늘의 천문대가 정해진다.
      1축 자격 — 지금 이 순간 현지가 밤(22~04시)인 곳만 후보. 시각이 정한다
@@ -2730,10 +2744,13 @@ let obsAll = [];         /* 천문대 후보 전체 — 지도에는 안 그린�
 let obsOnDuty = null;    /* 지금 당번의 code */
 let obsTimer = null;
 
-/* 현지 태양시 (0~24). 시간대(UTC 오프셋)가 아니라 경도로 잰다 — 결정문 §2 */
+/* 현지 태양시 (0~24). 시간대(UTC 오프셋)가 아니라 경도로 잰다 — 결정문 §2
+   ⚠ 0801 — 처음에 초를 빠뜨려 시계의 초 자리가 굳어 있었다(소로: 「초침은 안 돌아가고 있음 ㅋㅋ」).
+     분까지만 재면 초 자리는 경도에서 온 고정 나머지가 되어, 1분에 한 번 튀고 만다. */
 function obsLocalHour(p){
   const n = new Date();
-  return ((n.getUTCHours() + n.getUTCMinutes()/60) + Number(p.lng)/15 + 24) % 24;
+  const utc = n.getUTCHours() + n.getUTCMinutes()/60 + n.getUTCSeconds()/3600;
+  return (utc + Number(p.lng)/15 + 24) % 24;
 }
 function obsLocalLabel(p){
   const t = obsLocalHour(p);
@@ -2795,12 +2812,13 @@ function addTerraPin(p){
            캔버스에 그려지는 글자라 CSS 변수를 못 쓰므로 여기에 직접 적는다.
            ⚠ 굵기를 뺐다 — 세리프는 bold를 주면 획이 뭉개져 밤하늘에서 지저분해진다. */
         font:"15px Georgia,'Nanum Myeongjo','Apple SD Gothic Neo',serif",
+        /* 0801 소로 — 검은 테두리를 걷고 순백으로. 테두리는 작은 글씨를 어디서나 보이게
+           하지만 세리프의 가는 획을 뭉개 이름이 지저분해진다. 바탕을 짙게 깔았으니
+           테두리 없이도 읽힌다(위 terraLabelBg). */
         fillColor:Cesium.Color.WHITE,
-        outlineColor:Cesium.Color.fromCssColorString("#0a0e1a"), outlineWidth:3,
-        style:Cesium.LabelStyle.FILL_AND_OUTLINE,
         showBackground:true,
-        backgroundColor:Cesium.Color.fromCssColorString(p.color||"#c62828").withAlpha(.95),
-        backgroundPadding:new Cesium.Cartesian2(11,6),
+        backgroundColor:Cesium.Color.fromCssColorString(terraLabelBg(p.color)).withAlpha(.96),
+        backgroundPadding:new Cesium.Cartesian2(13,7),
         pixelOffset:new Cesium.Cartesian2(0,-12),
         verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
         disableDepthTestDistance:10000 }
@@ -3819,7 +3837,7 @@ function startCountdown(ids, dateStr){
 /* 0731 — 콘서트홀 입장 버튼은 블록 7의 openStory 안에서 눌린다.
    이 블록은 IIFE라 안에서 선언한 함수가 밖에서 안 보인다. 창구로 내보낸다.
    (버튼이 먹통이던 원인 — 블록 경계. egLogout이 겪은 병과 같은 집안이다.) */
-console.log("%c[EG] terra v135 · 0801 현지시계·핀원문·명조 (천문대 목적지 수리)", "color:#c9a24a");
+console.log("%c[EG] terra v136 · 0801 라벨 순백·바탕자동·초침 (현지시계·핀원문·명조)", "color:#c9a24a");
 window.enterRoomUrl   = enterRoomUrl;
 window.egLogout       = egLogout;
 window.closeOrgLists  = closeOrgLists;
