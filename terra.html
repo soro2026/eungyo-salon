@@ -332,6 +332,29 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   /* ── 우상단 안내 ── */
 
   /* ── 구장 안내판 (0728) — 오늘 경기가 없는 구장에 내렸을 때 ── */
+  /* ── 천문대 현지 시계 (0801 소로) ──
+     소로: 「이 장소의 현재 시각이 넘 궁금해지더라고」.
+     천문대에 내려앉아 있을 때만 밤하늘 왼쪽 모서리에 뜬다. 다른 곳에서는 없는 물건.
+     이 기능이 무엇인지 한 화면으로 증명하는 자리다 — 한국은 대낮인데 여기는 새벽 세 시.
+     ⚠ z-index 12 — 타륜(29)·안내판(32)·방(doorway) 아래. 시계가 무엇을 가리면 안 된다. */
+  #obsClock{
+    position:fixed; top:22px; left:26px; z-index:12;
+    font-family:var(--serif); color:var(--cream);
+    opacity:0; pointer-events:none; transition:opacity .8s ease;
+    text-shadow:0 2px 14px rgba(0,0,0,.9), 0 0 3px rgba(0,0,0,.8);
+  }
+  #obsClock.on{ opacity:.92; }
+  #obsClock .oc-name{ font-size:11px; letter-spacing:.26em; text-transform:uppercase;
+    color:rgba(240,232,214,.72); margin-bottom:5px; }
+  #obsClock .oc-time{ font-size:31px; letter-spacing:.06em; line-height:1;
+    font-variant-numeric:tabular-nums; }
+  #obsClock .oc-sec{ font-size:17px; opacity:.55; margin-left:2px; }
+  #obsClock .oc-foot{ font-size:9.5px; letter-spacing:.22em; text-transform:uppercase;
+    color:rgba(240,232,214,.5); margin-top:6px; }
+  @media (max-width:620px){
+    #obsClock{ top:16px; left:16px; }
+    #obsClock .oc-time{ font-size:25px; }
+  }
   #parkNote{
     position:fixed;left:50%;bottom:96px;z-index:32;transform:translate(-50%,14px);
     width:min(340px,86vw);padding:16px 18px;box-sizing:border-box;
@@ -975,6 +998,11 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
 </div>
 
 
+<div id="obsClock" aria-hidden="true">
+  <div class="oc-name" id="ocName"></div>
+  <div class="oc-time"><span id="ocHM"></span><span class="oc-sec" id="ocS"></span></div>
+  <div class="oc-foot">heure locale</div>
+</div>
 <div id="parkNote"></div>
 
 <div id="card">
@@ -1500,7 +1528,7 @@ async function loadMaisons(city){
               distanceDisplayCondition:dd },
       label: occupied ? {
               text: m.nickname || ("메종 "+m.maison_no),
-              font:"bold 13px 'Helvetica Neue',Arial,sans-serif",
+              font:"13px Georgia,'Nanum Myeongjo','Apple SD Gothic Neo',serif",
               fillColor:Cesium.Color.fromCssColorString("#1a1407"),                 // 검은 글씨
               showBackground:true,
               backgroundColor:Cesium.Color.fromCssColorString("#ffd23f").withAlpha(.96), // 옐로 바탕
@@ -1511,7 +1539,7 @@ async function loadMaisons(city){
               distanceDisplayCondition:dd
             } : {
               text:"메종 "+m.maison_no,
-              font:"bold 11.5px 'Helvetica Neue',Arial,sans-serif",
+              font:"12px Georgia,'Nanum Myeongjo','Apple SD Gothic Neo',serif",
               fillColor:Cesium.Color.fromCssColorString("#ffd23f"),                  // 옐로 글씨
               outlineColor:Cesium.Color.fromCssColorString("#0a0e1a"), outlineWidth:3,
               style:Cesium.LabelStyle.FILL_AND_OUTLINE,                              // 글씨에 검은 테두리 → 어디서나 또렷
@@ -2676,16 +2704,21 @@ async function terraInit(){
   if (bc) bc.addEventListener("click", logBack);
 }
 
-/* ── 핀: terra_pins (전 우주 공용) ── */
+/* ── 핀: terra_pins (전 우주 공용) ──
+   0801 소로 — 라벨을 그 땅의 말로. 이름은 `meta.name_en`(원문), 꼬리표는 아래 표.
+   지구 위에서는 로마자가 지도의 말이고, 한국어는 타륜과 방 안이 갖는다.
+   ⚠ `meta.name_en`이 없으면 한국어 `name`으로 물러선다 — 새 핀을 넣을 때 빠뜨려도 안 깨진다. */
 const TERRA_KIND = {
   stadium:{ icon:"⚾" },
-  museum:{ icon:"📚", tag:"EG뮤세움" },
-  constellatio:{ icon:"✨", tag:"EG콘스텔라티오" },
-  heritage:{ icon:"🖼", tag:"EG헤리티지" },
-  hansfoon:{ icon:"🥄", tag:"EG교양한스푼" },
+  museum:{ icon:"📚", tag:"EG MUSEUM" },
+  constellatio:{ icon:"✨", tag:"EG CONSTELLATIO" },
+  heritage:{ icon:"🖼", tag:"LE GRAND TOUR" },
+  hansfoon:{ icon:"🥄", tag:"UNE CUILLÈRE" },
   college:{ icon:"📖" },
-  concert:{ icon:"🎼", tag:"EG음악관" }
+  concert:{ icon:"🎼", tag:"LE GRAND TOUR" }
 };
+/* 핀에 새길 이름 — 원문이 있으면 원문, 없으면 한국어 */
+function terraLabel(p){ return (p.meta && p.meta.name_en) || p.name; }
 /* ══ 천문대 시각 순회 (0801 · 천문대 결정문 v1.0 §2) ══
    두 축으로 오늘의 천문대가 정해진다.
      1축 자격 — 지금 이 순간 현지가 밤(22~04시)인 곳만 후보. 시각이 정한다
@@ -2757,8 +2790,11 @@ function addTerraPin(p){
       point:{ pixelSize:9, color:Cesium.Color.fromCssColorString(p.color||"#c62828"),
         outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
         disableDepthTestDistance:10000 },   /* 10km 안에서만 타일 위 우선 — 지구 관통 방지 */
-      label:{ text:kk.icon + " " + p.name + (kk.tag ? "  ·  " + kk.tag : ""),
-        font:"bold 14px 'Helvetica Neue',Arial,sans-serif",
+      label:{ text:kk.icon + " " + terraLabel(p) + (kk.tag ? "  ·  " + kk.tag : ""),
+        /* 0801 소로 — 명조로 부드럽게. Georgia는 로마자에 강하고 어느 기기에나 있다.
+           캔버스에 그려지는 글자라 CSS 변수를 못 쓰므로 여기에 직접 적는다.
+           ⚠ 굵기를 뺐다 — 세리프는 bold를 주면 획이 뭉개져 밤하늘에서 지저분해진다. */
+        font:"15px Georgia,'Nanum Myeongjo','Apple SD Gothic Neo',serif",
         fillColor:Cesium.Color.WHITE,
         outlineColor:Cesium.Color.fromCssColorString("#0a0e1a"), outlineWidth:3,
         style:Cesium.LabelStyle.FILL_AND_OUTLINE,
@@ -2998,6 +3034,28 @@ function enterRoomUrl(url, title){
   document.getElementById("doorway").classList.add("popup","in","open");
   doorState = "open";
 }
+
+/* ── 천문대 현지 시계 (0801) ──
+   ⭐ 스스로 살펴서 켜고 끈다. flyToPark·enterRoom·closeStory 등 나가는 문이 여럿이라
+     한 곳씩 배선하면 반드시 하나를 빠뜨린다(v127 함정 A의 사촌). 1초마다 currentPark만 본다.
+   천문대에 내려앉아 있을 때만 뜬다 — 다른 우주에서는 시각이 아무 뜻도 없다. */
+function tickObsClock(){
+  try{
+    const el = document.getElementById("obsClock");
+    if (!el) return;
+    const p = currentPark;
+    const on = !!(p && p.kind === "constellatio");
+    el.classList.toggle("on", on);
+    if (!on) return;
+    const t = obsLocalHour(p);
+    const h = Math.floor(t), m = Math.floor((t-h)*60), s = Math.floor(((t-h)*60-m)*60);
+    const two = (n)=> String(n).padStart(2,"0");
+    document.getElementById("ocName").textContent = terraLabel(p);
+    document.getElementById("ocHM").textContent = two(h) + ":" + two(m);
+    document.getElementById("ocS").textContent  = ":" + two(s);
+  }catch(e){}
+}
+setInterval(tickObsClock, 1000);
 
 /* ── 배선 ── */
 function wireTerra(){
@@ -3761,7 +3819,7 @@ function startCountdown(ids, dateStr){
 /* 0731 — 콘서트홀 입장 버튼은 블록 7의 openStory 안에서 눌린다.
    이 블록은 IIFE라 안에서 선언한 함수가 밖에서 안 보인다. 창구로 내보낸다.
    (버튼이 먹통이던 원인 — 블록 경계. egLogout이 겪은 병과 같은 집안이다.) */
-console.log("%c[EG] terra v134 · 0801 천문대 시각순회 개통 (+야구공·매치업정렬·인물장소)", "color:#c9a24a");
+console.log("%c[EG] terra v135 · 0801 현지시계·핀원문·명조 (천문대 목적지 수리)", "color:#c9a24a");
 window.enterRoomUrl   = enterRoomUrl;
 window.egLogout       = egLogout;
 window.closeOrgLists  = closeOrgLists;
