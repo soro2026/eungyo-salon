@@ -733,6 +733,24 @@ body.room-editing #roomEditBar{display:flex;}
 #posterZoom.show{display:grid;}
 #posterZoom img{max-width:92vw;max-height:92dvh;box-shadow:0 24px 70px rgba(0,0,0,.7);}
 
+/* 시간 여행 다이얼 — 살롱지기 전용 */
+#ttBtn{position:fixed;left:16px;bottom:16px;z-index:80;display:none;cursor:pointer;
+  font-family:inherit;font-size:13px;letter-spacing:.05em;
+  color:rgba(233,207,156,.85);background:rgba(20,14,9,.6);
+  border:1px solid rgba(201,162,74,.4);border-radius:18px;padding:8px 13px;
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);}
+body.is-admin #ttBtn{display:block;}
+#ttBtn.on{background:var(--gold);color:#1a120c;border-color:var(--gold);font-weight:700;}
+#ttPanel{position:fixed;left:16px;bottom:62px;z-index:80;display:none;gap:8px;
+  flex-wrap:wrap;align-items:center;}
+#ttPanel.show{display:flex;}
+#ttPanel .heb{font-size:11px;letter-spacing:.1em;color:#1a120c;
+  background:var(--gold);padding:6px 13px;border-radius:16px;}
+#ttPanel button.heb{cursor:pointer;border:none;font-family:inherit;}
+#ttPanel input[type=date]{font-family:inherit;font-size:13px;padding:5px 9px;
+  border-radius:10px;border:1px solid rgba(201,162,74,.6);
+  background:rgba(20,14,9,.75);color:#f0e4c8;}
+
 :focus-visible{outline:2px solid var(--gold-l);outline-offset:3px;}
 @media (max-width:480px){ .hall-title{font-size:21px;} }
 @media (prefers-reduced-motion:reduce){
@@ -871,6 +889,15 @@ body.room-editing #roomEditBar{display:flex;}
   </div>
 </div>
 <div id="posterZoom" onclick="this.classList.remove('show')"><img id="pzImg" alt="포스터 원본"></div>
+
+<!-- 시간 여행 다이얼 (살롱지기 전용 · 0801) -->
+<button id="ttBtn" onclick="toggleTT()" title="시간 여행 — 그 날짜의 콜레주로">⏱</button>
+<div id="ttPanel">
+  <span class="heb">시간 여행 — 화면 판정만 바뀝니다 (DB 무변)</span>
+  <input type="date" id="ttDate">
+  <button class="heb" onclick="applyTT()">그날로 가기</button>
+  <button class="heb" onclick="clearTT()">오늘로</button>
+</div>
 
 <div id="floorDots">
   <div class="dot" onclick="goFloor(2)" title="3층"></div>
@@ -1621,16 +1648,12 @@ async function init(){
     isSalonKeeper = !!(u && u.is_admin);
     userTier = u ? u.tier : 'member';
     if(u && u.is_admin) document.body.classList.add('is-admin');
-    /* 시간 여행 활성 — 살롱지기 + ?date= 일 때만 */
+    /* 시간 여행 — ?date= 로도, 다이얼로도 (살롱지기만) */
     const tt=P.get('date');
     if(u && u.is_admin && tt && /^\d{4}-\d{2}-\d{2}$/.test(tt)){
       window.EG_TT=tt;
-      const chip=document.createElement('div');
-      chip.style.cssText='position:fixed;left:16px;bottom:16px;z-index:80;'+
-        'font-size:12px;letter-spacing:.08em;color:#1a120c;background:var(--gold);'+
-        'border-radius:16px;padding:7px 14px;box-shadow:0 4px 14px rgba(0,0,0,.4);';
-      chip.textContent='⏱ '+tt+' 시점 미리보기 (살롱지기)';
-      document.body.appendChild(chip);
+      const b=document.getElementById('ttBtn');
+      b.textContent='⏱ '+tt; b.classList.add('on');
     }
   }
   await Promise.all([loadBooks(), loadBells(), loadCohorts(), loadMyEnrollments(), loadLabLayout()]);
@@ -2519,7 +2542,7 @@ function esc(s){
 /* ══ SALLE — LAB 방 안 (책=방 · SALLE 01~07) · 0801 방 안 걷기 + SALLE 02 진도표 ══
  *  그림: labs/room_{lab}_v{n}_d.webp — n = SALLE 번호 (941×1672)
  *  좌표: Storage layout/lab_{lab}.json 한 파일에 전 SALLE 키 (살롱지기 🧭 편집) */
-console.info('[EG] college v0.10 · 0801 SALLE03 + 시간여행(?date=)');
+console.info('[EG] college v0.11 · 0801 시간여행 다이얼(⏱ 버튼·달력)');
 const ROOM_DEF={
   poster:{x:26.99,y:33.43,w:41.76},          /* SALLE 01 */
   status:{x:30,y:69.5,w:40},                 /* SALLE 01 */
@@ -2774,6 +2797,29 @@ window.addEventListener('keydown',e=>{
     if(Math.abs(dx)>60 && Math.abs(dx)>Math.abs(dy)*1.6) walkSalle(dx<0?1:-1);
   },{passive:true});
 })();
+/* ── 시간 여행 다이얼 (살롱지기) — 고르는 즉시 전 화면이 그 날짜로 ── */
+function toggleTT(){
+  const p=document.getElementById('ttPanel');
+  p.classList.toggle('show');
+  if(p.classList.contains('show'))
+    document.getElementById('ttDate').value=window.EG_TT||TODAY();
+}
+function applyTT(){
+  const v=document.getElementById('ttDate').value;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(v)){ toast('날짜를 고르세요'); return; }
+  window.EG_TT=v; ttRefresh();
+  toast('⏱ '+v+' 시점의 콜레주입니다');
+}
+function clearTT(){ window.EG_TT=null; ttRefresh(); toast('오늘로 돌아왔습니다'); }
+function ttRefresh(){
+  const b=document.getElementById('ttBtn');
+  b.textContent=window.EG_TT?('⏱ '+window.EG_TT):'⏱';
+  b.classList.toggle('on', !!window.EG_TT);
+  renderStage(); renderCorridor(); renderShelf();
+  if(document.getElementById('roomview').classList.contains('on') && roomLab) paintSalle();
+  if(document.getElementById('classview').classList.contains('on') && classCohort) openClass(classCohort.id);
+  document.getElementById('ttPanel').classList.remove('show');
+}
 
 init();
 </script>
