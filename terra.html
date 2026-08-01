@@ -199,6 +199,9 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
     transition:background .2s ease, color .2s ease;
   }
   .nav-item:hover{ background:rgba(201,162,39,.12); color:var(--gold); }
+  /* 0801 천문대 순회 select — nav-item 옷을 입되 브라우저 기본 화살표만 남긴다 */
+  select.nav-item{ display:block; appearance:auto; -webkit-appearance:auto; }
+  select.nav-item option{ color:#2b2318; background:#f4ecd9; }
   .nav-item .chev{ color:var(--cream-dim); font-size:15px; }
   .nav-item.toggle .dot{ width:8px; height:8px; border-radius:50%; border:1px solid var(--cream-dim); flex-shrink:0; }
   .nav-item.toggle.on{ color:var(--gold); }
@@ -1051,6 +1054,10 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
     <div class="nav-group" id="navAdminGroup" style="display:none">
       <div class="nav-label">살롱지기</div>
       <button class="nav-item toggle" id="navEdit">📍 좌표 편집 <span class="dot" aria-hidden="true"></span></button>
+      <!-- 0801 천문대 순회 — 살롱지기 검수용. 순번을 건드리지 않고 보기만 한다 (당번은 그대로) -->
+      <select class="nav-item" id="obsTour" title="천문대 순회">
+        <option value="">🔭 천문대 순회…</option>
+      </select>
       <button class="nav-item adm-head" id="navAdmFold">대시보드 11 <span class="chev" aria-hidden="true">›</span></button>
       <div class="adm-fold" id="navAdminLinks"></div>
     </div>
@@ -2203,6 +2210,27 @@ async function setupAdminEdit(){
       document.getElementById("editHint").innerHTML =
         "📍 <b>편집 모드</b> — 옮길 메종 핀을 누른 뒤, 그 집 <b>지붕</b>을 클릭하세요"; }
   });
+  /* ── 0801 천문대 순회 드롭다운 ──
+     검수용 뒷문 — 순번·당번은 손대지 않고 그곳으로 날아가 보기만 한다.
+     obsAll이 이 함수보다 늦게 찰 수 있으므로 목록은 여는 순간(focus) 채운다. */
+  const tour = document.getElementById("obsTour");
+  if (tour){
+    const fillTour = ()=>{
+      if (tour.options.length > 1 || !obsAll.length) return;
+      obsAll.slice().sort((a,b)=> Number(b.lng) - Number(a.lng)).forEach(p=>{
+        const o = document.createElement("option");
+        o.value = p.code;
+        o.textContent = (p.code === obsOnDuty ? "● " : "") + p.name + " · " + obsLocalLabel(p);
+        tour.appendChild(o);
+      });
+    };
+    tour.addEventListener("focus", fillTour);
+    tour.addEventListener("change", ()=>{
+      const p = obsAll.find(x => x.code === tour.value);
+      if (p){ flyToPark(p); try{ document.getElementById("egDock").classList.remove("open"); }catch(e){} }
+      tour.value = "";
+    });
+  }
 }
 
 function clearSel(){
@@ -2757,7 +2785,26 @@ function obsLocalHour(p){
   const utc = n.getUTCHours() + n.getUTCMinutes()/60 + n.getUTCSeconds()/3600;
   return (utc + Number(p.lng)/15 + 24) % 24;
 }
+/* ── 시민시 (0801 오후) ──
+   ⭐ 두 시각의 분업: 자격 판정은 태양시(경도) — 어두움은 태양이 정한다.
+     화면의 시계는 시민시(시간대+서머타임) — HEURE LOCALE을 자칭하는 이상 그 도시 사람의 시계여야 한다.
+     시카고에서 50분이 어긋난 것은 버그가 아니라 이 간극이었다(경도 −5.84h vs CDT −5h).
+   Intl.DateTimeFormat이 서머타임을 영구 자동 계산한다 — 행 노동 0. tz는 meta.tz(IANA 이름). */
+function obsCivilParts(p){
+  const tz = p && p.meta && p.meta.tz;
+  if (!tz) return null;
+  try{
+    const parts = new Intl.DateTimeFormat("en-GB",
+      { timeZone: tz, hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false })
+      .formatToParts(new Date());
+    const g = (t)=> (parts.find(x=>x.type===t)||{}).value || "00";
+    const h = g("hour") === "24" ? "00" : g("hour");   /* en-GB 24:xx 방지 */
+    return { h, m: g("minute"), s: g("second") };
+  }catch(e){ return null; }   /* 낯선 tz 이름이면 태양시로 후퇴 */
+}
 function obsLocalLabel(p){
+  const c = obsCivilParts(p);
+  if (c) return c.h + ":" + c.m;
   const t = obsLocalHour(p);
   const h = Math.floor(t), m = Math.floor((t - h) * 60);
   return String(h).padStart(2,"0") + ":" + String(m).padStart(2,"0");
@@ -3069,12 +3116,19 @@ function tickObsClock(){
     const on = !!(p && p.kind === "constellatio");
     el.classList.toggle("on", on);
     if (!on) return;
-    const t = obsLocalHour(p);
-    const h = Math.floor(t), m = Math.floor((t-h)*60), s = Math.floor(((t-h)*60-m)*60);
-    const two = (n)=> String(n).padStart(2,"0");
+    /* 시민시 우선(서머타임 자동) — tz 없으면 태양시 후퇴 */
+    const c = obsCivilParts(p);
+    let hm, ss;
+    if (c){ hm = c.h + ":" + c.m; ss = ":" + c.s; }
+    else{
+      const t = obsLocalHour(p);
+      const h = Math.floor(t), m = Math.floor((t-h)*60), s = Math.floor(((t-h)*60-m)*60);
+      const two = (n)=> String(n).padStart(2,"0");
+      hm = two(h) + ":" + two(m); ss = ":" + two(s);
+    }
     document.getElementById("ocName").textContent = terraLabel(p);
-    document.getElementById("ocHM").textContent = two(h) + ":" + two(m);
-    document.getElementById("ocS").textContent  = ":" + two(s);
+    document.getElementById("ocHM").textContent = hm;
+    document.getElementById("ocS").textContent  = ss;
   }catch(e){}
 }
 setInterval(tickObsClock, 1000);
@@ -3841,7 +3895,7 @@ function startCountdown(ids, dateStr){
 /* 0731 — 콘서트홀 입장 버튼은 블록 7의 openStory 안에서 눌린다.
    이 블록은 IIFE라 안에서 선언한 함수가 밖에서 안 보인다. 창구로 내보낸다.
    (버튼이 먹통이던 원인 — 블록 경계. egLogout이 겪은 병과 같은 집안이다.) */
-console.log("%c[EG] terra v136 · 0801 라벨 먹뒤집기·초침 (현지시계·핀원문·명조)", "color:#c9a24a");
+console.log("%c[EG] terra v137 · 0801 천문대 순회 드롭다운·시민시계(서머타임)", "color:#c9a24a");
 window.enterRoomUrl   = enterRoomUrl;
 window.egLogout       = egLogout;
 window.closeOrgLists  = closeOrgLists;
