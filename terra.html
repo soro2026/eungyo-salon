@@ -199,9 +199,9 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
     transition:background .2s ease, color .2s ease;
   }
   .nav-item:hover{ background:rgba(201,162,39,.12); color:var(--gold); }
-  /* 0801 천문대 순회 select — nav-item 옷을 입되 브라우저 기본 화살표만 남긴다 */
-  select.nav-item{ display:block; appearance:auto; -webkit-appearance:auto; }
-  select.nav-item option{ color:#2b2318; background:#f4ecd9; }
+  /* 0801 천문대 순회 목록 — 37곳이 서도 타륜이 길어지지 않게 목록에만 키를 건다 */
+  #egDock #navObsList.on{ display:block; max-height:240px; overflow-y:auto; scrollbar-width:none; }
+  #egDock #navObsList::-webkit-scrollbar{ width:0; height:0; }
   .nav-item .chev{ color:var(--cream-dim); font-size:15px; }
   .nav-item.toggle .dot{ width:8px; height:8px; border-radius:50%; border:1px solid var(--cream-dim); flex-shrink:0; }
   .nav-item.toggle.on{ color:var(--gold); }
@@ -1054,10 +1054,11 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
     <div class="nav-group" id="navAdminGroup" style="display:none">
       <div class="nav-label">살롱지기</div>
       <button class="nav-item toggle" id="navEdit">📍 좌표 편집 <span class="dot" aria-hidden="true"></span></button>
-      <!-- 0801 천문대 순회 — 살롱지기 검수용. 순번을 건드리지 않고 보기만 한다 (당번은 그대로) -->
-      <select class="nav-item" id="obsTour" title="천문대 순회">
-        <option value="">🔭 천문대 순회…</option>
-      </select>
+      <!-- 0801 천문대 순회 — 살롱지기 검수용. 순번을 건드리지 않고 보기만 한다 (당번은 그대로)
+           ⚠ v137~139 세 판 동안 <select>로 지었다가 팝업이 끝내 안 열렸다.
+             같은 구획의 「대시보드」 접이식은 멀쩡하므로 그 증명된 패턴으로 갈아탔다. -->
+      <button class="nav-item adm-head" id="navObsFold">🔭 천문대 순회 <span class="chev" aria-hidden="true">›</span></button>
+      <div class="adm-fold" id="navObsList"></div>
       <button class="nav-item adm-head" id="navAdmFold">대시보드 11 <span class="chev" aria-hidden="true">›</span></button>
       <div class="adm-fold" id="navAdminLinks"></div>
     </div>
@@ -2210,38 +2211,46 @@ async function setupAdminEdit(){
       document.getElementById("editHint").innerHTML =
         "📍 <b>편집 모드</b> — 옮길 메종 핀을 누른 뒤, 그 집 <b>지붕</b>을 클릭하세요"; }
   });
-  /* ── 0801 천문대 순회 드롭다운 ──
+  /* ── 0801 천문대 순회 접이 목록 ──
      검수용 뒷문 — 순번·당번은 손대지 않고 그곳으로 날아가 보기만 한다.
-     ⚠ v137: focus에 채웠더니 첫 클릭이 빈 서랍 — 팝업이 열린 뒤 넣은 option은 안 들어간다.
-     ⚠ v138: obsAll이 다음 <script> 블록(2606~) 소속이라 init 시점엔 이름 자체가 없어
-       ReferenceError로 배선 전체가 죽었다(v133 함정 「블록 경계」). typeof 창구로 방탄 —
-       2초 뒤 감시가 다시 볼 때는 그 블록이 이미 서 있어 그때 채워진다. */
-  const tour = document.getElementById("obsTour");
-  if (tour){
+     ⚠ v137~139 세 판 동안 <select>로 지었다가 팝업이 끝내 안 열렸다.
+       같은 구획의 「대시보드」 접이식(navAdmFold)은 멀쩡 — 그 증명된 패턴 그대로.
+     ⚠ obsAll·flyToPark 등은 다음 <script> 블록 소속(v133 함정 「블록 경계」) —
+       typeof 창구로 방탄. 채움은 여는 순간 시도 + 2초 감시가 뒤를 받친다. */
+  const obsFold = document.getElementById("navObsFold");
+  const obsBox  = document.getElementById("navObsList");
+  if (obsFold && obsBox){
     const OBS = ()=> (typeof obsAll !== "undefined" && obsAll) ? obsAll : [];
-    const fillTour = ()=>{
+    const fillObsList = ()=>{
       const all = OBS();
-      if (tour.options.length > 1 || !all.length) return tour.options.length > 1;
+      if (obsBox.dataset.built || !all.length) return !!obsBox.dataset.built;
+      obsBox.dataset.built = "1";
       const duty = (typeof obsOnDuty !== "undefined") ? obsOnDuty : null;
       all.slice().sort((a,b)=> Number(b.lng) - Number(a.lng)).forEach(p=>{
-        const o = document.createElement("option");
-        o.value = p.code;
+        const b = document.createElement("button");
+        b.className = "nav-item adm";
         const t = (typeof obsLocalLabel === "function") ? " · " + obsLocalLabel(p) : "";
-        o.textContent = (p.code === duty ? "● " : "") + p.name + t;
-        tour.appendChild(o);
+        b.textContent = (p.code === duty ? "● " : "") + p.name + t;
+        b.addEventListener("click", ()=>{
+          if (typeof flyToPark === "function"){
+            flyToPark(p);
+            obsBox.classList.remove("on"); obsFold.classList.remove("open");
+            try{ document.getElementById("egDock").classList.remove("open"); }catch(e){}
+          }
+        });
+        obsBox.appendChild(b);
       });
+      obsFold.innerHTML = "🔭 천문대 순회 " + all.length
+        + ' <span class="chev" aria-hidden="true">›</span>';
       return true;
     };
-    if (!fillTour()){
-      const watch = setInterval(()=>{ if (fillTour()) clearInterval(watch); }, 2000);
+    if (!fillObsList()){
+      const watch = setInterval(()=>{ if (fillObsList()) clearInterval(watch); }, 2000);
     }
-    tour.addEventListener("change", ()=>{
-      const p = OBS().find(x => x.code === tour.value);
-      if (p && typeof flyToPark === "function"){
-        flyToPark(p);
-        try{ document.getElementById("egDock").classList.remove("open"); }catch(e){}
-      }
-      tour.value = "";
+    obsFold.addEventListener("click", ()=>{
+      fillObsList();   /* 감시보다 손이 빠를 때 대비 */
+      const open = obsBox.classList.toggle("on");
+      obsFold.classList.toggle("open", open);
     });
   }
 }
@@ -3908,7 +3917,7 @@ function startCountdown(ids, dateStr){
 /* 0731 — 콘서트홀 입장 버튼은 블록 7의 openStory 안에서 눌린다.
    이 블록은 IIFE라 안에서 선언한 함수가 밖에서 안 보인다. 창구로 내보낸다.
    (버튼이 먹통이던 원인 — 블록 경계. egLogout이 겪은 병과 같은 집안이다.) */
-console.log("%c[EG] terra v139 · 0801 순회 블록경계 방탄", "color:#c9a24a");
+console.log("%c[EG] terra v140 · 0801 순회 접이목록(대시보드 패턴)", "color:#c9a24a");
 window.enterRoomUrl   = enterRoomUrl;
 window.egLogout       = egLogout;
 window.closeOrgLists  = closeOrgLists;
