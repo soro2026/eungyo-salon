@@ -1621,6 +1621,17 @@ async function init(){
     isSalonKeeper = !!(u && u.is_admin);
     userTier = u ? u.tier : 'member';
     if(u && u.is_admin) document.body.classList.add('is-admin');
+    /* 시간 여행 활성 — 살롱지기 + ?date= 일 때만 */
+    const tt=P.get('date');
+    if(u && u.is_admin && tt && /^\d{4}-\d{2}-\d{2}$/.test(tt)){
+      window.EG_TT=tt;
+      const chip=document.createElement('div');
+      chip.style.cssText='position:fixed;left:16px;bottom:16px;z-index:80;'+
+        'font-size:12px;letter-spacing:.08em;color:#1a120c;background:var(--gold);'+
+        'border-radius:16px;padding:7px 14px;box-shadow:0 4px 14px rgba(0,0,0,.4);';
+      chip.textContent='⏱ '+tt+' 시점 미리보기 (살롱지기)';
+      document.body.appendChild(chip);
+    }
   }
   await Promise.all([loadBooks(), loadBells(), loadCohorts(), loadMyEnrollments(), loadLabLayout()]);
   renderShelf(); renderBanners(); renderStage(); renderBellHand(); renderCorridor();
@@ -1851,8 +1862,10 @@ const POSTER = id => ASSET(`posters/${id}.webp`);
  *    준비(prep)      신청 마감 ~ 개강 전        세션표 제작 · 미달 판단
  *    진행(running)   개강 이후
  * ══════════════════════════════════════════════════════════════════ */
-const TODAY=()=>(window.egSky&&egSky.today)?egSky.today()
-  :new Date(Date.now()+324e5).toISOString().slice(0,10);   /* 폴백: UTC+9 */
+/* 시간 여행 (살롱지기 전용) — ?date=YYYY-MM-DD 로 콜레주 전체를 그 날짜 시점으로.
+ *  읽기 전용 시뮬레이션: DB는 손대지 않고 화면 판정만 바뀐다 (0801) */
+const TODAY=()=>window.EG_TT||((window.egSky&&egSky.today)?egSky.today()
+  :new Date(Date.now()+324e5).toISOString().slice(0,10));   /* 폴백: UTC+9 */
 /* [2] = 스티커용 짧은 이름. 인장 안에 들어가야 하므로 두 글자 (0731) */
 const PHASE={
   teaser   :['announced', '예고',            '예고편'],
@@ -2506,7 +2519,7 @@ function esc(s){
 /* ══ SALLE — LAB 방 안 (책=방 · SALLE 01~07) · 0801 방 안 걷기 + SALLE 02 진도표 ══
  *  그림: labs/room_{lab}_v{n}_d.webp — n = SALLE 번호 (941×1672)
  *  좌표: Storage layout/lab_{lab}.json 한 파일에 전 SALLE 키 (살롱지기 🧭 편집) */
-console.info('[EG] college v0.9 · 0801 SALLE03 이번 회차');
+console.info('[EG] college v0.10 · 0801 SALLE03 + 시간여행(?date=)');
 const ROOM_DEF={
   poster:{x:26.99,y:33.43,w:41.76},          /* SALLE 01 */
   status:{x:30,y:69.5,w:40},                 /* SALLE 01 */

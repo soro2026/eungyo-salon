@@ -2686,6 +2686,94 @@ const TERRA_KIND = {
   college:{ icon:"📖" },
   concert:{ icon:"🎼", tag:"EG음악관" }
 };
+/* ══ 천문대 시각 순회 (0801 · 천문대 결정문 v1.0 §2) ══
+   두 축으로 오늘의 천문대가 정해진다.
+     1축 자격 — 지금 이 순간 현지가 밤(22~04시)인 곳만 후보. 시각이 정한다
+     2축 선택 — 자격자 중 오늘 어디로 갈지 날짜 순번으로 뽑는다. 날짜가 정한다
+   ⭐ 행 노동 0. 밴드를 손으로 적지 않고 경도에서 계산한다 — 후보를 늘려도 표를 안 고친다.
+   ⚠ 하루 안에서도 핀은 지구 자전을 따라 서쪽으로 몇 번 옮겨간다.
+     버그가 아니라 이 기능의 정직한 모습이다(결정문 §2). */
+let obsAll = [];         /* 천문대 후보 전체 — 지도에는 안 그린다 */
+let obsOnDuty = null;    /* 지금 당번의 code */
+let obsTimer = null;
+
+/* 현지 태양시 (0~24). 시간대(UTC 오프셋)가 아니라 경도로 잰다 — 결정문 §2 */
+function obsLocalHour(p){
+  const n = new Date();
+  return ((n.getUTCHours() + n.getUTCMinutes()/60) + Number(p.lng)/15 + 24) % 24;
+}
+function obsLocalLabel(p){
+  const t = obsLocalHour(p);
+  const h = Math.floor(t), m = Math.floor((t - h) * 60);
+  return String(h).padStart(2,"0") + ":" + String(m).padStart(2,"0");
+}
+function pickObservatory(rows){
+  if (!rows || !rows.length) return null;
+  /* 동쪽부터 세워 두면 지구가 돌 때 목록이 서쪽으로 미끄러진다 */
+  const cand = rows.slice().sort((a,b)=> Number(b.lng) - Number(a.lng));
+  const elig = cand.filter(p=>{ const t = obsLocalHour(p); return t >= 22 || t < 4; });
+  if (!elig.length){
+    /* 후보가 얇을 때 생기는 틈 — 가장 깊은 밤(현지 01시)에 가까운 곳이 대신 선다.
+       곳이 늘면 이 틈은 저절로 사라진다. */
+    return cand.slice().sort((a,b)=>{
+      const d = (p)=>{ const t = obsLocalHour(p); return Math.min(Math.abs(t-1), Math.abs(t-25)); };
+      return d(a) - d(b);
+    })[0];
+  }
+  /* KST 날수 — 자정에 한 칸 밀린다. 같은 시각 접속자도 매일 다른 곳을 만난다 */
+  const day = Math.floor((Date.now() + 9*3600000) / 86400000);
+  return elig[day % elig.length];
+}
+/* 당번이 바뀌었으면 옛 핀을 내리고 새 핀을 세운다 */
+function refreshObservatory(){
+  try{
+    if (!obsAll.length) return;
+    const duty = pickObservatory(obsAll);
+    if (!duty || duty.code === obsOnDuty) return;
+    if (obsOnDuty){
+      const old = viewer.entities.getById("terra-" + obsOnDuty);
+      if (old) viewer.entities.remove(old);
+      delete terraPins[obsOnDuty];
+    }
+    obsOnDuty = duty.code;
+    addTerraPin(duty);
+    clampTerraPins();
+    try{ loadDock(); }catch(e){}
+    console.log("[EG] 천문대 교대 →", duty.name, "· 현지", obsLocalLabel(duty));
+  }catch(e){ console.warn("천문대 교대 실패:", e); }
+}
+
+/* ── 핀 한 점 세우기 (loadTerraPins에서 떼어냄 · 0801)
+   천문대가 하루에도 몇 번 갈리므로 그리는 일을 따로 부를 수 있어야 했다. */
+function addTerraPin(p){
+  try{
+    const kk = TERRA_KIND[p.kind] || { icon:"📍" };
+    terraPins[p.code] = p;
+    if (viewer.entities.getById("terra-"+p.code)) return;  /* 중복 add 예외 방지 */
+    const ent = viewer.entities.add({
+      id:"terra-"+p.code,
+      /* 기본 고도 60m — 표면 고정 실패해도 파리 지반 밑에 묻히지 않게 */
+      position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 60),
+      point:{ pixelSize:9, color:Cesium.Color.fromCssColorString(p.color||"#c62828"),
+        outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
+        disableDepthTestDistance:10000 },   /* 10km 안에서만 타일 위 우선 — 지구 관통 방지 */
+      label:{ text:kk.icon + " " + p.name + (kk.tag ? "  ·  " + kk.tag : ""),
+        font:"bold 14px 'Helvetica Neue',Arial,sans-serif",
+        fillColor:Cesium.Color.WHITE,
+        outlineColor:Cesium.Color.fromCssColorString("#0a0e1a"), outlineWidth:3,
+        style:Cesium.LabelStyle.FILL_AND_OUTLINE,
+        showBackground:true,
+        backgroundColor:Cesium.Color.fromCssColorString(p.color||"#c62828").withAlpha(.95),
+        backgroundPadding:new Cesium.Cartesian2(11,6),
+        pixelOffset:new Cesium.Cartesian2(0,-12),
+        verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
+        disableDepthTestDistance:10000 }
+    });
+    ent._terra = p;
+    ent._basePx = 9;
+  }catch(e){ console.warn("terra 핀 개별 실패:", p && p.code, e); }
+}
+
 async function loadTerraPins(){
   /* 재시도 3회 — 순간 네트워크 삐끗으로 핀 전멸하던 사고 봉합 */
   let rows=null;
@@ -2705,36 +2793,19 @@ async function loadTerraPins(){
     const todayStr = new Date().toLocaleDateString("sv-SE", { timeZone:"Asia/Seoul" });
     rows = rows.filter(p => (!p.active_from || p.active_from <= todayStr)
                          && (!p.active_to   || p.active_to   >= todayStr));
-    for (const p of rows){
-      try{
-        const kk = TERRA_KIND[p.kind] || { icon:"📍" };
-        terraPins[p.code] = p;
-        if (viewer.entities.getById("terra-"+p.code)) continue;  /* 중복 add 예외 방지 */
-        const ent = viewer.entities.add({
-          id:"terra-"+p.code,
-          /* 기본 고도 60m — 표면 고정 실패해도 파리 지반 밑에 묻히지 않게 */
-          position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 60),
-          point:{ pixelSize:9, color:Cesium.Color.fromCssColorString(p.color||"#c62828"),
-            outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
-            disableDepthTestDistance:10000 },   /* 10km 안에서만 타일 위 우선 — 지구 관통 방지 */
-          label:{ text:kk.icon + " " + p.name + (kk.tag ? "  ·  " + kk.tag : ""),
-            font:"bold 14px 'Helvetica Neue',Arial,sans-serif",
-            fillColor:Cesium.Color.WHITE,
-            outlineColor:Cesium.Color.fromCssColorString("#0a0e1a"), outlineWidth:3,
-            style:Cesium.LabelStyle.FILL_AND_OUTLINE,
-            showBackground:true,
-            backgroundColor:Cesium.Color.fromCssColorString(p.color||"#c62828").withAlpha(.95),
-            backgroundPadding:new Cesium.Cartesian2(11,6),
-            pixelOffset:new Cesium.Cartesian2(0,-12),
-            verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
-            disableDepthTestDistance:10000 }
-        });
-        ent._terra = p;
-        ent._basePx = 9;
-      }catch(e){ console.warn("terra 핀 개별 실패:", p && p.code, e); }
-    }
+    /* ⭐ 천문대는 날짜가 아니라 시각이 고른다 (0801 · 결정문 §2).
+       후보는 다 들고 있되 지도에 서는 것은 당번 하나뿐이다 — 서른일곱 개 핀이 동시에
+       뜨면 지도가 시끄럽고, 그중 서른여섯은 대낮이라 거짓말이 된다. */
+    obsAll = rows.filter(p => p.kind === "constellatio");
+    const duty = pickObservatory(obsAll);
+    obsOnDuty = duty ? duty.code : null;
+    rows = rows.filter(p => p.kind !== "constellatio" || (duty && p.code === duty.code));
+    for (const p of rows) addTerraPin(p);
     clampTerraPins();   /* 실사 타일 지붕 높이에 앉힘 — 어긋남 방지 */
     setTimeout(clampTerraPins, 9000);   /* 타일 예열 후 2차 고정 — 초탄 실패 보험 */
+    /* 지구가 도는 만큼 당번도 옮겨간다. 10분마다 한 번 살핀다 */
+    if (obsTimer) clearInterval(obsTimer);
+    obsTimer = setInterval(refreshObservatory, 600000);
   }catch(e){ console.warn("terra 핀 로딩 실패:", e); }
 }
 
@@ -3569,11 +3640,21 @@ async function loadDock(){
       } }
     items.push(stadItem);
 
-    /* 📚✨🖼 — kind의 현재 당번 핀으로 비행 후 자동 입장 (주차·월차 교대 자동 반영)
-       ⚠ pinOf는 같은 kind 중 「첫 번째」를 돌려준다. 지금은 loadTerraPins의 기간 필터가
-         하루에 하나만 남겨서 맞고 있을 뿐이다. 천문대 열두 곳을 넣다가 기간이 겹치면
-         지도에는 핀 둘, 타륜에는 하나가 되고 에러도 안 난다. 순회 공사 때 함께 수리할 것. */
-    const pinOf = (kind)=>{ for (const c in terraPins){ if (terraPins[c].kind === kind) return terraPins[c]; } return null; };
+    /* 📚✨🖼 — kind의 현재 당번 핀으로 비행 후 자동 입장
+       0801 수리 — 옛 pinOf는 객체 열쇠 순서의 「첫 번째」를 돌려줬다. 지금까지는 기간 필터가
+       하루에 하나만 남겨서 우연히 맞았을 뿐이라, 천문대 여럿을 넣는 순간 지도와 타륜이
+       다른 곳을 가리켰을 것이다(결정문 §7-3 「② 건너뛰고 ③ 금지」).
+       이제 ① 천문대는 오늘의 당번을 ② 나머지는 sort가 가장 앞선 것을 돌려준다. */
+    const pinOf = (kind)=>{
+      if (kind === "constellatio" && obsOnDuty && terraPins[obsOnDuty]) return terraPins[obsOnDuty];
+      let best = null;
+      for (const c in terraPins){
+        const p = terraPins[c];
+        if (p.kind !== kind) continue;
+        if (!best || (p.sort||0) < (best.sort||0)) best = p;
+      }
+      return best;
+    };
     const uni = [
       { kind:"museum",       sec:"lectio", name:"EG뮤세움" },
       { kind:"constellatio", sec:"mundus", name:"EG콘스텔라티오" },
@@ -3583,10 +3664,14 @@ async function loadDock(){
     ];
     for (const u of uni){
       const p = pinOf(u.kind);
+      /* 0801 — 천문대만 현지 시각을 곁들인다(결정문 §7-5). 「지금 저기는 새벽 두 시」가
+         이 기능의 전부를 한 줄로 설명한다. 다른 우주는 시각과 무관하므로 이름만. */
+      const sub = !p ? ""
+        : (u.kind === "constellatio" ? p.name + " · 현지 " + obsLocalLabel(p) : p.name);
       items.push({ id:u.kind, sec:u.sec, cls:"uni",
         html: (u.cap ? '<div class="dock-cap">' + u.cap + '</div>' : '')
             + '<div class="dock-main"><span>' + u.name + '</span></div>'
-            + '<div class="dock-sub">' + (p ? p.name : "") + '</div>',
+            + '<div class="dock-sub">' + sub + '</div>',
         onClick: ()=>{ if (p) flyToPark(p); } });
     }
 
@@ -3676,7 +3761,7 @@ function startCountdown(ids, dateStr){
 /* 0731 — 콘서트홀 입장 버튼은 블록 7의 openStory 안에서 눌린다.
    이 블록은 IIFE라 안에서 선언한 함수가 밖에서 안 보인다. 창구로 내보낸다.
    (버튼이 먹통이던 원인 — 블록 경계. egLogout이 겪은 병과 같은 집안이다.) */
-console.log("%c[EG] terra v133 · 0801 청소 (야구공그림+매치업정렬+인물장소기본)", "color:#c9a24a");
+console.log("%c[EG] terra v134 · 0801 천문대 시각순회 개통 (+야구공·매치업정렬·인물장소)", "color:#c9a24a");
 window.enterRoomUrl   = enterRoomUrl;
 window.egLogout       = egLogout;
 window.closeOrgLists  = closeOrgLists;
