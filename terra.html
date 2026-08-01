@@ -656,9 +656,27 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   #helmBtn img{ width:100%; height:100%; display:block;
     transition:transform .8s cubic-bezier(.4,0,.2,1); }
   #helmBtn:hover img{ transform:rotate(180deg); }
-  #helmBadge{ position:absolute; top:5px; right:5px; width:11px; height:11px; border-radius:50%;
-    background:#c62828; border:2px solid rgba(248,244,234,.9); display:none;
-    box-shadow:0 0 8px rgba(198,40,40,.7); }
+  /* 0801 소로 — 오늘 경기 등불을 빨간 점에서 야구공으로.
+     0728 주석이 이미 「색을 더 늘리지 않고 사물로 구분한다」고 적어두었는데, 사물이 된 건
+     사과 하나뿐이었다. 이제 좌하 사과 · 우상 야구공으로 둘 다 물건이 되었다.
+     켤 때 타륜 테 밖으로 스윽 돌출된 뒤 사과와 같은 박자로 숨쉰다. */
+  #helmBadge{ position:absolute; top:1px; right:1px; width:25px; height:25px; border-radius:50%;
+    background:radial-gradient(circle at 34% 30%, #ffffff, #f8f4ea 55%, #d6ccb7);
+    border:2px solid rgba(248,244,234,.92); display:none; overflow:hidden;
+    box-shadow:0 2px 9px rgba(0,0,0,.5);
+    animation:ballPop .48s cubic-bezier(.34,1.5,.5,1) both,
+              ballBob 2.8s ease-in-out .48s infinite; }
+  #helmBadge.on{ display:block; }
+  /* 붉은 실밥 — 큰 타원 둘을 좌우로 밀어 넣고 안쪽 테만 남긴다. 공 밖은 overflow가 자른다 */
+  #helmBadge::before, #helmBadge::after{
+    content:""; position:absolute; top:-5px; width:19px; height:31px;
+    border-radius:50%; border:1.7px solid transparent; }
+  #helmBadge::before{ left:-12.5px;  border-right-color:#c62828; }
+  #helmBadge::after { right:-12.5px; border-left-color:#c62828; }
+  @keyframes ballPop{ from{ transform:scale(.25) translate(-5px,5px); opacity:0; }
+                        to{ transform:scale(1)   translate(0,0);      opacity:1; } }
+  @keyframes ballBob{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.09); } }
+  @media (prefers-reduced-motion:reduce){ #helmBadge{ animation:none; } }
   /* 0728 — 황금사과 입금 표시. 빨간 점(오늘 경기)과 대각선 반대편에 두어
      둘이 동시에 켜져도 겹치지 않고 각자 읽힌다. 색을 더 늘리지 않고 사물로 구분한다. */
   #helmApple{ position:absolute; bottom:1px; left:1px; width:25px; height:25px; border-radius:50%;
@@ -799,6 +817,14 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   /* ══ 0730 아레나 카드 — 폰 아뮈즈부슈 이식 ══
      클래스 얼개·수치·사과 낙하는 m.html 그대로, 색만 타륜 것으로 갈았다.
      엠블럼은 144×144 경량판(_s.webp) — 스타디움 720px 원본이 아니다 (0729 실측 804KB→39KB). */
+  /* 0801 소로 — 아레나 카드의 글줄을 전부 vs 축에 맞춘다.
+     엠블럼 둘이 좌우 대칭인데 캡션·시계·HOME만 왼쪽에 붙어 있어 축이 둘로 읽혔다.
+     ⚠ 이 카드는 숏컷이 없어(nogo) 좌우 여백이 12px로 같다 → 카드 한가운데 = dk-vs의 auto 열.
+       숏컷이 생기면 오른쪽 여백만 38px이 되어 축이 왼쪽으로 밀린다. 그때 다시 잴 것. */
+  .dock-card.arena .dock-cap,
+  .dock-card.arena .dock-count,
+  .dock-card.arena .dock-sub{ text-align:center; }
+  .dock-card.arena .dock-main{ justify-content:center; }
   .dk-vs{ display:grid; grid-template-columns:1fr auto 1fr; align-items:center;
     margin-top:8px; min-height:52px; }
   .dk-em{ justify-self:center; width:48px; height:48px; display:block; object-fit:contain;
@@ -945,7 +971,7 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
 <!-- ═══ EG테라: 통합위젯 도크 (뮤세움·헤리티지·콘스텔라티오 확장 예정) ═══ -->
 <button id="helmBtn" aria-label="EG 우주 열기">
   <img src="terra_helm.webp" alt="" onerror="this.style.display='none';this.parentNode.classList.add('noimg')">
-  <span id="helmBadge"></span>
+  <span id="helmBadge" aria-label="오늘 경기가 있습니다"></span>
   <span id="helmApple" aria-label="도착한 황금사과">🍎</span>
 </button>
 <div id="egDock">
@@ -1109,7 +1135,10 @@ const HEMINGWAY = {
 let viewer, orbiting=false, orbitHeading=0, orbitCenter=null, orbitRange=1000, orbitTick=null, activeIdx=-1;
 let CITIES=[], currentCity='paris';
 let currentMaison=null, currentPopup=null, doorState='closed';
-let showSpots=false, showMaisons=true;   // maison: 콩파뇽 집 켜짐, 인물 장소 꺼짐(원하면 토글)
+/* 0801 소로 — 인물 장소를 기본 켜짐으로. 처음 지구에 닿은 손님에게 빈 도시를 보여주면
+   여기가 무엇을 하는 곳인지 읽을 단서가 없다. 판테온·라듐연구소가 처음부터 서 있어야
+   콩파뇽의 집과 인류의 장소가 한 화면에 겹쳐 있다는 것이 한눈에 읽힌다. 끄고 싶으면 토글. */
+let showSpots=true, showMaisons=true;
 let IS_ADMIN=false, EDIT_MODE=false, selEnt=null, MOVING=false;   // admin 좌표 편집
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
@@ -3404,7 +3433,11 @@ async function loadDock(){
     /* ARENA ⚾ 스타디움 — 매치업 카드 (오늘 → 다음 → 대기, 365일 근무)
        구획을 홀로 쓰는 유일한 카드. 다른 다섯은 언제 와도 그대로인데 여기만 매일 바뀐다. */
     let cdTarget = null;
-    let stadItem = { id:"stadium", sec:"arena",
+    /* 0801 — 공의 점등 여부를 여기서 변수로 들고 있다가 끝에서 한 번만 적용한다.
+       ⚠ loadDock은 새로고침 때 1.8초 간격으로 두 번 돈다(2612줄). 매번 껐다 켜면
+         그때마다 돌출 애니메이션이 다시 튄다. toggle(force)는 같은 상태면 아무 일도 안 한다. */
+    let ballOn = false;
+    let stadItem = { id:"stadium", sec:"arena", cls:"arena",
       html: '<div class="dock-cap">EG STADIUM</div>'
           + '<div class="dock-main"><span>휴식일</span></div>'
           + '<div class="dock-sub">다음 대진 편성 대기</div>',
@@ -3480,7 +3513,7 @@ async function loadDock(){
             + '</div>'
             + '<div class="dock-count" id="dockCount">--:--:--</div>';
         }
-        stadItem = { id:"stadium", sec:"arena", cls:(isWin ? "arena-win" : ""),
+        stadItem = { id:"stadium", sec:"arena", cls:"arena" + (isWin ? " arena-win" : ""),
           html: '<div class="dock-cap">' + (isNext ? "NEXT MATCHUP" : (done ? "TODAY RESULT" : "TODAY MATCHUP")) + '</div>'
               + cardBody
               + '<div class="dock-sub">' + (m.home_team==="soro" ? "HOME" : "AWAY")
@@ -3488,9 +3521,12 @@ async function loadDock(){
           onClick: openStadCard };
         liveCountdown = !done;
         cdTarget = isNext ? m.match_date : null;
-        if (!done && !isNext){ const b=document.getElementById("helmBadge"); if (b) b.style.display="block"; }  /* 경기일 등불 */
+        ballOn = !done && !isNext;   /* 경기일 등불 — 실제 점등은 아래 items.push 직전에 한 번 */
       }
     }
+    /* 0801 — 타륜 우상단 야구공. 켜기만 하던 옛 코드는 경기가 끝나도 공이 남았다.
+       toggle(force) 한 줄로 켜짐·꺼짐이 한 곳에서 갈린다. */
+    { const b = document.getElementById("helmBadge"); if (b) b.classList.toggle("on", ballOn); }
     items.push(stadItem);
 
     /* 📚✨🖼 — kind의 현재 당번 핀으로 비행 후 자동 입장 (주차·월차 교대 자동 반영)
@@ -3600,7 +3636,7 @@ function startCountdown(ids, dateStr){
 /* 0731 — 콘서트홀 입장 버튼은 블록 7의 openStory 안에서 눌린다.
    이 블록은 IIFE라 안에서 선언한 함수가 밖에서 안 보인다. 창구로 내보낸다.
    (버튼이 먹통이던 원인 — 블록 경계. egLogout이 겪은 병과 같은 집안이다.) */
-console.log("%c[EG] terra v132 · 0731 콘서트홀 (창구+타륜+배선)", "color:#c9a24a");
+console.log("%c[EG] terra v133 · 0801 청소 (야구공+매치업정렬+인물장소기본)", "color:#c9a24a");
 window.enterRoomUrl   = enterRoomUrl;
 window.egLogout       = egLogout;
 window.closeOrgLists  = closeOrgLists;
