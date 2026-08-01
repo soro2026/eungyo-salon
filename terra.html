@@ -2212,17 +2212,22 @@ async function setupAdminEdit(){
   });
   /* ── 0801 천문대 순회 드롭다운 ──
      검수용 뒷문 — 순번·당번은 손대지 않고 그곳으로 날아가 보기만 한다.
-     ⚠ v137에서 focus에 채웠더니 첫 클릭이 빈 서랍이었다 — 브라우저는 클릭 순간
-       팝업을 그려버려서, 그 뒤에 넣은 option은 이미 열린 팝업에 안 들어간다.
-       → obsAll이 도착하는 즉시 미리 채운다 (2초 간격 감시, 차면 감시 소등). */
+     ⚠ v137: focus에 채웠더니 첫 클릭이 빈 서랍 — 팝업이 열린 뒤 넣은 option은 안 들어간다.
+     ⚠ v138: obsAll이 다음 <script> 블록(2606~) 소속이라 init 시점엔 이름 자체가 없어
+       ReferenceError로 배선 전체가 죽었다(v133 함정 「블록 경계」). typeof 창구로 방탄 —
+       2초 뒤 감시가 다시 볼 때는 그 블록이 이미 서 있어 그때 채워진다. */
   const tour = document.getElementById("obsTour");
   if (tour){
+    const OBS = ()=> (typeof obsAll !== "undefined" && obsAll) ? obsAll : [];
     const fillTour = ()=>{
-      if (tour.options.length > 1 || !obsAll.length) return false;
-      obsAll.slice().sort((a,b)=> Number(b.lng) - Number(a.lng)).forEach(p=>{
+      const all = OBS();
+      if (tour.options.length > 1 || !all.length) return tour.options.length > 1;
+      const duty = (typeof obsOnDuty !== "undefined") ? obsOnDuty : null;
+      all.slice().sort((a,b)=> Number(b.lng) - Number(a.lng)).forEach(p=>{
         const o = document.createElement("option");
         o.value = p.code;
-        o.textContent = (p.code === obsOnDuty ? "● " : "") + p.name + " · " + obsLocalLabel(p);
+        const t = (typeof obsLocalLabel === "function") ? " · " + obsLocalLabel(p) : "";
+        o.textContent = (p.code === duty ? "● " : "") + p.name + t;
         tour.appendChild(o);
       });
       return true;
@@ -2231,8 +2236,11 @@ async function setupAdminEdit(){
       const watch = setInterval(()=>{ if (fillTour()) clearInterval(watch); }, 2000);
     }
     tour.addEventListener("change", ()=>{
-      const p = obsAll.find(x => x.code === tour.value);
-      if (p){ flyToPark(p); try{ document.getElementById("egDock").classList.remove("open"); }catch(e){} }
+      const p = OBS().find(x => x.code === tour.value);
+      if (p && typeof flyToPark === "function"){
+        flyToPark(p);
+        try{ document.getElementById("egDock").classList.remove("open"); }catch(e){}
+      }
       tour.value = "";
     });
   }
@@ -3900,7 +3908,7 @@ function startCountdown(ids, dateStr){
 /* 0731 — 콘서트홀 입장 버튼은 블록 7의 openStory 안에서 눌린다.
    이 블록은 IIFE라 안에서 선언한 함수가 밖에서 안 보인다. 창구로 내보낸다.
    (버튼이 먹통이던 원인 — 블록 경계. egLogout이 겪은 병과 같은 집안이다.) */
-console.log("%c[EG] terra v138 · 0801 순회 드롭다운 선채움", "color:#c9a24a");
+console.log("%c[EG] terra v139 · 0801 순회 블록경계 방탄", "color:#c9a24a");
 window.enterRoomUrl   = enterRoomUrl;
 window.egLogout       = egLogout;
 window.closeOrgLists  = closeOrgLists;
