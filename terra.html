@@ -349,6 +349,10 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   #obsClock.on{ opacity:.92; }
   #obsClock .oc-name{ font-size:11px; letter-spacing:.26em; text-transform:uppercase;
     color:rgba(240,232,214,.72); margin-bottom:5px; }
+  /* 0802 — 도시 · 국가. 도시가 없는 곳(사막·산)은 국가만 뜬다. */
+  #obsClock .oc-place{ font-size:9px; letter-spacing:.2em; text-transform:uppercase;
+    opacity:.62; margin:2px 0 6px; }
+  #obsClock .oc-place:empty{ display:none; }
   #obsClock .oc-time{ font-size:31px; letter-spacing:.06em; line-height:1;
     font-variant-numeric:tabular-nums; }
   #obsClock .oc-sec{ font-size:17px; opacity:.55; margin-left:2px; }
@@ -1010,6 +1014,7 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
 
 <div id="obsClock" aria-hidden="true">
   <div class="oc-name" id="ocName"></div>
+  <div class="oc-place" id="ocPlace"></div>
   <div class="oc-time"><span id="ocHM"></span><span class="oc-sec" id="ocS"></span></div>
   <div class="oc-foot">heure locale</div>
 </div>
@@ -3150,16 +3155,18 @@ function enterRoomUrl(url, title){
   doorState = "open";
 }
 
-/* ── 천문대 현지 시계 (0801) ──
+/* ── 현지 시계 (0801 천문대 · 0802 어디든) ──
    ⭐ 스스로 살펴서 켜고 끈다. flyToPark·enterRoom·closeStory 등 나가는 문이 여럿이라
      한 곳씩 배선하면 반드시 하나를 빠뜨린다(v127 함정 A의 사촌). 1초마다 currentPark만 본다.
-   천문대에 내려앉아 있을 때만 뜬다 — 다른 우주에서는 시각이 아무 뜻도 없다. */
+   0802 소로 — 천문대 전용을 풀었다. 지구 어느 핀에 내려앉든 그곳의 시각이 뜬다.
+     판정 기준은 kind가 아니라 meta.tz의 유무다. tz가 있으면 시각을 말할 수 있는 곳이고,
+     없으면 조용히 사라진다 — 새 종족이 생겨도 이 함수를 고치러 오지 않아도 된다. */
 function tickObsClock(){
   try{
     const el = document.getElementById("obsClock");
     if (!el) return;
     const p = currentPark;
-    const on = !!(p && p.kind === "constellatio");
+    const on = !!(p && p.meta && p.meta.tz);
     el.classList.toggle("on", on);
     if (!on) return;
     /* 시민시 우선(서머타임 자동) — tz 없으면 태양시 후퇴 */
@@ -3173,6 +3180,10 @@ function tickObsClock(){
       hm = two(h) + ":" + two(m); ss = ":" + two(s);
     }
     document.getElementById("ocName").textContent = terraLabel(p);
+    /* 도시 · 국가 — 도시가 없으면 국가만 (0802 소로) */
+    const city = (p.meta.city_en || "").trim(), ctry = (p.meta.country || "").trim();
+    document.getElementById("ocPlace").textContent =
+      [city, ctry].filter(Boolean).join("  ·  ");
     document.getElementById("ocHM").textContent = hm;
     document.getElementById("ocS").textContent  = ss;
   }catch(e){}
@@ -4065,7 +4076,7 @@ function startCountdown(ids, dateStr){
 /* 0731 — 콘서트홀 입장 버튼은 블록 7의 openStory 안에서 눌린다.
    이 블록은 IIFE라 안에서 선언한 함수가 밖에서 안 보인다. 창구로 내보낸다.
    (버튼이 먹통이던 원인 — 블록 경계. egLogout이 겪은 병과 같은 집안이다.) */
-console.log("%c[EG] terra v145 · 0802 음악관 접이 목록 · 작곡자 표기", "color:#c9a24a");
+console.log("%c[EG] terra v146 · 0802 어디든 현지 시계 · 도시 국가", "color:#c9a24a");
 window.enterRoomUrl   = enterRoomUrl;
 window.egLogout       = egLogout;
 window.closeOrgLists  = closeOrgLists;
