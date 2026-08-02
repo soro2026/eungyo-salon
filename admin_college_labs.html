@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Cormorant+Garamond:wght@400;500&display=swap" rel="stylesheet">
 <style>
 /* ============================================================
- *  admin_college_labs v1.0 — 0723 · 살롱지기 전용
+ *  admin_college_labs v1.1 — 0802 · 살롱지기 전용
  *  복도 배경: college-assets/shell/hall3_{m|d|e|n}.webp
  *  문패:      college-assets/labs/plate_{lab_no 3자리}.webp
  *  메달리온:  college-assets/labs/medallion_{author_code}.webp (저자 공용)
@@ -34,6 +34,17 @@ h2{font-size:13px;letter-spacing:.18em;color:var(--gold-l);margin-bottom:6px;}
 .slot:hover,.slot.drag{border-color:var(--gold-l);background:rgba(201,162,74,.06);}
 .slot img{max-width:100%;max-height:190px;border-radius:6px;display:block;margin:0 auto 10px;}
 .slot.tall img{max-height:230px;}            /* 방 그림은 9:16 세로 */
+/* 방 그림 4슬롯 (0802): SALLE 한 장 = 한 블록, 안에 아침·낮·저녁·밤 넉 칸 */
+#roomSlots{display:block;}
+.room-block{margin-top:18px;}
+.room-block:first-child{margin-top:0;}
+.room-title{font-size:12.5px;color:var(--gold-l);letter-spacing:.08em;margin-bottom:8px;}
+.room-lat{font-family:'Cormorant Garamond',serif;font-size:9.5px;letter-spacing:.2em;
+  color:rgba(201,162,74,.55);margin-left:6px;}
+.room-quad{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+.room-quad .slot{padding:9px;}
+.room-quad .slot img{max-height:150px;}
+.room-quad .s-state{font-size:9.5px;}
 .slot .s-sub{font-family:'Cormorant Garamond',serif;font-size:9.5px;letter-spacing:.2em;
   color:rgba(201,162,74,.6);margin-top:3px;}
 select.pick{font:inherit;font-size:12.5px;color:#f0e8d4;background:var(--ink);
@@ -104,11 +115,11 @@ a.back:hover{color:var(--gold-l);}
     </div>
 
     <div class="card">
-      <h2>방 그림 — SALLE 7장</h2>
+      <h2>방 그림 — SALLE 7장 × 시간대 4벌</h2>
       <div class="hint">941×1672 세로(9:16), 무텍스트. <b>가구가 놓일 벽·판·서랍장을 비워둔 채</b> 구워야
-        그 위에 항해도·명패·서랍이 앉습니다.<br>
-        LAB 하나당 7장이므로 방을 먼저 고릅니다. 지금은 낮판(d) 한 벌만 씁니다 —
-        아침·저녁·밤은 낮판으로 폴백합니다.</div>
+        그 위에 진도표·명패·서랍이 앉습니다.<br>
+        아침(m)·낮(d)·저녁(e)·밤(n). <b>낮판이 기둥입니다 — 낮판만 있어도 나머지 시간대는 낮판으로 폴백합니다.</b>
+        구도는 고정하고 창밖 빛과 실내 조명만 전환해 구우세요.</div>
       <select class="pick" id="roomLab" onchange="renderRoomSlots()"></select>
       <div class="slot-grid" id="roomSlots"></div>
     </div>
@@ -124,6 +135,7 @@ const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
 const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth'}});
 const PUB=p=>`${SUPA_URL}/storage/v1/object/public/college-assets/${p}`;
 const pad3=n=>String(n).padStart(3,'0');
+console.log('%c[EG] admin_college_labs v1.1 · 0802 SALLE 그림 시간대 4벌','color:#c9a24a');
 let pickTarget=null;
 
 function toast(m){const t=document.getElementById('toast');t.textContent=m;
@@ -228,12 +240,16 @@ async function loadLabs(){
  *  SALLE 이름은 목업 v2의 scene 정의와 같은 순서·같은 말을 쓴다.
  *  두 곳에 다른 이름이 살면 반년 뒤에 어느 쪽이 진짜인지 못 가린다. */
 let LABS=[];
+/* ⚠ 이름은 college.html의 SALLES 배열과 한 글자도 다르면 안 된다 (0802 정정:
+   항해도→진도표 · 이번 주→이번 회차 · 지나간 배들→앞서간 기수들 — 셸이 정본) */
 const SALLES=[
-  ['현관','VESTIBULE'], ['항해도','CARTE DE ROUTE'], ['이번 주','BUREAU'],
-  ['동료들','COMPAGNONS'], ['흔적의 책상','TRACES'], ['지나간 배들','ARCHIVES'],
+  ['현관','VESTIBULE'], ['진도표','CARTE DE ROUTE'], ['이번 회차','BUREAU'],
+  ['동료들','COMPAGNONS'], ['흔적의 책상','TRACES'], ['앞서간 기수들','ARCHIVES'],
   ['완주자의 벽','LE MUR']
 ];
-const roomPath=(no,n)=>`labs/room_${pad3(no)}_v${n}_d.webp`;
+/* 시간대 4벌 (0802): room_{NNN}_v{n}_{m|d|e|n}.webp — 낮판만 있어도 셸이 폴백 */
+const ROOM_SLOTS=[['m','아침'],['d','낮'],['e','저녁'],['n','밤']];
+const roomPath=(no,n,slot)=>`labs/room_${pad3(no)}_v${n}_${slot||'d'}.webp`;
 
 function buildRoomCard(){
   const sel=document.getElementById('roomLab'); if(!sel) return;
@@ -252,32 +268,41 @@ function renderRoomSlots(){
   const sel=document.getElementById('roomLab');
   const box=document.getElementById('roomSlots');
   const no=+sel.value; if(!no) return;
+  /* SALLE 한 장 = 4슬롯 한 줄 (아침·낮·저녁·밤). 낮판이 기둥, 나머지는 있으면 걸림 */
   box.innerHTML=SALLES.map(([ko,lat],i)=>{
     const n=i+1;
-    return `<div class="slot tall" data-path="${roomPath(no,n)}" id="rm-${n}">
-      <div class="s-name">SALLE ${n} · ${ko}</div>
-      <div class="s-sub">${lat}</div>
-      <div class="s-state">확인 중…</div>
+    const cells=ROOM_SLOTS.map(([sl,slKo])=>
+      `<div class="slot tall rslot" data-path="${roomPath(no,n,sl)}" id="rm-${n}-${sl}">
+        <div class="s-name">${slKo}</div>
+        <div class="s-state">확인 중…</div>
+      </div>`).join('');
+    return `<div class="room-block">
+      <div class="room-title">SALLE ${n} · ${ko} <span class="room-lat">${lat}</span></div>
+      <div class="room-quad">${cells}</div>
     </div>`;
   }).join('');
-  box.querySelectorAll('.slot').forEach(el=>{
+  box.querySelectorAll('.rslot').forEach(el=>{
     el.addEventListener('click',()=>pickFile(el.dataset.path,renderRoomSlots));
     el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('drag');});
     el.addEventListener('dragleave',()=>el.classList.remove('drag'));
     el.addEventListener('drop',e=>{e.preventDefault();el.classList.remove('drag');
       if(e.dataTransfer.files[0]) upload(el.dataset.path,e.dataTransfer.files[0],renderRoomSlots);});
   });
-  SALLES.forEach(([ko,lat],i)=>{
-    const n=i+1, el=document.getElementById('rm-'+n); if(!el) return;
-    const path=roomPath(no,n);
-    const head=`<div class="s-name">SALLE ${n} · ${ko}</div><div class="s-sub">${lat}</div>`;
-    const im=new Image();
-    im.onload=()=>{ el.innerHTML=`<img src="${im.src}" alt="">${head}
-      <div class="s-state">걸려 있음 · 클릭해 교체</div>
-      <button class="btn ghost" style="margin-top:8px"
-        onclick="event.stopPropagation();clearAsset('${path}',renderRoomSlots)">내리기</button>`; };
-    im.onerror=()=>{ el.innerHTML=`${head}<div class="s-state">비어 있음 · 클릭해 걸기</div>`; };
-    im.src=PUB(path)+'?v='+Date.now();
+  SALLES.forEach((_,i)=>{
+    const n=i+1;
+    ROOM_SLOTS.forEach(([sl,slKo])=>{
+      const el=document.getElementById(`rm-${n}-${sl}`); if(!el) return;
+      const path=roomPath(no,n,sl);
+      const im=new Image();
+      im.onload=()=>{ el.innerHTML=`<img src="${im.src}" alt="">
+        <div class="s-name">${slKo}</div>
+        <div class="s-state">걸려 있음 · 클릭해 교체</div>
+        <button class="btn ghost" style="margin-top:6px"
+          onclick="event.stopPropagation();clearAsset('${path}',renderRoomSlots)">내리기</button>`; };
+      im.onerror=()=>{ el.innerHTML=`<div class="s-name">${slKo}</div>
+        <div class="s-state">${sl==='d'?'비어 있음 · 클릭해 걸기':'비어 있음 (낮판 폴백)'}</div>`; };
+      im.src=PUB(path)+'?v='+Date.now();
+    });
   });
 }
 

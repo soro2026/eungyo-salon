@@ -95,6 +95,13 @@ select.pick{font:inherit;font-size:12.5px;color:#f0e8d4;background:var(--ink);
   color:rgba(201,162,74,.6);width:22px;flex:none;}
 .sr-name{font-size:13px;color:#f0e8d4;line-height:1.5;}
 .sr-artist{font-size:11px;color:rgba(232,221,196,.5);margin-left:31px;margin-bottom:9px;}
+/* ✏️ 제목·작곡자 수정 모드 (0802) */
+.sr-pencil{padding:2px 8px;font-size:11px;flex:none;margin-left:auto;}
+.sr-meta-edit{display:flex;flex-direction:column;gap:7px;margin-bottom:10px;}
+.sr-meta-edit input{font:inherit;font-size:12px;color:#f0e8d4;
+  background:rgba(0,0,0,.28);border:1px solid rgba(201,162,74,.35);
+  border-radius:8px;padding:7px 10px;}
+.sr-meta-btns{display:flex;gap:7px;}
 .sr-fields{display:flex;gap:7px;flex-wrap:wrap;margin-left:31px;align-items:center;}
 .sr-fields input{font:inherit;font-size:11.5px;color:#f0e8d4;
   background:rgba(0,0,0,.28);border:1px solid rgba(201,162,74,.24);
@@ -241,7 +248,7 @@ const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
 const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth'}});
 const BUCKET='tour-assets';
 const PUB=p=>`${SUPA_URL}/storage/v1/object/public/${BUCKET}/${p}`;
-console.log("%c[EG] admin_tour_assets v1.1 · 0802 새 곡 입고", "color:#c9a24a");
+console.log("%c[EG] admin_tour_assets v1.2 · 0802 곡 제목·작곡자 ✏️ 수정", "color:#c9a24a");
 let pickTarget=null, HALLS=[], SONGS=[];
 
 const TODS=[['m','아침'],['d','낮'],['e','저녁'],['n','밤']];
@@ -486,6 +493,7 @@ async function addSong(){
   toast(id+' 입고 — 오늘 편성표가 한 번 고쳐 앉았습니다');
   try{ if(typeof loadHalls==='function') loadHalls(); }catch(e){}
 }
+let editingSong=null;   /* ✏️ 수정 중인 곡 id — renderSongs보다 먼저 선다 */
 function renderSongs(){
   const box=document.getElementById('songList');
   if(!SONGS.length){ box.innerHTML='<div class="empty">입고된 곡이 없습니다.</div>'; return; }
@@ -493,12 +501,25 @@ function renderSongs(){
   box.innerHTML=SONGS.map(s=>{
     const on=(s.status==='active');
     if(on) n++;
+    /* 0802 소로 — ✏️ 제목·작곡자·연도 수정 모드 */
+    const head = (editingSong===s.id)
+      ? `<div class="sr-meta-edit">
+          <input id="n-${s.id}" value="${esc(s.name)}"   placeholder="곡 제목 (작곡자 성을 앞에: 예 베토벤 교향곡 7번…)">
+          <input id="a-${s.id}" value="${esc(s.artist)}" placeholder="작곡자 정식 이름 (예: 루트비히 판 베토벤)">
+          <input id="p-${s.id}" value="${esc(s.period)}" placeholder="연도">
+          <div class="sr-meta-btns">
+            <button class="btn" onclick="saveMeta('${s.id}')">저장</button>
+            <button class="btn ghost" onclick="editSong(null)">취소</button>
+          </div>
+        </div>`
+      : `<div class="sr-head">
+          <div class="sr-no">${on?n:'—'}</div>
+          <div class="sr-name">${esc(s.name)}</div>
+          <button class="btn ghost sr-pencil" title="제목·작곡자 수정" onclick="editSong('${s.id}')">✏️</button>
+        </div>
+        <div class="sr-artist">${esc(s.artist)} · ${esc(s.period)} · <span style="opacity:.6">${esc(s.id)}</span></div>`;
     return `<div class="song-row ${on?'':'off'}" id="sr-${s.id}">
-      <div class="sr-head">
-        <div class="sr-no">${on?n:'—'}</div>
-        <div class="sr-name">${esc(s.name)}</div>
-      </div>
-      <div class="sr-artist">${esc(s.artist)} · ${esc(s.period)} · <span style="opacity:.6">${esc(s.id)}</span></div>
+      ${head}
       <div class="sr-fields">
         <input class="in-vid" id="v-${s.id}" value="${esc(s.video_id)}" placeholder="유튜브 주소 또는 ID">
         <input class="in-st"  id="t-${s.id}" value="${s.start_seconds||0}" placeholder="0:00">
@@ -508,6 +529,31 @@ function renderSongs(){
       </div>
     </div>`;
   }).join('');
+}
+/* ── 제목·작곡자 수정 (0802 소로 발주) ──
+ *  표기 표준: name = 작곡자 성 + 곡명 · artist = 정식 전체 이름.
+ *  타륜 songLine이 artist 성으로 접두를 만들므로 두 칸이 짝으로 맞아야 한다. */
+function editSong(id){ editingSong=id; renderSongs(); }
+async function saveMeta(id){
+  const name  =(document.getElementById('n-'+id).value||'').trim();
+  const artist=(document.getElementById('a-'+id).value||'').trim();
+  const period=(document.getElementById('p-'+id).value||'').trim();
+  if(!name){ toast('곡 제목을 적어 주세요'); return; }
+  if(!artist){ toast('작곡자를 적어 주세요'); return; }
+  const { error } = await supa.from('heritage_items')
+    .update({ name, artist, period }).eq('id',id);
+  if(error){ toast('저장 실패: '+error.message); return; }
+  /* 「잘 됐겠지」 금지 — 다시 읽어 확인 */
+  const { data:chk } = await supa.from('heritage_items')
+    .select('name,artist,period').eq('id',id).single();
+  if(!chk || chk.name!==name || chk.artist!==artist){
+    toast('저장했으나 확인 실패 — 새로고침해 보세요'); return;
+  }
+  const s=SONGS.find(x=>x.id===id);
+  if(s){ s.name=name; s.artist=artist; s.period=period; }
+  editingSong=null;
+  renderSongs(); renderToday();          /* 편성표의 곡 이름도 함께 갈이 */
+  toast('제목·작곡자를 고쳤습니다 ✔');
 }
 /* 유튜브 주소에서 ID만 — 통째로 붙여넣어도 되게 */
 function ytId(s){
