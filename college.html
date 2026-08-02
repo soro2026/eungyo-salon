@@ -755,6 +755,31 @@ body.is-admin .hall-sticker{display:block;}
 .trace-modal .tm-time{font-size:11.5px;opacity:.6;text-align:center;margin-top:14px;}
 .trace-modal .tm-acts{display:flex;gap:10px;margin-top:16px;}
 .trace-modal .tm-acts .btn{flex:1;}
+/* ── SALLE 04 · 동료들 — 놋쇠 명패 벽 (0802) ── */
+.rv-mates{position:absolute;font-family:'Gowun Batang',serif;color:#f3e6c8;}
+.rv-mates .mt-eyebrow{font-family:'Cormorant Garamond',serif;
+  font-size:clamp(9px,1.2vw,15px);letter-spacing:.3em;text-indent:.3em;
+  text-align:center;color:rgba(247,232,200,.8);margin-bottom:1.1em;
+  text-shadow:0 1px 4px rgba(0,0,0,.5);}
+.rv-mates .mt-grid{display:grid;grid-template-columns:1fr 1fr;gap:5% 6%;}
+.rv-mates .mt-grid.n3{grid-template-columns:1fr 1fr 1fr;gap:4% 4%;}
+.rv-mates .mp{background:linear-gradient(160deg,#d9b874 0%,#b98f45 55%,#a67b34 100%);
+  border:1px solid rgba(90,60,20,.55);border-radius:5px;
+  box-shadow:inset 0 1px 0 rgba(255,240,200,.55), inset 0 -2px 4px rgba(70,40,10,.35),
+             0 2px 5px rgba(0,0,0,.4);
+  padding:7% 6% 6.5%;text-align:center;color:#3a2508;}
+.rv-mates .mp-name{font-weight:800;font-size:clamp(8px,1.15vw,15px);
+  letter-spacing:.02em;word-break:break-all;line-height:1.25;}
+.rv-mates .mp-prog{margin-top:.35em;font-size:clamp(7.5px,.95vw,12.5px);
+  font-weight:700;opacity:.85;}
+.rv-mates .mp-sig{font-size:.9em;}
+.rv-mates .mp-sig.g{color:#1d6b26;}
+.rv-mates .mp-sig.y{color:#8a6207;}
+.rv-mates .mp-sig.r{color:#7c4a3c;opacity:.75;}
+.rv-mates .mt-note{margin-top:1.3em;text-align:center;
+  font-size:clamp(8px,1vw,13px);opacity:.75;text-shadow:0 1px 4px rgba(0,0,0,.5);}
+.rv-mates .mt-empty{text-align:center;font-size:clamp(9px,1.2vw,15px);
+  opacity:.85;line-height:1.7;text-shadow:0 1px 4px rgba(0,0,0,.5);}
 #rvBack{position:fixed;top:16px;left:16px;z-index:28;cursor:pointer;font-family:inherit;
   font-size:12px;letter-spacing:.1em;color:rgba(233,207,156,.85);
   background:rgba(20,14,9,.55);border:1px solid rgba(201,162,74,.4);
@@ -2640,17 +2665,19 @@ function esc(s){
 /* ══ SALLE — LAB 방 안 (책=방 · SALLE 01~07) · 0801 방 안 걷기 + SALLE 02 진도표 ══
  *  그림: labs/room_{lab}_v{n}_d.webp — n = SALLE 번호 (941×1672)
  *  좌표: Storage layout/lab_{lab}.json 한 파일에 전 SALLE 키 (살롱지기 🧭 편집) */
-console.info('[EG] college v0.16 · 0802 엘리베이터 패널·?lab= 딥링크');
+console.info('[EG] college v0.17 · 0802 SALLE04 동료들(명패 벽)');
 const ROOM_DEF={
   poster:{x:26.99,y:33.43,w:41.76},          /* SALLE 01 */
   status:{x:30,y:69.5,w:40},                 /* SALLE 01 */
   board :{x:16.26,y:27.69,w:64.29},          /* SALLE 02 — 펠트판 안전역 실측 0801 */
-  week  :{x:22,y:33,w:40}                    /* SALLE 03 — 빈 벽 실측 0801 */
+  week  :{x:22,y:33,w:40},                   /* SALLE 03 — 빈 벽 실측 0801 */
+  mates :{x:35.7,y:40.0,w:27.8}              /* SALLE 04 — 목판 안전역 실측 0802 */
 };
 const SALLES=[
   { no:1, name:'현관',      render:()=>renderSalle1(), focus:'poster', fr:4/3 },
   { no:2, name:'진도표',    render:()=>renderSalle2(), focus:'board',  fr:597/605 },
-  { no:3, name:'이번 회차', render:()=>renderSalle3(), focus:'week',   fr:.72 }
+  { no:3, name:'이번 회차', render:()=>renderSalle3(), focus:'week',   fr:.72 },
+  { no:4, name:'동료들',    render:()=>renderSalle4(), focus:'mates',  fr:1.46 }
 ];
 let ROOM=JSON.parse(JSON.stringify(ROOM_DEF));
 let roomLab=null, roomEditWired=false, roomHover=null, salleIdx=0, salleWalking=false;
@@ -2658,9 +2685,45 @@ let roomLab=null, roomEditWired=false, roomHover=null, salleIdx=0, salleWalking=
 const repCohort=lab=>lab.cohorts.find(x=>x.status==='running')
   ||lab.cohorts.find(x=>x.status==='recruiting')||lab.cohorts[0];
 
+/* ── SALLE 04 · 동료들 — 이 배를 함께 탄 이들의 명패 (0802)
+ *  순위 없음(승선순) · 클릭 없음 · 진도 숫자만 (글은 eg_lab_mates가 절대 안 내보냄) ── */
+let roomMates=null;   /* null=미로딩(비등록 포함), []=등록했으나 혼자? 불가(자신 포함) */
+async function loadMates(lab){
+  roomMates=null;
+  const c=repCohort(lab);
+  if(!c || !currentUser) return;
+  const {data,error}=await supa.rpc('eg_lab_mates',{p_cohort:c.id});
+  if(!error && data && data.length) roomMates=data;
+}
+function renderSalle4(){
+  const c=repCohort(roomLab);
+  let body;
+  if(!c){
+    body=`<div class="mt-eyebrow">COMPAGNONS</div>
+      <div class="mt-empty">아직 항해 전입니다<br>개강과 함께 명패가 걸립니다</div>`;
+  }else if(!roomMates){
+    body=`<div class="mt-eyebrow">COMPAGNONS</div>
+      <div class="mt-empty">명패는 이 배에 오른<br>연구원에게만 보입니다</div>`;
+  }else{
+    const plates=roomMates.map(m=>{
+      const prog = m.done_cnt>0
+        ? `<span class="mp-sig g">●</span> ${String(m.done_cnt).padStart(2,'0')} 완독`
+        : m.working
+        ? `<span class="mp-sig y">◐</span> 기록 중`
+        : `<span class="mp-sig r">○</span> 승선`;
+      return `<div class="mp"><div class="mp-name">${esc(m.nickname)}</div>`+
+             `<div class="mp-prog">${prog}</div></div>`;
+    }).join('');
+    body=`<div class="mt-eyebrow">COMPAGNONS</div>
+      <div class="mt-grid${roomMates.length>8?' n3':''}">${plates}</div>
+      <div class="mt-note">${roomMates.length}명이 같은 책을 걷는 중</div>`;
+  }
+  return `<div class="rv-tgt rv-mates" data-rk="mates">${body}</div>`;
+}
+
 async function openLabRoom(lab){
   roomLab=lab; salleIdx=0;
-  await Promise.all([loadRoomLayout(lab.no), loadMyTraces(lab)]);
+  await Promise.all([loadRoomLayout(lab.no), loadMyTraces(lab), loadMates(lab)]);
   paintSalle();
   document.getElementById('roomview').classList.add('on');
   requestAnimationFrame(()=>roomArrive(true));

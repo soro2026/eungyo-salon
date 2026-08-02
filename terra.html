@@ -2211,47 +2211,52 @@ async function setupAdminEdit(){
       document.getElementById("editHint").innerHTML =
         "📍 <b>편집 모드</b> — 옮길 메종 핀을 누른 뒤, 그 집 <b>지붕</b>을 클릭하세요"; }
   });
-  /* ── 0801 천문대 순회 접이 목록 ──
+  /* ── 천문대 순회 접이 목록 (0801 착공 · 0802 창구 시공) ──
      검수용 뒷문 — 순번·당번은 손대지 않고 그곳으로 날아가 보기만 한다.
-     ⚠ v137~139 세 판 동안 <select>로 지었다가 팝업이 끝내 안 열렸다.
-       같은 구획의 「대시보드」 접이식(navAdmFold)은 멀쩡 — 그 증명된 패턴 그대로.
-     ⚠ obsAll·flyToPark 등은 다음 <script> 블록 소속(v133 함정 「블록 경계」) —
-       typeof 창구로 방탄. 채움은 여는 순간 시도 + 2초 감시가 뒤를 받친다. */
+     ⚠ v137~140이 네 판 내리 실패한 진짜 이유:
+       obsAll·obsOnDuty·obsLocalLabel·flyToPark **넷 다** 다음 <script>(IIFE) 소속인데
+       블록 8 끝 창구 목록에 하나도 안 걸려 있었다. typeof는 예외를 막을 뿐 값을 나르지 않는다.
+       → 목록은 늘 빈 상자였고, 채워졌더라도 시각은 안 뜨고 클릭해도 안 날아갔을 것이다.
+     ⚠ 창구는 반드시 **함수**로. 값으로 걸면 그 줄이 실행되는 시점의 빈 배열이 영구히 박힌다.
+     ⚠ 열 때마다 다시 짓는다 — 당번(●)도 현지 시각도 살아 있어야 검수가 된다. */
   const obsFold = document.getElementById("navObsFold");
   const obsBox  = document.getElementById("navObsList");
   if (obsFold && obsBox){
-    const OBS = ()=> (typeof obsAll !== "undefined" && obsAll) ? obsAll : [];
+    const OBS  = ()=> (typeof window.EG_OBS === "function" && window.EG_OBS()) || [];
+    const DUTY = ()=> (typeof window.EG_OBS_DUTY === "function") ? window.EG_OBS_DUTY() : null;
+    const head = n => obsFold.innerHTML = "🔭 천문대 순회" + (n ? " " + n : "")
+      + ' <span class="chev" aria-hidden="true">›</span>';
     const fillObsList = ()=>{
-      const all = OBS();
-      if (obsBox.dataset.built || !all.length) return !!obsBox.dataset.built;
-      obsBox.dataset.built = "1";
-      const duty = (typeof obsOnDuty !== "undefined") ? obsOnDuty : null;
+      const all = OBS(), duty = DUTY();
+      obsBox.innerHTML = "";
+      if (!all.length){
+        const w = document.createElement("div");
+        w.className = "nav-item adm"; w.style.opacity = ".55";
+        w.textContent = "지구를 불러오는 중…";
+        obsBox.appendChild(w); head(0); return;
+      }
+      /* 동쪽에서 서쪽으로 — 밤이 지나가는 순서 그대로 */
       all.slice().sort((a,b)=> Number(b.lng) - Number(a.lng)).forEach(p=>{
         const b = document.createElement("button");
         b.className = "nav-item adm";
-        const t = (typeof obsLocalLabel === "function") ? " · " + obsLocalLabel(p) : "";
+        const t = (typeof window.obsLocalLabel === "function") ? " · " + window.obsLocalLabel(p) : "";
         b.textContent = (p.code === duty ? "● " : "") + p.name + t;
         b.addEventListener("click", ()=>{
-          if (typeof flyToPark === "function"){
-            flyToPark(p);
-            obsBox.classList.remove("on"); obsFold.classList.remove("open");
-            try{ document.getElementById("egDock").classList.remove("open"); }catch(e){}
-          }
+          if (typeof window.flyToPark !== "function") return;
+          window.flyToPark(p);
+          obsBox.classList.remove("on"); obsFold.classList.remove("open");
+          try{ document.getElementById("egDock").classList.remove("open"); }catch(e){}
         });
         obsBox.appendChild(b);
       });
-      obsFold.innerHTML = "🔭 천문대 순회 " + all.length
-        + ' <span class="chev" aria-hidden="true">›</span>';
-      return true;
+      head(all.length);
     };
-    if (!fillObsList()){
-      const watch = setInterval(()=>{ if (fillObsList()) clearInterval(watch); }, 2000);
-    }
     obsFold.addEventListener("click", ()=>{
-      fillObsList();   /* 감시보다 손이 빠를 때 대비 */
       const open = obsBox.classList.toggle("on");
       obsFold.classList.toggle("open", open);
+      if (open) fillObsList();
     });
+    setTimeout(()=>{ const n = OBS().length; if (n) head(n); }, 4000);   /* 머리 숫자만 먼저 */
   }
 }
 
@@ -3940,13 +3945,21 @@ function startCountdown(ids, dateStr){
 /* 0731 — 콘서트홀 입장 버튼은 블록 7의 openStory 안에서 눌린다.
    이 블록은 IIFE라 안에서 선언한 함수가 밖에서 안 보인다. 창구로 내보낸다.
    (버튼이 먹통이던 원인 — 블록 경계. egLogout이 겪은 병과 같은 집안이다.) */
-console.log("%c[EG] terra v141 · 0802 타륜 내 연구실 직행", "color:#c9a24a");
+console.log("%c[EG] terra v142 · 0802 내 연구실 직행 + 순회 목록 창구", "color:#c9a24a");
 window.enterRoomUrl   = enterRoomUrl;
 window.egLogout       = egLogout;
 window.closeOrgLists  = closeOrgLists;
 window.toggleOrgList  = toggleOrgList;
 window.buildAdminLinks = buildAdminLinks;
 window.refreshDock    = refreshDock;
+/* 0802 — 천문대 순회 목록(블록 7 setupAdminEdit)이 읽는 네 이름.
+   ⚠ obsAll·obsOnDuty는 **함수로** 내건다. 이 줄이 실행되는 시점에 obsAll은 아직 빈 배열이고
+     loadTerraPins가 나중에 통째로 다시 대입한다. 값으로 걸면 빈 배열이 영구히 박힌다.
+   (v137~140 네 판이 실패한 곳이 정확히 여기다 — 창구 자체가 없었다.) */
+window.EG_OBS        = ()=> obsAll;
+window.EG_OBS_DUTY   = ()=> obsOnDuty;
+window.obsLocalLabel = obsLocalLabel;
+window.flyToPark     = flyToPark;
 })();
 </script>
 </body>
