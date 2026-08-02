@@ -3542,6 +3542,15 @@ async function loadConcertSongs(){
   }catch(e){ console.warn("음악관 곡 로드 실패:", e); cSongs = []; }
   return cSongs;
 }
+/* 0802 소로 — 곡명만으로는 누구 것인지 모른다. 작곡자를 앞에 세운다.
+   성(姓)만 뽑는다: 「이고르 스트라빈스키」 → 「스트라빈스키」. 좁은 도크에서 이름까지
+   붙으면 정작 곡이 잘린다. 홀 안(concert.html)은 넓으므로 전체 이름을 그대로 쓴다. */
+function songLine(s){
+  if (!s) return "";
+  const full = String(s.artist || "").trim();
+  const last = full ? full.split(/\s+/).pop() : "";
+  return (last ? last + " · " : "") + (s.name || "");
+}
 /* 오늘 h번 홀의 곡 = 곡배열[ (D + floor(h × N ÷ H)) mod N ] — 결정문 v1.0 3호 */
 function songOfHall(hallNo, H){
   const N = (cSongs || []).length;
@@ -3585,7 +3594,7 @@ async function toggleConcertList(){
     b.appendChild(n);
     if (s){
       const t = document.createElement("span");
-      t.className = "sub-note"; t.textContent = s.name || "";
+      t.className = "sub-note"; t.textContent = songLine(s);
       b.appendChild(t);
     }
     b.addEventListener("click", ()=>{
@@ -3950,7 +3959,8 @@ async function loadDock(){
       if (today){
         await loadConcertSongs();
         const s = songOfHall(Number((today.meta && today.meta.hall_no) || 0), cHalls.length);
-        sub = (today.name || today.code) + (s && s.name ? " · " + s.name : "");
+        const line = songLine(s);
+        sub = (today.name || today.code) + (line ? " · " + line : "");
       }
       items.push({ id:"tourmusic", sec:"mundus", cls:"uni",
         elId:"navConcert", after:"subConcert",
@@ -4055,7 +4065,7 @@ function startCountdown(ids, dateStr){
 /* 0731 — 콘서트홀 입장 버튼은 블록 7의 openStory 안에서 눌린다.
    이 블록은 IIFE라 안에서 선언한 함수가 밖에서 안 보인다. 창구로 내보낸다.
    (버튼이 먹통이던 원인 — 블록 경계. egLogout이 겪은 병과 같은 집안이다.) */
-console.log("%c[EG] terra v144 · 0802 오늘의 음악관 접이 목록", "color:#c9a24a");
+console.log("%c[EG] terra v145 · 0802 음악관 접이 목록 · 작곡자 표기", "color:#c9a24a");
 window.enterRoomUrl   = enterRoomUrl;
 window.egLogout       = egLogout;
 window.closeOrgLists  = closeOrgLists;
