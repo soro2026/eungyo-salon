@@ -2821,7 +2821,7 @@ function esc(s){
 /* ══ SALLE — LAB 방 안 (책=방 · SALLE 01~07) · 0801 방 안 걷기 + SALLE 02 진도표 ══
  *  그림: labs/room_{lab}_v{n}_d.webp — n = SALLE 번호 (941×1672)
  *  좌표: Storage layout/lab_{lab}.json 한 파일에 전 SALLE 키 (살롱지기 🧭 편집) */
-console.info('[EG] college v0.24 · 0802 SALLE 06 앞서간 기수들 · 07 완주자의 벽');
+console.info('[EG] college v0.25 · 0802 살06-07 + 시간축 넉장 + TT시뮬');
 const ROOM_DEF={
   poster:{x:26.99,y:33.43,w:41.76},          /* SALLE 01 */
   status:{x:30,y:69.5,w:40},                 /* SALLE 01 */
@@ -3152,9 +3152,38 @@ async function loadPastCohorts(lab){
   if(!error && data) roomPast=data;
 }
 const dot8=s=>(s||'').slice(0,10).replaceAll('-','.');
+/* 시간 여행 시뮬레이션 (읽기 전용 — TT 철학 그대로, DB 무손)
+ *  살롱지기가 ⏱로 기수 종료일 이후로 가면: 항해 중인 기수를 '완주 완료'로 그려 보인다.
+ *  명단은 eg_lab_mates(이미 로딩된 roomMates)를 그대로 씀 — 새 창구 없음 */
+function ttSim(){
+  if(!window.EG_TT || !roomLab) return null;
+  const c=repCohort(roomLab);
+  if(!c || c.status!=='running' || !c.start_date) return null;
+  const plan=sessionPlanOf(c,roomLab.book)||[];
+  if(!plan.length) return null;
+  const d=new Date(c.start_date+'T00:00:00');
+  d.setDate(d.getDate()+plan.length*7-1);
+  const end=d.toISOString().slice(0,10);
+  if(TODAY()<end) return null;
+  return {cohort_no:c.cohort_no||1, start:c.start_date, end,
+          mates:roomMates||[], n:(roomMates||[]).length};
+}
 function renderSalle6(){
   let body;
   const cur=repCohort(roomLab);
+  const sim=ttSim();
+  if(sim){
+    body=`<div class="pc-eyebrow">COHORTES</div>
+      <div class="pc-grid">
+        <div class="pc-card">
+          <div class="pc-no">${sim.cohort_no}기</div>
+          <div class="pc-dates">${dot8(sim.start)} ~ ${dot8(sim.end)}</div>
+          <div class="pc-stats">승선 ${sim.n}명 · 완주 ${sim.n}명</div>
+        </div>
+      </div>
+      <div class="pc-now">⏱ 시뮬레이션 — ${dot8(TODAY())} 시점 가정</div>`;
+    return `<div class="rv-tgt rv-past" data-rk="past">${body}</div>`;
+  }
   const curLine = (cur && cur.status==='running')
     ? `<div class="pc-now">${cur.cohort_no||1}기 항해 중 · ${dot8(cur.start_date)} 출발</div>` : '';
   if(!roomPast || !roomPast.length){
@@ -3184,6 +3213,19 @@ async function loadWall(lab){
 }
 function renderSalle7(){
   const bt=(roomLab.book&&roomLab.book.title)||'';
+  const sim=ttSim();
+  if(sim && sim.n){
+    const rows=sim.mates.map(m=>
+      `<div class="wl-row">
+        <span class="wl-name">${esc(m.nickname)}</span>
+        <span class="wl-meta">${sim.cohort_no}기 · ${dot8(sim.end)}</span>
+      </div>`).join('');
+    return `<div class="rv-tgt rv-wall" data-rk="wall">
+      <div class="wl-eyebrow">FINISHERS</div>
+      <div class="wl-title">『${esc(bt)}』 완주</div>
+      <div class="wl-list">${rows}</div>
+      <div class="wl-sub">⏱ 시뮬레이션 — ${dot8(TODAY())} 시점 가정</div></div>`;
+  }
   let body;
   if(!roomWall || !roomWall.length){
     body=`<div class="wl-eyebrow">FINISHERS</div>
@@ -3218,10 +3260,30 @@ function closeRoom(){
 }
 
 /* ── 방 안 걷기 — 한 SALLE 한 임무, 좌우 슬라이딩 (복도 혈통) ── */
+/* 방 그림 시간축 — room_{lab}_v{n}_{m|d|e|n}.webp. 슬롯판이 없으면 낮판(_d) 폴백.
+ *  탐침 결과는 캐시 (한 번 404면 그 창에서는 다시 묻지 않는다).
+ *  ?slot=m|d|e|n — 살롱지기 미리보기 강제 (eg_sky를 이기는 유일한 문) */
+const SLOT_OV=new URLSearchParams(location.search).get('slot');
+const slotCache={};
+function salleBg(cv, labNo, salleNo){
+  const slot=SLOT_OV||todPhase();
+  const urlD=ASSET(`labs/room_${pad3(labNo)}_v${salleNo}_d.webp`)+'?v='+DAYV;
+  if(slot==='d'){ cv.style.backgroundImage=`url(${urlD})`; return; }
+  const urlS=ASSET(`labs/room_${pad3(labNo)}_v${salleNo}_${slot}.webp`)+'?v='+DAYV;
+  const key=`${labNo}_${salleNo}_${slot}`;
+  if(slotCache[key]===true){ cv.style.backgroundImage=`url(${urlS})`; return; }
+  cv.style.backgroundImage=`url(${urlD})`;
+  if(slotCache[key]===false) return;
+  const im=new Image();
+  im.onload=()=>{ slotCache[key]=true;
+    if(roomLab && roomLab.no===labNo && SALLES[salleIdx] && SALLES[salleIdx].no===salleNo)
+      cv.style.backgroundImage=`url(${urlS})`; };
+  im.onerror=()=>{ slotCache[key]=false; };
+  im.src=urlS;
+}
 function paintSalle(){
   const s=SALLES[salleIdx], cv=document.getElementById('rvCanvas');
-  cv.style.backgroundImage=
-    `url(${ASSET(`labs/room_${pad3(roomLab.no)}_v${s.no}_d.webp`)+'?v='+DAYV})`;
+  salleBg(cv, roomLab.no, s.no);
   cv.innerHTML=s.render();
   applyRoomLayout();
   document.getElementById('rvFoot').textContent=
