@@ -824,6 +824,13 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   #egDock .sub-item:hover{ background:rgba(158,127,58,.14); color:#8a5f18; }
   #egDock .sub-city{ font-family:var(--sans); font-size:9.5px; letter-spacing:.06em;
     color:#a8987a; flex-shrink:0; }
+  /* 0802 — 접이 목록 오른쪽 보조 활자(오늘의 곡). sub-city와 같은 집안이나
+     곡 제목은 길어서 줄임표가 필요하다. 홀 이름을 밀어내지 않게 min-width:0. */
+  #egDock .sub-note{ font-family:var(--serif); font-size:11px; color:#a8987a;
+    flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; text-align:right; }
+  #egDock .sub-item > span:first-child{ flex:1 1 auto; min-width:0;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   #egDock .sub-empty{ padding:6px 10px; font-size:11.5px; color:#a8987a; font-family:var(--serif); }
   @keyframes dockIn{ from{ opacity:0; transform:translateY(-8px); } to{ opacity:1; transform:none; } }
   .dock-card{ background:none; border:none; border-radius:8px; padding:9px 12px; cursor:pointer;
@@ -3291,7 +3298,11 @@ function wireTerra(){
    그래서 타륜에는 "그 곳들의 목록"을 걸고, 누르면 지구를 거치지 않고 곧장 연다. */
 const EG_ORG_UI = {
   popup:  { btn:"navPopups", box:"subPopups", tbl:"popup_orgs",  sel:"code,name", shell:"popup_shell_v0_4.html" },
-  palais: { btn:"navPalais", box:"subPalais", tbl:"palais_orgs", sel:"code,name", shell:"palais.html" }
+  palais: { btn:"navPalais", box:"subPalais", tbl:"palais_orgs", sel:"code,name", shell:"palais.html" },
+  /* 0802 — 음악관은 표에서 읽지 않고 지도에 선 홀(terraPins)에서 빚는다.
+     tbl·sel·shell이 없는 이유가 그것. closeOrgLists는 btn·box만 쓰므로 안전하고,
+     toggleOrgList("concert")는 절대 부르지 않는다(전용 toggleConcertList가 있다). */
+  concert:{ btn:"navConcert", box:"subConcert" }
 };
 const egOrgs = { popup:null, palais:null };
 
@@ -3507,10 +3518,83 @@ function dockHelmSvg(soon){
        + '</svg>';
 }
 /* 0731 — 콘서트는 홀이 서는 순간 문이 열린다. 지도(terraPins)만 보고 판정하므로
-   DOCK_SOON을 손으로 지우러 오지 않아도 된다. 홀이 다 잠들면 저절로 점선으로 돌아간다. */
+   DOCK_SOON을 손으로 지우러 오지 않아도 된다. 홀이 다 잠들면 저절로 점선으로 돌아간다.
+   0802 — 「첫 홀」이 아니라 「오늘의 홀」을 돌려준다. 타륜 숏컷도 이걸 따라간다. */
+function concertHalls(){
+  const out = [];
+  for (const c in terraPins){ if (terraPins[c].kind === "concert") out.push(terraPins[c]); }
+  return out.sort((a,b)=> (a.sort||0) - (b.sort||0));
+}
+/* ⚠⚠ 로테이션 공식이 사는 **세 번째** 곳이다.
+   concert.html · admin_tour_assets.html 과 반드시 함께 고칠 것.
+   한 곳만 고치면 타륜은 브람스라 적고 홀에 들어가면 쇼팽이 흐른다 — 아무도 못 알아챈다.
+   (함정 M — 두 곳에 같은 판정 규칙이 살면 반드시 대조) */
+function concertDay(){ return Math.floor((Date.now() + 9*3600*1000) / 86400000); }
+let cSongs = null;
+async function loadConcertSongs(){
+  if (cSongs) return cSongs;
+  try{
+    const r = await fetch(SUPA_URL + "/rest/v1/heritage_items?select=id,name,artist"
+      + "&category=eq.record&status=eq.active&order=id",
+      { headers:{ apikey:SUPA_KEY, Authorization:"Bearer " + SUPA_KEY } });
+    const j = await r.json();
+    cSongs = Array.isArray(j) ? j : [];
+  }catch(e){ console.warn("음악관 곡 로드 실패:", e); cSongs = []; }
+  return cSongs;
+}
+/* 오늘 h번 홀의 곡 = 곡배열[ (D + floor(h × N ÷ H)) mod N ] — 결정문 v1.0 3호 */
+function songOfHall(hallNo, H){
+  const N = (cSongs || []).length;
+  if (!N || !H) return null;
+  return cSongs[ ((concertDay() + Math.floor(hallNo * N / H)) % N + N) % N ];
+}
+/* 오늘의 홀 — 날수를 홀 수로 나눈 나머지. 천문대와 달리 시각 자격이 없다(결정문 2호) */
 function concertGate(){
-  for (const c in terraPins){ if (terraPins[c].kind === "concert") return terraPins[c]; }
-  return null;
+  const hs = concertHalls();
+  if (!hs.length) return null;
+  return hs[ ((concertDay() % hs.length) + hs.length) % hs.length ];
+}
+/* 접이 목록 — 다섯 홀과 오늘 그 홀에 걸린 곡. 열 때마다 새로 짓는다(자정에 갈린다) */
+async function toggleConcertList(){
+  const btn = document.getElementById("navConcert"), box = document.getElementById("subConcert");
+  if (!btn || !box) return;
+  const willOpen = !box.classList.contains("on");
+  closeOrgLists();                                  /* 한 번에 하나만 편다 */
+  try{ toggleCityList(false); toggleStarList(false); }catch(e){}
+  if (!willOpen) return;
+  box.classList.add("on"); btn.classList.add("open");
+  box.innerHTML = "";
+  const halls = concertHalls();
+  if (!halls.length){
+    const e0 = document.createElement("div");
+    e0.className = "sub-empty"; e0.textContent = "첫 공연장을 고르는 중입니다";
+    box.appendChild(e0); return;
+  }
+  const wait = document.createElement("div");
+  wait.className = "sub-empty"; wait.textContent = "오늘의 편성표를 펴는 중…";
+  box.appendChild(wait);
+  await loadConcertSongs();
+  box.innerHTML = "";
+  const today = concertGate();
+  for (const p of halls){
+    const s = songOfHall(Number((p.meta && p.meta.hall_no) || 0), halls.length);
+    const b = document.createElement("button");
+    b.className = "sub-item";
+    const n = document.createElement("span");
+    n.textContent = (today && p.code === today.code ? "● " : "") + (p.name || p.code);
+    b.appendChild(n);
+    if (s){
+      const t = document.createElement("span");
+      t.className = "sub-note"; t.textContent = s.name || "";
+      b.appendChild(t);
+    }
+    b.addEventListener("click", ()=>{
+      closeOrgLists();
+      try{ document.getElementById("egDock").classList.remove("open"); }catch(e){}
+      flyToPark(p);
+    });
+    box.appendChild(b);
+  }
 }
 function addDockShortcut(el, id){
   if (id === "tourmusic"){
@@ -3603,6 +3687,12 @@ function renderDock(items){
       el.className = "dock-card" + (it.cls ? " " + it.cls : "") + (it.waiting ? " waiting" : "");
       if (it.elId) el.id = it.elId;                /* toggleOrgList가 이름으로 찾는 카드 */
       el.innerHTML = it.html;
+      /* 0802 — 곡 제목·홀 이름은 DB 문자열이다. innerHTML로 이으면 <>가 섞였을 때
+         마크업이 깨진다. 활자는 반드시 textContent로 넣는다. */
+      if (it.sub){
+        const sb = el.querySelector(".dock-sub");
+        if (sb) sb.textContent = it.sub;
+      }
       if (it.onClick) el.addEventListener("click", it.onClick);
       addDockShortcut(el, it.id);
       dock.appendChild(el);
@@ -3848,22 +3938,30 @@ async function loadDock(){
         onClick: ()=>{ if (p) flyToPark(p); } });
     }
 
-    /* MUNDUS — 르 그랑 투르 콘서트 (0731).
+    /* MUNDUS — 르 그랑 투르 음악관 (0731 · 0802 오늘의 홀 + 접이 목록).
        ⚠ 문구를 손으로 적지 않는다. 지도에 선 홀이 있으면 문이 열리고, 없으면 대기.
-         홀을 하나 더 깨우는 순간 타륜이 스스로 바뀐다 (팝업스토어 fillAgoraCounts 계보). */
+         홀을 하나 더 깨우는 순간 타륜이 스스로 바뀐다 (팝업스토어 fillAgoraCounts 계보).
+       0802 소로 — 하루에 노출되는 곡은 홀 수만큼. 곡이 60장이 되어도 오늘 만날 수 있는
+         것은 다섯 곡뿐이다. 고르는 것은 곡이 아니라 공연장이다. */
     {
-      const cHalls = [];
-      for (const c in terraPins){ if (terraPins[c].kind === "concert") cHalls.push(terraPins[c]); }
-      cHalls.sort((a,b)=> (a.sort||0) - (b.sort||0));
-      const first = cHalls[0] || null;
-      const sub = !cHalls.length ? "첫 공연장을 고르는 중"
-                : cHalls.length === 1 ? first.name
-                : first.name + " 외 " + (cHalls.length - 1) + "곳";
+      const cHalls = concertHalls();
+      const today  = concertGate();
+      let sub = "첫 공연장을 고르는 중";
+      if (today){
+        await loadConcertSongs();
+        const s = songOfHall(Number((today.meta && today.meta.hall_no) || 0), cHalls.length);
+        sub = (today.name || today.code) + (s && s.name ? " · " + s.name : "");
+      }
       items.push({ id:"tourmusic", sec:"mundus", cls:"uni",
+        elId:"navConcert", after:"subConcert",
         html: '<div class="dock-cap">LE GRAND TOUR</div>'
-            + '<div class="dock-main"><span>콘서트</span></div>'
-            + '<div class="dock-sub">' + sub + '</div>',
-        onClick: first ? (()=> flyToPark(first)) : null });
+            + '<div class="dock-main"><span>오늘의 음악관</span>'
+            + (cHalls.length > 1 ? '<span class="chev" aria-hidden="true">›</span>' : '')
+            + '</div>'
+            + '<div class="dock-sub"></div>',
+        sub: sub,                                  /* 활자는 textContent로 넣는다 — 곡 제목에 <>가 섞여도 안전 */
+        onClick: !cHalls.length ? null
+               : (cHalls.length === 1 ? (()=> flyToPark(today)) : (()=> toggleConcertList())) });
     }
 
     /* ANIMA 🗝 분더카머 — 내 집 상공 회전 + 대문 팝업 (goToMyHome 그대로) */
@@ -3957,7 +4055,7 @@ function startCountdown(ids, dateStr){
 /* 0731 — 콘서트홀 입장 버튼은 블록 7의 openStory 안에서 눌린다.
    이 블록은 IIFE라 안에서 선언한 함수가 밖에서 안 보인다. 창구로 내보낸다.
    (버튼이 먹통이던 원인 — 블록 경계. egLogout이 겪은 병과 같은 집안이다.) */
-console.log("%c[EG] terra v143 · 0802 순회 목록 창구 + 핀 거리 필터", "color:#c9a24a");
+console.log("%c[EG] terra v144 · 0802 오늘의 음악관 접이 목록", "color:#c9a24a");
 window.enterRoomUrl   = enterRoomUrl;
 window.egLogout       = egLogout;
 window.closeOrgLists  = closeOrgLists;
