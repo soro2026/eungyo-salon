@@ -1695,7 +1695,14 @@ const PIN_RANGE = {                      // ── 0720 소로 결정: 고도가
   sanctuary :  700,   // 콤포스텔라·273학술원 — 700m
   goods     :  700,   // EG 굿즈스토어 — 700m
   popup     :  600,   // 출판사 팝업 — 600m
-  palais    :  600    // 지식채널 전당 — 600m
+  palais    :  600,   // 지식채널 전당 — 600m
+  /* 0802 소로 — terra_pins(콜레주·음악관·헤리티지·뮤세움·천문대)가 이 표에 빠져 있어
+     1,000km 상공에서도 이름표가 그려졌다. 타일에 뭉개져 지저분한 원인이 이것.
+     ⚠ 천문대만 따로 두는 이유 — 산 계열은 도착 반경이 크다.
+       에베레스트 orbit 3800 → startOrbit이 1.8배(6,840m)에서 시작한다.
+       3km로 묶으면 착륙하는 순간 핀이 사라진다. 12km는 그 위의 안전 여유다. */
+  terra     : 3000,   // 콜레주·음악관·헤리티지·뮤세움 — 3km
+  observatory:12000   // 천문대 — 12km
 };
 const range = (m)=> new Cesium.DistanceDisplayCondition(0, m);
 
@@ -2879,12 +2886,16 @@ function addTerraPin(p){
     const kk = TERRA_KIND[p.kind] || { icon:"📍" };
     terraPins[p.code] = p;
     if (viewer.entities.getById("terra-"+p.code)) return;  /* 중복 add 예외 방지 */
+    /* 0802 — 우주에서는 그리지 않는다. PIN_RANGE 표(블록 7 최상위 const)를 그대로 쓴다.
+       메종·팝업·전당·인물장소는 0720부터 이 필터를 쓰고 있었고 terra만 빠져 있었다. */
+    const dd = range(p.kind === "constellatio" ? PIN_RANGE.observatory : PIN_RANGE.terra);
     const ent = viewer.entities.add({
       id:"terra-"+p.code,
       /* 기본 고도 60m — 표면 고정 실패해도 파리 지반 밑에 묻히지 않게 */
       position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 60),
       point:{ pixelSize:9, color:Cesium.Color.fromCssColorString(p.color||"#c62828"),
         outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
+        distanceDisplayCondition: dd,
         disableDepthTestDistance:10000 },   /* 10km 안에서만 타일 위 우선 — 지구 관통 방지 */
       label:{ text:kk.icon + " " + terraLabel(p) + (kk.tag ? "  ·  " + kk.tag : ""),
         /* 0801 소로 — 명조로 부드럽게. Georgia는 로마자에 강하고 어느 기기에나 있다.
@@ -2899,6 +2910,7 @@ function addTerraPin(p){
         backgroundPadding:new Cesium.Cartesian2(13,7),
         pixelOffset:new Cesium.Cartesian2(0,-12),
         verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
+        distanceDisplayCondition: dd,
         disableDepthTestDistance:10000 }
     });
     ent._terra = p;
@@ -3945,7 +3957,7 @@ function startCountdown(ids, dateStr){
 /* 0731 — 콘서트홀 입장 버튼은 블록 7의 openStory 안에서 눌린다.
    이 블록은 IIFE라 안에서 선언한 함수가 밖에서 안 보인다. 창구로 내보낸다.
    (버튼이 먹통이던 원인 — 블록 경계. egLogout이 겪은 병과 같은 집안이다.) */
-console.log("%c[EG] terra v142 · 0802 내 연구실 직행 + 순회 목록 창구", "color:#c9a24a");
+console.log("%c[EG] terra v143 · 0802 순회 목록 창구 + 핀 거리 필터", "color:#c9a24a");
 window.enterRoomUrl   = enterRoomUrl;
 window.egLogout       = egLogout;
 window.closeOrgLists  = closeOrgLists;
