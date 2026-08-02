@@ -3864,6 +3864,29 @@ async function loadDock(){
       html: '<div class="dock-main"><span>콜레주 드 콤포스텔라</span></div>',
       onClick: ()=>{ const p = pinOf("college"); if (p) flyToPark(p); else location.href = "college.html"; } });
 
+    /* CONVIVIUM ↳ 내 연구실 쓩 — 등록 랩 최대 3개, 대문·엘리베이터 없이 방 앞으로 (0802 소로) */
+    if (uid){
+      try{
+        const { data:myEnr } = await supa.from("college_enrollments")
+          .select("cohort_id").eq("user_id", uid).eq("status","active");
+        if (myEnr && myEnr.length){
+          const cids = myEnr.map(e=>e.cohort_id);
+          const { data:myCs } = await supa.from("college_cohorts").select("id,book_id").in("id", cids);
+          const bids = [...new Set((myCs||[]).map(c=>c.book_id))];
+          const { data:myBs } = await supa.from("college_books")
+            .select("id,lab_no,title").in("id", bids);
+          (myBs||[]).filter(b=>b.lab_no).slice(0,3).forEach(b=>{
+            const p3 = String(b.lab_no).padStart(3,"0");
+            items.push({ id:"mylab"+b.lab_no, sec:"convivium", cls:"uni",
+              html: '<div class="dock-main"><span>↳ LAB '+p3+' · '+b.title+'</span></div>'
+                  + '<div class="dock-sub">내 연구실 직행</div>',
+              onClick: ()=> enterRoomUrl("college.html?lab="+b.lab_no+"&v="+Date.now(),
+                                         "콜레주 · LAB "+p3) });
+          });
+        }
+      }catch(e){ console.warn("내 연구실 항목 로딩 실패:", e); }
+    }
+
     /* CONVIVIUM 🍷 살롱 드 콩파뇽 — 셸 미착공. 문패만 (0728 소로) */
     items.push({ id:"salon", sec:"convivium", cls:"uni",
       html: '<div class="dock-main"><span>살롱 드 콩파뇽</span></div>'
@@ -3917,7 +3940,7 @@ function startCountdown(ids, dateStr){
 /* 0731 — 콘서트홀 입장 버튼은 블록 7의 openStory 안에서 눌린다.
    이 블록은 IIFE라 안에서 선언한 함수가 밖에서 안 보인다. 창구로 내보낸다.
    (버튼이 먹통이던 원인 — 블록 경계. egLogout이 겪은 병과 같은 집안이다.) */
-console.log("%c[EG] terra v140 · 0801 순회 접이목록(대시보드 패턴)", "color:#c9a24a");
+console.log("%c[EG] terra v141 · 0802 타륜 내 연구실 직행", "color:#c9a24a");
 window.enterRoomUrl   = enterRoomUrl;
 window.egLogout       = egLogout;
 window.closeOrgLists  = closeOrgLists;

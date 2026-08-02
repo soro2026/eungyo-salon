@@ -218,11 +218,17 @@ body.moving .lift{opacity:0;pointer-events:none;}
 
 /* 층 표시등 */
 #floorDots{position:fixed;right:12px;top:50%;transform:translateY(-50%);
-  z-index:9;display:none;flex-direction:column;gap:10px;}
+  z-index:9;display:none;flex-direction:column;gap:8px;}
 #building.on ~ #floorDots{display:flex;}
-#floorDots .dot{width:7px;height:7px;border-radius:50%;
-  background:rgba(232,221,196,.25);transition:background .3s,transform .3s;cursor:pointer;}
-#floorDots .dot.at{background:var(--gold-l);transform:scale(1.3);}
+#floorDots .dot{width:46px;padding:7px 4px 6px;border-radius:11px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:1px;
+  background:rgba(18,24,36,.68);border:1px solid rgba(201,162,74,.38);
+  color:#cdbd9a;font-family:inherit;
+  transition:background .3s,border-color .3s,color .3s;}
+#floorDots .dot b{font-size:15px;font-weight:800;line-height:1;}
+#floorDots .dot span{font-size:8.5px;letter-spacing:.06em;opacity:.75;white-space:nowrap;}
+#floorDots .dot:hover{border-color:rgba(201,162,74,.8);color:#f2e2bf;}
+#floorDots .dot.at{background:rgba(122,74,32,.62);border-color:var(--gold-l);color:#f7ead0;}
 
 /* ── 1층 모집 홀 — 그림 자체가 스크롤 본문 (캔버스) ──
  *  배너·제목·무대는 캔버스 위 고정 좌표 = 벽과 한 몸으로 움직임 */
@@ -946,9 +952,9 @@ body.is-admin #ttBtn{display:block;}
 </div>
 
 <div id="floorDots">
-  <div class="dot" onclick="goFloor(2)" title="3층"></div>
-  <div class="dot" onclick="goFloor(1)" title="2층"></div>
-  <div class="dot at" onclick="goFloor(0)" title="1층"></div>
+  <button class="dot" onclick="goFloor(2)" title="3층 · 연구실"><b>3</b><span>연구실</span></button>
+  <button class="dot" onclick="goFloor(1)" title="2층 · 273의 서가"><b>2</b><span>서가</span></button>
+  <button class="dot at" onclick="goFloor(0)" title="1층 · 모집 홀"><b>1</b><span>모집 홀</span></button>
 </div>
 
 <div class="bell-hand" id="bell-hand">🔔 내 종 <b id="bell-used">0</b> / 5</div>
@@ -1733,6 +1739,7 @@ async function init(){
   renderShelf(); renderBanners(); renderStage(); renderBellHand(); renderCorridor();
   parallaxCalcAll(); wireParallax(1);
   classFromQuery();
+  labFromQuery();
 }
 async function loadBooks(){
   const { data, error } = await supa.from('college_books')
@@ -2599,6 +2606,24 @@ function classFromQuery(){
   openClass(cid);
 }
 
+/* ── 타륜 쓩 — ?lab=NN 이면 대문·엘리베이터 없이 내 연구실 문 앞으로 (0802) ── */
+function labFromQuery(){
+  const q=new URLSearchParams(location.search).get('lab');
+  if(!q) return;
+  const no=+q; if(!no) return;
+  const L=(corLabs&&corLabs.length?corLabs:buildLabs()).find(x=>x.no===no);
+  if(!L){ toast('그 연구실을 찾지 못했습니다'); return; }
+  const gate=document.getElementById('gate');
+  if(gate){ gate.classList.remove('on'); gate.classList.add('gone'); }
+  document.getElementById('building').classList.add('on');
+  document.getElementById('floorDots').style.display='flex';
+  entered=true;
+  curFloor=2; positionFloors(true);
+  document.querySelectorAll('#floorDots .dot').forEach((d,i)=>d.classList.toggle('at',(2-i)===2));
+  const sc=scOf(2); if(sc) sc.scrollTop=labFocusTop();
+  openLabRoom(L);
+}
+
 function openGateModal(){ document.getElementById('gate-modal').classList.add('show'); }
 function closeGateModal(){ document.getElementById('gate-modal').classList.remove('show'); }
 function openAbout(){ document.getElementById('about-modal').classList.add('show'); }
@@ -2615,7 +2640,7 @@ function esc(s){
 /* ══ SALLE — LAB 방 안 (책=방 · SALLE 01~07) · 0801 방 안 걷기 + SALLE 02 진도표 ══
  *  그림: labs/room_{lab}_v{n}_d.webp — n = SALLE 번호 (941×1672)
  *  좌표: Storage layout/lab_{lab}.json 한 파일에 전 SALLE 키 (살롱지기 🧭 편집) */
-console.info('[EG] college v0.15 · 0801 모래시계 60분 승급 수리');
+console.info('[EG] college v0.16 · 0802 엘리베이터 패널·?lab= 딥링크');
 const ROOM_DEF={
   poster:{x:26.99,y:33.43,w:41.76},          /* SALLE 01 */
   status:{x:30,y:69.5,w:40},                 /* SALLE 01 */
