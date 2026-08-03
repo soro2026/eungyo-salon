@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>EG Credencial</title>
+<style>
+:root{
+  --paper:#FDFCFA;
+  --stage:#4A4238;
+  --cover:#2E3F63;      /* 티어가 갈아 끼운다 */
+  --foil:#C9BC96;
+  --ink:#2E3F63;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%}
+body{background:var(--stage);color:#EDE6D6;
+  font-family:"Iowan Old Style","Apple SD Gothic Neo","Noto Serif KR",Georgia,serif;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--foil);outline-offset:3px}
+
+/* ── 나가는 문 ── */
+.exit{position:fixed;top:14px;left:16px;z-index:60;font-size:13px;
+  font-family:"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+  color:rgba(237,230,214,.7);padding:6px 12px;border:1px solid rgba(237,230,214,.28);
+  border-radius:20px;background:rgba(30,26,22,.5)}
+.exit:hover{color:#EDE6D6;border-color:rgba(237,230,214,.6)}
+
+/* ── 표지 ── */
+.shelf{min-height:100%;display:grid;place-items:center;padding:40px 16px}
+.cover{width:min(320px,84vw);aspect-ratio:1/1.42;border-radius:4px 7px 7px 4px;
+  background:var(--cover);cursor:pointer;position:relative;
+  box-shadow:0 24px 54px rgba(0,0,0,.5), inset 0 0 60px rgba(0,0,0,.35);
+  display:grid;place-items:center;transition:transform .5s cubic-bezier(.32,.72,0,1)}
+.cover:hover{transform:translateY(-6px) rotate(-.6deg)}
+.cover::before{content:"";position:absolute;left:9px;top:0;bottom:0;width:2px;
+  background:rgba(0,0,0,.28)}
+.cover .plate{text-align:center;color:var(--foil);padding:0 22px}
+.cover .scallop{width:56px;height:56px;margin:0 auto 26px;display:block;
+  fill:none;stroke:var(--foil);stroke-width:1.5}
+.cover .u{font-size:12.5px;letter-spacing:.42em;margin-bottom:9px;opacity:.85}
+.cover .c{font-size:22px;letter-spacing:.24em}
+.cover .rule{width:44px;height:1px;background:var(--foil);opacity:.5;margin:22px auto 0}
+.open-hint{margin-top:26px;font-size:12.5px;letter-spacing:.14em;
+  color:rgba(237,230,214,.5);text-align:center;
+  font-family:"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif}
+
+/* ── 펼친 수첩 ── */
+.reader{display:none;min-height:100%;flex-direction:column}
+.reader.on{display:flex}
+.stage{flex:1;display:flex;justify-content:center;align-items:center;padding:56px 16px 20px}
+.book{display:flex;filter:drop-shadow(0 18px 40px rgba(0,0,0,.45))}
+.page{position:relative;width:340px;height:492px;background:var(--paper);overflow:hidden;
+  color:#2A2620}
+.page.left{border-radius:5px 0 0 5px}
+.page.right{border-radius:0 5px 5px 0}
+.gutter{width:16px;background:linear-gradient(90deg,#B9AE94,#8E836B 32%,#6E6455 50%,#8E836B 68%,#B9AE94)}
+.guil,.grain,.edge{position:absolute;inset:0;pointer-events:none}
+.grain{background:radial-gradient(circle at 22% 18%,rgba(120,100,60,.09),transparent 42%),
+  radial-gradient(circle at 78% 76%,rgba(120,100,60,.07),transparent 46%);mix-blend-mode:multiply}
+.edge{inset:11px;border:1px solid rgba(46,63,99,.28)}
+.edge:after{content:"";position:absolute;inset:4px;border:.5px solid rgba(46,63,99,.16)}
+.head,.foot{position:absolute;left:26px;right:26px;color:rgba(46,63,99,.55);
+  font-family:"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+  display:flex;justify-content:space-between;align-items:baseline;pointer-events:none}
+.head{top:24px;font-size:9.5px;letter-spacing:2.4px}
+.foot{bottom:22px;font-size:9.5px;letter-spacing:1.6px}
+.field{position:absolute;left:20px;right:20px;top:44px;bottom:46px}
+
+/* 도장 */
+.stamp{position:absolute;overflow:visible}
+.ink{position:absolute;inset:0;-webkit-mask-size:contain;mask-size:contain;
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-position:center;mask-position:center;mix-blend-mode:multiply}
+.ins{position:absolute;left:0;right:0;text-align:center;line-height:1.3;
+  font-family:"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+  pointer-events:none;mix-blend-mode:multiply}
+.ins .t{font-size:9.5px;font-weight:600;line-height:1.2;white-space:nowrap}
+.ins .d{font-family:"Courier New","Nanum Gothic Coding",Menlo,monospace;
+  font-size:9.5px;font-weight:700;letter-spacing:.6px}
+
+/* 명의 · 안내 */
+.plate2{position:absolute;left:38px;right:38px;top:66px;bottom:58px;
+  display:flex;flex-direction:column}
+.plate2 .sc{width:46px;height:46px;fill:none;stroke:rgba(46,63,99,.62);stroke-width:1.4;
+  margin-bottom:24px}
+.lbl{font-family:"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+  font-size:9px;letter-spacing:.24em;color:rgba(46,63,99,.5);margin-bottom:5px}
+.val{font-size:23px;letter-spacing:.01em;margin-bottom:22px;color:#242F49}
+.val.sm{font-size:14px;font-family:"Courier New",Menlo,monospace;letter-spacing:.08em}
+.oath{margin-top:auto;font-size:12.5px;line-height:1.85;color:rgba(42,38,32,.78);
+  border-top:1px solid rgba(46,63,99,.22);padding-top:16px}
+.note h3{margin:0 0 14px;font-size:15px;font-weight:600;letter-spacing:.02em;color:#242F49}
+.note p{margin:0 0 12px;font-size:12.3px;line-height:1.8;color:rgba(42,38,32,.82)}
+.note ul{margin:0;padding-left:15px}
+.note li{font-size:12.3px;line-height:1.72;margin-bottom:8px;color:rgba(42,38,32,.78)}
+.note .last{margin-top:16px;padding-top:13px;border-top:1px solid rgba(46,63,99,.22);
+  font-size:12.3px;line-height:1.8;color:rgba(42,38,32,.7)}
+
+/* 항해 */
+.nav{display:flex;justify-content:center;align-items:center;gap:20px;
+  padding:0 16px 34px;font-family:"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif}
+.nav button{font-size:20px;width:42px;height:42px;border-radius:50%;
+  border:1px solid rgba(237,230,214,.3);line-height:1}
+.nav button:hover:not(:disabled){background:rgba(237,230,214,.12)}
+.nav button:disabled{opacity:.22;cursor:default}
+.nav .pg{font-size:12px;letter-spacing:.16em;color:rgba(237,230,214,.6);min-width:74px;
+  text-align:center}
+.loading{padding:22vh 20px;text-align:center;color:rgba(237,230,214,.6);font-size:14px}
+
+@media (max-width:760px){
+  .book{flex-direction:column}
+  .gutter{width:100%;height:12px}
+  .page{width:min(340px,92vw);height:min(492px,132vw)}
+  .stage{padding:52px 10px 12px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<button class="exit" onclick="history.length>1?history.back():location.href='terra.html'">× 돌아가기</button>
+
+<div id="shelf" class="shelf">
+  <div>
+    <div class="cover" id="cover" role="button" tabindex="0" aria-label="크레덴시알 펼치기">
+      <div class="plate">
+        <svg class="scallop" viewBox="0 0 40 40" aria-hidden="true">
+          <path d="M20 35C11 35 4 28.5 4 20.5 4 18 5.5 16 7.5 16c1 0 1.8.5 2.4 1.3C10.4 14.4 12.6 12 15.6 12c1.2 0 2.2.4 3 1.1.6-2.6 2.6-4.6 5.2-4.6 2.4 0 4.4 1.7 5.1 4 .7-.5 1.6-.8 2.5-.8 2.4 0 4.4 2.1 4.4 4.7"/>
+          <path d="M20 35V13M20 35l-7-19M20 35l7-19M20 35l-12-16M20 35l12-16"/>
+        </svg>
+        <div class="u">EG UNIVERSE</div>
+        <div class="c">CREDENCIAL</div>
+        <div class="rule"></div>
+      </div>
+    </div>
+    <div class="open-hint">눌러서 펼치기</div>
+  </div>
+</div>
+
+<div id="reader" class="reader">
+  <div class="stage"><div class="book">
+    <div class="page left">
+      <div class="guil"></div><div class="grain"></div><div class="edge"></div>
+      <div class="head"><span id="hl"></span><span>EG CREDENCIAL</span></div>
+      <div class="field" id="fL"></div>
+      <div class="foot"><span>EG Universe</span><span id="nL"></span></div>
+    </div>
+    <div class="gutter"></div>
+    <div class="page right">
+      <div class="guil"></div><div class="grain"></div><div class="edge"></div>
+      <div class="head"><span id="hr"></span><span>EG CREDENCIAL</span></div>
+      <div class="field" id="fR"></div>
+      <div class="foot"><span>EG Universe</span><span id="nR"></span></div>
+    </div>
+  </div></div>
+  <div class="nav">
+    <button id="prev" aria-label="앞장">‹</button>
+    <span class="pg" id="pg"></span>
+    <button id="next" aria-label="뒷장">›</button>
+  </div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+const sb = createClient(
+  'https://cyhlotwdisjvoxvfkpnd.supabase.co',
+  'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR',
+  { auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true } });
+
+/* 21호 — 계단이 아니라 장소. 표지에 티어 이름은 안 적는다(21-1) */
+const COVER = { member:'#2E3F63', researcher:'#1F3A32', compagnon:'#5A2230',
+                professor:'#141414', _default:'#6E6252' };
+/* 모양이 먹는 화면 크기와 칸 수 (목업 v1.1 실측값 승계) */
+const SHAPE = {
+  circle:[112,112,1], oval_v:[96,126,1],  oval_h:[150,95,2],
+  rect_v:[89,124,1],  rect_h:[150,116,2], square_r:[112,120,1],
+  hex:[125,116,1],    oct:[120,118,1],    shield:[102,124,1],
+  arch:[89,126,1],    penta:[97,124,1],   diamond:[119,120,1]
+};
+const COLS = 2, ROWS = 3;
+const $ = s => document.querySelector(s);
+const pad = v => v < 10 ? '0'+v : ''+v;
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+let pages = [], spread = 0, me = null;
+
+/* ── 기요셰 — 쌍핵 지문. 18호 정본값(진하기 .3 · 간격 3 · 3색) ── */
+const GC = [['#D98A9A',.5],['#8FB6D6',.55],['#D9C271',.45]];
+function guilloche(){
+  const gop = .3, gap = 3, cs = [[112,180],[236,318]];
+  let s = '';
+  for(let g = 0; g < 3; g++){
+    const off = g*2.7, tint = g*1.9, N = Math.round(300/gap);
+    s += `<g stroke="${GC[g][0]}" fill="none" stroke-width=".45" opacity="${(GC[g][1]*gop).toFixed(3)}">`;
+    for(let j = 0; j < cs.length; j++){
+      for(let i = 1; i < N; i++){
+        const rr = i*gap*0.92; let d = '';
+        for(let a = 0; a <= 64; a++){
+          const th = a/64*6.2832;
+          const rad = rr + 2.8*Math.sin(th*2+off) + 1.8*Math.sin(th*6+j);
+          d += (a?'L':'M') + (cs[j][0]+tint+rad*Math.cos(th)).toFixed(1) + ' '
+                           + (cs[j][1]+rad*Math.sin(th)*0.93).toFixed(1);
+        }
+        s += `<path d="${d}Z"/>`;
+      }
+    }
+    s += '</g>';
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 492" width="100%" height="100%">${s}</svg>`;
+}
+
+/* ── 편철: 시간순 · 2열 3행 · 차면 다음 장 (16·17호) ── */
+function fileStamps(rows){
+  pages = [{ kind:'plate' }, { kind:'note' }];
+  const cells = [];
+  const place = (p, cw) => {
+    for(let r = 0; r < ROWS; r++) for(let c = 0; c <= COLS-cw; c++){
+      let free = true;
+      for(let i = 0; i < cw; i++) if(p.cells.has(`${c+i},${r}`)) free = false;
+      if(free){ for(let i = 0; i < cw; i++) p.cells.add(`${c+i},${r}`); return {c,r}; }
+    }
+    return null;
+  };
+  let pi = 2;
+  for(const st of rows){
+    const sh = SHAPE[st.shape] || SHAPE.circle;
+    let pos = null;
+    while(true){
+      while(pages.length <= pi) pages.push({ kind:'stamps', cells:new Set(), items:[] });
+      if(pages[pi].kind !== 'stamps'){ pi++; continue; }
+      pos = place(pages[pi], sh[2]);
+      if(pos) break;
+      pi++;
+    }
+    pages[pi].items.push({ ...st, c:pos.c, r:pos.r, w:sh[0], h:sh[1], cw:sh[2] });
+  }
+  if(pages.length % 2) pages.push({ kind:'stamps', cells:new Set(), items:[] });
+}
+
+/* ── 그리기 ── */
+function drawPage(field, pi){
+  const p = pages[pi];
+  field.innerHTML = '';
+  if(!p) return;
+
+  if(p.kind === 'plate'){
+    const d = new Date(me.created_at);
+    field.innerHTML = `<div class="plate2">
+      <svg class="sc" viewBox="0 0 40 40" aria-hidden="true">
+        <path d="M20 35C11 35 4 28.5 4 20.5 4 18 5.5 16 7.5 16c1 0 1.8.5 2.4 1.3C10.4 14.4 12.6 12 15.6 12c1.2 0 2.2.4 3 1.1.6-2.6 2.6-4.6 5.2-4.6 2.4 0 4.4 1.7 5.1 4 .7-.5 1.6-.8 2.5-.8 2.4 0 4.4 2.1 4.4 4.7"/>
+        <path d="M20 35V13M20 35l-7-19M20 35l7-19M20 35l-12-16M20 35l12-16"/>
+      </svg>
+      <div class="lbl">이 수첩의 임자</div>
+      <div class="val">${esc(me.nickname || '이름 없는 순례자')}</div>
+      <div class="lbl">발급</div>
+      <div class="val sm">${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())}</div>
+      <div class="oath">가는 곳마다 도장을 받으십시오.<br>이 수첩은 어디까지 갔는지가 아니라<br>어디에 있었는지를 적습니다.</div>
+    </div>`;
+    return;
+  }
+
+  if(p.kind === 'note'){
+    field.innerHTML = `<div class="plate2 note">
+      <h3>이 수첩에 대하여</h3>
+      <p>산티아고로 가는 사람은 목에 수첩 하나를 겁니다. 지나는 마을마다 그것을 내밀면
+         그곳 사람이 도장을 찍어 줍니다. 그 수첩의 이름이 크레덴시알입니다.</p>
+      <p>도장은 잘했다고 찍는 것이 아니라 <b>거기 있었다고</b> 찍힙니다.
+         그러니 이 수첩에는 빠른 사람도 앞선 사람도 없습니다.</p>
+      <ul>
+        <li>도장은 저절로 안 찍힙니다. 그곳에 이르면 도장이 놓이고, 누르는 것은 손님입니다.</li>
+        <li>안 눌러도 아무 일이 없습니다. 내밀어야 찍히는 것이 순례입니다.</li>
+        <li>채워야 할 빈 칸은 없습니다. 다음 장이 비어 있다면 그것은 아직 안 간 곳입니다.</li>
+        <li>어떤 도장은 문이 닫히면 다시 찍을 수 없습니다.</li>
+      </ul>
+      <div class="last">이 수첩은 배낭 안에 있는 물건입니다.
+        보여주려고 모으는 것이 아니라, 몇 해 뒤에 펼쳐보려고 지니는 것입니다.</div>
+    </div>`;
+    return;
+  }
+
+  const W = field.clientWidth, H = field.clientHeight, cw = W/COLS, ch = H/ROWS;
+  for(const it of p.items){
+    const bx = Math.max(0, Math.min(W-it.w, it.c*cw + (it.cw*cw - it.w)/2 + it.dx));
+    const by = Math.max(0, Math.min(H-it.h, it.r*ch + (ch - it.h)/2 + it.dy));
+    const at = new Date(it.stamped_at);
+    let dstr = `${at.getFullYear()}.${pad(at.getMonth()+1)}.${pad(at.getDate())}`;
+    if(it.with_time) dstr += ` ${pad(at.getHours())}:${pad(at.getMinutes())}`;
+    const iy = Math.round(it.h * (it.inscribe_out ? 1.04 : 0.72));
+    const el = document.createElement('div');
+    el.className = 'stamp';
+    el.style.cssText = `width:${it.w}px;height:${it.h}px;left:${bx.toFixed(1)}px;top:${by.toFixed(1)}px;`
+      + `transform:rotate(${(it.rot||0).toFixed(1)}deg);opacity:${(it.ink_alpha||.8).toFixed(2)}`;
+    el.innerHTML =
+      `<div class="ink" style="-webkit-mask-image:url('${esc(it.art_url)}');mask-image:url('${esc(it.art_url)}');background:${esc(it.ink)}"></div>`
+      + `<div class="ins" style="color:${esc(it.ink)};top:${iy}px">`
+      + (it.inscription ? `<div class="t">${esc(it.inscription)}</div>` : '')
+      + `<div class="d">${dstr}</div></div>`;
+    field.appendChild(el);
+  }
+}
+function monthLabel(pi){
+  const p = pages[pi];
+  if(!p || p.kind !== 'stamps' || !p.items.length) return '';
+  const a = new Date(p.items[0].stamped_at), b = new Date(p.items[p.items.length-1].stamped_at);
+  const s = `${a.getFullYear()}년 ${a.getMonth()+1}월`;
+  return (a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth())
+    ? s : `${s} – ${b.getMonth()+1}월`;
+}
+function render(){
+  drawPage($('#fL'), spread*2);
+  drawPage($('#fR'), spread*2+1);
+  $('#hl').textContent = monthLabel(spread*2);
+  $('#hr').textContent = monthLabel(spread*2+1);
+  $('#nL').textContent = `— ${spread*2+1} —`;
+  $('#nR').textContent = `— ${spread*2+2} —`;
+  const total = Math.ceil(pages.length/2);
+  $('#pg').textContent = `${spread+1} / ${total}`;
+  $('#prev').disabled = spread === 0;
+  $('#next').disabled = spread >= total-1;
+  const g = document.querySelectorAll('.guil');
+  g[0].innerHTML = guilloche(); g[1].innerHTML = guilloche();
+}
+
+/* ── 열기 ── */
+async function load(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if(!session){
+    $('#shelf').innerHTML = '<div class="loading">수첩은 임자에게만 열립니다.<br>먼저 살롱에 들어와 주십시오.</div>';
+    return;
+  }
+  const { data:u } = await sb.from('users')
+    .select('nickname,tier,created_at').eq('id', session.user.id).single();
+  me = u || { nickname:'', tier:'member', created_at:new Date().toISOString() };
+  document.documentElement.style.setProperty('--cover', COVER[me.tier] || COVER._default);
+
+  const { data:rows } = await sb.from('stamps')
+    .select('inscription,stamped_at,rot,dx,dy,ink_alpha,stamp_kinds(shape,ink,art_url,with_time,inscribe_out)')
+    .eq('user_id', session.user.id)
+    .order('stamped_at', { ascending:true });
+
+  const flat = (rows || [])
+    .filter(r => r.stamp_kinds && r.stamp_kinds.art_url)
+    .map(r => ({ ...r, ...r.stamp_kinds }));
+  fileStamps(flat);
+}
+function openBook(){
+  $('#shelf').style.display = 'none';
+  $('#reader').classList.add('on');
+  render();
+}
+$('#cover').addEventListener('click', openBook);
+$('#cover').addEventListener('keydown', e => {
+  if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openBook(); }});
+$('#prev').addEventListener('click', () => { if(spread > 0){ spread--; render(); } });
+$('#next').addEventListener('click', () => {
+  if(spread < Math.ceil(pages.length/2)-1){ spread++; render(); } });
+document.addEventListener('keydown', e => {
+  if(!$('#reader').classList.contains('on')) return;
+  if(e.key === 'ArrowLeft')  $('#prev').click();
+  if(e.key === 'ArrowRight') $('#next').click();
+});
+let tx = null;
+document.addEventListener('touchstart', e => tx = e.touches[0].clientX, { passive:true });
+document.addEventListener('touchend', e => {
+  if(tx === null) return;
+  const d = e.changedTouches[0].clientX - tx; tx = null;
+  if(Math.abs(d) > 60) (d < 0 ? $('#next') : $('#prev')).click();
+}, { passive:true });
+window.addEventListener('resize', () => { if($('#reader').classList.contains('on')) render(); });
+
+load();
+</script>
+</body>
+</html>
