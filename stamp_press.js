@@ -152,6 +152,10 @@ async function offer(opt){
       }
       dock.classList.remove('on');
       flash(kind.art_url, kind.ink || '#2E3F63');
+      /* 0803 저녁 — 도장 깃발. 타륜(terra)이 이 자국을 읽어 30분 동안 세운다.
+         여러 장을 받아도 마지막 한 자국만 남는다 — 개수는 말하지 않는다(5호). */
+      try{ localStorage.setItem('eg_stamp_flag', JSON.stringify(
+        { art:kind.art_url, ink:kind.ink || '#2E3F63', at:Date.now() })); }catch(e){}
       if (typeof opt.onPressed === 'function') opt.onPressed(kind);
     };
   }catch(e){ console.warn('[EGStamp] 물러납니다:', e); }

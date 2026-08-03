@@ -380,13 +380,26 @@ async function load(){
   const flat = (rows || [])
     .filter(r => r.stamp_kinds && r.stamp_kinds.art_url)
     .map(r => ({ ...r, ...r.stamp_kinds }));
+  latestAt = flat.length ? flat[flat.length - 1].stamped_at : null;   /* 시간순 마지막 */
   fileStamps(flat);
 }
+/* 0803 저녁 — 실물 문법 둘로 갈라둔다.
+   도장을 받고 나서 펴면 방금 찍힌 데를 보고(최신 면),
+   그냥 들춰볼 때는 보던 데를 편다(책갈피).
+   깃발로 들어오면 ?latest=1이 붙어 무조건 최신 면. 개수는 세지 않는다(5호). */
+const SEEN = 'eg_credencial_seen_at';
+let latestAt = null;
 function openBook(){
   $('#shelf').style.display = 'none';
   $('#reader').classList.add('on');
-  spread = recall();
-  sfx(); render();
+  let seen = null; try{ seen = localStorage.getItem(SEEN); }catch(e){}
+  const wantLatest = new URLSearchParams(location.search).get('latest') === '1';
+  const fresh = latestAt && (!seen || latestAt > seen);   /* ISO 문자열은 사전순=시간순 */
+  spread = (wantLatest || fresh)
+    ? Math.max(0, Math.ceil(pages.length/2) - 1)
+    : recall();
+  try{ if(latestAt) localStorage.setItem(SEEN, latestAt); }catch(e){}
+  sfx(); render(); remember();
 }
 $('#cover').addEventListener('click', openBook);
 $('#cover').addEventListener('keydown', e => {
