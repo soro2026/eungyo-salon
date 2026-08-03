@@ -121,6 +121,26 @@ input.mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.05em}
 .btn.ghost:hover{border-color:var(--danger)}
 .btn[disabled]{opacity:.45;cursor:not-allowed}
 
+/* ── 무리 던지기 ── */
+.batch{margin-top:14px;border:1px dashed var(--line);border-radius:6px;padding:14px;
+  background:var(--bench-2)}
+.batch h3{margin:0 0 4px;font-size:13.5px;font-weight:500;color:var(--text)}
+.batch p{margin:0;font-size:12px;color:var(--dim)}
+.batch.over{border-color:var(--gold)}
+#tray{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;margin-top:14px}
+.slot{background:#E9E5DD;border-radius:4px;padding:8px 6px;text-align:center;cursor:grab;
+  border:2px solid transparent}
+.slot.drag{opacity:.4}
+.slot.hit{border-color:var(--gold)}
+.slot i{display:block;width:100%;height:66px;background:currentColor;mix-blend-mode:multiply}
+.slot .n{font-family:'IBM Plex Mono',monospace;font-size:10px;color:#5A5348;
+  letter-spacing:.08em;margin-top:5px;display:block}
+.slot.empty{background:transparent;border:1px dashed #38414F}
+.slot.empty i{opacity:0}
+.slot.empty .n{color:var(--dim)}
+.trayBar{display:flex;gap:10px;align-items:center;margin-top:14px}
+.trayBar .msg{font-size:12px;color:var(--dim)}
+
 .gate{max-width:340px;margin:16vh auto;padding:0 20px}
 .gate h2{font-family:'Cormorant Garamond',serif;font-size:23px;margin:0 0 6px}
 .gate p{color:var(--dim);margin:0 0 18px}
@@ -148,7 +168,7 @@ input.mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.05em}
 <div id="app" hidden>
 <header>
   <h1>EG <em>Credencial</em></h1>
-  <span class="sub">도장 공방 · v1.3</span>
+  <span class="sub">도장 공방 · v1.4</span>
   <span class="count" id="count"></span>
 </header>
 
@@ -199,6 +219,18 @@ input.mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.05em}
           <div class="sheet"><div class="press" id="press"></div></div>
           <div class="cap" id="cap"></div>
           <button class="rollbtn" id="rollBtn" type="button">다시 눌러보기</button>
+        </div>
+      </div>
+
+      <div class="batch" id="batch" hidden>
+        <h3 id="batchTitle"></h3>
+        <p>여기에 여러 장을 한꺼번에 끌어다 놓으면 회차 차례대로 앉습니다. 파일 이름은 아무래도 좋습니다.</p>
+        <input type="file" id="fileMany" accept="image/*" multiple hidden>
+        <div id="tray"></div>
+        <div class="trayBar" id="trayBar" hidden>
+          <button class="btn primary" id="commitBtn" type="button">이대로 다 걸기</button>
+          <button class="btn" id="clearBtn" type="button">물리기</button>
+          <span class="msg" id="trayMsg">자리가 틀렸으면 끌어서 바꾸십시오</span>
         </div>
       </div>
 
@@ -400,6 +432,7 @@ function fill(k){
   $('#metaSub').textContent = k.art_sub_url ? '걸려 있음' : '아직 없음';
   $('#dropSub').hidden = (k.family !== 'ephemera');
   drawLooks();
+  drawBatch();
   preview();
 }
 
@@ -517,6 +550,117 @@ function hookDrop(dropId, fileId, slot, metaId, col){
   }
 }
 hookDrop('#dropArt', '#fileArt', 'stamp', '#metaArt', 'art_url');
+
+/* ── 무리 던지기 ──
+   code가 `무엇_01` 꼴이면 같은 접두를 가진 판들을 한 무리로 본다.
+   열 장을 통째로 던지면 회차 차례대로 앉는다. 파일 이름은 안 본다 — 던진 순서만 본다.
+   ⚠ 탐색기에서 여러 장을 집으면 순서가 뒤바뀌는 일이 있어, 걸기 전에 눈으로 보고
+   끌어서 고치는 화면을 반드시 거친다. 한 번 걸린 그림을 되돌리려면 다시 던져야 한다. */
+let tray = [];        /* [{blob,url,w,h,size} | null] — 무리 차례대로 */
+let siblings = [];
+
+function siblingsOf(k){
+  if(!k || !k.code) return [];
+  const m = k.code.match(/^(.*)_(\d{2})$/);
+  if(!m) return [];
+  const pre = m[1] + '_';
+  const g = kinds.filter(x => x.code.startsWith(pre) && /_\d{2}$/.test(x.code))
+                 .sort((a,b) => a.code.localeCompare(b.code));
+  return g.length > 1 ? g : [];
+}
+function drawBatch(){
+  siblings = siblingsOf(cur);
+  const box = $('#batch');
+  box.hidden = !siblings.length;
+  if(!siblings.length){ tray = []; return; }
+  $('#batchTitle').textContent = `무리로 걸기 — ${siblings.length}장`;
+  if(tray.length !== siblings.length) tray = siblings.map(()=>null);
+  drawTray();
+}
+function drawTray(){
+  const box = $('#tray');
+  box.innerHTML = siblings.map((k, i) => {
+    const t = tray[i], url = t ? t.url : k.art_url;
+    const label = k.code.slice(-2);
+    return `<div class="slot ${url?'':'empty'}" draggable="${!!t}" data-i="${i}"
+              style="color:${esc(k.ink||'#333')}">
+      ${url ? `<i style="-webkit-mask:url('${esc(url)}') center/contain no-repeat;mask:url('${esc(url)}') center/contain no-repeat"></i>` : '<i></i>'}
+      <span class="n">${label}${t ? ' ●' : (k.art_url ? '' : ' —')}</span></div>`;
+  }).join('');
+  $('#trayBar').hidden = !tray.some(Boolean);
+  box.querySelectorAll('.slot').forEach(el => {
+    el.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', el.dataset.i); el.classList.add('drag'); });
+    el.addEventListener('dragend', () => el.classList.remove('drag'));
+    el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('hit'); });
+    el.addEventListener('dragleave', () => el.classList.remove('hit'));
+    el.addEventListener('drop', e => {
+      e.preventDefault(); e.stopPropagation(); el.classList.remove('hit');
+      const from = Number(e.dataTransfer.getData('text/plain')), to = Number(el.dataset.i);
+      if(Number.isNaN(from) || from === to) return;
+      [tray[from], tray[to]] = [tray[to], tray[from]];
+      drawTray();
+    });
+  });
+}
+{
+  const box = $('#batch'), file = $('#fileMany');
+  box.addEventListener('click', e => { if(!e.target.closest('.slot')) file.click(); });
+  ['dragenter','dragover'].forEach(t => box.addEventListener(t, e => {
+    if(e.target.closest('.slot')) return;
+    e.preventDefault(); box.classList.add('over'); }));
+  ['dragleave','drop'].forEach(t => box.addEventListener(t, e => {
+    e.preventDefault(); box.classList.remove('over'); }));
+  box.addEventListener('drop', e => { if(!e.target.closest('.slot')) intake([...e.dataTransfer.files]); });
+  file.addEventListener('change', () => { intake([...file.files]); file.value = ''; });
+
+  async function intake(files){
+    files = files.filter(f => f && f.type.startsWith('image/'));
+    if(!files.length || !siblings.length) return;
+    files.sort((a,b) => a.name.localeCompare(b.name, undefined, { numeric:true }));
+    $('#trayMsg').textContent = '굽는 중…';
+    let slot = 0;
+    for(const f of files){
+      if(slot >= siblings.length) break;
+      try{ tray[slot] = await bake(f); slot++; }
+      catch(err){ toast(f.name + ' — ' + err.message, 'bad'); }
+    }
+    drawTray();
+    $('#trayMsg').textContent = `${slot}장 구웠습니다. 자리가 틀렸으면 끌어서 바꾸십시오`;
+    if(files.length > siblings.length)
+      toast(`판이 ${siblings.length}장뿐이라 앞에서부터만 받았습니다.`, 'bad');
+  }
+}
+$('#clearBtn').addEventListener('click', () => {
+  tray = siblings.map(()=>null); drawTray();
+  $('#trayMsg').textContent = '물렸습니다. 아직 아무것도 안 걸렸습니다';
+});
+$('#commitBtn').addEventListener('click', async () => {
+  const btn = $('#commitBtn'); btn.disabled = true;
+  let done = 0;
+  try{
+    for(let i = 0; i < siblings.length; i++){
+      const t = tray[i]; if(!t) continue;
+      const code = siblings[i].code;
+      $('#trayMsg').textContent = `${code} 올리는 중…`;
+      const key = `stamp/${code}.png`;
+      const { error:upErr } = await sb.storage.from(BUCKET)
+        .upload(key, t.blob, { upsert:true, contentType:'image/png' });
+      if(upErr) throw upErr;
+      const { data:pub } = sb.storage.from(BUCKET).getPublicUrl(key);
+      const { error:dbErr } = await sb.from('stamp_kinds')
+        .update({ art_url:`${pub.publicUrl}?v=${Date.now()}` }).eq('code', code);
+      if(dbErr) throw dbErr;
+      done++;
+    }
+    const keep = cur.code;
+    tray = []; await load(); pick(keep);
+    $('#trayMsg').textContent = `${done}장 걸렸습니다`;
+    toast(`${done}장 걸었습니다.`, 'good');
+  }catch(err){
+    toast(`${done}장까지 걸고 멈췄습니다 — ` + (err.message||err), 'bad');
+  }finally{ btn.disabled = false; }
+});
 hookDrop('#dropSub', '#fileSub', 'sub',   '#metaSub', 'art_sub_url');
 
 /* ── 종이 위 ── */
