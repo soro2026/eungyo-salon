@@ -11,6 +11,7 @@
      subject     대상 키 (별 id · 지명 코드 · 기수:회차)
      inscription 각인에 새길 말 (곡명 · 책 제목 · 지명)
      onPressed   찍힌 뒤 부를 것
+     bottom      화면 아래에서 띄울 높이(px). 그 우주에 이미 뭔가 앉아 있을 때
 
    ⚠ 지켜야 할 것
    - 저절로 안 찍는다. 놓아두기만 하고 누르는 것은 손님이다(3호).
@@ -134,6 +135,7 @@ async function offer(opt){
     btn.firstChild.style.maskImage = "url('" + kind.art_url + "')";
     btn.setAttribute('aria-label', kind.title + ' 도장 받기');
     dock.querySelector('.cap').textContent = '도장 받기';
+    if (opt.bottom) dock.style.bottom = opt.bottom + 'px';
     dock.classList.add('on');
 
     btn.onclick = async function(){
