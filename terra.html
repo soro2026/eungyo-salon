@@ -974,15 +974,15 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   #stadClose:hover{ color:var(--gold); border-color:var(--gold); }
   /* ── 0803 저녁 — 크레덴시알 카드. 대문(#doorway)이 아니라 지구 위에 뜬다.
      stadCard와 같은 문법: 렌더 루프를 멈춰 그 순간의 지구가 사진처럼 배경에 남는다.
-     수첩 한 권 펼치자고 우주 대문을 열던 것을 물렀다. */
-  #credCard{ position:fixed; inset:0; z-index:45; display:none; align-items:center; justify-content:center;
+     ⚠ 상자를 그리지 않는다(0803 소로) — 테두리·배경·그림자 없이 투명 iframe이
+       화면을 다 차지하고, 수첩(표지·펼침면)만 어두워진 지구 위에 떠 보인다.
+       수첩 자신의 무대색(고동색)은 credencial.html이 terra=1일 때 스스로 벗는다. */
+  #credCard{ position:fixed; inset:0; z-index:45; display:none;
     background:rgba(3,5,11,.45); backdrop-filter:blur(3px); }
-  #credCard.in{ display:flex; }
-  #credCardBox{ position:relative; width:min(920px,96vw); height:min(660px,92vh);
-    border:1px solid rgba(201,162,39,.4); border-radius:22px; overflow:hidden;
-    box-shadow:0 30px 90px rgba(0,0,0,.65); background:#141414; }
-  #credFrame{ width:100%; height:100%; border:0; }
-  #credClose{ position:absolute; top:12px; right:12px; z-index:2; width:32px; height:32px;
+  #credCard.in{ display:block; }
+  #credCardBox{ position:absolute; inset:0; background:transparent; }
+  #credFrame{ width:100%; height:100%; border:0; background:transparent; }
+  #credClose{ position:absolute; top:14px; right:16px; z-index:2; width:32px; height:32px;
     border:0; border-radius:50%; background:rgba(10,14,26,.85); color:var(--cream-dim);
     font-size:17px; cursor:pointer; border:1px solid var(--line); }
   #credClose:hover{ color:var(--gold); border-color:var(--gold); }
@@ -990,7 +990,6 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
     #egDock{ width:min(260px, calc(100vw - 40px)); top:92px; right:16px; max-height:calc(100vh - 110px); overflow-y:auto; }
     #helmBtn{ width:64px; height:64px; }
     #stadCardBox{ width:100vw; height:100vh; border-radius:0; }
-    #credCardBox{ width:100vw; height:100vh; border-radius:0; }
   }
 
   /* ── 콜레주 소개 패널 (#maison 혈통 · 0721) ── */
@@ -1152,7 +1151,7 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
 <div id="credCard">
   <div id="credCardBox">
     <button id="credClose" aria-label="닫기">×</button>
-    <iframe id="credFrame" title="EG Credencial"></iframe>
+    <iframe id="credFrame" title="EG Credencial" allowtransparency="true"></iframe>
   </div>
 </div>
 
@@ -1430,14 +1429,9 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
     });
     /* ⚠ egLogout은 아래쪽 <script> 블록에서 선언된다. 값으로 넘기면 이 줄이 실행되는
        시점에 아직 없을 수 있으므로(블록 경계), 반드시 호출로 감싼다. */
-    /* 0803 저녁 — 크레덴시알은 대문이 아니라 지구 위 카드로 연다(openCredCard).
-       enterRoomUrl은 #doorway(검은 우주 대문)를 열어 지구를 통째로 덮었다. */
-    { const cr = document.getElementById("dockCredencial");
-      if (cr){
-        cr.addEventListener("click", ()=> openCredCard(false));
-        cr.addEventListener("keydown", (e)=>{
-          if (e.key === "Enter" || e.key === " "){ e.preventDefault(); openCredCard(false); } });
-      } }
+    /* 0803 저녁 — 배낭(dockCredencial) 배선은 여기서 걷어냈다. openCredCard가 사는
+       아래 블록에서 #egDock 위임으로 건다. 첫 시험에서 이 자리의 직접 배선이 안 물렸다 —
+       만드는 블록과 배선하는 블록을 갈라놓지 않는다(함정 A 계보). */
     { const lo = document.getElementById("navLogout"); if (lo) lo.addEventListener("click", ()=> egLogout()); }
     window._openNavPanel = openPanel;
   })();
@@ -3163,6 +3157,7 @@ function closeStadCard(){
 function openCredCard(latest){
   try{ closeStory(); }catch(e){}
   try{ closeMaison(); }catch(e){}
+  try{ if (window._openNavPanel) window._openNavPanel(false); }catch(e){}   /* 타륜 접기 */
   viewer.useDefaultRenderLoop = false;
   clearStampFlag();                       /* 깃발은 펼치는 순간 내려간다 */
   const f = document.getElementById("credFrame");
@@ -3403,13 +3398,26 @@ function wireTerra(){
   });
   /* 0803 저녁 — 크레덴시알 카드 배선 (stadCard와 같은 문법) */
   document.getElementById("credClose").addEventListener("click", closeCredCard);
-  document.getElementById("credCard").addEventListener("click", (e)=>{
-    if (e.target.id === "credCard") closeCredCard();   /* 바깥 클릭 닫기 */
+  /* 배낭 카드 — #egDock 위임. 카드가 어디서 다시 그려져도 배선이 산다 */
+  document.getElementById("egDock").addEventListener("click", (e)=>{
+    if (e.target.closest("#dockCredencial")) openCredCard(false);
+  });
+  document.getElementById("egDock").addEventListener("keydown", (e)=>{
+    if ((e.key === "Enter" || e.key === " ") && e.target.closest("#dockCredencial")){
+      e.preventDefault(); openCredCard(false); }
+  });
+  /* 수첩 안 빈 무대 클릭 → 닫기. iframe이 화면을 다 차지해 백드롭 클릭이 안 닿으므로
+     credencial.html(임베드 모드)이 빈 곳 클릭을 이 전갈로 올려보낸다 */
+  window.addEventListener("message", (ev)=>{
+    if (ev.data && ev.data.eg === "credClose") closeCredCard();
   });
   /* 도장 깃발 — 누르면 수첩이 최신 면으로 열린다.
      helmBtn(부모 버튼) 클릭과 겹치지 않게 전파를 끊는다. */
   { const hs = document.getElementById("helmStamp");
     if (hs) hs.addEventListener("click", (e)=>{ e.stopPropagation(); openCredCard(true); }); }
+  /* 도장은 iframe(다른 창)에서 찍힌다 — storage 사건은 찍은 창 밖 모든 창에 즉시 온다.
+     한 박자 늦던 깃발이 이걸로 그 자리에서 선다. 30초 틱은 30분 내림용으로 남긴다. */
+  window.addEventListener("storage", (e)=>{ if (e.key === "eg_stamp_flag") tickStampFlag(); });
   tickStampFlag();
   setInterval(tickStampFlag, 30000);   /* 30초마다 — 30분이 지나면 스스로 내려간다 */
   /* 다리: 스타디움 카드 안 "경기 입장하기" → 카드 닫고 구장 비행 */
@@ -4214,7 +4222,7 @@ function startCountdown(ids, dateStr){
 /* 0731 — 콘서트홀 입장 버튼은 블록 7의 openStory 안에서 눌린다.
    이 블록은 IIFE라 안에서 선언한 함수가 밖에서 안 보인다. 창구로 내보낸다.
    (버튼이 먹통이던 원인 — 블록 경계. egLogout이 겪은 병과 같은 집안이다.) */
-console.log("%c[EG] terra v150 · 0803저녁 PERA배낭·크레덴시알 지구위 카드·도장깃발", "color:#c9a24a");
+console.log("%c[EG] terra v151 · 0803밤 수첩투명 임베드·배낭배선 위임·깃발 즉시", "color:#c9a24a");
 window.enterRoomUrl   = enterRoomUrl;
 window.egLogout       = egLogout;
 window.closeOrgLists  = closeOrgLists;
