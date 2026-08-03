@@ -2392,7 +2392,7 @@ body{
 <script>
   const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
   const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
-  console.log('[EG] stadium v2.1 · 0803 시즌 자동 연장 · 휴식일 오판 수리');
+  console.log('[EG] stadium v2.2 · 0803 자동 연장 · 휴식일 수리 · 싱글A 승급 선입고');
   const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
     auth: { storageKey: 'eungyo-auth' }
   });
@@ -4407,15 +4407,34 @@ async function loadHomeData() {
   // ⏸ 정규시즌 일시멈춤 배지 노출/상태 (정규에만)
   await loadMyInjuryState();
 
+  // 🎓 승급 판정 (0803 신설) — 통산 100승 + active 루키 시즌이면 싱글A 승급 집행
+  {
+    const { data: cw } = await supa.from('career_stats')
+      .select('wins').eq('uid', session.user.id).maybeSingle();
+    if ((cw?.wins || 0) >= 100 && !loadHomeData._promoted) {
+      const { data: rk } = await supa.from('seasons')
+        .select('id').eq('user_id', session.user.id)
+        .eq('status', 'active').eq('league', 'ROOKIE').limit(1);
+      if (rk && rk.length) {
+        loadHomeData._promoted = true;   // 재귀 1회 안전핀
+        const ok = await promoteToSingleA(session.user.id, rk[0].id);
+        if (ok) return loadHomeData();   // 재진입 → 승급 휴가 카드
+      }
+    }
+  }
+
   // 개인 주차 기준점 = 현재 active 시즌의 start_date (단일 진실)
   // 리그 승급(루키→싱글A 등)으로 active 시즌이 바뀌면 자동 갱신 → WEEK 1 리셋
+  let _seasonLeague = 'ROOKIE', _seasonStart = null;   // 휴식일 카드 문안이 읽음 (0803)
   {
     const { data: sn } = await supa.from('seasons')
-      .select('start_date').eq('user_id', session.user.id)
+      .select('start_date, league').eq('user_id', session.user.id)
       .eq('status', 'active').order('start_date', { ascending: false }).limit(1);
-    if (sn && sn.length && sn[0].start_date)
+    if (sn && sn.length && sn[0].start_date) {
       localStorage.setItem('eg_my_season_start_tue', sn[0].start_date);
-    else
+      _seasonLeague = sn[0].league || 'ROOKIE';
+      _seasonStart = sn[0].start_date;
+    } else
       localStorage.removeItem('eg_my_season_start_tue');  // active 시즌 없으면 기준점도 비움
   }
 
@@ -4460,14 +4479,35 @@ async function loadHomeData() {
       }
       showNoSeasonView();          // 진짜 신규 → 멘토르 안내 + 시범경기 버튼
     } else {
-      // 미래 일정은 있으나 오늘은 없음 = 휴식일(월요일 등) → 세 상태 숨기고 휴식일 카드 표시
+      // 미래 일정은 있으나 오늘은 없음 = 휴식일(월요일·싱글A 일요일·승급 휴가) → 휴식일 카드
       ['state-matchup','state-result','state-noseason'].forEach(id => {
         const el = document.getElementById(id); if (el) el.style.display = 'none';
       });
       const _rd = document.getElementById('state-restday');
       if (_rd) _rd.style.display = 'block';
-      startRestCountdown();   // 다음 화요일 18:30까지
-      console.log('오늘 경기 없음 (휴식일) → 휴식일 카드');
+      // 다음 경기일 실측 → 그 날 18:30까지 카운트다운 (0803: 화요일 가정 폐기)
+      const { data: nx } = await supa.from('matches')
+        .select('match_date').gte('match_date', today)
+        .order('match_date', { ascending: true }).limit(1);
+      const nextDate = (nx && nx.length) ? nx[0].match_date : null;
+      // 문안: 승급 휴가 > 싱글A 이틀 휴무 > 루키 월요일
+      const _tt = document.querySelector('#state-restday .restday-title');
+      const _sb = document.querySelector('#state-restday .restday-sub');
+      const _op = document.querySelector('#state-restday .restday-open');
+      const onVacation = (_seasonLeague === 'SINGLE_A' && _seasonStart && today < _seasonStart);
+      const _lb = document.querySelector('#state-restday .countdown-label');
+      if (_lb) _lb.textContent = onVacation ? '싱글A 개막까지' : '다음 경기까지';
+      if (onVacation) {
+        if (_tt) _tt.textContent = '승급 휴가';
+        if (_sb) _sb.textContent = '루키리그 졸업을 축하합니다 — 푹 쉬어 가세요';
+        if (_op) _op.textContent = `${_seasonStart.slice(5,7)}.${_seasonStart.slice(8,10)} 화요일, 싱글A가 개막합니다`;
+      } else if (_seasonLeague === 'SINGLE_A') {
+        if (_tt) _tt.textContent = '오늘은 리그가 쉬어 가는 날';
+        if (_sb) _sb.textContent = '싱글A는 일요일과 월요일, 이틀이 휴식입니다';
+        if (_op) _op.textContent = '화요일 18:30, 새로운 한 주가 열립니다';
+      }
+      startRestCountdown(nextDate);   // 다음 경기일 18:30까지
+      console.log('오늘 경기 없음 (휴식일) → 휴식일 카드 · 다음 경기', nextDate);
     }
     return;
   }
@@ -4537,7 +4577,91 @@ const EG_DAY_TEMPLATE = {
   7: [['pascal','soro',true],  ['proust','socrates',false]],
 };
 
+// ══════════════════════════════════════════════════════════════════
+// 🅰️ 싱글A 리그 (0803 선입고) — 6팀 · 화~토 5라운드/주 · 일+월 이틀 휴무
+//    2주 = 10라운드 = 더블 라운드로빈 완결 (팀당 10경기, 홈1·어웨이1)
+//    엠블럼·구장 등 화면 옷은 미정 — 여기는 데이터 뼈대만.
+// ══════════════════════════════════════════════════════════════════
+const EG_SINGLE_A_TEAMS = ['soro','kafka','voltaire','dante','bach','hemingway'];
+// 서클법 5라운드 — 15개 짝 전수 검산 완료 (각 팀 정확히 5상대)
+// [home, away] · 홀수 주차는 이대로, 짝수 주차는 홈·어웨이 반전 → 2주에 더블 완결
+const EG_SINGLE_A_ROUNDS = [
+  [['soro','hemingway'], ['kafka','bach'],      ['voltaire','dante']],   // 화
+  [['bach','soro'],      ['hemingway','dante'], ['kafka','voltaire']],   // 수
+  [['soro','dante'],     ['bach','voltaire'],   ['hemingway','kafka']],  // 목
+  [['voltaire','soro'],  ['dante','kafka'],     ['bach','hemingway']],   // 금
+  [['soro','kafka'],     ['dante','bach'],      ['voltaire','hemingway']],// 토
+];
+// 한 주(화~토)의 matches 행 생성 — flip = 짝수 주차(홈·어웨이 반전)
+function buildSingleAWeekRows(uid, weekTue, weekNum, fmt, addDays) {
+  const rows = [];
+  const flip = (weekNum % 2 === 0);
+  for (let r = 0; r < 5; r++) {                 // 화2~토6
+    const d = addDays(weekTue, r), dow = r + 2;
+    for (const [h0, a0] of EG_SINGLE_A_ROUNDS[r]) {
+      const h = flip ? a0 : h0, a = flip ? h0 : a0;
+      rows.push({ user_id: uid, match_date: fmt(d), week_num: weekNum, day_of_week: dow,
+                  home_team: h, away_team: a,
+                  is_my_game: (h === 'soro' || a === 'soro'), status: 'pending' });
+    }
+  }
+  return rows;
+}
+
+// ── 🎓 루키 졸업 → 싱글A 승급 집행 (0803 신설) ──
+//    규칙: 100승째 경기일 이후 첫 화요일 + 7일 = 싱글A 개막
+//          (그 주 잔여 경기 소멸 = 그 주 마저 휴식, 다음 한 주 통휴무)
+async function promoteToSingleA(uid, rookieSeasonId) {
+  const isoDow = d => (d.getDay() === 0 ? 7 : d.getDay());
+  const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+
+  // ① 100승째 경기일 실측 (내 경기 · 완료 · 승리만, 날짜순 100번째)
+  const { data: winRows } = await supa.from('matches')
+    .select('match_date, home_team, home_score, away_score')
+    .eq('is_my_game', true).eq('status', 'completed')
+    .order('match_date', { ascending: true });
+  const winDates = (winRows || []).filter(m => {
+    const soroHome = (m.home_team === 'soro');
+    const my = soroHome ? m.home_score : m.away_score;
+    const op = soroHome ? m.away_score : m.home_score;
+    return my > op;
+  }).map(m => m.match_date);
+  const winDateStr = winDates[99] || getToday();   // 안전핀: 못 찾으면 오늘
+
+  // ② 개막일 = 달성일 이후 첫 화요일 + 7일
+  const winDate = new Date(winDateStr + 'T00:00:00+09:00');
+  const daysToTue = ((2 - isoDow(winDate) + 7) % 7) || 7;   // 달성일이 화요일이면 +7
+  const openTue = addDays(winDate, daysToTue + 7);
+
+  // ③ 잔여 루키 경기 소멸 (완료 경기는 보존 — 통산 기록의 몸)
+  await supa.from('matches').delete().eq('status', 'pending');
+
+  // ④ 루키 시즌 졸업 도장
+  await supa.from('seasons').update({ status: 'completed' }).eq('id', rookieSeasonId);
+
+  // ⑤ 싱글A 시즌 개설
+  const { data: sn } = await supa.from('seasons')
+    .select('season_num').eq('user_id', uid)
+    .order('season_num', { ascending: false }).limit(1);
+  const nextNum = ((sn && sn.length && sn[0].season_num) || 1) + 1;
+  await supa.from('seasons').insert({
+    user_id: uid, league: 'SINGLE_A', start_date: fmt(openTue),
+    status: 'active', season_num: nextNum
+  });
+  localStorage.setItem('eg_my_season_start_tue', fmt(openTue));
+
+  // ⑥ 싱글A 6주치(3사이클 = 더블 라운드로빈 ×3) 선입고
+  const rows = [];
+  for (let w = 0; w < 6; w++)
+    rows.push(...buildSingleAWeekRows(uid, addDays(openTue, w*7), w+1, fmt, addDays));
+  const { error } = await supa.from('matches').insert(rows);
+  if (error) { console.error('[EG] 싱글A 일정 생성 실패:', error); return false; }
+  console.log(`[EG] 🎓 루키 졸업 → 싱글A 승급 · 100승째 ${winDateStr} · 개막 ${fmt(openTue)} · ${rows.length}경기 입고`);
+  return true;
+}
 // ── 시즌 자동 연장 — 미리 심은 일정 소진 시 다음 6주치를 이어 심음 (0803 신설) ──
+// 리그 인지: active 시즌이 SINGLE_A면 싱글A 패턴(화~토), 아니면 루키 패턴(화~일)으로 연장.
 // 주차는 마지막 week_num에서 이어짐. 반환: 성공 여부.
 async function extendMySeason(uid, todayStr) {
   const isoDow = d => (d.getDay() === 0 ? 7 : d.getDay());
@@ -4551,12 +4675,13 @@ async function extendMySeason(uid, todayStr) {
   if (!last || !last.length) return false;
   const lastWeek = last[0].week_num || 0;
 
-  // 주차 기준점 = active 시즌 start_date (getCurrentWeek와 같은 단일 진실)
+  // 주차 기준점·리그 = active 시즌 (getCurrentWeek와 같은 단일 진실)
   const { data: sn } = await supa.from('seasons')
-    .select('start_date').eq('user_id', uid)
+    .select('start_date, league').eq('user_id', uid)
     .eq('status', 'active').order('start_date', { ascending: false }).limit(1);
   const startTue = (sn && sn.length && sn[0].start_date)
     ? new Date(sn[0].start_date + 'T00:00:00+09:00') : null;
+  const league = (sn && sn.length && sn[0].league) || 'ROOKIE';
 
   // 다음 화요일: 오늘이 화요일이면 오늘부터, 아니면 다가오는 화요일부터
   const today = new Date(todayStr + 'T00:00:00+09:00');
@@ -4571,6 +4696,10 @@ async function extendMySeason(uid, todayStr) {
     const weekNum = startTue
       ? Math.floor((weekTue - startTue) / (7 * 864e5)) + 1
       : lastWeek + 1 + w;
+    if (league === 'SINGLE_A') {
+      rows.push(...buildSingleAWeekRows(uid, weekTue, weekNum, fmt, addDays));
+      continue;
+    }
     for (let i = 0; i < 6; i++) {           // 화~일 6일 (월요일 휴식)
       const d = addDays(weekTue, i), dow = isoDow(d);
       for (const [h, a, my] of EG_DAY_TEMPLATE[dow])
@@ -4952,19 +5081,24 @@ function startCountdown() {
   countdownTimer = setInterval(tick, 1000);
 }
 
-// 휴식일 카운트다운: 다음 화요일 18:30까지 (월요일 등 경기 없는 날)
+// 휴식일 카운트다운: 다음 경기일 18:30까지 (0803: 실측 날짜 인자 — 화요일 가정 폐기)
+// targetDateStr 없으면 옛 방식(다음 화요일)으로 안전 낙하.
 let restCountdownTimer = null;
-function startRestCountdown() {
+function startRestCountdown(targetDateStr) {
   if (restCountdownTimer) clearInterval(restCountdownTimer);
 
   function tick() {
     const now = new Date();
-    const target = new Date();
-    target.setHours(18, 30, 0, 0);
-    // 다음 화요일(getDay()===2)로 이동
-    let add = (2 - now.getDay() + 7) % 7;
-    if (add === 0 && now >= target) add = 7;   // 화요일인데 18:30 지났으면 다음 주 화요일
-    target.setDate(target.getDate() + add);
+    let target;
+    if (targetDateStr) {
+      target = new Date(targetDateStr + 'T18:30:00+09:00');
+    } else {
+      target = new Date();
+      target.setHours(18, 30, 0, 0);
+      let add = (2 - now.getDay() + 7) % 7;
+      if (add === 0 && now >= target) add = 7;   // 화요일인데 18:30 지났으면 다음 주 화요일
+      target.setDate(target.getDate() + add);
+    }
 
     let diff = target - now;
     if (diff < 0) diff = 0;
