@@ -2392,6 +2392,7 @@ body{
 <script>
   const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
   const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+  console.log('[EG] stadium v2.1 · 0803 시즌 자동 연장 · 휴식일 오판 수리');
   const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
     auth: { storageKey: 'eungyo-auth' }
   });
@@ -4448,7 +4449,16 @@ async function loadHomeData() {
     const { data: future } = await supa
       .from('matches').select('id').gte('match_date', today).limit(1);
     if (!future || future.length === 0) {
-      showNoSeasonView();          // 시즌 미시작 → 멘토르 안내 + 시범경기 버튼
+      // 미래 일정 없음 — 과거 경기 유무로 신규/베테랑 판별 (0803 수리)
+      // 베테랑인데 미래가 비었다 = 미리 심어둔 6주치가 소진된 것. 조용히 이어 심는다.
+      const { data: past } = await supa
+        .from('matches').select('id').lt('match_date', today).limit(1);
+      if (past && past.length && !loadHomeData._extended) {
+        loadHomeData._extended = true;   // 재귀 1회 안전핀
+        const ok = await extendMySeason(session.user.id, today);
+        if (ok) return loadHomeData();   // 연장 후 재판정 → 휴식일 카드 or 오늘 경기
+      }
+      showNoSeasonView();          // 진짜 신규 → 멘토르 안내 + 시범경기 버튼
     } else {
       // 미래 일정은 있으나 오늘은 없음 = 휴식일(월요일 등) → 세 상태 숨기고 휴식일 카드 표시
       ['state-matchup','state-result','state-noseason'].forEach(id => {
@@ -4517,6 +4527,64 @@ function showRestView(myGame, otherGame){
   </div>`;
 }
 
+// ── 요일별(ISO: 화2~일7) 매치업 [home, away, is_my_game] — 시즌 생성·연장 공용 (0803 승격) ──
+const EG_DAY_TEMPLATE = {
+  2: [['soro','socrates',true],['proust','pascal',false]],
+  3: [['socrates','soro',true],['pascal','proust',false]],
+  4: [['soro','proust',true],  ['socrates','pascal',false]],
+  5: [['proust','soro',true],  ['pascal','socrates',false]],
+  6: [['soro','pascal',true],  ['socrates','proust',false]],
+  7: [['pascal','soro',true],  ['proust','socrates',false]],
+};
+
+// ── 시즌 자동 연장 — 미리 심은 일정 소진 시 다음 6주치를 이어 심음 (0803 신설) ──
+// 주차는 마지막 week_num에서 이어짐. 반환: 성공 여부.
+async function extendMySeason(uid, todayStr) {
+  const isoDow = d => (d.getDay() === 0 ? 7 : d.getDay());
+  const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+
+  // 내 마지막 경기일 (RLS가 본인 것만 반환) — 베테랑 재확인
+  const { data: last } = await supa.from('matches')
+    .select('match_date, week_num')
+    .order('match_date', { ascending: false }).limit(1);
+  if (!last || !last.length) return false;
+  const lastWeek = last[0].week_num || 0;
+
+  // 주차 기준점 = active 시즌 start_date (getCurrentWeek와 같은 단일 진실)
+  const { data: sn } = await supa.from('seasons')
+    .select('start_date').eq('user_id', uid)
+    .eq('status', 'active').order('start_date', { ascending: false }).limit(1);
+  const startTue = (sn && sn.length && sn[0].start_date)
+    ? new Date(sn[0].start_date + 'T00:00:00+09:00') : null;
+
+  // 다음 화요일: 오늘이 화요일이면 오늘부터, 아니면 다가오는 화요일부터
+  const today = new Date(todayStr + 'T00:00:00+09:00');
+  const daysToTue = (2 - isoDow(today) + 7) % 7;   // 화요일이면 0
+  const nextTue = addDays(today, daysToTue);
+
+  const EXT_WEEKS = 6;
+  const rows = [];
+  for (let w = 0; w < EXT_WEEKS; w++) {
+    const weekTue = addDays(nextTue, w * 7);
+    // 기준점이 있으면 getCurrentWeek 공식과 동일하게, 없으면 마지막 주차에서 이어감
+    const weekNum = startTue
+      ? Math.floor((weekTue - startTue) / (7 * 864e5)) + 1
+      : lastWeek + 1 + w;
+    for (let i = 0; i < 6; i++) {           // 화~일 6일 (월요일 휴식)
+      const d = addDays(weekTue, i), dow = isoDow(d);
+      for (const [h, a, my] of EG_DAY_TEMPLATE[dow])
+        rows.push({ user_id: uid, match_date: fmt(d), week_num: weekNum, day_of_week: dow,
+                    home_team: h, away_team: a, is_my_game: my, status: 'pending' });
+    }
+  }
+
+  const { error } = await supa.from('matches').insert(rows);
+  if (error) { console.error('시즌 연장 실패:', error); return false; }
+  console.log(`[EG] 시즌 자동 연장: WEEK ${lastWeek+1}~${lastWeek+EXT_WEEKS} · ${rows.length}행`);
+  return true;
+}
+
 // ── 콩파뇽 시즌 시작 — 멘토르 [시범경기 시작하기] 버튼에서 호출 ──
 async function startMySeason() {
   const btn = document.getElementById('startSeasonBtn');
@@ -4532,15 +4600,8 @@ async function startMySeason() {
     .select('id').gte('match_date', todayStr).limit(1);
   if (existing && existing.length) { loadHomeData(); return; }
 
-  // 요일별(ISO: 화2~일7) 매치업 [home, away, is_my_game] — 시범·정식 공통
-  const DAY_TEMPLATE = {
-    2: [['soro','socrates',true],['proust','pascal',false]],
-    3: [['socrates','soro',true],['pascal','proust',false]],
-    4: [['soro','proust',true],  ['socrates','pascal',false]],
-    5: [['proust','soro',true],  ['pascal','socrates',false]],
-    6: [['soro','pascal',true],  ['socrates','proust',false]],
-    7: [['pascal','soro',true],  ['proust','socrates',false]],
-  };
+  // 요일별 매치업 — 공용 상수 참조 (정의는 EG_DAY_TEMPLATE 한 곳뿐, 0803)
+  const DAY_TEMPLATE = EG_DAY_TEMPLATE;
   const isoDow = d => (d.getDay() === 0 ? 7 : d.getDay());
   const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
