@@ -41,7 +41,10 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   fill:none;stroke:var(--foil);stroke-width:1.5}
 .cover .u{font-size:12.5px;letter-spacing:.42em;margin-bottom:9px;opacity:.85}
 .cover .c{font-size:22px;letter-spacing:.24em}
-.cover .rule{width:44px;height:1px;background:var(--foil);opacity:.5;margin:22px auto 0}
+.cover .rule{width:44px;height:1px;background:var(--foil);opacity:.5;margin:20px auto 18px}
+.cover .who{font-family:"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+  font-weight:700;font-size:17px;letter-spacing:.13em;color:var(--foil);
+  text-shadow:0 1px 0 rgba(0,0,0,.35)}
 .open-hint{margin-top:26px;font-size:12.5px;letter-spacing:.14em;
   color:rgba(237,230,214,.5);text-align:center;
   font-family:"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif}
@@ -53,6 +56,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .book{display:flex;filter:drop-shadow(0 18px 40px rgba(0,0,0,.45))}
 .page{position:relative;width:340px;height:492px;background:var(--paper);overflow:hidden;
   color:#2A2620}
+.page{cursor:pointer}
 .page.left{border-radius:5px 0 0 5px}
 .page.right{border-radius:0 5px 5px 0}
 .gutter{width:16px;background:linear-gradient(90deg,#B9AE94,#8E836B 32%,#6E6455 50%,#8E836B 68%,#B9AE94)}
@@ -81,22 +85,30 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   font-size:9.5px;font-weight:700;letter-spacing:.6px}
 
 /* 명의 · 안내 */
-.plate2{position:absolute;left:38px;right:38px;top:66px;bottom:58px;
+.plate2{position:absolute;left:34px;right:34px;top:58px;bottom:52px;
   display:flex;flex-direction:column}
+.idrow{display:flex;gap:16px;align-items:flex-start;margin-bottom:6px}
+.photo{width:92px;height:116px;flex:none;border-radius:2px;object-fit:cover;
+  border:1px solid rgba(46,63,99,.34);padding:3px;background:#fff;
+  filter:sepia(.18) contrast(.96);box-shadow:0 1px 3px rgba(0,0,0,.14)}
+.photo.none{display:grid;place-items:center;background:rgba(46,63,99,.04)}
+.photo.none svg{width:46px;height:46px;fill:none;stroke:rgba(46,63,99,.5);stroke-width:1.4}
+.idrow .col{padding-top:4px;min-width:0}
 .plate2 .sc{width:46px;height:46px;fill:none;stroke:rgba(46,63,99,.62);stroke-width:1.4;
   margin-bottom:24px}
 .lbl{font-family:"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
   font-size:9px;letter-spacing:.24em;color:rgba(46,63,99,.5);margin-bottom:5px}
-.val{font-size:23px;letter-spacing:.01em;margin-bottom:22px;color:#242F49}
+.val{font-size:21px;letter-spacing:.01em;margin-bottom:16px;color:#242F49;
+  overflow-wrap:anywhere}
 .val.sm{font-size:14px;font-family:"Courier New",Menlo,monospace;letter-spacing:.08em}
-.oath{margin-top:auto;font-size:12.5px;line-height:1.85;color:rgba(42,38,32,.78);
+.oath{margin-top:auto;font-size:12px;line-height:1.8;color:rgba(42,38,32,.78);
   border-top:1px solid rgba(46,63,99,.22);padding-top:16px}
-.note h3{margin:0 0 14px;font-size:15px;font-weight:600;letter-spacing:.02em;color:#242F49}
-.note p{margin:0 0 12px;font-size:12.3px;line-height:1.8;color:rgba(42,38,32,.82)}
-.note ul{margin:0;padding-left:15px}
-.note li{font-size:12.3px;line-height:1.72;margin-bottom:8px;color:rgba(42,38,32,.78)}
-.note .last{margin-top:16px;padding-top:13px;border-top:1px solid rgba(46,63,99,.22);
-  font-size:12.3px;line-height:1.8;color:rgba(42,38,32,.7)}
+.note h3{margin:0 0 11px;font-size:14.5px;font-weight:600;letter-spacing:.02em;color:#242F49}
+.note p{margin:0 0 10px;font-size:11.6px;line-height:1.72;color:rgba(42,38,32,.82)}
+.note ul{margin:2px 0 0;padding-left:14px}
+.note li{font-size:11.6px;line-height:1.66;margin-bottom:6px;color:rgba(42,38,32,.78)}
+.note .last{margin-top:auto;padding-top:11px;border-top:1px solid rgba(46,63,99,.22);
+  font-size:11.6px;line-height:1.72;color:rgba(42,38,32,.7)}
 
 /* 항해 */
 .nav{display:flex;justify-content:center;align-items:center;gap:20px;
@@ -133,6 +145,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
         <div class="u">EG UNIVERSE</div>
         <div class="c">CREDENCIAL</div>
         <div class="rule"></div>
+        <div class="who" id="coverWho"></div>
       </div>
     </div>
     <div class="open-hint">눌러서 펼치기</div>
@@ -186,6 +199,20 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 let pages = [], spread = 0, me = null;
+
+/* 넘김 소리 — SALLE 05와 같은 파일을 돌려 쓴다. 새로 만들지 않는다 */
+const turnSfx = new Audio('page_turn.mp3');
+turnSfx.volume = .42; turnSfx.preload = 'auto';
+function sfx(){ try{ turnSfx.currentTime = 0; turnSfx.play(); }catch(e){} }
+
+/* 책갈피 — 덮은 자리에서 다시 열린다 */
+const MARK = 'eg_credencial_spread';
+function remember(){ try{ localStorage.setItem(MARK, spread); }catch(e){} }
+function recall(){
+  let v = 0;
+  try{ v = parseInt(localStorage.getItem(MARK) || '0', 10) || 0; }catch(e){}
+  return Math.max(0, Math.min(v, Math.ceil(pages.length/2) - 1));
+}
 
 /* ── 기요셰 — 쌍핵 지문. 18호 정본값(진하기 .3 · 간격 3 · 3색) ── */
 const GC = [['#D98A9A',.5],['#8FB6D6',.55],['#D9C271',.45]];
@@ -248,15 +275,22 @@ function drawPage(field, pi){
 
   if(p.kind === 'plate'){
     const d = new Date(me.created_at);
-    field.innerHTML = `<div class="plate2">
-      <svg class="sc" viewBox="0 0 40 40" aria-hidden="true">
+    const shell = `<svg viewBox="0 0 40 40" aria-hidden="true">
         <path d="M20 35C11 35 4 28.5 4 20.5 4 18 5.5 16 7.5 16c1 0 1.8.5 2.4 1.3C10.4 14.4 12.6 12 15.6 12c1.2 0 2.2.4 3 1.1.6-2.6 2.6-4.6 5.2-4.6 2.4 0 4.4 1.7 5.1 4 .7-.5 1.6-.8 2.5-.8 2.4 0 4.4 2.1 4.4 4.7"/>
-        <path d="M20 35V13M20 35l-7-19M20 35l7-19M20 35l-12-16M20 35l12-16"/>
-      </svg>
-      <div class="lbl">이 수첩의 임자</div>
-      <div class="val">${esc(me.nickname || '이름 없는 순례자')}</div>
-      <div class="lbl">발급</div>
-      <div class="val sm">${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())}</div>
+        <path d="M20 35V13M20 35l-7-19M20 35l7-19M20 35l-12-16M20 35l12-16"/></svg>`;
+    const face = me.photo
+      ? `<img class="photo" src="${esc(me.photo)}" alt="" onerror="this.outerHTML='<div class=&quot;photo none&quot;>${shell.replace(/"/g,'&quot;')}</div>'">`
+      : `<div class="photo none">${shell}</div>`;
+    field.innerHTML = `<div class="plate2">
+      <div class="idrow">
+        ${face}
+        <div class="col">
+          <div class="lbl">이 수첩의 임자</div>
+          <div class="val">${esc(me.nickname || '이름 없는 순례자')}</div>
+          <div class="lbl">발급</div>
+          <div class="val sm">${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())}</div>
+        </div>
+      </div>
       <div class="oath">가는 곳마다 도장을 받으십시오.<br>이 수첩은 어디까지 갔는지가 아니라<br>어디에 있었는지를 적습니다.</div>
     </div>`;
     return;
@@ -265,18 +299,18 @@ function drawPage(field, pi){
   if(p.kind === 'note'){
     field.innerHTML = `<div class="plate2 note">
       <h3>이 수첩에 대하여</h3>
-      <p>산티아고로 가는 사람은 목에 수첩 하나를 겁니다. 지나는 마을마다 그것을 내밀면
+      <p>산티아고로 가는 사람은 목에 수첩 하나를 겁니다. 지나는 마을마다 내밀면
          그곳 사람이 도장을 찍어 줍니다. 그 수첩의 이름이 크레덴시알입니다.</p>
       <p>도장은 잘했다고 찍는 것이 아니라 <b>거기 있었다고</b> 찍힙니다.
-         그러니 이 수첩에는 빠른 사람도 앞선 사람도 없습니다.</p>
+         이 수첩에는 빠른 사람도 앞선 사람도 없습니다.</p>
       <ul>
-        <li>도장은 저절로 안 찍힙니다. 그곳에 이르면 도장이 놓이고, 누르는 것은 손님입니다.</li>
-        <li>안 눌러도 아무 일이 없습니다. 내밀어야 찍히는 것이 순례입니다.</li>
-        <li>채워야 할 빈 칸은 없습니다. 다음 장이 비어 있다면 그것은 아직 안 간 곳입니다.</li>
-        <li>어떤 도장은 문이 닫히면 다시 찍을 수 없습니다.</li>
+        <li>저절로 안 찍힙니다. 누르는 것은 손님입니다.</li>
+        <li>안 눌러도 아무 일이 없습니다.</li>
+        <li>채워야 할 빈 칸은 없습니다.</li>
+        <li>문이 닫히면 못 찍는 도장도 있습니다.</li>
       </ul>
       <div class="last">이 수첩은 배낭 안에 있는 물건입니다.
-        보여주려고 모으는 것이 아니라, 몇 해 뒤에 펼쳐보려고 지니는 것입니다.</div>
+        몇 해 뒤에 펼쳐보려고 지니는 것입니다.</div>
     </div>`;
     return;
   }
@@ -334,6 +368,8 @@ async function load(){
   const { data:u } = await sb.from('users')
     .select('nickname,tier,created_at').eq('id', session.user.id).single();
   me = u || { nickname:'', tier:'member', created_at:new Date().toISOString() };
+  me.photo = `https://cyhlotwdisjvoxvfkpnd.supabase.co/storage/v1/object/public/avatars/${session.user.id}/avatar.webp`;
+  $('#coverWho').textContent = me.nickname || '';
   document.documentElement.style.setProperty('--cover', COVER[me.tier] || COVER._default);
 
   const { data:rows } = await sb.from('stamps')
@@ -349,28 +385,38 @@ async function load(){
 function openBook(){
   $('#shelf').style.display = 'none';
   $('#reader').classList.add('on');
-  render();
+  spread = recall();
+  sfx(); render();
 }
 $('#cover').addEventListener('click', openBook);
 $('#cover').addEventListener('keydown', e => {
   if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openBook(); }});
-$('#prev').addEventListener('click', () => { if(spread > 0){ spread--; render(); } });
-$('#next').addEventListener('click', () => {
-  if(spread < Math.ceil(pages.length/2)-1){ spread++; render(); } });
+function turn(d){
+  const last = Math.ceil(pages.length/2) - 1;
+  const to = spread + d;
+  if(to < 0 || to > last) return;
+  spread = to; sfx(); render(); remember();
+}
+$('#prev').addEventListener('click', () => turn(-1));
+$('#next').addEventListener('click', () => turn(1));
+/* 종이 아무 데나 — 왼쪽 면은 앞으로, 오른쪽 면은 뒤로 */
+document.querySelector('.page.left').addEventListener('click', () => turn(-1));
+document.querySelector('.page.right').addEventListener('click', () => turn(1));
 document.addEventListener('keydown', e => {
   if(!$('#reader').classList.contains('on')) return;
-  if(e.key === 'ArrowLeft')  $('#prev').click();
-  if(e.key === 'ArrowRight') $('#next').click();
+  if(e.key === 'ArrowLeft')  turn(-1);
+  if(e.key === 'ArrowRight') turn(1);
 });
 let tx = null;
 document.addEventListener('touchstart', e => tx = e.touches[0].clientX, { passive:true });
 document.addEventListener('touchend', e => {
   if(tx === null) return;
   const d = e.changedTouches[0].clientX - tx; tx = null;
-  if(Math.abs(d) > 60) (d < 0 ? $('#next') : $('#prev')).click();
+  if(Math.abs(d) > 60) turn(d < 0 ? 1 : -1);
 }, { passive:true });
 window.addEventListener('resize', () => { if($('#reader').classList.contains('on')) render(); });
 
+if(window.self !== window.top) document.querySelector('.exit').style.display = 'none';
 load();
 </script>
 </body>
