@@ -154,8 +154,13 @@ async function offer(opt){
       flash(kind.art_url, kind.ink || '#2E3F63');
       /* 0803 저녁 — 도장 깃발. 타륜(terra)이 이 자국을 읽어 30분 동안 세운다.
          여러 장을 받아도 마지막 한 자국만 남는다 — 개수는 말하지 않는다(5호). */
-      try{ localStorage.setItem('eg_stamp_flag', JSON.stringify(
-        { art:kind.art_url, ink:kind.ink || '#2E3F63', at:Date.now() })); }catch(e){}
+      var mark = { art:kind.art_url, ink:kind.ink || '#2E3F63', at:Date.now() };
+      try{ localStorage.setItem('eg_stamp_flag', JSON.stringify(mark)); }catch(e){}
+      /* 0803 밤 — 이 우주가 타륜 안 액자로 열려 있으면 부모에게 곧장 알린다.
+         storage 사건에만 기대면 브라우저·창 구성에 따라 안 오는 경우가 있었다.
+         두 길을 다 두되 부모 쪽에서 같은 함수 하나로 받는다. */
+      try{ if (window.parent && window.parent !== window)
+             window.parent.postMessage({ eg:'stamped', mark:mark }, '*'); }catch(e){}
       if (typeof opt.onPressed === 'function') opt.onPressed(kind);
     };
   }catch(e){ console.warn('[EGStamp] 물러납니다:', e); }

@@ -1,4 +1,4 @@
-const CACHE = 'eungyo-v81';
+const CACHE = 'eungyo-v82';
 
 const CORE_FILES = [
   '/eungyo-salon/',
@@ -135,13 +135,17 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // ── HTML(페이지)은 네트워크 우선 ──
+  // ── HTML(페이지)·JS는 네트워크 우선 ──
   // 이유: cache-first는 maison.html 같은 안정 URL 페이지를 첫 방문 스냅샷에
   // 영원히 가둔다(0703 분더카머 유령 스크린 사고의 뿌리). 페이지는 항상
   // 최신을 먼저 받고, 오프라인일 때만 캐시로 대신한다.
+  // 0803 밤 — .js도 여기 넣는다. stamp_press.js가 cache-first에 갇혀
+  // 몇 번을 다시 올려도 옛 판이 살아 있었다(깃발 미작동의 뿌리).
+  // 코드는 무게가 가볍고 틀리면 티가 크므로 늘 최신이 옳다.
+  const path = new URL(e.request.url).pathname;
   const isHTML = e.request.mode === 'navigate' ||
                  (e.request.destination === 'document') ||
-                 new URL(e.request.url).pathname.endsWith('.html');
+                 path.endsWith('.html') || path.endsWith('.js');
   if (isHTML) {
     e.respondWith(
       fetch(e.request).then(response => {
