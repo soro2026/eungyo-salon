@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>르 그랑 투르 · 미술관 — 살롱지기 전용</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Cormorant+Garamond:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+ *  admin_galerie_assets v1.0 — 0804 · 살롱지기 전용
+ *  admin_tour_assets(음악관) v1.2를 승계한다. 다른 곳만 적는다.
+ *
+ *  ① 오늘의 전시  — 다섯 관에 오늘 어떤 그림이 걸리는지 (셸과 같은 공식)
+ *  ② 관 탭   — 정문 4벌 + 실내 4벌 = 여덟 칸 (tour-assets/galerie)
+ *              ⭐ 차례 투척함 — 여러 장을 한꺼번에 던지면 빈 칸을 순서대로 채운다
+ *              ⭐ 어떤 형식·크기로 던져도 webp로 굽고 규격에 맞춰 잘라 올린다
+ *  ③ 작품 탭 — 그림 걸기·내리기 · 새 작품 입고 (heritage-treasures)
+ *
+ *  ⚠ 로테이션 공식은 galerie.html과 반드시 같아야 한다.
+ *      그림 = 배열[ (KST날수 + floor(museum_no × N ÷ H)) mod N ]
+ *    한쪽만 고치면 콘솔이 거짓말을 한다. 음악관에서 같은 공식이 세 곳에 산다.
+ *
+ *  ⚠ 자르는 규칙이 둘이다 — 헷갈리지 말 것
+ *      방 그림(정문·실내)  규격이 정해져 있다 → 가운데 기준 cover 크롭
+ *      작품(그림)          제 비율이 곧 작품이다 → 절대 안 자른다. 긴 변만 줄인다
+ * ============================================================ */
+:root{--ink:#2E4A7A;--gold:#c9a24a;--gold-l:#e9cf9c;--bg:#14100b;--paper:#1e160e;
+  --ok:#7aa86e;--warn:#c98b4a;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:#e8ddc4;font-family:'Gowun Batang',serif;
+  min-height:100vh;padding:36px 18px 90px;}
+.wrap{max-width:700px;margin:0 auto;}
+h1{font-size:20px;letter-spacing:.06em;color:#f0e8d4;}
+.eyebrow{font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:.3em;
+  color:rgba(201,162,74,.8);margin-bottom:8px;}
+.sub{font-size:12px;color:rgba(232,221,196,.5);margin-top:8px;line-height:1.8;}
+a.back{font-size:11px;color:rgba(201,162,74,.7);text-decoration:none;letter-spacing:.1em;}
+a.back:hover{color:var(--gold-l);}
+.card{background:var(--paper);border:1px solid rgba(201,162,74,.25);
+  border-radius:14px;padding:22px;margin-top:20px;}
+h2{font-size:13px;letter-spacing:.18em;color:var(--gold-l);margin-bottom:6px;}
+.hint{font-size:11.5px;color:rgba(232,221,196,.45);line-height:1.8;margin-bottom:16px;}
+.hint b{color:rgba(233,207,156,.8);font-weight:400;}
+
+/* ── 오늘의 전시 ── */
+#today{background:linear-gradient(160deg,rgba(201,162,74,.09),rgba(30,22,14,.6));
+  border-color:rgba(201,162,74,.4);}
+.prog{display:flex;align-items:baseline;gap:10px;padding:11px 0;
+  border-bottom:1px solid rgba(201,162,74,.13);}
+.prog:last-child{border-bottom:none;}
+.prog .no{font-family:'Cormorant Garamond',serif;font-size:12px;
+  color:rgba(201,162,74,.65);width:20px;flex:none;}
+.prog .hall{font-size:12.5px;color:var(--gold-l);width:118px;flex:none;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.prog .song{font-size:12.5px;color:rgba(232,221,196,.9);line-height:1.6;}
+.prog .song i{font-style:normal;color:rgba(232,221,196,.45);font-size:11px;}
+.prog.sleep .hall,.prog.sleep .song{opacity:.42;}
+.prog .zzz{font-size:10px;color:rgba(232,221,196,.35);}
+.stamp{font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:.2em;
+  color:rgba(201,162,74,.6);margin-bottom:14px;}
+
+/* ── 탭 ── */
+.tabs{display:flex;gap:8px;margin-top:26px;}
+.tab{flex:1;font:inherit;font-size:12.5px;letter-spacing:.14em;
+  color:rgba(232,221,196,.55);background:none;
+  border:1px solid rgba(201,162,74,.25);border-radius:22px;padding:10px;
+  cursor:pointer;transition:all .25s;}
+.tab.on{background:rgba(201,162,74,.16);border-color:var(--gold-l);color:#f0e8d4;}
+.pane{display:none;}
+.pane.on{display:block;}
+
+/* ── 방 자산 ── */
+.slot-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.slot{border:1px dashed rgba(201,162,74,.35);border-radius:12px;
+  padding:12px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;}
+.slot:hover,.slot.drag{border-color:var(--gold-l);background:rgba(201,162,74,.06);}
+.slot img{max-width:100%;max-height:150px;border-radius:6px;display:block;margin:0 auto 10px;}
+.slot.tall img{max-height:230px;}
+.slot .s-name{font-size:12px;color:var(--gold-l);letter-spacing:.1em;}
+.slot .s-sub{font-family:'Cormorant Garamond',serif;font-size:9.5px;letter-spacing:.2em;
+  color:rgba(201,162,74,.6);margin-top:3px;}
+.slot .s-state{font-size:11px;color:rgba(232,221,196,.45);margin-top:6px;}
+select.pick{font:inherit;font-size:12.5px;color:#f0e8d4;background:var(--ink);
+  border:1px solid rgba(201,162,74,.35);border-radius:18px;padding:8px 14px;
+  margin-bottom:16px;cursor:pointer;max-width:100%;}
+.tally{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+.chip{font-size:11px;letter-spacing:.06em;padding:6px 12px;border-radius:16px;
+  border:1px solid rgba(201,162,74,.28);color:rgba(232,221,196,.6);cursor:pointer;
+  transition:border-color .2s,color .2s;}
+.chip:hover{border-color:var(--gold-l);color:var(--gold-l);}
+.chip b{color:var(--gold-l);font-weight:400;}
+.chip.done{border-color:rgba(122,168,110,.5);color:rgba(180,214,170,.9);}
+.chip.sleep{opacity:.55;}
+
+/* ── ⭐ 차례 투척함 ── */
+#bulk{border:1px dashed rgba(201,162,74,.45);border-radius:12px;
+  padding:26px 16px;text-align:center;cursor:pointer;transition:all .2s;
+  background:rgba(201,162,74,.04);}
+#bulk.drag{border-color:var(--gold-l);background:rgba(201,162,74,.12);}
+#bulk .bt{font-size:13px;color:var(--gold-l);letter-spacing:.06em;}
+#bulk .bs{font-size:11.5px;color:rgba(232,221,196,.5);margin-top:8px;line-height:1.8;}
+.plan{margin-top:14px;border-top:1px solid rgba(201,162,74,.18);padding-top:14px;}
+.plan-row{display:flex;align-items:center;gap:9px;font-size:11.5px;padding:6px 0;
+  border-bottom:1px solid rgba(201,162,74,.08);}
+.plan-row:last-child{border-bottom:none;}
+.plan-row .pf{color:rgba(232,221,196,.55);flex:1;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;text-align:left;}
+.plan-row .pa{color:rgba(201,162,74,.55);flex:none;}
+.plan-row .pt{color:var(--gold-l);flex:none;font-family:'Cormorant Garamond',serif;
+  font-size:11.5px;letter-spacing:.05em;}
+.plan-row.skip{opacity:.4;}
+.plan-btns{display:flex;gap:8px;margin-top:14px;justify-content:center;}
+.opt{font-size:11.5px;color:rgba(232,221,196,.5);margin-top:12px;
+  display:flex;gap:7px;align-items:center;justify-content:center;cursor:pointer;}
+.opt input{accent-color:var(--gold);}
+#bar{height:3px;background:rgba(201,162,74,.15);border-radius:3px;
+  margin-top:14px;overflow:hidden;display:none;}
+#bar.on{display:block;}
+#bar i{display:block;height:100%;width:0;background:var(--gold);transition:width .25s;}
+
+/* ── 작품 ── */
+.song-row{border-bottom:1px solid rgba(201,162,74,.13);padding:15px 0;
+  display:flex;gap:12px;align-items:flex-start;}
+.song-row:last-child{border-bottom:none;}
+.song-row.off{opacity:.45;}
+.sr-thumb{width:58px;height:58px;flex:none;border-radius:6px;object-fit:cover;
+  background:rgba(0,0,0,.3);cursor:pointer;}
+.sr-body{flex:1;min-width:0;}
+.sr-head{display:flex;align-items:baseline;gap:9px;margin-bottom:6px;}
+.sr-no{font-family:'Cormorant Garamond',serif;font-size:12px;
+  color:rgba(201,162,74,.6);flex:none;}
+.sr-name{font-size:13px;color:#f0e8d4;line-height:1.5;}
+.sr-artist{font-size:11px;color:rgba(232,221,196,.5);margin-bottom:9px;}
+.sr-fields{display:flex;gap:7px;flex-wrap:wrap;align-items:center;}
+.sr-fields input{font:inherit;font-size:11.5px;color:#f0e8d4;
+  background:rgba(0,0,0,.28);border:1px solid rgba(201,162,74,.24);
+  border-radius:8px;padding:7px 10px;min-width:0;}
+.in-nm{width:180px;} .in-ar{width:130px;} .in-pd{width:74px;}
+.btn{font:inherit;font-size:11px;letter-spacing:.05em;color:#f2f0ea;
+  background:var(--ink);border:none;border-radius:16px;padding:7px 13px;
+  cursor:pointer;white-space:nowrap;}
+.btn:hover{opacity:.85;}
+.btn.ghost{background:none;border:1px solid rgba(201,162,74,.4);color:rgba(233,207,156,.85);}
+.btn.warn{background:none;border:1px solid rgba(201,139,74,.5);color:rgba(233,180,140,.9);}
+.empty{text-align:center;font-size:12.5px;color:rgba(232,221,196,.45);
+  padding:20px 0;line-height:1.9;}
+.newart{margin-top:18px;padding:16px;border:1px dashed rgba(158,127,58,.5);border-radius:12px;}
+.newart .ns-head{font-weight:600;letter-spacing:.04em;margin-bottom:12px;}
+.newart .ns-id{opacity:.55;font-weight:400;font-size:.86em;margin-left:6px;}
+.newart .ns-grid{display:grid;gap:8px;
+  grid-template-columns:2fr 1.4fr .8fr auto;align-items:center;}
+.newart .ns-grid input{width:100%;padding:8px 10px;border-radius:8px;
+  border:1px solid rgba(201,162,74,.3);background:rgba(0,0,0,.28);
+  color:#f0e8d4;font:inherit;font-size:13px;min-width:0;}
+@media (max-width:760px){ .newart .ns-grid{grid-template-columns:1fr 1fr;}
+  .slot-grid{grid-template-columns:1fr;} }
+
+/* ── 미리보기 ── */
+#pv{position:fixed;inset:0;z-index:40;display:none;place-items:center;
+  background:rgba(6,4,3,.92);backdrop-filter:blur(6px);padding:5vw;}
+#pv.on{display:grid;}
+.pv-box{width:min(92vw,720px);text-align:center;}
+.pv-t{font-size:13px;color:var(--gold-l);margin-bottom:11px;line-height:1.6;}
+.pv-box img{max-width:100%;max-height:74vh;border-radius:10px;}
+.pv-x{display:block;margin:16px auto 0;}
+
+#gateMsg{margin-top:60px;text-align:center;font-size:13px;
+  color:rgba(232,221,196,.6);line-height:2;}
+#toast{position:fixed;left:50%;bottom:40px;transform:translateX(-50%);z-index:60;
+  background:rgba(240,232,212,.94);color:#241a10;font-size:12.5px;
+  padding:10px 20px;border-radius:22px;opacity:0;pointer-events:none;
+  transition:opacity .3s;max-width:88vw;text-align:center;line-height:1.7;}
+#toast.show{opacity:1;}
+input[type=file]{display:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">LE GRAND TOUR · 미술관</div>
+  <h1>🖼 갤러리</h1>
+  <p class="sub">핀을 누르면 팝업이 열리고, 입장하면 정문에 섰다가 어두워진 뒤 전시실에 도착합니다.<br>
+  <a class="back" href="terra.html">→ 지구로 가서 확인</a></p>
+
+  <div id="gateMsg" style="display:none"></div>
+
+  <div id="panel" style="display:none">
+
+    <!-- 오늘의 전시 -->
+    <div class="card" id="today">
+      <h2>오늘의 전시</h2>
+      <div class="stamp" id="stamp"></div>
+      <div id="progList"><div class="empty">불러오는 중…</div></div>
+      <div class="hint" id="progNote" style="margin:14px 0 0"></div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab on" id="tabHall" onclick="showPane('hall')">관 · 그림</button>
+      <button class="tab" id="tabArt" onclick="showPane('art')">작품 · 걸기</button>
+    </div>
+
+    <!-- ═══ 관 탭 ═══ -->
+    <div class="pane on" id="paneHall">
+      <div class="card">
+        <h2>관 고르기</h2>
+        <div class="hint">여덟 칸이 다 차면 초록으로 바뀝니다. 흐릿한 것은 아직 지도에 안 선 관입니다.</div>
+        <div class="tally" id="tally"></div>
+        <select class="pick" id="hallPick" onchange="renderHall()"></select>
+        <div class="hint" id="hallInfo" style="margin-bottom:0"></div>
+      </div>
+
+      <!-- ⭐ 차례 투척함 -->
+      <div class="card">
+        <h2>차례 투척함</h2>
+        <div class="hint">
+          <b>이름은 아무래도 좋습니다.</b> 형식도 크기도 상관없습니다 —
+          던지면 <b>webp로 굽고 규격에 맞춰 잘라</b> 정해진 이름으로 올립니다.<br>
+          여러 장을 한꺼번에 던지면 <b>아침 → 낮 → 저녁 → 밤 → 실내 아침 → … 순서로</b> 채웁니다.
+          던지기 전에 어느 파일이 어느 자리로 가는지 먼저 보여 드립니다.
+        </div>
+        <div id="bulk">
+          <div class="bt">⇣ 여기에 여러 장 떨어뜨리기</div>
+          <div class="bs">또는 눌러서 고르기 · 한 번에 최대 여덟 장</div>
+        </div>
+        <label class="opt"><input type="checkbox" id="overwrite"> 이미 걸린 자리도 덮어쓰기</label>
+        <div id="bar"><i></i></div>
+        <div id="plan"></div>
+      </div>
+
+      <div class="card">
+        <h2>정문 — 밤낮 4벌</h2>
+        <div class="hint"><b>1672 × 941 가로(16:9)</b>, 무텍스트. 정면 대칭, 건물이 화면 폭의 85%,
+          아래에 텅 빈 광장 띠, 하늘은 위 25%.<br>
+          <b>구도를 고정하고 조명만 전환</b>합니다. 낮판만 있어도 전 시간대 폴백으로 걸립니다.</div>
+        <div class="slot-grid" id="gateSlots"></div>
+      </div>
+
+      <div class="card">
+        <h2>실내 — 밤낮 4벌</h2>
+        <div class="hint"><b>941 × 1672 세로(9:16)</b>, 무텍스트. 음악관과 달리 실내도 네 벌입니다 —
+          <b>미술관은 빛이 곧 작품이라</b> 그렇습니다.<br>
+          ⚠ <b>벽에 액자를 그리지 마십시오.</b> 그림이 앉을 빈 벽이어야 합니다.
+          그리고 네 벌은 반드시 <b>같은 구도</b>여야 합니다 — 액자 자리는 관마다 한 번만 재기 때문에,
+          구도가 흔들리면 시각이 바뀔 때 그림이 툭 옮겨 앉습니다.</div>
+        <div class="slot-grid" id="hallSlots"></div>
+      </div>
+    </div>
+
+    <!-- ═══ 작품 탭 ═══ -->
+    <div class="pane" id="paneArt">
+      <div class="card">
+        <h2>작품 · 걸기</h2>
+        <div class="hint">
+          섬네일을 누르면 크게 봅니다. <b>그림을 섬네일 위에 던지면 교체</b>됩니다 —
+          이쪽도 webp로 굽지만 <b>자르지는 않습니다.</b> 그림의 비율이 곧 작품이니까요.<br>
+          내린 작품은 지워지지 않고 배열에서만 빠지므로 언제든 되살릴 수 있습니다.
+        </div>
+        <div id="artList"><div class="empty">불러오는 중…</div></div>
+
+        <div class="newart">
+          <div class="ns-head">＋ 새 작품 입고 <span id="nsNextId" class="ns-id"></span></div>
+          <div class="ns-grid">
+            <input id="nsName"   placeholder="작품 제목 (예: 아를의 별이 빛나는 밤)">
+            <input id="nsArtist" placeholder="화가 (예: 빈센트 반 고흐)">
+            <input id="nsPeriod" placeholder="연도 (예: 1888)">
+            <button class="btn" id="nsAdd" onclick="addArt()">벽에 걸기</button>
+          </div>
+          <div class="hint" style="margin:10px 0 0">
+            거는 즉시 작품 배열에 붙고 <b>그날 다섯 관의 그림이 한 번 고쳐 걸립니다</b>
+            (버그가 아니라 설계). 여러 점을 넣으실 때는 몰아서 넣는 편이 낫습니다.<br>
+            제목·화가만 필수입니다. 그림은 걸고 나서 위 목록의 섬네일에 던져 채우시면 됩니다.
+            <b>그림 없는 작품이 벽에 서면 그 관은 빈 액자</b>가 되므로 오래 비워 두지 마십시오.
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<input type="file" id="filePick" accept="image/*">
+<input type="file" id="bulkPick" accept="image/*" multiple>
+<div id="pv"><div class="pv-box">
+  <div class="pv-t" id="pvTitle"></div>
+  <img id="pvImg" src="" alt="">
+  <button class="btn ghost pv-x" onclick="closePv()">닫기</button>
+</div></div>
+<div id="toast"></div>
+
+<script>
+const SUPA_URL='https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth'}});
+const BUCKET='tour-assets';          /* 방 그림 */
+const ART_BUCKET='heritage-treasures'; /* 작품 */
+const PUB=(b,p)=>`${SUPA_URL}/storage/v1/object/public/${b}/${p}`;
+console.log("%c[EG] admin_galerie_assets v1.0 · 0804 미술관 콘솔 · 차례 투척함", "color:#c9a24a");
+
+let pickTarget=null, HALLS=[], ARTS=[], PLAN=null;
+
+const TODS=[['m','아침'],['d','낮'],['e','저녁'],['n','밤']];
+const gatePath=(code,t)=>`galerie/${code}_gate_${t}.webp`;
+const hallPath=(code,t)=>`galerie/${code}_hall_${t}.webp`;
+
+/* 규격 — 한 곳에서만 정한다 */
+const SPEC={ gate:{w:1672,h:941}, hall:{w:941,h:1672} };
+const ART_MAX=1800;              /* 작품 긴 변 상한 */
+const TARGET_KB=900;             /* 이보다 크면 화질을 한 단계씩 낮춘다 */
+
+function toast(m){const t=document.getElementById('toast');t.innerHTML=m;
+  t.classList.add('show');clearTimeout(t._tm);t._tm=setTimeout(()=>t.classList.remove('show'),4200);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function kb(n){ return n>=1024*1024 ? (n/1024/1024).toFixed(1)+'MB' : Math.round(n/1024)+'KB'; }
+
+/* KST 날수 — galerie.html과 같은 눈금이어야 한다 */
+function kstDay(){ return Math.floor((Date.now() + 9*3600*1000) / 86400000); }
+
+/* ── 로테이션 — 셸과 동일 공식 ── */
+function artOf(museumNo, hallCount){
+  const act=ARTS.filter(a=>a.status==='active');
+  const N=act.length; if(!N) return null;
+  const H=Math.max(hallCount,1);
+  const offset=Math.floor(museumNo*N/H);
+  const idx=((kstDay()+offset)%N+N)%N;
+  return { art: act[idx], idx, N };
+}
+
+function showPane(k){
+  document.getElementById('paneHall').classList.toggle('on', k==='hall');
+  document.getElementById('paneArt').classList.toggle('on', k==='art');
+  document.getElementById('tabHall').classList.toggle('on', k==='hall');
+  document.getElementById('tabArt').classList.toggle('on', k==='art');
+}
+
+async function init(){
+  const { data:{ user } } = await supa.auth.getUser();
+  const gate=document.getElementById('gateMsg');
+  if(!user){ gate.style.display='block';
+    gate.innerHTML='살롱지기 전용 콘솔입니다.<br>은교살롱에 로그인한 뒤 다시 들러 주세요.'; return; }
+  const { data:u } = await supa.from('users').select('is_admin').eq('id',user.id).single();
+  if(!u || !u.is_admin){ gate.style.display='block';
+    gate.innerHTML='이 문은 살롱지기의 열쇠로만 열립니다. 🗝️'; return; }
+  document.getElementById('panel').style.display='block';
+  await loadArts();
+  await loadHalls();
+  wireBulk();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ⭐ 굽는 곳 — 어떤 형식이 와도 webp 한 장으로 나간다
+   ═══════════════════════════════════════════════════════════ */
+async function readBitmap(file){
+  if(window.createImageBitmap){
+    try{ return await createImageBitmap(file); }catch(e){}
+  }
+  /* 폴백 — 사파리 구판 */
+  return await new Promise((res,rej)=>{
+    const url=URL.createObjectURL(file); const im=new Image();
+    im.onload=()=>{ URL.revokeObjectURL(url); res(im); };
+    im.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error('그림을 열지 못했습니다')); };
+    im.src=url;
+  });
+}
+function canvasBlob(cv,q){
+  return new Promise(res=>{
+    if(cv.toBlob) cv.toBlob(b=>res(b),'image/webp',q);
+    else res(null);
+  });
+}
+/* mode:'cover' 규격에 맞춰 가운데 기준으로 자름 · mode:'fit' 비율 지키고 긴 변만 줄임 */
+async function bake(file, mode, W, H){
+  const bmp=await readBitmap(file);
+  const sw=bmp.width, sh=bmp.height;
+  let cw,ch,dx,dy,dw,dh;
+  if(mode==='cover'){
+    cw=W; ch=H;
+    const s=Math.max(W/sw, H/sh);
+    dw=sw*s; dh=sh*s; dx=(W-dw)/2; dy=(H-dh)/2;
+  }else{
+    const s=Math.min(1, ART_MAX/Math.max(sw,sh));
+    cw=Math.round(sw*s); ch=Math.round(sh*s);
+    dx=0; dy=0; dw=cw; dh=ch;
+  }
+  const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
+  const cx=cv.getContext('2d');
+  cx.imageSmoothingEnabled=true; cx.imageSmoothingQuality='high';
+  cx.drawImage(bmp,dx,dy,dw,dh);
+  if(bmp.close) bmp.close();
+
+  let q=0.90, blob=await canvasBlob(cv,q);
+  while(blob && blob.size>TARGET_KB*1024 && q>0.55){ q-=0.08; blob=await canvasBlob(cv,q); }
+
+  /* ⚠ webp를 못 굽는 브라우저면 원본 그대로 보낸다. 조용히 빈 파일을 올리지 않는다 */
+  if(!blob || blob.type!=='image/webp'){
+    return { blob:file, note:'⚠ 이 브라우저가 webp를 굽지 못해 <b>원본 그대로</b> 올렸습니다',
+             srcW:sw, srcH:sh, outW:sw, outH:sh, cropped:0, raw:true };
+  }
+  /* 잘려나간 비율 — 눈이 아니라 숫자로 알린다 */
+  let cropped=0;
+  if(mode==='cover'){
+    const want=W/H, got=sw/sh;
+    cropped = got>want ? Math.round((1-want/got)*100) : Math.round((1-got/want)*100);
+  }
+  return { blob, srcW:sw, srcH:sh, outW:cw, outH:ch, cropped, q:q.toFixed(2), raw:false };
+}
+
+/* ═══ 관 ═══ */
+async function loadHalls(){
+  const { data, error } = await supa.from('terra_pins')
+    .select('code,name,city,active,meta').eq('kind','heritage').order('sort');
+  if(error){ toast('관 목록을 못 읽었습니다: '+error.message); return; }
+  HALLS=data||[];
+  const sel=document.getElementById('hallPick');
+  if(!HALLS.length){
+    document.getElementById('tally').innerHTML='<div class="empty">아직 심어진 미술관 핀이 없습니다.</div>';
+    document.getElementById('progList').innerHTML='<div class="empty">관이 없습니다.</div>';
+    return;
+  }
+  sel.innerHTML=HALLS.map(h=>`<option value="${esc(h.code)}">${esc(h.name)}${h.active?'':' (잠듦)'}</option>`).join('');
+  renderHall(); refreshTally(); renderToday();
+}
+
+function museumNo(h){ return (h.meta && h.meta.museum_no!=null) ? h.meta.museum_no : 0; }
+
+function renderToday(){
+  const box=document.getElementById('progList');
+  const act=ARTS.filter(a=>a.status==='active');
+  if(!HALLS.length || !act.length){ box.innerHTML='<div class="empty">걸 그림이나 관이 없습니다.</div>'; return; }
+  const d=new Date(Date.now()+9*3600*1000);
+  document.getElementById('stamp').textContent=
+    `${d.getUTCFullYear()}. ${d.getUTCMonth()+1}. ${d.getUTCDate()}  ·  KST`;
+  box.innerHTML=HALLS.map(h=>{
+    const no=museumNo(h);
+    const r=artOf(no, HALLS.length);
+    if(!r) return '';
+    return `<div class="prog ${h.active?'':'sleep'}">
+      <div class="no">${no}</div>
+      <div class="hall">${esc(h.name)}${h.active?'':' <span class="zzz">·잠듦</span>'}</div>
+      <div class="song">${esc(r.art.name)}<br><i>${esc(r.art.artist)} — ${r.idx+1}번째 작품</i></div>
+    </div>`;
+  }).join('');
+  const N=act.length, H=HALLS.length;
+  const gap=Math.floor(N/H);
+  document.getElementById('progNote').innerHTML=
+    `작품 <b>${N}</b>점 · 관 <b>${H}</b>곳 → 관 사이 간격 <b>${gap}</b>칸 · 한 바퀴 <b>${N}일</b>.<br>`
+    + (N<=H ? '⚠ 작품이 관보다 적거나 같아 같은 그림이 겹칠 수 있습니다. 작품을 늘려 주세요.'
+            : '내일 자정에 모든 관이 한 칸씩 미끄러집니다.');
+}
+
+/* 여덟 칸의 순서 — 차례 투척함이 이 순서로 채운다 */
+function slotsOf(code){
+  return [
+    ...TODS.map(([t,label])=>({ kind:'gate', t, label:'정문 '+label, path:gatePath(code,t) })),
+    ...TODS.map(([t,label])=>({ kind:'hall', t, label:'실내 '+label, path:hallPath(code,t) })),
+  ];
+}
+
+async function refreshTally(){
+  const box=document.getElementById('tally');
+  box.innerHTML=HALLS.map(h=>
+    `<div class="chip ${h.active?'':'sleep'}" id="tl-${h.code}" onclick="jumpHall('${h.code}')">${esc(h.name)} <b>…</b></div>`).join('');
+  for(const h of HALLS){
+    const n=(await Promise.all(slotsOf(h.code).map(s=>exists(BUCKET,s.path)))).filter(Boolean).length;
+    const el=document.getElementById('tl-'+h.code); if(!el) continue;
+    el.innerHTML=`${esc(h.name)} <b>${n}/8</b>`;
+    el.classList.toggle('done', n===8);
+  }
+}
+function exists(bucket,path){
+  return new Promise(res=>{ const im=new Image();
+    im.onload=()=>res(true); im.onerror=()=>res(false);
+    im.src=PUB(bucket,path)+'?v='+Date.now(); });
+}
+function jumpHall(code){
+  showPane('hall');
+  const sel=document.getElementById('hallPick'); sel.value=code; renderHall();
+}
+function currentHall(){
+  const code=document.getElementById('hallPick').value;
+  return HALLS.find(h=>h.code===code)||null;
+}
+function renderHall(){
+  const h=currentHall(); if(!h) return;
+  const m=h.meta||{};
+  document.getElementById('hallInfo').innerHTML=
+    `코드 <b>${esc(h.code)}</b> · 순번 <b>${m.museum_no ?? '—'}</b>번 관`
+    + (h.active ? ' · <span style="color:rgba(180,214,170,.9)">지도에 서 있음</span>'
+                : ' · <span style="color:rgba(232,180,150,.85)">아직 잠들어 있음</span>')
+    + (m.coord_check===false ? '<br>⚠ <span style="color:rgba(233,180,140,.9)">좌표 미확인</span> — 구글어스로 정면을 확인한 뒤에 깨웁니다' : '')
+    + (m.frame_rect ? '' : '<br>· 액자 자리(frame_rect) 아직 안 잼');
+  document.getElementById('plan').innerHTML='';
+  buildSlots();
+}
+function buildSlots(){
+  const h=currentHall(); if(!h) return;
+  const all=slotsOf(h.code);
+  const g=all.filter(s=>s.kind==='gate'), l=all.filter(s=>s.kind==='hall');
+  const head=s=>`<div class="s-name">${s.label.split(' ')[1]} (${s.t})</div>
+    <div class="s-sub">${s.kind==='gate'?'1672 × 941':'941 × 1672'}</div>`;
+  document.getElementById('gateSlots').innerHTML=g.map(s=>
+    `<div class="slot" data-path="${s.path}" data-kind="gate" id="sl-${s.kind}-${s.t}">
+      ${head(s)}<div class="s-state">확인 중…</div></div>`).join('');
+  document.getElementById('hallSlots').innerHTML=l.map(s=>
+    `<div class="slot tall" data-path="${s.path}" data-kind="hall" id="sl-${s.kind}-${s.t}">
+      ${head(s)}<div class="s-state">확인 중…</div></div>`).join('');
+  wire(document.getElementById('gateSlots'));
+  wire(document.getElementById('hallSlots'));
+  all.forEach(s=>paint('sl-'+s.kind+'-'+s.t, s.path, head(s), s.kind));
+}
+function wire(box){
+  box.querySelectorAll('.slot').forEach(el=>{
+    el.addEventListener('click',()=>pickFile(el.dataset.path, el.dataset.kind));
+    el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('drag');});
+    el.addEventListener('dragleave',()=>el.classList.remove('drag'));
+    el.addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();el.classList.remove('drag');
+      if(e.dataTransfer.files[0]) uploadRoom(el.dataset.path, el.dataset.kind, e.dataTransfer.files[0], afterWrite);});
+  });
+}
+function paint(id,path,head,kind){
+  const el=document.getElementById(id); if(!el) return;
+  const im=new Image();
+  im.onload=()=>{ el.innerHTML=`<img src="${im.src}" alt="">${head}
+    <div class="s-state">${im.naturalWidth} × ${im.naturalHeight} · 눌러 교체</div>
+    <button class="btn ghost" style="margin-top:8px"
+      onclick="event.stopPropagation();clearAsset('${path}')">내리기</button>`; };
+  im.onerror=()=>{ el.innerHTML=`${head}<div class="s-state">비어 있음 · 눌러 걸기</div>`; };
+  im.src=PUB(BUCKET,path)+'?v='+Date.now();
+}
+function afterWrite(){ buildSlots(); refreshTally(); }
+
+function pickFile(path,kind){ pickTarget={path,kind}; document.getElementById('filePick').click(); }
+document.getElementById('filePick').addEventListener('change',e=>{
+  if(e.target.files[0] && pickTarget){
+    if(pickTarget.art) uploadArt(pickTarget.id, e.target.files[0]);
+    else uploadRoom(pickTarget.path, pickTarget.kind, e.target.files[0], afterWrite);
+  }
+  e.target.value='';
+});
+
+/* ── 방 그림 한 장 ── */
+async function uploadRoom(path,kind,file,after){
+  if(file.size>24*1024*1024){ toast('24MB 이하로 부탁드립니다'); return; }
+  toast('굽는 중…');
+  let r;
+  try{ r=await bake(file, 'cover', SPEC[kind].w, SPEC[kind].h); }
+  catch(e){ toast('굽지 못했습니다: '+esc(e.message)); return; }
+  const { error } = await supa.storage.from(BUCKET)
+    .upload(path, r.blob, { upsert:true, contentType:'image/webp', cacheControl:'300' });
+  if(error){ toast('실패: '+esc(error.message)); return; }
+  toast(report(file, r, path));
+  after && after();
+}
+function report(file, r, path){
+  const name=path.split('/').pop();
+  let s=`<b>${esc(name)}</b> ✔<br>${kb(file.size)} → <b>${kb(r.blob.size)}</b>`;
+  if(!r.raw) s+=` · ${r.srcW}×${r.srcH} → ${r.outW}×${r.outH}`;
+  if(r.cropped>0) s+=`<br>비율이 달라 <b>${r.cropped}%</b>를 가운데 기준으로 잘랐습니다`;
+  if(r.note) s+='<br>'+r.note;
+  return s;
+}
+async function clearAsset(path){
+  if(!confirm('이 그림을 내릴까요?')) return;
+  const { error } = await supa.storage.from(BUCKET).remove([path]);
+  if(error){ toast('실패: '+esc(error.message)); return; }
+  toast('내렸습니다'); afterWrite();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ⭐ 차례 투척함 — 이름이 아니라 자리가 이름을 정한다
+   ═══════════════════════════════════════════════════════════ */
+function wireBulk(){
+  const b=document.getElementById('bulk');
+  b.addEventListener('click',()=>document.getElementById('bulkPick').click());
+  b.addEventListener('dragover',e=>{e.preventDefault();b.classList.add('drag');});
+  b.addEventListener('dragleave',()=>b.classList.remove('drag'));
+  b.addEventListener('drop',e=>{e.preventDefault();b.classList.remove('drag');
+    makePlan([...e.dataTransfer.files]);});
+  document.getElementById('bulkPick').addEventListener('change',e=>{
+    makePlan([...e.target.files]); e.target.value='';});
+  /* 창 전체로 떨어뜨렸을 때 브라우저가 그림을 열어 버리는 것을 막는다 */
+  window.addEventListener('dragover',e=>e.preventDefault());
+  window.addEventListener('drop',e=>e.preventDefault());
+}
+
+async function makePlan(files){
+  const h=currentHall(); if(!h){ toast('먼저 관을 고르십시오'); return; }
+  files=files.filter(f=>/^image\//.test(f.type));
+  if(!files.length){ toast('그림 파일이 아닙니다'); return; }
+  const box=document.getElementById('plan');
+  box.innerHTML='<div class="hint" style="margin:14px 0 0">자리를 살피는 중…</div>';
+
+  const over=document.getElementById('overwrite').checked;
+  const all=slotsOf(h.code);
+  const filled=await Promise.all(all.map(s=>exists(BUCKET,s.path)));
+  const open=all.filter((s,i)=> over ? true : !filled[i]);
+
+  const rows=[], jobs=[];
+  files.forEach((f,i)=>{
+    const s=open[i];
+    if(s){ jobs.push({file:f, slot:s}); rows.push(
+      `<div class="plan-row"><span class="pf">${esc(f.name)}</span>
+       <span class="pa">→</span><span class="pt">${esc(s.label)}</span></div>`); }
+    else rows.push(
+      `<div class="plan-row skip"><span class="pf">${esc(f.name)}</span>
+       <span class="pa">→</span><span class="pt">빈자리 없음 · 건너뜀</span></div>`);
+  });
+  PLAN={ hall:h, jobs };
+  box.innerHTML=`<div class="plan">${rows.join('')}</div>
+    <div class="plan-btns">
+      <button class="btn" onclick="runPlan()">이대로 ${jobs.length}장 올리기</button>
+      <button class="btn ghost" onclick="document.getElementById('plan').innerHTML=''">그만두기</button>
+    </div>`
+    + (jobs.length ? '' : '<div class="hint" style="margin:12px 0 0;text-align:center">'
+        + '올릴 자리가 없습니다. 덮어쓰기를 켜거나 먼저 몇 칸을 내려 주십시오.</div>');
+}
+
+async function runPlan(){
+  if(!PLAN || !PLAN.jobs.length) return;
+  const bar=document.getElementById('bar'), fill=bar.querySelector('i');
+  bar.classList.add('on'); fill.style.width='0%';
+  document.getElementById('plan').innerHTML='<div class="hint" style="margin:14px 0 0;text-align:center">올리는 중…</div>';
+
+  let done=0, fail=0, before=0, after=0, cropNote=0;
+  for(const j of PLAN.jobs){
+    try{
+      const r=await bake(j.file, 'cover', SPEC[j.slot.kind].w, SPEC[j.slot.kind].h);
+      const { error } = await supa.storage.from(BUCKET)
+        .upload(j.slot.path, r.blob, { upsert:true, contentType:'image/webp', cacheControl:'300' });
+      if(error) throw error;
+      before+=j.file.size; after+=r.blob.size; if(r.cropped>0) cropNote++;
+      done++;
+    }catch(e){ fail++; console.warn('[EG] 투척 실패', j.slot.path, e); }
+    fill.style.width=Math.round((done+fail)/PLAN.jobs.length*100)+'%';
+  }
+  setTimeout(()=>bar.classList.remove('on'), 900);
+  document.getElementById('plan').innerHTML='';
+  let msg=`<b>${done}장</b> 걸렸습니다 ✔ · ${kb(before)} → <b>${kb(after)}</b>`;
+  if(cropNote) msg+=`<br>${cropNote}장은 비율이 달라 가운데 기준으로 잘랐습니다`;
+  if(fail) msg+=`<br>⚠ ${fail}장 실패 — 콘솔을 봐 주십시오`;
+  toast(msg);
+  PLAN=null;
+  afterWrite();
+}
+
+/* ═══ 작품 ═══ */
+async function loadArts(){
+  const { data, error } = await supa.from('heritage_items')
+    .select('id,name,artist,period,img,status,ratio')
+    .eq('category','visual').order('id');
+  if(error){ toast('작품 목록을 못 읽었습니다: '+esc(error.message)); return; }
+  ARTS=data||[];
+  renderArts(); paintNextId();
+}
+
+/* ⚠ id는 반드시 htg_pNNN 오름차순이어야 한다. 작품 배열의 축이 id이고,
+     이 순서가 흔들리면 그날 전 관의 그림이 통째로 어긋난다.
+     새 작품은 언제나 끝에 붙으므로 기존 순번을 밀지 않는다. */
+function nextArtId(){
+  let max=0;
+  for(const a of ARTS){
+    const m=String(a.id||'').match(/^htg_p(\d+)$/);
+    if(m) max=Math.max(max, parseInt(m[1],10));
+  }
+  return 'htg_p'+String(max+1).padStart(3,'0');
+}
+function paintNextId(){
+  const el=document.getElementById('nsNextId');
+  if(el) el.textContent=nextArtId();
+}
+
+function renderArts(){
+  const box=document.getElementById('artList');
+  if(!ARTS.length){ box.innerHTML='<div class="empty">아직 작품이 없습니다.</div>'; return; }
+  const act=ARTS.filter(a=>a.status==='active');
+  box.innerHTML=ARTS.map(a=>{
+    const on=a.status==='active';
+    const n=on ? act.indexOf(a)+1 : '—';
+    return `<div class="song-row ${on?'':'off'}" id="ar-${a.id}">
+      <img class="sr-thumb" id="th-${a.id}" src="${a.img?esc(a.img)+'?v='+Date.now():''}"
+        alt="" onclick="openPv('${a.id}')">
+      <div class="sr-body">
+        <div class="sr-head"><span class="sr-no">${n}</span>
+          <span class="sr-name">${esc(a.name)}</span></div>
+        <div class="sr-artist">${esc(a.artist||'')}${a.period?' · '+esc(a.period):''}
+          <span style="opacity:.5"> · ${esc(a.id)}</span></div>
+        <div class="sr-fields">
+          <input class="in-nm" id="nm-${a.id}" value="${esc(a.name)}" placeholder="제목">
+          <input class="in-ar" id="ar2-${a.id}" value="${esc(a.artist||'')}" placeholder="화가">
+          <input class="in-pd" id="pd-${a.id}" value="${esc(a.period||'')}" placeholder="연도">
+          <button class="btn" onclick="saveArt('${a.id}')">저장</button>
+          <button class="btn ghost" onclick="pickArtImg('${a.id}')">그림</button>
+          <button class="btn ${on?'warn':'ghost'}" onclick="toggleArt('${a.id}',${on})">${on?'내리기':'올리기'}</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  /* 섬네일에 직접 던지기 */
+  ARTS.forEach(a=>{
+    const el=document.getElementById('th-'+a.id); if(!el) return;
+    el.addEventListener('dragover',e=>{e.preventDefault();el.style.opacity=.6;});
+    el.addEventListener('dragleave',()=>el.style.opacity=1);
+    el.addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();el.style.opacity=1;
+      if(e.dataTransfer.files[0]) uploadArt(a.id, e.dataTransfer.files[0]);});
+  });
+}
+
+function pickArtImg(id){ pickTarget={art:true,id}; document.getElementById('filePick').click(); }
+
+/* ⚠ 작품은 자르지 않는다 — 비율이 곧 작품이다 */
+async function uploadArt(id, file){
+  if(file.size>32*1024*1024){ toast('32MB 이하로 부탁드립니다'); return; }
+  toast('굽는 중…');
+  let r;
+  try{ r=await bake(file, 'fit'); }
+  catch(e){ toast('굽지 못했습니다: '+esc(e.message)); return; }
+  const path=`${id}.webp`;
+  const { error } = await supa.storage.from(ART_BUCKET)
+    .upload(path, r.blob, { upsert:true, contentType:'image/webp', cacheControl:'300' });
+  if(error){ toast('실패: '+esc(error.message)); return; }
+
+  const url=PUB(ART_BUCKET,path);
+  const ratio = r.outW>=r.outH ? 'landscape' : 'portrait';
+  const { error:e2 } = await supa.from('heritage_items')
+    .update({ img:url, ratio }).eq('id',id);
+  if(e2){ toast('그림은 올렸으나 기록 실패: '+esc(e2.message)); return; }
+
+  toast(`<b>${esc(id)}.webp</b> ✔<br>${kb(file.size)} → <b>${kb(r.blob.size)}</b>`
+      + ` · ${r.srcW}×${r.srcH} → ${r.outW}×${r.outH} · ${ratio==='landscape'?'가로':'세로'}`);
+  await loadArts(); renderToday();
+}
+
+async function saveArt(id){
+  const name=(document.getElementById('nm-'+id).value||'').trim();
+  const artist=(document.getElementById('ar2-'+id).value||'').trim();
+  const period=(document.getElementById('pd-'+id).value||'').trim();
+  if(!name){ toast('제목을 적어 주세요'); return; }
+  const { error } = await supa.from('heritage_items')
+    .update({ name, artist, period: period||null }).eq('id',id);
+  if(error){ toast('실패: '+esc(error.message)); return; }
+  toast('고쳤습니다 ✔'); await loadArts(); renderToday();
+}
+
+async function toggleArt(id,on){
+  if(on && !confirm('배열에서 내릴까요? 그날 다섯 관의 그림이 한 번 고쳐 걸립니다.')) return;
+  const { error } = await supa.from('heritage_items')
+    .update({ status: on?'shelf':'active' }).eq('id',id);
+  if(error){ toast('실패: '+esc(error.message)); return; }
+  toast(on?'내렸습니다':'다시 걸었습니다'); await loadArts(); renderToday();
+}
+
+async function addArt(){
+  const btn=document.getElementById('nsAdd');
+  const name=(document.getElementById('nsName').value||'').trim();
+  const artist=(document.getElementById('nsArtist').value||'').trim();
+  const period=(document.getElementById('nsPeriod').value||'').trim();
+  if(!name){ toast('작품 제목을 적어 주세요'); return; }
+  if(!artist){ toast('화가를 적어 주세요'); return; }
+  const id=nextArtId();
+  btn.disabled=true;
+  const { error } = await supa.from('heritage_items').insert({
+    id, name, artist, period: period||null,
+    category:'visual', status:'active' });
+  btn.disabled=false;
+  if(error){ toast('실패: '+esc(error.message)); return; }
+  document.getElementById('nsName').value='';
+  document.getElementById('nsArtist').value='';
+  document.getElementById('nsPeriod').value='';
+  toast(`<b>${esc(id)}</b> 걸렸습니다 ✔ 이제 섬네일에 그림을 던져 주십시오`);
+  await loadArts(); renderToday();
+}
+
+/* ═══ 미리보기 ═══ */
+function openPv(id){
+  const a=ARTS.find(x=>x.id===id); if(!a || !a.img){ toast('아직 그림이 없습니다'); return; }
+  document.getElementById('pvTitle').innerHTML=`${esc(a.name)} · ${esc(a.artist||'')}`;
+  document.getElementById('pvImg').src=a.img+'?v='+Date.now();
+  document.getElementById('pv').classList.add('on');
+}
+function closePv(){ document.getElementById('pv').classList.remove('on');
+  document.getElementById('pvImg').src=''; }
+document.getElementById('pv').addEventListener('click',e=>{ if(e.target.id==='pv') closePv(); });
+
+init();
+</script>
+</body>
+</html>
