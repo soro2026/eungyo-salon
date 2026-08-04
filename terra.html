@@ -3644,7 +3644,7 @@ const DOCK_DIRECT = {
   stadium:      "stadium_v2.html",
   museum:       "museum.html",
   constellatio: "constella.html",
-  heritage:     "heritage.html",
+  heritage:     "galerie.html",   /* 0804 — 구 heritage.html 은퇴, 대청소 등재 */
   wunder:       "wunderkammer_shell_v4_4.html",   /* user 없으면 본인 방 (셸 폴백 확인 완료) */
   persona:      "persona.html",
   college:      "college.html"
@@ -3769,11 +3769,96 @@ async function toggleConcertList(){
     box.appendChild(b);
   }
 }
+/* ═══ 0804 — 미술관 로테이션. 음악관 블록과 완전한 형제다 ═══
+   ⚠⚠ 이 공식이 사는 **두 번째** 곳이다. galerie.html · admin_galerie_assets.html 과
+   반드시 함께 고칠 것. 한 곳만 고치면 타륜은 드가라 적고 방에 들어가면 뭉크가 걸린다. */
+function galerieHalls(){
+  const out = [];
+  for (const c in terraPins){ if (terraPins[c].kind === "heritage") out.push(terraPins[c]); }
+  return out.sort((a,b)=> (a.sort||0) - (b.sort||0));
+}
+let gArts = null;
+async function loadGalerieArts(){
+  if (gArts) return gArts;
+  try{
+    const r = await fetch(SUPA_URL + "/rest/v1/heritage_items?select=id,name,artist"
+      + "&category=eq.visual&status=eq.active&order=id",
+      { headers:{ apikey:SUPA_KEY, Authorization:"Bearer " + SUPA_KEY } });
+    const j = await r.json();
+    gArts = Array.isArray(j) ? j : [];
+  }catch(e){ console.warn("미술관 작품 로드 실패:", e); gArts = []; }
+  return gArts;
+}
+/* 화가 성 + 작품명 — songLine과 같은 규칙. 「빈센트 반 고흐」 → 「고흐 · 별이 빛나는 밤」 */
+function artLine(a){
+  if (!a) return "";
+  const full = String(a.artist || "").trim();
+  const last = full ? full.split(/\s+/).pop() : "";
+  return (last && !String(a.name||"").startsWith(last) ? last + " · " : "") + (a.name || "");
+}
+/* 오늘 h번 관의 그림 = 배열[ (D + floor(h × N ÷ H)) mod N ] — 음악관 결정문 3호 승계 */
+function artOfMuseum(no, H){
+  const N = (gArts || []).length;
+  if (!N || !H) return null;
+  return gArts[ ((concertDay() + Math.floor(no * N / H)) % N + N) % N ];
+}
+/* 오늘의 관 — concertGate와 같은 회전 */
+function galerieGate(){
+  const hs = galerieHalls();
+  if (!hs.length) return null;
+  return hs[ ((concertDay() % hs.length) + hs.length) % hs.length ];
+}
+/* 접이 목록 — 다섯 관과 오늘 그 관에 걸린 그림. toggleConcertList의 형제 */
+async function toggleGalerieList(){
+  const btn = document.getElementById("navGalerie"), box = document.getElementById("subGalerie");
+  if (!btn || !box) return;
+  const willOpen = !box.classList.contains("on");
+  closeOrgLists();
+  try{ toggleCityList(false); toggleStarList(false); }catch(e){}
+  if (!willOpen) return;
+  box.classList.add("on"); btn.classList.add("open");
+  box.innerHTML = "";
+  const halls = galerieHalls();
+  if (!halls.length){
+    const e0 = document.createElement("div");
+    e0.className = "sub-empty"; e0.textContent = "첫 미술관을 고르는 중입니다";
+    box.appendChild(e0); return;
+  }
+  const wait = document.createElement("div");
+  wait.className = "sub-empty"; wait.textContent = "오늘의 전시를 펴는 중…";
+  box.appendChild(wait);
+  await loadGalerieArts();
+  box.innerHTML = "";
+  const today = galerieGate();
+  for (const p of halls){
+    const a = artOfMuseum(Number((p.meta && p.meta.museum_no) || 0), halls.length);
+    const b = document.createElement("button");
+    b.className = "sub-item stack";
+    const n = document.createElement("span");
+    n.textContent = (today && p.code === today.code ? "● " : "") + (p.name || p.code);
+    b.appendChild(n);
+    if (a){
+      const t = document.createElement("span");
+      t.className = "sub-note"; t.textContent = artLine(a);   /* 활자는 textContent — <>가 섞여도 안전 */
+      b.appendChild(t);
+    }
+    b.addEventListener("click", ()=>{
+      closeOrgLists();
+      try{ document.getElementById("egDock").classList.remove("open"); }catch(e){}
+      flyToPark(p);
+    });
+    box.appendChild(b);
+  }
+}
 function addDockShortcut(el, id){
   if (id === "tourmusic"){
     const h = concertGate();
     if (h) DOCK_DIRECT.tourmusic = "concert.html?code=" + encodeURIComponent(h.code);
     else   delete DOCK_DIRECT.tourmusic;
+  }
+  if (id === "heritage"){
+    const g = galerieGate();
+    if (g) DOCK_DIRECT.heritage = "galerie.html?code=" + encodeURIComponent(g.code);
   }
   /* 0730 소로 — 아레나 카드에는 숏컷을 걸지 않는다. 엠블럼·도장·사과가 사는 카드에
      타륜까지 얹으면 소란하고, 눌러도 경기장 직입이 아직 안 된다(스타디움 홈탭 수리 대기). */
@@ -3888,7 +3973,7 @@ const DOCK_SKELETON = [
   { id:"spoon",        sec:"lectio",    name:"교양 한스푼" },
   { id:"museum",       sec:"lectio",    name:"EG뮤세움" },
   { id:"constellatio", sec:"mundus",    name:"EG콘스텔라티오" },
-  { id:"heritage",     sec:"mundus",    name:"미술관", cap:"LE GRAND TOUR" },
+  { id:"heritage",     sec:"mundus",    name:"오늘의 미술관", cap:"LE GRAND TOUR" },
   { id:"tourmusic",    sec:"mundus",    name:"콘서트", cap:"LE GRAND TOUR" },
   { id:"wunder",       sec:"anima",     name:"EG분더카머" },
   { id:"persona",      sec:"anima",     name:"교양 자화상" },
@@ -4093,10 +4178,8 @@ async function loadDock(){
     };
     const uni = [
       { kind:"museum",       sec:"lectio", name:"EG뮤세움" },
-      { kind:"constellatio", sec:"mundus", name:"EG콘스텔라티오" },
-      /* 0730 — 헤리티지가 르 그랑 투르의 미술관 한 줄이 됐다. id는 heritage 그대로 두어
-         DOCK_DIRECT·숏컷·셸 주소를 건드리지 않았다(명명규약 §4: 손볼 일 생길 때 하나씩). */
-      { kind:"heritage",     sec:"mundus", name:"미술관", cap:"LE GRAND TOUR" }
+      { kind:"constellatio", sec:"mundus", name:"EG콘스텔라티오" }
+      /* 0804 — 미술관은 아래 「오늘의 미술관」 동적 카드로 승격 (음악관 계보) */
     ];
     for (const u of uni){
       const p = pinOf(u.kind);
@@ -4109,6 +4192,29 @@ async function loadDock(){
             + '<div class="dock-main"><span>' + u.name + '</span></div>'
             + '<div class="dock-sub">' + sub + '</div>',
         onClick: ()=>{ if (p) flyToPark(p); } });
+    }
+
+    /* MUNDUS — 르 그랑 투르 미술관 (0804 · 오늘의 관 + 접이 목록. 음악관 카드의 형제) */
+    {
+      const gHalls = galerieHalls();
+      const gToday = galerieGate();
+      let gSub = "첫 미술관을 고르는 중";
+      if (gToday){
+        await loadGalerieArts();
+        const a = artOfMuseum(Number((gToday.meta && gToday.meta.museum_no) || 0), gHalls.length);
+        const line = artLine(a);
+        gSub = (gToday.name || gToday.code) + (line ? " · " + line : "");
+      }
+      items.push({ id:"heritage", sec:"mundus", cls:"uni",
+        elId:"navGalerie", after:"subGalerie",
+        html: '<div class="dock-cap">LE GRAND TOUR</div>'
+            + '<div class="dock-main"><span>오늘의 미술관</span>'
+            + (gHalls.length > 1 ? '<span class="chev" aria-hidden="true">›</span>' : '')
+            + '</div>'
+            + '<div class="dock-sub"></div>',
+        sub: gSub,
+        onClick: !gHalls.length ? null
+               : (gHalls.length === 1 ? (()=> flyToPark(gToday)) : (()=> toggleGalerieList())) });
     }
 
     /* MUNDUS — 르 그랑 투르 음악관 (0731 · 0802 오늘의 홀 + 접이 목록).
@@ -4229,7 +4335,7 @@ function startCountdown(ids, dateStr){
 /* 0731 — 콘서트홀 입장 버튼은 블록 7의 openStory 안에서 눌린다.
    이 블록은 IIFE라 안에서 선언한 함수가 밖에서 안 보인다. 창구로 내보낸다.
    (버튼이 먹통이던 원인 — 블록 경계. egLogout이 겪은 병과 같은 집안이다.) */
-console.log("%c[EG] terra v153 · 0804 미술관 콘솔 대시보드 15", "color:#c9a24a");
+console.log("%c[EG] terra v154 · 0804 타륜 오늘의 미술관 · galerie 직결", "color:#c9a24a");
 window.enterRoomUrl   = enterRoomUrl;
 window.egLogout       = egLogout;
 window.closeOrgLists  = closeOrgLists;

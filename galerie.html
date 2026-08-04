@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>르 그랑 투르 — 미술관</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Cormorant+Garamond:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+ *  galerie.html v1.0 — 0804 · 르 그랑 투르 미술관
+ *
+ *  2뷰: 정문(gate 16:9 · 밤낮 4벌) → [암전] → 전시실(hall 9:16 · 밤낮 4벌)
+ *  그림: tour-assets/galerie/{code}_gate_{m|d|e|n}.webp · {code}_hall_{m|d|e|n}.webp
+ *  관:   terra_pins (kind='heritage') — 좌표·카메라·museum_no·frame_rect 한 행에
+ *  작품: heritage_items (category='visual') — id 오름차순이 배열의 축
+ *
+ *  ⚠ 로테이션 공식은 admin_galerie_assets.html과 반드시 같아야 한다.
+ *      그림 = 배열[ (KST날수 + floor(museum_no × N ÷ H)) mod N ]
+ *    한쪽만 고치면 콘솔이 거짓말을 한다. (음악관은 세 곳 — 함정 M)
+ *
+ *  ⚠ 방은 폭 100%. 작품은 벽의 절반. 디테일은 팝업(0804 소로 결정).
+ *    가로 화면에서 방 좌우를 자르는 것 절대 금지.
+ * ============================================================ */
+:root{--gold:#c9a24a;--gold-l:#e9cf9c;--ink:#2E4A7A;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;background:#0d0a07;color:#e8ddc4;
+  font-family:'Gowun Batang',serif;overflow:hidden;}
+
+.view{position:fixed;inset:0;opacity:0;pointer-events:none;transition:opacity .6s;}
+.view.on{opacity:1;pointer-events:auto;}
+
+/* ── 정문 ── */
+#gate{background:#000 center/cover no-repeat;display:grid;place-items:end center;
+  padding-bottom:max(7vh,54px);cursor:pointer;}
+#gateHead{position:absolute;left:0;right:0;top:clamp(16px,4vh,44px);text-align:center;
+  text-shadow:0 2px 18px rgba(0,0,0,.65);}
+#gateHead .g-eyebrow{font-family:'Cormorant Garamond',serif;font-size:clamp(10px,1.3vw,12px);
+  letter-spacing:.34em;color:rgba(233,207,156,.85);}
+#gateHead .g-name{font-size:clamp(19px,3vw,27px);color:#f5efdd;margin-top:9px;letter-spacing:.05em;}
+#gateHead .g-city{font-family:'Cormorant Garamond',serif;font-size:clamp(10px,1.2vw,12px);
+  letter-spacing:.28em;color:rgba(232,221,196,.62);margin-top:7px;}
+#enterBtn{font:inherit;font-size:13.5px;letter-spacing:.2em;color:#f0e8d4;
+  background:rgba(10,8,5,.52);border:1px solid rgba(233,207,156,.65);border-radius:26px;
+  padding:13px 34px;cursor:pointer;backdrop-filter:blur(3px);transition:all .3s;}
+#enterBtn:hover{background:rgba(201,162,74,.28);}
+
+/* ── 암전 ── */
+#fade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;
+  transition:opacity 1s;z-index:20;}
+#fade.on{opacity:1;}
+
+/* ── 전시실 ── */
+#hall{background:#000;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;}
+#hall::-webkit-scrollbar{display:none;}
+#hallFit{position:relative;margin:0 auto;}
+#hallImg{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;display:block;}
+
+/* 작품 — 액자 상자 안에 contain */
+#frame{position:absolute;display:grid;place-items:center;}
+#artImg{max-width:100%;max-height:100%;display:block;cursor:zoom-in;
+  box-shadow:0 10px 42px rgba(0,0,0,.55), 0 3px 12px rgba(0,0,0,.45);
+  border:solid rgba(20,14,8,.9);border-width:clamp(5px,.9vw,12px);
+  outline:1px solid rgba(233,207,156,.35);background:#111;}
+#artImg.noart{display:none;}
+
+/* 명패 — 액자 아래 */
+#plaque{position:absolute;text-align:center;transform:translateX(-50%);
+  text-shadow:0 1px 12px rgba(0,0,0,.6);pointer-events:none;white-space:nowrap;}
+#plaque .p-name{font-size:clamp(12.5px,1.5vw,15px);color:#f2ead6;letter-spacing:.04em;}
+#plaque .p-artist{font-family:'Cormorant Garamond',serif;font-size:clamp(10px,1.2vw,12px);
+  letter-spacing:.16em;color:rgba(232,221,196,.66);margin-top:5px;}
+
+#hallHead{position:absolute;left:0;right:0;top:clamp(14px,3.2vh,34px);text-align:center;
+  pointer-events:none;text-shadow:0 2px 14px rgba(0,0,0,.6);z-index:5;}
+#hallHead .h-name{font-family:'Cormorant Garamond',serif;font-size:clamp(10px,1.3vw,12px);
+  letter-spacing:.3em;color:rgba(233,207,156,.78);}
+
+/* 뒤로 */
+#backBtn{position:fixed;left:16px;top:calc(14px + env(safe-area-inset-top));z-index:25;
+  font:inherit;font-size:11.5px;letter-spacing:.12em;color:rgba(240,232,212,.82);
+  background:rgba(10,8,5,.5);border:1px solid rgba(233,207,156,.4);border-radius:20px;
+  padding:8px 15px;cursor:pointer;backdrop-filter:blur(3px);display:none;}
+.view.on ~ #backBtn{display:block;}
+
+/* ── 줌 팝업 — 디테일은 여기서 (0804 소로) ── */
+#zoom{position:fixed;inset:0;z-index:40;display:none;place-items:center;
+  background:rgba(4,3,2,.95);backdrop-filter:blur(6px);cursor:zoom-out;}
+#zoom.on{display:grid;}
+#zoomImg{max-width:96vw;max-height:88vh;display:block;box-shadow:0 20px 80px rgba(0,0,0,.8);}
+#zoomCap{position:fixed;left:0;right:0;bottom:max(20px, env(safe-area-inset-bottom));
+  text-align:center;font-size:12.5px;color:rgba(232,221,196,.75);letter-spacing:.06em;
+  text-shadow:0 1px 8px #000;pointer-events:none;line-height:1.8;}
+
+/* ── ✎ 편집 (살롱지기) ── */
+#editToggle{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:30;
+  font:inherit;font-size:11px;letter-spacing:.1em;color:rgba(233,207,156,.85);
+  background:rgba(10,8,5,.55);border:1px solid rgba(233,207,156,.4);border-radius:18px;
+  padding:8px 14px;cursor:pointer;display:none;}
+#editToggle.show{display:block;}
+#frame.editing{outline:2px dashed rgba(233,207,156,.9);outline-offset:2px;cursor:move;}
+#frame.editing #artImg{cursor:move;}
+.ehandle{position:absolute;width:16px;height:16px;right:-9px;bottom:-9px;
+  border:2px solid var(--gold-l);background:rgba(10,8,5,.8);border-radius:4px;
+  cursor:nwse-resize;display:none;}
+#frame.editing .ehandle{display:block;}
+#editBar{position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(16px + env(safe-area-inset-bottom));z-index:31;display:none;gap:9px;}
+#editBar.show{display:flex;}
+#editBar .btn{font:inherit;font-size:11.5px;letter-spacing:.06em;color:#f2f0ea;
+  background:var(--ink);border:none;border-radius:16px;padding:9px 16px;cursor:pointer;}
+#editBar .btn.ghost{background:rgba(10,8,5,.6);border:1px solid rgba(233,207,156,.5);
+  color:rgba(233,207,156,.9);}
+#editInfo{position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(64px + env(safe-area-inset-bottom));z-index:31;display:none;
+  font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:.12em;
+  color:rgba(233,207,156,.7);background:rgba(10,8,5,.6);border-radius:12px;padding:6px 14px;}
+#editInfo.show{display:block;}
+
+#toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);z-index:60;
+  background:rgba(240,232,212,.94);color:#241a10;font-size:12.5px;
+  padding:10px 20px;border-radius:22px;opacity:0;pointer-events:none;
+  transition:opacity .3s;max-width:88vw;text-align:center;}
+#toast.show{opacity:1;}
+#err{position:fixed;inset:0;display:none;place-items:center;text-align:center;
+  font-size:13px;line-height:2.2;color:rgba(232,221,196,.75);padding:24px;}
+</style>
+</head>
+<body>
+
+<div id="gate" class="view">
+  <div id="gateHead">
+    <div class="g-eyebrow">LE GRAND TOUR · GALERIE</div>
+    <div class="g-name" id="gName"></div>
+    <div class="g-city" id="gCity"></div>
+  </div>
+  <button id="enterBtn">입장하기</button>
+</div>
+
+<div id="hall" class="view">
+  <div id="hallFit">
+    <img id="hallImg" alt="">
+    <div id="frame">
+      <img id="artImg" alt="">
+      <div class="ehandle" id="eHandle"></div>
+    </div>
+    <div id="plaque"><div class="p-name" id="pName"></div><div class="p-artist" id="pArtist"></div></div>
+  </div>
+  <div id="hallHead"><span class="h-name" id="hName"></span></div>
+</div>
+
+<button id="backBtn" onclick="goBack()">← 지구로</button>
+<div id="fade"></div>
+
+<div id="zoom" onclick="closeZoom()">
+  <img id="zoomImg" src="" alt="">
+  <div id="zoomCap"></div>
+</div>
+
+<div id="editToggle" onclick="toggleEdit()">✎ 액자 맞추기</div>
+<div id="editInfo"></div>
+<div id="editBar">
+  <button class="btn" onclick="saveRect()">저장</button>
+  <button class="btn ghost" onclick="resetRect()">되돌리기</button>
+  <button class="btn ghost" onclick="toggleEdit()">닫기</button>
+</div>
+
+<div id="toast"></div>
+<div id="err"></div>
+
+<script src="eg_camera.js?v=0804a"></script>
+<script src="stamp_press.js?v=0804a"></script>
+<script>
+const SUPA_URL='https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth'}});
+const BUCKET='tour-assets';
+const asset=(code,slot)=>`${SUPA_URL}/storage/v1/object/public/${BUCKET}/galerie/${code}_${slot}.webp`;
+const HALL_RATIO=941/1672;                     /* 방 그림 가로/세로 (9:16) */
+const $=s=>document.querySelector(s);
+console.log("%c[EG] galerie v1.0 · 0804 미술관 개관 · 카메라·편집기·줌", "color:#c9a24a");
+
+const qs=new URLSearchParams(location.search);
+const CODE=qs.get('code')||'orsay';
+
+let HALL=null, ART=null, RECT=null, RECT0=null, moved=false, IS_ADMIN=false;
+
+/* ── 시각 — egSky 한 벌. 없으면 낮 (함정 F: 시각은 새로 재지 마라) ── */
+function phase(){
+  try{ return (window.egSky && egSky.phase) ? egSky.phase() : 'd'; }
+  catch(e){ return 'd'; }
+}
+/* KST 날수 — admin_galerie_assets.html과 같은 눈금이어야 한다 */
+function kstDay(){ return Math.floor((Date.now() + 9*3600*1000) / 86400000); }
+
+/* ── 로테이션 — 콘솔과 동일 공식 ── */
+function todaysArt(arts, museumNo, museumCount){
+  const N=arts.length, H=Math.max(museumCount,1);
+  if(!N) return null;
+  const offset=Math.floor(museumNo * N / H);
+  return arts[ ((kstDay() + offset) % N + N) % N ];
+}
+
+/* 그림 후보를 차례로 걸어 본다 — 저녁이 없으면 낮으로 */
+function bgChain(el, cands, asImg){
+  const step=i=>{
+    if(i>=cands.length) return;
+    const im=new Image();
+    im.onload=()=>{ asImg ? el.src=im.src : el.style.backgroundImage=`url(${im.src})`; };
+    im.onerror=()=>step(i+1);
+    im.src=cands[i];
+  };
+  step(0);
+}
+
+function fail(msg){
+  $('#err').style.display='grid';
+  $('#err').innerHTML=msg;
+}
+
+async function boot(){
+  const { data:halls, error:he } = await supa.from('terra_pins')
+    .select('code,name,city,active,meta').eq('kind','heritage').order('sort');
+  if(he || !halls || !halls.length) return fail('미술관 목록을 불러오지 못했습니다.<br>잠시 뒤 다시 들러 주세요.');
+  HALL = halls.find(h=>h.code===CODE) || halls[0];
+  const H = halls.length;
+  const no = (HALL.meta && HALL.meta.museum_no != null) ? HALL.meta.museum_no : 0;
+
+  const { data:arts, error:ae } = await supa.from('heritage_items')
+    .select('id,name,artist,period,img,ratio,status')
+    .eq('category','visual').eq('status','active').order('id');
+  if(ae || !arts || !arts.length) return fail('걸 그림을 불러오지 못했습니다.');
+  ART = todaysArt(arts, no, H);
+
+  RECT = (HALL.meta && HALL.meta.frame_rect) || {L:25,T:38,W:50,H:24};
+  RECT0 = {...RECT};
+
+  /* 정문 */
+  const t=phase();
+  bgChain($('#gate'), [asset(HALL.code,'gate_'+t), asset(HALL.code,'gate_d')], false);
+  $('#gName').textContent = HALL.name;
+  $('#gCity').textContent = ((HALL.meta&&HALL.meta.city_en)||'') +
+    ((HALL.meta&&HALL.meta.country)? ' · '+HALL.meta.country : '');
+  $('#hName').textContent = (HALL.meta&&HALL.meta.name_en) || HALL.name;
+
+  /* 전시실 — 실내도 밤낮 4벌 (음악관과 다른 곳) */
+  bgChain($('#hallImg'), [asset(HALL.code,'hall_'+t), asset(HALL.code,'hall_d')], true);
+  hangArt();
+
+  $('#gate').classList.add('on');
+  $('#enterBtn').addEventListener('click', enterHall);
+  $('#gate').addEventListener('click', e=>{ if(e.target.id==='gate') enterHall(); });
+
+  /* 살롱지기면 편집 단추 */
+  const { data:{ user } } = await supa.auth.getUser();
+  if(user){
+    const { data:u } = await supa.from('users').select('is_admin').eq('id',user.id).single();
+    if(u && u.is_admin){ IS_ADMIN=true; $('#editToggle').classList.add('show'); }
+  }
+}
+
+/* ── 작품 걸기 ── */
+function applyRect(){
+  const f=$('#frame');
+  f.style.left=RECT.L+'%'; f.style.top=RECT.T+'%';
+  f.style.width=RECT.W+'%'; f.style.height=RECT.H+'%';
+  placePlaque();
+}
+function placePlaque(){
+  const p=$('#plaque');
+  p.style.left=(RECT.L+RECT.W/2)+'%';
+  p.style.top=(RECT.T+RECT.H+1.6)+'%';
+}
+function hangArt(){
+  applyRect();
+  const im=$('#artImg');
+  if(ART && ART.img){
+    im.classList.remove('noart');
+    im.src=ART.img;
+    im.onclick=openZoom;
+    $('#pName').textContent=ART.name||'';
+    $('#pArtist').textContent=(ART.artist||'')+(ART.period?' · '+ART.period:'');
+  }else{
+    im.classList.add('noart');
+    $('#pName').textContent=ART?ART.name:'';
+    $('#pArtist').textContent='그림이 아직 도착하지 않았습니다';
+  }
+}
+
+/* ── 입장 — 암전 뒤 카메라가 천장에서 내려온다 ── */
+function enterHall(){
+  if(moved) return; moved=true;
+  $('#fade').classList.add('on');
+  setTimeout(()=>{
+    $('#gate').classList.remove('on');
+    $('#hall').classList.add('on');
+
+    const opts={ box:'#hall', fit:'#hallFit', ratio:HALL_RATIO, rect:RECT,
+      onDone(){
+        /* 입국 도장 — 마지막 열한 번째. 안착한 뒤에 놓는다(9-1)
+           ⚠ area는 DB 실측 'peregrinatio' — 0804에 'pergrinatio' 오타로 낼 뻔했다 */
+        if (window.EGStamp) EGStamp.offer({ supa: supa, area:'peregrinatio', bottom: 96 });
+      }};
+
+    /* 폰(세로 화면)은 스크롤 길이가 0이라 카메라가 헛돈다 — 바로 앉힌다 */
+    const scrollable = (innerWidth/innerHeight) >= HALL_RATIO;
+    setTimeout(()=>$('#fade').classList.remove('on'), 60);
+    if(scrollable && window.EGCamera) EGCamera.enter(opts);
+    else if(window.EGCamera) EGCamera.settle(opts);
+  }, 1050);
+}
+addEventListener('resize', ()=>{ if(window.EGCamera) EGCamera.relayout(); });
+
+function goBack(){ location.href='terra.html'; }
+
+/* ── 줌 팝업 ── */
+function openZoom(){
+  if(!ART || !ART.img) return;
+  $('#zoomImg').src=ART.img;
+  $('#zoomCap').innerHTML=`${escapeHtml(ART.name)}<br><span style="opacity:.6">${escapeHtml(ART.artist||'')}${ART.period?' · '+escapeHtml(ART.period):''}</span>`;
+  $('#zoom').classList.add('on');
+}
+function closeZoom(){ $('#zoom').classList.remove('on'); $('#zoomImg').src=''; }
+addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeZoom(); if(editing) toggleEdit(); } });
+function escapeHtml(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ══ ✎ 액자 맞추기 — 화면에서 끌어 옮기고 모서리로 키운다 ══
+   저장은 terra_pins.meta.frame_rect 한 줄. 관 단위다(작품 단위 예외는 art_layout, 추후). */
+let editing=false;
+function toggleEdit(){
+  if(!IS_ADMIN) return;
+  editing=!editing;
+  $('#frame').classList.toggle('editing', editing);
+  $('#editBar').classList.toggle('show', editing);
+  $('#editInfo').classList.toggle('show', editing);
+  $('#editToggle').textContent = editing ? '✎ 맞추는 중' : '✎ 액자 맞추기';
+  if(editing) paintInfo();
+}
+function paintInfo(){
+  $('#editInfo').textContent =
+    `L ${RECT.L.toFixed(2)} · T ${RECT.T.toFixed(2)} · W ${RECT.W.toFixed(2)} · H ${RECT.H.toFixed(2)}`;
+}
+function fitH(){ return $('#hallFit').getBoundingClientRect(); }
+
+/* 끌기 — 포인터 하나로 폰·마우스 다 받는다 */
+(function(){
+  const f=$('#frame'); let drag=null;
+  f.addEventListener('pointerdown', e=>{
+    if(!editing) return;
+    if(e.target.id==='eHandle') return;
+    e.preventDefault(); f.setPointerCapture(e.pointerId);
+    drag={x:e.clientX,y:e.clientY,L:RECT.L,T:RECT.T};
+  });
+  f.addEventListener('pointermove', e=>{
+    if(!editing||!drag) return;
+    const r=fitH();
+    RECT.L=Math.min(100-RECT.W, Math.max(0, drag.L+(e.clientX-drag.x)/r.width*100));
+    RECT.T=Math.min(100-RECT.H, Math.max(0, drag.T+(e.clientY-drag.y)/r.height*100));
+    applyRect(); paintInfo();
+  });
+  f.addEventListener('pointerup', ()=>{ drag=null; });
+
+  const h=$('#eHandle'); let rs=null;
+  h.addEventListener('pointerdown', e=>{
+    if(!editing) return;
+    e.preventDefault(); e.stopPropagation(); h.setPointerCapture(e.pointerId);
+    rs={x:e.clientX,y:e.clientY,W:RECT.W,H:RECT.H};
+  });
+  h.addEventListener('pointermove', e=>{
+    if(!editing||!rs) return;
+    const r=fitH();
+    RECT.W=Math.min(100-RECT.L, Math.max(8, rs.W+(e.clientX-rs.x)/r.width*100));
+    RECT.H=Math.min(100-RECT.T, Math.max(6, rs.H+(e.clientY-rs.y)/r.height*100));
+    applyRect(); paintInfo();
+  });
+  h.addEventListener('pointerup', ()=>{ rs=null; });
+})();
+
+async function saveRect(){
+  const rect={L:+RECT.L.toFixed(2), T:+RECT.T.toFixed(2), W:+RECT.W.toFixed(2), H:+RECT.H.toFixed(2)};
+  const meta=Object.assign({}, HALL.meta||{}, { frame_rect: rect });
+  const { error } = await supa.from('terra_pins').update({ meta }).eq('kind','heritage').eq('code',HALL.code);
+  if(error){ toast('저장 실패: '+error.message); return; }
+  /* ⚠ 쓰고 나서 되읽어 확인 — 「잘 됐겠지」 금지 */
+  const { data:chk } = await supa.from('terra_pins').select('meta').eq('kind','heritage').eq('code',HALL.code).single();
+  const got=chk && chk.meta && chk.meta.frame_rect;
+  if(got && Math.abs(got.L-rect.L)<0.01){
+    HALL.meta=chk.meta; RECT0={...rect};
+    toast('저장했습니다 ✔ 이 관의 모든 그림이 이 자리에 걸립니다');
+  }else toast('저장은 했으나 확인이 어긋납니다 — 새로고침해 보세요');
+}
+function resetRect(){ RECT={...RECT0}; applyRect(); paintInfo(); }
+function toast(m){ const t=$('#toast'); t.textContent=m;
+  t.classList.add('show'); clearTimeout(t._tm); t._tm=setTimeout(()=>t.classList.remove('show'),3200); }
+
+boot();
+</script>
+</body>
+</html>
