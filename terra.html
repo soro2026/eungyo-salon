@@ -304,6 +304,63 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   .star-item .who .ct{ font-family:var(--sans);font-size:10.5px;color:var(--cream-dim);letter-spacing:.05em }
   @media (max-width:640px){ #starBtn{left:auto;right:18px;top:52px} #starList{left:auto;right:18px;top:90px} }
 
+  /* ══ 0804 — 르 그랑 투르 두 판 (미술관 · 음악관) ══
+     아래로 펼치는 접이는 네 줄이 한계였다. 관이 스물·백으로 늘 수 있으므로
+     「다른 도시」와 같은 문법으로 갈아탄다 — 타륜 왼쪽으로 스르르 밀려나오는 판.
+     판이 자체 스크롤을 가지므로 몇 곳이든 담긴다.
+     ⚠ 미술관·음악관은 **각자 제 판**이다. 하나로 합치면 색을 나눌 수 없다. */
+  .tour-list{
+    position:fixed;top:92px;right:244px;z-index:13;
+    width:min(272px, calc(100vw - 32px));max-height:min(62vh,520px);overflow-y:auto;
+    border:1px solid rgba(201,162,39,.42);border-radius:12px;
+    backdrop-filter:blur(8px);padding:8px;
+    transform-origin:right center;
+    opacity:0;transform:translateX(20px) scale(.97);pointer-events:none;
+    transition:opacity .32s ease, transform .38s cubic-bezier(.22,.61,.36,1);
+    box-shadow:0 14px 40px rgba(0,0,0,.5);
+    scrollbar-width:none;
+  }
+  .tour-list::-webkit-scrollbar{ width:0;height:0;display:none; }
+  .tour-list.in{opacity:1;transform:translateX(0) scale(1);pointer-events:auto}
+  /* 색 두 벌 — 미술관은 자주빛 밤(다마스크·남색 벽), 음악관은 감청빛 밤(암전·밤하늘) */
+  #galerieList{ background:rgba(26,16,24,.96); }
+  #concertList{ background:rgba(13,20,36,.96); }
+  .tour-head{
+    display:flex;align-items:baseline;justify-content:center;gap:7px;
+    padding:8px 6px 10px;border-bottom:1px solid rgba(201,162,39,.22);margin-bottom:6px;
+  }
+  .tour-head .th-la{ font-family:var(--sans);font-size:10px;font-weight:600;
+    letter-spacing:.24em;text-transform:uppercase;color:var(--gold); }
+  .tour-head .th-ko{ font-family:var(--serif);font-size:11px;color:var(--cream-dim); }
+  .tour-item{
+    display:block;width:100%;text-align:left;border:0;background:none;cursor:pointer;
+    padding:9px 11px;border-radius:8px;color:var(--cream);
+    transition:background .18s ease;
+  }
+  .tour-item + .tour-item{ border-top:1px solid rgba(201,162,39,.13); border-radius:0 0 8px 8px; }
+  .tour-item:hover{ background:rgba(201,162,39,.13); }
+  .tour-item .ti-nm{ font-family:var(--serif);font-size:14px;line-height:1.4;
+    display:flex;align-items:baseline;gap:6px; }
+  .tour-item:hover .ti-nm{ color:var(--gold); }
+  /* 오늘의 주인공 — 맨 위에 서고 금빛 점을 단다. 순서는 매일 한 칸씩 돈다 */
+  .tour-item.today .ti-nm{ color:var(--gold); }
+  .tour-item .ti-dot{ width:6px;height:6px;border-radius:50%;background:var(--gold);
+    flex-shrink:0;box-shadow:0 0 8px rgba(201,162,39,.7); }
+  .tour-item .ti-work{ font-family:var(--serif);font-size:11.5px;line-height:1.5;
+    color:var(--cream-dim);margin-top:4px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; }
+  .tour-empty{ padding:14px 11px;font-family:var(--serif);font-size:12px;color:var(--cream-dim);
+    text-align:center;line-height:1.8; }
+  @media (max-width:640px){
+    .tour-list{ left:16px;right:auto;top:80px;width:min(272px, calc(100vw - 32px));
+      transform-origin:left center;transform:translateX(-20px) scale(.97); }
+    .tour-list.in{ transform:translateX(0) scale(1); }
+  }
+  @media (prefers-reduced-motion:reduce){
+    .tour-list{ transform:none !important;transition:opacity .2s ease !important; }
+    .tour-list.in{ transform:none !important; }
+  }
+
   /* ── 레이어 토글: 인물 장소 / 콩파뇽 집 ── */
   .layer-btn{
     position:fixed;top:22px;z-index:12;
@@ -1046,6 +1103,8 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
 <button id="starBtn">✦ 다른 인물</button>
 <div id="starList"></div>
 <div id="cityList"></div>
+<div id="galerieList" class="tour-list"></div>
+<div id="concertList" class="tour-list"></div>
 <button id="layerSpots" class="layer-btn on">🏛 인물 장소</button>
 <button id="layerMaisons" class="layer-btn">🏠 콩파뇽 집</button>
 <button id="editToggle" class="layer-btn" style="display:none">📍 좌표 편집</button>
@@ -1895,6 +1954,7 @@ function renderCityList(){
 function toggleCityList(show){
   const box = document.getElementById("cityList");
   const on = (show === undefined) ? !box.classList.contains("in") : show;
+  if (on) { try{ closeTourLists(); }catch(e){} }   /* 한 번에 하나만 편다 */
   box.classList.toggle("in", on);
 }
 
@@ -3457,7 +3517,7 @@ const EG_ORG_UI = {
   palais: { btn:"navPalais", box:"subPalais", tbl:"palais_orgs", sel:"code,name", shell:"palais.html" },
   /* 0802 — 음악관은 표에서 읽지 않고 지도에 선 홀(terraPins)에서 빚는다.
      tbl·sel·shell이 없는 이유가 그것. closeOrgLists는 btn·box만 쓰므로 안전하고,
-     toggleOrgList("concert")는 절대 부르지 않는다(전용 toggleConcertList가 있다). */
+     toggleOrgList("concert")는 절대 부르지 않는다(전용 openTourPanel이 있다). */
   concert:{ btn:"navConcert", box:"subConcert" }
 };
 const egOrgs = { popup:null, palais:null };
@@ -3728,47 +3788,8 @@ function concertGate(){
   return hs[ ((concertDay() % hs.length) + hs.length) % hs.length ];
 }
 /* 접이 목록 — 다섯 홀과 오늘 그 홀에 걸린 곡. 열 때마다 새로 짓는다(자정에 갈린다) */
-async function toggleConcertList(){
-  const btn = document.getElementById("navConcert"), box = document.getElementById("subConcert");
-  if (!btn || !box) return;
-  const willOpen = !box.classList.contains("on");
-  closeOrgLists();                                  /* 한 번에 하나만 편다 */
-  try{ toggleCityList(false); toggleStarList(false); }catch(e){}
-  if (!willOpen) return;
-  box.classList.add("on"); btn.classList.add("open");
-  box.innerHTML = "";
-  const halls = concertHalls();
-  if (!halls.length){
-    const e0 = document.createElement("div");
-    e0.className = "sub-empty"; e0.textContent = "첫 공연장을 고르는 중입니다";
-    box.appendChild(e0); return;
-  }
-  const wait = document.createElement("div");
-  wait.className = "sub-empty"; wait.textContent = "오늘의 편성표를 펴는 중…";
-  box.appendChild(wait);
-  await loadConcertSongs();
-  box.innerHTML = "";
-  const today = concertGate();
-  for (const p of halls){
-    const s = songOfHall(Number((p.meta && p.meta.hall_no) || 0), halls.length);
-    const b = document.createElement("button");
-    b.className = "sub-item stack";        /* 0802 — 음악관은 두 줄 배치 */
-    const n = document.createElement("span");
-    n.textContent = (today && p.code === today.code ? "● " : "") + (p.name || p.code);
-    b.appendChild(n);
-    if (s){
-      const t = document.createElement("span");
-      t.className = "sub-note"; t.textContent = songLine(s);
-      b.appendChild(t);
-    }
-    b.addEventListener("click", ()=>{
-      closeOrgLists();
-      try{ document.getElementById("egDock").classList.remove("open"); }catch(e){}
-      flyToPark(p);
-    });
-    box.appendChild(b);
-  }
-}
+/* 0804 — 옛 아래로 펴는 접이(toggleConcertList) 철거. openTourPanel("concert")이 대신한다.
+   네 줄이 한계였고, 관이 스물·백으로 늘면 타륜이 끝없이 길어졌다. */
 /* ═══ 0804 — 미술관 로테이션. 음악관 블록과 완전한 형제다 ═══
    ⚠⚠ 이 공식이 사는 **두 번째** 곳이다. galerie.html · admin_galerie_assets.html 과
    반드시 함께 고칠 것. 한 곳만 고치면 타륜은 드가라 적고 방에 들어가면 뭉크가 걸린다. */
@@ -3825,51 +3846,83 @@ function galerieGate(){
   if (!hs.length) return null;
   return hs[ ((concertDay() % hs.length) + hs.length) % hs.length ];
 }
-/* 접이 목록 — 다섯 관과 오늘 그 관에 걸린 그림. toggleConcertList의 형제 */
-async function toggleGalerieList(){
-  const btn = document.getElementById("navGalerie"), box = document.getElementById("subGalerie");
-  if (!btn || !box) return;
-  const willOpen = !box.classList.contains("on");
-  closeOrgLists();
+/* ⭐ 0804 — 슬라이딩 판. 아래로 펴는 접이를 물렸다(네 줄이 한계였다).
+   순서도 매일 돈다 — 오늘의 관이 맨 위, 그 뒤로 명단이 이어진다.
+   시작점만 한 칸씩 미는 것이라 명단 자체는 흔들리지 않는다(museum_no 무사). */
+function rotateFrom(list, start){
+  const n = list.length; if(!n) return list;
+  const k = ((start % n) + n) % n;
+  return list.slice(k).concat(list.slice(0, k));
+}
+function closeTourLists(){
+  ["galerieList","concertList"].forEach(id=>{
+    const b = document.getElementById(id); if (b) b.classList.remove("in");
+  });
+  ["navGalerie","navConcert"].forEach(id=>{
+    const b = document.getElementById(id); if (b) b.classList.remove("open");
+  });
+}
+/* 판 하나를 편다. 미술관·음악관은 각자 제 판이라 색이 다르다. */
+async function openTourPanel(kind){
+  const isArt = (kind === "galerie");
+  const box = document.getElementById(isArt ? "galerieList" : "concertList");
+  const btn = document.getElementById(isArt ? "navGalerie" : "navConcert");
+  if (!box) return;
+  const willOpen = !box.classList.contains("in");
+  closeTourLists(); closeOrgLists();
   try{ toggleCityList(false); toggleStarList(false); }catch(e){}
   if (!willOpen) return;
-  box.classList.add("on"); btn.classList.add("open");
-  box.innerHTML = "";
-  const wait = document.createElement("div");
-  wait.className = "sub-empty"; wait.textContent = "오늘의 전시를 펴는 중…";
-  box.appendChild(wait);
-  const halls = await loadGalerieHallsAll();
-  await loadGalerieArts();
-  box.innerHTML = "";
+
+  box.innerHTML = '<div class="tour-head"><span class="th-la">'
+    + (isArt ? "GALERIE" : "CONCERT") + '</span><span class="th-ko">'
+    + (isArt ? "르 그랑 투르 · 미술관" : "르 그랑 투르 · 음악관") + '</span></div>'
+    + '<div class="tour-empty">오늘의 편성을 펴는 중…</div>';
+  box.classList.add("in");
+  if (btn) btn.classList.add("open");
+
+  const halls = isArt ? await loadGalerieHallsAll() : concertHalls();
+  if (isArt) await loadGalerieArts(); else await loadConcertSongs();
+
+  const head = box.querySelector(".tour-head");
+  box.innerHTML = ""; box.appendChild(head);
   if (!halls.length){
     const e0 = document.createElement("div");
-    e0.className = "sub-empty"; e0.textContent = "첫 미술관을 고르는 중입니다";
+    e0.className = "tour-empty";
+    e0.textContent = isArt ? "첫 미술관을 고르는 중입니다" : "첫 공연장을 고르는 중입니다";
     box.appendChild(e0); return;
   }
-  const today = galerieGate();
-  for (const p of halls){
-    const a = artOfMuseum(Number((p.meta && p.meta.museum_no) || 0), halls.length);
+  const today = isArt ? galerieGate() : concertGate();
+  const start = today ? halls.findIndex(h=>h.code === today.code) : 0;
+  for (const p of rotateFrom(halls, start < 0 ? 0 : start)){
+    const no = Number((p.meta && (isArt ? p.meta.museum_no : p.meta.hall_no)) || 0);
+    const w  = isArt ? artOfMuseum(no, halls.length) : songOfHall(no, halls.length);
+    const isToday = !!(today && p.code === today.code);
     const b = document.createElement("button");
-    b.className = "sub-item stack";
-    if (!p.active) b.style.opacity = ".5";                      /* 잠든 관은 흐리게 */
-    const n = document.createElement("span");
-    n.textContent = (today && p.code === today.code ? "● " : "") + (p.name || p.code);
-    b.appendChild(n);
-    if (a){
-      const t = document.createElement("span");
-      t.className = "sub-note"; t.textContent = artLine(a);   /* 활자는 textContent — <>가 섞여도 안전 */
-      b.appendChild(t);
+    b.className = "tour-item" + (isToday ? " today" : "");
+    const nm = document.createElement("div");
+    nm.className = "ti-nm";
+    if (isToday){ const d = document.createElement("span"); d.className = "ti-dot"; nm.appendChild(d); }
+    const t = document.createElement("span");
+    t.textContent = p.name || p.code;                 /* 활자는 textContent — <>가 섞여도 안전 */
+    nm.appendChild(t); b.appendChild(nm);
+    if (w){
+      const l = document.createElement("div");
+      l.className = "ti-work"; l.textContent = isArt ? artLine(w) : songLine(w);
+      b.appendChild(l);
     }
     b.addEventListener("click", ()=>{
-      closeOrgLists();
+      closeTourLists();
       try{ document.getElementById("egDock").classList.remove("open"); }catch(e){}
       const pin = terraPins[p.code];
-      if (pin) flyToPark(pin);                                   /* 깬 관 — 핀으로 비행 */
-      else location.href = "galerie.html?code=" + encodeURIComponent(p.code);  /* 잠든 관 — 셸 직행 */
+      if (pin) flyToPark(pin);
+      else location.href = (isArt ? "galerie.html?code=" : "concert.html?code=") + encodeURIComponent(p.code);
     });
     box.appendChild(b);
   }
 }
+function toggleGalerieList(){ return openTourPanel("galerie"); }
+function toggleConcertListPanel(){ return openTourPanel("concert"); }
+
 function addDockShortcut(el, id){
   if (id === "tourmusic"){
     const h = concertGate();
@@ -4261,7 +4314,7 @@ async function loadDock(){
             + '<div class="dock-sub"></div>',
         sub: sub,                                  /* 활자는 textContent로 넣는다 — 곡 제목에 <>가 섞여도 안전 */
         onClick: !cHalls.length ? null
-               : (cHalls.length === 1 ? (()=> flyToPark(today)) : (()=> toggleConcertList())) });
+               : (cHalls.length === 1 ? (()=> flyToPark(today)) : (()=> toggleConcertListPanel())) });
     }
 
     /* ANIMA 🗝 분더카머 — 내 집 상공 회전 + 대문 팝업 (goToMyHome 그대로) */
@@ -4355,7 +4408,7 @@ function startCountdown(ids, dateStr){
 /* 0731 — 콘서트홀 입장 버튼은 블록 7의 openStory 안에서 눌린다.
    이 블록은 IIFE라 안에서 선언한 함수가 밖에서 안 보인다. 창구로 내보낸다.
    (버튼이 먹통이던 원인 — 블록 경계. egLogout이 겪은 병과 같은 집안이다.) */
-console.log("%c[EG] terra v155 · 0804 미술관 접이 전체명단 · 잠든관 셸직행", "color:#c9a24a");
+console.log("%c[EG] terra v156 · 0804 르그랑투르 슬라이딩 판 두 벌 · 순서 로테이션", "color:#c9a24a");
 window.enterRoomUrl   = enterRoomUrl;
 window.egLogout       = egLogout;
 window.closeOrgLists  = closeOrgLists;
