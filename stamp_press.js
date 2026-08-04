@@ -7,6 +7,9 @@
      <script src="stamp_press.js?v=0804a"></script>
      EGStamp.offer({ supa, area:'musica' });
 
+   supabase-js가 없는 파일이면 supa를 빼고 부른다 — 스스로 REST로 간다:
+     EGStamp.offer({ area:'camera' });
+
    더 줄 수 있는 것:
      kind        판 코드를 직접 지정 (안 주면 그 우주의 입국 도장을 찾는다)
      subject     대상 키 (별 id · 지명 코드 · 기수:회차)
@@ -180,44 +183,119 @@ function withdraw(){
   if (d) d.classList.remove('on');
 }
 
-async function offer(opt){
-  opt = opt || {};
-  var supa = opt.supa;
-  if (!supa) { console.warn('[EGStamp] supa 없이 부를 수 없습니다'); return; }
+/* ── 0804. supa 없이도 걷는다 ─────────────────────────────────────
+   분더카머 셸(wunderkammer_shell_v4_4)은 일부러 supabase-js를 안 쓰고
+   날 REST(sbFetch)로 돈다. 그 파일에 라이브러리 한 줄을 얹어 남의 결정을
+   뒤집는 대신, 부품이 스스로 걷게 했다. 앞으로 같은 방식의 파일이 또 나와도
+   그때마다 얹을 일이 없다.
+   도장이 DB에 묻는 것은 넷뿐이다 — 누구인가 · 판 · 이미 가졌나 · 넣기.
+   열쇠는 SUPA_URL과 localStorage('eungyo-auth')에 이미 다 있다.        */
+var SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+var SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
 
-  try{
+function authBag(){
+  try{ return JSON.parse(localStorage.getItem('eungyo-auth')) || null; }catch(e){ return null; }
+}
+function restHead(){
+  var b = authBag();
+  return { 'apikey': SUPA_KEY,
+           'Authorization': 'Bearer ' + ((b && b.access_token) || SUPA_KEY),
+           'Content-Type': 'application/json' };
+}
+async function restGet(path){
+  var r = await fetch(SUPA_URL + '/rest/v1/' + path, { headers: restHead() });
+  if (!r.ok) throw new Error('rest ' + r.status);
+  return await r.json();
+}
+
+/* 누구인가 */
+async function whoAmI(supa){
+  if (supa){
     var ses = await supa.auth.getSession();
-    var user = ses && ses.data && ses.data.session && ses.data.session.user;
-    if (!user) return;                       /* 손님이 아니면 조용히 물러난다 */
+    return (ses && ses.data && ses.data.session && ses.data.session.user) || null;
+  }
+  var b = authBag();
+  return (b && b.user) || null;
+}
 
-    /* 판 찾기 — kind를 주면 그것, 안 주면 그 우주의 입국 도장 */
-    var q = supa.from('stamp_kinds')
-      .select('code,title,art_url,ink,rules,family,area,active,opens_at,closes_at')
+/* 판 찾기 — kind를 주면 그것, 안 주면 그 우주의 입국 도장 */
+async function findKind(supa, opt){
+  var cols = 'code,title,art_url,ink,rules,family,area,active,opens_at,closes_at';
+  if (supa){
+    var q = supa.from('stamp_kinds').select(cols)
       .eq('active', true).not('art_url', 'is', null).limit(1);
     q = opt.kind ? q.eq('code', opt.kind)
                  : q.eq('area', opt.area).eq('family', 'intrare');
     var kr = await q;
-    var kind = kr.data && kr.data[0];
+    return (kr.data && kr.data[0]) || null;
+  }
+  var u = 'stamp_kinds?select=' + cols + '&active=eq.true&art_url=not.is.null&limit=1'
+        + (opt.kind ? '&code=eq.' + encodeURIComponent(opt.kind)
+                    : '&area=eq.' + encodeURIComponent(opt.area) + '&family=eq.intrare');
+  var rows = await restGet(u);
+  return rows[0] || null;
+}
+
+/* 이미 가졌는가 — 규칙마다 묻는 것이 다르다 */
+async function alreadyHas(supa, uid, kind, opt){
+  var rules = kind.rules || [];
+  var daily = rules.indexOf('daily_per_area') >= 0;
+  var subj  = rules.indexOf('once_per_subject') >= 0 && opt.subject;
+  var today = new Date(Date.now() + 9*3600*1000).toISOString().slice(0,10);
+  if (supa){
+    var q;
+    if (daily){
+      q = supa.from('stamps').select('id', { count:'exact', head:true })
+        .eq('user_id', uid).eq('area', kind.area).eq('stamped_on', today);
+    } else {
+      q = supa.from('stamps').select('id', { count:'exact', head:true })
+        .eq('user_id', uid).eq('kind_code', kind.code);
+      if (subj) q = q.eq('subject_id', String(opt.subject));
+    }
+    var hr = await q;
+    return !!hr.count;
+  }
+  var u = daily
+    ? 'stamps?select=id&limit=1&user_id=eq.' + uid
+        + '&area=eq.' + encodeURIComponent(kind.area) + '&stamped_on=eq.' + today
+    : 'stamps?select=id&limit=1&user_id=eq.' + uid
+        + '&kind_code=eq.' + encodeURIComponent(kind.code)
+        + (subj ? '&subject_id=eq.' + encodeURIComponent(String(opt.subject)) : '');
+  var rows = await restGet(u);
+  return rows.length > 0;
+}
+
+/* 넣기 — 에러는 던지지 않고 돌려준다(이미 찍혀 있었을 때 조용히 거두기 위해) */
+async function putStamp(supa, row){
+  if (supa){
+    var ins = await supa.from('stamps').insert(row);
+    return ins.error ? ins.error.message : null;
+  }
+  var r = await fetch(SUPA_URL + '/rest/v1/stamps',
+    { method:'POST', headers: restHead(), body: JSON.stringify(row) });
+  if (r.ok) return null;
+  var t = ''; try{ t = await r.text(); }catch(e){}
+  return 'rest ' + r.status + ' ' + t;
+}
+
+async function offer(opt){
+  opt = opt || {};
+  var supa = opt.supa || null;   /* 없으면 REST로 스스로 간다(0804) */
+
+  try{
+    var user = await whoAmI(supa);
+    if (!user) return;                       /* 손님이 아니면 조용히 물러난다 */
+
+    var kind = await findKind(supa, opt);
     if (!kind) return;                       /* 안 구운 도장은 그냥 없다(30호) */
 
     var now = Date.now();
     if (kind.opens_at  && now < +new Date(kind.opens_at))  return;
     if (kind.closes_at && now > +new Date(kind.closes_at)) return;
 
-    /* 이미 가졌는가 — 규칙마다 묻는 것이 다르다 */
-    var rules = kind.rules || [];
-    var has = supa.from('stamps').select('id', { count:'exact', head:true })
-      .eq('user_id', user.id).eq('kind_code', kind.code);
-    if (rules.indexOf('once_per_subject') >= 0 && opt.subject)
-      has = has.eq('subject_id', String(opt.subject));
-    if (rules.indexOf('daily_per_area') >= 0){
-      var today = new Date(Date.now() + 9*3600*1000).toISOString().slice(0,10);
-      has = supa.from('stamps').select('id', { count:'exact', head:true })
-        .eq('user_id', user.id).eq('area', kind.area).eq('stamped_on', today);
-    }
-    if (rules.indexOf('unlimited') < 0){
-      var hr = await has;
-      if (hr.count) return;                  /* 있으면 아무것도 안 나타난다 */
+    if ((kind.rules || []).indexOf('unlimited') < 0){
+      if (await alreadyHas(supa, user.id, kind, opt)) return;
+                                             /* 있으면 아무것도 안 나타난다 */
     }
 
     /* 놓아둔다 — 누르는 것은 손님 */
@@ -238,10 +316,10 @@ async function offer(opt){
       var row = { user_id:user.id, kind_code:kind.code, area:kind.area };
       if (opt.subject)     row.subject_id  = String(opt.subject);
       if (opt.inscription) row.inscription = opt.inscription;
-      var ins = await supa.from('stamps').insert(row);
-      if (ins.error){
+      var err = await putStamp(supa, row);
+      if (err){
         /* 이미 찍혀 있었다면 조용히 거두기만 한다 — 나무라지 않는다 */
-        console.warn('[EGStamp]', ins.error.message);
+        console.warn('[EGStamp]', err);
         dock.classList.remove('on');
         return;
       }
