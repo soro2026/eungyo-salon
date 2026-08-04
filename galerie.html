@@ -253,7 +253,7 @@ const BUCKET='tour-assets';
 const asset=(code,slot)=>`${SUPA_URL}/storage/v1/object/public/${BUCKET}/galerie/${code}_${slot}.webp`;
 const HALL_RATIO=941/1672;                     /* 방 그림 가로/세로 (9:16) */
 const $=s=>document.querySelector(s);
-console.log("%c[EG] galerie v1.2 · 0804 새김명패·4겹·교체식대여", "color:#c9a24a");
+console.log("%c[EG] galerie v1.3 · 0804 온도 대여료 · created_at 정정", "color:#c9a24a");
 
 const qs=new URLSearchParams(location.search);
 const CODE=qs.get('code')||'orsay';
@@ -302,7 +302,7 @@ async function boot(){
   const no = (HALL.meta && HALL.meta.museum_no != null) ? HALL.meta.museum_no : 0;
 
   const { data:arts, error:ae } = await supa.from('heritage_items')
-    .select('id,name,artist,period,img,ratio,status,layers,curation_links,rent_price')
+    .select('id,name,artist,period,img,ratio,status,layers,curation_links')
     .eq('category','visual').eq('status','active').order('id');
   if(ae || !arts || !arts.length) return fail('걸 그림을 불러오지 못했습니다.');
   ART = todaysArt(arts, no, H);
@@ -343,7 +343,7 @@ async function loadMyRent(){
     .select('item_id, heritage_items!inner(name,category)')
     .eq('user_id',UID).is('returned_at',null)
     .eq('heritage_items.category','visual')
-    .order('rented_at',{ascending:false}).limit(1);
+    .order('created_at',{ascending:false}).limit(1);   /* ⚠ 칼럼 실측: rented_at 아님 */
   MY_RENT = (data && data[0]) ? { item_id:data[0].item_id, name:data[0].heritage_items.name } : null;
 }
 
@@ -377,11 +377,18 @@ function hangArt(){
   }
   paintRentLine();
 }
-/* 대여 줄 — 값은 DB(rent_price)가 정한다. 하드코딩 금지(0804 소로: 값은 오를 수 있다) */
-function paintRentLine(){
+/* 대여 줄 — 값은 온도 모델(art_price RPC)이 정한다. 소수 둘째 자리.
+   순위가 아니다: 작품끼리 비교하지 않고 각자 제 대여 이력만으로 제 온도를 갖는다.
+   대여 = 장작 · 반감기 14일 · 1.00 × 1.35^온도 · 바닥 1.00 천장 8.00 */
+let ART_PRICE=null;
+async function paintRentLine(){
   const el=$('#pRent'); if(!ART){ el.textContent=''; return; }
-  if(MY_RENT && MY_RENT.item_id===ART.id){ el.textContent='🍎 거실에 걸려 있음'; }
-  else el.textContent='🍎 '+(ART.rent_price||1)+'알로 거실에 들이기';
+  if(MY_RENT && MY_RENT.item_id===ART.id){ el.textContent='🍎 거실에 걸려 있음'; return; }
+  if(ART_PRICE==null){
+    const { data } = await supa.rpc('art_price', { p_item_id: ART.id });
+    ART_PRICE = (data!=null) ? Number(data) : 1;
+  }
+  el.textContent='🍎 '+ART_PRICE.toFixed(2)+'알로 거실에 들이기';
 }
 
 /* ── 입장 — 암전 뒤 카메라가 천장에서 내려온다 ── */
@@ -455,7 +462,7 @@ function askRent(){
   if(!ART) return;
   if(!UID){ toast('입장 후 빌릴 수 있습니다'); return; }
   if(MY_RENT && MY_RENT.item_id===ART.id){ toast('이미 거실에 걸려 있습니다'); return; }
-  const price=ART.rent_price||1;
+  const price=(ART_PRICE!=null?ART_PRICE:1).toFixed(2);
   $('#rpT').textContent='〈'+ART.name+'〉을 거실에 들일까요?';
   $('#rpS').innerHTML=(MY_RENT
       ? '지금 거실의 〈'+escapeHtml(MY_RENT.name)+'〉은 미술관으로 돌아갑니다.<br>'
@@ -472,10 +479,12 @@ async function confirmRent(){
     { p_item_id:ART.id, p_user_id:UID, p_nickname:nick });
   if(error){ toast(error.message||'대여하지 못했습니다'); return; }
   const old=data && data.swapped_out;
+  const paid=(data && data.price!=null)?Number(data.price).toFixed(2):'';
   toast(old
-    ? '〈'+old+'〉이 돌아가고 〈'+(data.name||ART.name)+'〉이 거실에 걸립니다 🍎'
-    : '〈'+(data.name||ART.name)+'〉이 분더카머로 떠납니다 🍎');
-  await loadMyRent(); paintRentLine();
+    ? '〈'+old+'〉이 돌아가고 〈'+(data.name||ART.name)+'〉이 거실에 걸립니다 🍎'+paid
+    : '〈'+(data.name||ART.name)+'〉이 분더카머로 떠납니다 🍎'+paid);
+  ART_PRICE=null;                        /* 방금의 대여가 장작이다 — 값을 다시 잰다 */
+  await loadMyRent(); await paintRentLine();
 }
 
 /* ══ ✎ 액자 맞추기 — 화면에서 끌어 옮기고 모서리로 키운다 ══

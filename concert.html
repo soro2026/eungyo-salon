@@ -292,6 +292,7 @@ html,body{height:100%;background:#000;overflow:hidden;
 <div id="boot"><div class="boot-w">MUSICA</div></div>
 <div id="err"><p id="errMsg"></p></div>
 
+<script src="eg_camera.js?v=0804a"></script>
 <script src="stamp_press.js?v=0804a"></script>
 <script>
 const SUPA_URL='https://cyhlotwdisjvoxvfkpnd.supabase.co';
@@ -302,7 +303,7 @@ const asset=(code,slot)=>`${SUPA_URL}/storage/v1/object/public/${BUCKET}/concert
 const HALL_RATIO=1080/1920;                 /* 홀 그림 가로/세로 (9:16) */
 const $=s=>document.querySelector(s);
 
-console.log("%c[EG] concert v1.2 · 0731 (스크롤+서랍+편집기+곡바)", "color:#c9a24a");
+console.log("%c[EG] concert v1.3 · 0804 카메라 이식 (천장→바닥→스크린)", "color:#c9a24a");
 const qs=new URLSearchParams(location.search);
 const CODE=qs.get('code')||'wien';
 let HALL=null, SONG=null;
@@ -355,7 +356,10 @@ function centerScreen(){
   const mid=(RECT.T + RECT.H/2)/100*h;
   $('#hall').scrollTop=Math.max(0, mid - innerHeight*0.5);
 }
-addEventListener('resize', ()=>{ fitHall(); centerScreen(); });
+addEventListener('resize', ()=>{
+  if (window.EGCamera && (EGCamera.running || $('#hall').classList.contains('on'))) EGCamera.relayout();
+  else { fitHall(); centerScreen(); }
+});
 
 function fail(msg){
   $('#boot').classList.add('gone');
@@ -420,12 +424,20 @@ function enterHall(){
   setTimeout(()=>{
     $('#gate').classList.remove('on');
     $('#hall').classList.add('on');
-    fitHall(); centerScreen();
     setTimeout(()=>$('#fade').classList.remove('on'), 60);   /* 다시 밝아지며 홀 도착 */
-    /* 0803 크레덴시알 — 홀에 들어선 뒤에 도장을 놓는다.
-       대문 앞에서 받고 돌아서면 그건 입국이 아니다(9-1 「들어가면 머무는 곳」).
-       살롱지기에게는 「스크린 맞추기」가 이미 구석에 앉아 있어 그만큼 띄운다. */
-    if (window.EGStamp) EGStamp.offer({ supa: supa, area: 'musica', bottom: 96 });
+
+    /* 0804 — 미술관에서 검증된 카메라 이식 (galerie.html의 형제).
+       천장 → 바닥 스침 → 스크린 안착 3초. 아무 데나 누르면 건너뜀.
+       도장은 안착한 뒤에(9-1) — 카메라가 도는 동안 도장이 뜨면 흐름이 끊긴다. */
+    const camOpts = { box:'#hall', fit:'#hallFit', ratio:HALL_RATIO, rect:RECT,
+      onDone(){
+        if (window.EGStamp) EGStamp.offer({ supa: supa, area: 'musica', bottom: 96 });
+      }};
+    const scrollable = (innerWidth/innerHeight) >= HALL_RATIO;   /* 폰은 스크롤 0 — 헛돈다 */
+    if (scrollable && window.EGCamera) EGCamera.enter(camOpts);
+    else if (window.EGCamera) EGCamera.settle(camOpts);
+    else { fitHall(); centerScreen();                             /* 부품이 안 실렸어도 홀은 선다 */
+           if (window.EGStamp) EGStamp.offer({ supa: supa, area: 'musica', bottom: 96 }); }
   }, 1050);
 }
 $('#gate').addEventListener('click', enterHall);
