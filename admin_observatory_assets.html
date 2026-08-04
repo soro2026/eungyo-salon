@@ -90,6 +90,18 @@ h2{font-size:13px;letter-spacing:.18em;color:var(--gold-l);margin-bottom:6px;}
   border-radius:10px;padding:4px 7px;cursor:pointer;display:none;}
 .slot.has .x{display:block;}
 .slot.sleep{opacity:.45;}
+/* ⚠ 0804 소로 두 건 —
+   ① 걸린 칸을 눌러도 미리보기만 열려 **교체 길이 막혀** 있었다. 버튼으로 내놓는다.
+   ② 서른여섯 채를 주소창에 하나씩 쳐 넣게 두지 않는다. 칸에서 바로 문이 열린다.
+      ?code= 로 들어가므로 그곳이 낮이든 밤이든 상관없다. */
+.slot .s-act{display:none;gap:5px;justify-content:center;margin-top:8px;flex-wrap:wrap;}
+.slot.has .s-act{display:flex;}
+.slot .s-act button{font:inherit;font-size:10px;letter-spacing:.03em;cursor:pointer;
+  border-radius:11px;padding:5px 9px;background:none;
+  border:1px solid rgba(201,162,74,.38);color:rgba(233,207,156,.85);}
+.slot .s-act button:hover{border-color:var(--gold-l);color:#f0e8d4;}
+.slot .s-act button.door{border-color:rgba(159,182,232,.5);color:rgba(200,214,240,.9);}
+.slot .s-act button.door:hover{border-color:var(--star);color:#dfe8ff;}
 
 /* ── 차례 투척함 ── */
 #bulk{border:1px dashed rgba(201,162,74,.45);border-radius:12px;
@@ -218,7 +230,7 @@ const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
 const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth'}});
 const BUCKET='tour-assets';
 const PUB=(b,p)=>`${SUPA_URL}/storage/v1/object/public/${b}/${p}`;
-console.log("%c[EG] admin_observatory_assets v1.0 · 0804 천문대 콘솔 · 이름 맞춤 투척함", "color:#9fb6e8");
+console.log("%c[EG] admin_observatory_assets v1.1 · 0804 칸 버튼 3종(대문·교체·내리기)", "color:#9fb6e8");
 
 /* 규격 — 한 곳에서만 정한다 */
 const SPEC={ w:1672, h:941 };
@@ -410,6 +422,7 @@ function buildSlots(){
       <div class="s-name">${esc(s.name.replace(' 천문대',''))}</div>
       <div class="s-sub">${esc(s.code)}</div>
       <div class="s-state">확인 중…</div>
+      <div class="s-act"></div>
     </div>`;
   }
   if(last) html+='</div>';
@@ -434,17 +447,23 @@ function paint(s){
   const el=document.getElementById('ob-'+s.code); if(!el) return;
   const ph=el.querySelector('.ph'), st=el.querySelector('.s-state');
   const im=new Image();
+  const act=el.querySelector('.s-act');
   im.onload=()=>{
     el.classList.add('has');
     const img=document.createElement('img'); img.src=im.src; img.alt='';
     if(ph) ph.replaceWith(img); else { const old=el.querySelector('img'); if(old) old.src=im.src; }
     st.textContent=`${im.naturalWidth} × ${im.naturalHeight} · 걸림`;
+    if(act) act.innerHTML=
+      `<button class="door" onclick="event.stopPropagation();openDoor('${esc(s.code)}')">🔭 대문</button>`
+      +`<button onclick="event.stopPropagation();swap('${esc(s.code)}')">교체</button>`
+      +`<button onclick="event.stopPropagation();clearByCode('${esc(s.code)}')">내리기</button>`;
   };
   im.onerror=()=>{
     el.classList.remove('has');
     const img=el.querySelector('img');
     if(img){ const d=document.createElement('div'); d.className='ph'; d.textContent='🌑'; img.replaceWith(d); }
     st.textContent='비어 있음 · 눌러 걸기';
+    if(act) act.innerHTML='';
   };
   im.src=PUB(BUCKET,obsPath(s.code))+'?v='+Date.now();
 }
@@ -494,6 +513,18 @@ function report(file,r,s){
   if(r.note) out+='<br>'+r.note;
   return out;
 }
+/* ⭐ 칸에서 바로 대문을 연다 — 편집기까지 켜서. 밤낮 무관(?code=) */
+function openDoor(code){
+  window.open('observatorium.html?code='+encodeURIComponent(code)+'&edit=1','_blank','noopener');
+}
+function swap(code){
+  const s=SITES.find(x=>x.code===code); if(!s) return;
+  pickTarget=s; document.getElementById('filePick').click();
+}
+function clearByCode(code){
+  const s=SITES.find(x=>x.code===code); if(s) clearAsset(s);
+}
+
 async function clearAsset(s){
   if(!confirm(`${s.name}의 대문을 내릴까요?`)) return;
   const { error }=await supa.storage.from(BUCKET).remove([obsPath(s.code)]);
