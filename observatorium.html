@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>EG 천문대</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Cormorant+Garamond:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+ *  observatorium.html v1.0 — 0804 · 천문대 대문
+ *  결정문 v143 §5 — 대문 클릭 → 접안렌즈 확대 → 하늘. 관측실 한 겹 없음.
+ *
+ *  ⚠ 미술관·음악관 카메라(eg_camera.js)를 쓰지 않는다. 다른 종류다.
+ *     저쪽은 **스크롤**을 움직여 한 화면 안에 머문다 → 배율 1 고정 조항이 걸린다
+ *     여기는 **배율**을 올려 다른 화면으로 떠난다 → 잘려나가는 좌우는 버리는 것이다
+ *     (0804 「배율 1 고정」은 머무를 화면의 조항이므로 여기엔 안 걸린다 — 소로 확인)
+ *
+ *  ⚠ 좌표계 — 렌즈 자리는 **그림의 %**이지 화면의 %가 아니다.
+ *     그래서 #fit(그림과 똑같은 크기의 상자)을 만들고 그 안에서만 % 를 쓴다.
+ *     화면에 바로 % 를 쓰면 폰에서 좌우가 잘리는 만큼 렌즈가 어긋난다.
+ *
+ *  안내 (0804 소로): 처음 3초는 그림만. 3초에 렌즈가 한 번 숨 쉬고,
+ *     5초에 한 줄이 뜨고, 8초부터는 화면 아무 데나 눌러도 열린다(뒷문).
+ * ============================================================ */
+:root{--gold:#c9a24a;--gold-l:#e9cf9c;--star:#9fb6e8;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;overflow:hidden;background:#05060a;}
+body{font-family:'Gowun Batang',serif;color:#e8ddc4;}
+
+#stage{position:fixed;inset:0;overflow:hidden;background:#05060a;}
+#fit{position:absolute;left:50%;top:50%;transform-origin:50% 50%;
+  will-change:transform;}
+#fit img{width:100%;height:100%;display:block;object-fit:cover;}
+
+/* 접안렌즈 — 보이지 않는 문. 3초에 한 번 숨 쉰다 */
+#lens{position:absolute;border-radius:50%;cursor:pointer;
+  background:radial-gradient(circle,rgba(159,182,232,0) 55%,rgba(159,182,232,0) 100%);
+  transition:background .9s ease;}
+#lens.breathe{animation:breathe 2.6s ease-in-out 2;}
+@keyframes breathe{
+  0%,100%{box-shadow:0 0 0 0 rgba(233,207,156,0);}
+  50%    {box-shadow:0 0 34px 10px rgba(233,207,156,.22), 0 0 0 2px rgba(233,207,156,.16);}
+}
+#lens:hover{box-shadow:0 0 30px 8px rgba(233,207,156,.24), 0 0 0 2px rgba(233,207,156,.22);}
+
+/* 흡입 — 검정이 렌즈 쪽에서 조여든다 */
+#iris{position:absolute;inset:0;pointer-events:none;opacity:0;}
+#veil{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;}
+#sky{position:fixed;inset:0;opacity:0;pointer-events:none;}
+#sky i{position:absolute;width:2px;height:2px;border-radius:50%;background:#dfe8ff;}
+
+/* 명패 · 안내 */
+#plate{position:fixed;left:0;right:0;bottom:calc(30px + env(safe-area-inset-bottom));
+  text-align:center;pointer-events:none;transition:opacity .6s;}
+#plate .nm{font-size:15px;letter-spacing:.08em;color:rgba(240,232,212,.92);
+  text-shadow:0 2px 18px rgba(0,0,0,.9);}
+#plate .lo{font-family:'Cormorant Garamond',serif;font-size:11.5px;letter-spacing:.24em;
+  color:rgba(159,182,232,.8);margin-top:6px;text-shadow:0 2px 14px rgba(0,0,0,.9);}
+#hint{font-size:12.5px;letter-spacing:.06em;color:rgba(233,207,156,.82);
+  margin-top:16px;opacity:0;transition:opacity 1.4s;
+  text-shadow:0 2px 16px rgba(0,0,0,.95);}
+#hint.on{opacity:1;}
+
+#back{position:fixed;top:calc(16px + env(safe-area-inset-top));
+  left:calc(16px + env(safe-area-inset-left));z-index:5;
+  font:inherit;font-size:11.5px;letter-spacing:.1em;color:rgba(232,221,196,.62);
+  background:rgba(6,8,14,.42);border:1px solid rgba(201,162,74,.28);
+  border-radius:20px;padding:8px 15px;cursor:pointer;backdrop-filter:blur(4px);
+  transition:color .25s,border-color .25s;}
+#back:hover{color:var(--gold-l);border-color:rgba(201,162,74,.6);}
+
+#msg{position:fixed;inset:0;display:none;place-items:center;text-align:center;
+  padding:8vw;font-size:13px;line-height:2;color:rgba(232,221,196,.6);}
+#msg.on{display:grid;}
+#msg a{color:var(--gold-l);}
+@media (prefers-reduced-motion: reduce){ #lens.breathe{animation:none;} }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="fit">
+    <img id="shot" alt="">
+    <div id="lens" title="접안렌즈"></div>
+  </div>
+  <div id="iris"></div>
+</div>
+<div id="veil"></div>
+<div id="sky"></div>
+
+<button id="back" onclick="goBack()">← 지구로</button>
+
+<div id="plate">
+  <div class="nm" id="pName">—</div>
+  <div class="lo" id="pLocal"></div>
+  <div id="hint">접안렌즈를 들여다보세요</div>
+</div>
+
+<div id="msg"></div>
+
+<script>
+const SUPA_URL='https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth'}});
+const PUB=p=>`${SUPA_URL}/storage/v1/object/public/tour-assets/${p}`;
+const RATIO=1672/941;                     /* 대문 규격 — 콘솔과 같은 눈금 */
+const SKY='constella.html';
+console.log("%c[EG] observatorium v1.0 · 0804 천문대 대문 · 접안렌즈 흡입","color:#9fb6e8");
+
+/* ⚠ 렌즈 자리는 **그림의 %**. 다섯 채를 실측해 넷이 한 곳에 모였다(가로 47~52·세로 82~86).
+     그래서 기본값 한 벌을 두고, 어긋나는 곳만 meta.lens_rect로 덮는다.
+     (이아는 망원경이 비스듬해 오른쪽으로 밀렸다 — 미술관 frame_rect와 같은 문법) */
+const LENS_DEFAULT={ cx:49, cy:84, r:6.4 };   /* cx·cy 중심 % · r 반지름(그림 폭 대비 %) */
+
+let SITE=null, ANIM=null, timers=[];
+
+const $=id=>document.getElementById(id);
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+const reduced=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ── 시각 — terra.html과 같은 분업. 자격은 태양시, 표시는 시민시 ── */
+function localHour(p){
+  const n=new Date();
+  const utc=n.getUTCHours()+n.getUTCMinutes()/60+n.getUTCSeconds()/3600;
+  return (utc+Number(p.lng)/15+24)%24;
+}
+function civilLabel(p){
+  const tz=p&&p.meta&&p.meta.tz;
+  if(tz){ try{
+    const f=new Intl.DateTimeFormat("en-GB",{timeZone:tz,hour:"2-digit",minute:"2-digit",hour12:false})
+      .formatToParts(new Date());
+    const g=t=>(f.find(x=>x.type===t)||{}).value||"00";
+    const h=g("hour")==="24"?"00":g("hour");
+    return h+":"+g("minute");
+  }catch(e){} }
+  const t=localHour(p), h=Math.floor(t), m=Math.floor((t-h)*60);
+  return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0");
+}
+function pickObservatory(rows){
+  if(!rows||!rows.length) return null;
+  const cand=rows.slice().sort((a,b)=>Number(b.lng)-Number(a.lng));
+  const elig=cand.filter(p=>{const t=localHour(p);return t>=22||t<4;});
+  if(!elig.length){
+    return cand.slice().sort((a,b)=>{
+      const d=p=>{const t=localHour(p);return Math.min(Math.abs(t-1),Math.abs(t-25));};
+      return d(a)-d(b);
+    })[0];
+  }
+  const day=Math.floor((Date.now()+9*3600000)/86400000);
+  return elig[day%elig.length];
+}
+
+/* ── 판 짜기 — 그림과 똑같은 크기의 상자를 화면 가운데 놓는다(cover) ── */
+function layout(){
+  const vw=innerWidth, vh=innerHeight;
+  let W,H;
+  if(vw/vh > RATIO){ W=vw; H=vw/RATIO; }   /* 가로가 넉넉 — 폭을 채우고 위아래를 버린다 */
+  else             { H=vh; W=vh*RATIO; }   /* 세로 화면 — 높이를 채우고 좌우를 버린다 */
+  const fit=$('fit');
+  fit.style.width=W+'px'; fit.style.height=H+'px';
+  fit.style.marginLeft=(-W/2)+'px'; fit.style.marginTop=(-H/2)+'px';
+
+  const L=lensRect();
+  const el=$('lens');
+  const d=(L.r*2)+'%';
+  el.style.width=d;                          /* 그림 폭 대비 */
+  el.style.height=(L.r*2*RATIO)+'%';         /* 원으로 보이게 높이는 비율만큼 */
+  el.style.left=(L.cx-L.r)+'%';
+  el.style.top=(L.cy-L.r*RATIO)+'%';
+}
+function lensRect(){
+  const m=SITE&&SITE.meta&&SITE.meta.lens_rect;
+  return (m&&m.cx!=null) ? {cx:m.cx,cy:m.cy,r:m.r||LENS_DEFAULT.r} : LENS_DEFAULT;
+}
+/* 렌즈 중심이 화면의 어디인가 — 흡입의 중심점 */
+function lensScreen(){
+  const el=$('lens').getBoundingClientRect();
+  return { x:el.left+el.width/2, y:el.top+el.height/2 };
+}
+/* ══════════════════════════════════════════════════════════
+   흡입 — 렌즈 쪽으로 빨려 들어간다
+   0.00~0.90s  배율 1 → 2.4 · 검정이 둘레에서 조여든다
+   0.90~1.70s  배율 2.4 → 7 · 구멍이 닫히며 화면을 삼킨다
+   1.70~2.30s  검은 원 안에 별 몇 점이 먼저 뜬다 → 하늘
+   아무 데나 누르면 즉시 도착
+   ══════════════════════════════════════════════════════════ */
+function enterSky(){
+  if(ANIM) return finishNow();
+  timers.forEach(clearTimeout); timers=[];
+  $('plate').style.opacity='0';
+  $('back').style.opacity='0';
+  $('lens').style.cursor='default';
+  if(reduced()) return finishNow();
+
+  const c=lensScreen();
+  /* ⚠ 가운데는 이미 음수 여백이 잡고 있다. 여기서 translate(-50%,-50%)를 또 걸면
+       그림이 화면 밖으로 반 칸 달아난다(0804에 한 번 밟을 뻔한 함정). scale만 건다. */
+  const box=$('fit').getBoundingClientRect();
+  const ox=(c.x-box.left)/box.width*100, oy=(c.y-box.top)/box.height*100;
+  $('fit').style.transformOrigin=ox+'% '+oy+'%';
+
+  const cx=(c.x/innerWidth*100), cy=(c.y/innerHeight*100);
+  const iris=$('iris'); iris.style.opacity='1';
+
+  const T=1700, t0=performance.now();
+  const ease=t=>t<.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;
+  ANIM=requestAnimationFrame(function step(now){
+    let t=Math.min(1,(now-t0)/T);
+    const e=ease(t);
+    /* 앞은 천천히, 뒤에서 급격히 — 눈이 렌즈를 붙잡을 시간을 준다 */
+    $('fit').style.transform=`scale(${1 + Math.pow(e,2.1)*6})`;
+    const r=Math.max(0, 145 - e*145);                   /* 구멍이 조여든다 */
+    iris.style.background=
+      `radial-gradient(circle at ${cx}% ${cy}%, rgba(0,0,0,0) ${r*0.62}%, rgba(0,0,0,.96) ${r}% )`;
+    if(t<1){ ANIM=requestAnimationFrame(step); }
+    else { ANIM=null; toStars(); }
+  });
+  /* 도는 중에 누르면 즉시 */
+  document.addEventListener('pointerdown', finishNow, {once:true});
+}
+function toStars(){
+  $('veil').style.transition='opacity .35s'; $('veil').style.opacity='1';
+  const sky=$('sky'); sky.innerHTML='';
+  for(let i=0;i<26;i++){
+    const s=document.createElement('i');
+    s.style.left=(Math.random()*100)+'%';
+    s.style.top=(Math.random()*100)+'%';
+    s.style.opacity=(0.35+Math.random()*0.65).toFixed(2);
+    const g=(1+Math.random()*1.6).toFixed(1);
+    s.style.width=g+'px'; s.style.height=g+'px';
+    sky.appendChild(s);
+  }
+  sky.style.transition='opacity .5s'; sky.style.opacity='1';
+  timers.push(setTimeout(finishNow, 620));
+}
+let gone=false;
+function finishNow(){
+  if(gone) return; gone=true;
+  if(ANIM){ cancelAnimationFrame(ANIM); ANIM=null; }
+  timers.forEach(clearTimeout);
+  $('veil').style.transition='opacity .18s'; $('veil').style.opacity='1';
+  const u=new URL(SKY, location.href);
+  if(SITE) u.searchParams.set('from', SITE.code);
+  location.href=u.toString();
+}
+function goBack(){ location.href='terra.html'; }
+
+/* ── 문 열기 ── */
+async function init(){
+  const q=new URLSearchParams(location.search);
+  const want=q.get('code');
+  const { data, error }=await supa.from('terra_pins')
+    .select('code,name,city,lat,lng,active,meta,target_url')
+    .eq('kind','constellatio');
+  if(error||!data||!data.length){
+    return fail('천문대 목록을 불러오지 못했습니다.<br>잠시 뒤 다시 들러 주세요.');
+  }
+  SITE = want ? data.find(p=>p.code===want) : pickObservatory(data.filter(p=>p.active));
+  if(!SITE) return fail('그 천문대를 찾지 못했습니다.<br><a href="terra.html">← 지구로 돌아가기</a>');
+
+  $('pName').textContent=SITE.name;
+  $('pLocal').textContent='HEURE LOCALE  '+civilLabel(SITE);
+
+  /* 그림 — 없으면 문을 닫지 않고 알린다 */
+  const img=$('shot');
+  img.onload=()=>{ layout(); openDoor(); };
+  img.onerror=()=>fail(
+    `<b>${esc(SITE.name)}</b>의 대문이 아직 걸리지 않았습니다.<br>`
+    +`<span style="font-size:11.5px;opacity:.7">observatory/${esc(SITE.code)}_n.webp</span><br><br>`
+    +`<a href="terra.html">← 지구로 돌아가기</a>`);
+  img.src=PUB(`observatory/${SITE.code}_n.webp`)+'?v='+Math.floor(Date.now()/60000);
+}
+function openDoor(){
+  $('lens').addEventListener('click',e=>{ e.stopPropagation(); enterSky(); });
+  /* 3초 — 렌즈가 한 번 숨 쉰다 */
+  timers.push(setTimeout(()=>$('lens').classList.add('breathe'), 3000));
+  /* 5초 — 한 줄이 온다. 처음부터 떠 있으면 그림을 볼 시간을 뺏는다 */
+  timers.push(setTimeout(()=>$('hint').classList.add('on'), 5000));
+  /* 8초 — 뒷문. 렌즈를 못 찾은 손님이 갇히지 않게 */
+  timers.push(setTimeout(()=>{
+    $('stage').style.cursor='pointer';
+    $('stage').addEventListener('click', enterSky);
+  }, 8000));
+  /* 현지 시각은 1분에 한 번 */
+  setInterval(()=>{ if(SITE) $('pLocal').textContent='HEURE LOCALE  '+civilLabel(SITE); }, 60000);
+}
+function fail(html){
+  $('stage').style.display='none'; $('plate').style.display='none';
+  $('msg').classList.add('on'); $('msg').innerHTML=html;
+}
+addEventListener('resize', ()=>{ if(!ANIM && !gone) layout(); });
+addEventListener('orientationchange', ()=>setTimeout(()=>{ if(!ANIM && !gone) layout(); },160));
+init();
+</script>
+</body>
+</html>
