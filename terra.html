@@ -3777,6 +3777,23 @@ function galerieHalls(){
   for (const c in terraPins){ if (terraPins[c].kind === "heritage") out.push(terraPins[c]); }
   return out.sort((a,b)=> (a.sort||0) - (b.sort||0));
 }
+/* ⚠ 0804 실전에서 잡은 병 — terraPins는 active=true만 싣는다.
+   깨어 있는 관이 하나뿐이면 접이가 영영 안 열리고 카드가 곧장 비행해 버렸다.
+   음악관은 다섯이 한꺼번에 깼지만 미술관은 좌표 컨펌 전까지 넷이 잠들어 있다.
+   그래서 **목록·로테이션은 DB에서 다섯을 직접 읽는다** — 잠든 관도 전시 편성에는 선다.
+   잠든 관은 흐리게 표시하고, 핀이 없으므로 비행 대신 셸로 직행한다. */
+let gHallsAll = null;
+async function loadGalerieHallsAll(){
+  if (gHallsAll) return gHallsAll;
+  try{
+    const r = await fetch(SUPA_URL + "/rest/v1/terra_pins?select=code,name,active,sort,meta"
+      + "&kind=eq.heritage&order=sort",
+      { headers:{ apikey:SUPA_KEY, Authorization:"Bearer " + SUPA_KEY } });
+    const j = await r.json();
+    gHallsAll = Array.isArray(j) ? j : [];
+  }catch(e){ console.warn("미술관 목록 로드 실패:", e); gHallsAll = []; }
+  return gHallsAll;
+}
 let gArts = null;
 async function loadGalerieArts(){
   if (gArts) return gArts;
@@ -3804,7 +3821,7 @@ function artOfMuseum(no, H){
 }
 /* 오늘의 관 — concertGate와 같은 회전 */
 function galerieGate(){
-  const hs = galerieHalls();
+  const hs = gHallsAll || galerieHalls();     /* 전체 명단이 먼저다 — 잠든 관도 자리를 지킨다 */
   if (!hs.length) return null;
   return hs[ ((concertDay() % hs.length) + hs.length) % hs.length ];
 }
@@ -3818,22 +3835,23 @@ async function toggleGalerieList(){
   if (!willOpen) return;
   box.classList.add("on"); btn.classList.add("open");
   box.innerHTML = "";
-  const halls = galerieHalls();
+  const wait = document.createElement("div");
+  wait.className = "sub-empty"; wait.textContent = "오늘의 전시를 펴는 중…";
+  box.appendChild(wait);
+  const halls = await loadGalerieHallsAll();
+  await loadGalerieArts();
+  box.innerHTML = "";
   if (!halls.length){
     const e0 = document.createElement("div");
     e0.className = "sub-empty"; e0.textContent = "첫 미술관을 고르는 중입니다";
     box.appendChild(e0); return;
   }
-  const wait = document.createElement("div");
-  wait.className = "sub-empty"; wait.textContent = "오늘의 전시를 펴는 중…";
-  box.appendChild(wait);
-  await loadGalerieArts();
-  box.innerHTML = "";
   const today = galerieGate();
   for (const p of halls){
     const a = artOfMuseum(Number((p.meta && p.meta.museum_no) || 0), halls.length);
     const b = document.createElement("button");
     b.className = "sub-item stack";
+    if (!p.active) b.style.opacity = ".5";                      /* 잠든 관은 흐리게 */
     const n = document.createElement("span");
     n.textContent = (today && p.code === today.code ? "● " : "") + (p.name || p.code);
     b.appendChild(n);
@@ -3845,7 +3863,9 @@ async function toggleGalerieList(){
     b.addEventListener("click", ()=>{
       closeOrgLists();
       try{ document.getElementById("egDock").classList.remove("open"); }catch(e){}
-      flyToPark(p);
+      const pin = terraPins[p.code];
+      if (pin) flyToPark(pin);                                   /* 깬 관 — 핀으로 비행 */
+      else location.href = "galerie.html?code=" + encodeURIComponent(p.code);  /* 잠든 관 — 셸 직행 */
     });
     box.appendChild(b);
   }
@@ -3857,7 +3877,7 @@ function addDockShortcut(el, id){
     else   delete DOCK_DIRECT.tourmusic;
   }
   if (id === "heritage"){
-    const g = galerieGate();
+    const g = galerieGate();                          /* gHallsAll이 이미 실려 있다(카드가 먼저 부름) */
     if (g) DOCK_DIRECT.heritage = "galerie.html?code=" + encodeURIComponent(g.code);
   }
   /* 0730 소로 — 아레나 카드에는 숏컷을 걸지 않는다. 엠블럼·도장·사과가 사는 카드에
@@ -4196,7 +4216,7 @@ async function loadDock(){
 
     /* MUNDUS — 르 그랑 투르 미술관 (0804 · 오늘의 관 + 접이 목록. 음악관 카드의 형제) */
     {
-      const gHalls = galerieHalls();
+      const gHalls = await loadGalerieHallsAll();     /* ⚠ 지도(active)가 아니라 전체 명단 */
       const gToday = galerieGate();
       let gSub = "첫 미술관을 고르는 중";
       if (gToday){
@@ -4335,7 +4355,7 @@ function startCountdown(ids, dateStr){
 /* 0731 — 콘서트홀 입장 버튼은 블록 7의 openStory 안에서 눌린다.
    이 블록은 IIFE라 안에서 선언한 함수가 밖에서 안 보인다. 창구로 내보낸다.
    (버튼이 먹통이던 원인 — 블록 경계. egLogout이 겪은 병과 같은 집안이다.) */
-console.log("%c[EG] terra v154 · 0804 타륜 오늘의 미술관 · galerie 직결", "color:#c9a24a");
+console.log("%c[EG] terra v155 · 0804 미술관 접이 전체명단 · 잠든관 셸직행", "color:#c9a24a");
 window.enterRoomUrl   = enterRoomUrl;
 window.egLogout       = egLogout;
 window.closeOrgLists  = closeOrgLists;
