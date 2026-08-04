@@ -1235,7 +1235,13 @@ gate.addEventListener('click', () => {
   if (gate.classList.contains('opening')) return;
   if (gate.classList.contains('editing')) return;
   gate.classList.add('opening');
-  setTimeout(() => gate.classList.add('gone'), 1400);
+  setTimeout(() => {
+    gate.classList.add('gone');
+    /* 0804 — 문이 완전히 물러난 뒤에야 홀이 산다. 카메라는 그때 부른다.
+       로드 시점의 sweepView('hall')는 clientHeight 0이라 도장 없이 물러났으므로
+       이 호출이 홀의 진짜 첫 입장이 된다. */
+    if (typeof sweepView === 'function') sweepView('hall');
+  }, 1400);
 });
 
 /* ---- 대문 간판 편집기 (5층 f5 드래그+크기 이식 · 살롱지기 전용) ----
@@ -1776,27 +1782,25 @@ const viewEls = [...document.querySelectorAll('.view')];
 const SWEPT = {};
 function sweepView(key){
   if (SWEPT[key] || !window.EGCamera) return;
-  SWEPT[key] = true;
-  /* ⚠ 0804 실전에서 잡은 병 — 처음엔 홀에서 .hall-book을 겨냥했는데 홀이 먹통이 됐다.
-     원인 둘: ① 이 셸에는 이미 「첫 화면 스크롤」이 있다(홀 0.63 · 벽면 0.44).
-              ② .hall-book은 JS가 나중에 그려서 겨냥 시점이 흔들린다(벽면 액자는 정적이라 멀쩡했다).
-     그래서 **셸이 원래 쓰던 도착지를 그대로 쓴다.** 카메라는 움직임만 얹는다. */
+  /* ⚠ 0804 저녁 검거 — 「홀 먹통」의 진범은 두 놈의 합작이었다.
+       ① 홀이 VIEWS[0]이라 showView(0)이 **로드 즉시** sweepView('hall')을 불렀다.
+          그 순간 홀은 대문 뒤 — clientHeight 0.
+       ② 그런데 도장(SWEPT)을 sweep을 부르기 **전에** 찍었다.
+          카메라는 죽은 화면이라 조용히 물러났는데 1회권은 이미 소모.
+          1.4초 뒤 대문이 열려도 카메라는 두 번 안 돈다.
+     처방: 도장은 **카메라가 실제로 돌았을 때만** 찍는다(v1.5 sweep이 false를 돌려줌).
+           죽은 화면이면 도장 없이 물러나 다음 호출을 기다린다.
+     ⭐ 숫자(0.63)를 셸과 똑같이 맞춰도 안 됐던 이유 — 좌표 병이 아니라 시점 병이었다. */
   const conf = {
-    /* ⚠⚠ 0804 미결 — 홀(매대)만 카메라를 뺐다.
-       두 판(요소 겨냥 → 무대 겨냥)을 다 시도했으나 홀이 먹통이 됐다. 원인 미확정.
-       벽면·거실·콜레주·일당백 넷은 같은 부품으로 멀쩡히 돈다 — 홀 고유의 사정이다.
-       의심 후보(다음 회차에 콘솔 로그부터 볼 것):
-         ① 1551행 「첫 화면 스크롤」 IIFE와의 경합 (그 IIFE도 rAF다)
-         ② 매대 편집기(hallEditing)의 pointer 배선과 skip 리스너 충돌
-         ③ hall-ticker 애니메이션이 scrollHeight를 흔드는지
-         ④ #hall-scroll이 뷰 전환 중 clientHeight 0인 순간에 재는지
-       ⭐ 되살릴 때는 hall 한 줄만 켜면 된다. 나머지는 손대지 말 것. */
+    hall: { box:'#hall-scroll', stage:'#hall-stage', at:.63 },
     wall: { box:'#wall-scroll', stage:'#wall-stage', at:.44 }
   }[key];
   if (!conf) return;
   /* 뷰가 active로 칠해진 뒤라야 무대 크기가 잡힌다 */
-  requestAnimationFrame(()=> requestAnimationFrame(()=>
-    EGCamera.sweep({ box:conf.box, stage:conf.stage, at:conf.at, dir:'down' })));
+  requestAnimationFrame(()=> requestAnimationFrame(()=>{
+    const ran = EGCamera.sweep({ box:conf.box, stage:conf.stage, at:conf.at, dir:'down' });
+    if (ran !== false) SWEPT[key] = true;
+  }));
 }
 
 function showView(i){

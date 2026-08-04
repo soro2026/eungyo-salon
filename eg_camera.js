@@ -185,6 +185,7 @@ function enter(opts){
     raf = requestAnimationFrame(step);
   }
   raf = requestAnimationFrame(step);
+  return true;
 }
 
 /* 움직임 없이 목표에 바로 앉힌다 */
@@ -282,12 +283,16 @@ function sweep(opts){
                              to = clamp(stg.offsetHeight*opts.at - box.clientHeight*0.5, 0, max);
   else                       to = max * (opts.fallback != null ? opts.fallback : 0.5);
 
-  /* 훑을 거리가 없으면 (폰·짧은 방) 그냥 앉힌다. 3초 동안 화면이 멈춰 있는 것보다 낫다 */
+  /* ⚠ 0804 저녁 — 죽은 화면(clientHeight 0)은 「성공한 척」 하지 않는다.
+       팝업 홀이 대문 뒤에서 이 갈래로 조용히 끝나며 1회권(SWEPT)을 태워 먹통이 됐다.
+       화면이 죽어 있으면 false를 돌려준다 — 부른 쪽이 다음 기회를 기다릴 수 있게.
+       (폰·짧은 방·reduced-motion은 지금처럼 즉시 앉히고 true — 그건 정상 완료다) */
+  if(box.clientHeight === 0){ return false; }
   var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if(max < 40 || reduce || opts.instant || box.clientHeight === 0){
+  if(max < 40 || reduce || opts.instant){
     box.scrollTop = to;
     if(typeof opts.onDone === 'function'){ try{ opts.onDone(); }catch(e){} }
-    return;
+    return true;
   }
 
   if(sw && !sw.done) sweepFinish();
@@ -320,9 +325,10 @@ function sweep(opts){
     raf = requestAnimationFrame(step);
   }
   raf = requestAnimationFrame(step);
+  return true;
 }
 
 window.EGCamera = { enter:enter, settle:settle, relayout:relayout, sweep:sweep,
                     get running(){ return !!((S && S.box && !S.done) || (sw && !sw.done)); } };
-console.log('%c[EG] eg_camera v1.4 · 0804 enter + sweep(요소·무대·비율)', 'color:#c9a24a');
+console.log('%c[EG] eg_camera v1.5 · 0804 sweep이 죽은 화면에서 false를 돌려준다', 'color:#c9a24a');
 })();
