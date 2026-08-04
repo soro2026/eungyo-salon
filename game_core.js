@@ -2833,6 +2833,14 @@ async function showEntryScreen() {
   document.getElementById('result-area').style.display = 'none';
   document.getElementById('zone-board-screen').style.display = 'none';
   document.getElementById('entry-screen').style.display = 'flex';
+
+  /* ══ EG Credencial 입국 도장 (0804 · 결정문 9-1)
+     스타디움에서 「들어가면 머무는 곳」은 로비(stadium_v2)가 아니라 구장이다.
+     함성이 울리고 구장 배경이 깔리는 이 입장 화면이 알베르게 체크인 데스크다.
+     ⚠ 경기 시작(enterZoneBoard·startGame)에서 반드시 withdraw() — 안 거두면
+        도장이 경기 내내 우하단에 따라다녀 결정문 4호(흐름을 끊지 않는다)가 깨진다.
+     안 누르고 넘어가도 손해가 없다. 다음 경기 입장 때 또 놓인다(3호). ══ */
+  if (window.EGStamp) EGStamp.offer({ supa, area:'stadium' });
 }
 
 // ── 개인 주차 기준 (stadium_v2.html과 동일 정의 · localStorage 'eg_my_season_start_tue' 캐시 공유) ──
@@ -2875,6 +2883,7 @@ async function getWeekRecords(oppKey) {
 
 async function enterZoneBoard() {
   stopCardSlide();
+  if (window.EGStamp) EGStamp.withdraw();   /* 입장 화면을 떠나면 도장도 물러난다 */
   document.getElementById('entry-screen').style.display = 'none';
 
   // 스코어보드 팀 설정 (startGame 로직과 동일)
@@ -3026,6 +3035,7 @@ function initGame(){
 
 async function startGame(){
   GAME_ACTIVE = true;
+  if (window.EGStamp) EGStamp.withdraw();   /* 경기가 시작되면 도장은 남지 않는다 */
   // ── 새 경기 시작 — 누적 set 청산 (v1.5+)
   // 이전 경기에서 등장한 문제·인물·정답 흔적 청산
   GAME_USED_SEEDS.clear();
