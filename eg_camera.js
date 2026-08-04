@@ -1,5 +1,5 @@
 /* ============================================================
- *  eg_camera.js  v1.3 — 0804
+ *  eg_camera.js  v1.4 — 0804
  *  「들어서는 3초」 — 천장에서 시작해 바닥을 스치고 목표에 안착한다.
  *
  *  왜 있는가:
@@ -267,7 +267,20 @@ function sweep(opts){
   if(!box){ console.warn('[EGCamera] sweep — 스크롤 상자를 찾지 못했습니다'); return; }
 
   var max = Math.max(0, box.scrollHeight - box.clientHeight);
-  var to  = el ? focusTop(box, el) : max * (opts.fallback != null ? opts.fallback : 0.5);
+
+  /* 안착 지점 셋 중 하나 — 위에서부터 먼저 잡히는 것을 쓴다
+       ① target  겨냥할 요소를 화면 한가운데   (콜레주 포스터 · 거실 그림)
+       ② stage+at  무대의 at 지점을 화면 한가운데 (팝업 — 셸이 원래 쓰던 계산 그대로)
+       ③ fallback  스크롤 범위의 비율
+     ⚠ ②가 필요했던 이유: 팝업 홀은 셸이 이미 「첫 화면 스크롤」을 갖고 있었고,
+       겨냥 대상(.hall-book)은 JS가 나중에 그린다. 카메라가 도착지까지 새로 정하면
+       그 방이 쓰던 자리와 어긋난다. 카메라는 움직임만 얹고 도착지는 셸 것을 쓴다. */
+  var stg = (typeof opts.stage === 'string') ? document.querySelector(opts.stage) : opts.stage;
+  var to;
+  if(el)                     to = focusTop(box, el);
+  else if(stg && opts.at != null)
+                             to = clamp(stg.offsetHeight*opts.at - box.clientHeight*0.5, 0, max);
+  else                       to = max * (opts.fallback != null ? opts.fallback : 0.5);
 
   /* 훑을 거리가 없으면 (폰·짧은 방) 그냥 앉힌다. 3초 동안 화면이 멈춰 있는 것보다 낫다 */
   var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -311,5 +324,5 @@ function sweep(opts){
 
 window.EGCamera = { enter:enter, settle:settle, relayout:relayout, sweep:sweep,
                     get running(){ return !!((S && S.box && !S.done) || (sw && !sw.done)); } };
-console.log('%c[EG] eg_camera v1.3 · 0804 enter + sweep(요소 겨냥)', 'color:#c9a24a');
+console.log('%c[EG] eg_camera v1.4 · 0804 enter + sweep(요소·무대·비율)', 'color:#c9a24a');
 })();
