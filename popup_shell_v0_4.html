@@ -682,6 +682,7 @@ html:not(.edit-on) #bm-intro-btn{ display:none !important; }
 </style>
 <!-- Supabase 클라이언트 (0716 파이스 배관) — 다른 EG 셸과 동일 라이브러리 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="eg_camera.js?v=0804a"></script>
 <!-- ?edit 게이트 (0716): 주소창에 ?edit 있을 때만 편집 모드. 게스트에게 편집 버튼 숨김 -->
 <script>if(new URLSearchParams(location.search).has('edit'))document.documentElement.classList.add('edit-on');</script>
 <!-- EG 하늘 한 벌 (0729) — 시각 구간은 여기 하나에서만 정한다. eg_sky.js 참조 -->
@@ -1769,6 +1770,31 @@ const VIEWS = [
 ];
 let vi = 0;
 const viewEls = [...document.querySelectorAll('.view')];
+/* 0804 — 들어서는 3초. 홀·서재는 9:16 세로 무대라, 도착하자마자 가운데가 앉으면
+   천장(별-책)도 바닥(거인 책)도 화면 밖이다. 한 번만 훑어 그 공간을 보여 준다.
+   ⚠ 방마다 첫 입장에만 돈다 — 좌우로 왔다 갔다 할 때마다 3초면 구경이 아니라 대기다. */
+const SWEPT = {};
+function sweepView(key){
+  if (SWEPT[key] || !window.EGCamera) return;
+  SWEPT[key] = true;
+  const conf = {
+    hall: { box:'.view[data-view="hall"] .hall-scroll', target:'.view[data-view="hall"] .hall-book', fb:.62 },
+    wall: { box:'.view[data-view="wall"] .wall-scroll', target:'.view[data-view="wall"] .wall-frame', fb:.42 }
+  }[key];
+  if (!conf) return;
+  /* ⚠ 책(.hall-book)은 JS가 나중에 그린다 — showView(0)이 먼저 돌 수 있다.
+     겨냥할 것이 아직 없으면 잠깐 기다린다. 끝내 없으면 fallback 지점으로 훑는다.
+     (뷰가 active로 칠해진 뒤라야 크기도 잡힌다) */
+  let tries = 0;
+  (function waitTarget(){
+    if (document.querySelector(conf.target) || tries++ > 24){
+      EGCamera.sweep({ box:conf.box, target:conf.target, dir:'down', fallback:conf.fb });
+      return;
+    }
+    requestAnimationFrame(waitTarget);
+  })();
+}
+
 function showView(i){
   vi = (i + VIEWS.length) % VIEWS.length;
   viewEls.forEach((v,k)=> v.classList.toggle('active', k===vi));
@@ -1778,6 +1804,7 @@ function showView(i){
   document.getElementById('hall-edit').classList.toggle('show', VIEWS[vi].key==='hall');
   document.getElementById('wall-edit').classList.toggle('show', VIEWS[vi].key==='wall');
   document.getElementById('board-edit').classList.toggle('show', VIEWS[vi].key==='board');
+  sweepView(VIEWS[vi].key);
 }
 document.getElementById('nav-left').onclick  = ()=> showView(vi-1);
 document.getElementById('nav-right').onclick = ()=> showView(vi+1);

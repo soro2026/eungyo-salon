@@ -1,5 +1,5 @@
 /* ============================================================
- *  eg_camera.js  v1.2 — 0804
+ *  eg_camera.js  v1.3 — 0804
  *  「들어서는 3초」 — 천장에서 시작해 바닥을 스치고 목표에 안착한다.
  *
  *  왜 있는가:
@@ -215,7 +215,101 @@ function relayout(){
   layout(targetZoom(), clamp(keep, 0, 1), 0.5);
 }
 
-window.EGCamera = { enter:enter, settle:settle, relayout:relayout,
-                    get running(){ return !!(S && !S.done); } };
-console.log('%c[EG] eg_camera v1.2 · 0804 천장→바닥→그림 · 폭 고정', 'color:#c9a24a');
+
+/* ══════════════════════════════════════════════════════════════
+ *  sweep — 두 번째 방식 (0804)
+ *
+ *  enter()는 그림 한 장의 크기까지 카메라가 정한다. 그런데 붙일 곳이
+ *  늘어나 보니 그 방식이 안 통하는 방이 있었다 —
+ *    분더카머 거실  무대 비율을 그림에서 재서 정함(--sl-ar) · 폭 1440px 상한
+ *    콜레주 1층     단일 그림이 아니라 흐름 배치
+ *    팝업 홀·서재   .hall-stage가 이미 aspect-ratio로 서 있음
+ *  카메라가 크기를 덮어쓰면 그 방들의 규칙이 깨진다
+ *  (분더카머 0728밤 「어떤 비율로 구워 와도 안 잘린다」).
+ *
+ *  그래서 sweep은 **크기를 건드리지 않는다.** 스크롤만 움직이고,
+ *  목표를 %가 아니라 **DOM 요소**로 받아 그것을 화면 한가운데 앉힌다.
+ *
+ *    EGCamera.sweep({ box:'#sc1', target:'#tg-stage', dir:'down' })
+ *    EGCamera.sweep({ box:'#sl-scroll', target:'.sl-art', dir:'up' })
+ * ══════════════════════════════════════════════════════════════ */
+var sw = null;
+
+function focusTop(box, el){
+  var br = box.getBoundingClientRect(), tr = el.getBoundingClientRect();
+  var top = box.scrollTop + (tr.top - br.top) - (box.clientHeight - tr.height)/2;
+  return clamp(top, 0, Math.max(0, box.scrollHeight - box.clientHeight));
+}
+
+function sweepFinish(){
+  if(!sw || sw.done) return;
+  sw.done = true;
+  cancelAnimationFrame(raf);
+  detachSweepSkip();
+  killHint();
+  sw.box.scrollTop = sw.target;
+  if(typeof sw.onDone === 'function'){ try{ sw.onDone(); }catch(e){ console.warn('[EGCamera] onDone', e); } }
+}
+function onSweepSkip(e){
+  if(e.type === 'keydown' && ['Tab','Shift','Control','Alt','Meta'].indexOf(e.key) >= 0) return;
+  sweepFinish();
+}
+function attachSweepSkip(){
+  skipEvents.forEach(function(t){ window.addEventListener(t, onSweepSkip, {passive:true, capture:true}); });
+}
+function detachSweepSkip(){
+  skipEvents.forEach(function(t){ window.removeEventListener(t, onSweepSkip, {capture:true}); });
+}
+
+function sweep(opts){
+  var box = $(opts.box);
+  var el  = (typeof opts.target === 'string') ? document.querySelector(opts.target) : opts.target;
+  if(!box){ console.warn('[EGCamera] sweep — 스크롤 상자를 찾지 못했습니다'); return; }
+
+  var max = Math.max(0, box.scrollHeight - box.clientHeight);
+  var to  = el ? focusTop(box, el) : max * (opts.fallback != null ? opts.fallback : 0.5);
+
+  /* 훑을 거리가 없으면 (폰·짧은 방) 그냥 앉힌다. 3초 동안 화면이 멈춰 있는 것보다 낫다 */
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(max < 40 || reduce || opts.instant || box.clientHeight === 0){
+    box.scrollTop = to;
+    if(typeof opts.onDone === 'function'){ try{ opts.onDone(); }catch(e){} }
+    return;
+  }
+
+  if(sw && !sw.done) sweepFinish();
+  var down = (opts.dir !== 'up');
+  sw = { box:box, target:to, done:false, onDone:opts.onDone,
+         hint:opts.hint !== false };
+
+  /* 위에서 아래로: 천장 → 바닥 스침 → 목표
+     아래에서 위로: 바닥 → 천장 스침 → 목표  (분더카머 거실이 이쪽) */
+  var from = down ? 0 : max;
+  var far  = down ? max : 0;
+  box.scrollTop = from;
+
+  S = S || {};                 /* showHint가 S.hint를 본다 */
+  S.hint = sw.hint;
+  attachSweepSkip();
+  showHint();
+
+  var t0 = performance.now();
+  function step(now){
+    if(!sw || sw.done) return;
+    var t = now - t0;
+    if(t < T_DOWN){
+      var k = easeInOut(t/T_DOWN);
+      box.scrollTop = from + (far - from)*k;
+    }else if(t < T_DOWN + T_UP){
+      var k2 = easeOut((t - T_DOWN)/T_UP);
+      box.scrollTop = far + (to - far)*k2;
+    }else{ sweepFinish(); return; }
+    raf = requestAnimationFrame(step);
+  }
+  raf = requestAnimationFrame(step);
+}
+
+window.EGCamera = { enter:enter, settle:settle, relayout:relayout, sweep:sweep,
+                    get running(){ return !!((S && S.box && !S.done) || (sw && !sw.done)); } };
+console.log('%c[EG] eg_camera v1.3 · 0804 enter + sweep(요소 겨냥)', 'color:#c9a24a');
 })();
