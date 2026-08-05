@@ -127,7 +127,14 @@ input.mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.05em}
 .batch h3{margin:0 0 4px;font-size:13.5px;font-weight:500;color:var(--text)}
 .batch p{margin:0;font-size:12px;color:var(--dim)}
 .batch.over{border-color:var(--gold)}
-#tray{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;margin-top:14px}
+#tray,#arts{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;margin-top:14px}
+/* 0805 — 인장 시안 다섯 벌. 무리 트레이와 칸 모양을 함께 쓴다(부품 하나로 둘) */
+#arts{grid-template-columns:repeat(5,1fr)}
+.slot.lead{box-shadow:inset 0 0 0 2px var(--gold)}
+.artbox{border:1px dashed var(--line);border-radius:6px;padding:12px;background:var(--bench-2)}
+.artbox.over{border-color:var(--gold)}
+.artbox b{display:block;font-size:13.5px;font-weight:500;color:var(--text);margin-bottom:3px}
+.artbox p{margin:0;font-size:12px;color:var(--dim)}
 .slot{background:#E9E5DD;border-radius:4px;padding:8px 6px;text-align:center;cursor:grab;
   border:2px solid transparent}
 .slot.drag{opacity:.4}
@@ -168,7 +175,7 @@ input.mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.05em}
 <div id="app" hidden>
 <header>
   <h1>EG <em>Credencial</em></h1>
-  <span class="sub">도장 공방 · v1.4</span>
+  <span class="sub">도장 공방 · v1.5 · 0805 인장 시안 다섯 벌 · WebP</span>
   <span class="count" id="count"></span>
 </header>
 
@@ -204,15 +211,23 @@ input.mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.05em}
 
       <div class="pad">
         <div>
-          <div class="drop" id="dropArt" tabindex="0" role="button">
-            <b>몸통</b>구운 그림을 던지거나 눌러서 고르기
-            <div class="meta" id="metaArt">아직 없음</div>
+          <div class="artbox" id="dropArt" tabindex="0" role="button">
+            <b>몸통 — 인장 시안</b>
+            <p>한 장이든 다섯 장이든 한꺼번에 던지십시오. 빈 칸부터 차례로 앉습니다.
+               자리는 끌어서 바꾸고, 칸을 두 번 누르면 뺍니다.
+               찍힐 때 이 중 하나가 굴려 뽑힙니다.</p>
+            <div id="arts"></div>
+            <div class="trayBar" id="artBar" hidden>
+              <button class="btn primary" id="artCommit" type="button">이대로 걸기</button>
+              <button class="btn" id="artClear" type="button">물리기</button>
+              <span class="msg" id="metaArt">아직 없음</span>
+            </div>
           </div>
           <div class="drop" id="dropSub" tabindex="0" role="button" style="margin-top:10px" hidden>
             <b>아랫단</b>그 책의 문양
             <div class="meta" id="metaSub">아직 없음</div>
           </div>
-          <input type="file" id="fileArt" accept="image/*" hidden>
+          <input type="file" id="fileArt" accept="image/*" multiple hidden>
           <input type="file" id="fileSub" accept="image/*" hidden>
         </div>
         <div>
@@ -428,7 +443,10 @@ function fill(k){
   const rules = k.rules || [];
   $('#rules').querySelectorAll('input').forEach(i => { i.checked = rules.includes(i.value); });
   document.querySelectorAll('.chk input').forEach(syncChk);
-  $('#metaArt').textContent = k.art_url ? '걸려 있음 — 새로 던지면 갈아 끼웁니다' : '아직 없음';
+  arts = Array(ARTS).fill(null);              /* 판을 바꾸면 굽던 것은 버린다 */
+  const nArt = artsOf(k).length;
+  $('#metaArt').textContent = nArt ? `시안 ${nArt}벌 걸려 있음` : '아직 없음';
+  drawArts();
   $('#metaSub').textContent = k.art_sub_url ? '걸려 있음' : '아직 없음';
   $('#dropSub').hidden = (k.family !== 'ephemera');
   drawLooks();
@@ -450,10 +468,10 @@ async function setLook(v){
   if(!cur.code) return;                     /* 아직 안 걸린 새 판이면 저장 때 같이 간다 */
   const { error } = await sb.from('stamp_kinds').update({ look:v }).eq('code', cur.code);
   if(error){ toast('갈래를 못 바꿨습니다 — ' + error.message, 'bad'); return; }
-  const keepArt = cur.art_url, keepSub = cur.art_sub_url;
+  const keepArt = cur.art_url, keepSub = cur.art_sub_url, keepArr = cur.art_urls;
   await load();
   cur = kinds.find(k=>k.code===cur.code) || cur;
-  cur.art_url = keepArt; cur.art_sub_url = keepSub;
+  cur.art_url = keepArt; cur.art_sub_url = keepSub; cur.art_urls = keepArr;
   render();
 }
 function syncChk(i){ i.closest('.chk').dataset.on = i.checked ? '1' : '0'; }
@@ -499,8 +517,14 @@ async function bake(file){
   out.width = Math.round(w*s); out.height = Math.round(h*s);
   const o = out.getContext('2d'); o.imageSmoothingQuality = 'high';
   o.drawImage(c, x0, y0, w, h, 0, 0, out.width, out.height);
-  const blob = await new Promise(r => out.toBlob(r, 'image/png'));
-  return { blob, url:URL.createObjectURL(blob), w:out.width, h:out.height,
+  /* ⭐ 0805 — WebP로 굽는다. 도장은 mask-image로 쓰이므로 브라우저가 알파 채널만 읽고,
+     WebP는 알파를 무손실로 저장한다. 색이 뭉개져도 화면에는 아무 영향이 없고 파일만 준다.
+     ⚠ toBlob이 webp를 모르는 브라우저는 조용히 png를 돌려준다 — blob.type으로 판별해
+       확장자를 맞춘다. 여기서 어긋나면 스토리지에 png가 .webp 이름으로 앉는다. */
+  let blob = await new Promise(r => out.toBlob(r, 'image/webp', 0.94));
+  if(!blob) blob = await new Promise(r => out.toBlob(r, 'image/png'));
+  const ext = blob.type === 'image/webp' ? 'webp' : 'png';
+  return { blob, ext, url:URL.createObjectURL(blob), w:out.width, h:out.height,
            src:bmp.width, already: clear > bmp.width*bmp.height*0.05 };
 }
 
@@ -527,9 +551,9 @@ function hookDrop(dropId, fileId, slot, metaId, col){
       cur[col] = r.url;                        // 미리보기는 즉시
       preview();
       $(metaId).textContent = '올리는 중…';
-      const key = `${slot}/${code}.png`;
+      const key = `${slot}/${code}.${r.ext}`;
       const { error:upErr } = await sb.storage.from(BUCKET)
-        .upload(key, r.blob, { upsert:true, contentType:'image/png' });
+        .upload(key, r.blob, { upsert:true, contentType:r.blob.type });
       if(upErr) throw upErr;
       const { data:pub } = sb.storage.from(BUCKET).getPublicUrl(key);
       const url = `${pub.publicUrl}?v=${Date.now()}`;
@@ -549,7 +573,130 @@ function hookDrop(dropId, fileId, slot, metaId, col){
     }finally{ drop.classList.remove('busy'); }
   }
 }
-hookDrop('#dropArt', '#fileArt', 'stamp', '#metaArt', 'art_url');
+/* ══ 0805 · 인장 시안 다섯 벌 ═══════════════════════════════════════════
+   한 판에 그림이 여럿 앉는다. 찍힐 때 stamp_press가 그중 하나를 굴려 뽑고,
+   뽑힌 주소를 stamps 행에 붙박는다(15호) — 그래서 몇 달 뒤 수첩을 펼쳐도
+   그날 받은 그 그림이 그 자리에 있다.
+
+   ⚠ art_url(대표=1번)은 반드시 유지한다. 부품이 「구워진 판인가」를 이 칸으로
+     판정하고(30호), 목록·미리보기도 이 칸을 본다. 배열 하나로 합치면 기존 판
+     스물다섯 장이 통째로 흔들린다.
+   ⚠ 시안이 하나뿐인 옛 판은 art_urls가 비어 있고, 그래도 아무것도 안 바뀐다.  */
+const ARTS = 5;
+let arts = [];          /* [{blob,ext,url,w,h} | null] × 5 — 방금 구운 것 */
+
+function artsOf(k){     /* DB에 이미 걸린 시안. 배열이 비면 대표 한 장으로 본다 */
+  const a = (k && k.art_urls && k.art_urls.length) ? k.art_urls.slice()
+          : (k && k.art_url ? [k.art_url] : []);
+  return a;
+}
+function drawArts(){
+  const box = $('#arts');
+  if(!box) return;
+  const saved = artsOf(cur);
+  box.innerHTML = Array.from({length:ARTS}, (_, i) => {
+    const t = arts[i], url = t ? t.url : (saved[i] || '');
+    return `<div class="slot ${url?'':'empty'} ${i===0&&url?'lead':''}" draggable="${!!t}" data-i="${i}"
+              style="color:${esc(cur?.ink||'#333')}" title="${i===0?'대표 — 목록과 미리보기에 서는 장':''}">
+      ${url ? `<i style="-webkit-mask:url('${esc(url)}') center/contain no-repeat;mask:url('${esc(url)}') center/contain no-repeat"></i>` : '<i></i>'}
+      <span class="n">${i+1}${t ? ' ●' : (url ? '' : ' —')}</span></div>`;
+  }).join('');
+  $('#artBar').hidden = !arts.some(Boolean);
+  box.querySelectorAll('.slot').forEach(el => {
+    el.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', el.dataset.i); el.classList.add('drag'); });
+    el.addEventListener('dragend', () => el.classList.remove('drag'));
+    el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('hit'); });
+    el.addEventListener('dragleave', () => el.classList.remove('hit'));
+    el.addEventListener('drop', e => {
+      e.preventDefault(); e.stopPropagation(); el.classList.remove('hit');
+      const from = Number(e.dataTransfer.getData('text/plain')), to = Number(el.dataset.i);
+      if(Number.isNaN(from) || from === to) return;
+      [arts[from], arts[to]] = [arts[to], arts[from]];
+      drawArts();
+    });
+    /* 두 번 누르면 뺀다 — 다섯 장을 던졌다가 넷만 쓰고 싶을 때 */
+    el.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      const i = Number(el.dataset.i);
+      if(arts[i]){ arts[i] = null; drawArts();
+        $('#metaArt').textContent = '한 칸 뺐습니다'; }
+    });
+  });
+}
+{
+  const box = $('#dropArt'), file = $('#fileArt');
+  box.addEventListener('click', e => { if(!e.target.closest('.slot') && !e.target.closest('button')) file.click(); });
+  box.addEventListener('keydown', e => {
+    if(e.key==='Enter' || e.key===' '){ e.preventDefault(); file.click(); }});
+  ['dragenter','dragover'].forEach(t => box.addEventListener(t, e => {
+    if(e.target.closest('.slot')) return;
+    e.preventDefault(); box.classList.add('over'); }));
+  ['dragleave','drop'].forEach(t => box.addEventListener(t, e => {
+    e.preventDefault(); box.classList.remove('over'); }));
+  box.addEventListener('drop', e => { if(!e.target.closest('.slot')) intakeArts([...e.dataTransfer.files]); });
+  file.addEventListener('change', () => { intakeArts([...file.files]); file.value = ''; });
+
+  async function intakeArts(files){
+    files = files.filter(f => f && f.type.startsWith('image/'));
+    if(!files.length || !cur) return;
+    files.sort((a,b) => a.name.localeCompare(b.name, undefined, { numeric:true }));
+    $('#metaArt').textContent = '굽는 중…';
+    let put = 0;
+    for(const f of files){
+      let slot = arts.findIndex(x => !x);          /* 빈 칸부터 */
+      if(slot < 0) break;
+      try{ arts[slot] = await bake(f); put++; }
+      catch(err){ toast(f.name + ' — ' + err.message, 'bad'); }
+      drawArts();
+    }
+    const kb = arts.filter(Boolean).reduce((s,t)=>s+t.blob.size, 0) / 1024;
+    $('#metaArt').textContent = `${put}장 구웠습니다 · ${kb.toFixed(0)}KB · 자리는 끌어서 바꾸십시오`;
+    if(put < files.length) toast(`칸이 ${ARTS}개뿐이라 앞에서부터만 받았습니다.`, 'bad');
+  }
+}
+$('#artClear').addEventListener('click', () => {
+  arts = Array(ARTS).fill(null); drawArts();
+  $('#metaArt').textContent = '물렸습니다. 아직 아무것도 안 걸렸습니다';
+});
+$('#artCommit').addEventListener('click', async () => {
+  if(!cur) return;
+  const code = ($('#code').value || cur.code || '').trim();
+  if(!code){ toast('먼저 코드를 정하고 판을 저장해 주세요.', 'bad'); $('#fold').open = true; return; }
+  const btn = $('#artCommit'); btn.disabled = true;
+  /* 방금 구운 것이 있는 칸은 새로 올리고, 없는 칸은 DB에 이미 있던 주소를 그대로 둔다.
+     그래야 「3번만 다시 구움」이 나머지 넷을 지우지 않는다. */
+  const saved = artsOf(cur);
+  const urls = [];
+  let done = 0;
+  try{
+    for(let i = 0; i < ARTS; i++){
+      const t = arts[i];
+      if(!t){ if(saved[i]) urls.push(saved[i]); continue; }
+      $('#metaArt').textContent = `${i+1}번 올리는 중…`;
+      const key = `stamp/${code}_${i+1}.${t.ext}`;
+      const { error:upErr } = await sb.storage.from(BUCKET)
+        .upload(key, t.blob, { upsert:true, contentType:t.blob.type });
+      if(upErr) throw upErr;
+      const { data:pub } = sb.storage.from(BUCKET).getPublicUrl(key);
+      urls.push(`${pub.publicUrl}?v=${Date.now()}`);
+      done++;
+    }
+    if(!urls.length) throw new Error('걸 그림이 없습니다');
+    const { error:dbErr } = await sb.from('stamp_kinds')
+      .update({ art_urls:urls, art_url:urls[0] }).eq('code', code);
+    if(dbErr) throw dbErr;
+    arts = Array(ARTS).fill(null);
+    await load();
+    cur = kinds.find(k=>k.code===code) || cur;
+    render(); drawArts(); preview();
+    $('#metaArt').textContent = `시안 ${urls.length}벌이 걸렸습니다 (새로 올린 것 ${done}장)`;
+    toast(`${urls.length}벌 걸었습니다.`, 'good');
+  }catch(err){
+    $('#metaArt').textContent = '실패';
+    toast('걸지 못했습니다 — ' + (err.message || err), 'bad');
+  }finally{ btn.disabled = false; }
+});
 
 /* ── 무리 던지기 ──
    code가 `무엇_01` 꼴이면 같은 접두를 가진 판들을 한 무리로 본다.
@@ -643,13 +790,17 @@ $('#commitBtn').addEventListener('click', async () => {
       const t = tray[i]; if(!t) continue;
       const code = siblings[i].code;
       $('#trayMsg').textContent = `${code} 올리는 중…`;
-      const key = `stamp/${code}.png`;
+      /* ⚠ 무리 던지기는 판마다 한 장이다. 시안 배열도 그 한 장으로 맞춰 둬야
+         「시안 다섯 벌」 화면과 어긋나지 않는다. 여러 벌을 걸려면 판을 하나씩 골라
+         위쪽 시안 트레이를 쓴다. */
+      const key = `stamp/${code}_1.${t.ext}`;
       const { error:upErr } = await sb.storage.from(BUCKET)
-        .upload(key, t.blob, { upsert:true, contentType:'image/png' });
+        .upload(key, t.blob, { upsert:true, contentType:t.blob.type });
       if(upErr) throw upErr;
       const { data:pub } = sb.storage.from(BUCKET).getPublicUrl(key);
+      const one = `${pub.publicUrl}?v=${Date.now()}`;
       const { error:dbErr } = await sb.from('stamp_kinds')
-        .update({ art_url:`${pub.publicUrl}?v=${Date.now()}` }).eq('code', code);
+        .update({ art_url:one, art_urls:[one] }).eq('code', code);
       if(dbErr) throw dbErr;
       done++;
     }
@@ -665,7 +816,13 @@ hookDrop('#dropSub', '#fileSub', 'sub',   '#metaSub', 'art_sub_url');
 
 /* ── 종이 위 ── */
 function preview(){
-  const url = cur?.art_url, sub = cur?.art_sub_url;
+  /* 0805 — 방금 구운 것이 있으면 그것까지 섞어 굴린다. 손님 화면에서 시안 하나가
+     뽑히는 것과 같은 일을 여기서도 해야 「다시 눌러보기」가 진짜 예행연습이 된다. */
+  const pool = [];
+  for(let i = 0; i < ARTS; i++){ const t = arts[i]; if(t) pool.push(t.url); }
+  if(!pool.length) pool.push(...artsOf(cur));
+  const url = pool.length ? pool[Math.floor(Math.random()*pool.length)] : cur?.art_url;
+  const sub = cur?.art_sub_url;
   const ink = ($('#inkTxt').value || '').trim() || '#2E3F63';
   const [w,h] = SIZE[$('#shape').value] || [126,126];
   const p = $('#press');
