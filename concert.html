@@ -303,7 +303,7 @@ const asset=(code,slot)=>`${SUPA_URL}/storage/v1/object/public/${BUCKET}/concert
 const HALL_RATIO=1080/1920;                 /* 홀 그림 가로/세로 (9:16) */
 const $=s=>document.querySelector(s);
 
-console.log("%c[EG] concert v1.4 · 0805 체류 도장 (오늘의 홀 · 그날의 곡 각인)", "color:#c9a24a");
+console.log("%c[EG] concert v1.5 · 0805 체류 도장 · 입국 우선(7호)", "color:#c9a24a");
 const qs=new URLSearchParams(location.search);
 const CODE=qs.get('code')||'wien';
 let HALL=null, SONG=null, HALLS=[];      /* HALLS — 오늘의 홀을 가리려면 목록이 있어야 한다(0805) */
@@ -375,6 +375,31 @@ function todaysSong(songs, hallNo, hallCount){
   return songs[ ((kstDay() + offset) % N + N) % N ];
 }
 
+/* ── 0805. 입국이 먼저다 (결정문 7호) ──
+   ⚠ 미술관에서 터진 사고의 형제 병이다. 오늘의 홀에 처음 들어간 손님이 체류부터 받으면
+     daily_per_area를 써버리고, 다른 홀로 건너가니 입국이 새어 나온다. 하루 두 장이 되어
+     2호를 건드리고, 빈은 안 되고 가르니에는 되는 세관이 된다.
+     8/03에는 소로가 우연히 당번 아닌 홀에 먼저 들어가 안 걸렸을 뿐이다.
+   ⚠⚠ 막지 않는 경우 둘 — 손님이 아닐 때, 그 우주에 **구워진** 입국 판이 없을 때.
+     둘 다 막아버리면 아무것도 안 나타난다. 폴백은 조건부가 아니라 기본값(함정 AE).
+   ⚠ 판 코드를 'mca_intrare'로 박지 않는다. area+family로 찾는다.
+     art_url 조건은 부품 findKind와 똑같이 맞춘다.                                   */
+async function intrareDone(area){
+  try{
+    const { data:{ user } } = await supa.auth.getUser();
+    if(!user) return true;
+    const { data:ks } = await supa.from('stamp_kinds')
+      .select('code').eq('area', area).eq('family','intrare')
+      .eq('active', true).not('art_url','is',null).limit(1);
+    const code = ks && ks[0] && ks[0].code;
+    if(!code) return true;
+    const { count } = await supa.from('stamps')
+      .select('id', { count:'exact', head:true })
+      .eq('user_id', user.id).eq('kind_code', code);
+    return !!count;
+  }catch(e){ console.warn('[EG] 입국 확인 실패 — 막지 않습니다:', e); return true; }
+}
+
 /* ── 0805. 체류 도장 ──
    ⚠ 이 공식은 terra.html의 concertGate()와 **같은 것이다.** 홀 목록을 sort 차례로
      세우고 날수로 나눈 나머지 — 한 곳만 고치면 타륜은 빈이라 적고 도장은 시드니에서
@@ -385,18 +410,23 @@ function todaysSong(songs, hallNo, hallCount){
      하나는 「어느 홀인가」를, 하나는 「몇 장인가」를 지키므로 하는 일이 다르다.        */
 function stampHere(halls, H){
   if(!window.EGStamp) return;
-  const duty = halls[ ((kstDay() % H) + H) % H ];
   const opt  = { supa: supa, area: 'musica', bottom: 96 };
-  if (duty && duty.code === HALL.code && SONG){
-    opt.kind = 'mca_' + HALL.code;
-    opt.subject = HALL.code;
-    /* 각인은 찍는 순간 복사해 둔다(15호) — 내일 곡이 바뀌어도 이 도장은 오늘 곡이다.
-       ⚠ 작곡가를 앞에 안 붙인다 — 곡명 표준(0802)이 이미 성+곡명이라 두 번 적힌다. */
-    opt.inscription = SONG.name || '';
-  }
-  /* 오늘의 홀이 아니면 kind를 안 준다 → 부품이 그 우주의 입국 도장을 찾는다.
-     아직 안 받았으면 입국이 놓이고, 이미 받았으면 아무것도 안 나타난다(3호). */
-  EGStamp.offer(opt);
+  /* 입국을 아직 안 받았으면 kind를 안 준다 → 부품이 입국을 찾는다. 체류는 내일부터(7호) */
+  intrareDone('musica').then(done=>{
+    if(done){
+      const duty = halls[ ((kstDay() % H) + H) % H ];
+      if (duty && duty.code === HALL.code && SONG){
+        opt.kind = 'mca_' + HALL.code;
+        opt.subject = HALL.code;
+        /* 각인은 찍는 순간 복사해 둔다(15호) — 내일 곡이 바뀌어도 이 도장은 오늘 곡이다.
+           ⚠ 작곡가를 앞에 안 붙인다 — 곡명 표준(0802)이 이미 성+곡명이라 두 번 적힌다. */
+        opt.inscription = SONG.name || '';
+      }
+    }
+    /* 오늘의 홀이 아니면 kind를 안 준다 → 부품이 그 우주의 입국 도장을 찾는다.
+       아직 안 받았으면 입국이 놓이고, 이미 받았으면 아무것도 안 나타난다(3호). */
+    EGStamp.offer(opt);
+  });
 }
 
 async function boot(){

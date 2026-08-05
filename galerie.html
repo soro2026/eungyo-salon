@@ -257,7 +257,7 @@ const BUCKET='tour-assets';
 const asset=(code,slot)=>`${SUPA_URL}/storage/v1/object/public/${BUCKET}/galerie/${code}_${slot}.webp`;
 const HALL_RATIO=941/1672;                     /* 방 그림 가로/세로 (9:16) */
 const $=s=>document.querySelector(s);
-console.log("%c[EG] galerie v1.4 · 0805 체류 도장(알베르게 원칙)", "color:#c9a24a");
+console.log("%c[EG] galerie v1.5 · 0805 체류 도장 · 입국 우선(7호)", "color:#c9a24a");
 
 const qs=new URLSearchParams(location.search);
 const CODE=qs.get('code')||'orsay';
@@ -283,6 +283,31 @@ function todaysArt(arts, museumNo, museumCount){
   return arts[ ((kstDay() + offset) % N + N) % N ];
 }
 
+/* ── 0805. 입국이 먼저다 (결정문 7호) ──
+   ⚠ 이 겹이 없어서 오늘 사고가 났다. 오늘의 관에 처음 들어간 손님이 체류부터 받아
+     daily_per_area를 써버렸고, 강 건너 다른 관에 가니 입국이 새어 나왔다.
+     하루 두 장이 되어 2호를 건드리고, 오르세는 안 되고 루브르는 되는 세관이 된다.
+   ⚠⚠ 막지 않는 경우 둘 — 손님이 아닐 때, 그 우주에 **구워진** 입국 판이 없을 때.
+     둘 다 막아버리면 아무것도 안 나타난다. 폴백은 조건부가 아니라 기본값(함정 AE).
+   ⚠ 판 코드를 'per_intrare'로 박지 않는다. area+family로 찾는다 — 코드가 바뀌어도 산다.
+     art_url 조건은 부품 findKind와 똑같이 맞춘다. 어긋나면 여기서는 있다 하고
+     부품은 없다 하여 손님 화면이 통째로 빈다.                                      */
+async function intrareDone(area){
+  try{
+    const { data:{ user } } = await supa.auth.getUser();
+    if(!user) return true;                       /* 손님이 아니면 어차피 안 찍힌다 */
+    const { data:ks } = await supa.from('stamp_kinds')
+      .select('code').eq('area', area).eq('family','intrare')
+      .eq('active', true).not('art_url','is',null).limit(1);
+    const code = ks && ks[0] && ks[0].code;
+    if(!code) return true;                       /* 구운 입국 판이 없으면 막지 않는다 */
+    const { count } = await supa.from('stamps')
+      .select('id', { count:'exact', head:true })
+      .eq('user_id', user.id).eq('kind_code', code);
+    return !!count;
+  }catch(e){ console.warn('[EG] 입국 확인 실패 — 막지 않습니다:', e); return true; }
+}
+
 /* ── 0805. 체류 도장 — 알베르게 원칙(몸통은 곳의 얼굴, 각인은 그날의 것) ──
    ⚠⚠ 당번 공식은 terra.html의 galerieGate()와 **같은 것이다.** 관 목록을 sort 차례로
      세우고 날수로 나눈 나머지. 한 곳만 고치면 타륜은 오르세라 적고 도장은 루브르에서
@@ -295,22 +320,25 @@ function stampHere(){
   if(!window.EGStamp) return;
   const hs = HALLS || [];
   const opt = { supa: supa, area:'peregrinatio', bottom: 96 };
-  if(hs.length && HALL){
-    const duty = hs[ ((kstDay() % hs.length) + hs.length) % hs.length ];
-    if(duty && duty.code === HALL.code && ART){
-      opt.kind = 'gal_' + HALL.code;
-      opt.subject = HALL.code;
-      /* 각인은 찍는 순간 복사해 둔다(15호) — 내일 그림이 바뀌어도 이 도장은 오늘 그림이다.
-         ⚠ 화가를 앞에 안 붙인다 — 벽의 새김 명패가 이미 「작품명 · 화가」를 말하고 있어
-           두 번 적힌다. 음악관이 곡명에서 정한 것과 같은 문법(0805).
-         ⚠ 연도는 heritage_items.period. 비면 작품명만 앉는다 — 폴백이 기본값(함정 AE). */
-      const yr = String(ART.period || '').trim();
-      opt.inscription = (ART.name || '') + (yr ? ' · ' + yr : '');
+  /* 입국을 아직 안 받았으면 kind를 안 준다 → 부품이 입국을 찾는다. 체류는 내일부터(7호) */
+  intrareDone('peregrinatio').then(done=>{
+    if(done && hs.length && HALL){
+      const duty = hs[ ((kstDay() % hs.length) + hs.length) % hs.length ];
+      if(duty && duty.code === HALL.code && ART){
+        opt.kind = 'gal_' + HALL.code;
+        opt.subject = HALL.code;
+        /* 각인은 찍는 순간 복사해 둔다(15호) — 내일 그림이 바뀌어도 이 도장은 오늘 그림이다.
+           ⚠ 화가를 앞에 안 붙인다 — 벽의 새김 명패가 이미 「작품명 · 화가」를 말하고 있어
+             두 번 적힌다. 음악관이 곡명에서 정한 것과 같은 문법(0805).
+           ⚠ 연도는 heritage_items.period. 비면 작품명만 앉는다 — 폴백이 기본값(함정 AE). */
+        const yr = String(ART.period || '').trim();
+        opt.inscription = (ART.name || '') + (yr ? ' · ' + yr : '');
+      }
     }
-  }
-  /* 오늘의 관이 아니면 kind를 안 준다 → 부품이 그 우주의 입국 도장을 찾는다.
-     아직 안 받았으면 입국이 놓이고, 이미 받았으면 아무것도 안 나타난다(3호). */
-  EGStamp.offer(opt);
+    /* 오늘의 관이 아니면 kind를 안 준다 → 부품이 그 우주의 입국 도장을 찾는다.
+       아직 안 받았으면 입국이 놓이고, 이미 받았으면 아무것도 안 나타난다(3호). */
+    EGStamp.offer(opt);
+  });
 }
 
 /* 그림 후보를 차례로 걸어 본다 — 저녁이 없으면 낮으로 */
