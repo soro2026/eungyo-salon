@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>오늘의 한 줄 — EG 관리</title>
 <!--
- *  admin_daily_lines.html v1.0 — 0805
+ *  admin_daily_lines.html v1.1 — ⏱ 날짜별 미리보기(0805) — 0805
  *  EG 로딩 화면(terra.html)의 「오늘의 한 줄」 관리 콘솔.
  *
  *  ⭐ 하루 하나 고정이다. 무작위 뽑기가 아니다.
@@ -40,9 +40,18 @@
     border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin-bottom:26px;
     background:linear-gradient(to bottom,#070c1a,#16233f);
   }
-  .today .cap{font-size:11px;letter-spacing:.2em;color:var(--gold-soft);margin-bottom:14px}
+  .today .cap{font-size:11px;letter-spacing:.2em;color:var(--gold-soft);margin-bottom:14px;
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .today .body{font-family:var(--serif);font-size:16px;line-height:1.9;color:var(--gold)}
   .today .src{font-size:11.5px;letter-spacing:.18em;color:var(--gold-soft);opacity:.75;margin-top:10px}
+  /* ⏱ 시간 여행 — 콜레주 0801 문법. 화면 판정만 바뀌고 DB는 무변 */
+  .today .tt{margin-left:auto;display:flex;gap:6px;align-items:center}
+  .today .tt input[type=date]{font-family:inherit;font-size:12px;padding:4px 8px;
+    border-radius:8px;border:1px solid rgba(201,162,39,.5);
+    background:rgba(7,12,26,.8);color:var(--cream)}
+  .today .tt button{padding:4px 11px;font-size:11.5px;border-radius:8px}
+  .today .tt button.on{background:var(--gold);color:#1a120c;border-color:var(--gold);font-weight:700}
+  .today .ttnote{width:100%;font-size:10.5px;letter-spacing:.06em;color:var(--gold-soft);opacity:.8}
 
   /* 새 문장 */
   .form{border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin-bottom:26px;background:var(--panel)}
@@ -113,7 +122,14 @@
   </div>
 
   <div class="today">
-    <div class="cap">오늘 뜨는 문장</div>
+    <div class="cap"><span id="tCap">오늘 뜨는 문장</span>
+      <span class="tt">
+        <input type="date" id="ttDate">
+        <button class="mini" id="ttGo">⏱ 그날 보기</button>
+        <button class="mini" id="ttNow">오늘로</button>
+      </span>
+      <span class="ttnote">⏱ 시간 여행 — 미리보기만 그 날짜로 갑니다. 손님 화면·DB는 그대로입니다.</span>
+    </div>
     <div class="body" id="tBody">불러오는 중…</div>
     <div class="src" id="tSrc"></div>
   </div>
@@ -144,8 +160,14 @@ let ROWS = [];
 
 /* ⚠ terra.html 머리의 todaysLine()과 **같은 눈금**이어야 한다.
    한쪽만 고치면 콘솔이 「오늘 이것」이라 적고 손님은 딴것을 본다.
-   도장에서 겪은 그 병이 여기서도 그대로 난다. */
-function kstDay(){ return Math.floor((Date.now() + 9*3600*1000) / 86400000); }
+   도장에서 겪은 그 병이 여기서도 그대로 난다.
+   ⏱ 시간 여행(0805 콜레주 이식) — EG_TT_DAY가 있으면 그 날수를 돌려준다.
+   이 함수가 단일 진실이라 미리보기·「오늘」 딱지가 함께 그날로 간다. DB 무변. */
+let EG_TT_DAY = null;
+function kstDay(){
+  if(EG_TT_DAY != null) return EG_TT_DAY;
+  return Math.floor((Date.now() + 9*3600*1000) / 86400000);
+}
 
 function dutyIndex(n){ return n ? ((kstDay() % n) + n) % n : -1; }
 
@@ -179,6 +201,9 @@ function draw(){
 
   $('#tBody').textContent = duty ? duty.body : '문장이 없습니다';
   $('#tSrc').textContent  = duty && duty.source ? duty.source : '';
+  $('#tCap').textContent  = (EG_TT_DAY != null)
+    ? '⏱ ' + dayToDate(EG_TT_DAY) + ' 에 뜨는 문장'
+    : '오늘 뜨는 문장';
 
   const list = $('#list');
   if(!ROWS.length){ list.innerHTML = '<div class="empty">아직 문장이 없습니다</div>'; return; }
@@ -297,6 +322,26 @@ async function remove(r){
 
 $('#btnAdd').onclick = add;
 load();
+
+/* ══ ⏱ 시간 여행 배선 — 갈아타면 미리보기와 「오늘」 딱지가 그날로 다시 그려진다 ══ */
+function dayToDate(day){
+  const d = new Date(day*86400000 - 9*3600*1000 + 12*3600*1000);
+  return d.toISOString().slice(0,10);
+}
+$('#ttGo').onclick = ()=>{
+  const v = $('#ttDate').value;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(v)){ say('날짜를 고르세요'); return; }
+  EG_TT_DAY = Math.floor((Date.parse(v+'T00:00:00Z') + 9*3600*1000) / 86400000);
+  $('#ttGo').classList.add('on');
+  draw();
+};
+$('#ttNow').onclick = ()=>{
+  EG_TT_DAY = null;
+  $('#ttGo').classList.remove('on');
+  $('#ttDate').value = dayToDate(kstDay());
+  draw();
+};
+$('#ttDate').value = dayToDate(kstDay());
 </script>
 </body>
 </html>
