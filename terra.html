@@ -69,14 +69,14 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
       var line = el.querySelector(".line");
       var src  = el.querySelector(".src");
 
-      /* ── 한 단어씩 놓기 (0805 소로) ──
-         ⚠ 글자 단위로 끊지 않는다. 한글은 자모가 모여 한 글자가 되므로 글자 단위면
-           어색하고 터미널 흉내가 된다. 단어 단위라야 문장이 마디마디 놓인다.
-         ⚠⚠ 로더는 지구 타일이 다 내려받히면 사라진다. 그때 문장이 절반만 나와 있으면
-           잘린 채로 끝난다. 그래서 loader.gone이 붙는 순간 남은 말을 즉시 다 채운다.
-           끝까지 못 보여줄 바에는 다 보여주고 지우는 편이 낫다.
+      /* ── 한 단어씩 놓기 (0805 소로 · 2차 수리) ──
+         ⚠ 글자 단위로 끊지 않는다. 한글은 자모가 모여 한 글자가 되므로 어색하다.
+         ⚠⚠ 1차의 버벅임: 공백을 별도 조각으로 두고 0ms로 붙였더니 간격이 들쭉날쭉해
+           오류처럼 보였다. 단어 배열에서 slice로 다시 조립하면 리듬이 고정된다.
+         ⚠ 340ms — 로딩이 10~15초이니 최장 문장(13어절)도 4.4초에 끝난다.
+           빠른 타이핑은 오류로 읽히고, 느린 타이핑이 낭독으로 읽힌다(0805 소로).
          ⚠ textContent만 쓴다 — 남의 글이 코드가 되지 않게. */
-      var words = String(it.body).split(/(\s+)/);   /* 공백도 조각으로 남겨 간격을 지킨다 */
+      var words = String(it.body).split(/\s+/).filter(Boolean);
       var i = 0, done = false, timer = null;
 
       function finish(){
@@ -88,12 +88,13 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
       }
       function step(){
         if(done) return;
+        i++;
+        line.textContent = words.slice(0, i).join(' ');
         if(i >= words.length){
           if(src && it.source){ src.textContent = it.source; src.style.opacity = ''; }
           done = true; return;
         }
-        line.textContent += words[i++];
-        timer = setTimeout(step, /\s/.test(words[i-1]) ? 0 : 90);
+        timer = setTimeout(step, 340);
       }
 
       if(src) src.style.opacity = '0';              /* 출처는 문장이 다 놓인 뒤에 */
@@ -200,7 +201,7 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
 <link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Widgets/widgets.css" rel="stylesheet" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Black+Han+Sans&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Black+Han+Sans&family=Nanum+Myeongjo:wght@400;700&display=swap" rel="stylesheet">
 
 <style>
   :root{
@@ -567,38 +568,41 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   }
   #loader.gone{opacity:0;pointer-events:none}
 
-  /* ── 0805. 흐르는 새벽 하늘 ──
-     ⚠ 그림 파일을 쓰지 않는다. 이 화면이 뜨는 동안 지구 타일이 내려받히는 중이라,
-       여기서 이미지를 더 받으면 정작 기다리는 시간이 길어진다. CSS 그라디언트뿐 —
-       파일 0바이트, 합성만으로 돈다.
-     ⚠⚠ z-index를 음수로 주지 말 것. #loader가 background를 가진 쌓임 맥락이라
-       가상요소가 배경 뒤로 숨어 아무것도 안 보였다(0805 사고). 0과 1로 층을 나눈다.
-     ⚠⚠ radial-gradient의 끝을 transparent로 끊으면 그 경계가 칼자국처럼 보인다.
-       색은 같고 알파만 0인 rgba로 끝내야 번진다. 두 병이 함께 났던 곳이다.
-     ⚠ 문장 가독성이 먼저다(0805 소로). 구름 밝기를 .18 위로 올리지 말 것. */
+  /* ── 0805. 흐르는 새벽 하늘 (2차 수리) ──
+     ⚠ 그림 파일을 쓰지 않는다 — 지구 타일 내려받기를 늦추지 않게. CSS뿐이다.
+     ⚠⚠ 1차 실패의 원인: 캔버스가 뷰포트의 220% 폭인데 구름 크기를 %로 줬더니
+       구름 하나가 화면보다 커져 「하늘 색조」로 뭉개졌다. 렌더는 되고 있었다.
+       구름 크기는 px로 못 박는다 — 화면이 커져도 구름은 구름 크기다.
+     ⚠⚠ 순환 이음새: 캔버스를 200% 폭으로 하고 같은 구름을 0~50%와 50~100%에
+       복제해 두면 translateX(-50%)가 정확히 한 벌 길이라 끊김 없이 돈다.
+       복제 없이 -42% 같은 어중간한 값으로 돌리면 어딘가에서 빈 하늘이 지나간다.
+     ⚠ 문장 가독성이 먼저다. 알파 .20 위로 올리지 말 것.                        */
   #loader::before,
   #loader::after{
-    content:'';position:absolute;top:-25%;bottom:-25%;left:-60%;right:-60%;
+    content:'';position:absolute;top:0;bottom:0;left:0;width:200%;
     pointer-events:none;
   }
-  /* 아래층 — 짙은 구름 덩어리, 느리게 */
+  /* 아래층 — 큰 구름 덩어리, 느리게. 0~50%와 50~100%가 같은 벌 */
   #loader::before{
     z-index:0;
     background:
-      radial-gradient(46% 30% at 16% 60%, rgba(148,174,214,.18), rgba(148,174,214,0) 68%),
-      radial-gradient(38% 24% at 46% 40%, rgba(128,156,200,.15), rgba(128,156,200,0) 70%),
-      radial-gradient(52% 26% at 78% 68%, rgba(120,146,190,.13), rgba(120,146,190,0) 72%),
-      radial-gradient(34% 20% at 94% 34%, rgba(140,166,206,.12), rgba(140,166,206,0) 70%);
-    animation:cloudDrift 78s linear infinite;
+      radial-gradient(560px 210px at 6%  58%, rgba(152,178,218,.20), rgba(152,178,218,0) 62%),
+      radial-gradient(430px 160px at 20% 36%, rgba(132,160,204,.16), rgba(132,160,204,0) 64%),
+      radial-gradient(650px 230px at 38% 66%, rgba(122,148,192,.15), rgba(122,148,192,0) 60%),
+      radial-gradient(560px 210px at 56% 58%, rgba(152,178,218,.20), rgba(152,178,218,0) 62%),
+      radial-gradient(430px 160px at 70% 36%, rgba(132,160,204,.16), rgba(132,160,204,0) 64%),
+      radial-gradient(650px 230px at 88% 66%, rgba(122,148,192,.15), rgba(122,148,192,0) 60%);
+    animation:cloudDrift 64s linear infinite;
   }
-  /* 위층 — 옅은 구름, 조금 빠르게. 두 층 속도가 달라야 나아가는 것처럼 보인다 */
+  /* 위층 — 작고 옅은 구름, 빠르게. 속도 차가 비행을 만든다 */
   #loader::after{
     z-index:1;
     background:
-      radial-gradient(42% 22% at 68% 26%, rgba(206,222,244,.13), rgba(206,222,244,0) 70%),
-      radial-gradient(50% 20% at 26% 22%, rgba(184,204,232,.11), rgba(184,204,232,0) 72%),
-      radial-gradient(36% 18% at 8% 82%, rgba(196,214,238,.10), rgba(196,214,238,0) 70%);
-    animation:cloudDrift 47s linear infinite reverse;
+      radial-gradient(380px 130px at 12% 22%, rgba(208,224,246,.14), rgba(208,224,246,0) 62%),
+      radial-gradient(300px 110px at 34% 78%, rgba(186,206,234,.12), rgba(186,206,234,0) 64%),
+      radial-gradient(340px 120px at 62% 22%, rgba(208,224,246,.14), rgba(208,224,246,0) 62%),
+      radial-gradient(300px 110px at 84% 78%, rgba(186,206,234,.12), rgba(186,206,234,0) 64%);
+    animation:cloudDrift 38s linear infinite;
   }
   /* 하늘빛 — 위는 새벽 남색, 아래는 옅은 청회색. 비행기가 뜬 높이의 색이다 */
   #loader{
@@ -610,7 +614,7 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   #jetTrack{z-index:2}
   @keyframes cloudDrift{
     from{transform:translateX(0)}
-    to  {transform:translateX(-42%)}
+    to  {transform:translateX(-50%)}   /* 복제 한 벌 길이 — 이 값이어야 이음새가 없다 */
   }
   @media(prefers-reduced-motion:reduce){
     #loader::before,#loader::after{animation:none}
@@ -619,7 +623,10 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   /* ── 오늘의 한 줄 ── */
   #loaderMsg{
     position:relative;z-index:3;text-align:center;
-    max-width:min(680px,86vw);line-height:2.05;
+    max-width:min(760px,88vw);line-height:2.1;
+    font-family:"Nanum Myeongjo",Georgia,serif;   /* 월든 포스터의 결 — 명조가 먼저다 */
+    font-size:22.5px;font-weight:400;             /* 15px × 1.5 (0805 소로) */
+    letter-spacing:.1em;                          /* 명조는 자간을 좁혀야 포스터처럼 읽힌다 */
     text-shadow:0 2px 18px rgba(4,8,18,.95),0 0 40px rgba(4,8,18,.8);
   }
   #loaderMsg::before{                    /* 글자 뒤 어두운 방석 — 대비 지킴이 */
@@ -629,10 +636,10 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   }
   #loaderMsg .line{display:block;min-height:1.9em}   /* 빈 줄에도 높이를 잡아 화면이 안 튀게 */
   #loaderMsg .src{
-    display:block;margin-top:16px;
-    font-size:11.5px;letter-spacing:.22em;
+    display:block;margin-top:20px;
+    font-size:13.5px;letter-spacing:.24em;font-weight:400;
     color:var(--gold-soft,#b99a4e);opacity:.72;
-    transition:opacity 1.1s ease;                    /* 문장이 다 놓인 뒤 조용히 떠오른다 */
+    transition:opacity 1.4s ease;                    /* 문장이 다 놓인 뒤 조용히 떠오른다 */
   }
   /* 분더카머로 떠나는 비행 — EG 전용기가 중앙에 떠 있음 */
   #jetTrack{position:relative;width:100%;height:320px;overflow:hidden;pointer-events:none;}
@@ -641,12 +648,12 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
     transform:translate(-50%,-50%);
     width:clamp(200px,55vw,750px);height:auto;opacity:.96;   /* 0720 소로: 2.5배 — 노트북 기준 사실감 */
     filter:drop-shadow(0 22px 40px rgba(0,0,0,.6));
-    animation:jetBob 2.8s ease-in-out infinite;
+    animation:jetBob 5.2s ease-in-out infinite;   /* 0805 소로: 흔들림 자제 — 폭 좁게, 느리게 */
     will-change:margin-top;
   }
   @keyframes jetBob{
     0%,100%{margin-top:0;}
-    50%{margin-top:-20px;}
+    50%{margin-top:-7px;}
   }
   @media(prefers-reduced-motion:reduce){
     #jetTrack img{animation:none;}
