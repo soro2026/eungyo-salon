@@ -24,6 +24,34 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   // ── Supabase (voyage_markers 도시 핀을 DB에서 읽어옴) ──
   const SUPA_URL = "https://cyhlotwdisjvoxvfkpnd.supabase.co";
   const SUPA_KEY = "sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR";
+
+  /* ══ 0805. 오늘의 한 줄 — 로딩 화면 문구 ══
+     ⭐ 하루 하나 고정이다. 무작위 뽑기가 아니다(0805 소로 결정).
+        하루에 열 번 넘게 보는 화면이라 매번 바뀌면 로딩이 뽑기가 된다.
+        같은 문장을 열 번 보아야 스민다 — 오늘의 관·오늘의 곡과 같은 문법.
+     ⚠ supabase-js를 기다리지 않고 raw REST로 부른다. 라이브러리가 실릴 때쯤이면
+       로더는 이미 떠 있고, 문구가 뒤늦게 바뀌면 눈에 거슬린다. 여기가 문서에서
+       가장 이른 지점이라 여기에 둔다.
+     ⚠⚠ 실패하면 손대지 않는다. 기본 문구가 이미 화면에 박혀 있으므로 그대로 남는다.
+       로딩 화면에서 던지는 예외는 지구가 안 뜨는 사고로 번진다 — 폴백이 기본값(함정 AE). */
+  (function todaysLine(){
+    var D = Math.floor((Date.now() + 9*3600*1000) / 86400000);   /* KST 날수 — 도장과 같은 눈금 */
+    fetch(SUPA_URL + "/rest/v1/daily_lines?select=body,source&active=eq.true&order=sort", {
+      headers:{ apikey:SUPA_KEY, Authorization:"Bearer " + SUPA_KEY }
+    })
+    .then(function(r){ return r.ok ? r.json() : []; })
+    .then(function(rows){
+      if(!rows || !rows.length) return;
+      var it = rows[((D % rows.length) + rows.length) % rows.length];
+      var el = document.getElementById("loaderMsg");
+      if(!el || !it || !it.body) return;
+      var html = '<span class="line"></span>';
+      el.innerHTML = html + (it.source ? '<span class="src"></span>' : '');
+      el.querySelector(".line").textContent = it.body;          /* textContent — 남의 글이 코드가 되지 않게 */
+      if(it.source) el.querySelector(".src").textContent = it.source;
+    })
+    .catch(function(){ /* 기본 문구 유지 */ });
+  })();
 </script>
 
 <script>
@@ -478,9 +506,67 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px;
     font-family:var(--serif);font-size:15px;letter-spacing:.32em;color:var(--gold);
     transition:opacity 1s ease;
+    overflow:hidden;                      /* 흐르는 구름이 밖으로 새지 않게 */
   }
   #loader.gone{opacity:0;pointer-events:none}
-  #loaderMsg{text-align:center;}
+
+  /* ── 0805. 흐르는 새벽 하늘 ──
+     ⚠ 그림 파일을 쓰지 않는다. 이 화면이 뜨는 동안 지구 타일이 내려받히는 중이라,
+       여기서 이미지를 더 받으면 정작 기다리는 시간이 길어진다. CSS 그라디언트뿐 —
+       파일 0바이트, 합성만으로 돈다.
+     ⚠ 문장 가독성이 먼저다(0805 소로). 구름 밝기를 .16 위로 올리지 말 것.
+       금빛 글자가 옅은 구름 위에 얹히면 대비가 무너진다. 그래서 글자 뒤에는
+       어두운 층을 한 겹 더 깔았다(#loaderMsg의 radial-gradient).                */
+  #loader::before,
+  #loader::after{
+    content:'';position:absolute;inset:-20% -60%;z-index:-2;pointer-events:none;
+  }
+  /* 아래층 — 짙은 구름 덩어리, 느리게 */
+  #loader::before{
+    background:
+      radial-gradient(58% 34% at 18% 62%, rgba(150,175,215,.16), transparent 70%),
+      radial-gradient(46% 28% at 62% 44%, rgba(130,158,200,.13), transparent 72%),
+      radial-gradient(70% 30% at 88% 70%, rgba(120,145,190,.11), transparent 74%);
+    animation:cloudDrift 92s linear infinite;
+  }
+  /* 위층 — 옅은 구름, 조금 빠르게. 두 층 속도가 달라야 나아가는 것처럼 보인다 */
+  #loader::after{
+    background:
+      radial-gradient(52% 26% at 74% 30%, rgba(200,216,238,.10), transparent 72%),
+      radial-gradient(64% 22% at 30% 24%, rgba(178,198,228,.09), transparent 74%);
+    animation:cloudDrift 58s linear infinite reverse;
+  }
+  /* 하늘빛 — 위는 새벽 남색, 아래는 옅은 청회색. 비행기가 뜬 높이의 색이다 */
+  #loader{
+    background:
+      linear-gradient(to bottom,
+        #070c1a 0%, #0d1730 34%, #16233f 62%, #1d2c48 100%);
+  }
+  @keyframes cloudDrift{
+    from{transform:translateX(0)}
+    to  {transform:translateX(-38%)}
+  }
+  @media(prefers-reduced-motion:reduce){
+    #loader::before,#loader::after{animation:none}
+  }
+
+  /* ── 오늘의 한 줄 ── */
+  #loaderMsg{
+    position:relative;z-index:1;text-align:center;
+    max-width:min(680px,86vw);line-height:2.05;
+    text-shadow:0 2px 18px rgba(4,8,18,.95),0 0 40px rgba(4,8,18,.8);
+  }
+  #loaderMsg::before{                    /* 글자 뒤 어두운 방석 — 대비 지킴이 */
+    content:'';position:absolute;inset:-38px -56px;z-index:-1;
+    background:radial-gradient(60% 60% at 50% 50%, rgba(6,10,22,.72), transparent 72%);
+    pointer-events:none;
+  }
+  #loaderMsg .line{display:block}
+  #loaderMsg .src{
+    display:block;margin-top:16px;
+    font-size:11.5px;letter-spacing:.22em;
+    color:var(--gold-soft,#b99a4e);opacity:.72;
+  }
   /* 분더카머로 떠나는 비행 — EG 전용기가 중앙에 떠 있음 */
   #jetTrack{position:relative;width:100%;height:320px;overflow:hidden;pointer-events:none;}
   #jetTrack img{
@@ -1134,7 +1220,7 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
 <nav id="journey"></nav>
 
 <div id="loader">
-  <div id="loaderMsg">당신의 집으로 가는 길을 여는 중…</div>
+  <div id="loaderMsg"><span class="line">당신의 집으로 가는 길을 여는 중…</span></div>
   <div id="jetTrack"><img src="EG_jet01.webp" alt="Salon d'Eungyo Air"></div>
   <audio id="jetSound" src="jet_sound.mp3" preload="auto"></audio>
 </div>
