@@ -106,27 +106,34 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
       var PUB = SUPA_URL + "/storage/v1/object/public/tour-assets/loader/";
       var V   = "?v=" + Math.floor(Date.now()/60000);
 
-      /* 하늘 — #skyDrift::before가 그리므로 CSS로 갈아 끼운다 */
-      var sky = new Image();
-      sky.onload = function(){
-        var st = document.createElement("style");
-        st.textContent = "#skyDrift::before{background-image:url('" + sky.src + "');}";
-        document.head.appendChild(st);
-      };
-      sky.src = PUB + "sky_" + p + ".webp" + V;    /* onerror = 아무것도 안 함 → 기본 하늘 */
+      /* ⚠⚠ 0805밤 방향 반전 — 「기본판 먼저, 성공하면 교체」가 낮 화면 번쩍임을 낳았다.
+         sky_n이 259KB로 제일 무거워 하필 밤에 제일 오래 낮이 보였다(소로 실측).
+         이제 「위상판을 즉시 지목, 실패했을 때만 기본판」이다. 그림이 오기 전에는
+         밑의 밤남색 그라디언트가 하늘 노릇을 한다 — 빈 것은 무해하고 틀린 것이 해롭다.
+         폴백이 기본값(AE)이라는 조항은 그대로다. 폴백의 「때」만 성공→실패로 옮겼다. */
 
-      /* 비행기 — 시간대마다 다른 기종이 뜬다(0805 소로: 밤에는 다른 기종으로) */
-      var jet = new Image();
-      jet.onload = function(){
-        var swap = function(){
-          var el = document.querySelector("#jetTrack img");
-          if(el) el.src = jet.src;
-        };
-        if(document.readyState === "loading")
-          document.addEventListener("DOMContentLoaded", swap, { once:true });
-        else swap();
+      /* 하늘 — 위상판을 즉시 CSS로 박고, 못 받으면 기본 하늘로 되돌린다 */
+      var skyUrl = PUB + "sky_" + p + ".webp" + V;
+      var skySt = document.createElement("style");
+      skySt.textContent = "#skyDrift::before{background-image:url('" + skyUrl + "');}";
+      document.head.appendChild(skySt);
+      var skyChk = new Image();
+      skyChk.onerror = function(){ skySt.remove(); };   /* 판이 없으면 CSS의 loader_sky로 */
+      skyChk.src = skyUrl;
+
+      /* 비행기 — 요소가 서는 즉시 위상 기종을 지목한다. 기다렸다 바꾸지 않는다.
+         못 받으면 onerror가 기본 기종으로 되돌린다 — 잠깐 비는 쪽이 틀린 기종보다 낫다 */
+      var jetUrl = PUB + "jet_" + p + ".webp" + V;
+      var dressJet = function(){
+        var el = document.querySelector("#jetTrack img");
+        if(!el) return;
+        var back = el.src;                              /* EG_jet01.webp — 기본 기종 */
+        el.onerror = function(){ el.onerror = null; el.src = back; };
+        el.src = jetUrl;
       };
-      jet.src = PUB + "jet_" + p + ".webp" + V;    /* onerror = 기본 기종 그대로 */
+      if(document.readyState === "loading")
+        document.addEventListener("DOMContentLoaded", dressJet, { once:true });
+      else dressJet();
     })();
 
     /* ⚠⚠ 이 스크립트는 문서 25번째 줄에서 돌고 #loaderMsg는 1200줄 아래에 있다.

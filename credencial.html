@@ -3,6 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<script>
+/* ⚠⚠ 0805밤 — 표지색 번쩍임 제거. 기본 파랑(member)이 먼저 칠해지고 DB 왕복 뒤에
+   제 색으로 갈리는 구조라, 콩파뇽은 열 때마다 파랑→자주가 번쩍였다(소로 실측).
+   지난번 색을 기억해 뒀다가 CSS가 읽히기도 전에 입힌다 — 같은 임자가 다시 열 때
+   티어가 바뀌어 있을 일은 거의 없다. 첫 방문만 기본색으로 뜨고, 그 뒤로는 늘 제 색이다.
+   load()가 진짜 티어를 받으면 다시 한 번 맞추고 기억을 갱신한다(아래 442행 근처). */
+try{
+  var c = localStorage.getItem('eg_cover');
+  if(c && /^#[0-9A-Fa-f]{6}$/.test(c))
+    document.documentElement.style.setProperty('--cover', c);
+}catch(e){}
+</script>
 <title>EG Credencial</title>
 <style>
 :root{
@@ -439,7 +451,9 @@ async function load(){
   me = u || { nickname:'', tier:'member', created_at:new Date().toISOString() };
   me.photo = `https://cyhlotwdisjvoxvfkpnd.supabase.co/storage/v1/object/public/avatars/${session.user.id}/avatar.webp`;
   $('#coverWho').textContent = me.nickname || '';
-  document.documentElement.style.setProperty('--cover', COVER[me.tier] || COVER._default);
+  const coverC = COVER[me.tier] || COVER._default;
+  document.documentElement.style.setProperty('--cover', coverC);
+  try{ localStorage.setItem('eg_cover', coverC); }catch(e){}   /* 다음에 열 때 번쩍임 없이 */
 
   const { data:rows } = await sb.from('stamps')
     .select('inscription,stamped_at,rot,dx,dy,ink_alpha,art_url,stamp_kinds(shape,ink,art_url,with_time,inscribe_out)')
