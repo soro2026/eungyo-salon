@@ -67,8 +67,9 @@ html,body{height:100%;background:#0d0a07;color:#e8ddc4;
 #frame{position:absolute;display:grid;place-items:center;}
 /* ⚠ 0804 실전에서 잡은 병 — 작품 webp는 금박 액자·명패까지 구워진 채 둘레가 투명하다.
    셸이 바탕·테두리를 얹으면 투명이 까맣게 메워진다(이중 액자). 셸은 아무것도 입히지 않는다.
-   그림자만 drop-shadow로 — box-shadow와 달리 알파 윤곽(액자 모양)을 따라간다. */
-#artImg{max-width:100%;max-height:100%;display:block;cursor:zoom-in;
+   그림자만 drop-shadow로 — box-shadow와 달리 알파 윤곽(액자 모양)을 따라간다.
+   0805 — 상자(hangBox)가 이미 그림 비율이므로 그림이 상자를 꽉 채운다. */
+#artImg{width:100%;height:100%;display:block;cursor:zoom-in;
   filter:drop-shadow(0 10px 30px rgba(0,0,0,.5)) drop-shadow(0 2px 8px rgba(0,0,0,.4));}
 #artImg.noart{display:none;}
 
@@ -235,7 +236,7 @@ body.standalone .view.on ~ #backBtn{display:block;}
   <div id="zoomCap"></div>
 </div>
 
-<div id="editToggle" onclick="toggleEdit()">✎ 액자 맞추기</div>
+<div id="editToggle" onclick="toggleEdit()">✎ 걸이·명패 맞추기</div>
 <div id="editInfo"></div>
 <div id="editBar">
   <button class="btn" onclick="saveRect()">저장</button>
@@ -277,7 +278,7 @@ const BUCKET='tour-assets';
 const asset=(code,slot)=>`${SUPA_URL}/storage/v1/object/public/${BUCKET}/galerie/${code}_${slot}.webp`;
 const HALL_RATIO=941/1672;                     /* 방 그림 가로/세로 (9:16) */
 const $=s=>document.querySelector(s);
-console.log("%c[EG] galerie v1.6 · 0805 명패 분리 · 우측 도킹 4겹 · 나가기 단일화", "color:#c9a24a");
+console.log("%c[EG] galerie v1.8 · 0805 걸이 기준(등면적) · 착지 고정 · 편집 정렬", "color:#c9a24a");
 
 const qs=new URLSearchParams(location.search);
 const CODE=qs.get('code')||'orsay';
@@ -363,11 +364,23 @@ function stampHere(){
 }
 
 /* 그림 후보를 차례로 걸어 본다 — 저녁이 없으면 낮으로 */
-function bgChain(el, cands, asImg){
+function bgChain(el, cands, asImg, opt){
+  opt = opt || {};
+  const cors = !!opt.cors;
+  if(asImg && cors) el.crossOrigin='anonymous';
   const step=i=>{
-    if(i>=cands.length) return;
+    if(i>=cands.length){
+      /* 교차출처로 다 실패했으면 맨살로 한 번 더 — 그림이 안 뜨는 것보다
+         잉크 자동이 쉬는 편이 낫다(함정 AE) */
+      if(cors){ el.removeAttribute('crossorigin'); bgChain(el, cands, asImg, {}); }
+      return;
+    }
     const im=new Image();
-    im.onload=()=>{ asImg ? el.src=im.src : el.style.backgroundImage=`url(${im.src})`; };
+    if(cors) im.crossOrigin='anonymous';
+    im.onload=()=>{
+      asImg ? el.src=im.src : el.style.backgroundImage=`url(${im.src})`;
+      if(opt.ready) opt.ready(im);
+    };
     im.onerror=()=>step(i+1);
     im.src=cands[i];
   };
@@ -413,7 +426,8 @@ async function boot(){
   $('#hName').textContent = (HALL.meta&&HALL.meta.name_en) || HALL.name;
 
   /* 전시실 — 실내도 밤낮 4벌 (음악관과 다른 곳) */
-  bgChain($('#hallImg'), [asset(HALL.code,'hall_'+t), asset(HALL.code,'hall_d')], true);
+  bgChain($('#hallImg'), [asset(HALL.code,'hall_'+t), asset(HALL.code,'hall_d')], true,
+          { cors:true, ready:readWall });
   hangArt();
 
   $('#gate').classList.add('on');
@@ -441,12 +455,37 @@ async function loadMyRent(){
   MY_RENT = (data && data[0]) ? { item_id:data[0].item_id, name:data[0].heritage_items.name } : null;
 }
 
-/* ── 작품 걸기 ── */
+/* ── 작품 걸기 ──────────────────────────────────────────────
+   0805 소로 — frame_rect의 뜻이 바뀌었다. 「가두는 그릇」이 아니라 「걸이 기준」이다.
+   그림은 상자에 갇히지 않고, 상자와 같은 면적으로 상자 한가운데 걸린다.
+   비율은 그림 것을 따른다 — 가로 그림은 넓고 낮게, 세로 그림은 좁고 높게.
+   두 그림의 무게(면적)가 같아지므로 그림이 매일 바뀌어도 다시 맞출 일이 없다.
+   실제 미술관이 눈높이 한 줄에 거는 방식. DB는 한 글자도 안 바뀌었다 — 읽는 법만 바뀌었다.
+
+   ⚠ 그림이 아직 안 왔으면(naturalWidth 0) 상자 크기 그대로 둔다 — 폴백이 기본값(AE).
+   ⚠ 등면적 환산은 화면 비율이 아니라 그림판(HALL_RATIO 941:1672) 좌표에서 한다.
+     %끼리 곱하면 판이 세로로 길다는 사실이 지워져 가로 그림이 부풀어 보인다. */
 function applyRect(){
   const f=$('#frame');
-  f.style.left=RECT.L+'%'; f.style.top=RECT.T+'%';
-  f.style.width=RECT.W+'%'; f.style.height=RECT.H+'%';
+  const g=hangBox();
+  f.style.left=g.L+'%'; f.style.top=g.T+'%';
+  f.style.width=g.W+'%'; f.style.height=g.H+'%';
   placePlaque();
+}
+/* 걸이 기준(RECT) + 그림 비율 → 실제로 앉을 상자. 중심은 절대 안 움직인다.
+   편집 중에는 기준 그대로 — 소로가 맞추는 것은 그림이 아니라 기준이다. */
+function hangBox(){
+  if(editing) return {...RECT};
+  const im=$('#artImg');
+  const iw=im && im.naturalWidth, ih=im && im.naturalHeight;
+  if(!iw || !ih || im.classList.contains('noart')) return {...RECT};
+  const PW=941, PH=1672;                      /* 그림판 px — HALL_RATIO의 몸 */
+  const bw=RECT.W/100*PW, bh=RECT.H/100*PH;   /* 기준 상자 px */
+  const r=iw/ih;
+  const h=Math.sqrt(bw*bh/r), w=h*r;          /* 같은 면적 · 그림 비율 */
+  const cx=RECT.L+RECT.W/2, cy=RECT.T+RECT.H/2;
+  const W=w/PW*100, H=h/PH*100;
+  return { L:cx-W/2, T:cy-H/2, W, H };
 }
 function placePlaque(){
   const p=$('#plaque');
@@ -455,13 +494,65 @@ function placePlaque(){
   p.style.left=x+'%';
   p.style.top=y+'%';
 }
+/* ══ 명패 잉크 — 벽을 재서 대비가 큰 쪽을 고른다 (0805 소로)
+   프라도처럼 흰 벽에 상아색을 얹으면 글자가 벽에 먹힌다. 관마다 고정값을 박는
+   방식은 명패를 옮길 수 있게 된 순간 무너진다 — 같은 관에도 밝은 곳과 어두운 곳이
+   있고, 실내 그림이 밤낮 4벌이라 프라도 벽도 밤에는 어두워진다.
+   ⚠ 폴백이 기본값이다(AE): 못 재면 meta.plaque_ink → 그것도 없으면 상아색. ══ */
+let WALL=null;                       /* 벽을 120px로 줄여 담은 캔버스 — 한 번만 그린다 */
+const INK_IVORY=0.82, INK_DARK=0.02; /* #f2ead6 · #2a2318 의 상대 휘도 */
+
+function readWall(im){
+  try{
+    const W=120, H=Math.max(1, Math.round(120*im.naturalHeight/im.naturalWidth));
+    const c=document.createElement('canvas'); c.width=W; c.height=H;
+    const g=c.getContext('2d',{willReadFrequently:true});
+    g.drawImage(im,0,0,W,H);
+    WALL={g,W,H};
+    paintPlaqueInk();
+  }catch(e){ WALL=null; console.warn('[EG] 벽을 못 그렸습니다 — 고정값으로 갑니다:',e); }
+}
+function lum8(r,g,b){
+  const f=v=>{ v/=255; return v<=.04045 ? v/12.92 : Math.pow((v+.055)/1.055,2.4); };
+  return .2126*f(r)+.7152*f(g)+.0722*f(b);
+}
+function contrast(a,b){ const hi=Math.max(a,b), lo=Math.min(a,b); return (hi+.05)/(lo+.05); }
+
+/* 명패가 앉은 곳의 벽만 잰다 — 관 전체 평균이 아니다 */
+function wallLum(){
+  if(!WALL) return null;
+  try{
+    const x = PLQ ? PLQ.X : (RECT.L+RECT.W/2);
+    const y = PLQ ? PLQ.Y : (RECT.T+RECT.H+1.6);
+    const x0=Math.max(0,Math.round((x-9)/100*WALL.W)),  x1=Math.min(WALL.W,Math.round((x+9)/100*WALL.W));
+    const y0=Math.max(0,Math.round((y-0.5)/100*WALL.H)), y1=Math.min(WALL.H,Math.round((y+6)/100*WALL.H));
+    if(x1<=x0 || y1<=y0) return null;
+    const d=WALL.g.getImageData(x0,y0,x1-x0,y1-y0).data;
+    let s=0,n=0;
+    for(let i=0;i<d.length;i+=4){ s+=lum8(d[i],d[i+1],d[i+2]); n++; }
+    return n ? s/n : null;
+  }catch(e){
+    /* 교차출처면 여기서 처음 걸린다 — drawImage는 통과하고 getImageData가 막는다 */
+    WALL=null; console.warn('[EG] 벽 읽기 막힘(교차출처) — 고정값으로 갑니다:',e); return null;
+  }
+}
+function paintPlaqueInk(){
+  let dark = !!(HALL && HALL.meta && HALL.meta.plaque_ink==='dark');   /* 폴백 먼저 */
+  const L = wallLum();
+  if(L!=null) dark = contrast(L,INK_DARK) > contrast(L,INK_IVORY);     /* 재졌으면 갈아 끼움 */
+  $('#plaque').classList.toggle('dark', dark);
+  return L;
+}
+
 function hangArt(){
   applyRect();
-  /* 흰 벽 관은 먹색 새김 (meta.plaque_ink='dark') */
-  $('#plaque').classList.toggle('dark', !!(HALL.meta && HALL.meta.plaque_ink==='dark'));
+  paintPlaqueInk();
   const im=$('#artImg');
   if(ART && ART.img){
     im.classList.remove('noart');
+    /* 그림 크기(naturalWidth)는 로드가 끝나야 안다 — 그 순간 등면적으로 다시 건다.
+       착지는 흔들리지 않는다: 카메라는 걸이 기준(RECT) 중심을 보지 상자를 안 본다. */
+    im.onload=()=>{ applyRect(); };
     im.src=ART.img;
     im.onclick=openZoom;
     $('#pName').textContent=ART.name||'';
@@ -495,6 +586,8 @@ function enterHall(){
     $('#gate').classList.remove('on');
     $('#hall').classList.add('on');
 
+    /* ⚠ 착지는 걸이 기준(RECT)이다 — hangBox(그림 따라 변하는 상자)가 아니다.
+       그래서 그림이 바뀌어도, 그림이 로드 중이어도 착지 화면은 영영 같다(0805). */
     const opts={ box:'#hall', fit:'#hallFit', ratio:HALL_RATIO, rect:RECT,
       onDone(){
         /* 도장은 카메라가 안착한 뒤에(9-1) — 도는 동안 뜨면 흐름이 끊긴다.
@@ -596,15 +689,27 @@ function toggleEdit(){
   $('#plaque').classList.toggle('editing', editing);
   $('#editBar').classList.toggle('show', editing);
   $('#editInfo').classList.toggle('show', editing);
-  $('#editToggle').textContent = editing ? '✎ 맞추는 중' : '✎ 액자·명패 맞추기';
+  $('#editToggle').textContent = editing ? '✎ 맞추는 중' : '✎ 걸이·명패 맞추기';
+  /* 편집 중에는 걸이 기준 상자를 그대로 보인다 — 맞추는 대상은 오늘 그림이 아니라
+     기준이다. 끝내면 오늘 그림이 등면적으로 되걸린다. */
+  applyRect();
+  /* ⭐ 켜는 순간 손님의 착지 화면으로 먼저 데려간다(0805 소로).
+     맞추는 화면 = 손님이 입장해 보는 화면. 이게 어긋나 있어서
+     저장할 때마다 「어라, 딴 데네」가 났다. 끌 때도 한 번 더 앉힌다. */
+  if(window.EGCamera) EGCamera.settle({ box:'#hall', fit:'#hallFit',
+    ratio:HALL_RATIO, rect:RECT });
   if(editing) paintInfo();
 }
 function paintInfo(){
   const x = PLQ ? PLQ.X : (RECT.L+RECT.W/2);
   const y = PLQ ? PLQ.Y : (RECT.T+RECT.H+1.6);
+  const L = wallLum();
+  const ink = $('#plaque').classList.contains('dark') ? '먹색' : '상아색';
+  const wall = (L==null) ? '못 잼 → 고정값' : `밝기 ${L.toFixed(2)}`;
   $('#editInfo').innerHTML =
     `액자 &nbsp;L ${RECT.L.toFixed(2)} · T ${RECT.T.toFixed(2)} · W ${RECT.W.toFixed(2)} · H ${RECT.H.toFixed(2)}`
-    + `<br>명패 &nbsp;X ${x.toFixed(2)} · Y ${y.toFixed(2)}${PLQ?'':'  (액자를 따라가는 중)'}`;
+    + `<br>명패 &nbsp;X ${x.toFixed(2)} · Y ${y.toFixed(2)}${PLQ?'':'  (액자를 따라가는 중)'}`
+    + `<br>벽 &nbsp;${wall} → ${ink}`;
 }
 function fitH(){ return $('#hallFit').getBoundingClientRect(); }
 
@@ -624,7 +729,7 @@ function fitH(){ return $('#hallFit').getBoundingClientRect(); }
     RECT.T=Math.min(100-RECT.H, Math.max(0, drag.T+(e.clientY-drag.y)/r.height*100));
     applyRect(); paintInfo();
   });
-  f.addEventListener('pointerup', ()=>{ drag=null; });
+  f.addEventListener('pointerup', ()=>{ drag=null; if(!PLQ){ paintPlaqueInk(); paintInfo(); } });
 
   const h=$('#eHandle'); let rs=null;
   h.addEventListener('pointerdown', e=>{
@@ -657,7 +762,7 @@ function fitH(){ return $('#hallFit').getBoundingClientRect(); }
     PLQ.Y=Math.min(99,  Math.max(0, pd.Y+(e.clientY-pd.y)/r.height*100));
     placePlaque(); paintInfo();
   });
-  q.addEventListener('pointerup', ()=>{ pd=null; });
+  q.addEventListener('pointerup', ()=>{ pd=null; paintPlaqueInk(); paintInfo(); });
 })();
 
 async function saveRect(){
@@ -672,7 +777,7 @@ async function saveRect(){
   const got=chk && chk.meta && chk.meta.frame_rect;
   if(got && Math.abs(got.L-rect.L)<0.01){
     HALL.meta=chk.meta; RECT0={...rect}; PLQ0 = PLQ ? {...PLQ} : null;
-    toast('저장했습니다 ✔ 이 관의 모든 그림이 이 곳에 걸립니다');
+    toast('저장했습니다 ✔ 이 관의 모든 그림이 이 기준으로 걸립니다');
   }else toast('저장은 했으나 확인이 어긋납니다 — 새로고침해 보세요');
 }
 function resetRect(){
