@@ -85,8 +85,17 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   pointer-events:none;mix-blend-mode:multiply}
 .ins .t{font-size:8.5px;font-weight:600;line-height:1.25;white-space:normal;
   padding:0 2px;overflow-wrap:anywhere}
+/* ⭐ 0805 — 도장 안에 앉는 각인은 칸을 좁힌다.
+   ⚠ 안 좁혔더니 「카스파르 다비트 프리드리히」가 한 줄로 뻗어 육각 벽을 뚫었다.
+     .ins가 left:0;right:0라 도장 폭(125px)을 다 쓰는데, 육각 안쪽 실폭은 98px뿐이다.
+     overflow-wrap:anywhere는 「한 덩어리가 칸보다 길 때」만 끊으므로, 공백 있는 이름은
+     칸이 넓으면 안 접힌다. 칸을 좁히면 공백에서 저절로 두 줄이 된다.
+   ⚠ 22%는 육각(125×116)에서 나온 값이다. 다른 판형을 안쪽 각인으로 돌리면 다시 잴 것. */
+.stamp .ins.inside{left:22%;right:22%}
 .ins .d{font-family:"Courier New","Nanum Gothic Coding",Menlo,monospace;
   font-size:9.5px;font-weight:700;letter-spacing:.6px}
+/* 날짜가 도장 밖에 홀로 앉을 때 — 안쪽 각인 갈래에서만 쓰인다 */
+.stamp .ins.dateout{left:0;right:0}
 
 /* 명의 · 안내 */
 .plate2{position:absolute;left:34px;right:34px;top:58px;bottom:52px;
@@ -355,26 +364,39 @@ function drawPage(field, pi){
     const at = new Date(it.stamped_at);
     let dstr = `${at.getFullYear()}.${pad(at.getMonth()+1)}.${pad(at.getDate())}`;
     if(it.with_time) dstr += ` ${pad(at.getHours())}:${pad(at.getMinutes())}`;
-    const iy = Math.round(it.h * (it.inscribe_out ? 1.04 : 0.72));
+    const iy = Math.round(it.h * (it.inscribe_out ? 1.04 : 0.70));
     const el = document.createElement('div');
     el.className = 'stamp';
     el.style.cssText = `width:${it.w}px;height:${it.h}px;left:${bx.toFixed(1)}px;top:${by.toFixed(1)}px;`
       + `transform:rotate(${(it.rot||0).toFixed(1)}deg);opacity:${(it.ink_alpha||.8).toFixed(2)}`;
+    /* ⭐ 0805 — 각인이 도장 안에 앉는 갈래(천문대)는 이름과 날짜를 갈라놓는다.
+       흰 곳은 「그날 만난 사람」을 위해 비워둔 곳이지 날짜를 위한 곳이 아니다.
+       이름만 안에 두 줄로 앉히고, 날짜는 세 우주 통일로 도장 밑에 내린다.
+       ⚠ 밖에 앉는 갈래(음악관·미술관)는 손대지 않는다 — 한 덩어리 그대로다. */
     el.innerHTML =
       `<div class="ink" style="-webkit-mask-image:url('${esc(it.art_url)}');mask-image:url('${esc(it.art_url)}');background:${esc(it.ink)}"></div>`
-      + `<div class="ins" style="color:${esc(it.ink)};top:${iy}px">`
-      + (it.inscription ? `<div class="t">${esc(it.inscription)}</div>` : '')
-      + `<div class="d">${dstr}</div></div>`;
+      + (it.inscribe_out
+          ? `<div class="ins" style="color:${esc(it.ink)};top:${iy}px">`
+            + (it.inscription ? `<div class="t">${esc(it.inscription)}</div>` : '')
+            + `<div class="d">${dstr}</div></div>`
+          : (it.inscription
+              ? `<div class="ins inside" style="color:${esc(it.ink)};top:${iy}px">`
+                + `<div class="t">${esc(it.inscription)}</div></div>` : '')
+            + `<div class="ins dateout" style="color:${esc(it.ink)};top:${Math.round(it.h*1.04)}px">`
+            + `<div class="d">${dstr}</div></div>`);
     /* ⭐ 0805 — 각인을 잉크 바로 밑에 붙인다.
        그림이 칸에 contain으로 가운데 앉으므로, 납작한 그림이면 칸 아래가 비어
        각인과 잉크 사이가 벌어졌다. 그림을 재서 실제로 잉크가 끝나는 데(+3px)에 붙인다.
-       재기 전까지는 위의 1.04 폴백이 서 있다 — 폴백이 먼저다(함정 AE). */
-    if (it.inscribe_out){
+       재기 전까지는 위의 1.04 폴백이 서 있다 — 폴백이 먼저다(함정 AE).
+       ⚠ 안쪽 각인 갈래(천문대)에서는 .dateout만 민다. .inside는 도장 안에 앉아야 하므로
+         잉크 바닥으로 내리면 흰 곳을 벗어난다. 선택자를 갈라 쓰는 까닭이다. */
+    {
+      const target = it.inscribe_out ? '.ins' : '.ins.dateout';
       const probe = new Image();
       probe.onload = () => {
         const s = Math.min(it.w / probe.naturalWidth, it.h / probe.naturalHeight);
         const bottom = (it.h + probe.naturalHeight * s) / 2;      /* 가운데 앉은 그림의 바닥 */
-        const ins = el.querySelector('.ins');
+        const ins = el.querySelector(target);
         if (ins) ins.style.top = Math.round(bottom + 3) + 'px';
       };
       probe.src = it.art_url;
