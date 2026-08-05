@@ -1121,6 +1121,7 @@ body.has-salon-bg .floor1-header {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="stamp_press.js?v=0805a"></script>
 <script>
 const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
 const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
@@ -1180,6 +1181,54 @@ async function init() {
   await checkHolder(starId);
   // 3층 Star & Company — 콩파뇽 명패 벽
   await loadCompanions(starId);
+  // ⭐ EG Credencial — 천문대 체류 도장 (0805) · 화면이 다 앉은 뒤 마지막에
+  stampHere(params.get('obs'));
+}
+
+/* ── 0805. 입국이 먼저다 (결정문 7호) — 미술관·음악관과 같은 관문 ──
+   천문대 입국은 constella.html이 밤하늘 열릴 때 놓는다. 손님이 입국을 아직 안
+   받았다면(예: 첫날 흡입 직후 곧장 별을 눌러 여기까지 온 경우) 체류가 앞지르면
+   안 된다 — 미술관에서 터진 그 사고의 세 번째 형제가 될 곳이다.
+   ⚠⚠ 막지 않는 경우 둘 — 손님이 아닐 때, 구워진 입국 판이 없을 때.
+     둘 다 막으면 아무것도 안 나타난다. 폴백은 조건부가 아니라 기본값(함정 AE).
+   ⚠ 판 코드를 박지 않는다. area+family로 찾는다. art_url 조건은 부품 findKind와
+     한 글자도 다르지 않게 — 어긋나면 셸은 있다 하고 부품은 없다 한다.          */
+async function intrareDone(area){
+  try{
+    const { data:{ user } } = await supa.auth.getUser();
+    if(!user) return true;
+    const { data:ks } = await supa.from('stamp_kinds')
+      .select('code').eq('area', area).eq('family','intrare')
+      .eq('active', true).not('art_url','is',null).limit(1);
+    const code = ks && ks[0] && ks[0].code;
+    if(!code) return true;
+    const { count } = await supa.from('stamps')
+      .select('id', { count:'exact', head:true })
+      .eq('user_id', user.id).eq('kind_code', code);
+    return !!count;
+  }catch(e){ console.warn('[EG] 입국 확인 실패 — 막지 않습니다:', e); return true; }
+}
+
+/* ── 0805. 체류 도장 — 알베르게 원칙. 몸통 = 거쳐 온 천문대 · 각인 = 이 별 ──
+   obsCode는 constella가 실어 온 경유 표식(?obs=사하라). 타륜에서 곧장 온 손님은
+   없고, 그러면 입국 폴백만 돈다 — 천문대를 거치지 않은 탐구에 천문대 도장은 없다.
+   ⭐ subject = 별 id (once_per_subject) — 한 별은 평생 한 번. 같은 별을 어느
+     천문대에서 다시 눌러도 조용하다. 「그날의 첫 별」은 daily_per_area가 정한다 —
+     먼저 찍힌 것이 그날의 것. 별도 장치가 없어도 규칙 겹침이 「첫」을 만든다(0805).
+   ⚠ 각인은 찍는 순간 복사(15호) — 별 이름이 바뀌어도 이 도장은 그날의 이름이다.
+   ⚠ 잘못된 obs(원판 없는 코드)면 부품 findKind가 못 찾아 조용히 아무 일도 없다 —
+     병이 아니라 30호. 다만 콘솔에서 그림을 걸었는지 먼저 의심할 것.              */
+function stampHere(obsCode){
+  if(!window.EGStamp) return;
+  const opt = { supa: supa, area:'observatorium', bottom: 96 };
+  intrareDone('observatorium').then(done=>{
+    if(done && obsCode && currentStar){
+      opt.kind = 'obs_' + obsCode;
+      opt.subject = String(currentStar.id);
+      opt.inscription = currentStar.name || '';
+    }
+    EGStamp.offer(opt);
+  });
 }
 
 // ── 별 데이터 로드 ──────────────────────────────────────────────
