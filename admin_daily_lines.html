@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>오늘의 한 줄 — EG 관리</title>
 <!--
- *  admin_daily_lines.html v1.1 — ⏱ 날짜별 미리보기(0805) — 0805
+ *  admin_daily_lines.html v1.3 — ⏱ 미리보기 · ✈ 비행 자산 8칸 투척함(0805) — 0805
  *  EG 로딩 화면(terra.html)의 「오늘의 한 줄」 관리 콘솔.
  *
  *  ⭐ 하루 하나 고정이다. 무작위 뽑기가 아니다.
@@ -111,6 +111,25 @@
   .msg{margin:16px 0;font-size:12.5px;min-height:18px}
   .msg.ok{color:var(--ok)} .msg.err{color:var(--danger)}
   .empty{padding:34px;text-align:center;color:var(--dim);background:var(--panel)}
+
+  /* ── ✈ 비행 화면 자산 (0805) — 하늘 4 · 비행기 4. Storage에 살고 깃허브를 안 거친다 ── */
+  .assets{border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin-top:34px;background:var(--panel)}
+  .assets h2{font-family:var(--serif);font-size:16px;font-weight:400;letter-spacing:.06em;margin:0 0 4px}
+  .assets .asub{color:var(--dim);font-size:11.5px;line-height:1.7;margin-bottom:16px}
+  .agrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  @media(max-width:640px){.agrid{grid-template-columns:repeat(2,1fr)}}
+  .aslot{border:1px dashed var(--line);border-radius:8px;padding:8px;cursor:pointer;
+    text-align:center;transition:border-color .15s;background:#0c1424}
+  .aslot:hover{border-color:var(--gold-soft)}
+  .aslot .alabel{font-size:11px;letter-spacing:.1em;color:var(--dim);margin-bottom:7px}
+  .aslot .athumb{width:100%;aspect-ratio:16/9;border-radius:5px;background:#070c18;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;
+    color:var(--dim);font-size:11px}
+  .aslot .athumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .aslot .athumb.jet{background:
+    repeating-conic-gradient(#101a2e 0 25%, #0c1424 0 50%) 0 0/18px 18px}
+  .aslot .athumb.jet img{object-fit:contain}
+  .aslot.busy{opacity:.5;pointer-events:none}
 </style>
 </head>
 <body>
@@ -146,6 +165,17 @@
 
   <div class="msg" id="msg"></div>
   <div class="list" id="list"><div class="empty">불러오는 중…</div></div>
+
+  <div class="assets">
+    <h2>✈ 비행 화면 자산</h2>
+    <div class="asub">
+      로딩 화면의 하늘과 비행기입니다. 칸을 눌러 <b>아무 이름의 PNG·JPG·webp</b>를 던지면 콘솔이 webp로 구워 <b>그 자리에서 갈립니다</b> — 깃허브를 안 거칩니다.<br>
+      비어 있는 시간대는 기본 하늘·기본 기종이 대신 섭니다. 손님에게는 1분 안에 닿습니다.<br>
+      하늘: 가로 넉넉한 판(1920×1080 권장) · 비행기: <b>투명 배경</b> PNG면 충분합니다 — 투명은 굽는 중에도 안 상합니다
+    </div>
+    <div class="agrid" id="aGrid"></div>
+    <input type="file" id="aFile" accept="image/*" style="display:none">
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -350,6 +380,99 @@ $('#ttFly').onclick = ()=>{
   window.open('terra.html?ttline=' + v, '_blank');
 };
 $('#ttDate').value = dayToDate(kstDay());
+
+/* ══ ✈ 비행 화면 자산 (0805) ══
+   tour-assets/loader/{sky|jet}_{m,d,e,n}.webp — terra 로더가 이 주소를 먼저 두드린다.
+   ⚠ upsert:true — 같은 이름에 덮어쓴다. 갈아 끼우는 것이 이 칸의 존재 이유다.
+   ⚠ webp 그대로 올린다. 도장과 달리 알파 가공이 필요 없다 — 하늘은 불투명,
+     비행기는 소로가 투명으로 구워 온다. 콘솔이 손대면 오히려 망친다. */
+const A_PUB = SUPA_URL + '/storage/v1/object/public/tour-assets/loader/';
+const A_SLOTS = [
+  { key:'sky_m', label:'하늘 · 아침',   kind:'sky' },
+  { key:'sky_d', label:'하늘 · 한낮',   kind:'sky' },
+  { key:'sky_e', label:'하늘 · 노을',   kind:'sky' },
+  { key:'sky_n', label:'하늘 · 한밤',   kind:'sky' },
+  { key:'jet_m', label:'비행기 · 아침', kind:'jet' },
+  { key:'jet_d', label:'비행기 · 한낮', kind:'jet' },
+  { key:'jet_e', label:'비행기 · 노을', kind:'jet' },
+  { key:'jet_n', label:'비행기 · 한밤', kind:'jet' }
+];
+let A_TARGET = null;
+
+function drawAssets(){
+  const g = $('#aGrid'); g.innerHTML = '';
+  A_SLOTS.forEach(s=>{
+    const el = document.createElement('div');
+    el.className = 'aslot'; el.dataset.key = s.key;
+    const lb = document.createElement('div');
+    lb.className = 'alabel'; lb.textContent = s.label;
+    const th = document.createElement('div');
+    th.className = 'athumb' + (s.kind==='jet' ? ' jet' : '');
+    const im = new Image();
+    im.onload = ()=>{ th.textContent=''; th.appendChild(im); };
+    im.onerror = ()=>{ th.textContent = '비어 있음 — 기본 판이 섭니다'; };
+    im.src = A_PUB + s.key + '.webp?v=' + Date.now();
+    el.append(lb, th);
+    el.onclick = ()=>{ A_TARGET = s; $('#aFile').click(); };
+    g.appendChild(el);
+  });
+}
+/* ⭐ 굽는 곳 — 미술관 투척함 문법(admin_galerie_assets) 이식.
+   아무 이름·아무 형식(png/jpg/webp)을 던져도 webp로 구워 정해진 이름으로 앉힌다.
+   칸이 이름을 아니까 파일명은 아무래도 좋다.
+   ⚠ 비행기는 알파가 생명 — webp 알파는 무손실이라(결정문 5호) 투명이 안 상한다.
+     하늘은 1920 기준으로 줄이고, 비행기는 원 크기 유지(긴 변 1600 상한). */
+async function readBitmap(file){
+  if(window.createImageBitmap){
+    try{ return await createImageBitmap(file); }catch(e){}
+  }
+  return await new Promise((res,rej)=>{
+    const url=URL.createObjectURL(file); const im=new Image();
+    im.onload=()=>{ URL.revokeObjectURL(url); res(im); };
+    im.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error('그림을 열지 못했습니다')); };
+    im.src=url;
+  });
+}
+function canvasBlob(cv,q){
+  return new Promise(res=>{ cv.toBlob ? cv.toBlob(b=>res(b),'image/webp',q) : res(null); });
+}
+async function bakeAsset(file, kind){
+  const bmp=await readBitmap(file);
+  const sw=bmp.width, sh=bmp.height;
+  const MAX = kind==='sky' ? 1920 : 1600;
+  const s=Math.min(1, MAX/Math.max(sw,sh));
+  const cw=Math.round(sw*s), ch=Math.round(sh*s);
+  const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
+  const cx=cv.getContext('2d');
+  cx.imageSmoothingEnabled=true; cx.imageSmoothingQuality='high';
+  cx.drawImage(bmp,0,0,cw,ch);
+  if(bmp.close) bmp.close();
+  let q=0.90, blob=await canvasBlob(cv,q);
+  while(blob && blob.size>300*1024 && q>0.55){ q-=0.08; blob=await canvasBlob(cv,q); }
+  /* ⚠ webp를 못 굽는 브라우저면 원본 그대로 — 조용히 빈 파일을 올리지 않는다(함정 AE) */
+  if(!blob || blob.type!=='image/webp') return { blob:file, raw:true };
+  return { blob, raw:false };
+}
+$('#aFile').addEventListener('change', async e=>{
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if(!f || !A_TARGET) return;
+  const slotEl = document.querySelector('.aslot[data-key="'+A_TARGET.key+'"]');
+  if(slotEl) slotEl.classList.add('busy');
+  let baked;
+  try{ baked = await bakeAsset(f, A_TARGET.kind); }
+  catch(err){ if(slotEl) slotEl.classList.remove('busy'); say('굽지 못했습니다 — '+err.message); return; }
+  const { error } = await supa.storage.from('tour-assets')
+    .upload('loader/' + A_TARGET.key + '.webp', baked.blob,
+            { upsert:true, contentType:'image/webp', cacheControl:'60' });
+  if(slotEl) slotEl.classList.remove('busy');
+  if(error){ say('올리지 못했습니다 — ' + error.message); return; }
+  /* ⚠ 쓰고 나서 되읽어 확인 — 「잘 됐겠지」 금지. 미리보기가 곧 되읽기다 */
+  say(A_TARGET.label + ' — ' + Math.round(baked.blob.size/1024) + 'KB로 구워 갈아 끼웠습니다'
+      + (baked.raw ? ' (이 브라우저가 webp를 못 구워 원본 그대로)' : ''), true);
+  drawAssets();
+});
+drawAssets();
 </script>
 </body>
 </html>

@@ -19,6 +19,10 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   throw new Error("phone-shell-redirect");   /* 아래 스크립트를 더 읽지 않는다 */
 }
 </script>
+<!-- 0805 소로 — 로딩 하늘·비행기가 넉 벌(m/d/e/n)이 된다. 위상 판정은 egSky 하나가
+     단일 진실이므로 공식을 베끼지 않고 여기서 먼저 싣는다(위상 공식이 사는 곳을 안 늘림).
+     ⚠ 동기 로드라 로더보다 확실히 먼저 선다. 8.5KB — SW가 캐시한다. -->
+<script src="eg_sky.js?v=0805"></script>
 <script>
   const GOOGLE_API_KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A"; // ← 소로님 키 삽입 완료
   // ── Supabase (voyage_markers 도시 핀을 DB에서 읽어옴) ──
@@ -71,6 +75,48 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
         }, { once:true });
       }
     }catch(e){ /* 미리보기 실패는 조용히 — 보통 손님 길에는 아무 일도 없다 */ }
+
+    /* ══ 0805 소로 — 하늘·비행기가 손님의 시간을 입는다 ══
+       내부 인테리어(미술관·음악관·콜레주)가 전부 넉 벌인데 첫 화면만 한 벌이었다.
+
+       ⭐ 자산은 Storage에 산다(0805 소로 — 「주기적으로 갈아 끼우게」).
+         tour-assets/loader/sky_{m,d,e,n}.webp · jet_{m,d,e,n}.webp
+         admin_daily_lines.html의 「비행 화면 자산」 칸에서 던지면 그 자리에서 갈린다.
+         깃허브 업로드가 필요 없다 — 타 도메인이라 서비스워커 캐시도 안 탄다.
+       ⚠ ?v=분 단위 — observatorium과 같은 문법. 갈아 끼우면 1분 안에 손님에게 닿는다.
+       ⚠⚠ 폴백이 기본값(AE): 위상 판을 먼저 두드려 보고, 있을 때만 갈아입는다.
+         없으면 저장소의 loader_sky.webp · EG_jet01.webp가 그대로 선다.
+         넉 장을 다 굽기 전에 열어도 무사하다(크레덴시알 30호 — 없으면 안 나타난다).
+       ⚠ 위상은 egSky.phase() 하나만 묻는다 — 경계를 여기 베끼면 공식이 두 집 살림한다. */
+    (function dressLoader(){
+      var p = null;
+      try{ p = (window.egSky && egSky.phase) ? egSky.phase() : null; }catch(e){}
+      if(!p) return;                               /* eg_sky가 못 실렸으면 한 벌로 간다 */
+      var PUB = SUPA_URL + "/storage/v1/object/public/tour-assets/loader/";
+      var V   = "?v=" + Math.floor(Date.now()/60000);
+
+      /* 하늘 — #skyDrift::before가 그리므로 CSS로 갈아 끼운다 */
+      var sky = new Image();
+      sky.onload = function(){
+        var st = document.createElement("style");
+        st.textContent = "#skyDrift::before{background-image:url('" + sky.src + "');}";
+        document.head.appendChild(st);
+      };
+      sky.src = PUB + "sky_" + p + ".webp" + V;    /* onerror = 아무것도 안 함 → 기본 하늘 */
+
+      /* 비행기 — 시간대마다 다른 기종이 뜬다(0805 소로: 밤에는 다른 기종으로) */
+      var jet = new Image();
+      jet.onload = function(){
+        var swap = function(){
+          var el = document.querySelector("#jetTrack img");
+          if(el) el.src = jet.src;
+        };
+        if(document.readyState === "loading")
+          document.addEventListener("DOMContentLoaded", swap, { once:true });
+        else swap();
+      };
+      jet.src = PUB + "jet_" + p + ".webp" + V;    /* onerror = 기본 기종 그대로 */
+    })();
 
     /* ⚠⚠ 이 스크립트는 문서 25번째 줄에서 돌고 #loaderMsg는 1200줄 아래에 있다.
        캐시가 살아 있으면 fetch가 20ms 만에 돌아와 그때는 아직 그 줄이 안 읽혔다.
