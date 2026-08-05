@@ -180,7 +180,7 @@ input.mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.05em}
 <div id="app" hidden>
 <header>
   <h1>EG <em>Credencial</em></h1>
-  <span class="sub">도장 공방 · v1.7 · 0805 시안 다섯 벌 · WebP · 원판 심기(다섯 우주)</span>
+  <span class="sub">도장 공방 · v1.8 · 0805밤 GROW 표 DB 정합 · 봉인 핀 제외</span>
   <span class="count" id="count"></span>
 </header>
 
@@ -409,20 +409,21 @@ $('#loginBtn').addEventListener('click', async () => {
      지켜지는 한 「오늘은 어디서 받을까」가 생기지 않고 수집표가 되지 않는다(2호).   */
 const GROW = {
   concert: { pre:'mca_', area:'musica',        shape:'square_r', ink:'#6B2D4A', ref:'hall',
-             rules:['daily_per_area'],                        withTime:false, ko:'음악관' },
-  heritage:{ pre:'gal_', area:'peregrinatio',  shape:'rect_v',   ink:'#1F5566', ref:'museum',
-             rules:['daily_per_area'],                        withTime:false, ko:'미술관' },
-  constellatio:{ pre:'obs_', area:'observatorium', shape:'hex',  ink:'#24485C', ref:'observatory',
-             rules:['once_per_subject','daily_per_area'],     withTime:true,  ko:'천문대' },
+             rules:['daily_per_area'],            withTime:false, insOut:true,  ko:'음악관' },
+  heritage:{ pre:'gal_', area:'peregrinatio',  shape:'square_r', ink:'#1F5566', ref:'museum',
+             rules:['daily_per_area'],            withTime:false, insOut:true,  ko:'미술관' },
+  constellatio:{ pre:'obs_', area:'observatorium', shape:'hex',  ink:'#2B3FA0', ref:'observatory',
+             rules:['once_per_subject','daily_per_area'],
+                                                 withTime:false, insOut:false, ko:'천문대' },
   /* 0805 — 한스푼·뮤세움도 곳을 늘려 순회한다.
      한스푼 = 역사적 인물들이 드나든 카페·식당 / 뮤세움 = 세계의 도서관·서점.
      ⚠ 음악관과 갈리는 데: 이 둘은 고를 여지가 없다. 오늘 열린 그 한 곳이 곧 그날의
        한스푼이다. 날수 나머지가 이미 정해둔 것을 만나는 것뿐이라(11호) 더 노력해서
        더 딸 방법이 없다. 곳을 늘리면 순회 길이도 저절로 늘어난다. */
   hansfoon:{ pre:'coc_', area:'cochlear',      shape:'circle',   ink:'#7A4A1E', ref:'table',
-             rules:['daily_per_area'],                        withTime:false, ko:'한스푼' },
+             rules:['daily_per_area'],            withTime:false, insOut:true,  ko:'한스푼' },
   museum:  { pre:'mus_', area:'musaeum',       shape:'rect_h',   ink:'#4A3B2A', ref:'library',
-             rules:['daily_per_area'],                        withTime:false, ko:'뮤세움' }
+             rules:['daily_per_area'],            withTime:false, insOut:true,  ko:'뮤세움' }
 };
 let missing = [];        /* [{kind,code,name,pre,...}] */
 
@@ -430,7 +431,9 @@ async function findMissing(){
   missing = [];
   try{
     const { data:pins, error } = await sb.from('terra_pins')
-      .select('code,name,kind,sort').in('kind', Object.keys(GROW)).order('sort');
+      .select('code,name,kind,sort').in('kind', Object.keys(GROW))
+      .eq('active', true)          /* 0805 — 봉인 핀(몽블랑·시드니)은 세지 않는다 */
+      .order('sort');
     if(error) throw error;
     const have = new Set(kinds.map(k => k.code));
     for(const p of (pins || [])){
@@ -457,7 +460,7 @@ $('#growBtn').addEventListener('click', async () => {
     ref_type: m.g.ref, ref_id: m.code,
     title: m.name || m.code, motto: (m.name || m.code),
     shape: m.g.shape, ink: m.g.ink, look:'field',
-    rules: m.g.rules, with_time: m.g.withTime, inscribe_out: true,
+    rules: m.g.rules, with_time: m.g.withTime, inscribe_out: m.g.insOut !== false,
     active: true, sort: 100 + (m.sort || 0)
   }));
   try{
