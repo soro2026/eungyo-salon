@@ -65,50 +65,27 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
     .catch(function(){ /* 기본 문구 유지 */ });
 
     function layLine(el, it){
-      el.innerHTML = '<span class="line"></span>' + (it.source ? '<span class="src"></span>' : '');
-      var line = el.querySelector(".line");
-      var src  = el.querySelector(".src");
-
-      /* ── 한 단어씩 놓기 (0805 소로 · 2차 수리) ──
-         ⚠ 글자 단위로 끊지 않는다. 한글은 자모가 모여 한 글자가 되므로 어색하다.
-         ⚠⚠ 1차의 버벅임: 공백을 별도 조각으로 두고 0ms로 붙였더니 간격이 들쭉날쭉해
-           오류처럼 보였다. 단어 배열에서 slice로 다시 조립하면 리듬이 고정된다.
-         ⚠ 340ms — 로딩이 10~15초이니 최장 문장(13어절)도 4.4초에 끝난다.
-           빠른 타이핑은 오류로 읽히고, 느린 타이핑이 낭독으로 읽힌다(0805 소로).
+      /* 타이핑 폐기(0805 소로) — 문장은 통째로 갈아끼우고, 떠오르는 것은 CSS가 맡는다.
+         페이드인이 1.8초 뒤(msgIn)라 이 갈아끼우기는 보이기 전에 끝난다 — 어긋남이 없다.
          ⚠ textContent만 쓴다 — 남의 글이 코드가 되지 않게. */
-      var words = String(it.body).split(/\s+/).filter(Boolean);
-      var i = 0, done = false, timer = null;
-
-      function finish(){
-        if(done) return;
-        done = true;
-        if(timer) clearTimeout(timer);
-        line.textContent = it.body;
-        if(src && it.source){ src.textContent = it.source; src.style.opacity = ''; }
-      }
-      function step(){
-        if(done) return;
-        i++;
-        line.textContent = words.slice(0, i).join(' ');
-        if(i >= words.length){
-          if(src && it.source){ src.textContent = it.source; src.style.opacity = ''; }
-          done = true; return;
-        }
-        timer = setTimeout(step, 340);
-      }
-
-      if(src) src.style.opacity = '0';              /* 출처는 문장이 다 놓인 뒤에 */
-      step();
-
-      /* 로더가 걷히면 남은 말을 즉시 채운다 */
-      var loader = document.getElementById("loader");
-      if(loader && window.MutationObserver){
-        var mo = new MutationObserver(function(){
-          if(loader.classList.contains("gone")){ finish(); mo.disconnect(); }
-        });
-        mo.observe(loader, { attributes:true, attributeFilter:["class"] });
-      }
+      el.innerHTML = '<span class="line"></span>' + (it.source ? '<span class="src"></span>' : '');
+      el.querySelector(".line").textContent = it.body;
+      if(it.source) el.querySelector(".src").textContent = it.source;
     }
+
+    /* 오늘 날짜 — 탑승권 구석 (0805 소로). KST로 계산해 UTC 게터로 읽는다 */
+    function fillDate(d){
+      var now = new Date(Date.now() + 9*3600*1000);
+      var days = ["일","월","화","수","목","금","토"];
+      d.textContent = now.getUTCFullYear() + ". " + (now.getUTCMonth()+1) + ". "
+                    + now.getUTCDate() + ". " + days[now.getUTCDay()] + "요일";
+    }
+    var dEl = document.getElementById("loaderDate");
+    if(dEl) fillDate(dEl);
+    else document.addEventListener("DOMContentLoaded", function(){
+      var e2 = document.getElementById("loaderDate");
+      if(e2) fillDate(e2);
+    }, { once:true });
   })();
 </script>
 
@@ -568,56 +545,31 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   }
   #loader.gone{opacity:0;pointer-events:none}
 
-  /* ── 0805. 흐르는 새벽 하늘 (2차 수리) ──
-     ⚠ 그림 파일을 쓰지 않는다 — 지구 타일 내려받기를 늦추지 않게. CSS뿐이다.
-     ⚠⚠ 1차 실패의 원인: 캔버스가 뷰포트의 220% 폭인데 구름 크기를 %로 줬더니
-       구름 하나가 화면보다 커져 「하늘 색조」로 뭉개졌다. 렌더는 되고 있었다.
-       구름 크기는 px로 못 박는다 — 화면이 커져도 구름은 구름 크기다.
-     ⚠⚠ 순환 이음새: 캔버스를 200% 폭으로 하고 같은 구름을 0~50%와 50~100%에
-       복제해 두면 translateX(-50%)가 정확히 한 벌 길이라 끊김 없이 돈다.
-       복제 없이 -42% 같은 어중간한 값으로 돌리면 어딘가에서 빈 하늘이 지나간다.
-     ⚠ 문장 가독성이 먼저다. 알파 .20 위로 올리지 말 것.                        */
-  #loader::before,
-  #loader::after{
-    content:'';position:absolute;top:0;bottom:0;left:0;width:200%;
-    pointer-events:none;
-  }
-  /* 아래층 — 큰 구름 덩어리, 느리게. 0~50%와 50~100%가 같은 벌 */
-  #loader::before{
-    z-index:0;
-    background:
-      radial-gradient(560px 210px at 6%  58%, rgba(152,178,218,.20), rgba(152,178,218,0) 62%),
-      radial-gradient(430px 160px at 20% 36%, rgba(132,160,204,.16), rgba(132,160,204,0) 64%),
-      radial-gradient(650px 230px at 38% 66%, rgba(122,148,192,.15), rgba(122,148,192,0) 60%),
-      radial-gradient(560px 210px at 56% 58%, rgba(152,178,218,.20), rgba(152,178,218,0) 62%),
-      radial-gradient(430px 160px at 70% 36%, rgba(132,160,204,.16), rgba(132,160,204,0) 64%),
-      radial-gradient(650px 230px at 88% 66%, rgba(122,148,192,.15), rgba(122,148,192,0) 60%);
-    animation:cloudDrift 64s linear infinite;
-  }
-  /* 위층 — 작고 옅은 구름, 빠르게. 속도 차가 비행을 만든다 */
-  #loader::after{
-    z-index:1;
-    background:
-      radial-gradient(380px 130px at 12% 22%, rgba(208,224,246,.14), rgba(208,224,246,0) 62%),
-      radial-gradient(300px 110px at 34% 78%, rgba(186,206,234,.12), rgba(186,206,234,0) 64%),
-      radial-gradient(340px 120px at 62% 22%, rgba(208,224,246,.14), rgba(208,224,246,0) 62%),
-      radial-gradient(300px 110px at 84% 78%, rgba(186,206,234,.12), rgba(186,206,234,0) 64%);
-    animation:cloudDrift 38s linear infinite;
-  }
-  /* 하늘빛 — 위는 새벽 남색, 아래는 옅은 청회색. 비행기가 뜬 높이의 색이다 */
+  /* ── 0805. 하늘 (3차 — 실사 webp) ──
+     CSS 구름 두 차례 실패 후 실사진으로 정착. loader_sky.webp가 저장소 루트에 있어야 한다.
+     ⚠ 배경과 비행기가 **같은 방향(우)** 으로 간다. 반대로 흘리면 만화가 된다(0805 소로).
+       속도 차(배경 0.5 : 비행기 3)가 나아가는 느낌을 만든다.
+     ⚠ 그림이 아직 없거나 못 받으면 밑의 그라디언트가 하늘 노릇을 한다 — 폴백이 기본값. */
   #loader{
     background:
-      linear-gradient(to bottom,
-        #070c1a 0%, #0d1730 34%, #16233f 62%, #1d2c48 100%);
+      linear-gradient(to bottom, #070c1a 0%, #0d1730 45%, #1d2c48 100%);
   }
-  /* 비행기와 글자는 구름보다 앞에 — 구름이 기체를 덮으면 안 된다 */
-  #jetTrack{z-index:2}
-  @keyframes cloudDrift{
+  #skyDrift{
+    position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+  }
+  #skyDrift::before{
+    content:'';position:absolute;top:0;bottom:0;left:-30%;width:160%;
+    background:url('loader_sky.webp') center/cover no-repeat;
+    animation:skySlide 150s linear infinite alternate;   /* 아주 천천히 — 우로 */
+  }
+  @keyframes skySlide{
     from{transform:translateX(0)}
-    to  {transform:translateX(-50%)}   /* 복제 한 벌 길이 — 이 값이어야 이음새가 없다 */
+    to  {transform:translateX(6%)}     /* 150초에 6% — 흐름이 아니라 숨결 수준 */
   }
+  /* 비행기와 글자는 하늘 위에 */
+  #jetTrack{z-index:2}
   @media(prefers-reduced-motion:reduce){
-    #loader::before,#loader::after{animation:none}
+    #skyDrift::before{animation:none}
   }
 
   /* ── 오늘의 한 줄 ── */
@@ -628,6 +580,19 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
     font-size:22.5px;font-weight:400;             /* 15px × 1.5 (0805 소로) */
     letter-spacing:.1em;                          /* 명조는 자간을 좁혀야 포스터처럼 읽힌다 */
     text-shadow:0 2px 18px rgba(4,8,18,.95),0 0 40px rgba(4,8,18,.8);
+    /* 타이핑 폐기(0805 소로) — 비행기가 하늘에 뜨고 1.8초 뒤 통째로 떠오른다.
+       DB 문장이 늦게 갈아끼워져도 컨테이너 페이드는 같아서 어긋나지 않는다. */
+    opacity:0;
+    animation:msgIn 1.6s ease 1.8s forwards;
+  }
+  @keyframes msgIn{ to{opacity:1} }
+  /* 오늘 날짜 — 탑승권 구석처럼 (0805 소로) */
+  #loaderDate{
+    position:absolute;right:26px;bottom:22px;z-index:3;
+    font-family:"Nanum Myeongjo",Georgia,serif;
+    font-size:12.5px;letter-spacing:.24em;
+    color:var(--gold-soft,#b99a4e);opacity:0;
+    animation:msgIn 1.6s ease 2.2s forwards;      /* 문장보다 반 박자 늦게 */
   }
   #loaderMsg::before{                    /* 글자 뒤 어두운 방석 — 대비 지킴이 */
     content:'';position:absolute;inset:-38px -56px;z-index:-1;
@@ -641,22 +606,25 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
     color:var(--gold-soft,#b99a4e);opacity:.72;
     transition:opacity 1.4s ease;                    /* 문장이 다 놓인 뒤 조용히 떠오른다 */
   }
-  /* 분더카머로 떠나는 비행 — EG 전용기가 중앙에 떠 있음 */
+  /* 분더카머로 떠나는 비행 — 좌에서 우로 한 번 지나간다 (0805 소로) */
   #jetTrack{position:relative;width:100%;height:320px;overflow:hidden;pointer-events:none;}
   #jetTrack img{
-    position:absolute;top:50%;left:50%;
-    transform:translate(-50%,-50%);
+    position:absolute;top:50%;left:0;
+    transform:translate(-110%,-50%);                     /* 화면 왼쪽 밖에서 출발 */
     width:clamp(200px,55vw,750px);height:auto;opacity:.96;   /* 0720 소로: 2.5배 — 노트북 기준 사실감 */
     filter:drop-shadow(0 22px 40px rgba(0,0,0,.6));
-    animation:jetBob 5.2s ease-in-out infinite;   /* 0805 소로: 흔들림 자제 — 폭 좁게, 느리게 */
-    will-change:margin-top;
+    /* ⚠ 덜컹임(jetBob) 폐기 — 상하 진동이 고장난 것처럼 보였다(0805 소로).
+       15초에 화면을 한 번 가로지른다. 로딩(10~15초)과 맞춘 값이라, 다 건너면
+       빈 하늘이 남는데 그것대로 지나간 자리라는 뜻이 된다. 되돌아오지 않는다. */
+    animation:jetCross 15s linear 1 forwards;
+    will-change:transform;
   }
-  @keyframes jetBob{
-    0%,100%{margin-top:0;}
-    50%{margin-top:-7px;}
+  @keyframes jetCross{
+    from{transform:translate(-110%,-50%)}
+    to  {transform:translate(calc(100vw + 10%),-50%)}
   }
   @media(prefers-reduced-motion:reduce){
-    #jetTrack img{animation:none;}
+    #jetTrack img{animation:none;left:50%;transform:translate(-50%,-50%);}
   }
 
   /* ── 나라 이름 자막 (고공 조망 때 잠깐) ── */
@@ -1294,8 +1262,10 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
 <nav id="journey"></nav>
 
 <div id="loader">
+  <div id="skyDrift"></div>
   <div id="loaderMsg"><span class="line">당신의 집으로 가는 길을 여는 중…</span></div>
   <div id="jetTrack"><img src="EG_jet01.webp" alt="Salon d'Eungyo Air"></div>
+  <div id="loaderDate"></div>
   <audio id="jetSound" src="jet_sound.mp3" preload="auto"></audio>
 </div>
 
