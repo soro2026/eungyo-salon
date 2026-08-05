@@ -134,6 +134,11 @@ input.mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.05em}
 .artbox{border:1px dashed var(--line);border-radius:6px;padding:12px;background:var(--bench-2)}
 .artbox.over{border-color:var(--gold)}
 .artbox b{display:block;font-size:13.5px;font-weight:500;color:var(--text);margin-bottom:3px}
+.grow{margin-top:14px;border:1px solid var(--gold);border-radius:6px;padding:14px;
+  background:var(--bench-2)}
+.grow h3{margin:0 0 6px;font-size:13.5px;font-weight:500;color:var(--text)}
+.grow p{margin:0;font-size:12px;color:var(--dim);line-height:1.7}
+.grow b{color:var(--text);font-weight:500}
 .artbox p{margin:0;font-size:12px;color:var(--dim)}
 .slot{background:#E9E5DD;border-radius:4px;padding:8px 6px;text-align:center;cursor:grab;
   border:2px solid transparent}
@@ -175,7 +180,7 @@ input.mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.05em}
 <div id="app" hidden>
 <header>
   <h1>EG <em>Credencial</em></h1>
-  <span class="sub">도장 공방 · v1.5 · 0805 인장 시안 다섯 벌 · WebP</span>
+  <span class="sub">도장 공방 · v1.7 · 0805 시안 다섯 벌 · WebP · 원판 심기(다섯 우주)</span>
   <span class="count" id="count"></span>
 </header>
 
@@ -234,6 +239,16 @@ input.mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.05em}
           <div class="sheet"><div class="press" id="press"></div></div>
           <div class="cap" id="cap"></div>
           <button class="rollbtn" id="rollBtn" type="button">다시 눌러보기</button>
+        </div>
+      </div>
+
+      <div class="grow" id="grow" hidden>
+        <h3>지도에 섰는데 원판이 없는 곳</h3>
+        <p id="growMsg"></p>
+        <div class="trayBar">
+          <button class="btn primary" id="growBtn" type="button">원판 심기</button>
+          <span class="msg">이름·규칙·모양은 형제 원판에서 그대로 베낍니다.
+            심고 나면 목록에 뜨고, 그때 시안을 던지면 됩니다.</span>
         </div>
       </div>
 
@@ -364,6 +379,7 @@ async function boot(){
   $('#app').hidden = false;
   $('#shape').innerHTML = SHAPES.map(([v,k])=>`<option value="${v}">${k}</option>`).join('');
   await load();
+  await findMissing();          /* 지도에 섰는데 원판이 없는 곳을 알린다(0805) */
 }
 $('#loginBtn').addEventListener('click', async () => {
   const { error } = await sb.auth.signInWithPassword({
@@ -373,6 +389,87 @@ $('#loginBtn').addEventListener('click', async () => {
 });
 
 /* ── 목록 ── */
+/* ══ 0805 · 빠진 원판 찾기 ═══════════════════════════════════════════════
+   음악관·미술관·천문대는 곳이 늘어나는 우주다. 핀을 세우고 그림만 올리면
+   그 우주는 코드 0줄로 열리는데(v137 §4-2), 크레덴시알만 원판을 손으로 심어야 해서
+   소로 혼자 못 늘리는 갈래가 하나 생겼었다. 그 끊긴 데를 잇는다.
+
+   ⭐ 콘솔이 terra_pins를 읽어 원판 없는 곳을 세우고, 눌러서 한꺼번에 심는다.
+     이름·규칙·모양·잉크는 아래 표에서 베끼므로 소로가 채울 칸이 없다.
+     심고 나면 목록에 뜨고, 그때 시안 다섯 장을 던지면 끝이다.
+   ⚠ 원판만 생기고 그림은 없다 — 안 구운 도장은 그냥 없으므로(30호) 손님 화면에는
+     아무 일도 안 일어난다. 시안을 걸어야 비로소 나타난다.
+   ⚠ 새 우주를 여기 붙일 때는 표에 한 줄만 더한다. 아래 로직은 안 건드린다.
+
+   ⭐ 0805 알베르게 원칙 — 곳이 도장을 가르고, 한 일은 각인이 말한다.
+     실물 크레덴시알도 그날 묵은 알베르게의 도장이지 거기서 무엇을 했는지는 안 적는다.
+     그래서 다섯 우주가 전부 같은 문법이 된다 — 몸통은 곳의 얼굴, 각인은 그날의 것.
+   ⚠ **곳이 도장을 가르되, 도장 수는 곳 수를 따라 늘지 않는다.**
+     곳이 스무 곳이 되어도 daily_per_area 하나가 그날 한 장을 지킨다. 이 조항이
+     지켜지는 한 「오늘은 어디서 받을까」가 생기지 않고 수집표가 되지 않는다(2호).   */
+const GROW = {
+  concert: { pre:'mca_', area:'musica',        shape:'square_r', ink:'#6B2D4A', ref:'hall',
+             rules:['daily_per_area'],                        withTime:false, ko:'음악관' },
+  heritage:{ pre:'gal_', area:'peregrinatio',  shape:'rect_v',   ink:'#1F5566', ref:'museum',
+             rules:['daily_per_area'],                        withTime:false, ko:'미술관' },
+  constellatio:{ pre:'obs_', area:'observatorium', shape:'hex',  ink:'#24485C', ref:'observatory',
+             rules:['once_per_subject','daily_per_area'],     withTime:true,  ko:'천문대' },
+  /* 0805 — 한스푼·뮤세움도 곳을 늘려 순회한다.
+     한스푼 = 역사적 인물들이 드나든 카페·식당 / 뮤세움 = 세계의 도서관·서점.
+     ⚠ 음악관과 갈리는 데: 이 둘은 고를 여지가 없다. 오늘 열린 그 한 곳이 곧 그날의
+       한스푼이다. 날수 나머지가 이미 정해둔 것을 만나는 것뿐이라(11호) 더 노력해서
+       더 딸 방법이 없다. 곳을 늘리면 순회 길이도 저절로 늘어난다. */
+  hansfoon:{ pre:'coc_', area:'cochlear',      shape:'circle',   ink:'#7A4A1E', ref:'table',
+             rules:['daily_per_area'],                        withTime:false, ko:'한스푼' },
+  museum:  { pre:'mus_', area:'musaeum',       shape:'rect_h',   ink:'#4A3B2A', ref:'library',
+             rules:['daily_per_area'],                        withTime:false, ko:'뮤세움' }
+};
+let missing = [];        /* [{kind,code,name,pre,...}] */
+
+async function findMissing(){
+  missing = [];
+  try{
+    const { data:pins, error } = await sb.from('terra_pins')
+      .select('code,name,kind,sort').in('kind', Object.keys(GROW)).order('sort');
+    if(error) throw error;
+    const have = new Set(kinds.map(k => k.code));
+    for(const p of (pins || [])){
+      const g = GROW[p.kind]; if(!g) continue;
+      if(!have.has(g.pre + p.code)) missing.push({ ...p, g });
+    }
+  }catch(e){ console.warn('빠진 원판을 세지 못했습니다:', e); }
+  drawMissing();
+}
+function drawMissing(){
+  const box = $('#grow');
+  if(!box) return;
+  box.hidden = !missing.length;
+  if(!missing.length) return;
+  const by = {};
+  for(const m of missing){ (by[m.g.ko] = by[m.g.ko] || []).push(m.name || m.code); }
+  $('#growMsg').innerHTML = Object.entries(by)
+    .map(([ko, ns]) => `<b>${ko}</b> ${ns.length}곳 — ${ns.map(esc).join(' · ')}`).join('<br>');
+}
+$('#growBtn').addEventListener('click', async () => {
+  const btn = $('#growBtn'); btn.disabled = true;
+  const rows = missing.map(m => ({
+    code: m.g.pre + m.code, family:'manere', area:m.g.area,
+    ref_type: m.g.ref, ref_id: m.code,
+    title: m.name || m.code, motto: (m.name || m.code),
+    shape: m.g.shape, ink: m.g.ink, look:'field',
+    rules: m.g.rules, with_time: m.g.withTime, inscribe_out: true,
+    active: true, sort: 100 + (m.sort || 0)
+  }));
+  try{
+    const { error } = await sb.from('stamp_kinds').insert(rows);
+    if(error) throw error;
+    toast(`원판 ${rows.length}개를 심었습니다. 이제 시안을 던지십시오.`, 'good');
+    await load(); await findMissing(); render();
+  }catch(err){
+    toast('심지 못했습니다 — ' + (err.message || err), 'bad');
+  }finally{ btn.disabled = false; }
+});
+
 async function load(){
   const { data, error } = await sb.from('stamp_kinds').select('*').order('sort').order('code');
   if(error){ toast('판을 불러오지 못했습니다 — ' + error.message, 'bad'); return; }

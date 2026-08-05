@@ -2,9 +2,10 @@
    EG Credencial — 도장 놓기 · 누르기
    0803 · 결정문 3호(손님이 누른다) · 4호(찍는 곳과 보는 곳을 떼어놓는다)
    0804 · 종이 조각(18호 정본값) · 거두기(withdraw)
+   0805 · 인장 시안 여러 벌 중 하나를 굴려 뽑고 그 행에 붙박음(15호)
 
    쓰는 법 — 그 우주의 파일에 두 줄:
-     <script src="stamp_press.js?v=0804a"></script>
+     <script src="stamp_press.js?v=0805a"></script>
      EGStamp.offer({ supa, area:'musica' });
 
    supabase-js가 없는 파일이면 supa를 빼고 부른다 — 스스로 REST로 간다:
@@ -220,7 +221,7 @@ async function whoAmI(supa){
 
 /* 판 찾기 — kind를 주면 그것, 안 주면 그 우주의 입국 도장 */
 async function findKind(supa, opt){
-  var cols = 'code,title,art_url,ink,rules,family,area,active,opens_at,closes_at';
+  var cols = 'code,title,art_url,art_urls,ink,rules,family,area,active,opens_at,closes_at';
   if (supa){
     var q = supa.from('stamp_kinds').select(cols)
       .eq('active', true).not('art_url', 'is', null).limit(1);
@@ -278,6 +279,20 @@ async function putStamp(supa, row){
   return 'rest ' + r.status + ' ' + t;
 }
 
+/* ⭐ 0805 — 인장 시안 여러 벌 중 하나를 굴려 뽑는다.
+   한 판에 그림이 다섯이면 시드니에 갈 때마다 다른 조가비가 찍힌다.
+   ⚠ 굴리는 것은 **놓을 때 한 번뿐**이다. 뽑은 것을 stamps 행에 적어 두므로(15호)
+     몇 달 뒤 수첩을 펼쳐도 그날 받은 그 그림이 그 자리에 있다.
+     펼칠 때마다 굴리면 기록이 아니라 화면 보호기가 된다.
+   ⚠ 「이번엔 안 나온 것으로」 돌리지 않는다. 그러면 다섯 번 가면 다섯 벌이 다 모이는
+     구조가 되어 수집표가 된다(2호). 그냥 굴린다 — 겹쳐도 무방하다.
+     실물도 같은 알베르게에 두 번 묵으면 같은 도장이 두 번 찍힌다. */
+function rollArt(kind){
+  var a = (kind && kind.art_urls && kind.art_urls.length) ? kind.art_urls : null;
+  if (!a) return kind.art_url;
+  return a[Math.floor(Math.random() * a.length)] || kind.art_url;
+}
+
 async function offer(opt){
   opt = opt || {};
   var supa = opt.supa || null;   /* 없으면 REST로 스스로 간다(0804) */
@@ -299,13 +314,14 @@ async function offer(opt){
     }
 
     /* 놓아둔다 — 누르는 것은 손님 */
+    var art = rollArt(kind);                 /* 이 회차에 뽑힌 시안. 아래로 계속 이것만 쓴다 */
     mount();
     var dock = document.getElementById('egStampDock');
     var btn  = document.getElementById('egStampBtn');
     btn.disabled = false;
     btn.firstChild.style.color = kind.ink || '#2E3F63';
-    btn.firstChild.style.webkitMaskImage = "url('" + kind.art_url + "')";
-    btn.firstChild.style.maskImage = "url('" + kind.art_url + "')";
+    btn.firstChild.style.webkitMaskImage = "url('" + art + "')";
+    btn.firstChild.style.maskImage = "url('" + art + "')";
     btn.setAttribute('aria-label', kind.title + ' 도장 받기');
     dock.querySelector('.cap').textContent = '도장 받기';
     if (opt.bottom) dock.style.bottom = opt.bottom + 'px';
@@ -314,6 +330,7 @@ async function offer(opt){
     btn.onclick = async function(){
       btn.disabled = true;
       var row = { user_id:user.id, kind_code:kind.code, area:kind.area };
+      if (art && art !== kind.art_url) row.art_url = art;   /* 대표와 다를 때만 적어 둔다 */
       if (opt.subject)     row.subject_id  = String(opt.subject);
       if (opt.inscription) row.inscription = opt.inscription;
       var err = await putStamp(supa, row);
@@ -324,10 +341,10 @@ async function offer(opt){
         return;
       }
       dock.classList.remove('on');
-      flash(kind.art_url, kind.ink || '#2E3F63');
+      flash(art, kind.ink || '#2E3F63');
       /* 0803 저녁 — 도장 깃발. 타륜(terra)이 이 자국을 읽어 30분 동안 세운다.
          여러 장을 받아도 마지막 한 자국만 남는다 — 개수는 말하지 않는다(5호). */
-      var mark = { art:kind.art_url, ink:kind.ink || '#2E3F63', at:Date.now() };
+      var mark = { art:art, ink:kind.ink || '#2E3F63', at:Date.now() };
       try{ localStorage.setItem('eg_stamp_flag', JSON.stringify(mark)); }catch(e){}
       /* 0803 밤 — 이 우주가 타륜 안 액자로 열려 있으면 부모에게 곧장 알린다.
          storage 사건에만 기대면 브라우저·창 구성에 따라 안 오는 경우가 있었다.

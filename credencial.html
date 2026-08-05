@@ -405,13 +405,17 @@ async function load(){
   document.documentElement.style.setProperty('--cover', COVER[me.tier] || COVER._default);
 
   const { data:rows } = await sb.from('stamps')
-    .select('inscription,stamped_at,rot,dx,dy,ink_alpha,stamp_kinds(shape,ink,art_url,with_time,inscribe_out)')
+    .select('inscription,stamped_at,rot,dx,dy,ink_alpha,art_url,stamp_kinds(shape,ink,art_url,with_time,inscribe_out)')
     .eq('user_id', session.user.id)
     .order('stamped_at', { ascending:true });
 
+  /* ⭐ 0805 — 그림은 「찍힌 행의 것」이 먼저다.
+     한 판에 인장 시안이 여럿이면 찍는 순간 하나가 굴려 뽑히고 그 주소가 행에 붙박인다(15호).
+     행이 비어 있으면(옛 도장·시안 한 벌짜리) 판의 대표 그림을 쓴다.
+     ⚠ 순서를 뒤집으면 몇 달 전 도장의 그림이 펼 때마다 갈아입는다. */
   const flat = (rows || [])
-    .filter(r => r.stamp_kinds && r.stamp_kinds.art_url)
-    .map(r => ({ ...r, ...r.stamp_kinds }));
+    .filter(r => r.stamp_kinds && (r.art_url || r.stamp_kinds.art_url))
+    .map(r => ({ ...r, ...r.stamp_kinds, art_url: r.art_url || r.stamp_kinds.art_url }));
   latestAt = flat.length ? flat[flat.length - 1].stamped_at : null;   /* 시간순 마지막 */
   fileStamps(flat);
 }

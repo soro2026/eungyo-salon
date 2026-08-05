@@ -293,7 +293,7 @@ html,body{height:100%;background:#000;overflow:hidden;
 <div id="err"><p id="errMsg"></p></div>
 
 <script src="eg_camera.js?v=0804a"></script>
-<script src="stamp_press.js?v=0804a"></script>
+<script src="stamp_press.js?v=0805a"></script>
 <script>
 const SUPA_URL='https://cyhlotwdisjvoxvfkpnd.supabase.co';
 const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
@@ -303,10 +303,10 @@ const asset=(code,slot)=>`${SUPA_URL}/storage/v1/object/public/${BUCKET}/concert
 const HALL_RATIO=1080/1920;                 /* 홀 그림 가로/세로 (9:16) */
 const $=s=>document.querySelector(s);
 
-console.log("%c[EG] concert v1.3 · 0804 카메라 이식 (천장→바닥→스크린)", "color:#c9a24a");
+console.log("%c[EG] concert v1.4 · 0805 체류 도장 (오늘의 홀 · 그날의 곡 각인)", "color:#c9a24a");
 const qs=new URLSearchParams(location.search);
 const CODE=qs.get('code')||'wien';
-let HALL=null, SONG=null;
+let HALL=null, SONG=null, HALLS=[];      /* HALLS — 오늘의 홀을 가리려면 목록이 있어야 한다(0805) */
 /* 스크린 자리 — 빈 실측 기본값(0731). meta.screen_rect가 있으면 그쪽이 이긴다 */
 let RECT={L:18.70,T:41.51,W:63.02,H:20.16};
 function applyRect(){
@@ -375,12 +375,37 @@ function todaysSong(songs, hallNo, hallCount){
   return songs[ ((kstDay() + offset) % N + N) % N ];
 }
 
+/* ── 0805. 체류 도장 ──
+   ⚠ 이 공식은 terra.html의 concertGate()와 **같은 것이다.** 홀 목록을 sort 차례로
+     세우고 날수로 나눈 나머지 — 한 곳만 고치면 타륜은 빈이라 적고 도장은 시드니에서
+     나온다. 로테이션 공식이 사는 네 번째 곳이므로 고칠 때 함께 고칠 것.
+   ⭐ 다섯 홀은 매일 다 열려 있지만 도장은 오늘의 홀 한 곳에서만 놓인다.
+     다른 넷에 들어가도 아무 일이 안 일어나고, 그래서 하루에 다섯 장을 딸 수 없다.
+   ⚠ 도장 자체도 daily_per_area라 그날 음악관에서 한 장이 끝이다. 문지기가 둘인 셈이나
+     하나는 「어느 홀인가」를, 하나는 「몇 장인가」를 지키므로 하는 일이 다르다.        */
+function stampHere(halls, H){
+  if(!window.EGStamp) return;
+  const duty = halls[ ((kstDay() % H) + H) % H ];
+  const opt  = { supa: supa, area: 'musica', bottom: 96 };
+  if (duty && duty.code === HALL.code && SONG){
+    opt.kind = 'mca_' + HALL.code;
+    opt.subject = HALL.code;
+    /* 각인은 찍는 순간 복사해 둔다(15호) — 내일 곡이 바뀌어도 이 도장은 오늘 곡이다.
+       홀 안은 넓으므로 작곡자 이름을 줄이지 않는다(타륜 songLine과 다른 점). */
+    opt.inscription = [SONG.artist, SONG.name].filter(Boolean).join(' · ');
+  }
+  /* 오늘의 홀이 아니면 kind를 안 준다 → 부품이 그 우주의 입국 도장을 찾는다.
+     아직 안 받았으면 입국이 놓이고, 이미 받았으면 아무것도 안 나타난다(3호). */
+  EGStamp.offer(opt);
+}
+
 async function boot(){
   /* 홀 + 홀 총수 */
   const { data:halls, error:he } = await supa.from('terra_pins')
     .select('code,name,city,meta').eq('kind','concert').order('sort');
   if(he || !halls || !halls.length) return fail('홀 목록을 불러오지 못했습니다.<br>잠시 뒤 다시 들러 주세요.');
   HALL = halls.find(h=>h.code===CODE) || halls[0];
+  HALLS = halls;
   const H = halls.length;
   const hallNo = (HALL.meta && HALL.meta.hall_no != null) ? HALL.meta.hall_no : 0;
 
@@ -430,14 +455,12 @@ function enterHall(){
        천장 → 바닥 스침 → 스크린 안착 3초. 아무 데나 누르면 건너뜀.
        도장은 안착한 뒤에(9-1) — 카메라가 도는 동안 도장이 뜨면 흐름이 끊긴다. */
     const camOpts = { box:'#hall', fit:'#hallFit', ratio:HALL_RATIO, rect:RECT,
-      onDone(){
-        if (window.EGStamp) EGStamp.offer({ supa: supa, area: 'musica', bottom: 96 });
-      }};
+      onDone(){ stampHere(HALLS, HALLS.length); }};
     const scrollable = (innerWidth/innerHeight) >= HALL_RATIO;   /* 폰은 스크롤 0 — 헛돈다 */
     if (scrollable && window.EGCamera) EGCamera.enter(camOpts);
     else if (window.EGCamera) EGCamera.settle(camOpts);
     else { fitHall(); centerScreen();                             /* 부품이 안 실렸어도 홀은 선다 */
-           if (window.EGStamp) EGStamp.offer({ supa: supa, area: 'musica', bottom: 96 }); }
+           stampHere(HALLS, HALLS.length); }
   }, 1050);
 }
 $('#gate').addEventListener('click', enterHall);
