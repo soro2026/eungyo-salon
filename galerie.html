@@ -193,6 +193,25 @@ body.standalone .view.on ~ #backBtn{display:block;}
   text-align:center;line-height:1.85;}
 #editInfo.show{display:block;}
 
+/* ── ⏱ 시간 여행 — 콜레주 문법 이식(0801→0805) · 살롱지기 전용 · 읽기 전용 ──
+   날짜 하나(EG_TT_DAY)만 갈리고 그 날의 그림·당번이 통째로 걸린다. DB 무변. */
+#ttBtn{position:fixed;left:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:32;
+  display:none;cursor:pointer;font-family:inherit;font-size:13px;letter-spacing:.05em;
+  color:rgba(233,207,156,.85);background:rgba(20,14,9,.6);
+  border:1px solid rgba(201,162,74,.4);border-radius:18px;padding:8px 13px;
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);}
+#ttBtn.show{display:block;}
+#ttBtn.on{background:var(--gold);color:#1a120c;border-color:var(--gold);font-weight:700;}
+#ttPanel{position:fixed;left:16px;bottom:calc(62px + env(safe-area-inset-bottom));z-index:32;
+  display:none;gap:8px;flex-wrap:wrap;align-items:center;}
+#ttPanel.show{display:flex;}
+#ttPanel .heb{font-size:11px;letter-spacing:.1em;color:#1a120c;
+  background:var(--gold);padding:6px 13px;border-radius:16px;}
+#ttPanel button.heb{cursor:pointer;border:none;font-family:inherit;}
+#ttPanel input[type=date]{font-family:inherit;font-size:13px;padding:5px 9px;
+  border-radius:10px;border:1px solid rgba(201,162,74,.6);
+  background:rgba(20,14,9,.75);color:#f0e4c8;}
+
 #toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);z-index:60;
   background:rgba(240,232,212,.94);color:#241a10;font-size:12.5px;
   padding:10px 20px;border-radius:22px;opacity:0;pointer-events:none;
@@ -237,6 +256,15 @@ body.standalone .view.on ~ #backBtn{display:block;}
 </div>
 
 <div id="editToggle" onclick="toggleEdit()">✎ 걸이·명패 맞추기</div>
+
+<!-- ⏱ 시간 여행 (살롱지기 전용 · 콜레주 이식) -->
+<button id="ttBtn" onclick="toggleTT()" title="시간 여행 — 그 날짜의 미술관으로">⏱</button>
+<div id="ttPanel">
+  <span class="heb">시간 여행 — 화면 판정만 바뀝니다 (DB 무변)</span>
+  <input type="date" id="ttDate">
+  <button class="heb" onclick="applyTT()">그날로 가기</button>
+  <button class="heb" onclick="clearTT()">오늘로</button>
+</div>
 <div id="editInfo"></div>
 <div id="editBar">
   <button class="btn" onclick="saveRect()">저장</button>
@@ -278,7 +306,7 @@ const BUCKET='tour-assets';
 const asset=(code,slot)=>`${SUPA_URL}/storage/v1/object/public/${BUCKET}/galerie/${code}_${slot}.webp`;
 const HALL_RATIO=941/1672;                     /* 방 그림 가로/세로 (9:16) */
 const $=s=>document.querySelector(s);
-console.log("%c[EG] galerie v1.8 · 0805 걸이 기준(등면적) · 착지 고정 · 편집 정렬", "color:#c9a24a");
+console.log("%c[EG] galerie v1.9 · 0805 ⏱ 시간 여행(콜레주 이식) · 걸이 기준 · 착지 고정", "color:#c9a24a");
 
 const qs=new URLSearchParams(location.search);
 const CODE=qs.get('code')||'orsay';
@@ -286,7 +314,7 @@ const CODE=qs.get('code')||'orsay';
 /* HALLS — 관 전체 명단. 당번 판정이 boot() 밖(stampHere)에서 필요해 전역으로 올렸다.
    ⚠ active로 거르지 않는다. terra.html의 loadGalerieHallsAll()이 잠든 관까지 싣고
      그 길이로 나머지를 구하므로, 여기서 걸러내면 당번이 타륜과 어긋난다. */
-let HALL=null, HALLS=null, ART=null, RECT=null, RECT0=null, moved=false, IS_ADMIN=false, UID=null, MY_RENT=null;
+let HALL=null, HALLS=null, ART=null, ARTS=null, RECT=null, RECT0=null, moved=false, IS_ADMIN=false, UID=null, MY_RENT=null;
 let PLQ=null, PLQ0=null;          /* 명패 좌표 {X:가운데%, Y:윗변%} · null이면 액자를 따라간다 */
 
 /* ── 시각 — egSky 한 벌. 없으면 낮 (함정 F: 시각은 새로 재지 마라) ── */
@@ -294,8 +322,14 @@ function phase(){
   try{ return (window.egSky && egSky.phase) ? egSky.phase() : 'd'; }
   catch(e){ return 'd'; }
 }
-/* KST 날수 — admin_galerie_assets.html과 같은 눈금이어야 한다 */
-function kstDay(){ return Math.floor((Date.now() + 9*3600*1000) / 86400000); }
+/* KST 날수 — admin_galerie_assets.html과 같은 눈금이어야 한다.
+   ⏱ 시간 여행 중이면 그 날짜의 날수를 돌려준다(0805 콜레주 이식).
+   이 함수 하나가 그림·당번·도장 판정의 단일 진실이므로, 여기만 갈면 전부 그날이 된다. */
+let EG_TT_DAY=null;                 /* null = 오늘 · 숫자 = 그날의 kst 날수 */
+function kstDay(){
+  if(EG_TT_DAY!=null) return EG_TT_DAY;
+  return Math.floor((Date.now() + 9*3600*1000) / 86400000);
+}
 
 /* ── 로테이션 — 콘솔과 동일 공식 ── */
 function todaysArt(arts, museumNo, museumCount){
@@ -340,6 +374,9 @@ async function intrareDone(area){
      하나는 「어느 관인가」를, 하나는 「몇 장인가」를 지키므로 하는 일이 다르다.       */
 function stampHere(){
   if(!window.EGStamp) return;
+  /* ⚠⚠ 시간 여행 중에는 도장을 놓지 않는다 — 콜레주 3527행과 같은 조항.
+     여기가 뚫리면 미래 날짜 판정으로 도장이 DB에 앉는다. 화면 판정만 바뀌고 DB는 무변. */
+  if(EG_TT_DAY!=null) return;
   const hs = HALLS || [];
   const opt = { supa: supa, area:'peregrinatio', bottom: 96 };
   /* 입국을 아직 안 받았으면 kind를 안 준다 → 부품이 입국을 찾는다. 체류는 내일부터(7호) */
@@ -408,6 +445,7 @@ async function boot(){
     .select('id,name,artist,period,img,ratio,status,layers,curation_links')
     .eq('category','visual').eq('status','active').order('id');
   if(ae || !arts || !arts.length) return fail('걸 그림을 불러오지 못했습니다.');
+  ARTS = arts;                                    /* ⏱ 시간 여행이 되걸 때 쓴다 */
   ART = todaysArt(arts, no, H);
 
   RECT = (HALL.meta && HALL.meta.frame_rect) || {L:25,T:38,W:50,H:24};
@@ -439,7 +477,10 @@ async function boot(){
   if(user){
     UID=user.id;
     const { data:u } = await supa.from('users').select('is_admin').eq('id',user.id).single();
-    if(u && u.is_admin){ IS_ADMIN=true; $('#editToggle').classList.add('show'); }
+    if(u && u.is_admin){ IS_ADMIN=true;
+      $('#editToggle').classList.add('show');
+      $('#ttBtn').classList.add('show');          /* ⏱ 시간 여행 — 살롱지기 전용 */
+    }
     await loadMyRent();
     paintRentLine();
   }
@@ -651,6 +692,7 @@ function closeLayers(){ $('#layers').classList.remove('on'); }
 /* ══ 대여 — 교체식. RPC(rent_item)가 반납·차감·대여를 한 트랜잭션으로 ══ */
 function askRent(){
   if(editing) return;
+  if(EG_TT_DAY!=null){ toast('⏱ 시간 여행 중에는 빌릴 수 없습니다'); return; }
   if(!ART) return;
   if(!UID){ toast('입장 후 빌릴 수 있습니다'); return; }
   if(MY_RENT && MY_RENT.item_id===ART.id){ toast('이미 거실에 걸려 있습니다'); return; }
@@ -786,6 +828,44 @@ function resetRect(){
 }
 function toast(m){ const t=$('#toast'); t.textContent=m;
   t.classList.add('show'); clearTimeout(t._tm); t._tm=setTimeout(()=>t.classList.remove('show'),3200); }
+
+/* ══ ⏱ 시간 여행 (살롱지기 · 콜레주 0801 문법 이식) ══
+   날짜 → kst 날수 → kstDay()가 그 값을 돌려줌 → todaysArt가 저절로 그날 그림.
+   되거는 것: 그림 · 명패 글자 · 잉크. 안 건드리는 것: 도장 · 대여 · DB 전부. */
+function toggleTT(){
+  const p=$('#ttPanel');
+  p.classList.toggle('show');
+  if(p.classList.contains('show')){
+    const day=kstDay();
+    const d=new Date(day*86400000 - 9*3600*1000 + 12*3600*1000);
+    $('#ttDate').value=d.toISOString().slice(0,10);
+  }
+}
+function applyTT(){
+  const v=$('#ttDate').value;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(v)){ toast('날짜를 고르세요'); return; }
+  /* 그 날짜의 KST 자정 → 날수. UTC 자정에 9시간을 얹으면 KST 자정이 같은 날수로 떨어진다 */
+  EG_TT_DAY = Math.floor((Date.parse(v+'T00:00:00Z') + 9*3600*1000) / 86400000);
+  ttRefresh();
+  toast('⏱ '+v+' 의 미술관입니다');
+}
+function clearTT(){ EG_TT_DAY=null; ttRefresh(); toast('오늘로 돌아왔습니다'); }
+function ttRefresh(){
+  const b=$('#ttBtn');
+  if(EG_TT_DAY!=null){
+    const d=new Date(EG_TT_DAY*86400000 - 9*3600*1000 + 12*3600*1000);
+    b.textContent='⏱ '+d.toISOString().slice(0,10);
+  }else b.textContent='⏱';
+  b.classList.toggle('on', EG_TT_DAY!=null);
+  /* 그날 그림으로 되걸기 — boot의 계산을 그대로 다시 민다 */
+  if(HALLS && ARTS && HALL){
+    const no=(HALL.meta && HALL.meta.museum_no!=null)?HALL.meta.museum_no:0;
+    ART = todaysArt(ARTS, no, HALLS.length);
+    ART_PRICE=null;                     /* 그림이 갈렸으니 값도 다시 잰다 */
+    hangArt();
+  }
+  $('#ttPanel').classList.remove('show');
+}
 
 boot();
 </script>
