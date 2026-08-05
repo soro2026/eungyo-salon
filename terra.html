@@ -723,6 +723,15 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   #loaderDate .tt{font-family:'Cormorant Garamond',var(--serif);
     font-size:11.5px;letter-spacing:.24em;color:rgba(159,182,232,.85);
     margin-top:5px;text-shadow:0 2px 14px rgba(0,0,0,.95);}
+  /* 건너뛰기 한 줄 — eg_camera의 힌트 문법 그대로. 3.5초에 조용히 떠올랐다 사라진다.
+     ⚠ 재촉이 아니라 알림이다. 그래서 흐릿하고, 누르라고 조르지 않는다. */
+  #loaderSkip{
+    position:absolute;left:50%;bottom:26px;transform:translateX(-50%);z-index:3;
+    font-size:11.5px;letter-spacing:.14em;color:rgba(255,255,255,.42);
+    text-shadow:0 1px 8px rgba(0,0,0,.6);pointer-events:none;opacity:0;
+    animation:skipIn 1.2s ease 3.5s forwards;
+  }
+  @keyframes skipIn{ from{opacity:0} to{opacity:1} }
   /* 검은 방석(0805 폐기) — 어두운 밤하늘 시절의 유물. 밝은 실사 하늘에서는 얼룩이 된다.
      대비는 흰 글자 + 그림자가 맡는다. */
   #loaderMsg .line{display:block;min-height:1.9em}   /* 빈 줄에도 높이를 잡아 화면이 안 튀게 */
@@ -1392,6 +1401,7 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   <div id="loaderMsg"><span class="line">당신의 집으로 가는 길을 여는 중…</span></div>
   <div id="jetTrack"><img src="EG_jet01.webp" alt="Salon d'Eungyo Air"></div>
   <div id="loaderDate"></div>
+  <div id="loaderSkip">아무 곳이나 눌러 바로 들어가기</div>
   <audio id="jetSound" src="jet_sound.mp3" preload="auto"></audio>
 </div>
 
@@ -1687,22 +1697,50 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   });
   /* ⚠ 곧바로 걷지 않고 **첫 프레임이 실제로 그려진 뒤** 걷는다.
      안 그러면 아주 느린 기기에서 로더가 까만 캔버스로 갈릴 수 있다.
-     ⚠ 2초를 넘기면 그냥 걷는다 — 안전장치가 또 다른 대기가 되면 안 된다(함정 AE). */
+     ⚠ 2초를 넘기면 그냥 걷는다 — 안전장치가 또 다른 대기가 되면 안 된다(함정 AE).
+
+     ⭐ 0805 소로 실측 — 지구가 1초에 서 버려 비행이 1초에 끝났다. 「오늘의 한 줄」이
+       1.8초에 떠오르는데 그때 이미 커튼이 내려간 셈이라, 하루 하나 고정으로 둔 뜻이
+       통째로 사라졌다. 그래서 **최소 체류**를 둔다.
+     ⚠⚠ 다만 초 수를 우리가 정하지 않는다 — 처음 온 손님은 문장을 읽고 싶고,
+       하루 열 번 들어오는 손님에게 8초는 매번 벽이다. **건너뛰기를 함께 단다**
+       (eg_camera 조항 ② — 매일 들르는 곳이다). 누르거나 굴리면 즉시 걷힌다. */
   (function openDoorWhenPainted(){
-    var opened = false;
+    var STAY = 8000;                 /* 최소 체류 — 문장이 떠오르고 눈에 들어오는 시간 */
+    var painted = false, opened = false, t0 = Date.now();
+
     var open = function(){
       if(opened) return; opened = true;
+      detach();
       var ld = document.getElementById("loader");
       if(ld) ld.classList.add("gone");
-      if(window.__fadeJet) window.__fadeJet();   /* 비행은 여기서 끝 — 15초를 다 못 날아도 된다 */
+      if(window.__fadeJet) window.__fadeJet();
     };
+    /* 지구도 섰고 최소 체류도 지났을 때만 연다 — 둘 중 늦은 쪽을 따른다 */
+    var openIfReady = function(){
+      if(!painted) return;
+      var left = STAY - (Date.now() - t0);
+      if(left <= 0) open(); else setTimeout(open, left);
+    };
+
+    /* 건너뛰기 — 누르거나 굴리면 즉시. 단 지구가 아직 안 섰으면 서는 즉시 */
+    var skip = function(){ if(painted) open(); else STAY = 0; };
+    var EV = ['pointerdown','wheel','touchstart','keydown'];
+    function detach(){ EV.forEach(function(t){ window.removeEventListener(t, onSkip, true); }); }
+    function onSkip(e){
+      if(e.type === 'keydown' && ['Tab','Shift','Control','Alt','Meta'].indexOf(e.key) >= 0) return;
+      skip();
+    }
+    EV.forEach(function(t){ window.addEventListener(t, onSkip, { passive:true, capture:true }); });
+
     try{
       var off = viewer.scene.postRender.addEventListener(function(){
-        off();          /* 한 번만 듣는다 */
-        open();
+        off();                       /* 한 번만 듣는다 */
+        painted = true; openIfReady();
       });
-    }catch(e){ open(); }
-    setTimeout(open, 2000);
+    }catch(e){ painted = true; openIfReady(); }
+    /* 첫 프레임이 영영 안 오는 경우의 폴백 — 2초 뒤엔 그렸다고 친다 */
+    setTimeout(function(){ painted = true; openIfReady(); }, 2000);
   })();
 
   /* ── 구글 실사 3D 타일 (키가 있을 때만) ──
