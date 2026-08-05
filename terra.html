@@ -68,8 +68,27 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
       /* 타이핑 폐기(0805 소로) — 문장은 통째로 갈아끼우고, 떠오르는 것은 CSS가 맡는다.
          페이드인이 1.8초 뒤(msgIn)라 이 갈아끼우기는 보이기 전에 끝난다 — 어긋남이 없다.
          ⚠ textContent만 쓴다 — 남의 글이 코드가 되지 않게. */
-      el.innerHTML = '<span class="line"></span>' + (it.source ? '<span class="src"></span>' : '');
-      el.querySelector(".line").textContent = it.body;
+      /* ── 두 줄 접기(0805 소로) — 문장 가운데 마침표가 있으면 거기서,
+         없으면 한가운데에 가장 가까운 공백에서 접는다. 짧은 문장(15자 이하)은 한 줄. */
+      var body = String(it.body).trim();
+      var a = body, b = "";
+      if(body.length > 15){
+        var m = body.slice(0, -1).lastIndexOf(". ");            /* 끝 마침표는 제외 */
+        if(m > 3){ a = body.slice(0, m+1); b = body.slice(m+2); }
+        else{
+          var mid = Math.floor(body.length/2), best = -1, dist = 1e9;
+          for(var k=0; k<body.length; k++) if(body[k]===' '){
+            var d = Math.abs(k-mid); if(d<dist){ dist=d; best=k; }
+          }
+          if(best > 0){ a = body.slice(0,best); b = body.slice(best+1); }
+        }
+      }
+      el.innerHTML = '<span class="line"></span>'
+        + (b ? '<span class="line"></span>' : '')
+        + (it.source ? '<span class="src"></span>' : '');
+      var lines = el.querySelectorAll(".line");
+      lines[0].textContent = a;
+      if(b) lines[1].textContent = b;
       if(it.source) el.querySelector(".src").textContent = it.source;
     }
 
@@ -560,11 +579,11 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   #skyDrift::before{
     content:'';position:absolute;top:0;bottom:0;left:-30%;width:160%;
     background:url('loader_sky.webp') center/cover no-repeat;
-    animation:skySlide 150s linear infinite alternate;   /* 아주 천천히 — 우로 */
+    animation:skySlide 90s linear infinite alternate;    /* 천천히 — 우로 (0805 소로: 움직임이 느껴지게) */
   }
   @keyframes skySlide{
     from{transform:translateX(0)}
-    to  {transform:translateX(6%)}     /* 150초에 6% — 흐름이 아니라 숨결 수준 */
+    to  {transform:translateX(12%)}    /* 90초에 12% — 느리지만 눈이 알아채는 속도 */
   }
   /* 비행기와 글자는 하늘 위에 */
   #jetTrack{z-index:2}
@@ -575,13 +594,12 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   /* ── 오늘의 한 줄 ── */
   #loaderMsg{
     position:relative;z-index:3;text-align:center;
-    max-width:min(760px,88vw);line-height:2.1;
+    max-width:min(880px,90vw);line-height:1.95;
     font-family:"Nanum Myeongjo",Georgia,serif;   /* 월든 포스터의 결 — 명조가 먼저다 */
-    font-size:22.5px;font-weight:400;             /* 15px × 1.5 (0805 소로) */
-    letter-spacing:.1em;                          /* 명조는 자간을 좁혀야 포스터처럼 읽힌다 */
-    text-shadow:0 2px 18px rgba(4,8,18,.95),0 0 40px rgba(4,8,18,.8);
-    /* 타이핑 폐기(0805 소로) — 비행기가 하늘에 뜨고 1.8초 뒤 통째로 떠오른다.
-       DB 문장이 늦게 갈아끼워져도 컨테이너 페이드는 같아서 어긋나지 않는다. */
+    font-size:30px;font-weight:400;               /* 0805 소로 — 더 크게 */
+    letter-spacing:.08em;
+    color:#fff;                                    /* 밝은 하늘에는 흰 글자 (0805 소로) */
+    text-shadow:0 1px 3px rgba(20,40,70,.45),0 4px 22px rgba(20,40,70,.35);
     opacity:0;
     animation:msgIn 1.6s ease 1.8s forwards;
   }
@@ -591,20 +609,17 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
     position:absolute;right:26px;bottom:22px;z-index:3;
     font-family:"Nanum Myeongjo",Georgia,serif;
     font-size:12.5px;letter-spacing:.24em;
-    color:var(--gold-soft,#b99a4e);opacity:0;
+    color:rgba(255,255,255,.75);text-shadow:0 1px 3px rgba(20,40,70,.4);opacity:0;
     animation:msgIn 1.6s ease 2.2s forwards;      /* 문장보다 반 박자 늦게 */
   }
-  #loaderMsg::before{                    /* 글자 뒤 어두운 방석 — 대비 지킴이 */
-    content:'';position:absolute;inset:-38px -56px;z-index:-1;
-    background:radial-gradient(60% 60% at 50% 50%, rgba(6,10,22,.72), rgba(6,10,22,0) 72%);
-    pointer-events:none;
-  }
+  /* 검은 방석(0805 폐기) — 어두운 밤하늘 시절의 유물. 밝은 실사 하늘에서는 얼룩이 된다.
+     대비는 흰 글자 + 그림자가 맡는다. */
   #loaderMsg .line{display:block;min-height:1.9em}   /* 빈 줄에도 높이를 잡아 화면이 안 튀게 */
   #loaderMsg .src{
-    display:block;margin-top:20px;
-    font-size:13.5px;letter-spacing:.24em;font-weight:400;
-    color:var(--gold-soft,#b99a4e);opacity:.72;
-    transition:opacity 1.4s ease;                    /* 문장이 다 놓인 뒤 조용히 떠오른다 */
+    display:block;margin-top:22px;
+    font-size:14px;letter-spacing:.26em;font-weight:400;
+    color:rgba(255,255,255,.82);                     /* 밝은 하늘 — 흰 계열 (0805) */
+    text-shadow:0 1px 3px rgba(20,40,70,.4);
   }
   /* 분더카머로 떠나는 비행 — 좌에서 우로 한 번 지나간다 (0805 소로) */
   #jetTrack{position:relative;width:100%;height:320px;overflow:hidden;pointer-events:none;}
