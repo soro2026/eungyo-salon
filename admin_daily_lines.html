@@ -80,6 +80,21 @@
   .row .txt{flex:1;line-height:1.65}
   .row .txt .s{display:block;font-size:11.5px;color:var(--dim);margin-top:5px;letter-spacing:.1em}
   .row .acts{display:flex;gap:6px;flex-shrink:0}
+  /* 제자리 고치기 — 줄이 편집칸으로 바뀐다 */
+  .row.editing{background:#0c1424}
+  .row .edit{flex:1;display:none}
+  .row.editing .edit{display:block}
+  .row.editing .txt{display:none}
+  .row .edit textarea,.row .edit input{
+    width:100%;background:#070c18;border:1px solid var(--gold-soft);border-radius:6px;
+    color:var(--cream);padding:9px 11px;font-size:14px;font-family:inherit;margin-bottom:8px;
+  }
+  .row .edit textarea{min-height:62px;resize:vertical;line-height:1.7}
+  .row .edit input{font-size:12.5px;color:var(--dim)}
+  .row .edit textarea:focus,.row .edit input:focus{outline:none;border-color:var(--gold)}
+  .row .edit .eacts{display:flex;gap:8px;align-items:center}
+  .row .edit .ecount{font-size:11px;color:var(--dim);margin-left:auto}
+  .row .edit .ecount.over{color:var(--danger)}
   .badge{
     display:inline-block;font-size:10px;letter-spacing:.14em;color:var(--gold);
     border:1px solid var(--gold-soft);border-radius:3px;padding:1px 6px;margin-left:8px;vertical-align:2px;
@@ -194,6 +209,49 @@ function draw(){
     const acts = document.createElement('div');
     acts.className = 'acts';
 
+    /* ── 제자리 고치기 (0805) ── */
+    const edit = document.createElement('div');
+    edit.className = 'edit';
+    const eb = document.createElement('textarea'); eb.value = r.body;
+    const es = document.createElement('input');    es.value = r.source || '';
+    es.placeholder = '출처 — 저자 · 작품';
+    const ea = document.createElement('div'); ea.className = 'eacts';
+    const save = document.createElement('button'); save.className = 'mini'; save.textContent = '저장';
+    const cancel = document.createElement('button'); cancel.className = 'mini'; cancel.textContent = '되돌리기';
+    const ec = document.createElement('span'); ec.className = 'ecount';
+    const recount = ()=>{
+      const n = eb.value.length;
+      ec.textContent = n > 60 ? n + '자 — 화면에서 세 줄이 됩니다' : n + '자';
+      ec.className = 'ecount' + (n > 60 ? ' over' : '');
+    };
+    eb.addEventListener('input', recount); recount();
+    ea.append(save, cancel, ec);
+    edit.append(eb, es, ea);
+
+    const fix = document.createElement('button');
+    fix.className = 'mini'; fix.textContent = '고치기';
+    fix.onclick = ()=>{
+      el.classList.add('editing');
+      acts.style.display = 'none';
+      eb.focus();
+    };
+    const close = ()=>{ el.classList.remove('editing'); acts.style.display = ''; };
+    cancel.onclick = ()=>{ eb.value = r.body; es.value = r.source || ''; recount(); close(); };
+    save.onclick = async ()=>{
+      const body = eb.value.trim();
+      if(!body){ say('문장이 비었습니다'); return; }
+      const { error } = await supa.from('daily_lines')
+        .update({ body, source: es.value.trim() || null }).eq('id', r.id);
+      if(error){ say('고치지 못했습니다 — ' + error.message); return; }
+      say('고쳤습니다', true);
+      close(); load();
+    };
+    /* Ctrl/⌘+Enter로 저장 — 문장 하나 고치자고 마우스까지 가지 않게 */
+    eb.addEventListener('keydown', e=>{
+      if((e.metaKey || e.ctrlKey) && e.key === 'Enter') save.click();
+      if(e.key === 'Escape') cancel.click();
+    });
+
     const tg = document.createElement('button');
     tg.className = 'mini'; tg.textContent = r.active ? '재우기' : '깨우기';
     tg.onclick = ()=>toggle(r);
@@ -202,8 +260,8 @@ function draw(){
     del.className = 'mini danger'; del.textContent = '지우기';
     del.onclick = ()=>remove(r);
 
-    acts.append(tg, del);
-    el.append(no, txt, acts);
+    acts.append(fix, tg, del);
+    el.append(no, txt, edit, acts);
     list.appendChild(el);
   });
 }

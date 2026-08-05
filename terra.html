@@ -45,10 +45,49 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
       var it = rows[((D % rows.length) + rows.length) % rows.length];
       var el = document.getElementById("loaderMsg");
       if(!el || !it || !it.body) return;
-      var html = '<span class="line"></span>';
-      el.innerHTML = html + (it.source ? '<span class="src"></span>' : '');
-      el.querySelector(".line").textContent = it.body;          /* textContent — 남의 글이 코드가 되지 않게 */
-      if(it.source) el.querySelector(".src").textContent = it.source;
+
+      el.innerHTML = '<span class="line"></span>' + (it.source ? '<span class="src"></span>' : '');
+      var line = el.querySelector(".line");
+      var src  = el.querySelector(".src");
+
+      /* ── 한 단어씩 놓기 (0805 소로) ──
+         ⚠ 글자 단위로 끊지 않는다. 한글은 자모가 모여 한 글자가 되므로 글자 단위면
+           어색하고 터미널 흉내가 된다. 단어 단위라야 문장이 마디마디 놓인다.
+         ⚠⚠ 로더는 지구 타일이 다 내려받히면 사라진다. 그때 문장이 절반만 나와 있으면
+           잘린 채로 끝난다. 그래서 loader.gone이 붙는 순간 남은 말을 즉시 다 채운다.
+           끝까지 못 보여줄 바에는 다 보여주고 지우는 편이 낫다.
+         ⚠ textContent만 쓴다 — 남의 글이 코드가 되지 않게. */
+      var words = String(it.body).split(/(\s+)/);   /* 공백도 조각으로 남겨 간격을 지킨다 */
+      var i = 0, done = false, timer = null;
+
+      function finish(){
+        if(done) return;
+        done = true;
+        if(timer) clearTimeout(timer);
+        line.textContent = it.body;
+        if(src && it.source){ src.textContent = it.source; src.style.opacity = ''; }
+      }
+      function step(){
+        if(done) return;
+        if(i >= words.length){
+          if(src && it.source){ src.textContent = it.source; src.style.opacity = ''; }
+          done = true; return;
+        }
+        line.textContent += words[i++];
+        timer = setTimeout(step, /\s/.test(words[i-1]) ? 0 : 90);
+      }
+
+      if(src) src.style.opacity = '0';              /* 출처는 문장이 다 놓인 뒤에 */
+      step();
+
+      /* 로더가 걷히면 남은 말을 즉시 채운다 */
+      var loader = document.getElementById("loader");
+      if(loader && window.MutationObserver){
+        var mo = new MutationObserver(function(){
+          if(loader.classList.contains("gone")){ finish(); mo.disconnect(); }
+        });
+        mo.observe(loader, { attributes:true, attributeFilter:["class"] });
+      }
     })
     .catch(function(){ /* 기본 문구 유지 */ });
   })();
@@ -561,11 +600,12 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
     background:radial-gradient(60% 60% at 50% 50%, rgba(6,10,22,.72), transparent 72%);
     pointer-events:none;
   }
-  #loaderMsg .line{display:block}
+  #loaderMsg .line{display:block;min-height:1.9em}   /* 빈 줄에도 높이를 잡아 화면이 안 튀게 */
   #loaderMsg .src{
     display:block;margin-top:16px;
     font-size:11.5px;letter-spacing:.22em;
     color:var(--gold-soft,#b99a4e);opacity:.72;
+    transition:opacity 1.1s ease;                    /* 문장이 다 놓인 뒤 조용히 떠오른다 */
   }
   /* 분더카머로 떠나는 비행 — EG 전용기가 중앙에 떠 있음 */
   #jetTrack{position:relative;width:100%;height:320px;overflow:hidden;pointer-events:none;}
