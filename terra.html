@@ -37,6 +37,41 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   (function todaysLine(){
     var D = Math.floor((Date.now() + 9*3600*1000) / 86400000);   /* KST 날수 — 도장과 같은 눈금 */
 
+    /* ⏱ 미리보기(0805) — ?ttline=YYYY-MM-DD 로 열면 그날의 로딩 화면이 그대로 뜨고
+       걷히지 않는다. admin_daily_lines의 ⏱가 이 문으로 들어온다.
+       문장·날짜 표기가 그날 것이 되고, 하늘·비행기·두 줄 접기는 실물 그대로다.
+       ⚠ 화면 판정만이다 — 로그인·지구·DB 어디에도 안 닿는다. 로더가 안 걷힐 뿐. */
+    var TT = null;
+    try{
+      var q = new URLSearchParams(location.search).get("ttline");
+      if(q && /^\d{4}-\d{2}-\d{2}$/.test(q)){
+        TT = Math.floor((Date.parse(q + "T00:00:00Z") + 9*3600*1000) / 86400000);
+        D = TT;
+        /* 로더를 붙박는다 — gone이 붙어도 안 걷히게. 두 지점을 고치는 대신 CSS로 이긴다 */
+        var st = document.createElement("style");
+        st.textContent = "#loader{opacity:1!important;pointer-events:auto!important;}"
+          + "#ttlineBar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);"
+          + "z-index:99;display:flex;gap:8px;align-items:center;font-size:12px;"
+          + "letter-spacing:.08em;color:#f0e4c8;background:rgba(10,14,26,.72);"
+          + "border:1px solid rgba(201,162,39,.45);border-radius:20px;padding:8px 16px;"
+          + "backdrop-filter:blur(4px);}"
+          + "#ttlineBar b{color:#e9cf9c;font-weight:400;}";
+        document.head.appendChild(st);
+        document.addEventListener("DOMContentLoaded", function(){
+          var bar = document.createElement("div");
+          bar.id = "ttlineBar";
+          bar.innerHTML = "<b>⏱ " + q + " 의 비행 화면</b>";
+          var x = document.createElement("button");
+          x.textContent = "닫기";
+          x.style.cssText = "font:inherit;font-size:11.5px;color:#1a120c;background:#c9a24a;"
+            + "border:none;border-radius:14px;padding:5px 13px;cursor:pointer;";
+          x.onclick = function(){ window.close(); location.href = "terra.html"; };
+          bar.appendChild(x);
+          document.body.appendChild(bar);
+        }, { once:true });
+      }
+    }catch(e){ /* 미리보기 실패는 조용히 — 보통 손님 길에는 아무 일도 없다 */ }
+
     /* ⚠⚠ 이 스크립트는 문서 25번째 줄에서 돌고 #loaderMsg는 1200줄 아래에 있다.
        캐시가 살아 있으면 fetch가 20ms 만에 돌아와 그때는 아직 그 줄이 안 읽혔다.
        getElementById가 null을 물고 조용히 되돌아가 문장이 영영 안 떴다(0805 사고).
@@ -94,10 +129,23 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
 
     /* 오늘 날짜 — 탑승권 구석 (0805 소로). KST로 계산해 UTC 게터로 읽는다 */
     function fillDate(d){
-      var now = new Date(Date.now() + 9*3600*1000);
+      /* ⏱ 미리보기면 그 날짜로 적는다 — 문장만 그날이고 날짜가 오늘이면 반쪽이다 */
+      var now = TT != null
+        ? new Date(TT*86400000 + 12*3600*1000)
+        : new Date(Date.now() + 9*3600*1000);
       var days = ["일","월","화","수","목","금","토"];
-      d.textContent = now.getUTCFullYear() + ". " + (now.getUTCMonth()+1) + ". "
-                    + now.getUTCDate() + ". " + days[now.getUTCDay()] + "요일";
+      /* 좌상단 천문대 명패 문법(0805) — 윗줄 날짜, 아랫줄 시각.
+         ⚠ textContent 조립 — 값이 전부 숫자라 innerHTML이어도 무해하나 습관을 지킨다 */
+      var dd = document.createElement("span"); dd.className = "dd";
+      dd.textContent = now.getUTCFullYear() + ". " + (now.getUTCMonth()+1) + ". "
+                     + now.getUTCDate() + ". " + days[now.getUTCDay()] + "요일";
+      var tt = document.createElement("span"); tt.className = "tt";
+      var kst = new Date(Date.now() + 9*3600*1000);   /* 시각은 늘 지금 — 미리보기도 실물처럼 */
+      tt.textContent = "HEURE LOCALE  "
+        + String(kst.getUTCHours()).padStart(2,"0") + ":"
+        + String(kst.getUTCMinutes()).padStart(2,"0");
+      d.textContent = "";
+      d.appendChild(dd); d.appendChild(document.createElement("br")); d.appendChild(tt);
     }
     var dEl = document.getElementById("loaderDate");
     if(dEl) fillDate(dEl);
@@ -197,7 +245,7 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
 <link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Widgets/widgets.css" rel="stylesheet" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Black+Han+Sans&family=Nanum+Myeongjo:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Black+Han+Sans&family=Cormorant+Garamond:wght@400;500&family=Nanum+Myeongjo:wght@400;700&display=swap" rel="stylesheet">
 
 <style>
   :root{
@@ -605,13 +653,19 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   }
   @keyframes msgIn{ to{opacity:1} }
   /* 오늘 날짜 — 탑승권 구석처럼 (0805 소로) */
+  /* 0805 소로 — 우하단은 구름이 밝아 글자가 먹혔다. 천문대 명패 문법으로 좌상단에.
+     (observatorium #plate 이식 — 이름 줄 + 세리프 작은 줄 + 짙은 텍스트 섀도) */
   #loaderDate{
-    position:absolute;right:26px;bottom:22px;z-index:3;
-    font-family:"Nanum Myeongjo",Georgia,serif;
-    font-size:12.5px;letter-spacing:.24em;
-    color:rgba(255,255,255,.75);text-shadow:0 1px 3px rgba(20,40,70,.4);opacity:0;
+    position:absolute;top:calc(22px + env(safe-area-inset-top));
+    left:calc(20px + env(safe-area-inset-left));z-index:3;
+    text-align:left;opacity:0;pointer-events:none;
     animation:msgIn 1.6s ease 2.2s forwards;      /* 문장보다 반 박자 늦게 */
   }
+  #loaderDate .dd{font-size:15px;letter-spacing:.08em;color:rgba(240,232,212,.92);
+    text-shadow:0 2px 18px rgba(0,0,0,.95);}
+  #loaderDate .tt{font-family:'Cormorant Garamond',var(--serif);
+    font-size:11.5px;letter-spacing:.24em;color:rgba(159,182,232,.85);
+    margin-top:5px;text-shadow:0 2px 14px rgba(0,0,0,.95);}
   /* 검은 방석(0805 폐기) — 어두운 밤하늘 시절의 유물. 밝은 실사 하늘에서는 얼룩이 된다.
      대비는 흰 글자 + 그림자가 맡는다. */
   #loaderMsg .line{display:block;min-height:1.9em}   /* 빈 줄에도 높이를 잡아 화면이 안 튀게 */
