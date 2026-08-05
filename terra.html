@@ -1668,6 +1668,43 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
     osm.gamma = 0.8;
   }catch(e){ console.warn("기본 지도 로드 실패:", e); }
 
+  /* ══ 0805 소로 — 「비행이 아니라 지구가 기준이다」 ══
+     옛 순서: 타일셋 + 핀 넷을 다 기다린 뒤에야 카메라를 세우고 로더를 걷었다.
+     그 줄이 길어져 14초 안전장치가 매번 발동했고, 손님은 setView 전에 로더가
+     걷히는 바람에 Cesium 기본 홈 뷰(야구공만 한 지구)를 몇 초 보게 됐다.
+
+     ⭐ 기다림의 대가가 거의 없었다는 것이 핵심이다 —
+       createGooglePhotorealistic3DTileset의 await는 **뿌리 JSON 한 장**만 받는다.
+       건물 타일은 카메라가 선 뒤에 화면을 보고 받아온다. 그래서 느린 곳에서는
+       14초를 다 쓰고도 파리에서 또 기다리게 됐다(0805 소로 실측 — 도서관 와이파이).
+       커튼을 늦게 걷는다고 무대가 차려지는 게 아니라, 커튼을 걷어야 차려지기 시작한다.
+
+     새 순서: 카메라를 먼저 세우고 곧바로 문을 연다. 타일·핀은 뒤에서 붙는다.
+     ⚠ 아래쪽의 옛 setView·gone은 걷어냈다. 두 곳에 두면 카메라가 두 번 튄다. */
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(2.3440, 48.8530, 1000000),
+    orientation:{ heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 }
+  });
+  /* ⚠ 곧바로 걷지 않고 **첫 프레임이 실제로 그려진 뒤** 걷는다.
+     안 그러면 아주 느린 기기에서 로더가 까만 캔버스로 갈릴 수 있다.
+     ⚠ 2초를 넘기면 그냥 걷는다 — 안전장치가 또 다른 대기가 되면 안 된다(함정 AE). */
+  (function openDoorWhenPainted(){
+    var opened = false;
+    var open = function(){
+      if(opened) return; opened = true;
+      var ld = document.getElementById("loader");
+      if(ld) ld.classList.add("gone");
+      if(window.__fadeJet) window.__fadeJet();   /* 비행은 여기서 끝 — 15초를 다 못 날아도 된다 */
+    };
+    try{
+      var off = viewer.scene.postRender.addEventListener(function(){
+        off();          /* 한 번만 듣는다 */
+        open();
+      });
+    }catch(e){ open(); }
+    setTimeout(open, 2000);
+  })();
+
   /* ── 구글 실사 3D 타일 (키가 있을 때만) ──
      0728 — 화면 오른쪽 위 안내판(#hint)을 걷었다. 손님에게 타일 종류는 알 바가 아니고,
      결정문 2호는 연결 상태를 알리는 배너 일체를 금지한다. 게다가 그 글씨가 하필
@@ -1691,10 +1728,17 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   viewer.screenSpaceEventHandler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
   viewer.trackedEntity = undefined;
   viewer.scene.screenSpaceCameraController.minimumZoomDistance = 60;   // 지표 60m 위까지만
-  await loadCityMarkers('paris');   // 도시 핀(인물 장소)
-  await loadMaisons('paris');       // EG메종 집 핀 (옐로 라벨)
-  await loadPopups('paris');        // 출판사 팝업 명패 핀
-  await loadPalais('paris');        // 전당(지식채널) 청록 핀
+  /* ⚠ 0805 — 넷이 한 줄로 서 있었다. 서로의 결과를 안 쓰는데 앞사람을 기다렸다.
+     DB 왕복 넷 × 각 수백ms가 그대로 더해져 로더 대기의 큰 몫이었다.
+     이제 로더는 이미 걷혔으므로 이 넷은 뒤에서 붙는다 — 그래도 나란히 보낸다.
+     ⚠ Promise.all은 하나가 넘어지면 통째로 넘어진다. allSettled로 받아
+       핀 한 종류가 실패해도 나머지 셋은 선다(폴백이 기본값 · 함정 AE). */
+  await Promise.allSettled([
+    loadCityMarkers('paris'),   // 도시 핀(인물 장소)
+    loadMaisons('paris'),       // EG메종 집 핀 (옐로 라벨)
+    loadPopups('paris'),        // 출판사 팝업 명패 핀
+    loadPalais('paris')         // 전당(지식채널) 청록 핀
+  ]);
   loadCityList();
   document.getElementById("cityBtn").addEventListener("click", ()=> { toggleStarList(false); toggleCityList(); });
   loadStarList();
@@ -1784,13 +1828,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
   { const sc = document.getElementById("storyClose"); if (sc) sc.addEventListener("click", closeStory); }
 
-  // 시작: 파리 상공 높은 곳(지구가 1초 안에 뜸) → 내 집까지 하강
-  viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(2.3440, 48.8530, 1000000),
-    orientation:{ heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 }
-  });
-  document.getElementById("loader").classList.add("gone");
-  if(window.__fadeJet) window.__fadeJet();   // 비행 끝 — 제트음 부드럽게 페이드아웃
+  // 시작 카메라와 로더 걷기는 **위로 옮겼다**(0805) — 지구가 설 수 있게 되는 즉시 문을 연다.
   // 세션에서 내 uid 읽어 → 내 집으로 직행 (집이 없으면 자동 배정)
   await setupAdminEdit();   // admin이면 좌표 편집 토글 노출
   // 진입 분기 (enter=1은 위에서 fastEnter로 처리됨)
