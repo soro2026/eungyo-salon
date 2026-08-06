@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EG Voice — 낭독실</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bench:#171C26; --bench-2:#1F2633; --line:#2E3646;
+  --paper:#FDFCFA; --gold:#C7A24A; --dim:#8A93A6; --text:#E7EAF0;
+  --danger:#C4574F; --ok:#5E9C6E; --warn:#D08A3E;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bench);color:var(--text);
+  font-family:'Noto Sans KR',system-ui,sans-serif;font-size:14px;line-height:1.6;
+  -webkit-font-smoothing:antialiased}
+button,input,select,textarea{font-family:inherit;font-size:inherit}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
+  padding:16px 22px;border-bottom:1px solid var(--line);
+  position:sticky;top:0;z-index:20;background:var(--bench)}
+header h1{margin:0;font-family:'Cormorant Garamond',serif;font-weight:600;
+  font-size:25px;letter-spacing:.06em}
+header h1 em{font-style:normal;color:var(--gold)}
+.sub{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--dim);letter-spacing:.14em}
+.count{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--dim)}
+.count b{color:var(--text);font-weight:500}
+.count .w{color:var(--warn)}
+
+main{display:grid;grid-template-columns:296px 1fr;min-height:calc(100vh - 60px)}
+@media(max-width:880px){main{grid-template-columns:1fr}}
+aside{border-right:1px solid var(--line);padding:14px;overflow:auto}
+section{padding:22px 26px 60px;overflow:auto}
+
+.grp{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.16em;color:var(--dim);
+  padding:16px 6px 6px;border-bottom:1px solid var(--line)}
+.row{display:flex;gap:11px;align-items:center;width:100%;text-align:left;cursor:pointer;
+  background:transparent;border:0;border-bottom:1px solid var(--line);padding:9px 6px;color:var(--text)}
+.row:hover{background:var(--bench-2)}
+.row[aria-current="true"]{background:var(--bench-2);box-shadow:inset 3px 0 0 var(--gold)}
+.dot{width:9px;height:9px;flex:none;border-radius:50%;border:1px solid var(--line);background:transparent}
+.dot.on{background:var(--ok);border-color:var(--ok)}
+.dot.stale{background:var(--warn);border-color:var(--warn)}
+.row .t{font-weight:500;line-height:1.25;display:block}
+.row .c{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:.04em}
+
+.empty{color:var(--dim);max-width:42ch;margin-top:12vh;font-size:15px;line-height:1.85}
+h2{font-family:'Cormorant Garamond',serif;font-weight:600;font-size:26px;margin:0 0 2px}
+.meta{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--dim);letter-spacing:.08em;margin-bottom:18px}
+
+.card{border:1px solid var(--line);border-radius:6px;padding:16px;margin-bottom:18px;background:var(--bench-2)}
+.card h3{margin:0 0 10px;font-size:12px;letter-spacing:.14em;color:var(--dim);
+  font-family:'IBM Plex Mono',monospace;font-weight:500;text-transform:uppercase}
+textarea{width:100%;min-height:190px;resize:vertical;background:var(--bench);color:var(--text);
+  border:1px solid var(--line);border-radius:5px;padding:12px 13px;line-height:1.85}
+.btn{padding:8px 14px;border-radius:5px;cursor:pointer;border:1px solid var(--line);
+  background:transparent;color:var(--text)}
+.btn:hover{border-color:var(--gold);color:var(--gold)}
+.btn.gold{border-color:var(--gold);color:var(--gold)}
+.btn.bad:hover{border-color:var(--danger);color:var(--danger)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.btn[disabled]:hover{border-color:var(--line);color:var(--text)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.bar .sp{margin-left:auto}
+
+.drop{border:1px dashed var(--line);border-radius:6px;padding:26px 18px;text-align:center;
+  color:var(--dim);cursor:pointer;transition:.15s}
+.drop:hover,.drop.over{border-color:var(--gold);color:var(--gold);background:rgba(199,162,74,.05)}
+.drop.busy{opacity:.5;pointer-events:none}
+audio{width:100%;margin-top:12px;filter:invert(.92) hue-rotate(180deg)}
+.note{font-size:12.5px;color:var(--dim);line-height:1.8;margin-top:10px}
+.note b{color:var(--warn);font-weight:500}
+.tag{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;
+  border:1px solid var(--line);border-radius:3px;padding:2px 7px;color:var(--dim);margin-left:8px}
+.tag.warn{border-color:var(--warn);color:var(--warn)}
+.tag.ok{border-color:var(--ok);color:var(--ok)}
+input.line{background:var(--bench);border:1px solid var(--line);color:var(--text);
+  border-radius:5px;padding:8px 10px;min-width:220px}
+
+#gate{position:fixed;inset:0;background:var(--bench);display:grid;place-items:center;z-index:60;padding:24px}
+#gate .box{max-width:340px;width:100%}
+#gate h2{margin:0 0 8px}
+#gate p{color:var(--dim);font-size:13px;margin:0 0 18px}
+#gate input{width:100%;margin-bottom:8px}
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+  background:var(--bench-2);border:1px solid var(--line);border-radius:6px;padding:11px 18px;
+  opacity:0;pointer-events:none;transition:.25s;z-index:70;max-width:80vw}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.bad{border-color:var(--danger)}
+#toast.ok{border-color:var(--ok)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>EG <em>Voice</em></h1>
+  <span class="sub">낭독실 · 장소 원고</span>
+  <span class="count" id="count"></span>
+</header>
+
+<main id="app" hidden>
+  <aside id="list"></aside>
+  <section id="pane"><p class="empty">왼쪽에서 곳을 고르십시오.<br>낭독 원문을 여기서 만들어 드립니다.</p></section>
+</main>
+
+<div id="gate" hidden>
+  <div class="box">
+    <h2>낭독실</h2>
+    <p>이 문은 관리자에게만 열립니다.</p>
+    <input class="line" id="em" type="email" placeholder="메일 주소" autocomplete="username">
+    <input class="line" id="pw" type="password" placeholder="비밀번호" autocomplete="current-password">
+    <button class="btn gold" id="loginBtn" style="width:100%">들어가기</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const BUCKET   = 'tour-assets';
+const sb = createClient(SUPA_URL, SUPA_KEY, {
+  auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
+});
+
+/* ══ 우주 표 ═══════════════════════════════════════════════════════════
+   새 우주가 생기면 여기 한 줄. 로직은 안 건드린다.
+   (terra.html STORY_DOOR·크레덴시알 GROW 표와 같은 문법) */
+const FAMILY = [
+  { kind:'hansfoon', ko:'한스푼',  order:'spoon_no'  },
+  { kind:'heritage', ko:'미술관',  order:'museum_no' },
+  { kind:'museum',   ko:'뮤세움',  order:'museum_no' },
+  { kind:'concert',  ko:'음악관',  order:'hall_no'   }
+];
+
+const $ = s => document.querySelector(s);
+let pins = [], takes = {}, cur = null;
+
+let toastT;
+function toast(msg, kind){
+  const t = $('#toast'); t.textContent = msg; t.className = 'on ' + (kind||'');
+  clearTimeout(toastT); toastT = setTimeout(()=>t.className='', 4200);
+}
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ══ 낭독 원문 — terra.html storyBodyFromMeta와 한 글자도 다르지 않아야 한다 ══
+   ⚠ 부제(subtitle)는 넣지 않는다. 그것은 문 앞 한 줄이지 판의 본문이 아니다.
+   ⚠ 이 함수를 고치면 해시가 전부 어긋나 서른 곳이 한꺼번에 「낡음」이 된다.
+     고쳐야 할 일이 생기면 그날 전량을 다시 굽는다고 각오하고 고칠 것. */
+function narrationOf(meta){
+  const m = meta || {};
+  const out = [];
+  if (m.lede) out.push(m.lede);
+  (Array.isArray(m.body) ? m.body : []).forEach(v => { if(v) out.push(v); });
+  if (m.note) out.push(m.note);
+  return out.join('\n\n');
+}
+
+async function sha256(text){
+  const buf = new TextEncoder().encode(text);
+  const d = await crypto.subtle.digest('SHA-256', buf);
+  return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+const slotOf = p => `${p.kind}/${p.code}`;
+const keyOf  = p => `voice/place/${p.kind}_${p.code}`;
+
+/* ── 문지기 ── */
+async function boot(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if(!session){ $('#gate').hidden = false; return; }
+  const { data:isAdmin } = await sb.rpc('eg_is_admin');
+  if(!isAdmin){
+    $('#gate').hidden = false;
+    $('#gate .box').innerHTML = '<h2>낭독실</h2><p>이 문은 관리자에게만 열립니다.</p>';
+    return;
+  }
+  $('#app').hidden = false;
+  await load();
+}
+$('#loginBtn').addEventListener('click', async () => {
+  const { error } = await sb.auth.signInWithPassword({
+    email:$('#em').value.trim(), password:$('#pw').value });
+  if(error){ toast('들어가지 못했습니다 — ' + error.message, 'bad'); return; }
+  $('#gate').hidden = true; boot();
+});
+
+/* ── 싣기 ── */
+async function load(){
+  const kinds = FAMILY.map(f => f.kind);
+  const { data:rows, error } = await sb.from('terra_pins')
+    .select('id,kind,code,name,meta').in('kind', kinds).eq('active', true);
+  if(error){ toast('핀을 읽지 못했습니다 — ' + error.message, 'bad'); return; }
+
+  /* 원고가 있는 곳만 낭독 대상이다 — 빈 판은 읽을 것이 없다 */
+  pins = (rows||[]).filter(p => narrationOf(p.meta).length > 0);
+  for (const p of pins){
+    p._text = narrationOf(p.meta);
+    p._hash = await sha256(p._text);
+  }
+
+  const { data:tk } = await sb.from('voice_takes').select('*').eq('scope','place');
+  takes = {};
+  (tk||[]).forEach(t => { takes[t.ref] = t; });
+
+  paintList();
+  paintCount();
+  if (cur) select(pins.find(p => p.code === cur.code && p.kind === cur.kind) || null);
+}
+
+function stateOf(p){
+  const t = takes[slotOf(p)];
+  if(!t) return 'none';
+  return (t.src_hash && t.src_hash !== p._hash) ? 'stale' : 'ok';
+}
+
+function paintCount(){
+  const ok = pins.filter(p => stateOf(p)==='ok').length;
+  const st = pins.filter(p => stateOf(p)==='stale').length;
+  $('#count').innerHTML = `구워짐 <b>${ok}</b> / ${pins.length}`
+    + (st ? ` · <span class="w">낡음 ${st}</span>` : '');
+}
+
+function paintList(){
+  let html = '';
+  FAMILY.forEach(f => {
+    const grp = pins.filter(p => p.kind === f.kind)
+      .sort((a,b) => (+(a.meta?.[f.order] ?? 99)) - (+(b.meta?.[f.order] ?? 99)));
+    if(!grp.length) return;
+    const done = grp.filter(p => stateOf(p)==='ok').length;
+    html += `<div class="grp">${f.ko} — ${done}/${grp.length}</div>`;
+    grp.forEach(p => {
+      const s = stateOf(p);
+      html += `<button class="row" data-slot="${esc(slotOf(p))}"
+          aria-current="${cur && slotOf(cur)===slotOf(p)}">
+        <span class="dot ${s==='ok'?'on':s==='stale'?'stale':''}"></span>
+        <span><span class="t">${esc(p.name)}</span>
+        <span class="c">${esc(p.code)} · ${p._text.length}자</span></span>
+      </button>`;
+    });
+  });
+  $('#list').innerHTML = html;
+  $('#list').querySelectorAll('.row').forEach(b => b.onclick = () =>
+    select(pins.find(p => slotOf(p) === b.dataset.slot)));
+}
+
+function select(p){
+  cur = p;
+  paintList();
+  if(!p){ $('#pane').innerHTML = '<p class="empty">왼쪽에서 곳을 고르십시오.</p>'; return; }
+  const t = takes[slotOf(p)];
+  const s = stateOf(p);
+  const tag = s==='ok'    ? '<span class="tag ok">음성 있음</span>'
+            : s==='stale' ? '<span class="tag warn">낡음 — 원고가 바뀌었습니다</span>'
+            : '<span class="tag">아직 없음</span>';
+
+  $('#pane').innerHTML = `
+    <h2>${esc(p.name)}${tag}</h2>
+    <div class="meta">${esc(slotOf(p))} · ${p._text.length}자 · 예상 ${Math.round(p._text.length/5.3)}초</div>
+
+    <div class="card">
+      <h3>낭독 원문</h3>
+      <textarea id="src" readonly>${esc(p._text)}</textarea>
+      <div class="bar">
+        <button class="btn gold" id="copy">원문 복사</button>
+        <span class="note" style="margin:0">일레븐랩스에 붙여 넣고 구우신 뒤, 아래 칸에 던지십시오.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>음성 파일</h3>
+      <div class="drop" id="drop">
+        음성 파일을 여기에 던지거나 눌러서 고르십시오<br>
+        <span style="font-size:12px">mp3 · m4a · wav</span>
+      </div>
+      <input type="file" id="file" accept="audio/*" hidden>
+      ${t ? `<audio controls preload="none" src="${esc(t.url)}"></audio>
+        <div class="note">
+          ${t.origin==='bake' ? '파이스가 구움' : '손으로 올림'}
+          · ${(t.bytes/1024).toFixed(0)}KB
+          ${t.dur_sec ? ' · ' + Math.floor(t.dur_sec/60) + '분 ' + Math.round(t.dur_sec%60) + '초' : ''}
+          · ${new Date(t.created_at).toLocaleDateString('ko-KR')}
+          ${s==='stale' ? '<br><b>⚠ 이 음성을 녹음한 뒤 원고가 바뀌었습니다. 다시 구워 주십시오.</b>' : ''}
+        </div>` : ''}
+      <div class="bar">
+        <input class="line" id="voice" placeholder="목소리 이름 (예: Jina · 일레븐랩스)"
+               value="${esc(t?.voice || lastVoice())}">
+        <button class="btn" id="saveVoice">목소리 이름 저장</button>
+        <button class="btn bad sp" id="del" ${t?'':'disabled'}>음성 지우기</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>일레븐랩스로 굽기 <span class="tag">배관 대기</span></h3>
+      <div class="note" style="margin-top:0">
+        키가 Supabase에 앉으면 이 단추 하나로 굽습니다. 지금은 손으로 올리는 길만 열려 있습니다.
+      </div>
+      <div class="bar">
+        <button class="btn" id="bake">이 곳 굽기</button>
+        <button class="btn" id="bakeAll">안 구워진 곳 전부 굽기</button>
+      </div>
+    </div>`;
+
+  wirePane(p);
+}
+
+function lastVoice(){
+  const v = Object.values(takes).filter(t => t.voice);
+  return v.length ? v[v.length-1].voice : '';
+}
+
+function wirePane(p){
+  $('#copy').onclick = async () => {
+    try{ await navigator.clipboard.writeText(p._text); toast('원문을 복사했습니다.', 'ok'); }
+    catch(_){ $('#src').select(); toast('직접 복사해 주십시오 (Ctrl+C).'); }
+  };
+
+  const drop = $('#drop'), file = $('#file');
+  drop.onclick = () => file.click();
+  drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+  drop.ondragleave = () => drop.classList.remove('over');
+  drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over');
+    if(e.dataTransfer.files[0]) put(p, e.dataTransfer.files[0]); };
+  file.onchange = () => { if(file.files[0]) put(p, file.files[0]); };
+
+  $('#saveVoice').onclick = async () => {
+    const t = takes[slotOf(p)];
+    if(!t){ toast('먼저 음성을 올려 주십시오.', 'bad'); return; }
+    const { error } = await sb.from('voice_takes')
+      .update({ voice:$('#voice').value.trim() || null, updated_at:new Date().toISOString() })
+      .eq('id', t.id);
+    if(error){ toast('저장하지 못했습니다 — ' + error.message, 'bad'); return; }
+    toast('목소리 이름을 적어 두었습니다.', 'ok'); await load();
+  };
+
+  $('#del').onclick = async () => {
+    const t = takes[slotOf(p)];
+    if(!t) return;
+    if(!confirm(p.name + ' 의 음성을 지웁니다. 계속할까요?')) return;
+    await sb.storage.from(BUCKET).remove([keyOf(p) + '.' + (t.mime === 'audio/wav' ? 'wav' : 'mp3')]);
+    const { error } = await sb.from('voice_takes').delete().eq('id', t.id);
+    if(error){ toast('지우지 못했습니다 — ' + error.message, 'bad'); return; }
+    toast('지웠습니다.', 'ok'); await load();
+  };
+
+  $('#bake').onclick    = () => bake([p]);
+  $('#bakeAll').onclick = () => bake(pins.filter(x => stateOf(x) !== 'ok'));
+}
+
+/* ── 올리기 ──────────────────────────────────────────────────────────
+   ⚠ 원문 해시를 파일과 함께 적는다. 이 한 칸이 「낡음」을 알아보는 유일한 근거다.
+   ⚠ 주소에 ?v= 를 붙인다. 다시 구운 파일이 같은 이름으로 앉으므로
+     이것이 없으면 손님 브라우저가 옛 음성을 며칠 더 들려준다(함정 AD). */
+async function put(p, f){
+  if(!/^audio\//.test(f.type) && !/\.(mp3|m4a|wav|ogg)$/i.test(f.name)){
+    toast('음성 파일이 아닙니다.', 'bad'); return;
+  }
+  const drop = $('#drop');
+  drop.classList.add('busy'); drop.textContent = '올리는 중…';
+  try{
+    const ext = (f.name.split('.').pop() || 'mp3').toLowerCase();
+    const key = keyOf(p) + '.' + ext;
+    const { error:upErr } = await sb.storage.from(BUCKET)
+      .upload(key, f, { upsert:true, contentType:f.type || 'audio/mpeg' });
+    if(upErr) throw upErr;
+    const { data:pub } = sb.storage.from(BUCKET).getPublicUrl(key);
+    const url = `${pub.publicUrl}?v=${Date.now()}`;
+
+    let dur = null;
+    try{ dur = await durationOf(f); }catch(_){}
+
+    const row = {
+      scope:'place', ref:slotOf(p), title:p.name, url,
+      src_hash:p._hash, chars:p._text.length,
+      voice:($('#voice')?.value || '').trim() || null,
+      origin:'hand', mime:f.type || null, bytes:f.size, dur_sec:dur,
+      active:true, updated_at:new Date().toISOString()
+    };
+    const { error:dbErr } = await sb.from('voice_takes')
+      .upsert(row, { onConflict:'scope,ref' });
+    if(dbErr) throw dbErr;
+
+    toast(p.name + ' — 음성이 앉았습니다.', 'ok');
+    await load();
+  }catch(e){
+    console.error(e);
+    toast('올리지 못했습니다 — ' + (e.message || e), 'bad');
+    drop.classList.remove('busy');
+    drop.innerHTML = '음성 파일을 여기에 던지거나 눌러서 고르십시오<br><span style="font-size:12px">mp3 · m4a · wav</span>';
+  }
+}
+
+function durationOf(f){
+  return new Promise((res, rej) => {
+    const u = URL.createObjectURL(f);
+    const a = new Audio();
+    a.preload = 'metadata';
+    a.onloadedmetadata = () => { URL.revokeObjectURL(u);
+      res(isFinite(a.duration) ? Math.round(a.duration*100)/100 : null); };
+    a.onerror = () => { URL.revokeObjectURL(u); rej(new Error('길이를 재지 못했습니다')); };
+    a.src = u;
+  });
+}
+
+/* ── 굽기 (배관 대기) ────────────────────────────────────────────────
+   ⚠ 이 컨테이너에서는 일레븐랩스에 직접 못 붙는다. Edge Function이 대신 부른다.
+     함수가 아직 없으면 여기서 조용히 실패하는 대신 무엇이 없는지 말한다(함정 AF). */
+async function bake(list){
+  if(!list.length){ toast('구울 것이 없습니다.', 'ok'); return; }
+  toast(`${list.length}곳 · ${list.reduce((s,p)=>s+p._text.length,0).toLocaleString()}자 — 부르는 중…`);
+  try{
+    const { data, error } = await sb.functions.invoke('voice_bake', {
+      body:{ scope:'place', refs:list.map(slotOf) }
+    });
+    if(error) throw error;
+    toast(`${data?.done ?? 0}곳을 구웠습니다.`, 'ok');
+    await load();
+  }catch(e){
+    toast('아직 배관이 없습니다 — voice_bake 함수와 일레븐랩스 키가 서면 이 단추가 살아납니다.', 'bad');
+    console.warn('[EG] voice_bake', e);
+  }
+}
+
+boot();
+</script>
+</body>
+</html>
