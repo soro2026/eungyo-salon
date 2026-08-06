@@ -805,7 +805,7 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
 <!-- 시각 판정 — 다섯 우주가 한 벌에서만 읽는다 (v128 함정 F) -->
 <script src="eg_sky.js?v=20260729b"></script>
 <!-- EG Credencial — 찍기 부품 (0804) -->
-<script src="stamp_press.js?v=0804a"></script>
+<script src="stamp_press.js?v=0805a"></script>
 </head>
 <body>
 
@@ -1390,6 +1390,43 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
     }
   }
 
+  /* ── EG Credencial 도장 (0806) ───────────────────────────────
+     알베르게 1호 — 몸통은 곳의 얼굴(그 카페), 각인은 그날의 것(그날의 한 스푼).
+     ⚠ 3호 — 한스푼은 고를 여지가 없다. 셸이 연 그 한 곳이 곧 오늘의 한스푼이라
+       음악관처럼 「오늘의 홀인가」를 따로 물을 필요가 없다. 방이 곧 문지기다.
+     ⚠ 7호 — 첫날은 입국 한 장. 입국 전이면 kind를 안 준다 → 부품이 입국을 찾는다.
+     ⚠ 6-1호 — 원판이 아직 안 심긴 곳이어도 입국까지 막지 않는다(부품이 물러난다).
+     ⚠ ⏱ 중에는 놓지 않는다(0805) — 미래 날짜 판정으로 도장이 DB에 앉는다. */
+  async function intrareDone(area){
+    try{
+      const { data:{ user } } = await supa.auth.getUser();
+      if(!user) return true;
+      const { data:ks } = await supa.from('stamp_kinds')
+        .select('code').eq('area', area).eq('family','intrare')
+        .eq('active', true).not('art_url','is',null).limit(1);
+      const code = ks && ks[0] && ks[0].code;
+      if(!code) return true;
+      const { count } = await supa.from('stamps')
+        .select('id', { count:'exact', head:true })
+        .eq('user_id', user.id).eq('kind_code', code);
+      return !!count;
+    }catch(e){ console.warn('[EG] 입국 확인 실패 — 막지 않습니다:', e); return true; }
+  }
+
+  window.EGSpoonStamp = async function(spot){
+    if(!window.EGStamp) return;
+    if(window.EG_TT_DAY != null || window.EG_TT_TOD) return;   /* ⏱ 중 쓰기 차단 */
+    const opt = { supa, area:'cochlear', bottom:96 };
+    const done = await intrareDone('cochlear');
+    if(done && spot && spot.code && SPOON && SPOON.subject){
+      opt.kind        = 'coc_' + spot.code;
+      opt.subject     = spot.code;
+      /* 각인은 찍는 순간 복사한다(15호) — 내일 한 스푼이 바뀌어도 이 도장은 오늘 것이다 */
+      opt.inscription = SPOON.subject;
+    }
+    EGStamp.offer(opt);
+  };
+
   // ── 출발 ─────────────────────────────────────────────
   async function init(){
     await Promise.all([ fetchSpoon(), loadSession() ]);  // 한스푼 + 세션 동시 로드
@@ -1399,8 +1436,7 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
     /* 0806 소로 — 여기서 돌리면 문 뒤에서 미리 흘러버려 입장 때 급하게 튀어나온다.
        문을 연 쪽이 부른다(입장 +5초). */
     window.EGSpoonHeroStart = runHeroTyping;
-    /* EG Credencial 입국 도장 (0804 · 9-1) — 첫 화면이 실제로 뜬 뒤 */
-    if (window.EGStamp) EGStamp.offer({ supa, area:'cochlear' });
+    /* 도장은 여기서 안 놓는다 — 문 뒤에서 미리 뜬다. 방에 앉은 뒤 셸이 부른다(아래). */
   }
   init();
 
@@ -1478,8 +1514,11 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
        그림이 열셋 다 차면 둘 다 null로 되돌릴 것. */
     /* ⚠⚠ ⏱ 날짜가 켜지면 고정핀이 비켜선다 — 안 비키면 날짜를 옮겨도 아무것도 안 바뀌어
        타임머신이 먹통으로 보인다(0806 실전). 고정과 여행은 같이 못 산다. */
-    const FIX = (window.EG_TT_DAY!=null) ? null : "eaglechild";
-    const want=new URLSearchParams(location.search).get('code') || FIX;
+    /* ⚠⚠ 여행 중에는 URL도 비켜선다 — 고정핀만 비키고 ?code=가 남으면 주소창이
+       계속 그 곳이라고 우겨 날짜가 먹통으로 보인다(0806 실전). 같은 병의 두 갈래다. */
+    const TT  = (window.EG_TT_DAY!=null);
+    const FIX = TT ? null : "eaglechild";
+    const want= TT ? null : (new URLSearchParams(location.search).get('code') || FIX);
     SPOT = (want && LIST.find(h=>h.code===want)) || LIST[ kstDay() % LIST.length ];
 
     const t=phase();
@@ -1526,6 +1565,8 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
   function heroGo(){
     if(heroDone) return; heroDone=true;
     setTimeout(()=>{ if(window.EGSpoonHeroStart) window.EGSpoonHeroStart(); }, 800);
+    /* 도장은 글이 흐르기 시작한 뒤에 — 방에 앉아야 「거기 있었다」가 된다(3호) */
+    setTimeout(()=>{ if(window.EGSpoonStamp) window.EGSpoonStamp(SPOT); }, 2600);
   }
   function setPos(v){ curPos=v; $('#roomImg').style.objectPosition='50% '+v.toFixed(2)+'%'; }
   function endSweep(){
@@ -1584,8 +1625,9 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
   /* ⏱가 값을 바꾸면 정문과 방을 다시 건다 */
   window.EGSpoonRelay = function(){
     if(!LIST.length) return;
-    const FIX = (window.EG_TT_DAY!=null) ? null : "eaglechild";   /* boot와 같은 조항 */
-    const want=new URLSearchParams(location.search).get('code') || FIX;
+    const TT  = (window.EG_TT_DAY!=null);                         /* boot와 같은 조항 */
+    const FIX = TT ? null : "eaglechild";
+    const want= TT ? null : (new URLSearchParams(location.search).get('code') || FIX);
     SPOT = (want && LIST.find(h=>h.code===want)) || LIST[ kstDay() % LIST.length ];
     const t=phase();
     bgChain($('#gate'), [asset(SPOT.code,'gate_'+t), asset(SPOT.code,'gate_d')]);
