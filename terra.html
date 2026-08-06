@@ -964,6 +964,18 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   #storyPhotos figcaption{ font-size:11.5px; color:var(--cream-dim); margin-top:6px; line-height:1.55 }
   #storyPhotos figcaption .credit{ opacity:.55; font-size:10.5px }
   /* 이곳에 닿은 별 — 액자 벽 (메종: 클릭 시 별 여행으로 떠남) */
+  /* 낭독 단추 (0806밤) — 음성이 있는 곳에만 선다. 없으면 칸 자체가 안 그려진다. */
+  #storyVoice{ display:none; margin:14px 0 2px }
+  #storyVoice.in{ display:block }
+  #storyVoice .vbtn{ display:flex; align-items:center; gap:10px; width:100%; font:inherit;
+    font-size:12.5px; letter-spacing:.04em; color:var(--gold); background:transparent;
+    border:1px solid var(--gold-soft); border-radius:22px; padding:9px 16px; cursor:pointer;
+    transition:background .25s, border-color .25s; text-align:left }
+  #storyVoice .vbtn:hover{ background:rgba(199,162,74,.08); border-color:var(--gold) }
+  #storyVoice .vbtn[disabled]{ opacity:.5; cursor:default }
+  #storyVoice .ic{ font-size:11px; flex:none; width:14px }
+  #storyVoice .tx{ flex:1 }
+  #storyVoice .dur{ font-size:11px; opacity:.6; flex:none }
   #storyEnter{ display:block; width:100%; margin-top:24px; font:inherit;
     font-size:13.5px; letter-spacing:.06em; color:#241a10; background:var(--gold);
     border:none; border-radius:26px; padding:13px 18px; cursor:pointer;
@@ -1497,6 +1509,7 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   <h2 class="stitle" id="storyTitle"></h2>
   <div class="stitle-ko" id="storyTitleKo"></div>
   <div class="ssub" id="storySub"></div>
+  <div id="storyVoice"></div>
   <div id="storyPhotos"></div>
   <div class="sbody" id="storyBody"></div>
   <div id="storyStars"></div>
@@ -2458,6 +2471,7 @@ async function jumpToStarPlace(starId, opts){
 }
 
 function openStory(spot){
+  stopStoryVoice();          /* 0806밤 — 앞 곳의 소리와 단추를 먼저 걷는다 */
   const isCompagnon = (spot.source === 'compagnon');
   /* 콘서트홀(0731): 팝업 맨 아래에 입장 버튼. 다른 장소에선 숨는다.
      spot._concert는 terra 핀 클릭에서 meta로 빚어 넣어 준다. */
@@ -2565,6 +2579,65 @@ function renderStoryStars(figs){
 
 function closeStory(){
   document.getElementById("story").classList.remove("in");
+  stopStoryVoice();                       /* 판을 닫으면 소리도 멎는다 */
+}
+
+/* ══ 낭독 (0806밤) ═════════════════════════════════════════════════
+   ⭐ 「음성이 있느냐」로 가른다 — 원고 유무로 소개창을 가른 것과 같은 문법.
+     voice_takes에 한 줄이 앉는 순간 그 곳에 단추가 생긴다. 코드는 안 고친다.
+     아직 안 구운 스물아홉 곳에는 단추가 아예 안 서므로 먹통 단추가 없다.
+   ⚠ 자동 재생하지 않는다. 브라우저도 막고 헌장 9장(자극으로 붙잡지 않음)도 막는다.
+   ⚠ 판을 먼저 띄우고 단추는 나중에 얹는다 — 별 액자와 같은 이유(그물이 늦다). */
+let storyAudio = null;
+
+function stopStoryVoice(){
+  if (storyAudio){ try{ storyAudio.pause(); }catch(e){} storyAudio = null; }
+  const el = document.getElementById("storyVoice");
+  if (el){ el.innerHTML = ""; el.classList.remove("in"); }
+}
+
+async function fillStoryVoice(ref, title){
+  const el = document.getElementById("storyVoice");
+  if (!el || !ref) return;
+  try{
+    const q = SUPA_URL + "/rest/v1/voice_takes?select=url,dur_sec,voice"
+            + "&scope=eq.place&active=is.true&limit=1&ref=eq." + encodeURIComponent(ref);
+    const res = await fetch(q, { headers:{ apikey:SUPA_KEY, Authorization:"Bearer "+SUPA_KEY } });
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const rows = await res.json();
+    const t = rows && rows[0];
+    if(!t || !t.url) return;                 /* 없으면 단추도 없다 */
+
+    const dur = t.dur_sec
+      ? Math.floor(t.dur_sec/60) + "분 " + String(Math.round(t.dur_sec%60)).padStart(2,"0") + "초"
+      : "";
+    el.innerHTML = '<button class="vbtn" type="button">'
+      + '<span class="ic">▶</span><span class="tx">낭독으로 듣기</span>'
+      + '<span class="dur">' + dur + '</span></button>';
+    el.classList.add("in");
+
+    const btn = el.querySelector(".vbtn");
+    const ic  = btn.querySelector(".ic"), tx = btn.querySelector(".tx");
+    btn.addEventListener("click", ()=>{
+      if (storyAudio && !storyAudio.paused){ storyAudio.pause(); return; }
+      if (!storyAudio){
+        storyAudio = new Audio(t.url);
+        storyAudio.preload = "none";
+        storyAudio.onplay  = ()=>{ ic.textContent = "❚❚"; tx.textContent = "듣는 중"; };
+        storyAudio.onpause = ()=>{ ic.textContent = "▶";  tx.textContent = "이어 듣기"; };
+        storyAudio.onended = ()=>{ ic.textContent = "▶";  tx.textContent = "다시 듣기"; };
+        storyAudio.onerror = ()=>{ tx.textContent = "음성을 불러오지 못했습니다"; btn.disabled = true;
+                                   console.warn("[EG] 낭독 파일을 못 받았습니다:", t.url); };
+        /* 폰 잠금 화면에서도 제목이 보이게 */
+        try{
+          if ("mediaSession" in navigator)
+            navigator.mediaSession.metadata = new MediaMetadata({
+              title: title || "낭독", artist: "EG Universe" });
+        }catch(e){}
+      }
+      storyAudio.play().catch(e=> console.warn("[EG] 낭독 재생", e));
+    });
+  }catch(e){ console.warn("[EG] 낭독 로드 실패 — 판은 그대로 둡니다:", e); }
 }
 
 // EG메종 소개 팝업 — 콩파뇽이 쓴 소개글(없으면 디폴트), 입장하기 버튼
@@ -3751,6 +3824,8 @@ function openPinStory(p){
   });
   /* 이 곳에 닿은 별 — 혈연이 있으면 뒤늦게 얹는다 */
   fillStoryStars(m.place_id);
+  /* 낭독 — 구워진 곳에만 단추가 선다 (0806밤) */
+  fillStoryVoice(p.kind + "/" + p.code, m.title_ko || p.name);
 }
 
 /* 옛 이름은 창구로 남긴다 — 다른 데서 부르고 있을 수 있다 */
