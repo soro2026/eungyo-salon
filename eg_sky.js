@@ -44,6 +44,10 @@
      <script src="eg_sky.js?v=20260729"></script>
 
      egSky.phase()          'm' | 'd' | 'e' | 'n'      넉 장짜리 방
+       m 이른아침  일출 −2h ~ 일출 +2h   (4시간 고정)
+       d 한낮      일출 +2h ~ 일몰 −2h   (계절이 다 여기서 움직인다)
+       e 저녁      일몰 −2h ~ 일몰 +2h   (4시간 고정 · 0806 확장)
+       n 한밤      일몰 +2h ~ 일출 −2h
      egSky.phase2()         'd' | 'n'                  두 장짜리 방(팝업)
      egSky.sun()            {rise, set}  서울 일출·일몰 (시 단위 소수)
      egSky.hour()           서울 시각 (시 단위 소수)
@@ -116,14 +120,23 @@
 
   function inSpan(x, a, b){ return a<=b ? (x>=a && x<b) : (x>=a || x<b); }
 
-  /* 넉 칸 — 콜레주 혈통 그대로.
-     아침은 일출 앞뒤 두 시간, 저녁은 일몰 앞 두 시간. */
+  /* 넉 칸 — 콜레주 혈통.
+     아침은 일출 앞뒤 두 시간, 저녁은 일몰 앞뒤 두 시간.
+
+     ⭐ 0806 소로 — 저녁 판이 아름다운데 너무 잠깐 스친다.
+       0729 판은 저녁을 「일몰 앞 두 시간」으로만 두어, 해가 넘어가는 그 순간
+       밤으로 갈아탔다. 노을이 가장 붉은 때(일몰 직후 30~40분)가 잘려 나갔다.
+       경계를 일몰 뒤 두 시간까지 밀어 저녁을 넉 시간으로 편다.
+       ⚠ 앞 경계(dE)는 안 건드린다. 저녁이 낮을 잠식하면 겨울 한낮이 다섯 시간
+         밑으로 내려간다. 늘리는 것은 뒤쪽 하나뿐이다.
+       ⚠ 밤이 여름 하지에 5시간 15분까지 줄어든다(21:56~03:11). 의도한 값이다. */
   function phase(){
     var s = sun(), h = hour();
-    var mS = (s.rise-2+24)%24, mE = (s.rise+2)%24, dE = (s.set-2+24)%24;
+    var mS = (s.rise-2+24)%24, mE = (s.rise+2)%24;
+    var dE = (s.set-2+24)%24,  eE = (s.set+2)%24;
     if (inSpan(h, mS, mE)) return "m";
     if (inSpan(h, mE, dE)) return "d";
-    if (inSpan(h, dE, s.set%24)) return "e";
+    if (inSpan(h, dE, eE)) return "e";
     return "n";
   }
 
