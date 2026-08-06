@@ -711,6 +711,9 @@ main.stage{
   opacity:0;transition:opacity 1.1s ease;pointer-events:none}
 #room.on{opacity:1}
 #roomImg{width:100%;height:100%;object-fit:cover;object-position:50% 50%;display:block}
+/* ⚠ 0806 — 훑기를 CSS transition(object-position)에 맡겼다가 브라우저가
+   안 굴려서 점프 두 번만 났다(0.5초 휘릭 사고). 카메라는 JS rAF가 직접 몬다 —
+   미술관 eg_camera가 scrollTop을 미는 것과 같은 문법. CSS 전환 금지. */
 #roomImg:not([src]),#roomImg[src='']{display:none}   /* 그림 없는 곳 — 깨진 아이콘 방지 */
 #roomVeil{position:absolute;inset:0;
   background:radial-gradient(120% 80% at 50% 40%,rgba(14,10,7,.10),rgba(14,10,7,.62) 100%)}
@@ -731,8 +734,8 @@ body.in-room .app{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%)
   z-index:2;width:min(440px,92vw);height:min(100vh - 36px,100svh - 36px);
   min-height:0;margin:0;overflow-y:auto;scrollbar-width:none;
   box-shadow:0 26px 70px rgba(0,0,0,.55);border-radius:14px;
-  /* 0806 소로 — 종이를 15% 열어 방이 스며들게. 뒤를 살짝 흐려 글자 대비는 지킨다 */
-  background:rgba(250,247,242,.85);
+  /* 0806 소로 — 종이를 25% 연다(15%에서 상향). 뒤를 살짝 흐려 글자 대비는 지킨다 */
+  background:rgba(250,247,242,.75);
   backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
 body.in-room .app::-webkit-scrollbar{display:none}
 body.in-room{background:transparent}
@@ -1506,8 +1509,6 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
       tryOn([asset(SPOT.code,'hall_'+t), asset(SPOT.code,'hall_d')]);
       document.body.classList.add('in-room');
       document.documentElement.classList.add('in-room');   /* 스크롤바는 html의 것 */
-      /* 방에 앉아 숨을 고른 뒤에야 첫 문장이 흐른다 (0806 소로 · 5초) */
-      setTimeout(()=>{ if(window.EGSpoonHeroStart) window.EGSpoonHeroStart(); }, 5000);
       $('#fade').classList.remove('on');
     }, 520);
   }
@@ -1517,13 +1518,60 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
   /* ── 방 훑기 — 스크롤한 만큼 방만 흐른다 ──
      ⚠ 처음은 한가운데(상판)에서 시작한다. 위로 올리면 바닥, 내리면 천장.
        맨 위에서 시작하면 바닥부터 보게 되어 앉은 눈높이가 안 산다. */
-  let laid=false;
+  /* ── 카메라 훑기 (0806 소로) — 천장에서 바닥까지 한 번 훑고 상판에 멎는다.
+     ⚠ 훑는 동안 손님이 굴리면 즉시 끊고 넘긴다(eg_camera 조항 ② — 건너뛰기는 즉시).
+     ⚠ 타이핑은 초를 따로 세지 않는다. 카메라가 멎은 뒤 0.8초 — 훑기를 건너뛴
+       손님에게는 그만큼 일찍 흐른다. 고정 5초는 물렸다(너무 느림). */
+  let laid=false, sweeping=false, heroDone=false, curPos=50;
+  function heroGo(){
+    if(heroDone) return; heroDone=true;
+    setTimeout(()=>{ if(window.EGSpoonHeroStart) window.EGSpoonHeroStart(); }, 800);
+  }
+  function setPos(v){ curPos=v; $('#roomImg').style.objectPosition='50% '+v.toFixed(2)+'%'; }
+  function endSweep(){
+    if(!sweeping) return; sweeping=false;
+    /* 지금 그림이 서 있는 곳을 스크롤 값으로 옮겨 심는다 — 안 옮기면
+       손님의 첫 휠에서 track()이 제자리로 그림을 낚아채 툭 튄다(AM 계보) */
+    const max=Math.max(1, document.documentElement.scrollHeight - innerHeight);
+    scrollTo(0, (100-curPos)/100*max);
+    track();
+    heroGo();
+  }
+  /* ── 카메라는 JS가 직접 몬다 —
+     천장(0%)에서 1박 숨 → 바닥(88%)까지 3.3초 → 상판(50%)으로 1.7초 복귀 → 멎음.
+     easeInOut이라 출발과 도착이 눅고, 멎는 순간 endSweep → 0.8초 뒤 타이핑. */
+  function driveSweep(){
+    const ease=t=> t<0.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;
+    const legs=[ {from:0,  to:0,  ms:700},     /* 천장에서 한 박 */
+                 {from:0,  to:88, ms:3300},    /* 바닥까지 훑어 내림 */
+                 {from:88, to:50, ms:1700} ];  /* 상판으로 복귀 */
+    let li=0, t0=null;
+    function step(ts){
+      if(!sweeping) return;                    /* 손님이 끊었다 */
+      if(t0===null) t0=ts;
+      const leg=legs[li], p=Math.min(1,(ts-t0)/leg.ms);
+      setPos(leg.from + (leg.to-leg.from)*ease(p));
+      if(p>=1){ li++; t0=null;
+        if(li>=legs.length){ endSweep(); return; } }
+      requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
   function layRoom(){
     if(laid) return; laid=true;
     const max=()=>Math.max(1, document.documentElement.scrollHeight - innerHeight);
-    requestAnimationFrame(()=>{ scrollTo(0, max()/2); track(); });
+    requestAnimationFrame(()=>{
+      scrollTo(0, max()/2);
+      setPos(0);                               /* 천장에서 출발 */
+      sweeping=true;
+      driveSweep();
+      const cut=()=>{ endSweep(); removeEventListener('wheel',cut); removeEventListener('touchstart',cut); };
+      addEventListener('wheel',cut,{passive:true});
+      addEventListener('touchstart',cut,{passive:true});
+    });
   }
   function track(){
+    if(sweeping) return;   /* 훑는 동안엔 카메라가 임자다 */
     if(!document.body.classList.contains('in-room')) return;
     const max=Math.max(1, document.documentElement.scrollHeight - innerHeight);
     const p=Math.min(1, Math.max(0, scrollY/max));
