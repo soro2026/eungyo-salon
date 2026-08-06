@@ -92,7 +92,13 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .ink{position:absolute;inset:0;-webkit-mask-size:contain;mask-size:contain;
   -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
   -webkit-mask-position:center;mask-position:center;mix-blend-mode:multiply}
-.ins{position:absolute;left:0;right:0;text-align:center;line-height:1.3;
+/* ⭐ 0806 — 각인 폭을 몸통에서 떼어냈다.
+   ⚠ 「진주 귀걸이를 한 소녀 · 1665년경」의 '년경' 한 글자가 셋째 줄로 넘어갔다.
+     각인이 몸통 폭에 묶여 있던 탓이다. 좌우로 16px씩 풀면 두 줄에 앉는다.
+   ⭐ 0806 소로 — 각인이 옆 도장에 슬쩍 물리는 것은 병이 아니다. 실물 여권도 그렇고,
+     하나도 안 물리면 오히려 표처럼 보인다. 몸통끼리만 안 겹치면 된다.
+     ⚠ 여기서 지키는 선은 하나뿐 — 글자가 글자 위에 앉지 않는 것. */
+.ins{position:absolute;left:-16px;right:-16px;text-align:center;line-height:1.3;
   font-family:"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
   pointer-events:none;mix-blend-mode:multiply}
 .ins .t{font-size:8.5px;font-weight:600;line-height:1.25;white-space:normal;
@@ -224,12 +230,17 @@ const sb = createClient(
 /* 21호 — 계단이 아니라 장소. 표지에 티어 이름은 안 적는다(21-1) */
 const COVER = { member:'#2E3F63', researcher:'#1F3A32', compagnon:'#5A2230',
                 professor:'#141414', _default:'#6E6252' };
-/* 모양이 먹는 화면 크기와 칸 수 (목업 v1.1 실측값 승계) */
+/* 모양이 먹는 화면 크기 (목업 v1.1 실측값 × 0.88)
+   ⭐ 0806 — 12% 줄였다. 몸통 126 + 각인 46이면 402px 판에 두 줄밖에 못 앉아
+     아래 3분의 1이 통째로 비었다. 손잡이는 몸통뿐이다 — 각인은 곡명·작품명이 임자라
+     못 줄이고, 판은 실물 여권 비율이라 못 키운다.
+   ⚠ 판독선은 100px다(13호 실측). 줄인 뒤에도 최소 78~111px이라 문양이 살아 있고,
+     실물 여권 도장이 30~35mm인 것에 오히려 가까워졌다. 이 아래로는 더 못 줄인다. */
 const SHAPE = {
-  circle:[112,112,1], oval_v:[96,126,1],  oval_h:[150,95,2],
-  rect_v:[89,124,1],  rect_h:[150,116,2], square_r:[112,120,1],
-  hex:[125,116,1],    oct:[120,118,1],    shield:[102,124,1],
-  arch:[89,126,1],    penta:[97,124,1],   diamond:[119,120,1]
+  circle:[99,99,1],   oval_v:[84,111,1],  oval_h:[132,84,2],
+  rect_v:[78,109,1],  rect_h:[132,102,2], square_r:[99,106,1],
+  hex:[110,102,1],    oct:[106,104,1],    shield:[90,109,1],
+  arch:[78,111,1],    penta:[85,109,1],   diamond:[105,106,1]
 };
 const COLS = 2;   /* ROWS는 0806 열쌓기 전환으로 은퇴 — 행을 세지 않고 높이를 쌓는다 */
 const $ = s => document.querySelector(s);
@@ -289,6 +300,7 @@ function guilloche(){
      어림이 한 줄 모자라도 10px 틈이 받아낸다. */
 const FIELD_W = 300, FIELD_H = 402;   /* .field 실측 — 340-40 × 492-44-46 */
 const GAPY = 10;
+const INS_BLEED = 16;   /* 각인이 몸통 밖으로 번지는 폭 — CSS .ins의 left/right와 한 몸 */
 
 /* 몸통 밖으로 뻗는 각인의 높이 (px) */
 function insHeight(st, w){
@@ -296,7 +308,7 @@ function insHeight(st, w){
   if(!st.inscribe_out) return dateH;                 /* 안쪽 갈래는 이름이 도장 안에 산다 */
   if(!st.inscription)  return dateH;
   /* 한글 8.5px는 글자당 약 8.5px, 숫자·영문은 절반. 섞이므로 7px로 어림한다 */
-  const lines = Math.max(1, Math.ceil(String(st.inscription).length * 7 / Math.max(40, w - 4)));
+  const lines = Math.max(1, Math.ceil(String(st.inscription).length * 7 / Math.max(40, w + INS_BLEED*2 - 4)));
   return lines * 11 + dateH;
 }
 
@@ -326,8 +338,8 @@ function fileStamps(rows){
       }
       pi++;
     }
-    /* ⚠ dy는 ±4로 조인다. DB의 ±16을 그대로 쓰면 방금 없앤 겹침이 되살아난다.
-       삐뚤빼뚤의 몫은 rot과 dx가 이미 지고 있다(15호). */
+    /* ⚠ 어긋남을 조인다. DB의 ±16을 그대로 쓰면 방금 없앤 겹침이 되살아난다 —
+       dy만 조인다 — 아래 도장 몸통을 밟기 때문이다. dx는 그대로 둔다(위 .ins 주석). */
     const dx = Math.max(-14, Math.min(14, st.dx || 0));
     const dy = Math.max(-4,  Math.min(4,  st.dy || 0));
     const x  = put.c*colW + (span*colW - w)/2 + dx;
