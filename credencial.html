@@ -60,6 +60,12 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .cover .who{font-family:"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
   font-weight:700;font-size:17px;letter-spacing:.13em;color:var(--foil);
   text-shadow:0 1px 0 rgba(0,0,0,.35)}
+/* ⭐ 0806 — 권 번호. 지금은 01뿐이고 둘째 권을 나눌 규칙도 없다.
+   미리 박아두는 까닭: 나중에 02가 생겨도 표지가 안 놀라고, 안 생겨도 아무 일이 없다.
+   ⚠ 권 수를 화면 어디에도 세지 않는다 — 몇 권째인가가 곧 얼마나 오래 다녔는가가 되면
+     21-1호(표지에 티어를 안 적는다)가 뒷문으로 무너진다. */
+.cover .vol{margin-top:16px;font-size:10px;letter-spacing:.34em;
+  color:var(--foil);opacity:.55}
 .open-hint{margin-top:26px;font-size:12.5px;letter-spacing:.14em;
   color:rgba(237,230,214,.5);text-align:center;
   font-family:"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif}
@@ -114,6 +120,14 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   font-size:9.5px;font-weight:700;letter-spacing:.6px}
 /* 날짜가 도장 밖에 홀로 앉을 때 — 안쪽 각인 갈래에서만 쓰인다 */
 .stamp .ins.dateout{left:0;right:0}
+
+/* ⭐ 0806 — 뒷표지. 앞표지와 같은 천에 같은 금박, 글자 한 줄만 가운데.
+   기요셰·테두리·쪽번호를 전부 걷어낸다 — 표지는 종이가 아니라 겉이다. */
+.page.backcover{background:var(--cover)}
+.page.backcover .guil,.page.backcover .grain,.page.backcover .edge,
+.page.backcover .head,.page.backcover .foot{display:none}
+.backplate{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.backplate .u{font-size:12px;letter-spacing:.42em;color:var(--foil);opacity:.8}
 
 /* 명의 · 안내 */
 .plate2{position:absolute;left:34px;right:34px;top:58px;bottom:52px;
@@ -178,6 +192,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
         <div class="c">CREDENCIAL</div>
         <div class="rule"></div>
         <div class="who" id="coverWho"></div>
+        <div class="vol">VOL. 01</div>
       </div>
     </div>
     <div class="open-hint">눌러서 펼치기</div>
@@ -289,15 +304,15 @@ function guilloche(){
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 492" width="100%" height="100%">${s}</svg>`;
 }
 
-/* ── 편철: 시간순 · 2열 열쌓기 · 차면 다음 장 (16·17호) ──
-   ⭐ 0806 — 3행 고정 격자를 물렸다.
-   ⚠ 병: 「브람스 바이올린과 첼로를 위한 이중 협주곡 A단조 Op. 102」가 세 줄로 앉아
-     아랫줄 가르니에를 밟았다. 격자가 칸을 「몸통 크기」로만 재는데 각인은 몸통 밖에서
-     아래로 뻗기 때문이다. 칸 134px에 몸통 126px이면 남는 데가 8px뿐이다.
-   처방: 칸을 세지 말고 높이를 쌓는다. 도장마다 「몸통 + 각인」을 먼저 재고 두 열 중
-     낮은 쪽에 앉힌 뒤 그만큼 커서를 내린다. 각인이 몇 줄이 되든 다음 도장이 그 아래에서 시작한다.
-   ⚠ 각인 줄 수는 그리기 전에는 정확히 모른다 — 글자 폭으로 어림한 뒤 여유(GAPY)로 덮는다.
-     어림이 한 줄 모자라도 10px 틈이 받아낸다. */
+/* ── 편철: 시간순 · 행 쌓기 · 차면 다음 장 (16·17호) ──
+   ⭐ 0806 ② — 열 쌓기를 다시 물렸다.
+   ⚠ 병: 두 열이 각자 쌓이니 높이가 어긋나 계단이 생기고, 남은 자투리에 다음 도장이
+     못 들어가 면이 그대로 끝났다. 면당 3~4장에 아래 100~250px가 통째로 비었다.
+   처방: 행으로 묶는다. 한 칸짜리 둘이 한 행, 두 칸짜리는 혼자 한 행.
+     행 높이는 그 행에서 가장 키 큰 도장(몸통 + 각인)이 정한다.
+   ⭐ 그리고 다 찬 면만 여백을 행 사이로 고르게 편다.
+     마지막 면은 위에서부터 쌓고 아래를 그대로 둔다 — 거기 비어 있는 것은
+     「아직 안 채운 칸」이 아니라 「아직 안 간 곳」이다(2호). 내일 도장이 그 밑에 앉는다. */
 const FIELD_W = 300, FIELD_H = 402;   /* .field 실측 — 340-40 × 492-44-46 */
 const GAPY = 10;
 const INS_BLEED = 16;   /* 각인이 몸통 밖으로 번지는 폭 — CSS .ins의 left/right와 한 몸 */
@@ -308,53 +323,89 @@ function insHeight(st, w){
   if(!st.inscribe_out) return dateH;                 /* 안쪽 갈래는 이름이 도장 안에 산다 */
   if(!st.inscription)  return dateH;
   /* 한글 8.5px는 글자당 약 8.5px, 숫자·영문은 절반. 섞이므로 7px로 어림한다 */
-  const lines = Math.max(1, Math.ceil(String(st.inscription).length * 7 / Math.max(40, w + INS_BLEED*2 - 4)));
+  const lines = Math.max(1, Math.ceil(String(st.inscription).length * 7
+                  / Math.max(40, w + INS_BLEED*2 - 4)));
   return lines * 11 + dateH;
 }
 
 function fileStamps(rows){
   pages = [{ kind:'plate' }, { kind:'note' }];
   const colW = FIELD_W / COLS;
-  const fresh = () => ({ kind:'stamps', cols:new Array(COLS).fill(0), items:[] });
 
-  let pi = 2;
+  /* ① 시간순 그대로 행으로 묶는다 */
+  const lines = [];
+  let pend = null;
   for(const st of rows){
     const sh = SHAPE[st.shape] || SHAPE.circle;
-    const w = sh[0], h = sh[1], span = sh[2];
-    const need = h + 3 + insHeight(st, w);
-
-    let put = null;
-    while(true){
-      while(pages.length <= pi) pages.push(fresh());
-      if(pages[pi].kind !== 'stamps'){ pi++; continue; }
-      const p = pages[pi];
-      /* 한 칸짜리는 낮은 열에, 두 칸짜리는 두 열 중 높은 쪽에 맞춰 걸친다 */
-      const c = span > 1 ? 0 : (p.cols[1] < p.cols[0] ? 1 : 0);
-      const y = span > 1 ? Math.max(...p.cols) : p.cols[c];
-      if(y + need + 4 <= FIELD_H){   /* +4 = 아래 dy 클램프 폭. 안 세면 마지막 한 장이 판을 넘는다 */
-        for(let i = 0; i < span; i++) p.cols[c+i] = y + need + GAPY;
-        put = { c, y };
-        break;
-      }
-      pi++;
-    }
-    /* ⚠ 어긋남을 조인다. DB의 ±16을 그대로 쓰면 방금 없앤 겹침이 되살아난다 —
-       dy만 조인다 — 아래 도장 몸통을 밟기 때문이다. dx는 그대로 둔다(위 .ins 주석). */
-    const dx = Math.max(-14, Math.min(14, st.dx || 0));
-    const dy = Math.max(-4,  Math.min(4,  st.dy || 0));
-    const x  = put.c*colW + (span*colW - w)/2 + dx;
-    pages[pi].items.push({ ...st, w, h, cw:span,
-      x: Math.max(0, Math.min(FIELD_W - w, x)),
-      y: Math.max(0, Math.min(FIELD_H - h, put.y + dy)) });
+    const it = { ...st, w:sh[0], h:sh[1], span:sh[2] };
+    it.need = it.h + 3 + insHeight(st, it.w);
+    if(it.span > 1){
+      if(pend){ lines.push([pend]); pend = null; }   /* 짝 없이 남은 것을 먼저 내려놓는다 */
+      lines.push([it]);
+    }else if(pend){ lines.push([pend, it]); pend = null; }
+    else pend = it;
   }
-  if(pages.length % 2) pages.push(fresh());
+  if(pend) lines.push([pend]);
+
+  /* ② 행을 면에 쌓는다 */
+  const sheets = [];
+  let cur = [], used = 0;
+  for(const ln of lines){
+    const lh = Math.max(...ln.map(i => i.need));
+    if(cur.length && used + GAPY + lh > FIELD_H){ sheets.push({ rows:cur, used }); cur = []; used = 0; }
+    used += (cur.length ? GAPY : 0) + lh;
+    cur.push({ items:ln, h:lh });
+  }
+  if(cur.length) sheets.push({ rows:cur, used });
+
+  /* ③ 자리를 매긴다 */
+  sheets.forEach((sh, si) => {
+    const last = si === sheets.length - 1;
+    const n = sh.rows.length;
+    /* 다 찬 면은 여백을 행 사이로 나눈다. 마지막 면은 붙여 쌓고 아래를 비워 둔다 */
+    const gap = last ? GAPY : Math.max(GAPY, (FIELD_H - sh.rows.reduce((a,r)=>a+r.h,0)) / (n+1));
+    let y = last ? 0 : gap;
+    const page = { kind:'stamps', items:[] };
+    for(const r of sh.rows){
+      for(let k = 0; k < r.items.length; k++){
+        const it = r.items[k];
+        /* ⚠ 어긋남 — dy는 아래 행 몸통을 밟으므로 조인다.
+           dx는 그대로 둔다: 각인 끝동이 옆 도장에 슬쩍 물리는 것은 병이 아니라
+           실물 여권의 모습이다(0806 소로). 몸통끼리만 안 겹치면 된다. */
+        const dx = Math.max(-14, Math.min(14, it.dx || 0));
+        const dy = Math.max(-4,  Math.min(4,  it.dy || 0));
+        const x = it.span > 1 ? (FIELD_W - it.w)/2 + dx
+                              : k*colW + (colW - it.w)/2 + dx;
+        page.items.push({ ...it,
+          x: Math.max(0, Math.min(FIELD_W - it.w, x)),
+          y: Math.max(0, Math.min(FIELD_H - it.h, y + dy)) });   /* 행 안에서는 위 맞춤 */
+      }
+      y += r.h + gap;
+    }
+    pages.push(page);
+  });
+
+  if(pages.length % 2) pages.push({ kind:'stamps', items:[] });
+  /* ⭐ 0806 — 마지막 도장 뒤로 한 번 더 넘어간다.
+     빈 펼침 하나를 두고 그 다음이 뒷표지다. 실물 수첩도 뒤에 안 쓴 장이 남아 있고,
+     그것이 「아직 안 간 곳」을 눈으로 보여준다(2호). 닫는 것은 뒷표지가 맡는다. */
+  pages.push({ kind:'stamps', items:[] }, { kind:'stamps', items:[] });
+  pages.push({ kind:'stamps', items:[] }, { kind:'back' });
 }
 
 /* ── 그리기 ── */
 function drawPage(field, pi){
   const p = pages[pi];
   field.innerHTML = '';
+  /* ⚠ 겉을 입고 벗는 일은 매번 한다. 안 벗기면 앞으로 넘어왔을 때 종이가 남색인 채다 */
+  const sheet = field.closest('.page');
+  if(sheet) sheet.classList.toggle('backcover', !!(p && p.kind === 'back'));
   if(!p) return;
+
+  if(p.kind === 'back'){
+    field.innerHTML = '<div class="backplate"><div class="u">EG UNIVERSE</div></div>';
+    return;
+  }
 
   if(p.kind === 'plate'){
     const d = new Date(me.created_at);
