@@ -6,6 +6,7 @@
 <title>EG Voice — 낭독실</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -111,24 +112,18 @@ input.line{background:var(--bench);border:1px solid var(--line);color:var(--text
 <div id="gate" hidden>
   <div class="box">
     <h2>낭독실</h2>
-    <p>이 문은 관리자에게만 열립니다.</p>
-    <input class="line" id="em" type="email" placeholder="메일 주소" autocomplete="username">
-    <input class="line" id="pw" type="password" placeholder="비밀번호" autocomplete="current-password">
-    <button class="btn gold" id="loginBtn" style="width:100%">들어가기</button>
+    <p id="gateMsg">이 문은 살롱지기의 열쇠로만 열립니다. 🗝️</p>
   </div>
 </div>
 
 <div id="toast"></div>
 
-<script type="module">
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+<script>
 
 const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
 const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
 const BUCKET   = 'tour-assets';
-const sb = createClient(SUPA_URL, SUPA_KEY, {
-  auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
-});
+const sb = supabase.createClient(SUPA_URL, SUPA_KEY, { auth:{ storageKey:'eungyo-auth' } });
 
 /* ══ 우주 표 ═══════════════════════════════════════════════════════════
    새 우주가 생기면 여기 한 줄. 로직은 안 건드린다.
@@ -173,25 +168,27 @@ async function sha256(text){
 const slotOf = p => `${p.kind}/${p.code}`;
 const keyOf  = p => `voice/place/${p.kind}_${p.code}`;
 
-/* ── 문지기 ── */
+/* ── 문지기 ────────────────────────────────────────────────────────
+   ⚠ 0806밤 — 처음엔 여기에 로그인 칸을 따로 두었다가 소로가 물리셨다.
+     이미 은교살롱에 들어와 있는 사람에게 문을 하나 더 세운 셈이었다.
+     자산 콘솔 여섯 채(음악관·미술관·한스푼·천문대·팝업·콜레주)가 쓰는 문법 그대로 —
+     세션을 확인만 하고, 아니면 안내 한 줄. 새 문은 세우지 않는다. */
 async function boot(){
-  const { data:{ session } } = await sb.auth.getSession();
-  if(!session){ $('#gate').hidden = false; return; }
-  const { data:isAdmin } = await sb.rpc('eg_is_admin');
-  if(!isAdmin){
+  const { data:{ user } } = await sb.auth.getUser();
+  if(!user){
     $('#gate').hidden = false;
-    $('#gate .box').innerHTML = '<h2>낭독실</h2><p>이 문은 관리자에게만 열립니다.</p>';
+    $('#gateMsg').innerHTML = '살롱지기 전용 콘솔입니다.<br>은교살롱에 로그인한 뒤 다시 들러 주세요.';
+    return;
+  }
+  const { data:u } = await sb.from('users').select('is_admin').eq('id', user.id).single();
+  if(!u || !u.is_admin){
+    $('#gate').hidden = false;
+    $('#gateMsg').textContent = '이 문은 살롱지기의 열쇠로만 열립니다. 🗝️';
     return;
   }
   $('#app').hidden = false;
   await load();
 }
-$('#loginBtn').addEventListener('click', async () => {
-  const { error } = await sb.auth.signInWithPassword({
-    email:$('#em').value.trim(), password:$('#pw').value });
-  if(error){ toast('들어가지 못했습니다 — ' + error.message, 'bad'); return; }
-  $('#gate').hidden = true; boot();
-});
 
 /* ── 싣기 ── */
 async function load(){
