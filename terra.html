@@ -3664,7 +3664,9 @@ function enterRoom(p){
      당번을 다시 계산하는데, 자격 명단(elig)이 분 단위로 변해 나머지 연산이 다른 곳을
      가리킬 수 있다(다이아몬드헤드 핀 → 마우나케아 대문 사고). 공식이 세 곳에 사는
      함정(v144)의 실전판 — 계산을 전달로 바꾼다. 도장은 서 있던 곳의 얼굴(알베르게 1호). */
-  if(p && p.code && u.indexOf("observatorium.html") === 0)
+  /* 0806 — 한스푼도 같은 이유로 code를 싣는다. 곳이 열셋이라 셸이 다시 계산하면
+     타륜과 방이 갈릴 수 있다. 계산을 전달로 바꾼다. */
+  if(p && p.code && (u.indexOf("observatorium.html") === 0 || u.indexOf("hello_spoon_v1.html") === 0))
     u += (u.indexOf("?") >= 0 ? "&" : "?") + "code=" + encodeURIComponent(p.code);
   enterRoomUrl(u, p ? p.name : "");
 }
@@ -3759,6 +3761,12 @@ function wireTerra(){
         }
         else if (currentPark && currentPark.code === p.code) openCollegeCard();
         else flyToPark(p);
+      }
+      else if (p.kind === "hansfoon"){
+        /* 0806 — 음악관과 같다. 핀 = 소개창. 그 카페가 곧 콘텐츠이므로
+           대문보다 내력을 먼저 읽는다. 원고(meta.body)가 없으면 이름과 사진만 뜬다. */
+        if (currentPark && currentPark.code === p.code) openConcertStory(p);
+        else { flyToPark(p); setTimeout(()=>openConcertStory(p), 3400); }
       }
       else if (p.kind === "concert"){
         /* 음악관 (0731): 핀 = 팝업. 대문을 거치지 않고 홀의 내력을 먼저 읽는다.
@@ -4462,6 +4470,23 @@ else buildDockSkeleton();
 document.addEventListener("visibilitychange", ()=>{
   if (!document.hidden && typeof refreshDock === "function") refreshDock(false);
 });
+/* ⚠⚠ 순회 공식이 사는 넷째 곳 — hello_spoon_v1.html · admin_hansfoon_assets.html과
+   반드시 같아야 한다. 한쪽만 고치면 타륜은 폴리도르라 적고 방은 룰스가 열린다.
+   ⭐ 시험 중에는 EG_SPOON_FIX에 code를 넣으면 그 곳으로 고정된다.
+      쓰고 나면 반드시 null로 되돌릴 것 — 안 되돌리면 순회가 통째로 멈춘다. */
+const EG_SPOON_FIX = "eaglechild";
+function spoonOnDuty(){
+  const list = [];
+  for (const c in terraPins) if (terraPins[c].kind === "hansfoon" && terraPins[c].active !== false)
+    list.push(terraPins[c]);
+  if (!list.length) return null;
+  if (EG_SPOON_FIX){ const f = list.find(x=>x.code===EG_SPOON_FIX); if (f) return f; }
+  list.sort((a,b)=> spoonNoOf(a) - spoonNoOf(b));
+  return list[ kstDayNo() % list.length ];
+}
+function spoonNoOf(p){ const m=p&&p.meta; return (m && m.spoon_no!=null) ? m.spoon_no : 0; }
+function kstDayNo(){ return Math.floor((Date.now() + 9*3600*1000) / 86400000); }
+
 async function loadDock(){
   try{
     const { data:{ session } } = await supa.auth.getSession();
@@ -4474,7 +4499,7 @@ async function loadDock(){
       html: '<div class="dock-main"><span>교양 한스푼</span></div>'
           + '<div class="dock-sub" id="spoonSub"></div>',
       onClick: ()=>{
-        let p = null; for (const c in terraPins){ if (terraPins[c].kind === "hansfoon"){ p = terraPins[c]; break; } }
+        const p = spoonOnDuty();
         if (p) flyToPark(p);
         else enterRoomUrl("hello_spoon_v1.html", "교양 한스푼");   /* 당번 없으면 직행 문 (안전망) */
       } });

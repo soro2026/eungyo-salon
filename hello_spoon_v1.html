@@ -700,13 +700,112 @@ main.stage{
 /* 다음 단일 버튼 (중앙) */
 .next-wrap{display:flex;justify-content:center}
 
+/* ═══════════════════════════════════════════════════════════
+   0806 — 그 카페 안에 앉기
+   정문(gate 16:9 4벌) → [암전] → 실내(hall 9:16)를 배경에 깔고
+   본체 카드는 그 위에 붙박는다. 스크롤하면 방만 위아래로 흐른다.
+   ⚠ background-attachment:fixed는 모바일 사파리에서 안 먹는다.
+     그래서 고정 요소 + object-position으로 민다(미술관에서 검증된 문법).
+   ═══════════════════════════════════════════════════════════ */
+#room{position:fixed;inset:0;z-index:0;background:#0E0A07;
+  opacity:0;transition:opacity 1.1s ease;pointer-events:none}
+#room.on{opacity:1}
+#roomImg{width:100%;height:100%;object-fit:cover;object-position:50% 50%;display:block}
+#roomVeil{position:absolute;inset:0;
+  background:radial-gradient(120% 80% at 50% 40%,rgba(14,10,7,.10),rgba(14,10,7,.62) 100%)}
+
+/* 방을 훑을 여지 — 이만큼이 스크롤이 된다.
+   ⚠ 방에 들어간 뒤에만 세운다. 늘 세워두면 정문 밖에서도 헛스크롤이 생긴다 */
+#scrollSpace{display:none;pointer-events:none}
+body.in-room #scrollSpace{display:block;height:150vh}
+
+/* 본체 카드는 화면에 붙박고, 방만 흐른다 */
+body.in-room .app{position:sticky;top:0;z-index:2;
+  box-shadow:0 26px 70px rgba(0,0,0,.55);border-radius:14px;overflow:hidden}
+body.in-room{background:transparent}
+@media(min-width:520px){ body.in-room .app{margin-top:18px;margin-bottom:18px;
+  min-height:calc(100vh - 36px)} }
+
+/* ── 정문 ── */
+/* ⚠ 처음부터 검은 화면으로 덮어둔다. 목록을 읽는 동안 카드가 새어 나오면
+   「들어가기 전에 이미 안이 보이는」 셈이 되어 문이 뜻을 잃는다.
+   그림과 이름이 실린 뒤에 .on이 붙어 서서히 드러난다. */
+#gate{position:fixed;inset:0;z-index:40;background:#000 center/cover no-repeat;
+  cursor:pointer;display:grid;place-items:end center;
+  opacity:1;transition:opacity .9s ease}
+#gate:not(.on) #gateHead,#gate:not(.on) #gateFoot,#gate:not(.on) #gateVeil{opacity:0}
+#gate.dismiss{opacity:0;pointer-events:none}
+#gateVeil{position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(8,6,4,.62) 0%,rgba(8,6,4,.14) 34%,
+    rgba(8,6,4,.20) 62%,rgba(8,6,4,.76) 100%)}
+#gateHead{position:absolute;left:0;right:0;top:clamp(26px,7vh,74px);
+  text-align:center;padding:0 6vw}
+#gateHead .g-eyebrow{font-family:'Cormorant Garamond',serif;
+  font-size:clamp(10px,1.3vw,12px);letter-spacing:.42em;
+  color:rgba(232,221,196,.62);text-transform:uppercase}
+#gateHead .g-title{font-size:clamp(20px,3vw,29px);color:#F5EFDD;
+  margin-top:11px;letter-spacing:.04em;font-weight:300}
+#gateHead .g-sub{font-family:'Cormorant Garamond',serif;
+  font-size:clamp(11px,1.4vw,13.5px);color:rgba(232,221,196,.62);
+  margin-top:7px;letter-spacing:.14em}
+#gateFoot{position:absolute;left:0;right:0;bottom:clamp(24px,6vh,60px);text-align:center}
+#gateFoot .g-knock{font-size:12px;letter-spacing:.26em;color:rgba(245,239,221,.72);
+  display:inline-flex;align-items:center;gap:12px}
+#gateFoot .g-knock i{display:block;width:26px;height:1px;
+  background:rgba(245,239,221,.36)}
+#fade{position:fixed;inset:0;background:#000;opacity:0;z-index:60;
+  pointer-events:none;transition:opacity .5s ease}
+#fade.on{opacity:1}
+
+/* ── ⏱ 시간 여행 (살롱지기 전용 · 콜레주·미술관 이식) ── */
+#ttBtn{position:fixed;left:14px;bottom:14px;z-index:70;width:38px;height:38px;
+  border-radius:50%;border:1px solid rgba(232,221,196,.30);background:rgba(14,10,7,.62);
+  color:rgba(232,221,196,.82);font-size:16px;cursor:pointer;display:none;
+  backdrop-filter:blur(6px)}
+#ttBtn.show{display:block}
+#ttPanel{position:fixed;left:14px;bottom:60px;z-index:70;display:none;
+  background:rgba(14,10,7,.90);border:1px solid rgba(232,221,196,.22);
+  border-radius:12px;padding:13px 14px;backdrop-filter:blur(8px);
+  max-width:min(300px,86vw)}
+#ttPanel.on{display:block}
+#ttPanel .heb{font-size:11px;letter-spacing:.06em;color:rgba(232,221,196,.62);
+  display:block;line-height:1.7;margin-bottom:9px}
+#ttPanel input[type=date]{font:inherit;font-size:12.5px;padding:5px 7px;width:100%;
+  border-radius:7px;border:1px solid rgba(232,221,196,.24);
+  background:rgba(0,0,0,.34);color:#EDE6D6;margin-bottom:8px}
+#ttPanel .row{display:flex;gap:6px;flex-wrap:wrap}
+#ttPanel button{font:inherit;font-size:11.5px;padding:5px 9px;border-radius:7px;
+  border:1px solid rgba(232,221,196,.24);background:rgba(232,221,196,.06);
+  color:rgba(232,221,196,.86);cursor:pointer}
+#ttPanel button.on{background:rgba(229,215,168,.22);color:#F5EFDD}
+#ttNow{font-size:11px;color:rgba(229,215,168,.86);margin-top:9px;line-height:1.7}
+
 /* 빌드 표식 — 작게 아래쪽 */
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- 시각 판정 — 다섯 우주가 한 벌에서만 읽는다 (v128 함정 F) -->
+<script src="eg_sky.js?v=20260729b"></script>
 <!-- EG Credencial — 찍기 부품 (0804) -->
 <script src="stamp_press.js?v=0804a"></script>
 </head>
 <body>
+
+<!-- 방 — 카드 뒤에 깔린다 -->
+<div id="room"><img id="roomImg" alt=""><div id="roomVeil"></div></div>
+
+<!-- 정문 -->
+<div id="gate" role="button" tabindex="0" aria-label="안으로 들어가기">
+  <div id="gateVeil"></div>
+  <div id="gateHead">
+    <div class="g-eyebrow">COCHLEAR · 교양 한스푼</div>
+    <div class="g-title" id="gTitle"></div>
+    <div class="g-sub" id="gSub"></div>
+  </div>
+  <div id="gateFoot">
+    <span class="g-knock"><i></i> 화면을 누르면 안으로 <i></i></span>
+  </div>
+</div>
+<div id="fade"></div>
 
 <div class="app">
 
@@ -929,6 +1028,9 @@ main.stage{
   // 풀면 책장 등재의 근거가 됨. 정답/오답 무관하게 "풀었음"을 기록.
   let QUIZ_LOGGED = false;   // 중복 INSERT 방지
   async function logQuiz(selectedOption, isCorrect){
+    /* ⚠⚠ 0806 — 시간 여행 중에는 DB에 아무것도 안 앉힌다.
+       뚫리면 아직 오지 않은 날짜로 기록이 앉는다(미술관 ⏱ 조항 그대로). */
+    if(window.EG_TT_ON){ console.log('[spoon] ⏱ 시간 여행 중 — 퀴즈 기록 건너뜀'); return; }
     if(QUIZ_LOGGED) return;             // 이미 기록함
     if(!CURRENT_USER){ console.log('[spoon] 비로그인 — 퀴즈 기록 안 함'); return; }
     if(!SPOON || !SPOON.id){ console.warn('[spoon] SPOON.id 없음 — 기록 불가'); return; }
@@ -950,6 +1052,7 @@ main.stage{
   // 콩파뇽 페이지("이 한 모금을 마신 벗들")에 실시간 누적됨.
   let REACTION_LOGGED = false;
   async function logReaction(text){
+    if(window.EG_TT_ON){ console.log('[spoon] ⏱ 시간 여행 중 — 사유 기록 건너뜀'); return; }
     if(REACTION_LOGGED) return;
     if(!text || !text.trim()){ return; }
     if(!CURRENT_USER){ console.log('[spoon] 비로그인 — 사유 기록 안 함'); return; }
@@ -1275,6 +1378,185 @@ main.stage{
 })();
 </script>
 
+
+<div id="scrollSpace"></div>
+
+<!-- ⏱ 시간 여행 (살롱지기 전용) -->
+<button id="ttBtn" title="시간 여행 — 그 날짜·그 시각의 카페로">⏱</button>
+<div id="ttPanel">
+  <span class="heb">시간 여행 — 화면 판정만 바뀝니다.<br>⚠ 여행 중에는 퀴즈·사유가 DB에 안 앉습니다.</span>
+  <input type="date" id="ttDate">
+  <div class="row">
+    <button data-tod="m">아침</button><button data-tod="d">낮</button>
+    <button data-tod="e">저녁</button><button data-tod="n">밤</button>
+    <button data-tod="">오늘로</button>
+  </div>
+  <div id="ttNow"></div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+ *  그 카페 안에 앉기 — 정문 → 실내 (0806)
+ *
+ *  ⚠⚠ 순회 공식이 사는 곳이 늘었다. 이제 여기까지 넷이다:
+ *      terra.html spoonGate() · 이 파일 · admin_hansfoon_assets.html · (도장)
+ *      한쪽만 고치면 타륜은 폴리도르라 적고 들어가면 룰스가 열린다.
+ *
+ *  ⭐ 「누른 핀이 곧 사실이다」 — code가 실려 오면 그것을 쓴다(0805밤 천문대 사고).
+ *     계산을 전달로 바꾼다. 없을 때만 여기서 순회를 돈다.
+ * ══════════════════════════════════════════════════════════════ */
+(function(){
+  const SUPA_URL='https://cyhlotwdisjvoxvfkpnd.supabase.co';
+  const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+  const sb=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth'}});
+  const $=s=>document.querySelector(s);
+  const PUB=p=>`${SUPA_URL}/storage/v1/object/public/tour-assets/${p}`;
+  const asset=(code,k)=>PUB(`hansfoon/${code}_${k}.webp`);
+
+  /* 시각 — eg_sky 한 벌에서만 읽는다. ⏱가 켜져 있으면 그것이 이긴다 */
+  function phase(){
+    if(window.EG_TT_TOD) return window.EG_TT_TOD;
+    try{ return (window.egSky&&egSky.phase)?egSky.phase():'d'; }catch(e){ return 'd'; }
+  }
+  function kstDay(){
+    if(window.EG_TT_DAY!=null) return window.EG_TT_DAY;
+    return Math.floor((Date.now()+9*3600*1000)/86400000);
+  }
+
+  let SPOT=null, LIST=[];
+
+  /* 그림이 없으면 낮 판으로, 그것도 없으면 그냥 안 건다 — 폴백은 기본값(함정 AE) */
+  function bgChain(el, urls){
+    const [first,...rest]=urls;
+    const im=new Image();
+    im.onload =()=>{ el.style.backgroundImage=`url('${first}')`; };
+    im.onerror=()=>{ if(rest.length) bgChain(el,rest); };
+    im.src=first;
+  }
+
+  async function boot(){
+    const { data, error } = await sb.from('terra_pins')
+      .select('code,name,city,active,meta').eq('kind','hansfoon').order('sort');
+    const bail=()=>{ $('#gate').classList.add('dismiss'); };   /* 폴백은 기본값 */
+    if(error || !data || !data.length){ console.warn('[spoon] 곳 목록 없음'); bail(); return; }
+    LIST=data.filter(h=>h.active);
+    if(!LIST.length){ bail(); return; }
+
+    const want=new URLSearchParams(location.search).get('code');
+    SPOT = (want && LIST.find(h=>h.code===want)) || LIST[ kstDay() % LIST.length ];
+
+    const t=phase();
+    bgChain($('#gate'), [asset(SPOT.code,'gate_'+t), asset(SPOT.code,'gate_d')]);
+    $('#gTitle').textContent = SPOT.name || '';
+    const m=SPOT.meta||{};
+    $('#gSub').textContent = m.subtitle || [m.city_en,m.country].filter(Boolean).join(' · ') || '';
+    $('#gate').classList.add('on');
+  }
+
+  /* ── 안으로 ── */
+  let entered=false;
+  function enter(){
+    if(entered || !SPOT) return; entered=true;
+    $('#fade').classList.add('on');
+    setTimeout(()=>{
+      $('#gate').classList.add('dismiss');
+      const t=phase();
+      const img=$('#roomImg');
+      const tryOn=(urls)=>{ const [u,...r]=urls; const p=new Image();
+        p.onload=()=>{ img.src=u; $('#room').classList.add('on'); layRoom(); };
+        p.onerror=()=>{ if(r.length) tryOn(r); };
+        p.src=u; };
+      tryOn([asset(SPOT.code,'hall_'+t), asset(SPOT.code,'hall_d')]);
+      document.body.classList.add('in-room');
+      $('#fade').classList.remove('on');
+    }, 520);
+  }
+  $('#gate').addEventListener('click', enter);
+  $('#gate').addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' ') enter(); });
+
+  /* ── 방 훑기 — 스크롤한 만큼 방만 흐른다 ──
+     ⚠ 처음은 한가운데(상판)에서 시작한다. 위로 올리면 바닥, 내리면 천장.
+       맨 위에서 시작하면 바닥부터 보게 되어 앉은 눈높이가 안 산다. */
+  let laid=false;
+  function layRoom(){
+    if(laid) return; laid=true;
+    const max=()=>Math.max(1, document.documentElement.scrollHeight - innerHeight);
+    requestAnimationFrame(()=>{ scrollTo(0, max()/2); track(); });
+  }
+  function track(){
+    if(!document.body.classList.contains('in-room')) return;
+    const max=Math.max(1, document.documentElement.scrollHeight - innerHeight);
+    const p=Math.min(1, Math.max(0, scrollY/max));
+    /* 아래로 내릴수록 위쪽(천장)이 보인다 */
+    $('#roomImg').style.objectPosition = `50% ${(100 - p*100).toFixed(1)}%`;
+  }
+  addEventListener('scroll', track, {passive:true});
+  addEventListener('resize', track);
+
+  /* ⏱가 값을 바꾸면 정문과 방을 다시 건다 */
+  window.EGSpoonRelay = function(){
+    if(!LIST.length) return;
+    const want=new URLSearchParams(location.search).get('code');
+    SPOT = (want && LIST.find(h=>h.code===want)) || LIST[ kstDay() % LIST.length ];
+    const t=phase();
+    bgChain($('#gate'), [asset(SPOT.code,'gate_'+t), asset(SPOT.code,'gate_d')]);
+    $('#gTitle').textContent = SPOT.name || '';
+    const m=SPOT.meta||{};
+    $('#gSub').textContent = m.subtitle || [m.city_en,m.country].filter(Boolean).join(' · ') || '';
+    if(document.body.classList.contains('in-room')){
+      const img=$('#roomImg');
+      const tryOn=u=>{ const [a,...r]=u; const q=new Image();
+        q.onload=()=>{ img.src=a; }; q.onerror=()=>{ if(r.length) tryOn(r); }; q.src=a; };
+      tryOn([asset(SPOT.code,'hall_'+t), asset(SPOT.code,'hall_d')]);
+    }
+    return { code:SPOT.code, name:SPOT.name, tod:t, day:kstDay() };
+  };
+
+  boot();
+})();
+
+/* ══════════ ⏱ 시간 여행 — 살롱지기 전용 (0806) ══════════
+ *  ⚠⚠ 화면 판정만 바꾼다. 쓰기는 logQuiz·logReaction 머리에서 막혀 있다.
+ *     새 우주에 ⏱를 달 때는 「쓰기부터 막았는가」를 먼저 물을 것.
+ *  ⭐ 날짜는 순회를(어느 곳이 열리는가), 시각은 벌을(어느 빛인가) 바꾼다.
+ *     그림이 아직 없는 곳으로 옮기면 검은 화면이 나온다 — 병이 아니다.
+ * ══════════════════════════════════════════════════════ */
+(function(){
+  const $=s=>document.querySelector(s);
+  const sb=supabase.createClient('https://cyhlotwdisjvoxvfkpnd.supabase.co',
+    'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR',{auth:{storageKey:'eungyo-auth'}});
+  const TOD={m:'아침',d:'낮',e:'저녁',n:'밤'};
+
+  sb.auth.getSession().then(async ({data:{session}})=>{
+    if(!session) return;
+    const { data:u } = await sb.from('users').select('is_admin').eq('id',session.user.id).single();
+    if(u && u.is_admin) $('#ttBtn').classList.add('show');
+  });
+
+  function on(){ window.EG_TT_ON = (window.EG_TT_DAY!=null) || !!window.EG_TT_TOD; }
+  function paint(){
+    on();
+    const r = window.EGSpoonRelay ? window.EGSpoonRelay() : null;
+    document.querySelectorAll('#ttPanel [data-tod]').forEach(b=>
+      b.classList.toggle('on', (b.dataset.tod||'') === (window.EG_TT_TOD||'')));
+    $('#ttNow').innerHTML = !r ? '' :
+      `${r.name} · ${TOD[r.tod]||r.tod}` + (window.EG_TT_ON ? ' <b>· ⏱ 여행 중</b>' : '');
+  }
+  $('#ttBtn').addEventListener('click', ()=>{ $('#ttPanel').classList.toggle('on'); paint(); });
+  $('#ttDate').addEventListener('change', e=>{
+    const v=e.target.value;
+    window.EG_TT_DAY = v ? Math.floor(new Date(v+'T12:00:00+09:00').getTime()/86400000) : null;
+    paint();
+  });
+  document.querySelectorAll('#ttPanel [data-tod]').forEach(b=>
+    b.addEventListener('click', ()=>{
+      const v=b.dataset.tod;
+      if(v) window.EG_TT_TOD = v;
+      else { window.EG_TT_TOD=null; window.EG_TT_DAY=null; $('#ttDate').value=''; }
+      paint();
+    }));
+})();
+</script>
 
 <!-- 폰에서 방을 나가는 문 (0730) — 액자 밖 + 폰일 때만 뜬다. eg_back.js 참조 -->
 <script src="eg_back.js?v=20260729"></script>
