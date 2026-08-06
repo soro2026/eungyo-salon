@@ -1238,9 +1238,13 @@ gate.addEventListener('click', () => {
   setTimeout(() => {
     gate.classList.add('gone');
     /* 0804 — 문이 완전히 물러난 뒤에야 홀이 산다. 카메라는 그때 부른다.
-       로드 시점의 sweepView('hall')는 clientHeight 0이라 도장 없이 물러났으므로
-       이 호출이 홀의 진짜 첫 입장이 된다. */
-    if (typeof sweepView === 'function') sweepView('hall');
+       0806밤 — 홀은 이미 천장에서 대기 중이므로, 여기서 곧장 내려오기 시작한다.
+       ⚠ 부품이 없으면 천장에 얼어붙는다. 소리를 내고 정면으로 앉힌다(함정 AF). */
+    if (typeof sweepView === 'function' && window.EGCamera) sweepView('hall');
+    else {
+      console.warn('[EG] eg_camera.js가 없습니다 — 훑기를 건너뛰고 정면으로 앉힙니다');
+      if (typeof hallSettle === 'function') hallSettle();
+    }
   }, 1400);
 });
 
@@ -1554,13 +1558,25 @@ let hallEditing = false, hallSel = 0;
   refresh();
 })();
 
-/* 첫 화면 — 매대 구간(중간~앞 평대)이 보이도록 스크롤 위치 잡기 */
+/* 첫 화면 — 매대 구간(중간~앞 평대)이 보이도록 스크롤 위치 잡기
+   ⭐ 0806 밤 소로 — 「문을 열면 천장에서 내려오게」.
+     예전엔 로드 즉시 정면(0.63)에 앉혀 두었다. 그래서 커튼이 갈라지는 1.4초 동안
+     정면이 먼저 보이고, 문이 물러나는 순간 카메라가 천장(scrollTop 0)으로 툭 튀었다.
+     카메라 잘못이 아니라 **출발점**이 잘못 서 있었던 것이다.
+   → 대문이 서 있는 동안은 홀을 천장에 세워 둔다. 커튼이 갈라지며 천장이 드러나고,
+     문이 다 물러난 뒤 그대로 내려온다. 점프가 생길 곳이 없어진다.
+   ⚠ 도착지(0.63)는 그대로다. 카메라가 못 도는 경우를 위해 창구로 내둔다. */
 (function(){
   const sc = document.getElementById('hall-scroll');
   const st = document.getElementById('hall-stage');
+  window.hallHome = function(){
+    return Math.max(0, st.offsetHeight * 0.63 - sc.clientHeight * 0.5);
+  };
+  window.hallSettle = function(){ sc.scrollTop = hallHome(); };
   requestAnimationFrame(()=>{
-    const target = st.offsetHeight * 0.63 - sc.clientHeight * 0.5;
-    sc.scrollTop = Math.max(0, target);
+    const g = document.getElementById('gate');
+    if (g && !g.classList.contains('gone')) sc.scrollTop = 0;   /* 천장에서 대기 */
+    else hallSettle();
   });
 })();
 
