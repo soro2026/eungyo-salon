@@ -2436,16 +2436,21 @@ function openStory(spot){
   const isCompagnon = (spot.source === 'compagnon');
   /* 콘서트홀(0731): 팝업 맨 아래에 입장 버튼. 다른 장소에선 숨는다.
      spot._concert는 terra 핀 클릭에서 meta로 빚어 넣어 준다. */
+  /* 0806 — 단추가 우주를 안다. 음악관 문구가 박혀 있어 한스푼 핀에서도
+     「콘서트홀 입장하기」가 떴고 concert.html로 갔다(이글 앤 차일드 → 무지크페어아인 사고).
+     핀 클릭 쪽이 _enterUrl·_enterLabel을 빚어 넣고, 여기는 그것만 읽는다. */
   { const be = document.getElementById("storyEnter");
     if (be){
-      if (spot._concert){
+      const url = spot._enterUrl
+        || (spot._concert ? "concert.html?code=" + encodeURIComponent(spot._concert) : null);
+      if (url){
         be.style.display = "block";
+        be.textContent = spot._enterLabel || "🎼 콘서트홀 입장하기";
         be.onclick = ()=>{
-        const go = window.enterRoomUrl;          /* 블록 8이 창구로 내준 것 */
-        const url = "concert.html?code=" + encodeURIComponent(spot._concert);
-        if (typeof go === "function") go(url, spot.title_ko || "");
-        else location.href = url;                /* 창구가 없으면 생짜 이동 — 손님은 어쨌든 홀에 닿는다 */
-      };
+          const go = window.enterRoomUrl;        /* 블록 8이 창구로 내준 것 */
+          if (typeof go === "function") go(url, spot.title_ko || "");
+          else location.href = url;              /* 창구가 없으면 생짜 이동 */
+        };
       } else be.style.display = "none";
     } }
   const badge = document.getElementById("storyBadge");
@@ -3658,6 +3663,22 @@ function openConcertStory(p){
   });
 }
 
+/* ── 한스푼 소개창 (0806) — openConcertStory의 형제. 단추만 카페 문으로 간다 ── */
+function openSpoonStory(p){
+  const m = (p && p.meta) || {};
+  openStory({
+    source:   m.source || "curation",
+    title:    m.title || m.name_en || p.name || "",
+    title_ko: m.title_ko || p.name || "",
+    subtitle: m.subtitle || "",
+    photos:   Array.isArray(m.photos) ? m.photos : [],
+    body:     Array.isArray(m.body) ? m.body : [],
+    figures:  [],
+    _enterUrl:   "hello_spoon_v1.html?code=" + encodeURIComponent(p.code),
+    _enterLabel: "🥄 카페에 들어가기"
+  });
+}
+
 function enterRoom(p){
   var u = (p && p.target_url) ? p.target_url : "museum.html";
   /* ⚠⚠ 0805밤 — 천문대는 「누른 핀」이 곧 사실이다. code를 안 실으면 observatorium이
@@ -3763,10 +3784,9 @@ function wireTerra(){
         else flyToPark(p);
       }
       else if (p.kind === "hansfoon"){
-        /* 0806 — 음악관과 같다. 핀 = 소개창. 그 카페가 곧 콘텐츠이므로
-           대문보다 내력을 먼저 읽는다. 원고(meta.body)가 없으면 이름과 사진만 뜬다. */
-        if (currentPark && currentPark.code === p.code) openConcertStory(p);
-        else { flyToPark(p); setTimeout(()=>openConcertStory(p), 3400); }
+        /* 0806 — 음악관과 같은 문법. 핀 = 소개창. 원고(meta.body)가 없으면 이름만 뜬다. */
+        if (currentPark && currentPark.code === p.code) openSpoonStory(p);
+        else { flyToPark(p); setTimeout(()=>openSpoonStory(p), 3400); }
       }
       else if (p.kind === "concert"){
         /* 음악관 (0731): 핀 = 팝업. 대문을 거치지 않고 홀의 내력을 먼저 읽는다.
