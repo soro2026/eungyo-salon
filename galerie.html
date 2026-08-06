@@ -84,6 +84,16 @@ html,body{height:100%;background:#0d0a07;color:#e8ddc4;
   letter-spacing:.16em;color:rgba(232,221,196,.72);margin-top:5px;}
 #plaque .p-rent{font-size:clamp(10.5px,1.2vw,12px);margin-top:8px;letter-spacing:.08em;
   color:rgba(233,207,156,.85);}
+/* 낭독 단추 (0806밤 소로) — 「그림 곁에는 팝업 말고 소리」.
+   4겹 시트(#layers)는 화면을 통째로 덮어 그림을 가린다. 그래서 안 읽히던 글이었다.
+   여기서 소리만 흘리면 그림은 계속 걸려 있는다. ⚠ 음성이 있는 곳에만 뜬다. */
+#pVoice{display:none;margin-top:7px;font-size:clamp(10.5px,1.2vw,12px);letter-spacing:.06em;
+  color:rgba(232,214,168,.92);cursor:pointer;user-select:none;}
+#pVoice.on{display:block;}
+#pVoice:hover{color:#f6ecd2;}
+#pVoice .vd{opacity:.55;margin-left:6px;font-size:.92em;}
+#plaque.dark #pVoice{color:rgba(90,70,26,.95);}
+#plaque.dark #pVoice:hover{color:#3a2c10;}
 #plaque.dark{text-shadow:0 1px 2px rgba(255,255,255,.3);}
 #plaque.dark .p-name{color:#2a2318;}
 #plaque.dark .p-artist{color:rgba(42,35,24,.62);}
@@ -241,6 +251,7 @@ body.standalone .view.on ~ #backBtn{display:block;}
     </div>
     <div id="plaque" onclick="openLayers()">
       <div class="p-name" id="pName"></div><div class="p-artist" id="pArtist"></div>
+      <div id="pVoice" onclick="event.stopPropagation();toggleArtVoice()"></div>
       <div class="p-rent" id="pRent" onclick="event.stopPropagation();askRent()"></div>
     </div>
   </div>
@@ -611,6 +622,7 @@ function hangArt(){
     $('#pArtist').textContent='그림이 아직 도착하지 않았습니다';
   }
   paintRentLine();
+  paintArtVoice();
 }
 /* 대여 줄 — 값은 온도 모델(art_price RPC)이 정한다. 소수 둘째 자리.
    순위가 아니다: 작품끼리 비교하지 않고 각자 제 대여 이력만으로 제 온도를 갖는다.
@@ -624,6 +636,59 @@ async function paintRentLine(){
     ART_PRICE = (data!=null) ? Number(data) : 1;
   }
   el.textContent='🍎 '+ART_PRICE.toFixed(2)+'알로 거실에 들이기';
+}
+
+/* ══ 낭독 (0806밤 소로) ═══════════════════════════════════════════════
+   「그림 곁에는 명패 말고 오디오 단추 하나. 팝업 안 띄우고 설명 듣게.」
+
+   4겹은 지금 #layers 시트가 화면을 통째로 덮으며 열린다 — 글을 여는 순간 그림이
+   사라진다. 그래서 여태 안 읽히던 글이었다. 소리는 그 문제를 없앤다. 시트를 안 여니까.
+
+   ⚠ 음성이 있는 작품에만 줄이 뜬다. voice_takes에 한 줄이 앉는 순간 생기고,
+     없는 작품에서는 아예 안 그려진다 — 먹통 단추를 만들지 않는다.
+   ⚠ 자동 재생하지 않는다(헌장 9장). 손님이 눌러야 소리가 난다.
+   ⚠ 확대(#zoom)로 들어가도 안 멈춘다. 그림을 크게 보며 듣는 것이 이 물건의 쓸모다. */
+let ART_VOICE=null, ART_AUDIO=null;
+
+async function paintArtVoice(){
+  const el=$('#pVoice');
+  if(ART_AUDIO){ try{ ART_AUDIO.pause(); }catch(e){} ART_AUDIO=null; }
+  ART_VOICE=null; el.classList.remove('on'); el.textContent='';
+  if(!ART || !ART.id) return;
+  try{
+    const { data } = await supa.from('voice_takes')
+      .select('url,dur_sec').eq('scope','art').eq('ref', ART.id).eq('active', true).maybeSingle();
+    if(!data || !data.url) return;                 /* 없으면 줄도 없다 */
+    ART_VOICE=data;
+    paintVoiceLine('▶ 설명 듣기');
+    el.classList.add('on');
+  }catch(e){ console.warn('[EG] 낭독을 못 받았습니다 — 명패는 그대로 둡니다:', e); }
+}
+
+function paintVoiceLine(txt){
+  const d=ART_VOICE && ART_VOICE.dur_sec;
+  const dur=d ? `<span class="vd">${Math.floor(d/60)}:${String(Math.round(d%60)).padStart(2,'0')}</span>` : '';
+  $('#pVoice').innerHTML = txt + dur;
+}
+
+function toggleArtVoice(){
+  if(!ART_VOICE) return;
+  if(ART_AUDIO && !ART_AUDIO.paused){ ART_AUDIO.pause(); return; }
+  if(!ART_AUDIO){
+    ART_AUDIO=new Audio(ART_VOICE.url);
+    ART_AUDIO.preload='none';
+    ART_AUDIO.onplay =()=> paintVoiceLine('❚❚ 듣는 중');
+    ART_AUDIO.onpause=()=> paintVoiceLine('▶ 이어 듣기');
+    ART_AUDIO.onended=()=> paintVoiceLine('▶ 다시 듣기');
+    ART_AUDIO.onerror=()=>{ paintVoiceLine('음성을 불러오지 못했습니다');
+      console.warn('[EG] 낭독 파일을 못 받았습니다:', ART_VOICE.url); };
+    try{
+      if('mediaSession' in navigator)
+        navigator.mediaSession.metadata=new MediaMetadata({
+          title:(ART&&ART.name)||'작품 해설', artist:(ART&&ART.artist)||'EG Universe' });
+    }catch(e){}
+  }
+  ART_AUDIO.play().catch(e=> console.warn('[EG] 낭독 재생', e));
 }
 
 /* ── 입장 — 암전 뒤 카메라가 천장에서 내려온다 ── */
