@@ -730,12 +730,17 @@ body.in-room #scrollSpace{display:block;height:220vh}
 body.in-room .app{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
   z-index:2;width:min(440px,92vw);height:min(100vh - 36px,100svh - 36px);
   min-height:0;margin:0;overflow-y:auto;scrollbar-width:none;
-  box-shadow:0 26px 70px rgba(0,0,0,.55);border-radius:14px}
+  box-shadow:0 26px 70px rgba(0,0,0,.55);border-radius:14px;
+  /* 0806 소로 — 종이를 15% 열어 방이 스며들게. 뒤를 살짝 흐려 글자 대비는 지킨다 */
+  background:rgba(250,247,242,.85);
+  backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
 body.in-room .app::-webkit-scrollbar{display:none}
 body.in-room{background:transparent}
-/* 문서 스크롤바도 걷는다 — 스크롤은 방을 미는 손잡이일 뿐 눈에 보일 물건이 아니다 */
-body.in-room{scrollbar-width:none;-ms-overflow-style:none}
-body.in-room::-webkit-scrollbar{display:none}
+/* 문서 스크롤바도 걷는다 — 스크롤은 방을 미는 손잡이일 뿐 눈에 보일 물건이 아니다.
+   ⚠ 0806 — body에 걸었더니 안 걷혔다. 문서 스크롤바는 html의 것이다.
+     JS가 in-room을 html에도 붙인다. */
+html.in-room{scrollbar-width:none;-ms-overflow-style:none}
+html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
 
 /* ── 정문 ── */
 /* ⚠ 처음부터 검은 화면으로 덮어둔다. 목록을 읽는 동안 카드가 새어 나오면
@@ -1380,7 +1385,9 @@ body.in-room::-webkit-scrollbar{display:none}
     applySpoon();         // 날짜·퀴즈·정답·여운 채움
     buildStoryBlocks();   // 스토리 블록 생성
     show(1);
-    runHeroTyping();
+    /* 0806 소로 — 여기서 돌리면 문 뒤에서 미리 흘러버려 입장 때 급하게 튀어나온다.
+       문을 연 쪽이 부른다(입장 +5초). */
+    window.EGSpoonHeroStart = runHeroTyping;
     /* EG Credencial 입국 도장 (0804 · 9-1) — 첫 화면이 실제로 뜬 뒤 */
     if (window.EGStamp) EGStamp.offer({ supa, area:'cochlear' });
   }
@@ -1397,10 +1404,13 @@ body.in-room::-webkit-scrollbar{display:none}
 <div id="ttPanel">
   <span class="heb">시간 여행 — 화면 판정만 바뀝니다.<br>⚠ 여행 중에는 퀴즈·사유가 DB에 안 앉습니다.</span>
   <input type="date" id="ttDate">
+  <div class="row" style="margin-bottom:8px">
+    <button onclick="EGSpoonTT.go()">그날로 가기</button>
+    <button onclick="EGSpoonTT.today()">오늘로</button>
+  </div>
   <div class="row">
     <button data-tod="m">아침</button><button data-tod="d">낮</button>
     <button data-tod="e">저녁</button><button data-tod="n">밤</button>
-    <button data-tod="">오늘로</button>
   </div>
   <div id="ttNow"></div>
 </div>
@@ -1455,7 +1465,9 @@ body.in-room::-webkit-scrollbar{display:none}
 
     /* ⚠ 시험 고정 — terra.html의 EG_SPOON_FIX와 한 쌍이다. 한쪽만 풀면 타륜과 셸이 갈린다.
        그림이 열셋 다 차면 둘 다 null로 되돌릴 것. */
-    const FIX = "eaglechild";
+    /* ⚠⚠ ⏱ 날짜가 켜지면 고정핀이 비켜선다 — 안 비키면 날짜를 옮겨도 아무것도 안 바뀌어
+       타임머신이 먹통으로 보인다(0806 실전). 고정과 여행은 같이 못 산다. */
+    const FIX = (window.EG_TT_DAY!=null) ? null : "eaglechild";
     const want=new URLSearchParams(location.search).get('code') || FIX;
     SPOT = (want && LIST.find(h=>h.code===want)) || LIST[ kstDay() % LIST.length ];
 
@@ -1485,6 +1497,9 @@ body.in-room::-webkit-scrollbar{display:none}
         p.src=u; };
       tryOn([asset(SPOT.code,'hall_'+t), asset(SPOT.code,'hall_d')]);
       document.body.classList.add('in-room');
+      document.documentElement.classList.add('in-room');   /* 스크롤바는 html의 것 */
+      /* 방에 앉아 숨을 고른 뒤에야 첫 문장이 흐른다 (0806 소로 · 5초) */
+      setTimeout(()=>{ if(window.EGSpoonHeroStart) window.EGSpoonHeroStart(); }, 5000);
       $('#fade').classList.remove('on');
     }, 520);
   }
@@ -1513,7 +1528,8 @@ body.in-room::-webkit-scrollbar{display:none}
   /* ⏱가 값을 바꾸면 정문과 방을 다시 건다 */
   window.EGSpoonRelay = function(){
     if(!LIST.length) return;
-    const want=new URLSearchParams(location.search).get('code') || "eaglechild";
+    const FIX = (window.EG_TT_DAY!=null) ? null : "eaglechild";   /* boot와 같은 조항 */
+    const want=new URLSearchParams(location.search).get('code') || FIX;
     SPOT = (want && LIST.find(h=>h.code===want)) || LIST[ kstDay() % LIST.length ];
     const t=phase();
     bgChain($('#gate'), [asset(SPOT.code,'gate_'+t), asset(SPOT.code,'gate_d')]);
@@ -1560,16 +1576,22 @@ body.in-room::-webkit-scrollbar{display:none}
       `${r.name} · ${TOD[r.tod]||r.tod}` + (window.EG_TT_ON ? ' <b>· ⏱ 여행 중</b>' : '');
   }
   $('#ttBtn').addEventListener('click', ()=>{ $('#ttPanel').classList.toggle('on'); paint(); });
-  $('#ttDate').addEventListener('change', e=>{
-    const v=e.target.value;
-    window.EG_TT_DAY = v ? Math.floor(new Date(v+'T12:00:00+09:00').getTime()/86400000) : null;
-    paint();
-  });
+  /* 날짜 공식 — 미술관 applyTT와 한 글자도 다르지 않다 */
+  window.EGSpoonTT = {
+    go(){
+      const v=$('#ttDate').value;
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+      window.EG_TT_DAY = Math.floor((Date.parse(v+'T00:00:00Z') + 9*3600*1000) / 86400000);
+      paint();
+    },
+    today(){
+      window.EG_TT_DAY=null; window.EG_TT_TOD=null; $('#ttDate').value='';
+      paint();
+    }
+  };
   document.querySelectorAll('#ttPanel [data-tod]').forEach(b=>
     b.addEventListener('click', ()=>{
-      const v=b.dataset.tod;
-      if(v) window.EG_TT_TOD = v;
-      else { window.EG_TT_TOD=null; window.EG_TT_DAY=null; $('#ttDate').value=''; }
+      window.EG_TT_TOD = (window.EG_TT_TOD===b.dataset.tod) ? null : b.dataset.tod;
       paint();
     }));
 })();
