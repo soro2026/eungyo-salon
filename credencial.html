@@ -231,7 +231,7 @@ const SHAPE = {
   hex:[125,116,1],    oct:[120,118,1],    shield:[102,124,1],
   arch:[89,126,1],    penta:[97,124,1],   diamond:[119,120,1]
 };
-const COLS = 2, ROWS = 3;
+const COLS = 2;   /* ROWS는 0806 열쌓기 전환으로 은퇴 — 행을 세지 않고 높이를 쌓는다 */
 const $ = s => document.querySelector(s);
 const pad = v => v < 10 ? '0'+v : ''+v;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
@@ -278,32 +278,64 @@ function guilloche(){
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 492" width="100%" height="100%">${s}</svg>`;
 }
 
-/* ── 편철: 시간순 · 2열 3행 · 차면 다음 장 (16·17호) ── */
+/* ── 편철: 시간순 · 2열 열쌓기 · 차면 다음 장 (16·17호) ──
+   ⭐ 0806 — 3행 고정 격자를 물렸다.
+   ⚠ 병: 「브람스 바이올린과 첼로를 위한 이중 협주곡 A단조 Op. 102」가 세 줄로 앉아
+     아랫줄 가르니에를 밟았다. 격자가 칸을 「몸통 크기」로만 재는데 각인은 몸통 밖에서
+     아래로 뻗기 때문이다. 칸 134px에 몸통 126px이면 남는 데가 8px뿐이다.
+   처방: 칸을 세지 말고 높이를 쌓는다. 도장마다 「몸통 + 각인」을 먼저 재고 두 열 중
+     낮은 쪽에 앉힌 뒤 그만큼 커서를 내린다. 각인이 몇 줄이 되든 다음 도장이 그 아래에서 시작한다.
+   ⚠ 각인 줄 수는 그리기 전에는 정확히 모른다 — 글자 폭으로 어림한 뒤 여유(GAPY)로 덮는다.
+     어림이 한 줄 모자라도 10px 틈이 받아낸다. */
+const FIELD_W = 300, FIELD_H = 402;   /* .field 실측 — 340-40 × 492-44-46 */
+const GAPY = 10;
+
+/* 몸통 밖으로 뻗는 각인의 높이 (px) */
+function insHeight(st, w){
+  const dateH = 13;                                  /* .ins .d — 9.5px × 1.3 + 여유 */
+  if(!st.inscribe_out) return dateH;                 /* 안쪽 갈래는 이름이 도장 안에 산다 */
+  if(!st.inscription)  return dateH;
+  /* 한글 8.5px는 글자당 약 8.5px, 숫자·영문은 절반. 섞이므로 7px로 어림한다 */
+  const lines = Math.max(1, Math.ceil(String(st.inscription).length * 7 / Math.max(40, w - 4)));
+  return lines * 11 + dateH;
+}
+
 function fileStamps(rows){
   pages = [{ kind:'plate' }, { kind:'note' }];
-  const cells = [];
-  const place = (p, cw) => {
-    for(let r = 0; r < ROWS; r++) for(let c = 0; c <= COLS-cw; c++){
-      let free = true;
-      for(let i = 0; i < cw; i++) if(p.cells.has(`${c+i},${r}`)) free = false;
-      if(free){ for(let i = 0; i < cw; i++) p.cells.add(`${c+i},${r}`); return {c,r}; }
-    }
-    return null;
-  };
+  const colW = FIELD_W / COLS;
+  const fresh = () => ({ kind:'stamps', cols:new Array(COLS).fill(0), items:[] });
+
   let pi = 2;
   for(const st of rows){
     const sh = SHAPE[st.shape] || SHAPE.circle;
-    let pos = null;
+    const w = sh[0], h = sh[1], span = sh[2];
+    const need = h + 3 + insHeight(st, w);
+
+    let put = null;
     while(true){
-      while(pages.length <= pi) pages.push({ kind:'stamps', cells:new Set(), items:[] });
+      while(pages.length <= pi) pages.push(fresh());
       if(pages[pi].kind !== 'stamps'){ pi++; continue; }
-      pos = place(pages[pi], sh[2]);
-      if(pos) break;
+      const p = pages[pi];
+      /* 한 칸짜리는 낮은 열에, 두 칸짜리는 두 열 중 높은 쪽에 맞춰 걸친다 */
+      const c = span > 1 ? 0 : (p.cols[1] < p.cols[0] ? 1 : 0);
+      const y = span > 1 ? Math.max(...p.cols) : p.cols[c];
+      if(y + need + 4 <= FIELD_H){   /* +4 = 아래 dy 클램프 폭. 안 세면 마지막 한 장이 판을 넘는다 */
+        for(let i = 0; i < span; i++) p.cols[c+i] = y + need + GAPY;
+        put = { c, y };
+        break;
+      }
       pi++;
     }
-    pages[pi].items.push({ ...st, c:pos.c, r:pos.r, w:sh[0], h:sh[1], cw:sh[2] });
+    /* ⚠ dy는 ±4로 조인다. DB의 ±16을 그대로 쓰면 방금 없앤 겹침이 되살아난다.
+       삐뚤빼뚤의 몫은 rot과 dx가 이미 지고 있다(15호). */
+    const dx = Math.max(-14, Math.min(14, st.dx || 0));
+    const dy = Math.max(-4,  Math.min(4,  st.dy || 0));
+    const x  = put.c*colW + (span*colW - w)/2 + dx;
+    pages[pi].items.push({ ...st, w, h, cw:span,
+      x: Math.max(0, Math.min(FIELD_W - w, x)),
+      y: Math.max(0, Math.min(FIELD_H - h, put.y + dy)) });
   }
-  if(pages.length % 2) pages.push({ kind:'stamps', cells:new Set(), items:[] });
+  if(pages.length % 2) pages.push(fresh());
 }
 
 /* ── 그리기 ── */
@@ -369,17 +401,21 @@ function drawPage(field, pi){
     return;
   }
 
-  const W = field.clientWidth, H = field.clientHeight, cw = W/COLS, ch = H/ROWS;
-  for(const it of p.items){
-    const bx = Math.max(0, Math.min(W-it.w, it.c*cw + (it.cw*cw - it.w)/2 + it.dx));
-    const by = Math.max(0, Math.min(H-it.h, it.r*ch + (ch - it.h)/2 + it.dy));
+  /* 0806 — 자리는 편철에서 이미 정해졌다. 여기서는 판이 좁아진 만큼만 줄여 옮긴다.
+     ⚠ 좌표만 줄이고 몸통을 안 줄이면 방금 없앤 겹침이 폰에서만 되살아난다. 함께 줄인다. */
+  const W = field.clientWidth, H = field.clientHeight;
+  const sc = Math.min(W/FIELD_W, H/FIELD_H, 1);
+  for(const it0 of p.items){
+    const it = { ...it0, w: it0.w*sc, h: it0.h*sc };
+    const bx = Math.max(0, Math.min(W-it.w, it0.x*sc));
+    const by = Math.max(0, Math.min(H-it.h, it0.y*sc));
     const at = new Date(it.stamped_at);
     let dstr = `${at.getFullYear()}.${pad(at.getMonth()+1)}.${pad(at.getDate())}`;
     if(it.with_time) dstr += ` ${pad(at.getHours())}:${pad(at.getMinutes())}`;
     const iy = Math.round(it.h * (it.inscribe_out ? 1.04 : 0.70));
     const el = document.createElement('div');
     el.className = 'stamp';
-    el.style.cssText = `width:${it.w}px;height:${it.h}px;left:${bx.toFixed(1)}px;top:${by.toFixed(1)}px;`
+    el.style.cssText = `width:${it.w.toFixed(1)}px;height:${it.h.toFixed(1)}px;left:${bx.toFixed(1)}px;top:${by.toFixed(1)}px;`
       + `transform:rotate(${(it.rot||0).toFixed(1)}deg);opacity:${(it.ink_alpha||.8).toFixed(2)}`;
     /* ⭐ 0805 — 각인이 도장 안에 앉는 갈래(천문대)는 이름과 날짜를 갈라놓는다.
        흰 곳은 「그날 만난 사람」을 위해 비워둔 곳이지 날짜를 위한 곳이 아니다.
