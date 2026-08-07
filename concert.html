@@ -120,6 +120,20 @@ html,body{height:100%;background:#000;overflow:hidden;
   font-size:clamp(8.5px,1.4vmin,10.5px);letter-spacing:.22em;
   color:rgba(201,162,74,.7);padding-left:clamp(8px,1.4vw,14px);
   border-left:1px solid rgba(201,162,74,.22);}
+
+/* ⚠ hidden은 브라우저 기본 스타일이라 작성자 CSS의 display 한 줄에 진다.
+   0806밤 낭독실이 그것 때문에 안 열려 소로의 저녁 한 시간을 태웠다.
+   이 집에도 앞으로 세울 hidden까지 함께 지키도록 전역으로 걸어 둔다(함정 AI). */
+[hidden]{display:none!important}
+
+/* ⭐ 0807 — 곡 낭독. 「듣다가 문득 이 곡이 궁금할 때」(소로).
+   ⚠ button 안에 button은 못 넣는다. span으로 세우고 클릭을 가로챈다
+     (galerie #pVoice와 같은 문법). */
+#linerBtn .bar-voice{flex:none;font-size:clamp(9.5px,1.5vmin,11.5px);
+  letter-spacing:.06em;color:rgba(201,162,74,.88);white-space:nowrap;
+  padding-left:clamp(8px,1.4vw,14px);border-left:1px solid rgba(201,162,74,.22);
+  cursor:pointer;transition:color .25s;}
+#linerBtn .bar-voice:hover{color:var(--gold-l);}
 @media (max-width:620px){
   #linerBtn{max-width:calc(100vw - 28px);}
   #linerBtn .bar-go{display:none;}
@@ -252,6 +266,8 @@ html,body{height:100%;background:#000;overflow:hidden;
       <span class="bar-title" id="barTitle"></span>
       <span class="bar-sub" id="barSub"></span>
     </span>
+    <span class="bar-voice" id="barVoice" hidden
+          onclick="event.stopPropagation();toggleSongVoice()"></span>
     <span class="bar-go">곡 소개</span>
   </button>
 </div>
@@ -459,6 +475,7 @@ async function boot(){
   $('#sArtist').textContent = [SONG.artist, SONG.period].filter(Boolean).join(' · ');
   $('#barTitle').textContent = SONG.name || '';
   $('#barSub').textContent   = [SONG.artist, SONG.period].filter(Boolean).join(' · ');
+  loadSongVoice();      /* 0807 — 구워진 곡에만 「▶ 이 곡 이야기」가 선다 */
   /* 스크린 좌표 — 홀마다 그림이 다르므로 meta가 있으면 그것이 먼저다 */
   const r = HALL.meta && HALL.meta.screen_rect;
   if(r) RECT = Object.assign({}, RECT, r);
@@ -505,15 +522,154 @@ function play(){
   try{ if(window.parent && window.parent !== window) window.parent.postMessage({eg:'media-start'},'*'); }catch(e){}
   const box=$('#playerBox');
   const st=SONG.start_seconds || 0;
-  box.innerHTML=`<iframe src="https://www.youtube.com/embed/${SONG.video_id}?autoplay=1&start=${st}&rel=0&modestbranding=1"
+  /* ⚠ 0807 — enablejsapi=1 이 있어야 곡 낭독이 유튜브를 재울 수 있다.
+     이것이 빠지면 postMessage 명령이 조용히 버려지고, 설명과 곡이 함께 흐른다. */
+  box.innerHTML=`<iframe src="https://www.youtube.com/embed/${SONG.video_id}?autoplay=1&start=${st}&rel=0&modestbranding=1&enablejsapi=1"
     allow="autoplay; encrypted-media; fullscreen" allowfullscreen frameborder="0"
     style="width:100%;height:100%;border:0;display:block"></iframe>`;
   box.classList.add('on');
   $('#screenVeil').style.display='none';
+  ytListen();          /* 손님이 스스로 다시 틀면 알아채도록 귀를 연다 */
 }
 $('#screen').addEventListener('click', ()=>{ if(!$('#playerBox').classList.contains('on')) play(); });
 $('#screen').addEventListener('keydown', e=>{
   if((e.key==='Enter'||e.key===' ') && !$('#playerBox').classList.contains('on')) play(); });
+
+/* ══ 곡 낭독 (0807 소로) ══════════════════════════════════════════════
+   「음악 듣다가 문득 이 곡에 대해 궁금할 수 있거든. 조용히 유튜브가 멈추고
+     오디오 설명이 흘러나오게 하는 게 가능한가?」
+
+   ⭐ 흐름 넷
+     ① 「▶ 이 곡 이야기」를 누른다
+     ② 유튜브가 1.5초에 걸쳐 잦아든다 — 뚝 끊기면 거칠다
+     ③ 설명이 흐른다 (소리는 terra가 든다 — 음악관을 나가도 안 끊긴다)
+     ④ 끝나면 곡이 **그 자리에서** 다시 흐른다
+   ⭐ ④가 이 물건의 핵심이다. 소로: 「설명을 듣고 감상하는 것과 그냥 듣는 건 하늘과 땅 차이」.
+     되돌려 주지 않으면 설명만 듣고 끝난다.
+   ⚠ 헌장 9장(자극으로 붙잡지 않음)에 걸리지 않는다 — 손님이 이미 틀어 둔 곡을
+     잠깐 재웠다 되돌리는 것이지 새로 트는 것이 아니다.
+   ⚠ 음성이 없는 곡에는 단추가 아예 안 선다(먹통 단추 금지). */
+let SONG_VOICE=null, SONG_AUDIO=null, SONG_NOW=null, YT_SLEPT=false;
+
+const HAS_PARENT=(()=>{ try{ return window.parent && window.parent!==window; }catch(e){ return false; } })();
+function tellParent(msg){ try{ if(HAS_PARENT) window.parent.postMessage(msg,'*'); }catch(e){} }
+
+/* 유튜브에게 말을 건다 — enablejsapi=1 이 있어야 듣는다 */
+function ytCmd(func, args){
+  const f=$('#playerBox iframe');
+  if(!f || !f.contentWindow) return false;
+  try{ f.contentWindow.postMessage(JSON.stringify({event:'command',func,args:args||[]}),'*'); return true; }
+  catch(e){ return false; }
+}
+/* 손님이 스스로 곡을 다시 틀면 알아채도록 귀를 연다 */
+function ytListen(){
+  setTimeout(()=>{
+    const f=$('#playerBox iframe');
+    if(!f || !f.contentWindow) return;
+    try{ f.contentWindow.postMessage('{"event":"listening","id":1,"channel":"widget"}','*'); }catch(e){}
+  }, 900);
+}
+/* 서서히 잦아들다 멎는다. ⚠ 볼륨은 반드시 되돌려 놓는다 — 안 그러면 다음 곡이 무음이다 */
+function ytSleep(ms){
+  return new Promise(res=>{
+    let v=100; const step=Math.max(4, Math.round(100/Math.max(1,ms/70)));
+    const t=setInterval(()=>{
+      v-=step;
+      if(v<=0){ clearInterval(t); ytCmd('pauseVideo'); ytCmd('setVolume',[100]); res(); }
+      else ytCmd('setVolume',[v]);
+    }, 70);
+    setTimeout(()=>{ clearInterval(t); ytCmd('pauseVideo'); ytCmd('setVolume',[100]); res(); }, ms+400);
+  });
+}
+
+async function loadSongVoice(){
+  SONG_VOICE=null;
+  const el=$('#barVoice'); if(!el) return;
+  el.hidden=true;
+  if(!SONG || !SONG.id) return;
+  try{
+    const { data } = await supa.from('voice_takes')
+      .select('url,dur_sec').eq('scope','song').eq('ref', SONG.id).eq('active', true).maybeSingle();
+    if(!data || !data.url) return;              /* 없으면 단추도 없다 */
+    SONG_VOICE=data;
+    el.hidden=false;
+    paintSongVoice();
+    tellParent({eg:'voice-ask'});               /* 이미 흐르는 중일 수 있다 */
+  }catch(e){ console.warn('[EG] 곡 낭독을 못 받았습니다 — 바는 그대로 둡니다:', e); }
+}
+
+function paintSongVoice(){
+  const el=$('#barVoice');
+  if(!el || !SONG_VOICE) return;
+  let t='▶ 이 곡 이야기';
+  if(HAS_PARENT){
+    const mine = SONG_NOW && SONG_NOW.scope==='song' && String(SONG_NOW.ref)===String(SONG&&SONG.id);
+    if(mine) t = SONG_NOW.playing ? '❚❚ 듣는 중' : (SONG_NOW.ended ? '▶ 다시 듣기' : '▶ 이어 듣기');
+  } else if(SONG_AUDIO && !SONG_AUDIO.paused) t='❚❚ 듣는 중';
+  el.textContent=t;
+}
+
+async function toggleSongVoice(){
+  if(!SONG_VOICE || !SONG) return;
+
+  const mine = HAS_PARENT
+    ? (SONG_NOW && SONG_NOW.scope==='song' && String(SONG_NOW.ref)===String(SONG.id))
+    : !!SONG_AUDIO;
+  if(mine){                                     /* 이미 이 곡 이야기가 걸려 있다 — 여닫기만 */
+    if(HAS_PARENT) tellParent({eg:'voice-toggle'});
+    else if(SONG_AUDIO.paused) SONG_AUDIO.play().catch(()=>{}); else SONG_AUDIO.pause();
+    return;
+  }
+
+  /* 곡이 흐르는 중이면 재운다 — 끝나고 되돌릴 수 있게 적어 둔다 */
+  YT_SLEPT = $('#playerBox').classList.contains('on');
+  if(YT_SLEPT){ $('#barVoice').textContent='잠시…'; await ytSleep(1500); }
+
+  if(HAS_PARENT){
+    tellParent({ eg:'voice-play', scope:'song', ref:SONG.id, url:SONG_VOICE.url,
+                 title:SONG.name||'곡 이야기', total:SONG_VOICE.dur_sec||0 });
+    return;
+  }
+
+  /* 폴백 — 홀로 열렸을 때만 여기서 튼다 */
+  SONG_AUDIO=new Audio(SONG_VOICE.url);
+  SONG_AUDIO.preload='none';
+  ['play','pause'].forEach(ev=> SONG_AUDIO.addEventListener(ev, paintSongVoice));
+  SONG_AUDIO.addEventListener('ended', ()=>{ paintSongVoice(); wakeSong(); });
+  SONG_AUDIO.addEventListener('error', ()=>{ $('#barVoice').textContent='음성을 못 받았습니다';
+    console.warn('[EG] 곡 낭독 파일을 못 받았습니다:', SONG_VOICE.url); });
+  SONG_AUDIO.play().catch(e=> console.warn('[EG] 곡 낭독 재생', e));
+}
+
+/* 설명이 끝났다 — 재워 둔 곡을 그 자리에서 깨운다 */
+function wakeSong(){
+  if(!YT_SLEPT) return;
+  YT_SLEPT=false;
+  ytCmd('setVolume',[100]);
+  ytCmd('playVideo');
+}
+
+/* terra가 내려보내는 사실 하나로 단추 글자를 그린다 */
+window.addEventListener('message', e=>{
+  const d=e && e.data;
+
+  /* ── 유튜브가 보내는 상태 (문자열 JSON) ── */
+  if(typeof d==='string'){
+    let y=null; try{ y=JSON.parse(d); }catch(_){ return; }
+    /* 손님이 스스로 곡을 다시 틀었다 — 낭독은 물러난다.
+       ⚠ 우리가 wakeSong으로 깨울 때도 여기 걸리지만, 그때는 낭독이 이미 끝나 무해하다. */
+    if(y && y.event==='infoDelivery' && y.info && y.info.playerState===1 && !YT_SLEPT)
+      tellParent({eg:'media-start'});
+    return;
+  }
+
+  if(!d || d.eg!=='voice-state') return;
+  const wasMine = SONG_NOW && SONG_NOW.scope==='song' && String(SONG_NOW.ref)===String(SONG&&SONG.id);
+  SONG_NOW = d.ref ? d : null;
+  const mine = d.scope==='song' && String(d.ref)===String(SONG&&SONG.id);
+  if(wasMine && mine && d.ended) wakeSong();     /* 설명이 끝났다 → 곡을 되돌린다 */
+  paintSongVoice();
+});
 
 /* ── 곡 소개 — 라이너 4겹 ── */
 const LINER_ORDER=[
