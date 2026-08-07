@@ -318,7 +318,7 @@ const BUCKET='tour-assets';
 const asset=(code,slot)=>`${SUPA_URL}/storage/v1/object/public/${BUCKET}/galerie/${code}_${slot}.webp`;
 const HALL_RATIO=941/1672;                     /* 방 그림 가로/세로 (9:16) */
 const $=s=>document.querySelector(s);
-console.log("%c[EG] galerie v1.9 · 0805 ⏱ 시간 여행(콜레주 이식) · 걸이 기준 · 착지 고정", "color:#c9a24a");
+console.log("%c[EG] galerie v2.0 · 0807 낭독을 terra에 맡김 · ⏱ 시간 여행 · 걸이 기준", "color:#c9a24a");
 
 const qs=new URLSearchParams(location.search);
 const CODE=qs.get('code')||'orsay';
@@ -638,21 +638,31 @@ async function paintRentLine(){
   el.textContent='🍎 '+ART_PRICE.toFixed(2)+'알로 거실에 들이기';
 }
 
-/* ══ 낭독 (0806밤 소로) ═══════════════════════════════════════════════
+/* ══ 낭독 (0806밤 소로 · 0807 소리를 terra에게 맡김) ═══════════════════
    「그림 곁에는 명패 말고 오디오 단추 하나. 팝업 안 띄우고 설명 듣게.」
 
-   4겹은 지금 #layers 시트가 화면을 통째로 덮으며 열린다 — 글을 여는 순간 그림이
+   4겹은 #layers 시트가 화면을 통째로 덮으며 열린다 — 글을 여는 순간 그림이
    사라진다. 그래서 여태 안 읽히던 글이었다. 소리는 그 문제를 없앤다. 시트를 안 여니까.
 
-   ⚠ 음성이 있는 작품에만 줄이 뜬다. voice_takes에 한 줄이 앉는 순간 생기고,
-     없는 작품에서는 아예 안 그려진다 — 먹통 단추를 만들지 않는다.
+   ⭐⭐ 0807 — **소리는 여기서 틀지 않고 terra에게 넘긴다.**
+     미술관은 terra 안의 창(iframe)이라, 이 안에서 틀면 문을 닫는 순간 창과 함께 사라진다.
+     terra가 들고 있으면 미술관을 나가도 좌하단 조종간에 남아 마저 들을 수 있다.
+     소로: 「미술관 밖으로 나가면 플레이 끊어지나?」 — 끊겼다. 이제 안 끊긴다.
+   ⚠ terra 밖에서 이 화면을 직접 열면 맡길 부모가 없다 → 예전처럼 스스로 튼다(폴백).
+   ⚠ 음성이 있는 작품에만 줄이 뜬다. 없는 작품에서는 아예 안 그려진다 — 먹통 단추를 안 만든다.
    ⚠ 자동 재생하지 않는다(헌장 9장). 손님이 눌러야 소리가 난다.
    ⚠ 확대(#zoom)로 들어가도 안 멈춘다. 그림을 크게 보며 듣는 것이 이 물건의 쓸모다. */
-let ART_VOICE=null, ART_AUDIO=null;
+let ART_VOICE=null, ART_AUDIO=null, VOICE_NOW=null;   /* VOICE_NOW = terra가 지금 들고 있는 ref */
+
+/* terra 안에 있는가 — 있으면 소리를 맡긴다 */
+const HAS_PARENT = (()=>{ try{ return window.parent && window.parent !== window; }catch(e){ return false; } })();
+function tellParent(msg){ try{ window.parent.postMessage(msg,'*'); }catch(e){} }
 
 async function paintArtVoice(){
   const el=$('#pVoice');
-  if(ART_AUDIO){ try{ ART_AUDIO.pause(); }catch(e){} ART_AUDIO=null; }
+  /* ⚠ 0807 — 그림을 옮겨도 소리를 죽이지 않는다. 조종간이 무엇이 흐르는지 말해 주므로
+     헷갈리지 않고, 「나가도 안 끊긴다」와 한 규칙이 된다. 폴백일 때만 예전처럼 멈춘다. */
+  if(!HAS_PARENT && ART_AUDIO){ try{ ART_AUDIO.pause(); }catch(e){} ART_AUDIO=null; }
   ART_VOICE=null; el.classList.remove('on'); el.textContent='';
   if(!ART || !ART.id) return;
   try{
@@ -660,19 +670,50 @@ async function paintArtVoice(){
       .select('url,dur_sec').eq('scope','art').eq('ref', ART.id).eq('active', true).maybeSingle();
     if(!data || !data.url) return;                 /* 없으면 줄도 없다 */
     ART_VOICE=data;
-    paintVoiceLine('▶ 설명 듣기');
     el.classList.add('on');
+    paintVoiceLine();
+    /* ⚠ 이 그림 설명이 **이미 흐르는 중**일 수 있다 — 나갔다 다시 들어온 때가 그렇다.
+       안 물으면 명패는 「▶ 설명 듣기」인데 소리는 나오는 어긋남이 생긴다. */
+    if(HAS_PARENT) tellParent({ eg:'voice-ask' });
   }catch(e){ console.warn('[EG] 낭독을 못 받았습니다 — 명패는 그대로 둡니다:', e); }
 }
 
+/* 상태는 한 곳에서만 읽는다 — terra가 들고 있으면 VOICE_NOW, 아니면 ART_AUDIO.
+   ⚠ 갈래(scope)까지 봐야 한다. 장소 낭독이 흐르는데 이 명패가 「듣는 중」이라 적으면
+     손님은 그림 설명이 나오는 줄 안다. */
 function paintVoiceLine(txt){
-  const d=ART_VOICE && ART_VOICE.dur_sec;
+  if(!ART_VOICE){ return; }
+  const d=ART_VOICE.dur_sec;
   const dur=d ? `<span class="vd">${Math.floor(d/60)}:${String(Math.round(d%60)).padStart(2,'0')}</span>` : '';
-  $('#pVoice').innerHTML = txt + dur;
+  let t = txt;
+  if(!t){
+    if(HAS_PARENT){
+      const mine = VOICE_NOW && VOICE_NOW.scope === 'art'
+                   && String(VOICE_NOW.ref) === String(ART && ART.id);
+      t = !mine            ? '▶ 설명 듣기'
+        : VOICE_NOW.playing? '❚❚ 듣는 중'
+        : VOICE_NOW.ended  ? '▶ 다시 듣기'
+        :                    '▶ 이어 듣기';
+    } else {
+      t = (ART_AUDIO && !ART_AUDIO.paused) ? '❚❚ 듣는 중' : '▶ 설명 듣기';
+    }
+  }
+  $('#pVoice').innerHTML = t + dur;
 }
 
 function toggleArtVoice(){
-  if(!ART_VOICE) return;
+  if(!ART_VOICE || !ART) return;
+
+  /* ⭐ terra 안 — 소리는 저쪽이 든다 */
+  if(HAS_PARENT){
+    const mine = VOICE_NOW && VOICE_NOW.ref === ART.id;
+    if(mine) tellParent({ eg:'voice-toggle' });
+    else tellParent({ eg:'voice-play', scope:'art', ref:ART.id, url:ART_VOICE.url,
+                      title:(ART.name||'작품 해설'), total:(ART_VOICE.dur_sec||0) });
+    return;
+  }
+
+  /* 폴백 — 단독으로 열렸을 때만 여기서 튼다 */
   if(ART_AUDIO && !ART_AUDIO.paused){ ART_AUDIO.pause(); return; }
   if(!ART_AUDIO){
     ART_AUDIO=new Audio(ART_VOICE.url);
@@ -690,6 +731,14 @@ function toggleArtVoice(){
   }
   ART_AUDIO.play().catch(e=> console.warn('[EG] 낭독 재생', e));
 }
+
+/* terra가 되쏘는 상태 — 명패 줄이 조종간과 같은 말을 하게 한다 */
+window.addEventListener('message', e=>{
+  const d = e && e.data;
+  if(!d || d.eg !== 'voice-state') return;
+  VOICE_NOW = d.ref ? d : null;
+  paintVoiceLine();
+});
 
 /* ── 입장 — 암전 뒤 카메라가 천장에서 내려온다 ── */
 function enterHall(){

@@ -1616,7 +1616,7 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
 <div style="position:fixed;left:8px;bottom:6px;z-index:70;font-size:9px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.5px;pointer-events:none">maison 0628e</div>
 
 <script>
-console.log('[EG] terra v0807a — 낭독 미니 조종간');
+console.log('[EG] terra v0807b — 조종간 + 방이 맡기는 소리');
 // ── 분더카머로 떠나는 비행: 제트음 (자동재생 막히면 조용히 폴백) ──
 (function(){
   // 빠른 길(enter=1)은 지도 로딩 시간 벌이가 불필요 → 비행기·제트음 생략
@@ -2003,8 +2003,14 @@ function buildJourney(){
      그래서 한쪽만 막으면 헛돈다. 양방향으로 건다. */
 function twinPlaceIds(){
   const out = new Set();
-  for (const c in terraPins){
-    const m = terraPins[c] && terraPins[c].meta;
+  /* ⚠⚠ 0807 — terraPins는 **아래 IIFE 블록 안**에 산다(3485행). 여기서 이름만 부르면
+     ReferenceError가 나고, 그 순간 loadCityMarkers가 끊겨 도시·인물 이동이 통째로 멎는다.
+     0806에 그렇게 죽었다. 반드시 창구(window)로 볼 것 — 238행 주석이 경고한 그 함정.
+     ⚠ 아직 안 섰으면 빈 손으로 물러나되 **소리를 낸다**(함정 AF — 조용한 폴백 금지). */
+  const P = window.terraPins;
+  if (!P){ console.warn("[EG] twinPlaceIds — terraPins가 아직 없습니다. 쌍둥이 정리는 건너뜁니다."); return out; }
+  for (const c in P){
+    const m = P[c] && P[c].meta;
     if (m && m.place_id != null) out.add(Number(m.place_id));
   }
   return out;
@@ -2640,7 +2646,7 @@ function closeStory(){
    ⚠ 자동 재생하지 않는다. 브라우저도 막고 헌장 9장(자극으로 붙잡지 않음)도 막는다.
    ⚠⚠ 상태는 storyAudio 하나에만 산다. 단추 글자를 따로 기억하면 판과 조종간이
      서로 다른 말을 한다(같은 사실이 두 곳에 살면 어긋난다 — 함정 AH의 사촌). */
-let storyAudio = null, voiceRef = null, voiceTitle = "", voiceTotal = 0;
+let storyAudio = null, voiceRef = null, voiceScope = "place", voiceTitle = "", voiceTotal = 0;
 
 const fmtClock = s => (isFinite(s) && s >= 0)
   ? Math.floor(s/60) + ":" + String(Math.floor(s%60)).padStart(2,"0") : "0:00";
@@ -2668,7 +2674,7 @@ function stopStoryVoice(){
   const old = storyAudio;
   storyAudio = null;
   releaseAudio(old);
-  voiceRef = null; voiceTitle = ""; voiceTotal = 0;
+  voiceRef = null; voiceScope = "place"; voiceTitle = ""; voiceTotal = 0;
   clearVoiceBtn(); paintVoice();
 }
 
@@ -2689,21 +2695,45 @@ function paintVoice(){
 
   const mv = document.getElementById("miniVoice");
   if (!mv) return;
-  /* 판이 열려 있고 그 판이 이 소리의 주인이면 조종간은 물러난다 — 단추가 둘일 이유가 없다 */
+  /* 조종간이 물러나는 때 둘 — 단추가 둘일 이유가 없다.
+     ① 판이 열려 있고 그 판이 이 소리의 주인일 때
+     ② 방 안의 소리를 듣는 중에 그 방에 서 있을 때(미술관 명패 줄이 상태를 말해 준다)
+     ⚠ 장소 낭독을 들으며 미술관에 들어간 때는 ②에 안 걸린다 — 그때는 조종간이 필요하다. */
   const storyOpen = document.getElementById("story").classList.contains("in");
-  if (!storyAudio || (panelHasIt && storyOpen)){ mv.classList.remove("in"); return; }
-  mv.classList.add("in");
-  mv.querySelector(".mv-play").textContent = playing ? "❚❚" : "▶";
-  mv.querySelector(".mv-t").textContent = voiceTitle || "낭독";
-  mv.querySelector(".mv-d").textContent =
-    fmtClock(storyAudio.currentTime) + (voiceTotal ? " / " + fmtClock(voiceTotal) : "");
+  const doorOpen  = document.getElementById("doorway").classList.contains("open");
+  const inItsRoom = doorOpen && voiceScope !== "place";
+  if (!storyAudio || (panelHasIt && storyOpen) || inItsRoom) mv.classList.remove("in");
+  else {
+    mv.classList.add("in");
+    mv.querySelector(".mv-play").textContent = playing ? "❚❚" : "▶";
+    mv.querySelector(".mv-t").textContent = voiceTitle || "낭독";
+    mv.querySelector(".mv-d").textContent =
+      fmtClock(storyAudio.currentTime) + (voiceTotal ? " / " + fmtClock(voiceTotal) : "");
+  }
+
+  /* ⭐ 방에도 같은 사실을 되쏜다 — 미술관 명패 줄이 조종간과 다른 말을 하면 안 된다.
+     ⚠ 하나의 사실이 두 화면에 살면 어긋난다. 그래서 **여기서만** 만들어 내려보낸다. */
+  try{
+    const fr = document.getElementById("doorFrame");
+    if (fr && fr.contentWindow){
+      fr.contentWindow.postMessage({
+        eg:"voice-state",
+        ref: storyAudio ? voiceRef : null,
+        scope: voiceScope,
+        playing, ended: !!(storyAudio && storyAudio.ended),
+        t: storyAudio ? storyAudio.currentTime : 0,
+        total: voiceTotal
+      }, "*");
+    }
+  }catch(e){}
 }
 
-function startVoice(ref, url, title, total){
+function startVoice(ref, url, title, total, scope){
   releaseAudio(storyAudio);          /* 앞엣것을 먼저 놓아준다 */
   const a = new Audio(url);
   storyAudio  = a;
   voiceRef    = ref;
+  voiceScope  = scope || "place";    /* place · art · song — 조종간 이름 클릭이 이걸 본다 */
   voiceTitle  = title || "낭독";
   voiceTotal  = Number(total) || 0;
   a.preload = "none";
@@ -2783,18 +2813,21 @@ async function fillStoryVoice(ref, title){
     };
     mv.querySelector(".mv-x").onclick = stopStoryVoice;
     /* 이름을 누르면 그 곳 판을 다시 연다 — 어디서 흘러나오는지 되짚는 길.
-       ⚠ terraPins는 배열이 아니라 **code로 물린 객체**다(3406행). window에도 안 붙는다.
-         `window.terraPins`로 찾으면 조용히 아무 일도 안 한다(함정 AF).
-       ⚠ 이 블록은 terraPins가 선 script보다 앞서지만, 손님이 누르는 것은 한참 뒤라
-         그때는 이미 서 있다. 그래도 없을 때를 대비해 소리를 낸다. */
+       ⚠ 장소일 때만이다. 미술·곡은 그 방 안에 명패가 따로 있으므로 여기서는 안 움직인다.
+       ⚠⚠ terraPins는 아래 IIFE 블록 안에 산다. 창구(window)로만 보인다 —
+         이름만 부르면 ReferenceError로 조용히 죽는다(0807 도시 이동 사고와 같은 뿌리). */
     mv.querySelector(".mv-name").onclick = ()=>{
-      if (!voiceRef) return;
+      if (!voiceRef || voiceScope !== "place") return;
       const [kind, code] = voiceRef.split("/");
-      let p = null;
-      try{ p = terraPins[code]; }catch(e){}
+      const P = window.terraPins;
+      const p = P && P[code];
       if (!p || p.kind !== kind){ console.warn("[EG] 조종간 — 핀을 못 찾았습니다:", voiceRef); return; }
-      try{ freeCamera(); }catch(e){}
-      openPinStory(p);
+      /* ⚠ 이 둘도 아래 IIFE 소속이다. 창구로만 부른다. */
+      if (typeof window.openPinStory !== "function"){
+        console.warn("[EG] 조종간 — openPinStory 창구가 없습니다."); return;
+      }
+      if (typeof window.freeCamera === "function") window.freeCamera();
+      window.openPinStory(p);
     };
   }
 
@@ -2814,7 +2847,31 @@ async function fillStoryVoice(ref, title){
   if (df) df.addEventListener("load", wireRoomMediaWatch);
 
   window.addEventListener("message", e=>{
-    if (e && e.data && e.data.eg === "media-start" && storyAudio) stopStoryVoice();
+    const d = e && e.data;
+    if(!d || !d.eg) return;
+
+    /* 방에서 영상·음악이 시작됐다 — 낭독은 물러난다 */
+    if(d.eg === "media-start"){ if (storyAudio) stopStoryVoice(); return; }
+
+    /* ⭐ 0807 — 방(미술관 등)이 소리를 맡긴다.
+       방은 terra 안의 창이라 문을 닫으면 그 안의 소리가 창과 함께 사라진다.
+       여기서 들고 있으면 방을 나가도 조종간에 남는다.
+       ⚠ 주소는 방이 준 것을 그대로 쓴다 — terra가 표를 다시 뒤지지 않는다. */
+    if(d.eg === "voice-play" && d.url){
+      startVoice(String(d.ref), d.url, d.title, d.total, d.scope || "art");
+      return;
+    }
+    if(d.eg === "voice-toggle"){
+      if(!storyAudio) return;
+      if(storyAudio.paused) storyAudio.play().catch(x=> console.warn("[EG] 낭독 재생", x));
+      else storyAudio.pause();
+      return;
+    }
+    /* 방이 막 열렸다 — 지금 무엇이 흐르는지 알려 준다.
+       ⚠ 이게 없으면 미술관에 들어선 순간 명패가 「▶ 설명 듣기」라고 적혀 있는데
+         소리는 이미 흐르는 어긋남이 생긴다. */
+    if(d.eg === "voice-ask"){ paintVoice(); return; }
+    if(d.eg === "voice-stop"){ stopStoryVoice(); return; }
   });
 })();
 
@@ -5168,6 +5225,22 @@ window.EG_OBS        = ()=> obsAll;
 window.EG_OBS_DUTY   = ()=> obsOnDuty;
 window.obsLocalLabel = obsLocalLabel;
 window.flyToPark     = flyToPark;
+/* ⚠⚠ 0807 — 「한 건물 한 핀」(0806)이 이 창구가 없어 도시·인물 이동을 통째로 죽였다.
+   twinPlaceIds(블록 A · 2004행)가 terraPins를 찾다 ReferenceError를 냈고,
+   loadCityMarkers가 그 자리에서 끊겨 jumpToCity·jumpToStarPlace가 조용히 멎었다.
+   238행 주석이 이미 경고한 그 함정이다 — **이 블록은 IIFE라 안의 것이 밖에서 안 보인다.**
+   ⚠ 재할당은 없고 terraPins[code]=p 로만 채우므로 참조 하나면 늘 최신이다.
+      혹시라도 terraPins = {} 로 갈아 끼우게 되면 이 줄도 함께 다시 걸 것. */
+window.terraPins     = terraPins;
+/* ⚠ 0807 — 낭독 미니 조종간(블록 A)이 이 둘을 부른다. 창구에 안 걸면 눌러도 안 움직인다.
+   v137~140이 네 판 내리 실패한 것과 **같은 뿌리**다(위 3048행 주석 참조).
+   이 집에서 세 번째 반복되는 함정이니, 블록 A에 새 코드를 얹을 때는
+   그 코드가 부르는 이름이 전부 이 목록에 있는지 먼저 셀 것. */
+window.freeCamera    = freeCamera;
+window.openPinStory  = openPinStory;
+/* 도시·인물 목록을 열 때 투어 목록을 접는 손 — 블록 A(2384행)가 부른다.
+   여태 try/catch에 싸여 조용히 실패하고 있었다. 이제 실제로 접힌다. */
+window.closeTourLists = closeTourLists;
 })();
 </script>
 </body>
