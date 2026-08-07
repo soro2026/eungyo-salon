@@ -276,7 +276,7 @@ const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-aut
 const asset=(code,slot)=>`${SUPA_URL}/storage/v1/object/public/tour-assets/museum/${code}_${slot}.webp`;
 const HALL_RATIO=941/1672;
 const $=s=>document.querySelector(s);
-console.log("%c[EG] bibliotheca v1.3 · 0807 벽감 편집기(?edit)", "color:#c9a24a");
+console.log("%c[EG] bibliotheca v1.4 · 0807 벽감 편집기 · 그림 대기", "color:#c9a24a");
 
 const qs=new URLSearchParams(location.search);
 const CODE=qs.get('code')||'trinity';
@@ -370,8 +370,23 @@ async function boot(){
     ((HALL.meta&&HALL.meta.country)? ' · '+HALL.meta.country : '');
   $('#hName').textContent = (HALL.meta&&HALL.meta.name_en) || HALL.name;
 
-  /* ⭐ 편집으로 들어오면 대문을 건너뛴다 — 일곱 채를 도는데 매번 문을 지날 순 없다 */
-  if(EDIT){ await loadBooks(); enterHall(); return; }
+  /* ⭐ 편집으로 들어오면 대문을 건너뛴다 — 일곱 채를 도는데 매번 문을 지날 순 없다.
+     ⚠⚠ 0807 사고 — 곧장 들어갔더니 편집기가 안 떴다. 손님 경로는 대문에서 몇 초
+       머무는 동안 실내 그림이 실리는데, 이 길은 그 참이 없다. 그림이 없으면
+       #hallFit 높이가 0이라 카메라가 물러나고, 편집기는 그 onDone 에 매달려 있었다.
+     → 그림이 실린 뒤에 들어간다. 그리고 카메라가 어찌 되든 편집기는 뜨게 안전망을 둔다. */
+  if(EDIT){
+    await loadBooks();
+    const im=$('#hallImg');
+    if(im.complete && im.naturalHeight) enterHall();
+    else {
+      im.addEventListener('load', enterHall, {once:true});
+      im.addEventListener('error', enterHall, {once:true});   /* 그림이 없어도 편집은 열린다 */
+      setTimeout(enterHall, 2500);                            /* 그래도 안 오면 */
+    }
+    setTimeout(setupEdit, 3200);       /* ⚠ 안전망 — 카메라가 헛돌아도 편집기는 뜬다 */
+    return;
+  }
 
   $('#gate').classList.add('on');
   $('#enterBtn').addEventListener('click', enterHall);
@@ -395,9 +410,19 @@ function layoutShelf(){
    ══════════════════════════════════════════════════════════ */
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 
+let edOn = false;
 async function setupEdit(){
+  if(edOn) return; edOn = true;        /* ⚠ 안전망과 onDone 이 겹쳐 두 번 불린다 */
   const { data:{ user } } = await supa.auth.getUser();
-  if(!user){ $('#hSum').textContent='편집은 살롱지기 로그인 뒤에 열립니다'; return; }
+  if(!user){
+    /* ⚠ 조용히 물러나지 않는다 — 왜 안 열렸는지 화면이 말한다(함정 AF) */
+    edOn = false;
+    $('#ed').classList.add('on');
+    $('#ed').innerHTML = '<h3>SHELF · 벽감 자리</h3>'
+      + '<div class="tip" style="margin:0">편집은 살롱지기 로그인 뒤에 열립니다.<br>'
+      + '은교살롱에 로그인한 뒤 이 주소로 다시 들러 주십시오.</div>';
+    return;
+  }
 
   $('#shelf').classList.add('edit');
   $('#ed').classList.add('on');
@@ -607,7 +632,7 @@ function turn(d){
 
 /* ── 책 카드 (1단계 — 4겹은 다음 판) ── */
 function openCard(b){
-  if(!b) return;
+  if(!b || (EDIT && $('#shelf').classList.contains('edit'))) return;
   $('#cdImg').src = bookImg(b.answer);
   $('#cdT').textContent = b.answer;
   $('#cdC').textContent = b.category || '';
