@@ -151,7 +151,7 @@ input.line{background:var(--bench);border:1px solid var(--line);color:var(--text
 
 <header>
   <h1>EG <em>Voice</em></h1>
-  <span class="sub">낭독실 · 장소 원고</span>
+  <span class="sub">낭독실 · 장소 · 미술 · 음악</span>
   <span class="count" id="count"></span>
 </header>
 
@@ -186,7 +186,7 @@ input.line{background:var(--bench);border:1px solid var(--line);color:var(--text
 
 <script>
 
-console.log('[EG] admin_voice v6 0807 — 찾는 칸 + 일레븐랩스 배관');
+console.log('[EG] admin_voice v7 0807 — 곡 4겹 추가');
 
 const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
 const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
@@ -203,10 +203,18 @@ const FAMILY = [
   { kind:'concert',  ko:'음악관',  order:'hall_no'   }
 ];
 
-/* 미술 4겹 — galerie.html의 order 배열과 같은 차례여야 한다.
-   ⚠ 큐레이션(「먼저 목과 어깨를 보세요」)을 맨 뒤에 둔다 — 듣고 나서 그림을 보도록.
+/* ⭐⭐ 4겹 차례 — **이 배열이 곧 문지기다.**
+   칸을 다 훑지 않고 여기 적힌 것만 집으므로, 카리가 남긴 작업 메모(_todo 등)가
+   낭독에 섞이지 않는다. 0807 실측에서 네 곡의 `_todo`에
+   「0731 영상 교체 … 재검토 필요」가 적혀 있었다. 그것을 읽을 뻔했다.
+   ⚠ 칸을 늘릴 일이 생기면 반드시 이 배열에 적을 것. 밑줄로 시작하는 칸은 장부 안쪽 물건이다.
+   ⚠ galerie.html · voice_bake(Edge Function)과 같은 차례여야 한다.
+   ⭐ 큐레이션을 맨 뒤에 둔다 — 「먼저 목과 어깨를 보세요」가 듣고 난 뒤에 와야 한다.
    ⚠ 별표 강조(*목과 어깨*)는 눈으로 읽을 때의 표시다. 낭독 원문에서는 걷는다. */
-const ART_ORDER = ['scene','knowledge','thought','connection','curation'];
+const LAYER_ORDER = ['scene','knowledge','thought','connection','curation'];
+
+/* 미술(layers) · 곡(liner_note) — 겹의 이름과 차례가 같아서 한 부품이 맡는다 */
+const ART_ORDER = LAYER_ORDER;   /* 옛 이름은 창구로 남긴다 */
 
 const $ = s => document.querySelector(s);
 let items = [], takes = {}, cur = null;
@@ -245,11 +253,12 @@ function narrationOf(meta){
   return out.join('\n\n');
 }
 
-function narrationOfArt(layers){
+function narrationOfLayers(layers){
   const L = layers || {};
-  return ART_ORDER.map(k => (L[k] || '').replace(/\*/g, '').trim())
-                  .filter(Boolean).join('\n\n');
+  return LAYER_ORDER.map(k => (L[k] || '').replace(/\*/g, '').trim())
+                    .filter(Boolean).join('\n\n');
 }
+const narrationOfArt = narrationOfLayers;   /* 옛 이름은 창구로 남긴다 */
 
 async function sha256(text){
   const buf = new TextEncoder().encode(text);
@@ -257,9 +266,11 @@ async function sha256(text){
   return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
-const keyOf = e => e.scope === 'art'
-  ? `voice/art/${e.ref}`
-  : `voice/place/${e.ref.replace('/','_')}`;
+/* 저장 주소 — voice_bake(Edge Function)의 keyOf와 같아야 한다.
+   ⚠ 손으로 올린 것과 구운 것이 다른 곳에 앉으면 같은 곳에 파일이 둘이 된다. */
+const keyOf = e => e.scope === 'place'
+  ? `voice/place/${e.ref.replace('/','_')}`
+  : `voice/${e.scope}/${e.ref}`;      /* art · song */
 
 /* ── 문지기 ────────────────────────────────────────────────────────
    ⚠ 0806밤 — 두 번 막혔다. 첫판은 로그인 칸을 새로 세워서, 둘째 판은 관리자
@@ -334,15 +345,23 @@ async function load(){
       text, hash: await sha256(text) });
   }
 
-  /* 미술 — heritage_items 4겹 */
-  const { data:arts } = await sb.from('heritage_items')
-    .select('id,name,artist,layers').eq('category','visual').eq('status','active');
-  for (const a of (arts||[])){
-    const text = narrationOfArt(a.layers);
-    if(!text) continue;
-    next.push({ scope:'art', ref:a.id, group:'미술 4겹',
-      name:a.name, sub:(a.artist||a.id), sort:a.id,
-      text, hash: await sha256(text) });
+  /* 미술 4겹 · 곡 4겹 — 한 표(heritage_items)에 살고 칸 이름만 다르다.
+     ⚠ 미술은 layers · 곡은 liner_note. 이 한 칸이 두 우주를 가른다.
+     ⚠ 원고가 없는 것은 목록에 안 선다 — 카리가 4겹을 채우는 순간 저절로 나타난다. */
+  const SHELF = [
+    { cat:'visual', col:'layers',     scope:'art',  ko:'미술 4겹' },
+    { cat:'record', col:'liner_note', scope:'song', ko:'음악 4겹' }
+  ];
+  for (const sh of SHELF){
+    const { data:rows2 } = await sb.from('heritage_items')
+      .select(`id,name,artist,${sh.col}`).eq('category', sh.cat).eq('status','active');
+    for (const a of (rows2||[])){
+      const text = narrationOfLayers(a[sh.col]);
+      if(!text) continue;
+      next.push({ scope:sh.scope, ref:a.id, group:sh.ko,
+        name:a.name, sub:(a.artist || a.id), sort:a.id,
+        text, hash: await sha256(text) });
+    }
   }
 
   items = next;
@@ -392,7 +411,7 @@ function visible(e){
 }
 
 function paintList(){
-  const GROUPS = FAMILY.map(f=>f.ko).concat(['미술 4겹']);
+  const GROUPS = FAMILY.map(f=>f.ko).concat(['미술 4겹','음악 4겹']);
   const bySort = (a,b) => (a.sort > b.sort ? 1 : a.sort < b.sort ? -1 : 0);
   flat = [];
   let html = '';
