@@ -3,28 +3,35 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EG 한스푼 · 곳 자산 콘솔</title>
+<title>EG 뮤세움 · 서고 자산 콘솔</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Cormorant+Garamond:wght@400;500&display=swap" rel="stylesheet">
 <style>
 /* ══════════════════════════════════════════════════════════════════
- *  admin_hansfoon_assets v1.0 — 0806 · 살롱지기 전용
- *  교양 한스푼 — 세계의 카페·식당 자산 콘솔
+ *  admin_museum_assets v1.0 — 0807 · 살롱지기 전용
+ *  EG 뮤세움 — 세계의 도서관 일곱 채 자산 콘솔
  *
- *  ⭐ admin_galerie_assets v1.0(0804)을 복제해 개조했다. 새로 짓지 않았다.
- *     같은 일에 다른 화면을 지으면 두 벌을 따로 고치게 된다.
+ *  ⭐ admin_hansfoon_assets v1.1(0807)을 복제해 개조했다. 새로 짓지 않았다.
+ *     ⚠ 다만 한스푼 콘솔이 물고 있던 미술관 잔재는 물려받지 않았다 —
+ *       제목 「🖼 갤러리」· 탭 껍데기(showPane) · 작품 등록 CSS(.newart) ·
+ *       편성표(spoons 연동). 뮤세움에는 회차가 없다.
  *
- *  ① 오늘의 한스푼 — 순회로 오늘 열리는 곳
- *  ② 곳 고르기      — 정문 4벌 + 실내 4벌 = 여덟 칸 (tour-assets/hansfoon)
- *  ③ 차례 투척함    — 여러 장을 한꺼번에 던지면 순서대로 채운다
+ *  ① 오늘의 서고 — 순회로 오늘 열리는 도서관
+ *  ② 곳 고르기    — 정문 4벌 + 실내 4벌 = 여덟 칸 (tour-assets/museum)
+ *  ③ 차례 투척함  — 여러 장을 한꺼번에 던지면 순서대로 채운다
  *
  *  ⭐ 어떤 형식·크기로 던져도 webp로 굽고 규격에 맞춰 잘라 이름까지 붙여 올린다
  *
- *  ⚠ 로테이션 공식은 terra.html · hello_spoon_v1.html과 반드시 같아야 한다.
- *     한쪽만 고치면 콘솔은 폴리도르라 적고 들어가면 룰스가 열린다.
+ *  ⚠⚠ 순회 공식이 사는 곳이 늘었다. terra.html과 반드시 같아야 한다.
+ *     한쪽만 고치면 콘솔은 래드클리프라 적고 들어가면 와이드너가 열린다.
+ *     (로테이션 공식이 사는 곳: 알베르게 원칙 3호 · v146 §4)
  *
  *  ⚠ 곳이 늘어도 도장은 하루 한 장이다(알베르게 원칙 2호 · 0805).
- *     순회만 길어질 뿐 수집표가 되지 않는다.
+ *
+ *  ⭐⭐ 실내 그림의 뮤세움 고유 조항 (0807 소로 결정):
+ *     벽감 안에 **선반도 책도 그리지 않는다.** 선반은 셸이 CSS로 그리고,
+ *     책은 손님이 퀴즈로 채운다. 배경에 책이 빽빽하면 첫날 손님의 한 권이
+ *     배경에 진다. 뮤세움 서가는 **비어서 시작해 채워지는** 물건이다.
  * ══════════════════════════════════════════════════════════════════ */
 :root{--ink:#2E4A7A;--gold:#c9a24a;--gold-l:#e9cf9c;--bg:#14100b;--paper:#1e160e;
   --ok:#7aa86e;--warn:#c98b4a;}
@@ -44,7 +51,7 @@ h2{font-size:13px;letter-spacing:.18em;color:var(--gold-l);margin-bottom:6px;}
 .hint{font-size:11.5px;color:rgba(232,221,196,.45);line-height:1.8;margin-bottom:16px;}
 .hint b{color:rgba(233,207,156,.8);font-weight:400;}
 
-/* ── 오늘의 한스푼 ── */
+/* ── 오늘의 서고 ── */
 #today{background:linear-gradient(160deg,rgba(201,162,74,.09),rgba(30,22,14,.6));
   border-color:rgba(201,162,74,.4);}
 .prog{display:flex;align-items:baseline;gap:10px;padding:11px 0;
@@ -52,24 +59,13 @@ h2{font-size:13px;letter-spacing:.18em;color:var(--gold-l);margin-bottom:6px;}
 .prog:last-child{border-bottom:none;}
 .prog .no{font-family:'Cormorant Garamond',serif;font-size:12px;
   color:rgba(201,162,74,.65);width:20px;flex:none;}
-.prog .hall{font-size:12.5px;color:var(--gold-l);width:118px;flex:none;
+.prog .hall{font-size:12.5px;color:var(--gold-l);width:146px;flex:none;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .prog .song{font-size:12.5px;color:rgba(232,221,196,.9);line-height:1.6;}
-.prog .song i{font-style:normal;color:rgba(232,221,196,.45);font-size:11px;}
 .prog.sleep .hall,.prog.sleep .song{opacity:.42;}
 .prog .zzz{font-size:10px;color:rgba(232,221,196,.35);}
 .stamp{font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:.2em;
   color:rgba(201,162,74,.6);margin-bottom:14px;}
-
-/* ── 탭 ── */
-.tabs{display:flex;gap:8px;margin-top:26px;}
-.tab{flex:1;font:inherit;font-size:12.5px;letter-spacing:.14em;
-  color:rgba(232,221,196,.55);background:none;
-  border:1px solid rgba(201,162,74,.25);border-radius:22px;padding:10px;
-  cursor:pointer;transition:all .25s;}
-.tab.on{background:rgba(201,162,74,.16);border-color:var(--gold-l);color:#f0e8d4;}
-.pane{display:none;}
-.pane.on{display:block;}
 
 /* ── 방 자산 ── */
 .slot-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
@@ -86,30 +82,6 @@ select.pick{font:inherit;font-size:12.5px;color:#f0e8d4;background:var(--ink);
   border:1px solid rgba(201,162,74,.35);border-radius:18px;padding:8px 14px;
   margin-bottom:16px;cursor:pointer;max-width:100%;}
 .tally{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
-
-/* ═══ 편성표 (0807) — 「날짜별·카페·글이 한 눈에」(소로) ═══
-   ⚠ 지난 것은 안 보인다. 한스푼은 흐르는 강물이라 뒤를 돌아보지 않는다(강물원칙 0526). */
-.sched{width:100%;border-collapse:collapse;font-size:12px;}
-.sched th{font-size:10px;letter-spacing:.14em;color:rgba(232,221,196,.4);
-  text-align:left;padding:0 8px 8px;font-weight:400;border-bottom:1px solid rgba(201,162,74,.18);}
-.sched td{padding:9px 8px;border-bottom:1px solid rgba(201,162,74,.09);vertical-align:top;}
-.sched tr.now td{background:rgba(201,162,74,.07);}
-.sched tr.dry td{opacity:.4;}
-.sched .dt{font-family:ui-monospace,monospace;font-size:11px;color:rgba(232,221,196,.6);white-space:nowrap;}
-.sched .wd{color:var(--gold);margin-left:5px;}
-.sched .no{font-family:ui-monospace,monospace;font-size:11px;color:rgba(232,221,196,.45);}
-.sched .sj{color:#f0e6d2;display:block;}
-.sched .hl{font-size:10.5px;color:rgba(232,221,196,.42);display:block;margin-top:2px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:22ch;}
-.sched .cf{color:rgba(233,207,156,.72);white-space:nowrap;}
-.sched .cat{font-size:10px;letter-spacing:.08em;color:rgba(232,221,196,.35);}
-.sched .span{font-family:ui-monospace,monospace;font-size:10px;color:rgba(232,221,196,.3);}
-.sched .badge{display:inline-block;font-size:9.5px;letter-spacing:.1em;padding:1px 6px;
-  border:1px solid rgba(201,162,74,.4);border-radius:9px;color:var(--gold);margin-left:6px;}
-.dryline{margin-top:14px;padding-top:13px;border-top:1px solid rgba(201,162,74,.18);
-  font-size:12px;color:rgba(232,221,196,.6);line-height:1.9;}
-.dryline b{color:var(--gold-l);font-weight:400;}
-.dryline .w{color:var(--warn);}
 .chip{font-size:11px;letter-spacing:.06em;padding:6px 12px;border-radius:16px;
   border:1px solid rgba(201,162,74,.28);color:rgba(232,221,196,.6);cursor:pointer;
   transition:border-color .2s,color .2s;}
@@ -144,42 +116,14 @@ select.pick{font:inherit;font-size:12.5px;color:#f0e8d4;background:var(--ink);
 #bar.on{display:block;}
 #bar i{display:block;height:100%;width:0;background:var(--gold);transition:width .25s;}
 
-/* ── 미리보기 ── */
-.song-row{border-bottom:1px solid rgba(201,162,74,.13);padding:15px 0;
-  display:flex;gap:12px;align-items:flex-start;}
-.song-row:last-child{border-bottom:none;}
-.song-row.off{opacity:.45;}
-.sr-thumb{width:58px;height:58px;flex:none;border-radius:6px;object-fit:cover;
-  background:rgba(0,0,0,.3);cursor:pointer;}
-.sr-body{flex:1;min-width:0;}
-.sr-head{display:flex;align-items:baseline;gap:9px;margin-bottom:6px;}
-.sr-no{font-family:'Cormorant Garamond',serif;font-size:12px;
-  color:rgba(201,162,74,.6);flex:none;}
-.sr-name{font-size:13px;color:#f0e8d4;line-height:1.5;}
-.sr-artist{font-size:11px;color:rgba(232,221,196,.5);margin-bottom:9px;}
-.sr-fields{display:flex;gap:7px;flex-wrap:wrap;align-items:center;}
-.sr-fields input{font:inherit;font-size:11.5px;color:#f0e8d4;
-  background:rgba(0,0,0,.28);border:1px solid rgba(201,162,74,.24);
-  border-radius:8px;padding:7px 10px;min-width:0;}
-.in-nm{width:180px;} .in-ar{width:130px;} .in-pd{width:74px;}
 .btn{font:inherit;font-size:11px;letter-spacing:.05em;color:#f2f0ea;
   background:var(--ink);border:none;border-radius:16px;padding:7px 13px;
   cursor:pointer;white-space:nowrap;}
 .btn:hover{opacity:.85;}
 .btn.ghost{background:none;border:1px solid rgba(201,162,74,.4);color:rgba(233,207,156,.85);}
-.btn.warn{background:none;border:1px solid rgba(201,139,74,.5);color:rgba(233,180,140,.9);}
 .empty{text-align:center;font-size:12.5px;color:rgba(232,221,196,.45);
   padding:20px 0;line-height:1.9;}
-.newart{margin-top:18px;padding:16px;border:1px dashed rgba(158,127,58,.5);border-radius:12px;}
-.newart .ns-head{font-weight:600;letter-spacing:.04em;margin-bottom:12px;}
-.newart .ns-id{opacity:.55;font-weight:400;font-size:.86em;margin-left:6px;}
-.newart .ns-grid{display:grid;gap:8px;
-  grid-template-columns:2fr 1.4fr .8fr auto;align-items:center;}
-.newart .ns-grid input{width:100%;padding:8px 10px;border-radius:8px;
-  border:1px solid rgba(201,162,74,.3);background:rgba(0,0,0,.28);
-  color:#f0e8d4;font:inherit;font-size:13px;min-width:0;}
-@media (max-width:760px){ .newart .ns-grid{grid-template-columns:1fr 1fr;}
-  .slot-grid{grid-template-columns:1fr;} }
+@media (max-width:760px){ .slot-grid{grid-template-columns:1fr;} }
 
 /* ── 미리보기 ── */
 #pv{position:fixed;inset:0;z-index:40;display:none;place-items:center;
@@ -202,82 +146,73 @@ input[type=file]{display:none;}
 </head>
 <body>
 <div class="wrap">
-  <div class="eyebrow">COCHLEAR · 교양 한스푼</div>
-  <h1>🥄 카페</h1>
-  <p class="sub">핀을 누르면 소개창이 열리고, 들어가면 정문에 섰다가 실내에 도착합니다.<br>
+  <div class="eyebrow">BIBLIOTHECA · EG 뮤세움</div>
+  <h1>📚 서고</h1>
+  <p class="sub">핀을 누르면 소개창이 열리고, 들어가면 정문에 섰다가 서고에 도착합니다.<br>
+  퀴즈로 만난 책이 이 방 벽감에 시간순으로 쌓입니다.<br>
   <a class="back" href="terra.html">→ 지구로 가서 확인</a></p>
 
   <div id="gateMsg" style="display:none"></div>
 
   <div id="panel" style="display:none">
 
-    <!-- 오늘의 한스푼 -->
+    <!-- 오늘의 서고 -->
     <div class="card" id="today">
-      <h2>오늘의 한스푼</h2>
+      <h2>오늘의 서고</h2>
       <div class="stamp" id="stamp"></div>
       <div id="progList"><div class="empty">불러오는 중…</div></div>
       <div class="hint" id="progNote" style="margin:14px 0 0"></div>
     </div>
 
-
-    <!-- ⭐ 편성표 (0807 소로) — 앞으로 무엇이 언제 흐르는가 -->
-    <div class="card" id="schedCard">
-      <h2>편성표</h2>
-      <div class="hint">
-        앞으로 흐를 것만 보입니다 — 한스푼은 <b>흐르는 강물</b>이라 지난 것은 여기 없습니다.
-        지난 회차는 손님의 뮤세움 책장에만 남습니다.
-      </div>
-      <div id="schedBox"><div class="empty">불러오는 중…</div></div>
-      <div class="dryline" id="dryLine"></div>
+    <div class="card">
+      <h2>곳 고르기</h2>
+      <div class="hint">여덟 칸이 다 차면 초록으로 바뀝니다. 흐릿한 것은 아직 지도에 안 선 곳입니다.</div>
+      <div class="tally" id="tally"></div>
+      <select class="pick" id="hallPick" onchange="renderHall()"></select>
+      <div class="hint" id="hallInfo" style="margin-bottom:0"></div>
     </div>
 
-    <!-- ═══ 관 탭 ═══ -->
-    <div class="pane on" id="paneHall">
-      <div class="card">
-        <h2>곳 고르기</h2>
-        <div class="hint">여덟 칸이 다 차면 초록으로 바뀝니다. 흐릿한 것은 아직 지도에 안 선 곳입니다.</div>
-        <div class="tally" id="tally"></div>
-        <select class="pick" id="hallPick" onchange="renderHall()"></select>
-        <div class="hint" id="hallInfo" style="margin-bottom:0"></div>
+    <!-- ⭐ 차례 투척함 -->
+    <div class="card">
+      <h2>차례 투척함</h2>
+      <div class="hint">
+        <b>이름은 아무래도 좋습니다.</b> 형식도 크기도 상관없습니다 —
+        던지면 <b>webp로 굽고 규격에 맞춰 잘라</b> 정해진 이름으로 올립니다.<br>
+        여러 장을 한꺼번에 던지면 <b>정문 아침 → 낮 → 저녁 → 밤 → 실내 아침 → …</b> 순서로 채웁니다.
+        던지기 전에 어느 파일이 어느 칸으로 가는지 먼저 보여 드립니다.
       </div>
+      <div id="bulk">
+        <div class="bt">⇣ 여기에 여러 장 떨어뜨리기</div>
+        <div class="bs">또는 눌러서 고르기 · 한 번에 최대 여덟 장</div>
+      </div>
+      <label class="opt"><input type="checkbox" id="overwrite"> 이미 걸린 칸도 덮어쓰기</label>
+      <div id="bar"><i></i></div>
+      <div id="plan"></div>
+    </div>
 
-      <!-- ⭐ 차례 투척함 -->
-      <div class="card">
-        <h2>차례 투척함</h2>
-        <div class="hint">
-          <b>이름은 아무래도 좋습니다.</b> 형식도 크기도 상관없습니다 —
-          던지면 <b>webp로 굽고 규격에 맞춰 잘라</b> 정해진 이름으로 올립니다.<br>
-          여러 장을 한꺼번에 던지면 <b>아침 → 낮 → 저녁 → 밤 → 실내 아침 → … 순서로</b> 채웁니다.
-          던지기 전에 어느 파일이 어느 자리로 가는지 먼저 보여 드립니다.
-        </div>
-        <div id="bulk">
-          <div class="bt">⇣ 여기에 여러 장 떨어뜨리기</div>
-          <div class="bs">또는 눌러서 고르기 · 한 번에 최대 여덟 장</div>
-        </div>
-        <label class="opt"><input type="checkbox" id="overwrite"> 이미 걸린 자리도 덮어쓰기</label>
-        <div id="bar"><i></i></div>
-        <div id="plan"></div>
-      </div>
+    <div class="card">
+      <h2>정문 — 밤낮 4벌</h2>
+      <div class="hint"><b>1672 × 941 가로(16:9)</b>, 무텍스트. 길 건너에서 정면으로 본 건물 얼굴.<br>
+        <b>구도를 고정하고 조명만 전환</b>합니다 — 한낮 판을 씨앗으로 나머지 셋을 뽑으십시오.
+        따로 돌리면 창틀과 처마가 미세하게 흔들립니다.<br>
+        ⚠ <b>밤 판은 창에 불이 켜져 있어야</b> 합니다. 꺼져 있으면 닫힌 도서관으로 보입니다.<br>
+        낮판만 있어도 전 시간대 폴백으로 걸립니다.</div>
+      <div class="slot-grid" id="gateSlots"></div>
+    </div>
 
-      <div class="card">
-        <h2>정문 — 밤낮 4벌</h2>
-        <div class="hint"><b>1672 × 941 가로(16:9)</b>, 무텍스트. 길 건너에서 정면으로 본 가게 얼굴.<br>
-          <b>구도를 고정하고 조명만 전환</b>합니다 — 한낮 판을 씨앗으로 나머지 셋을 뽑으십시오.
-          따로 돌리면 간판과 창틀이 미세하게 흔들립니다.<br>
-          ⚠ <b>밤 판은 실내에 불이 켜져 있어야</b> 합니다. 꺼져 있으면 폐업한 집으로 보입니다.<br>
-          낮판만 있어도 전 시간대 폴백으로 걸립니다.</div>
-        <div class="slot-grid" id="gateSlots"></div>
-      </div>
-
-      <div class="card">
-        <h2>실내 — 밤낮 4벌</h2>
-        <div class="hint"><b>941 × 1672 세로(9:16)</b>, 무텍스트. 식탁에 바짝 붙어 앉은 눈높이 —
-          상판이 화면을 가로지르고, 위로 천장과 등, 아래로 바닥이 보이게.<br>
-          손님은 이 방을 <b>스크롤로 위아래를 훑습니다.</b> 그래서 천장과 바닥까지 들어가야 합니다.<br>
-          ⚠ <b>사람 없음 · 읽히는 글자 없음.</b> 상표가 읽히면 그 집이 특정 브랜드의 가게가 됩니다.<br>
-          ⚠ 네 벌은 반드시 <b>같은 구도</b>여야 합니다. 한낮 판을 씨앗으로 조명만 가십시오.</div>
-        <div class="slot-grid" id="hallSlots"></div>
-      </div>
+    <div class="card">
+      <h2>실내 — 밤낮 4벌</h2>
+      <div class="hint"><b>941 × 1672 세로(9:16)</b>, 무텍스트. <b>완전 정면·평면</b> —
+        원근으로 통로가 멀어지면 그 위에 평면으로 얹히는 책등이 뒤틀립니다.<br>
+        손님은 이 방을 <b>스크롤로 위아래를 훑습니다.</b> 천장과 바닥까지 들어가야 합니다.<br><br>
+        ⚠⚠ <b>중앙 벽감 안에 선반도 책도 그리지 마십시오.</b> 뮤세움 고유 조항입니다(0807).<br>
+        선반은 셸이 CSS로 그리고 <b>책은 손님이 퀴즈로 채웁니다.</b>
+        배경에 책이 빽빽하면 첫날 손님의 한 권이 배경에 집니다.
+        벽감은 <b>민무늬 나무 뒷판만</b> 있는 빈 곳으로 두십시오.<br>
+        ⚠ 배경 책은 <b>좌우 가장자리로 밀어내고 흐릿하게</b> — 깊이만 맡습니다.<br>
+        ⚠ <b>사람 없음 · 읽히는 글자 없음.</b> 책등에 제목이 읽히면 남의 책이 내 서가에 섭니다.<br>
+        ⚠ 네 벌은 반드시 <b>같은 구도</b>여야 합니다. 한낮 판을 씨앗으로 조명만 가십시오.</div>
+      <div class="slot-grid" id="hallSlots"></div>
     </div>
 
   </div>
@@ -296,15 +231,15 @@ input[type=file]{display:none;}
 const SUPA_URL='https://cyhlotwdisjvoxvfkpnd.supabase.co';
 const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
 const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth'}});
-const BUCKET='tour-assets';          /* 방 그림 */
+const BUCKET='tour-assets';
 const PUB=(b,p)=>`${SUPA_URL}/storage/v1/object/public/${b}/${p}`;
-console.log("%c[EG] admin_hansfoon_assets v1.1 · 0807 편성표 · 마르는 날", "color:#c9a24a");
+console.log("%c[EG] admin_museum_assets v1.0 · 0807 서고 일곱 채", "color:#c9a24a");
 
 let pickTarget=null, HALLS=[], PLAN=null;
 
 const TODS=[['m','아침'],['d','낮'],['e','저녁'],['n','밤']];
-const gatePath=(code,t)=>`hansfoon/${code}_gate_${t}.webp`;
-const hallPath=(code,t)=>`hansfoon/${code}_hall_${t}.webp`;
+const gatePath=(code,t)=>`museum/${code}_gate_${t}.webp`;
+const hallPath=(code,t)=>`museum/${code}_hall_${t}.webp`;
 
 /* 규격 — 한 곳에서만 정한다 */
 const SPEC={ gate:{w:1672,h:941}, hall:{w:941,h:1672} };
@@ -315,13 +250,8 @@ function toast(m){const t=document.getElementById('toast');t.innerHTML=m;
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function kb(n){ return n>=1024*1024 ? (n/1024/1024).toFixed(1)+'MB' : Math.round(n/1024)+'KB'; }
 
-/* KST 날수 — terra.html · hello_spoon_v1.html과 같은 눈금이어야 한다 */
+/* KST 날수 — terra.html과 같은 눈금이어야 한다 */
 function kstDay(){ return Math.floor((Date.now() + 9*3600*1000) / 86400000); }
-
-/* ── 로테이션 — 셸과 동일 공식 ── */
-
-/* 0806 — 탭이 하나뿐이라 갈아 끼울 것이 없다. 부르는 곳(jumpHall)이 있어 껍데기만 남긴다 */
-function showPane(){ document.getElementById('paneHall').classList.add('on'); }
 
 async function init(){
   const { data:{ user } } = await supa.auth.getUser();
@@ -357,21 +287,14 @@ function canvasBlob(cv,q){
     else res(null);
   });
 }
-/* mode:'cover' 규격에 맞춰 가운데 기준으로 자름 · mode:'fit' 비율 지키고 긴 변만 줄임 */
-async function bake(file, mode, W, H){
+/* 규격에 맞춰 가운데 기준으로 자른다 */
+async function bake(file, W, H){
   const bmp=await readBitmap(file);
   const sw=bmp.width, sh=bmp.height;
-  let cw,ch,dx,dy,dw,dh;
-  if(mode==='cover'){
-    cw=W; ch=H;
-    const s=Math.max(W/sw, H/sh);
-    dw=sw*s; dh=sh*s; dx=(W-dw)/2; dy=(H-dh)/2;
-  }else{
-    const s=Math.min(1, ART_MAX/Math.max(sw,sh));
-    cw=Math.round(sw*s); ch=Math.round(sh*s);
-    dx=0; dy=0; dw=cw; dh=ch;
-  }
-  const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
+  const s=Math.max(W/sw, H/sh);
+  const dw=sw*s, dh=sh*s, dx=(W-dw)/2, dy=(H-dh)/2;
+
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
   const cx=cv.getContext('2d');
   cx.imageSmoothingEnabled=true; cx.imageSmoothingQuality='high';
   cx.drawImage(bmp,dx,dy,dw,dh);
@@ -386,143 +309,42 @@ async function bake(file, mode, W, H){
              srcW:sw, srcH:sh, outW:sw, outH:sh, cropped:0, raw:true };
   }
   /* 잘려나간 비율 — 눈이 아니라 숫자로 알린다 */
-  let cropped=0;
-  if(mode==='cover'){
-    const want=W/H, got=sw/sh;
-    cropped = got>want ? Math.round((1-want/got)*100) : Math.round((1-got/want)*100);
-  }
-  return { blob, srcW:sw, srcH:sh, outW:cw, outH:ch, cropped, q:q.toFixed(2), raw:false };
+  const want=W/H, got=sw/sh;
+  const cropped = got>want ? Math.round((1-want/got)*100) : Math.round((1-got/want)*100);
+  return { blob, srcW:sw, srcH:sh, outW:W, outH:H, cropped, q:q.toFixed(2), raw:false };
 }
 
-/* ═══ 관 ═══ */
+/* ═══ 서고 ═══ */
 async function loadHalls(){
   const { data, error } = await supa.from('terra_pins')
-    .select('code,name,city,active,meta').eq('kind','hansfoon').order('sort');
-  if(error){ toast('곳 목록을 못 읽었습니다: '+error.message); return; }
+    .select('code,name,city,active,meta').eq('kind','museum').order('sort');
+  if(error){ toast('곳 목록을 못 읽었습니다: '+esc(error.message)); return; }
   HALLS=data||[];
   const sel=document.getElementById('hallPick');
   if(!HALLS.length){
-    document.getElementById('tally').innerHTML='<div class="empty">아직 심어진 한스푼 핀이 없습니다.</div>';
+    document.getElementById('tally').innerHTML='<div class="empty">아직 심어진 뮤세움 핀이 없습니다.</div>';
     document.getElementById('progList').innerHTML='<div class="empty">곳이 없습니다.</div>';
     return;
   }
   sel.innerHTML=HALLS.map(h=>`<option value="${esc(h.code)}">${esc(h.name)}${h.active?'':' (잠듦)'}</option>`).join('');
-  renderHall(); refreshTally(); renderToday(); renderSched();
+  renderHall(); refreshTally(); renderToday();
 }
 
-function spoonNo(h){ return (h.meta && h.meta.spoon_no!=null) ? h.meta.spoon_no : 0; }
-
-/* ══ 편성표 (0807 소로) ═══════════════════════════════════════════════
-   「날짜별, 카페 이름, 콘텐츠 내용… 이런 게 한 눈에 보이게. 지난 건 안 보이도록.」
-
-   ⚠⚠ 두 층이 **다른 속도로** 돈다 — 이 표는 그 둘을 한 줄에 나란히 놓는다.
-     카페  매일     날수 mod 곳수      ← 순회 공식. terra·셸과 한 글자도 달라선 안 된다
-     글    주 3회   월화 / 수목 / 금토일
-
-   ⚠⚠ 글은 **흐르는 강물**이다. 돌지 않는다(강물원칙 0526 · 소로 0807 정정).
-     재고가 마르면 마지막 잔이 멈춰 선다. 나머지 연산을 쓰면 안 된다.
-   ⚠ 개막일은 hello_spoon_v1.html의 SPOON_OPEN과 **같아야 한다.**
-     한쪽만 고치면 이 표가 거짓말을 한다(공식이 여러 곳에 사는 함정). */
-const SPOON_OPEN = Math.floor(Date.UTC(2026, 8, 7) / 86400000);   /* 2026-09-07 (월) */
-
-function rawSlot(day){
-  const w   = ((day % 7) + 7) % 7;      /* 0목 1금 2토 3일 4월 5화 6수 */
-  const dow = (w + 3) % 7;              /* 월0 화1 수2 목3 금4 토5 일6 */
-  const mon = day - dow;
-  const wk  = Math.round((mon - 4) / 7);
-  const s   = dow <= 1 ? 0 : dow <= 3 ? 1 : 2;
-  const nth = dow <= 1 ? dow : dow <= 3 ? dow - 2 : dow - 4;
-  return { idx: wk*3 + s, nth, span: s === 2 ? 3 : 2 };
-}
-const SPOON_BASE = rawSlot(SPOON_OPEN).idx;
-const slotOf  = d => { const r = rawSlot(d); return { idx:r.idx - SPOON_BASE, nth:r.nth, span:r.span }; };
-const ymd     = d => new Date(d * 86400000).toISOString().slice(0,10);
-const wdayKo  = d => ['목','금','토','일','월','화','수'][((d % 7) + 7) % 7];
-
-/* 슬롯 번호 → 그 슬롯의 마지막 날. 재고가 언제 마르는지 날짜로 말한다 */
-function slotLastDay(idx){
-  const r0 = rawSlot(SPOON_OPEN);
-  const mon0 = SPOON_OPEN - r0.nth - (r0.idx % 3 === 0 ? 0 : r0.idx % 3 === 1 ? 2 : 4);
-  const wk = Math.floor(idx / 3), s = ((idx % 3) + 3) % 3;
-  return mon0 + wk*7 + (s === 0 ? 1 : s === 1 ? 3 : 6);   /* 화1 목3 일6 */
-}
-
-let SPOONS = [];
-
-async function renderSched(){
-  const box = document.getElementById('schedBox');
-  const dry = document.getElementById('dryLine');
-  if(!box) return;
-
-  const { data, error } = await supa.from('spoons')
-    .select('spoon_no,subject,category,headline')
-    .eq('status','published').not('spoon_no','is',null).order('spoon_no');
-  if(error){ box.innerHTML = '<div class="empty">회차를 못 읽었습니다: '+esc(error.message)+'</div>'; return; }
-  SPOONS = data || [];
-  if(!SPOONS.length){ box.innerHTML = '<div class="empty">아직 회차가 없습니다.</div>'; return; }
-
-  const N   = SPOONS.length;
-  const act = HALLS.filter(h => h.active);
-  const cafes = [...HALLS].sort((a,b) => spoonNo(a) - spoonNo(b)).filter(h => h.active);
-  const today = kstDay();
-  const cur   = slotOf(today).idx;
-
-  /* 오늘부터 앞으로 — 지난 것은 안 보인다 */
-  const rows = [];
-  const from = Math.max(cur, 0);
-  for (let i = from; i < N + 2 && rows.length < 40; i++){
-    const last = slotLastDay(i);
-    const span = ((i % 3) + 3) % 3 === 2 ? 3 : 2;
-    const start = last - (span - 1);
-    const s = SPOONS[Math.min(Math.max(i,0), N-1)];
-    /* 그 슬롯이 걸친 날마다 카페가 바뀐다 — 이름을 다 적는다 */
-    const names = [];
-    for(let d = start; d <= last; d++){
-      if(d < today) continue;
-      const c = cafes.length ? cafes[((d % cafes.length) + cafes.length) % cafes.length] : null;
-      names.push(`${wdayKo(d)} ${c ? esc(c.name) : '—'}`);
-    }
-    rows.push(`<tr class="${i===cur?'now':''} ${i>=N?'dry':''}">
-      <td class="dt">${ymd(Math.max(start,today))}<span class="wd">${wdayKo(Math.max(start,today))}</span>
-        <div class="span">${span===3?'금·토·일 72h':'48h'}</div></td>
-      <td><span class="no">${i>=N ? '—' : s.spoon_no}</span>
-        <span class="sj">${esc(s.subject||'')}${i===cur?'<span class="badge">오늘</span>':''}${i>=N?'<span class="badge">재고 없음</span>':''}</span>
-        <span class="hl">${esc((s.headline||'').split('\n')[0])}</span></td>
-      <td class="cf">${names.join('<br>')}</td>
-      <td class="cat">${esc(s.category||'')}</td>
-    </tr>`);
-  }
-
-  box.innerHTML = `<table class="sched">
-    <tr><th>날짜</th><th>회차 · 글</th><th>카페</th><th>분야</th></tr>${rows.join('')}</table>`;
-
-  /* ⭐ 마르는 날 — 소로가 청한 것. 회차를 넣으면 이 날짜가 저절로 밀린다 */
-  const dryDay = slotLastDay(N - 1);
-  const left   = N - 1 - cur;
-  const weeksNeeded = n => Math.ceil(n / 3);
-  dry.innerHTML = left < 0
-    ? `<span class="w">⚠⚠ 재고가 말랐습니다.</span> <b>${ymd(dryDay)}</b> 이후로 마지막 잔이 멈춰 서 있습니다.`
-    : `재고 <b>${N}</b>편 · 남은 회차 <b>${left}</b>개<br>`
-      + `마지막 잔은 <b>${ymd(dryDay)} (${wdayKo(dryDay)})</b> 까지 흐릅니다`
-      + (left < 3 ? ' <span class="w">⚠ 곧 마릅니다</span>' : '')
-      + `<br>⭐ 한 편을 더 넣을 때마다 이 날짜가 <b>2~3일</b>씩 밀립니다 ·`
-      + ` 스무 편이면 <b>${ymd(slotLastDay(N + 20 - 1))}</b> 까지`
-      + `<br>⚠ 주 <b>3편</b>이 손익분기입니다 — 그만큼 채우면 강물이 마르지 않습니다.`;
-}
+function museumNo(h){ return (h.meta && h.meta.museum_no!=null) ? h.meta.museum_no : 0; }
 
 function renderToday(){
   const box=document.getElementById('progList');
-  if(!HALLS.length){ box.innerHTML='<div class="empty">아직 심어진 한스푼 핀이 없습니다.</div>'; return; }
+  if(!HALLS.length){ box.innerHTML='<div class="empty">아직 심어진 뮤세움 핀이 없습니다.</div>'; return; }
   const d=new Date(Date.now()+9*3600*1000);
   document.getElementById('stamp').textContent=
     `${d.getUTCFullYear()}. ${d.getUTCMonth()+1}. ${d.getUTCDate()}  ·  KST`;
-  /* ⚠ 순회 공식 — terra.html·hello_spoon_v1.html과 한 글자도 달라선 안 된다.
+  /* ⚠ 순회 공식 — terra.html과 한 글자도 달라선 안 된다.
      한쪽만 고치면 콘솔이 거짓말을 한다(로테이션 공식이 사는 곳: v146 §4) */
   const act=HALLS.filter(h=>h.active);
   const todayNo = act.length ? (kstDay() % act.length) : -1;
-  const sorted=[...HALLS].sort((a,b)=>spoonNo(a)-spoonNo(b));
+  const sorted=[...HALLS].sort((a,b)=>museumNo(a)-museumNo(b));
   box.innerHTML=sorted.map(h=>{
-    const no=spoonNo(h), on=(h.active && no===todayNo);
+    const no=museumNo(h), on=(h.active && no===todayNo);
     return `<div class="prog ${h.active?'':'sleep'}" style="${on?'background:rgba(229,215,168,.10)':''}">
       <div class="no">${no}</div>
       <div class="hall">${esc(h.name)}${h.active?'':' <span class="zzz">·잠듦</span>'}</div>
@@ -530,8 +352,9 @@ function renderToday(){
     </div>`;
   }).join('');
   document.getElementById('progNote').innerHTML=
-    `곳 <b>${act.length}</b>곳 → 한 바퀴 <b>${act.length}일</b>. 내일 자정에 다음 곳이 열립니다.<br>`
-    + '⭐ 곳이 늘어도 도장은 하루 한 장입니다(알베르게 원칙 2호). 순회만 길어집니다.';
+    `곳 <b>${act.length}</b>채 → 한 바퀴 <b>${act.length}일</b>. 내일 자정에 다음 서고가 열립니다.<br>`
+    + '⭐ 곳이 늘어도 도장은 하루 한 장입니다(알베르게 원칙 2호). 순회만 길어집니다.<br>'
+    + '⭐ 손님의 책장은 어느 서고에서 열든 <b>하나</b>입니다 — 몸통은 곳의 얼굴, 각인은 그날의 것.';
 }
 
 /* 여덟 칸의 순서 — 차례 투척함이 이 순서로 채운다 */
@@ -559,8 +382,8 @@ function exists(bucket,path){
     im.src=PUB(bucket,path)+'?v='+Date.now(); });
 }
 function jumpHall(code){
-  showPane();
   const sel=document.getElementById('hallPick'); sel.value=code; renderHall();
+  document.getElementById('bulk').scrollIntoView({behavior:'smooth', block:'center'});
 }
 function currentHall(){
   const code=document.getElementById('hallPick').value;
@@ -570,10 +393,10 @@ function renderHall(){
   const h=currentHall(); if(!h) return;
   const m=h.meta||{};
   document.getElementById('hallInfo').innerHTML=
-    `코드 <b>${esc(h.code)}</b> · 순번 <b>${m.spoon_no ?? '—'}</b>번 · ${esc(h.city||'')}`
+    `코드 <b>${esc(h.code)}</b> · 순번 <b>${m.museum_no ?? '—'}</b>번 · ${esc(h.city||'')}`
     + (h.active ? ' · <span style="color:rgba(180,214,170,.9)">지도에 서 있음</span>'
                 : ' · <span style="color:rgba(232,180,150,.85)">아직 잠들어 있음</span>')
-    + (m.coord_check===false ? '<br>⚠ <span style="color:rgba(233,180,140,.9)">좌표 미확인</span> — 구글어스로 정면을 확인한 뒤에 깨웁니다' : '')
+    + (m.shelf_rect ? '' : '<br>⚠ <span style="color:rgba(233,180,140,.9)">벽감 좌표(shelf_rect) 없음</span> — 실내 그림이 서면 파이스가 재서 심습니다')
     ;
   document.getElementById('plan').innerHTML='';
   buildSlots();
@@ -632,7 +455,7 @@ async function uploadRoom(path,kind,file,after){
   if(file.size>24*1024*1024){ toast('24MB 이하로 부탁드립니다'); return; }
   toast('굽는 중…');
   let r;
-  try{ r=await bake(file, 'cover', SPEC[kind].w, SPEC[kind].h); }
+  try{ r=await bake(file, SPEC[kind].w, SPEC[kind].h); }
   catch(e){ toast('굽지 못했습니다: '+esc(e.message)); return; }
   const { error } = await supa.storage.from(BUCKET)
     .upload(path, r.blob, { upsert:true, contentType:'image/webp', cacheControl:'300' });
@@ -656,7 +479,7 @@ async function clearAsset(path){
 }
 
 /* ═══════════════════════════════════════════════════════════
-   ⭐ 차례 투척함 — 이름이 아니라 자리가 이름을 정한다
+   ⭐ 차례 투척함 — 이름이 아니라 칸이 이름을 정한다
    ═══════════════════════════════════════════════════════════ */
 function wireBulk(){
   const b=document.getElementById('bulk');
@@ -673,11 +496,11 @@ function wireBulk(){
 }
 
 async function makePlan(files){
-  const h=currentHall(); if(!h){ toast('먼저 관을 고르십시오'); return; }
+  const h=currentHall(); if(!h){ toast('먼저 서고를 고르십시오'); return; }
   files=files.filter(f=>/^image\//.test(f.type));
   if(!files.length){ toast('그림 파일이 아닙니다'); return; }
   const box=document.getElementById('plan');
-  box.innerHTML='<div class="hint" style="margin:14px 0 0">자리를 살피는 중…</div>';
+  box.innerHTML='<div class="hint" style="margin:14px 0 0">칸을 살피는 중…</div>';
 
   const over=document.getElementById('overwrite').checked;
   const all=slotsOf(h.code);
@@ -692,7 +515,7 @@ async function makePlan(files){
        <span class="pa">→</span><span class="pt">${esc(s.label)}</span></div>`); }
     else rows.push(
       `<div class="plan-row skip"><span class="pf">${esc(f.name)}</span>
-       <span class="pa">→</span><span class="pt">빈자리 없음 · 건너뜀</span></div>`);
+       <span class="pa">→</span><span class="pt">빈 칸 없음 · 건너뜀</span></div>`);
   });
   PLAN={ hall:h, jobs };
   box.innerHTML=`<div class="plan">${rows.join('')}</div>
@@ -701,7 +524,7 @@ async function makePlan(files){
       <button class="btn ghost" onclick="document.getElementById('plan').innerHTML=''">그만두기</button>
     </div>`
     + (jobs.length ? '' : '<div class="hint" style="margin:12px 0 0;text-align:center">'
-        + '올릴 자리가 없습니다. 덮어쓰기를 켜거나 먼저 몇 칸을 내려 주십시오.</div>');
+        + '올릴 칸이 없습니다. 덮어쓰기를 켜거나 먼저 몇 칸을 내려 주십시오.</div>');
 }
 
 async function runPlan(){
@@ -713,7 +536,7 @@ async function runPlan(){
   let done=0, fail=0, before=0, after=0, cropNote=0;
   for(const j of PLAN.jobs){
     try{
-      const r=await bake(j.file, 'cover', SPEC[j.slot.kind].w, SPEC[j.slot.kind].h);
+      const r=await bake(j.file, SPEC[j.slot.kind].w, SPEC[j.slot.kind].h);
       const { error } = await supa.storage.from(BUCKET)
         .upload(j.slot.path, r.blob, { upsert:true, contentType:'image/webp', cacheControl:'300' });
       if(error) throw error;
@@ -733,8 +556,6 @@ async function runPlan(){
 }
 
 /* ═══ 미리보기 ═══ */
-/* 0806 — 작품 미리보기였던 것을 슬롯 그림 크게 보기로 돌렸다.
-   한스푼에는 걸 작품이 없고, 대신 방 그림을 크게 확인할 일이 잦다 */
 function openPv(url,title){
   document.getElementById('pvTitle').innerHTML=esc(title||'');
   document.getElementById('pvImg').src=url;
