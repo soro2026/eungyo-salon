@@ -11,6 +11,7 @@
  *  bibliotheca.html v1.5 — 0807 · EG 뮤세움 · 시간의 서가
  *    v1.6 — 서고의 음악(구 museum.html 열두 곡 승계) · 낭독 더킹
  *           책 모달 이식 — 3D 표지 → 펼침 → 4겹이 한 겹씩 한 쪽 (분더카머 3층 문법)
+ *    v1.7 — OX 차단 세 겹 중 셋째 겹 (첫째=game_core.js · 둘째=DB 트리거)
  *
  *  2뷰: 정문(gate 16:9 · 밤낮 4벌) → [암전] → 서고(hall 9:16 · 밤낮 4벌)
  *  그림: tour-assets/museum/{code}_gate_{m|d|e|n}.webp · {code}_hall_{m|d|e|n}.webp
@@ -946,15 +947,22 @@ function edTry(){
    ⭐ 같은 책을 여러 번 풀어도 한 권이다. **처음 만난 날**이 그 책의 자리를 정한다.
      나중 만남으로 순서가 바뀌면 서가가 기록이 아니라 최근 목록이 된다.
    ⚠ 칼럼은 uid다(user_id 아님) — museum.html 실측. */
-/* ⚠⚠ 0807 실측 — 소로 서가에 「O」 한 권, 「X」 한 권이 서 있었다.
-   OX 문제의 정답이 그대로 책등이 된 것이다. OX는 책 한 권을 만난 것이 아니라
-   사실 하나를 확인한 것이므로 서가에 세우지 않는다.
-   ⚠ answer만 보면 안 된다 — 언젠가 정답이 진짜 「O」인 문제가 나올 수 있다.
-     seed_id 끝의 -OX를 함께 본다. 둘 중 하나만으로는 못 가른다. */
+/* ⚠⚠ 0807 — 소로 서가에 「O」 한 권, 「X」 한 권이 서 있었다.
+   OX는 책 한 권을 만난 것이 아니라 사실 하나를 확인한 것이므로 서가에 안 세운다.
+
+   ⭐ 이것은 **셋째 겹**이다. 앞의 두 겹이 이미 막는다 —
+     ① game_core.js logQuizToMuseum() 이 안 보낸다
+     ② DB 트리거 trg_quiz_log_reject_ox 가 조용히 버린다 (근원 · 어느 화면이든)
+     여기 남겨 두는 까닭: 트리거가 서기 전에 쌓인 옛 행이 언젠가 되살아나도 안 서게.
+
+   ⚠ seed_id 끝의 -OX 는 **믿을 수 없다.** 실측 — OX 문항 65개 중 seed가 -OX로
+     끝나는 것은 56개뿐이다(topic-비틀스-1 · 카프카 처럼 이름만 있는 것이 아홉).
+     진짜 근거는 questions.question_type='ox' 이고, 그것은 트리거가 본다.
+     화면은 quiz_log만 읽으므로 여기서는 answer로 가른다 — 실측 65/65가 걸린다. */
 function isOX(r){
   const a=(r.answer||'').trim();
   if(a==='O' || a==='X' || a==='o' || a==='x') return true;
-  return /(-|_)OX$/i.test(r.seed_id||'');
+  return /(-|_)OX$/i.test(r.seed_id||'');   /* 보조 — 놓치는 아홉은 위 두 겹이 잡는다 */
 }
 
 async function loadBooks(){
@@ -1709,7 +1717,7 @@ function playPageSound(){
 
 function goBack(){ bgmRelease(); location.href='terra.html'; }
 
-console.log('[EG] bibliotheca v1.6 · 0807 · 서고의 음악 · 낭독 더킹 · 3D 표지 책 모달');
+console.log('[EG] bibliotheca v1.7 · 0807 · 서고의 음악 · 낭독 더킹 · 3D 표지 책 모달 · OX 세 겹 차단');
 boot();
 bgmInit();
 f4InitModal();      /* 책 모달 손잡이 — 한 번만 묶는다 */

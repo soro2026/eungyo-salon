@@ -315,6 +315,19 @@ async function logQuizToMuseum(q, wasCorrect) {
   if (!currentUser) return;
   if (!q || !q.answer) return;
 
+  /* ⭐⭐ OX 문항은 서가에 안 세운다 (0807 소로) ────────────────────────────
+     OX는 책 한 권을 만난 것이 아니라 사실 하나를 확인한 것이다. 정답이 그대로
+     책등이 되어 소로의 서가에 「O」 한 권, 「X」 한 권이 서 있었다.
+     ⚠ 여기서 막는 것이 첫 겹이고, DB 트리거(trg_quiz_log_reject_ox)가 둘째 겹이다.
+       둘 다 둔 까닭 — 이 함수는 화면 여럿이 부르고 앞으로 더 늘어난다. 한 곳이
+       실수해도 우물은 안 더러워져야 한다. 트리거는 조용히 버리므로 흐름도 안 끊긴다.
+     ⚠ question_type은 getNormalizedType을 거쳐 'OX'(대문자)로 선다(175행).
+       DB 원본은 소문자 'ox'라 둘 다 본다 — 이 함수가 원본 q를 받는 날이 올 수 있다. */
+  const _qt = String(q.question_type || '').trim().toLowerCase();
+  if (_qt === 'ox' || _qt === 'o/x') return;
+  const _ans = String(q.answer).trim();
+  if (_ans === 'O' || _ans === 'X' || _ans === 'o' || _ans === 'x') return;
+
   try {
     const session = (await supa.auth.getSession()).data.session;
     if (!session) return;
