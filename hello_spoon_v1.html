@@ -1018,6 +1018,53 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
 (function(){
   'use strict';
 
+/* ══ 날수 · 슬롯 (0807) ═══════════════════════════════════════════════
+   ⚠⚠ 이 파일은 <script> 블록이 둘이고 **이 블록이 IIFE**라 안의 것이 밖에서 안 보인다.
+     아래 블록의 kstDay()를 여기서 부르면 ReferenceError로 조용히 죽는다
+     (0807 terra에서 도시·인물 이동을 통째로 죽인 그 함정). 그래서 날수는 **여기서** 세고
+     창구(window.EG_DAY)로 내준다. 아래 블록이 그것을 부른다 — 사실이 한 곳에만 산다.
+   ⚠ 이 블록이 아래 블록보다 먼저 도니 창구를 여는 자리도 여기가 맞다. */
+  window.EG_DAY = function(){
+    if (window.EG_TT_DAY != null) return window.EG_TT_DAY;   /* ⏱ 타임머신 */
+    return Math.floor((Date.now() + 9*3600*1000) / 86400000);
+  };
+
+/* ⭐ 슬롯 — 한스푼 리듬 재편 결정문(0806) 3호
+     월·화 48시간 · 수·목 48시간 · 금·토·일 72시간
+   ⚠ 카페 순회(날수 mod 곳수)는 한 글자도 안 고친다. 두 층이 다른 속도로 돈다.
+     그래서 글이 방을 옮겨 다닌다 — 어제 되 마고에서 읽던 이야기를 오늘 이글 앤 차일드에서 마저 읽는다.
+   ⚠ 1970-01-01은 목요일이다. day%7 = 0목 1금 2토 3일 4월 5화 6수 */
+
+/* ⭐⭐ 개막일 — **여기 하나만 고치면 된다.**
+     그날이 슬롯 0(= 회차 0)이 된다. 개막일은 월·수·금 중에 고른다(소로 0807).
+     그래야 개막 당일이 늘 회차의 **첫날**이 되어 「이틀째」 같은 말이 안 뜬다.
+   ⚠ 옛 방식(기준 월요일 + offset 숫자)은 손으로 계산해야 해서 개막이 밀릴 때마다 틀리기 쉬웠다.
+     이제 날짜만 고치면 나머지는 저절로 따라온다. */
+  const SPOON_OPEN = Math.floor(Date.UTC(2026, 8, 7) / 86400000);   /* 2026-09-07 (월) */
+
+  /* 오늘 날짜(KST) — 기록에 적는 「참여한 날」. ⏱ 타임머신도 따라간다 */
+  function todayYmd(){
+    return new Date(window.EG_DAY() * 86400000).toISOString().slice(0,10);
+  }
+
+  /* 절대 슬롯 — 1970-01-05(월)를 0주로 센다 */
+  function rawSlot(day){
+    const w   = ((day % 7) + 7) % 7;      /* 0목 1금 2토 3일 4월 5화 6수 */
+    const dow = (w + 3) % 7;              /* 월0 화1 수2 목3 금4 토5 일6 */
+    const mon = day - dow;                /* 그 주 월요일 */
+    const wk  = Math.round((mon - 4) / 7);
+    const s   = dow <= 1 ? 0 : dow <= 3 ? 1 : 2;                 /* 월화0 수목1 금토일2 */
+    const nth = dow <= 1 ? dow : dow <= 3 ? dow - 2 : dow - 4;   /* 슬롯 안 며칠째(0부터) */
+    return { idx: wk*3 + s, nth, span: s === 2 ? 3 : 2 };
+  }
+  const SPOON_BASE = rawSlot(SPOON_OPEN).idx;   /* 개막일을 0으로 끌어온다 */
+
+  function spoonSlot(day){
+    const r = rawSlot(day);
+    return { idx: r.idx - SPOON_BASE, nth: r.nth, span: r.span };
+  }
+  let SLOT = null;
+
   // ── Supabase 연결 ───────────────────────────────────
   const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
   const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
@@ -1058,7 +1105,9 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
       const { error } = await supa.from('spoon_quiz_logs').insert({
         user_id:         CURRENT_USER.id,
         spoon_id:        SPOON.id,
-        spoon_date:      SPOON.spoon_date,
+        /* ⚠ 0807 — 여기 적는 날짜는 **참여한 날**이다. 회차의 원고 날짜가 아니다.
+           회차 재활용(결정문 4호)이 서면서 둘이 갈렸다. 회차는 spoon_id가 가리킨다. */
+        spoon_date:      todayYmd(),
         selected_option: selectedOption,
         is_correct:      isCorrect
       });
@@ -1081,7 +1130,7 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
       const { error } = await supa.from('spoon_reactions').insert({
         user_id:       CURRENT_USER.id,
         spoon_id:      SPOON.id,
-        spoon_date:    SPOON.spoon_date,
+        spoon_date:    todayYmd(),   /* 참여한 날 — 회차는 spoon_id가 가리킨다 */
         reaction_text: text.trim()
       });
       if(error){ console.warn('[spoon] 사유 기록 실패:', error.message); REACTION_LOGGED = false; }
@@ -1095,25 +1144,47 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
   }
   function nl2br(s){ return esc(s).replace(/\n/g,'<br>'); }
 
-  // ── DB에서 오늘(또는 ?date=) 한스푼 가져오기 ──────────
+  // ── DB에서 오늘 회차 한스푼 가져오기 ──────────
+  /* ⭐⭐ 강물 원칙(0526) — **한스푼은 흐르는 강물이다. 돌지 않는다.**
+       「오늘 안 마시면 흘러간다. 흘려보낸 한스푼은 앱에서 다시 못 푼다.
+         대신 그날 퀴즈까지 푼 한스푼은 뮤세움 책장에 영원히 남는다.」
+     ⚠⚠ 0806 결정문 4호가 이것을 「카페처럼 돈다」로 적었는데, 그건 잘못 옮긴 것이다.
+       소로 말씀(「지난 것도 다 재활용」)의 뜻은 **날짜 못을 뽑고 순서대로 쓰자**였지
+       한 바퀴 돌려 다시 만나자가 아니었다. 0807 소로 정정 — 선형이 맞다.
+       → 나머지 연산(% N)을 쓰지 않는다. 그걸 쓰는 순간 강물이 호수가 된다.
+     ⚠ 진도는 **전역**이다. 사람마다 0번부터가 아니다. 늦게 온 사람은 그날 잔부터 마신다.
+       그래야 「내가 그날 거기 있었다」가 증거가 된다(강물원칙 2절).
+     ⚠ 재고가 마르면 **마지막 회차가 멈춰 선다**(소로 0807). 빈 화면은 만들지 않는다.
+     ⚠ ?date= 는 옛 길로 남긴다. ?no= 로 회차를 콕 집을 수도 있다(시험용). */
   async function fetchSpoon(){
     const params = new URLSearchParams(location.search);
-    const wantDate = params.get('date');   // 없으면 최신 published 1건
+    const wantDate = params.get('date');
+    const wantNo   = params.get('no');
     try {
-      let q = supa.from('spoons')
-        .select('*')
-        .eq('status','published');
-      if (wantDate) q = q.eq('spoon_date', wantDate);
-      else          q = q.order('spoon_date',{ascending:false}).limit(1);
+      let q = supa.from('spoons').select('*').eq('status','published');
+      if (wantDate)            q = q.eq('spoon_date', wantDate);
+      else if (wantNo != null) q = q.eq('spoon_no', Number(wantNo));
+      else                     q = q.not('spoon_no','is',null).order('spoon_no');
+
       const { data, error } = await q;
       if (error){ console.warn('한스푼 fetch 실패:', error.message); return; }
-      if (data && data.length){
-        SPOON = data[0];
-        QUIZ.answer = SPOON.quiz_answer;
-        console.log('한스푼 로드:', SPOON.spoon_date, SPOON.subject);
+      if (!data || !data.length){ console.warn('한스푼 없음 — 더미 유지'); return; }
+
+      if (wantDate || wantNo != null){
+        SPOON = data[0]; SLOT = null;                 /* 콕 집어 본다 */
       } else {
-        console.warn('해당 날짜 한스푼 없음 — 더미 유지');
+        SLOT = spoonSlot(window.EG_DAY());
+        const N = data.length;                        /* spoon_no 순 정렬 → 인덱스=회차 */
+        const i = Math.min(Math.max(SLOT.idx, 0), N - 1);   /* 강물은 뒤로 안 흐른다 */
+        SPOON = data[i];
+        /* ⚠ 재고 경보 — 조용히 마르면 아무도 모른다. 슬롯 셋(약 한 주) 남으면 알린다. */
+        const left = N - 1 - SLOT.idx;
+        if (left < 0)      console.warn('[한스푼] ⚠⚠ 재고가 말랐습니다 — 마지막 회차가 멈춰 서 있습니다. 새 회차를 넣어 주십시오.');
+        else if (left < 3) console.warn('[한스푼] ⚠ 남은 회차 ' + left + '개 — 곧 마릅니다.');
       }
+      QUIZ.answer = SPOON.quiz_answer;
+      console.log('[한스푼] 회차', SPOON.spoon_no, '·', SPOON.subject,
+        SLOT ? `(슬롯 ${SLOT.idx} · ${SLOT.nth+1}/${SLOT.span}일째)` : '(콕 집음)');
     } catch(e){ console.warn('한스푼 fetch 예외:', e); }
   }
 
@@ -1122,12 +1193,21 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
     if(!SPOON) return;  // 못 불러오면 HTML 더미 그대로
 
     // 헤더 날짜
-    const dt = SPOON.spoon_date;
-    if(dt){
-      const d = new Date(dt + 'T00:00:00');
-      const wd = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
-      const hd = document.getElementById('hdrDate');
-      if(hd) hd.textContent = dt.replace(/-/g,' · ') + ' · ' + wd;
+    /* ⚠⚠ 0807 — SPOON.spoon_date를 찍으면 안 된다. 회차가 재활용되므로
+       6월 9일에 쓴 글이 9월에 돌아오면 헤더가 6월을 가리킨다. 손님이 보는 것은 **오늘**이다.
+       ⚠ ⏱ 타임머신이 켜져 있으면 그 날짜를 찍어야 시험이 말이 된다 → EG_DAY()를 쓴다. */
+    {
+      const day = window.EG_DAY();
+      const d   = new Date(day * 86400000);          /* 날 번호 → 그 날 (KST 날짜와 같다) */
+      const wd  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getUTCDay()];
+      const hd  = document.getElementById('hdrDate');
+      if(hd){
+        let t = d.toISOString().slice(0,10).replace(/-/g,' · ') + ' · ' + wd;
+        /* 슬롯 안 며칠째인지 조용히 알린다 — 「늦지 않았다」는 말이다(결정문 3호).
+           ⚠ 「오늘은 휴식입니다」라고 쓰지 않는다. 첫날에는 아무것도 안 적는다. */
+        if (SLOT && SLOT.nth > 0) t += ' · ' + ['', '이틀째', '사흘째'][SLOT.nth];
+        hd.textContent = t;
+      }
     }
 
     // 퀴즈 질문
@@ -1487,6 +1567,11 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
     try{ return (window.egSky&&egSky.phase)?egSky.phase():'d'; }catch(e){ return 'd'; }
   }
   function kstDay(){
+    /* ⚠ 0807 — 날수는 위 블록의 window.EG_DAY() 한 곳에서만 센다.
+       두 블록이 각자 세면 자정 무렵에 서로 다른 날을 가리켜, 타륜은 프로코프라 적고
+       방은 체셔가 열린다. ⏱ 타임머신 반영도 저쪽에 이미 들어 있다. */
+    if (typeof window.EG_DAY === 'function') return window.EG_DAY();
+    console.warn('[spoon] EG_DAY 창구가 없습니다 — 자체 계산으로 물러납니다.');
     if(window.EG_TT_DAY!=null) return window.EG_TT_DAY;
     return Math.floor((Date.now()+9*3600*1000)/86400000);
   }
@@ -1517,7 +1602,7 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
     /* ⚠⚠ 여행 중에는 URL도 비켜선다 — 고정핀만 비키고 ?code=가 남으면 주소창이
        계속 그 곳이라고 우겨 날짜가 먹통으로 보인다(0806 실전). 같은 병의 두 갈래다. */
     const TT  = (window.EG_TT_DAY!=null);
-    const FIX = TT ? null : "eaglechild";
+    const FIX = null;   /* 0807 — 그림 13/13 완비. 못을 뽑았다(terra EG_SPOON_FIX와 한 벌) */
     const want= TT ? null : (new URLSearchParams(location.search).get('code') || FIX);
     SPOT = (want && LIST.find(h=>h.code===want)) || LIST[ kstDay() % LIST.length ];
 
@@ -1626,7 +1711,7 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
   window.EGSpoonRelay = function(){
     if(!LIST.length) return;
     const TT  = (window.EG_TT_DAY!=null);                         /* boot와 같은 조항 */
-    const FIX = TT ? null : "eaglechild";
+    const FIX = null;   /* 0807 — 그림 13/13 완비. 못을 뽑았다(terra EG_SPOON_FIX와 한 벌) */
     const want= TT ? null : (new URLSearchParams(location.search).get('code') || FIX);
     SPOT = (want && LIST.find(h=>h.code===want)) || LIST[ kstDay() % LIST.length ];
     const t=phase();
