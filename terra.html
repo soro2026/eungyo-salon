@@ -2581,6 +2581,12 @@ function openStory(spot){
   });
   // 이곳에 닿은 별 — 액자 벽
   renderStoryStars(Array.isArray(spot.figures) ? spot.figures : []);
+
+  /* ⭐ 낭독 (0807 신설) — 인물·장소 74곳.
+     ⚠ 원고가 있어도 아직 안 구운 곳은 단추가 안 선다(없으면 조용히 물러난다).
+       74곳을 다 굽기 전에도 구운 곳부터 하나씩 소리가 붙는다. */
+  fillStoryVoice("marker", spot.id, spot.title_ko || spot.title || "");
+
   document.getElementById("story").classList.add("in");
 }
 
@@ -2768,12 +2774,21 @@ function startVoice(ref, url, title, total, scope){
   paintVoice();
 }
 
-async function fillStoryVoice(ref, title){
+/* ⚠⚠ 0807 — scope 를 받게 고쳤다. 그전에는 scope=eq.place 로 못 박혀 있어
+     인물·장소 마커 74곳의 낭독이 있어도 화면이 못 찾았다.
+   ⚠⚠ 그리고 **먼저 비운다.** 소개창(#story)은 판이 하나인데 openStory(마커)는
+     이 칸을 손대지 않아, 핀 소개창을 열었다 닫고 마커를 열면 앞 곳의 낭독 단추가
+     그대로 남아 있었다 — 엉뚱한 곳의 소리가 마커 판에 붙어 있는 셈이다. */
+async function fillStoryVoice(scope, ref, title){
   const el = document.getElementById("storyVoice");
-  if (!el || !ref) return;
+  if (!el) return;
+  el.innerHTML = ""; el.classList.remove("in");
+  if (!ref) return;
+  scope = scope || "place";
   try{
     const q = SUPA_URL + "/rest/v1/voice_takes?select=url,dur_sec,voice"
-            + "&scope=eq.place&active=is.true&limit=1&ref=eq." + encodeURIComponent(ref);
+            + "&scope=eq." + encodeURIComponent(scope)
+            + "&active=is.true&limit=1&ref=eq." + encodeURIComponent(ref);
     const res = await fetch(q, { headers:{ apikey:SUPA_KEY, Authorization:"Bearer "+SUPA_KEY } });
     if(!res.ok) throw new Error("HTTP "+res.status);
     const rows = await res.json();
@@ -2790,12 +2805,12 @@ async function fillStoryVoice(ref, title){
 
     el.querySelector(".vbtn").addEventListener("click", ()=>{
       /* 이 곳의 낭독이 이미 흐르고 있으면 새로 굽지 않고 그것을 여닫는다 */
-      if (storyAudio && voiceRef === ref){
+      if (storyAudio && voiceRef === ref && voiceScope === scope){
         if (storyAudio.paused) storyAudio.play().catch(e=> console.warn("[EG] 낭독 재생", e));
         else storyAudio.pause();
         return;
       }
-      startVoice(ref, t.url, title, total);
+      startVoice(ref, t.url, title, total, scope);
     });
 
     paintVoice();   /* 판을 다시 열었을 때 「듣는 중」을 되찾는다 */
@@ -4062,7 +4077,7 @@ function openPinStory(p){
   /* 이 곳에 닿은 별 — 혈연이 있으면 뒤늦게 얹는다 */
   fillStoryStars(m.place_id);
   /* 낭독 — 구워진 곳에만 단추가 선다 (0806밤) */
-  fillStoryVoice(p.kind + "/" + p.code, m.title_ko || p.name);
+  fillStoryVoice("place", p.kind + "/" + p.code, m.title_ko || p.name);
 }
 
 /* 옛 이름은 창구로 남긴다 — 다른 데서 부르고 있을 수 있다 */

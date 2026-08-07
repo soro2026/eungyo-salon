@@ -260,6 +260,22 @@ function narrationOfLayers(layers){
 }
 const narrationOfArt = narrationOfLayers;   /* 옛 이름은 창구로 남긴다 */
 
+/* ⭐ 인물·장소 마커 — 두 갈래가 한 표에 섞여 산다(0807 실측 74곳).
+     4겹 물린 곳 56 · body 배열만 있는 곳 18.
+   ⚠ 마커 4겹에는 scene 칸이 **없다**(74곳 전부 확인). LAYER_ORDER를 그대로 써도
+     filter(Boolean)이 빈 칸을 걸러내므로 부품을 새로 짓지 않는다 — 조립기가 둘이 되면
+     반드시 한쪽만 고치는 날이 온다(코드베이스 함정 1번).
+   ⚠ body 쪽도 별표를 지운다. 0807 실측: 18곳 가운데 12곳에 178개가 박혀 있었다.
+     narrationOf(장소 핀)는 별표를 안 지우는데, 장소 핀 원고에는 별표가 0개라
+     지금까지 드러나지 않았을 뿐이다.
+   ⚠⚠ voice_bake(Edge Function)의 같은 이름 함수와 한 글자도 달라선 안 된다. */
+function narrationOfMarker(library, body){
+  if (library) return narrationOfLayers(library);
+  return (Array.isArray(body) ? body : [])
+    .map(v => String(v ?? '').replace(/\*/g, '').trim())
+    .filter(Boolean).join('\n\n');
+}
+
 async function sha256(text){
   const buf = new TextEncoder().encode(text);
   const d = await crypto.subtle.digest('SHA-256', buf);
@@ -364,6 +380,45 @@ async function load(){
     }
   }
 
+  /* 인물·장소 마커 — 74곳(0807 신설).
+     ⚠ 두 번 묻는 까닭: place_markers 와 questions 의 관계가 선택적이라
+       (question_id 가 null 인 곳이 18) 조인으로 묶으면 그 열여덟 곳이 조용히 사라진다.
+     ⚠ 도시 이름은 목록에서 같은 이름을 가르는 데 쓴다 — 「대성당」이 여럿이다. */
+  const { data:mks, error:mErr } = await sb.from('place_markers')
+    .select('id,title_ko,body,question_id,place_id').eq('status','published');
+  if (mErr) toast('마커를 읽지 못했습니다 — ' + mErr.message, 'bad');
+
+  const qIds = [...new Set((mks||[]).map(m=>m.question_id).filter(Boolean))];
+  const libOf = {};
+  if (qIds.length){
+    const { data:qs } = await sb.from('questions').select('id,library').in('id', qIds);
+    (qs||[]).forEach(q => { if(q.library) libOf[q.id] = q.library; });
+  }
+  const pIds = [...new Set((mks||[]).map(m=>m.place_id).filter(Boolean))];
+  const placeOf = {};
+  if (pIds.length){
+    const { data:ps } = await sb.from('places').select('id,city,country').in('id', pIds);
+    (ps||[]).forEach(p => { placeOf[p.id] = p; });
+  }
+
+  /* ⚠⚠ 나라 이름이 DB에서 갈라져 있다(0807 실측) —
+       「이탈리아 · Italia」 3곳 vs 「이탈리아 · Italy」 2곳,
+       「독일 · Germany」 7 vs 「독일 · Deutschland」 1,
+       「스위스 · Switzerland」 2 vs 「스위스 · Schweiz」 1.
+     같은 나라가 목록에서 두 무리로 서면 소로가 두 번 훑으셔야 한다.
+     ⭐ 한글 쪽만 떼어 쓰면 저절로 합쳐진다 — DB를 안 건드리고도 화면이 옳아진다.
+     ⚠ DB 손질은 별도 딱지. 여기서 고치면 places 를 쓰는 다른 화면과 갈린다. */
+  const countryKo = c => String(c || '').split('·')[0].trim() || '그 밖';
+
+  for (const m of (mks||[])){
+    const text = narrationOfMarker(libOf[m.question_id] || null, m.body);
+    if(!text) continue;
+    const pl = placeOf[m.place_id] || {};
+    next.push({ scope:'marker', ref:String(m.id), group:countryKo(pl.country),
+      name:m.title_ko || ('마커 ' + m.id), sub:(pl.city || m.id),
+      sort:m.id, text, hash: await sha256(text) });
+  }
+
   items = next;
 
   const { data:tk } = await sb.from('voice_takes').select('*');
@@ -411,7 +466,13 @@ function visible(e){
 }
 
 function paintList(){
-  const GROUPS = FAMILY.map(f=>f.ko).concat(['미술 4겹','음악 4겹']);
+  /* ⭐ 나라 무리는 코드에 못 박지 않는다 — 카리가 새 나라를 들이면 저절로 선다.
+       곳이 많은 나라부터 세운다(프랑스 19 · 영국 9 · 독일 8 …). 한 곳짜리는 뒤로 간다. */
+  const mCount = {};
+  items.forEach(e => { if(e.scope==='marker') mCount[e.group] = (mCount[e.group]||0)+1; });
+  const MARKER_GROUPS = Object.keys(mCount)
+    .sort((a,b) => (mCount[b]-mCount[a]) || a.localeCompare(b,'ko'));
+  const GROUPS = FAMILY.map(f=>f.ko).concat(['미술 4겹','음악 4겹'], MARKER_GROUPS);
   const bySort = (a,b) => (a.sort > b.sort ? 1 : a.sort < b.sort ? -1 : 0);
   flat = [];
   let html = '';
