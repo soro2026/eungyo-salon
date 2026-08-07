@@ -164,6 +164,46 @@ body.standalone #backBtn{display:block;}
 
 #err{position:fixed;inset:0;display:none;place-items:center;text-align:center;
   font-size:13px;line-height:2.2;color:rgba(232,221,196,.75);padding:24px;}
+
+/* ══ 벽감 좌표 편집기 (?edit · 살롱지기 전용) — 0807
+   ⚠ 천문대 observatorium.html?edit 의 문법을 그대로 옮겼다. 새로 짓지 않았다.
+     다만 저기는 원 하나(cx·cy·r)이고 여기는 사각형(L·T·W·H)이라 손잡이가 넷 더 붙는다.
+   ⭐ 여기서 정하는 값은 **그림의 %**다. 화면 %가 아니다 —
+     그래야 노트북에서 잡은 곳이 폰에서도 같은 곳에 선다.
+   ⭐⭐ 편집 중에도 책이 그대로 서 있다. 사각형만 그리면 실제로 어떻게 보일지 모른다 —
+     책등이 몰딩을 타고 넘는지는 책을 세워 봐야 안다. */
+#shelf.edit{outline:1px dashed rgba(233,207,156,.85);outline-offset:2px;cursor:grab;}
+#shelf.edit.grab{cursor:grabbing;}
+.hdl{position:absolute;width:16px;height:16px;border-radius:50%;
+  background:rgba(233,207,156,.95);border:2px solid rgba(40,26,12,.9);
+  box-shadow:0 2px 7px rgba(0,0,0,.6);display:none;z-index:6;}
+#shelf.edit .hdl{display:block;}
+.hdl.tl{left:-8px;top:-8px;cursor:nwse-resize;}
+.hdl.tr{right:-8px;top:-8px;cursor:nesw-resize;}
+.hdl.bl{left:-8px;bottom:-8px;cursor:nesw-resize;}
+.hdl.br{right:-8px;bottom:-8px;cursor:nwse-resize;}
+
+#ed{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:14;
+  display:none;width:min(300px,86vw);background:rgba(14,10,6,.93);
+  border:1px solid rgba(201,162,74,.45);border-radius:14px;padding:15px 16px;
+  -webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px);
+  box-shadow:0 8px 26px rgba(0,0,0,.6);}
+#ed.on{display:block;}
+#ed h3{font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:.26em;
+  color:var(--gold-l);margin-bottom:11px;font-weight:500;}
+#ed select{width:100%;font:inherit;font-size:12.5px;color:#f0e8d4;background:#2E4A7A;
+  border:1px solid rgba(201,162,74,.4);border-radius:8px;padding:7px 9px;margin-bottom:11px;}
+#ed .rd{font-family:'Cormorant Garamond',serif;font-size:12.5px;line-height:2;
+  color:rgba(232,221,196,.85);letter-spacing:.06em;}
+#ed .rd b{color:rgba(201,162,74,.85);font-weight:500;}
+#ed .tip{font-size:10.5px;line-height:1.85;color:rgba(232,221,196,.45);margin:9px 0 12px;}
+#ed .row{display:flex;gap:7px;flex-wrap:wrap;}
+#ed button{font:inherit;font-size:11px;letter-spacing:.05em;color:rgba(233,207,156,.9);
+  background:none;border:1px solid rgba(201,162,74,.42);border-radius:15px;
+  padding:7px 12px;cursor:pointer;}
+#ed button:hover{background:rgba(201,162,74,.12);}
+#ed button.go{background:#2E4A7A;border-color:#2E4A7A;color:#f2f0ea;}
+#edSay{margin-top:10px;font-size:11px;line-height:1.7;}
 </style>
 </head>
 <body>
@@ -205,6 +245,23 @@ body.standalone #backBtn{display:block;}
   </div>
 </div>
 
+<div id="ed">
+  <h3>SHELF · 벽감 자리</h3>
+  <select id="edPick"></select>
+  <div class="rd">
+    <b>왼쪽</b> <span id="edL">—</span>%　<b>위</b> <span id="edT">—</span>%<br>
+    <b>너비</b> <span id="edW">—</span>%　<b>높이</b> <span id="edH">—</span>%
+  </div>
+  <div class="tip">가운데를 끌어 옮기고, 네 모서리로 크기를 바꿉니다.<br>
+    화살표 0.2% · Shift+화살표로 너비·높이.<br>
+    ⭐ 책이 선 채로 움직이니 몰딩을 넘는지 바로 보입니다.</div>
+  <div class="row">
+    <button class="go" onclick="edSave()">이 곳에 저장</button>
+    <button onclick="edReset()">기본값</button>
+    <button onclick="edTry()">둘러보기</button>
+  </div>
+</div>
+
 <button id="backBtn" onclick="goBack()">← 지구로</button>
 <div id="fade"></div>
 <div id="err"></div>
@@ -219,7 +276,7 @@ const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-aut
 const asset=(code,slot)=>`${SUPA_URL}/storage/v1/object/public/tour-assets/museum/${code}_${slot}.webp`;
 const HALL_RATIO=941/1672;
 const $=s=>document.querySelector(s);
-console.log("%c[EG] bibliotheca v1.2 · 0807 글씨 굵기 · 제목 13자", "color:#c9a24a");
+console.log("%c[EG] bibliotheca v1.3 · 0807 벽감 편집기(?edit)", "color:#c9a24a");
 
 const qs=new URLSearchParams(location.search);
 const CODE=qs.get('code')||'trinity';
@@ -228,6 +285,11 @@ const CODE=qs.get('code')||'trinity';
 const RACKS=3, PER_RACK=12, PER_PAGE=RACKS*PER_RACK;
 
 let HALL=null, HALLS=null, SHELF=null, BOOKS=[], PAGE=0, UID=null, moved=false;
+
+/* ?edit — 살롱지기만. 손님은 이 갈래를 통째로 안 탄다(천문대 0801 문법) */
+const EDIT = new URLSearchParams(location.search).has('edit');
+/* ⚠ 폴백이 곧 기본값이다 — 트리니티 실측값(0807). 새 서고는 여기서 출발해 손으로 맞춘다 */
+const SHELF_DEFAULT = { L:28, T:33, W:44, H:39 };
 
 /* 책등 그림 · 높이 — ⚠ museum.html · 치타델레(Floor4)와 **같은 해시**여야 한다.
    같은 책이 세 곳에서 다른 얼굴이면 그것은 다른 책으로 읽힌다. */
@@ -296,10 +358,8 @@ async function boot(){
   HALLS = halls;
 
   /* 벽감 — 없으면 어림값. 폴백이 기본값이다(함정 AE) */
-  SHELF = (HALL.meta && HALL.meta.shelf_rect) || {L:28,T:33,W:44,H:39};
-  const s=$('#shelf');
-  s.style.left=SHELF.L+'%'; s.style.top=SHELF.T+'%';
-  s.style.width=SHELF.W+'%'; s.style.height=SHELF.H+'%';
+  SHELF = { ...SHELF_DEFAULT, ...((HALL.meta && HALL.meta.shelf_rect) || {}) };
+  layoutShelf();
 
   const t=phase();
   bgChain($('#gate'), [asset(HALL.code,'gate_'+t), asset(HALL.code,'gate_d')], false);
@@ -310,11 +370,150 @@ async function boot(){
     ((HALL.meta&&HALL.meta.country)? ' · '+HALL.meta.country : '');
   $('#hName').textContent = (HALL.meta&&HALL.meta.name_en) || HALL.name;
 
+  /* ⭐ 편집으로 들어오면 대문을 건너뛴다 — 일곱 채를 도는데 매번 문을 지날 순 없다 */
+  if(EDIT){ await loadBooks(); enterHall(); return; }
+
   $('#gate').classList.add('on');
   $('#enterBtn').addEventListener('click', enterHall);
   $('#gate').addEventListener('click', e=>{ if(e.target.id==='gate') enterHall(); });
 
   await loadBooks();
+}
+
+function layoutShelf(){
+  const s=$('#shelf'); if(!s) return;
+  s.style.left=SHELF.L+'%'; s.style.top=SHELF.T+'%';
+  s.style.width=SHELF.W+'%'; s.style.height=SHELF.H+'%';
+}
+
+/* ══════════════════════════════════════════════════════════
+   벽감 좌표 편집기 (?edit · 살롱지기 전용) — 0807
+   ⚠ 천문대 observatorium.html?edit 을 그대로 옮겼다. 저기는 원(cx·cy·r),
+     여기는 사각형(L·T·W·H)이라 모서리 손잡이가 넷 붙는다.
+   ⚠ terra_pins 쓰기는 소로 계정에만 열려 있다(RLS). 남이 열어도 저장이 안 된다.
+   ⭐ 편집 중에도 책이 선 채로 따라 움직인다 — 몰딩을 넘는지는 책을 세워 봐야 안다.
+   ══════════════════════════════════════════════════════════ */
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+
+async function setupEdit(){
+  const { data:{ user } } = await supa.auth.getUser();
+  if(!user){ $('#hSum').textContent='편집은 살롱지기 로그인 뒤에 열립니다'; return; }
+
+  $('#shelf').classList.add('edit');
+  $('#ed').classList.add('on');
+  $('#pager').classList.remove('on');      /* 편집 중에는 넘김을 감춘다 */
+
+  /* 모서리 손잡이 넷 — 서가를 지울 때 함께 지워지지 않게 따로 붙인다 */
+  ['tl','tr','bl','br'].forEach(k=>{
+    const h=document.createElement('div');
+    h.className='hdl '+k; h.dataset.k=k;
+    $('#shelf').appendChild(h);
+  });
+
+  /* 일곱 채를 한 화면에서 돈다 */
+  $('#edPick').innerHTML = (HALLS||[]).map(h=>
+    `<option value="${esc(h.code)}"${h.code===HALL.code?' selected':''}>`
+    + `${esc(h.name)}${h.active?'':' (잠듦)'}</option>`).join('');
+  $('#edPick').onchange = e => {
+    const u=new URL(location.href);
+    u.searchParams.set('code', e.target.value); u.searchParams.set('edit','1');
+    location.href=u.toString();
+  };
+
+  const box=$('#shelf');
+  let drag=null;
+  box.addEventListener('pointerdown', e=>{
+    e.preventDefault(); e.stopPropagation();
+    const fit=$('#hallFit').getBoundingClientRect();
+    const k=e.target && e.target.dataset ? e.target.dataset.k : null;
+    box.setPointerCapture(e.pointerId);
+    if(!k) box.classList.add('grab');
+    drag={ fit, k,
+      dx:(e.clientX-fit.left)/fit.width*100 - SHELF.L,
+      dy:(e.clientY-fit.top)/fit.height*100 - SHELF.T,
+      o:{...SHELF} };
+  });
+  box.addEventListener('pointermove', e=>{
+    if(!drag) return;
+    const x=(e.clientX-drag.fit.left)/drag.fit.width*100;
+    const y=(e.clientY-drag.fit.top)/drag.fit.height*100;
+    const o=drag.o;
+    if(!drag.k){                                   /* 통째로 옮기기 */
+      SHELF.L=clamp(x-drag.dx, 0, 100-SHELF.W);
+      SHELF.T=clamp(y-drag.dy, 0, 100-SHELF.H);
+    }else{                                          /* 모서리로 크기 바꾸기 */
+      const R=o.L+o.W, B=o.T+o.H;
+      if(drag.k==='tl'){ SHELF.L=clamp(x,0,R-4); SHELF.W=R-SHELF.L;
+                         SHELF.T=clamp(y,0,B-4); SHELF.H=B-SHELF.T; }
+      if(drag.k==='tr'){ SHELF.W=clamp(x-o.L,4,100-o.L);
+                         SHELF.T=clamp(y,0,B-4); SHELF.H=B-SHELF.T; }
+      if(drag.k==='bl'){ SHELF.L=clamp(x,0,R-4); SHELF.W=R-SHELF.L;
+                         SHELF.H=clamp(y-o.T,4,100-o.T); }
+      if(drag.k==='br'){ SHELF.W=clamp(x-o.L,4,100-o.L);
+                         SHELF.H=clamp(y-o.T,4,100-o.T); }
+    }
+    layoutShelf(); edRead();
+  });
+  const drop=()=>{ drag=null; box.classList.remove('grab'); };
+  box.addEventListener('pointerup', drop);
+  box.addEventListener('pointercancel', drop);
+
+  /* 화살표 미세조정 — 손으로 못 잡는 0.2% */
+  addEventListener('keydown', e=>{
+    if(!EDIT) return;
+    const k=e.key, st=0.2;
+    if(e.shiftKey){
+      if(k==='ArrowRight')      SHELF.W=clamp(SHELF.W+st,4,100-SHELF.L);
+      else if(k==='ArrowLeft')  SHELF.W=clamp(SHELF.W-st,4,100-SHELF.L);
+      else if(k==='ArrowDown')  SHELF.H=clamp(SHELF.H+st,4,100-SHELF.T);
+      else if(k==='ArrowUp')    SHELF.H=clamp(SHELF.H-st,4,100-SHELF.T);
+      else return;
+    }else{
+      if(k==='ArrowLeft')       SHELF.L=clamp(SHELF.L-st,0,100-SHELF.W);
+      else if(k==='ArrowRight') SHELF.L=clamp(SHELF.L+st,0,100-SHELF.W);
+      else if(k==='ArrowUp')    SHELF.T=clamp(SHELF.T-st,0,100-SHELF.H);
+      else if(k==='ArrowDown')  SHELF.T=clamp(SHELF.T+st,0,100-SHELF.H);
+      else return;
+    }
+    e.preventDefault();
+    ['L','T','W','H'].forEach(q=> SHELF[q]=+SHELF[q].toFixed(2));
+    layoutShelf(); edRead();
+  });
+  edRead();
+}
+function edRead(){
+  $('#edL').textContent=SHELF.L.toFixed(1);
+  $('#edT').textContent=SHELF.T.toFixed(1);
+  $('#edW').textContent=SHELF.W.toFixed(1);
+  $('#edH').textContent=SHELF.H.toFixed(1);
+}
+async function edSave(){
+  const rect={ L:+SHELF.L.toFixed(2), T:+SHELF.T.toFixed(2),
+               W:+SHELF.W.toFixed(2), H:+SHELF.H.toFixed(2) };
+  const meta={ ...(HALL.meta||{}), shelf_rect:rect };
+  const { error } = await supa.from('terra_pins').update({meta})
+    .eq('kind','museum').eq('code',HALL.code);
+  if(error){ edSay('저장 실패 — '+esc(error.message), true); return; }
+  /* ⚠ 「잘 됐겠지」 금지 — 쓰고 나서 되읽어 눈으로 본다 */
+  const { data:back } = await supa.from('terra_pins')
+    .select('meta').eq('kind','museum').eq('code',HALL.code).single();
+  const got = back && back.meta && back.meta.shelf_rect;
+  if(!got || got.L!==rect.L || got.T!==rect.T || got.W!==rect.W || got.H!==rect.H){
+    edSay('되읽으니 값이 다릅니다', true); return; }
+  HALL.meta=meta;
+  edSay(`${esc(HALL.name)} · ${rect.L} / ${rect.T} / ${rect.W} / ${rect.H} 저장 ✔`);
+}
+function edSay(m, bad){
+  const t=$('#edSay') || (()=>{ const d=document.createElement('div');
+    d.id='edSay'; $('#ed').appendChild(d); return d; })();
+  t.style.color = bad ? 'rgba(233,180,140,.9)' : 'rgba(180,214,170,.9)';
+  t.innerHTML=m;
+}
+function edReset(){ SHELF={...SHELF_DEFAULT}; layoutShelf(); edRead(); }
+function edTry(){
+  $('#shelf').classList.remove('edit'); $('#ed').classList.remove('on');
+  $('#shelf').querySelectorAll('.hdl').forEach(h=>h.remove());
+  paint();                       /* 넘김을 되살린다 */
 }
 
 /* ── 내가 만난 책 ──────────────────────────────────────────
@@ -374,6 +573,13 @@ function paint(){
         <span class="pl-n">${seg.length}</span></div></div>`);
   }
   box.innerHTML = racks.join('');
+  /* ⚠ innerHTML로 갈아 끼우면 모서리 손잡이가 함께 날아간다 — 편집 중이면 되심는다 */
+  if (box.classList.contains('edit')){
+    ['tl','tr','bl','br'].forEach(k=>{
+      const h=document.createElement('div'); h.className='hdl '+k; h.dataset.k=k;
+      box.appendChild(h);
+    });
+  }
   box.querySelectorAll('.bk').forEach(el=>
     el.addEventListener('click', ()=>openCard(list[+el.dataset.i])));
 
@@ -382,7 +588,7 @@ function paint(){
   $('#hSum').textContent = BOOKS.length
     ? `${BOOKS.length}권${N>1 ? ` · ${N}쪽 가운데 ${N-PAGE}쪽` : ''}` : '';
   const pg=$('#pager');
-  pg.classList.toggle('on', N>1);
+  pg.classList.toggle('on', N>1 && !$('#shelf').classList.contains('edit'));
   if(N>1){
     const a=list[0], z=list[list.length-1];
     $('#pgWhen').innerHTML = a && z
@@ -452,13 +658,14 @@ function enterHall(){
        ⚠ 서가 배치는 SHELF 그대로다. 여기서 바꾸는 것은 **카메라가 보는 곳**뿐이다. */
     const CAM={ L:SHELF.L, T:SHELF.T, W:SHELF.W, H:SHELF.H/RACKS*1.5 };
     const opts={ box:'#hall', fit:'#hallFit', ratio:HALL_RATIO, rect:CAM,
-      onDone(){ stampHere(); } };
+      onDone(){ if(EDIT) setupEdit(); else stampHere(); } };
 
     /* 폰(세로 화면)은 스크롤 길이가 0이라 카메라가 헛돈다 — 바로 앉힌다 */
     const scrollable = (innerWidth/innerHeight) >= HALL_RATIO;
     setTimeout(()=>$('#fade').classList.remove('on'), 60);
     if(scrollable && window.EGCamera) EGCamera.enter(opts);
     else if(window.EGCamera) EGCamera.settle(opts);
+    else if(EDIT) setupEdit();
     else stampHere();          /* 카메라 부품이 안 실렸어도 도장은 놓는다(함정 AE) */
   }, 1050);
 }
