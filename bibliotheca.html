@@ -81,11 +81,21 @@ html,body{height:100%;background:#0d0a07;color:#e8ddc4;
 #shelf{position:absolute;display:flex;flex-direction:column;}
 .rack{flex:1;display:flex;flex-direction:column;justify-content:flex-end;min-height:0;}
 .row{flex:1;display:flex;align-items:flex-end;justify-content:center;gap:0;min-height:0;}
-.spine{height:94%;width:auto;cursor:pointer;
-  filter:drop-shadow(0 3px 6px rgba(0,0,0,.6));
-  transition:transform .22s ease;}
-.spine:hover{transform:translateY(-7px);}
-.spine.ghost{opacity:0;pointer-events:none;}
+/* 한 권 = 그림 + 그 위에 얹힌 제목.
+   ⚠ 감싸개(.bk)의 높이가 곧 책등 높이여야 한다 — 줄 전체 높이가 되면
+     글씨가 책등 위 빈 곳까지 퍼져 허공에 뜬다. img를 display:block으로 두어
+     감싸개가 그림에 딱 맞게 오므라들도록 한다. */
+.bk{position:relative;flex:none;cursor:pointer;transition:transform .22s ease;}
+.bk:hover{transform:translateY(-7px);}
+.spine{display:block;height:100%;width:auto;
+  filter:drop-shadow(0 3px 6px rgba(0,0,0,.6));}
+/* 책등 제목 — ⚠ 치타델레 .f4-book-text와 같은 얼굴이어야 한다(0807).
+   같은 책이 두 건물에서 다르게 보이면 손님은 다른 책으로 읽는다. */
+.bkt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  writing-mode:vertical-rl;text-orientation:mixed;
+  font-size:clamp(8px,.8vw,15px);font-weight:500;color:rgba(255,255,255,.92);
+  letter-spacing:.05em;line-height:1.25;padding:9% 2px;overflow:hidden;
+  text-shadow:0 1px 3px rgba(0,0,0,.95), 0 0 5px rgba(0,0,0,.65);pointer-events:none;}
 
 /* 선반 널 — CSS 오크 + 기간 각인. ⭐ 배경에 선반이 없으므로 이것이 유일한 선반이다 */
 .plank{height:11%;min-height:9px;border-radius:2px;position:relative;flex:none;
@@ -333,9 +343,11 @@ function paint(){
     const seg=list.slice(r*PER_RACK, (r+1)*PER_RACK);
     if(!seg.length){ racks.push('<div class="rack"></div>'); continue; }
     const spines=seg.map((b,i)=>
-      `<img class="spine" src="${bookImg(b.answer)}" alt="${esc(b.answer)}"
-         style="height:${94*bookScale(b.answer)}%"
-         data-i="${r*PER_RACK+i}" loading="lazy">`).join('');
+      `<div class="bk" data-i="${r*PER_RACK+i}" title="${esc(b.answer)}"
+            style="height:${(94*bookScale(b.answer)).toFixed(1)}%">
+         <img class="spine" src="${bookImg(b.answer)}" alt="${esc(b.answer)}" loading="lazy">
+         <span class="bkt">${esc(b.answer)}</span>
+       </div>`).join('');
     /* 널 각인 — 그 단의 기간. 페이지 번호가 아니라 시간이 말한다 */
     const a=seg[0].at, z=seg[seg.length-1].at;
     const when = (a.getFullYear()===z.getFullYear())
@@ -346,7 +358,7 @@ function paint(){
         <span class="pl-n">${seg.length}</span></div></div>`);
   }
   box.innerHTML = racks.join('');
-  box.querySelectorAll('.spine').forEach(el=>
+  box.querySelectorAll('.bk').forEach(el=>
     el.addEventListener('click', ()=>openCard(list[+el.dataset.i])));
 
   /* 머리 · 페이저 */
@@ -417,7 +429,13 @@ function enterHall(){
     $('#gate').classList.remove('on');
     $('#hall').classList.add('on');
 
-    const opts={ box:'#hall', fit:'#hallFit', ratio:HALL_RATIO, rect:SHELF,
+    /* ⭐ 착지는 벽감 **전체**가 아니라 **맨 윗단**이다(0807 소로).
+       카메라는 rect 한가운데를 화면 한가운데에 앉힌다. 벽감 전체를 주면
+       중심이 2단 언저리라 최신 책이 화면 위로 잘린다 — 「약간 아래서 멈춤」이 그것이었다.
+       한 단 반만 주면 중심이 위로 올라와 최신 단이 눈앞에 온다.
+       ⚠ 서가 배치는 SHELF 그대로다. 여기서 바꾸는 것은 **카메라가 보는 곳**뿐이다. */
+    const CAM={ L:SHELF.L, T:SHELF.T, W:SHELF.W, H:SHELF.H/RACKS*1.5 };
+    const opts={ box:'#hall', fit:'#hallFit', ratio:HALL_RATIO, rect:CAM,
       onDone(){ stampHere(); } };
 
     /* 폰(세로 화면)은 스크롤 길이가 0이라 카메라가 헛돈다 — 바로 앉힌다 */
