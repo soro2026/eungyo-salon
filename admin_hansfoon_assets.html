@@ -86,6 +86,30 @@ select.pick{font:inherit;font-size:12.5px;color:#f0e8d4;background:var(--ink);
   border:1px solid rgba(201,162,74,.35);border-radius:18px;padding:8px 14px;
   margin-bottom:16px;cursor:pointer;max-width:100%;}
 .tally{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+
+/* ═══ 편성표 (0807) — 「날짜별·카페·글이 한 눈에」(소로) ═══
+   ⚠ 지난 것은 안 보인다. 한스푼은 흐르는 강물이라 뒤를 돌아보지 않는다(강물원칙 0526). */
+.sched{width:100%;border-collapse:collapse;font-size:12px;}
+.sched th{font-size:10px;letter-spacing:.14em;color:rgba(232,221,196,.4);
+  text-align:left;padding:0 8px 8px;font-weight:400;border-bottom:1px solid rgba(201,162,74,.18);}
+.sched td{padding:9px 8px;border-bottom:1px solid rgba(201,162,74,.09);vertical-align:top;}
+.sched tr.now td{background:rgba(201,162,74,.07);}
+.sched tr.dry td{opacity:.4;}
+.sched .dt{font-family:ui-monospace,monospace;font-size:11px;color:rgba(232,221,196,.6);white-space:nowrap;}
+.sched .wd{color:var(--gold);margin-left:5px;}
+.sched .no{font-family:ui-monospace,monospace;font-size:11px;color:rgba(232,221,196,.45);}
+.sched .sj{color:#f0e6d2;display:block;}
+.sched .hl{font-size:10.5px;color:rgba(232,221,196,.42);display:block;margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:22ch;}
+.sched .cf{color:rgba(233,207,156,.72);white-space:nowrap;}
+.sched .cat{font-size:10px;letter-spacing:.08em;color:rgba(232,221,196,.35);}
+.sched .span{font-family:ui-monospace,monospace;font-size:10px;color:rgba(232,221,196,.3);}
+.sched .badge{display:inline-block;font-size:9.5px;letter-spacing:.1em;padding:1px 6px;
+  border:1px solid rgba(201,162,74,.4);border-radius:9px;color:var(--gold);margin-left:6px;}
+.dryline{margin-top:14px;padding-top:13px;border-top:1px solid rgba(201,162,74,.18);
+  font-size:12px;color:rgba(232,221,196,.6);line-height:1.9;}
+.dryline b{color:var(--gold-l);font-weight:400;}
+.dryline .w{color:var(--warn);}
 .chip{font-size:11px;letter-spacing:.06em;padding:6px 12px;border-radius:16px;
   border:1px solid rgba(201,162,74,.28);color:rgba(232,221,196,.6);cursor:pointer;
   transition:border-color .2s,color .2s;}
@@ -196,6 +220,17 @@ input[type=file]{display:none;}
     </div>
 
 
+    <!-- ⭐ 편성표 (0807 소로) — 앞으로 무엇이 언제 흐르는가 -->
+    <div class="card" id="schedCard">
+      <h2>편성표</h2>
+      <div class="hint">
+        앞으로 흐를 것만 보입니다 — 한스푼은 <b>흐르는 강물</b>이라 지난 것은 여기 없습니다.
+        지난 회차는 손님의 뮤세움 책장에만 남습니다.
+      </div>
+      <div id="schedBox"><div class="empty">불러오는 중…</div></div>
+      <div class="dryline" id="dryLine"></div>
+    </div>
+
     <!-- ═══ 관 탭 ═══ -->
     <div class="pane on" id="paneHall">
       <div class="card">
@@ -266,7 +301,7 @@ const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
 const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth'}});
 const BUCKET='tour-assets';          /* 방 그림 */
 const PUB=(b,p)=>`${SUPA_URL}/storage/v1/object/public/${b}/${p}`;
-console.log("%c[EG] admin_hansfoon_assets v1.0 · 0806 한스푼 콘솔 · 차례 투척함", "color:#c9a24a");
+console.log("%c[EG] admin_hansfoon_assets v1.1 · 0807 편성표 · 마르는 날", "color:#c9a24a");
 
 let pickTarget=null, HALLS=[], PLAN=null;
 
@@ -375,10 +410,108 @@ async function loadHalls(){
     return;
   }
   sel.innerHTML=HALLS.map(h=>`<option value="${esc(h.code)}">${esc(h.name)}${h.active?'':' (잠듦)'}</option>`).join('');
-  renderHall(); refreshTally(); renderToday();
+  renderHall(); refreshTally(); renderToday(); renderSched();
 }
 
 function spoonNo(h){ return (h.meta && h.meta.spoon_no!=null) ? h.meta.spoon_no : 0; }
+
+/* ══ 편성표 (0807 소로) ═══════════════════════════════════════════════
+   「날짜별, 카페 이름, 콘텐츠 내용… 이런 게 한 눈에 보이게. 지난 건 안 보이도록.」
+
+   ⚠⚠ 두 층이 **다른 속도로** 돈다 — 이 표는 그 둘을 한 줄에 나란히 놓는다.
+     카페  매일     날수 mod 곳수      ← 순회 공식. terra·셸과 한 글자도 달라선 안 된다
+     글    주 3회   월화 / 수목 / 금토일
+
+   ⚠⚠ 글은 **흐르는 강물**이다. 돌지 않는다(강물원칙 0526 · 소로 0807 정정).
+     재고가 마르면 마지막 잔이 멈춰 선다. 나머지 연산을 쓰면 안 된다.
+   ⚠ 개막일은 hello_spoon_v1.html의 SPOON_OPEN과 **같아야 한다.**
+     한쪽만 고치면 이 표가 거짓말을 한다(공식이 여러 곳에 사는 함정). */
+const SPOON_OPEN = Math.floor(Date.UTC(2026, 8, 7) / 86400000);   /* 2026-09-07 (월) */
+
+function rawSlot(day){
+  const w   = ((day % 7) + 7) % 7;      /* 0목 1금 2토 3일 4월 5화 6수 */
+  const dow = (w + 3) % 7;              /* 월0 화1 수2 목3 금4 토5 일6 */
+  const mon = day - dow;
+  const wk  = Math.round((mon - 4) / 7);
+  const s   = dow <= 1 ? 0 : dow <= 3 ? 1 : 2;
+  const nth = dow <= 1 ? dow : dow <= 3 ? dow - 2 : dow - 4;
+  return { idx: wk*3 + s, nth, span: s === 2 ? 3 : 2 };
+}
+const SPOON_BASE = rawSlot(SPOON_OPEN).idx;
+const slotOf  = d => { const r = rawSlot(d); return { idx:r.idx - SPOON_BASE, nth:r.nth, span:r.span }; };
+const ymd     = d => new Date(d * 86400000).toISOString().slice(0,10);
+const wdayKo  = d => ['목','금','토','일','월','화','수'][((d % 7) + 7) % 7];
+
+/* 슬롯 번호 → 그 슬롯의 마지막 날. 재고가 언제 마르는지 날짜로 말한다 */
+function slotLastDay(idx){
+  const r0 = rawSlot(SPOON_OPEN);
+  const mon0 = SPOON_OPEN - r0.nth - (r0.idx % 3 === 0 ? 0 : r0.idx % 3 === 1 ? 2 : 4);
+  const wk = Math.floor(idx / 3), s = ((idx % 3) + 3) % 3;
+  return mon0 + wk*7 + (s === 0 ? 1 : s === 1 ? 3 : 6);   /* 화1 목3 일6 */
+}
+
+let SPOONS = [];
+
+async function renderSched(){
+  const box = document.getElementById('schedBox');
+  const dry = document.getElementById('dryLine');
+  if(!box) return;
+
+  const { data, error } = await supa.from('spoons')
+    .select('spoon_no,subject,category,headline')
+    .eq('status','published').not('spoon_no','is',null).order('spoon_no');
+  if(error){ box.innerHTML = '<div class="empty">회차를 못 읽었습니다: '+esc(error.message)+'</div>'; return; }
+  SPOONS = data || [];
+  if(!SPOONS.length){ box.innerHTML = '<div class="empty">아직 회차가 없습니다.</div>'; return; }
+
+  const N   = SPOONS.length;
+  const act = HALLS.filter(h => h.active);
+  const cafes = [...HALLS].sort((a,b) => spoonNo(a) - spoonNo(b)).filter(h => h.active);
+  const today = kstDay();
+  const cur   = slotOf(today).idx;
+
+  /* 오늘부터 앞으로 — 지난 것은 안 보인다 */
+  const rows = [];
+  const from = Math.max(cur, 0);
+  for (let i = from; i < N + 2 && rows.length < 40; i++){
+    const last = slotLastDay(i);
+    const span = ((i % 3) + 3) % 3 === 2 ? 3 : 2;
+    const start = last - (span - 1);
+    const s = SPOONS[Math.min(Math.max(i,0), N-1)];
+    /* 그 슬롯이 걸친 날마다 카페가 바뀐다 — 이름을 다 적는다 */
+    const names = [];
+    for(let d = start; d <= last; d++){
+      if(d < today) continue;
+      const c = cafes.length ? cafes[((d % cafes.length) + cafes.length) % cafes.length] : null;
+      names.push(`${wdayKo(d)} ${c ? esc(c.name) : '—'}`);
+    }
+    rows.push(`<tr class="${i===cur?'now':''} ${i>=N?'dry':''}">
+      <td class="dt">${ymd(Math.max(start,today))}<span class="wd">${wdayKo(Math.max(start,today))}</span>
+        <div class="span">${span===3?'금·토·일 72h':'48h'}</div></td>
+      <td><span class="no">${i>=N ? '—' : s.spoon_no}</span>
+        <span class="sj">${esc(s.subject||'')}${i===cur?'<span class="badge">오늘</span>':''}${i>=N?'<span class="badge">재고 없음</span>':''}</span>
+        <span class="hl">${esc((s.headline||'').split('\n')[0])}</span></td>
+      <td class="cf">${names.join('<br>')}</td>
+      <td class="cat">${esc(s.category||'')}</td>
+    </tr>`);
+  }
+
+  box.innerHTML = `<table class="sched">
+    <tr><th>날짜</th><th>회차 · 글</th><th>카페</th><th>분야</th></tr>${rows.join('')}</table>`;
+
+  /* ⭐ 마르는 날 — 소로가 청한 것. 회차를 넣으면 이 날짜가 저절로 밀린다 */
+  const dryDay = slotLastDay(N - 1);
+  const left   = N - 1 - cur;
+  const weeksNeeded = n => Math.ceil(n / 3);
+  dry.innerHTML = left < 0
+    ? `<span class="w">⚠⚠ 재고가 말랐습니다.</span> <b>${ymd(dryDay)}</b> 이후로 마지막 잔이 멈춰 서 있습니다.`
+    : `재고 <b>${N}</b>편 · 남은 회차 <b>${left}</b>개<br>`
+      + `마지막 잔은 <b>${ymd(dryDay)} (${wdayKo(dryDay)})</b> 까지 흐릅니다`
+      + (left < 3 ? ' <span class="w">⚠ 곧 마릅니다</span>' : '')
+      + `<br>⭐ 한 편을 더 넣을 때마다 이 날짜가 <b>2~3일</b>씩 밀립니다 ·`
+      + ` 스무 편이면 <b>${ymd(slotLastDay(N + 20 - 1))}</b> 까지`
+      + `<br>⚠ 주 <b>3편</b>이 손익분기입니다 — 그만큼 채우면 강물이 마르지 않습니다.`;
+}
 
 function renderToday(){
   const box=document.getElementById('progList');

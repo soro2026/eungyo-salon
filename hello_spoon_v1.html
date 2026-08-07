@@ -1063,6 +1063,21 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
     const r = rawSlot(day);
     return { idx: r.idx - SPOON_BASE, nth: r.nth, span: r.span };
   }
+
+  /* ⭐ 슬롯 번호 → 그 슬롯의 **마지막 날**. 재고가 언제 마르는지 날짜로 말하기 위한 되돌림.
+     한 주 = 슬롯 셋(월화 · 수목 · 금토일). 슬롯의 끝날은 각각 화 · 목 · 일이다. */
+  function slotLastDay(idx){
+    const wk   = Math.floor(idx / 3);
+    const s    = ((idx % 3) + 3) % 3;
+    const dow  = s === 0 ? 1 : s === 1 ? 3 : 6;      /* 화1 목3 일6 (월=0 기준) */
+    const mon0 = SPOON_OPEN - rawSlot(SPOON_OPEN).nth
+                 - (rawSlot(SPOON_OPEN).idx % 3 === 0 ? 0
+                    : rawSlot(SPOON_OPEN).idx % 3 === 1 ? 2 : 4);   /* 개막 주의 월요일 */
+    return mon0 + wk*7 + dow;
+  }
+  const ymd     = d => new Date(d * 86400000).toISOString().slice(0,10);
+  const wdayKo  = d => ['목','금','토','일','월','화','수'][((d % 7) + 7) % 7];
+
   let SLOT = null;
 
   // ── Supabase 연결 ───────────────────────────────────
@@ -1177,10 +1192,17 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
         const N = data.length;                        /* spoon_no 순 정렬 → 인덱스=회차 */
         const i = Math.min(Math.max(SLOT.idx, 0), N - 1);   /* 강물은 뒤로 안 흐른다 */
         SPOON = data[i];
-        /* ⚠ 재고 경보 — 조용히 마르면 아무도 모른다. 슬롯 셋(약 한 주) 남으면 알린다. */
+        /* ⚠ 재고 경보 — 조용히 마르면 아무도 모른다. **언제 마르는지 날짜로** 알린다(소로 0807).
+           마지막 회차의 슬롯 = N-1. 그 슬롯의 마지막 날이 곧 강물이 멎는 날이다.
+           ⭐ 회차를 스무 편 더 넣으면 이 날짜가 저절로 두 달 뒤로 밀린다 — 코드는 안 고친다. */
         const left = N - 1 - SLOT.idx;
-        if (left < 0)      console.warn('[한스푼] ⚠⚠ 재고가 말랐습니다 — 마지막 회차가 멈춰 서 있습니다. 새 회차를 넣어 주십시오.');
-        else if (left < 3) console.warn('[한스푼] ⚠ 남은 회차 ' + left + '개 — 곧 마릅니다.');
+        const dry  = slotLastDay(N - 1);
+        if (left < 0)
+          console.warn('[한스푼] ⚠⚠ 재고가 말랐습니다 — ' + ymd(dry) + ' 이후로 마지막 잔이 멈춰 서 있습니다.');
+        else
+          console.log('[한스푼] 재고 ' + N + '편 · 남은 회차 ' + left
+            + ' · 마지막 잔 ' + ymd(dry) + ' (' + wdayKo(dry) + ')'
+            + (left < 3 ? '  ⚠ 곧 마릅니다' : ''));
       }
       QUIZ.answer = SPOON.quiz_answer;
       console.log('[한스푼] 회차', SPOON.spoon_no, '·', SPOON.subject,
