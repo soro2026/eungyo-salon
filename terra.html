@@ -976,6 +976,35 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   #storyVoice .ic{ font-size:11px; flex:none; width:14px }
   #storyVoice .tx{ flex:1 }
   #storyVoice .dur{ font-size:11px; opacity:.6; flex:none }
+
+  /* ── 낭독 미니 조종간 (0807) ──────────────────────────────────────
+     ⚠ 좌하단은 여정 띠(#journey, bottom:0)와 장소 카드(#card, bottom:128px)가
+       이미 산다. 그 사이에 앉힌다. 겹치면 z-index로 이기되 폭은 좁게 유지할 것. */
+  #miniVoice{
+    position:fixed; left:24px; bottom:104px; z-index:55;
+    display:none; align-items:center; gap:2px;
+    background:rgba(12,16,28,.92); backdrop-filter:blur(9px);
+    border:1px solid var(--gold-soft); border-radius:24px;
+    padding:5px 7px 5px 5px; max-width:min(300px, calc(100vw - 48px));
+    box-shadow:0 8px 26px rgba(0,0,0,.5);
+    opacity:0; transform:translateY(8px); transition:opacity .3s ease, transform .3s ease;
+  }
+  #miniVoice.in{ display:flex; opacity:1; transform:none }
+  #miniVoice button{ font:inherit; background:transparent; border:0; color:var(--gold);
+    cursor:pointer; padding:0; line-height:1 }
+  #miniVoice .mv-play{ flex:none; width:30px; height:30px; border-radius:50%;
+    border:1px solid var(--gold-soft); font-size:11px; transition:background .2s }
+  #miniVoice .mv-play:hover{ background:rgba(199,162,74,.14) }
+  #miniVoice .mv-name{ flex:1; min-width:0; text-align:left; padding:0 8px;
+    display:flex; flex-direction:column; gap:2px }
+  #miniVoice .mv-t{ font-size:12px; letter-spacing:.02em; color:var(--cream);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block }
+  #miniVoice .mv-d{ font-size:10px; font-family:monospace; color:var(--cream-dim); opacity:.7 }
+  #miniVoice .mv-name:hover .mv-t{ color:var(--gold) }
+  #miniVoice .mv-x{ flex:none; width:24px; height:24px; font-size:15px;
+    color:var(--cream-dim); opacity:.6 }
+  #miniVoice .mv-x:hover{ opacity:1; color:var(--cream) }
+  @media (max-width:640px){ #miniVoice{ left:16px; bottom:92px } }
   #storyEnter{ display:block; width:100%; margin-top:24px; font:inherit;
     font-size:13.5px; letter-spacing:.06em; color:#241a10; background:var(--gold);
     border:none; border-radius:26px; padding:13px 18px; cursor:pointer;
@@ -1546,6 +1575,17 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   <button class="m-enter" id="mEnter">대문 열고 들어가기 →</button>
 </aside>
 
+<!-- 낭독 미니 조종간 (0807) — 판을 닫아도, 홀에 들어가도 남는다.
+     ⚠ z-index 55 = 문(50)보다 위, 문지기(62)보다 아래. 이 사이를 벗어나면
+       문 뒤에 숨거나 대문 고르기를 덮는다. -->
+<div id="miniVoice">
+  <button class="mv-play" type="button" aria-label="듣기/멈춤">❚❚</button>
+  <button class="mv-name" type="button" title="이 곳 판 다시 열기">
+    <span class="mv-t"></span><span class="mv-d"></span>
+  </button>
+  <button class="mv-x" type="button" aria-label="낭독 끄기">×</button>
+</div>
+
 <div id="doorway">
   <iframe id="doorFrame" title="분더카머"></iframe>
   <div class="door-half door-left"></div>
@@ -1576,6 +1616,7 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
 <div style="position:fixed;left:8px;bottom:6px;z-index:70;font-size:9px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.5px;pointer-events:none">maison 0628e</div>
 
 <script>
+console.log('[EG] terra v0807a — 낭독 미니 조종간');
 // ── 분더카머로 떠나는 비행: 제트음 (자동재생 막히면 조용히 폴백) ──
 (function(){
   // 빠른 길(enter=1)은 지도 로딩 시간 벌이가 불필요 → 비행기·제트음 생략
@@ -2471,7 +2512,13 @@ async function jumpToStarPlace(starId, opts){
 }
 
 function openStory(spot){
-  stopStoryVoice();          /* 0806밤 — 앞 곳의 소리와 단추를 먼저 걷는다 */
+  /* 0807 — 앞 곳의 **단추만** 걷는다. 소리는 안 죽인다.
+     같은 곳을 다시 열면 「듣는 중」을 그대로 되찾고, 다른 곳을 열면
+     그 곳 낭독을 누르는 순간 앞엣것이 멎는다(startVoice가 갈아 끼운다).
+     ⚠ 여기서 stopStoryVoice를 부르면 판을 닫았다 열기만 해도 처음으로 되감긴다.
+     ⚠ paintVoice는 일부러 안 부른다 — 이 시점엔 판이 아직 안 열려서
+       조종간이 잠깐 떴다 사라지는 깜빡임이 생긴다. 다시 그리는 일은 fillStoryVoice가 맡는다. */
+  clearVoiceBtn();
   const isCompagnon = (spot.source === 'compagnon');
   /* 콘서트홀(0731): 팝업 맨 아래에 입장 버튼. 다른 장소에선 숨는다.
      spot._concert는 terra 핀 클릭에서 meta로 빚어 넣어 준다. */
@@ -2579,21 +2626,116 @@ function renderStoryStars(figs){
 
 function closeStory(){
   document.getElementById("story").classList.remove("in");
-  stopStoryVoice();                       /* 판을 닫으면 소리도 멎는다 */
+  detachStoryVoice();      /* 0807 — 판만 닫는다. 소리는 미니 조종간이 이어받는다 */
 }
 
-/* ══ 낭독 (0806밤) ═════════════════════════════════════════════════
+/* ══ 낭독 (0806밤 신설 · 0807 미니 조종간) ═══════════════════════════
    ⭐ 「음성이 있느냐」로 가른다 — 원고 유무로 소개창을 가른 것과 같은 문법.
      voice_takes에 한 줄이 앉는 순간 그 곳에 단추가 생긴다. 코드는 안 고친다.
-     아직 안 구운 스물아홉 곳에는 단추가 아예 안 서므로 먹통 단추가 없다.
+   ⭐ 0807 — 판을 닫아도, 홀에 들어가도 소리가 남는다.
+     홀은 페이지 이동이 아니라 terra 안의 iframe(#doorFrame)이라 원래 안 끊긴다.
+     남은 일은 판을 닫아도 조종간이 남게 하는 것뿐이었다(설계 v150 §6).
+   ⚠ 멎는 때는 넷뿐 — 스스로 끄거나 · 다른 낭독을 누르거나 ·
+     방에서 영상·음악이 시작되거나 · 페이지를 통째로 옮길 때(정직한 한계).
    ⚠ 자동 재생하지 않는다. 브라우저도 막고 헌장 9장(자극으로 붙잡지 않음)도 막는다.
-   ⚠ 판을 먼저 띄우고 단추는 나중에 얹는다 — 별 액자와 같은 이유(그물이 늦다). */
-let storyAudio = null;
+   ⚠⚠ 상태는 storyAudio 하나에만 산다. 단추 글자를 따로 기억하면 판과 조종간이
+     서로 다른 말을 한다(같은 사실이 두 곳에 살면 어긋난다 — 함정 AH의 사촌). */
+let storyAudio = null, voiceRef = null, voiceTitle = "", voiceTotal = 0;
 
-function stopStoryVoice(){
-  if (storyAudio){ try{ storyAudio.pause(); }catch(e){} storyAudio = null; }
+const fmtClock = s => (isFinite(s) && s >= 0)
+  ? Math.floor(s/60) + ":" + String(Math.floor(s%60)).padStart(2,"0") : "0:00";
+
+function clearVoiceBtn(){
   const el = document.getElementById("storyVoice");
   if (el){ el.innerHTML = ""; el.classList.remove("in"); }
+}
+
+/* 판의 단추만 걷는다 — 소리는 그대로 흐르고 조종간이 받는다 */
+function detachStoryVoice(){ clearVoiceBtn(); paintVoice(); }
+
+/* 옛 소리를 놓아준다.
+   ⚠ src=""는 페이지 주소로 풀려 진짜 그물 오류를 낸다. 속성을 떼고 load()로 비운다.
+   ⚠⚠ 그리고 그 오류가 **새 소리를 죽인다.** 옛 객체에 걸린 error 그물이 뒤늦게 울면서
+     stopStoryVoice를 불러 방금 앉힌 낭독을 걷어 간다. 아래 그물들이 `this !== storyAudio`로
+     스스로 물러나므로 여기서도 손을 떼 둔다(조용한 사고를 두 겹으로 막는다). */
+function releaseAudio(a){
+  if (!a) return;
+  try{ a.pause(); a.removeAttribute("src"); a.load(); }catch(e){}
+}
+
+/* 완전히 멎는다 — 다른 낭독을 누를 때 · 영상이 시작될 때 · 손님이 끌 때 */
+function stopStoryVoice(){
+  const old = storyAudio;
+  storyAudio = null;
+  releaseAudio(old);
+  voiceRef = null; voiceTitle = ""; voiceTotal = 0;
+  clearVoiceBtn(); paintVoice();
+}
+
+/* 판 단추와 미니 조종간을 한 번에 그린다 — 둘 다 storyAudio만 본다 */
+function paintVoice(){
+  const playing = !!(storyAudio && !storyAudio.paused);
+
+  const btn = document.querySelector("#storyVoice .vbtn");
+  let panelHasIt = false;
+  if (btn){
+    const ic = btn.querySelector(".ic"), tx = btn.querySelector(".tx");
+    const mine = storyAudio && btn.dataset.ref === voiceRef;
+    if (mine) panelHasIt = true;
+    if (!mine)        { ic.textContent = "▶";  tx.textContent = "낭독으로 듣기"; }
+    else if (playing) { ic.textContent = "❚❚"; tx.textContent = "듣는 중"; }
+    else              { ic.textContent = "▶";  tx.textContent = storyAudio.ended ? "다시 듣기" : "이어 듣기"; }
+  }
+
+  const mv = document.getElementById("miniVoice");
+  if (!mv) return;
+  /* 판이 열려 있고 그 판이 이 소리의 주인이면 조종간은 물러난다 — 단추가 둘일 이유가 없다 */
+  const storyOpen = document.getElementById("story").classList.contains("in");
+  if (!storyAudio || (panelHasIt && storyOpen)){ mv.classList.remove("in"); return; }
+  mv.classList.add("in");
+  mv.querySelector(".mv-play").textContent = playing ? "❚❚" : "▶";
+  mv.querySelector(".mv-t").textContent = voiceTitle || "낭독";
+  mv.querySelector(".mv-d").textContent =
+    fmtClock(storyAudio.currentTime) + (voiceTotal ? " / " + fmtClock(voiceTotal) : "");
+}
+
+function startVoice(ref, url, title, total){
+  releaseAudio(storyAudio);          /* 앞엣것을 먼저 놓아준다 */
+  const a = new Audio(url);
+  storyAudio  = a;
+  voiceRef    = ref;
+  voiceTitle  = title || "낭독";
+  voiceTotal  = Number(total) || 0;
+  a.preload = "none";
+
+  ["play","pause","ended","timeupdate"].forEach(ev =>
+    a.addEventListener(ev, ()=>{ if (storyAudio === a) paintVoice(); }));
+
+  a.addEventListener("loadedmetadata", ()=>{
+    if (storyAudio !== a) return;                      /* 이미 갈아 끼운 옛 소리 */
+    if (isFinite(a.duration)) voiceTotal = a.duration; /* 실측이 어림값을 이긴다 */
+    paintVoice();
+  });
+
+  a.addEventListener("error", ()=>{
+    if (storyAudio !== a) return;                      /* 놓아준 옛 소리의 비명이다 */
+    console.warn("[EG] 낭독 파일을 못 받았습니다:", url);
+    const tx = document.querySelector("#storyVoice .vbtn .tx");
+    if (tx) tx.textContent = "음성을 불러오지 못했습니다";
+    stopStoryVoice();
+  });
+
+  /* 폰 잠금 화면에서도 제목과 조종이 보이게 */
+  try{
+    if ("mediaSession" in navigator){
+      navigator.mediaSession.metadata = new MediaMetadata({ title: voiceTitle, artist:"EG Universe" });
+      navigator.mediaSession.setActionHandler("play",  ()=>{ if(storyAudio) storyAudio.play(); });
+      navigator.mediaSession.setActionHandler("pause", ()=>{ if(storyAudio) storyAudio.pause(); });
+    }
+  }catch(e){}
+
+  a.play().catch(e=> console.warn("[EG] 낭독 재생", e));
+  paintVoice();
 }
 
 async function fillStoryVoice(ref, title){
@@ -2608,37 +2750,73 @@ async function fillStoryVoice(ref, title){
     const t = rows && rows[0];
     if(!t || !t.url) return;                 /* 없으면 단추도 없다 */
 
-    const dur = t.dur_sec
-      ? Math.floor(t.dur_sec/60) + "분 " + String(Math.round(t.dur_sec%60)).padStart(2,"0") + "초"
-      : "";
-    el.innerHTML = '<button class="vbtn" type="button">'
+    const total = Number(t.dur_sec) || 0;
+    const dur = total
+      ? Math.floor(total/60) + "분 " + String(Math.round(total%60)).padStart(2,"0") + "초" : "";
+    el.innerHTML = '<button class="vbtn" type="button" data-ref="' + ref + '">'
       + '<span class="ic">▶</span><span class="tx">낭독으로 듣기</span>'
       + '<span class="dur">' + dur + '</span></button>';
     el.classList.add("in");
 
-    const btn = el.querySelector(".vbtn");
-    const ic  = btn.querySelector(".ic"), tx = btn.querySelector(".tx");
-    btn.addEventListener("click", ()=>{
-      if (storyAudio && !storyAudio.paused){ storyAudio.pause(); return; }
-      if (!storyAudio){
-        storyAudio = new Audio(t.url);
-        storyAudio.preload = "none";
-        storyAudio.onplay  = ()=>{ ic.textContent = "❚❚"; tx.textContent = "듣는 중"; };
-        storyAudio.onpause = ()=>{ ic.textContent = "▶";  tx.textContent = "이어 듣기"; };
-        storyAudio.onended = ()=>{ ic.textContent = "▶";  tx.textContent = "다시 듣기"; };
-        storyAudio.onerror = ()=>{ tx.textContent = "음성을 불러오지 못했습니다"; btn.disabled = true;
-                                   console.warn("[EG] 낭독 파일을 못 받았습니다:", t.url); };
-        /* 폰 잠금 화면에서도 제목이 보이게 */
-        try{
-          if ("mediaSession" in navigator)
-            navigator.mediaSession.metadata = new MediaMetadata({
-              title: title || "낭독", artist: "EG Universe" });
-        }catch(e){}
+    el.querySelector(".vbtn").addEventListener("click", ()=>{
+      /* 이 곳의 낭독이 이미 흐르고 있으면 새로 굽지 않고 그것을 여닫는다 */
+      if (storyAudio && voiceRef === ref){
+        if (storyAudio.paused) storyAudio.play().catch(e=> console.warn("[EG] 낭독 재생", e));
+        else storyAudio.pause();
+        return;
       }
-      storyAudio.play().catch(e=> console.warn("[EG] 낭독 재생", e));
+      startVoice(ref, t.url, title, total);
     });
+
+    paintVoice();   /* 판을 다시 열었을 때 「듣는 중」을 되찾는다 */
   }catch(e){ console.warn("[EG] 낭독 로드 실패 — 판은 그대로 둡니다:", e); }
 }
+
+/* ── 미니 조종간 배선 · 영상 그물 (0807) ──────────────────────────── */
+(function(){
+  const mv = document.getElementById("miniVoice");
+  if (mv){
+    mv.querySelector(".mv-play").onclick = ()=>{
+      if (!storyAudio) return;
+      if (storyAudio.paused) storyAudio.play().catch(e=> console.warn("[EG] 낭독 재생", e));
+      else storyAudio.pause();
+    };
+    mv.querySelector(".mv-x").onclick = stopStoryVoice;
+    /* 이름을 누르면 그 곳 판을 다시 연다 — 어디서 흘러나오는지 되짚는 길.
+       ⚠ terraPins는 배열이 아니라 **code로 물린 객체**다(3406행). window에도 안 붙는다.
+         `window.terraPins`로 찾으면 조용히 아무 일도 안 한다(함정 AF).
+       ⚠ 이 블록은 terraPins가 선 script보다 앞서지만, 손님이 누르는 것은 한참 뒤라
+         그때는 이미 서 있다. 그래도 없을 때를 대비해 소리를 낸다. */
+    mv.querySelector(".mv-name").onclick = ()=>{
+      if (!voiceRef) return;
+      const [kind, code] = voiceRef.split("/");
+      let p = null;
+      try{ p = terraPins[code]; }catch(e){}
+      if (!p || p.kind !== kind){ console.warn("[EG] 조종간 — 핀을 못 찾았습니다:", voiceRef); return; }
+      try{ freeCamera(); }catch(e){}
+      openPinStory(p);
+    };
+  }
+
+  /* 방에서 영상·음악이 시작되면 낭독은 물러난다.
+     ⚠ 같은 출처(우리 방)는 iframe 안에 직접 그물을 친다.
+     ⚠ 음악관 곡은 유튜브(다른 출처)라 이 그물에 안 걸린다 —
+       concert.html이 parent.postMessage({eg:'media-start'},'*') 한 줄을 던져 주어야 한다. */
+  function wireRoomMediaWatch(){
+    try{
+      const d = document.getElementById("doorFrame").contentDocument;
+      if (!d || d.__egVoiceWatch) return;
+      d.__egVoiceWatch = true;
+      d.addEventListener("play", ()=>{ if (storyAudio) stopStoryVoice(); }, true);
+    }catch(e){ /* 다른 출처 — postMessage 그물이 받는다 */ }
+  }
+  const df = document.getElementById("doorFrame");
+  if (df) df.addEventListener("load", wireRoomMediaWatch);
+
+  window.addEventListener("message", e=>{
+    if (e && e.data && e.data.eg === "media-start" && storyAudio) stopStoryVoice();
+  });
+})();
 
 // EG메종 소개 팝업 — 콩파뇽이 쓴 소개글(없으면 디폴트), 입장하기 버튼
 function openCollegeCard(){
