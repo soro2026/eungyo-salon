@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>EG 뮤세움 — 시간의 서가</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Cormorant+Garamond:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+ *  bibliotheca.html v1.0 — 0807 · EG 뮤세움 · 시간의 서가
+ *
+ *  2뷰: 정문(gate 16:9 · 밤낮 4벌) → [암전] → 서고(hall 9:16 · 밤낮 4벌)
+ *  그림: tour-assets/museum/{code}_gate_{m|d|e|n}.webp · {code}_hall_{m|d|e|n}.webp
+ *  곳:   terra_pins (kind='museum') — 좌표·museum_no·shelf_rect 한 행에
+ *  책:   quiz_log — 내가 만난 책. 사람마다 다르다.
+ *
+ *  ⭐⭐ 미술관과 결정적으로 다른 것 (0807 소로):
+ *    미술관   오늘의 그림 한 점. 전 회원이 같은 것을 본다
+ *    뮤세움   내가 만난 책 전부. 사람마다 다르고, 날마다 늘어난다
+ *    → 그래서 벽감이 비어서 시작한다. 배경에 선반도 책도 없는 까닭이다.
+ *
+ *  ⭐ 시간순 한 줄기. 카테고리 분류는 분더카머 3층 치타델레가 맡는다(0807 갈라섬).
+ *    여기 물음은 「나는 어떻게 걸어왔는가」이고, 거기 물음은 「나는 어떤 사람인가」다.
+ *
+ *  ⚠⚠ 패럴랙스를 쓰지 않는다. 콜레주 2층은 배경과 본문을 다른 속도로 흘렸으나,
+ *    거기는 배경 책이 흐릿해 어긋남이 「깊이」로 읽힌다. 뮤세움 벽감은 또렷한 빈
+ *    나무판이라 조금만 어긋나도 책이 몰딩 위로 올라탄다. 배경은 고정이다.
+ *
+ *  ⭐ 그래서 페이지 넘김이다(0807 소로 결정). 과거 책을 지우지 않는다 —
+ *    뮤세움은 EG에서 아무것도 안 사라지는 유일한 곳이고, 한스푼 강물원칙이
+ *    「흘려보낸 것도 뮤세움에는 남는다」로 성립하는 근거가 여기다.
+ *
+ *  ⚠ 순회 공식은 terra.html · admin_museum_assets.html과 반드시 같아야 한다.
+ *      당번 = 명단[ KST날수 mod 곳수 ]
+ *    ⭐ 다만 **서가는 어느 서고에서 열든 하나다.** 순회가 가르는 것은 방의 얼굴과
+ *      도장뿐이다(알베르게 원칙 1호 — 몸통은 곳의 얼굴, 각인은 그날의 것).
+ * ============================================================ */
+:root{--gold:#c9a24a;--gold-l:#e9cf9c;--ink:#2E4A7A;
+  /* 서가 판짜기 — 여기 셋만 고치면 한 페이지 권수가 바뀐다 */
+  --racks:3;              /* 벽감 안 단 수 */
+  --per-rack:12;          /* 한 단 권수 */
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+/* 스크롤바는 어디에도 두지 않는다 — 굴러가되 보이지 않는다(0805 소로) */
+*{scrollbar-width:none;-ms-overflow-style:none;}
+*::-webkit-scrollbar{width:0;height:0;display:none;}
+html,body{height:100%;background:#0d0a07;color:#e8ddc4;
+  font-family:'Gowun Batang',serif;overflow:hidden;}
+
+.view{position:fixed;inset:0;opacity:0;pointer-events:none;transition:opacity .6s;}
+.view.on{opacity:1;pointer-events:auto;}
+
+/* ── 정문 ── */
+#gate{background:#000 center/cover no-repeat;display:grid;place-items:end center;
+  padding-bottom:max(7vh,54px);cursor:pointer;}
+#gateHead{position:absolute;left:0;right:0;top:clamp(16px,4vh,44px);text-align:center;
+  text-shadow:0 2px 18px rgba(0,0,0,.65);}
+#gateHead .g-eyebrow{font-family:'Cormorant Garamond',serif;font-size:clamp(10px,1.3vw,12px);
+  letter-spacing:.34em;color:rgba(233,207,156,.85);}
+#gateHead .g-name{font-size:clamp(19px,3vw,27px);color:#f5efdd;margin-top:9px;letter-spacing:.05em;}
+#gateHead .g-city{font-family:'Cormorant Garamond',serif;font-size:clamp(10px,1.2vw,12px);
+  letter-spacing:.28em;color:rgba(232,221,196,.62);margin-top:7px;}
+#enterBtn{font:inherit;font-size:13.5px;letter-spacing:.2em;color:#f0e8d4;
+  background:rgba(10,8,5,.52);border:1px solid rgba(233,207,156,.65);border-radius:26px;
+  padding:13px 34px;cursor:pointer;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
+  transition:all .3s;}
+#enterBtn:hover{background:rgba(201,162,74,.28);}
+
+/* ── 암전 ── */
+#fade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;
+  transition:opacity 1s;z-index:20;}
+#fade.on{opacity:1;}
+
+/* ── 서고 ── */
+#hall{background:#000;overflow-y:auto;overflow-x:hidden;}
+#hallFit{position:relative;margin:0 auto;}
+#hallImg{display:block;width:100%;height:auto;}
+
+/* ⭐ 서가 — 벽감(shelf_rect) 좌표에 통째로 앉는다. 배경과 한 몸으로 움직인다 */
+#shelf{position:absolute;display:flex;flex-direction:column;}
+.rack{flex:1;display:flex;flex-direction:column;justify-content:flex-end;min-height:0;}
+.row{flex:1;display:flex;align-items:flex-end;justify-content:center;gap:0;min-height:0;}
+.spine{height:94%;width:auto;cursor:pointer;
+  filter:drop-shadow(0 3px 6px rgba(0,0,0,.6));
+  transition:transform .22s ease;}
+.spine:hover{transform:translateY(-7px);}
+.spine.ghost{opacity:0;pointer-events:none;}
+
+/* 선반 널 — CSS 오크 + 기간 각인. ⭐ 배경에 선반이 없으므로 이것이 유일한 선반이다 */
+.plank{height:11%;min-height:9px;border-radius:2px;position:relative;flex:none;
+  background:linear-gradient(180deg,#6b4a26 0%,#48311a 42%,#2f1f10 100%);
+  box-shadow:0 5px 12px rgba(0,0,0,.55), inset 0 1px 0 rgba(201,162,74,.28);}
+.plank::after{content:'';position:absolute;left:0;right:0;bottom:-4px;height:4px;
+  background:linear-gradient(180deg,rgba(0,0,0,.42),transparent);}
+.pl-when,.pl-n{position:absolute;top:50%;transform:translateY(-50%);
+  font-size:clamp(7px,.72vw,11px);letter-spacing:.16em;white-space:nowrap;
+  color:rgba(226,192,126,.92);
+  text-shadow:0 -1px 0 rgba(0,0,0,.75), 0 1px 0 rgba(255,232,180,.14);}
+.pl-when{left:2.2%;font-family:'Cormorant Garamond',serif;}
+.pl-n{right:2.2%;font-family:'Cormorant Garamond',serif;color:rgba(226,192,126,.62);}
+
+/* 빈 서가 — 아직 한 권도 없을 때 */
+#empty{position:absolute;left:0;right:0;top:38%;text-align:center;
+  font-size:clamp(11px,1.3vw,14px);line-height:2.2;color:rgba(233,207,156,.62);
+  text-shadow:0 2px 14px rgba(0,0,0,.8);pointer-events:none;}
+
+/* ── 머리 · 페이저 ── */
+#hallHead{position:fixed;left:0;right:0;top:clamp(12px,3vh,30px);text-align:center;
+  pointer-events:none;text-shadow:0 2px 16px rgba(0,0,0,.75);}
+#hallHead .h-name{font-family:'Cormorant Garamond',serif;font-size:clamp(10px,1.2vw,12.5px);
+  letter-spacing:.3em;color:rgba(233,207,156,.8);}
+#hallHead .h-sum{display:block;font-size:clamp(10px,1.1vw,12px);
+  color:rgba(232,221,196,.55);margin-top:6px;letter-spacing:.06em;}
+
+#pager{position:fixed;left:50%;transform:translateX(-50%);z-index:9;
+  bottom:calc(20px + env(safe-area-inset-bottom));
+  display:none;align-items:center;gap:14px;
+  background:rgba(14,10,6,.66);border:1px solid rgba(201,162,74,.42);border-radius:24px;
+  padding:8px 10px;-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);
+  box-shadow:0 4px 18px rgba(0,0,0,.55);}
+#pager.on{display:flex;}
+#pager button{font:inherit;font-size:15px;color:rgba(233,207,156,.9);background:none;
+  border:none;cursor:pointer;padding:2px 10px;transition:color .2s;}
+#pager button:hover:not(:disabled){color:#fff;}
+#pager button:disabled{opacity:.25;cursor:default;}
+#pgWhen{font-family:'Cormorant Garamond',serif;font-size:12px;letter-spacing:.14em;
+  color:var(--gold-l);min-width:14ch;text-align:center;}
+#pgWhen b{display:block;font-family:'Gowun Batang',serif;font-size:10px;
+  letter-spacing:.1em;color:rgba(232,221,196,.45);font-weight:400;margin-top:2px;}
+
+/* ── 책 카드 ── */
+#card{position:fixed;inset:0;z-index:30;display:none;place-items:center;
+  background:rgba(6,4,3,.86);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);padding:6vw;}
+#card.on{display:grid;}
+.cd{max-width:340px;text-align:center;}
+.cd img{height:min(190px,26vh);width:auto;margin:0 auto 20px;display:block;
+  filter:drop-shadow(0 8px 18px rgba(0,0,0,.65));}
+.cd .t{font-size:17px;color:#f0e8d4;line-height:1.55;word-break:keep-all;}
+.cd .c{font-size:11.5px;letter-spacing:.14em;color:rgba(201,162,74,.8);margin-top:12px;}
+.cd .w{font-family:'Cormorant Garamond',serif;font-size:12.5px;letter-spacing:.1em;
+  color:rgba(232,221,196,.55);margin-top:8px;}
+.cd .x{margin-top:24px;font:inherit;font-size:12px;letter-spacing:.14em;
+  color:rgba(233,207,156,.85);background:none;border:1px solid rgba(201,162,74,.4);
+  border-radius:22px;padding:9px 24px;cursor:pointer;}
+
+#backBtn{position:fixed;left:16px;top:calc(14px + env(safe-area-inset-top));z-index:12;
+  font:inherit;font-size:11.5px;letter-spacing:.1em;color:rgba(233,207,156,.85);
+  background:rgba(14,10,6,.6);border:1px solid rgba(201,162,74,.4);border-radius:20px;
+  padding:8px 15px;cursor:pointer;display:none;}
+body.standalone #backBtn{display:block;}
+
+#err{position:fixed;inset:0;display:none;place-items:center;text-align:center;
+  font-size:13px;line-height:2.2;color:rgba(232,221,196,.75);padding:24px;}
+</style>
+</head>
+<body>
+
+<div id="gate" class="view">
+  <div id="gateHead">
+    <div class="g-eyebrow">BIBLIOTHECA · EG MUSÉUM</div>
+    <div class="g-name" id="gName"></div>
+    <div class="g-city" id="gCity"></div>
+  </div>
+  <button id="enterBtn">들어가기</button>
+</div>
+
+<div id="hall" class="view">
+  <div id="hallFit">
+    <img id="hallImg" alt="">
+    <div id="shelf"></div>
+    <div id="empty" style="display:none">
+      아직 한 권도 꽂히지 않았습니다.<br>
+      스타디움에서 만난 책이 이곳에 차례로 섭니다.
+    </div>
+  </div>
+  <div id="hallHead"><span class="h-name" id="hName"></span><span class="h-sum" id="hSum"></span></div>
+</div>
+
+<div id="pager">
+  <button id="pgPrev" onclick="turn(1)" title="더 예전으로">◀</button>
+  <div id="pgWhen"></div>
+  <button id="pgNext" onclick="turn(-1)" title="더 최근으로">▶</button>
+</div>
+
+<div id="card" onclick="if(event.target===this)closeCard()">
+  <div class="cd">
+    <img id="cdImg" alt="">
+    <div class="t" id="cdT"></div>
+    <div class="c" id="cdC"></div>
+    <div class="w" id="cdW"></div>
+    <button class="x" onclick="closeCard()">닫기</button>
+  </div>
+</div>
+
+<button id="backBtn" onclick="goBack()">← 지구로</button>
+<div id="fade"></div>
+<div id="err"></div>
+
+<script src="eg_sky.js?v=0806e"></script>
+<script src="eg_camera.js?v=0804a"></script>
+<script src="stamp_press.js?v=0805a"></script>
+<script>
+const SUPA_URL='https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth'}});
+const asset=(code,slot)=>`${SUPA_URL}/storage/v1/object/public/tour-assets/museum/${code}_${slot}.webp`;
+const HALL_RATIO=941/1672;
+const $=s=>document.querySelector(s);
+console.log("%c[EG] bibliotheca v1.0 · 0807 시간의 서가", "color:#c9a24a");
+
+const qs=new URLSearchParams(location.search);
+const CODE=qs.get('code')||'trinity';
+
+/* 한 페이지 판짜기 — CSS 변수와 같은 값이어야 한다 */
+const RACKS=3, PER_RACK=12, PER_PAGE=RACKS*PER_RACK;
+
+let HALL=null, HALLS=null, SHELF=null, BOOKS=[], PAGE=0, UID=null, moved=false;
+
+/* 책등 그림 · 높이 — ⚠ museum.html · 치타델레(Floor4)와 **같은 해시**여야 한다.
+   같은 책이 세 곳에서 다른 얼굴이면 그것은 다른 책으로 읽힌다. */
+const BOOK_IMAGES=['book01','book02','book03','book04','book05','book06','book07','book08','book09','book10'];
+function bookImg(answer){
+  let h=0; for(const c of String(answer)) h=(h*31+c.charCodeAt(0))&0xfffff;
+  return BOOK_IMAGES[h % BOOK_IMAGES.length]+'.webp';
+}
+/* 키 변주 — 획일하면 서가가 아니라 색종이 띠가 된다(콜레주 0722 수술) */
+function bookScale(answer){
+  let h=0; for(const c of String(answer)) h=(h*17+c.charCodeAt(0))&0xfffff;
+  const s=[.88,.92,.96,1,.94,.90,.98,.86,1,.93];
+  return s[h % s.length];
+}
+
+/* ── 시각 — egSky 한 벌. 없으면 낮 (함정 AF: 물러날 때는 소리를 낸다) ── */
+function phase(){
+  try{
+    if(window.egSky && egSky.phase) return egSky.phase();
+    console.warn('[EG] eg_sky.js가 없습니다 — 시각 판정이 낮으로 고정됩니다');
+    return 'd';
+  }catch(e){ console.warn('[EG] phase 실패:', e); return 'd'; }
+}
+function kstDay(){ return Math.floor((Date.now() + 9*3600*1000) / 86400000); }
+
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ymd=d=>`${d.getFullYear()}. ${d.getMonth()+1}. ${d.getDate()}`;
+const md =d=>`${d.getMonth()+1}. ${d.getDate()}`;
+
+function fail(msg){ $('#err').style.display='grid'; $('#err').innerHTML=msg; }
+
+/* 그림 후보를 차례로 걸어 본다 — 저녁이 없으면 낮으로 */
+function bgChain(el, cands, asImg, ready){
+  const step=i=>{
+    if(i>=cands.length) return;
+    const im=new Image();
+    im.onload=()=>{ asImg ? el.src=im.src : el.style.backgroundImage=`url(${im.src})`;
+                    if(ready) ready(im); };
+    im.onerror=()=>step(i+1);
+    im.src=cands[i];
+  };
+  step(0);
+}
+
+async function boot(){
+  if(window.top === window.self) document.body.classList.add('standalone');
+
+  const { data:halls, error:he } = await supa.from('terra_pins')
+    .select('code,name,city,active,meta').eq('kind','museum').order('sort');
+  if(he || !halls || !halls.length) return fail('서고 목록을 불러오지 못했습니다.<br>잠시 뒤 다시 들러 주세요.');
+  HALL  = halls.find(h=>h.code===CODE) || halls[0];
+  HALLS = halls;
+
+  /* 벽감 — 없으면 어림값. 폴백이 기본값이다(함정 AE) */
+  SHELF = (HALL.meta && HALL.meta.shelf_rect) || {L:28,T:33,W:44,H:39};
+  const s=$('#shelf');
+  s.style.left=SHELF.L+'%'; s.style.top=SHELF.T+'%';
+  s.style.width=SHELF.W+'%'; s.style.height=SHELF.H+'%';
+
+  const t=phase();
+  bgChain($('#gate'), [asset(HALL.code,'gate_'+t), asset(HALL.code,'gate_d')], false);
+  bgChain($('#hallImg'), [asset(HALL.code,'hall_'+t), asset(HALL.code,'hall_d')], true);
+
+  $('#gName').textContent = HALL.name;
+  $('#gCity').textContent = ((HALL.meta&&HALL.meta.city_en)||'') +
+    ((HALL.meta&&HALL.meta.country)? ' · '+HALL.meta.country : '');
+  $('#hName').textContent = (HALL.meta&&HALL.meta.name_en) || HALL.name;
+
+  $('#gate').classList.add('on');
+  $('#enterBtn').addEventListener('click', enterHall);
+  $('#gate').addEventListener('click', e=>{ if(e.target.id==='gate') enterHall(); });
+
+  await loadBooks();
+}
+
+/* ── 내가 만난 책 ──────────────────────────────────────────
+   ⭐ 같은 책을 여러 번 풀어도 한 권이다. **처음 만난 날**이 그 책의 자리를 정한다.
+     나중 만남으로 순서가 바뀌면 서가가 기록이 아니라 최근 목록이 된다.
+   ⚠ 칼럼은 uid다(user_id 아님) — museum.html 실측. */
+async function loadBooks(){
+  const { data:{ user } } = await supa.auth.getUser();
+  if(!user){ BOOKS=[]; paint(); return; }
+  UID = user.id;
+
+  const { data, error } = await supa.from('quiz_log')
+    .select('answer,category,created_at').eq('uid', UID).order('created_at');
+  if(error){ console.warn('[EG] quiz_log를 못 읽었습니다:', error.message); BOOKS=[]; paint(); return; }
+
+  const first = new Map();
+  (data||[]).forEach(r=>{
+    if(!r.answer) return;
+    if(!first.has(r.answer)) first.set(r.answer, { answer:r.answer, category:r.category, at:new Date(r.created_at) });
+  });
+  BOOKS = [...first.values()];          /* created_at 오름차순 그대로 — 만난 순서 */
+  PAGE = 0;                             /* 0 = 가장 최근 묶음 */
+  paint();
+}
+
+/* 페이지 0 = 최신 36권. 뒤로 갈수록 과거.
+   ⚠ 마지막(가장 오래된) 페이지만 36권이 안 될 수 있다 — 그쪽을 덜 채운다.
+     최신 쪽을 덜 채우면 새 책이 들어올 때마다 전 페이지가 밀린다. */
+function pageCount(){ return Math.max(1, Math.ceil(BOOKS.length / PER_PAGE)); }
+function pageBooks(p){
+  const end = BOOKS.length - p*PER_PAGE;
+  return BOOKS.slice(Math.max(0, end-PER_PAGE), Math.max(0, end));
+}
+
+function paint(){
+  const box=$('#shelf');
+  const list=pageBooks(PAGE);
+  $('#empty').style.display = BOOKS.length ? 'none' : 'block';
+
+  const racks=[];
+  for(let r=0; r<RACKS; r++){
+    const seg=list.slice(r*PER_RACK, (r+1)*PER_RACK);
+    if(!seg.length){ racks.push('<div class="rack"></div>'); continue; }
+    const spines=seg.map((b,i)=>
+      `<img class="spine" src="${bookImg(b.answer)}" alt="${esc(b.answer)}"
+         style="height:${94*bookScale(b.answer)}%"
+         data-i="${r*PER_RACK+i}" loading="lazy">`).join('');
+    /* 널 각인 — 그 단의 기간. 페이지 번호가 아니라 시간이 말한다 */
+    const a=seg[0].at, z=seg[seg.length-1].at;
+    const when = (a.getFullYear()===z.getFullYear())
+      ? `${ymd(a)} — ${md(z)}` : `${ymd(a)} — ${ymd(z)}`;
+    racks.push(
+      `<div class="rack"><div class="row">${spines}</div>
+        <div class="plank"><span class="pl-when">${esc(when)}</span>
+        <span class="pl-n">${seg.length}</span></div></div>`);
+  }
+  box.innerHTML = racks.join('');
+  box.querySelectorAll('.spine').forEach(el=>
+    el.addEventListener('click', ()=>openCard(list[+el.dataset.i])));
+
+  /* 머리 · 페이저 */
+  const N=pageCount();
+  $('#hSum').textContent = BOOKS.length
+    ? `${BOOKS.length}권${N>1 ? ` · ${N}쪽 가운데 ${N-PAGE}쪽` : ''}` : '';
+  const pg=$('#pager');
+  pg.classList.toggle('on', N>1);
+  if(N>1){
+    const a=list[0], z=list[list.length-1];
+    $('#pgWhen').innerHTML = a && z
+      ? `${esc(ymd(a.at))} — ${esc(ymd(z.at))}<b>${list.length}권</b>` : '';
+    $('#pgPrev').disabled = (PAGE >= N-1);      /* 더 예전이 없다 */
+    $('#pgNext').disabled = (PAGE <= 0);        /* 이미 최신이다 */
+  }
+}
+
+function turn(d){
+  const N=pageCount();
+  const n=Math.min(Math.max(PAGE+d, 0), N-1);
+  if(n===PAGE) return;
+  PAGE=n; paint();
+}
+
+/* ── 책 카드 (1단계 — 4겹은 다음 판) ── */
+function openCard(b){
+  if(!b) return;
+  $('#cdImg').src = bookImg(b.answer);
+  $('#cdT').textContent = b.answer;
+  $('#cdC').textContent = b.category || '';
+  $('#cdW').textContent = ymd(b.at) + ' 에 만났습니다';
+  $('#card').classList.add('on');
+}
+function closeCard(){ $('#card').classList.remove('on'); }
+addEventListener('keydown', e=>{
+  if(e.key==='Escape') closeCard();
+  if(e.key==='ArrowLeft')  turn(1);
+  if(e.key==='ArrowRight') turn(-1);
+});
+
+/* ── 도장 — 알베르게 원칙(몸통은 곳의 얼굴, 각인은 그날의 것) ──
+   ⚠ 뮤세움 원판은 아직 하나도 안 구워졌다. 안 구운 도장은 그냥 없으므로(결정문 30호)
+     지금은 아무 일도 안 일어난다. 원판이 서는 날 코드 수정 없이 살아난다.
+   ⭐ 각인은 「그 책 제목」이다(알베르게 1호 표). 오늘 꽂은 책이 없으면 곳만 남는다. */
+function stampHere(){
+  if(!window.EGStamp) return;
+  const hs = HALLS || [];
+  const opt = { supa: supa, area:'peregrinatio', bottom: 96 };
+  if(hs.length && HALL){
+    const duty = hs[ ((kstDay() % hs.length) + hs.length) % hs.length ];
+    if(duty && duty.code === HALL.code){
+      opt.kind = 'bib_' + HALL.code;
+      opt.subject = HALL.code;
+      /* 오늘 꽂힌 책 — 없으면 각인 없이 곳의 얼굴만 찍힌다(폴백이 기본값 · 함정 AE) */
+      const today = new Date(); today.setHours(0,0,0,0);
+      const mine = BOOKS.filter(b=>b.at>=today);
+      if(mine.length) opt.inscription = mine[mine.length-1].answer;
+    }
+  }
+  EGStamp.offer(opt);
+}
+
+/* ── 입장 — 암전 뒤 카메라가 천장에서 내려와 벽감에 안착한다 ── */
+function enterHall(){
+  if(moved) return; moved=true;
+  $('#fade').classList.add('on');
+  setTimeout(()=>{
+    $('#gate').classList.remove('on');
+    $('#hall').classList.add('on');
+
+    const opts={ box:'#hall', fit:'#hallFit', ratio:HALL_RATIO, rect:SHELF,
+      onDone(){ stampHere(); } };
+
+    /* 폰(세로 화면)은 스크롤 길이가 0이라 카메라가 헛돈다 — 바로 앉힌다 */
+    const scrollable = (innerWidth/innerHeight) >= HALL_RATIO;
+    setTimeout(()=>$('#fade').classList.remove('on'), 60);
+    if(scrollable && window.EGCamera) EGCamera.enter(opts);
+    else if(window.EGCamera) EGCamera.settle(opts);
+    else stampHere();          /* 카메라 부품이 안 실렸어도 도장은 놓는다(함정 AE) */
+  }, 1050);
+}
+addEventListener('resize', ()=>{ if(window.EGCamera) EGCamera.relayout(); });
+
+function goBack(){ location.href='terra.html'; }
+
+boot();
+</script>
+</body>
+</html>
