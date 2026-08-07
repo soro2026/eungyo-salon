@@ -89,13 +89,15 @@ html,body{height:100%;background:#0d0a07;color:#e8ddc4;
 .bk:hover{transform:translateY(-7px);}
 .spine{display:block;height:100%;width:auto;
   filter:drop-shadow(0 3px 6px rgba(0,0,0,.6));}
-/* 책등 제목 — ⚠ 치타델레 .f4-book-text와 같은 얼굴이어야 한다(0807).
-   같은 책이 두 건물에서 다르게 보이면 손님은 다른 책으로 읽는다. */
+/* 책등 제목 — 치타델레 .f4-book-text 계보(0807).
+   ⚠ 0807 소로 — 첫판이 너무 작고 가늘었다. 굵기 700 · clamp 상한 20px로 올렸다.
+     벽감은 화면 따라 커지므로 치타델레의 11px 고정을 그대로 쓰면 큰 화면에서 개미가 된다. */
 .bkt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   writing-mode:vertical-rl;text-orientation:mixed;
-  font-size:clamp(8px,.8vw,15px);font-weight:500;color:rgba(255,255,255,.92);
-  letter-spacing:.05em;line-height:1.25;padding:9% 2px;overflow:hidden;
-  text-shadow:0 1px 3px rgba(0,0,0,.95), 0 0 5px rgba(0,0,0,.65);pointer-events:none;}
+  font-size:clamp(11px,1.05vw,20px);font-weight:700;color:rgba(255,255,255,.96);
+  letter-spacing:.02em;line-height:1.18;padding:7% 2px;overflow:hidden;
+  text-shadow:0 1px 3px rgba(0,0,0,.98), 0 0 6px rgba(0,0,0,.85), 0 0 14px rgba(0,0,0,.6);
+  pointer-events:none;}
 
 /* 선반 널 — CSS 오크 + 기간 각인. ⭐ 배경에 선반이 없으므로 이것이 유일한 선반이다 */
 .plank{height:11%;min-height:9px;border-radius:2px;position:relative;flex:none;
@@ -234,6 +236,18 @@ function bookImg(answer){
   let h=0; for(const c of String(answer)) h=(h*31+c.charCodeAt(0))&0xfffff;
   return BOOK_IMAGES[h % BOOK_IMAGES.length]+'.webp';
 }
+/* ⚠ 책등에 설 수 있는 길이 — 넘치면 줄인다(0807).
+   answer는 「퀴즈 정답」이지 「책 이름」이 아니다. 그래서 이따금 문장이 통째로 온다
+   (0807 실측: 248권 중 29자짜리 한 건 — 시시포스 문제의 답이 통째로 책등이 됐다).
+   ⭐ 20자로 둔 근거: 「프로테스탄트 윤리와 자본주의 정신」(18자)이 진짜 책 제목이라
+     그것까지는 살려야 한다. 그 위는 대개 정답 문장이다.
+   ⚠ 자르되 감추지 않는다 — 감싸개 title에 전체가 있어 올리면 다 보인다. */
+const SPINE_MAX = 20;
+const shortTitle = t => {
+  const s = String(t ?? '');
+  return s.length > SPINE_MAX ? s.slice(0, SPINE_MAX - 1) + '…' : s;
+};
+
 /* 키 변주 — 획일하면 서가가 아니라 색종이 띠가 된다(콜레주 0722 수술) */
 function bookScale(answer){
   let h=0; for(const c of String(answer)) h=(h*17+c.charCodeAt(0))&0xfffff;
@@ -346,7 +360,7 @@ function paint(){
       `<div class="bk" data-i="${r*PER_RACK+i}" title="${esc(b.answer)}"
             style="height:${(94*bookScale(b.answer)).toFixed(1)}%">
          <img class="spine" src="${bookImg(b.answer)}" alt="${esc(b.answer)}" loading="lazy">
-         <span class="bkt">${esc(b.answer)}</span>
+         <span class="bkt">${esc(shortTitle(b.answer))}</span>
        </div>`).join('');
     /* 널 각인 — 그 단의 기간. 페이지 번호가 아니라 시간이 말한다 */
     const a=seg[0].at, z=seg[seg.length-1].at;
