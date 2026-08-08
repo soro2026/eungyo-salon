@@ -122,7 +122,13 @@ html.cover-known .cover, html.cover-known .page.backcover{ visibility:visible }
 .ins{position:absolute;left:-16px;right:-16px;text-align:center;line-height:1.3;
   font-family:"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
   pointer-events:none;mix-blend-mode:multiply}
-.ins .t{font-size:8.5px;font-weight:600;line-height:1.25;white-space:normal;
+/* ⭐ 0808 — white-space를 pre-line으로. 각인에 못 박은 줄바꿈이 그대로 선다.
+   ⚠ 별 도장(94×2) 때문이다. 저절로 접히게 두면 이름이 짧은 별은 한 줄,
+     긴 별은 두 줄이 되어 「콩파뇽」 한 낱말만 떨어져 나간다 — 94장이 제각각이 된다.
+     이름 한 줄 · 자격 한 줄로 못 박으면 전부 같은 모양이다.
+   ⚠ 개행이 없는 각인(기존 21장)은 normal과 동작이 똑같다.
+     pre-line은 개행만 살리고 나머지 공백은 그대로 접는다 — 0808 DB 실측: 개행 0 · 연속공백 0. */
+.ins .t{font-size:8.5px;font-weight:600;line-height:1.25;white-space:pre-line;
   padding:0 2px;overflow-wrap:anywhere}
 /* ⭐ 0805 — 도장 안에 앉는 각인은 칸을 좁힌다.
    ⚠ 안 좁혔더니 「카스파르 다비트 프리드리히」가 한 줄로 뻗어 육각 벽을 뚫었다.
@@ -285,6 +291,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 let pages = [], spread = 0, me = null;
+console.log('[EG] credencial v0808a — 각인 줄바꿈 못 박기(pre-line) · 높이 공식이 개행을 센다');
 
 /* 넘김 소리 — SALLE 05와 같은 파일을 돌려 쓴다. 새로 만들지 않는다 */
 const turnSfx = new Audio('page_turn.mp3');
@@ -343,10 +350,13 @@ function insHeight(st, w){
   const dateH = 13;                                  /* .ins .d — 9.5px × 1.3 + 여유 */
   if(!st.inscribe_out) return dateH;                 /* 안쪽 갈래는 이름이 도장 안에 산다 */
   if(!st.inscription)  return dateH;
-  /* 한글 8.5px는 글자당 약 8.5px, 숫자·영문은 절반. 섞이므로 7px로 어림한다 */
-  const lines = Math.max(1, Math.ceil(String(st.inscription).length * 7
-                  / Math.max(40, w + INS_BLEED*2 - 4)));
-  return lines * 11 + dateH;
+  /* 한글 8.5px는 글자당 약 8.5px, 숫자·영문은 절반. 섞이므로 7px로 어림한다.
+     ⭐ 0808 — 못 박은 줄바꿈을 먼저 가른 뒤, 각 줄이 또 넘치는지 센다.
+       개행이 없으면 조각이 하나뿐이라 옛 셈과 결과가 같다. */
+  const per   = Math.max(40, w + INS_BLEED*2 - 4);
+  const lines = String(st.inscription).split('\n')
+    .reduce((n, seg) => n + Math.max(1, Math.ceil(seg.length * 7 / per)), 0);
+  return Math.max(1, lines) * 11 + dateH;
 }
 
 function fileStamps(rows){
