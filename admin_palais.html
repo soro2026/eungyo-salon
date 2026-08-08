@@ -80,6 +80,22 @@ button.primary:hover{background:var(--gold);}
   position:absolute;right:-7px;bottom:-7px;width:14px;height:14px;border-radius:3px;
   background:var(--gold);cursor:nwse-resize;
 }
+/* 0808 — 상영 목록. 새 어휘를 만들지 않고 card·field·hint 문법을 잇는다 */
+.film-add{display:flex;gap:8px;margin-bottom:14px;}
+.film-add input{flex:1;}
+.film{display:grid;grid-template-columns:26px 1fr 128px 62px 92px 30px;gap:8px;
+  align-items:center;padding:8px 0;border-bottom:1px solid rgba(201,162,39,.16);}
+.film:last-child{border-bottom:0;}
+.film.off{opacity:.42;}
+.film .no{font-size:11px;color:var(--dim);text-align:center;letter-spacing:.04em;}
+.film .mv{display:flex;flex-direction:column;gap:2px;}
+.film input{width:100%;font-size:12.5px;padding:5px 8px;}
+.film .yid{font-family:Menlo,Consolas,monospace;font-size:11.5px;letter-spacing:.02em;}
+.film button{font-size:11px;padding:4px 8px;border-radius:6px;cursor:pointer;
+  background:transparent;border:1px solid rgba(201,162,39,.4);color:var(--gold-l);}
+.film button:hover{background:rgba(201,162,39,.14);}
+.film .x{border-color:rgba(200,90,70,.45);color:#d9927f;}
+.film-none{padding:16px 4px;font-size:12.5px;color:var(--dim);}
 .rect-nums{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px;}
 
 /* 상태 토스트 */
@@ -171,14 +187,17 @@ button.primary:hover{background:var(--gold);}
     <div class="hint">상자 몸통을 끌면 이동, 오른쪽 아래 <b>금색 손잡이</b>를 끌면 크기 조절. 숫자로 미세 조정도 됩니다.</div>
   </div>
 
-  <!-- ④ 오늘의 한 편 -->
+  <!-- ④ 오늘의 한 편 — 0808: 배열 편집을 물리고 palais_films 표로 -->
   <h2>④ 오늘의 한 편 큐레이션 <span class="count" id="curCount">0</span><span style="color:var(--dim)">편</span></h2>
   <div class="card">
-    <textarea id="f_curation" placeholder="한 줄에 한 편 — 유튜브 링크(또는 영상 ID)만 붙여도 되고, 제목을 함께 적으려면 | 뒤에:
-https://youtu.be/XXXXXXXXXXX | 정승민의 월든 완독
-https://www.youtube.com/watch?v=YYYYYYYYYYY | 손자병법 특별편
-ZZZZZZZZZZZ | 제목 없이 ID만도 가능"></textarea>
-    <div class="hint">순번 = (오늘 − 기산일) % 편수. 하루 한 편씩 위에서 아래로 돌고, 끝나면 처음으로 돌아갑니다.</div>
+    <div class="film-add">
+      <input id="f_newUrl" placeholder="유튜브 링크를 붙여넣으세요 — 또는 영상 ID 11자리">
+      <button class="primary" id="btnAddFilm">＋ 영상 걸기</button>
+    </div>
+    <div id="filmList"></div>
+    <div class="hint">순번 = (오늘 − 기산일) % 편수. 하루 한 편씩 위에서 아래로 돌고, 끝나면 처음으로 돌아갑니다.<br>
+      제목을 비워 두면 <b>유튜브에서 알아서 가져옵니다</b>. 시작 지점(초)을 적으면 그 대목부터 틀립니다.<br>
+      <b>내린 영상은 사라지지 않습니다</b> — 순회에서만 빠지고, 언제든 다시 올릴 수 있어요.</div>
   </div>
 
   <!-- ⑤ 흐르는 편지 -->
@@ -257,9 +276,8 @@ async function pickOrg(code){
   $('f_epoch').value = data.epoch||'';
   RECT = Object.assign({L:14.6,T:53.1,W:71.0,H:18.6}, data.screen_rect||{});
   syncRectInputs(); placeRectBox();
-  $('f_curation').value=(data.curation||[]).map(c=>(c.id||'')+(c.t?' | '+c.t:'')).join('\n');
+  await loadFilms();          /* 0808 — 상영 목록은 palais_films 표에서 온다 */
   $('f_letters').value =(data.letters||[]).join('\n');
-  updateCurCount();
   refreshSlots(); loadRectImg();
   toast(data.name+' 불러왔어요.','ok');
 }
@@ -373,25 +391,141 @@ function parseYtId(s){
   if(/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
   return null;
 }
-function parseCuration(){
-  const out=[]; const bad=[];
-  $('f_curation').value.split('\n').map(l=>l.trim()).filter(Boolean).forEach(line=>{
-    const [left, ...rest]=line.split('|');
-    const id=parseYtId(left);
-    if(!id){ bad.push(line); return; }
-    out.push({ id, t:rest.join('|').trim() || '' });
-  });
-  return { out, bad };
+/* ══ 상영 목록 — 0808 ══════════════════════════════════════════════
+   옛 판은 textarea에 「ID | 제목」을 줄줄이 적었다(소로: 「좀 촌스러워」).
+   배열은 늘어날수록 위험하다 — 콤마 하나, 줄 하나가 통째로 목록을 죽인다.
+   이제 palais_films 표에 영상 하나가 행 하나로 산다(음악관 heritage_items 문법).
+   ⚠ 저장 단추를 안 기다린다. 고치는 즉시 그 행만 DB에 간다 —
+     스물 편일 때 한 칸 고치자고 전부를 다시 보내는 것은 위험하고 느리다.
+   ⚠ 지우기는 status='off'다. 순회에서만 빠지고 기록은 남는다(표 설계 의도). */
+let FILMS=[];
+
+async function loadFilms(){
+  FILMS=[];
+  if(!CUR_ORG){ renderFilms(); return; }
+  const { data, error } = await supa.from('palais_films')
+    .select('id,name,video_id,start_seconds,note,sort,status')
+    .eq('org',CUR_ORG).order('sort').order('id');
+  if(error){ toast('상영 목록을 못 불러왔어요: '+error.message,'bad'); renderFilms(); return; }
+  FILMS = data || [];
+  renderFilms();
 }
-function updateCurCount(){ $('curCount').textContent=parseCuration().out.length; }
-$('f_curation').addEventListener('input',updateCurCount);
+
+function renderFilms(){
+  const box=$('filmList');
+  const live=FILMS.filter(f=>f.status==='active').length;
+  $('curCount').textContent=live;
+  if(!FILMS.length){
+    box.innerHTML='<div class="film-none">아직 걸린 영상이 없습니다. 위에 링크를 붙여넣어 보세요.</div>';
+    return;
+  }
+  let n=0;
+  box.innerHTML=FILMS.map(f=>{
+    const on=f.status==='active';
+    if(on) n++;
+    return `<div class="film${on?'':' off'}" data-id="${f.id}">
+      <div class="mv">
+        <button data-act="up"   title="위로">▲</button>
+        <button data-act="down" title="아래로">▼</button>
+      </div>
+      <input data-col="name" value="${esc(f.name||'')}" placeholder="제목 — 비우면 유튜브에서 가져옵니다">
+      <input data-col="video_id" class="yid" value="${esc(f.video_id||'')}">
+      <input data-col="start_seconds" type="number" min="0" step="1" value="${f.start_seconds||0}" title="시작 지점(초)">
+      <button data-act="toggle">${on?'걸려 있음':'내려둠'}</button>
+      <button data-act="del" class="x" title="목록에서 지우기">×</button>
+    </div>`;
+  }).join('');
+}
+function esc(v){ return String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* 한 칸 고치기 — 그 행만 간다 */
+async function patchFilm(id, patch){
+  const { error } = await supa.from('palais_films').update(patch).eq('id',id);
+  if(error){ toast('저장 실패: '+error.message,'bad'); return false; }
+  const f=FILMS.find(x=>x.id===id); if(f) Object.assign(f,patch);
+  return true;
+}
+
+/* 차례 바꾸기 — 이웃과 sort를 맞바꾼다. 값이 같으면 10씩 다시 매긴다 */
+async function moveFilm(id, dir){
+  const i=FILMS.findIndex(f=>f.id===id);
+  const j=i+dir;
+  if(i<0 || j<0 || j>=FILMS.length) return;
+  const a=FILMS[i], b=FILMS[j];
+  if(a.sort===b.sort){                       /* 옛 데이터가 다 0일 수 있다 */
+    for(let k=0;k<FILMS.length;k++){ FILMS[k].sort=k*10; await patchFilm(FILMS[k].id,{sort:k*10}); }
+  }
+  const as=a.sort, bs=b.sort;
+  if(!await patchFilm(a.id,{sort:bs})) return;
+  if(!await patchFilm(b.id,{sort:as})) return;
+  FILMS.sort((x,y)=>(x.sort-y.sort)||(x.id-y.id));
+  renderFilms();
+  toast('차례를 옮겼어요.','ok');
+}
+
+/* 목록 안의 손짓 — 위임으로 한 곳에서 받는다(행이 다시 그려져도 배선이 안 끊긴다) */
+$('filmList').addEventListener('click', async e=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  const row=btn.closest('.film'); if(!row) return;
+  const id=Number(row.dataset.id);
+  const act=btn.dataset.act;
+  if(act==='up')   return moveFilm(id,-1);
+  if(act==='down') return moveFilm(id, 1);
+  if(act==='toggle'){
+    const f=FILMS.find(x=>x.id===id); if(!f) return;
+    const next = f.status==='active' ? 'off' : 'active';
+    if(await patchFilm(id,{status:next})){ renderFilms(); toast(next==='active'?'다시 걸었어요.':'내려두었어요 — 기록은 남습니다.','ok'); }
+    return;
+  }
+  if(act==='del'){
+    if(!confirm('이 영상을 목록에서 지울까요?\n(내려두기만 하려면 「걸려 있음」을 눌러 주세요.)')) return;
+    const { error } = await supa.from('palais_films').delete().eq('id',id);
+    if(error){ toast('지우지 못했어요: '+error.message,'bad'); return; }
+    FILMS=FILMS.filter(x=>x.id!==id); renderFilms(); toast('지웠어요.','ok');
+  }
+});
+
+/* 칸을 고치고 떠나면 그때 저장한다 — 타자마다 보내면 그물이 시끄럽다 */
+$('filmList').addEventListener('change', async e=>{
+  const inp=e.target.closest('input'); if(!inp) return;
+  const row=inp.closest('.film'); const id=Number(row.dataset.id);
+  const col=inp.dataset.col;
+  let val=inp.value.trim();
+  if(col==='video_id'){
+    const yid=parseYtId(val);
+    if(!yid){ toast('유튜브 ID를 못 읽었어요.','bad'); const f=FILMS.find(x=>x.id===id); inp.value=f?f.video_id:''; return; }
+    val=yid; inp.value=yid;
+  }
+  if(col==='start_seconds') val=Math.max(0, parseInt(val||'0',10) || 0);
+  if(col==='name') val = val || null;
+  if(await patchFilm(id,{[col]:val})) toast('저장됐어요.','ok');
+});
+
+/* 새로 걸기 — 링크를 붙여넣으면 끝. 차례는 맨 뒤 */
+$('btnAddFilm').addEventListener('click', async ()=>{
+  if(!CUR_ORG){ toast('채널을 먼저 선택하세요.','bad'); return; }
+  if(!await requireSession()) return;
+  const raw=$('f_newUrl').value.trim();
+  const yid=parseYtId(raw);
+  if(!yid){ toast('유튜브 링크나 영상 ID를 넣어 주세요.','bad'); return; }
+  if(FILMS.some(f=>f.video_id===yid)){ toast('이미 걸려 있는 영상이에요.','bad'); return; }
+  const sort = FILMS.length ? Math.max(...FILMS.map(f=>f.sort||0))+10 : 0;
+  toast('거는 중…','busy');
+  const { data, error } = await supa.from('palais_films')
+    .insert({ org:CUR_ORG, video_id:yid, sort, status:'active' })
+    .select().single();
+  if(error){ toast('걸지 못했어요: '+error.message,'bad'); return; }
+  FILMS.push(data); $('f_newUrl').value='';
+  renderFilms(); toast('걸었어요. 제목은 비워 두면 유튜브가 알려줍니다.','ok');
+});
 
 /* ── 저장 ── */
 $('btnSave').addEventListener('click', async ()=>{
   if(!CUR_ORG){ toast('채널을 먼저 선택하세요.','bad'); return; }
   if(!await requireSession()) return;
-  const { out:curation, bad } = parseCuration();
-  if(bad.length){ toast('영상 ID를 못 읽은 줄이 있어요: '+bad[0],'bad'); return; }
+  /* ⚠ 0808 — curation(jsonb 배열)은 여기서 만들지도 보내지도 않는다.
+     상영 목록은 palais_films 표가 갖고, 행마다 즉시 저장된다.
+     ⚠⚠ curation을 빈 배열로 덮으면 셸의 폴백이 사라진다 — 아예 안 건드리는 것이 옳다. */
   const lat=$('f_lat').value.trim(), lng=$('f_lng').value.trim();
   const row={
     name: $('f_name').value.trim()||CUR_ORG,
@@ -401,7 +535,6 @@ $('btnSave').addEventListener('click', async ()=>{
     yt_channel: $('f_yt').value.trim()||null,
     epoch: $('f_epoch').value||null,
     screen_rect: RECT,
-    curation,
     letters: $('f_letters').value.split('\n').map(l=>l.trim()).filter(Boolean)
   };
   toast('저장 중…','busy');
