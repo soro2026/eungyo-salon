@@ -180,7 +180,7 @@ input.mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.05em}
 <div id="app" hidden>
 <header>
   <h1>EG <em>Credencial</em></h1>
-  <span class="sub">도장 공방 · v1.8 · 0805밤 GROW 표 DB 정합 · 봉인 핀 제외</span>
+  <span class="sub">도장 공방 · v1.9 · 0808 야구장 칸 · 뮤세움 규칙 정정 · 영문 명각</span>
   <span class="count" id="count"></span>
 </header>
 
@@ -423,7 +423,21 @@ const GROW = {
   hansfoon:{ pre:'coc_', area:'cochlear',      shape:'circle',   ink:'#7A4A1E', ref:'table',
              rules:['daily_per_area'],            withTime:false, insOut:true,  ko:'한스푼' },
   museum:  { pre:'mus_', area:'musaeum',       shape:'rect_h',   ink:'#4A3B2A', ref:'library',
-             rules:['daily_per_area'],            withTime:false, insOut:true,  ko:'뮤세움' }
+             /* ⚠ 0808 정정 — daily 하나만 심고 있었다. 설계는 「하루 한 장 **그리고**
+                책마다 한 번」이라 이미 심은 일곱은 SQL로 고쳤는데, 콘솔이 그대로면
+                여덟 번째 서고가 다른 규칙으로 심긴다. 두 곳이 갈리면 아무도 못 알아챈다. */
+             rules:['daily_per_area','once_per_subject'],
+                                                 withTime:false, insOut:true,  ko:'뮤세움' },
+  /* ⭐ 0808 소로 — 스타디움 완주 도장. 결정문 9-2호 「주간 우승 5벌」을 폐기하고
+     **화·목 경기를 완주하면 그날의 구장 도장**으로 바꾼다.
+     ⚠ 이기든 지든 찍힌다 — 3호 「잘했다고가 아니라 거기 있었다고 찍힌다」.
+       우승 도장이 그 조항을 어기고 있었던 셈이다.
+     ⚠ 규칙은 daily 하나다. 같은 구장에서 여러 번 경기하므로 once_per_subject를
+       넣으면 두 번째 방문부터 조용해진다(뮤세움·천문대와 여기가 갈리는 곳).
+     ⚠ 화·목만 경기가 열리므로 저절로 주 2장이다 — 개근 압박이 생길 데가 없다(5호).
+     각인은 「W 3:0 소크라테스」 꼴. 무승부는 없다(주사위로 끝까지 판결). */
+  stadium: { pre:'sta_', area:'stadium',       shape:'rect_h',   ink:'#2F5D3A', ref:'park',
+             rules:['daily_per_area'],            withTime:false, insOut:true,  ko:'야구장' }
 };
 let missing = [];        /* [{kind,code,name,pre,...}] */
 
@@ -431,7 +445,7 @@ async function findMissing(){
   missing = [];
   try{
     const { data:pins, error } = await sb.from('terra_pins')
-      .select('code,name,kind,sort').in('kind', Object.keys(GROW))
+      .select('code,name,kind,sort,meta').in('kind', Object.keys(GROW))
       .eq('active', true)          /* 0805 — 봉인 핀(몽블랑·시드니)은 세지 않는다 */
       .order('sort');
     if(error) throw error;
@@ -453,12 +467,24 @@ function drawMissing(){
   $('#growMsg').innerHTML = Object.entries(by)
     .map(([ko, ns]) => `<b>${ko}</b> ${ns.length}곳 — ${ns.map(esc).join(' · ')}`).join('<br>');
 }
+/* ⭐ 0808 — 도장에 실제로 새겨진 글자를 motto에 넣는다.
+   옛 판은 한글 핀 이름을 그대로 넣었는데, 굽는 프롬프트에는 늘 영문 대문자가 들어간다
+   (FENWAY PARK · TRINITY LONG ROOM). 어긋나면 몇 달 뒤 「이 도장에 뭐라 적혀 있나」를
+   DB로 못 알아본다 — 뮤세움 일곱은 이미 영문으로 심어 두었고 여기를 그것에 맞춘다.
+   ⚠ name_en은 「Fenway Park · SORO」처럼 가운뎃점 뒤에 팀이 붙는다. 앞만 뗀다.
+   ⚠ 영문이 없으면 한글 이름으로 물러난다 — 폴백이 기본값(AE). */
+function mottoOf(m){
+  const en = m.meta && m.meta.name_en;
+  const base = (en ? String(en).split('·')[0] : (m.name || m.code));
+  return base.trim().toUpperCase();
+}
+
 $('#growBtn').addEventListener('click', async () => {
   const btn = $('#growBtn'); btn.disabled = true;
   const rows = missing.map(m => ({
     code: m.g.pre + m.code, family:'manere', area:m.g.area,
     ref_type: m.g.ref, ref_id: m.code,
-    title: m.name || m.code, motto: (m.name || m.code),
+    title: m.name || m.code, motto: mottoOf(m),
     shape: m.g.shape, ink: m.g.ink, look:'field',
     rules: m.g.rules, with_time: m.g.withTime, inscribe_out: m.g.insOut !== false,
     active: true, sort: 100 + (m.sort || 0)
