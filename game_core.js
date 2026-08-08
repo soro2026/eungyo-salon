@@ -2158,6 +2158,53 @@ function showFinalResult(result, resultColor, emoji){
   }
   // Supabase에 스탯 저장
   saveStatsToSupabase();
+
+  // 🛂 크레덴시알 — 완주 도장 (0808 소로)
+  offerParkStamp(result);
+}
+
+// ═══════════════════════════════════════════════════
+// 🛂 완주 도장 — 그날 뛴 구장의 얼굴, 그날의 승패가 각인
+// ═══════════════════════════════════════════════════
+//
+//  0808 소로 결정 — 결정문 9-2호 「주간 우승 5벌」을 폐기하고 완주 도장으로.
+//    ⭐ 이기든 지든 찍힌다. 3호 「잘했다고가 아니라 거기 있었다고 찍힌다」를
+//      우승 도장이 어기고 있었다. 「L 0:2」가 수첩에 남는 것이 이 도장의 심장이다.
+//    ⚠ 규칙은 daily_per_area 하나다 — 같은 구장에서 여러 번 뛰므로
+//      once_per_subject를 넣으면 두 번째 방문부터 조용해진다.
+//      화·목만 정규 경기가 열리므로 저절로 주 2장이고, 개근 압박이 생길 데가 없다(5호).
+//    ⚠ 몸통 = 그날 뛴 구장. 홈이면 펜웨이, 원정이면 상대 구장이다(currentIsHome).
+//    ⚠ 각인 = 「W 3:0 SOCRATES」. 무승부는 없다 — 동점이면 주사위가 끝까지 판결한다.
+//      영문으로 두는 것은 도장 명각(FENWAY PARK)과 글자를 맞추기 위해서다(0808 소로).
+//    ⚠ 안 구운 도장은 그냥 없다(결정문 30호). 여기서 던지지 않는다 — 경기 결과 화면이
+//      도장 하나 때문에 깨지면 안 된다. 폴백이 기본값(함정 AE).
+function offerParkStamp(result){
+  try{
+    if(!window.EGStamp) return;
+    const key = currentOpp && currentOpp.emblemImg
+      ? currentOpp.emblemImg.replace('emblem_','').replace('.jpg','')
+      : null;
+    // 홈이면 소로의 구장, 원정이면 상대의 구장
+    const TEAM_PARK = { soro:'fenway', socrates:'yankee', pascal:'wrigley', proust:'oracle' };
+    const park = currentIsHome ? TEAM_PARK.soro : (key ? TEAM_PARK[key] : null);
+    if(!park) return;
+
+    const opp  = (key && typeof EG_TEAM_LABEL !== 'undefined' && EG_TEAM_LABEL[key])
+               ? EG_TEAM_LABEL[key] : 'OPPONENT';
+    const mark = (result === '승리') ? 'W' : 'L';
+    const ins  = `${mark} ${st.scoreMe}:${st.scoreAi} ${opp}`;
+
+    EGStamp.offer({
+      /* ⚠ 전역 supa를 그대로 쓴다 — 입국 도장(2901행)이 이미 그렇게 부르고 있다.
+         window.supa로 적으면 null이 되어 REST 갈래로 새고, 두 길이 갈리는 날이 온다. */
+      supa: supa,
+      area: 'stadium',
+      kind: 'sta_' + park,
+      subject: park,
+      inscription: ins,
+      bottom: 96
+    });
+  }catch(e){ console.warn('[EG] 완주 도장을 놓지 못했습니다:', e); }
 }
 
 // ═══════════════════════════════════════════════════
@@ -3538,3 +3585,5 @@ function nextQ(){
 }
 
 // initGame은 initAuth() 안에서 호출됨
+
+console.log('[EG] game_core v0808 · 완주 도장 — 그날 뛴 구장 · 각인 W/L 점수 상대');
