@@ -1326,7 +1326,7 @@ function openStarModal(fig) {
 
      하늘을 올려다보는 것과 그 별을 알아보는 것은 다른 일이다.
      별하늘은 지나가다 볼 수 있지만, 카드가 뜨려면 하나를 골라 눌러야 한다. ══ */
-  if (window.EGStamp) EGStamp.offer({ supa, area:'constellatio' });
+  stampOnCard(fig);
 }
 
 // ── 0층 — 교양의 풍경 ─────────────────────────────────────────
@@ -1543,6 +1543,57 @@ async function sendHeart() {
   renderHeartSection(currentStarData);
 }
 
+/* ══ 0808 · 별 도장 (EG Credencial 10호) ═══════════════════════════════════
+   ⭐ 원판을 **코드가 아니라 (ref_type · ref_id · variant)**로 찾는다.
+     별 이름 로마자 규칙(star_thoreau_a 꼴)에 매이지 않고, 무엇보다
+     stamp_press.js를 안 건드려도 된다 — 그 부품을 고치면 꼬리표를 부르는 열한 곳에서
+     함께 올려야 하고, 한 곳만 놓치면 우주마다 다른 판이 도는데 화면엔 아무 표시가 없다.
+   ⚠ 안 구운 도장은 그냥 없다(30호). 94×2를 다 굽기 전에도 이 배관은 완전히 돈다 —
+     그림이 걸린 별에서만 조용히 나타난다.                                        */
+async function starKindCode(starId, variant){
+  try{
+    const { data } = await supa.from('stamp_kinds').select('code')
+      .eq('ref_type','star').eq('ref_id', String(starId)).eq('variant', variant)
+      .eq('active', true).not('art_url','is',null).limit(1);
+    return (data && data[0] && data[0].code) || null;
+  }catch(e){ console.warn('[EG] 별 원판을 못 찾았습니다:', e); return null; }
+}
+
+/* 별 A — 그 별을 사랑하기로 한 날. 별마다 한 번(once_per_subject).
+   ⚠ 각인은 못 박은 두 줄이다(0808) — 이름 한 줄·자격 한 줄.
+     한 덩어리로 두면 이름이 짧은 별은 한 줄, 긴 별은 두 줄이 되어 94장이 제각각이 된다. */
+async function offerSodalis(fig, rank){
+  if(!window.EGStamp || !currentUser || !fig || !rank) return;
+  const code = await starKindCode(fig.id, 'A');
+  if(!code) return;
+  EGStamp.offer({ supa, area:'constellatio', kind: code, subject: String(fig.id),
+                  inscription: `${fig.name}\n${rank}번째 콩파뇽` });
+}
+
+/* ⚠⚠ 도크는 하나다 — 한 번에 한 장만 놓인다(7호).
+   그래서 두 곳의 차례가 서로 반대다.
+
+     카드를 열 때   입국이 먼저.  별 A는 그 별을 다시 열면 또 온다
+     합류한 직후    별 A가 먼저.  입국은 카드를 열 때마다 또 온다
+
+   어느 쪽도 안 잃는다. 두 도장의 규칙이 「평생 한 번」과 「별마다 한 번」이라
+   안 받은 채로 얼마든지 기다린다. */
+async function stampOnCard(fig){
+  if(!window.EGStamp || !fig) return;
+  await EGStamp.offer({ supa, area:'constellatio' });          /* ① 입국 */
+  const dock = document.getElementById('egStampDock');
+  if(dock && dock.classList.contains('on')) return;            /* 놓였으면 오늘은 거기까지 */
+  if(!currentUser) return;
+  try{
+    const { data } = await supa.from('companions').select('rank')
+      .eq('star_id', fig.id).eq('user_id', currentUser.id).eq('status','live').maybeSingle();
+    if(data) await offerSodalis(fig, data.rank);               /* ② 이미 콩파뇽이면 별 A */
+  }catch(e){ console.warn('[EG] 합류 여부를 못 읽었습니다:', e); }
+}
+
+/* 합류 축하를 닫을 때 도장을 내밀기 위해 잠깐 든다 */
+let justJoined = null;
+
 // ── Company 합류 ──────────────────────────────────────────────────
 async function joinCompany() {
   if (!currentUser) { alert('로그인이 필요합니다.'); return; }
@@ -1576,6 +1627,9 @@ async function joinCompany() {
       if (fig) fig.stella_status = 'closed';
     }
 
+    /* ⭐ 도장은 축하가 끝난 뒤에 내민다 — 찍는 곳과 보는 곳을 떼어놓는다(4호).
+       축하 화면 위에 도장을 겹치면 둘 다 흐려진다. */
+    justJoined = { fig: currentStarData, rank };
     showCelebration(currentStarData.name, rank, price, newBalance);
     await renderCompanySection(currentStarData);
     const el = document.getElementById('eg-holder-val');
@@ -1688,9 +1742,11 @@ function showCelebration(name, rank, price, balance) {
 
 function closeCelebration() {
   document.getElementById('purchase-celebration').classList.remove('show');
+  if (justJoined) { const j = justJoined; justJoined = null; offerSodalis(j.fig, j.rank); }
 }
 
 // ── 별 객체 ──────────────────────────────────────────────────────
+console.log('[EG] constella 0808a — 별 A 도장 배관(합류) · 도크 차례 정리');
 let animFrame = null;
 let shootingStars = [];
 let tooltip = document.getElementById('tooltip');

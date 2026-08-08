@@ -1218,6 +1218,7 @@ async function intrareDone(area){
    ⚠ 각인은 찍는 순간 복사(15호) — 별 이름이 바뀌어도 이 도장은 그날의 이름이다.
    ⚠ 잘못된 obs(원판 없는 코드)면 부품 findKind가 못 찾아 조용히 아무 일도 없다 —
      병이 아니라 30호. 다만 콘솔에서 그림을 걸었는지 먼저 의심할 것.              */
+console.log('[EG] star 0808a — 별 B 도장 배관(응답의 정원 · 낸 순간)');
 function stampHere(obsCode){
   if(!window.EGStamp) return;
   const opt = { supa: supa, area:'observatorium', bottom: 96 };
@@ -1229,6 +1230,33 @@ function stampHere(obsCode){
     }
     EGStamp.offer(opt);
   });
+}
+
+/* ══ 0808 소로 · 별 B — 응답의 정원 ═══════════════════════════════════════
+   ⭐⭐ 도장은 **실림이 아니라 낸 순간**에 찍는다.
+
+     실림에 찍으면 그것은 곧 합격 도장이 되어, 10호가 금지한 「합격·선정·통과·채택」을
+     낱말 대신 **시점으로** 어긴다. 손님이 한 일은 글을 써서 낸 것이고, 싣는 것은
+     EG가 하는 일이다 — 3호 「잘했다고가 아니라 거기 있었다고 찍힌다」.
+
+   ⚠ 10호의 마지막 줄이 이쪽이라야 지켜진다 — 「안 실린 사람에게는 아무 일도
+     일어나지 않는다」. 실림에 찍으면 안 실린 사람에게는 **도장이 없는 일**이 일어난다.
+     낸 사람이 다 받아야 도장이 심사와 무관해지고, 그래야 진짜로 아무 일도 안 일어난다.
+
+   ⚠ 대상은 별이 아니라 **그 한 편**이다(subject = 글 id). 그래서 같은 별에 여러 번
+     쓰면 도장이 여러 장 앉고(10호 「여러 번」), 같은 글로는 두 번 안 찍힌다.
+   ⚠ 원판을 코드가 아니라 (ref_type·ref_id·variant)로 찾는다 — constella와 같은 문법.  */
+async function offerResponsvm(contentId){
+  if(!window.EGStamp || !currentUser || !currentStar || !contentId) return;
+  try{
+    const { data } = await supa.from('stamp_kinds').select('code')
+      .eq('ref_type','star').eq('ref_id', String(currentStar.id)).eq('variant','B')
+      .eq('active', true).not('art_url','is',null).limit(1);
+    const code = data && data[0] && data[0].code;
+    if(!code) return;                       /* 안 구운 도장은 그냥 없다(30호) */
+    EGStamp.offer({ supa, area:'constellatio', kind: code, subject: String(contentId),
+                    inscription: `${currentStar.name}\n응답의 정원 기고` });
+  }catch(e){ console.warn('[EG] 응답의 정원 도장을 못 놓았습니다:', e); }
 }
 
 // ── 별 데이터 로드 ──────────────────────────────────────────────
@@ -2056,14 +2084,19 @@ async function submitContent() {
   btn.textContent = '기고하는 중...';
 
   // status 생략 → 기본값 'pending' (AI 심사 → 소로 검토 후 게시)
-  const { error } = await supa.from('star_contents').insert({
+  /* ⚠ 0808 — id를 받아온다. 그 한 편이 곧 도장의 대상이다(once_per_subject).
+     글마다 한 장이라 같은 별에 두 번 써도 도장이 두 장 앉고, 같은 글로는 두 번 안 찍힌다. */
+  const { data: made, error } = await supa.from('star_contents').insert({
     star_id: currentStar.id,
     user_id: currentUser.id,
     context_type: 'star',
     content_type: 'essay',
     title: title || null,
     content: content,
-  });
+  }).select('id').maybeSingle();
+  /* ⚠ single이 아니라 maybeSingle이다. RLS가 어떤 까닭으로 RETURNING을 막아도
+     0행이 에러가 아니라 null로 와서, 도장만 안 놓이고 기고는 성공한다.
+     안 구운 도장이 그냥 없듯이(30호) 못 받은 id도 그냥 없는 것으로 둔다. */
 
   if (error) {
     console.error(error);
@@ -2084,6 +2117,7 @@ async function submitContent() {
   btn.disabled = false;
   btn.textContent = '✦ 닫기';
   btn.onclick = closeAfterSubmit;
+  offerResponsvm(made && made.id);
 }
 
 function closeAfterSubmit() {
