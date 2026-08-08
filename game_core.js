@@ -2191,7 +2191,10 @@ function offerParkStamp(result){
 
     const opp  = (key && typeof EG_TEAM_LABEL !== 'undefined' && EG_TEAM_LABEL[key])
                ? EG_TEAM_LABEL[key] : 'OPPONENT';
-    const mark = (result === '승리') ? 'W' : 'L';
+    /* ⚠ 0808 소로 — 옛 판은 'W'·'L' 한 글자였다. 그건 야구 기록지 문법이지
+       읽는 사람의 문법이 아니다. 수첩은 몇 년 뒤에 펼치는 물건이라, 그때 한 글자를
+       해독하게 만들면 안 된다. 가장 긴 조합(LOSE 12:11 SOCRATES)도 19자로 한계 안이다. */
+    const mark = (result === '승리') ? 'WIN' : 'LOSE';
     const ins  = `${mark} ${st.scoreMe}:${st.scoreAi} ${opp}`;
 
     EGStamp.offer({
@@ -3586,4 +3589,4 @@ function nextQ(){
 
 // initGame은 initAuth() 안에서 호출됨
 
-console.log('[EG] game_core v0808 · 완주 도장 — 그날 뛴 구장 · 각인 W/L 점수 상대');
+console.log('[EG] game_core v0808 · 완주 도장 — 그날 뛴 구장 · 각인 WIN/LOSE 점수 상대');
