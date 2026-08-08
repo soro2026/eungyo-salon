@@ -670,7 +670,7 @@ body.standalone #backBtn{display:block;}
 
 <script src="eg_sky.js?v=0806e"></script>
 <script src="eg_camera.js?v=0804a"></script>
-<script src="stamp_press.js?v=0805a"></script>
+<script src="stamp_press.js?v=0808a"></script>
 <script>
 const SUPA_URL='https://cyhlotwdisjvoxvfkpnd.supabase.co';
 const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
@@ -1085,32 +1085,70 @@ addEventListener('keydown', e=>{
    ⚠ 뮤세움 원판은 아직 하나도 안 구워졌다. 안 구운 도장은 그냥 없으므로(결정문 30호)
      지금은 아무 일도 안 일어난다. 원판이 서는 날 코드 수정 없이 살아난다.
    ⭐ 각인은 「그 책 제목」이다(알베르게 1호 표). 오늘 꽂은 책이 없으면 곳만 남는다. */
-function stampHere(){
-  if(!window.EGStamp) return;
+/* ── 도장 — 알베르게 원칙(몸통은 곳의 얼굴, 각인은 그날의 것) ──
+   ⭐ 0808 소로 — 체류 도장은 「입장」이 아니라 「책을 펼침」에 놓인다.
+     책이 서가에 꽂히는 일은 스타디움에서 일어난다. 뮤세움은 그것을 진열할 뿐이라,
+     입장에 찍으면 슈트라호프에 서서 어제 야구장에서 한 일을 증언하는 꼴이었다.
+     서가에서 한 권을 뽑아 펼치는 것 — 그것만이 이 도서관 안에서 일어나는 일이다.
+   ⭐ 「그날 처음 뽑아든 새 책」은 규칙 겹침이 만든다. 별도 장치가 없다(천문대와 한 문법).
+        daily_per_area    그날 두 번째 새 책이면 조용하다
+        once_per_subject  같은 책을 다시 펼치면 그날 처음이어도 조용하다
+   ⭐ 그래서 이 도장은 저절로 마른다 — 서가에 안 들여다본 책이 남아 있는 동안만 놓이고,
+     다 꺼내 본 사람에게는 새 책이 꽂힐 때까지 조용하다. 개근 압박이 생길 데가 없다(5호).
+   ⚠ 침묵은 부정이 아니다. 재독은 교양에서 가장 값진 일이고, 도장이 없을 뿐 낭독도
+     모달도 그대로 열린다. 안 받은 것에 어떤 표식도 남기지 않는다(2호·5호). */
+
+/* 입장 — 입국 도장만. 체류는 책을 펼칠 때 따로 놓인다. */
+function stampEnter(){
+  if(!window.EGStamp || EDIT) return;
+  EGStamp.offer({ supa: supa, area:'musaeum', bottom: 96 });
+}
+
+/* ⚠ star.html에서 그대로 옮겨 왔다. 입국을 아직 안 받은 손님에게 체류가 앞지르면
+     수첩이 뒤집힌 순서로 앉는다(16호 시간순 편철).
+   ⚠⚠ 막지 않는 경우 둘 — 손님이 아닐 때, 구워진 입국 판이 없을 때.
+     둘 다 막으면 아무것도 안 나타난다. 폴백은 조건부가 아니라 기본값(함정 AE). */
+async function intrareDone(area){
+  try{
+    const { data:{ user } } = await supa.auth.getUser();
+    if(!user) return true;
+    const { data:ks } = await supa.from('stamp_kinds')
+      .select('code').eq('area', area).eq('family','intrare')
+      .eq('active', true).not('art_url','is',null).limit(1);
+    const code = ks && ks[0] && ks[0].code;
+    if(!code) return true;
+    const { count } = await supa.from('stamps')
+      .select('id', { count:'exact', head:true })
+      .eq('user_id', user.id).eq('kind_code', code);
+    return !!count;
+  }catch(e){ console.warn('[EG] 입국 확인 실패 — 막지 않습니다:', e); return true; }
+}
+
+/* 책을 펼침 — 체류 도장. 오늘의 서고에서, 그날 처음 뽑아든 새 책에만.
+   ⚠ 먼저 거둔다 — 각인이 책마다 다르므로, 앞 책 도장이 남아 있으면 다른 책을 보면서
+     앞 책으로 찍게 된다. 이미 받은 책이면 offer가 조용히 물러나고 도크는 빈다. */
+function stampBook(book){
+  if(!window.EGStamp || EDIT || !book || !book.answer) return;
+  EGStamp.withdraw();
   const hs = HALLS || [];
-  /* ⚠ 0808 검거 — 여기 'peregrinatio'(르 그랑 투르)가 적혀 있었다. 미술관 배관을
-     복제하면서 area만 안 고친 흔적. 당번 서고에 든 날은 opt.kind가 덮어써 티가 안 났으나
-     당번이 아닌 서고에 들면 **르 그랑 투르 입국 도장**이 놓였다.
-     뮤세움은 자기 우주를 갖고 있다 — area는 'musaeum'이고 입국 도장은 mus_intrare다. */
   const opt = { supa: supa, area:'musaeum', bottom: 96 };
-  if(hs.length && HALL){
-    const duty = hs[ ((kstDay() % hs.length) + hs.length) % hs.length ];
-    if(duty && duty.code === HALL.code){
-      /* ⚠ 0808 검거 — 'bib_'였다. 콘솔(admin_credencial GROW 표)은 'mus_'로 심는다.
-         한쪽만 맞으면 셸이 못 찾은 채 조용히 물러나 아무도 못 알아챈다.
-         우주 접두사는 입국·체류가 한 벌이다(mca_ · coc_ · obs_ 전부 그렇다). */
-      opt.kind = 'mus_' + HALL.code;
-      opt.subject = HALL.code;
-      /* 오늘 꽂힌 책 — 없으면 각인 없이 곳의 얼굴만 찍힌다(폴백이 기본값 · 함정 AE)
-         ⚠ answer가 정답 문장인 채로 오는 것이 있다(0807 딱지 · 29자 시시포스).
-           책등은 shortTitle이 막지만 각인은 원문이 그대로 들어가고 있었다.
-           각인은 도장 **밖**에 새겨져 잘릴 데가 없으므로 여기서 줄인다. */
-      const today = new Date(); today.setHours(0,0,0,0);
-      const mine = BOOKS.filter(b=>b.at>=today);
-      if(mine.length) opt.inscription = inkTitle(mine[mine.length-1].answer);
+  intrareDone('musaeum').then(done=>{
+    if(done && hs.length && HALL){
+      const duty = hs[ ((kstDay() % hs.length) + hs.length) % hs.length ];
+      if(duty && duty.code === HALL.code){
+        /* ⚠ 접두사는 콘솔(admin_credencial GROW 표)과 한 벌이다 — 'mus_'.
+             한쪽만 맞으면 셸이 못 찾은 채 조용히 물러나 아무도 못 알아챈다. */
+        opt.kind        = 'mus_' + HALL.code;
+        /* ⚠ 「같은 책」의 기준은 서가가 책을 묶는 기준과 같아야 한다. 서가는 answer로
+             묶으므로 여기도 answer다. seed로 하면 한 책의 OX·객관식이 두 권이 된다. */
+        opt.subject     = book.answer;
+        /* ⚠ answer가 정답 문장인 채로 오는 것이 있다(0807 딱지 · 29자 시시포스).
+             각인은 도장 밖에 새겨져 잘릴 데가 없으므로 여기서 줄인다. */
+        opt.inscription = inkTitle(book.answer);
+      }
     }
-  }
-  EGStamp.offer(opt);
+    EGStamp.offer(opt);
+  });
 }
 /* 각인용 줄이기 — 책등(13자)보다는 넉넉하되 도장 밖에서 넘치지 않을 만큼 */
 const INK_MAX = 20;
@@ -1134,7 +1172,7 @@ function enterHall(){
        ⚠ 서가 배치는 SHELF 그대로다. 여기서 바꾸는 것은 **카메라가 보는 곳**뿐이다. */
     const CAM={ L:SHELF.L, T:SHELF.T, W:SHELF.W, H:SHELF.H/RACKS*1.5 };
     const opts={ box:'#hall', fit:'#hallFit', ratio:HALL_RATIO, rect:CAM,
-      onDone(){ if(EDIT) setupEdit(); else stampHere(); } };
+      onDone(){ if(EDIT) setupEdit(); else stampEnter(); } };
 
     /* 폰(세로 화면)은 스크롤 길이가 0이라 카메라가 헛돈다 — 바로 앉힌다 */
     const scrollable = (innerWidth/innerHeight) >= HALL_RATIO;
@@ -1142,7 +1180,7 @@ function enterHall(){
     if(scrollable && window.EGCamera) EGCamera.enter(opts);
     else if(window.EGCamera) EGCamera.settle(opts);
     else if(EDIT) setupEdit();
-    else stampHere();          /* 카메라 부품이 안 실렸어도 도장은 놓는다(함정 AE) */
+    else stampEnter();         /* 카메라 부품이 안 실렸어도 입국 도장은 놓는다(함정 AE) */
   }, 1050);
 }
 addEventListener('resize', ()=>{ if(window.EGCamera) EGCamera.relayout(); });
@@ -1293,6 +1331,9 @@ addEventListener('resize', ()=>{ if(window.EGCamera) EGCamera.relayout(); });
     document.getElementById('f4coverShadow').style.opacity = '1';
     setTimeout(()=> overlay.classList.add('bg-light'), 50);
     f4AttachTilt();
+    /* ⭐ 0808 — 책을 펼친 그 순간에 도장이 놓인다. 4겹 조회가 끝난 뒤라야
+       book.answer가 확정된다(questions가 answer를 고쳐 보낼 수 있다). */
+    stampBook(book);
   }
 
   function f4AttachTilt(){
@@ -1733,7 +1774,7 @@ function playPageSound(){
 
 function goBack(){ bgmRelease(); location.href='terra.html'; }
 
-console.log('[EG] bibliotheca v1.8 · 0808 · 도장 area·접두사 검거(musaeum/mus_) · 각인 20자');
+console.log('[EG] bibliotheca v1.9 · 0808 · 체류 도장을 책 펼침으로 · area·접두사 검거 · 각인 20자');
 boot();
 bgmInit();
 f4InitModal();      /* 책 모달 손잡이 — 한 번만 묶는다 */

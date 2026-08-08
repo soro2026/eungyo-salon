@@ -3,6 +3,9 @@
    0803 · 결정문 3호(손님이 누른다) · 4호(찍는 곳과 보는 곳을 떼어놓는다)
    0804 · 종이 조각(18호 정본값) · 거두기(withdraw)
    0805 · 인장 시안 여러 벌 중 하나를 굴려 뽑고 그 행에 붙박음(15호)
+   0808 · 규칙 겹침 복원 — daily_per_area와 once_per_subject를 **둘 다** 묻는다.
+          천문대(별)·뮤세움(책)이 「그날 처음 만난 새 대상」에만 놓인다.
+          ⚠ 부르는 쪽 꼬리표를 ?v=0808a로 올려야 캐시가 갈린다.
 
    쓰는 법 — 그 우주의 파일에 두 줄:
      <script src="stamp_press.js?v=0805a"></script>
@@ -237,31 +240,47 @@ async function findKind(supa, opt){
   return rows[0] || null;
 }
 
-/* 이미 가졌는가 — 규칙마다 묻는 것이 다르다 */
+/* 이미 가졌는가 — 규칙마다 묻는 것이 다르다
+   ⭐ 0808 — 규칙이 둘이면 **둘 다** 물어야 한다. 여기가 if/else라 daily가 있으면
+     once_per_subject를 아예 안 물었고, 그래서 천문대가 「별마다 한 번」을 못 지켰다.
+     어제 본 별을 오늘 다시 열면 도장이 또 놓였다(설계는 안 그랬는데 구현이 그랬다).
+     결정문 8호 「새 규칙을 만들지 않고 둘을 겹치는 것으로 끝낸다」의 그 겹침이 이것이다.
+   ⚠ 겹쳐 쓰는 우주는 지금 둘 — 천문대(별) · 뮤세움(책). 둘 다
+     「하루 한 장」 그리고 「대상마다 한 번」이라, 그날 처음 만난 새 대상에만 놓인다.
+     별도 장치 없이 규칙 겹침이 「그날의 첫」을 만든다.
+   ⚠ 규칙이 하나뿐인 우주(음악관·미술관·한스푼·콜레주·입국)는 결과가 전과 같다. */
 async function alreadyHas(supa, uid, kind, opt){
   var rules = kind.rules || [];
   var daily = rules.indexOf('daily_per_area') >= 0;
-  var subj  = rules.indexOf('once_per_subject') >= 0 && opt.subject;
+  var subj  = rules.indexOf('once_per_subject') >= 0 && !!opt.subject;
   var today = new Date(Date.now() + 9*3600*1000).toISOString().slice(0,10);
+
+  /* ① 하루 한 장 — 이 우주에 오늘 한 장이라도 있으면 (입국 도장도 한 장으로 센다) */
+  if (daily && await anyStamp(supa, uid, { area:kind.area, on:today })) return true;
+  /* ② 대상마다 한 번 — 이 판으로 이 대상을 받은 적이 있으면 */
+  if (subj  && await anyStamp(supa, uid, { code:kind.code, subject:opt.subject })) return true;
+  /* ③ 둘 다 아니면 평생 한 번 — 이 판을 받은 적이 있으면 */
+  if (!daily && !subj && await anyStamp(supa, uid, { code:kind.code })) return true;
+  return false;
+}
+
+/* 묻기 한 곳 — supabase-js와 REST 두 갈래를 여기 한 데 모은다.
+   ⚠ 갈래마다 조건을 따로 적으면 한쪽만 고치는 날이 반드시 온다(0808 통합). */
+async function anyStamp(supa, uid, w){
   if (supa){
-    var q;
-    if (daily){
-      q = supa.from('stamps').select('id', { count:'exact', head:true })
-        .eq('user_id', uid).eq('area', kind.area).eq('stamped_on', today);
-    } else {
-      q = supa.from('stamps').select('id', { count:'exact', head:true })
-        .eq('user_id', uid).eq('kind_code', kind.code);
-      if (subj) q = q.eq('subject_id', String(opt.subject));
-    }
+    var q = supa.from('stamps').select('id', { count:'exact', head:true }).eq('user_id', uid);
+    if (w.area)    q = q.eq('area', w.area);
+    if (w.on)      q = q.eq('stamped_on', w.on);
+    if (w.code)    q = q.eq('kind_code', w.code);
+    if (w.subject) q = q.eq('subject_id', String(w.subject));
     var hr = await q;
     return !!hr.count;
   }
-  var u = daily
-    ? 'stamps?select=id&limit=1&user_id=eq.' + uid
-        + '&area=eq.' + encodeURIComponent(kind.area) + '&stamped_on=eq.' + today
-    : 'stamps?select=id&limit=1&user_id=eq.' + uid
-        + '&kind_code=eq.' + encodeURIComponent(kind.code)
-        + (subj ? '&subject_id=eq.' + encodeURIComponent(String(opt.subject)) : '');
+  var u = 'stamps?select=id&limit=1&user_id=eq.' + uid
+    + (w.area    ? '&area=eq.'       + encodeURIComponent(w.area) : '')
+    + (w.on      ? '&stamped_on=eq.' + w.on : '')
+    + (w.code    ? '&kind_code=eq.'  + encodeURIComponent(w.code) : '')
+    + (w.subject ? '&subject_id=eq.' + encodeURIComponent(String(w.subject)) : '');
   var rows = await restGet(u);
   return rows.length > 0;
 }
