@@ -92,6 +92,22 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
          없으면 저장소의 loader_sky.webp · EG_jet01.webp가 그대로 선다.
          넉 장을 다 굽기 전에 열어도 무사하다(크레덴시알 30호 — 없으면 안 나타난다).
        ⚠ 위상은 egSky.phase() 하나만 묻는다 — 경계를 여기 베끼면 공식이 두 집 살림한다. */
+    /* 비행기 한 벌 입히기 — url이 있으면 그것을, 없거나 실패하면 기본 기종.
+       ⚠ dressLoader 밖에 둔다. 위상 판정이 실패한 갈래에서도 불러야 하기 때문이다. */
+    function wearJet(url){
+      var go = function(){
+        var el = document.querySelector("#jetTrack img");
+        if(!el) return;
+        var back = el.getAttribute("data-jet") || "EG_jet01.webp";
+        if(!url){ el.src = back; return; }
+        el.onerror = function(){ el.onerror = null; el.src = back; };
+        el.src = url;
+      };
+      if(document.readyState === "loading")
+        document.addEventListener("DOMContentLoaded", go, { once:true });
+      else go();
+    }
+
     (function dressLoader(){
       var p = null;
       try{ p = (window.egSky && egSky.phase) ? egSky.phase() : null; }catch(e){}
@@ -102,9 +118,17 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
         var ov = new URLSearchParams(location.search).get("slot");
         if(ov && /^[mden]$/.test(ov)) p = ov;
       }catch(e){}
-      if(!p) return;                               /* eg_sky가 못 실렸으면 한 벌로 간다 */
+      /* ⚠⚠ 0808 — src를 비워 두었으므로 여기서 그냥 물러나면 비행기가 **영영 없다.**
+         옛 판은 HTML에 기본 기종이 박혀 있어 이 갈래가 무해했다. 이제는 아니다.
+         위상을 모를 때는 기본 기종을 세워 준다 — 폴백을 뒤로 옮긴 것이지 버린 것이 아니다. */
+      if(!p){ wearJet(null); return; }              /* eg_sky가 못 실렸으면 한 벌로 간다 */
       var PUB = SUPA_URL + "/storage/v1/object/public/tour-assets/loader/";
-      var V   = "?v=" + Math.floor(Date.now()/60000);
+      /* ⚠⚠ 0808 소로 — 분 단위였다. 「갈아 끼우면 1분 안에 닿는다」를 노린 값인데,
+         1분이 지나면 브라우저 캐시가 있어도 못 써서 **매번 새로 받았다.** 그동안 화면이
+         빌 수 없으니 기본판이 먼저 서고 진짜가 도착하면 갈렸다 — 그 번쩍임의 뿌리다.
+         날 단위면 하루 한 번만 받고 그 뒤로는 캐시가 즉답한다.
+         ⚠ 자산을 갈아 끼우면 손님에게는 다음 날 닿는다. 살롱지기는 강제 새로고침. */
+      var V   = "?v=" + Math.floor((Date.now() + 9*3600*1000) / 86400000);
 
       /* ⚠⚠ 0805밤 방향 반전 — 「기본판 먼저, 성공하면 교체」가 낮 화면 번쩍임을 낳았다.
          sky_n이 259KB로 제일 무거워 하필 밤에 제일 오래 낮이 보였다(소로 실측).
@@ -124,16 +148,13 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
       skyChk.onerror = function(){ skySt.remove(); };   /* 판이 없으면 CSS의 loader_sky로 */
       skyChk.src = skyUrl;
 
-      /* 비행기 — 요소가 서는 즉시 위상 기종을 지목한다. 기다렸다 바꾸지 않는다.
-         못 받으면 onerror가 기본 기종으로 되돌린다 — 잠깐 비는 쪽이 틀린 기종보다 낫다 */
+      /* ⭐⭐ 0808 소로 — 「폴백은 대신 서는 것이지 먼저 서는 것이 아니다.」
+         옛 판은 <img src="EG_jet01.webp">가 HTML에 박혀 있어 브라우저가 무조건 먼저
+         그렸고, 그 위에 위상 기종이 덮였다. 만일에 대비한 대가를 매번 치른 셈이다.
+         이제 src를 비우고 data-fb에 기본 기종을 넣어 둔다 — 위상판이 실패했을 때만 선다.
+         ⚠ 폴백을 버린 것이 아니다. 「먼저」에서 「나중」으로 옮겼을 뿐이다(함정 AE 정정). */
       var jetUrl = PUB + "jet_" + p + ".webp" + V;
-      var dressJet = function(){
-        var el = document.querySelector("#jetTrack img");
-        if(!el) return;
-        var back = el.src;                              /* EG_jet01.webp — 기본 기종 */
-        el.onerror = function(){ el.onerror = null; el.src = back; };
-        el.src = jetUrl;
-      };
+      var dressJet = function(){ wearJet(jetUrl); };
       if(document.readyState === "loading")
         document.addEventListener("DOMContentLoaded", dressJet, { once:true });
       else dressJet();
@@ -1450,7 +1471,7 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
 <div id="loader">
   <div id="skyDrift"></div>
   <div id="loaderMsg"><span class="line">당신의 집으로 가는 길을 여는 중…</span></div>
-  <div id="jetTrack"><img src="EG_jet01.webp" alt="Salon d'Eungyo Air"></div>
+  <div id="jetTrack"><img data-jet="EG_jet01.webp" alt="Salon d'Eungyo Air"></div>
   <div id="loaderDate"></div>
   <div id="loaderSkip">아무 곳이나 눌러 바로 들어가기</div>
   <audio id="jetSound" src="jet_sound.mp3" preload="auto"></audio>
