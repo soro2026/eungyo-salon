@@ -128,6 +128,12 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;}
 #play:hover .play-ring{transform:scale(1.08);border-color:rgba(120,96,52,.95);}
 #playerBox{position:absolute;inset:0;display:none;background:#000;}
 #playerBox.on{display:block;}
+/* ⭐⭐ 0808 소로 — 유리막(음악관 0808 부품 이식). 유튜브는 hover만으로 제목·슬라이드바를
+   띄운다. 투명한 막을 덮으면 마우스가 iframe에 닿지 않아 유튜브가 아예 모른다.
+   ⚠ 막이 클릭까지 먹으면 멈출 수가 없다 → 먹는 대신 **대신 전한다**(enablejsapi).
+   ⚠ z-index는 2다 — 「닫기」 단추가 3이라 그 위에 서야 누를 수 있다. */
+#ytGuard{position:absolute;inset:0;z-index:2;cursor:pointer;background:transparent}
+#ytGuard.off{display:none}
 #playerBox .mock{
   position:absolute;inset:0;display:grid;place-items:center;text-align:center;
   color:rgba(243,236,224,.6);font-size:clamp(10px,2vmin,14px);line-height:2;letter-spacing:.08em;
@@ -288,6 +294,11 @@ const sb=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth'
 const ORG=(new URLSearchParams(location.search).get('org')||'ildangbaek').toLowerCase();
 
 let PALAIS={ name:'', epoch:null, curation:[], letters:[] };
+/* ⭐ 0808 소로 — 상영 목록이 palais_orgs.curation(jsonb 배열)에서 palais_films 표로 옮겨왔다.
+   「행에 링크를 죽죽 넣는 구조가 촌스럽다」 — 배열은 늘어날수록 위험하다(콤마 하나면 통째로 죽는다).
+   이제 영상 하나 = 행 하나. 스물이 되어도 코드 0줄이고, status로 지우지 않고 내릴 수 있다.
+   ⚠ 음악관(heritage_items)과 같은 낱말을 쓴다 — name·video_id·start_seconds·sort·status. */
+let FILMS=[];
 let SCREEN_RECT={L:14.6,T:53.1,W:71.0,H:18.6};
 const STAGE_RATIO=1080/1920;                    // 무대 그림 가로/세로
 const asset=slot=>`${SUPA_URL}/storage/v1/object/public/${BUCKET}/${PREFIX}${ORG}/${slot}.webp`;
@@ -395,8 +406,12 @@ function centerStageScreen(){              // 스크린 중심을 화면 중앙�
  *  오늘의 한 편 — 달력이 회전판
  * ============================================================ */
 function todaysPick(){
-  const list=PALAIS.curation||[];
+  /* ⚠ 옛 배열(curation)은 표가 비었을 때만 쓴다 — 옮기기 전 전당이 남아 있을 수 있다.
+     둘 다 비면 null이고, 그때 화면은 아무 일도 안 한다(폴백이 기본값). */
+  const list = FILMS.length ? FILMS
+             : (PALAIS.curation||[]).map(c=>({ video_id:c.id, name:c.t||'', start_seconds:0 }));
   if(!list.length) return null;
+  /* 눈금은 그 전당이 문 연 날(epoch)이다 — 파트너마다 개관일이 다르다 */
   const base=PALAIS.epoch ? new Date(PALAIS.epoch+'T00:00:00+09:00') : new Date();
   const days=Math.floor((Date.now()-base)/86400000);
   const i=((days%list.length)+list.length)%list.length;
@@ -451,15 +466,73 @@ $('#hall').addEventListener('keydown',e=>{if(e.key==='Enter') goStage();});
 /* 무대 스크린 재생 — 실제 유튜브 */
 function play(){
   const pick=todaysPick();
-  if(!pick||!pick.id){ return; }
+  if(!pick||!pick.video_id){ return; }
   const box=$('#playerBox');
-  box.innerHTML=`<iframe src="https://www.youtube.com/embed/${pick.id}?autoplay=1&rel=0&modestbranding=1"
+  /* ⚠ 0808 — enablejsapi=1 이 있어야 유리막의 멈춤 명령이 닿는다. 없으면 조용히 버려진다. */
+  const st=pick.start_seconds || 0;
+  box.innerHTML=`<iframe src="https://www.youtube.com/embed/${pick.video_id}?autoplay=1&start=${st}&rel=0&modestbranding=1&enablejsapi=1"
     allow="autoplay; encrypted-media; fullscreen" allowfullscreen frameborder="0"
     style="width:100%;height:100%;border:0;display:block"></iframe>
     <button class="stop" style="position:absolute;right:6px;top:6px;z-index:3;font-size:11px;
-      letter-spacing:.16em;color:#d9b168;background:rgba(0,0,0,.55);padding:3px 10px;border-radius:99px;">닫기</button>`;
+      letter-spacing:.16em;color:#d9b168;background:rgba(0,0,0,.55);padding:3px 10px;border-radius:99px;">닫기</button>
+    <div id="ytGuard"></div>`;
+  wireGuard();
   box.classList.add('on');
+  ytListen();
 }
+
+/* ── 유튜브에게 말을 건다 — enablejsapi=1 이 있어야 듣는다 (음악관 0807 부품) ── */
+function ytCmd(func, args){
+  const f=$('#playerBox iframe');
+  if(!f || !f.contentWindow) return false;
+  try{ f.contentWindow.postMessage(JSON.stringify({event:'command',func,args:args||[]}),'*'); return true; }
+  catch(e){ return false; }
+}
+/* 재생 상태를 알려 달라고 귀를 연다 */
+function ytListen(){
+  setTimeout(()=>{
+    const f=$('#playerBox iframe');
+    if(!f || !f.contentWindow) return;
+    try{ f.contentWindow.postMessage('{"event":"listening","id":1,"channel":"widget"}','*'); }catch(e){}
+  }, 900);
+}
+/* ⭐ 유리막 배선 — 손짓 둘
+     한 번 클릭  멈춤 / 다시 재생 — 막이 대신 전한다. 유튜브 UI는 안 뜬다
+     두 번 클릭  막이 걷힌다 — 슬라이드바·전체화면이 필요할 때만
+     마우스 떠남  다시 덮인다
+   ⚠ 더블클릭은 click을 두 번 먼저 낸다. 그대로 두면 곡이 멈췄다 켜지며 껌뻑인다 —
+     단일 클릭을 220ms 미뤄 두고 더블이면 무른다. */
+let YT_PLAYING=false, guardTimer=null, tapTimer=null;
+function wireGuard(){
+  const g=$('#ytGuard'); if(!g) return;
+  g.addEventListener('click', ()=>{
+    clearTimeout(tapTimer);
+    tapTimer=setTimeout(()=>{
+      ytCmd(YT_PLAYING ? 'pauseVideo' : 'playVideo');
+      YT_PLAYING = !YT_PLAYING;
+    }, 220);
+  });
+  g.addEventListener('dblclick', ()=>{
+    clearTimeout(tapTimer);
+    g.classList.add('off');
+    clearTimeout(guardTimer);
+    guardTimer=setTimeout(()=>g.classList.remove('off'), 8000);
+  });
+  $('#playerBox').addEventListener('mouseleave', ()=>{
+    clearTimeout(guardTimer);
+    g.classList.remove('off');
+  });
+}
+/* 유튜브가 보내는 상태 — 1=재생 2=멈춤 0=끝. 유리막이 이 값을 쓴다 */
+window.addEventListener('message', e=>{
+  const d=e && e.data;
+  if(typeof d!=='string') return;
+  let y=null; try{ y=JSON.parse(d); }catch(_){ return; }
+  if(y && y.event==='infoDelivery' && y.info && typeof y.info.playerState==='number'){
+    if(y.info.playerState===1) YT_PLAYING=true;
+    else if(y.info.playerState===2 || y.info.playerState===0) YT_PLAYING=false;
+  }
+});
 function stop(){
   $('#playerBox').classList.remove('on');
   $('#playerBox').innerHTML='';
@@ -475,10 +548,10 @@ $('#play').addEventListener('click', e=>{
 function paint(){
   document.title=`전당 · ${PALAIS.name||''} — EG Paris`;
   const pick=todaysPick();
-  $('#playTitle').textContent = pick ? (pick.t||'') : '';
+  $('#playTitle').textContent = pick ? (pick.name||'') : '';
   /* 제목이 비어 있으면 유튜브 oEmbed로 즉석 조회 (키 불필요) */
-  if(pick && pick.id && !pick.t){
-    fetch(`https://www.youtube.com/oembed?url=https%3A//www.youtube.com/watch%3Fv%3D${pick.id}&format=json`)
+  if(pick && pick.video_id && !pick.name){
+    fetch(`https://www.youtube.com/oembed?url=https%3A//www.youtube.com/watch%3Fv%3D${pick.video_id}&format=json`)
       .then(r=>r.ok?r.json():null)
       .then(j=>{ if(j&&j.title) $('#playTitle').textContent=j.title; })
       .catch(()=>{});
@@ -579,6 +652,22 @@ const esc=s=>String(s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp
 })();
 
 /* ── DB에서 이 전당을 불러온다 ── */
+/* 상영 목록 — 행 하나가 영상 하나. 늘리려면 행을 더한다(코드 0줄).
+   ⚠ 못 받아도 던지지 않는다 — 옛 배열(curation)이 폴백으로 남아 있다. */
+async function loadFilms(){
+  try{
+    const { data, error } = await sb.from('palais_films')
+      .select('id,name,video_id,start_seconds,note')
+      .eq('org', ORG).eq('status','active')
+      .order('sort').order('id');
+    if(error) throw error;
+    FILMS = Array.isArray(data) ? data : [];
+  }catch(e){
+    console.warn('[EG] 상영 목록을 못 받았습니다 — 옛 배열로 갑니다:', e && e.message);
+    FILMS = [];
+  }
+}
+
 async function loadOrg(){
   const { data, error } = await sb.from('palais_orgs').select('*').eq('code',ORG).maybeSingle();
   if(error||!data){ console.warn('전당을 찾지 못했습니다:',ORG,error&&error.message); return; }
@@ -586,6 +675,7 @@ async function loadOrg(){
            curation:Array.isArray(data.curation)?data.curation:[],
            letters:Array.isArray(data.letters)?data.letters:[] };
   if(data.screen_rect) SCREEN_RECT=Object.assign({},SCREEN_RECT,data.screen_rect);
+  await loadFilms();                       /* 상영 목록 — 표가 먼저, 옛 배열은 폴백 */
   applyRect(); paint(); loadNotes();
 }
 
@@ -605,6 +695,8 @@ addEventListener('load',()=>{
 </script>
 
 <!-- 폰에서 방을 나가는 문 (0730) — 액자 밖 + 폰일 때만 뜬다. eg_back.js 참조 -->
-<script src="eg_back.js?v=20260729"></script>
+<script src="eg_back.js?v=20260729">
+console.log('%c[EG] palais v1.1 · 0808 · 상영목록 palais_films 표 · 유리막', 'color:#d9b168');
+</script>
 </body>
 </html>
