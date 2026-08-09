@@ -1971,7 +1971,7 @@ async function sbFetch(path, options = {}) {
   }
   return res.status === 204 ? null : res.json();
 }
-console.log("%c[EG] wunderkammer 0809i · 모달 출구 정리", "color:#c9a84c");
+console.log("%c[EG] wunderkammer 0809j · 줄자 순례 개방", "color:#c9a84c");
 function getUser() { try { return JSON.parse(localStorage.getItem('eungyo-auth'))?.user || null; } catch { return null; } }
 
 /* ── 층 구성 (2026.07.28 「세 건물 재편 결정문」 7호로 4층 축소) ──
@@ -3599,7 +3599,7 @@ const Floor3 = (() => {
       `<div class="bk-rline ${axis}" data-k="${k}"
             style="${axis==='h' ? 'top:'+s[k]+'%' : 'left:'+s[k]+'%'}"><b>${label}</b></div>`).join('')
       + `<div class="bk-rsave"><button id="bk-rule-save">이 방에 담기</button>
-         <span id="bk-rule-msg"></span></div>`;
+         <span id="bk-rule-msg">${REAL_NO}번 · ${escAttr((ROOM&&ROOM.name)||'')}</span></div>`;
     box.querySelectorAll('.bk-rline').forEach(bindRuleLine);
     document.getElementById('bk-rule-save').addEventListener('click', saveShelf);
   }
@@ -3689,27 +3689,37 @@ const Floor3 = (() => {
     document.getElementById('bk-prev').addEventListener('click', () => slide(-1));
     document.getElementById('bk-next').addEventListener('click', () => slide(+1));
 
-    const isOwner = !!getUser()?.id && ownerId === getUser()?.id;
+    /* ⚠ 문이 둘이다. 하나로 묶으면 순례 중에 ⚖까지 사라진다(0809 소로 발견).
+         ＋·✎  = 내 책을 만진다        → 내 방에서만
+         ⚖     = living_rooms를 만진다 → 살롱지기면 어느 방에서든
+       그리고 is_admin은 **집주인이 아니라 나**를 봐야 한다.
+       남의 집에서 집주인의 권한을 물으면 늘 아니라고 답한다. */
+    const meId = getUser()?.id || null;
+    const isOwner = !!meId && ownerId === meId;
+    let keeper = false;
+    if (meId){
+      try {
+        const u = await sbFetch(`/rest/v1/users?id=eq.${meId}&select=is_admin`);
+        keeper = !!(u && u[0] && u[0].is_admin);
+      } catch(e){ console.warn('[책의 방] 살롱지기 확인 실패', e); }
+    }
     const dock = document.getElementById('bk-dock');
-    if (dock) dock.hidden = !isOwner;           /* 순례(남의 집)면 조종간 자체가 없다 */
+    if (dock) dock.hidden = !(isOwner || keeper);
+    const h = document.getElementById('bk-dock-h');
+    const m = document.getElementById('bk-dock-menu');
+    if (h && m) h.addEventListener('click', ()=>{
+      m.hidden = !m.hidden; h.classList.toggle('on', !m.hidden);
+    });
+    const ab = document.getElementById('bk-add-toggle');
+    const eb = document.getElementById('bk-edit-toggle');
+    if (ab) ab.hidden = !isOwner;
+    if (eb) eb.hidden = !isOwner;
     if (isOwner){
-      const h = document.getElementById('bk-dock-h');
-      const m = document.getElementById('bk-dock-menu');
-      if (h && m) h.addEventListener('click', ()=>{
-        m.hidden = !m.hidden; h.classList.toggle('on', !m.hidden);
-      });
-      const eb = document.getElementById('bk-edit-toggle');
       if (eb) eb.addEventListener('click', toggleEdit);
       bindAddModal(ownerId);
-      /* ⚖는 살롱지기만 — living_rooms는 서른 채가 함께 쓰는 표다 */
-      try {
-        const u = await sbFetch(`/rest/v1/users?id=eq.${ownerId}&select=is_admin`);
-        if (u && u[0] && u[0].is_admin){
-          const rb = document.getElementById('bk-rule-toggle');
-          if (rb){ rb.hidden = false; rb.addEventListener('click', toggleRule); }
-        }
-      } catch(e){}
     }
+    const rb = document.getElementById('bk-rule-toggle');
+    if (rb){ rb.hidden = !keeper; if (keeper) rb.addEventListener('click', toggleRule); }
     const fc = document.querySelector('.floor-content[data-floor="3"]');
     if (fc) fc.classList.remove('editing');
   }
