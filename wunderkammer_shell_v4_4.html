@@ -181,16 +181,36 @@ html, body {
   padding:14px; letter-spacing:.03em;
 }
 /* 명패 — 그림 아래. 누르면 설명이 펼쳐진다 */
+/* ── 명패 — 미술관과 같은 얼굴 (galerie #plaque 이식 · 0809 소로) ──
+   박스가 아니라 벽에 새긴다. 잉크는 명패가 앉은 곳의 벽을 재서 고른다.
+   ⭐ 낭독 줄은 **음성이 있는 그림에만** 뜬다(0806밤 원칙: 그림 곁에는 팝업 말고 소리). */
 .floor-content[data-floor="1"] .sl-plaque{
-  position:absolute; z-index:13; transform:translateX(-50%);
-  background:rgba(24,16,12,.72); border:1px solid rgba(201,168,76,.34);
-  border-radius:4px; padding:7px 15px; cursor:pointer; backdrop-filter:blur(3px);
-  font-family:'Noto Serif KR',serif; text-align:center; white-space:nowrap;
-  transition:border-color .25s ease, background .25s ease;
+  position:absolute; z-index:15; transform:translateX(-50%);
+  text-align:center; white-space:nowrap; cursor:pointer; pointer-events:auto;
+  font-family:'Noto Serif KR',serif; font-weight:300;
+  text-shadow:0 1px 3px rgba(0,0,0,.4);
 }
-.floor-content[data-floor="1"] .sl-plaque:hover{ border-color:#c9a84c; background:rgba(36,24,16,.85); }
-.floor-content[data-floor="1"] .sl-plaque b{ display:block; font-size:12.5px; font-weight:600; color:#f0ebe0; }
-.floor-content[data-floor="1"] .sl-plaque span{ display:block; font-size:10.5px; color:#bfa88a; font-style:italic; margin-top:2px; }
+.floor-content[data-floor="1"] .sl-plaque .p-name{
+  font-size:.56em; letter-spacing:.04em; color:#f2ead6;
+}
+.floor-content[data-floor="1"] .sl-plaque .p-artist{
+  font-family:'Cormorant Garamond',serif; font-size:.46em; letter-spacing:.16em;
+  color:rgba(232,221,196,.72); margin-top:.3em;
+}
+.floor-content[data-floor="1"] .sl-plaque .p-voice{
+  display:none; margin-top:.42em; font-size:.46em; letter-spacing:.06em;
+  color:rgba(232,214,168,.92); cursor:pointer; user-select:none;
+}
+.floor-content[data-floor="1"] .sl-plaque .p-voice.on{ display:block; }
+.floor-content[data-floor="1"] .sl-plaque .p-voice:hover{ color:#f6ecd2; }
+.floor-content[data-floor="1"] .sl-plaque .p-voice .vd{ opacity:.55; margin-left:.4em; font-size:.92em; }
+/* 흰 벽에 상아색을 얹으면 글자가 벽에 먹힌다 — 재서 뒤집는다 */
+.floor-content[data-floor="1"] .sl-plaque.ink-dark{ text-shadow:0 1px 2px rgba(255,255,255,.32); }
+.floor-content[data-floor="1"] .sl-plaque.ink-dark .p-name{ color:#2a2318; }
+.floor-content[data-floor="1"] .sl-plaque.ink-dark .p-artist{ color:rgba(42,35,24,.62); }
+.floor-content[data-floor="1"] .sl-plaque.ink-dark .p-voice{ color:rgba(90,70,26,.95); }
+.floor-content[data-floor="1"] .sl-plaque.ink-dark .p-voice:hover{ color:#3a2c10; }
+
 
 /* ══════════════════════════════════════════════════════════════════
  *  ⅠF 메시지 보드 · 꽃 티커 — 0809 (옛 갤러리 좌측 벽에서 되살림)
@@ -356,6 +376,9 @@ html, body {
 .floor-content[data-floor="1"] .sl-tick.editing{
   pointer-events:auto; cursor:ns-resize;
   outline:2px dashed rgba(180,140,200,.9); outline-offset:4px; border-radius:4px;
+  /* ⚠ overflow:hidden 과 mask 가 모서리 손잡이를 잘라 먹었다 — 안 보이니 못 잡는다.
+     맞추는 동안은 걷는다. 맞출 때는 진짜 폭이 보여야 한다. */
+  overflow:visible; -webkit-mask-image:none; mask-image:none;
 }
 .floor-content[data-floor="1"] .sl-h{
   position:absolute; width:16px; height:16px; right:-10px; bottom:-10px; z-index:40;
@@ -2241,7 +2264,7 @@ window.addEventListener('resize', () => {
  * ══════════════════════════════════════════════════════════════════════════ */
 const Salon = (() => {
   let ROOM = null, ART = null, MW = null, OWNER = null, MINE = false;
-  let QUOTE_DARK = false, TICK_DARK = false, MEASURED = false;   /* 잉크 — 재기 전엔 안 그린다 */
+  let QUOTE_DARK = false, TICK_DARK = false, PLAQUE_DARK = false, MEASURED = false;   /* 잉크 — 재기 전엔 안 그린다 */
   const EDIT = new URLSearchParams(location.search).has('edit');
 
   /* ⭐ 배치 — 전부 **벽 구역에 대한 비율**이다. 방마다 값이 아니라 우주 하나의 값이라
@@ -2253,6 +2276,7 @@ const Salon = (() => {
     artDrop  : 3,     /* 그림 가운데 = 벽 가운데 + %p */
     artX     : 50,    /* 그림 가로 % — 벽이 좌우 대칭이라 50이 기본 */
     tickH    : 10,    /* 꽃 티커 높이 %p · 바닥선이 wall_bot */
+    tickDrop : 0,     /* 꽃 티커 들어올림 %p — 0이면 콘솔 상판에 바로 앉는다 */
     tickW    : 44     /* 꽃 티커 폭 % — 상판 좌우 끝에 물건이 서 있다(0809 실측).
                          일곱 방에서 물건이 가장 안쪽까지 온 곳이 26%·74%이므로
                          28~72%가 공통으로 비어 있다. 폭 44%가 그 안에 딱 든다. */
@@ -2425,7 +2449,7 @@ const Salon = (() => {
   }
   function tickBox(){
     const w = band();
-    return { top:w.bot - K.tickH, h:K.tickH, w:K.tickW };
+    return { top:w.bot - K.tickH - K.tickDrop, h:K.tickH, w:K.tickW };
   }
 
   /* 그 시간대가 아직 안 구워졌으면 낮으로 물러선다. 낮마저 없으면 CSS 그라데이션.
@@ -2469,13 +2493,17 @@ const Salon = (() => {
     const im = new Image();
     im.crossOrigin = 'anonymous';
     im.onload = ()=>{
-      QUOTE_DARK = pickDark(readLum(im, quoteBox()));
-      TICK_DARK  = pickDark(readLum(im, tickBox()));
+      QUOTE_DARK  = pickDark(readLum(im, quoteBox()));
+      TICK_DARK   = pickDark(readLum(im, tickBox()));
+      const a = artBox();
+      PLAQUE_DARK = pickDark(readLum(im, { top:a.top + a.h + 1.4, h:5 }));   /* 명패가 앉는 곳만 */
       MEASURED = true;
       renderBoard(stage);
+      const pl = stage.querySelector('.sl-plaque');
+      if (pl) pl.classList.toggle('ink-dark', PLAQUE_DARK);
     };
     /* 교차출처로 막히거나 그림이 없으면 상아색으로 간다 — 어두운 벽이 더 흔하다 */
-    im.onerror = ()=>{ QUOTE_DARK = false; TICK_DARK = false; MEASURED = true; renderBoard(stage); };
+    im.onerror = ()=>{ QUOTE_DARK = false; TICK_DARK = false; PLAQUE_DARK = false; MEASURED = true; renderBoard(stage); };
     im.src = url;
   }
   function readLum(im, box){
@@ -2538,12 +2566,105 @@ const Salon = (() => {
     if (EDITING) armArt(stage, wrap);
 
     const pl = document.createElement('div');
-    pl.className = 'sl-plaque';
+    pl.className = 'sl-plaque' + (PLAQUE_DARK ? ' ink-dark' : '');
     pl.style.cssText = `left:${x}%; top:${a.top + a.h + 1.4}%;`;
-    pl.innerHTML = `<b>${esc2(item.name || '무제')}</b><span>${esc2(item.artist || '')}</span>`;
-    pl.onclick = (e)=>{ e.stopPropagation(); openNote(item); };
+    pl.innerHTML = `<div class="p-name">${esc2(item.name || '무제')}</div>`
+                 + `<div class="p-artist">${esc2(item.artist || '')}</div>`
+                 + `<div class="p-voice" id="sl-voice"></div>`;
+    pl.onclick = (e)=>{ e.stopPropagation(); if (!EDITING) openNote(item); };
+    pl.querySelector('.p-voice').onclick = (e)=>{ e.stopPropagation(); toggleArtVoice(); };
     stage.appendChild(pl);
+    paintArtVoice(item);
   }
+
+  /* ══════════════════════════════════════════════════════════════
+     낭독 — 미술관 명패 부품을 그대로 옮겼다(galerie 0806밤).
+     ⭐ 「그림 곁에는 팝업 말고 소리」 — 4겹 시트는 화면을 덮어 그림을 가린다.
+     ⚠ 분더카머는 terra 안 액자에서 열리므로 소리는 terra가 든다.
+       나가도 안 끊기고, 조종간이 무엇이 흐르는지 말해 준다.
+     ⚠ 음성이 있는 그림에만 줄이 뜬다. 없으면 아무 말도 안 한다.
+     ══════════════════════════════════════════════════════════════ */
+  let ART_VOICE = null, ART_AUDIO = null, VOICE_NOW = null;
+  const HAS_PARENT = (()=>{ try{ return window.parent && window.parent !== window; }catch(e){ return false; } })();
+  function tellParent(m){ try{ window.parent.postMessage(m,'*'); }catch(e){} }
+
+  async function paintArtVoice(item){
+    const el = document.getElementById('sl-voice');
+    if (!HAS_PARENT && ART_AUDIO){ try{ ART_AUDIO.pause(); }catch(e){} ART_AUDIO = null; }
+    ART_VOICE = null;
+    if (!el) return;
+    el.classList.remove('on'); el.textContent = '';
+    if (!item || !item.id) return;
+    try{
+      const r = await sbFetch(`/rest/v1/voice_takes?scope=eq.art&ref=eq.${encodeURIComponent(item.id)}`
+                            + `&active=is.true&select=url,dur_sec&limit=1`);
+      const d = r && r[0];
+      if (!d || !d.url) return;                     /* 없으면 줄도 없다 */
+      ART_VOICE = d;
+      el.classList.add('on');
+      paintVoiceLine();
+      /* ⚠ 나갔다 다시 들어온 때 — 이미 흐르는 중일 수 있다. 안 물으면 명패와 소리가 어긋난다 */
+      if (HAS_PARENT) tellParent({ eg:'voice-ask' });
+    }catch(e){ console.warn('[거실] 낭독을 못 받았습니다 — 명패는 그대로 둡니다', e); }
+  }
+
+  function paintVoiceLine(txt){
+    const el = document.getElementById('sl-voice');
+    if (!el || !ART_VOICE) return;
+    const d = ART_VOICE.dur_sec;
+    const dur = d ? `<span class="vd">${Math.floor(d/60)}:${String(Math.round(d%60)).padStart(2,'0')}</span>` : '';
+    let t = txt;
+    if (!t){
+      if (HAS_PARENT){
+        /* ⚠ 갈래(scope)까지 본다 — 장소 낭독이 흐르는데 「듣는 중」이라 적으면 거짓말이 된다 */
+        const mine = VOICE_NOW && VOICE_NOW.scope === 'art'
+                     && String(VOICE_NOW.ref) === String(ART && ART.id);
+        t = !mine             ? '▶ 설명 듣기'
+          : VOICE_NOW.playing ? '❚❚ 듣는 중'
+          : VOICE_NOW.ended   ? '▶ 다시 듣기'
+          :                     '▶ 이어 듣기';
+      } else {
+        t = (ART_AUDIO && !ART_AUDIO.paused) ? '❚❚ 듣는 중' : '▶ 설명 듣기';
+      }
+    }
+    el.innerHTML = t + dur;
+  }
+
+  function toggleArtVoice(){
+    if (!ART_VOICE || !ART) return;
+    if (HAS_PARENT){
+      const mine = VOICE_NOW && String(VOICE_NOW.ref) === String(ART.id);
+      if (mine) tellParent({ eg:'voice-toggle' });
+      else tellParent({ eg:'voice-play', scope:'art', ref:ART.id, url:ART_VOICE.url,
+                        title:(ART.name || '작품 해설'), total:(ART_VOICE.dur_sec || 0) });
+      return;
+    }
+    /* 폴백 — 단독으로 열렸을 때만 여기서 튼다 */
+    if (ART_AUDIO && !ART_AUDIO.paused){ ART_AUDIO.pause(); return; }
+    if (!ART_AUDIO){
+      ART_AUDIO = new Audio(ART_VOICE.url);
+      ART_AUDIO.preload = 'none';
+      ART_AUDIO.onplay  = ()=> paintVoiceLine('❚❚ 듣는 중');
+      ART_AUDIO.onpause = ()=> paintVoiceLine('▶ 이어 듣기');
+      ART_AUDIO.onended = ()=> paintVoiceLine('▶ 다시 듣기');
+      ART_AUDIO.onerror = ()=>{ paintVoiceLine('음성을 불러오지 못했습니다');
+        console.warn('[거실] 낭독 파일을 못 받았습니다:', ART_VOICE.url); };
+      try{
+        if ('mediaSession' in navigator)
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title:(ART && ART.name) || '작품 해설', artist:(ART && ART.artist) || 'EG Universe' });
+      }catch(e){}
+    }
+    ART_AUDIO.play().catch(e=> console.warn('[거실] 낭독 재생', e));
+  }
+
+  /* terra가 되쏘는 상태 — 명패 줄이 조종간과 같은 말을 하게 한다 */
+  window.addEventListener('message', e=>{
+    const d = e && e.data;
+    if (!d || d.eg !== 'voice-state') return;
+    VOICE_NOW = d.ref ? d : null;
+    paintVoiceLine();
+  });
 
   /* ─────────────────────────────────────────────────────────────
      메시지 보드 — 글귀 한 장 + 콘솔 위 흐르는 흔적
@@ -2794,7 +2915,7 @@ const Salon = (() => {
     el.innerHTML =
       `그림 <em>배율</em> ${K.artK.toFixed(3)} · <em>내림</em> ${K.artDrop.toFixed(1)} · <em>가로</em> ${K.artX.toFixed(1)}`
       + `<br>글귀 <em>위</em> ${K.quoteTop.toFixed(1)} · <em>높이</em> ${K.quoteH.toFixed(1)}`
-      + `<br>꽃 <em>높이</em> ${K.tickH.toFixed(1)} · <em>폭</em> ${K.tickW.toFixed(1)}`
+      + `<br>꽃 <em>올림</em> ${K.tickDrop.toFixed(1)} · <em>높이</em> ${K.tickH.toFixed(1)} · <em>폭</em> ${K.tickW.toFixed(1)}`
       + (K.tickW > 44.1 ? ' <em style="color:#e08f6a">⚠ 상판 물건과 겹침</em>' : '')
       + `<br><em>${ROOM ? String(ROOM.no).padStart(2,'0') + ' ' + esc2(ROOM.name || '') : ''}`
       + ` 벽 ${w.top.toFixed(1)} ~ ${w.bot.toFixed(1)} (${w.h.toFixed(1)})`
@@ -2894,12 +3015,14 @@ const Salon = (() => {
   function armTick(stage, el){
     const w = band();
     arm(el, stage, {
-      grab : ()=> K.tickH,
-      move : (v, dx, dy)=>{ K.tickH = clamp(v - dy, 4, w.h*0.5); },
+      /* ⚠ 끌면 **옮겨진다.** 앞 판은 끌어도 키만 자라서 「안 움직인다」로 보였다(0809 소로).
+         바닥이 콘솔 상판에 매인 것은 그대로고, 거기서 얼마나 들어올릴지가 tickDrop이다. */
+      grab : ()=> K.tickDrop,
+      move : (v, dx, dy)=>{ K.tickDrop = clamp(v - dy, -6, w.h*0.55); },
       grabSize : ()=> ({ h:K.tickH, w:K.tickW }),
       size : (v, dx, dy)=>{
         K.tickH = clamp(v.h - dy, 4, w.h*0.5);
-        K.tickW = clamp(v.w + dx*2, 16, 44);     /* 44%가 천장 — 넘으면 물건을 밟는다 */
+        K.tickW = clamp(v.w + dx*2, 16, 44);     /* 44%가 천장 — 넘으면 상판 물건을 밟는다 */
       }
     });
   }
