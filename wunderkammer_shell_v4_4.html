@@ -292,7 +292,7 @@ html, body {
 .floor-content[data-floor="1"] .sl-tick:hover .sl-tick-track{ animation-play-state:paused; }
 .floor-content[data-floor="1"] .sl-tick-chip{
   display:inline-flex; align-items:flex-end; gap:.4em; padding:0 1.5em 0 0;
-  font-family:'Noto Serif KR',serif; font-size:.58em; font-weight:300;
+  font-family:'Noto Serif KR',serif; font-size:.62em; font-weight:300;
   color:var(--sl-tick-ink,#f0ebe0); text-shadow:var(--sl-tick-shadow, 0 1px 3px rgba(0,0,0,.5));
 }
 .floor-content[data-floor="1"] .sl-tick-chip img{
@@ -342,26 +342,49 @@ html, body {
 }
 #sl-toast.on{ opacity:1; transform:translateX(-50%) translateY(0); }
 
-/* 살롱지기 손잡이 판 — 도크 ⚖ 로 연다 */
-.sl-edit{
-  position:fixed; left:12px; bottom:12px; z-index:200;
-  background:rgba(18,12,8,.92); border:1px solid rgba(201,168,76,.4);
-  border-radius:10px; padding:10px 13px; font-family:'Noto Serif KR',serif;
-  font-size:11.5px; color:#e8ddc4; display:grid; gap:7px; min-width:230px;
+/* ── 배치 맞추기 — 미술관 문법. 끌어 옮기고 모서리로 키운다 (0809 소로) ──
+   ⚠ 여기서 맞추는 값은 **벽 구역에 대한 비율**이라 일곱 방 전부에 통한다.
+     방마다 저장하면 서른 채에 270값이 된다. 저장은 eg_settings 한 줄. */
+.floor-content[data-floor="1"] .sl-mw.editing{
+  pointer-events:auto; cursor:move;
+  outline:2px dashed rgba(127,179,213,.95); outline-offset:6px; border-radius:4px;
 }
-.sl-edit[hidden]{ display:none !important; }   /* ⚠ id·class의 display가 [hidden]을 이긴다 */
-.sl-edit-head{ display:flex; align-items:center; justify-content:space-between; gap:10px;
-  margin-bottom:2px; font-size:11px; color:#c9a84c; letter-spacing:.1em; }
-.sl-edit-x{ background:transparent; border:none; color:rgba(232,221,196,.6);
-  font-size:17px; line-height:1; cursor:pointer; padding:0 2px; }
-.sl-edit-x:hover{ color:#e9cf9c; }
-.sl-edit-out{ margin-top:3px; padding:7px 9px; border-radius:7px;
-  background:rgba(0,0,0,.35); border:1px solid rgba(201,168,76,.22);
-  font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; color:#e9cf9c;
-  user-select:all; cursor:text; }
-.sl-edit label{ display:grid; grid-template-columns:52px 1fr 40px; align-items:center; gap:7px; }
-.sl-edit input[type=range]{ width:100%; accent-color:#c9a84c; }
-.sl-edit b{ font-weight:400; color:#c9a84c; text-align:right; }
+.floor-content[data-floor="1"] .sl-art.editing,
+.floor-content[data-floor="1"] .sl-empty.editing{
+  outline:2px dashed rgba(233,207,156,.9); outline-offset:4px; cursor:move;
+}
+.floor-content[data-floor="1"] .sl-tick.editing{
+  pointer-events:auto; cursor:ns-resize;
+  outline:2px dashed rgba(180,140,200,.9); outline-offset:4px; border-radius:4px;
+}
+.floor-content[data-floor="1"] .sl-h{
+  position:absolute; width:16px; height:16px; right:-10px; bottom:-10px; z-index:40;
+  border:2px solid #e9cf9c; background:rgba(10,8,5,.82); border-radius:4px;
+  cursor:nwse-resize; display:none; touch-action:none;
+}
+.floor-content[data-floor="1"] .editing > .sl-h{ display:block; }
+
+#sl-bar{
+  position:fixed; left:50%; transform:translateX(-50%);
+  bottom:calc(16px + env(safe-area-inset-bottom)); z-index:210;
+  display:flex; gap:8px; align-items:center;
+}
+#sl-bar[hidden]{ display:none !important; }
+#sl-bar button{
+  font-family:'Noto Serif KR',serif; font-size:12px; letter-spacing:.05em;
+  border-radius:18px; padding:9px 17px; cursor:pointer; border:1px solid rgba(233,207,156,.5);
+  background:rgba(12,9,6,.78); color:rgba(233,207,156,.92);
+}
+#sl-bar button.go{ background:#c9a84c; color:#241a12; border-color:#c9a84c; font-weight:500; }
+#sl-info{
+  position:fixed; left:50%; transform:translateX(-50%);
+  bottom:calc(62px + env(safe-area-inset-bottom)); z-index:210;
+  background:rgba(12,9,6,.82); border:1px solid rgba(201,168,76,.3); border-radius:9px;
+  padding:8px 13px; font-family:'JetBrains Mono',ui-monospace,monospace;
+  font-size:11px; line-height:1.75; color:#e9cf9c; white-space:nowrap;
+}
+#sl-info[hidden]{ display:none !important; }
+#sl-info em{ font-style:normal; opacity:.5; }
 
 /* ============================================================
  *  ⅢF 책의 방 (Bibliothèque) — 전부 [data-floor="3"] 스코프
@@ -2208,14 +2231,29 @@ const Salon = (() => {
   let QUOTE_DARK = false, TICK_DARK = false, MEASURED = false;   /* 잉크 — 재기 전엔 안 그린다 */
   const EDIT = new URLSearchParams(location.search).has('edit');
 
-  /* 배치 손잡이 — 벽 구역에 대한 비율이다. 방마다 값이 아니라 우주 하나의 값 */
-  const K = {
-    quoteTop : 5,     /* 글귀판 위 = wall_top + 5 %p */
-    quoteH   : 16,    /* 글귀판 높이 %p */
-    artK     : 0.36,  /* 그림 높이 = 벽 구역 × K (0809 소로: 2호 쪽이 낫다) */
-    artDrop  : 3,     /* 그림 가운데 = 벽 가운데 + 3 %p */
-    tickH    : 9      /* 꽃 티커 높이 %p · 바닥선이 wall_bot */
+  /* ⭐ 배치 — 전부 **벽 구역에 대한 비율**이다. 방마다 값이 아니라 우주 하나의 값이라
+     일곱 방에 그대로 통한다. 저장은 eg_settings.living_layout 한 줄(0809). */
+  const K_DEFAULT = {
+    quoteTop : 8,     /* 글귀 위    = wall_top + %p */
+    quoteH   : 16,    /* 글귀 높이   %p */
+    artK     : 0.36,  /* 그림 높이  = 벽 구역 × K */
+    artDrop  : 3,     /* 그림 가운데 = 벽 가운데 + %p */
+    artX     : 50,    /* 그림 가로 % — 벽이 좌우 대칭이라 50이 기본 */
+    tickH    : 10     /* 꽃 티커 높이 %p · 바닥선이 wall_bot */
   };
+  const K = Object.assign({}, K_DEFAULT);
+  let K_SAVED = Object.assign({}, K_DEFAULT);
+
+  async function loadLayout(){
+    try{
+      const r = await sbFetch('/rest/v1/eg_settings?key=eq.living_layout&select=val');
+      const v = r?.[0]?.val;
+      if (v && typeof v === 'object'){
+        Object.keys(K_DEFAULT).forEach(k=>{ if (typeof v[k] === 'number') K[k] = v[k]; });
+        K_SAVED = Object.assign({}, K);
+      }
+    }catch(e){ console.warn('[거실] 배치 값 조회 실패 — 기본값으로 갑니다', e); }
+  }
 
   function slot(){ return egSky.phase(); }
 
@@ -2278,6 +2316,7 @@ const Salon = (() => {
     const stage = document.getElementById('sl-stage');
     if (!stage) return;
 
+    await loadLayout();          /* ⚠ 첫 그림 전에 읽는다 — 나중에 읽으면 한 번 튄다 */
     OWNER = await ownerId();
     MINE  = !!OWNER && OWNER === (getUser()?.id || null);
 
@@ -2360,7 +2399,7 @@ const Salon = (() => {
     const w = band();
     const h = w.h * K.artK;
     const c = w.mid + K.artDrop;
-    return { top:c - h/2, h };
+    return { top:c - h/2, h, x:K.artX };
   }
   function quoteBox(){
     const w = band();
@@ -2460,23 +2499,25 @@ const Salon = (() => {
       }catch(e){ console.warn('[거실] 그림 조회 실패', e); }
     }
     ART = item;
-    const a = artBox(), x = 50;
+    const a = artBox(), x = a.x;
 
     if (!item || !item.img){
       const box = document.createElement('div');
       box.className = 'sl-empty';
       box.style.cssText = `left:${x}%; top:${a.top}%; height:${a.h}%; width:${a.h*0.74}%;`;
-      box.innerHTML = '아직<br>아무것도<br>걸려 있지 않습니다';
+      box.innerHTML = '아직<br>아무것도<br>걸려 있지 않습니다<div class="sl-h"></div>';
       stage.appendChild(box);
+      if (EDITING) armArt(stage, box);
       return;
     }
 
     const wrap = document.createElement('div');
     wrap.className = 'sl-art';
     wrap.style.cssText = `left:${x}%; top:${a.top}%; height:${a.h}%;`;
-    wrap.innerHTML = `<img src="${item.img}" alt="${esc2(item.name)}">`;
-    wrap.onclick = ()=> openZoom(item);
+    wrap.innerHTML = `<img src="${item.img}" alt="${esc2(item.name)}"><div class="sl-h"></div>`;
+    wrap.onclick = ()=> { if (!EDITING) openZoom(item); };
     stage.appendChild(wrap);
+    if (EDITING) armArt(stage, wrap);
 
     const pl = document.createElement('div');
     pl.className = 'sl-plaque';
@@ -2514,8 +2555,9 @@ const Salon = (() => {
       const mw = document.createElement('div');
       mw.className = 'sl-mw' + (QUOTE_DARK ? ' ink-dark' : '');
       mw.style.cssText = `left:50%; top:${q.top}%; height:${q.h}%; width:60%;`;
-      mw.innerHTML = inner;
+      mw.innerHTML = inner + '<div class="sl-h"></div>';
       stage.appendChild(mw);
+      if (EDITING) armQuote(stage, mw);
     }
 
     if (traces.length){
@@ -2527,10 +2569,21 @@ const Salon = (() => {
       const tk = document.createElement('div');
       tk.className = 'sl-tick';
       tk.style.cssText = `left:50%; top:${t.top}%; height:${t.h}%; width:74%;`;
-      tk.innerHTML = `<div class="sl-tick-track">${chips}</div>`;
+      tk.innerHTML = `<div class="sl-tick-track">${chips}</div><div class="sl-h"></div>`;
       stage.appendChild(tk);
+      /* ⚠ 꽃 크기가 티커 높이를 안 따라가면, 상자만 자라고 아무 일도 안 일어나 보인다
+         (0809 소로 지적). 칩 글자 크기를 실제 높이에서 뽑아 넣는다. */
+      sizeTick(tk);
       flowTicker(tk, chips);
+      if (EDITING) armTick(stage, tk);
     }
+  }
+
+  /* 꽃과 글자는 티커 높이를 따라간다 — 상자만 자라면 맞춰도 아무 일이 안 일어난다 */
+  function sizeTick(tk, again){
+    const h = tk.clientHeight || 0;
+    if (h > 0){ tk.style.fontSize = Math.max(9, h * 0.40) + 'px'; return; }
+    if (!again) requestAnimationFrame(()=> sizeTick(tk, true));   /* 한 번만 미룬다 */
   }
 
   /* ⭐ 티커는 시간이 아니라 **속도**를 못 박는 물건이다(0809 소로 관찰).
@@ -2565,10 +2618,7 @@ const Salon = (() => {
     const items = [];
     if (MINE) items.push(['✎','내 글귀', openWrite]);
     else      items.push(['✿','꽃 두고 가기', openFlower]);
-    if (await isKeeper()) items.push(['⚖','배치 맞추기', ()=>{
-      const b = root.querySelector('[data-act="keeper"]');
-      toggleEditor(stage, b);
-    }]);
+    if (await isKeeper()) items.push(['⚖','배치 맞추기', ()=>{ buildEditBar(); toggleEditor(stage); }]);
     if (!items.length) return;
 
     const dock = document.createElement('div');
@@ -2698,50 +2748,173 @@ const Salon = (() => {
     return KEEPER;
   }
 
-  function toggleEditor(stage, btn){
-    const box = document.querySelector('.sl-edit');
-    if (box){ box.hidden = !box.hidden; return; }
-    buildEditor(stage);
+  /* ══════════════════════════════════════════════════════════════
+     배치 맞추기 — 미술관 문법(galerie 0805). 끌어 옮기고 모서리로 키운다.
+     ⚠ 여기서 맞추는 값은 벽 구역에 대한 **비율**이라 일곱 방 전부에 통한다.
+       방마다 저장하면 서른 채에 270값이 된다. 저장은 eg_settings 한 줄.
+     ⚠ 끌기는 포인터 하나로 받는다 — 폰과 마우스가 같은 길로 들어온다.
+     ══════════════════════════════════════════════════════════════ */
+  let EDITING = false;
+
+  function stageRect(){
+    const st = document.getElementById('sl-stage');
+    return st ? st.getBoundingClientRect() : { width:1, height:1 };
+  }
+  const clamp = (v,lo,hi)=> Math.min(hi, Math.max(lo, v));
+
+  function toggleEditor(stage){
+    EDITING = !EDITING;
+    document.getElementById('sl-bar').hidden  = !EDITING;
+    document.getElementById('sl-info').hidden = !EDITING;
+    loadArt(stage, OWNER); renderBoard(stage);
+    paintInfo();
   }
 
-  /* 눈으로 정할 값은 눈으로 정한다(0807 벽감 편집기 계보).
-     ⚠ 저장하지 않는다 — 방마다가 아니라 우주 하나의 값이라, 정해지면 K 상수로 못 박는다. */
-  const EDIT_ROWS = [
-    ['artK',     '그림',    20, 55, 100],
-    ['quoteTop', '글귀 위',  0,  30,   1],
-    ['tickH',    '꽃 높이',  4,  20,   1]
-  ];
-  function buildEditor(stage){
-    if (document.querySelector('.sl-edit')) return;
-    const box = document.createElement('div');
-    box.className = 'sl-edit';
-    box.innerHTML =
-      `<div class="sl-edit-head"><span>배치 맞추기</span>
-         <button class="sl-edit-x" type="button" aria-label="닫기">×</button></div>`
-      + EDIT_ROWS.map(([k,label,lo,hi,mul])=>
-        `<label>${label}<input type="range" data-k="${k}" min="${lo}" max="${hi}" step="1"
-           value="${Math.round(K[k]*mul)}"><b id="sl-e-${k}">${Math.round(K[k]*mul)}</b></label>`
-      ).join('')
-      + `<div class="sl-edit-out" id="sl-e-out"></div>`;
-    document.body.appendChild(box);
+  function paintInfo(){
+    const el = document.getElementById('sl-info'); if (!el) return;
+    const w = band();
+    el.innerHTML =
+      `그림 <em>배율</em> ${K.artK.toFixed(3)} · <em>내림</em> ${K.artDrop.toFixed(1)} · <em>가로</em> ${K.artX.toFixed(1)}`
+      + `<br>글귀 <em>위</em> ${K.quoteTop.toFixed(1)} · <em>높이</em> ${K.quoteH.toFixed(1)}`
+      + `<br>꽃 <em>높이</em> ${K.tickH.toFixed(1)}`
+      + `<br><em>이 방 벽 ${w.top.toFixed(1)} ~ ${w.bot.toFixed(1)} · 값은 일곱 방 공통</em>`;
+  }
 
-    const readout = ()=>{
-      document.getElementById('sl-e-out').textContent =
-        `artK ${K.artK.toFixed(2)} · quoteTop ${K.quoteTop} · tickH ${K.tickH}`;
-    };
-    box.querySelectorAll('input').forEach(inp=>{
-      inp.addEventListener('input', ()=>{
-        const k = inp.dataset.k;
-        const mul = EDIT_ROWS.find(r=>r[0]===k)[4];
-        K[k] = (+inp.value) / mul;
-        document.getElementById('sl-e-'+k).textContent = inp.value;
-        loadArt(stage, OWNER); renderBoard(stage); readout();
-      });
+  /* 한 물건에 끌기와 모서리를 붙인다. 값이 바뀌면 그 자리에서 다시 그린다. */
+  function arm(el, stage, opt){
+    const h = el.querySelector('.sl-h');
+    el.classList.add('editing');
+    let d = null, r = null;
+
+    el.addEventListener('pointerdown', e=>{
+      if (!EDITING || e.target === h) return;
+      e.preventDefault(); e.stopPropagation();
+      el.setPointerCapture(e.pointerId);
+      d = { x:e.clientX, y:e.clientY, v:opt.grab() };
     });
-    box.querySelector('.sl-edit-x').onclick = ()=>{ box.hidden = true; };
-    readout();
+    el.addEventListener('pointermove', e=>{
+      if (!EDITING || !d) return;
+      const b = stageRect();
+      opt.move(d.v, (e.clientX-d.x)/b.width*100, (e.clientY-d.y)/b.height*100);
+      redraw(stage);
+    });
+    const end = ()=>{ d = null; };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+
+    if (h && opt.size){
+      h.addEventListener('pointerdown', e=>{
+        if (!EDITING) return;
+        e.preventDefault(); e.stopPropagation();
+        h.setPointerCapture(e.pointerId);
+        r = { x:e.clientX, y:e.clientY, v:opt.grabSize() };
+      });
+      h.addEventListener('pointermove', e=>{
+        if (!EDITING || !r) return;
+        const b = stageRect();
+        opt.size(r.v, (e.clientX-r.x)/b.width*100, (e.clientY-r.y)/b.height*100);
+        redraw(stage);
+      });
+      const e2 = ()=>{ r = null; };
+      h.addEventListener('pointerup', e2);
+      h.addEventListener('pointercancel', e2);
+    }
   }
 
+  /* ⚠⚠ 끄는 중에는 **다시 만들지 않고 스타일만 고친다.**
+     요소를 지웠다 새로 만들면 잡고 있던 물건이 사라져 포인터가 끊긴다
+     — 미술관 applyRect()가 스타일만 고치는 까닭이 이것이다(galerie 계보).
+     통째로 다시 그리는 것은 편집을 켜고 끌 때뿐이다. */
+  function redraw(stage){
+    const a = artBox(), q = quoteBox(), t = tickBox();
+
+    const art = stage.querySelector('.sl-art, .sl-empty');
+    if (art){
+      art.style.left = a.x + '%'; art.style.top = a.top + '%'; art.style.height = a.h + '%';
+      if (art.classList.contains('sl-empty')) art.style.width = (a.h * 0.74) + '%';
+    }
+    const pl = stage.querySelector('.sl-plaque');
+    if (pl){ pl.style.left = a.x + '%'; pl.style.top = (a.top + a.h + 1.4) + '%'; }
+
+    const mw = stage.querySelector('.sl-mw');
+    if (mw){ mw.style.top = q.top + '%'; mw.style.height = q.h + '%'; }
+
+    const tk = stage.querySelector('.sl-tick');
+    if (tk){ tk.style.top = t.top + '%'; tk.style.height = t.h + '%'; sizeTick(tk); }
+
+    paintInfo();
+  }
+
+  function armArt(stage, el){
+    const w = band();
+    arm(el, stage, {
+      grab : ()=> ({ drop:K.artDrop, x:K.artX }),
+      move : (v, dx, dy)=>{
+        K.artDrop = clamp(v.drop + dy, -w.h*0.35, w.h*0.35);
+        K.artX    = clamp(v.x + dx, 30, 70);
+      },
+      grabSize : ()=> K.artK,
+      size : (v, dx, dy)=>{ K.artK = clamp(v + (dy*2)/w.h, 0.12, 0.72); }
+    });
+  }
+  function armQuote(stage, el){
+    const w = band();
+    arm(el, stage, {
+      grab : ()=> K.quoteTop,
+      move : (v, dx, dy)=>{ K.quoteTop = clamp(v + dy, 0, w.h - K.quoteH); },
+      grabSize : ()=> K.quoteH,
+      size : (v, dx, dy)=>{ K.quoteH = clamp(v + dy, 6, w.h - K.quoteTop); }
+    });
+  }
+  /* 티커는 바닥선이 wall_bot에 못 박혀 있다 — 위로 끌면 높이가 자란다 */
+  function armTick(stage, el){
+    const w = band();
+    const set = (v, dy)=>{ K.tickH = clamp(v - dy, 4, w.h*0.5); };
+    arm(el, stage, {
+      grab : ()=> K.tickH,
+      move : (v, dx, dy)=> set(v, dy),
+      grabSize : ()=> K.tickH,
+      size : (v, dx, dy)=> set(v, dy)
+    });
+  }
+
+  function buildEditBar(){
+    if (document.getElementById('sl-bar')) return;
+    const info = document.createElement('div');
+    info.id='sl-info'; info.hidden = true;
+    document.body.appendChild(info);
+
+    const bar = document.createElement('div');
+    bar.id='sl-bar'; bar.hidden = true;
+    bar.innerHTML = `<button type="button" class="go" data-a="save">저장</button>
+                     <button type="button" data-a="undo">되돌리기</button>
+                     <button type="button" data-a="close">끝내기</button>`;
+    document.body.appendChild(bar);
+
+    bar.addEventListener('click', async e=>{
+      const a = e.target.dataset && e.target.dataset.a;
+      const stage = document.getElementById('sl-stage');
+      if (a === 'save'){
+        const val = {};
+        Object.keys(K_DEFAULT).forEach(k=> val[k] = +(+K[k]).toFixed(3));
+        try{
+          await sbFetch('/rest/v1/eg_settings?on_conflict=key', {
+            method:'POST',
+            headers:{ 'Prefer':'resolution=merge-duplicates' },
+            body: JSON.stringify({ key:'living_layout', val, updated_at:new Date().toISOString() })
+          });
+          K_SAVED = Object.assign({}, K);
+          toast('배치를 저장했습니다 · 일곱 방에 함께 갑니다');
+        }catch(err){ toast('저장 실패: ' + (err.message||'')); }
+      }
+      if (a === 'undo'){
+        Object.assign(K, K_SAVED);
+        loadArt(stage, OWNER); renderBoard(stage); paintInfo();
+        toast('마지막 저장으로 되돌렸습니다');
+      }
+      if (a === 'close'){ toggleEditor(stage); }
+    });
+  }
   function openZoom(a){
     document.getElementById('sl-zoom-img').src = a.img || '';
     document.getElementById('sl-zoom-cap').innerHTML =
