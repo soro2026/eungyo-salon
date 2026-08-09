@@ -533,6 +533,14 @@ html, body {
   cursor: nwse-resize; display: none; z-index: 7; touch-action: none;
 }
 .floor-content[data-floor="3"].editing .cover-book.sel .bk-handle { display: block; }
+.floor-content[data-floor="3"] .cover-book .bk-del {
+  position: absolute; left: -11px; top: -11px; width: 24px; height: 24px;
+  border-radius: 50%; background: rgba(120,36,28,0.95); border: 2px solid #e9cf9c;
+  color: #f5e6c8; font-size: 11px; line-height: 1; padding: 0;
+  cursor: pointer; display: none; z-index: 7;
+}
+.floor-content[data-floor="3"].editing .cover-book.sel .bk-del { display: block; }
+.floor-content[data-floor="3"] .cover-book .bk-del:hover { background: rgba(160,48,36,1); }
 .floor-content[data-floor="3"] .bk-edit-toggle {
   position: absolute; left: 50%; bottom: 54px; transform: translateX(-50%);
   padding: 9px 18px; border-radius: 20px; font-size: 13px; cursor: pointer;
@@ -565,8 +573,23 @@ html, body {
   border-bottom:1px solid rgba(201,168,76,0.28); padding-bottom:14px; margin-bottom:16px; }
 .bam-head .t { font-family: Georgia,"Nanum Myeongjo",serif; font-size:19px; color:#f0ebe0; margin:0; }
 .bam-head .t .eyebrow { display:block; font-size:11px; letter-spacing:.28em; color:#c9a84c; text-transform:uppercase; margin-bottom:6px; }
-.bam-x { flex:0 0 auto; background:none; border:none; color:#a89a85; font-size:24px; line-height:1; cursor:pointer; padding:2px 6px; }
-.bam-x:hover { color:#f0ebe0; }
+/* 0809: 판 머리 ×를 화면 고정 원형으로 — 스크롤이 어디 있든 보인다.
+   ⚠ top 110px는 0704 규약이다. 부모(terra)가 화면 맨 위 오른쪽에 「× 분더카머 떠나기」를
+     얹으므로, 그 아래 세워 두 문이 세로로 나란히 서게 한다. 24px로 올리면 또 겹친다. */
+.bam-x {
+  position: fixed; top: 110px; right: 24px; width: 42px; height: 42px;
+  background: rgba(80,40,28,0.92); border: 1px solid rgba(212,184,120,0.7);
+  color: #f0d8a8; font-size: 22px; line-height: 1; border-radius: 50%;
+  cursor: pointer; z-index: 210; backdrop-filter: blur(8px); padding: 0;
+}
+.bam-x:hover { background: rgba(110,60,40,0.95); }
+.bam-back {
+  display: block; width: 100%; margin-top: 14px; padding: 12px 0;
+  background: rgba(60,40,24,0.9); border: 1px solid rgba(201,168,76,0.5);
+  color: #e8d4a0; font-size: 14.5px; border-radius: 12px; cursor: pointer;
+  font-family: inherit; letter-spacing: 0.04em;
+}
+.bam-back:hover { background: rgba(90,60,34,0.95); }
 .bam-search { display:flex; gap:9px; margin-bottom:8px; }
 .bam-search input { flex:1; min-width:0; padding:14px 15px; font-size:16px; background:rgba(240,235,224,.06);
   border:1px solid rgba(201,168,76,.28); border-radius:12px; color:#f0ebe0; outline:none; }
@@ -1948,7 +1971,7 @@ async function sbFetch(path, options = {}) {
   }
   return res.status === 204 ? null : res.json();
 }
-console.log("%c[EG] wunderkammer 0809g · 오류 말 되살리기", "color:#c9a84c");
+console.log("%c[EG] wunderkammer 0809i · 모달 출구 정리", "color:#c9a84c");
 function getUser() { try { return JSON.parse(localStorage.getItem('eungyo-auth'))?.user || null; } catch { return null; } }
 
 /* ── 층 구성 (2026.07.28 「세 건물 재편 결정문」 7호로 4층 축소) ──
@@ -3850,7 +3873,12 @@ const Floor3 = (() => {
       res.className = 'bam-result ok';
       res.innerHTML = '✅ <b>' + bamEsc(BAM_CURRENT.title) + '</b> 들였습니다!<br>'
         + '<span class="sm">표지 ' + via + ' 복사 · 원본 ' + (w&&h ? w+'×'+h : '크기?')
-        + (row && row.id ? ' · row ' + String(row.id).slice(0,8) + '…' : '') + '</span>';
+        + (row && row.id ? ' · row ' + String(row.id).slice(0,8) + '…' : '') + '</span>'
+        + '<button class="bam-back" id="bam-back">📚 서가로 돌아가기</button>';
+      /* ⚠ 눈이 있는 곳에 문을 낸다 — 완료 글귀 밑이 곧 출구다.
+         이 문이 없으면 손님은 오른쪽 위를 더듬다 지구로 떨어진다(0809 소로 발견) */
+      const bb = document.getElementById('bam-back');
+      if (bb) bb.addEventListener('click', closeAddModal);
       // 책장 즉시 갱신 — 새 책이 바로 꽂힘
       await loadBooks(BAM_OWNER);
       buildShelfPages();
@@ -3905,7 +3933,8 @@ const Floor3 = (() => {
         el._book = book; el._slot = slot;         /* ⚠ 번호가 아니라 책을 붙든다 — 순서가 바뀌어도 그 책이 열린다 */
         placeBook(el, book, slot);
         el.innerHTML = `<img src="${book.cover}" alt="${escAttr(book.title)}" title="${escAttr(book.title)} · ${escAttr(book.author||'')}">`
-                     + `<div class="bk-handle" data-h="1"></div>`;
+                     + `<div class="bk-handle" data-h="1"></div>`
+                     + `<button class="bk-del" data-h="1" title="서가에서 내보내기">🗑</button>`;
         el.addEventListener('click', (e) => {
           if (editMode) { if (!e.target.dataset.h) selectBook(el); return; }
           openBook(book);
@@ -3995,6 +4024,30 @@ const Floor3 = (() => {
       const tu = () => { saveBook(book); removeEventListener('touchmove', tm); removeEventListener('touchend', tu); };
       addEventListener('touchmove', tm, { passive: false }); addEventListener('touchend', tu);
     }, { passive: true });
+
+    /* ── 🗑 내보내기 — 두 번 묻고, DB가 받아준 뒤에만 화면에서 뺀다 ── */
+    const del = el.querySelector('.bk-del');
+    if (del) del.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!editMode) return;
+      if (!confirm(`『${book.title}』을(를) 서가에서 내보낼까요?\n글(에세이)도 함께 사라지며 되돌릴 수 없습니다.`)) return;
+      del.disabled = true;
+      try {
+        await sbFetch(`/rest/v1/wunderkammer_books?id=eq.${book.id}`, {
+          method: 'DELETE', headers: { 'Prefer': 'return=minimal' }
+        });
+        /* ⚠ DB가 받아준 뒤에만 화면을 정리한다 — 실패했는데 화면에서만 사라지면
+           새로고침 때 되살아나 유령이 된다 */
+        BOOKS = BOOKS.filter(b => b.id !== book.id);
+        if (selEl === el) selEl = null;
+        const keep = Math.min(currentShelfPage, Math.max(0, Math.ceil((BOOKS.length||1)/PER_PAGE) - 1));
+        currentShelfPage = keep;
+        buildPages(); buildShelfPages(); buildDots();
+      } catch (err) {
+        alert('내보내지 못했습니다 — ' + (err.message || err));
+        del.disabled = false;
+      }
+    });
   }
 
   /* 놓은 자리에서 가장 가까운 칸을 찾아 그 칸 책과 자리를 맞바꾼다.
