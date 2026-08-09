@@ -774,19 +774,27 @@ html, body {
  *  ⅡF 책의 방 0809 재건축 — 세로 무대 · 자석 자리 · 조종간
  *  ⚠ 위쪽 옛 규칙을 덮는다. 순서를 바꾸면 옛 가로 무대가 되살아난다
  * ════════════════════════════════════════════════════════════ */
-.floor-content[data-floor="3"] .stage{
-  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-  overflow:hidden;
-}
-.floor-content[data-floor="3"] .room{
-  position:relative; width:auto; height:100%; max-width:100%;
-  aspect-ratio:941 / 1672;                       /* 941×1672 세로 한 벌 */
+/* 무대 — 뮤세움 문법 세 겹. 가로 폭에 맞추고 위아래로 스크롤한다.
+   ⚠ aspect-ratio로 상자를 만들면 화면 높이에 갇혀 폭이 좁아지고 스크롤이 0이 된다.
+     그러면 카메라가 붙을 자리도 없다(0809 내가 낸 사고). */
+.floor-content[data-floor="3"] .bk-scroll{
+  position:absolute; inset:0; overflow-y:auto; overflow-x:hidden;
+  overflow-anchor:none;                          /* 그림이 늦게 커도 스크롤이 안 밀린다 */
+  scrollbar-width:none; -ms-overflow-style:none;
   background:linear-gradient(168deg,#2a1d18 0%,#20160f 55%,#120c08 100%);
-  overflow:hidden;
 }
-.floor-content[data-floor="3"] .bk-bg-layer{
-  position:absolute; inset:0; background-size:cover; background-position:center;
-  transition:opacity .9s ease; z-index:0; pointer-events:none;
+.floor-content[data-floor="3"] .bk-scroll::-webkit-scrollbar{ display:none; width:0; height:0; }
+.floor-content[data-floor="3"] .bk-fit{
+  position:relative; margin:0 auto;
+  width:min(100%, var(--bk-maxw, 1440px));
+}
+.floor-content[data-floor="3"] #bk-img{
+  display:block; width:100%; height:auto;
+  opacity:0; transition:opacity .7s ease;
+}
+.floor-content[data-floor="3"] #bk-img.on{ opacity:1; }
+.floor-content[data-floor="3"] .cover-stack{
+  position:absolute; inset:0; z-index:5; pointer-events:none;
 }
 /* ⭐ 자석 — top이 밑줄, left가 가운뎃줄. 키워도 이 둘이 안 움직인다 */
 .floor-content[data-floor="3"] .cover-book{
@@ -3400,8 +3408,9 @@ const Floor3 = (() => {
   function markup() {
     return `
       <div class="floor-content" data-floor="3">
-        <div class="stage">
-          <div class="room" id="bk-room">
+        <div class="bk-scroll" id="bk-scroll">
+          <div class="bk-fit" id="bk-fit">
+            <img id="bk-img" alt="">
             <div class="cover-stack" id="bk-cover-stack"></div>
           </div>
         </div>
@@ -3458,18 +3467,38 @@ const Floor3 = (() => {
   }
   function slot(){ try { return egSky.phase(); } catch(e){ return 'd'; } }
 
-  function setRoomBg(url){
-    const room = document.getElementById('bk-room');
-    if(!room) return;
-    const layer = document.createElement('div');
-    layer.className = 'bk-bg-layer';
-    layer.style.backgroundImage = `url('${url}')`;
-    layer.style.opacity = '0';
-    room.insertBefore(layer, room.firstChild);
-    requestAnimationFrame(()=>requestAnimationFrame(()=>{ layer.style.opacity = '1'; }));
-    room.querySelectorAll('.bk-bg-layer').forEach(el=>{
-      if(el !== layer){ el.style.opacity = '0'; setTimeout(()=>el.remove(), 950); }
+  /* 배경 — 뮤세움 문법. img 한 장이라 안 뜨면 눈에 보이고 콘솔에도 남는다.
+     ⚠ CSS 배경 레이어로 깔면 못 뜬 것과 안 부른 것이 화면에서 똑같다(함정 BC) */
+  function setRoomBg(list){
+    return new Promise(res=>{
+      const im = document.getElementById('bk-img');
+      if(!im){ res(false); return; }
+      let i = 0;
+      const step = () => {
+        if (i >= list.length){ console.warn('[책의 방] 배경을 못 찾았습니다', list); res(false); return; }
+        const url = list[i++];
+        im.onload  = () => { im.classList.add('on'); res(true); };
+        im.onerror = () => { console.warn('[책의 방] 배경 없음 →', url); step(); };
+        im.src = url;
+      };
+      step();
     });
+  }
+
+  /* ⭐ 들어서는 3초 — 천장(천창)에서 내려와 **맨 윗단**에 안착한다.
+     ⚠ 감 전체를 주면 중심이 2단이라 새 책이 화면 위로 잘린다(뮤세움 0807).
+       한 단 반만 준다. 서가 배치는 안 건드린다 — 카메라가 보는 곳만 바꾼다 */
+  function runCamera(){
+    if (!window.EGCamera) return;
+    const s = shelf();
+    const CAM = { L:s.l, T:s.top, W:s.r-s.l, H:(s.b1-s.top)*1.5 };
+    const opts = { box:'#bk-scroll', fit:'#bk-fit', ratio:STAGE_AR, rect:CAM };
+    /* 폰(세로)은 스크롤 길이가 0이라 카메라가 헛돈다 — 바로 앉힌다 */
+    const scrollable = (innerWidth/innerHeight) >= STAGE_AR;
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      try { scrollable ? EGCamera.enter(opts) : EGCamera.settle(opts); }
+      catch(e){ console.warn('[책의 방] 카메라', e); }
+    }));
   }
 
   /* 순례 동선: ?user=닉네임이면 그 집 주인 uid, 없으면 로그인 본인 (1층과 같은 정신) */
@@ -3505,10 +3534,12 @@ const Floor3 = (() => {
     currentShelfPage = 0; isTransitioning = false; editMode = false; selEl = null;
     const ownerId = await resolveOwnerId();
     await loadRoom(ownerId);                    /* ⚠ 첫 그림 전에 읽는다 — 나중이면 한 번 튄다 */
-    setRoomBg(bgUrl(REAL_NO, slot()));
+    const t = slot();
+    const ok = await setRoomBg([ bgUrl(REAL_NO, t), bgUrl(REAL_NO, 'd'), bgUrl(1, 'd') ]);
     await loadBooks(ownerId);
     buildShelfPages();
     buildDots();
+    if (ok) runCamera();                        /* ⚠ 그림이 실린 뒤 — fit 높이가 0이면 헛돈다 */
     document.getElementById('bk-prev').addEventListener('click', () => slide(-1));
     document.getElementById('bk-next').addEventListener('click', () => slide(+1));
 
