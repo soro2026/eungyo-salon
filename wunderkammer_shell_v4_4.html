@@ -843,6 +843,34 @@ html, body {
 .floor-content[data-floor="3"] .bk-dock-b:hover{
   background:rgba(60,40,20,.94); color:var(--floor-accent);
 }
+/* ⚖ 줄자 — 그림과 같은 좌표계(fit) 위에 얹힌다 */
+.floor-content[data-floor="3"] .bk-rule{ position:absolute; inset:0; z-index:20; }
+.floor-content[data-floor="3"] .bk-rule[hidden]{ display:none !important; }
+.floor-content[data-floor="3"] .bk-rline{ position:absolute; }
+.floor-content[data-floor="3"] .bk-rline.h{
+  left:0; right:0; height:0; border-top:1px dashed rgba(150,220,170,.95);
+  cursor:ns-resize; padding:6px 0; margin-top:-6px;
+}
+.floor-content[data-floor="3"] .bk-rline.v{
+  top:0; bottom:0; width:0; border-left:1px dashed rgba(150,200,255,.95);
+  cursor:ew-resize; padding:0 6px; margin-left:-6px;
+}
+.floor-content[data-floor="3"] .bk-rline.on{ border-color:#ffd76a; }
+.floor-content[data-floor="3"] .bk-rline b{
+  position:absolute; left:6px; top:-16px; font-weight:400;
+  font-size:11px; letter-spacing:.04em; color:#eae0c6;
+  background:rgba(20,14,8,.86); padding:1px 6px; border-radius:5px; white-space:nowrap;
+}
+.floor-content[data-floor="3"] .bk-rline.v b{ left:6px; top:8px; }
+.floor-content[data-floor="3"] .bk-rsave{
+  position:absolute; left:50%; bottom:2%; transform:translateX(-50%);
+  display:flex; align-items:center; gap:10px; z-index:21;
+}
+.floor-content[data-floor="3"] .bk-rsave button{
+  padding:7px 14px; border-radius:8px; cursor:pointer; font:inherit; font-size:12px;
+  background:rgba(201,168,76,.9); border:none; color:#241a12;
+}
+.floor-content[data-floor="3"] .bk-rsave span{ font-size:11.5px; color:#cfc2a4; }
 .floor-content[data-floor="3"] .bk-dock-b.on{
   background:linear-gradient(180deg,rgba(201,168,76,.9),rgba(160,128,52,.95)); color:#241a12;
 }
@@ -1898,7 +1926,7 @@ async function sbFetch(path, options = {}) {
   if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message || res.statusText); }
   return res.status === 204 ? null : res.json();
 }
-console.log("%c[EG] wunderkammer 0809c · 2층 책의 방 재건축", "color:#c9a84c");
+console.log("%c[EG] wunderkammer 0809d · 2층 · 줄자", "color:#c9a84c");
 function getUser() { try { return JSON.parse(localStorage.getItem('eungyo-auth'))?.user || null; } catch { return null; } }
 
 /* ── 층 구성 (2026.07.28 「세 건물 재편 결정문」 7호로 4층 축소) ──
@@ -3412,6 +3440,7 @@ const Floor3 = (() => {
           <div class="bk-fit" id="bk-fit">
             <img id="bk-img" alt="">
             <div class="cover-stack" id="bk-cover-stack"></div>
+            <div class="bk-rule" id="bk-rule" hidden></div>
           </div>
         </div>
         <button class="bk-nav-arrow bk-nav-left"  id="bk-prev" aria-label="앞 면">‹</button>
@@ -3423,6 +3452,7 @@ const Floor3 = (() => {
           <div class="bk-dock-menu" id="bk-dock-menu" hidden>
             <button class="bk-dock-b" id="bk-add-toggle"  title="책 들이기">＋</button>
             <button class="bk-dock-b" id="bk-edit-toggle" title="자리 바꾸기">✎</button>
+            <button class="bk-dock-b" id="bk-rule-toggle" title="선반 줄 맞추기" hidden>⚖</button>
           </div>
         </div>
         <div id="bk-add-modal">
@@ -3501,6 +3531,80 @@ const Floor3 = (() => {
     }));
   }
 
+  /* ════ ⚖ 선반 줄 맞추기 (살롱지기 전용) ════
+     ⚠ 표지는 자석이라 끌리지 않는다 — 움직이는 것은 **줄** 쪽이다.
+       판이 밝게 빛나는 띠의 한가운데와 판의 윗면은 다르다(0809 내가 낸 사고).
+       눈으로 맞추는 것이 픽셀로 재는 것보다 정확하다. */
+  let ruleOn = false;
+  const RULE_KEYS = [
+    ['top','천장',   'h'], ['b1','1단 바닥','h'], ['b2','2단 바닥','h'],
+    ['bot','3단 바닥','h'], ['l','왼쪽',     'v'], ['r','오른쪽',   'v']
+  ];
+  function toggleRule(){
+    ruleOn = !ruleOn;
+    if (ruleOn && editMode) toggleEdit();          /* 두 편집을 겹쳐 켜지 않는다 */
+    const btn = document.getElementById('bk-rule-toggle');
+    if (btn) btn.classList.toggle('on', ruleOn);
+    const box = document.getElementById('bk-rule');
+    if (!box) return;
+    box.hidden = !ruleOn;
+    if (ruleOn) buildRule(); else box.innerHTML = '';
+  }
+  function buildRule(){
+    const box = document.getElementById('bk-rule');
+    const s = shelf();
+    box.innerHTML = RULE_KEYS.map(([k,label,axis]) =>
+      `<div class="bk-rline ${axis}" data-k="${k}"
+            style="${axis==='h' ? 'top:'+s[k]+'%' : 'left:'+s[k]+'%'}"><b>${label}</b></div>`).join('')
+      + `<div class="bk-rsave"><button id="bk-rule-save">이 방에 담기</button>
+         <span id="bk-rule-msg"></span></div>`;
+    box.querySelectorAll('.bk-rline').forEach(bindRuleLine);
+    document.getElementById('bk-rule-save').addEventListener('click', saveShelf);
+  }
+  function bindRuleLine(el){
+    const k = el.dataset.k, horiz = el.classList.contains('h');
+    let drag = false, s0, v0;
+    const start = (p) => { drag = true; s0 = p; v0 = Number(shelf()[k]); el.classList.add('on'); };
+    const move  = (p) => {
+      if (!drag) return;
+      const fit = document.getElementById('bk-fit'); if (!fit) return;
+      const span = horiz ? fit.offsetHeight : fit.offsetWidth;
+      const v = Math.max(0, Math.min(100, v0 + ((p - s0) / span) * 100));
+      if (!ROOM) ROOM = { no: REAL_NO };
+      ROOM['shelf_' + k] = +v.toFixed(2);
+      el.style[horiz ? 'top' : 'left'] = v + '%';
+      el.querySelector('b').textContent = el.querySelector('b').textContent.split(' ')[0] + ' ' + v.toFixed(2);
+      buildPages(); buildShelfPages();              /* 표지가 새 줄을 따라 바로 붙는다 */
+    };
+    const end = () => { drag = false; el.classList.remove('on'); };
+    el.addEventListener('mousedown', e => {
+      e.preventDefault(); e.stopPropagation(); start(horiz ? e.clientY : e.clientX);
+      const mm = ev => move(horiz ? ev.clientY : ev.clientX);
+      const mu = () => { end(); removeEventListener('mousemove', mm); removeEventListener('mouseup', mu); };
+      addEventListener('mousemove', mm); addEventListener('mouseup', mu);
+    });
+    el.addEventListener('touchstart', e => {
+      e.stopPropagation(); const t = e.touches[0]; start(horiz ? t.clientY : t.clientX);
+      const tm = ev => { ev.preventDefault(); const q = ev.touches[0]; move(horiz ? q.clientY : q.clientX); };
+      const tu = () => { end(); removeEventListener('touchmove', tm); removeEventListener('touchend', tu); };
+      addEventListener('touchmove', tm, { passive:false }); addEventListener('touchend', tu);
+    }, { passive:true });
+  }
+  async function saveShelf(){
+    const msg = document.getElementById('bk-rule-msg');
+    const s = shelf();
+    try {
+      await sbFetch(`/rest/v1/living_rooms?no=eq.${REAL_NO}`, {
+        method:'PATCH', headers:{ 'Prefer':'return=minimal' },
+        body: JSON.stringify({ shelf_l:s.l, shelf_r:s.r, shelf_top:s.top,
+                               shelf_b1:s.b1, shelf_b2:s.b2, shelf_bot:s.bot })
+      });
+      if (msg) msg.textContent = `${REAL_NO}번 방에 담았습니다 ✔`;
+    } catch (e) {
+      if (msg) msg.textContent = '담지 못했습니다 — ' + (e.message || e);
+    }
+  }
+
   /* 순례 동선: ?user=닉네임이면 그 집 주인 uid, 없으면 로그인 본인 (1층과 같은 정신) */
   async function resolveOwnerId(){
     const qUser = new URLSearchParams(location.search).get('user');
@@ -3555,6 +3659,14 @@ const Floor3 = (() => {
       const eb = document.getElementById('bk-edit-toggle');
       if (eb) eb.addEventListener('click', toggleEdit);
       bindAddModal(ownerId);
+      /* ⚖는 살롱지기만 — living_rooms는 서른 채가 함께 쓰는 표다 */
+      try {
+        const u = await sbFetch(`/rest/v1/users?id=eq.${ownerId}&select=is_admin`);
+        if (u && u[0] && u[0].is_admin){
+          const rb = document.getElementById('bk-rule-toggle');
+          if (rb){ rb.hidden = false; rb.addEventListener('click', toggleRule); }
+        }
+      } catch(e){}
     }
     const fc = document.querySelector('.floor-content[data-floor="3"]');
     if (fc) fc.classList.remove('editing');
