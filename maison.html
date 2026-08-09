@@ -388,7 +388,9 @@
     transition:opacity .6s ease;animation:doorPulse 2.4s ease-in-out infinite;
   }
   #doorway.open #doorHint{ opacity:0;animation:none; }
-  #doorway.open #doorMore{ display:none; }   /* 입장(문 열림) 후엔 고르기 도크 숨김 */
+  /* ⚠⚠ 입장 후엔 **고르기만** 숨긴다. 나가는 문(#doorExit)은 도크 밖에 따로 서 있다.
+     0809 — 도크를 통째로 숨겼다가 나가는 문까지 함께 닫혔다(소로 발견). */
+  #doorway.open #doorMore{ display:none; }
   #doorway.open #doorMenu{ display:none !important; }
   @keyframes doorPulse{ 0%,100%{opacity:.5} 50%{opacity:.95} }
   /* 0809 소로 — 글자 단추 셋이 현관에 늘어서 있으면 매일 거슬린다.
@@ -397,6 +399,18 @@
     position:absolute;top:20px;right:24px;z-index:5;
     display:flex;flex-direction:column;align-items:flex-end;gap:7px;
   }
+  #doorTop{ display:flex;align-items:center;gap:7px; }
+  /* 나가는 문 — 동그라미에 × 하나(0809 소로). 늘 서 있다 */
+  #doorExit{
+    cursor:pointer;width:38px;height:38px;border-radius:50%;padding:0;
+    font-family:var(--sans);font-size:19px;line-height:1;color:#f3e6c4;
+    border:1px solid rgba(243,230,196,.35);
+    background:rgba(8,11,20,.72);backdrop-filter:blur(6px);
+    text-shadow:0 1px 3px rgba(0,0,0,.75);
+    transition:color .2s,border-color .2s,background .2s,transform .15s;
+  }
+  #doorExit:hover{color:#fff;border-color:rgba(243,230,196,.7);background:rgba(28,12,16,.85)}
+  #doorExit:active{transform:scale(.94)}
   #doorMore{
     cursor:pointer;width:38px;height:38px;border-radius:50%;padding:0;
     font-family:var(--sans);font-size:17px;line-height:1;color:#f3e6c4;
@@ -408,6 +422,7 @@
   #doorMore:hover{color:#fff;border-color:rgba(243,230,196,.7)}
   #doorMore:active{transform:scale(.94)}
   #doorMore.on{background:rgba(201,162,39,.85);color:#0e1424;border-color:rgba(201,162,39,.9)}
+  /* ⚠ 손잡이는 늘 ⋮ 다. 열렸을 때 × 로 바꾸면 나가는 문의 × 와 나란히 서서 헷갈린다 */
   #doorMenu{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
   #doorMenu[hidden]{display:none !important}
   #doorMenu button{
@@ -595,12 +610,14 @@
   <div id="doorTitle"></div>
   <div id="doorHint">대문을 클릭해 들어가세요</div>
   <div id="doorActions">
-    <button id="doorMore" type="button" aria-label="이 집에서 할 수 있는 일">⋮</button>
+    <div id="doorTop">
+      <button id="doorExit" type="button" title="분더카머 떠나기" aria-label="분더카머 떠나기">×</button>
+      <button id="doorMore" type="button" aria-label="이 집에서 할 수 있는 일">⋮</button>
+    </div>
     <div id="doorMenu" hidden>
       <button id="doorPick" style="display:none">✎ 대문 고르기</button>
       <button id="elevPick" style="display:none">✎ 엘리베이터 고르기</button>
       <button id="livingPick" style="display:none">✎ 실내 인테리어 고르기</button>
-      <button id="doorExit">× 분더카머 떠나기</button>
     </div>
   </div>
   <audio id="doorSound" src="maison_door_open.mp3" preload="auto"></audio>
@@ -619,7 +636,7 @@
 </div>
 
 <!-- 분더카머 투어 — 우측 슬라이드 패널 (배경 흐림) -->
-<div style="position:fixed;left:8px;bottom:6px;z-index:70;font-size:9px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.5px;pointer-events:none">maison 0809a</div>
+<div style="position:fixed;left:8px;bottom:6px;z-index:70;font-size:9px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.5px;pointer-events:none">maison 0809b</div>
 
 <script>
 // ── 분더카머로 떠나는 비행: 제트음 (자동재생 막히면 조용히 폴백) ──
@@ -1096,7 +1113,7 @@ function openPopup(p){
   document.getElementById("doorTitle").textContent = (p.name||"") + (p.city_ko ? " · "+p.city_ko : "");
   const dp = document.getElementById("doorPick"); if (dp) dp.style.display = "none";
   const ep = document.getElementById("elevPick"); if (ep) ep.style.display = "none";
-  const ex = document.getElementById("doorExit"); if (ex) ex.textContent = "× 도시로 나가기";   // 팝업은 도시로 나감
+  const ex = document.getElementById("doorExit"); if (ex) ex.title = "도시로 나가기";   // 팝업은 도시로 나감
   document.getElementById("doorFrame").src = "popup_shell_v0_4.html?org=" + encodeURIComponent(p.code) + "&v=" + Date.now();
   dw.classList.add("popup","in","open");   // popup=문짝 숨김 / open=열린 상태로 iframe 노출
   doorState = 'open';
@@ -1178,7 +1195,7 @@ function openPalais(p){
   document.getElementById("doorTitle").textContent = (p.name||"") + " 전당";
   const dp = document.getElementById("doorPick"); if (dp) dp.style.display = "none";
   const ep = document.getElementById("elevPick"); if (ep) ep.style.display = "none";
-  const ex = document.getElementById("doorExit"); if (ex) ex.textContent = "× 도시로 나가기";
+  const ex = document.getElementById("doorExit"); if (ex) ex.title = "도시로 나가기";
   document.getElementById("doorFrame").src = "palais.html?org=" + encodeURIComponent(p.code) + "&v=" + Date.now();
   dw.classList.add("popup","in","open");
   doorState = 'open';
@@ -1475,7 +1492,7 @@ function enterMaison(m){
   viewer.useDefaultRenderLoop = false;          // 지구 렌더 정지(세션은 살아 있음)
   const dw = document.getElementById("doorway");
   document.getElementById("doorTitle").textContent = m.nickname || ("메종 " + m.maison_no);
-  { const _ex = document.getElementById("doorExit"); if (_ex) _ex.textContent = "× 분더카머 떠나기"; }   // 메종 문패로 원복
+  { const _ex = document.getElementById("doorExit"); if (_ex) _ex.title = "분더카머 떠나기"; }   // 메종 문패로 원복
   applyDoorImage(m);
   refreshDoorPickBtn(m);
   document.getElementById("doorFrame").src = "about:blank";
@@ -1760,7 +1777,6 @@ function toggleDoorMenu(force){
   const open = (force === undefined) ? m.hidden : force;
   m.hidden = !open;
   h.classList.toggle('on', open);
-  h.textContent = open ? '×' : '⋮';
 }
 
 /* ── 실내 인테리어 고르기 — 거실 배경 (living_rooms) ──
@@ -1904,7 +1920,7 @@ function enterMaisonLite(m){
   currentMaison = m;
   const dw = document.getElementById("doorway");
   document.getElementById("doorTitle").textContent = m.nickname || ("메종 " + m.maison_no);
-  { const _ex = document.getElementById("doorExit"); if (_ex) _ex.textContent = "× 분더카머 떠나기"; }   // 메종 문패로 원복
+  { const _ex = document.getElementById("doorExit"); if (_ex) _ex.title = "분더카머 떠나기"; }   // 메종 문패로 원복
   applyDoorImage(m);
   refreshDoorPickBtn(m);
   document.getElementById("doorFrame").src = "about:blank";
