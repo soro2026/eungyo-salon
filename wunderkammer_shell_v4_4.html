@@ -1936,10 +1936,19 @@ async function sbFetch(path, options = {}) {
     headers: { 'apikey':SUPABASE_KEY, 'Authorization':'Bearer ' + (token || SUPABASE_KEY),
       'Content-Type':'application/json', ...options.headers }
   });
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message || res.statusText); }
+  /* ⚠ 0809: 여기서 e.message만 읽어 서버가 보낸 error·hint·detail이 통째로 버려졌다.
+     엣지 함수는 { error: … }, PostgREST는 { message, hint, details }를 쓴다.
+     이름이 다르다고 못 읽으면 화면에는 늘 "(Error)"만 남고 진단이 처음부터 막힌다. */
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    const msg = e.message || e.error || e.msg || e.error_description
+             || res.statusText || ('HTTP ' + res.status);
+    const ex  = e.hint || e.details || e.detail || '';
+    throw new Error(ex ? (msg + ' — ' + ex) : msg);
+  }
   return res.status === 204 ? null : res.json();
 }
-console.log("%c[EG] wunderkammer 0809f · 책 모달 도크·소리·크기", "color:#c9a84c");
+console.log("%c[EG] wunderkammer 0809g · 오류 말 되살리기", "color:#c9a84c");
 function getUser() { try { return JSON.parse(localStorage.getItem('eungyo-auth'))?.user || null; } catch { return null; } }
 
 /* ── 층 구성 (2026.07.28 「세 건물 재편 결정문」 7호로 4층 축소) ──
