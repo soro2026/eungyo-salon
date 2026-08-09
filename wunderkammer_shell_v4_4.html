@@ -902,15 +902,23 @@ html, body {
   background:rgba(20,14,8,.86); padding:1px 6px; border-radius:5px; white-space:nowrap;
 }
 .floor-content[data-floor="3"] .bk-rline.v b{ left:6px; top:8px; }
+/* ⚠ 0809: 이 막대를 그림 안(absolute)에 두었더니 1672px 그림의 맨 아래로 내려가
+   화면 밖에 섰다. 카메라는 맨 윗단에 앉으므로 끝내 눈에 안 띈다.
+   줄만 끌고 나가면 그대로 사라졌다 — 화면에 못 박는다. */
 .floor-content[data-floor="3"] .bk-rsave{
-  position:absolute; left:50%; bottom:2%; transform:translateX(-50%);
-  display:flex; align-items:center; gap:10px; z-index:21;
+  position:fixed; left:50%; bottom:26px; transform:translateX(-50%);
+  display:flex; align-items:center; gap:12px; z-index:212;
+  background:rgba(20,14,8,.92); border:1px solid rgba(201,168,76,.45);
+  border-radius:14px; padding:10px 14px; backdrop-filter:blur(8px);
+  box-shadow:0 10px 30px rgba(0,0,0,.5);
 }
 .floor-content[data-floor="3"] .bk-rsave button{
-  padding:7px 14px; border-radius:8px; cursor:pointer; font:inherit; font-size:12px;
-  background:rgba(201,168,76,.9); border:none; color:#241a12;
+  padding:10px 20px; border-radius:10px; cursor:pointer; font:inherit; font-size:14px;
+  background:rgba(201,168,76,.95); border:none; color:#241a12; font-weight:600;
 }
-.floor-content[data-floor="3"] .bk-rsave span{ font-size:11.5px; color:#cfc2a4; }
+.floor-content[data-floor="3"] .bk-rsave button:hover{ background:#d8bb63; }
+.floor-content[data-floor="3"] .bk-rsave button:disabled{ opacity:.5; cursor:default; }
+.floor-content[data-floor="3"] .bk-rsave span{ font-size:12.5px; color:#e6d9b8; white-space:nowrap; }
 .floor-content[data-floor="3"] .bk-dock-b.on{
   background:linear-gradient(180deg,rgba(201,168,76,.9),rgba(160,128,52,.95)); color:#241a12;
 }
@@ -1971,7 +1979,7 @@ async function sbFetch(path, options = {}) {
   }
   return res.status === 204 ? null : res.json();
 }
-console.log("%c[EG] wunderkammer 0809j · 줄자 순례 개방", "color:#c9a84c");
+console.log("%c[EG] wunderkammer 0809k · 줄자 저장 단추 · 되읽기", "color:#c9a84c");
 function getUser() { try { return JSON.parse(localStorage.getItem('eungyo-auth'))?.user || null; } catch { return null; } }
 
 /* ── 층 구성 (2026.07.28 「세 건물 재편 결정문」 7호로 4층 축소) ──
@@ -3632,18 +3640,34 @@ const Floor3 = (() => {
       addEventListener('touchmove', tm, { passive:false }); addEventListener('touchend', tu);
     }, { passive:true });
   }
+  /* ⚠ 쓰고 나서 반드시 되읽는다. PATCH는 맞는 행이 없어도 조용히 204를 준다 —
+     「잘 됐겠지」가 오늘 다섯 방을 비워 둔 까닭이다(0809). */
   async function saveShelf(){
     const msg = document.getElementById('bk-rule-msg');
+    const btn = document.getElementById('bk-rule-save');
     const s = shelf();
+    if (btn){ btn.disabled = true; btn.textContent = '담는 중…'; }
+    if (msg) msg.textContent = `${REAL_NO}번 방에 담는 중…`;
     try {
-      await sbFetch(`/rest/v1/living_rooms?no=eq.${REAL_NO}`, {
-        method:'PATCH', headers:{ 'Prefer':'return=minimal' },
+      const back = await sbFetch(`/rest/v1/living_rooms?no=eq.${REAL_NO}`, {
+        method:'PATCH', headers:{ 'Prefer':'return=representation' },
         body: JSON.stringify({ shelf_l:s.l, shelf_r:s.r, shelf_top:s.top,
-                               shelf_b1:s.b1, shelf_b2:s.b2, shelf_bot:s.bot })
+                               shelf_b1:s.b1, shelf_b2:s.b2, shelf_bot:s.bot,
+                               updated_at: new Date().toISOString() })
       });
-      if (msg) msg.textContent = `${REAL_NO}번 방에 담았습니다 ✔`;
+      const row = Array.isArray(back) ? back[0] : back;
+      if (!row) throw new Error(`${REAL_NO}번 방을 못 찾았거나 쓰기가 막혔습니다`);
+      const ok = Math.abs(Number(row.shelf_b1) - s.b1) < 0.01
+              && Math.abs(Number(row.shelf_bot) - s.bot) < 0.01;
+      if (!ok) throw new Error('되돌아온 값이 다릅니다');
+      ROOM = row;
+      if (msg) msg.textContent = `${REAL_NO}번 · ${(row.name || '')} 담았습니다 ✔  `
+        + `${Number(row.shelf_b1).toFixed(2)} / ${Number(row.shelf_b2).toFixed(2)} / ${Number(row.shelf_bot).toFixed(2)}`;
     } catch (e) {
       if (msg) msg.textContent = '담지 못했습니다 — ' + (e.message || e);
+      console.warn('[책의 방] 줄 담기 실패', e);
+    } finally {
+      if (btn){ btn.disabled = false; btn.textContent = '이 방에 담기'; }
     }
   }
 
