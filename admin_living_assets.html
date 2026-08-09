@@ -8,7 +8,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Cormorant+Garamond:wght@400;500&display=swap" rel="stylesheet">
 <style>
 /* ══════════════════════════════════════════════════════════════════
- *  admin_living_assets v1.0 — 0809 · 살롱지기 전용
+ *  admin_living_assets v1.1 — 0809b · 살롱지기 전용
+ *
+ *  v1.1 — 층이 둘이 됐다. 한 채(방 번호) = 1층 거실 넉 벌 + 2층 책의 방 넉 벌.
+ *         SQL 0줄 — living_rooms는 그대로 쓰고 저장소 경로만 갈린다.
+ *           1층  living/living_NN_{m·d·e·n}.webp
+ *           2층  study/study_NN_{m·d·e·n}.webp
+ *         ⚠ 여덟 칸이 다 차야 그 방이 초록으로 선다. 한 층만 찬 방을 손님에게
+ *           배정하면 거실은 파리인데 2층은 남의 집이 된다.
  *  분더카머 1층 거실 — 방 자산 콘솔
  *
  *  ⭐ admin_museum_assets v1.0(0807)을 복제해 개조했다. 새로 짓지 않았다.
@@ -16,7 +23,7 @@
  *     벽감 좌표 안내(거실 좌표는 예산으로 못 박혀 방마다 재지 않는다).
  *
  *  ① 방 목록      — living_rooms. 여기서 방을 새로 짓는다
- *  ② 넉 벌 칸     — 아침·낮·저녁·밤 (wk-assets/living)
+ *  ② 넉 벌 칸     — 아침·낮·저녁·밤 (wk-assets/living · wk-assets/study)
  *  ③ 차례 투척함  — 넉 장을 한꺼번에 던지면 순서대로 채운다
  *  ④ 예산 눈금    — 글귀판·그림·명패·꽃이 어디 떨어지는지 그림 위에 겹쳐 본다
  *
@@ -98,13 +105,27 @@ select:focus,input[type=text]:focus{outline:none;border-color:var(--gold);}
 /* ── 예산 눈금 ── */
 .budget{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .22s ease;}
 .budget.on{opacity:1;}
-.zone{position:absolute;left:0;right:0;}
+.zone{position:absolute;}
+.tabs{display:flex;gap:0;border:1px solid rgba(201,162,74,.28);border-radius:10px;
+  overflow:hidden;margin:0 0 15px;}
+.tab{flex:1;padding:11px 8px;font-size:12.5px;text-align:center;cursor:pointer;
+  background:transparent;color:rgba(232,221,196,.55);border:none;
+  font-family:inherit;letter-spacing:.03em;transition:background .18s,color .18s;}
+.tab:hover{color:var(--gold-l);background:rgba(201,162,74,.06);}
+.tab.on{background:rgba(201,162,74,.16);color:var(--gold-l);}
+.tab em{font-style:normal;font-family:'Cormorant Garamond',serif;
+  color:var(--gold);margin-right:7px;}
 .zone b{position:absolute;left:3px;top:1px;font-size:7.5px;font-weight:400;
   color:#fff;text-shadow:0 0 3px rgba(0,0,0,.95);letter-spacing:.04em;}
 .z-quote {background:rgba(201,162,74,.34);outline:1px dashed rgba(255,255,255,.5);outline-offset:-1px;}
 .z-art   {background:rgba(70,120,165,.32);outline:1px dashed rgba(255,255,255,.5);outline-offset:-1px;}
 .z-plaque{background:rgba(255,255,255,.24);}
 .z-flower{background:rgba(160,60,45,.34);outline:1px dashed rgba(255,255,255,.5);outline-offset:-1px;}
+.z-sky   {background:rgba(120,170,205,.30);outline:1px dashed rgba(255,255,255,.5);outline-offset:-1px;}
+.z-shelf {outline:1px solid rgba(255,255,255,.62);outline-offset:-1px;}
+.z-margin{background:rgba(160,60,45,.30);}
+.z-tier  {background:rgba(255,255,255,.66);}
+.z-floor {background:rgba(90,70,45,.34);}
 
 /* ── 투척함 ── */
 #bulk{border:1px dashed rgba(201,162,74,.35);border-radius:12px;padding:26px 18px;
@@ -153,10 +174,11 @@ select:focus,input[type=text]:focus{outline:none;border-color:var(--gold);}
 <body>
 <div class="wrap">
 
-  <div class="eyebrow">WUNDERKAMMER · LE SÉJOUR</div>
-  <h1>거실 자산 콘솔</h1>
+  <div class="eyebrow" id="eyebrow">WUNDERKAMMER · LE SÉJOUR</div>
+  <h1>분더카머 자산 콘솔</h1>
   <div class="sub">
-    방 하나에 넉 벌 — 아침·낮·저녁·밤. 어떤 형식·크기로 던져도 941 × 1672 webp로 굽고 이름까지 붙여 올립니다.<br>
+    한 채에 여덟 벌 — 1층 거실 넉 벌, 2층 책의 방 넉 벌. 아침·낮·저녁·밤.<br>
+    어떤 형식·크기로 던져도 941 × 1672 webp로 굽고 이름까지 붙여 올립니다.<br>
     <a class="back" href="wunderkammer_shell_v4_4.html">← 분더카머로</a>
   </div>
 
@@ -167,7 +189,10 @@ select:focus,input[type=text]:focus{outline:none;border-color:var(--gold);}
     <!-- ① 채움 현황 -->
     <div class="card">
       <h2>채움 현황</h2>
-      <div class="hint">넉 벌이 다 찬 방은 초록으로 섭니다. 눌러서 그 방으로 갑니다.</div>
+      <div class="hint">
+        <b>여덟 벌이 다 찬 방만 초록으로 섭니다</b> — 한 채는 1층과 2층이 같은 집이라야 합니다.
+        눌러서 그 방으로 갑니다.
+      </div>
       <div class="chips" id="tally"></div>
     </div>
 
@@ -175,8 +200,8 @@ select:focus,input[type=text]:focus{outline:none;border-color:var(--gold);}
     <div class="card">
       <h2>방</h2>
       <div class="hint">
-        거실은 순회하지 않습니다 — 콩파뇽이 한 채를 골라 그 방에 삽니다.
-        방을 늘리는 일이 곧 고를 거리를 늘리는 일입니다.
+        분더카머는 순회하지 않습니다 — 콩파뇽이 한 채를 골라 그 집에 삽니다.
+        방 번호 하나가 1층과 2층을 함께 가리킵니다.
       </div>
       <select id="roomPick" onchange="renderRoom()"></select>
       <div class="roomInfo" id="roomInfo"></div>
@@ -193,11 +218,12 @@ select:focus,input[type=text]:focus{outline:none;border-color:var(--gold);}
 
     <!-- ③ 넉 벌 -->
     <div class="card">
-      <h2>넉 벌 · 941 × 1672</h2>
-      <div class="hint">
-        칸을 누르거나 그림을 떨어뜨리면 걸립니다.
-        <b>벽이 비어 있어야 합니다</b> — 배경에 액자가 있으면 손님이 대여한 그림이 배경에 집니다.
+      <h2 id="setTitle">Ⅰ 거실 · 넉 벌 · 941 × 1672</h2>
+      <div class="tabs">
+        <button class="tab on" id="tab1" onclick="setFloor(1)"><em>Ⅰ</em>거실 <span id="cnt1"></span></button>
+        <button class="tab" id="tab2" onclick="setFloor(2)"><em>Ⅱ</em>책의 방 <span id="cnt2"></span></button>
       </div>
+      <div class="hint" id="setHint"></div>
       <div class="row" style="margin-top:0">
         <button class="btn ghost" id="budgetBtn" onclick="toggleBudget()">예산 눈금 겹쳐 보기</button>
       </div>
@@ -210,6 +236,7 @@ select:focus,input[type=text]:focus{outline:none;border-color:var(--gold);}
       <div class="hint">
         넉 장을 한꺼번에 던지면 <b>빈 칸을 아침 → 낮 → 저녁 → 밤 순서로</b> 채웁니다.
         파일 이름은 보지 않습니다 — 칸이 이름을 정합니다.
+        <b>지금 열린 층</b>에만 걸립니다.
       </div>
       <div id="bulk">여기에 그림을 떨어뜨리거나 눌러서 고르십시오</div>
       <label class="opt"><input type="checkbox" id="overwrite"> 이미 걸린 칸도 덮어씁니다</label>
@@ -236,24 +263,51 @@ const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
 const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth'}});
 const BUCKET='wk-assets';
 const PUB=(b,p)=>`${SUPA_URL}/storage/v1/object/public/${b}/${p}`;
-console.log("%c[EG] admin_living_assets v1.0 · 0809 거실", "color:#c9a24a");
+console.log("%c[EG] admin_living_assets v1.1 · 0809b 두 층", "color:#c9a24a");
 
 let pickTarget=null, ROOMS=[], PLAN=null, ME=null, MY_ROOM=null, BUDGET_ON=false;
+let FLOOR=1;   /* 지금 열린 층. 칸·투척·눈금이 모두 이 값을 본다 */
 
 const TODS=[['m','아침'],['d','낮'],['e','저녁'],['n','밤']];
-const roomPath=(no,t)=>`living/living_${String(no).padStart(2,'0')}_${t}.webp`;
+
+/* 층 — 새 층이 생기면 여기 한 줄이 전부다 */
+const FLOORS={
+  1:{ roman:'Ⅰ', kr:'거실',    fr:'LE SÉJOUR',    dir:'living', pre:'living',
+      hint:'칸을 누르거나 그림을 떨어뜨리면 걸립니다. '
+         + '<b>벽이 비어 있어야 합니다</b> — 배경에 액자가 있으면 손님이 대여한 그림이 배경에 집니다.' },
+  2:{ roman:'Ⅱ', kr:'책의 방', fr:'BIBLIOTHÈQUE', dir:'study',  pre:'study',
+      hint:'서가가 <b>가로 78%</b>를 채우고 <b>세로 22~82%</b>에 서야 합니다. '
+         + '<b>진열판 네 단이 모두 비어 있어야 합니다</b> — 배경에 책이 그려져 있으면 '
+         + '손님의 표지와 겹칩니다. 빛은 위 천창에서 내려옵니다.' }
+};
+const assetPath=(fl,no,t)=>
+  `${FLOORS[fl].dir}/${FLOORS[fl].pre}_${String(no).padStart(2,'0')}_${t}.webp`;
 
 /* 규격 — 한 곳에서만 정한다. 세로 예산이 9:16을 전제로 서 있다 */
 const SPEC={ w:941, h:1672 };
 const TARGET_KB=900;
 
-/* 세로 예산 (0809 확정) — 셸의 좌표와 같은 값이어야 한다 */
-const BUDGET=[
-  { cls:'z-quote',  top: 6, bot:22, label:'글귀판' },
-  { cls:'z-art',    top:26, bot:54, label:'그림'   },
-  { cls:'z-plaque', top:54, bot:59, label:'명패'   },
-  { cls:'z-flower', top:64, bot:84, label:'꽃'     },
-];
+/* 예산 눈금 (0809 확정) — 셸의 좌표와 같은 값이어야 한다.
+   l·w를 안 적으면 가로 전체(0~100%)다 */
+const BUDGETS={
+  1:[
+    { cls:'z-quote',  top: 6, bot:22, label:'글귀판' },
+    { cls:'z-art',    top:26, bot:54, label:'그림'   },
+    { cls:'z-plaque', top:54, bot:59, label:'명패'   },
+    { cls:'z-flower', top:64, bot:84, label:'꽃'     },
+  ],
+  2:[
+    { cls:'z-sky',    top: 0, bot:22, label:'천창'      },
+    { cls:'z-margin', top:22, bot:82, label:'여백', l: 0, w:11 },
+    { cls:'z-margin', top:22, bot:82, label:'',     l:89, w:11 },
+    { cls:'z-shelf',  top:22, bot:82, label:'서가 78% · 4단 × 3권', l:11, w:78 },
+    { cls:'z-tier',   top:36.4, bot:37.0, label:'', l:11, w:78 },
+    { cls:'z-tier',   top:51.4, bot:52.0, label:'', l:11, w:78 },
+    { cls:'z-tier',   top:66.4, bot:67.0, label:'', l:11, w:78 },
+    { cls:'z-tier',   top:81.4, bot:82.0, label:'', l:11, w:78 },
+    { cls:'z-floor',  top:82, bot:100, label:'바닥' },
+  ]
+};
 
 function toast(m){const t=document.getElementById('toast');t.innerHTML=m;
   t.classList.add('show');clearTimeout(t._tm);t._tm=setTimeout(()=>t.classList.remove('show'),4200);}
@@ -270,6 +324,7 @@ async function init(){
     gate.innerHTML='이 문은 살롱지기의 열쇠로만 열립니다. 🗝️'; return; }
   ME=user.id;
   document.getElementById('panel').style.display='block';
+  document.getElementById('setHint').innerHTML=FLOORS[1].hint;
   await loadMyRoom();
   await loadRooms();
   wireBulk();
@@ -354,18 +409,44 @@ function currentRoom(){
 function renderRoom(){
   const r=currentRoom(); if(!r) return;
   const mine = (MY_ROOM===r.no);
+  const nn=String(r.no).padStart(2,'0');
   document.getElementById('roomInfo').innerHTML=
-    `번호 <b>${String(r.no).padStart(2,'0')}</b> · 파일 <b>living_${String(r.no).padStart(2,'0')}_{m·d·e·n}.webp</b>`
+    `번호 <b>${nn}</b> · Ⅰ <b>living_${nn}_{m·d·e·n}.webp</b> · Ⅱ <b>study_${nn}_{m·d·e·n}.webp</b>`
     + (r.active ? ' · <span style="color:rgba(180,214,170,.9)">고를 수 있음</span>'
                 : ' · <span style="color:rgba(232,180,150,.85)">잠들어 있음</span>')
     + (mine ? '<br>⭐ <span style="color:var(--gold-l)">지금 살롱지기가 사는 방입니다</span>' : '');
   document.getElementById('sleepBtn').textContent = r.active ? '잠재우기' : '깨우기';
   document.getElementById('plan').innerHTML='';
   buildSlots();
+  refreshTabCounts(r.no);
 }
 
-function slotsOf(no){
-  return TODS.map(([t,label])=>({ t, label, path:roomPath(no,t) }));
+/* 방을 갈 때 층 단추의 n/4를 다시 센다 (채움 현황 전체를 안 돌린다) */
+async function refreshTabCounts(no){
+  paintTabCounts('…','…');
+  const n1=(await Promise.all(slotsOf(no,1).map(s=>exists(BUCKET,s.path)))).filter(Boolean).length;
+  const n2=(await Promise.all(slotsOf(no,2).map(s=>exists(BUCKET,s.path)))).filter(Boolean).length;
+  const now=currentRoom();
+  if(now && now.no===no) paintTabCounts(n1,n2);   /* 그 사이 방이 바뀌었으면 안 적는다 */
+}
+
+function slotsOf(no, fl){
+  const f = fl || FLOOR;
+  return TODS.map(([t,label])=>({ t, label, floor:f, path:assetPath(f,no,t) }));
+}
+
+/* ⚠ 층을 갈 때 화면 세 곳이 함께 움직인다 — 제목·안내·칸.
+   하나라도 빠지면 2층 칸에 1층 안내가 남는다 */
+function setFloor(n){
+  FLOOR=n;
+  const f=FLOORS[n];
+  document.getElementById('tab1').classList.toggle('on', n===1);
+  document.getElementById('tab2').classList.toggle('on', n===2);
+  document.getElementById('eyebrow').textContent='WUNDERKAMMER · '+f.fr;
+  document.getElementById('setTitle').textContent=`${f.roman} ${f.kr} · 넉 벌 · 941 × 1672`;
+  document.getElementById('setHint').innerHTML=f.hint;
+  document.getElementById('plan').innerHTML='';
+  renderRoom();
 }
 
 async function refreshTally(){
@@ -373,11 +454,19 @@ async function refreshTally(){
   box.innerHTML=ROOMS.map(r=>
     `<div class="chip ${r.active?'':'sleep'}" id="tl-${r.no}" onclick="jumpRoom(${r.no})">${esc(r.name)} <b>…</b></div>`).join('');
   for(const r of ROOMS){
-    const n=(await Promise.all(slotsOf(r.no).map(s=>exists(BUCKET,s.path)))).filter(Boolean).length;
+    const n1=(await Promise.all(slotsOf(r.no,1).map(s=>exists(BUCKET,s.path)))).filter(Boolean).length;
+    const n2=(await Promise.all(slotsOf(r.no,2).map(s=>exists(BUCKET,s.path)))).filter(Boolean).length;
     const el=document.getElementById('tl-'+r.no); if(!el) continue;
-    el.innerHTML=`${esc(r.name)} <b>${n}/4</b>`;
-    el.classList.toggle('done', n===4);
+    el.innerHTML=`${esc(r.name)} <b>Ⅰ${n1}</b>·<b>Ⅱ${n2}</b>`;
+    el.classList.toggle('done', n1===4 && n2===4);
+    if(r.no===+document.getElementById('roomPick').value) paintTabCounts(n1,n2);
   }
+}
+/* 층 단추에 그 방의 채움을 적는다 — 층을 안 열어 봐도 어디가 빈지 보인다 */
+function paintTabCounts(n1,n2){
+  const a=document.getElementById('cnt1'), b=document.getElementById('cnt2');
+  if(a) a.textContent = (n1==='…') ? '…' : `${n1}/4`;
+  if(b) b.textContent = (n2==='…') ? '…' : `${n2}/4`;
 }
 function exists(bucket,path){
   return new Promise(res=>{ const im=new Image();
@@ -391,7 +480,10 @@ function jumpRoom(no){
 
 function budgetMarkup(){
   return '<div class="budget'+(BUDGET_ON?' on':'')+'">'
-    + BUDGET.map(z=>`<div class="zone ${z.cls}" style="top:${z.top}%;height:${z.bot-z.top}%"><b>${z.label}</b></div>`).join('')
+    + (BUDGETS[FLOOR]||[]).map(z=>
+        `<div class="zone ${z.cls}" style="top:${z.top}%;height:${z.bot-z.top}%;`
+      + `left:${z.l==null?0:z.l}%;width:${z.w==null?100:z.w}%">`
+      + (z.label?`<b>${z.label}</b>`:'') + '</div>').join('')
     + '</div>';
 }
 function toggleBudget(){
@@ -406,10 +498,10 @@ function buildSlots(){
   const all=slotsOf(r.no);
   const head=s=>`<div class="s-name">${s.label} (${s.t})</div><div class="s-sub">941 × 1672</div>`;
   document.getElementById('roomSlots').innerHTML=all.map(s=>
-    `<div class="slot" data-path="${s.path}" id="sl-${s.t}">
+    `<div class="slot" data-path="${s.path}" id="sl-${s.floor}-${s.t}">
       ${head(s)}<div class="s-state">확인 중…</div></div>`).join('');
   wire(document.getElementById('roomSlots'));
-  all.forEach(s=>paint('sl-'+s.t, s.path, head(s)));
+  all.forEach(s=>paint(`sl-${s.floor}-${s.t}`, s.path, head(s)));
 }
 function wire(box){
   box.querySelectorAll('.slot').forEach(el=>{
@@ -550,7 +642,7 @@ async function makePlan(files){
   box.innerHTML='<div class="hint" style="margin:14px 0 0">칸을 살피는 중…</div>';
 
   const over=document.getElementById('overwrite').checked;
-  const all=slotsOf(r.no);
+  const all=slotsOf(r.no);   /* 지금 열린 층만 */
   const filled=await Promise.all(all.map(s=>exists(BUCKET,s.path)));
   const open=all.filter((s,i)=> over ? true : !filled[i]);
 
@@ -559,12 +651,12 @@ async function makePlan(files){
     const s=open[i];
     if(s){ jobs.push({file:f, slot:s}); rows.push(
       `<div class="plan-row"><span class="pf">${esc(f.name)}</span>
-       <span class="pa">→</span><span class="pt">${esc(s.label)}</span></div>`); }
+       <span class="pa">→</span><span class="pt">${FLOORS[FLOOR].roman} ${esc(s.label)}</span></div>`); }
     else rows.push(
       `<div class="plan-row skip"><span class="pf">${esc(f.name)}</span>
        <span class="pa">→</span><span class="pt">빈 칸 없음 · 건너뜀</span></div>`);
   });
-  PLAN={ room:r, jobs };
+  PLAN={ room:r, floor:FLOOR, jobs };
   box.innerHTML=`<div class="plan">${rows.join('')}</div>
     <div class="plan-btns">
       <button class="btn" onclick="runPlan()">이대로 ${jobs.length}장 올리기</button>
