@@ -376,6 +376,19 @@ html, body {
   background:rgba(12,9,6,.78); color:rgba(233,207,156,.92);
 }
 #sl-bar button.go{ background:#c9a84c; color:#241a12; border-color:#c9a84c; font-weight:500; }
+/* 방 띠 — 맞추면서 일곱 방을 눈으로 넘긴다. DB는 안 건드리는 미리보기다 */
+#sl-rooms{ display:flex; gap:5px; }
+#sl-rooms button{
+  font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; letter-spacing:0;
+  padding:8px 0; width:32px; border-radius:8px;
+  background:rgba(12,9,6,.7); color:rgba(233,207,156,.6); border-color:rgba(233,207,156,.28);
+}
+#sl-rooms button:hover{ color:#e9cf9c; border-color:rgba(233,207,156,.6); }
+#sl-rooms button.on{ background:#c9a84c; color:#241a12; border-color:#c9a84c; }
+/* 벽이 가장 좁은 방 — 여기서 맞추면 나머지는 저절로 여유가 생긴다 */
+#sl-rooms button.thin{ box-shadow:0 0 0 1px rgba(224,143,106,.85) inset; }
+#sl-rooms button.thin::after{ content:'·'; }
+.sl-sep{ width:1px; height:22px; background:rgba(233,207,156,.28); margin:0 3px; }
 #sl-info{
   position:fixed; left:50%; transform:translateX(-50%);
   bottom:calc(62px + env(safe-area-inset-bottom)); z-index:210;
@@ -2239,10 +2252,14 @@ const Salon = (() => {
     artK     : 0.36,  /* 그림 높이  = 벽 구역 × K */
     artDrop  : 3,     /* 그림 가운데 = 벽 가운데 + %p */
     artX     : 50,    /* 그림 가로 % — 벽이 좌우 대칭이라 50이 기본 */
-    tickH    : 10     /* 꽃 티커 높이 %p · 바닥선이 wall_bot */
+    tickH    : 10,    /* 꽃 티커 높이 %p · 바닥선이 wall_bot */
+    tickW    : 44     /* 꽃 티커 폭 % — 상판 좌우 끝에 물건이 서 있다(0809 실측).
+                         일곱 방에서 물건이 가장 안쪽까지 온 곳이 26%·74%이므로
+                         28~72%가 공통으로 비어 있다. 폭 44%가 그 안에 딱 든다. */
   };
   const K = Object.assign({}, K_DEFAULT);
   let K_SAVED = Object.assign({}, K_DEFAULT);
+  let ROOMS_ALL = [], REAL_NO = 1;      /* 미리보기로 옮겨 다녀도 돌아올 곳을 기억한다 */
 
   async function loadLayout(){
     try{
@@ -2337,6 +2354,7 @@ const Salon = (() => {
     if (!ROOM) ROOM = { no, wall_top:5, wall_bot:70 };
     if (ROOM.wall_top == null) ROOM.wall_top = 5;
     if (ROOM.wall_bot == null) ROOM.wall_bot = 70;
+    REAL_NO = no;
 
     paintBg(stage, no, slot());
     fitType(stage);
@@ -2407,7 +2425,7 @@ const Salon = (() => {
   }
   function tickBox(){
     const w = band();
-    return { top:w.bot - K.tickH, h:K.tickH };
+    return { top:w.bot - K.tickH, h:K.tickH, w:K.tickW };
   }
 
   /* 그 시간대가 아직 안 구워졌으면 낮으로 물러선다. 낮마저 없으면 CSS 그라데이션.
@@ -2568,7 +2586,7 @@ const Salon = (() => {
       const chips = traces.map(chip).join('');
       const tk = document.createElement('div');
       tk.className = 'sl-tick';
-      tk.style.cssText = `left:50%; top:${t.top}%; height:${t.h}%; width:74%;`;
+      tk.style.cssText = `left:50%; top:${t.top}%; height:${t.h}%; width:${t.w}%;`;
       tk.innerHTML = `<div class="sl-tick-track">${chips}</div><div class="sl-h"></div>`;
       stage.appendChild(tk);
       /* ⚠ 꽃 크기가 티커 높이를 안 따라가면, 상자만 자라고 아무 일도 안 일어나 보인다
@@ -2776,8 +2794,11 @@ const Salon = (() => {
     el.innerHTML =
       `그림 <em>배율</em> ${K.artK.toFixed(3)} · <em>내림</em> ${K.artDrop.toFixed(1)} · <em>가로</em> ${K.artX.toFixed(1)}`
       + `<br>글귀 <em>위</em> ${K.quoteTop.toFixed(1)} · <em>높이</em> ${K.quoteH.toFixed(1)}`
-      + `<br>꽃 <em>높이</em> ${K.tickH.toFixed(1)}`
-      + `<br><em>이 방 벽 ${w.top.toFixed(1)} ~ ${w.bot.toFixed(1)} · 값은 일곱 방 공통</em>`;
+      + `<br>꽃 <em>높이</em> ${K.tickH.toFixed(1)} · <em>폭</em> ${K.tickW.toFixed(1)}`
+      + (K.tickW > 44.1 ? ' <em style="color:#e08f6a">⚠ 상판 물건과 겹침</em>' : '')
+      + `<br><em>${ROOM ? String(ROOM.no).padStart(2,'0') + ' ' + esc2(ROOM.name || '') : ''}`
+      + ` 벽 ${w.top.toFixed(1)} ~ ${w.bot.toFixed(1)} (${w.h.toFixed(1)})`
+      + `${ROOM && ROOM.no !== REAL_NO ? ' · 미리보기' : ''} · 값은 일곱 방 공통</em>`;
   }
 
   /* 한 물건에 끌기와 모서리를 붙인다. 값이 바뀌면 그 자리에서 다시 그린다. */
@@ -2840,7 +2861,7 @@ const Salon = (() => {
     if (mw){ mw.style.top = q.top + '%'; mw.style.height = q.h + '%'; }
 
     const tk = stage.querySelector('.sl-tick');
-    if (tk){ tk.style.top = t.top + '%'; tk.style.height = t.h + '%'; sizeTick(tk); }
+    if (tk){ tk.style.top = t.top + '%'; tk.style.height = t.h + '%'; tk.style.width = t.w + '%'; sizeTick(tk); }
 
     paintInfo();
   }
@@ -2867,15 +2888,56 @@ const Salon = (() => {
     });
   }
   /* 티커는 바닥선이 wall_bot에 못 박혀 있다 — 위로 끌면 높이가 자란다 */
+  /* 티커는 바닥선이 wall_bot에 못 박혀 있다 — 위로 끌면 높이가 자란다.
+     ⚠ 폭은 28~72% 안에 머물러야 한다. 상판 좌우 끝에 물건이 서 있고
+       그 물건은 방마다 다른 곳까지 들어온다(0809 일곱 방 실측: 가장 안쪽 26%·74%). */
   function armTick(stage, el){
     const w = band();
-    const set = (v, dy)=>{ K.tickH = clamp(v - dy, 4, w.h*0.5); };
     arm(el, stage, {
       grab : ()=> K.tickH,
-      move : (v, dx, dy)=> set(v, dy),
-      grabSize : ()=> K.tickH,
-      size : (v, dx, dy)=> set(v, dy)
+      move : (v, dx, dy)=>{ K.tickH = clamp(v - dy, 4, w.h*0.5); },
+      grabSize : ()=> ({ h:K.tickH, w:K.tickW }),
+      size : (v, dx, dy)=>{
+        K.tickH = clamp(v.h - dy, 4, w.h*0.5);
+        K.tickW = clamp(v.w + dx*2, 16, 44);     /* 44%가 천장 — 넘으면 물건을 밟는다 */
+      }
     });
+  }
+
+  /* ── 방 미리보기 — 맞추면서 일곱 방을 눈으로 넘긴다 (0809 소로) ──
+     ⚠ DB를 안 건드린다. 소로의 living_no는 그대로다 — 맞추다가 거실이
+       모로칸으로 바뀌어 있으면 안 된다. 끝내면 제 방으로 돌아온다. */
+  async function loadRoomList(){
+    if (ROOMS_ALL.length) return ROOMS_ALL;
+    try{
+      const r = await sbFetch('/rest/v1/living_rooms?select=no,name,wall_top,wall_bot,updated_at&order=no');
+      ROOMS_ALL = r || [];
+    }catch(e){ console.warn('[거실] 방 목록 조회 실패', e); ROOMS_ALL = []; }
+    return ROOMS_ALL;
+  }
+  async function previewRoom(no){
+    const list = await loadRoomList();
+    const r = list.find(x=>x.no === no);
+    if (!r) return;
+    ROOM = Object.assign({}, r);
+    if (ROOM.wall_top == null) ROOM.wall_top = 5;
+    if (ROOM.wall_bot == null) ROOM.wall_bot = 70;
+    const stage = document.getElementById('sl-stage');
+    MEASURED = false;                 /* 새 벽을 재기 전엔 글귀를 안 그린다 */
+    paintBg(stage, no, slot());       /* 다 재고 나면 renderBoard가 저절로 돈다 */
+    loadArt(stage, OWNER);
+    paintRoomStrip();
+    paintInfo();
+  }
+  function paintRoomStrip(){
+    const box = document.getElementById('sl-rooms'); if (!box) return;
+    box.innerHTML = ROOMS_ALL.map(r=>{
+      const on   = ROOM && r.no === ROOM.no;
+      const band = (r.wall_bot ?? 70) - (r.wall_top ?? 5);
+      const thin = band === Math.min(...ROOMS_ALL.map(x=>(x.wall_bot ?? 70)-(x.wall_top ?? 5)));
+      return `<button type="button" data-no="${r.no}" class="${on?'on':''}${thin?' thin':''}"
+                title="${esc2(r.name)} · 벽 ${band.toFixed(1)}">${String(r.no).padStart(2,'0')}</button>`;
+    }).join('');
   }
 
   function buildEditBar(){
@@ -2886,10 +2948,17 @@ const Salon = (() => {
 
     const bar = document.createElement('div');
     bar.id='sl-bar'; bar.hidden = true;
-    bar.innerHTML = `<button type="button" class="go" data-a="save">저장</button>
+    bar.innerHTML = `<span id="sl-rooms"></span>
+                     <span class="sl-sep"></span>
+                     <button type="button" class="go" data-a="save">저장</button>
                      <button type="button" data-a="undo">되돌리기</button>
                      <button type="button" data-a="close">끝내기</button>`;
     document.body.appendChild(bar);
+    loadRoomList().then(paintRoomStrip);
+    document.getElementById('sl-rooms').addEventListener('click', e=>{
+      const n = e.target.dataset && e.target.dataset.no;
+      if (n) previewRoom(+n);
+    });
 
     bar.addEventListener('click', async e=>{
       const a = e.target.dataset && e.target.dataset.a;
@@ -2912,7 +2981,10 @@ const Salon = (() => {
         loadArt(stage, OWNER); renderBoard(stage); paintInfo();
         toast('마지막 저장으로 되돌렸습니다');
       }
-      if (a === 'close'){ toggleEditor(stage); }
+      if (a === 'close'){
+        toggleEditor(stage);
+        if (ROOM && ROOM.no !== REAL_NO) previewRoom(REAL_NO);   /* 제 방으로 돌아온다 */
+      }
     });
   }
   function openZoom(a){
