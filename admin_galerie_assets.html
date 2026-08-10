@@ -817,6 +817,18 @@ const ZOOM_PV = 250;   /* 이 콘솔의 검사용 — 스물다섯 줄이 각자
 function commonsFile(s){
   s = String(s||'').trim();
   if(!s) return '';
+
+  /* ⚠ 위키 「공유하기」가 주는 HTML 덩어리를 통째로 붙이셔도 받는다.
+       소로가 무엇을 붙이실지 고르게 두지 않는 편이 스물다섯 번에 값을 한다.
+       (덩어리 안 주소에는 <가 없으므로 이 갈래로 다시 들어오지 않는다) */
+  if(/<[a-z]/i.test(s)){
+    const urls = s.match(/https?:\/\/[^\s"'<>]+/gi) || [];
+    const pick = urls.find(u=>/upload\.wikimedia\.org/i.test(u))
+              || urls.find(u=>/#\/media\//i.test(u))
+              || urls.find(u=>/\/wiki\/[^\/]*:/i.test(u));
+    return pick ? commonsFile(pick) : '';
+  }
+
   /* 「파일:」「File:」… 접두어만 걷어낸다. 아는 말은 목록으로,
      모르는 말은 「공백 없는 짧은 낱말 + 콜론」으로 본다 */
   const cut = t => {
@@ -830,9 +842,10 @@ function commonsFile(s){
   if(!/^https?:/i.test(s)){
     f = cut(s);                                                    /* 파일명만 주신 경우 */
   }else{
-    const m = s.match(/#\/media\/([^?#]+)/i)                       /* 위키백과 미디어 뷰어 */
-           || s.match(/\/wiki\/(?:Special:FilePath\/)?([^?#]+)/i)  /* 파일 페이지 · FilePath */
-           || s.match(/\/commons\/(?:thumb\/)?[0-9a-f]\/[0-9a-f]{2}\/([^\/?#]+)/i); /* upload 직링 */
+    /* ⚠ 문자 묶음을 좁게 — HTML 안에서 뽑을 때 따옴표·꺾쇠까지 먹으면 안 된다 */
+    const m = s.match(/#\/media\/([^?#"'\s<>]+)/i)                       /* 미디어 뷰어 */
+           || s.match(/\/wiki\/(?:Special:FilePath\/)?([^?#"'\s<>]+)/i)  /* 파일 페이지·FilePath */
+           || s.match(/\/commons\/(?:thumb\/)?[0-9a-f]\/[0-9a-f]{2}\/([^\/?#"'\s<>]+)/i); /* upload 직링 */
     if(!m) return '';
     f = m[1];
     try{ f = decodeURIComponent(f); }catch(e){}
