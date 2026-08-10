@@ -143,6 +143,26 @@ select.pick{font:inherit;font-size:12.5px;color:#f0e8d4;background:var(--ink);
 .btn:hover{opacity:.85;}
 .btn.ghost{background:none;border:1px solid rgba(201,162,74,.4);color:rgba(233,207,156,.85);}
 .btn.warn{background:none;border:1px solid rgba(201,139,74,.5);color:rgba(233,180,140,.9);}
+/* ── 자세히 보기 원판 (0810) ──
+   벽에 걸리는 것은 액자 낀 webp, 자세히 볼 때는 원화 그 자체.
+   두 그림이 갈리므로 담는 칸도 갈라 둔다. */
+.zoom-line{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:9px;}
+.zoom-line input{flex:1 1 250px;font:inherit;font-size:11.5px;color:#f0e8d4;
+  background:rgba(0,0,0,.28);border:1px solid rgba(201,162,74,.24);
+  border-radius:8px;padding:7px 10px;min-width:0;}
+.zoom-line input.has{border-color:rgba(140,175,110,.55);}
+.zoom-note{display:flex;gap:9px;align-items:center;flex-wrap:wrap;
+  font-size:10.5px;color:rgba(232,221,196,.42);line-height:1.7;margin-top:6px;}
+.zoom-note b{color:rgba(201,162,74,.85);font-weight:600;
+  max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  display:inline-block;vertical-align:bottom;}
+.zoom-note.bad{color:rgba(233,150,120,.85);}
+.zoom-note img{width:46px;height:34px;flex:none;object-fit:cover;border-radius:4px;
+  background:rgba(0,0,0,.4);}
+.zoom-tag{font-size:10px;letter-spacing:.06em;padding:2px 8px;border-radius:9px;
+  border:1px solid rgba(201,162,74,.32);color:rgba(233,207,156,.72);
+  text-decoration:none;white-space:nowrap;}
+a.zoom-tag:hover{border-color:rgba(201,162,74,.7);}
 .empty{text-align:center;font-size:12.5px;color:rgba(232,221,196,.45);
   padding:20px 0;line-height:1.9;}
 .newart{margin-top:18px;padding:16px;border:1px dashed rgba(158,127,58,.5);border-radius:12px;}
@@ -253,7 +273,10 @@ input[type=file]{display:none;}
         <div class="hint">
           섬네일을 누르면 크게 봅니다. <b>그림을 섬네일 위에 던지면 교체</b>됩니다 —
           이쪽도 webp로 굽지만 <b>자르지는 않습니다.</b> 그림의 비율이 곧 작품이니까요.<br>
-          내린 작품은 지워지지 않고 배열에서만 빠지므로 언제든 되살릴 수 있습니다.
+          내린 작품은 지워지지 않고 배열에서만 빠지므로 언제든 되살릴 수 있습니다.<br>
+          🔍 <b>자세히 보기 원판</b> — 위키미디어 링크를 그대로 붙여넣으시면 파일명만 뽑아 담습니다.
+          벽에 걸리는 것은 액자 낀 이 그림이고, 손님이 <b>가까이 다가갈 때만</b> 그 원판이 뜹니다.
+          <b>비워 두셔도 무방합니다</b> — 없으면 지금 그림을 그대로 씁니다.
         </div>
         <div id="artList"><div class="empty">불러오는 중…</div></div>
 
@@ -294,7 +317,7 @@ const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-aut
 const BUCKET='tour-assets';          /* 방 그림 */
 const ART_BUCKET='heritage-treasures'; /* 작품 */
 const PUB=(b,p)=>`${SUPA_URL}/storage/v1/object/public/${b}/${p}`;
-console.log("%c[EG] admin_galerie_assets v1.0 · 0804 미술관 콘솔 · 차례 투척함", "color:#c9a24a");
+console.log("%c[EG] admin_galerie_assets v1.1 · 0810 자세히 보기 원판 칸", "color:#c9a24a");
 
 let pickTarget=null, HALLS=[], ARTS=[], PLAN=null;
 
@@ -645,7 +668,7 @@ async function runPlan(){
 /* ═══ 작품 ═══ */
 async function loadArts(){
   const { data, error } = await supa.from('heritage_items')
-    .select('id,name,artist,period,img,status,ratio')
+    .select('id,name,artist,period,img,status,ratio,zoom_src')
     .eq('category','visual').order('id');
   if(error){ toast('작품 목록을 못 읽었습니다: '+esc(error.message)); return; }
   ARTS=data||[];
@@ -691,9 +714,18 @@ function renderArts(){
           <button class="btn ghost" onclick="pickArtImg('${a.id}')">그림</button>
           <button class="btn ${on?'warn':'ghost'}" onclick="toggleArt('${a.id}',${on})">${on?'내리기':'올리기'}</button>
         </div>
+        <div class="zoom-line">
+          <input id="zs-${a.id}" value="${esc(a.zoom_src||'')}" spellcheck="false"
+            placeholder="🔍 자세히 보기 원판 — 위키미디어 링크를 붙여넣으십시오"
+            oninput="zoomTouch('${a.id}')">
+          <button class="btn ghost" onclick="saveZoom('${a.id}')">원판 저장</button>
+        </div>
+        <div class="zoom-note" id="zn-${a.id}"></div>
       </div>
     </div>`;
   }).join('');
+  /* ⚠ 빈 칸은 paintZoom이 곧바로 되돌아 나온다 — 스물다섯 번을 헛치지 않는다 */
+  ARTS.forEach(a=>paintZoom(a.id));
   /* 섬네일에 직접 던지기 */
   ARTS.forEach(a=>{
     const el=document.getElementById('th-'+a.id); if(!el) return;
@@ -767,6 +799,143 @@ async function addArt(){
   document.getElementById('nsPeriod').value='';
   toast(`<b>${esc(id)}</b> 걸렸습니다 ✔ 이제 섬네일에 그림을 던져 주십시오`);
   await loadArts(); renderToday();
+}
+
+/* ═══ 🔍 자세히 보기 원판 (0810) ═══════════════════════════════════════
+   소로는 위키 링크를 그대로 붙여넣는다. 파일명만 뽑아 담는 일은 코드가 한다.
+
+   ⚠ zoom_src 두 갈래 — http로 시작하면 그 URL을 그대로 쓰고,
+     아니면 위키미디어 공용 파일명으로 본다. 나중에 라익스·메트처럼
+     자체 고화질을 주는 소장처를 써도 표를 또 늘리지 않으려는 설계다.
+
+   ⚠⚠ 폭은 아무 숫자나 못 쓴다. 위키미디어는 표준 폭이 아닌 직접 요청을 거부한다.
+     20·40·60·120·250·330·500·960·1280·1920·3840 — 이 목록 밖은 안 나온다. */
+const ZOOM_W = 3840;   /* 손님이 보는 원판 */
+const ZOOM_PV = 250;   /* 이 콘솔의 검사용 — 스물다섯 줄이 각자 한 장씩 받으므로 작게 */
+
+/* 링크에서 파일명만. 못 뽑으면 빈 문자열 */
+function commonsFile(s){
+  s = String(s||'').trim();
+  if(!s) return '';
+  /* 「파일:」「File:」… 접두어만 걷어낸다. 아는 말은 목록으로,
+     모르는 말은 「공백 없는 짧은 낱말 + 콜론」으로 본다 */
+  const cut = t => {
+    const known = t.replace(
+      /^(?:file|파일|datei|fichier|archivo|imagen|immagine|image|bestand|plik|arquivo|ファイル|файл|文件|圖像)\s*:\s*/i, '');
+    if(known !== t) return known;
+    const m = t.match(/^([^\s:\/]{1,15}):(.+)$/);
+    return m ? m[2] : t;
+  };
+  let f = '';
+  if(!/^https?:/i.test(s)){
+    f = cut(s);                                                    /* 파일명만 주신 경우 */
+  }else{
+    const m = s.match(/#\/media\/([^?#]+)/i)                       /* 위키백과 미디어 뷰어 */
+           || s.match(/\/wiki\/(?:Special:FilePath\/)?([^?#]+)/i)  /* 파일 페이지 · FilePath */
+           || s.match(/\/commons\/(?:thumb\/)?[0-9a-f]\/[0-9a-f]{2}\/([^\/?#]+)/i); /* upload 직링 */
+    if(!m) return '';
+    f = m[1];
+    try{ f = decodeURIComponent(f); }catch(e){}
+    f = cut(f);
+  }
+  f = f.replace(/_/g,' ').trim();
+  /* 그림 파일이 아니면 링크를 잘못 짚으신 것이다 */
+  return /\.(jpe?g|png|tiff?|webp|gif|svg)$/i.test(f) ? f : '';
+}
+
+/* 위키 계열 주소인가 — 문서 주소를 짚으신 경우를 가리는 데 쓴다 */
+const isWiki = s => /^https?:\/\/[^\/]*wiki(?:pedia|media|source|books|data|quote)\.org/i.test(s);
+
+function zoomUrl(src, w){
+  const s = String(src||'').trim();
+  if(!s) return '';
+  const f = commonsFile(s);
+  if(f) return 'https://commons.wikimedia.org/wiki/Special:FilePath/'
+            + encodeURIComponent(f.replace(/ /g,'_'))
+            + (w ? ('?width=' + w) : '');
+  /* ⚠ 위키 주소인데 파일명이 안 나오면 그림이 아니라 문서를 짚으신 것이다.
+       그대로 통과시키면 <img>에 문서 주소가 들어가 조용히 빈 그림이 된다 */
+  if(isWiki(s)) return '';
+  return /^https?:/i.test(s) ? s : '';               /* 남의 소장처 직접 URL */
+}
+
+/* 원본 크기를 공용에 묻는다. ⚠ origin=* 이 없으면 브라우저가 막는다 */
+async function probeCommons(file){
+  const u = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*'
+          + '&prop=imageinfo&iiprop=size&titles=' + encodeURIComponent('File:'+file);
+  const r = await fetch(u);
+  const j = await r.json();
+  const p = Object.values(j?.query?.pages || {})[0];
+  if(!p || p.missing !== undefined) return null;
+  const ii = (p.imageinfo || [])[0];
+  return ii ? { w: ii.width, h: ii.height, size: ii.size } : null;
+}
+
+const ZTIMER = {};
+function zoomTouch(id){ clearTimeout(ZTIMER[id]); ZTIMER[id] = setTimeout(()=>paintZoom(id), 500); }
+
+async function paintZoom(id){
+  const note = document.getElementById('zn-'+id); if(!note) return;
+  const inp  = document.getElementById('zs-'+id);
+  const a    = ARTS.find(x=>x.id===id);
+  const raw  = ((inp ? inp.value : (a && a.zoom_src)) || '').trim();
+  if(inp) inp.classList.toggle('has', !!(a && a.zoom_src));
+
+  if(!raw){
+    note.className = 'zoom-note';
+    note.innerHTML = '원판이 없으면 자세히 보기가 <b>지금 그림</b>을 그대로 씁니다.';
+    return;
+  }
+  const file = commonsFile(raw);
+  const pv   = zoomUrl(raw, ZOOM_PV);
+  if(!pv){
+    note.className = 'zoom-note bad';
+    note.innerHTML = isWiki(raw)
+      ? '이건 <b>문서 주소</b>입니다 — 그 문서에서 <b>그림을 눌러 크게 연 뒤</b>(주소에 <b>#/media/</b>가 붙습니다) 그 주소를 붙여 주십시오.'
+      : '이 링크에서는 파일명을 못 뽑았습니다 — 그림 파일 주소인지 봐 주십시오.';
+    return;
+  }
+  note.className = 'zoom-note';
+  note.innerHTML =
+      `<img id="zp-${id}" src="${esc(pv)}" alt="" loading="lazy">`
+    + `<b title="${esc(file || raw)}">${esc(file || '직접 URL')}</b>`
+    + `<span class="zoom-tag" id="zd-${id}">${file ? '재는 중…' : '직접 URL'}</span>`
+    + `<a class="zoom-tag" href="${esc(zoomUrl(raw, file ? ZOOM_W : 0))}"
+          target="_blank" rel="noopener">원판 열기</a>`;
+
+  /* ⚠ 그림이 안 뜨는 것과 숫자를 못 재는 것은 다른 병이다. 눈으로 갈리게 둔다 */
+  const pvImg = document.getElementById('zp-'+id);
+  if(pvImg) pvImg.onerror = ()=>{
+    pvImg.style.display = 'none';
+    note.className = 'zoom-note bad';
+  };
+
+  if(!file) return;
+  try{
+    const m = await probeCommons(file);
+    const d = document.getElementById('zd-'+id); if(!d) return;
+    if(!m){ d.textContent = '공용에 그 이름이 없습니다'; note.className='zoom-note bad'; return; }
+    d.textContent = `${m.w.toLocaleString()} × ${m.h.toLocaleString()}`;
+    if(m.w < ZOOM_W) d.textContent += ` · 원본이 ${ZOOM_W}px보다 작습니다`;
+  }catch(e){
+    const d = document.getElementById('zd-'+id);
+    if(d) d.textContent = '크기는 못 쟀습니다 (그림이 뜨면 무방)';
+    console.warn('[EG] 공용 조회 실패 — 미리보기만으로 판정하십시오', e);
+  }
+}
+
+async function saveZoom(id){
+  const inp = document.getElementById('zs-'+id); if(!inp) return;
+  const raw = (inp.value||'').trim();
+  const val = raw ? (commonsFile(raw) || raw) : null;   /* 파일명이 뽑히면 그것만 담는다 */
+  const { error } = await supa.from('heritage_items').update({ zoom_src: val }).eq('id', id);
+  if(error){ toast('실패: '+esc(error.message)); return; }
+  const a = ARTS.find(x=>x.id===id); if(a) a.zoom_src = val;
+  inp.value = val || '';
+  /* ⚠ loadArts를 부르지 않는다 — 목록을 통째로 다시 그리면
+       소로가 다른 줄에 적어 두신 것이 날아간다 */
+  paintZoom(id);
+  toast(val ? '원판을 담았습니다 ✔' : '원판을 비웠습니다');
 }
 
 /* ═══ 미리보기 ═══ */
