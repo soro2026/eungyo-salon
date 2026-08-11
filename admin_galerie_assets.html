@@ -317,7 +317,7 @@ const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-aut
 const BUCKET='tour-assets';          /* 방 그림 */
 const ART_BUCKET='heritage-treasures'; /* 작품 */
 const PUB=(b,p)=>`${SUPA_URL}/storage/v1/object/public/${b}/${p}`;
-console.log("%c[EG] admin_galerie_assets v1.1 · 0810 자세히 보기 원판 칸", "color:#c9a24a");
+console.log("%c[EG] admin_galerie_assets v1.2 · 0810 원판 칸 · 📁 원판 올리기", "color:#c9a24a");
 
 let pickTarget=null, HALLS=[], ARTS=[], PLAN=null;
 
@@ -327,7 +327,9 @@ const hallPath=(code,t)=>`galerie/${code}_hall_${t}.webp`;
 
 /* 규격 — 한 곳에서만 정한다 */
 const SPEC={ gate:{w:1672,h:941}, hall:{w:941,h:1672} };
-const ART_MAX=1800;              /* 작품 긴 변 상한 */
+const ART_MAX=1800;              /* 벽에 걸리는 그림 긴 변 상한 */
+const ZOOM_MAX=3840;             /* 원판 긴 변 상한 — 미술관·거실 자세히 보기가 쓴다 */
+const ZOOM_KB=4200;              /* 원판 용량 상한. 벽 그림보다 훨씬 넉넉히 둔다 */
 const TARGET_KB=900;             /* 이보다 크면 화질을 한 단계씩 낮춘다 */
 
 function toast(m){const t=document.getElementById('toast');t.innerHTML=m;
@@ -372,8 +374,14 @@ async function init(){
 /* ═══════════════════════════════════════════════════════════
    ⭐ 굽는 곳 — 어떤 형식이 와도 webp 한 장으로 나간다
    ═══════════════════════════════════════════════════════════ */
-async function readBitmap(file){
+async function readBitmap(file, maxSide){
   if(window.createImageBitmap){
+    /* ⚠ 아주 큰 원본을 통째로 펼치면 브라우저가 죽는다(위키 3만 픽셀 판 같은 것).
+       무거운 파일만 디코딩 단계에서 줄인다 — 문턱을 둔 까닭은 작은 그림을
+       resizeWidth가 되레 늘려 놓기 때문이다. */
+    if(maxSide && file.size > 8*1024*1024){
+      try{ return await createImageBitmap(file, { resizeWidth:maxSide, resizeQuality:'high' }); }catch(e){}
+    }
     try{ return await createImageBitmap(file); }catch(e){}
   }
   /* 폴백 — 사파리 구판 */
@@ -391,8 +399,8 @@ function canvasBlob(cv,q){
   });
 }
 /* mode:'cover' 규격에 맞춰 가운데 기준으로 자름 · mode:'fit' 비율 지키고 긴 변만 줄임 */
-async function bake(file, mode, W, H){
-  const bmp=await readBitmap(file);
+async function bake(file, mode, W, H, kb){
+  const bmp=await readBitmap(file, (mode==='cover') ? Math.max(W,H) : (W||ART_MAX));
   const sw=bmp.width, sh=bmp.height;
   let cw,ch,dx,dy,dw,dh;
   if(mode==='cover'){
@@ -400,7 +408,8 @@ async function bake(file, mode, W, H){
     const s=Math.max(W/sw, H/sh);
     dw=sw*s; dh=sh*s; dx=(W-dw)/2; dy=(H-dh)/2;
   }else{
-    const s=Math.min(1, ART_MAX/Math.max(sw,sh));
+    /* ⚠ fit에서 W는 「긴 변 상한」이다. 안 주면 예전대로 ART_MAX */
+    const s=Math.min(1, (W||ART_MAX)/Math.max(sw,sh));
     cw=Math.round(sw*s); ch=Math.round(sh*s);
     dx=0; dy=0; dw=cw; dh=ch;
   }
@@ -411,7 +420,8 @@ async function bake(file, mode, W, H){
   if(bmp.close) bmp.close();
 
   let q=0.90, blob=await canvasBlob(cv,q);
-  while(blob && blob.size>TARGET_KB*1024 && q>0.55){ q-=0.08; blob=await canvasBlob(cv,q); }
+  const lim=(kb||TARGET_KB)*1024;
+  while(blob && blob.size>lim && q>0.55){ q-=0.08; blob=await canvasBlob(cv,q); }
 
   /* ⚠ webp를 못 굽는 브라우저면 원본 그대로 보낸다. 조용히 빈 파일을 올리지 않는다 */
   if(!blob || blob.type!=='image/webp'){
@@ -552,9 +562,11 @@ function paint(id,path,head,kind){
 function afterWrite(){ buildSlots(); refreshTally(); }
 
 function pickFile(path,kind){ pickTarget={path,kind}; document.getElementById('filePick').click(); }
+function pickZoom(id){ pickTarget={id,zoom:true}; document.getElementById('filePick').click(); }
 document.getElementById('filePick').addEventListener('change',e=>{
   if(e.target.files[0] && pickTarget){
-    if(pickTarget.art) uploadArt(pickTarget.id, e.target.files[0]);
+    if(pickTarget.zoom) uploadZoom(pickTarget.id, e.target.files[0]);      /* ⚠ 원판을 먼저 가른다 */
+    else if(pickTarget.art) uploadArt(pickTarget.id, e.target.files[0]);
     else uploadRoom(pickTarget.path, pickTarget.kind, e.target.files[0], afterWrite);
   }
   e.target.value='';
@@ -719,6 +731,7 @@ function renderArts(){
             placeholder="🔍 자세히 보기 원판 — 위키미디어 링크를 붙여넣으십시오"
             oninput="zoomTouch('${a.id}')">
           <button class="btn ghost" onclick="saveZoom('${a.id}')">원판 저장</button>
+          <button class="btn ghost" onclick="pickZoom('${a.id}')">📁 파일</button>
         </div>
         <div class="zoom-note" id="zn-${a.id}"></div>
       </div>
@@ -737,6 +750,35 @@ function renderArts(){
 }
 
 function pickArtImg(id){ pickTarget={art:true,id}; document.getElementById('filePick').click(); }
+
+/* ── 📁 원판 올리기 (0810) ────────────────────────────────────────
+   위키미디어에 없는 작품을 위한 두 번째 길. 파리 뮈제·라익스·메트처럼
+   소장처가 CC0로 푸는 고화질을 받아 우리 창고에 들인다.
+   ⚠ 벽 그림(uploadArt)과 창고는 같으나 굽는 크기가 다르다 —
+     벽은 1800px·900KB, 원판은 3840px·4.2MB. 섞으면 확대가 뭉갠다. */
+async function uploadZoom(id, file){
+  if(!file) return;
+  if(file.size>96*1024*1024){ toast('96MB 이하로 부탁드립니다'); return; }
+  toast('원판을 굽는 중…');
+  let r;
+  try{ r=await bake(file, 'fit', ZOOM_MAX, null, ZOOM_KB); }
+  catch(e){ toast('굽지 못했습니다: '+esc(e.message)); return; }
+
+  const path=`${id}_zoom.webp`;
+  const { error } = await supa.storage.from(ART_BUCKET)
+    .upload(path, r.blob, { upsert:true, contentType:'image/webp', cacheControl:'3600' });
+  if(error){ toast('실패: '+esc(error.message)); return; }
+
+  const url=PUB(ART_BUCKET,path);
+  const { error:e2 } = await supa.from('heritage_items').update({ zoom_src:url }).eq('id',id);
+  if(e2){ toast('원판은 올렸으나 기록 실패: '+esc(e2.message)); return; }
+
+  const a=ARTS.find(x=>x.id===id); if(a) a.zoom_src=url;
+  const inp=document.getElementById('zs-'+id); if(inp) inp.value=url;
+  paintZoom(id);
+  toast(`<b>${esc(id)}_zoom.webp</b> ✔<br>${kb(file.size)} → <b>${kb(r.blob.size)}</b>`
+      + ` · ${r.srcW}×${r.srcH} → <b>${r.outW}×${r.outH}</b>`);
+}
 
 /* ⚠ 작품은 자르지 않는다 — 비율이 곧 작품이다 */
 async function uploadArt(id, file){
