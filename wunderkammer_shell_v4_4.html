@@ -1662,7 +1662,7 @@ async function sbFetch(path, options = {}) {
   }
   return res.status === 204 ? null : res.json();
 }
-console.log("%c[EG] wunderkammer 0812b · 3층 지성소 재건축 · 장서인 · 자세히 보기 원판", "color:#c9a84c");
+console.log("%c[EG] wunderkammer 0812c · 3층 지성소 · 책등 경로·13자 · 장서인 · 자세히 보기 원판", "color:#c9a84c");
 function getUser() { try { return JSON.parse(localStorage.getItem('eungyo-auth'))?.user || null; } catch { return null; } }
 
 /* ── 층 구성 (2026.07.28 「세 건물 재편 결정문」 7호로 4층 축소) ──
@@ -4337,14 +4337,26 @@ const Floor4 = (() => {
   /* 책등 그림·키 — 뮤세움과 같은 해시(book01~10.webp 공유).
      ⚠ 같은 책은 어느 건물에서 보아도 같은 책등이라야 한다 */
   const IMGS = ['book01','book02','book03','book04','book05','book06','book07','book08','book09','book10'];
+  /* ⚠ 그림은 **저장소 뿌리의 상대 경로**다(뮤세움과 같다). Storage가 아니다.
+       0812 내가 여기를 짐작으로 wk-assets/spines/로 적어 쉰여섯 권이 깨진 그림으로 섰다. */
   function bkImg(t){
-    let h=0; for(let i=0;i<t.length;i++) h=(h*31+t.charCodeAt(i))&0xfffff;
-    return SUPABASE_URL + '/storage/v1/object/public/wk-assets/spines/' + IMGS[h % IMGS.length] + '.webp';
+    let h=0; for(const c of String(t)) h=(h*31+c.charCodeAt(0))&0xfffff;
+    return IMGS[h % IMGS.length] + '.webp';
   }
-  function bkKey(t){                       /* 키 변주 84~100% — 나란히 서도 줄이 안 죽는다 */
-    let h=0; for(let i=0;i<t.length;i++) h=(h*17+t.charCodeAt(i))&0xfffff;
-    return [.84,.88,.92,.96,1,.9,.94,.86,.98,.9][h % 10];
+  function bkKey(t){                       /* 키 변주 — 획일하면 서가가 아니라 색종이 띠가 된다 */
+    let h=0; for(const c of String(t)) h=(h*17+c.charCodeAt(0))&0xfffff;
+    return [.88,.92,.96,1,.94,.90,.98,.86,1,.93][h % 10];
   }
+
+  /* ⚠ 책등에 설 수 있는 길이 — 뮤세움 SPINE_MAX 그대로(0807 실측).
+       title은 「퀴즈 정답」이지 「책 이름」이 아니라 이따금 문장이 통째로 온다.
+       세로쓰기는 한 줄에 열서넛이 한계고, 넘으면 두 줄이 되어 책등 폭을 다 먹는다.
+     ⚠ 자르되 감추지 않는다 — 감싸개 title에 전체가 있고, 눌러 열면 온전히 보인다. */
+  const SPINE_MAX = 13;
+  const shortTitle = t => {
+    const x = String(t ?? '');
+    return x.length > SPINE_MAX ? x.slice(0, SPINE_MAX - 1) + '…' : x;
+  };
 
   function bgUrl(no, t){
     const v = COORDS && COORDS._v ? '?v=' + COORDS._v : '';
@@ -4467,9 +4479,9 @@ const Floor4 = (() => {
         el.style.top  = rk.top + '%'; el.style.height = rk.h + '%';
         el.innerHTML = seg.map(b => {
           const t = b.title || '';
-          return `<div class="f4-bk" data-t="${f4Esc(t)}" style="height:${(bkKey(t)*100).toFixed(1)}%">
-                    <img src="${bkImg(t)}" alt="${f4Esc(t)}" loading="lazy">
-                    <div class="f4-bkt">${f4Esc(t)}</div>
+          return `<div class="f4-bk" data-t="${f4Esc(t)}" title="${f4Esc(t)}" style="height:${(bkKey(t)*100).toFixed(1)}%">
+                    <img src="${bkImg(t)}" alt="" loading="lazy">
+                    <div class="f4-bkt">${f4Esc(shortTitle(t))}</div>
                   </div>`;
         }).join('');
         el.addEventListener('click', e => {
