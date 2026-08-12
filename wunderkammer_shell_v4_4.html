@@ -1346,6 +1346,23 @@ html, body {
   color:rgba(233,207,156,.9); font-size:15px; line-height:1;
 }
 .floor-content[data-floor="4"] .f4-dock button.on{ background:rgba(201,162,74,.32); }
+/* 집 갈아타기 — 도크 옆 작은 목록. 이 방 = 세 층이 함께 갈아탄다 */
+.floor-content[data-floor="4"] .f4-homes{
+  position:absolute; right:58px; bottom:74px; z-index:31;
+  display:flex; flex-direction:column; gap:4px; padding:10px 12px; border-radius:10px;
+  background:rgba(24,17,10,.92); border:1px solid rgba(201,162,74,.4);
+  max-height:52vh; overflow-y:auto; scrollbar-width:none;
+}
+.floor-content[data-floor="4"] .f4-homes::-webkit-scrollbar{ display:none; }
+.floor-content[data-floor="4"] .f4-homes button{
+  background:none; border:0; text-align:left; cursor:pointer; font-family:inherit;
+  color:rgba(233,207,156,.88); font-size:13px; padding:6px 8px; border-radius:6px;
+  white-space:nowrap;
+}
+.floor-content[data-floor="4"] .f4-homes button:hover{ background:rgba(201,162,74,.16); }
+.floor-content[data-floor="4"] .f4-homes button.me{
+  color:#f0e2bd; background:rgba(201,162,74,.22); cursor:default;
+}
 /* ═══════════ ⅤF 페르소나 월 (Le Mur des Visages) — 세로 스크롤 벽 · 4층 본보기 ═══════════ */
 .floor-content[data-floor="5"]{ overflow:hidden; background:#140a0e; }
 .floor-content[data-floor="5"] .f5-scroll{
@@ -1662,7 +1679,7 @@ async function sbFetch(path, options = {}) {
   }
   return res.status === 204 ? null : res.json();
 }
-console.log("%c[EG] wunderkammer 0812d · 3층 지성소 · 칸마다 위아래 따로 · 장서인 · 자세히 보기 원판", "color:#c9a84c");
+console.log("%c[EG] wunderkammer 0812e · 3층 지성소 · 칸 분리 · 집 갈아타기 🏠 · 장서인 · 자세히 보기 원판", "color:#c9a84c");
 function getUser() { try { return JSON.parse(localStorage.getItem('eungyo-auth'))?.user || null; } catch { return null; } }
 
 /* ── 층 구성 (2026.07.28 「세 건물 재편 결정문」 7호로 4층 축소) ──
@@ -4399,8 +4416,10 @@ const Floor4 = (() => {
           <button id="f4-next" aria-label="다음 면">▶</button>
         </div>
         <div class="f4-dock" id="f4-dock" hidden>
-          <button id="f4-rule-toggle" title="줄 맞추기">⚖</button>
+          <button id="f4-home-toggle" title="집 갈아타기" hidden>🏠</button>
+          <button id="f4-rule-toggle" title="줄 맞추기" hidden>⚖</button>
         </div>
+        <div class="f4-homes" id="f4-homes" hidden></div>
         <div class="f4-modal" id="f4-modal">
           <div class="f4-card">
             <div class="c-cat"   id="f4-c-cat"></div>
@@ -4624,6 +4643,44 @@ const Floor4 = (() => {
     }catch(e){ msg.textContent = '담기 실패 — ' + (e.message||e); }
     finally{ btn.disabled = false; }
   }
+  /* ════ 🏠 집 갈아타기 (집주인 · 내 방에서만) ════
+     방 번호 하나가 세 층을 함께 가리킨다 — 여기서 고르면 1·2·3층이 통째로 갈아탄다.
+     ⚠ 쓴 뒤 되읽는다 — PATCH는 맞는 행이 없어도 조용히 204다(0809). */
+  let homesOn = false;
+  async function toggleHomes(){
+    homesOn = !homesOn;
+    const box = f4El('f4-homes');
+    f4El('f4-home-toggle').classList.toggle('on', homesOn);
+    if (!homesOn){ box.hidden = true; return; }
+    box.hidden = false;
+    box.innerHTML = '<button disabled>읽는 중…</button>';
+    try{
+      const rooms = await sbFetch('/rest/v1/living_rooms?active=eq.true&select=no,name&order=no');
+      box.innerHTML = (rooms||[]).map(r =>
+        `<button data-no="${r.no}" class="${r.no===REAL_NO?'me':''}">`
+      + `${String(r.no).padStart(2,'0')} · ${f4Esc(r.name)}${r.no===REAL_NO?' — 지금 이 집':''}</button>`).join('');
+      box.querySelectorAll('button[data-no]').forEach(bt => {
+        bt.addEventListener('click', () => moveHome(Number(bt.dataset.no)));
+      });
+    }catch(e){ box.innerHTML = '<button disabled>방 목록을 못 읽었습니다</button>'; }
+  }
+  async function moveHome(no){
+    if (no === REAL_NO) return;
+    const meId = getUser()?.id || null; if (!meId) return;
+    try{
+      await sbFetch(`/rest/v1/wunderkammer?user_id=eq.${meId}`, {
+        method:'PATCH', body: JSON.stringify({ living_no: no })
+      });
+      const back = await sbFetch(`/rest/v1/wunderkammer?user_id=eq.${meId}&select=living_no`);
+      if (!back?.[0] || Number(back[0].living_no) !== no){
+        console.warn('[지성소] 집이 안 옮겨졌습니다'); return;
+      }
+      /* 세 층이 같은 집이라야 한다 — 이 층만 다시 그리면 1·2층이 옛집에 남는다.
+         엘리베이터를 다시 태우는 대신 통째로 새로고침한다(가장 정직한 길). */
+      location.reload();
+    }catch(e){ console.warn('[지성소] 집 갈아타기 실패', e); }
+  }
+
   function toggleRule(){
     ruleOn = !ruleOn;
     f4El('f4-rule').hidden = !ruleOn;
@@ -4647,9 +4704,13 @@ const Floor4 = (() => {
     f4El('f4-c-close').addEventListener('click', closeCard);
     f4El('f4-modal').addEventListener('click', e => { if (e.target === f4El('f4-modal')) closeCard(); });
 
-    /* ⚠ is_admin은 집주인이 아니라 **나**에게 묻는다.
-         남의 집에서 집주인의 권한을 물으면 늘 아니라고 답한다(0809 함정) */
+    /* ⚠ 문이 둘이다(0809 조항 그대로) —
+         🏠 집 갈아타기 = wunderkammer(내 집)를 만진다 → **집주인**에게만, 내 방에서만
+         ⚖  줄 맞추기  = living_room_floors를 만진다   → **살롱지기**면 어느 방에서든
+       하나로 묶으면 순례 중에 ⚖까지 사라지거나, 남의 방에서 남의 집을 옮기게 된다.
+       is_admin은 집주인이 아니라 **나**에게 묻는다. */
     const meId = getUser()?.id || null;
+    const isOwner = !!meId && ownerId === meId;
     keeper = false;
     if (meId){
       try{
@@ -4657,9 +4718,16 @@ const Floor4 = (() => {
         keeper = !!(u && u[0] && u[0].is_admin);
       }catch(e){ console.warn('[지성소] 살롱지기 확인 실패', e); }
     }
-    if (keeper){
+    if (keeper || isOwner){
       f4El('f4-dock').hidden = false;
-      f4El('f4-rule-toggle').addEventListener('click', toggleRule);
+      if (keeper){
+        f4El('f4-rule-toggle').hidden = false;
+        f4El('f4-rule-toggle').addEventListener('click', toggleRule);
+      }
+      if (isOwner){
+        f4El('f4-home-toggle').hidden = false;
+        f4El('f4-home-toggle').addEventListener('click', toggleHomes);
+      }
     }
   }
 
