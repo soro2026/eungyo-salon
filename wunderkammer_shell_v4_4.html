@@ -2005,7 +2005,7 @@ async function sbFetch(path, options = {}) {
   }
   return res.status === 204 ? null : res.json();
 }
-console.log("%c[EG] wunderkammer 0810a · 거실 자세히 보기 원판 · 팬줌", "color:#c9a84c");
+console.log("%c[EG] wunderkammer 0812a · 장서인 EX LIBRIS · 자세히 보기 원판 · 팬줌", "color:#c9a84c");
 function getUser() { try { return JSON.parse(localStorage.getItem('eungyo-auth'))?.user || null; } catch { return null; } }
 
 /* ── 층 구성 (2026.07.28 「세 건물 재편 결정문」 7호로 4층 축소) ──
@@ -4021,7 +4021,35 @@ const Floor3 = (() => {
     md.classList.add('on');
     setTimeout(() => { const q = bamEl('bam-q'); if (q) q.focus(); }, 100);
   }
-  function closeAddModal(){ const md = bamEl('bk-add-modal'); if (md) md.classList.remove('on'); }
+  /* ══ 0812 · 분더카머 장서인 (cam_liber) ═══════════════════════════════
+     새 책을 들인 그날, 모달이 걷힌 뒤에 한 장 놓는다.
+     ⚠ 제출 순간이 아니라 **닫을 때** 놓는다 — 손님 눈이 모달 가운데에 있으면
+       도크가 떠도 못 본다(v155 §3-1). 닫는 길 셋(× · 바깥 누르기 · 서가로
+       돌아가기)이 전부 이 함수로 모이므로 뒷문이 없다.
+     ⚠ 규칙은 daily_per_area 하나다. once_per_subject를 걸면 안 된다 —
+       같은 책을 두 번 들일 일은 없고, 매일 새 책이 들어온다(v155 §3-3).
+     ⚠ stamp_press.js는 한 글자도 안 건드린다. 부르는 곳이 열한 곳이다(0808).  */
+  let BAM_STAMP_FOR = null;          /* 들이기가 성공하면 그 책 제목이 여기 앉는다 */
+
+  /* 각인 다듬기 — 실측 0812: 검색 우물이 부제를 괄호로 붙여 준다.
+     원본 최대 58자 → 괄호 걷으면 32자 → 24자에서 접으면 스물여섯 중 여섯만 잘린다. */
+  function bamInscription(t){
+    let x = String(t || '').replace(/\s*[\(（][^)）]*[\)）]\s*$/, '').trim();
+    if (!x) x = String(t || '').trim();
+    return x.length <= 24 ? x : (x.slice(0, 23) + '…');
+  }
+
+  function closeAddModal(){
+    const md = bamEl('bk-add-modal'); if (md) md.classList.remove('on');
+    const title = BAM_STAMP_FOR; BAM_STAMP_FOR = null;
+    if (!title || !window.EGStamp) return;
+    /* 모달이 실제로 사라진 뒤에 놓는다 */
+    setTimeout(function(){
+      try{
+        EGStamp.offer({ kind:'cam_liber', inscription: bamInscription(title) });
+      }catch(e){ console.warn('[EGStamp] 장서인 물러납니다:', e); }
+    }, 320);
+  }
 
   async function bamSearch(){
     const q = bamEl('bam-q').value.trim();
@@ -4136,6 +4164,7 @@ const Floor3 = (() => {
         })
       });
       const row = Array.isArray(ins) ? ins[0] : ins;
+      BAM_STAMP_FOR = BAM_CURRENT.title;   /* 0812 — 도장은 모달을 닫을 때 놓는다 */
       res.className = 'bam-result ok';
       res.innerHTML = '✅ <b>' + bamEsc(BAM_CURRENT.title) + '</b> 들였습니다!<br>'
         + '<span class="sm">표지 ' + via + ' 복사 · 원본 ' + (w&&h ? w+'×'+h : '크기?')
