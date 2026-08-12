@@ -1321,6 +1321,34 @@ async function loadVoyageLink(starId) {
       const vl = document.getElementById('voyage-link');
       vl.href = 'terra.html?id=' + starId;   // 0720 star_voyage → terra 흡수
       vl.target = '_top';                    // doorway 액자 안이라면 탈출 — 테라 인 테라 방지
+      /* ⭐ 0812밤 — 이미 테라 안이라면 지구를 **새로 짓지 않는다.**
+           분더카머 4층 액자 → 별 → 여정 경로에서는 손님이 이미 terra 액자 안에 있다.
+           _top으로 통째로 다시 열면 Cesium이 처음부터 서고, 로더가 최소 8초(STAY) 머문다.
+           손님 눈에는 「비행기 화면으로 되돌아간」 것이고, 실제로도 이미 선 지구를 버리는 낭비다.
+         ⚠ 최상위가 테라가 아닐 수도 있다(별을 직접 연 경우) → 그때는 href가 그대로 일한다.
+         ⚠ enter=1로 들어온 테라는 지구를 안 만든다(fastEnter) → viewer로 가른다.
+         ⚠ 콜백을 **최상위 시계**에 건다. exitDoorway가 이 액자를 about:blank로 비우므로,
+           여기(액자 안)에 걸면 우리 자신이 지워지며 함께 죽는다. */
+      vl.addEventListener('click', function (e) {
+        var T = null;
+        try {
+          if (window.top !== window
+              && typeof window.top.jumpToStarPlace === 'function'
+              && window.top.viewer) T = window.top;
+        } catch (_) { T = null; }      // 다른 출처면 접근 자체가 막힌다 — 조용히 옛 길로
+        if (!T) return;                // 최상위가 테라가 아니면 href가 일한다
+        e.preventDefault();
+        var sid = starId;
+        T.setTimeout(function () {
+          try {
+            if (typeof T.exitDoorway === 'function') T.exitDoorway();
+            T.jumpToStarPlace(sid);
+          } catch (err) {
+            console.warn('[별] 여정 직행 실패 — 옛 길로 물러납니다:', err);
+            T.location.href = 'terra.html?id=' + sid;
+          }
+        }, 0);
+      });
       document.getElementById('voyage').style.display = '';
     }
     // 대표지 없으면 기본 숨김(display:none) 유지
