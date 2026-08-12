@@ -10,6 +10,13 @@
 /* ══════════════════════════════════════════════════════════════════
  *  admin_living_assets v1.1 — 0809b · 살롱지기 전용
  *
+ *  v1.3 (0812밤) — 층이 넷이 됐다. v1.2의 약속대로 FLOORS·BUDGETS 두 표에 한 줄씩만 더했다.
+ *         4층  visages/visages_NN_{m·d·e·n}.webp
+ *         ⚠ 4층 예산 눈금은 「얼굴이 걸리는 사각형」이다. 1~3층 눈금과 성격이 다르다 —
+ *           1~3층은 배경에 그려진 선반·콘솔에 물건이 자석처럼 붙지만,
+ *           4층 액자는 화면 비율 자유 좌표(persona_wall)에 앉는다.
+ *           그래서 4층에서 넉 벌이 지켜야 할 것은 오직 하나, 이 사각형이 안 움직이는 것뿐이다.
+ *           창밖·계절·이웃집 불빛·램프는 벌마다 마음껏 달라져도 된다.
  *  v1.2 (0812) — 층이 셋이 됐다. 이제 FLOORS·BUDGETS 두 표에 한 줄만 더하면 층이 는다.
  *  v1.1 — 층이 둘이 됐다. 한 채(방 번호) = 1층 거실 넉 벌 + 2층 책의 방 넉 벌.
  *         SQL 0줄 — living_rooms는 그대로 쓰고 저장소 경로만 갈린다.
@@ -116,6 +123,12 @@ select:focus,input[type=text]:focus{outline:none;border-color:var(--gold);}
 .tab.on{background:rgba(201,162,74,.16);color:var(--gold-l);}
 .tab em{font-style:normal;font-family:'Cormorant Garamond',serif;
   color:var(--gold);margin-right:7px;}
+/* 0812밤 — 층이 넷이 되며 폰에서 단추 한 칸이 86px로 줄었다. 다섯째 층이 와도 안 접히게. */
+.tab{min-width:0;}
+@media (max-width:520px){
+  .tab{padding:10px 4px;font-size:11px;letter-spacing:0;}
+  .tab em{margin-right:4px;}
+}
 .zone b{position:absolute;left:3px;top:1px;font-size:7.5px;font-weight:400;
   color:#fff;text-shadow:0 0 3px rgba(0,0,0,.95);letter-spacing:.04em;}
 .z-quote {background:rgba(201,162,74,.34);outline:1px dashed rgba(255,255,255,.5);outline-offset:-1px;}
@@ -263,7 +276,7 @@ const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
 const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth'}});
 const BUCKET='wk-assets';
 const PUB=(b,p)=>`${SUPA_URL}/storage/v1/object/public/${b}/${p}`;
-console.log("%c[EG] admin_living_assets v1.2 · 0812 세 층 · 층 표만 보고 돈다", "color:#c9a24a");
+console.log("%c[EG] admin_living_assets v1.3 · 0812밤 네 층 · 4층 액자방(visages) 개통", "color:#c9a24a");
 
 let pickTarget=null, ROOMS=[], PLAN=null, ME=null, MY_ROOM=null, BUDGET_ON=false;
 let FLOOR=1;   /* 지금 열린 층. 칸·투척·눈금이 모두 이 값을 본다 */
@@ -285,7 +298,16 @@ const FLOORS={
   3:{ roman:'Ⅲ', kr:'지성소',   fr:'SANCTUAIRE',    dir:'sanctum', pre:'sanctum',
       hint:'감이 <b>가로 23~80%</b>를 채우고 <b>세로 21~70%</b>에 서야 합니다. '
          + '<b>네 칸이 모두 비어 있어야 합니다</b> — 배경에 책이 그려져 있으면 '
-         + '손님의 책등과 겹칩니다. 빛은 화면 밖 왼쪽에서 낮게 듭니다(천창 없음).' }
+         + '손님의 책등과 겹칩니다. 빛은 화면 밖 왼쪽에서 낮게 듭니다(천창 없음).' },
+  /* 0812밤 — 4층 액자방. 파리 실측(넉 벌 교집합): 빈 회벽 가로 29~83% · 세로 19~77%.
+     ⚠ 1~3층과 지켜야 할 것이 다르다. 여기엔 자석이 없다 — 액자는 화면 비율 좌표에 앉는다.
+       넉 벌에서 창밖·계절·불빛·램프는 전부 달라져도 되고, 오직 이 사각형만 안 움직이면 된다.
+     ⚠ 방마다 벽 폭이 다르므로 이 값은 파리 눈금일 뿐이다. 방마다 ⚖ 줄자로 다시 잰다. */
+  4:{ roman:'Ⅳ', kr:'액자방',   fr:'LE MUR DES VISAGES', dir:'visages', pre:'visages',
+      hint:'가운데 회벽이 <b>가로 29~83%</b> · <b>세로 19~77%</b>에 완전히 비어 있어야 합니다. '
+         + '<b>담쟁이가 그 안으로 한 줄기도 들어오면 안 됩니다</b> — 얼굴이 그 위에 얹힙니다. '
+         + '⭐ 창밖·계절·이웃집 불빛·램프는 넉 벌마다 달라져도 좋습니다. '
+         + '<b>넉 벌이 함께 지킬 것은 이 사각형 하나뿐입니다.</b>' }
 };
 const assetPath=(fl,no,t)=>
   `${FLOORS[fl].dir}/${FLOORS[fl].pre}_${String(no).padStart(2,'0')}_${t}.webp`;
@@ -323,7 +345,33 @@ const BUDGETS={
     { cls:'z-tier',   top:56.8, bot:57.4, label:'', l:23, w:57 },
     { cls:'z-tier',   top:69.3, bot:69.9, label:'', l:23, w:57 },
     { cls:'z-floor',  top:83, bot:100, label:'바닥' },
-  ]
+  ],
+  /* 0812밤 — 4층. 열다섯 칸을 손으로 안 적는다. 산식이 낳는다.
+     「지금은 열다섯이면 충분」으로 박아 두면 열여섯이 되는 날 틀린다(v158 §5).
+     ⚠⚠ 이 산식은 셸 Floor5의 SLOTS와 반드시 같은 값을 내야 한다.
+        지금은 같은 값이 두 파일에 산다 — 좌표를 living_room_floors(floor=4)로
+        빼는 날 한 곳이 된다. 그 전까지는 한쪽만 고치지 말 것. */
+  4:(()=>{
+    const P     = { l:29, r:83, t:19, b:77 };   // 파리 실측 · 넉 벌 교집합
+    const COLS=3, ROWS=5, W=13;                 // 액자 폭 %p
+    const H     = +(W*(941/1672)/0.82).toFixed(3);  // 액자 높이 — 셸 halfY와 같은 환산
+    const PLATE = 1.5;                          // 이름 명패가 액자 아래 먹는 몫
+    const gx = (P.r-P.l - COLS*W) / (COLS+1);
+    const gy = (P.b-P.t - ROWS*(H+PLATE)) / (ROWS+1);
+    const z = [
+      { cls:'z-margin', top:P.t, bot:P.b, label:'여백', l:0,   w:P.l     },
+      { cls:'z-margin', top:P.t, bot:P.b, label:'',     l:P.r, w:100-P.r },
+      { cls:'z-shelf',  top:P.t, bot:P.b, l:P.l, w:P.r-P.l,
+        label:`얼굴 벽 ${P.r-P.l}%p × ${P.b-P.t}%p · ${COLS}열 × ${ROWS}행` },
+    ];
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const top = P.t + gy + r*(H+PLATE+gy);
+      z.push({ cls:'z-art', top:+top.toFixed(2), bot:+(top+H).toFixed(2),
+               l:+(P.l+gx+c*(W+gx)).toFixed(2), w:W, label:'' });
+    }
+    z.push({ cls:'z-floor', top:P.b, bot:100, label:'걸레받이 · 마루' });
+    return z;
+  })()
 };
 
 function toast(m){const t=document.getElementById('toast');t.innerHTML=m;
@@ -342,7 +390,7 @@ async function init(){
   ME=user.id;
   document.getElementById('panel').style.display='block';
   drawFloorTabs();
-  document.getElementById('setHint').innerHTML=FLOORS[1].hint;
+  document.getElementById('setHint').innerHTML=FLOORS[FLOOR].hint;   /* 0812밤 — 손으로 박은 1을 걷음 */
   await loadMyRoom();
   await loadRooms();
   wireBulk();
