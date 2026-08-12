@@ -1484,6 +1484,17 @@ html, body {
 }
 .floor-content[data-floor="5"] .f5-pager .f5-span b{ display:block; font-weight:400; opacity:.62; font-size:11.5px; }
 
+/* ⚖ 켜는 동안 보이는 열다섯 자리 — 얼굴이 없는 방에서도 어디에 걸릴지 보인다.
+   콘솔 BUDGETS[4]가 그리는 것과 같은 그림이다(같은 산식에서 나온다). */
+.floor-content[data-floor="5"] .f5-ghosts{ position:absolute; inset:0; z-index:38; pointer-events:none; }
+.floor-content[data-floor="5"] .f5-ghosts .gh-panel{
+  position:absolute; outline:1px solid rgba(201,162,74,.5); outline-offset:-1px;
+  background:rgba(201,162,74,.04);
+}
+.floor-content[data-floor="5"] .f5-ghosts .gh{
+  position:absolute; outline:1px dashed rgba(255,255,255,.42); outline-offset:-1px;
+  background:rgba(120,150,190,.10);
+}
 /* ⚖ 줄 맞추기 (살롱지기) — 3층 문법 그대로. 움직이는 것은 액자가 아니라 줄이다 */
 .floor-content[data-floor="5"] .f5-rule{ position:absolute; inset:0; z-index:40; }
 .floor-content[data-floor="5"] .f5-rule .rl{
@@ -1501,7 +1512,21 @@ html, body {
   position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:70;
   display:flex; align-items:center; gap:10px; padding:8px 14px; border-radius:999px;
   background:rgba(24,17,10,.9); border:1px solid rgba(201,162,74,.4);
+  flex-wrap:wrap; justify-content:center; max-width:94vw;
 }
+/* ⭐ 0812밤 — 넉 벌 갈아 보기. 좌표는 한 벌인데 배경은 넉 벌이라,
+     밤 벌에서도 사각형이 맞는지 보려면 밤까지 기다려야 했다.
+   ⚠ 여기서는 폴백을 안 쓴다. 「밤을 본다」고 믿는데 낮이 서 있으면
+     그 순간 자가 거짓말을 한다(0808 조항). 없으면 없다고 적는다. */
+.floor-content[data-floor="5"] .f5-tods{ display:flex; gap:4px; }
+.floor-content[data-floor="5"] .f5-tods button{
+  background:rgba(201,162,74,.10); border:1px solid rgba(201,162,74,.32);
+  border-radius:999px; color:#dccca8;
+  padding:4px 11px; font-size:11.5px; cursor:pointer; font-family:inherit; letter-spacing:.02em;
+}
+.floor-content[data-floor="5"] .f5-tods button:hover{ background:rgba(201,162,74,.2); }
+.floor-content[data-floor="5"] .f5-tods button.on{ background:#c9a24a; border-color:#c9a24a; color:#1a120c; }
+.floor-content[data-floor="5"] .f5-tods button.none{ opacity:.38; }
 .floor-content[data-floor="5"] .f5-rsave button{
   background:rgba(201,162,74,.22); border:1px solid rgba(201,162,74,.5); border-radius:6px;
   color:#f0e2bd; padding:5px 13px; font-size:12.5px; cursor:pointer; font-family:inherit;
@@ -1721,7 +1746,7 @@ async function sbFetch(path, options = {}) {
   }
   return res.status === 204 ? null : res.json();
 }
-console.log("%c[EG] wunderkammer 0812f · 4층 액자방 재건축(visages 넉 벌 · 방 번호 관통 · 넘김·복귀문 수리)", "color:#c9a84c");
+console.log("%c[EG] wunderkammer 0812g · 4층 ⚖ 넉 벌 갈아 보기 · 열다섯 자리 미리보기", "color:#c9a84c");
 function getUser() { try { return JSON.parse(localStorage.getItem('eungyo-auth'))?.user || null; } catch { return null; } }
 
 /* ── 층 구성 (2026.07.28 「세 건물 재편 결정문」 7호로 4층 축소) ──
@@ -4882,6 +4907,7 @@ const Floor5 = (() => {
             <img id="f5-img" alt="">
             <div class="f5-panel" id="f5-panel"></div>
             <div class="f5-wall" id="f5-wall"></div>
+            <div class="f5-ghosts" id="f5-ghosts" hidden></div>
             <div class="f5-rule" id="f5-rule" hidden></div>
           </div>
         </div>
@@ -5215,20 +5241,83 @@ const Floor5 = (() => {
     }));
   }
 
-  /* ════ ⚖ 줄 맞추기 (살롱지기 전용) — 3층 문법 그대로 ════ */
+  /* ════ ⚖ 줄 맞추기 (살롱지기 전용) ════
+     ⭐ 0812밤 — 넉 벌 갈아 보기를 붙였다.
+        좌표는 **한 벌**인데 배경은 넉 벌이다. 그래서 밤 벌에서도 사각형이 맞는지
+        보려면 밤이 될 때까지 기다려야 했다. 이제 여기서 갈아 끼우고 확인한다.
+     ⚠ 시각마다 좌표를 따로 두지 않는다. 액자가 밤에 움직이면 그건 벽이 아니다.
+        갈리는 것은 **배경 미리보기뿐**이고, 담기는 값은 언제나 한 벌이다. */
   const RULE = [
     ['t','벽 위','h'], ['b','벽 아래','h'],
     ['l','벽 왼쪽','v'], ['r','벽 오른쪽','v']
   ];
+  const TODS = [['m','아침'],['d','낮'],['e','저녁'],['n','밤']];
+  const todKr = t => (TODS.find(x=>x[0]===t)||['','지금'])[1];
+  let ruleTod = null;          /* null = 지금 시각 그대로 */
+  let todMissing = {};         /* 눌러 보고 없던 벌 — 두 번 헛걸음 안 하게 적어 둔다 */
+
+  /* 열다섯 자리 미리보기 — 얼굴이 없는 방에서도 어디에 걸릴지 보인다 */
+  function drawGhosts(){
+    const g = f5El('f5-ghosts'); if (!g) return;
+    const s = co(), SL = slots();
+    const W = SL[0].size_pct, H = hOf(W);
+    g.innerHTML =
+      `<div class="gh-panel" style="left:${s.l}%;top:${s.t}%;width:${s.r-s.l}%;height:${s.b-s.t}%"></div>`
+      + SL.map(sl => `<div class="gh" style="left:${(sl.x-W/2).toFixed(2)}%;top:${(sl.y-H/2).toFixed(2)}%;`
+                   + `width:${W}%;height:${H.toFixed(2)}%"></div>`).join('');
+  }
+
+  function paintTods(){
+    const box = f5El('f5-tods'); if (!box) return;
+    box.querySelectorAll('button').forEach(b => {
+      b.classList.toggle('on',   b.dataset.t === ruleTod);
+      b.classList.toggle('none', !!todMissing[b.dataset.t]);
+    });
+  }
+  /* ⚠ 폴백을 쓰지 않는다 — 「밤을 본다」고 믿는데 낮이 서 있으면 자가 거짓말을 한다.
+       없으면 없다고 적고 보던 그림으로 되돌린다(0808 조항). */
+  async function showTod(t){
+    const msg = f5El('f5-rmsg');
+    if (msg) msg.textContent = `${todKr(t)} 벌을 부르는 중…`;
+    const ok = await setBg([ bgUrl(REAL_NO, t) ]);
+    if (ok){
+      ruleTod = t; delete todMissing[t];
+      if (msg) msg.textContent = `${todKr(t)} 벌을 보는 중 · ${REAL_NO}번 방`;
+    } else {
+      todMissing[t] = true; ruleTod = null;
+      await restoreBg();
+      if (msg) msg.textContent = `${todKr(t)} 벌이 아직 없습니다`;
+    }
+    paintTods();
+  }
+  /* 지금 시각으로 되돌린다 — ⚖를 끄고 나서도 남의 시각이 서 있으면 안 된다 */
+  function restoreBg(){
+    return setBg([ bgUrl(REAL_NO, f5Slot()), bgUrl(REAL_NO,'d'), bgUrl(1,'d') ]);
+  }
+
   function drawRule(){
     const box = f5El('f5-rule'); if (!box) return;
     const s = co();
     box.innerHTML = RULE.map(([k,label,ax]) =>
       `<div class="rl ${ax}" data-k="${k}" style="${ax==='h'?'top':'left'}:${s[k]}%"><b>${label} ${s[k].toFixed(2)}</b></div>`).join('')
-      + `<div class="f5-rsave"><span id="f5-rmsg">끌어서 맞추십시오</span>
-           <button id="f5-rsave-b">이 방에 담기</button></div>`;
+      + `<div class="f5-rsave">
+           <div class="f5-tods" id="f5-tods">${
+             TODS.map(([k,l]) => `<button data-t="${k}">${l}</button>`).join('')
+           }</div>
+           <span id="f5-rmsg">끌어서 맞추십시오</span>
+           <button id="f5-rsave-b">이 방에 담기</button>
+         </div>`;
     box.querySelectorAll('.rl').forEach(el => bindRule(el));
     f5El('f5-rsave-b').addEventListener('click', saveRule);
+    f5El('f5-tods').addEventListener('click', e => {
+      const b = e.target.closest('button[data-t]'); if (!b) return;
+      /* 켜져 있는 것을 다시 누르면 지금 시각으로 돌아온다 */
+      if (b.dataset.t === ruleTod){ ruleTod = null; restoreBg();
+        f5El('f5-rmsg').textContent = '지금 시각으로 돌아왔습니다'; paintTods(); return; }
+      showTod(b.dataset.t);
+    });
+    paintTods();
+    drawGhosts();
   }
   function bindRule(el){
     const k = el.dataset.k, ax = el.classList.contains('h') ? 'h' : 'v';
@@ -5243,6 +5332,7 @@ const Floor5 = (() => {
         el.style[ax==='h'?'top':'left'] = val + '%';
         el.querySelector('b').textContent = `${RULE.find(x=>x[0]===k)[1]} ${val.toFixed(2)}`;
         buildPages(); paint();          /* 줄을 옮기면 안 박힌 얼굴들이 따라 선다 */
+        drawGhosts();                   /* 열다섯 자리도 함께 따라온다 */
       };
       const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); };
       el.addEventListener('pointermove', move); el.addEventListener('pointerup', up);
@@ -5269,8 +5359,12 @@ const Floor5 = (() => {
   function toggleRule(){
     ruleOn = !ruleOn;
     f5El('f5-rule').hidden = !ruleOn;
+    f5El('f5-ghosts').hidden = !ruleOn;
     f5El('f5-rule-toggle').classList.toggle('on', ruleOn);
     if (ruleOn) drawRule();
+    else if (ruleTod){        /* ⚠ 끄고 나서 남의 시각이 서 있으면 안 된다 */
+      ruleTod = null; restoreBg();
+    }
   }
 
   /* ════ 🏠 집 갈아타기 (집주인 · 내 방에서만) ════
@@ -5311,6 +5405,7 @@ const Floor5 = (() => {
   async function mount(){
     page = 0; sliding = false; ruleOn = false;
     editMode = false; selectedId = null; drag = null;
+    ruleTod = null; todMissing = {};   /* ⚠ 방을 갈아타면 「없음」 표식도 새로 잰다 */
 
     const ownerId = await resolveOwnerId();
     ownerUid = ownerId;
