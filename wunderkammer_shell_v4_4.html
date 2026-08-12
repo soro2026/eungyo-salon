@@ -1484,6 +1484,14 @@ html, body {
 }
 .floor-content[data-floor="5"] .f5-pager .f5-span b{ display:block; font-weight:400; opacity:.62; font-size:11.5px; }
 
+/* ⭐ ⚖ 켜는 동안에만 — 손으로 놓인 액자와, 벽 밖으로 나가려다 붙들린 액자.
+     살롱지기가 「이건 산식이 아니라 손님이 놓은 것」임을 알아야 벽을 함부로 안 옮긴다. */
+.floor-content[data-floor="5"] .f5-fit.ruling .f5-frame.pinned{
+  outline:2px solid rgba(201,162,74,.85); outline-offset:3px;
+}
+.floor-content[data-floor="5"] .f5-fit.ruling .f5-frame.held{
+  outline:2px dashed #d97b4a; outline-offset:3px;
+}
 /* ⚖ 켜는 동안 보이는 열다섯 자리 — 얼굴이 없는 방에서도 어디에 걸릴지 보인다.
    콘솔 BUDGETS[4]가 그리는 것과 같은 그림이다(같은 산식에서 나온다). */
 .floor-content[data-floor="5"] .f5-ghosts{ position:absolute; inset:0; z-index:38; pointer-events:none; }
@@ -1746,7 +1754,7 @@ async function sbFetch(path, options = {}) {
   }
   return res.status === 204 ? null : res.json();
 }
-console.log("%c[EG] wunderkammer 0812g · 4층 ⚖ 넉 벌 갈아 보기 · 열다섯 자리 미리보기", "color:#c9a84c");
+console.log("%c[EG] wunderkammer 0812h · 4층 손으로 놓인 액자 붙들기 · ⚖ 표식", "color:#c9a84c");
 function getUser() { try { return JSON.parse(localStorage.getItem('eungyo-auth'))?.user || null; } catch { return null; } }
 
 /* ── 층 구성 (2026.07.28 「세 건물 재편 결정문」 7호로 4층 축소) ──
@@ -5020,17 +5028,29 @@ const Floor5 = (() => {
      ⚠ 가장 오래된 면만 덜 찬다. 최신 쪽을 덜 채우면 새 얼굴이 올 때마다 전 면이 밀린다 */
   function pageCount(){ return Math.max(1, Math.ceil(FACES.length / PER_PAGE)); }
   function buildPages(){
-    const SL = slots();
+    const SL = slots(), s = co();
     PAGES = [];
     for (let p = 0; p < pageCount(); p++){
       const end  = FACES.length - p * PER_PAGE;
       const list = FACES.slice(Math.max(0, end - PER_PAGE), Math.max(0, end));
       list.forEach((f, i) => {
         if (f._pinned && f._L){
-          f.x = +f._L.x; f.y = +f._L.y; f.size_pct = +f._L.size_pct; f.rot = +f._L.rot;
+          /* ⭐ 0812밤 — 손으로 놓인 액자는 **옮기지 않되 떨어지지도 않게** 한다.
+               벽은 살롱지기가 ⚖로 움직이는데, 그 액자는 DB에 박힌 절대 좌표다.
+               벽이 좁아지면 서가나 담쟁이 위에 뜬다(실측: 모로칸·교토·빈에서 워즈워스).
+             ⚠ 붙드는 것은 **화면에서뿐**이다. DB는 한 글자도 안 건드린다 —
+               벽이 다시 커지면 손님이 놓은 그 자리로 스스로 돌아온다.
+               남이 손으로 놓은 것을 우리가 고쳐 담으면 헌장 4.2에 걸린다. */
+          f.size_pct = +clamp(+f._L.size_pct, 6, s.r - s.l).toFixed(2);
+          f.rot = +f._L.rot;
+          f.x = +clamp(+f._L.x, s.l + halfX(f), s.r - halfX(f)).toFixed(2);
+          f.y = +clamp(+f._L.y, s.t + halfY(f), s.b - halfY(f) - PLATE).toFixed(2);
+          f._held = (Math.abs(f.x - +f._L.x) > 0.011 || Math.abs(f.y - +f._L.y) > 0.011
+                  || Math.abs(f.size_pct - +f._L.size_pct) > 0.011);   /* 붙들렸는가 */
         } else {
           const sl = SL[i % SL.length];
           f.x = sl.x; f.y = sl.y; f.size_pct = sl.size_pct; f.rot = sl.rot;
+          f._held = false;
         }
       });
       PAGES.push(list);
@@ -5047,7 +5067,9 @@ const Floor5 = (() => {
       pg.className = 'f5-page' + (idx === page ? ' active' : '');
       list.forEach(f => {
         const el = document.createElement('div');
-        el.className = 'f5-frame';
+        el.className = 'f5-frame'
+          + (f._pinned ? ' pinned' : '')     /* 손으로 놓인 것 — ⚖ 켤 때만 보인다 */
+          + (f._held   ? ' held'   : '');    /* 벽 밖으로 나가려다 붙들린 것 */
         el.dataset.id = f.id;
         el.style.left  = f.x + '%';
         el.style.top   = f.y + '%';
@@ -5282,7 +5304,7 @@ const Floor5 = (() => {
     const ok = await setBg([ bgUrl(REAL_NO, t) ]);
     if (ok){
       ruleTod = t; delete todMissing[t];
-      if (msg) msg.textContent = `${todKr(t)} 벌을 보는 중 · ${REAL_NO}번 방`;
+      if (msg) msg.textContent = `${todKr(t)} 벌을 보는 중 · ${REAL_NO}번 방` + heldNote();
     } else {
       todMissing[t] = true; ruleTod = null;
       await restoreBg();
@@ -5304,7 +5326,7 @@ const Floor5 = (() => {
            <div class="f5-tods" id="f5-tods">${
              TODS.map(([k,l]) => `<button data-t="${k}">${l}</button>`).join('')
            }</div>
-           <span id="f5-rmsg">끌어서 맞추십시오</span>
+           <span id="f5-rmsg">끌어서 맞추십시오${heldNote()}</span>
            <button id="f5-rsave-b">이 방에 담기</button>
          </div>`;
     box.querySelectorAll('.rl').forEach(el => bindRule(el));
@@ -5313,7 +5335,7 @@ const Floor5 = (() => {
       const b = e.target.closest('button[data-t]'); if (!b) return;
       /* 켜져 있는 것을 다시 누르면 지금 시각으로 돌아온다 */
       if (b.dataset.t === ruleTod){ ruleTod = null; restoreBg();
-        f5El('f5-rmsg').textContent = '지금 시각으로 돌아왔습니다'; paintTods(); return; }
+        f5El('f5-rmsg').textContent = '지금 시각으로 돌아왔습니다' + heldNote(); paintTods(); return; }
       showTod(b.dataset.t);
     });
     paintTods();
@@ -5333,6 +5355,8 @@ const Floor5 = (() => {
         el.querySelector('b').textContent = `${RULE.find(x=>x[0]===k)[1]} ${val.toFixed(2)}`;
         buildPages(); paint();          /* 줄을 옮기면 안 박힌 얼굴들이 따라 선다 */
         drawGhosts();                   /* 열다섯 자리도 함께 따라온다 */
+        const m = f5El('f5-rmsg');      /* 붙들린 개수도 끄는 동안 살아 있어야 한다 */
+        if (m) m.textContent = (ruleTod ? `${todKr(ruleTod)} 벌` : '끌어서 맞추십시오') + heldNote();
       };
       const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); };
       el.addEventListener('pointermove', move); el.addEventListener('pointerup', up);
@@ -5360,11 +5384,20 @@ const Floor5 = (() => {
     ruleOn = !ruleOn;
     f5El('f5-rule').hidden = !ruleOn;
     f5El('f5-ghosts').hidden = !ruleOn;
+    f5El('f5-fit')?.classList.toggle('ruling', ruleOn);
     f5El('f5-rule-toggle').classList.toggle('on', ruleOn);
     if (ruleOn) drawRule();
     else if (ruleTod){        /* ⚠ 끄고 나서 남의 시각이 서 있으면 안 된다 */
       ruleTod = null; restoreBg();
     }
+  }
+  /* 손으로 놓인 것과 붙들린 것을 센다 — 몇 개가 산식을 안 따르는지 숫자로 */
+  function heldNote(){
+    const list = PAGES[page] || [];
+    const pin  = list.filter(f => f._pinned).length;
+    const held = list.filter(f => f._held).length;
+    if (!pin) return '';
+    return ` · 손으로 놓인 ${pin}점` + (held ? ` (${held}점 붙듦)` : '');
   }
 
   /* ════ 🏠 집 갈아타기 (집주인 · 내 방에서만) ════
