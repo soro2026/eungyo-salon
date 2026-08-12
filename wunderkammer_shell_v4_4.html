@@ -1662,7 +1662,7 @@ async function sbFetch(path, options = {}) {
   }
   return res.status === 204 ? null : res.json();
 }
-console.log("%c[EG] wunderkammer 0812c · 3층 지성소 · 책등 경로·13자 · 장서인 · 자세히 보기 원판", "color:#c9a84c");
+console.log("%c[EG] wunderkammer 0812d · 3층 지성소 · 칸마다 위아래 따로 · 장서인 · 자세히 보기 원판", "color:#c9a84c");
 function getUser() { try { return JSON.parse(localStorage.getItem('eungyo-auth'))?.user || null; } catch { return null; } }
 
 /* ── 층 구성 (2026.07.28 「세 건물 재편 결정문」 7호로 4층 축소) ──
@@ -4311,23 +4311,39 @@ const Floor4 = (() => {
   const RACKS = 4, PER_RACK = 14, PER_PAGE = RACKS * PER_RACK;
   const STAGE_AR = 941 / 1672;
 
-  /* 아직 안 잰 방이 서는 뼈대값 — 파리 아파르트망 실측(0812).
-     폴백이 먼저 서는 것이 아니라, 재는 순간 그 방만 제 값을 갖는 구조다(0808). */
-  const C0 = { l:22.95, r:80.02, top:20.81, b1:33.31, b2:44.86, b3:57.06, bot:69.86 };
-  const KEYS = ['l','r','top','b1','b2','b3','bot'];
+  /* ⚠⚠ 0812 저녁 개정 — 칸마다 위·아래를 **따로** 준다.
+       첫판은 줄 일곱(top·b1·b2·b3·bot)으로 칸을 나눠, 줄 하나가 「윗칸의 바닥」이자
+       「아랫칸의 천장」을 겸했다. 그래서 한 칸을 맞추면 옆 칸이 찌그러졌다(소로 실측).
+       2층은 표지가 밑줄에만 앉아 겸해도 됐지만, 3층 책등은 위에서 잘리고 아래에 서므로
+       두 일이 한 줄에 얹히면 맞출 수가 없다.
+     ⭐ 이제 칸 사이가 벌어져도 된다 — 실물 선반 판에도 두께가 있다. */
+  const C0 = { l:22.95, r:80.02,
+               t1:20.81, o1:33.31,  t2:33.31, o2:44.86,
+               t3:44.86, o3:57.06,  t4:57.06, o4:69.86 };
+  const KEYS = ['l','r','t1','o1','t2','o2','t3','o3','t4','o4'];
+
+  /* 옛 일곱 값(top·b1·b2·b3·bot)으로 담긴 방은 열 값으로 풀어 앉힌다 —
+     이미 맞춰 두신 것을 버리지 않는다 */
+  function spread(c){
+    if (!c || c.t1 != null || c.top == null) return c;
+    return { l:c.l, r:c.r,
+             t1:c.top, o1:c.b1, t2:c.b1, o2:c.b2,
+             t3:c.b2,  o3:c.b3, t4:c.b3, o4:c.bot };
+  }
 
   function co(){
-    const c = COORDS || {};
+    const c = spread(COORDS) || {};
     const o = {}; KEYS.forEach(k => { o[k] = (c[k] == null ? C0[k] : Number(c[k])); });
     return o;
   }
 
-  /* 네 단 — 천장과 밑줄이 짝이다. 밑줄이 책이 앉는 줄 */
+  /* 네 단 — 칸마다 제 천장과 제 바닥을 갖는다 */
   function racks(){
     const s = co();
-    const ceil = [s.top, s.b1, s.b2, s.b3];
-    const base = [s.b1,  s.b2, s.b3, s.bot];
-    return base.map((b, i) => ({ i, top: ceil[i], bottom: b, h: b - ceil[i], l: s.l, w: s.r - s.l }));
+    return [1,2,3,4].map(n => {
+      const top = s['t'+n], bot = s['o'+n];
+      return { i:n-1, top, bottom:bot, h: bot - top, l: s.l, w: s.r - s.l };
+    });
   }
 
   function f4Esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -4542,7 +4558,7 @@ const Floor4 = (() => {
   function runCamera(){
     if (!window.EGCamera) return;
     const s = co();
-    const CAM = { L:s.l, T:s.top, W:s.r-s.l, H:(s.b1-s.top)*1.5 };
+    const CAM = { L:s.l, T:s.t1, W:s.r-s.l, H:(s.o1-s.t1)*1.5 };
     const opts = { box:'#f4-scroll', fit:'#f4-fit', ratio:STAGE_AR, rect:CAM };
     const scrollable = (innerWidth/innerHeight) >= STAGE_AR;
     requestAnimationFrame(()=>requestAnimationFrame(()=>{
@@ -4554,9 +4570,13 @@ const Floor4 = (() => {
   /* ════ ⚖ 줄 맞추기 (살롱지기 전용) ════
      ⚠ 책은 자석이라 안 끌린다 — 움직이는 것은 줄이다.
        판이 밝게 빛나는 띠의 한가운데와 판의 윗면은 다르다(0809 내가 낸 사고). */
+  /* 칸마다 두 줄 — 위와 아래를 따로 잡는다. 서로 안 밀린다 */
   const RULE = [
-    ['top','천장','h'], ['b1','1단 바닥','h'], ['b2','2단 바닥','h'],
-    ['b3','3단 바닥','h'], ['bot','4단 바닥','h'], ['l','왼쪽','v'], ['r','오른쪽','v']
+    ['t1','1단 위','h'], ['o1','1단 아래','h'],
+    ['t2','2단 위','h'], ['o2','2단 아래','h'],
+    ['t3','3단 위','h'], ['o3','3단 아래','h'],
+    ['t4','4단 위','h'], ['o4','4단 아래','h'],
+    ['l','왼쪽','v'], ['r','오른쪽','v']
   ];
   function drawRule(){
     const box = f4El('f4-rule'); if (!box) return;
