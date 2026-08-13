@@ -16,65 +16,134 @@
     --ink:#ece3d0; --ink-soft:#c8baa0; --ink-dim:#9a8d72;
     --gold:#d8b860; --gold-deep:#c9a84c;
     --line:rgba(216,184,96,0.22);
-    --card:rgba(24,17,10,0.74); --card-edge:rgba(216,184,96,0.22);
-    --seal:#9c3b34;                       /* 봉랍 붉은빛 — 안 읽은 것의 표 */
+    /* ⚠ 0814 — --card · --card-edge · --seal을 걷었다.
+       봉투 상자와 붉은 봉랍 줄이 사라지면서 아무 데도 안 쓰인다.
+       죽은 값을 남겨 두면 다음에 여는 사람이 「봉랍이 있구나」로 읽는다. */
+
+    /* ══ 0814 종이 팔레트 — 소로 시안에서 화소로 잰 값 ══
+       ⚠ 눈짐작으로 옮기지 않았다. 시안 PNG를 열어 한 점씩 찍어 왔다.
+       ⭐ 함이 종이빛인데 봉투만 밤중이라 색이 뒤집혀 있었다. 함도 봉투도 종이다. */
+    --pp:#faf6ea;                         /* 종이 바탕 */
+    --pp-title:#3c3423;                   /* 제목 — 가장 진한 잉크 */
+    --pp-name:#8a6d1f;                    /* 보낸이 이름 — 금갈색 */
+    --pp-peek:#95896a;                    /* 미리보기 */
+    --pp-when:#b3a67f;                    /* 시각 — 가장 옅다 */
+    --pp-icon:#a49771;                    /* 안 고른 갈피 · 닫기 */
+    --pp-rule:#eae1c6;                    /* 편지 사이 한 줄 */
+    --pp-badge:#f2e5bd;                   /* NEW 알약 바탕 */
+    --pp-fill:#fbf5e2;                    /* 금테 알약 안쪽 */
+    --pp-on-gold:#fdfaf0;                 /* 금색 알약 위 글자 */
   }
   html,body{ height:100%; }
+  /* ⚠⚠ 0814 소로 — 「저 스크롤 바 없애 줘」
+     body에만 걸어 두었더니 안 걷혔다. **화면 막대를 그리는 것은 html이다.**
+     Firefox의 scrollbar-width는 뿌리에서만 화면으로 전해지고,
+     WebKit의 ::-webkit-scrollbar도 body에 걸면 화면 막대에 안 닿는다.
+     ⭐ 감추는 것이지 접는 것이 아니다 — 굴리기는 그대로 산다(함정 BU의 반대쪽). */
+  html{ scrollbar-width:none; -ms-overflow-style:none; }
+  html::-webkit-scrollbar{ width:0; height:0; display:none; }
   body{
-    font-family:'Noto Serif KR', serif; color:var(--ink);
-    background:transparent; overflow-x:hidden;
+    font-family:'Noto Serif KR', serif; color:var(--pp-title);
+    /* ⭐ 0814 — 종이를 **여기서** 깐다. 액자가 아니라.
+       이 한 파일이 지구(terra)와 자화상(persona) 두 액자에 산다.
+       액자 쪽에 색을 맡기면 한쪽만 고치는 날이 온다. */
+    background:var(--pp); overflow-x:hidden;
     -webkit-font-smoothing:antialiased;
-    /* ⚠ 0813 소로 — 막대가 세 겹이었다. 편지지·액자·몸통. 여기가 그 셋째다. */
     scrollbar-width:none; -ms-overflow-style:none;
   }
   body::-webkit-scrollbar{ display:none; }
-  .wrap{ max-width:480px; margin:0 auto; padding:14px 16px 28px; }
+  /* ⚠ 편지를 펼치는 동안에는 종이를 걷는다 — 편지 한 장이 지구 위에 놓여야 하므로.
+     ⭐ 다발(bundling)에도 함께 건다. 안 그러면 장을 넘기는 240ms마다 종이가 번쩍인다. */
+  body.reading, body.bundling{ background:transparent; }
+  /* ⚠ 0814 — 시안과 화면을 나란히 놓고 구분선의 좌우 끝을 재어 보니
+     시안 여백 23px · 내 것 36px이었다. max-width 480이 액자 520 안에서
+     20px을 먼저 먹고 padding 16이 또 먹어 둘이 겹쳐 있었다.
+     ⭐ **한 값이 두 역할을 하면 맞출 수가 없다** — 폭 제한을 액자와 같게 두고
+        여백은 padding 한 곳에서만 정한다. 좁은 화면에서도 같은 23px이 남는다. */
+  .wrap{ max-width:520px; margin:0 auto; padding:14px 23px 28px; }
 
-  /* ── 탭 두 개 ── */
-  .tabs{ display:flex; gap:8px; margin-bottom:14px; }
-  .tab{
-    flex:1; text-align:center; padding:9px 0; cursor:pointer;
-    font-size:13px; letter-spacing:.02em; color:var(--ink-dim);
-    border:1px solid var(--line); border-radius:10px;
-    background:rgba(24,17,10,0.45); transition:all .18s ease; user-select:none;
+  /* ══ 갈피 줄 (0814 소로 시안) ══
+     ⭐ 알약 셋을 나란히 두면 안 고른 둘이 유령으로 보인다.
+        **고른 것만 알약이 되고 나머지는 아이콘만 선다.** 서류함 갈피의 문법이다.
+     ⚠ 오른쪽 끝은 비워 둔다 — 거기 앉는 「×」는 부모(terra·persona)가 그린다. */
+  .tabs{
+    display:flex; align-items:center; gap:0;
+    padding:1px 46px 0 0; margin-bottom:11px; min-height:36px;
   }
-  .tab:hover{ color:var(--ink-soft); }
-  .tab.on{ color:#1a120c; background:linear-gradient(135deg,var(--gold),var(--gold-deep));
-           border-color:var(--gold-deep); font-weight:500; }
+  .tab{
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    cursor:pointer; user-select:none; color:var(--pp-icon);
+    width:32px; height:32px; border-radius:16px; margin-right:13px;
+    transition:color .18s ease, background .2s ease, width .2s ease;
+  }
+  .tab .t-ko{ display:none; font-size:12.5px; letter-spacing:.01em; white-space:nowrap; }
+  .tab svg{ width:15px; height:15px; flex:0 0 auto; }
+  .tab:hover{ color:var(--pp-name); }
+  /* 고른 갈피 — 금색 알약. 이름이 여기서만 펴진다 */
+  .tab.on{
+    width:auto; padding:0 13px; margin-right:17px; color:var(--pp-on-gold);
+    background:linear-gradient(135deg,#cfad4b,#c9a437);
+  }
+  .tab.on .t-ko{ display:inline; }
+  .tab.on:hover{ color:var(--pp-on-gold); }
 
-  /* ── 쓰기 단추 ── */
+  /* ── 쓰기 — 갈피와 같은 줄, 오른쪽 끝 ── */
   .compose-btn{
-    width:100%; padding:11px 0; margin-bottom:14px; cursor:pointer;
-    font-family:inherit; font-size:13px; color:var(--gold);
-    background:rgba(216,184,96,.08); border:1px solid var(--line); border-radius:10px;
+    margin-left:auto; flex:0 0 auto; white-space:nowrap;
+    display:flex; align-items:center; gap:6px;
+    height:32px; padding:0 14px; cursor:pointer; border-radius:16px;
+    font-family:inherit; font-size:12.5px; color:var(--pp-name);
+    background:var(--pp-fill); border:1.5px solid #c9a437;
     transition:background .18s ease;
   }
-  .compose-btn:hover{ background:rgba(216,184,96,.16); }
+  .compose-btn:hover{ background:#f4e9c8; }
+  .compose-btn svg{ width:14px; height:14px; flex:0 0 auto; }
+  /* ⚠ 0814 눈검사 — 폰 폭(360)에서 「쓰기」가 두 줄로 접혔다.
+     갈피 셋 + 쓰기가 한 줄에 못 서면 flex가 글자부터 눌러 버린다.
+     ⭐ 좁아지면 사이 간격을 먼저 내준다. 글자는 마지막까지 지킨다. */
+  @media (max-width:430px){
+    .tabs{ padding-right:42px; }
+    .tab{ margin-right:8px; }
+    .tab.on{ padding:0 11px; margin-right:10px; }
+    .compose-btn{ padding:0 11px; }
+  }
 
-  /* ── 봉투 한 통 ── */
+  /* ══ 편지 한 통 (0814 소로 시안) ══
+     ⭐ 상자를 걷었다. 종이 위에 글이 그냥 앉고 사이에 옅은 선 한 줄만 남는다.
+        socrates가 물은 그대로 — 쌓이면 서가처럼 보인다.
+     ⚠ 겹쳐 쌓지 않는다. 서가도 책을 겹쳐 꽂지 않는다. */
   .env{
-    position:relative; padding:13px 14px 12px 17px; margin-bottom:9px; cursor:pointer;
-    background:var(--card); border:1px solid var(--card-edge); border-radius:11px;
-    transition:border-color .18s ease, transform .12s ease;
+    position:relative; padding:13px 2px 14px; cursor:pointer;
+    border-bottom:1px solid var(--pp-rule);
+    transition:background .18s ease;
   }
-  .env:hover{ border-color:rgba(216,184,96,.42); }
-  .env:active{ transform:scale(.995); }
-  /* 안 읽은 것 — 왼쪽에 봉랍 한 줄. 숫자는 어디에도 없다(결정문 5호) */
-  .env.unread::before{
-    content:''; position:absolute; left:0; top:11px; bottom:11px; width:3px;
-    background:var(--seal); border-radius:2px;
+  .env:hover{ background:rgba(202,168,76,.07); }
+  .env:last-child{ border-bottom:0; }
+  .env-top{ display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .env-who{
+    font-family:'Cormorant Garamond',serif; font-size:20px; line-height:1.15;
+    color:var(--pp-name); letter-spacing:0;
   }
-  .env-top{ display:flex; align-items:baseline; gap:8px; margin-bottom:5px; }
-  .env-who{ font-size:13px; color:var(--gold); font-weight:500; }
-  .env-when{ margin-left:auto; font-size:11px; color:var(--ink-dim); white-space:nowrap; }
-  .env-subj{ font-size:13.5px; color:var(--ink); margin-bottom:3px; line-height:1.45; }
-  .env-peek{ font-size:12px; color:var(--ink-dim); line-height:1.5;
+  /* 안 읽은 것의 표. ⚠ 개수는 어디에도 없다(결정문 5호) — 있다·없다뿐이다 */
+  .env-new{
+    flex:0 0 auto; font-family:'Cormorant Garamond',serif; font-size:11px;
+    letter-spacing:.07em; line-height:1; color:var(--pp-name);
+    background:var(--pp-badge); border-radius:8px; padding:4px 6px 5px;
+  }
+  /* ⚠ 0814 소로 — 「제목 없애고 두 줄로 깔끔하게」
+     편지에는 제목이 없다. 그래서 목록도 **이름 줄과 첫 문장 줄** 둘뿐이다.
+     ⭐ 「읽음」·「수정한 편지」 같은 표는 셋째 줄로 내리지 않고 시각 앞에 붙인다.
+        셋째 줄이 생기면 어떤 편지는 두 줄, 어떤 편지는 세 줄로 들쭉날쭉해진다. */
+  .env-when{ margin-left:auto; font-size:12px; color:var(--pp-when);
+             white-space:nowrap; display:flex; align-items:baseline; gap:7px; }
+  .env-mark{ letter-spacing:.02em; }
+  .env-mark::after{ content:'·'; margin-left:7px; opacity:.55; }
+  .env-peek{ font-size:14px; color:var(--pp-peek); line-height:1.5;
              display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
-  .env-mark{ font-size:10.5px; color:var(--ink-dim); margin-top:5px; letter-spacing:.03em; }
 
-  .empty{ text-align:center; padding:44px 20px; color:var(--ink-dim);
-          font-size:13px; line-height:1.9; }
-  .empty .em{ display:block; font-size:26px; margin-bottom:12px; opacity:.5; }
+  .empty{ text-align:center; padding:44px 20px; color:var(--pp-peek);
+          font-size:13.5px; line-height:1.9; }
+  .empty .em{ display:block; font-size:26px; margin-bottom:12px; opacity:.45; }
 
   /* ══════ 편지 (0813) ══════
      소로 확정: 세월 든 미색 · 가장자리 아주 살짝 · 무늬 없음 · 제목은 본문 첫 줄로.
@@ -96,9 +165,12 @@
   }
   .letter-bg.show{ display:flex; }
   body.reading{ overflow:hidden; }
-  /* ⚠ 다발을 넘기는 동안에는 목록이 뒤에서 어른거리면 안 된다.
-     읽음을 적을 때 paint()가 목록을 다시 그리므로 화면에서 아예 걷는다. */
-  body.bundling .wrap{ visibility:hidden; }
+  /* ⚠⚠ 0814 — 어제 「막」을 세 번 고친 대목의 **진짜 뿌리가 여기였다.**
+     막을 어떻게 치든 목록은 편지 위아래 여백에서 그대로 비친다. 액자를 접어도
+     액자 **안**의 목록은 접히지 않는다 — 접은 것은 상자였지 목록이 아니었다.
+     ⭐ 편지를 펼치면 목록을 화면에서 걷는다. 그러면 막이 정말로 필요 없어진다.
+     ⚠ display:none이 아니라 visibility — 굴린 위치를 잃지 않는다. */
+  body.reading .wrap, body.bundling .wrap{ visibility:hidden; }
   .letter-wrap{
     position:relative; width:100%; max-width:520px; max-height:84vh;
     overflow-y:auto; overflow-x:hidden;
@@ -222,84 +294,140 @@
   }
   .l-x:hover{ color:#ece3d0; }
 
-  /* ── 모달 (읽기 · 쓰기) ── */
-  .modal-bg{
-    position:fixed; inset:0; z-index:80; display:none;
-    background:rgba(8,5,3,.72); backdrop-filter:blur(3px);
-    align-items:center; justify-content:center; padding:18px;
-  }
-  .modal-bg.show{ display:flex; }
-  .modal{
-    width:100%; max-width:440px; max-height:86vh; overflow-y:auto;
-    background:linear-gradient(168deg, rgba(31,22,13,.98), rgba(22,15,9,.98));
-    border:1px solid rgba(216,184,96,.34); border-radius:14px;
-    padding:20px 20px 18px; position:relative;
-    box-shadow:0 22px 60px rgba(0,0,0,.55);
-    animation:mIn .22s ease;
-  }
-  @keyframes mIn{ from{ opacity:0; transform:translateY(10px) } to{ opacity:1; transform:none } }
-  .modal-x{
-    position:absolute; top:10px; right:12px; width:28px; height:28px; cursor:pointer;
-    background:none; border:none; color:var(--ink-dim); font-size:20px; line-height:1;
-    font-family:inherit;
-  }
-  .modal-x:hover{ color:var(--ink); }
-  .m-eyebrow{ font-family:'Cormorant Garamond',serif; font-size:11px; letter-spacing:.18em;
-              color:var(--gold-deep); text-transform:uppercase; margin-bottom:10px; }
-  .m-who{ font-size:13px; color:var(--gold); margin-bottom:2px; }
-  .m-when{ font-size:11px; color:var(--ink-dim); margin-bottom:14px; }
-  .m-subj{ font-size:16px; font-weight:500; line-height:1.5; margin-bottom:12px;
-           padding-bottom:12px; border-bottom:1px solid var(--line); }
-  .m-body{ font-size:14px; line-height:1.85; white-space:pre-wrap; word-break:break-word;
-           color:var(--ink-soft); min-height:60px; }
-  .m-foot{ display:flex; gap:9px; margin-top:20px; }
-  .btn{ flex:1; padding:10px 0; cursor:pointer; font-family:inherit; font-size:13px;
-        border-radius:9px; border:1px solid var(--line); transition:background .18s ease; }
-  .btn-ghost{ background:rgba(255,255,255,.03); color:var(--ink-dim); }
-  .btn-ghost:hover{ background:rgba(255,255,255,.07); color:var(--ink-soft); }
-  .btn-gold{ background:linear-gradient(135deg,var(--gold),var(--gold-deep));
-             border-color:var(--gold-deep); color:#1a120c; font-weight:500; }
-  .btn-gold:hover{ filter:brightness(1.06); }
-  .btn:disabled{ opacity:.45; cursor:default; }
+  /* ══════ 쓰기 — 편지지 위에서 쓴다 (0814 소로) ══════
+     ⭐ 「쓰기 모달은 읽기 모달 폼 그대로 살려서, 우표 붙이는 자리에서 고르게」
+     ⚠ 읽기와 같은 부품(.letter · .paper · .frank · .l-*)을 그대로 쓴다.
+        쓰기용 종이를 따로 지으면 언젠가 둘이 어긋난다. */
 
-  /* ── 쓰기 ── */
-  .f-row{ margin-bottom:13px; }
-  .f-label{ font-size:11.5px; color:var(--gold-deep); letter-spacing:.04em; margin-bottom:6px; }
-  select, input[type=text], textarea{
-    width:100%; padding:9px 11px; font-family:inherit; font-size:13.5px;
-    color:var(--ink); background:rgba(12,8,4,.66);
-    border:1px solid var(--line); border-radius:9px; outline:none;
+  /* ── 우표 자리 — 비어 있을 때 ──
+     ⚠ 자리(.frank)는 읽기와 한 픽셀도 다르지 않다. 어긋나면 부치자마자 우표가 움직인다. */
+  .po-slot{
+    width:78px; height:104px; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
+    border:1px dashed rgba(120,96,58,.42); border-radius:3px;
+    background:rgba(255,252,240,.34); color:#9a8763;
+    transition:border-color .2s, background .2s, color .2s;
   }
-  select:focus, input:focus, textarea:focus{ border-color:rgba(216,184,96,.55); }
-  textarea{ min-height:150px; resize:vertical; line-height:1.75; }
-  select option{ background:#1a120c; color:var(--ink); }
-  .f-count{ font-size:10.5px; color:var(--ink-dim); text-align:right; margin-top:4px; }
-  .f-note{ font-size:11.5px; color:var(--ink-dim); line-height:1.7; margin-top:2px; }
+  .po-slot:hover{ border-color:rgba(120,96,58,.72); background:rgba(255,252,240,.6); color:#6f5f42; }
+  .po-slot svg{ width:17px; height:17px; opacity:.75; }
+  .po-slot span{ font-size:10px; letter-spacing:.12em; }
+  /* 붙인 뒤 — 누르면 다시 고른다. ⚠ 톱니를 CSS로 덧그리지 않는다(0813 「톱니 두 겹」). */
+  .frank.picked .stamp{ cursor:pointer; animation:poStick .34s ease-out; }
+  .frank.picked .stamp::after{
+    content:''; position:absolute; inset:-5px; border-radius:4px;
+    border:1px solid transparent; transition:border-color .2s;
+  }
+  .frank.picked .stamp:hover::after{ border-color:rgba(120,96,58,.42); }
+  @keyframes poStick{
+    0%{ transform:rotate(-2.4deg) scale(1.16); opacity:0 }
+    55%{ transform:rotate(-2.4deg) scale(.965); opacity:1 }
+    100%{ transform:rotate(-2.4deg) scale(1) }
+  }
+  /* ⚠⚠ 수정 화면에서는 못 뗀다 — 지킴이가 postage_code를 old로 되돌린다.
+     열어 두면 손님이 고른 것이 **조용히 무시된다.** 손짓 자체를 걷는다. */
+  .frank.locked .stamp{ cursor:default; }
+  .frank.locked .stamp::after{ display:none; }
 
-  /* ── 우표 고르기 (0813) ──
-     ⚠ 높이만 고정한다. 폭은 우표마다 다르다(0.58 ~ 1.47). */
-  .po-pick{ display:flex; gap:9px; flex-wrap:wrap; align-items:flex-end; }
+  /* ── 우표첩 — 편지지 위에 얹힌 작은 종이 ── */
+  .po-book{
+    position:absolute; top:142px; right:22px; left:22px; z-index:9;
+    padding:13px 14px 14px;
+    background:#f7f1de; border:1px solid rgba(120,96,58,.30); border-radius:5px;
+    box-shadow:0 14px 34px rgba(60,44,20,.30), 0 2px 5px rgba(60,44,20,.18);
+    display:none; animation:bookIn .2s ease;
+  }
+  .po-book.on{ display:block; }
+  @keyframes bookIn{ from{ opacity:0; transform:translateY(-7px) } to{ opacity:1; transform:none } }
+  .po-book h4{
+    font-size:10.5px; font-weight:400; color:#8a7659; letter-spacing:.1em;
+    margin-bottom:11px; display:flex; align-items:center; justify-content:space-between;
+  }
+  .po-book h4 em{ font-style:normal; font-family:'Cormorant Garamond',serif;
+                  font-size:10px; letter-spacing:.14em; color:#a4906a; }
+  .po-row{ display:flex; gap:9px; flex-wrap:wrap; align-items:flex-end; }
+  /* ⚠ 높이만 고정한다. 폭은 비율이 정한다(0.58 ~ 1.47). */
   .po-one{
-    height:62px; padding:3px; cursor:pointer; border-radius:4px;
-    border:1px solid transparent; background:rgba(239,230,205,.10);
-    transition:border-color .18s, background .18s, transform .12s;
+    height:64px; padding:3px; cursor:pointer; border-radius:3px;
+    border:1px solid transparent; background:rgba(120,96,58,.07);
+    transition:transform .14s, background .18s, border-color .18s;
   }
-  .po-one:hover{ background:rgba(239,230,205,.20); transform:translateY(-2px); }
-  .po-one.on{ border-color:var(--gold); background:rgba(216,184,96,.18); }
+  .po-one:hover{ background:rgba(120,96,58,.15); transform:translateY(-3px); }
+  .po-one.on{ border-color:#8a6d1f; background:rgba(202,168,76,.24); }
   .po-one img{ height:100%; width:auto; display:block; }
-  .po-rand{
-    height:62px; min-width:56px; display:flex; align-items:center; justify-content:center;
-    padding:0 11px; cursor:pointer; border-radius:4px; font-size:11px; line-height:1.5;
-    text-align:center; color:var(--ink-dim); border:1px dashed var(--line);
-    background:rgba(255,255,255,.02);
+  .po-any{
+    height:64px; min-width:62px; padding:0 11px; cursor:pointer; border-radius:3px;
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    font-size:10.5px; line-height:1.55; color:#8a7659;
+    border:1px dashed rgba(120,96,58,.42); background:rgba(255,255,255,.24);
   }
-  .po-rand.on{ color:var(--gold); border-color:var(--gold); border-style:solid;
-               background:rgba(216,184,96,.14); }
+  .po-any:hover{ color:#3a2f21; border-color:rgba(120,96,58,.7); }
+  .po-any.on{ color:#3a2f21; border-style:solid; border-color:#8a6d1f;
+              background:rgba(202,168,76,.2); }
+  .po-name{ margin-top:10px; font-size:11px; color:#8a7659; min-height:16px;
+            display:flex; align-items:baseline; gap:7px; }
+  .po-name em{ font-style:normal; font-family:'Cormorant Garamond',serif;
+               letter-spacing:.16em; font-size:10px; color:#a4906a; }
 
-  /* 목록 봉투 위의 작은 우표 */
-  .env{ overflow:hidden; }
-  .env-po{ position:absolute; right:11px; bottom:10px; height:34px; width:auto;
-           opacity:.9; pointer-events:none; }
+  /* ── 받는 이 — 「[     ] 님께,」 ── */
+  .to-slot{
+    display:inline-block; min-width:96px; padding:0 4px 2px; cursor:pointer;
+    border-bottom:1px solid rgba(120,96,58,.5); color:#9a8763;
+    transition:color .2s, border-color .2s;
+  }
+  .to-slot:hover{ color:#3a2f21; border-bottom-color:rgba(120,96,58,.85); }
+  .to-slot.filled{ color:#2e2417; }
+  /* 정해져 있으면 밑줄을 걷는다 — 못 바꾸는 것에 손짓을 남기지 않는다 */
+  .to-slot.locked{ border-bottom:0; cursor:default; color:#2e2417; padding:0; }
+  /* ⚠⚠ `.letter > *{ z-index:1 }`이 직계 자식마다 층을 만든다. 목록의 z-index는
+     그 층 **안**에서만 살아, 바깥에서는 DOM 뒤에 오는 형제(본문·서명)가 이긴다.
+     ⭐ 올릴 것은 목록이 아니라 그것을 담은 줄이다. 펼친 동안에만 올린다 —
+        늘 올려 두면 같은 층인 우표첩을 이겨 부름 줄이 우표첩 위로 뜬다. */
+  .l-salute.picking{ z-index:12; }
+  .to-book{
+    position:absolute; z-index:9; top:calc(100% + 7px); left:0; right:0;
+    padding:6px; max-height:236px; overflow-y:auto;
+    background:#f7f1de; border:1px solid rgba(120,96,58,.30); border-radius:5px;
+    box-shadow:0 14px 34px rgba(60,44,20,.30);
+    display:none; animation:bookIn .2s ease; scrollbar-width:none;
+  }
+  .to-book::-webkit-scrollbar{ display:none; }
+  .to-book.on{ display:block; }
+  .to-one{ padding:9px 11px; cursor:pointer; border-radius:3px;
+           display:flex; align-items:baseline; gap:9px; transition:background .16s; }
+  .to-one:hover{ background:rgba(120,96,58,.11); }
+  .to-one b{ font-family:'Cormorant Garamond',serif; font-size:17px;
+             font-weight:500; color:#6f5a1a; }
+  .to-one span{ margin-left:auto; font-size:10.5px; color:#a4906a; letter-spacing:.02em; }
+  .to-none{ padding:11px; font-size:11.5px; color:#8a7659; line-height:1.75; }
+
+  /* ── 본문 — 편지지 위에 글씨만 ──
+     ⚠ 0814 소로: 제목 칸은 없다. 편지에 제목을 쓰는 경우가 없다(이메일과 다르게).
+     ⚠ 초점이 갔을 때 옅은 판을 깔면 종이에 **사각 얼룩**이 남는다 — 안 깐다. */
+  .w-body{
+    display:block; width:100%; font-family:inherit;
+    background:none; border:0; outline:none; padding:0; resize:none;
+    font-size:14.5px; line-height:2.02; color:#3a2f21; overflow:hidden;
+    min-height:calc(14.5px * 2.02 * 4);
+  }
+  .w-body::placeholder{ color:#b0a184; }
+  /* ⭐ 본문은 넉 줄인데 종이는 560px이다. 아래 빈 곳을 눌러도 아무 일이 없으면
+     「여기는 못 쓰는 곳」으로 읽힌다. 진짜 편지지는 아래를 눌러도 거기서 쓴다. */
+  .letter.writing .l-fill{ cursor:text; }
+  /* ⭐ 읽기의 단추들은 곁가지(답장·보관)라 구석 활자가 맞았다. 쓰기의 「부치기」는
+     이 화면의 주된 동작이다. ⚠ 금색 판을 얹으면 편지지가 아니라 앱 화면이 된다. */
+  .l-act.send{
+    font-size:12px; color:#3a2f21; padding:6px 15px; border-radius:15px;
+    border:1px solid rgba(120,96,58,.5); background:rgba(255,252,240,.5);
+    letter-spacing:.04em;
+  }
+  .l-act.send:hover{ background:rgba(255,252,240,.95); border-color:rgba(120,96,58,.85); }
+  .l-act.send:disabled{ opacity:.4; }
+
+  /* ⚠⚠ 0814 — 어두운 쓰기 폼(.modal · .m-* · .btn-* · .f-* · select/textarea 등)을
+     통째로 걷었다. 쓰기가 편지지로 옮겨 가면서 한 줄도 안 쓰인다.
+     ⭐ 걷으며 하나 잡았다 — `.po-one`이 **두 번 정의**되어 있었고, 죽은 쪽이 뒤에
+        있어 새 우표첩을 덮고 있었다(높이 64 → 62, 어두운 판용 색).
+        죽은 규칙을 남겨 두면 조용히 이긴다. `node --check`도 CSS 검사도 못 본다. */
 
   /* ── 토스트 ── */
   #toast{
@@ -323,12 +451,35 @@
 </svg>
 
 <div class="wrap">
+  <!-- ⚠ 아이콘을 이모지로 두지 않는다. 기기마다 다른 그림이 뜨고 색도 안 먹는다.
+       ⭐ 선으로 직접 그린다 — 크레덴시알 도장에서 쓴 문법 그대로. -->
   <div class="tabs">
-    <div class="tab on" id="tab-in"  onclick="switchTab('in')">받은 편지</div>
-    <div class="tab"    id="tab-arc" onclick="switchTab('arc')">보관함</div>
-    <div class="tab"    id="tab-out" onclick="switchTab('out')">보낸 편지</div>
+    <div class="tab on" id="tab-in" onclick="switchTab('in')" title="받은 편지">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="2" y="4.5" width="16" height="11.5" rx="1.6"/><path d="M2.6 5.4 10 11l7.4-5.6"/>
+      </svg><span class="t-ko">받은 편지</span>
+    </div>
+    <div class="tab" id="tab-arc" onclick="switchTab('arc')" title="보관함">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3.5" y="3" width="13" height="14" rx="1.2"/>
+        <path d="M3.5 6.5h13M3.5 10h13M3.5 13.5h13"/>
+      </svg><span class="t-ko">보관함</span>
+    </div>
+    <div class="tab" id="tab-out" onclick="switchTab('out')" title="보낸 편지">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M2.4 4.2 17.6 10 2.4 15.8 5 10z"/><path d="M5 10h12.6"/>
+      </svg><span class="t-ko">보낸 편지</span>
+    </div>
+    <button class="compose-btn" onclick="openCompose()">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M13.6 3.4 16.6 6.4 7 16H4v-3z"/><path d="M11.9 5.1 14.9 8.1"/>
+      </svg>쓰기
+    </button>
   </div>
-  <button class="compose-btn" onclick="openCompose()">✉︎ 편지 쓰기</button>
   <div id="list"><div class="empty">불러오는 중…</div></div>
 </div>
 
@@ -356,33 +507,44 @@
   </div>
 </div>
 
-<!-- 쓰기 -->
-<div class="modal-bg" id="writeModal">
-  <div class="modal">
-    <button class="modal-x" onclick="closeCompose()" aria-label="닫기">×</button>
-    <div class="m-eyebrow" id="w-eyebrow">편지 쓰기</div>
-    <div class="f-row">
-      <div class="f-label">받는 이</div>
-      <select id="w-to"><option value="">불러오는 중…</option></select>
-      <div class="f-note" id="w-tonote">한 번 스쳐 간 이들에게 쓸 수 있습니다.</div>
-    </div>
-    <div class="f-row">
-      <div class="f-label">제목 <span style="opacity:.6">(비워 두어도 됩니다)</span></div>
-      <input type="text" id="w-subj" maxlength="80" placeholder="">
-    </div>
-    <div class="f-row">
-      <div class="f-label">편지</div>
-      <textarea id="w-body" maxlength="4000" placeholder=""></textarea>
-      <div class="f-count"><span id="w-count">0</span> / 4000</div>
-      <div class="f-note">이름은 편지 끝에 저절로 놓입니다.</div>
-    </div>
-    <div class="f-row" id="w-porow">
-      <div class="f-label">우표 <span style="opacity:.6">(안 고르시면 하나가 저절로 붙습니다)</span></div>
-      <div class="po-pick" id="w-po"></div>
-    </div>
-    <div class="m-foot">
-      <button class="btn btn-ghost" onclick="closeCompose()">그만두기</button>
-      <button class="btn btn-gold" id="w-send" onclick="sendMsg()">보내기</button>
+<!-- 쓰기 — 읽기와 같은 편지지 위에서 쓴다 (0814) -->
+<div class="letter-bg" id="writeModal">
+  <div class="letter-wrap">
+    <button class="l-x" onclick="closeCompose()" aria-label="닫기">×</button>
+    <div class="letter writing">
+      <div class="paper"></div>
+
+      <!-- 우표 자리 — 비어 있으면 점선, 누르면 우표첩 -->
+      <div class="frank" id="w-frank"></div>
+      <div class="po-book" id="w-pobook">
+        <h4><span id="w-pohead">붙일 우표를 고르세요</span><em id="w-poyear"></em></h4>
+        <div class="po-row" id="w-po"></div>
+        <div class="po-name" id="w-poname"></div>
+      </div>
+
+      <div class="l-head"><div class="l-place" id="w-place"></div></div>
+
+      <!-- 받는 이 -->
+      <div class="l-salute" id="w-salute">
+        <span class="to-slot" id="w-to" onclick="openTo()">받는 이</span> 님께,
+        <div class="to-book" id="w-tobook"></div>
+      </div>
+
+      <!-- ⚠ 제목 칸은 없다(0814 소로). 본문 한 칸뿐이다. -->
+      <textarea class="w-body" id="w-body" maxlength="4000" placeholder="편지"></textarea>
+
+      <div class="l-close">
+        <div class="l-sign" id="w-sign">—</div>
+        <!-- 발송 시각은 부치고 나서 생긴다. 없는 것을 「아직 없습니다」로 적지 않는다 -->
+      </div>
+      <div class="l-fill" onclick="document.getElementById('w-body').focus()"></div>
+      <div class="l-foot">
+        <span class="l-note" id="w-count"></span>
+        <div class="l-acts">
+          <button class="l-act" onclick="closeCompose()">그만두기</button>
+          <button class="l-act send" id="w-send" onclick="sendMsg()">부치기</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -541,21 +703,23 @@ function paint(){
       : `<div class="empty"><span class="em">✉︎</span>아직 부친 편지가 없습니다.</div>`;
     return;
   }
+  /* ⚠ 0814 — 여기서 우표를 걷었다. 목록은 「누가·언제·무슨 말」만 말한다.
+     ⭐ findPo는 편지지(frankHtml)가 여전히 쓴다 — 지우지 않는다. */
   box.innerHTML = rows.map((m,i) => {
     const unread = (tab === 'in' && !m.read_at);
-    const mark = tab === 'out'
-      ? (m.read_at ? `읽음 · ${whenText(m.read_at)}` : '아직 안 읽었습니다')
-      : (m.edited_at ? '고쳐 쓴 편지' : '');
-    const po = findPo(m.postage_code);
-    return `<div class="env${unread ? ' unread' : ''}" onclick="openRead(${i})">
+    /* 보낸 함에서는 상대가 열었는지가 알고 싶은 것이다. 짧게 두 마디로 가른다. */
+    const mark = tab === 'out' ? (m.read_at ? '읽음' : '안 읽음')
+                               : (m.edited_at ? '수정한 편지' : '');
+    /* ⭐ 옛 편지에는 제목이 남아 있다(0814 이전). 걷지 않고 첫 문장 앞에 붙여
+       한 줄로 흘려보낸다 — 그 편지의 첫 줄이 사라지면 안 되므로. */
+    const peek = (m.subject ? m.subject + '  ' : '') + m.body;
+    return `<div class="env" onclick="openRead(${i})">
       <div class="env-top">
         <span class="env-who">${esc(m.who)}</span>
-        <span class="env-when">${whenText(m.sent_at)}</span>
+        ${unread ? '<span class="env-new">NEW</span>' : ''}
+        <span class="env-when">${mark ? `<span class="env-mark">${mark}</span>` : ''}${whenText(m.sent_at)}</span>
       </div>
-      ${m.subject ? `<div class="env-subj">${esc(m.subject)}</div>` : ''}
-      <div class="env-peek">${esc(m.body)}</div>
-      ${mark ? `<div class="env-mark">${mark}</div>` : ''}
-      ${po ? `<img class="env-po" src="${esc(po.art_url)}" alt="">` : ''}
+      <div class="env-peek">${esc(peek)}</div>
     </div>`;
   }).join('');
 }
@@ -579,14 +743,14 @@ function frankHtml(m){
   const city = cityRoman(m.city), date = pmDate(m.sent_at);
   return `<div class="frank" style="width:${w||118}px">
     ${po ? `<div class="stamp"><img src="${esc(po.art_url)}" style="width:${w}px;height:${PO_H}px" alt=""></div>` : ''}
-    ${pm ? pmHtml(pm, city, date) : ''}
+    ${pm ? pmHtml(pm, city, date, 'r-frank') : ''}
   </div>`;
 }
 /* 소인 — 바탕은 그림, 글자는 여기서 얹는다. 자리는 표에 실측해 심어 두었다(0813).
    ⭐ 0813 저녁 소로 — 우표 오른쪽에 **꽝** 찍는다. 우표를 좀 가려도 좋다.
    ⚠ 물결형(anchor=full)은 테두리가 없어 잉크가 옅다. 크게 눕히고 왼쪽으로 물려
      우표를 가로지르게 해야 소인 노릇을 한다. */
-function pmHtml(pm, city, date){
+function pmHtml(pm, city, date, frankId){
   const wave = (pm.anchor === 'full');
   /* ⚠⚠ 소인마다 그림 비율이 다르다(0.95 ~ 2.10). 정사각에 밀어 넣으면 찌그러진다. */
   const H = wave ? 74 : 108;
@@ -602,6 +766,17 @@ function pmHtml(pm, city, date){
      ⚠ 우표 폭이 제각각이라(0.58~1.47) 고정 픽셀로 밀면 우표마다 겹침이 달라진다 —
        그래서 소인 폭을 기준으로 민다. */
   const off  = Math.round(W * (wave ? 0.42 : 0.70));
+  /* ⚠⚠ 0814 실측 — pm_ring(폭 171)이 종이 오른쪽을 12.5px 넘어 **잘려** 있었다.
+     `.letter-wrap`이 overflow-x:hidden이라 넘친 만큼 조용히 사라진다.
+     처방을 한 번 넣고도 4.5px가 남았다 — **회전이 상자를 키우는 몫**을 안 셌다.
+     -14도로 눕히면 차지하는 폭이 W·cosθ + H·sinθ로 늘고, 중심 회전이라 그 절반이
+     오른쪽으로 더 나간다. 재고 나서 한 번 더 재야 잡히는 종류였다.
+     ⭐ 겹침 비율(0.70)은 그대로 두고 **우표를 안쪽으로 더 당긴다.** 겹침을 줄이면
+        소인마다 물리는 정도가 달라진다 — 어제 고친 것을 되돌리는 일이 된다. */
+  const rad  = Math.abs(Number(pm.rotate ?? -14)) * Math.PI / 180;
+  const grow = (W * Math.cos(rad) + H * Math.sin(rad) - W) / 2;
+  const host = document.getElementById(frankId || 'r-frank');
+  if(host) host.style.right = Math.max(78, Math.round(off + grow + 6)) + 'px';
   const pos  = wave ? `right:${-off}px; top:16px;` : `right:${-off}px; top:-6px;`;
   return `<div class="postmark" style="${pos} width:${W}px; height:${H}px;
             transform:rotate(${pm.rotate ?? -14}deg); color:${pm.ink}">
@@ -617,6 +792,8 @@ async function openRead(i){
   open = rows[i]; if(!open) return;
   const mine = (tab === 'out');
 
+  /* ⚠ pmHtml이 소인 폭에 맞춰 자리를 당긴다. 소인 없는 편지에서 옛 값이 남지 않게 되돌린다. */
+  document.getElementById('r-frank').style.right = '78px';
   document.getElementById('r-frank').innerHTML = frankHtml(open);
   /* ⚠ 「집」이 아니라 「번가」다(0813 소로). 라탱지구는 메종 표에 없으므로 안 적는다 —
      없는 것을 지어내지 않는다. */
@@ -633,7 +810,7 @@ async function openRead(i){
   document.getElementById('r-sign').textContent = mine ? (open.to_name || '—') : open.who;
   /* ⚠ 날짜는 서명 아래로 옮겼다. 여기서 또 적으면 한 편지에 두 번 나온다. */
   document.getElementById('r-note').textContent =
-    [ open.edited_at ? '고쳐 쓴 편지' : '',
+    [ open.edited_at ? '수정한 편지' : '',
       mine ? (open.read_at ? '읽음' : '아직 안 읽었습니다') : '' ].filter(Boolean).join(' · ');
   document.getElementById('r-stamped').textContent = stampedAt(open.sent_at);
 
@@ -683,7 +860,7 @@ function actsHtml(){
   if(tab === 'arc') return `<button class="l-act" onclick="replyMsg()">답장</button>
                             <button class="l-act" onclick="archiveMsg(false)">우편함으로</button>
                             <button class="l-act warn" onclick="removeMsg()">버리기</button>`;
-  return `${open && !open.read_at ? '<button class="l-act" onclick="editMsg()">고쳐 쓰기</button>' : ''}
+  return `${open && !open.read_at ? '<button class="l-act" onclick="editMsg()">수정</button>' : ''}
           <button class="l-act warn" onclick="removeMsg()">버리기</button>`;
 }
 function closeRead(){
@@ -748,35 +925,126 @@ async function removeMsg(){
 }
 
 function replyMsg(){
-  const to = open.who_id, who = open.who, subj = open.subject || '';
+  /* ⚠ 0814 — 제목이 사라지면서 「Re:」도 함께 걷혔다.
+     답장인지는 본문이 말한다 — 받는 이가 이미 정해져 있는 것으로 족하다. */
+  const to = open.who_id, who = open.who;
   closeRead();
-  openCompose(to, who, subj ? (subj.startsWith('Re:') ? subj : 'Re: ' + subj) : '');
+  openCompose(to, who);
 }
 
-/* ── 우표 고르기 ──
-   ⭐ 고르는 것은 보내는 사람이지만, 안 골라도 된다.
-      우표 고르기가 의무가 되면 편지 쓰기가 무거워진다(0813 소로). */
-let poPick = null;                 /* null = 저절로 붙는다 */
-function paintPoPick(){
+/* ══════ 쓰기 — 편지지 위에서 (0814) ══════
+   ⭐ 「우표 붙이는 자리에서 고르게」(소로). 폼 아래 목록이 아니라 붙일 곳에서.
+   ⚠ 자리(.frank)는 읽기와 한 픽셀도 다르지 않다. 어긋나면 부치자마자 우표가 움직인다. */
+let poPick  = null;                /* null = 부칠 때 저절로 붙는다 */
+let toPick  = null;                /* 받는 이 */
+let editing = null;
+let people  = null;
+let HEAD    = null;                /* 내 닉네임·도시·번지 — eg_my_letterhead()가 싣는다 */
+
+/* ── 우표 자리 ──
+   ⭐ 빈 자리·붙은 우표·못 떼는 우표를 한 곳에서 그린다.
+      세 곳에 흩어 두면 자리가 조금씩 어긋난다. */
+function paintFrank(){
+  const f = document.getElementById('w-frank');
+  const po = findPo(poPick);
+  const lock = !!editing;
+  f.className = 'frank' + (po ? ' picked' : '') + (lock ? ' locked' : '');
+  f.style.right = '78px';           /* 소인이 붙으면 pmHtml이 다시 당긴다 */
+
+  if(!po){
+    f.style.width = '78px';
+    f.innerHTML = `<div class="po-slot" onclick="openPoBook()">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M10 5v10M5 10h10"/></svg>
+      <span>우표</span></div>`;
+    return;
+  }
+  const w = Math.round(PO_H * Number(po.ratio || .78));
+  f.style.width = w + 'px';
+  /* 수정 화면에서는 소인이 이미 찍혀 있다 — 부친 편지이므로 */
+  const pm = lock ? findPm(editing.postmark_code) : null;
+  /* ⚠ 소인의 도시는 **그 편지가 떠난 곳**이다. 지금 내 도시가 아니다 —
+     이사한 사람이면 어긋난다. 윗머리와 같은 곳(editing)에서 읽는다. */
+  const mark = pm ? pmHtml(pm, cityRoman(editing.city), pmDate(editing.sent_at), 'w-frank') : '';
+  f.innerHTML = `<div class="stamp" ${lock ? '' : 'onclick="openPoBook()"'}>
+      <img src="${esc(po.art_url)}" style="width:${w}px;height:${PO_H}px" alt=""></div>${mark}`;
+}
+
+/* ── 우표첩 ── */
+function openPoBook(){
+  if(editing){ toast('부친 편지의 우표는 뗄 수 없습니다'); return; }
+  const b = document.getElementById('w-pobook');
+  b.classList.toggle('on');
+  if(b.classList.contains('on')){ closeToBook(); paintPoBook(); }
+}
+function paintPoBook(){
   const box = document.getElementById('w-po');
-  if(!box) return;
+  document.getElementById('w-poyear').textContent =
+    `${new Date().getFullYear()} · 발행 중`;
   if(!POSTAGE || !POSTAGE.length){
-    box.innerHTML = '<span style="font-size:11.5px;color:var(--ink-dim)">지금 발행 중인 우표가 없습니다.</span>';
+    document.getElementById('w-pohead').textContent = '지금 발행 중인 우표가 없습니다';
+    box.innerHTML = ''; document.getElementById('w-poname').textContent = '';
     return;
   }
   box.innerHTML =
-    `<div class="po-rand${poPick===null?' on':''}" onclick="setPo(null)">아무거나<br>붙여 주세요</div>` +
-    POSTAGE.map(p => `<div class="po-one${poPick===p.code?' on':''}" onclick="setPo('${p.code}')"
-        title="${esc(p.name)}${p.motto ? ' · ' + esc(p.motto) : ''}">
+    `<div class="po-any${poPick===null?' on':''}" onclick="setPo(null)">아무거나<br>붙여 주세요</div>` +
+    POSTAGE.map(p => `<div class="po-one${poPick===p.code?' on':''}" onclick="setPo('${p.code}')">
         <img src="${esc(p.art_url)}" alt=""></div>`).join('');
+  const po = findPo(poPick);
+  document.getElementById('w-poname').innerHTML = po
+    ? `${esc(po.name)} <em>${esc(po.motto || '')}</em>`
+    : `<span style="color:#a4906a">부치실 때 그날 발행 중인 우표 하나가 저절로 붙습니다</span>`;
 }
-function setPo(c){ poPick = c; paintPoPick(); }
+function setPo(c){
+  poPick = c; paintPoBook(); paintFrank();
+  if(c) setTimeout(()=>document.getElementById('w-pobook').classList.remove('on'), 260);
+}
+
+/* ── 받는 이 ── */
+function openTo(){
+  if(editing || (toPick && toPick.locked)){ toast('받는 이는 바꿀 수 없습니다'); return; }
+  const b = document.getElementById('w-tobook');
+  if(b.classList.contains('on')){ closeToBook(); return; }
+  document.getElementById('w-pobook').classList.remove('on');
+  b.classList.add('on');
+  document.getElementById('w-salute').classList.add('picking');
+  paintToBook();
+}
+function closeToBook(){
+  document.getElementById('w-tobook').classList.remove('on');
+  document.getElementById('w-salute').classList.remove('picking');
+}
+function paintToBook(){
+  const b = document.getElementById('w-tobook');
+  if(!people){ b.innerHTML = `<div class="to-none">불러오는 중…</div>`; return; }
+  if(!people.length){
+    b.innerHTML = `<div class="to-none">아직 편지를 보낼 수 있는 분이 없습니다.<br>
+      같은 책을 걸었거나, 서로의 방에 다녀갔거나, 같은 별의 콩파뇽이면 쓸 수 있습니다.</div>`;
+    return;
+  }
+  b.innerHTML = people.map(p =>
+    `<div class="to-one" onclick="setTo('${p.id}')">
+       <b>${esc(p.nickname)}</b><span>${esc(p.why)}</span></div>`).join('');
+}
+function setTo(id){
+  toPick = (people || []).find(p => p.id === id) || null;
+  const s = document.getElementById('w-to');
+  if(toPick){ s.textContent = toPick.nickname; s.classList.add('filled'); }
+  closeToBook();
+}
+
+/* 바깥을 누르면 펼친 것을 접는다 */
+document.addEventListener('click', e => {
+  if(!e.target.closest('#w-pobook') && !e.target.closest('#w-frank'))
+    document.getElementById('w-pobook').classList.remove('on');
+  if(!e.target.closest('#w-tobook') && !e.target.closest('#w-to')) closeToBook();
+});
 
 /* 소인은 손님이 안 고른다 — 우체국이 찍는 것이다 */
 const randOf = a => (a && a.length) ? a[Math.floor(Math.random()*a.length)] : null;
 
 /* 부치는 소리 — 편지가 실제로 들어간 뒤에만 운다.
-   ⚠ 고쳐 쓰기에는 안 울린다. 그건 부치는 것이 아니라 고치는 것이다. */
+   ⚠ 수정에는 안 울린다. 그건 부치는 것이 아니라 고치는 것이다. */
 function playSent(){
   try{
     const s = document.getElementById('sentSound');
@@ -784,94 +1052,139 @@ function playSent(){
   }catch(e){}
 }
 
-/* 고쳐 쓰기 — 쓰기 모달을 그대로 쓰되 「고치는 중」으로 세운다 */
-let editing = null;
-function editMsg(){
-  editing = open; closeRead();
-  document.getElementById('w-eyebrow').textContent = '편지 고쳐 쓰기';
-  document.getElementById('w-to').innerHTML = `<option>${esc(open.who)}</option>`;
-  document.getElementById('w-to').disabled = true;
-  document.getElementById('w-tonote').textContent = '상대가 아직 열어 보지 않았습니다.';
-  document.getElementById('w-subj').value = open.subject || '';
-  document.getElementById('w-body').value = open.body;
-  countBody();
-  /* ⚠ 우표는 부치는 순간 편지에 박힌다 — 고쳐 쓸 때도 못 바꾼다(지킴이가 막는다) */
-  document.getElementById('w-porow').hidden = true;
-  document.getElementById('writeModal').classList.add('show');
+/* ── 편지지 머리 — 내 이름과 내 도시 ──
+   ⭐ 화면에 뜰 이름은 창이 싣는다. 셸이 세션을 뒤져 짐작하지 않는다(0813 「당신 님께」).
+   ⚠ 메종이 아직 없으면 도시가 비어 온다 — 그때는 윗머리를 아예 안 적는다. */
+async function loadHead(){
+  if(HEAD) return HEAD;
+  try{
+    const r = await sbFetch('/rest/v1/rpc/eg_my_letterhead', { method:'POST', body:'{}' });
+    HEAD = (r && r[0]) || {};
+  }catch(e){ HEAD = {}; console.warn('[편지] 편지지 머리', e); }
+  return HEAD;
+}
+function paintHead(){
+  document.getElementById('w-place').textContent =
+    (HEAD && HEAD.city && HEAD.maison_no) ? `${cityKo(HEAD.city)} ${HEAD.maison_no}번가에서` : '';
+  document.getElementById('w-sign').textContent = (HEAD && HEAD.nickname) || '';
 }
 
-// ── 쓰기 ─────────────────────────────────────────────
-let people = null;
-async function openCompose(toId, toName, subj){
-  editing = null; poPick = null;
-  document.getElementById('w-porow').hidden = false;
-  document.getElementById('w-eyebrow').textContent = '편지 쓰기';
-  document.getElementById('w-to').disabled = false;
-  document.getElementById('w-tonote').textContent = '한 번 스쳐 간 이들에게 쓸 수 있습니다.';
-  document.getElementById('w-subj').value = subj || '';
-  document.getElementById('w-body').value = '';
-  countBody();
+/* ── 수정 — 같은 편지지를 「수정 중」으로 세운다 (0814 소로: 용어는 「수정」) ── */
+function editMsg(){
+  const m = open;
+  closeRead();
+  editing = m;
+  poPick  = m.postage_code;
+  toPick  = { id:m.who_id, nickname:m.who, locked:true };
+  document.getElementById('w-to').textContent = m.who;
+  document.getElementById('w-to').className = 'to-slot filled locked';
+  document.getElementById('w-body').value = m.body;
+  document.getElementById('w-send').textContent = '수정';
+  /* ⚠ 수정 화면의 윗머리·서명은 **그 편지의 것**이다. 지금 내 도시가 아니라
+     부칠 때 찍힌 도시가 서야 한다 — 편지는 이미 그 자리에서 떠났다. */
+  document.getElementById('w-place').textContent =
+    (m.city && m.maison_no) ? `${cityKo(m.city)} ${m.maison_no}번가에서` : '';
+  document.getElementById('w-sign').textContent = (HEAD && HEAD.nickname) || '';
+  paintFrank();
   document.getElementById('writeModal').classList.add('show');
-  await loadStock(); paintPoPick();
+  document.body.classList.add('reading');
+  countBody();                       /* ⚠ 뜬 뒤에 잰다 */
+  try{ window.parent?.postMessage({ eg:'letter-open' }, '*'); }catch(e){}
+}
 
-  const sel = document.getElementById('w-to');
+/* ── 새 편지 · 답장 ──
+   ⚠ 제목은 없다(0814 소로) — 편지에 제목을 쓰는 경우가 없다. 「Re:」도 함께 사라졌다.
+     답장인지는 본문이 말한다(맺음말을 셸이 안 붙이는 것과 같은 문법). */
+async function openCompose(toId, toName){
+  editing = null; poPick = null; toPick = null;
+  const s = document.getElementById('w-to');
+  s.className = 'to-slot'; s.textContent = '받는 이';
+  document.getElementById('w-body').value = '';
+  document.getElementById('w-send').textContent = '부치기';
+  document.getElementById('w-sign').textContent = '';
+  document.getElementById('w-place').textContent = '';
+  paintFrank();
+  document.getElementById('writeModal').classList.add('show');
+  document.body.classList.add('reading');
+  /* ⚠ 높이 재기는 **뜬 뒤에** — 감춰진 칸의 scrollHeight는 0이다.
+     min-height가 받쳐 주어 눈에는 안 띄지만, style.height:0px이 남는다. */
+  countBody();
+  try{ window.parent?.postMessage({ eg:'letter-open' }, '*'); }catch(e){}
+
+  await Promise.all([loadStock(), loadHead()]);
+  paintHead(); paintFrank();
+
   if(!people){
-    sel.innerHTML = `<option value="">불러오는 중…</option>`;
     try{ people = await sbFetch('/rest/v1/rpc/eg_writable_people', { method:'POST', body:'{}' }) || []; }
     catch(e){ people = []; console.warn(e); }
   }
-  if(!people.length){
-    sel.innerHTML = `<option value="">아직 편지를 보낼 수 있는 분이 없습니다</option>`;
-    document.getElementById('w-tonote').textContent =
-      '같은 책을 걸었거나, 서로의 방에 다녀갔거나, 같은 별의 콩파뇽이면 편지를 쓸 수 있습니다.';
-    return;
+  /* 답장 — 받는 이가 이미 정해져 있고 바꿀 수 없다 */
+  if(toId){
+    const p = people.find(x => x.id === toId);
+    toPick = { id:toId, nickname:(p ? p.nickname : toName) || '—', locked:true };
+    s.textContent = toPick.nickname; s.className = 'to-slot filled locked';
+  }else if(!people.length){
+    s.textContent = '아직 없습니다';
   }
-  sel.innerHTML = `<option value="">받는 이를 고르세요</option>` +
-    people.map(p => `<option value="${p.id}"${toId === p.id ? ' selected' : ''}>${esc(p.nickname)} — ${esc(p.why)}</option>`).join('');
+  if(document.getElementById('w-tobook').classList.contains('on')) paintToBook();
 }
-function closeCompose(){ document.getElementById('writeModal').classList.remove('show'); editing = null; }
+function closeCompose(){
+  document.getElementById('writeModal').classList.remove('show');
+  document.body.classList.remove('reading');
+  document.getElementById('w-pobook').classList.remove('on');
+  closeToBook();
+  editing = null;
+  try{ window.parent?.postMessage({ eg:'letter-close' }, '*'); }catch(e){}
+}
+/* ── 글자 수 — 다 차 갈 때만 뜬다 ──
+   ⭐ 늘 보이면 편지가 아니라 입력칸이 된다. 아예 없으면 4,000자에서 갑자기 막힌다.
+      3,500자를 넘어야 나타난다(헌장 9장 「수치화하지 않는다」의 실무판). */
 function countBody(){
-  document.getElementById('w-count').textContent = document.getElementById('w-body').value.length;
+  const t = document.getElementById('w-body');
+  document.getElementById('w-count').textContent =
+    t.value.length > 3500 ? `${t.value.length} / 4000` : '';
+  t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px';
 }
 document.getElementById('w-body').addEventListener('input', countBody);
 
 async function sendMsg(){
   if(busy) return;
   const body = document.getElementById('w-body').value.trim();
-  const subj = document.getElementById('w-subj').value.trim();
-  if(!body){ toast('편지를 적어 주세요'); return; }
+  if(!body){ toast('편지를 적어 주세요'); document.getElementById('w-body').focus(); return; }
   const btn = document.getElementById('w-send');
+  const wasEditing = editing;                     /* closeCompose가 걷기 전에 쥔다 */
   busy = true; btn.disabled = true;
 
   try{
-    if(editing){
-      await sbFetch(`/rest/v1/messages?id=eq.${editing.id}`,
+    if(wasEditing){
+      /* ⚠ 제목 칸은 없어졌지만 표의 subject는 남겨 둔다 — 옛 편지의 첫 줄이
+         사라지면 안 되므로. 수정할 때 건드리지 않는다. */
+      await sbFetch(`/rest/v1/messages?id=eq.${wasEditing.id}`,
         { method:'PATCH', headers:{ Prefer:'return=minimal' },
-          body: JSON.stringify({ body, subject: subj || null }) });
-      toast('편지를 고쳐 두었습니다');
+          body: JSON.stringify({ body }) });
+      toast('편지를 수정했습니다');
     }else{
-      const to = document.getElementById('w-to').value;
-      if(!to){ toast('받는 이를 고르세요'); busy = false; btn.disabled = false; return; }
+      if(!toPick){ toast('받는 이를 고르세요'); busy = false; btn.disabled = false; return; }
       /* ⭐ 안 고르셨으면 그날 발행 중인 것 하나가 저절로 붙는다.
          소인은 언제나 우체국이 고른다 — 손님이 못 고른다. */
       const po = poPick || (randOf(POSTAGE) || {}).code || null;
       const pm = (randOf(POSTMARK) || {}).code || null;
       await sbFetch('/rest/v1/messages',
         { method:'POST', headers:{ Prefer:'return=minimal' },
-          body: JSON.stringify({ sender_id: getUser().id, recipient_id: to,
-                                 subject: subj || null, body,
+          body: JSON.stringify({ sender_id: getUser().id, recipient_id: toPick.id,
+                                 subject: null, body,
                                  postage_code: po, postmark_code: pm }) });
       playSent();
       toast('우편함에 넣어 두었습니다');
     }
     closeCompose();
-    if(tab === 'out' || editing) await load();
+    if(tab === 'out' || wasEditing) await load();
   }catch(e){
     /* 자격이 없으면 RLS가 막는다 — 날 오류 대신 사람 말로 답한다 */
     const m = String(e.message || '');
     toast(/row-level|policy|violates/i.test(m)
       ? '이분께는 아직 편지를 보낼 수 없습니다'
-      : (/읽은 쪽지/.test(m) ? '이미 읽은 편지는 고칠 수 없습니다' : '보내지 못했습니다'));
+      : (/읽은 쪽지/.test(m) ? '이미 읽은 편지는 수정할 수 없습니다' : '보내지 못했습니다'));
     console.warn('[편지]', e);
   }
   busy = false; btn.disabled = false;
@@ -904,7 +1217,7 @@ function nextInBundle(){
 }
 
 BUNDLE_PENDING = cameFromEnvelope();
-console.log('%c[EG] messages 0813l — 편지가 지구 위에 한 장 · 사방 여백 · 막 없음', 'color:#c9a84c');
+console.log('%c[EG] messages 0814b — 쓰기가 편지지로 · 우표 자리에서 고르기 · 제목 걷음 · 목록 두 줄', 'color:#8a6d1f');
 load();
 </script>
 </body>
