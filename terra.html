@@ -1465,16 +1465,44 @@ window.EGQ = (function(){
        ⚠ 누를 수 있어야 하므로 pointer-events를 살린다 — 다만 봉투 자신만.
        ⚠ 안 누르고 지구를 돌리거나 타륜의 다른 줄로 가면 조용히 접히고,
          우편함 줄의 작은 봉투 표가 그것을 이어받는다. 「안 눌러도 잃지 않는다」. ══ */
+  /* ⚠ 0814 소로 — SVG로 그린 봉투를 실물 사진 두 장으로 갈았다.
+       mail_sealed(봉랍이 찍힌 채) · mail_open(뚜껑이 열린 채) — 저장소 뿌리.
+     ⭐ 두 그림은 **같은 캔버스(600×708)에 몸통을 맞춰** 구워 두었다.
+        몸통의 좌우 폭과 아래 끝이 같아서, 갈아 끼워도 봉투가 안 튀고 뚜껑만 열린다.
+     ⚠ 캔버스 비율이 1.45:1 → 0.85:1로 뒤집혔다. 위쪽은 뚜껑이 펼쳐질 빈 곳이다.
+       그래서 화면 한가운데에 앉힐 기준이 캔버스 중심이 아니라 **몸통 중심**이다 —
+       실측 0.719(캔버스 높이 대비). 231 × 0.719 ≈ 166. */
   #mailFly{
     position:fixed; left:50%; top:50%; z-index:46; pointer-events:none;
-    width:192px; height:132px; margin:-66px 0 0 -96px;
+    width:196px; height:231px; margin:-166px 0 0 -98px;
     opacity:0; will-change:transform,opacity;
+    /* ⭐ 그림자는 그림에 안 굽고 여기서 준다 — 흰 배경의 그림자를 함께 구우면
+       어두운 지구 위에서 뿌연 회색 판이 된다. 부모에 걸어야 두 장이 겹치는
+       순간에도 그림자가 한 겹으로 남는다. */
+    filter:drop-shadow(0 16px 38px rgba(0,0,0,.5));
+    transition:filter .22s ease;
   }
   #mailFly.on{ pointer-events:auto; cursor:pointer;
                animation:mailArrive 1.5s cubic-bezier(.22,.72,.24,1) forwards; }
-  #mailFly svg{ width:100%; height:100%; display:block;
-    filter:drop-shadow(0 16px 38px rgba(0,0,0,.55)); }
-  #mailFly.on:hover svg{ filter:drop-shadow(0 18px 44px rgba(156,59,52,.5)); }
+  #mailFly img{
+    position:absolute; left:0; top:0; width:100%; height:100%;
+    display:block; object-fit:contain; transition:opacity .18s ease;
+  }
+  #mailOpenImg{ opacity:0; }
+  /* ⚠ hover를 (hover:hover)로 가둔다 — 손가락 화면에서는 한 번 누른 뒤
+     hover가 눌어붙어 봉투가 열린 채 남는다. */
+  @media (hover:hover){
+    #mailFly.on:hover{ filter:drop-shadow(0 20px 46px rgba(156,59,52,.55)); }
+    #mailFly.on:hover #mailSealedImg{ opacity:0; }
+    #mailFly.on:hover #mailOpenImg{ opacity:1; }
+    /* 열린 봉투가 숨을 쉬면 어색하다. 그 자리에 멈춘다 —
+       animation을 걷으면 transform이 되돌아가며 한 번 튄다. */
+    #mailFly.rest:hover{ animation-play-state:paused; }
+  }
+  /* ⭐ 누르는 순간에도 뚜껑이 열린다. 손가락 화면에는 hover가 없으니
+     여기가 유일하게 「열려서 들어간다」를 보여 주는 곳이다. */
+  #mailFly.opening #mailSealedImg{ opacity:0; }
+  #mailFly.opening #mailOpenImg{ opacity:1; }
   /* ① 나타나 빙글빙글 — 두 바퀴 반을 돌고 제자리에 선다 */
   @keyframes mailArrive{
      0%{ opacity:0; transform:scale(.24) rotate(-900deg); }
@@ -1502,12 +1530,10 @@ window.EGQ = (function(){
       0%{ opacity:1; transform:scale(1); }
     100%{ opacity:0; transform:scale(.72) translateY(-14px); }
   }
-  /* 봉함 뚜껑 — 열릴 때만 위로 젖혀진다 */
-  #mailFlap{ transform-origin:96px 8px; transition:transform .3s cubic-bezier(.4,0,.2,1); }
-  #mailFly.opening #mailFlap{ transform:rotateX(-165deg); }
-
+  /* ⚠ 0814 — SVG 봉함(#mailFlap) 규칙을 걷었다. 그 부품이 사라졌으므로
+     남겨 두면 다음에 여는 사람이 아직 있는 줄 안다. */
   @media (max-width:640px){
-    #mailFly{ width:150px; height:103px; margin:-52px 0 0 -75px; }
+    #mailFly{ width:154px; height:182px; margin:-131px 0 0 -77px; }
   }
   @media (prefers-reduced-motion: reduce){
     #mailFly.on{ animation-duration:.55s; }
@@ -1758,28 +1784,13 @@ window.EGQ = (function(){
      수첩은 그 자체가 물건이라 투명한 게 옳았지만, 쪽지함은 목록과 글이라
      읽을 바닥이 있어야 한다. ═══ -->
 <!-- ═══ 0813 — 도착한 봉투. 로더가 걷히는 틈에 중앙에서 빙글 돌다 선다.
-     누르면 봉함이 젖혀지며 우편함이 열리고, 안 누르고 지나가면 조용히 접혀
-     타륜의 우편함 줄로 옮겨 간다. 밀랍 봉랍에 별 하나 — 크레덴시알 별 A와 같은 문양. ═══ -->
-<div id="mailFly" role="button" tabindex="0" aria-label="도착한 쪽지 — 우편함 열기">
-  <svg viewBox="0 0 192 132" xmlns="http://www.w3.org/2000/svg">
-    <!-- 몸통 -->
-    <rect x="3" y="3" width="186" height="126" rx="7"
-          fill="#9c3b34" stroke="#f0dfae" stroke-width="2.6"/>
-    <!-- 아래로 접힌 두 날개 -->
-    <path d="M3 125 L76 66 L116 66 L189 125 Z" fill="#8a322c" opacity=".6"/>
-    <path d="M3 8 L3 125 L58 66 Z" fill="#a94039" opacity=".45"/>
-    <path d="M189 8 L189 125 L134 66 Z" fill="#a94039" opacity=".45"/>
-    <!-- 위에서 덮인 봉함 — 누르면 젖혀진다 -->
-    <g id="mailFlap">
-      <path d="M3 7 L96 69 L189 7 L189 12 L96 74 L3 12 Z" fill="#b04a41"/>
-      <path d="M3 9 L96 71 L189 9" fill="none" stroke="#f0dfae"
-            stroke-width="2.6" stroke-linejoin="round"/>
-    </g>
-    <!-- 봉랍 -->
-    <circle cx="96" cy="75" r="21" fill="#7d2a25" stroke="#f0dfae" stroke-width="2"/>
-    <path d="M96 63 l3.4 7.8 8.4.8-6.4 5.6 2 8.2-7.4-4.4-7.4 4.4 2-8.2-6.4-5.6 8.4-.8z"
-          fill="#f0dfae" opacity=".94"/>
-  </svg>
+     안 누르고 지나가면 조용히 접혀 타륜의 우편함 줄로 옮겨 간다.
+     ⚠ 0814 개정 — 그리던 SVG 봉투를 실물 사진 두 장으로 갈았다(소로 화덕).
+       봉랍은 밀랍에 EG 모노그램. 마우스를 얹으면 뚜껑이 열리고, 누르면 그대로 들어간다. ═══ -->
+<div id="mailFly" role="button" tabindex="0" aria-label="도착한 편지 — 우편함 열기">
+  <!-- ⚠ 두 장 다 처음부터 문서에 둔다. hover하는 그 순간에 받아 오면 한 번 깜빡인다. -->
+  <img id="mailSealedImg" src="mail_sealed.webp" alt="" draggable="false">
+  <img id="mailOpenImg"   src="mail_open.webp"   alt="" draggable="false">
 </div>
 
 <div id="mailCard">
@@ -1880,7 +1891,7 @@ window.EGQ = (function(){
 <div style="position:fixed;left:8px;bottom:6px;z-index:70;font-size:9px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.5px;pointer-events:none">maison 0628e</div>
 
 <script>
-console.log('[EG] terra v0814a — 우편함 종이색 맞춤 · 닫기 획만');
+console.log('[EG] terra v0814b — 봉투를 실물 두 장으로 · 얹으면 열린다');
 // ── 분더카머로 떠나는 비행: 제트음 (자동재생 막히면 조용히 폴백) ──
 (function(){
   // 빠른 길(enter=1)은 지도 로딩 시간 벌이가 불필요 → 비행기·제트음 생략
