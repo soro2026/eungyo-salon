@@ -159,7 +159,7 @@
     <div class="m-subj" id="r-subj">—</div>
     <div class="m-body" id="r-body">—</div>
     <div class="m-foot">
-      <button class="btn btn-ghost" id="r-del"   onclick="removeMsg()">치우기</button>
+      <button class="btn btn-ghost" id="r-del"   onclick="removeMsg()">삭제하기</button>
       <button class="btn btn-ghost" id="r-edit"  onclick="editMsg()">고쳐 쓰기</button>
       <button class="btn btn-gold"  id="r-reply" onclick="replyMsg()">답장</button>
     </div>
@@ -232,7 +232,15 @@ async function sbFetch(path, options = {}){
     const e = await res.json().catch(()=>({}));
     throw new Error(e.message || e.error || e.msg || res.statusText);
   }
-  return res.status === 204 ? null : res.json();
+  /* ⚠ 0813 — 본문 없는 성공을 실패로 읽던 병.
+     Prefer: return=minimal 로 POST하면 서버는 **201에 빈 본문**을 준다.
+     204만 걸러내면 201에서 res.json()이 터지고, 그 예외가 catch로 굴러가
+     「보내지 못했습니다」가 뜬다 — 쪽지는 이미 들어간 뒤인데도.
+     ⭐ 성공·실패는 상태 번호가 가른다. 본문을 읽다 난 예외로 가르지 않는다. */
+  if(res.status === 204 || res.status === 205) return null;
+  const txt = await res.text();
+  if(!txt) return null;
+  try{ return JSON.parse(txt); }catch(e){ return null; }
 }
 function getUser(){ try{ return (JSON.parse(localStorage.getItem('eungyo-auth'))||{}).user || null; }catch{ return null; } }
 
@@ -345,8 +353,8 @@ async function removeMsg(){
     await sbFetch(`/rest/v1/messages?id=eq.${open.id}`,
       { method:'PATCH', headers:{ Prefer:'return=minimal' },
         body: JSON.stringify({ [col]: new Date().toISOString() }) });
-    closeRead(); toast('쪽지를 치웠습니다'); await load();
-  }catch(e){ toast('치우지 못했습니다'); console.warn(e); }
+    closeRead(); toast('쪽지를 삭제했습니다'); await load();
+  }catch(e){ toast('삭제하지 못했습니다'); console.warn(e); }
   busy = false;
 }
 
@@ -450,7 +458,7 @@ document.getElementById('writeModal').addEventListener('click', e => {
 /* 바깥(자화상·지구)에서 「쪽지 쓰기」를 곧장 열 수 있게 열어 둔다 */
 window.egMail = { reload: load, compose: openCompose };
 
-console.log('[EG] messages 0813a — 받은함·보낸함 · 읽기·쓰기·고치기·치우기');
+console.log('[EG] messages 0813b — 받은함·보낸함 · 읽기·쓰기·고치기·삭제 · 201 빈 본문 수리');
 load();
 </script>
 </body>
