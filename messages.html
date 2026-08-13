@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>쪽지함 — 은교살롱</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Noto+Serif+KR:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ══ EG 쪽지함 (0813)
+     한 파일이 두 곳에서 산다 — 교양 자화상 안 액자 · 지구(타륜 봉투) 팝업 카드.
+     ⚠ 배경을 투명하게 둔다. 액자로 끼울 때 바깥 옷이 비쳐야 한 몸으로 보인다. ══ */
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  :root{
+    --ink:#ece3d0; --ink-soft:#c8baa0; --ink-dim:#9a8d72;
+    --gold:#d8b860; --gold-deep:#c9a84c;
+    --line:rgba(216,184,96,0.22);
+    --card:rgba(24,17,10,0.74); --card-edge:rgba(216,184,96,0.22);
+    --seal:#9c3b34;                       /* 봉랍 붉은빛 — 안 읽은 것의 표 */
+  }
+  html,body{ height:100%; }
+  body{
+    font-family:'Noto Serif KR', serif; color:var(--ink);
+    background:transparent; overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{ max-width:480px; margin:0 auto; padding:14px 16px 28px; }
+
+  /* ── 탭 두 개 ── */
+  .tabs{ display:flex; gap:8px; margin-bottom:14px; }
+  .tab{
+    flex:1; text-align:center; padding:9px 0; cursor:pointer;
+    font-size:13px; letter-spacing:.02em; color:var(--ink-dim);
+    border:1px solid var(--line); border-radius:10px;
+    background:rgba(24,17,10,0.45); transition:all .18s ease; user-select:none;
+  }
+  .tab:hover{ color:var(--ink-soft); }
+  .tab.on{ color:#1a120c; background:linear-gradient(135deg,var(--gold),var(--gold-deep));
+           border-color:var(--gold-deep); font-weight:500; }
+
+  /* ── 쓰기 단추 ── */
+  .compose-btn{
+    width:100%; padding:11px 0; margin-bottom:14px; cursor:pointer;
+    font-family:inherit; font-size:13px; color:var(--gold);
+    background:rgba(216,184,96,.08); border:1px solid var(--line); border-radius:10px;
+    transition:background .18s ease;
+  }
+  .compose-btn:hover{ background:rgba(216,184,96,.16); }
+
+  /* ── 봉투 한 통 ── */
+  .env{
+    position:relative; padding:13px 14px 12px 17px; margin-bottom:9px; cursor:pointer;
+    background:var(--card); border:1px solid var(--card-edge); border-radius:11px;
+    transition:border-color .18s ease, transform .12s ease;
+  }
+  .env:hover{ border-color:rgba(216,184,96,.42); }
+  .env:active{ transform:scale(.995); }
+  /* 안 읽은 것 — 왼쪽에 봉랍 한 줄. 숫자는 어디에도 없다(결정문 5호) */
+  .env.unread::before{
+    content:''; position:absolute; left:0; top:11px; bottom:11px; width:3px;
+    background:var(--seal); border-radius:2px;
+  }
+  .env-top{ display:flex; align-items:baseline; gap:8px; margin-bottom:5px; }
+  .env-who{ font-size:13px; color:var(--gold); font-weight:500; }
+  .env-when{ margin-left:auto; font-size:11px; color:var(--ink-dim); white-space:nowrap; }
+  .env-subj{ font-size:13.5px; color:var(--ink); margin-bottom:3px; line-height:1.45; }
+  .env-peek{ font-size:12px; color:var(--ink-dim); line-height:1.5;
+             display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
+  .env-mark{ font-size:10.5px; color:var(--ink-dim); margin-top:5px; letter-spacing:.03em; }
+
+  .empty{ text-align:center; padding:44px 20px; color:var(--ink-dim);
+          font-size:13px; line-height:1.9; }
+  .empty .em{ display:block; font-size:26px; margin-bottom:12px; opacity:.5; }
+
+  /* ── 모달 (읽기 · 쓰기) ── */
+  .modal-bg{
+    position:fixed; inset:0; z-index:80; display:none;
+    background:rgba(8,5,3,.72); backdrop-filter:blur(3px);
+    align-items:center; justify-content:center; padding:18px;
+  }
+  .modal-bg.show{ display:flex; }
+  .modal{
+    width:100%; max-width:440px; max-height:86vh; overflow-y:auto;
+    background:linear-gradient(168deg, rgba(31,22,13,.98), rgba(22,15,9,.98));
+    border:1px solid rgba(216,184,96,.34); border-radius:14px;
+    padding:20px 20px 18px; position:relative;
+    box-shadow:0 22px 60px rgba(0,0,0,.55);
+    animation:mIn .22s ease;
+  }
+  @keyframes mIn{ from{ opacity:0; transform:translateY(10px) } to{ opacity:1; transform:none } }
+  .modal-x{
+    position:absolute; top:10px; right:12px; width:28px; height:28px; cursor:pointer;
+    background:none; border:none; color:var(--ink-dim); font-size:20px; line-height:1;
+    font-family:inherit;
+  }
+  .modal-x:hover{ color:var(--ink); }
+  .m-eyebrow{ font-family:'Cormorant Garamond',serif; font-size:11px; letter-spacing:.18em;
+              color:var(--gold-deep); text-transform:uppercase; margin-bottom:10px; }
+  .m-who{ font-size:13px; color:var(--gold); margin-bottom:2px; }
+  .m-when{ font-size:11px; color:var(--ink-dim); margin-bottom:14px; }
+  .m-subj{ font-size:16px; font-weight:500; line-height:1.5; margin-bottom:12px;
+           padding-bottom:12px; border-bottom:1px solid var(--line); }
+  .m-body{ font-size:14px; line-height:1.85; white-space:pre-wrap; word-break:break-word;
+           color:var(--ink-soft); min-height:60px; }
+  .m-foot{ display:flex; gap:9px; margin-top:20px; }
+  .btn{ flex:1; padding:10px 0; cursor:pointer; font-family:inherit; font-size:13px;
+        border-radius:9px; border:1px solid var(--line); transition:background .18s ease; }
+  .btn-ghost{ background:rgba(255,255,255,.03); color:var(--ink-dim); }
+  .btn-ghost:hover{ background:rgba(255,255,255,.07); color:var(--ink-soft); }
+  .btn-gold{ background:linear-gradient(135deg,var(--gold),var(--gold-deep));
+             border-color:var(--gold-deep); color:#1a120c; font-weight:500; }
+  .btn-gold:hover{ filter:brightness(1.06); }
+  .btn:disabled{ opacity:.45; cursor:default; }
+
+  /* ── 쓰기 ── */
+  .f-row{ margin-bottom:13px; }
+  .f-label{ font-size:11.5px; color:var(--gold-deep); letter-spacing:.04em; margin-bottom:6px; }
+  select, input[type=text], textarea{
+    width:100%; padding:9px 11px; font-family:inherit; font-size:13.5px;
+    color:var(--ink); background:rgba(12,8,4,.66);
+    border:1px solid var(--line); border-radius:9px; outline:none;
+  }
+  select:focus, input:focus, textarea:focus{ border-color:rgba(216,184,96,.55); }
+  textarea{ min-height:150px; resize:vertical; line-height:1.75; }
+  select option{ background:#1a120c; color:var(--ink); }
+  .f-count{ font-size:10.5px; color:var(--ink-dim); text-align:right; margin-top:4px; }
+  .f-note{ font-size:11.5px; color:var(--ink-dim); line-height:1.7; margin-top:2px; }
+
+  /* ── 토스트 ── */
+  #toast{
+    position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(12px);
+    z-index:95; padding:10px 18px; border-radius:22px; opacity:0; pointer-events:none;
+    background:rgba(28,20,12,.96); border:1px solid rgba(216,184,96,.4);
+    color:var(--ink); font-size:12.5px; transition:opacity .22s ease, transform .22s ease;
+    max-width:88vw; text-align:center;
+  }
+  #toast.on{ opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="tabs">
+    <div class="tab on" id="tab-in"  onclick="switchTab('in')">받은 쪽지</div>
+    <div class="tab"    id="tab-out" onclick="switchTab('out')">보낸 쪽지</div>
+  </div>
+  <button class="compose-btn" onclick="openCompose()">✉︎ 쪽지 쓰기</button>
+  <div id="list"><div class="empty">불러오는 중…</div></div>
+</div>
+
+<!-- 읽기 -->
+<div class="modal-bg" id="readModal">
+  <div class="modal">
+    <button class="modal-x" onclick="closeRead()" aria-label="닫기">×</button>
+    <div class="m-eyebrow" id="r-eyebrow">FROM</div>
+    <div class="m-who"  id="r-who">—</div>
+    <div class="m-when" id="r-when">—</div>
+    <div class="m-subj" id="r-subj">—</div>
+    <div class="m-body" id="r-body">—</div>
+    <div class="m-foot">
+      <button class="btn btn-ghost" id="r-del"   onclick="removeMsg()">치우기</button>
+      <button class="btn btn-ghost" id="r-edit"  onclick="editMsg()">고쳐 쓰기</button>
+      <button class="btn btn-gold"  id="r-reply" onclick="replyMsg()">답장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 쓰기 -->
+<div class="modal-bg" id="writeModal">
+  <div class="modal">
+    <button class="modal-x" onclick="closeCompose()" aria-label="닫기">×</button>
+    <div class="m-eyebrow" id="w-eyebrow">쪽지 쓰기</div>
+    <div class="f-row">
+      <div class="f-label">받는 이</div>
+      <select id="w-to"><option value="">불러오는 중…</option></select>
+      <div class="f-note" id="w-tonote">한 번 스쳐 간 이들에게 쓸 수 있습니다.</div>
+    </div>
+    <div class="f-row">
+      <div class="f-label">제목 <span style="opacity:.6">(비워 두어도 됩니다)</span></div>
+      <input type="text" id="w-subj" maxlength="80" placeholder="">
+    </div>
+    <div class="f-row">
+      <div class="f-label">쪽지</div>
+      <textarea id="w-body" maxlength="4000" placeholder=""></textarea>
+      <div class="f-count"><span id="w-count">0</span> / 4000</div>
+    </div>
+    <div class="m-foot">
+      <button class="btn btn-ghost" onclick="closeCompose()">그만두기</button>
+      <button class="btn btn-gold" id="w-send" onclick="sendMsg()">보내기</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ══ 창구 — 자화상(persona.html)과 한 글자도 다르지 않게 승계한다.
+   ⚠ 인증 문법을 새로 짜지 않는다. 두 곳에 살면 한쪽만 고치는 날이 온다. ══ */
+const SUPABASE_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+
+let _refreshing = null;
+function getSession(){ try{ return JSON.parse(localStorage.getItem('eungyo-auth')); }catch{ return null; } }
+function tokenExp(tok){ try{ return JSON.parse(atob(tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).exp || 0; }catch{ return 0; } }
+async function getValidToken(){
+  const s = getSession();
+  if(!s?.access_token) return null;
+  const now = Math.floor(Date.now()/1000);
+  if(tokenExp(s.access_token) - now > 60) return s.access_token;
+  if(!s.refresh_token) return null;
+  _refreshing = _refreshing || (async () => {
+    try{
+      const r = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', {
+        method:'POST', headers:{ 'apikey':SUPABASE_KEY, 'Content-Type':'application/json' },
+        body: JSON.stringify({ refresh_token: s.refresh_token }) });
+      if(!r.ok) return null;
+      const data = await r.json();
+      if(!data.expires_at) data.expires_at = Math.floor(Date.now()/1000) + (data.expires_in || 3600);
+      localStorage.setItem('eungyo-auth', JSON.stringify(data));
+      return data.access_token || null;
+    }catch(e){ return null; }
+  })();
+  const tok = await _refreshing; _refreshing = null; return tok;
+}
+async function sbFetch(path, options = {}){
+  const token = await getValidToken();
+  const res = await fetch(SUPABASE_URL + path, { ...options, headers:{
+    'apikey':SUPABASE_KEY, 'Authorization':'Bearer ' + (token || SUPABASE_KEY),
+    'Content-Type':'application/json', ...options.headers } });
+  if(!res.ok){
+    const e = await res.json().catch(()=>({}));
+    throw new Error(e.message || e.error || e.msg || res.statusText);
+  }
+  return res.status === 204 ? null : res.json();
+}
+function getUser(){ try{ return (JSON.parse(localStorage.getItem('eungyo-auth'))||{}).user || null; }catch{ return null; } }
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('on');
+  clearTimeout(t._t); t._t = setTimeout(()=> t.classList.remove('on'), 2600);
+}
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* 언제 왔는지 — 오늘이면 시각, 올해면 월일, 넘으면 연월일 */
+function whenText(iso){
+  const d = new Date(iso), n = new Date(), p = v => String(v).padStart(2,'0');
+  if(d.toDateString() === n.toDateString()) return `${p(d.getHours())}:${p(d.getMinutes())}`;
+  if(d.getFullYear() === n.getFullYear())   return `${d.getMonth()+1}월 ${d.getDate()}일`;
+  return `${d.getFullYear()}.${p(d.getMonth()+1)}.${p(d.getDate())}`;
+}
+function whenFull(iso){
+  const d = new Date(iso), p = v => String(v).padStart(2,'0');
+  return `${d.getFullYear()}.${p(d.getMonth()+1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// ── 상태 ─────────────────────────────────────────────
+let tab = 'in';            // 'in' | 'out'
+let rows = [];             // 지금 탭의 목록
+let open = null;           // 열려 있는 한 통
+let busy = false;
+
+async function load(){
+  const box = document.getElementById('list');
+  if(!getUser()){ box.innerHTML = `<div class="empty"><span class="em">✉︎</span>로그인하시면 쪽지함이 열립니다.</div>`; return; }
+  box.innerHTML = `<div class="empty">불러오는 중…</div>`;
+  try{
+    rows = await sbFetch(`/rest/v1/rpc/${tab === 'in' ? 'eg_inbox' : 'eg_sentbox'}`,
+                         { method:'POST', body: JSON.stringify({}) }) || [];
+  }catch(e){ box.innerHTML = `<div class="empty">쪽지를 가져오지 못했습니다.<br><span style="font-size:11px">${esc(e.message)}</span></div>`; return; }
+  paint();
+}
+
+function paint(){
+  const box = document.getElementById('list');
+  if(!rows.length){
+    box.innerHTML = tab === 'in'
+      ? `<div class="empty"><span class="em">✉︎</span>우편함이 비어 있습니다.<br>누군가 다녀가면 여기에 놓여 있을 겁니다.</div>`
+      : `<div class="empty"><span class="em">✉︎</span>아직 보낸 쪽지가 없습니다.</div>`;
+    return;
+  }
+  box.innerHTML = rows.map((m,i) => {
+    const unread = (tab === 'in' && !m.read_at);
+    const mark = tab === 'out'
+      ? (m.read_at ? `읽음 · ${whenText(m.read_at)}` : '아직 안 읽었습니다')
+      : (m.edited_at ? '고쳐 쓴 쪽지' : '');
+    return `<div class="env${unread ? ' unread' : ''}" onclick="openRead(${i})">
+      <div class="env-top">
+        <span class="env-who">${esc(m.who)}</span>
+        <span class="env-when">${whenText(m.sent_at)}</span>
+      </div>
+      ${m.subject ? `<div class="env-subj">${esc(m.subject)}</div>` : ''}
+      <div class="env-peek">${esc(m.body)}</div>
+      ${mark ? `<div class="env-mark">${mark}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function switchTab(t){
+  if(tab === t) return;
+  tab = t;
+  document.getElementById('tab-in').classList.toggle('on',  t === 'in');
+  document.getElementById('tab-out').classList.toggle('on', t === 'out');
+  load();
+}
+
+// ── 읽기 ─────────────────────────────────────────────
+async function openRead(i){
+  open = rows[i]; if(!open) return;
+  document.getElementById('r-eyebrow').textContent = tab === 'in' ? 'FROM' : 'TO';
+  document.getElementById('r-who').textContent  = open.who;
+  document.getElementById('r-when').textContent =
+    whenFull(open.sent_at) + (open.edited_at ? ' · 고쳐 씀' : '');
+  document.getElementById('r-subj').textContent = open.subject || '(제목 없음)';
+  document.getElementById('r-body').textContent = open.body;
+
+  /* 고쳐 쓰기 — 보낸 쪽지이면서 상대가 아직 안 읽었을 때만 */
+  const canEdit = (tab === 'out' && !open.read_at);
+  document.getElementById('r-edit').style.display  = canEdit ? '' : 'none';
+  document.getElementById('r-reply').style.display = (tab === 'in') ? '' : 'none';
+
+  document.getElementById('readModal').classList.add('show');
+
+  /* 읽음은 열자마자 적는다. 실패해도 읽는 데는 지장이 없다. */
+  if(tab === 'in' && !open.read_at){
+    try{
+      await sbFetch(`/rest/v1/messages?id=eq.${open.id}`,
+        { method:'PATCH', headers:{ Prefer:'return=minimal' },
+          body: JSON.stringify({ read_at: new Date().toISOString() }) });
+      open.read_at = new Date().toISOString();
+      paint();
+      window.parent?.postMessage({ eg:'mail-read' }, '*');   /* 봉투 내려가라 */
+    }catch(e){ console.warn('[쪽지] 읽음 표시 실패:', e); }
+  }
+}
+function closeRead(){ document.getElementById('readModal').classList.remove('show'); }
+
+async function removeMsg(){
+  if(!open || busy) return;
+  busy = true;
+  const col = (tab === 'in') ? 'del_recip' : 'del_sender';
+  try{
+    await sbFetch(`/rest/v1/messages?id=eq.${open.id}`,
+      { method:'PATCH', headers:{ Prefer:'return=minimal' },
+        body: JSON.stringify({ [col]: new Date().toISOString() }) });
+    closeRead(); toast('쪽지를 치웠습니다'); await load();
+  }catch(e){ toast('치우지 못했습니다'); console.warn(e); }
+  busy = false;
+}
+
+function replyMsg(){
+  const to = open.who_id, who = open.who, subj = open.subject || '';
+  closeRead();
+  openCompose(to, who, subj ? (subj.startsWith('Re:') ? subj : 'Re: ' + subj) : '');
+}
+
+/* 고쳐 쓰기 — 쓰기 모달을 그대로 쓰되 「고치는 중」으로 세운다 */
+let editing = null;
+function editMsg(){
+  editing = open; closeRead();
+  document.getElementById('w-eyebrow').textContent = '쪽지 고쳐 쓰기';
+  document.getElementById('w-to').innerHTML = `<option>${esc(open.who)}</option>`;
+  document.getElementById('w-to').disabled = true;
+  document.getElementById('w-tonote').textContent = '상대가 아직 열어 보지 않았습니다.';
+  document.getElementById('w-subj').value = open.subject || '';
+  document.getElementById('w-body').value = open.body;
+  countBody();
+  document.getElementById('writeModal').classList.add('show');
+}
+
+// ── 쓰기 ─────────────────────────────────────────────
+let people = null;
+async function openCompose(toId, toName, subj){
+  editing = null;
+  document.getElementById('w-eyebrow').textContent = '쪽지 쓰기';
+  document.getElementById('w-to').disabled = false;
+  document.getElementById('w-tonote').textContent = '한 번 스쳐 간 이들에게 쓸 수 있습니다.';
+  document.getElementById('w-subj').value = subj || '';
+  document.getElementById('w-body').value = '';
+  countBody();
+  document.getElementById('writeModal').classList.add('show');
+
+  const sel = document.getElementById('w-to');
+  if(!people){
+    sel.innerHTML = `<option value="">불러오는 중…</option>`;
+    try{ people = await sbFetch('/rest/v1/rpc/eg_writable_people', { method:'POST', body:'{}' }) || []; }
+    catch(e){ people = []; console.warn(e); }
+  }
+  if(!people.length){
+    sel.innerHTML = `<option value="">아직 쪽지를 보낼 수 있는 분이 없습니다</option>`;
+    document.getElementById('w-tonote').textContent =
+      '같은 책을 걸었거나, 서로의 방에 다녀갔거나, 같은 별의 콩파뇽이면 쪽지를 쓸 수 있습니다.';
+    return;
+  }
+  sel.innerHTML = `<option value="">받는 이를 고르세요</option>` +
+    people.map(p => `<option value="${p.id}"${toId === p.id ? ' selected' : ''}>${esc(p.nickname)} — ${esc(p.why)}</option>`).join('');
+}
+function closeCompose(){ document.getElementById('writeModal').classList.remove('show'); editing = null; }
+function countBody(){
+  document.getElementById('w-count').textContent = document.getElementById('w-body').value.length;
+}
+document.getElementById('w-body').addEventListener('input', countBody);
+
+async function sendMsg(){
+  if(busy) return;
+  const body = document.getElementById('w-body').value.trim();
+  const subj = document.getElementById('w-subj').value.trim();
+  if(!body){ toast('쪽지를 적어 주세요'); return; }
+  const btn = document.getElementById('w-send');
+  busy = true; btn.disabled = true;
+
+  try{
+    if(editing){
+      await sbFetch(`/rest/v1/messages?id=eq.${editing.id}`,
+        { method:'PATCH', headers:{ Prefer:'return=minimal' },
+          body: JSON.stringify({ body, subject: subj || null }) });
+      toast('쪽지를 고쳐 두었습니다');
+    }else{
+      const to = document.getElementById('w-to').value;
+      if(!to){ toast('받는 이를 고르세요'); busy = false; btn.disabled = false; return; }
+      await sbFetch('/rest/v1/messages',
+        { method:'POST', headers:{ Prefer:'return=minimal' },
+          body: JSON.stringify({ sender_id: getUser().id, recipient_id: to,
+                                 subject: subj || null, body }) });
+      toast('우편함에 넣어 두었습니다');
+    }
+    closeCompose();
+    if(tab === 'out' || editing) await load();
+  }catch(e){
+    /* 자격이 없으면 RLS가 막는다 — 날 오류 대신 사람 말로 답한다 */
+    const m = String(e.message || '');
+    toast(/row-level|policy|violates/i.test(m)
+      ? '이분께는 아직 쪽지를 보낼 수 없습니다'
+      : (/읽은 쪽지/.test(m) ? '이미 읽은 쪽지는 고칠 수 없습니다' : '보내지 못했습니다'));
+    console.warn('[쪽지]', e);
+  }
+  busy = false; btn.disabled = false;
+}
+
+/* 모달 바깥을 눌러도 닫힌다 — 뒷문을 열어 두지 않는다(0808) */
+document.getElementById('readModal').addEventListener('click', e => {
+  if(e.target.id === 'readModal') closeRead();
+});
+document.getElementById('writeModal').addEventListener('click', e => {
+  if(e.target.id === 'writeModal') closeCompose();
+});
+
+/* 바깥(자화상·지구)에서 「쪽지 쓰기」를 곧장 열 수 있게 열어 둔다 */
+window.egMail = { reload: load, compose: openCompose };
+
+console.log('[EG] messages 0813a — 받은함·보낸함 · 읽기·쓰기·고치기·치우기');
+load();
+</script>
+</body>
+</html>
