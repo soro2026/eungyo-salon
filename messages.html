@@ -24,7 +24,10 @@
     font-family:'Noto Serif KR', serif; color:var(--ink);
     background:transparent; overflow-x:hidden;
     -webkit-font-smoothing:antialiased;
+    /* ⚠ 0813 소로 — 막대가 세 겹이었다. 편지지·액자·몸통. 여기가 그 셋째다. */
+    scrollbar-width:none; -ms-overflow-style:none;
   }
+  body::-webkit-scrollbar{ display:none; }
   .wrap{ max-width:480px; margin:0 auto; padding:14px 16px 28px; }
 
   /* ── 탭 두 개 ── */
@@ -87,6 +90,10 @@
     align-items:center; justify-content:center; padding:14px 12px;
   }
   .letter-bg.show{ display:flex; }
+  body.reading{ overflow:hidden; }
+  /* ⚠ 다발을 넘기는 동안에는 목록이 뒤에서 어른거리면 안 된다.
+     읽음을 적을 때 paint()가 목록을 다시 그리므로 화면에서 아예 걷는다. */
+  body.bundling .wrap{ visibility:hidden; }
   .letter-wrap{
     position:relative; width:100%; max-width:560px; max-height:92vh;
     overflow-y:auto; overflow-x:hidden;
@@ -431,6 +438,15 @@ let busy = false;
 
 /* ⭐ 우표·소인은 한 판에 한 번만 묻는다. 편지마다 부르면 목록이 느려진다. */
 let POSTAGE = null, POSTMARK = null;
+
+/* ⭐ 0813 소로 — 봉투에서 들어오면 안 읽은 편지를 **먼저 온 것부터** 한 장씩 넘긴다.
+   다 넘기면 우편함 목록이 뜬다. 언제든 「우편함으로」로 빠져나갈 수 있다 —
+   ⚠ 빠져나갈 문이 없으면 열 통 쌓인 날 열 번 닫아야 목록에 닿는다. */
+let BUNDLE = [];            /* 아직 안 넘긴 편지들 (먼저 온 것이 앞) */
+let inBundle = false;
+/* ⚠ let은 끌어올려지지 않는다 — 쓰는 곳(load)보다 반드시 앞에 세운다.
+   뒤에 두면 첫 load에서 그 자리가 통째로 터진다. */
+let BUNDLE_PENDING = false;
 async function loadStock(){
   if(POSTAGE && POSTMARK) return;
   try{
@@ -474,6 +490,13 @@ async function load(){
     rows = r || [];
   }catch(e){ box.innerHTML = `<div class="empty">편지를 가져오지 못했습니다.<br><span style="font-size:11px">${esc(e.message)}</span></div>`; return; }
   paint();
+
+  /* 봉투에서 들어온 첫 판에만 다발을 세운다. 탭을 갈아도 다시 안 선다. */
+  if(BUNDLE_PENDING){
+    BUNDLE_PENDING = false;
+    BUNDLE = rows.filter(r => !r.read_at).map(r => r.id).reverse();   /* 먼저 온 것이 앞 */
+    nextInBundle();
+  }
 }
 
 function paint(){
@@ -584,7 +607,13 @@ async function openRead(i){
 
   document.getElementById('r-acts').innerHTML = actsHtml();
   document.getElementById('readModal').classList.add('show');
+  document.body.classList.add('reading');
   document.querySelector('#readModal .letter-wrap').scrollTop = 0;
+  /* ⭐⭐ 0813 소로 — 「편지만 단독으로 지구 위에」
+     편지는 우편함 액자 **안**에서 뜬다. 그래서 아무리 막을 손봐도 뒤에 목록이 어른거리고
+     액자의 막대도 안 걷힌다. 답은 막이 아니라 **액자를 접는 것**이다.
+     ⚠ 지구가 못 들어도 편지는 그대로 뜬다 — 알림은 덤이지 조건이 아니다. */
+  try{ window.parent?.postMessage({ eg:'letter-open' }, '*'); }catch(e){}
 
   /* 읽음은 펼치자마자 적는다. 실패해도 읽는 데는 지장이 없다. */
   if(tab === 'in' && !open.read_at){
@@ -602,7 +631,8 @@ async function openRead(i){
 /* ⭐ 아래 구석의 작은 활자. 삭제는 읽는 화면에 두지 않는다 —
    읽자마자 버리는 일이 없도록, 버리기는 보관함과 보낸 함에만 있다(0813 소로). */
 function actsHtml(){
-  if(tab === 'in')  return `<button class="l-act" onclick="replyMsg()">답장</button>
+  const out = inBundle ? `<button class="l-act" onclick="leaveBundle()">우편함으로</button>` : '';
+  if(tab === 'in')  return `${out}<button class="l-act" onclick="replyMsg()">답장</button>
                             <button class="l-act" onclick="archiveMsg(true)">보관하기</button>`;
   if(tab === 'arc') return `<button class="l-act" onclick="replyMsg()">답장</button>
                             <button class="l-act" onclick="archiveMsg(false)">우편함으로</button>
@@ -610,7 +640,16 @@ function actsHtml(){
   return `${open && !open.read_at ? '<button class="l-act" onclick="editMsg()">고쳐 쓰기</button>' : ''}
           <button class="l-act warn" onclick="removeMsg()">버리기</button>`;
 }
-function closeRead(){ document.getElementById('readModal').classList.remove('show'); }
+function closeRead(){
+  document.getElementById('readModal').classList.remove('show');
+  document.body.classList.remove('reading');
+  try{ window.parent?.postMessage({ eg:'letter-close' }, '*'); }catch(e){}
+  /* 다발을 넘기는 중이면 다음 장. 다 넘겼으면 우편함이 남는다. */
+  if(inBundle) setTimeout(()=>{ if(!nextInBundle()) toast('우편함입니다'); }, 240);
+}
+/* 다발을 내려놓고 목록으로 — 갇히지 않게 두는 문 */
+function leaveBundle(){ BUNDLE = []; inBundle = false;
+  document.body.classList.remove('bundling'); closeRead(); }
 
 /* 보관하기 — 서랍에 넣는 것이지 태우는 것이 아니다. 보관함에서 언제든 되돌린다. */
 async function archiveMsg(on){
@@ -782,7 +821,23 @@ document.getElementById('writeModal').addEventListener('click', e => {
 /* 바깥(자화상·지구)에서 「편지 쓰기」를 곧장 열 수 있게 열어 둔다 */
 window.egMail = { reload: load, compose: openCompose };
 
-console.log('%c[EG] messages 0813h — 서명 아래 발송 시각 · 종이빛 막 · 소인 살짝 걸치기', 'color:#c9a84c');
+/* 봉투에서 들어왔는가 — 주소가 한 번만 말해 준다 */
+function cameFromEnvelope(){
+  try{ return new URLSearchParams(location.search).get('unread') === '1'; }
+  catch(e){ return false; }
+}
+/* 다발에서 다음 한 장. 없으면 거짓을 돌려주고 목록이 남는다. */
+function nextInBundle(){
+  while(BUNDLE.length){
+    const id = BUNDLE.shift();
+    const i = rows.findIndex(r => r.id === id);
+    if(i >= 0){ inBundle = true; document.body.classList.add('bundling'); openRead(i); return true; }
+  }
+  inBundle = false; document.body.classList.remove('bundling'); return false;
+}
+
+BUNDLE_PENDING = cameFromEnvelope();
+console.log('%c[EG] messages 0813i — 편지 펼치면 우편함이 접힌다 · 막대 셋 다 걷음', 'color:#c9a84c');
 load();
 </script>
 </body>

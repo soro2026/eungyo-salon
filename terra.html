@@ -1524,6 +1524,12 @@ window.EGQ = (function(){
     border:1px solid rgba(120,96,58,.34); border-radius:16px; overflow:hidden;
     box-shadow:0 26px 70px rgba(0,0,0,.55); }
   #mailFrame{ width:100%; height:100%; border:0; background:transparent; }
+  /* ⭐⭐ 0813 소로 — 「편지만 단독으로 지구 위에」
+     편지는 우편함 액자 안에서 뜬다. 상자가 종이빛이라 편지 뒤로 목록이 어른거렸다.
+     ⚠ 액자를 없애면 편지도 사라진다 — 편지가 그 안에 살기 때문이다.
+       그래서 **상자만 투명하게** 하고 액자는 그대로 둔다. */
+  #mailCardBox.reading{ background:transparent; border-color:transparent; box-shadow:none; }
+  #mailCardBox.reading > #mailClose{ display:none; }   /* 편지에도 닫는 단추가 있다 */
   /* 닫는 단추도 종이 위에 앉는다 — 어두운 동그라미는 종이에서 튄다 */
   #mailClose{ position:absolute; top:12px; right:14px; z-index:2; width:32px; height:32px;
     border-radius:50%; background:rgba(255,252,244,.9); color:#7a6849;
@@ -1844,7 +1850,7 @@ window.EGQ = (function(){
 <div style="position:fixed;left:8px;bottom:6px;z-index:70;font-size:9px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.5px;pointer-events:none">maison 0628e</div>
 
 <script>
-console.log('[EG] terra v0813h — 우편함 액자 종이로 · 도착음 자동재생 우회');
+console.log('[EG] terra v0813i — 봉투→편지 먼저 · 편지 펼치면 상자 투명 · 액자 종이로');
 // ── 분더카머로 떠나는 비행: 제트음 (자동재생 막히면 조용히 폴백) ──
 (function(){
   // 빠른 길(enter=1)은 지도 로딩 시간 벌이가 불필요 → 비행기·제트음 생략
@@ -4249,17 +4255,21 @@ function closeCredCard(){
 
 /* ── 0813 — 우편함 카드(EG TABELLAE). credCard 문법 승계.
    ⚠ src를 열 때마다 새로 준다 — 방금 온 쪽지가 바로 보여야 한다(크레덴시알과 같은 까닭). */
-function openMailCard(){
+/* ⭐ 0813 소로 — 봉투를 누르면 **편지가 먼저** 뜬다.
+   봉투를 눌렀는데 목록이 뜨면 한 번 더 눌러야 편지가 나온다 — 봉투의 뜻과 어긋난다.
+   ⚠ 안 읽은 것을 **먼저 온 것부터** 넘긴다. 우체통에서 꺼내면 밑에 깔린 게 먼저 온 것이다. */
+function openMailCard(unreadFirst){
   try{ closeStory(); }catch(e){}
   try{ closeMaison(); }catch(e){}
   try{ if (window._openNavPanel) window._openNavPanel(false); }catch(e){}   /* 타륜 접기 */
   viewer.useDefaultRenderLoop = false;
   const f = document.getElementById("mailFrame");
-  f.src = "messages.html?terra=1";
+  f.src = "messages.html?terra=1" + (unreadFirst ? "&unread=1" : "");
   document.getElementById("mailCard").classList.add("in");
 }
 function closeMailCard(){
   const f = document.getElementById("mailFrame"); if (f) f.src = "about:blank";
+  const box = document.getElementById("mailCardBox"); if (box) box.classList.remove("reading");
   document.getElementById("mailCard").classList.remove("in");
   viewer.useDefaultRenderLoop = true;
   tickMailSeal();                         /* 닫고 나면 봉랍을 다시 잰다 */
@@ -4279,9 +4289,13 @@ async function tickMailSeal(){
     el.classList.toggle("on", data === true);
   }catch(e){ el.classList.remove("on"); }
 }
-/* 쪽지함에서 하나를 열면 액자가 알려 준다 — 그 자리에서 봉랍을 다시 잰다 */
+/* 우편함에서 하나를 열면 액자가 알려 준다 — 그 자리에서 봉랍을 다시 잰다 */
 window.addEventListener("message", (e)=>{
-  if (e && e.data && e.data.eg === "mail-read") tickMailSeal();
+  if (!(e && e.data && e.data.eg)) return;
+  const box = document.getElementById("mailCardBox");
+  if (e.data.eg === "mail-read")     tickMailSeal();
+  if (e.data.eg === "letter-open"  && box) box.classList.add("reading");
+  if (e.data.eg === "letter-close" && box) box.classList.remove("reading");
 });
 
 /* ── 0813 — 도착한 봉투. 로더가 걷히는 그 틈에 **한 번만** 나타난다.
@@ -4341,7 +4355,7 @@ function openMailFromEnvelope(){
   fly.classList.add("opening");
   setTimeout(()=>{
     fly.classList.remove("on","opening");
-    openMailCard();
+    openMailCard(true);          /* 봉투에서 들어오면 안 읽은 편지부터 */
   }, 400);
 }
 
