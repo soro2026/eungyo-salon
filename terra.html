@@ -18,6 +18,30 @@
 if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
   throw new Error("phone-shell-redirect");   /* 아래 스크립트를 더 읽지 않는다 */
 }
+
+/* ══ EGQ — 착지를 정하는 매개변수의 단일 진실 원천 (0813)
+   ⚠ 병: 터라는 들어올 때마다 주소의 id·user·enter를 읽었는데 읽고서 걷지 않았다.
+     그래서 별 여정으로 한 번 날아가면 그 주소가 눌러앉아, 새로고침·재로그인·
+     PWA 재시작 때마다 계속 그 별의 도시로 착지했다(0813 소로 — 파리 집인데 블룸즈버리).
+   ⭐ 여기서 한 번 읽고 곧바로 주소를 정리한다. 이후 모든 곳은 이 전역만 본다.
+   ⚠ 걷는 것은 「한 번 가는 문」 셋뿐이다. 미리보기 스위치(ttline·slot)는 보는 동안
+     켜져 있어야 하므로 주소에 남긴다 — 로더가 그것을 그대로 읽는다. */
+window.EGQ = (function(){
+  var p, q = { star:null, user:null, enter:false };
+  try{
+    p = new URLSearchParams(location.search);
+    q.star  = p.get('id');
+    q.user  = p.get('user');
+    q.enter = p.get('enter') === '1';
+    if (q.star || q.user || q.enter){
+      p.delete('id'); p.delete('user'); p.delete('enter');
+      var rest = p.toString();
+      history.replaceState(null, '', location.pathname + (rest ? '?' + rest : ''));
+    }
+  }catch(e){ /* 주소를 못 만져도 착지는 굴러가야 한다 — 값은 이미 손에 있다 */ }
+  return q;
+})();
+
 </script>
 <!-- 0805 소로 — 로딩 하늘·비행기가 넉 벌(m/d/e/n)이 된다. 위상 판정은 egSky 하나가
      단일 진실이므로 공식을 베끼지 않고 여기서 먼저 싣는다(위상 공식이 사는 곳을 안 늘림).
@@ -1676,11 +1700,11 @@ if (typeof egPhoneGuard === "function" && egPhoneGuard()) {
 <div style="position:fixed;left:8px;bottom:6px;z-index:70;font-size:9px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.5px;pointer-events:none">maison 0628e</div>
 
 <script>
-console.log('[EG] terra v0808a — 대못 뽑음 · 한스푼 순회 개시');
+console.log('[EG] terra v0813a — EGQ 단일 진실 · 착지 매개변수 걷기');
 // ── 분더카머로 떠나는 비행: 제트음 (자동재생 막히면 조용히 폴백) ──
 (function(){
   // 빠른 길(enter=1)은 지도 로딩 시간 벌이가 불필요 → 비행기·제트음 생략
-  if(new URLSearchParams(location.search).get('enter')==='1'){
+  if(window.EGQ && EGQ.enter){
     const jt = document.getElementById("jetTrack"); if(jt) jt.style.display = "none";
     window.__fadeJet = ()=>{};   // init이 호출하므로 빈 함수로 둠
     return;
@@ -1738,9 +1762,8 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
 (async function init(){
   if (window.EGCrashGuard && EGCrashGuard.check()) return;  // 0706 크래시 가드: 지난 크래시면 팝업만, 3D 중단 (enter=1·home=1 두 경로 모두 커버)
   if (window.EGCrashGuard) EGCrashGuard.mark('maison');
-  const _p = new URLSearchParams(location.search);
-  const _wantUser  = _p.get('user');
-  const _wantEnter = _p.get('enter') === '1';
+  const _wantUser  = EGQ.user;
+  const _wantEnter = EGQ.enter;
   // 빠른 길(enter=1): 무거운 지구를 만들지 않고 노커를 바로 띄움 — 지도를 안 보는 동선
   if (_wantEnter){ await fastEnter(_wantUser); return; }
 
@@ -1995,7 +2018,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   await setupAdminEdit();   // admin이면 좌표 편집 토글 노출
   // 진입 분기 (enter=1은 위에서 fastEnter로 처리됨)
   //  ?id=별ID → 그 별의 대표지로 비행 (star_voyage 흡수, 0720) / ?user=남닉 → 남의 집 / (없음) → 내 집
-  const _wantStar = _p.get('id');
+  const _wantStar = EGQ.star;
   if (_wantStar){ jumpToStarPlace(_wantStar); }
   else if (!_wantUser){ goToMyHome(); }
   else { enterByParams(_wantUser, false); }
@@ -2145,7 +2168,7 @@ async function loadMaisons(city){
   const near     = range(PIN_RANGE.maison);      // 이웃 콩파뇽 — 700m
   const nearMine = range(PIN_RANGE.maisonMine);  // 나의 분더카머 — 1km
   const myUid = await getMyUid().catch(()=>null);
-  const wantU = new URLSearchParams(location.search).get('user');
+  const wantU = EGQ.user;
   rows.forEach((m)=>{
     const occupied = (m.status === 'occupied');
     // 강하 대상(내 집 또는 ?user=닉 상대)만 600m, 나머지 이웃은 500m
@@ -3045,7 +3068,7 @@ function openDoor(){
 // 나가기 → 오버레이 닫고 voyage 렌더 재개
 function exitDoorway(){
   // 빠른 길(enter=1)로 들어왔으면 지도를 안 거치고 곧장 메인 메뉴로
-  if (new URLSearchParams(location.search).get('enter') === '1'){
+  if (EGQ.enter){
     location.href = 'index.html'; return;
   }
   const dw = document.getElementById("doorway");
