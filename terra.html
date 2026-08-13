@@ -1528,8 +1528,23 @@ window.EGQ = (function(){
      편지는 우편함 액자 안에서 뜬다. 상자가 종이빛이라 편지 뒤로 목록이 어른거렸다.
      ⚠ 액자를 없애면 편지도 사라진다 — 편지가 그 안에 살기 때문이다.
        그래서 **상자만 투명하게** 하고 액자는 그대로 둔다. */
-  #mailCardBox.reading{ background:transparent; border-color:transparent; box-shadow:none; }
   #mailCardBox.reading > #mailClose{ display:none; }   /* 편지에도 닫는 단추가 있다 */
+  /* ⭐⭐ 0813 소로 — 「편지지 뒤 둥근 레이어를 없애 달라」
+     액자 안(messages)에서 막을 치면 상자 크기만큼만 깔려 둥근 사각이 남는다.
+     ⚠ 막은 **화면 전체를 덮는 층**이 쳐야 한다 — 그게 여기다.
+     그래서 편지가 열리면 상자는 투명해지고, 바깥막이 종이빛으로 갈린다. */
+  #mailCard.reading{ background:rgba(232,223,198,.90); backdrop-filter:blur(7px); }
+  /* ⚠⚠ 0813 소로 — 「접는다고 해 놓고 색만 지웠다」
+     색을 지운 것과 접은 것은 다른 일이다. 상자는 520×760으로 그 자리에 살아 있었고,
+     둥근 모서리와 넘침 자르기까지 그대로였다. 그래서 그 안의 막이 상자 크기만큼만
+     깔려 **둥근 사각 종이판**으로 보였다.
+     ⭐ 진짜로 접는다 — 화면 전체로 늘리고, 모서리와 자르기를 걷는다. */
+  #mailCardBox.reading{
+    background:transparent; border-color:transparent; box-shadow:none;
+    top:0; left:0; transform:none;
+    width:100vw; height:100vh;
+    border-radius:0; overflow:visible;
+  }
   /* 닫는 단추도 종이 위에 앉는다 — 어두운 동그라미는 종이에서 튄다 */
   #mailClose{ position:absolute; top:12px; right:14px; z-index:2; width:32px; height:32px;
     border-radius:50%; background:rgba(255,252,244,.9); color:#7a6849;
@@ -1537,6 +1552,7 @@ window.EGQ = (function(){
   #mailClose:hover{ color:#3a2f21; border-color:rgba(120,96,58,.6); }
   @media (max-width:640px){
     #mailCardBox{ width:100vw; height:100vh; border-radius:0; border:0; }
+    /* 폰에서는 이미 화면을 다 먹으므로 접을 것이 없다 — 색만 걷힌다 */
   }
   @media (max-width:640px){
     #egDock{ width:min(260px, calc(100vw - 40px)); top:92px; right:16px; max-height:calc(100vh - 110px); overflow-y:auto; }
@@ -1850,7 +1866,7 @@ window.EGQ = (function(){
 <div style="position:fixed;left:8px;bottom:6px;z-index:70;font-size:9px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.5px;pointer-events:none">maison 0628e</div>
 
 <script>
-console.log('[EG] terra v0813i — 봉투→편지 먼저 · 편지 펼치면 상자 투명 · 액자 종이로');
+console.log('[EG] terra v0813j — 편지 뒤 둥근 판 없앰 · 봉투→편지 먼저 · 액자 종이로');
 // ── 분더카머로 떠나는 비행: 제트음 (자동재생 막히면 조용히 폴백) ──
 (function(){
   // 빠른 길(enter=1)은 지도 로딩 시간 벌이가 불필요 → 비행기·제트음 생략
@@ -4270,6 +4286,7 @@ function openMailCard(unreadFirst){
 function closeMailCard(){
   const f = document.getElementById("mailFrame"); if (f) f.src = "about:blank";
   const box = document.getElementById("mailCardBox"); if (box) box.classList.remove("reading");
+  const card = document.getElementById("mailCard");    if (card) card.classList.remove("reading");
   document.getElementById("mailCard").classList.remove("in");
   viewer.useDefaultRenderLoop = true;
   tickMailSeal();                         /* 닫고 나면 봉랍을 다시 잰다 */
@@ -4294,8 +4311,15 @@ window.addEventListener("message", (e)=>{
   if (!(e && e.data && e.data.eg)) return;
   const box = document.getElementById("mailCardBox");
   if (e.data.eg === "mail-read")     tickMailSeal();
-  if (e.data.eg === "letter-open"  && box) box.classList.add("reading");
-  if (e.data.eg === "letter-close" && box) box.classList.remove("reading");
+  const card = document.getElementById("mailCard");
+  if (e.data.eg === "letter-open"){
+    if (box)  box.classList.add("reading");
+    if (card) card.classList.add("reading");
+  }
+  if (e.data.eg === "letter-close"){
+    if (box)  box.classList.remove("reading");
+    if (card) card.classList.remove("reading");
+  }
 });
 
 /* ── 0813 — 도착한 봉투. 로더가 걷히는 그 틈에 **한 번만** 나타난다.
