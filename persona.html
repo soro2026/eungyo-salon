@@ -255,6 +255,72 @@
   }
   .ledger-more:hover{ border-color:var(--gold-deep); background:rgba(216,184,96,0.10); }
 
+  /* ── ③.5 쪽지함 (EG TABELLAE · 0813) ──
+     요약 카드 한 장 + 여는 문 한 줄. 월렛(미니 + 자세히 보기)과 같은 문법이다.
+     ⚠ 개수를 세지 않는다 — 봉랍 한 줄이 「있다/없다」의 전부다(결정문 5호). */
+  .mail-card{
+    position:relative; display:flex; align-items:center; gap:13px; overflow:hidden;
+    background:var(--card); border:1px solid var(--card-edge);
+    border-radius:11px; padding:15px 15px 15px 17px; backdrop-filter:blur(3px);
+    cursor:pointer; transition:border-color .3s;
+  }
+  .mail-card:hover{ border-color:rgba(216,184,96,0.4); }
+  /* 봉랍 — 안 읽은 것의 표. 쪽지함(messages.html)의 .env.unread와 같은 색·같은 굵기 */
+  .mail-card.unread::before{
+    content:''; position:absolute; left:0; top:12px; bottom:12px;
+    width:3px; background:#9c3b34; border-radius:2px;
+  }
+  .mail-ico{ font-size:18px; width:22px; text-align:center; color:var(--gold); opacity:0.9; }
+  .mail-txt{ flex:1; min-width:0; }
+  .mail-line{ font-size:13.5px; color:var(--ink); line-height:1.5; }
+  .mail-sub{
+    font-size:11px; color:var(--ink-dim); margin-top:3px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .mail-arrow{ font-size:16px; color:var(--ink-dim); }
+  .mail-door{
+    margin-top:10px; text-align:center; font-size:12px; color:var(--gold);
+    padding:10px; border:1px solid var(--line); border-radius:9px; cursor:pointer;
+    background:rgba(216,184,96,0.05); letter-spacing:0.5px;
+    transition:border-color .25s, background .25s;
+  }
+  .mail-door:hover{ border-color:var(--gold-deep); background:rgba(216,184,96,0.10); }
+
+  /* ── 쪽지함 액자 ──
+     ⚠ messages.html은 배경이 투명하다(그 파일 머리 주석). 액자 안쪽 색이 그대로 비친다. */
+  .mail-back{
+    position:fixed; inset:0; z-index:60; background:rgba(8,5,3,0.72);
+    -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px);
+    opacity:0; pointer-events:none; transition:opacity .25s;
+  }
+  .mail-back.open{ opacity:1; pointer-events:auto; }
+  .mail-panel{
+    position:fixed; z-index:61; left:50%; top:50%;
+    transform:translate(-50%,-46%) scale(0.985);
+    width:min(520px, calc(100vw - 26px)); height:min(78vh, 720px);
+    display:flex; flex-direction:column; overflow:hidden;
+    background:linear-gradient(168deg, rgba(31,22,13,0.985), rgba(20,14,8,0.985));
+    border:1px solid rgba(216,184,96,0.34); border-radius:14px;
+    box-shadow:0 26px 70px rgba(0,0,0,0.60);
+    opacity:0; pointer-events:none; transition:opacity .25s, transform .25s;
+  }
+  .mail-panel.open{ opacity:1; pointer-events:auto; transform:translate(-50%,-50%) scale(1); }
+  .mail-head{
+    flex:0 0 auto; display:flex; align-items:center; justify-content:space-between;
+    padding:14px 16px 12px; border-bottom:1px solid var(--line);
+  }
+  .mail-title{
+    font-family:'Cormorant Garamond',serif; font-size:13px; letter-spacing:3.4px;
+    color:var(--gold); text-transform:uppercase;
+  }
+  .mail-title .ko{
+    font-family:'Noto Serif KR',serif; font-size:11px; letter-spacing:0.06em;
+    color:var(--ink-dim); text-transform:none; margin-left:9px;
+  }
+  .mail-x{ font-size:24px; line-height:1; color:var(--ink-dim); cursor:pointer; padding:0 3px; }
+  .mail-x:hover{ color:var(--ink); }
+  .mail-frame{ flex:1; width:100%; border:0; background:transparent; }
+
   /* ── 출납부 슬라이드 패널 ── */
   .ledger-backdrop{
     position:fixed; inset:0; z-index:40; background:rgba(8,5,2,0.55);
@@ -372,6 +438,18 @@
   <div class="ledger" id="ledger-mini"></div>
   <div class="ledger-more" onclick="openLedger()">출납부 자세히 보기 ›</div>
 
+  <!-- ③.5 쪽지함 (EG TABELLAE · 0813) -->
+  <div class="sec-title">쪽지함</div>
+  <div class="mail-card" id="mail-card" onclick="openMail()">
+    <span class="mail-ico">✉︎</span>
+    <div class="mail-txt">
+      <div class="mail-line" id="mail-line">불러오는 중…</div>
+      <div class="mail-sub" id="mail-sub"></div>
+    </div>
+    <span class="mail-arrow">›</span>
+  </div>
+  <div class="mail-door" onclick="openMail()">쪽지함 열기 ›</div>
+
   <!-- ④ 조용한 초대장 -->
   <div class="sec-title">조용한 초대장</div>
   <div class="invite">
@@ -425,6 +503,16 @@
     어둑하게 깔 자리입니다. 지금은 폴백 톤으로 표시 중.
   </div>
 
+</div>
+
+<!-- 쪽지함 액자 — messages.html 한 파일이 지구(타륜 카드)와 여기 두 곳에서 산다 -->
+<div class="mail-back" id="mail-back" onclick="closeMail()"></div>
+<div class="mail-panel" id="mail-panel" aria-hidden="true">
+  <div class="mail-head">
+    <span class="mail-title">EG Tabellae<span class="ko">쪽지함</span></span>
+    <span class="mail-x" onclick="closeMail()">×</span>
+  </div>
+  <iframe class="mail-frame" id="mail-frame" src="about:blank" title="쪽지함"></iframe>
 </div>
 
 <!-- 황금사과 출납부 — 오른쪽 슬라이드 패널 -->
@@ -485,7 +573,15 @@ async function sbFetch(path, options = {}){
     'apikey':SUPABASE_KEY, 'Authorization':'Bearer ' + (token || SUPABASE_KEY),
     'Content-Type':'application/json', ...options.headers } });
   if(!res.ok){ const e = await res.json().catch(()=>({})); throw new Error(e.message || res.statusText); }
-  return res.status === 204 ? null : res.json();
+  /* ⚠ 0813 — 본문 없는 성공을 실패로 읽던 병(messages.html에서 잡은 것과 같은 줄).
+     Prefer: return=minimal 로 POST하면 서버는 **201에 빈 본문**을 준다.
+     204만 걸러내면 201에서 res.json()이 터지고, 그 예외가 catch로 굴러가
+     일이 다 끝난 뒤에 「못 했습니다」가 뜬다.
+     ⭐ 성공·실패는 상태 번호가 가른다. 본문을 읽다 난 예외로 가르지 않는다. */
+  if(res.status === 204 || res.status === 205) return null;
+  const txt = await res.text();
+  if(!txt) return null;
+  try{ return JSON.parse(txt); }catch(e){ return null; }
 }
 function getUser(){ try{ const s = JSON.parse(localStorage.getItem('eungyo-auth')); return s?.user || null; }catch{ return null; } }
 
@@ -761,18 +857,104 @@ async function onAvatarPick(files){
   }
 }
 
+/* ══ 쪽지함 (EG TABELLAE · 0813) ═══════════════════════════
+   요약 한 장 + 여는 문 하나. 여는 문 안쪽은 messages.html 액자다.
+   ⭐ 쪽지의 규칙은 messages.html과 DB가 이미 다 갖고 있다.
+      여기서는 아무것도 새로 정하지 않는다 — 문만 낸다. */
+
+/* 언제 왔는지 — 오늘이면 시각, 올해면 월일, 넘으면 연월일 (쪽지함과 같은 자) */
+function mailWhen(iso){
+  const d = new Date(iso), n = new Date(), p = v => String(v).padStart(2,'0');
+  if(d.toDateString() === n.toDateString()) return `${p(d.getHours())}:${p(d.getMinutes())}`;
+  if(d.getFullYear() === n.getFullYear())   return `${d.getMonth()+1}월 ${d.getDate()}일`;
+  return `${d.getFullYear()}.${p(d.getMonth()+1)}.${p(d.getDate())}`;
+}
+
+let MAIL_BUSY = false;
+async function loadMailSummary(){
+  const card = document.getElementById('mail-card');
+  const line = document.getElementById('mail-line');
+  const sub  = document.getElementById('mail-sub');
+  if(!card || !line || !sub) return;
+  if(MAIL_BUSY) return;
+
+  const put = (unread, l, s) => {
+    card.classList.toggle('unread', !!unread);
+    line.textContent = l;
+    sub.textContent  = s || '';
+  };
+
+  if(!getUser()){ put(false, '로그인하시면 쪽지함이 열립니다.', ''); return; }
+
+  MAIL_BUSY = true;
+  try{
+    /* ⚠ 「안 읽은 것이 있는가」는 eg_has_unread()만이 안다 — 목록을 세어 짐작하지 않는다.
+       ⚠ eg_has_unread()는 참·거짓만 돌려준다. 개수를 물을 길이 애초에 없다(5호). */
+    const [unread, rows] = await Promise.all([
+      sbFetch('/rest/v1/rpc/eg_has_unread', { method:'POST', body:'{}' }),
+      sbFetch('/rest/v1/rpc/eg_inbox', { method:'POST', body: JSON.stringify({ p_limit:1 }) })
+    ]);
+    const last = (rows && rows.length) ? rows[0] : null;
+
+    if(unread === true){
+      put(true, '읽지 않은 쪽지가 놓여 있습니다.',
+          last ? `마지막으로 온 쪽지 — ${last.who} · ${mailWhen(last.sent_at)}` : '');
+    }else if(last){
+      put(false, '우편함이 조용합니다.',
+          `마지막으로 온 쪽지 — ${last.who} · ${mailWhen(last.sent_at)}`);
+    }else{
+      put(false, '아직 온 쪽지가 없습니다.',
+          '한 번 스쳐 간 이들에게 먼저 건네 보실 수 있습니다.');
+    }
+  }catch(e){
+    /* 못 읽어도 문은 열려 있어야 한다 — 요약이 실패했다고 우편함을 닫지 않는다 */
+    put(false, '쪽지함', '지금은 요약을 가져오지 못했습니다.');
+    console.warn('[쪽지] 요약', e);
+  }
+  MAIL_BUSY = false;
+}
+
+/* ⚠ src를 열 때마다 새로 준다 — 방금 온 쪽지가 바로 보여야 한다(타륜 우편함 카드와 같은 까닭) */
+function openMail(){
+  const f = document.getElementById('mail-frame');
+  if(f) f.src = 'messages.html?persona=1';
+  document.getElementById('mail-panel').classList.add('open');
+  document.getElementById('mail-back').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeMail(){
+  const f = document.getElementById('mail-frame'); if(f) f.src = 'about:blank';
+  document.getElementById('mail-panel').classList.remove('open');
+  document.getElementById('mail-back').classList.remove('open');
+  document.body.style.overflow = '';
+  loadMailSummary();                       /* 닫고 나면 봉랍을 다시 잰다 */
+}
+/* 액자 안에서 한 통을 열면 알려 준다 — 그 자리에서 봉랍을 다시 잰다.
+   ⚠ 자화상도 평소 지구의 액자 안에 들어 있다(terra의 enterRoomUrl).
+      쪽지함은 그 안의 또 한 겹이라, messages.html의 소식은 여기까지만 온다.
+      그대로 두면 지구 타륜의 봉랍이 안 내려간다 — 그래서 한 겹 위로 넘긴다. */
+window.addEventListener('message', (e) => {
+  if(!(e && e.data && e.data.eg === 'mail-read')) return;
+  loadMailSummary();
+  try{ if(window.parent && window.parent !== window) window.parent.postMessage({ eg:'mail-read' }, '*'); }catch(err){}
+});
+
 // ── 로그아웃 (로컬 세션 제거 후 로그인 화면으로) ──
 function doLogout(){
   try{ localStorage.removeItem('eungyo-auth'); }catch(e){}
   location.replace('index.html');
 }
 
+console.log('%c[EG] persona 0813a · 쪽지함(EG TABELLAE) 섹션 · sbFetch 201 수리', 'color:#c9a84c');
+
 document.addEventListener('DOMContentLoaded', () => {
-  loadPersona(); loadWalletMini(); initLedgerScroll();
+  loadPersona(); loadWalletMini(); initLedgerScroll(); loadMailSummary();
   /* 0728 — 타륜의 황금사과 알림을 누르고 곧장 온 손님은 출납부를 펼친 채로 맞는다.
      openLedger()가 resetLedger()로 첫 장을 알아서 불러온다. */
   try{
-    if (new URLSearchParams(location.search).get('ledger') === '1') openLedger();
+    const q = new URLSearchParams(location.search);
+    if (q.get('ledger') === '1') openLedger();
+    if (q.get('mail')   === '1') openMail();   /* 0813 — 같은 문법으로 쪽지함도 펼친 채 맞는다 */
   }catch(e){}
 });
 </script>
