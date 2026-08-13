@@ -23,6 +23,10 @@ h1{ font-family:'Cormorant Garamond',serif; font-size:25px; font-weight:600; let
 h1 .g{ color:var(--gold); }
 .sub{ font-size:11.5px; color:var(--dim); letter-spacing:.14em; }
 .count{ margin-left:auto; font-size:12px; color:var(--soft); }
+.modes{ display:flex; gap:7px; margin-left:16px; }
+.mode{ font-size:12px; padding:5px 15px; border-radius:15px; cursor:pointer;
+  color:var(--dim); border:1px solid var(--line); background:transparent; font-family:inherit; }
+.mode.on{ color:#1a120c; background:linear-gradient(135deg,var(--gold),var(--gold2)); border-color:var(--gold2); }
 .count b{ color:var(--gold); font-weight:500; }
 
 #gate{ max-width:340px; margin:14vh auto; padding:26px; background:var(--panel); border:1px solid var(--line); border-radius:12px; }
@@ -132,7 +136,11 @@ button.b:disabled{ opacity:.42; cursor:default; }
 <div id="app" hidden>
 <header>
   <h1>EG <span class="g">Postage</span></h1>
-  <span class="sub">우표 공방 · v1.0 · 0813</span>
+  <span class="sub">우표 공방 · 0813</span>
+  <span class="modes">
+    <button class="mode on" id="mode-po" onclick="setMode('po')">우표</button>
+    <button class="mode"    id="mode-pm" onclick="setMode('pm')">소인</button>
+  </span>
   <span class="count">발행 중 <b id="cnt-on">–</b> / 전체 <b id="cnt-all">–</b></span>
 </header>
 
@@ -174,6 +182,12 @@ button.b:disabled{ opacity:.42; cursor:default; }
 
     <div class="f"><label>발행 사유</label><input id="f-note" placeholder="콜레주 1기 완주 기념"></div>
 
+    <div class="grid3" id="pm-fields" hidden>
+      <div class="f"><label>생김새</label><select id="f-kind"></select></div>
+      <div class="f"><label>도시 이름 자리</label><select id="f-city"></select></div>
+      <div class="f"><label>날짜 자리</label><select id="f-date"></select></div>
+    </div>
+
     <div class="f">
       <label>그림</label>
       <div class="drop" id="drop">여기에 던지거나 눌러서 고르세요<br>
@@ -208,12 +222,30 @@ const sb = createClient(SUPA_URL, SUPA_KEY, {
   auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
 });
 
-console.log('%c[EG] admin_postage v1.3 · 0813 투명 격자 · 바깥 흰 곳 도려내기', 'color:#c9a84c');
+console.log('%c[EG] admin_postage v1.4 · 0813 소인 갈피 · 투명 격자 · 바깥 흰 곳 도려내기', 'color:#c9a84c');
 
 const SHAPES = [['tall','세로로 긴'],['portrait','세로'],['square','정사각'],
                 ['landscape','가로로 긴'],['triangle','삼각']];
+const KINDS  = [['round','동그라미'],['square','네모'],['triangle','삼각'],
+                ['oval','타원'],['bars','물결만']];
+const SPOTS  = [['top','위'],['center','가운데'],['bottom','아래'],['none','없음']];
+
+/* ⭐ 우표와 소인은 다른 물건이지만 공방은 하나다.
+   ⚠ 표 이름을 코드 곳곳에 박지 않는다 — 여기 한 곳만 본다. */
+const MODES = {
+  po:{ tbl:'postage',   ko:'우표', dir:'postage',
+       row:r => ({ shape:$('#f-shape').value, ratio:+$('#f-ratio').value,
+                   opens_at:fromLocal($('#f-open').value),
+                   closes_at:fromLocal($('#f-close').value),
+                   always_on:$('#f-always').checked }) },
+  pm:{ tbl:'postmarks', ko:'소인', dir:'postmark',
+       row:r => ({ kind:$('#f-kind').value, city_at:$('#f-city').value,
+                   date_at:$('#f-date').value, rotate:-14 }) }
+};
 const $ = s => document.querySelector(s);
+let MODE = 'po';
 let rows = [], cur = null, isNew = false, pending = null;
+const M = () => MODES[MODE];
 
 let toastT;
 function toast(msg, kind){
@@ -229,6 +261,7 @@ const fromLocal = v => v ? new Date(v).toISOString() : null;
 /* 지금 발행 중인가 — eg_postage_on_sale()과 같은 규칙을 화면에서도 센다 */
 function onSale(r){
   if(!r.active || !r.art_url) return false;
+  if(MODE === 'pm') return true;          /* 소인은 우체국 도구다 — 발행 기간이 없다 */
   if(r.always_on) return true;
   const now = Date.now();
   if(r.opens_at  && now <  new Date(r.opens_at).getTime())  return false;
@@ -249,6 +282,9 @@ async function boot(){
   $('#gate').hidden = true;
   $('#app').hidden = false;
   $('#f-shape').innerHTML = SHAPES.map(([v,k])=>`<option value="${v}">${k}</option>`).join('');
+  $('#f-kind').innerHTML  = KINDS.map(([v,k])=>`<option value="${v}">${k}</option>`).join('');
+  const spots = SPOTS.map(([v,k])=>`<option value="${v}">${k}</option>`).join('');
+  $('#f-city').innerHTML = spots; $('#f-date').innerHTML = spots;
   await load();
 }
 $('#loginBtn').addEventListener('click', async () => {
@@ -260,7 +296,7 @@ $('#loginBtn').addEventListener('click', async () => {
 
 /* ── 목록 ── */
 async function load(){
-  const { data, error } = await sb.from('postage').select('*').order('sort').order('code');
+  const { data, error } = await sb.from(M().tbl).select('*').order('sort').order('code');
   if(error){ toast('불러오지 못했습니다 — ' + error.message, 'bad'); return; }
   rows = data || [];
   $('#cnt-all').textContent = rows.length;
@@ -289,6 +325,9 @@ function pick(r){
   $('#f-shape').value = r.shape || 'portrait';
   $('#f-ratio').value = r.ratio ?? 0.78;
   $('#f-hue').value   = r.hue || '#8a7659';
+  $('#f-kind').value  = r.kind    || 'round';
+  $('#f-city').value  = r.city_at || 'top';
+  $('#f-date').value  = r.date_at || 'center';
   $('#f-open').value  = toLocal(r.opens_at);
   $('#f-close').value = toLocal(r.closes_at);
   $('#f-always').checked = !!r.always_on;
@@ -305,6 +344,7 @@ function pick(r){
 
 $('#addBtn').addEventListener('click', () => {
   cur = { code:'', name:'', motto:'', shape:'portrait', ratio:0.78, hue:'#8a7659',
+          kind:'round', city_at:'top', date_at:'center',
           always_on:false, active:true, sort:100, note:'', art_url:null };
   isNew = true; pending = null;
   $('#edit').hidden = false; $('#edit-h').textContent = '새 우표';
@@ -322,6 +362,24 @@ $('#addBtn').addEventListener('click', () => {
       한 물건을 두 곳에서 만들면 두 겹으로 찍힌다(소로가 잡으심).
    ⚠ 긴 변을 기준으로 잰다. 높이를 고정하면 세로로 긴 우표가 홀쭉이로 보이고
       가로로 긴 우표가 거인이 된다 — 다섯 장을 나란히 못 견준다. */
+/* 우표 칸 · 소인 칸 — 갈피에 따라 갈린다 */
+const PO_ONLY = ['f-motto','f-shape','f-ratio','f-hue','f-open','f-close'];
+window.setMode = function(m){
+  if(MODE === m) return;
+  MODE = m; cur = null; isNew = false; pending = null;
+  $('#mode-po').classList.toggle('on', m==='po');
+  $('#mode-pm').classList.toggle('on', m==='pm');
+  $('#edit').hidden = true;
+  PO_ONLY.forEach(id => { const el = $('#'+id); if(el) el.closest('.f').hidden = (m!=='po'); });
+  const alw = $('#f-always').closest('label'); if(alw) alw.style.visibility = (m==='po') ? '' : 'hidden';
+  $('#pm-fields').hidden = (m!=='pm');
+  $('#addBtn').textContent = (m==='po') ? '＋ 새 우표 (기념 발행)' : '＋ 새 소인';
+  $('#drop').innerHTML = (m==='po')
+    ? '여기에 던지거나 눌러서 고르세요<br><span style="font-size:10.5px">흰 여백을 잘라내고 WebP로 굽습니다 · 색은 그대로 둡니다</span>'
+    : '여기에 던지거나 눌러서 고르세요<br><span style="font-size:10.5px">⚠ 글자가 든 소인은 물립니다 — 도시와 날짜는 셸이 얹습니다</span>';
+  load();
+};
+
 window.setStage = function(k){
   $('#stage').className = 'stage ' + k;
   $('#sw-p').classList.toggle('on', k==='paper');
@@ -429,6 +487,7 @@ async function take(f){
     pending = r;
     $('#f-ratio').value = r.ratio;
     paintPreview(r.url, r.ratio);
+    if(MODE === 'pm') setStage('alpha');
     const bad = r.cornerLum < 249;
     $('#meta').innerHTML =
       `<b>${r.w}×${r.h}</b> · 가로÷세로 <b>${r.ratio}</b> · ${r.ext.toUpperCase()}<br>
@@ -452,28 +511,29 @@ $('#saveBtn').addEventListener('click', async () => {
   try{
     let art = cur.art_url || null;
     if(pending){
-      const key = `${DIR}/${code}.${pending.ext}`;
+      const key = `${M().dir}/${code}.${pending.ext}`;
       const { error:upErr } = await sb.storage.from(BUCKET)
         .upload(key, pending.blob, { upsert:true, contentType:pending.blob.type });
       if(upErr) throw upErr;
       const { data:pub } = sb.storage.from(BUCKET).getPublicUrl(key);
       art = pub.publicUrl + '?v=' + Date.now();     /* 캐시깨기 — 옛 그림이 남지 않게 */
     }
-    const row = {
-      code, name:$('#f-name').value.trim(), motto:$('#f-motto').value.trim() || null,
-      art_url:art, shape:$('#f-shape').value, ratio:+$('#f-ratio').value,
-      hue:$('#f-hue').value, opens_at:fromLocal($('#f-open').value),
-      closes_at:fromLocal($('#f-close').value), always_on:$('#f-always').checked,
+    /* ⚠ 두 표의 칸이 다르다. 공통분만 여기서 짓고, 나머지는 MODES가 붙인다 —
+       한 표에 없는 칸을 보내면 통째로 튕긴다. */
+    const row = Object.assign({
+      code, name:$('#f-name').value.trim(), art_url:art,
       active:$('#f-active').checked, sort:+$('#f-sort').value || 100,
       note:$('#f-note').value.trim() || null
-    };
+    }, M().row());
+    if(MODE === 'po'){ row.motto = $('#f-motto').value.trim() || null; row.hue = $('#f-hue').value; }
+    else             { row.ink = 'rgba(66,52,36,.55)'; }
     const { error } = isNew
-      ? await sb.from('postage').insert(row)
-      : await sb.from('postage').update(row).eq('code', code);
+      ? await sb.from(M().tbl).insert(row)
+      : await sb.from(M().tbl).update(row).eq('code', code);
     if(error) throw error;
 
     /* ⚠ 「잘 됐겠지」 금지 — 쓴 뒤 되읽어서 눈으로 본다 */
-    const { data:back, error:e2 } = await sb.from('postage').select('*').eq('code', code).single();
+    const { data:back, error:e2 } = await sb.from(M().tbl).select('*').eq('code', code).single();
     if(e2) throw e2;
     pending = null; isNew = false;
     toast(onSale(back) ? '저장했습니다 — 지금부터 발행 중입니다' : '저장했습니다', 'good');
@@ -491,7 +551,7 @@ $('#cancelBtn').addEventListener('click', () => {
 $('#delBtn').addEventListener('click', async () => {
   if(!cur || isNew) return;
   if(!confirm(`「${cur.name}」 우표를 지웁니다.\n\n이미 부친 편지의 우표는 그대로 남습니다.\n다만 그 편지를 펼칠 때 그림을 못 찾습니다.\n\n발행만 멈추시려면 「살아 있음」을 끄는 편이 낫습니다.`)) return;
-  const { error } = await sb.from('postage').delete().eq('code', cur.code);
+  const { error } = await sb.from(M().tbl).delete().eq('code', cur.code);
   if(error){ toast('지우지 못했습니다 — ' + error.message, 'bad'); return; }
   cur = null; $('#edit').hidden = true; toast('지웠습니다'); load();
 });
