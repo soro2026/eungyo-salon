@@ -79,9 +79,11 @@
         한 겹으로 하면 본문 글자까지 물결친다. */
   .letter-bg{
     position:fixed; inset:0; z-index:84; display:none;
-    /* ⚠ 0813 소로 — 까만 막을 걷는다. 종이가 이미 제 몫을 하고 있다.
-       뒤가 비쳐야 「지구 위에 놓인 한 장」으로 보인다. */
-    background:transparent;
+    /* ⚠⚠ 0813 저녁 — 두 번 고쳤다. 처음엔 새까맸고, 걷었더니 우편함이 훤히 비쳐
+       편지 뒤로 목록이 어른거렸다. ⭐ 답은 「걷기」가 아니라 「종이빛 막」이었다 —
+       뒤가 가려지되 어둡지 않다. */
+    background:rgba(232,223,198,.86);
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
     align-items:center; justify-content:center; padding:14px 12px;
   }
   .letter-bg.show{ display:flex; }
@@ -119,7 +121,8 @@
      ⭐ 소인은 우표 **오른쪽**에 꽝 찍힌다(0813 소로). 우표를 좀 가려도 좋다 —
         가려야 진짜 부쳐진 편지로 보인다.
      ⚠ 우표 높이만 고정하고 폭은 비율이 정한다(0.58 ~ 1.47). */
-  .frank{ position:absolute; top:26px; right:34px; z-index:2; }
+  /* ⚠ 소인이 우표 오른쪽 바깥으로 나가므로 우표를 안쪽으로 당겨 둔다 */
+  .frank{ position:absolute; top:26px; right:78px; z-index:2; }
   .stamp{ position:relative; transform:rotate(-2.4deg);
           filter:drop-shadow(0 1px 0 rgba(120,96,58,.22)); }
   .stamp img{ display:block; object-fit:contain; }
@@ -135,7 +138,9 @@
 
   /* ── 윗머리 · 부름 · 본문 · 서명 ── */
   /* ⚠ 소인이 우표 오른쪽으로 나가면서 윗머리를 더 비워야 한다(카프카에서 본문 침범) */
-  .l-head{ margin-bottom:26px; padding-right:150px; min-height:104px; }
+  /* ⭐ 0813 소로 — 우표·소인이 앉는 오른쪽 위를 통째로 비운다.
+     본문은 그 아래에서 시작한다. 주소만 위에 남는다. */
+  .l-head{ margin-bottom:22px; padding-right:150px; min-height:170px; }
   .l-place{
     font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;
     font-size:11.5px; color:#7a6849; letter-spacing:.02em;
@@ -152,6 +157,13 @@
   /* ⚠ 목업의 손글씨체로 되돌린다. 크기도 한 눈금 줄인다(0813 소로) */
   .l-sign{ font-family:'Nanum Pen Script',cursive; font-size:27px; line-height:1.2;
            color:#2b3a52; letter-spacing:.02em; }
+  /* ⭐ 0813 소로 — 소인의 날짜는 「부쳐졌다」는 표시이지 읽으라고 있는 것이 아니다.
+     정확한 날짜·시각은 서명 아래에 타자기 활자로 한 줄. 편지의 일부로 읽힌다.
+     ⚠ 연도까지 적는다 — 삼 년 뒤 보관함을 열 때를 위해서다. 대신 작게. */
+  .l-stamped{
+    margin-top:9px; font-family:'Courier New', Courier, monospace;
+    font-size:11px; letter-spacing:.08em; color:#8a7659;
+  }
   .l-foot{
     margin-top:0; padding-top:13px; border-top:1px solid rgba(120,96,58,.18);
     flex:0 0 auto;
@@ -296,6 +308,7 @@
       <div class="l-body" id="r-body">—</div>
       <div class="l-close">
         <div class="l-sign" id="r-sign">—</div>
+        <div class="l-stamped" id="r-stamped"></div>
       </div>
       <div class="l-fill"></div>
       <div class="l-foot">
@@ -442,10 +455,10 @@ function pmDate(iso){
   const d = new Date(iso);
   return `${d.getDate()} ${MON[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
 }
-function headDate(iso){
-  const d = new Date(iso);
-  const w = ['일','월','화','수','목','금','토'][d.getDay()];
-  return `${d.getMonth()+1}월 ${d.getDate()}일 ${w}요일`;
+/* 발송 시각 — 서명 아래 한 줄. 타자기 활자로 찍는다. */
+function stampedAt(iso){
+  const d = new Date(iso), p = v => String(v).padStart(2,'0');
+  return `${d.getFullYear()}.${p(d.getMonth()+1)}.${p(d.getDate())}  ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 async function load(){
@@ -520,17 +533,21 @@ function frankHtml(m){
      우표를 가로지르게 해야 소인 노릇을 한다. */
 function pmHtml(pm, city, date){
   const wave = (pm.anchor === 'full');
-  /* ⚠⚠ 소인마다 그림 비율이 다르다(0.95 ~ 2.10). 정사각에 밀어 넣으면 찌그러진다 —
-     울프 편지에서 소로가 잡으심. 우표와 같은 처방: **높이만 고정하고 폭은 비율이 정한다.** */
-  const H = wave ? 78 : 122;
-  const r = Number(pm.ratio || 1);
-  const W = Math.round(H * r);
+  /* ⚠⚠ 소인마다 그림 비율이 다르다(0.95 ~ 2.10). 정사각에 밀어 넣으면 찌그러진다. */
+  const H = wave ? 74 : 108;
+  const W = Math.round(H * Number(pm.ratio || 1));
   const cy = Number(pm.city_y ?? .35), dy = Number(pm.date_y ?? .64);
   const k  = H / 420;
   const cs = Math.max(9.5, Number(pm.city_sz ?? 26) * k * 1.95);
   const ds = Math.max(9,   Number(pm.date_sz ?? 22) * k * 1.95);
   const one = (cy === dy);
-  const pos = wave ? 'right:-64px; top:14px;' : 'right:-46px; top:0px;';
+  /* ⭐⭐ 0813 저녁 소로 — 「소인이 무례하다. 살짝 걸치면 좋겠다」
+     처음엔 우표를 통째로 덮었다. 우표 **오른쪽 바깥**으로 밀어
+     왼쪽 귀퉁이만 물게 한다. 날짜는 종이 위에 나와 읽힌다.
+     ⚠ 우표 폭이 제각각이라(0.58~1.47) 고정 픽셀로 밀면 우표마다 겹침이 달라진다 —
+       그래서 소인 폭을 기준으로 민다. */
+  const off  = Math.round(W * (wave ? 0.42 : 0.70));
+  const pos  = wave ? `right:${-off}px; top:16px;` : `right:${-off}px; top:-6px;`;
   return `<div class="postmark" style="${pos} width:${W}px; height:${H}px;
             transform:rotate(${pm.rotate ?? -14}deg); color:${pm.ink}">
     <img src="${esc(pm.art_url)}" alt="">
@@ -559,9 +576,11 @@ async function openRead(i){
   const lead = open.subject ? `<span class="lead">${esc(open.subject)}</span>\n\n` : '';
   document.getElementById('r-body').innerHTML = lead + esc(open.body);
   document.getElementById('r-sign').textContent = mine ? (open.to_name || '—') : open.who;
+  /* ⚠ 날짜는 서명 아래로 옮겼다. 여기서 또 적으면 한 편지에 두 번 나온다. */
   document.getElementById('r-note').textContent =
-    (open.edited_at ? '고쳐 쓴 편지 · ' : '') + headDate(open.sent_at)
-    + (mine ? (open.read_at ? ' · 읽음' : ' · 아직 안 읽었습니다') : '');
+    [ open.edited_at ? '고쳐 쓴 편지' : '',
+      mine ? (open.read_at ? '읽음' : '아직 안 읽었습니다') : '' ].filter(Boolean).join(' · ');
+  document.getElementById('r-stamped').textContent = stampedAt(open.sent_at);
 
   document.getElementById('r-acts').innerHTML = actsHtml();
   document.getElementById('readModal').classList.add('show');
@@ -763,7 +782,7 @@ document.getElementById('writeModal').addEventListener('click', e => {
 /* 바깥(자화상·지구)에서 「편지 쓰기」를 곧장 열 수 있게 열어 둔다 */
 window.egMail = { reload: load, compose: openCompose };
 
-console.log('%c[EG] messages 0813f — 편지지 최소 높이 · 서명은 본문 아래 · 소인 오른쪽 꽝', 'color:#c9a84c');
+console.log('%c[EG] messages 0813h — 서명 아래 발송 시각 · 종이빛 막 · 소인 살짝 걸치기', 'color:#c9a84c');
 load();
 </script>
 </body>
