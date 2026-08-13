@@ -177,6 +177,12 @@
     display:flex; align-items:center; justify-content:space-between; gap:12px;
   }
   .l-note{ font-size:10.5px; color:#8a7659; letter-spacing:.04em; }
+  /* ⭐ 0813 소로 — 다발을 넘기는 중에는 몇 장 남았는지 보여 준다.
+     ⚠ 우편함 **밖**에서는 여전히 안 센다(5호) — 봉랍은 있다·없다뿐이다.
+       이미 손에 쥔 다발을 세는 것과, 열기 전에 개수를 알리는 것은 다르다. */
+  .l-bundle{ font-family:'Courier New',Courier,monospace; letter-spacing:.06em; color:#7a6849; }
+  .l-bundle::after{ content:'·'; margin:0 6px; opacity:.5; }
+  .l-bundle:last-child::after{ content:''; margin:0; }
   .l-acts{ display:flex; gap:13px; flex-wrap:wrap; }
   .l-act{
     font-size:11px; color:#7a6849; cursor:pointer; letter-spacing:.06em;
@@ -186,6 +192,24 @@
   }
   .l-act:hover{ color:#3a2f21; border-bottom-color:rgba(120,96,58,.45); }
   .l-act.warn{ color:#9a5548; }
+  .l-act.next{ color:#3a2f21; border-bottom-color:rgba(120,96,58,.45); }
+  /* ⭐ 0813 소로 — 막대를 걷었으니 「아래가 더 있다」를 알릴 표가 필요하다.
+     ⚠ 실제로 남았을 때만 뜬다. 짧은 편지에도 뜨면 거짓말이 되고,
+       다 내려가면 사라져야 한다. */
+  .l-more{
+    position:absolute; left:50%; bottom:14px; transform:translateX(-50%);
+    width:34px; height:34px; z-index:4; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    border-radius:50%; border:1px solid rgba(120,96,58,.28);
+    background:rgba(247,242,228,.92); color:#7a6849; font-size:15px; line-height:1;
+    opacity:0; pointer-events:none; transition:opacity .28s;
+    box-shadow:0 3px 10px rgba(90,70,40,.16);
+  }
+  .l-more.on{ opacity:1; pointer-events:auto; animation:mBob 2.6s ease-in-out infinite; }
+  .l-more:hover{ color:#3a2f21; border-color:rgba(120,96,58,.55); }
+  @keyframes mBob{ 0%,100%{ transform:translateX(-50%) translateY(0) }
+                   50%{ transform:translateX(-50%) translateY(3px) } }
+
   .l-x{
     position:absolute; top:-2px; right:-2px; z-index:3; width:32px; height:32px;
     background:none; border:0; cursor:pointer; font-family:inherit;
@@ -307,6 +331,7 @@
 <div class="letter-bg" id="readModal">
   <div class="letter-wrap">
     <button class="l-x" onclick="closeRead()" aria-label="닫기">×</button>
+    <button class="l-more" id="r-more" onclick="scrollLetter()" aria-label="더 읽기">▾</button>
     <div class="letter">
       <div class="paper"></div>
       <div id="r-frank"></div>
@@ -319,7 +344,7 @@
       </div>
       <div class="l-fill"></div>
       <div class="l-foot">
-        <span class="l-note" id="r-note"></span>
+        <span class="l-note"><span id="r-bundle"></span><span id="r-note"></span></span>
         <div class="l-acts" id="r-acts"></div>
       </div>
     </div>
@@ -447,6 +472,7 @@ let inBundle = false;
 /* ⚠ let은 끌어올려지지 않는다 — 쓰는 곳(load)보다 반드시 앞에 세운다.
    뒤에 두면 첫 load에서 그 자리가 통째로 터진다. */
 let BUNDLE_PENDING = false;
+let BUNDLE_TOTAL = 0;   /* 다발이 처음 몇 장이었나 — 「2 / 3」의 오른쪽 */
 async function loadStock(){
   if(POSTAGE && POSTMARK) return;
   try{
@@ -495,6 +521,7 @@ async function load(){
   if(BUNDLE_PENDING){
     BUNDLE_PENDING = false;
     BUNDLE = rows.filter(r => !r.read_at).map(r => r.id).reverse();   /* 먼저 온 것이 앞 */
+    BUNDLE_TOTAL = BUNDLE.length;
     nextInBundle();
   }
 }
@@ -605,10 +632,20 @@ async function openRead(i){
       mine ? (open.read_at ? '읽음' : '아직 안 읽었습니다') : '' ].filter(Boolean).join(' · ');
   document.getElementById('r-stamped').textContent = stampedAt(open.sent_at);
 
+  document.getElementById('r-bundle').textContent = '';
+  document.getElementById('r-bundle').className = '';
+  if(inBundle){
+    const left = BUNDLE.length;              /* 아직 안 넘긴 장수 */
+    const nth  = BUNDLE_TOTAL - left;        /* 지금 몇 장째인가 */
+    document.getElementById('r-bundle').className = 'l-bundle';
+    document.getElementById('r-bundle').textContent = `${nth} / ${BUNDLE_TOTAL}`;
+  }
   document.getElementById('r-acts').innerHTML = actsHtml();
   document.getElementById('readModal').classList.add('show');
   document.body.classList.add('reading');
   document.querySelector('#readModal .letter-wrap').scrollTop = 0;
+  /* ⚠ 우표 그림이 늦게 뜨면 높이가 달라진다 — 곧바로 한 번, 잠시 뒤 한 번 더 잰다 */
+  tickMore(); setTimeout(tickMore, 120); setTimeout(tickMore, 600);
   /* ⭐⭐ 0813 소로 — 「편지만 단독으로 지구 위에」
      편지는 우편함 액자 **안**에서 뜬다. 그래서 아무리 막을 손봐도 뒤에 목록이 어른거리고
      액자의 막대도 안 걷힌다. 답은 막이 아니라 **액자를 접는 것**이다.
@@ -631,9 +668,13 @@ async function openRead(i){
 /* ⭐ 아래 구석의 작은 활자. 삭제는 읽는 화면에 두지 않는다 —
    읽자마자 버리는 일이 없도록, 버리기는 보관함과 보낸 함에만 있다(0813 소로). */
 function actsHtml(){
-  const out = inBundle ? `<button class="l-act" onclick="leaveBundle()">우편함으로</button>` : '';
+  /* ⚠ 다발을 넘기는 문이 없으면 「×」로 닫아야만 다음 장이 온다 — 아무도 모른다.
+     ⭐ 마지막 장에서는 「우편함으로」가 되어, 넘길 것이 없음을 말이 대신한다. */
+  const out  = inBundle ? `<button class="l-act" onclick="leaveBundle()">우편함으로</button>` : '';
+  const next = inBundle && BUNDLE.length
+             ? `<button class="l-act next" onclick="closeRead()">다음 편지 ›</button>` : '';
   if(tab === 'in')  return `${out}<button class="l-act" onclick="replyMsg()">답장</button>
-                            <button class="l-act" onclick="archiveMsg(true)">보관하기</button>`;
+                            <button class="l-act" onclick="archiveMsg(true)">보관하기</button>${next}`;
   if(tab === 'arc') return `<button class="l-act" onclick="replyMsg()">답장</button>
                             <button class="l-act" onclick="archiveMsg(false)">우편함으로</button>
                             <button class="l-act warn" onclick="removeMsg()">버리기</button>`;
@@ -647,6 +688,27 @@ function closeRead(){
   /* 다발을 넘기는 중이면 다음 장. 다 넘겼으면 우편함이 남는다. */
   if(inBundle) setTimeout(()=>{ if(!nextInBundle()) toast('우편함입니다'); }, 240);
 }
+/* ── 더 읽기 화살표 ──
+   ⚠ 막대를 걷었으니 「아래가 더 있다」를 알릴 표가 필요하다(0813 소로).
+     실제로 남았을 때만 뜬다 — 짧은 편지에도 뜨면 거짓말이 된다. */
+function tickMore(){
+  const w = document.querySelector('#readModal .letter-wrap');
+  const m = document.getElementById('r-more');
+  if(!w || !m) return;
+  const left = w.scrollHeight - w.scrollTop - w.clientHeight;
+  m.classList.toggle('on', left > 24);
+}
+function scrollLetter(){
+  const w = document.querySelector('#readModal .letter-wrap');
+  if(w) w.scrollBy({ top: Math.round(w.clientHeight * 0.82), behavior:'smooth' });
+}
+/* 편지를 펼칠 때·굴릴 때·창이 바뀔 때 다시 잰다 */
+(function(){
+  const w = document.querySelector('#readModal .letter-wrap');
+  if(w) w.addEventListener('scroll', tickMore, { passive:true });
+  window.addEventListener('resize', tickMore);
+})();
+
 /* 다발을 내려놓고 목록으로 — 갇히지 않게 두는 문 */
 function leaveBundle(){ BUNDLE = []; inBundle = false;
   document.body.classList.remove('bundling'); closeRead(); }
@@ -837,7 +899,7 @@ function nextInBundle(){
 }
 
 BUNDLE_PENDING = cameFromEnvelope();
-console.log('%c[EG] messages 0813i — 편지 펼치면 우편함이 접힌다 · 막대 셋 다 걷음', 'color:#c9a84c');
+console.log('%c[EG] messages 0813j — 다발 넘기는 문 · 남은 장수 · 더 읽기 화살표', 'color:#c9a84c');
 load();
 </script>
 </body>
