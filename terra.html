@@ -1441,6 +1441,42 @@ window.EGQ = (function(){
     font-size:17px; cursor:pointer; border:1px solid var(--line); }
   #credClose:hover{ color:var(--gold); border-color:var(--gold); }
   /* ── 0813 — 우편함 카드. 지구는 잠들고 그 위에 종이 한 장이 뜬다. ── */
+  /* ══ 0813 — 도착한 봉투. 로더가 걷히는 그 틈에 한 번만 난다.
+       중앙에서 나타나 한 바퀴 돌고, 타륜 쪽으로 날아가며 작아진다.
+       ⚠ 새 쪽지가 없으면 아무 일도 안 일어난다 — 빈 우편함을 알리지 않는다.
+       ⚠ 손놀림을 막지 않는다(pointer-events:none). 지나가는 것이지 붙드는 것이 아니다.
+       ⚠ --fx·--fy는 타륜의 실제 자리를 재서 스크립트가 채운다. 픽셀로 못 박으면
+         화면 폭이 바뀔 때 봉투가 엉뚱한 데로 날아간다. ══ */
+  #mailFly{
+    position:fixed; left:50%; top:50%; z-index:46; pointer-events:none;
+    width:96px; height:66px; margin:-33px 0 0 -48px;
+    opacity:0; will-change:transform,opacity;
+  }
+  #mailFly.on{ animation:mailFly 2.15s cubic-bezier(.34,.02,.24,1) forwards; }
+  #mailFly svg{ width:100%; height:100%; display:block;
+    filter:drop-shadow(0 10px 24px rgba(0,0,0,.5)); }
+  @keyframes mailFly{
+    /* ① 나타나며 한 바퀴 — 봉투가 몸을 뒤집어 앞면을 보인다 */
+     0%{ opacity:0; transform:scale(.55) rotateY(-180deg) rotate(-14deg); }
+    14%{ opacity:1; transform:scale(1.06) rotateY(0deg) rotate(0deg); }
+    22%{ transform:scale(1) rotateY(0deg) rotate(0deg); }
+    /* ② 잠깐 머문다 — 손님 눈이 여기 닿을 시간 */
+    52%{ opacity:1; transform:scale(1) rotate(0deg) translate(0,0); }
+    /* ③ 살짝 들렸다가 타륜으로 */
+    60%{ transform:scale(1.05) rotate(-4deg) translate(0,-10px); }
+   100%{ opacity:0;
+          transform:scale(.16) rotate(9deg) translate(var(--fx,300px), var(--fy,-340px)); }
+  }
+  /* 타륜에 닿는 순간 — 우편함 줄이 한 번 숨을 쉰다 */
+  @keyframes mailLand{
+    0%{ transform:scale(1); }
+   40%{ transform:scale(1.9); }
+  100%{ transform:scale(1); }
+  }
+  .mail-seal.land{ animation:mailLand .5s ease; }
+  @media (prefers-reduced-motion: reduce){
+    #mailFly.on{ animation-duration:.9s; }
+  }
   #mailCard{ position:fixed; inset:0; z-index:45; display:none;
     background:rgba(3,5,11,.62); backdrop-filter:blur(4px); }
   #mailCard.in{ display:block; }
@@ -1641,6 +1677,26 @@ window.EGQ = (function(){
 <!-- ═══ 0813 — 우편함 카드(EG TABELLAE). 크레덴시알과 같은 문법이되 상자를 그린다.
      수첩은 그 자체가 물건이라 투명한 게 옳았지만, 쪽지함은 목록과 글이라
      읽을 바닥이 있어야 한다. ═══ -->
+<!-- ═══ 0813 — 도착한 봉투. 로더가 걷히는 틈에 한 번 날아 타륜에 안착한다.
+     밀랍 봉랍이 찍힌 붉은 봉투 — EG TABELLAE의 얼굴. ═══ -->
+<div id="mailFly" aria-hidden="true">
+  <svg viewBox="0 0 96 66" xmlns="http://www.w3.org/2000/svg">
+    <!-- 몸통 -->
+    <rect x="1.5" y="1.5" width="93" height="63" rx="4"
+          fill="#9c3b34" stroke="#f0dfae" stroke-width="1.6"/>
+    <!-- 아래로 접힌 두 날개 -->
+    <path d="M1.5 62.5 L38 33 L58 33 L94.5 62.5 Z" fill="#8a322c" opacity=".65"/>
+    <!-- 위에서 덮인 봉함 -->
+    <path d="M1.5 5 L48 36 L94.5 5" fill="none" stroke="#f0dfae"
+          stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M1.5 3.5 L48 34.5 L94.5 3.5 L94.5 6 L48 37 L1.5 6 Z" fill="#b04a41"/>
+    <!-- 봉랍 -->
+    <circle cx="48" cy="37.5" r="10.5" fill="#7d2a25" stroke="#f0dfae" stroke-width="1.2"/>
+    <path d="M48 31.5 l1.7 3.9 4.2.4-3.2 2.8 1 4.1-3.7-2.2-3.7 2.2 1-4.1-3.2-2.8 4.2-.4z"
+          fill="#f0dfae" opacity=".92"/>
+  </svg>
+</div>
+
 <div id="mailCard">
   <div id="mailCardBox">
     <button id="mailClose" aria-label="닫기">×</button>
@@ -1739,7 +1795,7 @@ window.EGQ = (function(){
 <div style="position:fixed;left:8px;bottom:6px;z-index:70;font-size:9px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.5px;pointer-events:none">maison 0628e</div>
 
 <script>
-console.log('[EG] terra v0813b — EGQ 단일 진실 · EG TABELLAE 우편함');
+console.log('[EG] terra v0813c — EGQ 단일 진실 · EG TABELLAE 우편함 · 도착한 봉투');
 // ── 분더카머로 떠나는 비행: 제트음 (자동재생 막히면 조용히 폴백) ──
 (function(){
   // 빠른 길(enter=1)은 지도 로딩 시간 벌이가 불필요 → 비행기·제트음 생략
@@ -1825,6 +1881,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
       console.error("[EG] 로더 안전장치 발동 — init이 끝까지 가지 못했습니다. 위쪽 빨간 오류를 확인하세요.");
       _ld.classList.add("gone");
       if (window.__fadeJet) window.__fadeJet();
+      setTimeout(function(){ try{ if(window.flyMailEnvelope) window.flyMailEnvelope(); }catch(e){} }, 700);
     }
   }, 14000);
 
@@ -1901,6 +1958,9 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
       var ld = document.getElementById("loader");
       if(ld) ld.classList.add("gone");
       if(window.__fadeJet) window.__fadeJet();
+      /* 0813 — 하늘이 걷힌 자리에 봉투 하나. 로더 페이드(약 .6초)가 끝난 뒤에 띄운다.
+         걷히는 중에 띄우면 흰 막 뒤에서 반쯤 돌다 만다. */
+      setTimeout(function(){ try{ if(window.flyMailEnvelope) window.flyMailEnvelope(); }catch(e){} }, 700);
     };
     /* 지구도 섰고 최소 체류도 지났을 때만 연다 — 둘 중 늦은 쪽을 따른다 */
     var openIfReady = function(){
@@ -4171,6 +4231,54 @@ async function tickMailSeal(){
 window.addEventListener("message", (e)=>{
   if (e && e.data && e.data.eg === "mail-read") tickMailSeal();
 });
+
+/* ── 0813 — 도착한 봉투. 로더가 걷히는 그 틈에 **한 번만** 난다.
+   ⚠ 새 쪽지가 없으면 아무 일도 안 일어난다. 빈 우편함을 알리지 않는다(9.3 푸시 폭격 없음).
+   ⚠ 한 판(세션)에 한 번뿐이다. 액자를 오갈 때마다 날면 그건 알림이 된다.
+   ⭐ 목적지를 픽셀로 못 박지 않는다 — 타륜의 실제 자리를 재서 채운다.
+      폰과 노트북에서 타륜 크기가 다르고(64 vs 74), 화면 폭도 제각각이다. */
+let mailFlewThisSession = false;
+async function flyMailEnvelope(){
+  if (mailFlewThisSession) return;
+  const fly = document.getElementById("mailFly");
+  const helm = document.getElementById("helmBtn");
+  if (!fly || !helm) return;
+  try{
+    const { data:{ session } } = await supa.auth.getSession();
+    if (!session) return;                        /* 로그인 전에는 묻지도 않는다 */
+    const { data, error } = await supa.rpc("eg_has_unread");
+    if (error || data !== true) return;          /* 안 읽은 것이 없으면 조용하다 */
+  }catch(e){ return; }
+
+  mailFlewThisSession = true;
+
+  /* 타륜 한가운데까지의 거리 — 화면 한가운데를 기준으로 잰다 */
+  const r = helm.getBoundingClientRect();
+  const fx = Math.round(r.left + r.width/2  - window.innerWidth/2);
+  const fy = Math.round(r.top  + r.height/2 - window.innerHeight/2);
+  fly.style.setProperty("--fx", fx + "px");
+  fly.style.setProperty("--fy", fy + "px");
+
+  fly.classList.remove("on");
+  void fly.offsetWidth;                          /* 애니메이션 되감기 */
+  fly.classList.add("on");
+
+  /* 봉투가 닿는 순간 우편함 줄의 봉랍이 한 번 숨을 쉰다 */
+  setTimeout(()=>{
+    const seal = document.getElementById("mailSeal");
+    if (seal && seal.classList.contains("on")){
+      seal.classList.add("land");
+      setTimeout(()=> seal.classList.remove("land"), 520);
+    }
+  }, 2050);
+  setTimeout(()=> fly.classList.remove("on"), 2300);
+}
+/* ⚠ 0813 — 부르는 곳(로더 블록)과 이 정의가 **다른 script 블록**에 산다.
+   담을 넘지 못하므로 window에 열어 둔다 — logPush·openPinStory와 같은 문법.
+   ⭐ 검사기가 이걸 못 잡는다. 「미정의 호출」이 아니라 「다른 담 안의 정의」라
+     문법상 아무 문제가 없고, 화면에서는 조용히 아무 일도 안 일어난다. */
+window.flyMailEnvelope = flyMailEnvelope;
+window.tickMailSeal    = tickMailSeal;
 
 /* 도장 깃발 — stamp_press가 찍는 순간 localStorage('eg_stamp_flag')에 자국을 남긴다.
    30분 안이면 타륜 좌상단에 그 도장의 자국이 선다. 수첩을 펼치면 즉시 내려가고,
