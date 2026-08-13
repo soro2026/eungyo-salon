@@ -2869,7 +2869,7 @@ function esc(s){
 /* ══ SALLE — LAB 방 안 (책=방 · SALLE 01~07) · 0801 방 안 걷기 + SALLE 02 진도표 ══
  *  그림: labs/room_{lab}_v{n}_d.webp — n = SALLE 번호 (941×1672)
  *  좌표: Storage layout/lab_{lab}.json 한 파일에 전 SALLE 키 (살롱지기 🧭 편집) */
-console.info('[EG] college v0.26 · 0802 살06-07 페이지 넘김 · 내 이름 착지');
+console.info('[EG] college v0.27 · 0813 완독 도장 배관 · 소급 되찾기');
 const ROOM_DEF={
   poster:{x:26.99,y:33.43,w:41.76},          /* SALLE 01 */
   status:{x:30,y:69.5,w:40},                 /* SALLE 01 */
@@ -3392,6 +3392,8 @@ function walkSalle(dir){
   cv.classList.add(dir>0?'exit-l':'exit-r');
   setTimeout(()=>{
     salleIdx=to; paintSalle();
+    /* SALLE 03 도착 — 판이 서기 전에 완독한 회차가 있으면 도장을 되찾아 준다(0813) */
+    if(SALLES[to] && SALLES[to].no===3) setTimeout(()=>{ offerColBacklog(); }, 700);
     cv.classList.remove('exit-l','exit-r');
     cv.classList.add(dir>0?'enter-r':'enter-l');
     requestAnimationFrame(()=>requestAnimationFrame(()=>{
@@ -3585,6 +3587,51 @@ async function closeTrace(saved){
   document.getElementById('trace-modal').classList.remove('show');
   if(SALLES[salleIdx] && SALLES[salleIdx].no===3) paintSalle();
 }
+/* ══ EG Credencial 완독 도장 (0813 · 결정문 9-2 「회차 완독」)
+   판은 (ref_type college · ref_id 책id · variant 회차)로 찾는다 — 별 A와 같은 문법.
+   책 이름을 코드에 안 박으므로 다음 책이 와도 이 코드는 0줄이다.
+   ⚠ 도장은 completed_at이 서는 순간에만 온다. 「나중에 이어서」(초안)는 안 부른다.
+   ⚠ 놓는 때는 모달이 걷힌 뒤 0.32초 — 제출 순간에 놓으면 도크는 뜨는데
+      손님 눈이 모달 가운데에 있어 못 본다(0808 별 B의 병). ══ */
+async function colKindCode(bookId, n){
+  try{
+    const { data } = await supa.from('stamp_kinds').select('code')
+      .eq('area','collegium').eq('ref_type','college')
+      .eq('ref_id', String(bookId)).eq('variant', String(n).padStart(2,'0'))
+      .eq('active', true).maybeSingle();
+    return data ? data.code : null;
+  }catch(e){ return null; }
+}
+/* 각인 — 회차 한 줄 · 제목 한 줄(14자에서 접고 말줄임). 날짜는 부품이 얹는다.
+   제목이 있어야 나중에 수첩을 넘기며 그날을 떠올릴 근거가 된다(0813 소로). */
+function colInscription(n, title){
+  let t=(title||'').trim();
+  if(t.length>14) t=t.slice(0,13)+'…';
+  return `${String(n).padStart(2,'0')}회차` + (t?`\n${t}`:'');
+}
+async function offerColSession(n){
+  if(!window.EGStamp || !currentUser || !roomLab || !myRoomEnr) return;
+  const code = await colKindCode(roomLab.book.id, n);
+  if(!code) return;                            /* 안 구운 판은 그냥 없다(30호) */
+  const c=repCohort(roomLab), plan=sessionPlanOf(c,roomLab.book)||[];
+  const sn=plan.find(x=>x.n===n)||{};
+  await EGStamp.offer({ supa, area:'collegium', kind: code,
+    subject: `${myRoomEnr.cohort_id}:${n}`,
+    inscription: colInscription(n, sn.t) });
+}
+/* 소급 — 판이 서기 전에 완독한 회차의 도장을 되찾는 길.
+   DB에 몰래 꽂지 않는다(3호 · 도장은 손님이 누른다). 이른 회차부터 한 장씩,
+   도크는 하나이므로 놓이면 오늘은 거기까지. 다시 들르면 다음 장이 온다. */
+async function offerColBacklog(){
+  if(!window.EGStamp || !currentUser || !myRoomEnr) return;
+  const done=myRoomTraces.filter(t=>t.completed_at)
+    .map(t=>t.session_no).sort((a,b)=>a-b);
+  for(const n of done){
+    await offerColSession(n);
+    const dock=document.getElementById('egStampDock');
+    if(dock && dock.classList.contains('on')) return;
+  }
+}
 async function completeTrace(){
   if(!traceOpen || busy) return;
   const lv=(document.querySelector('#tm-lv input:checked')||{}).value;
@@ -3600,7 +3647,9 @@ async function completeTrace(){
   if(error){ toast('저장에 실패했습니다'); return; }
   Object.assign(traceOpen,patch);
   toast(`✅ ${String(traceOpen.session_no).padStart(2,'0')}회차 완독 — 초록불이 켜졌습니다`);
+  const stampFor=traceOpen.session_no;         /* closeTrace가 traceOpen을 비우기 전에 든다 */
   closeTrace(true);
+  setTimeout(()=>{ offerColSession(stampFor); }, 320);
 }
 
 /* 입장 예법 — 창을 올려다보고, 스르륵 내려와 그 SALLE의 주인공 앞에 선다 */
