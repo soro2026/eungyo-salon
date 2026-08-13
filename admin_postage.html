@@ -222,7 +222,7 @@ const sb = createClient(SUPA_URL, SUPA_KEY, {
   auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
 });
 
-console.log('%c[EG] admin_postage v1.4 · 0813 소인 갈피 · 투명 격자 · 바깥 흰 곳 도려내기', 'color:#c9a84c');
+console.log('%c[EG] admin_postage v1.5 · 0813 소인은 잉크 굽기(크레덴시알 승계) · 우표는 색 굽기', 'color:#c9a84c');
 
 const SHAPES = [['tall','세로로 긴'],['portrait','세로'],['square','정사각'],
                 ['landscape','가로로 긴'],['triangle','삼각']];
@@ -472,6 +472,52 @@ async function bakeColor(file){
            ratio:+(out.width/out.height).toFixed(2), cornerLum:Math.round(cornerLum), cutPct };
 }
 
+/* ── 소인 굽기 — 크레덴시알 도장 공방의 bake()를 그대로 승계한다 (0813 소로) ──
+   ⭐ 흰 곳을 「도려내는」 것이 아니라 **밝기를 그대로 알파로 바꾼다.**
+      그러면 원 바깥이든 안쪽이든 흰 곳이 저절로 비치고 선과 면만 남는다.
+      물 붓기(bakeColor)보다 깔끔하다 — 안쪽 흰 곳까지 한 번에 걷힌다.
+   ⚠ 색을 버리므로 **우표에는 쓸 수 없다.** 우표는 색이 살아야 하는 그림이다.
+   ⚠ 이미 알파가 있는 PNG는 투명한 곳의 RGB가 0(검정)이라 밝기만 보면 판이 새까매진다.
+      원본 알파(a0)를 곱해 막는다. 흰 배경 원본은 전 픽셀 a0=1이라 아무 영향이 없다. */
+async function bakeInk(file){
+  const bmp = await createImageBitmap(file);
+  const c = document.createElement('canvas');
+  c.width = bmp.width; c.height = bmp.height;
+  const ctx = c.getContext('2d', { willReadFrequently:true });
+  ctx.drawImage(bmp, 0, 0);
+  const img = ctx.getImageData(0,0,c.width,c.height), d = img.data;
+  let x0=c.width, y0=c.height, x1=-1, y1=-1, clear=0, sum=0, n=0;
+  for(let y=0; y<c.height; y++){
+    for(let x=0; x<c.width; x++){
+      const i = (y*c.width + x) * 4;
+      const a0 = d[i+3] / 255;
+      if(a0 < 1) clear++;
+      const v = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+      let a = (238 - v) / 165; a = a<0 ? 0 : a>1 ? 1 : a;
+      d[i]=d[i+1]=d[i+2]=0;
+      d[i+3] = Math.round(a * a0 * 255);
+      sum += a; n++;
+      if(d[i+3] > 6){
+        if(x<x0) x0=x; if(x>x1) x1=x;
+        if(y<y0) y0=y; if(y>y1) y1=y;
+      }
+    }
+  }
+  if(x1 < 0) throw new Error('잉크가 한 점도 없습니다. 흰 배경에 검정으로 구운 그림이 맞는지 봐 주세요.');
+  ctx.putImageData(img, 0, 0);
+  const w=x1-x0+1, h=y1-y0+1, sc=Math.min(1, 620/Math.max(w,h));
+  const out = document.createElement('canvas');
+  out.width = Math.round(w*sc); out.height = Math.round(h*sc);
+  const o = out.getContext('2d'); o.imageSmoothingQuality = 'high';
+  o.drawImage(c, x0, y0, w, h, 0, 0, out.width, out.height);
+  let blob = await new Promise(r => out.toBlob(r, 'image/webp', 0.94));
+  if(!blob) blob = await new Promise(r => out.toBlob(r, 'image/png'));
+  const ext = blob.type === 'image/webp' ? 'webp' : 'png';
+  return { blob, ext, url:URL.createObjectURL(blob), w:out.width, h:out.height,
+           ratio:+(out.width/out.height).toFixed(2), ink:+(sum/n).toFixed(3),
+           already: clear > bmp.width*bmp.height*0.05 };
+}
+
 const drop = $('#drop'), file = $('#file');
 drop.addEventListener('click', () => file.click());
 ['dragenter','dragover'].forEach(t => drop.addEventListener(t, e => {
@@ -483,11 +529,20 @@ file.addEventListener('change', () => { if(file.files[0]) take(file.files[0]); }
 
 async function take(f){
   try{
-    const r = await bakeColor(f);
+    /* ⭐ 갈피가 굽는 법을 정한다. 우표는 색을 살리고, 소인은 잉크만 남긴다. */
+    const r = (MODE === 'pm') ? await bakeInk(f) : await bakeColor(f);
     pending = r;
     $('#f-ratio').value = r.ratio;
     paintPreview(r.url, r.ratio);
     if(MODE === 'pm') setStage('alpha');
+    if(MODE === 'pm'){
+      $('#meta').innerHTML =
+        `<b>${r.w}×${r.h}</b> · ${r.ext.toUpperCase()} · 잉크 <b>${r.ink}</b><br>
+         밝은 곳을 전부 투명으로 구웠습니다 — <b class="good">선과 면만 남았습니다</b>
+         ${r.already ? '<br><span class="warn">⚠ 이미 투명이 있던 그림입니다. 원본 알파를 곱해 막았습니다.</span>' : ''}
+         <br><span style="color:var(--dim)">저장을 눌러야 올라갑니다.</span>`;
+      return;
+    }
     const bad = r.cornerLum < 249;
     $('#meta').innerHTML =
       `<b>${r.w}×${r.h}</b> · 가로÷세로 <b>${r.ratio}</b> · ${r.ext.toUpperCase()}<br>
