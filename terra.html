@@ -1841,7 +1841,7 @@ window.EGQ = (function(){
 <div style="position:fixed;left:8px;bottom:6px;z-index:70;font-size:9px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.5px;pointer-events:none">maison 0628e</div>
 
 <script>
-console.log('[EG] terra v0813f — EG TABELLAE · 봉투 서서 기다리기 · 우표 공방 문');
+console.log('[EG] terra v0813g — EG TABELLAE · 도착음 자동재생 우회 · 우표 공방 문');
 // ── 분더카머로 떠나는 비행: 제트음 (자동재생 막히면 조용히 폴백) ──
 (function(){
   // 빠른 길(enter=1)은 지도 로딩 시간 벌이가 불필요 → 비행기·제트음 생략
@@ -4308,9 +4308,23 @@ async function flyMailEnvelope(){
      ⚠ 파일이 없거나 브라우저가 자동재생을 막으면 조용히 지나간다 —
        소리는 덤이지 조건이 아니다. 봉투는 소리와 무관하게 돈다.
      ⚠ 볼륨을 낮게 둔다. 지구가 열리는 순간에 크게 울리면 놀란다. */
+  /* ⚠⚠ 0813 — 브라우저는 사람이 한 번도 안 누른 페이지에서 소리를 막는다.
+     지구에 들어오자마자 봉투가 뜨므로 대개 여기서 막힌다(제트음이 겪던 그 병).
+     제트음의 처방(1856행)을 승계하되 **한 가지를 다르게** 한다 —
+     제트음은 배경음이라 뒤늦게 울려도 무해하지만, 봉투 소리는 봉투가 도는
+     그 순간에만 뜻이 있다. 봉투가 이미 서 버린 뒤에 울리면 어긋난다.
+     그래서 되받는 창을 **봉투가 도는 1.5초 안으로만** 열어 둔다. */
   try{
     const snd = document.getElementById("mailSound");
-    if (snd){ snd.volume = 0.5; snd.currentTime = 0; snd.play().catch(()=>{}); }
+    if (snd){
+      snd.volume = 0.5; snd.currentTime = 0;
+      const tryPlay = ()=>{ try{ return snd.play(); }catch(e){ return Promise.reject(e); } };
+      const once = ()=>{ tryPlay().catch(()=>{}); };
+      tryPlay().catch(()=>{
+        window.addEventListener("pointerdown", once, { once:true });
+        setTimeout(()=> window.removeEventListener("pointerdown", once), 1500);
+      });
+    }
   }catch(e){}
   /* 다 돌고 선 뒤부터는 얕게 숨만 쉰다 */
   setTimeout(()=>{ if (fly.classList.contains("on")) fly.classList.add("rest"); }, 1520);

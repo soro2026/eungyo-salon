@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>쪽지함 — 은교살롱</title>
+<title>우편함 — 은교살롱</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Noto+Serif+KR:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-  /* ══ EG 쪽지함 (0813)
+  /* ══ EG 우편함 (0813)
      한 파일이 두 곳에서 산다 — 교양 자화상 안 액자 · 지구(타륜 봉투) 팝업 카드.
      ⚠ 배경을 투명하게 둔다. 액자로 끼울 때 바깥 옷이 비쳐야 한 몸으로 보인다. ══ */
   *{ box-sizing:border-box; margin:0; padding:0; }
@@ -292,7 +292,7 @@
 <div class="modal-bg" id="writeModal">
   <div class="modal">
     <button class="modal-x" onclick="closeCompose()" aria-label="닫기">×</button>
-    <div class="m-eyebrow" id="w-eyebrow">쪽지 쓰기</div>
+    <div class="m-eyebrow" id="w-eyebrow">편지 쓰기</div>
     <div class="f-row">
       <div class="f-label">받는 이</div>
       <select id="w-to"><option value="">불러오는 중…</option></select>
@@ -318,6 +318,11 @@
     </div>
   </div>
 </div>
+
+<!-- 부치는 소리. ⚠ 파일이 없어도 조용히 넘어간다 — 소리는 덤이지 조건이 아니다.
+     ⭐ 도착음과 달리 되받는 배관이 필요 없다. 손님이 「보내기」를 직접 누른 뒤라
+        브라우저가 이미 소리를 허락한 상태다(자동재생 정책은 사용자 동작을 본다). -->
+<audio id="sentSound" src="mail_sent.mp3" preload="none"></audio>
 
 <div id="toast"></div>
 
@@ -614,6 +619,15 @@ function setPo(c){ poPick = c; paintPoPick(); }
 /* 소인은 손님이 안 고른다 — 우체국이 찍는 것이다 */
 const randOf = a => (a && a.length) ? a[Math.floor(Math.random()*a.length)] : null;
 
+/* 부치는 소리 — 편지가 실제로 들어간 뒤에만 운다.
+   ⚠ 고쳐 쓰기에는 안 울린다. 그건 부치는 것이 아니라 고치는 것이다. */
+function playSent(){
+  try{
+    const s = document.getElementById('sentSound');
+    if(s){ s.volume = 0.45; s.currentTime = 0; s.play().catch(()=>{}); }
+  }catch(e){}
+}
+
 /* 고쳐 쓰기 — 쓰기 모달을 그대로 쓰되 「고치는 중」으로 세운다 */
 let editing = null;
 function editMsg(){
@@ -651,9 +665,9 @@ async function openCompose(toId, toName, subj){
     catch(e){ people = []; console.warn(e); }
   }
   if(!people.length){
-    sel.innerHTML = `<option value="">아직 쪽지를 보낼 수 있는 분이 없습니다</option>`;
+    sel.innerHTML = `<option value="">아직 편지를 보낼 수 있는 분이 없습니다</option>`;
     document.getElementById('w-tonote').textContent =
-      '같은 책을 걸었거나, 서로의 방에 다녀갔거나, 같은 별의 콩파뇽이면 쪽지를 쓸 수 있습니다.';
+      '같은 책을 걸었거나, 서로의 방에 다녀갔거나, 같은 별의 콩파뇽이면 편지를 쓸 수 있습니다.';
     return;
   }
   sel.innerHTML = `<option value="">받는 이를 고르세요</option>` +
@@ -669,7 +683,7 @@ async function sendMsg(){
   if(busy) return;
   const body = document.getElementById('w-body').value.trim();
   const subj = document.getElementById('w-subj').value.trim();
-  if(!body){ toast('쪽지를 적어 주세요'); return; }
+  if(!body){ toast('편지를 적어 주세요'); return; }
   const btn = document.getElementById('w-send');
   busy = true; btn.disabled = true;
 
@@ -678,7 +692,7 @@ async function sendMsg(){
       await sbFetch(`/rest/v1/messages?id=eq.${editing.id}`,
         { method:'PATCH', headers:{ Prefer:'return=minimal' },
           body: JSON.stringify({ body, subject: subj || null }) });
-      toast('쪽지를 고쳐 두었습니다');
+      toast('편지를 고쳐 두었습니다');
     }else{
       const to = document.getElementById('w-to').value;
       if(!to){ toast('받는 이를 고르세요'); busy = false; btn.disabled = false; return; }
@@ -691,6 +705,7 @@ async function sendMsg(){
           body: JSON.stringify({ sender_id: getUser().id, recipient_id: to,
                                  subject: subj || null, body,
                                  postage_code: po, postmark_code: pm }) });
+      playSent();
       toast('우편함에 넣어 두었습니다');
     }
     closeCompose();
@@ -699,9 +714,9 @@ async function sendMsg(){
     /* 자격이 없으면 RLS가 막는다 — 날 오류 대신 사람 말로 답한다 */
     const m = String(e.message || '');
     toast(/row-level|policy|violates/i.test(m)
-      ? '이분께는 아직 쪽지를 보낼 수 없습니다'
-      : (/읽은 쪽지/.test(m) ? '이미 읽은 쪽지는 고칠 수 없습니다' : '보내지 못했습니다'));
-    console.warn('[쪽지]', e);
+      ? '이분께는 아직 편지를 보낼 수 없습니다'
+      : (/읽은 쪽지/.test(m) ? '이미 읽은 편지는 고칠 수 없습니다' : '보내지 못했습니다'));
+    console.warn('[편지]', e);
   }
   busy = false; btn.disabled = false;
 }
@@ -714,10 +729,10 @@ document.getElementById('writeModal').addEventListener('click', e => {
   if(e.target.id === 'writeModal') closeCompose();
 });
 
-/* 바깥(자화상·지구)에서 「쪽지 쓰기」를 곧장 열 수 있게 열어 둔다 */
+/* 바깥(자화상·지구)에서 「편지 쓰기」를 곧장 열 수 있게 열어 둔다 */
 window.egMail = { reload: load, compose: openCompose };
 
-console.log('%c[EG] messages 0813c — 편지지 · 우표 · 소인 · 보관함 · 세 갈래 함', 'color:#c9a84c');
+console.log('%c[EG] messages 0813d — 편지지 · 우표 · 소인 · 보관함 · 부치는 소리', 'color:#c9a84c');
 load();
 </script>
 </body>
