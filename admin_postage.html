@@ -84,9 +84,22 @@ button.b.danger{ color:var(--bad); }
 button.b:disabled{ opacity:.42; cursor:default; }
 
 /* ── 미리보기 — 진짜 편지지 위에 얹는다 ── */
-.stage{ background:var(--paper); border-radius:4px; padding:26px; display:flex;
-  align-items:center; justify-content:center; min-height:190px;
-  box-shadow:inset 0 0 34px rgba(140,110,66,.18); }
+.stage{ border-radius:4px; padding:26px; display:flex;
+  align-items:center; justify-content:center; min-height:190px; position:relative; }
+/* 편지지 위 — 실제로 보일 그대로 */
+.stage.paper{ background:var(--paper); box-shadow:inset 0 0 34px rgba(140,110,66,.18); }
+/* 투명 격자 — 도려낸 곳이 눈에 보인다. 흰 여백이 남았으면 여기서 대번에 드러난다 */
+.stage.alpha{
+  background:
+    linear-gradient(45deg, #3a352c 25%, transparent 25%, transparent 75%, #3a352c 75%),
+    linear-gradient(45deg, #3a352c 25%, transparent 25%, transparent 75%, #3a352c 75%),
+    #262219;
+  background-size:16px 16px; background-position:0 0, 8px 8px;
+}
+.stage-sw{ position:absolute; top:8px; right:10px; display:flex; gap:6px; }
+.stage-sw span{ font-size:10.5px; padding:3px 9px; border-radius:11px; cursor:pointer;
+  background:rgba(20,15,9,.75); border:1px solid var(--line); color:var(--dim); }
+.stage-sw span.on{ color:var(--gold); border-color:var(--gold2); }
 .pv{ position:relative; }
 .pv .sheet{ position:relative; display:block; background:none; }
 .pv img{ display:block; width:100%; height:100%; object-fit:contain; }
@@ -168,7 +181,9 @@ button.b:disabled{ opacity:.42; cursor:default; }
       <input type="file" id="file" accept="image/*" hidden>
     </div>
 
-    <div class="stage"><div class="pv" id="pv"><div class="empty" style="width:96px;height:120px">그림 없음</div></div></div>
+    <div class="stage paper" id="stage">
+      <div class="stage-sw"><span class="on" id="sw-p" onclick="setStage('paper')">편지지</span><span id="sw-a" onclick="setStage('alpha')">투명</span></div>
+      <div class="pv" id="pv"><div class="empty" style="width:96px;height:120px">그림 없음</div></div></div>
     <div class="meta" id="meta"></div>
 
     <div class="acts">
@@ -193,7 +208,7 @@ const sb = createClient(SUPA_URL, SUPA_KEY, {
   auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
 });
 
-console.log('%c[EG] admin_postage v1.2 · 0813 바깥 흰 곳 도려내기 · 톱니 두 겹 걷음', 'color:#c9a84c');
+console.log('%c[EG] admin_postage v1.3 · 0813 투명 격자 · 바깥 흰 곳 도려내기', 'color:#c9a84c');
 
 const SHAPES = [['tall','세로로 긴'],['portrait','세로'],['square','정사각'],
                 ['landscape','가로로 긴'],['triangle','삼각']];
@@ -307,6 +322,11 @@ $('#addBtn').addEventListener('click', () => {
       한 물건을 두 곳에서 만들면 두 겹으로 찍힌다(소로가 잡으심).
    ⚠ 긴 변을 기준으로 잰다. 높이를 고정하면 세로로 긴 우표가 홀쭉이로 보이고
       가로로 긴 우표가 거인이 된다 — 다섯 장을 나란히 못 견준다. */
+window.setStage = function(k){
+  $('#stage').className = 'stage ' + k;
+  $('#sw-p').classList.toggle('on', k==='paper');
+  $('#sw-a').classList.toggle('on', k==='alpha');
+};
 const PV_LONG = 150;
 function paintPreview(url, ratio){
   const r = ratio || 0.78;
