@@ -157,12 +157,6 @@ body.has-salon-bg .back-link {
   font-size: 9px; color: rgba(184,136,30,0.4);
   letter-spacing: 0.08em; text-align: center;
 }
-.card-grade-badge {
-  position: absolute; top: 6px; right: 6px;
-  font-size: 8px; color: rgba(184,136,30,0.6);
-  letter-spacing: 0.1em; z-index: 2;
-  font-family: 'Courier New', monospace;
-}
 .card-egbadge {
   position: absolute; bottom: 6px; left: 0; right: 0;
   text-align: center;
@@ -197,12 +191,6 @@ body.is-admin .card-wrap:hover .upload-overlay { opacity: 1; }
   color: rgba(184,136,30,0.35); font-size: 24px;
 }
 .framed-empty-add { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; }
-.framed-grade {
-  position: absolute; top: 8px; right: 8px; z-index: 3;
-  font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
-  color: #8B6010; background: rgba(255,253,247,0.85);
-  padding: 2px 7px; border-radius: 10px;
-}
 .framed-upload {
   position: absolute; inset: 0; border-radius: 8px;
   background: rgba(201,168,76,0.15);
@@ -248,14 +236,6 @@ body.is-admin .framed-wrap:hover .framed-upload { opacity: 1; }
   font-size: 14px; font-weight: 700;
   color: #1a1410; font-family: 'Courier New', monospace;
 }
-.lum-bar {
-  display: flex; gap: 2px; align-items: center; margin-top: 2px;
-}
-.lum-dot {
-  width: 14px; height: 4px; border-radius: 2px;
-  background: rgba(184,136,30,0.15);
-}
-.lum-dot.on { background: #C9A84C; }
 
 /* ── 섹션 공통 ── */
 .section {
@@ -981,7 +961,6 @@ body.has-salon-bg .floor1-header {
     <div class="star-card-row">
       <!-- 사진#2 (액자) — 비율 그대로, 없으면 빈 칸 -->
       <div class="framed-wrap" id="framed-wrap">
-        <div class="framed-grade" id="framed-grade">—등성</div>
         <img class="framed-img" id="framed-img" alt="" style="display:none;">
         <div class="framed-empty" id="framed-empty"><span>✦</span></div>
         <div class="framed-upload" id="framed-upload" onclick="triggerFramedUpload()" style="display:none;">
@@ -995,14 +974,7 @@ body.has-salon-bg .floor1-header {
         <div class="star-field" id="star-field"></div>
         <div class="star-desc" id="star-desc"></div>
         <div class="star-stats">
-          <div class="stat-item">
-            <span class="stat-label">L U M I N O S I T Y</span>
-            <div class="lum-bar" id="lum-bar"></div>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">하트</span>
-            <span class="stat-value" id="heart-count">—</span>
-          </div>
+          <!-- 0814 · 광도·하트 걷음 -->
           <div class="stat-item">
             <span class="stat-label">콩파뇽</span>
             <span class="stat-value" id="holder-count">—</span>
@@ -1224,7 +1196,7 @@ async function intrareDone(area){
    ⚠ 각인은 찍는 순간 복사(15호) — 별 이름이 바뀌어도 이 도장은 그날의 이름이다.
    ⚠ 잘못된 obs(원판 없는 코드)면 부품 findKind가 못 찾아 조용히 아무 일도 없다 —
      병이 아니라 30호. 다만 콘솔에서 그림을 걸었는지 먼저 의심할 것.              */
-console.log('[EG] star 0808b — 별 B 도장은 모달을 닫는 순간에 (0808 실측: 모달이 시선을 덮는다)');
+console.log('[EG] star 0814a — 광도·하트·등성 걷음 · 통계 줄은 콩파뇽만');
 function stampHere(obsCode){
   if(!window.EGStamp) return;
   const opt = { supa: supa, area:'observatorium', bottom: 96 };
@@ -1286,19 +1258,6 @@ async function loadStar(starId) {
 
   document.title = `${star.name} — EG콘스텔라티오`;
 
-  // 광도 바
-  const lum = Math.round(star.luminosity || 0);
-  const bar = document.getElementById('lum-bar');
-  for (let i = 1; i <= 10; i++) {
-    const dot = document.createElement('div');
-    dot.className = 'lum-dot' + (i <= lum ? ' on' : '');
-    bar.appendChild(dot);
-  }
-
-  // 하트 수
-  document.getElementById('heart-count').textContent =
-    (star.heart_count || 0).toLocaleString();
-
   // 콩파뇽 수 + Company 상태 (3층 Star & Company)
   const { count: compCount } = await supa.from('companions')
     .select('*', { count: 'exact', head: true })
@@ -1355,11 +1314,7 @@ async function loadVoyageLink(starId) {
   } catch (e) { /* 조회 실패 시 버튼 숨김 유지 */ }
 }
 
-function updateCard(star, lum) {
-  // 등성 배지
-  document.getElementById('card-grade-badge').textContent =
-    `${star.grade || '—'}등성`;
-
+function updateCard(star) {
   // 앞면 — 사진 or 빈 상태
   const frontContent = document.getElementById('card-front-content');
   if (star.photo_url) {
@@ -1374,12 +1329,7 @@ function updateCard(star, lum) {
     `;
   }
 
-  // 뒷면 — 광도 + 스톡
-  const lumDots = Array.from({length:10}, (_,i) =>
-    `<span style="display:inline-block;width:12px;height:3px;border-radius:2px;
-     background:${i < lum ? '#C9A84C' : 'rgba(184,136,30,0.15)'};margin:0 1px;"></span>`
-  ).join('');
-  document.getElementById('card-back-lum').innerHTML = lumDots;
+  // 뒷면 — 분야만
   document.getElementById('card-back-stock').innerHTML =
     `${star.field || ''}`;
 
@@ -1424,10 +1374,8 @@ function initCardInteraction() {
 function updateFramed(star) {
   const img = document.getElementById('framed-img');
   const empty = document.getElementById('framed-empty');
-  const grade = document.getElementById('framed-grade');
   const upBtn = document.getElementById('framed-upload');
   const admin = document.body.classList.contains('is-admin');
-  grade.textContent = `${star.grade || '—'}등성`;
   if (star.framed_url) {
     img.src = star.framed_url; img.alt = star.name || '';
     img.style.display = 'block';
