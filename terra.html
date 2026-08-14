@@ -2523,7 +2523,7 @@ function openPopup(p){
   const ep = document.getElementById("elevPick"); if (ep) ep.style.display = "none";
   const lp = document.getElementById("livingPick"); if (lp) lp.style.display = "none";
   const ex = document.getElementById("doorExit"); if (ex) ex.title = "도시로 나가기";   // 팝업은 도시로 나감
-  document.getElementById("doorFrame").src = "popup_shell_v0_4.html?org=" + encodeURIComponent(p.code) + "&v=" + Date.now();
+  setDoorFrame("popup_shell_v0_4.html?org=" + encodeURIComponent(p.code) + "&v=" + Date.now());
   dw.classList.add("popup","in","open");   // popup=문짝 숨김 / open=열린 상태로 iframe 노출
   doorState = 'open';
 }
@@ -2613,7 +2613,7 @@ function openPalais(p){
   const ep = document.getElementById("elevPick"); if (ep) ep.style.display = "none";
   const lp = document.getElementById("livingPick"); if (lp) lp.style.display = "none";
   const ex = document.getElementById("doorExit"); if (ex) ex.title = "도시로 나가기";
-  document.getElementById("doorFrame").src = "palais.html?org=" + encodeURIComponent(p.code) + "&v=" + Date.now();
+  setDoorFrame("palais.html?org=" + encodeURIComponent(p.code) + "&v=" + Date.now());
   dw.classList.add("popup","in","open");
   doorState = 'open';
 }
@@ -3152,6 +3152,8 @@ async function fillStoryVoice(scope, ref, title){
   }
   const df = document.getElementById("doorFrame");
   if (df) df.addEventListener("load", wireRoomMediaWatch);
+  /* ⭐ 걸음 세기 — 액자 안 화면이 바뀔 때마다 (별 → 명패 → 분더카머) */
+  if (df) df.addEventListener("load", noteDoorStep);
 
   window.addEventListener("message", e=>{
     const d = e && e.data;
@@ -3198,8 +3200,8 @@ function enterCollege(){
   const dp = document.getElementById("doorPick"); if (dp) dp.style.display = "none";
   const ep = document.getElementById("elevPick"); if (ep) ep.style.display = "none";
   const lp = document.getElementById("livingPick"); if (lp) lp.style.display = "none";
-  const ex = document.getElementById("doorExit"); if (ex) ex.title = "지구로 돌아가기";
-  document.getElementById("doorFrame").src = "college.html?terra=1&v=" + Date.now();
+  /* ⚠ ×의 글씨는 paintDoorExit 한 곳에서만 정한다 (0814) */
+  setDoorFrame("college.html?terra=1&v=" + Date.now());
   dw.classList.add("popup","in","open");   // popup=문짝 숨김 / open=iframe 노출 (openPopup 혈통)
   doorState = "open";
 }
@@ -3257,13 +3259,65 @@ function openDoor(){
   if (snd){ try{ snd.currentTime = 0; snd.play().catch(()=>{}); }catch(e){} }
   // 문 뒤에서 분더카머를 미리 로드해 두고, 문이 갈라지며 드러나게
   if (m && m.nickname){
-    document.getElementById("doorFrame").src = "wunderkammer_shell_v4_4.html?user=" + encodeURIComponent(m.nickname) + "&v=" + Date.now();
+    setDoorFrame("wunderkammer_shell_v4_4.html?user=" + encodeURIComponent(m.nickname) + "&v=" + Date.now());
   }
   document.getElementById("doorway").classList.add("open");   // CSS transition 2.2s
   setTimeout(()=>{ doorState = 'open'; }, 2300);
 }
 
 // 나가기 → 오버레이 닫고 voyage 렌더 재개
+/* ══ 0814 소로 — 「스스로 떠나기 전에는 지구로 돌아가지 않게」 ══════════════
+   ⚠ 문틀의 ×는 언제나 exitDoorway 한 가지 일만 했다. 액자를 통째로 닫는 일이다.
+     그래서 콘스텔라티오 한 겹이든, 별 → 명패 → 분더카머 세 겹이든 똑같이
+     지구로 뱉었다. 손님이 세 계단을 내려왔는데 사다리를 통째로 치우는 셈이다.
+
+   ⭐ 액자가 지나온 자리를 센다. ×는 한 걸음씩 되짚고, 맨 처음 화면일 때만
+     지구로 나간다. 액자 안 화면들은 같은 집(같은 출처)이라 주소를 읽을 수 있다.
+
+   ⚠ 발자국을 비우는 곳과 쌓는 곳이 갈리면 반드시 어긋난다. 액자에 무엇을
+     넣는 일은 **setDoorFrame 한 곳**에서만 한다 — 새로 여는 것은 늘 첫 걸음이다. */
+let doorTrail = [];        /* 액자가 지나온 주소 */
+let doorGoingBack = false; /* 되짚는 중 — 이때 온 load는 새 걸음이 아니다 */
+
+function setDoorFrame(url){
+  doorTrail = [];
+  doorGoingBack = false;
+  document.getElementById("doorFrame").src = url;
+}
+
+/* 액자 안이 스스로 옮겨 다닐 때(별 → 명패 → 분더카머) 여기로 걸음이 쌓인다 */
+function noteDoorStep(){
+  const df = document.getElementById("doorFrame");
+  let href = "";
+  try { href = df.contentWindow.location.href; } catch(e){ return; }  /* 다른 출처면 셈을 접는다 */
+  if (!href || href === "about:blank") return;
+  if (doorGoingBack){ doorGoingBack = false; return; }
+  if (doorTrail[doorTrail.length-1] === href) return;                  /* 새로고침은 걸음이 아니다 */
+  doorTrail.push(href);
+  paintDoorExit();
+}
+
+function paintDoorExit(){
+  const ex = document.getElementById("doorExit");
+  if (!ex) return;
+  const deep = doorTrail.length > 1;
+  ex.textContent = deep ? "‹" : "×";
+  ex.title = deep ? "한 걸음 뒤로" : "지구로 돌아가기";
+  ex.setAttribute("aria-label", ex.title);
+}
+
+/* ×를 누르면 — 깊이 들어와 있으면 한 걸음, 첫 화면이면 지구로 */
+function doorBackOrExit(){
+  if (doorTrail.length > 1){
+    doorTrail.pop();
+    doorGoingBack = true;
+    document.getElementById("doorFrame").src = doorTrail[doorTrail.length-1];
+    paintDoorExit();
+    return;
+  }
+  exitDoorway();
+}
+
 function exitDoorway(){
   // 빠른 길(enter=1)로 들어왔으면 지도를 안 거치고 곧장 메인 메뉴로
   if (EGQ.enter){
@@ -3272,6 +3326,7 @@ function exitDoorway(){
   const dw = document.getElementById("doorway");
   dw.classList.remove("in", "open", "popup");
   document.getElementById("doorFrame").src = "about:blank";
+  doorTrail = []; doorGoingBack = false; paintDoorExit();
   doorState = 'closed';
   viewer.useDefaultRenderLoop = true;           // 지구 렌더 재개(재진입 과금 0)
   /* 0728 — 문이 어디로 열렸든 나올 땐 타륜을 돌아본다.
@@ -3568,7 +3623,7 @@ async function enterByParams(wantUser, wantEnter){
 // 노커 대문 공통 이벤트 (도시 길·빠른 길 공유)
 function bindDoorEvents(){
   document.querySelectorAll(".door-half, #doorHint").forEach(el=> el.addEventListener("click", openDoor));
-  const ex = document.getElementById("doorExit"); if (ex) ex.addEventListener("click", exitDoorway);
+  const ex = document.getElementById("doorExit"); if (ex) ex.addEventListener("click", doorBackOrExit);
   const pk = document.getElementById("doorPick"); if (pk) pk.addEventListener("click", openDoorPicker);
   const ek = document.getElementById("elevPick"); if (ek) ek.addEventListener("click", openElevPicker);
   const lk = document.getElementById("livingPick"); if (lk) lk.addEventListener("click", openLivingPicker);
@@ -4503,8 +4558,9 @@ function enterGame(p){
   const dp = document.getElementById("doorPick"); if (dp) dp.style.display = "none";
   const ep = document.getElementById("elevPick"); if (ep) ep.style.display = "none";
   const lp = document.getElementById("livingPick"); if (lp) lp.style.display = "none";
-  const ex = document.getElementById("doorExit"); if (ex) ex.title = "지구로 돌아가기";
-  document.getElementById("doorFrame").src = url;
+  /* ⚠ 0814 — 여기서 title을 박으면 걸음 세기가 붙인 「한 걸음 뒤로」를 덮는다.
+     ×의 글씨는 paintDoorExit 한 곳에서만 정한다. */
+  setDoorFrame(url);
   document.getElementById("doorway").classList.add("popup","in","open");
   doorState = "open";
   window.doorWasGame = true;                 /* 나올 때 도크를 두 번 돌아보게 (0728) */
@@ -4615,8 +4671,9 @@ function enterRoomUrl(url, title){
   const dp = document.getElementById("doorPick"); if (dp) dp.style.display = "none";
   const ep = document.getElementById("elevPick"); if (ep) ep.style.display = "none";
   const lp = document.getElementById("livingPick"); if (lp) lp.style.display = "none";
-  const ex = document.getElementById("doorExit"); if (ex) ex.title = "지구로 돌아가기";
-  document.getElementById("doorFrame").src = url;
+  /* ⚠ 0814 — 여기서 title을 박으면 걸음 세기가 붙인 「한 걸음 뒤로」를 덮는다.
+     ×의 글씨는 paintDoorExit 한 곳에서만 정한다. */
+  setDoorFrame(url);
   document.getElementById("doorway").classList.add("popup","in","open");
   doorState = "open";
 }

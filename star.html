@@ -93,22 +93,35 @@ body::-webkit-scrollbar{display:none}
      640px 폭에서 글 자리는 418px이므로 28px이면 392px, 한 줄에 선다.  */
 .star-header{padding:38px var(--pad) 30px;display:flex;gap:26px;align-items:center;
   border-bottom:1px solid var(--rule)}
-.framed-wrap{
-  width:128px;height:128px;flex:none;position:relative;border-radius:14px;overflow:hidden;
-  border:1px solid var(--edge);background:var(--band);
-}
-.framed-img{width:100%;height:100%;object-fit:cover;display:block}
+/* ⚠⚠ 0814 소로 — 「액자를 라운드 처리해서 모든 액자가 다 뭉개진다」
+     범인이 셋이 함께 저질렀다:
+       border-radius:14px  액자의 네 귀퉁이를 깎았다
+       overflow:hidden     깎인 밖을 아예 지웠다
+       object-fit:cover    정사각에 맞추려고 액자 테두리를 잘라냈다
+     ⭐ 액자 그림은 그 자체가 액자다 — 틀을 씌우지 않는다. 그림이 제 모양대로 선다.
+     ⚠ 틀은 **빈 칸에만** 남는다. 걸 것이 없을 때는 걸 자리가 보여야 하니까. */
+.framed-wrap{width:128px;height:128px;flex:none;position:relative;display:flex;
+  align-items:center;justify-content:center}
+.framed-img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;
+  filter:drop-shadow(0 3px 8px rgba(0,0,0,.18))}
 .framed-empty{
   width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:4px;color:var(--ink-faint);font-size:20px;
+  gap:4px;color:var(--ink-faint);font-size:20px;border-radius:14px;
+  border:1px solid var(--edge);
   background-image:repeating-linear-gradient(45deg,var(--band) 0 8px,var(--hover) 8px 16px);
 }
 .framed-empty-add{font-size:11px;font-weight:700}
+/* ⚠ 액자를 덮지 않는다 — 틀이 없어졌으므로 띠도 그림 아래로 내려선다 */
 .framed-upload{
-  position:absolute;inset:auto 0 0 0;display:none;align-items:center;justify-content:center;gap:5px;
-  padding:6px 0;background:rgba(0,0,0,.42);color:#fff;font-size:11px;cursor:pointer;
+  position:absolute;left:50%;transform:translateX(-50%);bottom:-9px;
+  display:none;align-items:center;justify-content:center;gap:4px;white-space:nowrap;
+  padding:4px 10px;border-radius:999px;background:rgba(20,14,6,.82);color:#fff;
+  font-size:10.5px;cursor:pointer;
 }
-.framed-wrap:hover .framed-upload{display:flex}
+/* ⚠⚠ 0814 실물 — 여기가 hover만 열어도, JS가 인라인 display를 박으면 **인라인이 이긴다.**
+     그래서 「액자 변경」 띠가 늘 떠 초상 아래를 가리고 있었다.
+   ⭐ 권한은 body.is-admin이 이미 안다. 여닫는 일은 CSS 한 곳에서만 한다. */
+body.is-admin .framed-wrap:hover .framed-upload{display:flex}
 .framed-upload-text{font-weight:700}
 
 .star-meta{flex:1;min-width:0}
@@ -433,7 +446,7 @@ body::-webkit-scrollbar{display:none}
       <div class="framed-wrap" id="framed-wrap">
         <img class="framed-img" id="framed-img" alt="" style="display:none;">
         <div class="framed-empty" id="framed-empty"><span>✦</span></div>
-        <div class="framed-upload" id="framed-upload" onclick="triggerFramedUpload()" style="display:none;">
+        <div class="framed-upload" id="framed-upload" onclick="triggerFramedUpload()">
           <span style="font-size:14px;">📷</span>
           <span class="framed-upload-text">액자 변경</span>
         </div>
@@ -999,17 +1012,16 @@ async function loadVoyageLink(starId) {
 function updateFramed(star) {
   const img = document.getElementById('framed-img');
   const empty = document.getElementById('framed-empty');
-  const upBtn = document.getElementById('framed-upload');
   const admin = document.body.classList.contains('is-admin');
   if (star.framed_url) {
     img.src = star.framed_url; img.alt = star.name || '';
     img.style.display = 'block';
     empty.style.display = 'none';
-    upBtn.style.display = admin ? 'flex' : 'none';   // 소로면 hover 시 "액자 변경"
+    /* 여닫기는 CSS가 한다(body.is-admin + hover) — 여기서 display를 만지면 그 규칙이 죽는다 */
   } else {
     img.removeAttribute('src');
     img.style.display = 'none';
-    upBtn.style.display = 'none';
+    /* 액자가 비었을 때는 빈 칸 자체가 올리는 문이 된다 — 띠는 CSS가 닫아 둔다 */
     empty.style.display = 'flex';
     if (admin) {                                      // 소로면 빈 칸이 곧 올리기 버튼
       empty.innerHTML = '<span style="font-size:18px;">📷</span><span class="framed-empty-add">액자 올리기</span>';
