@@ -4,967 +4,437 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>EG콘스텔라티오 — 별 탐구</title>
+<!-- ⚠ 함정 BT — font-family에 쓴 이름은 여기에도 있어야 온다. Gowun Batang이 이름·제목의 얼굴이다. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet">
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --gold: #B8881E;
-  --gold-l: #C9A84C;
-  --gold-dim: rgba(184,136,30,0.3);
-  --chalk: #1a1410;
-  --ink: #f5f0e8;
-  --surface: rgba(255,255,255,0.7);
-  --border: rgba(184,136,30,0.18);
+/* ══════════════════════════════════════════════════════════════════════════
+   별 탐구 페이지 — 0814 전면 재건축 (소로 시안 · 밤하늘 위의 종이)
+
+   무엇이 바뀌었나
+     ① 배경    살롱 사진 → **콘스텔라티오 하늘.** constella와 같은 시계로 돈다
+     ② 종이    구획이 따로 떠 있던 것 → **한 몸통** 640px. 스크롤 막대 없음
+     ③ 색      아이보리 한 색 → **별마다 제 색.** 시안 원값의 색상각만 돌린다
+     ④ 0층     2단 접이(작품 → 카드 → 4겹) → **1단.** 한 줄 누르면 곧바로 4겹
+     ⑤ 3층     흑단 판 → 크림. 페이지가 한 장의 종이가 됐다
+
+   ⚠ 색을 여기에 박지 않는다. 전부 CSS 변수로 받고 applyStarPaper()가 넣는다.
+     별이 늘어도 이 파일에 손댈 곳이 없다.
+   ══════════════════════════════════════════════════════════════════════════ */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:#02040c;
+  font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;
+  line-height:1.7;
+  overflow-x:hidden;
+  /* ⭐ 스크롤 막대를 걷는다 — 하늘 위에 막대가 서면 창틀이 된다 */
+  scrollbar-width:none;-ms-overflow-style:none;
 }
-html, body {
-  min-height: 100%;
-  background: #f0ebe0;
-  color: var(--chalk);
-  font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
-  line-height: 1.7;
+body::-webkit-scrollbar{display:none}
+
+/* ── 하늘 두 겹 ─────────────────────────────────────────────────
+   #bg      어둠 바탕 (constella #sky와 같은 그라디언트)
+   #skyCanvas 은하수 + 배경별 3겹                                     */
+#bg{
+  position:fixed;inset:0;z-index:0;
+  background:radial-gradient(ellipse at 50% 42%, rgba(14,18,34,.9) 0%, rgba(2,4,12,1) 72%);
+}
+#bg::after{content:'';position:absolute;inset:0;background:rgba(2,4,12,.38)}
+#skyCanvas{position:fixed;inset:0;z-index:1;pointer-events:none}
+
+/* ── 로그인 벽 ── */
+#login-wall{
+  display:none;position:fixed;inset:0;z-index:100;
+  flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  background:rgba(2,4,12,.92);text-align:center;padding:24px;
+}
+#login-wall.show{display:flex}
+.login-wall-title{font-family:'Gowun Batang',serif;font-size:20px;font-weight:700;color:#e8dfc2}
+.login-wall-sub{font-size:13.5px;color:rgba(232,223,194,.55)}
+.login-btn{
+  margin-top:10px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;
+  padding:11px 26px;border-radius:999px;border:1px solid #c9a84c;
+  background:transparent;color:#e8dfc2;transition:.15s;
+}
+.login-btn:hover{background:rgba(201,168,76,.14)}
+
+/* ── 무대 ───────────────────────────────────────────────────────
+   ⭐ 0814 소로: 폭 640. 안쪽 여백은 폭의 5.45%(시안 비율)로 함께 따라간다.
+     폭만 줄이면 48px 여백이 상대적으로 커져 글이 답답해진다.             */
+#app{
+  position:relative;z-index:2;
+  padding:78px 20px 130px;display:flex;justify-content:center;
+  --pw:640px;
+  --pad:calc(var(--pw) * 0.0545);
+}
+.paper{
+  width:100%;max-width:var(--pw);
+  background:var(--paper);border:1px solid var(--rule);
+  border-radius:24px;overflow:hidden;
+  /* ⚠ 시안 그림자(연갈색 14%)는 밤하늘 위에서 안 보인다. 어둠이어야 종이가 뜬다. */
+  box-shadow:0 40px 90px rgba(0,0,0,.62), 0 0 0 1px rgba(255,248,231,.10),
+             0 2px 0 rgba(255,255,255,.5) inset;
 }
 
-/* ── 배경 ── */
-#bg {
-  position: fixed; inset: 0; z-index: 0;
-  background: 
-    radial-gradient(ellipse at 20% 10%, rgba(201,168,76,0.08) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 90%, rgba(201,168,76,0.06) 0%, transparent 50%),
-    #f0ebe0;
+/* 되돌아가는 문 — 종이 밖, 하늘 위 */
+.back-link{
+  position:fixed;top:20px;left:20px;z-index:20;
+  text-decoration:none;font-size:13.5px;letter-spacing:.04em;color:#d8cfae;
+  padding:8px 16px;border:1px solid rgba(216,207,174,.34);border-radius:999px;
+  background:rgba(10,14,28,.55);backdrop-filter:blur(6px);transition:.15s;
 }
-#bg::after { display: none; }
+.back-link:hover{background:rgba(10,14,28,.8);border-color:rgba(216,207,174,.6)}
 
-/* ── 살롱 배경 (문학 별 등 풍경 있는 별) ── */
-body.has-salon-bg #bg {
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+/* ── ① 머리 ────────────────────────────────────────────────────
+   ⚠ 0814 소로: 「이름과 콩파뇽 숫자가 너무 크다」
+     실측 — 가장 긴 별 이름 14자(카스파르 다비트 프리드리히).
+     640px 폭에서 글 자리는 418px이므로 28px이면 392px, 한 줄에 선다.  */
+.star-header{padding:38px var(--pad) 30px;display:flex;gap:26px;align-items:center;
+  border-bottom:1px solid var(--rule)}
+.framed-wrap{
+  width:128px;height:128px;flex:none;position:relative;border-radius:14px;overflow:hidden;
+  border:1px solid var(--edge);background:var(--band);
 }
-/* 사진 위 아이보리 베일 — 글이 또렷이 뜨게 */
-body.has-salon-bg #bg::before {
-  content: '';
-  position: absolute; inset: 0;
-  background: rgba(240,235,224,0.62);
+.framed-img{width:100%;height:100%;object-fit:cover;display:block}
+.framed-empty{
+  width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:4px;color:var(--ink-faint);font-size:20px;
+  background-image:repeating-linear-gradient(45deg,var(--band) 0 8px,var(--hover) 8px 16px);
 }
-/* 풍경 있는 별: 4겹 카드를 거의 불투명하게 (글 가독성 1순위) */
-body.has-salon-bg .work-group { background: rgba(255,253,247,0.92); }
-body.has-salon-bg .scene-card { background: rgba(255,253,247,0.97); }
-body.has-salon-bg .floor0-header { 
-  background: rgba(240,235,224,0.55); 
-  border-radius: 8px; padding: 10px 14px;
+.framed-empty-add{font-size:11px;font-weight:700}
+.framed-upload{
+  position:absolute;inset:auto 0 0 0;display:none;align-items:center;justify-content:center;gap:5px;
+  padding:6px 0;background:rgba(0,0,0,.42);color:#fff;font-size:11px;cursor:pointer;
 }
+.framed-wrap:hover .framed-upload{display:flex}
+.framed-upload-text{font-weight:700}
 
-/* 풍경 있는 별: 헤더 글자 영역에도 아이보리 판 (인물명·소개 가독성) */
-body.has-salon-bg .star-meta {
-  background: rgba(255,253,247,0.82);
-  border-radius: 14px;
-  padding: 18px 22px;
-  backdrop-filter: blur(2px);
+.star-meta{flex:1;min-width:0}
+.star-name{
+  font-family:'Gowun Batang',serif;font-size:28px;font-weight:700;
+  color:var(--ink);letter-spacing:-.01em;line-height:1.24;margin-bottom:7px;
 }
-body.has-salon-bg .star-header { border-bottom: none; }
-body.has-salon-bg .back-link {
-  background: rgba(255,253,247,0.7);
-  padding: 5px 12px; border-radius: 20px;
+.star-field{font-size:12.5px;font-weight:700;letter-spacing:.12em;color:var(--accent);margin-bottom:11px}
+.star-desc{font-size:14.5px;line-height:1.62;color:var(--ink-body);margin-bottom:18px}
+.star-desc:empty{margin-bottom:8px}
+.star-stats{display:flex;gap:34px}
+.stat-label{display:block;font-size:11px;letter-spacing:.14em;color:var(--ink-faint);
+  font-weight:700;margin-bottom:3px}
+.stat-value{font-size:16.5px;font-weight:700;color:var(--ink);line-height:1.3}
+.stat-value .of{color:var(--ink-faint);font-weight:400}
+/* ⭐ 0814 소로: 「모집 중」이 곧 합류하는 문이 된다.
+   ⚠ 문구가 값을 안 말하므로 누르는 순간 확인 창이 값을 말한다(joinCompanion). */
+.stat-open{
+  font-family:inherit;font-size:16.5px;font-weight:700;color:var(--link);cursor:pointer;
+  background:none;border:none;padding:0;line-height:1.3;
+  border-bottom:1.5px solid var(--bullet);transition:.15s;
 }
+.stat-open:hover{color:var(--ink-mid);border-bottom-color:var(--accent)}
+.stat-mine{font-size:16.5px;color:var(--ink-faint);font-weight:400}
 
-/* 폰 — 배경 거의 안 보여도 무관 (베일 진하게) */
-@media (max-width: 600px) {
-  body.has-salon-bg #bg::before { background: rgba(240,235,224,0.86); }
+/* ── 공통 구획 ── */
+.floor0,.floor1,.voyage,.section{padding:30px var(--pad) 34px;border-bottom:1px solid var(--rule)}
+.floor0-header,.floor1-header,.voyage-header,.section-header{
+  display:flex;align-items:baseline;gap:11px;margin-bottom:14px}
+.floor0-title,.floor1-title,.voyage-title,.section-header>.section-title{
+  font-family:'Gowun Batang',serif;font-size:20px;font-weight:700;color:var(--ink)}
+.floor1-icon,.voyage-icon{font-size:15px;color:var(--accent)}
+.floor0-count{font-size:12.5px;color:var(--ink-faint)}
+.section-header{align-items:center}
+.section-title{display:flex;align-items:baseline;gap:9px;font-family:'Gowun Batang',serif;
+  font-size:20px;font-weight:700;color:var(--ink)}
+.add-btn{
+  margin-left:auto;font-family:inherit;font-size:13px;color:var(--accent);cursor:pointer;
+  border:1px solid var(--bullet);border-radius:999px;padding:7px 15px;background:transparent;
+  transition:.15s;
 }
+.add-btn:hover:not(:disabled){background:var(--hover)}
+.add-btn:disabled{opacity:.42;cursor:default}
+.floor0-loading,.loading,.floor0-empty,.empty-state{
+  padding:26px 4px;text-align:center;font-size:13.5px;color:var(--ink-faint);line-height:1.8}
 
-/* ── 레이아웃 ── */
-#app {
-  position: relative; z-index: 1;
-  max-width: 680px; margin: 0 auto;
-  padding: 0 20px 80px;
+/* ── ② 교양의 풍경 — 한 줄 목록 → 곧바로 4겹 ─────────────────────
+   ⚠ 0505 기획서는 카프카 87장을 전제한 카드 그리드였다.
+     실측(0814): 평균 4.7장 · 42개 별은 1~3장. 카드 세 장을 그리드에 흩뿌리면
+     허전한데, 목록은 세 줄이어도 세 줄답다.                              */
+.scene-list{display:grid;grid-template-columns:1fr 1fr;gap:7px;align-items:start}
+.scene-item{grid-column:auto;min-width:0}
+.scene-item.open{grid-column:1/-1}
+.scene-line{
+  display:flex;align-items:center;gap:10px;padding:11px 9px;cursor:pointer;
+  border-bottom:1px solid var(--rule-soft);border-radius:8px 8px 0 0;transition:.15s;
 }
+.scene-line:hover{background:var(--hover);border-bottom-color:var(--bullet)}
+.scene-dot{color:var(--bullet);font-size:11px;flex:none}
+.scene-title{flex:1;min-width:0;font-family:'Gowun Batang',serif;font-size:14.5px;font-weight:700;
+  color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scene-count{font-size:11.5px;color:var(--ink-faint);flex:none}
+.scene-item.open .scene-line{background:var(--hover);border-bottom-color:var(--bullet)}
+.scene-item.open .scene-title{color:var(--link)}
 
-/* ── 헤더 ── */
-.star-header {
-  padding: 52px 0 32px;
-  border-bottom: 1px solid rgba(184,136,30,0.2);
-  margin-bottom: 32px;
+.scene-layers{
+  display:none;background:var(--panel);border:1px solid var(--edge);border-top:none;
+  border-radius:0 0 14px 14px;padding:22px 24px 24px;box-shadow:0 10px 24px rgba(0,0,0,.10);
 }
-.back-link {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 11px; letter-spacing: 0.1em;
-  color: rgba(184,136,30,0.6);
-  text-decoration: none; margin-bottom: 24px;
-  transition: color 0.2s;
+.scene-item.open .scene-layers{display:block}
+/* ⚠ 0814 실측 — 「큐레이션」 넉 자가 62px 열에서 0.7px 모자라 두 줄로 접혔다.
+     (11px × 4자 = 44 + 자간 .13em × 4 = 5.7 → 49.7px · 글자 자리는 49px)
+     열을 68px로 넓히고 nowrap을 못 박는다. 자간을 줄이면 라벨이 붙어 보인다. */
+.layer{display:grid;grid-template-columns:68px 1fr;gap:12px;margin-bottom:16px}
+.layer:last-child{margin-bottom:0}
+.layer-label{
+  font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--accent);padding-top:4px;
+  text-align:right;border-right:2px solid var(--edge-warm);padding-right:11px;white-space:nowrap;
 }
-.back-link:hover { color: var(--gold); }
+.layer-text{font-family:'Gowun Batang',serif;font-size:14px;line-height:1.78;color:var(--ink-body);
+  word-break:keep-all}
+.scene-cover{width:100%;border-radius:10px;margin-top:14px;display:block}
 
-.star-card-row {
-  display: flex; gap: 28px; align-items: flex-start;
+/* 큐레이션 링크 */
+.cur-block{margin-top:18px;padding-top:16px;border-top:1px dashed var(--dash)}
+.cur-label{font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--ink-faint);margin-bottom:9px}
+.cur-book{margin-bottom:9px}
+.cur-book-t{font-size:13.5px;font-weight:700;color:var(--ink)}
+.cur-book-m{font-size:12px;color:var(--ink-faint)}
+.cur-chip{
+  font-size:12.5px;color:var(--link);border:1px solid var(--bullet);border-radius:999px;
+  padding:4px 12px;text-decoration:none;display:inline-block;margin:0 5px 5px 0;transition:.15s;
 }
-/* ── 3D 별 카드 ── */
-.card-wrap {
-  width: 120px; flex-shrink: 0;
-  perspective: 700px; cursor: pointer;
-  position: relative;
-}
-.card-3d {
-  width: 120px; height: 160px;
-  transform-style: preserve-3d;
-  transition: transform 0.7s cubic-bezier(0.23,1,0.32,1);
-  border-radius: 14px; position: relative;
-}
-.card-3d.flipped { transform: rotateY(180deg); }
-.card-face {
-  position: absolute; inset: 0;
-  border-radius: 14px; backface-visibility: hidden;
-  -webkit-backface-visibility: hidden; overflow: hidden;
-}
-.card-front-face {
-  background: #fffdf8;
-  border: 1px solid rgba(184,136,30,0.35);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
-}
-.card-front-face::before {
-  content: ''; position: absolute; top:0;left:0;right:0;
-  height: 2px;
-  background: linear-gradient(to right, #c9a84c, #e9c97e, #c9a84c);
-  border-radius: 14px 14px 0 0;
-}
-.card-back-face {
-  background: #fffdf8;
-  border: 1px solid rgba(184,136,30,0.35);
-  transform: rotateY(180deg);
-  display: flex; align-items: center; justify-content: center;
-  flex-direction: column; gap: 6px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
-}
-.card-back-face::before {
-  content: ''; position: absolute; top:0;left:0;right:0;
-  height: 2px;
-  background: linear-gradient(to right, #c9a84c, #e9c97e, #c9a84c);
-  border-radius: 14px 14px 0 0;
-}
-.card-glare {
-  position: absolute; inset: 0; border-radius: 14px;
-  pointer-events: none; z-index: 5;
-}
-.card-img {
-  width: 100%; height: 100%;
-  object-fit: cover; object-position: center top;
-}
-.card-empty {
-  width: 100%; height: 100%;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 6px;
-}
-.card-empty-icon { font-size: 24px; color: rgba(184,136,30,0.3); }
-.card-empty-text {
-  font-size: 9px; color: rgba(184,136,30,0.4);
-  letter-spacing: 0.08em; text-align: center;
-}
-.card-egbadge {
-  position: absolute; bottom: 6px; left: 0; right: 0;
-  text-align: center;
-  font-size: 7px; color: rgba(184,136,30,0.5);
-  letter-spacing: 0.12em; z-index: 2;
-}
-/* 업로드 오버레이 */
-.upload-overlay {
-  position: absolute; inset: 0; border-radius: 14px;
-  background: rgba(201,168,76,0.15);
-  display: flex; align-items: center; justify-content: center;
-  opacity: 0; transition: opacity 0.2s;
-  z-index: 10; cursor: pointer;
-  flex-direction: column; gap: 4px;
-  pointer-events: none;            /* 기본: 클릭 차단 (비살롱지기) */
-}
-/* 살롱지기(lonelywalden)만 사진#1 표지 교체 가능 */
-body.is-admin .upload-overlay { pointer-events: auto; }
-body.is-admin .card-wrap:hover .upload-overlay { opacity: 1; }
+.cur-chip:hover{background:var(--hover)}
 
-/* ═══ 사진#2 — 액자(framed) : 비율 그대로, 잘림·찌그러짐 없음 ═══ */
-.framed-wrap { width: 160px; flex-shrink: 0; position: relative; }
-.framed-img {
-  width: 100%; height: auto; display: block;   /* ⭐ 한 축만 고정 → 비율 자유 */
-  border-radius: 8px; box-shadow: 0 5px 22px rgba(0,0,0,0.18);
+/* 보물 순례 */
+.treasure-path{margin-top:16px;padding-top:14px;border-top:1px dashed var(--dash)}
+.tp-label{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--ink-faint);margin-bottom:8px}
+.tp-list{display:flex;flex-direction:column;gap:5px}
+.tp-link{font-size:13px;color:var(--link);text-decoration:none;border-bottom:1px solid var(--edge-warm);
+  padding-bottom:1px;align-self:flex-start}
+.tp-link:hover{color:var(--ink-mid)}
+.tp-mine{font-weight:700}
+.tp-coming{font-size:13px;color:var(--ink-faint)}
+.tp-heritage{font-size:13px}
+
+/* ── ③ 별을 따라 떠나는 여행 ── */
+.voyage-card{
+  display:flex;align-items:center;gap:20px;flex-wrap:wrap;text-decoration:none;
+  background:linear-gradient(135deg,var(--band) 0%,var(--band-deep) 100%);
+  border:1px solid var(--bullet);border-radius:15px;padding:24px 26px;transition:.15s;
 }
-.framed-empty {
-  width: 100%; aspect-ratio: 3 / 4;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 5px;
-  border: 1px dashed rgba(184,136,30,0.3); border-radius: 8px;
-  color: rgba(184,136,30,0.35); font-size: 24px;
-}
-.framed-empty-add { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; }
-.framed-upload {
-  position: absolute; inset: 0; border-radius: 8px;
-  background: rgba(201,168,76,0.15);
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 4px;
-  opacity: 0; transition: opacity 0.2s;
-  cursor: pointer; pointer-events: none; z-index: 4;
-}
-.framed-upload-text { font-size: 9px; color: #8B6010; font-weight: 700; letter-spacing: 0.08em; }
-body.is-admin .framed-upload { pointer-events: auto; }
-body.is-admin .framed-wrap:hover .framed-upload { opacity: 1; }
-.upload-overlay-text {
-  font-size: 9px; color: #8B6010;
-  letter-spacing: 0.08em; font-weight: 700;
-}
-#photo-input { display: none; }
-.star-meta { flex: 1; }
-.star-name {
-  font-size: 26px; font-weight: 900;
-  color: #1a1410; letter-spacing: 0.04em;
-  margin-bottom: 4px;
-}
-.star-field {
-  font-size: 11px; letter-spacing: 0.14em;
-  color: #B8881E; margin-bottom: 10px;
-  font-weight: 700;
-}
-.star-desc {
-  font-size: 13px; color: rgba(26,20,16,0.6);
-  line-height: 1.65; margin-bottom: 14px;
-}
-.star-stats {
-  display: flex; gap: 16px; flex-wrap: wrap;
-}
-.stat-item {
-  display: flex; flex-direction: column; gap: 2px;
-}
-.stat-label {
-  font-size: 9px; letter-spacing: 0.12em;
-  color: rgba(184,136,30,0.6); font-weight: 700;
-}
-.stat-value {
-  font-size: 14px; font-weight: 700;
-  color: #1a1410; font-family: 'Courier New', monospace;
+.voyage-card:hover{filter:saturate(1.06)}
+.voyage-card-glow{display:none}
+.voyage-card-text{flex:1;min-width:210px}
+.voyage-card-lead{font-family:'Gowun Batang',serif;font-size:18.5px;font-weight:700;
+  color:var(--ink-mid);margin-bottom:6px}
+.voyage-card-sub{font-size:13px;color:var(--ink-faint)}
+.voyage-card-go{
+  flex:none;padding:11px 22px;border:1px solid var(--accent);border-radius:999px;
+  color:var(--link);font-weight:700;font-size:14px;background:var(--panel);white-space:nowrap;
 }
 
-/* ── 섹션 공통 ── */
-.section {
-  margin-bottom: 40px;
+/* ── ④ 응답의 정원 — 풍경과 같은 문법의 목록 ── */
+.story-item{grid-column:auto;min-width:0}
+.story-item.open{grid-column:1/-1}
+.story-line{
+  display:flex;align-items:center;gap:10px;padding:11px 9px;cursor:pointer;
+  border-bottom:1px solid var(--rule-soft);border-radius:8px 8px 0 0;transition:.15s;
 }
-.section-header {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 16px; padding-bottom: 10px;
-  border-bottom: 1px solid rgba(184,136,30,0.2);
+.story-line:hover{background:var(--hover);border-bottom-color:var(--bullet)}
+.story-t{flex:1;min-width:0;font-family:'Gowun Batang',serif;font-size:14.5px;font-weight:700;
+  color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.story-d{font-size:11.5px;color:var(--ink-faint);flex:none}
+.story-item.open .story-line{background:var(--hover);border-bottom-color:var(--bullet)}
+.story-item.open .story-t{color:var(--link)}
+.story-open{
+  display:none;background:var(--panel);border:1px solid var(--edge);border-top:none;
+  border-radius:0 0 14px 14px;padding:20px 24px 22px;box-shadow:0 10px 24px rgba(0,0,0,.10);
 }
-.section-title {
-  display: flex; align-items: center; gap: 10px;
-  font-size: 17px; letter-spacing: 0.04em;
-  color: #4a3f2e; font-weight: 600;
-}
-.section-icon { font-size: 20px; }
-.add-btn {
-  display: flex; align-items: center; gap: 5px;
-  font-size: 11px; letter-spacing: 0.08em;
-  color: rgba(184,136,30,0.6);
-  background: rgba(201,168,76,0.08);
-  border: 1px solid rgba(184,136,30,0.2);
-  border-radius: 20px; padding: 4px 12px;
-  cursor: pointer; transition: all 0.2s;
-  font-family: inherit; font-weight: 600;
-}
-.add-btn:hover {
-  color: #8B6010; background: rgba(201,168,76,0.18);
-  border-color: rgba(184,136,30,0.45);
-}
-.add-btn:disabled {
-  opacity: 0.3; cursor: not-allowed;
-}
+.story-item.open .story-open{display:block}
+.story-by{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-faint);margin-bottom:12px}
+.story-avatar{width:22px;height:22px;border-radius:50%;object-fit:cover;display:inline-flex;
+  align-items:center;justify-content:center;background:var(--band);color:var(--accent);font-size:11px}
+.story-body{font-family:'Gowun Batang',serif;font-size:14px;line-height:1.85;color:var(--ink-body);
+  white-space:pre-line;word-break:keep-all}
 
-/* ── 스토리 카드 ── */
-.story-card {
-  background: #ffffff;
-  border: 1px solid rgba(184,136,30,0.18);
-  border-radius: 14px; padding: 24px 30px;
-  margin-bottom: 12px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-  transition: all 0.2s;
-}
-.story-card:hover { 
-  border-color: rgba(184,136,30,0.35);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-}
-.story-card-header {
-  display: flex; justify-content: space-between;
-  align-items: center; margin-bottom: 12px;
-}
-.story-author {
-  font-size: 10px; color: rgba(184,136,30,0.7);
-  letter-spacing: 0.08em;
-  display: inline-flex; align-items: center; gap: 6px;
-}
-.story-avatar {
-  width: 20px; height: 20px; border-radius: 50%;
-  object-fit: cover; display: inline-flex;
-  align-items: center; justify-content: center;
-  border: 1px solid rgba(184,136,30,0.4);
-  background: rgba(184,136,30,0.10); flex: 0 0 auto;
-}
-.story-date {
-  font-size: 10px; color: rgba(26,20,16,0.3);
-}
-.story-body {
-  font-size: 15px; color: rgba(26,20,16,0.78);
-  line-height: 1.9; white-space: pre-wrap;
-  max-width: 680px;
-}
-.story-body.collapsed {
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.expand-btn {
-  margin-top: 8px; font-size: 11px;
-  color: rgba(184,136,30,0.6);
-  background: none; border: none;
-  cursor: pointer; padding: 0;
-  font-family: inherit; letter-spacing: 0.06em;
-}
-.expand-btn:hover { color: #8B6010; }
+/* ── ⑤ 1층 영상 (별에 영상이 있을 때만) ── */
+.video-block{margin-bottom:22px}
+.video-frame{border-radius:12px;overflow:hidden;background:#000;aspect-ratio:16/9}
+.video-frame video,.video-frame iframe{width:100%;height:100%;border:0;display:block}
+.video-caption{padding:12px 2px 0}
+.video-ep{font-size:11px;font-weight:700;letter-spacing:.14em;color:var(--accent)}
+.video-title{font-family:'Gowun Batang',serif;font-size:17px;font-weight:700;color:var(--ink);margin-top:3px}
+.video-spine{font-size:12px;color:var(--ink-faint)}
+.video-seal{margin-top:9px;font-size:13px;color:var(--ink-body);font-family:'Gowun Batang',serif}
+.essays{margin-top:12px;display:flex;flex-direction:column;gap:7px}
+.essay-card{border:1px solid var(--rule);border-radius:10px;padding:12px 14px;cursor:pointer;
+  background:var(--panel)}
+.essay-head{display:flex;align-items:center;gap:9px}
+.essay-type-badge{font-size:10.5px;font-weight:700;letter-spacing:.1em;color:var(--accent)}
+.essay-title{font-family:'Gowun Batang',serif;font-size:14px;font-weight:700;color:var(--ink)}
+.essay-body{display:none;margin-top:9px;font-size:13.5px;line-height:1.8;color:var(--ink-body);
+  white-space:pre-line}
+.essay-card.open .essay-body{display:block}
 
-/* ── 미디어 카드 ── */
-.media-card {
-  background: #ffffff;
-  border: 1px solid rgba(184,136,30,0.18);
-  border-radius: 14px; padding: 14px 18px;
-  margin-bottom: 10px;
-  display: flex; gap: 14px; align-items: center;
-  cursor: pointer; transition: all 0.2s;
-  text-decoration: none;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+/* ── ⑥ Star & Company — 명패 벽 ─────────────────────────────────
+   ⚠ 0814 — 흑단 판(#14110c)을 걷었다. 한 페이지를 내려가는데 낮에서 밤으로
+     넘어가던 곳이다. 종이 한 장이 되게 크림 한 단만 진하게.               */
+.floor3{background:var(--band);padding:40px var(--pad) 40px;border-top:1px solid var(--rule)}
+.f3-head{text-align:center;margin-bottom:26px}
+.f3-title{font-family:'Gowun Batang',serif;font-size:23px;font-weight:700;color:var(--ink-mid);
+  line-height:1.3}
+.f3-amp{color:var(--accent)}
+.f3-counts{margin-top:9px;font-size:13px;color:var(--ink-faint)}
+.f3-counts b{color:var(--link)}
+.f3-mine{margin-top:12px;font-size:12.5px;color:var(--ink-faint)}
+.f3-join-btn{
+  margin-top:14px;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;
+  padding:10px 22px;border-radius:999px;border:1px solid var(--accent);
+  background:var(--panel);color:var(--link);transition:.15s;
 }
-.media-card:hover {
-  border-color: rgba(184,136,30,0.35);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-}
-.media-thumb {
-  width: 52px; height: 52px; border-radius: 8px;
-  background: rgba(201,168,76,0.1);
-  flex-shrink: 0; overflow: hidden;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 20px;
-}
-.media-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.media-info { flex: 1; min-width: 0; }
-.media-title {
-  font-size: 13px; font-weight: 700;
-  color: #1a1410;
-  margin-bottom: 3px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.media-sub {
-  font-size: 11px; color: rgba(26,20,16,0.4);
-  letter-spacing: 0.04em;
-}
-.media-author {
-  font-size: 10px; color: rgba(184,136,30,0.6);
-  letter-spacing: 0.06em; flex-shrink: 0;
-}
+.f3-join-btn:hover{background:var(--hover)}
+.f3-rule{display:none}
 
-/* ── 이미지 갤러리 ── */
-.gallery-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+.wall{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.slot{border-radius:11px;padding:13px 15px;display:flex;align-items:center;gap:12px;min-width:0}
+.slot.filled{
+  background:linear-gradient(100deg,var(--pl1) 0%,var(--pl2) 35%,var(--pl3) 65%,var(--pl4) 100%);
+  border:1px solid var(--pl-edge);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 2px 6px rgba(120,95,45,.18);
 }
-.gallery-item {
-  aspect-ratio: 1; border-radius: 10px;
-  background: rgba(201,168,76,0.06);
-  border: 1px solid rgba(184,136,30,0.15);
-  overflow: hidden; cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-}
-.gallery-item:hover { 
-  border-color: rgba(184,136,30,0.35);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-}
-.gallery-item img { width: 100%; height: 100%; object-fit: cover; }
-.gallery-item-empty {
-  width: 100%; height: 100%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 22px; color: rgba(201,168,76,0.2);
-}
+.slot.filled.plate-link{cursor:pointer}
+.slot.filled:hover{transform:translateY(-2px);transition:transform .15s}
+.plate-seal{width:34px;height:34px;flex:none;border-radius:50%;object-fit:cover;
+  border:1px solid var(--seal-edge);background:var(--seal)}
+.plate-seal-logo{padding:3px;background:var(--panel)}
+.plate-lines{min-width:0}
+.pn{font-family:'Gowun Batang',serif;font-size:16.5px;font-weight:700;color:var(--plate-ink);
+  line-height:1.24;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pr{font-size:11px;color:var(--plate-sub);white-space:nowrap}
+.slot.left{border:1px solid var(--dash);background:var(--panel);opacity:.62;flex-direction:column;
+  align-items:flex-start;gap:2px}
+.ln{font-family:'Gowun Batang',serif;font-size:15px;color:var(--ink-faint)}
+.lr{font-size:11px;color:var(--ink-faint)}
+.slot.empty{border:1.5px dashed var(--dash);background:var(--panel);
+  flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:18px 12px}
+.en{font-family:'Gowun Batang',serif;font-size:16px;color:var(--ink-faint)}
+.et{font-size:11px;color:var(--ink-faint);opacity:.82}
 
-/* ── 유튜브 임베드 ── */
-.video-wrap {
-  border-radius: 12px; overflow: hidden;
-  margin-bottom: 10px;
-  border: 1px solid var(--border);
-  aspect-ratio: 16/9;
+.pager{display:flex;justify-content:center;gap:7px;margin-top:24px}
+.pager button{
+  width:36px;height:36px;border-radius:9px;font-family:'Gowun Batang',serif;font-size:14px;
+  cursor:pointer;border:1px solid var(--dash);color:var(--ink-faint);background:var(--panel);
+  transition:.15s;
 }
-.video-wrap iframe { width: 100%; height: 100%; border: none; }
-
-/* ── 빈 상태 ── */
-.empty-state {
-  text-align: center; padding: 32px 20px;
-  color: rgba(26,20,16,0.3);
-  font-size: 13px; letter-spacing: 0.06em;
-  border: 1px dashed rgba(184,136,30,0.2);
-  border-radius: 14px;
-  background: rgba(255,255,255,0.5);
-}
+.pager button.active{border-color:var(--accent);color:var(--link);background:var(--band-deep)}
+.legend{display:flex;justify-content:center;flex-wrap:wrap;gap:18px;margin-top:20px;
+  font-size:12px;color:var(--ink-faint)}
+.lg-dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;
+  vertical-align:middle}
 
 /* ── 모달 ── */
-.modal-bg {
-  display: none; position: fixed; inset: 0; z-index: 500;
-  background: rgba(10,8,4,0.7);
-  backdrop-filter: blur(8px);
-  align-items: center; justify-content: center;
-  overflow-y: auto; padding: 24px 16px;
+.modal-bg{
+  display:none;position:fixed;inset:0;z-index:200;background:rgba(2,4,12,.78);
+  align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px);
 }
-.modal-bg.show { display: flex; }
-.modal-box {
-  background: #faf6ee;
-  border: 1px solid rgba(184,136,30,0.25);
-  border-top: 3px solid #C9A84C;
-  border-radius: 24px;
-  padding: 28px 22px 32px;
-  width: 100%; max-width: 680px;
-  max-height: 90vh; overflow-y: auto;
-  overscroll-behavior: contain;
-  margin: auto;
-  animation: slideUp 0.3s ease;
-  box-shadow: 0 12px 48px rgba(0,0,0,0.28);
+.modal-bg.show{display:flex}
+.modal-box{
+  width:100%;max-width:560px;max-height:88vh;overflow-y:auto;
+  background:var(--panel);border:1px solid var(--edge);border-radius:20px;padding:26px 26px 28px;
+  box-shadow:0 30px 70px rgba(0,0,0,.55);
 }
-@keyframes slideUp {
-  from { transform: translateY(40px); opacity: 0; }
-  to   { transform: translateY(0); opacity: 1; }
+.modal-title{font-family:'Gowun Batang',serif;font-size:19px;font-weight:700;color:var(--ink)}
+.modal-close{font-family:inherit;font-size:17px;cursor:pointer;background:none;border:none;
+  color:var(--ink-faint);padding:0 4px}
+#quota-info{display:none;font-size:12.5px;color:var(--ink-faint);background:var(--hover);
+  border-radius:9px;padding:10px 13px;margin-bottom:16px}
+#quota-info b{color:var(--link)}
+.form-group{margin-bottom:15px}
+.form-label{display:block;font-size:12px;font-weight:700;letter-spacing:.08em;
+  color:var(--ink-faint);margin-bottom:6px}
+.form-input,.form-textarea{
+  width:100%;font-family:inherit;font-size:14px;color:var(--ink);background:var(--paper);
+  border:1px solid var(--edge);border-radius:10px;padding:11px 13px;line-height:1.7;
 }
-.modal-title {
-  font-size: 13px; letter-spacing: 0.14em;
-  color: #B8881E; margin-bottom: 20px; font-weight: 700;
+.form-textarea{resize:vertical}
+.form-input:focus,.form-textarea:focus{outline:none;border-color:var(--bullet)}
+.submit-btn{
+  width:100%;font-family:inherit;font-size:14.5px;font-weight:700;cursor:pointer;
+  padding:13px 0;border-radius:11px;border:1px solid var(--accent);
+  background:var(--band-deep);color:var(--ink-mid);transition:.15s;
 }
-.modal-close {
-  float: right; background: none; border: none;
-  color: rgba(26,20,16,0.3); font-size: 18px;
-  cursor: pointer; padding: 0; font-family: inherit;
-}
-#quota-info {
-  font-size: 13px; color: #8a6d2e;
-  background: rgba(201,168,76,0.08);
-  border: 1px solid rgba(201,168,76,0.22);
-  border-radius: 10px; padding: 11px 14px;
-  margin-bottom: 18px; text-align: center; line-height: 1.6;
-}
-#quota-info b { color: #B8881E; font-weight: 700; }
+.submit-btn:hover:not(:disabled){background:var(--band)}
+.submit-btn:disabled{opacity:.5;cursor:default}
 
-/* 폼 */
-.form-group { margin-bottom: 16px; }
-.form-label {
-  display: block; font-size: 10px; letter-spacing: 0.12em;
-  color: rgba(184,136,30,0.7); margin-bottom: 6px; font-weight: 700;
+/* ── 황금사과 팝업 ── */
+.apple-pop-bg{
+  display:none;position:fixed;inset:0;z-index:210;background:rgba(2,4,12,.8);
+  align-items:center;justify-content:center;padding:20px;
 }
-.form-input, .form-textarea {
-  width: 100%; background: #ffffff;
-  border: 1px solid rgba(184,136,30,0.2);
-  border-radius: 10px; padding: 10px 14px;
-  color: #1a1410; font-size: 14px;
-  font-family: inherit; transition: border-color 0.2s;
-  resize: vertical;
-}
-.form-input:focus, .form-textarea:focus {
-  outline: none; border-color: rgba(184,136,30,0.5);
-}
-.form-textarea { min-height: 120px; }
-
-.type-tabs {
-  display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 20px;
-}
-.type-tab {
-  padding: 5px 14px; border-radius: 20px; font-size: 12px;
-  border: 1px solid rgba(184,136,30,0.2);
-  background: none; color: rgba(26,20,16,0.4);
-  cursor: pointer; transition: all 0.2s; font-family: inherit;
-}
-.type-tab.active {
-  background: rgba(201,168,76,0.15);
-  border-color: rgba(184,136,30,0.5);
-  color: #B8881E; font-weight: 700;
-}
-
-.submit-btn {
-  width: 100%; padding: 14px;
-  background: rgba(201,168,76,0.12);
-  border: 1px solid rgba(184,136,30,0.4);
-  border-radius: 12px; color: #8B6010;
-  font-size: 14px; letter-spacing: 0.08em;
-  cursor: pointer; font-family: inherit;
-  transition: all 0.2s; font-weight: 700;
-}
-.submit-btn:hover { background: rgba(201,168,76,0.22); }
-.submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-/* ── 로그인 필요 화면 ── */
-#login-wall {
-  display: none;
-  position: fixed; inset: 0; z-index: 300;
-  background: rgba(240,235,224,0.97);
-  align-items: center; justify-content: center;
-  flex-direction: column; gap: 16px; text-align: center;
-}
-#login-wall.show { display: flex; }
-.login-wall-title {
-  font-size: 16px; color: #1a1410; font-weight: 700;
-  letter-spacing: 0.06em;
-}
-.login-wall-sub {
-  font-size: 13px; color: rgba(26,20,16,0.5);
-  margin-bottom: 8px;
-}
-.login-btn {
-  padding: 12px 32px;
-  background: rgba(201,168,76,0.15);
-  border: 1px solid rgba(184,136,30,0.4);
-  border-radius: 12px; color: #8B6010;
-  font-size: 14px; cursor: pointer;
-  font-family: inherit; letter-spacing: 0.08em; font-weight: 700;
-}
-
-/* ── 로딩 ── */
-.loading {
-  display: flex; align-items: center; justify-content: center;
-  padding: 60px; color: rgba(184,136,30,0.4);
-  font-size: 12px; letter-spacing: 0.14em;
-}
-
-/* ═══════ 별을 따라 떠나는 여행 ═══════ */
-.voyage {
-  max-width: 720px;
-  margin: 0 auto 28px;
-  padding: 0 18px;
-}
-.voyage-header {
-  display: flex; align-items: center; gap: 10px;
-  margin-bottom: 18px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(184,136,30,0.2);
-}
-.voyage-icon { font-size: 20px; color: #B8881E; }
-.voyage-title {
-  font-size: 17px; font-weight: 600;
-  color: #4a3f2e; letter-spacing: 0.04em;
-}
-.voyage-card {
-  position: relative; display: flex; align-items: center;
-  gap: 16px; padding: 22px 24px;
-  border-radius: 14px; overflow: hidden;
-  background: linear-gradient(135deg, #0a0e1a 0%, #16203a 100%);
-  border: 1px solid rgba(201,162,39,0.35);
-  text-decoration: none;
-  box-shadow: 0 6px 24px rgba(10,14,26,0.25);
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
-}
-.voyage-card:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(10,14,26,0.4); }
-.voyage-card-glow {
-  position: absolute; top: -40px; right: -20px;
-  width: 160px; height: 160px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(201,162,39,0.28), transparent 70%);
-  pointer-events: none;
-}
-.voyage-card-text { flex: 1; min-width: 0; z-index: 1; }
-.voyage-card-lead {
-  font-family: Georgia, serif;
-  font-size: 18px; color: #ece5d3; margin-bottom: 5px;
-}
-.voyage-card-sub {
-  font-size: 13px; color: rgba(236,229,211,0.6); line-height: 1.5;
-}
-.voyage-card-go {
-  flex-shrink: 0; z-index: 1;
-  font-size: 14px; font-weight: 600; color: #c9a227;
-  letter-spacing: 0.03em;
-  border: 1px solid rgba(201,162,39,0.5);
-  border-radius: 999px; padding: 9px 16px;
-  white-space: nowrap;
-  transition: background 0.2s;
-}
-.voyage-card:hover .voyage-card-go { background: rgba(201,162,39,0.15); }
-@media (max-width: 560px){
-  .voyage-card { flex-direction: column; align-items: flex-start; gap: 14px; }
-  .voyage-card-go { align-self: stretch; text-align: center; }
-}
-
-/* ═══════ 0층 — 교양의 풍경 ═══════ */
-.floor0 {
-  max-width: 720px;
-  margin: 0 auto 28px;
-  padding: 0 18px;
-}
-.floor0-header {
-  display: flex; align-items: center; gap: 10px;
-  margin-bottom: 18px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(184,136,30,0.2);
-}
-.floor0-icon { font-size: 20px; }
-.floor0-title {
-  font-size: 17px; font-weight: 600;
-  color: #4a3f2e; letter-spacing: 0.04em;
-}
-.floor0-loading {
-  color: rgba(74,63,46,0.4);
-  font-size: 14px; text-align: center;
-  padding: 30px 0;
-}
-.floor0-empty {
-  color: rgba(74,63,46,0.45);
-  font-size: 14px; text-align: center;
-  padding: 30px 18px; line-height: 1.7;
-}
-
-/* 작품 묶음 (아코디언) */
-.work-group {
-  margin-bottom: 12px;
-  border: 1px solid rgba(184,136,30,0.18);
-  border-radius: 10px;
-  overflow: hidden;
-  background: rgba(255,253,247,0.5);
-}
-.work-head {
-  display: flex; align-items: center; gap: 10px;
-  padding: 15px 18px;
-  cursor: pointer;
-  user-select: none;
-  transition: background 0.15s;
-}
-.work-head:hover { background: rgba(184,136,30,0.05); }
-.work-arrow {
-  font-size: 11px; color: #B8881E;
-  transition: transform 0.2s;
-  flex-shrink: 0;
-}
-.work-group.open .work-arrow { transform: rotate(90deg); }
-.work-name {
-  font-size: 15px; font-weight: 600;
-  color: #4a3f2e; flex: 1;
-}
-.work-count {
-  font-size: 12px; color: rgba(74,63,46,0.45);
-  flex-shrink: 0;
-}
-.work-cards {
-  display: none;
-  padding: 0 12px 12px;
-}
-.work-group.open .work-cards { display: block; }
-
-/* 카드 (poetic_title → 4겹) */
-.scene-card {
-  margin-top: 10px;
-  border: 1px solid rgba(184,136,30,0.15);
-  border-radius: 8px;
-  background: #fffdf7;
-  overflow: hidden;
-}
-.scene-head {
-  padding: 14px 16px;
-  cursor: pointer;
-  user-select: none;
-  display: flex; align-items: center; gap: 10px;
-  transition: background 0.15s;
-}
-.scene-head:hover { background: rgba(184,136,30,0.04); }
-.scene-dot { color: #C9A84C; font-size: 10px; flex-shrink: 0; }
-.scene-title {
-  font-family: 'Noto Serif KR', serif;
-  font-size: 15px; line-height: 1.5;
-  color: #3a3226; flex: 1;
-}
-.scene-layers {
-  display: none;
-  padding: 4px 16px 18px;
-  border-top: 1px solid rgba(184,136,30,0.12);
-}
-.scene-card.open .scene-layers { display: block; }
-.layer {
-  margin-top: 16px;
-}
-.layer-label {
-  font-size: 11px; font-weight: 600;
-  letter-spacing: 0.1em;
-  color: #B8881E;
-  margin-bottom: 6px;
-}
-.layer-text {
-  font-family: 'Noto Serif KR', serif;
-  font-size: 14.5px; line-height: 1.85;
-  color: #2e2820;
-  white-space: pre-wrap;
-}
-
-/* 보물 순례 경로 — 글을 읽고 동한 마음이 실물(서고·갤러리)로 이어지는 칸 */
-.treasure-path {
-  margin-top: 18px; padding-top: 14px;
-  border-top: 1px dashed rgba(184,136,30,0.3);
-}
-.treasure-path .tp-label {
-  font-size: 10px; letter-spacing: 0.18em;
-  color: rgba(184,136,30,0.85); margin-bottom: 9px;
-}
-.treasure-path .tp-list {
-  display: flex; flex-direction: column; gap: 8px;
-  max-height: 168px; overflow-y: auto;
-  scrollbar-width: none; -ms-overflow-style: none;
-}
-.treasure-path .tp-list::-webkit-scrollbar { display: none; }
-.treasure-path .tp-link {
-  display: block; width: fit-content;
-  font-family: 'Noto Serif KR', serif; font-size: 13.5px;
-  color: #8B6F2A; text-decoration: none;
-  border-bottom: 1px solid rgba(139,111,42,0.3); padding-bottom: 2px;
-  transition: color 0.15s;
-}
-.treasure-path .tp-link:hover { color: #6b4f14; }
-.treasure-path .tp-mine { color: #9a6a14; font-weight: 600; }
-.treasure-path .tp-heritage { font-style: italic; }
-.treasure-path .tp-coming { font-size: 13.5px; color: rgba(120,90,40,0.8); font-style: italic; }
-
-/* 본문 큰 표지 — 레조네 작품 막 사이즈 (큐레이션 다음, 서고 경로 직전) */
-.scene-cover {
-  display: block; width: 100%; max-width: 340px; max-height: 46vh;
-  margin: 16px auto 8px; border-radius: 6px; object-fit: contain;
-  box-shadow: 0 5px 20px rgba(0,0,0,0.22);
-}
-
-/* 폰 — 폭 꽉, 터치 편하게 */
-@media (max-width: 600px) {
-  .floor0 { padding: 0 14px; }
-  .work-head { padding: 14px 14px; }
-  .scene-head { padding: 13px 13px; }
-  .scene-title { font-size: 14.5px; }
-  .layer-text { font-size: 14px; }
-}
-
-/* ═══ 1층 — EG Salon (아이리스 영상 + 스레드 글) ═══ */
-.floor1 {
-  max-width: 720px;
-  margin: 0 auto 28px;
-  padding: 0 18px;
-}
-.floor1-header {
-  display: flex; align-items: center; gap: 10px;
-  margin-bottom: 18px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(184,136,30,0.2);
-}
-.floor1-icon { font-size: 20px; }
-.floor1-title {
-  font-size: 17px; font-weight: 600;
-  color: #4a3f2e; letter-spacing: 0.04em;
-}
-
-/* 영상 한 편 = 묶음 (영상 + 딸린 스레드 글) */
-.video-block {
-  margin-bottom: 24px;
-  border: 1px solid rgba(184,136,30,0.18);
-  border-radius: 12px;
-  overflow: hidden;
-  background: rgba(255,253,247,0.6);
-}
-.video-frame {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  background: #1a1410;
-  display: block;
-}
-.video-frame iframe,
-.video-frame video {
-  width: 100%; height: 100%;
-  border: none; display: block;
-}
-.video-caption {
-  padding: 14px 18px 4px;
-}
-.video-ep {
-  font-size: 11px; letter-spacing: 0.12em;
-  color: #B8881E; font-weight: 600;
-  margin-bottom: 4px;
-}
-.video-title {
-  font-family: 'Noto Serif KR', serif;
-  font-size: 16px; line-height: 1.5;
-  color: #3a3226; font-weight: 600;
-}
-.video-spine {
-  display: inline-block;
-  margin-top: 8px;
-  font-size: 12px; color: rgba(74,63,46,0.55);
-  letter-spacing: 0.04em;
-}
-.video-seal {
-  margin: 12px 18px 0;
-  padding: 12px 16px;
-  border-left: 2px solid rgba(184,136,30,0.4);
-  font-family: 'Noto Serif KR', serif;
-  font-size: 14px; font-style: italic;
-  line-height: 1.7; color: #4a3f2e;
-  background: rgba(184,136,30,0.04);
-}
-
-/* 스레드 글 (영상당 3~4편, essay_type별) */
-.essays {
-  padding: 6px 14px 14px;
-}
-.essay-card {
-  margin-top: 10px;
-  border: 1px solid rgba(184,136,30,0.15);
-  border-radius: 8px;
-  background: #fffdf7;
-  overflow: hidden;
-}
-.essay-head {
-  padding: 13px 16px;
-  cursor: pointer;
-  user-select: none;
-  display: flex; align-items: center; gap: 10px;
-  transition: background 0.15s;
-}
-.essay-head:hover { background: rgba(184,136,30,0.04); }
-.essay-type-badge {
-  font-size: 10px; letter-spacing: 0.08em;
-  color: #B8881E; font-weight: 600;
-  border: 1px solid rgba(184,136,30,0.3);
-  border-radius: 12px;
-  padding: 2px 9px;
-  flex-shrink: 0;
-}
-.essay-title {
-  font-family: 'Noto Serif KR', serif;
-  font-size: 14.5px; line-height: 1.5;
-  color: #3a3226; flex: 1;
-}
-.essay-body {
-  display: none;
-  padding: 4px 16px 18px;
-  border-top: 1px solid rgba(184,136,30,0.12);
-  font-family: 'Noto Serif KR', serif;
-  font-size: 14.5px; line-height: 1.9;
-  color: #2e2820;
-  white-space: pre-wrap;
-}
-.essay-card.open .essay-body { display: block; }
-
-/* 풍경 있는 별: 1층도 거의 불투명하게 (0층과 통일) */
-body.has-salon-bg .video-block { background: rgba(255,253,247,0.92); }
-body.has-salon-bg .essay-card { background: rgba(255,253,247,0.97); }
-body.has-salon-bg .floor1-header {
-  background: rgba(240,235,224,0.55);
-  border-radius: 8px; padding: 10px 14px;
-}
-
-@media (max-width: 600px) {
-  .floor1 { padding: 0 14px; }
-  .essay-head { padding: 12px 13px; }
-}
-
-/* ═══════ ✦ 3층 — Star & Company (콩파뇽 명패 벽) ═══════ */
-.floor3{
-  --f3-ink:#2a2317; --f3-gold:#cbb985; --f3-gold-soft:#8d7d52;
-  max-width:1040px; margin:28px auto 0; padding:30px 22px 38px;
-  background:#14110c; border-radius:20px;
-}
-.f3-head{text-align:center;margin-bottom:8px}
-.f3-title{font-family:'Cinzel','Noto Serif KR',serif;font-size:28px;font-weight:600;letter-spacing:.05em;color:var(--f3-gold);line-height:1.25}
-.f3-amp{color:var(--f3-gold-soft);font-weight:400}
-.f3-counts{font-family:'Cinzel','Noto Serif KR',serif;font-size:14px;letter-spacing:.08em;color:var(--f3-gold-soft);margin-top:12px}
-.f3-counts b{color:var(--f3-gold);font-weight:500}
-.f3-rule{height:1px;background:linear-gradient(90deg,transparent,#3a3528,transparent);margin:24px 0 32px}
-
-.floor3 .wall{display:grid;grid-template-columns:repeat(2, minmax(0, 320px));justify-content:center;gap:11px 16px;align-items:start}
-@media (max-width:640px){ .floor3 .wall{grid-template-columns:1fr;gap:14px} }
-
-.floor3 .slot{position:relative;transition:transform .15s ease}
-
-/* ① 채워진 칸 — 신축(0704): 명패 webp를 배경으로, 글씨는 일반 flex 내용물. 절대배치·컨테이너쿼리 없음 */
-.floor3 .slot.filled{
-  cursor:default;aspect-ratio:3/1;
-  background:url('constellatio_nametag.webp') center/100% 100% no-repeat;
-  display:flex;align-items:center;justify-content:flex-start;gap:12px;
-  padding:0 8%;box-sizing:border-box;overflow:hidden;
-}
-.floor3 .slot.filled.plate-link{cursor:pointer}
-.floor3 .slot.filled:hover{transform:translateY(-3px);filter:drop-shadow(0 0 6px rgba(255,245,220,.35))}
-.floor3 .plate-seal{
-  width:44px;height:44px;flex:0 0 auto;border-radius:50%;object-fit:cover;
-  filter:grayscale(1) sepia(.55) brightness(.92) contrast(1.05);
-  mix-blend-mode:multiply;opacity:.85;
-  box-shadow:inset 0 3px 7px rgba(38,24,0,.6),inset 0 -2px 4px rgba(255,242,205,.45),0 1px 0 rgba(255,250,235,.4);
-}
-.floor3 .plate-seal-logo{filter:none;mix-blend-mode:normal;opacity:1;box-shadow:0 1px 2px rgba(0,0,0,.35),0 0 0 1px rgba(255,245,220,.25)}
-.floor3 .plate-lines{min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;text-align:left;line-height:1.05}
-.floor3 .slot.filled .plate-seal + .plate-lines{align-items:flex-start;text-align:left}
-.floor3 .pn{font-family:'Noto Serif KR',serif;font-size:25px;font-weight:500;color:var(--f3-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.floor3 .pr{font-family:'Cinzel','Noto Serif KR',serif;font-size:12px;font-weight:500;letter-spacing:.05em;color:var(--f3-ink);margin-top:.35em;white-space:nowrap}
-@media (max-width:640px){
-  .floor3 .plate-seal{width:38px;height:38px}
-  .floor3 .pn{font-size:19px}
-  .floor3 .pr{font-size:11px}
-}
-
-/* ② 빈 칸 — 기다리는 자리 (잠금 아님 · 환대) */
-.floor3 .slot.empty{aspect-ratio:3/1;border:1px dashed rgba(203,185,133,.3);border-radius:14px;background:rgba(203,185,133,.04);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
-.floor3 .en{font-family:'Cinzel',serif;font-size:21px;color:rgba(203,185,133,.5);font-weight:400}
-.floor3 .et{font-size:11px;color:rgba(203,185,133,.4);letter-spacing:.06em;margin-top:4px}
-
-/* ③ 지나간 콩파뇽 */
-.floor3 .slot.left{aspect-ratio:3/1;border-radius:14px;background:rgba(120,115,100,.07);border:1px solid rgba(120,115,100,.12);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;opacity:.6}
-.floor3 .ln{font-family:'Noto Serif KR',serif;font-size:19px;color:#8a857a;font-weight:400}
-.floor3 .lr{font-family:'Cinzel',serif;font-size:11px;color:#6a665c;letter-spacing:.05em;margin-top:3px}
-
-.floor3 .pager{display:flex;justify-content:center;gap:10px;margin-top:36px}
-.floor3 .pager button{font-family:'Cinzel',serif;font-size:15px;width:42px;height:42px;border-radius:10px;border:1px solid rgba(203,185,133,.25);background:transparent;color:var(--f3-gold-soft);cursor:pointer;transition:all .15s}
-.floor3 .pager button:hover{border-color:rgba(203,185,133,.6);color:var(--f3-gold)}
-.floor3 .pager button.active{background:rgba(203,185,133,.14);border-color:var(--f3-gold);color:var(--f3-gold);font-weight:600}
-
-.floor3 .legend{display:flex;justify-content:center;gap:22px;margin-top:30px;flex-wrap:wrap;font-size:12px;color:var(--f3-gold-soft)}
-.floor3 .legend span{display:inline-flex;align-items:center;gap:7px}
-.floor3 .lg-dot{width:9px;height:9px;border-radius:2px}
-
-/* 합류 버튼 / 내 콩파뇽 상태 */
-.f3-join-btn{margin-top:18px;font-family:'Cinzel','Noto Serif KR',serif;font-size:14px;letter-spacing:.03em;padding:11px 24px;border-radius:12px;border:1px solid var(--f3-gold);background:rgba(203,185,133,.12);color:var(--f3-gold);cursor:pointer;transition:all .15s}
-.f3-join-btn:hover{background:rgba(203,185,133,.22)}
-.f3-mine{margin-top:16px;font-family:'Cinzel','Noto Serif KR',serif;font-size:13px;letter-spacing:.04em;color:var(--f3-gold-soft)}
-
-/* 황금사과 출금(합류) 팝업 */
-.apple-pop-bg{display:none;position:fixed;inset:0;z-index:600;background:rgba(10,8,4,0.78);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:24px}
 .apple-pop-bg.show{display:flex}
-.apple-pop{background:#faf6ee;border:1px solid rgba(184,136,30,0.3);border-top:3px solid #C9A84C;border-radius:20px;padding:32px 28px;max-width:380px;width:100%;text-align:center;box-shadow:0 12px 48px rgba(0,0,0,0.3)}
-.apple-pop-icon{font-size:40px;margin-bottom:12px}
-.apple-pop-title{font-family:'Cinzel','Noto Serif KR',serif;font-size:20px;font-weight:600;color:#2a2018;margin-bottom:4px}
-.apple-pop-sub{font-size:13px;color:#8a6d2e;margin-bottom:18px;letter-spacing:.05em}
-.apple-pop-line{font-size:15px;color:#3a2f22;margin-bottom:6px}
-.apple-pop-bal{font-size:14px;color:#8a6d2e;margin-bottom:22px}
-.apple-pop b{color:#B8881E;font-weight:700;font-size:1.08em}
-.apple-pop-btn{font-family:inherit;font-size:15px;font-weight:600;padding:12px 0;width:100%;border:none;border-radius:12px;background:#C9A84C;color:#2a2018;cursor:pointer;transition:background .15s}
-.apple-pop-btn:hover{background:#b8941f}
+.apple-pop{
+  background:var(--panel);border:1px solid var(--edge);border-top:3px solid var(--accent);
+  border-radius:18px;padding:30px 26px;max-width:360px;width:100%;text-align:center;
+  box-shadow:0 24px 60px rgba(0,0,0,.5);
+}
+.apple-pop-icon{font-size:30px}
+.apple-pop-title{font-family:'Gowun Batang',serif;font-size:19px;font-weight:700;
+  color:var(--ink);margin-top:8px}
+.apple-pop-sub{font-size:13.5px;color:var(--ink-body);margin-top:5px}
+.apple-pop-line{font-size:13px;color:var(--ink-faint);margin-top:14px}
+.apple-pop-line b,.apple-pop-bal b{color:var(--link)}
+.apple-pop-bal{font-size:13px;color:var(--ink-faint);margin-top:3px}
+.apple-pop-btn{
+  margin-top:18px;width:100%;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;
+  padding:12px 0;border-radius:11px;border:1px solid var(--accent);
+  background:var(--band-deep);color:var(--ink-mid);
+}
+
+/* ── 폰 ─────────────────────────────────────────────────────────
+   ⚠ 0814 판정 — 폰에서는 종이가 화면을 거의 다 먹는다. 좌우에 띠를 만들려면
+     글자가 그만큼 좁아지므로, 하늘은 들어올 때와 다 내려갔을 때만 보인다.  */
+@media(max-width:640px){
+  #app{padding:66px 12px 96px}
+  .paper{border-radius:18px}
+  .star-header{padding:24px 20px 20px;gap:16px;flex-direction:column;align-items:flex-start}
+  .framed-wrap{width:104px;height:104px}
+  .star-name{font-size:24px}
+  .floor0,.floor1,.voyage,.section{padding:24px 20px 26px}
+  .floor3{padding:32px 20px 32px}
+  .scene-list,.wall{grid-template-columns:1fr}
+  .scene-item.open,.story-item.open{grid-column:auto}
+  .layer{grid-template-columns:58px 1fr;gap:9px}
+  .layer-label{padding-right:8px;letter-spacing:.02em;font-size:10.5px}
+  .back-link{top:14px;left:12px;font-size:12.5px;padding:7px 13px}
+  .modal-box{padding:20px 18px 22px}
+}
 </style>
 </head>
 <body>
 
 <div id="bg"></div>
+<canvas id="skyCanvas"></canvas>
 
 <!-- 로그인 필요 -->
 <div id="login-wall">
-  <div style="font-size:28px; color:rgba(201,168,76,0.4);">✦</div>
+  <div style="font-size:26px;color:rgba(201,168,76,.45)">✦</div>
   <div class="login-wall-title">은교살롱 회원만 입장 가능합니다</div>
   <div class="login-wall-sub">별의 탐구 페이지는 회원 전용 공간입니다</div>
   <button class="login-btn" onclick="location.href='index.html'">로그인하러 가기</button>
 </div>
 
-<!-- 메인 앱 -->
-<div id="app" style="display:none;">
+<a href="constella.html" class="back-link">← 별자리로 돌아가기</a>
 
-  <!-- 헤더 -->
-  <div class="star-header">
-    <a href="constella.html" class="back-link">← 별자리로 돌아가기</a>
-    <div class="star-card-row">
-      <!-- 사진#2 (액자) — 비율 그대로, 없으면 빈 칸 -->
+<!-- 메인 앱 — 한 몸통 종이 -->
+<div id="app" style="display:none;">
+  <div class="paper">
+
+    <!-- ① 머리 -->
+    <div class="star-header">
       <div class="framed-wrap" id="framed-wrap">
         <img class="framed-img" id="framed-img" alt="" style="display:none;">
         <div class="framed-empty" id="framed-empty"><span>✦</span></div>
         <div class="framed-upload" id="framed-upload" onclick="triggerFramedUpload()" style="display:none;">
-          <span style="font-size:16px;">📷</span>
+          <span style="font-size:14px;">📷</span>
           <span class="framed-upload-text">액자 변경</span>
         </div>
         <input type="file" id="framed-input" accept="image/*" style="display:none" onchange="uploadFramed(event)">
@@ -974,91 +444,87 @@ body.has-salon-bg .floor1-header {
         <div class="star-field" id="star-field"></div>
         <div class="star-desc" id="star-desc"></div>
         <div class="star-stats">
-          <!-- 0814 · 광도·하트 걷음 -->
           <div class="stat-item">
             <span class="stat-label">콩파뇽</span>
             <span class="stat-value" id="holder-count">—</span>
           </div>
           <div class="stat-item">
-            <span class="stat-label">Company</span>
+            <span class="stat-label">COMPANY</span>
             <span class="stat-value" id="stock-status">—</span>
           </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- 🌌 0층 — 교양의 풍경 (카리 4겹) -->
-  <div class="floor0" id="floor0">
-    <div class="floor0-header">
-      <span class="floor0-icon">🌌</span>
-      <span class="floor0-title">교양의 풍경</span>
-    </div>
-    <div id="floor0-body">
-      <div class="floor0-loading">⬤ 별빛을 모으는 중...</div>
-    </div>
-  </div>
-
-  <!-- 🎬 1층 — EG Salon (아이리스 영상 + 스레드 글) -->
-  <div class="floor1" id="floor1" style="display:none;">
-    <div class="floor1-header">
-      <span class="floor1-icon">🎬</span>
-      <span class="floor1-title">4'33" 영상으로 만나는 나의 별</span>
-    </div>
-    <div id="floor1-body"></div>
-  </div>
-
-  <!-- ✦ 별을 따라 떠나는 여행 (대표지 있는 별만 JS로 노출) -->
-  <div class="voyage" id="voyage" style="display:none;">
-    <div class="voyage-header">
-      <span class="voyage-icon">✦</span>
-      <span class="voyage-title">별을 따라 떠나는 여행</span>
-    </div>
-    <a class="voyage-card" id="voyage-link" href="#">
-      <div class="voyage-card-glow"></div>
-      <div class="voyage-card-text">
-        <div class="voyage-card-lead">이 별이 거닌 지상의 장소들</div>
-        <div class="voyage-card-sub">지구를 돌아, 그가 살던 도시로 천천히 내려갑니다.</div>
+    <!-- ② 교양의 풍경 -->
+    <div class="floor0" id="floor0">
+      <div class="floor0-header">
+        <span class="floor0-title">교양의 풍경</span>
+        <span class="floor0-count" id="floor0-count"></span>
       </div>
-      <div class="voyage-card-go">여정 떠나기 →</div>
-    </a>
-  </div>
-
-  <!-- 📖 응답의 정원 — 콩파뇽 에세이 -->
-  <div class="section" id="section-essay">
-    <div class="section-header">
-      <div class="section-title">
-        <span class="section-icon">📖</span>
-        <span>응답의 정원</span>
+      <div id="floor0-body">
+        <div class="floor0-loading">⬤ 별빛을 모으는 중...</div>
       </div>
-      <button class="add-btn" id="btn-add-essay" onclick="openModal()" disabled>+ 에세이 쓰기</button>
     </div>
-    <div id="essay-list"><div class="loading">⬤ 로딩 중...</div></div>
-  </div>
 
-  <!-- ✦ 3층 — Star & Company (콩파뇽 명패 벽) -->
-  <div class="floor3" id="floor3">
-    <div class="f3-head">
-      <div class="f3-title" id="f3-title">&nbsp;</div>
-      <div class="f3-counts">활동 콩파뇽 <b id="f3-liveN">—</b> / 100 &nbsp;·&nbsp; 누적 <b id="f3-totalN">—</b>명</div>
-      <div id="f3-join"></div>
+    <!-- ③ 1층 — 영상 있는 별만 -->
+    <div class="floor1" id="floor1" style="display:none;">
+      <div class="floor1-header">
+        <span class="floor1-icon">🎬</span>
+        <span class="floor1-title">4'33" 영상으로 만나는 나의 별</span>
+      </div>
+      <div id="floor1-body"></div>
     </div>
-    <div class="f3-rule"></div>
-    <div class="wall" id="f3-wall"></div>
-    <div class="pager" id="f3-pager"></div>
-    <div class="legend">
-      <span><i class="lg-dot" style="background:#c9ad6a"></i>합류한 콩파뇽</span>
-      <span><i class="lg-dot" style="background:rgba(203,185,133,.3);border:1px dashed rgba(203,185,133,.5)"></i>기다리는 자리</span>
-      <span><i class="lg-dot" style="background:rgba(120,115,100,.4)"></i>지나간 콩파뇽</span>
-    </div>
-  </div>
 
+    <!-- ④ 별을 따라 떠나는 여행 — 대표지 있는 별만 -->
+    <div class="voyage" id="voyage" style="display:none;">
+      <div class="voyage-header">
+        <span class="voyage-icon">✦</span>
+        <span class="voyage-title">별을 따라 떠나는 여행</span>
+      </div>
+      <a class="voyage-card" id="voyage-link" href="#">
+        <div class="voyage-card-glow"></div>
+        <div class="voyage-card-text">
+          <div class="voyage-card-lead">이 별이 거닌 지상의 장소들</div>
+          <div class="voyage-card-sub">지구를 돌아, 그가 살던 도시로 천천히 내려갑니다.</div>
+        </div>
+        <div class="voyage-card-go">여정 떠나기 →</div>
+      </a>
+    </div>
+
+    <!-- ⑤ 응답의 정원 -->
+    <div class="section" id="section-essay">
+      <div class="section-header">
+        <span class="section-title">응답의 정원</span>
+        <button class="add-btn" id="btn-add-essay" onclick="openModal()" disabled>+ 에세이 쓰기</button>
+      </div>
+      <div id="essay-list"><div class="loading">⬤ 로딩 중...</div></div>
+    </div>
+
+    <!-- ⑥ Star & Company -->
+    <div class="floor3" id="floor3">
+      <div class="f3-head">
+        <div class="f3-title" id="f3-title">&nbsp;</div>
+        <div class="f3-counts">활동 콩파뇽 <b id="f3-liveN">—</b> / 100 &nbsp;·&nbsp; 누적 <b id="f3-totalN">—</b>명</div>
+        <div id="f3-join"></div>
+      </div>
+      <div class="f3-rule"></div>
+      <div class="wall" id="f3-wall"></div>
+      <div class="pager" id="f3-pager"></div>
+      <div class="legend">
+        <span><i class="lg-dot" style="background:var(--pl3)"></i>합류한 콩파뇽</span>
+        <span><i class="lg-dot" style="border:1px dashed var(--dash)"></i>기다리는 자리</span>
+        <span><i class="lg-dot" style="background:var(--dash);opacity:.6"></i>지나간 콩파뇽</span>
+      </div>
+    </div>
+
+  </div>
 </div>
 
 <!-- 에세이 기고 모달 -->
 <div class="modal-bg" id="modal">
   <div class="modal-box">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
       <div class="modal-title" id="modal-title">에세이 쓰기</div>
       <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
@@ -1071,12 +537,12 @@ body.has-salon-bg .floor1-header {
     </div>
     <div class="form-group">
       <label class="form-label">에세이 *</label>
-      <textarea class="form-textarea" id="essay-content" style="min-height:240px;"
-        placeholder="이 인물에 대한 사유, 감상, 만남의 기록을 자유롭게 써주세요.&#10;긴 글도 환영합니다 🌟"></textarea>
+      <textarea class="form-textarea" id="essay-content" style="min-height:230px;"
+        placeholder="이 인물에 대한 사유, 감상, 만남의 기록을 자유롭게 써주세요.&#10;긴 글도 환영합니다 ✦"></textarea>
     </div>
 
     <button class="submit-btn" id="submit-btn" onclick="submitContent()">✦ 기고하기</button>
-    <div id="submit-msg" style="margin-top:12px; font-size:12px; text-align:center; color:rgba(201,168,76,0.5); display:none;"></div>
+    <div id="submit-msg" style="margin-top:11px;font-size:12px;text-align:center;display:none;"></div>
   </div>
 </div>
 
@@ -1105,8 +571,198 @@ let currentUser = null;
 let currentStar = null;
 let isHolder = false;
 
+/* ══════════════════════════════════════════════════════════════════════════
+   ① 종이 색 — 별마다 제 색 (0814)
+
+   ⭐ 소로 시안은 12색 중 「황금크림」 한 벌이었다. 실측: 시안 색 14개의
+     색상각이 39.4°~46.7°에 다 모여 있고, 팔레트 0번 황금이 37.4°다.
+     그래서 **색상각만 돌리면** 나머지 열한 벌이 저절로 나온다.
+     되짚어 검산하니 황금으로 돌렸을 때 시안과 채널 차 최대 1 — 눈에 안 보인다.
+
+   ⚠ 명도·채도는 시안 그대로 둔다. 그래야 열두 벌의 읽히는 정도가 안 흔들린다.
+     실측 — 본문 대비 7.35~9.95 (AAA 7.0 통과), 액센트는 노랑·초록 계열
+     셋만 밝기를 3%p 낮춰 3.0을 넘긴다.
+
+   ⚠ 값을 고치려면 SIAN 표 한 곳만 고친다. 별이 늘어도 손댈 곳이 없다.
+   ══════════════════════════════════════════════════════════════════════════ */
+const CARD_PALETTES_TEXT = [  /* constella.html CARD_PALETTES의 text와 같은 값 */
+  '#7a5210','#1a5a7a','#3a6010','#6a1060','#2a1880','#7a3a08',
+  '#0a5a38','#7a1010','#2a5808','#0a3060','#604018','#501870',
+];
+const SIAN = {
+  'paper':'#fbf7ee','panel':'#fffdf6','band':'#f4eddb','band-deep':'#efe2c2',
+  'rule':'#eadfc6','rule-soft':'#ece1c6','edge':'#eee3c8','edge-warm':'#e8d9ac',
+  'dash':'#d8cba6','hover':'#f7f0dd',
+  'ink':'#2f2717','ink-mid':'#4a3a1a','ink-body':'#5a4f3a','ink-faint':'#a3936f',
+  'accent':'#a8842b','link':'#8a6d1f','bullet':'#cdae60',
+  'plate-ink':'#241c0e','plate-sub':'#5a4a2a','pl-edge':'#d3bd85',
+  'pl1':'#e9dcb4','pl2':'#f8f0d6','pl3':'#e4d4a4','pl4':'#f2e8c6',
+  'seal':'#8a744a','seal-edge':'#6e5b38',
+};
+/* 대비를 지켜야 하는 것 — 모자라면 밝기를 내린다 */
+const PAPER_GUARD = { 'accent':['paper',3.0], 'link':['paper',3.4] };
+
+function _h2r(h){h=h.replace('#','');return [0,2,4].map(i=>parseInt(h.slice(i,i+2),16));}
+function _r2h(r,g,b){return '#'+[r,g,b].map(v=>Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0')).join('');}
+function _rgb2hsl(r,g,b){
+  r/=255;g/=255;b/=255;
+  const mx=Math.max(r,g,b), mn=Math.min(r,g,b), l=(mx+mn)/2;
+  if(mx===mn) return [0,0,l];
+  const d=mx-mn, s=l>.5? d/(2-mx-mn) : d/(mx+mn);
+  let h = mx===r ? (g-b)/d+(g<b?6:0) : mx===g ? (b-r)/d+2 : (r-g)/d+4;
+  return [h/6,s,l];
+}
+function _hsl2rgb(h,s,l){
+  if(s===0){const v=l*255;return [v,v,v];}
+  const q = l<.5 ? l*(1+s) : l+s-l*s, p = 2*l-q;
+  const f = t => { t=(t+1)%1;
+    return t<1/6 ? p+(q-p)*6*t : t<1/2 ? q : t<2/3 ? p+(q-p)*(2/3-t)*6 : p; };
+  return [f(h+1/3)*255, f(h)*255, f(h-1/3)*255];
+}
+function _hueTo(sianHex, starHex, dL){
+  const [ , sa, li] = _rgb2hsl(..._h2r(sianHex));
+  const [hs]        = _rgb2hsl(..._h2r(starHex));
+  return _r2h(..._hsl2rgb(hs, sa, Math.max(0, Math.min(1, li + (dL||0)))));
+}
+function _lumi(hex){
+  return _h2r(hex).map(v=>{v/=255;return v<=.03928? v/12.92 : Math.pow((v+.055)/1.055,2.4);})
+    .reduce((a,c,i)=>a+c*[.2126,.7152,.0722][i],0);
+}
+function _contrast(a,b){
+  const x=_lumi(a), y=_lumi(b);
+  return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);
+}
+function applyStarPaper(starId){
+  const star = CARD_PALETTES_TEXT[(starId || 0) % CARD_PALETTES_TEXT.length];
+  const out = {};
+  for (const k in SIAN) out[k] = _hueTo(SIAN[k], star, 0);
+  for (const k in PAPER_GUARD){
+    const [against, want] = PAPER_GUARD[k];
+    let dL = 0;
+    while (_contrast(out[k], out[against]) < want && dL > -0.22){
+      dL -= 0.01; out[k] = _hueTo(SIAN[k], star, dL);
+    }
+  }
+  const root = document.documentElement;
+  for (const k in out) root.style.setProperty('--'+k, out[k]);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ② 하늘 — 콘스텔라티오와 한 하늘 (0814)
+
+   값은 constella.html에서 그대로 가져왔다. 별자리 지도에서 카드를 눌러
+   넘어와도 같은 하늘이 같은 속도로 돈다.
+
+   ⚠ 여기는 팬·줌이 없다. 시차의 자리에 **스크롤**이 들어간다 — 종이가
+     내려갈 때 원경은 22%, 근경은 85%만 따라온다.
+   ⚠⚠ 은하수 밝기(.62)와 가장자리 페이드(.55)는 constella 값을 그대로 쓰면
+     안 된다. 저기는 화면 한복판이 다 보이지만 여기는 **종이가 중앙을 먹고
+     좌우 띠만 남는다** — 페이드가 하필 손님이 보는 그 띠를 삼킨다.
+     실측: .62/.55 → 띠 밝기 15.4 · .88/.30 → 24.4.
+   ══════════════════════════════════════════════════════════════════════════ */
+const SKY = (() => {
+  const BG_TILE = 3000;
+  const SKY_OMEGA = (Math.PI*2)/900;     // 15분 1회전 — constella와 같은 시계
+  const MW_OMEGA  = (Math.PI*2)/5400;    // 은하수 90분 1회전
+  const MW_PAR    = 0.15;
+  const MW_ALPHA  = 0.88;
+  const FADE_MAX  = 0.30;
+  const SCROLL_DAMP = 0.06;              // 4,000px 스크롤에 근경 204px — 눈에 겨우 걸린다
+  let cv, ctx, layers = [], t0 = 0, scrollY = 0, raf = null, mw = null;
+
+  function init(){
+    cv = document.getElementById('skyCanvas');
+    if (!cv) return;
+    ctx = cv.getContext('2d');
+    mw = new Image(); mw.src = 'milkyway_bg.jpg';
+    layers = [
+      {par:.22, rot:.35, count:320, rMin:.90, rMax:1.80, aMin:.34, aMax:.62, stars:[]},
+      {par:.50, rot:.60, count:260, rMin:1.30,rMax:2.50, aMin:.44, aMax:.78, stars:[]},
+      {par:.85, rot:1.00,count:220, rMin:1.70,rMax:3.40, aMin:.54, aMax:.92, stars:[]},
+    ];
+    for (const L of layers){
+      for (let i=0;i<L.count;i++){
+        const bx=Math.random()*BG_TILE, by=Math.random()*BG_TILE;
+        L.stars.push({
+          R0:Math.hypot(bx-BG_TILE/2, by-BG_TILE/2),
+          th0:Math.atan2(by-BG_TILE/2, bx-BG_TILE/2),
+          r:L.rMin+Math.random()*(L.rMax-L.rMin),
+          alpha:L.aMin+Math.random()*(L.aMax-L.aMin),
+          tSpd:Math.random()*.02+.005, tPh:Math.random()*Math.PI*2,
+        });
+      }
+    }
+    resize(); t0 = performance.now(); start();
+    addEventListener('resize', resize);
+    addEventListener('scroll', () => { scrollY = window.scrollY || 0; }, {passive:true});
+    /* ⭐ 안 보이는 탭에서는 멈춘다 — 읽지 않는 동안 화로를 때지 않는다 */
+    document.addEventListener('visibilitychange', () => document.hidden ? stop() : start());
+  }
+  function resize(){
+    if (!cv) return;
+    const d = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.floor(innerWidth*d); cv.height = Math.floor(innerHeight*d);
+    cv.style.width = innerWidth+'px'; cv.style.height = innerHeight+'px';
+    ctx.setTransform(d,0,0,d,0,0);
+  }
+  function milkyWay(t){
+    const cw = innerWidth, ch = innerHeight;
+    if (mw && mw.complete && mw.naturalWidth){
+      const S = Math.hypot(cw,ch)*1.35;
+      ctx.save();
+      ctx.translate(cw/2, ch/2 - scrollY*SCROLL_DAMP*MW_PAR);
+      ctx.rotate(t*MW_OMEGA);
+      ctx.globalAlpha = MW_ALPHA;
+      const iw = mw.naturalWidth, ih = mw.naturalHeight;
+      const cs = Math.max(S/iw, S/ih);
+      ctx.drawImage(mw, -iw*cs/2, -ih*cs/2, iw*cs, ih*cs);
+      ctx.restore();
+    }
+    const dg = Math.hypot(cw,ch);
+    const fade = ctx.createRadialGradient(cw/2,ch/2,dg*.42, cw/2,ch/2,dg*.78);
+    fade.addColorStop(0,'rgba(2,4,12,0)');
+    fade.addColorStop(1,`rgba(2,4,12,${FADE_MAX})`);
+    ctx.fillStyle = fade; ctx.fillRect(0,0,cw,ch);
+  }
+  function bgStars(t, skyA){
+    const vw = innerWidth, vh = innerHeight, viewY = scrollY*SCROLL_DAMP;
+    for (const L of layers){
+      const a2 = skyA*L.rot;
+      const offY = ((viewY*L.par)%BG_TILE + BG_TILE)%BG_TILE;
+      for (const s of L.stars){
+        const x = BG_TILE/2 + s.R0*Math.cos(s.th0+a2);
+        const y = BG_TILE/2 + s.R0*Math.sin(s.th0+a2);
+        const sx0 = (x%BG_TILE + BG_TILE)%BG_TILE - BG_TILE;
+        const sy0 = ((y-offY)%BG_TILE + BG_TILE)%BG_TILE - BG_TILE;
+        const al = Math.max(0, s.alpha + Math.sin(t*s.tSpd*60 + s.tPh)*.09);
+        ctx.fillStyle = `rgba(255,248,231,${al})`;
+        for (let ox=sx0; ox<vw+BG_TILE; ox+=BG_TILE){
+          if (ox < -6 || ox > vw+6) continue;
+          for (let oy=sy0; oy<vh+BG_TILE; oy+=BG_TILE){
+            if (oy < -6 || oy > vh+6) continue;
+            ctx.beginPath(); ctx.arc(ox,oy,s.r,0,Math.PI*2); ctx.fill();
+          }
+        }
+      }
+    }
+  }
+  function loop(){
+    const t = (performance.now()-t0)/1000;
+    ctx.clearRect(0,0,innerWidth,innerHeight);
+    milkyWay(t);
+    bgStars(t, t*SKY_OMEGA);
+    raf = requestAnimationFrame(loop);
+  }
+  function start(){ if(!raf && ctx) raf = requestAnimationFrame(loop); }
+  function stop(){ if(raf){ cancelAnimationFrame(raf); raf = null; } }
+  return { init, start, stop };
+})();
+
 // ── 초기화 ─────────────────────────────────────────────────────
 async function init() {
+  /* ⭐ 하늘은 로그인보다 먼저 돈다 — 벽 뒤가 검은 판이면 여기가 어디인지 모른다 */
+  SKY.init();
+
   // URL에서 star id 파싱
   const params = new URLSearchParams(location.search);
   const starId = params.get('id');
@@ -1143,7 +799,9 @@ async function init() {
       .select('is_admin').eq('id', user.id).maybeSingle();
     if (me && me.is_admin) document.body.classList.add('is-admin');
   } catch (e) { /* 조회 실패 시 업로드 잠금 유지 */ }
-  document.getElementById('app').style.display = 'block';
+  /* ⚠⚠ 0814 — 여기가 'block'이면 #app의 flex가 조용히 죽어 종이가 왼쪽에 붙는다.
+     CSS에 레이아웃을 적고 JS로 켜는 곳은 **켜는 값도 그 레이아웃이어야 한다.** */
+  document.getElementById('app').style.display = 'flex';
 
   // 별 데이터 로드
   await loadStar(starId);
@@ -1196,7 +854,7 @@ async function intrareDone(area){
    ⚠ 각인은 찍는 순간 복사(15호) — 별 이름이 바뀌어도 이 도장은 그날의 이름이다.
    ⚠ 잘못된 obs(원판 없는 코드)면 부품 findKind가 못 찾아 조용히 아무 일도 없다 —
      병이 아니라 30호. 다만 콘솔에서 그림을 걸었는지 먼저 의심할 것.              */
-console.log('[EG] star 0814a — 광도·하트·등성 걷음 · 통계 줄은 콩파뇽만');
+console.log('[EG] star 0814b — 밤하늘 위 종이 640 · 12색 파생 · 0층 1단 · 명패 크림');
 function stampHere(obsCode){
   if(!window.EGStamp) return;
   const opt = { supa: supa, area:'observatorium', bottom: 96 };
@@ -1244,6 +902,10 @@ async function loadStar(starId) {
   if (!star) { location.href = 'constella.html'; return; }
   currentStar = star;
 
+  /* ⭐ 이 별의 색으로 종이를 물들인다. 카드 뒷면과 같은 팔레트 — 카드를 누르고
+     넘어온 손님에게 색이 이어진다(0814). */
+  applyStarPaper(star.id);
+
   document.getElementById('star-name').textContent = star.name;
 
   const birth = star.birth < 0
@@ -1262,12 +924,29 @@ async function loadStar(starId) {
   const { count: compCount } = await supa.from('companions')
     .select('*', { count: 'exact', head: true })
     .eq('star_id', star.id).eq('status', 'live');
-  document.getElementById('holder-count').textContent = `${compCount || 0} / 100`;
-  const statusLabel = { sleeping:'씨앗', recruiting:'모집 중', closed:'마감' }[star.stella_status] || '—';
-  document.getElementById('stock-status').textContent = statusLabel;
+  document.getElementById('holder-count').innerHTML =
+    `${compCount || 0} <span class="of">/ 100</span>`;
+  paintCompanyState(star, compCount || 0);
 
-  // 3D 카드 업데이트
   updateFramed(star);
+}
+
+/* ── 0814 소로: 「모집 중에 링크를 걸어 합류 가능하게」 ────────────────
+   ⚠ 함정 CH — 문구를 줄이면 그 문구가 하던 일도 사라진다.
+     「모집 중」 석 자는 값을 한 마디도 안 한다. 그래서 누르는 순간
+     확인 창이 **몇 번째 · 몇 알**을 말한다(joinCompanion).
+   ⚠ 이미 콩파뇽이거나 마감이면 문을 안 연다 — 눌러도 아무 일 없는 문은
+     문이 아니다. 상태만 적는다.                                        */
+function paintCompanyState(star, liveCnt) {
+  const el = document.getElementById('stock-status');
+  if (!el) return;
+  const label = { sleeping:'씨앗', recruiting:'모집 중', closed:'마감' }[star.stella_status] || '—';
+
+  if (isHolder) { el.innerHTML = `<span class="stat-mine">합류함</span>`; return; }
+  if (star.stella_status !== 'recruiting' || liveCnt >= 100) {
+    el.innerHTML = `<span class="stat-mine">${label}</span>`; return;
+  }
+  el.innerHTML = `<button class="stat-open" onclick="joinCompanion()">${label} ✦</button>`;
 }
 
 // ── ✦ 별을 따라 떠나는 여행 버튼 (대표지 있는 별만 노출) ────────────
@@ -1314,61 +993,7 @@ async function loadVoyageLink(starId) {
   } catch (e) { /* 조회 실패 시 버튼 숨김 유지 */ }
 }
 
-function updateCard(star) {
-  // 앞면 — 사진 or 빈 상태
-  const frontContent = document.getElementById('card-front-content');
-  if (star.photo_url) {
-    frontContent.innerHTML = `<img class="card-img" src="${star.photo_url}" alt="${star.name}">`;
-    frontContent.className = '';
-    frontContent.style.cssText = 'width:100%;height:100%;';
-  } else {
-    frontContent.className = 'card-empty';
-    frontContent.innerHTML = `
-      <span class="card-empty-icon">✦</span>
-      <span class="card-empty-text">사진을<br>추가해주세요</span>
-    `;
-  }
 
-  // 뒷면 — 분야만
-  document.getElementById('card-back-stock').innerHTML =
-    `${star.field || ''}`;
-
-  // 3D 기울기 인터랙션
-  initCardInteraction();
-}
-
-let cardFlipped = false;
-function initCardInteraction() {
-  const wrap = document.getElementById('card-wrap');
-  const card = document.getElementById('card-3d');
-  const glare = document.getElementById('card-glare');
-
-  wrap.addEventListener('mousemove', e => {
-    if (cardFlipped) return;
-    const r = wrap.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width - 0.5;
-    const y = (e.clientY - r.top) / r.height - 0.5;
-    card.style.transform = `perspective(700px) rotateY(${x*22}deg) rotateX(${-y*22}deg)`;
-    glare.style.background = `radial-gradient(circle at ${e.clientX-r.left}px ${e.clientY-r.top}px,
-      rgba(255,255,255,0.2), transparent 55%)`;
-  });
-
-  wrap.addEventListener('mouseleave', () => {
-    if (!cardFlipped) {
-      card.style.transform = 'perspective(700px) rotateY(0deg) rotateX(0deg)';
-      glare.style.background = '';
-    }
-  });
-
-  wrap.addEventListener('click', e => {
-    // 업로드 오버레이 클릭 제외
-    if (e.target.closest('#upload-overlay')) return;
-    cardFlipped = !cardFlipped;
-    card.style.transform = cardFlipped
-      ? 'rotateY(180deg)'
-      : 'perspective(700px) rotateY(0deg) rotateX(0deg)';
-  });
-}
 
 // ── 사진#2 (액자) 표시·업로드 ──────────────────────────────────
 function updateFramed(star) {
@@ -1420,56 +1045,7 @@ async function uploadFramed(event) {
 }
 
 // ── 사진 업로드 ────────────────────────────────────────────────
-function triggerUpload() {
-  document.getElementById('photo-input').click();
-}
 
-async function uploadPhoto(event) {
-  const file = event.target.files[0];
-  if (!file || !currentStar) return;
-
-  const overlay = document.getElementById('upload-overlay');
-  overlay.innerHTML = '<span style="font-size:11px;color:#8B6010;font-weight:700;">업로드 중...</span>';
-
-  const ext = file.name.split('.').pop();
-  const fileName = `star_${currentStar.id}_${Date.now()}.${ext}`;
-
-  const { data, error } = await supa.storage
-    .from('star-photos')
-    .upload(fileName, file, { upsert: true });
-
-  if (error) {
-    console.error(error);
-    overlay.innerHTML = '<span style="font-size:9px;color:#c00;">실패. 재시도</span>';
-    setTimeout(() => {
-      overlay.innerHTML = '<span style="font-size:16px;">📷</span><span class="upload-overlay-text">사진 변경</span>';
-    }, 2000);
-    return;
-  }
-
-  // 퍼블릭 URL 가져오기
-  const { data: urlData } = supa.storage
-    .from('star-photos')
-    .getPublicUrl(fileName);
-
-  const photoUrl = urlData.publicUrl;
-
-  // stars 테이블 업데이트
-  await supa.from('stars')
-    .update({ photo_url: photoUrl })
-    .eq('id', currentStar.id);
-
-  currentStar.photo_url = photoUrl;
-
-  // 카드 이미지 갱신
-  const frontContent = document.getElementById('card-front-content');
-  frontContent.innerHTML = `<img class="card-img" src="${photoUrl}" alt="${currentStar.name}">`;
-  frontContent.className = '';
-  frontContent.style.cssText = 'width:100%;height:100%;';
-
-  overlay.innerHTML = '<span style="font-size:16px;">📷</span><span class="upload-overlay-text">사진 변경</span>';
-  event.target.value = '';
-}
 
 // ── 콩파뇽 여부 확인 (2층 에세이 쓰기권한) ──────────────────────────
 async function checkHolder(starId) {
@@ -1482,6 +1058,16 @@ async function checkHolder(starId) {
   // 에세이 쓰기 버튼 활성화 (콩파뇽만)
   const btn = document.getElementById('btn-add-essay');
   if (btn) btn.disabled = !isHolder;
+
+  /* ⚠⚠ 0814 — 여기서 다시 칠한다. init 차례가 loadStar → … → checkHolder라
+     머리에서 칠할 때 isHolder는 **언제나 false**였다. 이미 콩파뇽인 손님에게도
+     합류 문이 열려, 눌러 봐야 되돌아오는 문이 될 뻔했다. */
+  if (currentStar) {
+    const { count } = await supa.from('companions')
+      .select('*', { count: 'exact', head: true })
+      .eq('star_id', starId).eq('status', 'live');
+    paintCompanyState(currentStar, count || 0);
+  }
 }
 
 // ── 3층 Star & Company — 콩파뇽 명패 벽 ──────────────────────────
@@ -1631,7 +1217,12 @@ function renderCompPager() {
 // ── 콩파뇽 합류 ────────────────────────────────────────────────
 async function joinCompanion() {
   if (!currentUser || !currentStar) return;
-  if (!confirm(`${currentStar.name} & Company의 콩파뇽이 되시겠습니까?\n황금사과가 쓰입니다.`)) return;
+  /* ⚠ 0814 — 「황금사과가 쓰입니다」만으로는 얼마인지 모르고 누른다.
+     되돌릴 수 없는 일이므로 몇 번째·몇 알을 여기서 말한다(constella와 같은 문법). */
+  const free = companionSlots.find(s => s.status !== 'filled');
+  const nr = free ? free.rank : (companionSlots.length + 1);
+  const np = (Math.round((1.0 + (nr - 1) * 0.1) * 10) / 10).toFixed(1);
+  if (!confirm(`${currentStar.name} & Company\n\n${nr}번째 콩파뇽으로 합류합니다.\n황금사과 ${np}알이 쓰입니다.`)) return;
   const { data, error } = await supa.rpc('join_companion', { p_star_id: currentStar.id });
   if (error) { alert('합류 처리 중 오류: ' + error.message); return; }
   if (!data || !data.ok) { alert((data && data.error) || '합류하지 못했습니다.'); return; }
@@ -1652,6 +1243,17 @@ function closeAppleSpent() {
 }
 
 // ── 0층 교양의 풍경 로드 (카리 4겹) ──────────────────────────────
+/* ══ 0층 교양의 풍경 ═════════════════════════════════════════════════════
+   ⭐ 0814 재건축 — 2단 접이(작품 → 카드 → 4겹)를 **1단**으로.
+
+   실측이 설계를 정했다:
+     작품당 장면 1개  144곳   ← 대다수. 작품 줄과 장면 줄이 이미 같다
+     작품당 장면 6개   36곳   ← 「꿈의 해석」·「댈러웨이 부인」 …
+   작품을 줄로 삼으면 저 36곳에서 한 번 눌렀을 때 **4겹 여섯 편이 쏟아진다.**
+   장면을 줄로 삼으면 여섯 줄로 고르게 펴지고, 줄 제목과 펼친 제목이 일치한다.
+
+   ⚠ 「N권의 흔적」이라 안 적는다 — work 없는 문항은 생애·사상이고,
+     헤리티지 보물은 음반·그림이다. 권이 아니다. 「N장면」으로 센다.        */
 async function loadFloor0(starId) {
   const body = document.getElementById('floor0-body');
   const { data: rows, error } = await supa.rpc('get_star_questions', {
@@ -1670,9 +1272,6 @@ async function loadFloor0(starId) {
     return;
   }
 
-  // 별의 자기 곳 — 문학 별에 살롱 배경 한 곳 고정 (별 id로 6장 중 하나)
-  applyStarBackground();
-
   // ★ 보물 순례: treasure 장면들이 지금 누구의 분더카머에서 도는지 (반납 안 된 대여)
   const treasureIds = rows.filter(r => r.question_type === 'treasure').map(r => r.seed_id);
   const rentalMap = {};
@@ -1685,55 +1284,70 @@ async function loadFloor0(starId) {
     (rentals || []).forEach(rt => { (rentalMap[rt.item_id] = rentalMap[rt.item_id] || []).push(rt); });
   }
 
-  // work별로 묶기
-  const groups = {};
+  const esc = s => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const workLabel = w => (!w || w === 'general') ? '생애와 사상' : w;
+
+  /* 작품 안에서 난이도 순, 작품끼리는 가나다순(생애와 사상은 맨 뒤).
+     ⚠ RPC가 이미 difficulty 순으로 주므로 여기서는 작품만 모은다 — 장면 안의 차례는 안 흔든다. */
+  const order = [];
+  const seen = {};
   rows.forEach(r => {
     const w = r.work || 'general';
-    if (!groups[w]) groups[w] = [];
-    groups[w].push(r);
+    if (!seen[w]) { seen[w] = []; order.push(w); }
+    seen[w].push(r);
   });
-
-  // 'general'은 맨 뒤로, 나머지는 가나다순
-  const workNames = Object.keys(groups).sort((a, b) => {
+  order.sort((a, b) => {
     if (a === 'general') return 1;
     if (b === 'general') return -1;
     return a.localeCompare(b, 'ko');
   });
+  const flat = [].concat(...order.map(w => seen[w]));
 
-  const esc = s => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const workLabel = w => w === 'general' ? '생애와 사상' : w;
+  const cnt = document.getElementById('floor0-count');
+  if (cnt) cnt.textContent = `${flat.length}장면`;
 
-  body.innerHTML = workNames.map(w => {
-    const cards = groups[w].map(r => `
-      <div class="scene-card" onclick="this.classList.toggle('open')">
-        <div class="scene-head">
-          <span class="scene-dot">✦</span>
+  body.innerHTML = '<div class="scene-list">' + flat.map(r => {
+    const cur = renderCurationLinksStar(r.curation_links);
+    const treasure = r.question_type === 'treasure'
+      ? (r.open_at && new Date(r.open_at) > new Date()
+          ? renderComingSoon(r.open_at)
+          : renderTreasurePath(r.seed_id, rentalMap[r.seed_id]))
+      : '';
+    return `
+      <div class="scene-item">
+        <div class="scene-line">
+          <span class="scene-dot">✧</span>
           <span class="scene-title">${esc(r.poetic_title) || '제목 없음'}</span>
+          <span class="scene-count">${esc(workLabel(r.work))}</span>
         </div>
-        <div class="scene-layers" onclick="event.stopPropagation()">
+        <div class="scene-layers">
           ${layerHtml('지식', r.knowledge)}
           ${layerHtml('사유', r.thought)}
           ${layerHtml('연결', r.connection)}
-          ${layerHtml('큐레이션', r.curation, r.curation_links)}
+          ${layerHtml('큐레이션', r.curation)}
           ${r.cover ? `<img class="scene-cover" src="${esc(r.cover)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
-          ${r.question_type === 'treasure'
-            ? (r.open_at && new Date(r.open_at) > new Date()
-                ? renderComingSoon(r.open_at)
-                : renderTreasurePath(r.seed_id, rentalMap[r.seed_id]))
-            : ''}
+          ${cur}
+          ${treasure}
         </div>
-      </div>`).join('');
-
-    return `
-      <div class="work-group">
-        <div class="work-head" onclick="this.parentElement.classList.toggle('open')">
-          <span class="work-arrow">▶</span>
-          <span class="work-name">${esc(workLabel(w))}</span>
-          <span class="work-count">${groups[w].length}</span>
-        </div>
-        <div class="work-cards">${cards}</div>
       </div>`;
-  }).join('');
+  }).join('') + '</div>';
+
+  /* ⭐ 접기·펴기는 위임 한 곳에서. 줄마다 onclick을 박으면 줄이 늘 때마다 핸들도 는다.
+     ⚠ 펼친 판 안을 눌러도 안 닫힌다 — .scene-line을 눌렀을 때만 여닫는다. */
+  body.addEventListener('click', e => {
+    const line = e.target.closest('.scene-line');
+    if (!line) return;
+    const item = line.parentElement;
+    const was = item.classList.contains('open');
+    body.querySelectorAll('.scene-item.open').forEach(x => {
+      x.classList.remove('open');
+      const d = x.querySelector('.scene-dot'); if (d) d.textContent = '✧';
+    });
+    if (!was) {
+      item.classList.add('open');
+      const d = item.querySelector('.scene-dot'); if (d) d.textContent = '✦';
+    }
+  });
 }
 
 // ── 별표 *...* → 굵은 강조 (뮤세움 renderMarkdown 이식, 소로 6/10) ──
@@ -1747,56 +1361,56 @@ function renderMarkdownStar(text) {
 }
 
 // ── 큐레이션 링크 (뮤세움 renderCurationLinks 이식) — 절대 사라지지 않는 검색 링크 ──
+/* ── 큐레이션 링크 ────────────────────────────────────────────────
+   ⚠⚠ 0814 — 옛 판은 색을 손으로 박고 있었다(#8B6F2A · #2e2820 …).
+     12색 종이 위에서 이 블록만 황금빛으로 남아 한 별에 두 색이 섰다.
+     전부 CSS 변수로 옮겼다 — 이 함수에는 이제 색이 한 글자도 없다.       */
 function renderCurationLinksStar(links) {
   if (!links) return '';
-  const sections = [];
-  const linkStyle = "color:#8B6F2A;text-decoration:none;border-bottom:1px solid rgba(139,111,42,0.35);padding-bottom:1px";
-  const stopProp = `onclick="event.stopPropagation()" ontouchstart="event.stopPropagation()"`;
+  const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const stop = `onclick="event.stopPropagation()" ontouchstart="event.stopPropagation()"`;
+  const cols = [];
+
   if (links.books && links.books.length > 0) {
-    const bookCards = links.books.map(b => {
-      const title = b.title || '';
-      const meta = [b.translator && `${b.translator} 옮김`, b.publisher].filter(Boolean).join(' · ');
-      const qFull  = encodeURIComponent((b.isbn ? [b.isbn] : [title, b.author, (b.translator || b.publisher)].filter(Boolean)).join(' '));
-      const stores = [
-        `<a href="https://www.google.com/search?q=${qFull}" target="_blank" rel="noopener" ${stopProp} style="${linkStyle}">책 찾기</a>`,
-      ];
-      return `
-        <div style="padding:10px 0;border-bottom:1px solid rgba(180,160,120,0.15);font-family:'Noto Serif KR',serif">
-          <div style="font-size:13px;color:#2e2820;font-weight:500">${title}</div>
-          ${meta ? `<div style="font-size:11px;color:rgba(80,60,30,0.6);margin-top:3px">${meta}</div>` : ''}
-          <div style="margin-top:6px;font-size:11px;letter-spacing:0.05em">${stores.join(' · ')}</div>
+    const items = links.books.map(b => {
+      const title = esc(b.title || '');
+      const meta  = [b.translator && `${b.translator} 옮김`, b.publisher].filter(Boolean).map(esc).join(' · ');
+      const q = encodeURIComponent(
+        (b.isbn ? [b.isbn] : [b.title, b.author, (b.translator || b.publisher)].filter(Boolean)).join(' '));
+      return `<div class="cur-book">
+          <div class="cur-book-t">${title}</div>
+          <div class="cur-book-m">${meta}${meta ? ' · ' : ''}<a href="https://www.google.com/search?q=${q}"
+            target="_blank" rel="noopener" ${stop} class="cur-chip" style="padding:1px 0;border:none;border-bottom:1px solid var(--edge-warm);border-radius:0;margin:0">책 찾기</a></div>
         </div>`;
     }).join('');
-    sections.push(`<div style="margin-top:14px"><div style="font-size:10px;letter-spacing:0.18em;color:rgba(120,90,40,0.6);margin-bottom:6px">📖 책</div>${bookCards}</div>`);
+    cols.push(`<div><div class="cur-label">📖 함께 읽기</div>${items}</div>`);
   }
-  if (links.library_call_number) {
-    sections.push(`
-      <div style="margin-top:12px;padding:8px 0;border-bottom:1px solid rgba(180,160,120,0.15);font-family:'Noto Serif KR',serif">
-        <div style="font-size:10px;letter-spacing:0.18em;color:rgba(120,90,40,0.6);margin-bottom:4px">🏛 도서관 청구기호</div>
-        <div style="font-size:13px;color:#2e2820">${links.library_call_number}</div>
-      </div>`);
-  }
+
   if (links.youtube_keywords && links.youtube_keywords.length > 0) {
-    const ytLinks = links.youtube_keywords.map(kw =>
-      `<a href="https://www.youtube.com/results?search_query=${encodeURIComponent(kw)}" target="_blank" rel="noopener" ${stopProp} style="${linkStyle};display:inline-block;margin-right:10px;margin-top:4px">${kw}</a>`
-    ).join('');
-    sections.push(`
-      <div style="margin-top:12px;padding:8px 0;font-family:'Noto Serif KR',serif">
-        <div style="font-size:10px;letter-spacing:0.18em;color:rgba(120,90,40,0.6);margin-bottom:4px">🎬 유튜브에서 더 보기</div>
-        <div style="font-size:12px;line-height:2">${ytLinks}</div>
-      </div>`);
+    const chips = links.youtube_keywords.map(kw =>
+      `<a href="https://www.youtube.com/results?search_query=${encodeURIComponent(kw)}"
+         target="_blank" rel="noopener" ${stop} class="cur-chip">${esc(kw)}</a>`).join('');
+    cols.push(`<div><div class="cur-label">🎬 더 보기</div>${chips}</div>`);
   }
-  return sections.length ? `<div style="margin-top:14px;padding-top:14px;border-top:1px dashed rgba(180,160,120,0.3)">${sections.join('')}</div>` : '';
+
+  if (links.library_call_number) {
+    cols.push(`<div><div class="cur-label">🏛 도서관 청구기호</div>
+      <div class="cur-book-t">${esc(links.library_call_number)}</div></div>`);
+  }
+
+  if (!cols.length) return '';
+  return `<div class="cur-block" style="display:grid;grid-template-columns:${
+    cols.length > 1 ? '1fr 1fr' : '1fr'};gap:18px">${cols.join('')}</div>`;
 }
 
-function layerHtml(label, text, links) {
-  if (!text && !links) return '';
-  const linksHtml = links ? renderCurationLinksStar(links) : '';
+/* ⚠ 0814 — links 인자를 걷었다. 큐레이션 링크는 4겹 **안**이 아니라 아래에
+     따로 선다(소로 시안). 안에 넣으면 「큐레이션」 층만 두 배로 길어진다. */
+function layerHtml(label, text) {
+  if (!text) return '';
   return `
     <div class="layer">
       <div class="layer-label">${label}</div>
       <div class="layer-text">${renderMarkdownStar(text)}</div>
-      ${linksHtml}
     </div>`;
 }
 
@@ -1925,27 +1539,11 @@ async function loadFloor1(starId) {
   floor1.style.display = 'block';
 }
 
-// ── 별의 자기 곳 (배경 배정) ────────────────────────────────────
-// field(12카테고리)별 살롱 풍경 풀. 별 id로 그 안에서 한 곳 고정 → 30년 "그 별의 방".
-const SALON_BG = {
-  '문학': ['star_bg01.webp','star_bg02.webp','star_bg03.webp',
-           'star_bg04.webp','star_bg05.webp','star_bg06.webp'],
-  // 다른 분야는 풍경 준비되는 대로 추가 (철학·예술·역사·과학...)
-};
-function applyStarBackground() {
-  if (!currentStar) return;
-  const pool = SALON_BG[currentStar.field];
-  if (!pool || pool.length === 0) return;  // 풍경 없는 분야 → 아이보리 유지
-
-  const bg = pool[currentStar.id % pool.length];  // 별 id로 한 곳 고정
-  const sky = document.getElementById('bg');
-  if (sky) {
-    sky.style.backgroundImage = `url('${bg}')`;
-    document.body.classList.add('has-salon-bg');
-  }
-}
 
 // ── 에세이 로드 ────────────────────────────────────────────────
+/* ── 응답의 정원 ─────────────────────────────────────────────────
+   ⭐ 0814 — 카드가 죽 늘어서던 것을 **교양의 풍경과 같은 접이 목록**으로.
+     한 페이지에 두 가지 문법이 서면 손님이 두 번 배운다.                 */
 async function loadContents(starId) {
   const { data: contents } = await supa.from('star_contents')
     .select('id, user_id, title, content, created_at')
@@ -1967,30 +1565,53 @@ async function loadContents(starId) {
   const nickMap = {};
   (users || []).forEach(u => { nickMap[u.id] = { nick: u.nickname, avatar: u.avatar_url }; });
 
-  contents.forEach(item => list.appendChild(renderContent(item, nickMap)));
+  list.innerHTML = '<div class="scene-list">' +
+    contents.map(item => renderContent(item, nickMap)).join('') + '</div>';
+
+  /* 접기·펴기 — 0층과 같은 위임. ⚠ 두 번 걸면 두 번 토글되어 안 열린다.
+     loadContents는 기고 뒤에도 다시 불리므로 표식으로 한 번만 건다. */
+  if (!list.dataset.bound) {
+    list.dataset.bound = '1';
+    list.addEventListener('click', e => {
+      const line = e.target.closest('.story-line');
+      if (!line) return;
+      const item = line.parentElement;
+      const was = item.classList.contains('open');
+      list.querySelectorAll('.story-item.open').forEach(x => {
+        x.classList.remove('open');
+        const d = x.querySelector('.scene-dot'); if (d) d.textContent = '✧';
+      });
+      if (!was) {
+        item.classList.add('open');
+        const d = item.querySelector('.scene-dot'); if (d) d.textContent = '✦';
+      }
+    });
+  }
 }
 
 function renderContent(item, nickMap) {
-  const date = new Date(item.created_at).toLocaleDateString('ko-KR');
+  const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const d = new Date(item.created_at);
+  const date = `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}`;
   const info = (nickMap && nickMap[item.user_id]) || {};
   const author = info.nick || '콩파뇽';
-  const avatarHtml = info.avatar
-    ? `<img class="story-avatar" src="${info.avatar}" alt="">`
+  const avatar = info.avatar
+    ? `<img class="story-avatar" src="${esc(info.avatar)}" alt="">`
     : `<span class="story-avatar">✦</span>`;
-
-  const div = document.createElement('div');
-  div.className = 'story-card';
-  const isLong = item.content && item.content.length > 300;
-  div.innerHTML = `
-    <div class="story-card-header">
-      <span class="story-author">${avatarHtml}${author}</span>
-      <span class="story-date">${date}</span>
-    </div>
-    ${item.title ? `<div style="font-size:16px;font-weight:700;color:#2a2018;margin-bottom:10px;">${item.title}</div>` : ''}
-    <div class="story-body ${isLong ? 'collapsed' : ''}" id="story-${item.id}">${item.content || ''}</div>
-    ${isLong ? `<button class="expand-btn" onclick="toggleStory('${item.id}')">더 읽기 ↓</button>` : ''}
-  `;
-  return div;
+  /* ⚠ 제목은 선택이다. 없으면 첫 문장이 제목 노릇을 한다 — 빈 줄로 두지 않는다. */
+  const head = item.title || (item.content || '').split('\n')[0].slice(0, 28) || '무제';
+  return `
+    <div class="story-item">
+      <div class="story-line">
+        <span class="scene-dot">✧</span>
+        <span class="story-t">${esc(head)}</span>
+        <span class="story-d">${date}</span>
+      </div>
+      <div class="story-open">
+        <div class="story-by">${avatar}${esc(author)} · ${date}</div>
+        <div class="story-body">${esc(item.content || '')}</div>
+      </div>
+    </div>`;
 }
 
 function extractYoutubeId(url) {
@@ -2001,17 +1622,6 @@ function extractYoutubeId(url) {
   return m ? m[1] : null;
 }
 
-function toggleStory(id) {
-  const el = document.getElementById(`story-${id}`);
-  const btn = el.nextElementSibling;
-  if (el.classList.contains('collapsed')) {
-    el.classList.remove('collapsed');
-    btn.textContent = '접기 ↑';
-  } else {
-    el.classList.add('collapsed');
-    btn.textContent = '더 읽기 ↓';
-  }
-}
 
 // ── 모달 ───────────────────────────────────────────────────────
 function openModal() {
