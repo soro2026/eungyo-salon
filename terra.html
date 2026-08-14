@@ -690,6 +690,40 @@ window.EGQ = (function(){
   #card .pl{font-family:var(--serif);font-size:24px;margin:.18em 0 .35em}
   #card .desc{font-size:13.5px;line-height:1.65;color:var(--cream-dim)}
 
+  /* ══ 0814 소로 — 별의 여정 간판 ═══════════════════════════════════════
+     ⚠ 별에서 「여정 떠나기」로 내려오면 타륜이 열두 갈래를 펼쳤다. 왜 왔는지
+       잊게 만드는 자리다. 여정은 갈림이 있는 곳이 아니라 **한 별을 따라 걷는
+       길**이므로, 걷는 동안에는 길만 남긴다.
+     ⭐ 문은 하나 — 「별로 돌아가기」. 하던 일을 마치러 가는 길이 곧 정문이다.
+     ⚠⚠ 옛 #journey 띠가 타륜을 따라다니며 꼬였던 진짜 까닭은 **끝나는 조건이
+       없어서**였다. 이번엔 끝이 명시적이다(endVoyage 한 곳). */
+  #voyageSign{
+    position:fixed;left:18px;top:16px;z-index:40;display:none;
+    align-items:center;gap:14px;padding:10px 14px 10px 16px;
+    border-radius:999px;background:rgba(8,11,22,.82);
+    border:1px solid rgba(201,162,39,.34);backdrop-filter:blur(8px);
+    box-shadow:0 8px 26px rgba(0,0,0,.42);
+    font-family:var(--sans);
+  }
+  #voyageSign.on{display:flex}
+  #voyageSign .vs-star{
+    font-size:13.5px;font-weight:700;color:#e8dfc2;letter-spacing:.02em;white-space:nowrap;
+  }
+  #voyageSign .vs-star i{font-style:normal;color:#c9a227;margin-right:6px}
+  #voyageSign .vs-back{
+    font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;
+    padding:7px 14px;border-radius:999px;border:1px solid rgba(201,162,39,.5);
+    background:rgba(201,162,39,.13);color:#e8dfc2;transition:.15s;
+  }
+  #voyageSign .vs-back:hover{background:rgba(201,162,39,.26);border-color:rgba(201,162,39,.8)}
+  /* 여정 중에는 타륜을 접는다 — 도시 목록은 도크 안이 아니라 여정에 속하므로 살아 있다 */
+  body.on-voyage #helmBtn{display:none}
+  body.on-voyage #egDock{display:none}
+  @media(max-width:640px){
+    #voyageSign{left:10px;right:10px;top:10px;gap:9px;padding:8px 10px 8px 12px}
+    #voyageSign .vs-star{font-size:12px;overflow:hidden;text-overflow:ellipsis}
+  }
+
   /* ── 하단 여정 띠 ── */
   #journey{
     position:fixed;left:0;right:0;bottom:0;z-index:10;
@@ -1683,6 +1717,12 @@ window.EGQ = (function(){
 </div>
 
 <nav id="journey"></nav>
+
+<!-- 0814 — 별의 여정 간판. 걷는 동안만 선다. -->
+<div id="voyageSign">
+  <span class="vs-star"><i>✦</i><span id="vsName"></span>의 여정</span>
+  <button class="vs-back" type="button" id="vsBack">별로 돌아가기 →</button>
+</div>
 
 <div id="loader">
   <div id="skyDrift"></div>
@@ -2758,6 +2798,57 @@ function toggleStarList(show){
 
 // 페이지를 떠나지 않고 그 인물의 대표지로 직행 — 세션 하나 유지(과금 0).
 // 액자(이곳에 닿은 별)에서 호출. 도시가 다르면 도시 마커만 갈아끼우고 그 장소로 비행.
+/* ══ 0814 — 여정의 시작과 끝 ═══════════════════════════════════════════════
+   ⚠ 서는 조건만 있고 걷히는 조건이 없으면 간판은 타륜을 따라다닌다. 옛 #journey가
+     그 병이었다. 걷히는 길을 **먼저** 적는다 — 끝이 있어야 길이다.
+
+   끝나는 때 넷:
+     ① 「별로 돌아가기」를 누른다        ② 타륜에서 딴 데를 연다(setDoorFrame)
+     ③ 다른 별의 여정으로 갈아탄다      ④ 집으로 돌아간다(goToMyHome)
+   ⭐ ②가 핵심이다. 딴 데를 여는 순간 그 여정은 끝난 것이다.                    */
+let voyageStar = null;    /* 지금 따라 걷는 별 { id, name } */
+
+function startVoyage(id, name){
+  voyageStar = { id: id, name: name || '' };
+  const el = document.getElementById('voyageSign');
+  const nm = document.getElementById('vsName');
+  if (nm) nm.textContent = name || '이 별';
+  if (el) el.classList.add('on');
+  document.body.classList.add('on-voyage');
+  closeDoorMenu2();
+}
+function endVoyage(){
+  if (!voyageStar) return;
+  voyageStar = null;
+  const el = document.getElementById('voyageSign');
+  if (el) el.classList.remove('on');
+  document.body.classList.remove('on-voyage');
+}
+/* 도크가 펼쳐진 채로 접히면 다음에 이상한 자리에서 다시 뜬다 — 접어 둔다 */
+function closeDoorMenu2(){
+  try{
+    const d = document.getElementById('egDock');
+    if (d) d.classList.remove('open');
+  }catch(e){}
+}
+/* 「별로 돌아가기」 — 그 별의 탐구 페이지로. 하던 일을 마치러 간다 */
+function backToStar(){
+  if (!voyageStar) return;
+  const id = voyageStar.id;
+  endVoyage();
+  location.href = 'star.html?id=' + encodeURIComponent(id);
+}
+/* ⚠ 대문 배선(bindDoorEvents)에 얹지 않는다 — 그것은 대문이 있을 때만 불린다.
+   간판은 제 문을 제가 건다. */
+(function wireVoyageSign(){
+  const go = () => {
+    const vb = document.getElementById('vsBack');
+    if (vb && !vb._wired){ vb._wired = true; vb.addEventListener('click', backToStar); }
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go);
+  else go();
+})();
+
 async function jumpToStarPlace(starId, opts){
   if (!(opts && opts.nolog) && window.logPush) window.logPush("star:"+starId, ()=> jumpToStarPlace(starId, { nolog:true }));
   let rep;
@@ -2772,6 +2863,10 @@ async function jumpToStarPlace(starId, opts){
     rep = Array.isArray(rows) ? rows[0] : rows;
   }catch(e){ console.warn("대표지 로드 실패:", e); return; }
   if (!rep || rep.lat == null || rep.lng == null) return;
+
+  /* ⭐ 간판을 세운다. 이름은 대표지 표가 이미 안다 — 별표를 다시 뒤지지 않는다.
+     ⚠ 표가 이름을 안 주면 「이 별」로 선다. 간판이 없는 것보다 낫다(폴백은 기본값). */
+  startVoyage(starId, rep.star_name || rep.name || '');
 
   stopOrbit(); closeStory(); closeMaison();
 
@@ -3280,6 +3375,9 @@ let doorTrail = [];        /* 액자가 지나온 주소 */
 let doorGoingBack = false; /* 되짚는 중 — 이때 온 load는 새 걸음이 아니다 */
 
 function setDoorFrame(url){
+  /* ⭐ 0814 — 딴 데를 여는 순간 그 여정은 끝난 것이다. 간판이 타륜을 따라다니던
+     옛 병이 여기가 없어서 났다. */
+  if (typeof endVoyage === "function") endVoyage();
   doorTrail = [];
   doorGoingBack = false;
   document.getElementById("doorFrame").src = url;
@@ -3546,6 +3644,7 @@ function flyToEntity(ent, opts){
 
 // 메인 분더카머 버튼 → 내 집으로 직행 (없으면 자동 배정)
 async function goToMyHome(){
+  if (typeof endVoyage === "function") endVoyage();   /* 집에 왔으면 여정은 끝났다 (0814) */
   const uid = await getMyUid();
   if (!uid){ flyToParisOverview(); return; }            // 로그인 전
   // 별 여정 등으로 다른 도시에 있었다면 — 파리 핀 세트(큐레이션·메종·팝업·전당) 통째 복원 (0720)
