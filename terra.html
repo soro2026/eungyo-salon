@@ -2816,8 +2816,15 @@ let voyageStar = null;    /* 지금 따라 걷는 별 { id, name } */
 let voyageTrailKeep = null;
 
 function startVoyage(id, name){
-  /* ⚠ 여정을 갈아탈 때는 덮어쓰지 않는다 — 처음 떠날 때의 계단이 진짜 온 길이다 */
-  if (!voyageStar && doorTrail.length) voyageTrailKeep = doorTrail.slice();
+  /* ⚠ 여정을 갈아탈 때는 덮어쓰지 않는다 — 처음 떠날 때의 계단이 진짜 온 길이다.
+     ⭐ 계단은 두 곳 중 있는 쪽에서 온다:
+       doorTrail      액자가 아직 열려 있는 길 (예비)
+       doorTrailLast  방금 exitDoorway가 닫으며 맡긴 것 (여정 떠나기의 실제 길) */
+  if (!voyageStar){
+    if (doorTrail.length) voyageTrailKeep = doorTrail.slice();
+    else if (doorTrailLast && doorTrailLast.length) voyageTrailKeep = doorTrailLast.slice();
+  }
+  doorTrailLast = null;
   voyageStar = { id: id, name: name || '' };
   const el = document.getElementById('voyageSign');
   const nm = document.getElementById('vsName');
@@ -3400,6 +3407,7 @@ function openDoor(){
 let doorTrail = [];        /* 액자가 지나온 주소 */
 let doorGoingBack = false; /* 되짚는 중 — 이때 온 load는 새 걸음이 아니다 */
 let doorTrailPrefix = null; /* 여정에서 돌아올 때 앞에 이어 붙일 계단 */
+let doorTrailLast = null;   /* 액자가 닫히기 직전의 계단 — 여정이 곧 시작되면 가져간다 */
 
 function setDoorFrame(url){
   /* ⭐ 0814 — 딴 데를 여는 순간 그 여정은 끝난 것이다. 간판이 타륜을 따라다니던
@@ -3408,6 +3416,7 @@ function setDoorFrame(url){
   if (typeof endVoyage === "function") endVoyage();
   doorTrail = [];
   doorTrailPrefix = null;
+  doorTrailLast = null;
   doorGoingBack = false;
   document.getElementById("doorFrame").src = url;
 }
@@ -3455,6 +3464,13 @@ function exitDoorway(){
   const dw = document.getElementById("doorway");
   dw.classList.remove("in", "open", "popup");
   document.getElementById("doorFrame").src = "about:blank";
+  /* ⚠⚠ 0814 실물 — 「여정 떠나기」는 startVoyage보다 **먼저 여기를 지난다**
+     (star.html이 T.exitDoorway() → T.jumpToStarPlace() 차례로 부른다).
+     그래서 startVoyage에서 맡으려던 계단이 이미 빈 뒤였다.
+     시험이 못 잡은 까닭 — 실물의 차례를 안 흉내낸 시험이었다.
+     ⭐ 버리기 직전의 계단을 잠깐 들고 있는다. 곧이어 여정이 시작되면
+       startVoyage가 가져가고, 아니면 다음 setDoorFrame이 비운다. */
+  doorTrailLast = doorTrail.slice();
   doorTrail = []; doorGoingBack = false; paintDoorExit();
   doorState = 'closed';
   viewer.useDefaultRenderLoop = true;           // 지구 렌더 재개(재진입 과금 0)
