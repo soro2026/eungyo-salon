@@ -281,7 +281,7 @@ input.mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.05em}
                찍힐 때 이 중 하나가 굴려 뽑힙니다.</p>
             <div id="arts"></div>
             <div class="trayBar" id="artBar" hidden>
-              <button class="btn primary" id="artCommit" type="button">이대로 걸기</button>
+              <button class="btn primary" id="artCommit" type="button">다시 걸기</button>
               <button class="btn" id="artClear" type="button">물리기</button>
               <span class="msg" id="metaArt">아직 없음</span>
             </div>
@@ -404,7 +404,7 @@ const AREA_SEEDS = ['collegium','stadium','musaeum','constellatio','cochlear','c
 
 const $ = s => document.querySelector(s);
 let kinds = [], cur = null, isNew = false;
-console.log('[EG] admin_credencial v2.1 · 0812 시안 열 칸 · 0808 오후 — 두 기둥 · 우주별 접이 · 빠진 원판 상시');
+console.log('[EG] admin_credencial 0814e — 던지면 바로 걸림');
 
 let toastT;
 function toast(msg, kind){
@@ -912,18 +912,26 @@ function drawArts(){
       drawArts();
     }
     const kb = arts.filter(Boolean).reduce((s,t)=>s+t.blob.size, 0) / 1024;
-    $('#metaArt').textContent = `${put}장 구웠습니다 · ${kb.toFixed(0)}KB · 자리는 끌어서 바꾸십시오`;
+    $('#metaArt').textContent = `${put}장 구웠습니다 · ${kb.toFixed(0)}KB · 거는 중…`;
     if(put < files.length) toast(`칸이 ${ARTS}개뿐이라 앞에서부터만 받았습니다.`, 'bad');
+    if(put) await commitArts(true);          /* ⭐ 0814 — 던지면 바로 걸린다 */
   }
 }
 $('#artClear').addEventListener('click', () => {
   arts = Array(ARTS).fill(null); drawArts();
   $('#metaArt').textContent = '물렸습니다. 아직 아무것도 안 걸렸습니다';
 });
-$('#artCommit').addEventListener('click', async () => {
+/* ⭐ 0814 — 던지면 바로 걸린다.
+   자동(auto=true)일 때는 코드가 없어도 조용히 물러난다. 새 판을 짓는 중이라
+   아직 코드가 없을 수 있는데, 거기서 경고를 띄우면 굽는 흐름이 끊긴다.
+   ⚠ 잃는 것 둘 — 걸린 뒤에는 칸을 끌어 순서를 못 바꾸고, 두 번 눌러 뺄 수도 없다.
+     둘 다 「그 칸에 다시 던지기」로 대신한다. */
+async function commitArts(auto){
   if(!cur) return;
   const code = ($('#code').value || cur.code || '').trim();
-  if(!code){ toast('먼저 코드를 정하고 판을 저장해 주세요.', 'bad'); $('#fold').open = true; return; }
+  if(!code){
+    if(auto){ $('#metaArt').textContent = '코드가 없어 아직 안 걸었습니다'; return; }
+    toast('먼저 코드를 정하고 판을 저장해 주세요.', 'bad'); $('#fold').open = true; return; }
   const btn = $('#artCommit'); btn.disabled = true;
   /* 방금 구운 것이 있는 칸은 새로 올리고, 없는 칸은 DB에 이미 있던 주소를 그대로 둔다.
      그래야 「3번만 다시 구움」이 나머지 넷을 지우지 않는다. */
@@ -951,13 +959,16 @@ $('#artCommit').addEventListener('click', async () => {
     await load();
     cur = kinds.find(k=>k.code===code) || cur;
     render(); drawArts(); preview();
-    $('#metaArt').textContent = `시안 ${urls.length}벌이 걸렸습니다 (새로 올린 것 ${done}장)`;
+    $('#metaArt').textContent = auto
+      ? `던지자마자 ${urls.length}벌 걸었습니다 (새로 올린 것 ${done}장)`
+      : `시안 ${urls.length}벌이 걸렸습니다 (새로 올린 것 ${done}장)`;
     toast(`${urls.length}벌 걸었습니다.`, 'good');
   }catch(err){
     $('#metaArt').textContent = '실패';
     toast('걸지 못했습니다 — ' + (err.message || err), 'bad');
   }finally{ btn.disabled = false; }
-});
+}
+$('#artCommit').addEventListener('click', () => commitArts(false));
 
 /* ── 무리 던지기 ──
    code가 `무엇_01` 꼴이면 같은 접두를 가진 판들을 한 무리로 본다.
