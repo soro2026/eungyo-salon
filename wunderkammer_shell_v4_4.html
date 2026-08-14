@@ -1754,7 +1754,7 @@ async function sbFetch(path, options = {}) {
   }
   return res.status === 204 ? null : res.json();
 }
-console.log("%c[EG] wunderkammer 0812h · 4층 손으로 놓인 액자 붙들기 · ⚖ 표식", "color:#c9a84c");
+console.log("%c[EG] wunderkammer 0814a · 메종 체류 인장 — 꽃을 두고 나온 그 순간에", "color:#c9a84c");
 function getUser() { try { return JSON.parse(localStorage.getItem('eungyo-auth'))?.user || null; } catch { return null; } }
 
 /* ── 층 구성 (2026.07.28 「세 건물 재편 결정문」 7호로 4층 축소) ──
@@ -2912,8 +2912,48 @@ const Salon = (() => {
         toast(left === 0 ? '이번 주 마지막 꽃을 두고 갑니다'
             : left  >  0 ? `꽃을 두고 갑니다 · 이번 주 남은 꽃 ${left}송이`
             :              '꽃을 두고 갑니다');
+        setTimeout(offerMaisonStamp, 320);   /* ⚠ 모달을 닫은 뒤에 (v155 §3-1) */
       }catch(e){ closeModal(); toast(e.message || '잠시 후 다시 시도해 주세요'); }
     };
+  }
+
+  /* ══ 0814 · 메종 체류 인장 (dom_manere · NEXVS · SOLIDAIRES) ═══════════
+     꽃 한 송이를 두고 나온 그 순간에 놓는다.
+     ⭐ 왜 「문을 열었을 때」가 아니라 「꽃을 두었을 때」인가 —
+        도장은 행동을 가르친다. 여는 순간에 놓으면 문 열고 힐끔, 찍고 나오기를
+        가르치게 된다(0814 소로). 꽃과 방명록에 놓으면 온기가 도는 쪽을 가르친다.
+     ⚠ 글은 선택이라 묻지 않는다 — leave_flower 하나가 꽃과 방명록을 함께 받는다.
+     ⚠ 남의 집에서만. openFlower는 애초에 남의 방에서만 열린다(MINE이 막는다).
+     ⚠ 집마다 평생 한 번(once_per_subject). subject는 **메종 번호**다 —
+        닉네임을 subject로 쓰면 닉을 바꾼 날 그 집이 새 집이 되어 또 찍힌다.
+     ⚠ 집이 아직 없는 임자면 조용히 물러난다 (30호 — 없으면 그냥 없다).
+     ⚠ supa를 안 넘긴다 — 이 파일엔 supabase-js가 없다. 부품이 REST로 간다.
+     ══════════════════════════════════════════════════════════════════ */
+  async function offerMaisonStamp(){
+    if (!window.EGStamp || !OWNER) return;
+    try{
+      const m  = await sbFetch(`/rest/v1/eg_maison?occupant_id=eq.${OWNER}&select=maison_no&limit=1`);
+      const no = m && m[0] && m[0].maison_no;
+      if (!no) return;
+      const u    = await sbFetch(`/rest/v1/users?id=eq.${OWNER}&select=nickname`);
+      const nick = (u && u[0] && u[0].nickname) || '';
+      EGStamp.offer({
+        kind: 'dom_manere',
+        subject: String(no),
+        inscription: domInscription(no, nick)
+      });
+    }catch(e){ console.warn('[EGStamp] 메종 인장 물러납니다:', e); }
+  }
+
+  /* 각인 — 「MAISON № 07 · 소로」. 번호가 뼈대고 닉이 살이다.
+     ⚠ 찍히면 붙박인다(15호). 바뀔 수 있는 것 하나만 적으면 몇 해 뒤
+        없는 사람의 집이 된다. 번호는 안 바뀌고 닉은 바뀐다.
+     ⚠ 판 밖 한 줄에 날짜가 함께 앉는다(inscribe_out) → 긴 닉은 자른다. */
+  function domInscription(no, nick){
+    const head = 'MAISON № ' + String(no).padStart(2, '0');
+    const n = (nick || '').trim();
+    if (!n) return head;
+    return head + ' · ' + (n.length > 14 ? n.slice(0, 14) + '…' : n);
   }
 
   /* 살롱지기인가 — 단추 하나를 내기 위한 한 번의 조회.
