@@ -1377,7 +1377,18 @@ async function starKindCode(starId, variant){
     const { data } = await supa.from('stamp_kinds').select('code')
       .eq('ref_type','star').eq('ref_id', String(starId)).eq('variant', variant)
       .eq('active', true).not('art_url','is',null).limit(1);
-    return (data && data[0] && data[0].code) || null;
+    if (data && data[0]) return data[0].code;
+
+    /* ⭐ 0814 — 제 판이 없으면 공통 판으로 물러선다. 별 94개 중 원판이 구워진 것은
+       21개뿐이라, 나머지 73별에서는 콩파뇽이 되어도 아무 일이 없었다.
+       ⚠ 몸통은 한 판이고 **각인이 그 별**이다 — 천문대 도장(obs_*)이 이미 같은 문법.
+       ⚠⚠ ref_type이 'star_any'인 것이 중요하다. 'star'로 두면 위의 ref_id 조회에
+         섞여 어느 별에나 걸리는 판이 되어, 제 판이 있는 21별에서도 튄다.
+       ⚠ 공통 판도 그림이 없으면 그냥 없다(30호) — art_url 조건은 여기서도 같다. */
+    const { data: any } = await supa.from('stamp_kinds').select('code')
+      .eq('ref_type','star_any').eq('variant', variant)
+      .eq('active', true).not('art_url','is',null).limit(1);
+    return (any && any[0] && any[0].code) || null;
   }catch(e){ console.warn('[EG] 별 원판을 못 찾았습니다:', e); return null; }
 }
 

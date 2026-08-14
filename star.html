@@ -916,7 +916,15 @@ async function offerResponsvm(contentId){
     const { data } = await supa.from('stamp_kinds').select('code')
       .eq('ref_type','star').eq('ref_id', String(currentStar.id)).eq('variant','B')
       .eq('active', true).not('art_url','is',null).limit(1);
-    const code = data && data[0] && data[0].code;
+    let code = data && data[0] && data[0].code;
+    /* ⭐ 0814 — 제 판이 없으면 공통 판으로. constella의 starKindCode와 같은 문법이다.
+       ⚠ 두 곳이 같은 규칙을 따로 적고 있다 — 셋째 곳이 생기면 부품으로 뺀다. */
+    if(!code){
+      const { data: any } = await supa.from('stamp_kinds').select('code')
+        .eq('ref_type','star_any').eq('variant','B')
+        .eq('active', true).not('art_url','is',null).limit(1);
+      code = any && any[0] && any[0].code;
+    }
     if(!code) return;                       /* 안 구운 도장은 그냥 없다(30호) */
     EGStamp.offer({ supa, area:'constellatio', kind: code, subject: String(contentId),
                     inscription: `${currentStar.name}\n응답의 정원 기고` });
