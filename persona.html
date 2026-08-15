@@ -169,12 +169,27 @@
     color:var(--e-ink);
   }
 
-  /* 오른쪽 위 관자 — 시안 3c의 「머리 오른쪽」을 이어받는다 */
+  /* 관자 줄 — 오른쪽에 관자, 왼쪽에 돌아가는 문 (시안 3c의 「머리 오른쪽」을 이어받는다)
+     ⚠ 자식이 하나뿐일 때 space-between은 그것을 왼쪽으로 보낸다.
+       flex-end + margin-right:auto 라야 문이 없을 때도 관자가 오른쪽에 남는다. */
+  .e-top{ display:flex; align-items:baseline; justify-content:flex-end;
+    gap:calc(var(--u) * 0.8); }
   .e-eyebrow{
-    align-self:flex-end; font-family:'Cormorant Garamond',serif;
+    font-family:'Cormorant Garamond',serif;
     font-size:calc(var(--u) * 0.86); letter-spacing:0.36em;
     color:var(--e-mute); font-weight:500; margin-right:-0.36em;
+    cursor:default; user-select:none;
   }
+  /* ⚠ 0.36em은 EG UNIVERSE 같은 라틴 대문자를 위한 값이다.
+       한글에 그대로 쓰면 「계 정 과 구 독」으로 흩어진다. */
+  .e-eyebrow.ko{ letter-spacing:0.12em; margin-right:0; font-family:'Gowun Batang',serif; }
+  .e-back{
+    margin-right:auto; background:none; border:0; padding:0; font-family:inherit;
+    font-size:calc(var(--u) * 0.86); color:var(--e-sub); cursor:pointer;
+    letter-spacing:0.02em; transition:color .18s;
+  }
+  .e-back:hover{ color:var(--e-ink); }
+  .e-back[hidden]{ display:none; }
 
   /* 머리: 사진 + 이름 */
   .e-head{
@@ -218,7 +233,22 @@
     box-shadow:0 1px 0 var(--e-cut);
   }
 
-  /* 3×2 격자 */
+  /* ══ 단 — 벽이 갈린다 ═════════════════════════════════════════
+   *  ⚠ 단마다 줄 수가 다르다(뿌리 두 줄 · 계정 한 줄). 그대로 두면 갈릴 때
+   *    벽이 출렁인다. 뿌리 단 높이를 붙들어 두 단이 같은 자리를 쓴다. */
+  /* ⚠ 뿌리(두 줄)가 붙든 높이 안에서 계정(한 줄)이 위로 몰려 아래가 텅 빈다.
+       상자를 격자로 두고 가운데 정렬하면 어느 단이든 같은 눈높이에 선다. */
+  .e-panels{ position:relative; display:grid; align-items:center; }
+  .e-grid[hidden]{ display:none; }
+  /* 새김이 벽에서 다시 드러나는 결 — 들어설 때와 같은 곡선을 쓴다 */
+  .e-grid.panel-in{ animation:panelIn .42s cubic-bezier(.2,.7,.3,1); }
+  @keyframes panelIn{
+    from{ opacity:0; transform:translateY(calc(var(--u) * 0.55)); }
+    to{ opacity:1; transform:none; }
+  }
+  @media (prefers-reduced-motion: reduce){ .e-grid.panel-in{ animation:none; } }
+
+  /* 3열 격자 */
   .e-grid{
     display:grid; grid-template-columns:repeat(3,1fr);
     row-gap:calc(var(--u) * var(--row-gap)); column-gap:calc(var(--u) * 0.4);
@@ -810,7 +840,10 @@
   <div class="tgt" id="tg-board">
 <div class="slab">
 
-  <div class="e-eyebrow cut">EG UNIVERSE</div>
+  <div class="e-top">
+    <button class="e-back cut" type="button" id="e-back" hidden>‹ 돌아가기</button>
+    <div class="e-eyebrow cut" id="e-eyebrow">EG UNIVERSE</div>
+  </div>
 
   <div class="e-head">
     <div class="e-photo cut" id="p-avatar" onclick="document.getElementById('avatar-file').click()">L</div>
@@ -825,7 +858,12 @@
 
   <div class="e-rule"></div>
 
-  <div class="e-grid">
+  <!-- ══ 단 — 벽이 갈린다. 팝업을 열지 않는다(0816 소로) ══
+       ⭐ 단을 더할 때: e-grid 하나를 data-panel="이름"으로 더하고,
+         부르는 단추에 data-go="이름"을 단다. 배관은 안 건드려도 된다.
+       ⚠ 단 높이는 뿌리 단이 정한다 — 갈릴 때 벽이 출렁이지 않게 붙든다. -->
+  <div class="e-panels" id="e-panels">
+    <div class="e-grid" data-panel="root">
     <button class="cm" type="button" data-sheet="cred">
       <span class="cm-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.9" r="2.6"/><path d="M12 7.5v3"/><rect x="4.6" y="10.5" width="14.8" height="6.2" rx="1.6"/><path d="M3.2 20.4h17.6"/></svg></span>
       <span class="cm-t cut">교양의 흔적들</span>
@@ -851,11 +889,30 @@
       <span class="cm-t cut">공지사항</span>
       <span class="cm-v cut"></span>
     </button>
-    <button class="cm" type="button" data-sheet="sub">
+    <button class="cm" type="button" data-go="account">
       <span class="cm-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12m-2.6 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0"/><path d="M12 3.5v2.3M12 18.2v2.3M3.5 12h2.3M18.2 12h2.3M6 6l1.6 1.6M16.4 16.4L18 18M18 6l-1.6 1.6M7.6 16.4L6 18"/></svg></span>
       <span class="cm-t cut">계정과 구독</span>
-      <span class="cm-v cut" id="r-sub-side"></span>
+      <span class="cm-v cut"></span>
     </button>
+    </div>
+
+    <div class="e-grid" data-panel="account" hidden>
+      <button class="cm" type="button" data-sheet="plan">
+        <span class="cm-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.8" y="5.2" width="18.4" height="13.6" rx="2.2"/><path d="M2.8 9.6h18.4"/><path d="M6.4 14.6h3.6"/></svg></span>
+        <span class="cm-t cut">구독 관리</span>
+        <span class="cm-v cut" id="r-plan-side"></span>
+      </button>
+      <button class="cm" type="button" data-act="invite">
+        <span class="cm-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8l1.9 4.3 4.7.5-3.5 3.2 1 4.6L12 13l-4.1 2.4 1-4.6L5.4 7.6l4.7-.5z"/><path d="M18.6 17.4v3.4M16.9 19.1h3.4"/><path d="M4.4 15.6v2.2M3.3 16.7h2.2"/></svg></span>
+        <span class="cm-t cut">조용한 초대장</span>
+        <span class="cm-v cut"></span>
+      </button>
+      <button class="cm" type="button" data-sheet="terms">
+        <span class="cm-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.9l7.2 2.6v6.1c0 4-3 7.4-7.2 8.5-4.2-1.1-7.2-4.5-7.2-8.5V5.5z"/><path d="M9.2 11.9l1.9 1.9 3.7-3.8"/></svg></span>
+        <span class="cm-t cut">이용약관</span>
+        <span class="cm-v cut"></span>
+      </button>
+    </div>
   </div>
 
   <div class="e-foot"><button class="e-out cut" type="button" onclick="doLogout()">로그아웃</button></div>
@@ -919,30 +976,16 @@
         <div class="hint">아직 배관 전입니다 — announcements 표 신설 뒤 여기에 붙습니다.</div>
   </div>
 </div>
-<div class="sheet" id="sheet-sub" hidden>
-  <div class="sheet-head"><b>계정과 구독</b><span class="sheet-x" onclick="closeSheet()">×</span></div>
+<div class="sheet" id="sheet-plan" hidden>
+  <div class="sheet-head"><b>구독 관리</b><span class="sheet-x" onclick="closeSheet()">×</span></div>
   <div class="sheet-body">
-        <div class="menu">
-          <div class="menu-item">
-            <span class="menu-ico">💳</span>
-            <div class="menu-txt"><div class="menu-label">구독 관리</div><div class="menu-sub" id="m-sub">4개월 이용권 · 플랜 변경</div></div>
-            <span class="menu-arrow">›</span>
-          </div>
-          <div class="menu-item" onclick="openInvite()" style="cursor:pointer">
-            <span class="menu-ico">🌌</span>
-            <div class="menu-txt"><div class="menu-label">조용한 초대장</div><div class="menu-sub">지인에게 은교살롱을 소개할 때</div></div>
-            <span class="menu-arrow">›</span>
-          </div>
-          <div class="menu-item">
-            <span class="menu-ico">📜</span>
-            <div class="menu-txt"><div class="menu-label">이용약관 · 개인정보</div><div class="menu-sub">환불 정책 · 오픈소스</div></div>
-            <span class="menu-arrow">›</span>
-          </div>
-        </div>
-        <!-- ⚠ 0816 소로 — 셋을 뺐다.
-             프로필 수정  → 머리의 사진을 바로 누르면 되므로 중복
-             알림 설정    → 한스푼 푸시 하나뿐이라 따로 방을 둘 것이 없음
-             로그아웃     → 아래 알약이 이미 서 있으므로 중복 -->
+        <div class="hint">아직 배관 전입니다 — 결제 창이 서면 여기에 붙습니다.</div>
+  </div>
+</div>
+<div class="sheet" id="sheet-terms" hidden>
+  <div class="sheet-head"><b>이용약관 · 개인정보</b><span class="sheet-x" onclick="closeSheet()">×</span></div>
+  <div class="sheet-body">
+        <div class="hint">아직 배관 전입니다 — 약관 문서가 서면 여기에 붙습니다.</div>
   </div>
 </div>
 
@@ -981,7 +1024,7 @@
 </div>
 
 <script>
-console.log('[EG] persona 0816c — 여섯 메뉴 재편(교양의 흔적들 · 나의 글모음) · 각인판 · 편집기 문 셋');
+console.log('[EG] persona 0816e — 벽면 2단 · 편집기 왼쪽 위(액자 ✕ 피함) · 관자 세 번');
 /* ══ 교양자화상 · 황금사과 월렛 — apple_log 실연동 (SSoT = SUM(amount)) ══ */
 const SUPABASE_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
@@ -1167,6 +1210,9 @@ async function loadPersona(){
   /* ⚠ 0814 — 여섯 칸 스탯은 포스터로 갈음됐다(결정문 10호).
      월렛 잔액만 남는다. 「씨앗을 품은 별」은 애초에 하드코딩이었다. */
   setText('wallet-bal', (Number(p.apple_balance) || 0).toFixed(2));
+  /* 구독 관리 곁값 — 계정 단을 열지 않아도 남은 날이 읽히게 */
+  const dd = (document.getElementById('p-dday') || {}).textContent || '';
+  setText('r-plan-side', dd);
 
   /* 리그 진척 막대는 걷었다 — 분모를 안 쓴다(9호). 리그는 머리의 배지로만 선다 */
 
@@ -1651,11 +1697,52 @@ function closeSheet(){
   if(SHEET){ SHEET.hidden = true; SHEET = null; }
   document.body.style.overflow = '';
 }
+/* ══ 단 갈아 끼우기 (0816 소로) ═══════════════════════════════════
+   ⭐ 「계정과 구독」은 팝업을 열지 않는다. 벽의 격자가 통째로 갈린다.
+   ⚠ 뿌리 단이 두 줄, 계정 단이 한 줄이라 그냥 갈면 벽이 출렁인다.
+     나가기 직전에 뿌리 높이를 재어 상자에 박고, 돌아오면 푼다. */
+let PANEL = 'root';
+function showPanel(name){
+  const box = document.getElementById('e-panels');
+  const all = document.querySelectorAll('.e-grid[data-panel]');
+  if(!box || !all.length) return;
+  const cur = document.querySelector('.e-grid[data-panel]:not([hidden])');
+  const to  = document.querySelector('.e-grid[data-panel="' + name + '"]');
+  if(!to || cur === to) return;
+
+  if(name === 'root'){ box.style.minHeight = ''; }
+  else if(cur){ box.style.minHeight = cur.offsetHeight + 'px'; }
+
+  all.forEach(g => { g.hidden = (g !== to); g.classList.remove('panel-in'); });
+  /* ⚠ hidden을 풀어도 애니메이션은 스스로 다시 돌지 않는다. 한 번 흘려보내야 한다 */
+  void to.offsetWidth;
+  to.classList.add('panel-in');
+
+  PANEL = name;
+  const back = document.getElementById('e-back');
+  const eye  = document.getElementById('e-eyebrow');
+  const TITLE = { account:'계정과 구독' };
+  if(back) back.hidden = (name === 'root');
+  if(eye){
+    eye.textContent = (name === 'root') ? 'EG UNIVERSE' : (TITLE[name] || name);
+    eye.classList.toggle('ko', name !== 'root');
+  }
+}
+document.getElementById('e-back')?.addEventListener('click', () => showPanel('root'));
+
 document.addEventListener('click', e => {
   const b = e.target.closest('.cm'); if(!b) return;
-  openSheet(b.dataset.sheet);
+  if(b.dataset.go){ showPanel(b.dataset.go); return; }      /* 벽을 간다 */
+  if(b.dataset.act === 'invite'){ openInvite(); return; }   /* 바로 하는 일 */
+  if(b.dataset.sheet) openSheet(b.dataset.sheet);           /* 팝업을 연다 */
 });
-addEventListener('keydown', e => { if(e.key === 'Escape') closeSheet(); });
+/* ⚠ Esc — 팝업이 떠 있으면 팝업을 닫고, 아니면 뿌리 단으로 돌아간다 */
+addEventListener('keydown', e => {
+  if(e.key !== 'Escape') return;
+  if(SHEET){ closeSheet(); return; }
+  if(PANEL !== 'root') showPanel('root');
+});
+
 </script>
 
 <script>
@@ -1665,7 +1752,7 @@ addEventListener('keydown', e => { if(e.key === 'Escape') closeSheet(); });
    여는 문 셋 — 어느 것이든 하나면 된다
      ① 주소에  ?edit=1
      ② Ctrl+Alt+E   (맥은 Cmd+Alt+E)
-     ③ 오른쪽 위 관자 「EG UNIVERSE」를 다섯 번 톡톡
+     ③ 오른쪽 위 관자 「EG UNIVERSE」를 세 번 톡톡  ← 액자 안에서 가장 확실
    ⚠ ②③이 있는 까닭 — 자화상은 지구(terra)의 **액자 안**에서도 열린다.
      그때는 주소가 액자 것이라 ?edit=1을 붙일 데가 없다(0816 소로).
      ③은 마우스만으로 되므로 액자 안에서 가장 확실하다.
@@ -1695,7 +1782,11 @@ addEventListener('keydown', e => { if(e.key === 'Escape') closeSheet(); });
   function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
 
   function CSS(){ return [
-  '#ed{position:fixed;top:12px;right:12px;z-index:120;width:272px;',
+  /* ⚠⚠ 0816 소로 — 「편집기가 안 보인다」. 오른쪽 위에 두었더니 지구(terra)의
+       액자 ✕에 가려 있었다. 액자 안의 z-index는 **액자 밖 요소를 이기지 못한다.**
+       120이든 9999든 마찬가지다. 자리를 옮기는 것만이 처방이다.
+     ⭐ 왼쪽 위로 옮긴다 — 액자의 문(✕)은 늘 오른쪽 위에 선다. */
+  '#ed{position:fixed;top:12px;left:12px;z-index:120;width:272px;',
   ' font-family:"Gowun Batang",serif;color:#d6dee8;background:rgba(9,13,21,0.86);',
   ' -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);',
   ' border:1px solid rgba(255,255,255,0.15);border-radius:14px;',
@@ -1726,7 +1817,12 @@ addEventListener('keydown', e => { if(e.key === 'Escape') closeSheet(); });
   'body.ed-guide #tg-board{outline:1px dashed rgba(255,120,120,0.7)}',
   'body.ed-guide .slab{outline:1px dashed rgba(120,200,255,0.55)}',
   'body.ed-guide .e-head{outline:1px dashed rgba(150,255,180,0.45)}',
-  '@media (max-width:760px){#ed{width:auto;left:10px;right:10px;top:10px}}'
+  '@media (max-width:760px){#ed{width:auto;left:10px;right:10px;top:10px}}',
+  /* 켜고 끈 것을 눈으로 알리는 한 줄 — 안 보이면 「안 켜졌다」와 구별이 안 된다 */
+  '.ed-toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);z-index:130;',
+  ' font-family:"Gowun Batang",serif;font-size:12.5px;letter-spacing:.03em;color:#e8eef6;',
+  ' background:rgba(9,13,21,0.88);border:1px solid rgba(255,255,255,0.16);',
+  ' border-radius:999px;padding:8px 18px;opacity:1;transition:opacity .5s;pointer-events:none}'
   ].join(''); }
 
   function fmt(k,v){ var u=KEYS[k].unit;
@@ -1834,7 +1930,23 @@ addEventListener('keydown', e => { if(e.key === 'Escape') closeSheet(); });
     document.body.classList.remove('ed-guide','ed-fold');
     console.log('%c[EG] 각인 편집기 꺼짐 — 파일에 박힌 치수로 돌아갑니다.','color:#7f8ea2');
   }
-  function turn(on){ lsSet(ONKEY, on ? '1' : '0'); on ? build() : destroy(); }
+  function toast(msg){
+    var t = document.createElement('div');
+    t.textContent = msg;
+    /* ⚠ 끌 때는 편집기 스타일이 이미 걷혔다. 알림은 제 옷을 안고 떠야 한다 */
+    t.style.cssText = 'position:fixed;left:50%;bottom:30px;transform:translateX(-50%);'
+      + 'z-index:130;font-family:"Gowun Batang",serif;font-size:12.5px;color:#e8eef6;'
+      + 'background:rgba(9,13,21,0.88);border:1px solid rgba(255,255,255,0.16);'
+      + 'border-radius:999px;padding:8px 18px;transition:opacity .5s;pointer-events:none;';
+    document.body.appendChild(t);
+    setTimeout(function(){ t.style.opacity = '0'; }, 1500);
+    setTimeout(function(){ if(t.parentNode) t.parentNode.removeChild(t); }, 2100);
+  }
+  function turn(on){
+    lsSet(ONKEY, on ? '1' : '0');
+    if(on){ build();  toast('각인 편집기를 켰습니다 · 왼쪽 위'); }
+    else  { destroy(); toast('각인 편집기를 껐습니다'); }
+  }
 
   /* ── 여는 문 ① 주소 ── */
   var byUrl=false;
@@ -1849,14 +1961,16 @@ addEventListener('keydown', e => { if(e.key === 'Escape') closeSheet(); });
     ev.preventDefault(); turn(!built);
   }, true);
 
-  /* ── 여는 문 ③ 관자 다섯 번 톡톡 (액자 안에서 가장 확실하다) ── */
+  /* ── 여는 문 ③ 관자 세 번 톡톡 (액자 안에서 가장 확실하다) ──
+     ⚠ 처음엔 다섯 번·900ms로 두었는데 사람 손에 빡빡했다(0816 소로).
+       세 번·2초로 푼다. 지나가다 잘못 누를 만큼 헐겁지도 않다. */
   (function(){
     var n=0, t=0;
     document.addEventListener('click', function(ev){
       if(!ev.target.closest('.e-eyebrow')) return;
       clearTimeout(t); n++;
-      t=setTimeout(function(){ n=0; }, 900);
-      if(n>=5){ n=0; turn(!built); }
+      t=setTimeout(function(){ n=0; }, 2000);
+      if(n>=3){ n=0; turn(!built); }
     });
   })();
 })();
