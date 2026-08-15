@@ -1143,7 +1143,7 @@
      같은 물건이 두 곳에 서면 고칠 곳도 둘이 된다. -->
 
 <script>
-console.log('[EG] persona 0817b — 타벨라이(우편함)도 액자로 · 봉랍은 곁값 한 점 · 라틴어 한글음 표준');
+console.log('[EG] persona 0817d — 우편함 ⋯도 기간으로 통일(기본 전부) · 탭 심부름 걷음');
 /* ══ 교양자화상 · 황금사과 월렛 — apple_log 실연동 (SSoT = SUM(amount)) ══ */
 const SUPABASE_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
@@ -1561,8 +1561,28 @@ async function loadMailSummary(){
 function mailFrame(on){
   const f = document.getElementById('mFrame');
   if(!f) return;
-  f.src = on ? 'messages.html?persona=1' : 'about:blank';
-  if(!on) loadMailSummary();               /* 닫고 나면 봉랍을 다시 잰다 */
+  if(on){
+    /* ⚠ 기간(핀)은 iframe이 다 선 **뒤에** 건넨다 — 긷는 중에 건네면 허공에 진다.
+       「전부」면 굳이 안 건넨다 — 저쪽 기본값이 이미 전부다 */
+    f.onload = () => {
+      if(f.src.includes('messages.html') && PICK.mail.span !== 'all') mailGo();
+    };
+    PICK.mail.span = tPin('mail') || 'all';   /* 핀은 열 때마다 다시 읽는다 */
+    f.src = 'messages.html?persona=1';
+  }else{
+    f.onload = null;
+    f.src = 'about:blank';
+    loadMailSummary();                        /* 닫고 나면 봉랍을 다시 잰다 */
+  }
+}
+/* ⋯ 조종간의 심부름 — iframe 안 우편함에 **기간**을 건넨다.
+   ⚠ 받는 쪽은 messages.html의 mail-go 수신 다리(0817)다. 한쪽만 고치지 말 것.
+   ⚠ iframe이 아직 긷는 중이면 말이 허공에 진다 — load에서 한 번 더 건넨다. */
+function mailGo(){
+  const f = document.getElementById('mFrame');
+  if(!f || !f.contentWindow) return;
+  const t = TSPAN.find(x => x.k === PICK.mail.span) || TSPAN[5];
+  try{ f.contentWindow.postMessage({ eg:'mail-go', days:t.days }, '*'); }catch(e){}
 }
 /* ?mail=1 문 — 옛 팝업이 쓰던 이름 그대로. 이제 벽의 액자를 연다 */
 function openMail(){ showPanel('mail'); }
@@ -1656,7 +1676,8 @@ const FRAMED = {
   /* ⭐ 라틴어 한글음 표준(0817 소로) — tabellae는 「타벨라이」(-ae = 아이).
        terra.html 0813 주석과 같은 결. 병기 한글은 「우편함」으로 통일한다.
      ⚠ leave — 액자를 나갈 때 iframe을 비운다. 안 비우면 벽 뒤에서 계속 산다. */
-  mail:   { title:'EG 타벨라이 · 우편함', menu:[],
+  /* ⚠ 0817 소로 — 「탭·쓰기는 위에 이미 있는데 다시 필요한가?」 ⋯는 기간만 담는다 */
+  mail:   { title:'EG 타벨라이 · 우편함', menu:['span'],
             draw:() => mailFrame(true), leave:() => mailFrame(false) }
 };
 
@@ -1674,7 +1695,10 @@ function tPinSet(p, k){
 /* 지금 고른 것 — 단마다 한 벌 */
 const PICK = {
   traces: { span: tPin('traces') || TSPAN_DEF },
-  apple:  { span: tPin('apple')  || TSPAN_DEF, flow:'all' }
+  apple:  { span: tPin('apple')  || TSPAN_DEF, flow:'all' },
+  /* ⚠ 우편함만은 「전부」에서 연다 — 편지는 수백 통이라 무겁지 않고,
+       비어 보이는 우편함이 도장 없는 종이보다 더 서운하다. 핀은 그대로 산다. */
+  mail:   { span: tPin('mail') || 'all' }
 };
 
 async function loadPoster(){
@@ -1858,6 +1882,9 @@ document.getElementById('tr-drop')?.addEventListener('click', e => {
   const it = e.target.closest('.tr-item');
   if(!it || !it.dataset.mk) return;
   PICK[PANEL][it.dataset.mk] = it.dataset.k;
+  /* ⚠ 우편함의 그리기는 iframe 안에 있다 — draw(mailFrame)를 다시 부르면 편지가
+       통째로 다시 긷는다. 기간만 다리로 건넨다 */
+  if(PANEL === 'mail'){ mailGo(); drawTDrop(); openTDrop(false); return; }
   f.draw(); openTDrop(false);
 });
 document.addEventListener('click', () => openTDrop(false));
@@ -2013,8 +2040,10 @@ function showPanel(name){
   if(typeof openTDrop === 'function') openTDrop(false);
 
   if(fr){
-    /* ⚠ 핀은 열 때마다 다시 읽는다 — 다른 창에서 바꿔 두었을 수 있다 */
-    if(fr.menu.includes('span')) PICK[name].span = tPin(name) || TSPAN_DEF;
+    /* ⚠ 핀은 열 때마다 다시 읽는다 — 다른 창에서 바꿔 두었을 수 있다.
+       ⚠ 우편함만 기본이 「전부」다(mailFrame이 스스로 읽는다) — 여기서 덮지 않는다 */
+    if(fr.menu.includes('span') && name !== 'mail')
+      PICK[name].span = tPin(name) || TSPAN_DEF;
     try{ fr.draw(); }catch(e){ console.warn('[EG] 액자 그리기', name, e); }
   }
   /* 띠는 뿌리에서 숨고, 하위 단에서 가름선 아래에 뜬다.
