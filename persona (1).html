@@ -1,0 +1,1806 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>교양자화상 — 포스터 크레덴시알 (시안 v3)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Noto+Serif+KR:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; margin:0; padding:0; }
+
+  :root{
+    --ink:#ece3d0;          /* 밝은 상아 글자 */
+    --ink-soft:#c8baa0;
+    --ink-dim:#9a8d72;
+    --gold:#d8b860;
+    --gold-deep:#c9a84c;
+    --line:rgba(216,184,96,0.22);
+    --card:rgba(24,17,10,0.74);
+    --card-edge:rgba(216,184,96,0.22);
+    --plus:#7fb38a;         /* 수입 (은은한 초록빛 금) */
+    --minus:#b58a6a;        /* 지출 (흙빛) */
+  }
+
+  body{
+    font-family:'Noto Serif KR', serif;
+    color:var(--ink);
+    min-height:100vh;
+    background:#0d0905;
+    position:relative;
+    overflow-x:hidden;
+  }
+
+  /* ══ 방 — 콜레주 1층 혈통 (0815) ═════════════════════════════
+   *  ⚠ 옛 방식: persona_bg.webp를 position:fixed + cover로 깔았다.
+   *    그림이 1672×941 가로판이라 훑을 세로가 없어 카메라가 못 돌았다.
+   *  ⭐ 새 방식: 941/1672 세로 캔버스가 곧 스크롤 본문이 된다(#sc0).
+   *    카드는 캔버스 위 %좌표에 앉아 벽과 한 몸으로 움직인다.
+   *  ⚠ 스크롤 주체가 body → #sc0로 옮겨간다. sweep이 상자를 요구한다. */
+  html,body{ height:100%; }
+  #sc0{
+    position:fixed; inset:0; z-index:0;
+    overflow-y:auto; overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;
+    background:#0d0905;
+  }
+  #canvas0{
+    position:relative; width:100%;
+    aspect-ratio:941/1672; min-height:100vh;
+    background-repeat:no-repeat;
+    background-size:cover;
+    background-position:center top;
+    /* ⚠ 0815 폰에서 잡음 — 캔버스는 941/1672로 서는데 카드가 그보다 길다.
+         그림이 먼저 끝나고 아래가 검은 허공이 됐다. 벽널 색을 이어 붙여 막는다.
+         ⭐ 근본 처방은 카드를 패널 안에 앉히는 것이다(콘텐츠 재편 때). */
+    background-color:var(--e-floor,#141a26);
+  }
+  /* 그림 아래로 넘치는 만큼 바닥을 잇는다 — 대리석이 끊긴 자리 */
+  #canvas0::after{
+    content:''; position:absolute; left:0; right:0; top:100%; height:200vh;
+    background:var(--e-floor,#0d121c);
+    pointer-events:none; z-index:0;
+  }
+  /* 그림이 아직 안 왔을 때만 서는 폴백 — 콜레주 1층과 같은 색 */
+  #canvas0.f-fallback{ background-image:
+    radial-gradient(ellipse at 50% 0%, rgba(201,162,74,.10) 0%, transparent 55%),
+    linear-gradient(180deg,#1b2338 0%,#14100b 100%); }
+
+  /* 안착 자리 — 금테 패널 안쪽 (0815 실측). 카메라가 여기로 온다 */
+  .tgt{ position:absolute; left:50%; transform:translateX(-50%); }
+
+
+
+  /* ══════════════════════════════════════════════════════════════
+     각인판 (0816a) — 종이를 걷어내고 벽에 직접 새긴다
+     ⭐ 소로 0815 결정: 「종이를 차라리 걷어내고 배경에 각인으로」
+     ⚠ 아래 시안 표(--c-*)는 지우지 않는다. 시트 여섯이 아직 종이 위에 선다.
+       벽은 각인(--e-*), 팝업은 종이(--c-*). 두 표가 나란히 산다.
+     ⚠ 치수 아홉은 ?edit=1 편집기가 만진다. 손으로 고칠 때도 여기만 고친다.
+     ══════════════════════════════════════════════════════════════ */
+  :root{
+    --u-scale:  1;        /* 글자 단위 배율 */
+    --slab-max: 580;      /* 새김 폭 상한 (px) */
+    --slab-h:   64;       /* 새김 높이 (벽 대비 %) */
+    --slab-top: 38.3;     /* 벽에서의 세로 위치 (%) — 금테 패널 안쪽 실측 */
+    --ph:       6.2;      /* 사진 크기 (단위 배수) */
+    --head-pad: 3.2;      /* 머리를 오른쪽으로 밀기 */
+    --head-gap: 2.0;      /* 사진 ↔ 글 사이 */
+    --ico:      2.85;     /* 아이콘 원 크기 */
+    --row-gap:  2.0;      /* 격자 행 간격 */
+  }
+
+  /* 각인 색 표 — 벽 넉 벌이 전부 어두우므로 잉크는 넉 벌 다 밝다.
+     갈리는 것은 온도다. 벽 실측: m #302D2E · d #42536A · e #211C1A · n #0C131F */
+  body[data-tod]{                       /* d · 한낮 청회 */
+    --e-ink:#f3f8fc; --e-sub:#aebecd; --e-mute:#8598a9; --e-acc:#a9cfec;
+    --e-line:rgba(226,241,255,0.26); --e-line-soft:rgba(226,241,255,0.13);
+    --e-halo:rgba(198,226,250,0.13); --e-cut:rgba(0,0,0,0.62); --e-floor:#26303f;
+  }
+  body[data-tod="m"]{                   /* 아침 회갈 — 밀빛 */
+    --e-ink:#f5f2e9; --e-sub:#c8bfae; --e-mute:#a09689; --e-acc:#e0cd9c;
+    --e-line:rgba(255,248,232,0.24); --e-line-soft:rgba(255,248,232,0.12);
+    --e-halo:rgba(240,228,198,0.12); --e-cut:rgba(0,0,0,0.62); --e-floor:#221f20;
+  }
+  body[data-tod="e"]{                   /* 저녁 적갈 — 살구빛 */
+    --e-ink:#f8ece3; --e-sub:#cbb2a3; --e-mute:#a08b7f; --e-acc:#e3ac8d;
+    --e-line:rgba(255,238,224,0.24); --e-line-soft:rgba(255,238,224,0.12);
+    --e-halo:rgba(240,206,180,0.12); --e-cut:rgba(0,0,0,0.66); --e-floor:#171211;
+  }
+  body[data-tod="n"]{                   /* 밤 남흑 — 금빛 */
+    --e-ink:#f1e9d3; --e-sub:#a4abc0; --e-mute:#818aa2; --e-acc:#d9bd74;
+    --e-line:rgba(217,189,116,0.30); --e-line-soft:rgba(217,189,116,0.14);
+    --e-halo:rgba(217,189,116,0.13); --e-cut:rgba(0,0,0,0.70); --e-floor:#080d15;
+  }
+
+  /* 새김 — 이 판의 서명. 벽 위에 얹지 않고 벽을 파고 도료를 채운 것처럼 둔다.
+     ⚠ 아래 짙은 그늘 하나 + 둘레의 여린 빛 하나. 더 얹으면 스티커가 된다. */
+  .cut{
+    text-shadow:
+      0 1px 1px var(--e-cut),
+      0 2px 6px rgba(0,0,0,0.34),
+      0 0 var(--e-glow,20px) var(--e-halo);
+  }
+
+  /* ══ 시안 판 — ⚠ 이제 시트(팝업) 전용이다. 벽은 위 각인 표를 쓴다 ═════
+   *  ⭐ 색은 이 표 한 곳에서만 나온다. 네 시간대를 body[data-tod]로 갈아 끼운다.
+   *    star.html의 SIAN 표와 같은 문법 — 별이 늘어도 손댈 곳이 없던 그 방식.
+   *  ⚠ 오늘은 한낮(4d)만 켠다. 나머지 셋은 값만 심어 두고 배경 그림을 기다린다. */
+  body[data-tod]{
+    --c-card1:#f2f6f9; --c-card2:#e3ecf3; --c-wm:rgba(70,110,150,0.09);
+    --c-ink:#22303c;   --c-sub:#7a8a99;  --c-muted:#8b9aa9; --c-accent:#3f6e96;
+    --c-photo:#d9e5ee; --c-cbor:#c2d3e1; --c-cbg:#f8fbfd;
+    --c-bdg:#3f6e96;   --c-bdgink:#f8fbfd;
+  }
+  body[data-tod="m"]{  /* 4b 세이지 그린 — 월든의 숲 (아침) */
+    --c-card1:#eef0e4; --c-card2:#e2e7d4; --c-wm:rgba(90,110,70,0.10);
+    --c-ink:#2d3524;   --c-sub:#7d8768;  --c-muted:#8b957a; --c-accent:#5f7340;
+    --c-photo:#dde2ca; --c-cbor:#c6cfad; --c-cbg:#f6f8ee;
+    --c-bdg:#5f7340;   --c-bdgink:#f6f8ee;
+  }
+  body[data-tod="e"]{  /* 4c 버건디 — 살롱의 벨벳 (저녁) */
+    --c-card1:#f4e9e4; --c-card2:#ecdcd4; --c-wm:rgba(110,40,45,0.09);
+    --c-ink:#3a1f22;   --c-sub:#96766e;  --c-muted:#a3837b; --c-accent:#7e2f36;
+    --c-photo:#e5d1c9; --c-cbor:#d8bcb2; --c-cbg:#faf3ef;
+    --c-bdg:#7e2f36;   --c-bdgink:#faf3ef;
+  }
+  body[data-tod="n"]{  /* 4a 자정 남색 — 별밤의 서재 (야간) ⭐ 콜레주 1층 벽과 같은 색 */
+    --c-card1:#1b2338; --c-card2:#141a2c; --c-wm:rgba(205,174,96,0.09);
+    --c-ink:#eee6cf;   --c-sub:#8f97b0;  --c-muted:#7d86a2; --c-accent:#d4b568;
+    --c-photo:#2a3350; --c-cbor:#3a4463; --c-cbg:#222b45;
+    --c-bdg:#d4b568;   --c-bdgink:#1b2338;
+  }
+
+  /* ══ 새김 덩어리 — 옛 증서(.cert)를 갈음한다 ══════════════════════
+   *  ⭐ 폭을 못 박는다 — 패널 폭을 다 쓰면 아이콘 셋이 옆으로 흩어진다.
+   *  ⚠ 높이도 못 박는다 — 벽이 화면보다 길 때(1440폭에서 1034>900)
+   *    머리와 격자가 갈라져 가운데가 텅 빈다. 조여서 벽 한복판에 앉힌다. */
+  .slab{
+    --u: calc(clamp(10px, 2.35cqw, 17px) * var(--u-scale));
+    --e-glow: calc(var(--u) * 1.4);
+    width:min(96%, calc(var(--slab-max) * 1px));
+    height:min(calc(var(--slab-h) * 1%), 82vh);
+    margin:0 auto;
+    display:flex; flex-direction:column; justify-content:space-between;
+    color:var(--e-ink);
+  }
+
+  /* 오른쪽 위 관자 — 시안 3c의 「머리 오른쪽」을 이어받는다 */
+  .e-eyebrow{
+    align-self:flex-end; font-family:'Cormorant Garamond',serif;
+    font-size:calc(var(--u) * 0.86); letter-spacing:0.36em;
+    color:var(--e-mute); font-weight:500; margin-right:-0.36em;
+  }
+
+  /* 머리: 사진 + 이름 */
+  .e-head{
+    display:grid; grid-template-columns:calc(var(--u) * var(--ph)) 1fr;
+    gap:0 calc(var(--u) * var(--head-gap)); align-items:center;
+    padding-left:calc(var(--u) * var(--head-pad));
+  }
+  .e-photo{
+    width:calc(var(--u) * var(--ph)); height:calc(var(--u) * var(--ph));
+    border-radius:calc(var(--u) * 0.5); overflow:hidden; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Cormorant Garamond',serif;
+    font-size:calc(var(--u) * var(--ph) * 0.38);
+    color:var(--e-sub); letter-spacing:0.04em; background:rgba(0,0,0,0.24);
+    /* 벽에 끼워 넣은 사진 — 테두리 한 줄과 안쪽 그늘로 「박아 넣은」 것이 된다 */
+    border:1px solid var(--e-line);
+    box-shadow:inset 0 1px 7px rgba(0,0,0,0.55), 0 1px 0 var(--e-line-soft);
+    transition:opacity .2s;
+  }
+  .e-photo img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .e-photo.avatar-loading{ opacity:.45; }   /* ⚠ JS가 이 이름을 붙인다 */
+  .e-who{ min-width:0; }
+  .e-role{
+    font-family:'Cormorant Garamond',serif; font-size:calc(var(--u) * 0.78);
+    letter-spacing:0.3em; color:var(--e-mute); margin-bottom:calc(var(--u) * 0.35);
+  }
+  .e-nick{
+    font-family:'Cormorant Garamond',serif; font-weight:600;
+    font-size:calc(var(--u) * 2.05); line-height:1.06; letter-spacing:0.005em;
+    color:var(--e-ink); word-break:break-all;
+  }
+  .e-chip{ font-size:calc(var(--u) * 0.86); color:var(--e-acc); margin-top:calc(var(--u) * 0.5); }
+  .e-chip .st{ margin-right:calc(var(--u) * 0.28); }
+  .e-sub{ font-size:calc(var(--u) * 0.8); color:var(--e-mute); margin-top:calc(var(--u) * 0.28); }
+  .e-sub b{ color:var(--e-sub); font-weight:400; }
+
+  /* 가름선 — 벽에 그은 한 줄 */
+  .e-rule{
+    height:1px; width:100%;
+    background:linear-gradient(90deg, transparent, var(--e-line) 14%, var(--e-line) 86%, transparent);
+    box-shadow:0 1px 0 var(--e-cut);
+  }
+
+  /* 3×2 격자 */
+  .e-grid{
+    display:grid; grid-template-columns:repeat(3,1fr);
+    row-gap:calc(var(--u) * var(--row-gap)); column-gap:calc(var(--u) * 0.4);
+  }
+  .cm{
+    background:none; border:0; font:inherit; color:inherit; cursor:pointer;
+    padding:0; text-align:center; position:relative;
+    display:flex; flex-direction:column; align-items:center;
+  }
+  .cm-ico{
+    width:calc(var(--u) * var(--ico)); height:calc(var(--u) * var(--ico));
+    border-radius:50%; border:1px solid var(--e-line); background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--e-ink); margin-bottom:calc(var(--u) * 0.72);
+    box-shadow:0 1px 0 var(--e-line-soft), inset 0 1px 2px rgba(0,0,0,0.4);
+    transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  }
+  .cm-ico svg{
+    width:calc(var(--u) * var(--ico) * 0.49); height:calc(var(--u) * var(--ico) * 0.49);
+    filter:drop-shadow(0 1px 1px var(--e-cut));
+  }
+  .cm:hover .cm-ico, .cm:focus-visible .cm-ico{
+    transform:translateY(calc(var(--u) * -0.12)); border-color:var(--e-acc);
+    box-shadow:0 0 calc(var(--u) * 1.2) var(--e-halo), inset 0 1px 2px rgba(0,0,0,0.4);
+  }
+  .cm:focus-visible{ outline:none; }
+  .cm:focus-visible .cm-t{ text-decoration:underline; text-underline-offset:0.3em; }
+  .cm-t{ font-size:calc(var(--u) * 1.0); font-weight:700; color:var(--e-ink); line-height:1.2; }
+  .cm-v{ font-size:calc(var(--u) * 0.8); color:var(--e-acc); margin-top:calc(var(--u) * 0.24);
+    min-height:1em; letter-spacing:0.01em; }
+  /* ⭐ 숫자 배지를 점 하나로 바꿨다 — 「2」는 숙제고 점은 안부다 (헌장 9.2)
+     ⚠ right로 잡으면 칸 폭에 끌려가 아이콘에서 떨어져 뜬다. 한복판 기준으로 민다. */
+  .cm-b{
+    position:absolute; top:calc(var(--u) * -0.06);
+    left:calc(50% + var(--u) * var(--ico) * 0.37);
+    width:calc(var(--u) * 0.42); height:calc(var(--u) * 0.42); border-radius:50%;
+    background:var(--e-acc); box-shadow:0 0 calc(var(--u) * 0.7) var(--e-acc);
+  }
+  .cm-b[hidden]{ display:none; }
+
+  /* 나가는 문 */
+  .e-foot{ text-align:center; }
+  .e-out{
+    display:inline-block; cursor:pointer; font-family:inherit;
+    font-size:calc(var(--u) * 0.86); color:var(--e-sub);
+    border:1px solid var(--e-line); border-radius:999px;
+    padding:calc(var(--u) * 0.55) calc(var(--u) * 1.9);
+    background:transparent; box-shadow:0 1px 0 var(--e-line-soft);
+    transition:color .18s, border-color .18s;
+  }
+  .e-out:hover{ color:var(--e-ink); border-color:var(--e-acc); }
+
+  /* 들어설 때 새김이 드러난다 (한 번만) */
+  .slab > *{ opacity:0; transform:translateY(calc(var(--u) * 0.5));
+    animation:eRise .9s cubic-bezier(.2,.7,.3,1) forwards; }
+  .slab > *:nth-child(1){ animation-delay:.10s }
+  .slab > *:nth-child(2){ animation-delay:.24s }
+  .slab > *:nth-child(3){ animation-delay:.36s }
+  .slab > *:nth-child(4){ animation-delay:.46s }
+  .slab > *:nth-child(5){ animation-delay:.60s }
+  @keyframes eRise{ to{ opacity:1; transform:none; } }
+  @media (prefers-reduced-motion: reduce){
+    .slab > *{ animation:none; opacity:1; transform:none; }
+  }
+
+
+  /* ══ 시트 — 여섯 메뉴 공통 팝업 (0815 소로 규약) ═══════════════
+   *  좌우 폭 통일 · 위아래 스크롤 · 막대 감춤 · 뒤 배경 흐리게 */
+  .sheet-back{
+    position:fixed; inset:0; z-index:60; display:none;
+    background:rgba(10,14,22,0.46);
+    -webkit-backdrop-filter:blur(7px); backdrop-filter:blur(7px);
+  }
+  .sheet-back.on{ display:block; }
+  .sheet{
+    position:fixed; z-index:61; left:50%; transform:translateX(-50%);
+    top:5vh; max-height:90vh; width:440px; max-width:calc(100vw - 28px);
+    display:flex; flex-direction:column;
+    background:linear-gradient(160deg, var(--c-card1), var(--c-card2));
+    border-radius:20px; box-shadow:0 18px 50px rgba(10,14,22,0.46);
+    overflow:hidden;
+  }
+  .sheet[hidden]{ display:none; }
+  .sheet-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:17px 20px 13px; border-bottom:1px solid var(--c-cbor);
+    font-family:'Gowun Batang',serif; font-size:15px; color:var(--c-ink);
+  }
+  .sheet-x{ cursor:pointer; font-size:21px; line-height:1; color:var(--c-muted); padding:0 4px; }
+  .sheet-body{
+    flex:1; overflow-y:auto; padding:16px 20px 26px; color:var(--c-ink);
+    /* ⚠ 셋 다 써야 한다 — 하나만 쓰면 어떤 브라우저에만 막대가 남는다 */
+    scrollbar-width:none; -ms-overflow-style:none;
+  }
+  .sheet-body::-webkit-scrollbar{ display:none; }
+
+  /* ══ 시트 안쪽 색 잇기 (0815) ══════════════════════════════════
+   *  ⚠ 옛 몸통들은 어둑한 갈색 판(--ink/--card/--gold)에서 자랐다.
+   *    밝은 시안 종이 위에 그대로 얹으니 검은 알약이 앉았다.
+   *  ⭐ 몸통 CSS를 고치지 않고 **시트 안에서만 변수를 갈아 끼운다.**
+   *    수첩(credencial)·지구 등 다른 화면이 쓰는 규칙은 한 글자도 안 건드린다. */
+  .sheet-body{
+    --ink:var(--c-ink); --ink-dim:var(--c-sub); --ink-mute:var(--c-muted);
+    --gold:var(--c-accent); --gold-deep:var(--c-accent);
+    --card:color-mix(in srgb, var(--c-cbg) 78%, transparent);
+    --card-edge:var(--c-cbor);
+  }
+  .sheet-body .menu-item,
+  .sheet-body .mail-card,
+  .sheet-body .flower-card,
+  .sheet-body .wallet-head{
+    background:var(--c-cbg); border:1px solid var(--c-cbor);
+  }
+  .sheet-body .menu-label,
+  .sheet-body .wallet-bal{ color:var(--c-ink); }
+  .sheet-body .menu-desc,
+  .sheet-body .wallet-label,
+  .sheet-body .hint{ color:var(--c-sub); }
+  .sheet-body .wallet-bal{ color:var(--c-accent); }
+  .sheet-body .menu-item.logout .menu-label{ color:var(--c-accent); }
+  /* 포스터 — 종이 위에 앉으므로 옛 고정색을 시안 잉크로 */
+  .sheet-body .poster{ background:transparent; border-color:var(--c-cbor); }
+  .sheet-body .poster .pgh,
+  .sheet-body .poster .pcap,
+  .sheet-body .poster .pgh .n,
+  .sheet-body .poster .poster-load{ color:var(--c-sub); }
+  .sheet-body .poster .pgh{ color:var(--c-accent); }
+  .sheet-body .pf{ border-color:var(--c-cbor); color:var(--c-sub); background:var(--c-cbg); }
+  .sheet-body .pf.on{ background:var(--c-cbg); color:var(--c-accent); border-color:var(--c-accent); }
+
+
+  /* ══ 안착 곳 — 금테 패널 안쪽 (0815 격자 실측) ═══════════════════
+   *  좌 22.0%  우 78.0%  상 38.3%  하 78.7%  → 종횡비 1 : 1.28
+   *  ⚠ 어림잡지 말 것. 첫 값(폭64·상36.5)은 좌우로 8%p 넘쳐 촛대를 덮었다.
+   *  ⚠ 폭만 정하고 높이를 안 정하면 내용이 위로 몰리고 아래가 텅 빈다. */
+  #tg-board{
+    top:calc(var(--slab-top) * 1%); height:40.4%; width:56%; z-index:2;
+    container-type:inline-size;   /* ⭐ 글자가 패널 폭을 따라 자란다 */
+    display:flex; align-items:center; justify-content:center;
+  }
+  /* ⚠⚠ 폰 — 벽의 좌표는 벽이 넓을 때만 뜻이 있다.
+       position:static으로 풀면 흐름에 들어와 캔버스를 아래로 밀어낸다(0815 실측).
+       절대 위치는 지키고 좌표만 넓힌다.
+       ⚠ 18vh로 두면 새김이 창문·천장 위에 앉아 달빛에 글씨가 묻힌다.
+         폰에서도 벽면은 그림의 같은 곳에 있다 — vh가 아니라 그림 비율로 잡는다.
+       ⭐ 폰 전면 손질은 따로 잡는다(0815 소로). 지금은 읽히는 곳까지다. */
+  @media (max-width: 760px){
+    #canvas0{ aspect-ratio:auto; min-height:165vh; background-position:center top; }
+    #tg-board{ top:40%; height:auto; width:auto; left:16px; right:16px; transform:none; }
+    .slab{ --u:15px; width:100%; height:auto; gap:calc(var(--u) * 2.2); }
+    .e-head{ padding-left:0; }
+  }
+
+  /* ── 상단 타이틀 ── */
+  .topbar{ display:flex; align-items:center; gap:10px; padding:20px 2px 4px; }
+  .back{ font-size:20px; color:var(--gold); opacity:0.8; cursor:pointer; }
+  .topbar-t{ font-family:'Cormorant Garamond',serif; font-size:13px; letter-spacing:4px; color:var(--gold); text-transform:uppercase; }
+
+  /* ── ① 헤더: 프로필 ── */
+  .header{
+    text-align:center; padding:24px 0 26px;
+  }
+  .avatar-wrap{ position:relative; display:inline-block; }
+  .avatar{
+    width:88px; height:88px; border-radius:50%;
+    background:linear-gradient(160deg,#3a2c18,#1c140c);
+    border:2px solid var(--gold-deep);
+    display:flex; align-items:center; justify-content:center;
+    font-size:34px;
+    box-shadow:0 0 28px rgba(216,184,96,0.18), inset 0 0 12px rgba(0,0,0,0.5);
+    overflow:hidden;
+  }
+  .avatar img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .avatar.avatar-loading{ opacity:.45; }
+  .avatar-edit{
+    position:absolute; right:0; bottom:2px;
+    width:26px; height:26px; border-radius:50%;
+    background:#241910; border:1px solid var(--gold-deep);
+    display:flex; align-items:center; justify-content:center;
+    font-size:12px; color:var(--gold); cursor:pointer;
+  }
+  .nickname{ font-family:'Cormorant Garamond',serif; font-size:25px; color:var(--ink); margin-top:14px; letter-spacing:0.5px; }
+  .badges{ display:flex; gap:7px; justify-content:center; margin-top:9px; }
+  .badge{
+    font-size:11px; padding:3px 11px; border-radius:11px;
+    border:1px solid var(--line); color:var(--gold);
+    background:rgba(216,184,96,0.06); letter-spacing:0.5px;
+  }
+  .badge.league{ color:var(--ink-soft); border-color:rgba(154,141,114,0.3); }
+
+  .sub-bar{
+    margin-top:16px; display:flex; align-items:center; justify-content:space-between;
+    background:var(--card); border:1px solid var(--card-edge);
+    border-radius:10px; padding:11px 15px; backdrop-filter:blur(3px);
+  }
+  .sub-plan{ font-size:13px; color:var(--ink); }
+  .sub-date{ font-size:11px; color:var(--ink-dim); margin-top:2px; }
+  .sub-dday{ font-family:'Cormorant Garamond',serif; font-size:22px; color:var(--gold); font-weight:600; }
+
+  /* ── 섹션 공통 ── */
+  .sec-title{
+    font-family:'Cormorant Garamond',serif; font-size:13px; letter-spacing:3px;
+    color:var(--gold); text-transform:uppercase; margin:32px 4px 13px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .sec-title::after{ content:''; flex:1; height:1px; background:linear-gradient(90deg,var(--line),transparent); }
+
+  /* ── ② 교양 자화상: 6스탯 ── */
+  .stats{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:10px;
+  }
+  .stat{
+    background:var(--card); border:1px solid var(--card-edge);
+    border-radius:11px; padding:15px 8px; text-align:center;
+    backdrop-filter:blur(3px);
+    transition:border-color .3s, transform .3s;
+  }
+  .stat:hover{ border-color:rgba(216,184,96,0.45); transform:translateY(-2px); }
+  .stat-v{ font-family:'Cormorant Garamond',serif; font-size:27px; color:var(--ink); font-weight:500; line-height:1; }
+  .stat-v .u{ font-size:15px; color:var(--gold); }
+  .stat-l{ font-size:11px; color:var(--ink-dim); margin-top:7px; letter-spacing:0.5px; line-height:1.4; }
+
+  /* 리그 진척 */
+  .league-card{
+    margin-top:12px; background:var(--card); border:1px solid var(--card-edge);
+    border-radius:11px; padding:14px 16px; backdrop-filter:blur(3px);
+  }
+  .league-top{ display:flex; align-items:center; justify-content:space-between; }
+  .league-name{ font-size:14px; color:var(--ink); }
+  .league-frac{ font-size:12px; color:var(--ink-dim); }
+  .league-bar{ height:6px; border-radius:3px; background:rgba(154,141,114,0.18); margin-top:10px; overflow:hidden; }
+  .league-fill{ height:100%; width:47%; background:linear-gradient(90deg,var(--gold-deep),var(--gold)); border-radius:3px; }
+  .league-next{ font-size:11px; color:var(--ink-dim); margin-top:8px; font-style:italic; }
+
+  /* ── ③ 황금사과 월렛 ── */
+  .wallet-head{
+    background:var(--card); border:1px solid var(--card-edge);
+    border-radius:11px; padding:16px; backdrop-filter:blur(3px);
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .wallet-label{ font-size:12px; color:var(--ink-dim); }
+  .wallet-bal{ font-family:'Cormorant Garamond',serif; font-size:30px; color:var(--gold); font-weight:600; }
+  .wallet-bal .u{ font-size:16px; }
+  .filters{ display:flex; gap:7px; margin:12px 0 10px; }
+  .filter{
+    font-size:11px; padding:5px 13px; border-radius:14px; cursor:pointer;
+    border:1px solid var(--line); color:var(--ink-soft); background:transparent;
+  }
+  .filter.on{ background:rgba(216,184,96,0.14); color:var(--gold); border-color:var(--gold-deep); }
+  .ledger{ display:flex; flex-direction:column; gap:8px; }
+  .row{
+    background:var(--card); border:1px solid rgba(216,184,96,0.10);
+    border-radius:9px; padding:11px 14px; backdrop-filter:blur(2px);
+  }
+  .row-top{ display:flex; align-items:baseline; justify-content:space-between; }
+  .row-date{ font-size:10.5px; color:var(--ink-dim); }
+  .row-amt{ font-family:'Cormorant Garamond',serif; font-size:16px; font-weight:600; }
+  .row-amt.plus{ color:var(--plus); }
+  .row-amt.minus{ color:var(--minus); }
+  .row-desc{ font-size:12.5px; color:var(--ink-soft); margin-top:4px; }
+  .row-bal{ font-size:10.5px; color:var(--ink-dim); margin-top:2px; }
+  .row.locked{ opacity:.5; }
+  .row.locked .row-amt{ color:var(--ink-dim); }
+  .wallet-empty{ font-size:12.5px; color:var(--ink-dim); padding:16px 2px; text-align:center; }
+
+  /* ── ④ 조용한 초대장 ── */
+  .invite{
+    background:var(--card); border:1px solid var(--card-edge);
+    border-radius:11px; padding:17px; backdrop-filter:blur(3px);
+  }
+  .invite-text{ font-size:12.5px; color:var(--ink-soft); line-height:1.7; }
+  .invite-link{
+    margin-top:11px; display:flex; align-items:center; justify-content:space-between;
+    background:rgba(0,0,0,0.3); border:1px solid var(--line);
+    border-radius:8px; padding:9px 13px;
+  }
+  .invite-url{ font-size:12px; color:var(--gold); font-family:'Cormorant Garamond',serif; letter-spacing:0.3px; }
+  .invite-save{
+    font-size:11px; padding:5px 12px; border-radius:8px; cursor:pointer;
+    background:rgba(216,184,96,0.14); border:1px solid var(--gold-deep); color:var(--gold);
+  }
+
+  /* ── ⑤ 설정 메뉴 ── */
+  .menu{ display:flex; flex-direction:column; gap:8px; }
+  .menu-item{
+    background:var(--card); border:1px solid var(--card-edge);
+    border-radius:10px; padding:14px 15px; backdrop-filter:blur(3px);
+    display:flex; align-items:center; gap:13px; cursor:pointer;
+    transition:border-color .3s;
+  }
+  .menu-item:hover{ border-color:rgba(216,184,96,0.4); }
+  .menu-ico{ font-size:17px; width:22px; text-align:center; opacity:0.9; }
+  .menu-txt{ flex:1; }
+  .menu-label{ font-size:14px; color:var(--ink); }
+  .menu-sub{ font-size:11px; color:var(--ink-dim); margin-top:2px; }
+  .menu-badge{
+    font-size:11px; min-width:20px; height:20px; padding:0 6px;
+    border-radius:10px; background:#7a2d24; color:#f0d9c0;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .menu-arrow{ font-size:16px; color:var(--ink-dim); }
+  .menu-item.logout .menu-label{ color:var(--minus); }
+
+  .footer{ text-align:center; margin-top:46px; font-family:'Cormorant Garamond',serif; font-size:11px; letter-spacing:3px; color:var(--ink-dim); opacity:0.6; }
+
+  .note{
+    margin-top:28px; text-align:center; font-size:10.5px; color:var(--ink-dim);
+    opacity:0.5; font-style:italic; line-height:1.6;
+  }
+
+  /* ── 이번 주의 꽃 ── */
+  .flower-card{
+    background:var(--card); border:1px solid var(--card-edge);
+    border-radius:11px; padding:16px; backdrop-filter:blur(3px);
+  }
+  .flower-empty-note{ font-size:12.5px; color:var(--ink-soft); line-height:1.6; margin-bottom:13px; }
+  .flower-grid{ display:grid; grid-template-columns:repeat(6,1fr); gap:8px; }
+  .flower-pick{
+    aspect-ratio:1; border-radius:9px; overflow:hidden; cursor:pointer;
+    border:1px solid var(--line); background:rgba(0,0,0,0.25);
+    transition:border-color .25s, transform .25s;
+  }
+  .flower-pick:hover{ border-color:var(--gold-deep); transform:translateY(-2px); }
+  .flower-pick img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .flower-have{ display:flex; align-items:center; gap:16px; }
+  .flower-pic{
+    width:72px; height:72px; border-radius:12px; object-fit:cover; flex:0 0 auto;
+    border:2px solid var(--gold-deep); box-shadow:0 0 18px rgba(216,184,96,0.18);
+  }
+  .flower-info{ flex:1; min-width:0; }
+  .flower-left{ font-family:'Cormorant Garamond',serif; }
+  .flower-left b{ font-size:30px; color:var(--gold); }
+  .flower-left span{ font-size:13px; color:var(--ink-dim); }
+  .flower-cap-note{ font-size:11px; color:var(--ink-dim); margin-top:3px; line-height:1.5; }
+  .flower-bar{ height:6px; border-radius:3px; background:rgba(154,141,114,0.18); margin-top:10px; overflow:hidden; }
+  .flower-bar-fill{ height:100%; background:linear-gradient(90deg,var(--gold-deep),var(--gold)); border-radius:3px; transition:width .4s; }
+  .flower-busy{ opacity:.55; pointer-events:none; }
+
+  /* ── 월렛 미니(최근 3건) + 자세히보기 ── */
+  #ledger-mini .row-desc{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ledger-more{
+    margin-top:10px; text-align:center; font-size:12px; color:var(--gold);
+    padding:10px; border:1px solid var(--line); border-radius:9px; cursor:pointer;
+    background:rgba(216,184,96,0.05); letter-spacing:0.5px;
+    transition:border-color .25s, background .25s;
+  }
+  .ledger-more:hover{ border-color:var(--gold-deep); background:rgba(216,184,96,0.10); }
+
+  /* ── ③.5 쪽지함 (EG TABELLAE · 0813) ──
+     요약 카드 한 장 + 여는 문 한 줄. 월렛(미니 + 자세히 보기)과 같은 문법이다.
+     ⚠ 개수를 세지 않는다 — 봉랍 한 줄이 「있다/없다」의 전부다(결정문 5호). */
+  .mail-card{
+    position:relative; display:flex; align-items:center; gap:13px; overflow:hidden;
+    background:var(--card); border:1px solid var(--card-edge);
+    border-radius:11px; padding:15px 15px 15px 17px; backdrop-filter:blur(3px);
+    cursor:pointer; transition:border-color .3s;
+  }
+  .mail-card:hover{ border-color:rgba(216,184,96,0.4); }
+  /* 봉랍 — 안 읽은 것의 표. 쪽지함(messages.html)의 .env.unread와 같은 색·같은 굵기 */
+  .mail-card.unread::before{
+    content:''; position:absolute; left:0; top:12px; bottom:12px;
+    width:3px; background:#9c3b34; border-radius:2px;
+  }
+  .mail-ico{ font-size:18px; width:22px; text-align:center; color:var(--gold); opacity:0.9; }
+  .mail-txt{ flex:1; min-width:0; }
+  .mail-line{ font-size:13.5px; color:var(--ink); line-height:1.5; }
+  .mail-sub{
+    font-size:11px; color:var(--ink-dim); margin-top:3px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .mail-arrow{ font-size:16px; color:var(--ink-dim); }
+  .mail-door{
+    margin-top:10px; text-align:center; font-size:12px; color:var(--gold);
+    padding:10px; border:1px solid var(--line); border-radius:9px; cursor:pointer;
+    background:rgba(216,184,96,0.05); letter-spacing:0.5px;
+    transition:border-color .25s, background .25s;
+  }
+  .mail-door:hover{ border-color:var(--gold-deep); background:rgba(216,184,96,0.10); }
+
+  /* ── 쪽지함 액자 ──
+     ⚠ messages.html은 배경이 투명하다(그 파일 머리 주석). 액자 안쪽 색이 그대로 비친다. */
+  .mail-back{
+    position:fixed; inset:0; z-index:60; background:rgba(8,5,3,0.72);
+    -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px);
+    opacity:0; pointer-events:none; transition:opacity .25s;
+  }
+  .mail-back.open{ opacity:1; pointer-events:auto; }
+  .mail-panel{
+    position:fixed; z-index:61; left:50%; top:50%;
+    transform:translate(-50%,-46%) scale(0.985);
+    width:min(520px, calc(100vw - 26px)); height:min(78vh, 720px);
+    display:flex; flex-direction:column; overflow:hidden;
+    background:linear-gradient(168deg, rgba(31,22,13,0.985), rgba(20,14,8,0.985));
+    border:1px solid rgba(216,184,96,0.34); border-radius:14px;
+    box-shadow:0 26px 70px rgba(0,0,0,0.60);
+    opacity:0; pointer-events:none; transition:opacity .25s, transform .25s;
+  }
+  .mail-panel.open{ opacity:1; pointer-events:auto; transform:translate(-50%,-50%) scale(1); }
+  /* ⚠ 0814 — 우편함이 종이빛으로 갈렸다(messages.html이 스스로 종이를 깐다).
+     머리만 밤중으로 두면 종이 위에 검은 띠가 얹힌다. 머리도 종이로 간다.
+     ⭐ 다만 `.mail-panel`의 판 색은 **어두운 채로 둔다.** 편지를 펼치면 우편함이
+        스스로 배경을 걷는데, 그때 뒤가 종이빛이면 편지지 뒤에 종이판이 한 겹 더
+        생긴다 — 0813에 세 번 틀렸던 그 대목이다. */
+  .mail-head{
+    flex:0 0 auto; display:flex; align-items:center; justify-content:space-between;
+    padding:14px 16px 12px; background:#faf6ea; border-bottom:1px solid #eae1c6;
+  }
+  .mail-title{
+    font-family:'Cormorant Garamond',serif; font-size:13px; letter-spacing:3.4px;
+    color:#8a6d1f; text-transform:uppercase;
+  }
+  .mail-title .ko{
+    font-family:'Noto Serif KR',serif; font-size:11px; letter-spacing:0.06em;
+    color:#95896a; text-transform:none; margin-left:9px;
+  }
+  .mail-x{ font-size:24px; line-height:1; color:#a49771; cursor:pointer; padding:0 3px; }
+  .mail-x:hover{ color:#3c3423; }
+  .mail-frame{ flex:1; width:100%; border:0; background:transparent; }
+
+  /* ── 출납부 슬라이드 패널 ── */
+  .ledger-backdrop{
+    position:fixed; inset:0; z-index:40; background:rgba(8,5,2,0.55);
+    opacity:0; pointer-events:none; transition:opacity .3s;
+  }
+  .ledger-backdrop.open{ opacity:1; pointer-events:auto; }
+  .ledger-panel{
+    position:fixed; top:0; right:0; height:100%; width:min(460px,94vw); z-index:41;
+    background:#f4efe3; border-left:1px solid #d8cdb5;
+    box-shadow:-14px 0 44px rgba(0,0,0,0.40);
+    transform:translateX(100%); transition:transform .32s cubic-bezier(.4,0,.2,1);
+    display:flex; flex-direction:column;
+    font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;
+  }
+  .ledger-panel.open{ transform:translateX(0); }
+  .lp-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 18px 13px; border-bottom:1px solid #ddd2bb; background:#efe8d8;
+  }
+  .lp-title{ font-family:inherit; font-weight:700; font-size:15px; letter-spacing:1.5px; color:#8b6914; }
+  .lp-close{ font-size:26px; color:#9a8d72; cursor:pointer; line-height:1; padding:0 4px; }
+  .lp-close:hover{ color:#8b6914; }
+  .lp-filters{ display:flex; gap:7px; padding:13px 18px 11px; background:#efe8d8; }
+  /* 패널 내 필터 — 종이 위 버전 (다크용 .filter 오버라이드) */
+  .lp-filters .filter{ border:1px solid #cdbf9f; color:#6b5d4a; background:#fbf7ee; }
+  .lp-filters .filter.on{ background:rgba(201,168,76,0.20); color:#8b6914; border-color:#c9a84c; }
+  .lp-table{ flex:1; overflow-y:auto; padding:0 14px 24px; background:#f4efe3; }
+
+  /* 장부 행 — 종이 위, 연한 그레이 짝/홀 교차 */
+  .lp-row{
+    display:grid; grid-template-columns:60px 1fr 50px 46px; gap:7px;
+    align-items:center; padding:10px 9px; font-size:11px; line-height:1.4;
+  }
+  .lp-header-row{
+    position:sticky; top:0; z-index:1; background:#efe8d8;
+    color:#9a8d72; font-size:10px; letter-spacing:1px;
+    border-bottom:1px solid #cdbf9f;
+  }
+  .lp-body-row:nth-child(odd){ background:transparent; }
+  .lp-body-row:nth-child(even){ background:rgba(60,43,31,0.05); }
+  .lp-c-date{ color:#8a7c64; font-size:10px; font-variant-numeric:tabular-nums; }
+  .lp-c-desc{ color:#2e2620; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .lp-c-amt{ font-family:inherit; font-weight:700; text-align:right; font-variant-numeric:tabular-nums; }
+  .lp-c-amt.plus{ color:#3f7d4f; }
+  .lp-c-amt.minus{ color:#b06a3a; }
+  .lp-c-bal{ font-family:inherit; text-align:right; color:#6b5d4a; font-variant-numeric:tabular-nums; }
+  .lp-loading{ text-align:center; font-size:11px; color:#9a8d72; padding:14px 0; min-height:10px; }
+
+  
+/* ══ 크레덴시알 포스터 (0814 결정문 6~9호) ══════════════════
+     ⭐ 수첩과 다른 점 — 수첩은 모양마다 폭이 달라 자리를 다투지만(span),
+        포스터는 칸이 모두 같다. 그래야 한 면이 「인장첩」으로 읽힌다.
+     ⚠ 9호 — 분모·퍼센트·진척 막대·「N개 남음」을 여기 절대 쓰지 않는다. */
+  .pfilters{ display:flex; gap:7px; margin:2px 0 14px; flex-wrap:wrap; }
+  .pf{
+    font-family:'Noto Serif KR',serif; font-size:12px; letter-spacing:.4px;
+    color:var(--ink-dim); background:rgba(24,17,10,.5);
+    border:1px solid var(--line); border-radius:999px;
+    padding:7px 14px; cursor:pointer; transition:.18s;
+  }
+  .pf:hover{ color:var(--ink-soft); }
+  .pf.on{ color:#1a1208; background:var(--gold); border-color:var(--gold); }
+
+  /* ⭐ 0814 눈검사 — 포스터만은 크림 종이다.
+     도장 잉크는 판이 정하고(15호) 대개 먹빛이라, 어두운 카드 위에 얹으면
+     배경에 묻혀 구멍처럼 보인다. 잉크를 뒤집는 대신 종이를 깐다.
+     ⚠ 이 안에서는 글자색도 함께 뒤집어야 한다 — 아래 .poster 하위 규칙들. */
+  .poster{
+    background:linear-gradient(178deg,#f3ece0,#e9e0d0);
+    border:1px solid rgba(120,96,52,.34); border-radius:10px;
+    padding:20px 14px 22px; min-height:180px;
+    box-shadow:0 8px 26px rgba(0,0,0,.42);
+  }
+  .poster .poster-load{ color:#8a7d64; }
+  .poster .pgh{ color:#8a6d1f; }
+  .poster .pgh::after{ background:linear-gradient(90deg,rgba(120,96,52,.3),transparent); }
+  .poster .pgh .n{ color:#9a8d72; }
+  .poster .pcap{ color:#6b5e46; }
+  .poster .pblank{
+    border-color:rgba(120,96,52,.26); color:rgba(107,94,70,.72);
+  }
+  .poster-load{ text-align:center; color:var(--ink-dim); font-size:12.5px; padding:44px 0; }
+  .poster-foot{
+    text-align:center; color:var(--ink-dim); font-size:11px;
+    letter-spacing:.6px; margin:9px 0 4px; font-family:'Cormorant Garamond',serif;
+  }
+
+  .pgroup{ margin-bottom:20px; }
+  .pgroup:last-child{ margin-bottom:0; }
+  .pgh{
+    display:flex; align-items:baseline; gap:8px;
+    font-family:'Cormorant Garamond',serif; font-size:14px; letter-spacing:1px;
+    color:var(--gold); margin:0 2px 10px;
+  }
+  .pgh::after{ content:''; flex:1; height:1px; background:linear-gradient(90deg,var(--line),transparent); }
+  .pgh .n{ font-size:11px; color:var(--ink-dim); letter-spacing:.5px; }
+
+  .pgrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:12px 8px; }
+
+  .pcell{ text-align:center; }
+  .pink{
+    width:100%; height:82px;
+    -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+    -webkit-mask-position:center;  mask-position:center;
+    -webkit-mask-size:contain;     mask-size:contain;
+  }
+  .pcap{
+    font-size:9.5px; line-height:1.35; color:var(--ink-dim);
+    margin-top:4px; word-break:keep-all;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  }
+
+  /* 아직 발자국이 없는 우주 — 재촉하지 않는다. 그냥 비어 있다 */
+  .pblank{
+    border:1px dashed rgba(216,184,96,.16); border-radius:8px;
+    padding:15px 12px; color:rgba(154,141,114,.62);
+    font-size:11.5px; letter-spacing:.5px;
+  }
+
+  /* ══ 목록 — 접이 여섯 (0814) ═══════════════════════════════
+     한 화면에 여섯 줄. 누르면 그 줄 아래로만 펼쳐진다.
+     ⚠ name="eg"가 「한 번에 하나」를 지킨다 — 브라우저가 나머지를 닫는다. */
+  .rows{ display:flex; flex-direction:column; gap:9px; margin-top:6px; }
+
+  .row{
+    background:var(--card); border:1px solid var(--card-edge);
+    border-radius:10px; overflow:hidden;
+  }
+  .row > summary{
+    display:flex; align-items:center; gap:12px;
+    padding:16px 15px; cursor:pointer; list-style:none;
+    transition:background .16s;
+  }
+  .row > summary::-webkit-details-marker{ display:none; }
+  .row > summary:hover{ background:rgba(216,184,96,.05); }
+  .row[open] > summary{ border-bottom:1px solid var(--line); }
+
+  .r-ico{ font-size:19px; width:24px; text-align:center; flex:none; opacity:.92; }
+  .r-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+  .r-txt b{
+    font-family:'Cormorant Garamond',serif; font-size:17px; font-weight:500;
+    letter-spacing:.6px; color:var(--ink);
+  }
+  .r-txt i{ font-style:normal; font-size:11px; color:var(--ink-dim); letter-spacing:.3px; }
+
+  .r-side{
+    flex:none; font-family:'Cormorant Garamond',serif; font-size:14px;
+    color:var(--gold); letter-spacing:.5px;
+  }
+  .r-dot{
+    display:inline-block; min-width:19px; padding:1px 6px; border-radius:999px;
+    background:#8d3a2e; color:#f3e6cf; font-family:'Noto Serif KR',serif;
+    font-size:10.5px; text-align:center;
+  }
+  .r-chev{
+    flex:none; color:var(--ink-dim); font-size:17px;
+    transition:transform .2s; transform-origin:center;
+  }
+  .row[open] .r-chev{ transform:rotate(90deg); color:var(--gold); }
+
+  .r-body{ padding:15px 14px 18px; }
+  .r-body .sec-title{ display:none; }        /* 줄 이름이 이미 머리다 */
+  .hint{ color:var(--ink-dim); font-size:12px; line-height:1.7; }
+
+  /* 접이 안에서는 월렛 머리가 한 겹 덜 필요하다 */
+  .r-body .wallet-head{ margin-top:0; }
+</style>
+</head>
+<body>
+<div id="sc0">
+<div id="canvas0" class="f-fallback">
+  <div class="tgt" id="tg-board">
+<div class="slab">
+
+  <div class="e-eyebrow cut">EG UNIVERSE</div>
+
+  <div class="e-head">
+    <div class="e-photo cut" id="p-avatar" onclick="document.getElementById('avatar-file').click()">L</div>
+    <input type="file" id="avatar-file" accept="image/*" style="display:none" onchange="onAvatarPick(this.files)">
+    <div class="e-who">
+      <div class="e-role cut">COMPAGNON</div>
+      <div class="e-nick cut" id="p-nick">lonelywalden</div>
+      <div class="e-chip cut"><span class="st">✦</span>파운더 37번 · <span id="p-league">루키리그</span></div>
+      <div class="e-sub cut">4개월 이용권 · <b id="p-dday">D-45</b> · 갱신 09. 29</div>
+    </div>
+  </div>
+
+  <div class="e-rule"></div>
+
+  <div class="e-grid">
+    <button class="cm" type="button" data-sheet="cred">
+      <span class="cm-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9.5h5M7 13h3"/><circle cx="17" cy="11.5" r="2"/></svg></span>
+      <span class="cm-t cut">크레덴시알</span>
+      <span class="cm-v cut" id="r-cred-side"></span>
+    </button>
+    <button class="cm" type="button" data-sheet="mail">
+      <span class="cm-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18v12H3z"/><path d="M3 7l9 6 9-6"/></svg></span>
+      <span class="cm-t cut">EG 우편함</span>
+      <span class="cm-v cut" id="r-mail-side"></span>
+    </button>
+    <button class="cm" type="button" data-sheet="apple">
+      <span class="cm-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7c-3.5-2-7 0.5-7 5 0 4 2.5 7 5 7 1 0 1.5-.5 2-.5s1 .5 2 .5c2.5 0 5-3 5-7 0-4.5-3.5-7-7-5z"/><path d="M12 7c0-2 1-3.5 3-4"/></svg></span>
+      <span class="cm-t cut">황금사과</span>
+      <span class="cm-v cut" id="r-apple-side"></span>
+    </button>
+    <button class="cm" type="button" data-sheet="flower">
+      <span class="cm-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0"/><path d="M12 9.5c-2.8-1-2.8-4.5 0-5 2.8.5 2.8 4 0 5z"/><path d="M14.5 12c1-2.8 4.5-2.8 5 0-.5 2.8-4 2.8-5 0z"/><path d="M12 14.5c2.8 1 2.8 4.5 0 5-2.8-.5-2.8-4 0-5z"/><path d="M9.5 12c-1 2.8-4.5 2.8-5 0 .5-2.8 4-2.8 5 0z"/></svg></span>
+      <span class="cm-t cut">이번 주의 꽃</span>
+      <span class="cm-v cut" id="r-flower-side"></span>
+    </button>
+    <button class="cm" type="button" data-sheet="notice"><span class="cm-b" id="cm-b-notice" hidden></span>
+      <span class="cm-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h3l7 4V6l-7 4H4z"/><path d="M17.5 9.5a4 4 0 0 1 0 5"/></svg></span>
+      <span class="cm-t cut">공지사항</span>
+      <span class="cm-v cut"></span>
+    </button>
+    <button class="cm" type="button" data-sheet="sub">
+      <span class="cm-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12m-2.6 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0"/><path d="M12 3.5v2.3M12 18.2v2.3M3.5 12h2.3M18.2 12h2.3M6 6l1.6 1.6M16.4 16.4L18 18M18 6l-1.6 1.6M7.6 16.4L6 18"/></svg></span>
+      <span class="cm-t cut">계정과 구독</span>
+      <span class="cm-v cut" id="r-sub-side"></span>
+    </button>
+  </div>
+
+  <div class="e-foot"><button class="e-out cut" type="button" onclick="doLogout()">로그아웃</button></div>
+
+</div><!-- /.slab -->
+  </div><!-- /#tg-board -->
+</div><!-- /#canvas0 -->
+</div><!-- /#sc0 -->
+
+<!-- ══ 시트 — 여섯 메뉴 공통 팝업 (0815) ══
+     ⚠ 좌우 폭은 여섯이 같다. 내용이 폭을 정하면 크레덴시알만 넓어진다(함정 CI).
+     ⚠ 스크롤 막대는 셋 다 감춘다 — 하나만 쓰면 어떤 손님 화면에만 막대가 뜬다. -->
+<div class="sheet-back" id="sheet-back" onclick="closeSheet()"></div>
+<div class="sheet" id="sheet-cred" hidden>
+  <div class="sheet-head"><b>크레덴시알</b><span class="sheet-x" onclick="closeSheet()">×</span></div>
+  <div class="sheet-body">
+        <div class="pfilters" id="pfilters">
+          <button class="pf on" data-f="time" type="button">시간순</button>
+          <button class="pf"    data-f="area" type="button">우주별</button>
+          <button class="pf"    data-f="star" type="button">사람</button>
+          <button class="pf"    data-f="asis" type="button">있는 그대로</button>
+        </div>
+        <div class="poster" id="poster"><div class="poster-load">여정을 펴는 중…</div></div>
+        <div class="poster-foot" id="posterFoot"></div>
+  </div>
+</div>
+<div class="sheet" id="sheet-mail" hidden>
+  <div class="sheet-head"><b>EG 우편함</b><span class="sheet-x" onclick="closeSheet()">×</span></div>
+  <div class="sheet-body">
+        <div class="mail-card" id="mail-card" onclick="openMail()">
+          <span class="mail-ico">✉︎</span>
+          <div class="mail-txt">
+            <div class="mail-line" id="mail-line">불러오는 중…</div>
+            <div class="mail-sub" id="mail-sub"></div>
+          </div>
+          <span class="mail-arrow">›</span>
+        </div>
+        <div class="mail-door" onclick="openMail()">쪽지함 열기 ›</div>
+  </div>
+</div>
+<div class="sheet" id="sheet-apple" hidden>
+  <div class="sheet-head"><b>황금사과</b><span class="sheet-x" onclick="closeSheet()">×</span></div>
+  <div class="sheet-body">
+        <div class="wallet-head">
+          <span class="wallet-label">현재 잔액</span>
+          <span class="wallet-bal"><span id="wallet-bal">–</span><span class="u"> 알</span></span>
+        </div>
+        <div class="ledger" id="ledger-mini"></div>
+        <div class="ledger-more" onclick="openLedger()">출납부 자세히 보기 ›</div>
+  </div>
+</div>
+<div class="sheet" id="sheet-flower" hidden>
+  <div class="sheet-head"><b>이번 주의 꽃</b><span class="sheet-x" onclick="closeSheet()">×</span></div>
+  <div class="sheet-body">
+        <div class="flower-card" id="flower-card">
+          <div class="flower-empty-note">불러오는 중…</div>
+        </div>
+  </div>
+</div>
+<div class="sheet" id="sheet-notice" hidden>
+  <div class="sheet-head"><b>공지사항</b><span class="sheet-x" onclick="closeSheet()">×</span></div>
+  <div class="sheet-body">
+        <div class="hint">아직 배관 전입니다 — announcements 표 신설 뒤 여기에 붙습니다.</div>
+  </div>
+</div>
+<div class="sheet" id="sheet-sub" hidden>
+  <div class="sheet-head"><b>계정과 구독</b><span class="sheet-x" onclick="closeSheet()">×</span></div>
+  <div class="sheet-body">
+        <div class="menu">
+          <div class="menu-item" onclick="document.getElementById('avatar-file').click()" style="cursor:pointer">
+            <span class="menu-ico">👤</span>
+            <div class="menu-txt"><div class="menu-label">프로필 수정</div><div class="menu-sub">닉네임 · 프로필 사진</div></div>
+            <span class="menu-arrow">›</span>
+          </div>
+          <div class="menu-item">
+            <span class="menu-ico">💳</span>
+            <div class="menu-txt"><div class="menu-label">구독 관리</div><div class="menu-sub" id="m-sub">4개월 이용권 · 플랜 변경</div></div>
+            <span class="menu-arrow">›</span>
+          </div>
+          <div class="menu-item">
+            <span class="menu-ico">🔔</span>
+            <div class="menu-txt"><div class="menu-label">알림 설정</div><div class="menu-sub">한스푼 푸시 · 뉴스레터 구독</div></div>
+            <span class="menu-arrow">›</span>
+          </div>
+          <div class="menu-item" onclick="openInvite()" style="cursor:pointer">
+            <span class="menu-ico">🌌</span>
+            <div class="menu-txt"><div class="menu-label">조용한 초대장</div><div class="menu-sub">지인에게 은교살롱을 소개할 때</div></div>
+            <span class="menu-arrow">›</span>
+          </div>
+          <div class="menu-item">
+            <span class="menu-ico">📜</span>
+            <div class="menu-txt"><div class="menu-label">이용약관 · 개인정보</div><div class="menu-sub">환불 정책 · 오픈소스</div></div>
+            <span class="menu-arrow">›</span>
+          </div>
+          <div class="menu-item logout" onclick="doLogout()" style="cursor:pointer">
+            <span class="menu-ico">🚪</span>
+            <div class="menu-txt"><div class="menu-label">로그아웃</div></div>
+            <span class="menu-arrow">›</span>
+          </div>
+        </div>
+  </div>
+</div>
+
+<!-- 쪽지함 액자 — messages.html 한 파일이 지구(타륜 카드)와 여기 두 곳에서 산다 -->
+<div class="mail-back" id="mail-back" onclick="closeMail()"></div>
+<div class="mail-panel" id="mail-panel" aria-hidden="true">
+  <div class="mail-head">
+    <span class="mail-title">EG Tabellae<span class="ko">쪽지함</span></span>
+    <span class="mail-x" onclick="closeMail()">×</span>
+  </div>
+  <iframe class="mail-frame" id="mail-frame" src="about:blank" title="쪽지함"></iframe>
+</div>
+
+<!-- 황금사과 출납부 — 오른쪽 슬라이드 패널 -->
+<div class="ledger-backdrop" id="ledger-backdrop" onclick="closeLedger()"></div>
+<div class="ledger-panel" id="ledger-panel" aria-hidden="true">
+  <div class="lp-head">
+    <span class="lp-title">황금사과 출납부</span>
+    <span class="lp-close" onclick="closeLedger()">×</span>
+  </div>
+  <div class="lp-filters">
+    <span class="filter on" onclick="setLedgerFilter(this,'all')">전체</span>
+    <span class="filter" onclick="setLedgerFilter(this,'in')">수입 +</span>
+    <span class="filter" onclick="setLedgerFilter(this,'out')">지출 −</span>
+  </div>
+  <div class="lp-table" id="lp-table">
+    <div class="lp-row lp-header-row">
+      <span class="lp-c-date">일시</span>
+      <span class="lp-c-desc">내역</span>
+      <span class="lp-c-amt">증감</span>
+      <span class="lp-c-bal">잔액</span>
+    </div>
+    <div id="lp-body"></div>
+    <div class="lp-loading" id="lp-loading"></div>
+  </div>
+</div>
+
+<script>
+console.log('[EG] persona 0816a — 각인판(종이 걷음) · 시트 여섯 · 편집기는 ?edit=1');
+/* ══ 교양자화상 · 황금사과 월렛 — apple_log 실연동 (SSoT = SUM(amount)) ══ */
+const SUPABASE_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+
+let _refreshing = null;
+function getSession(){ try{ return JSON.parse(localStorage.getItem('eungyo-auth')); }catch{ return null; } }
+function tokenExp(tok){ try{ return JSON.parse(atob(tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).exp || 0; }catch{ return 0; } }
+async function getValidToken(){
+  const s = getSession();
+  if(!s?.access_token) return null;
+  const now = Math.floor(Date.now()/1000);
+  if(tokenExp(s.access_token) - now > 60) return s.access_token;
+  if(!s.refresh_token) return null;
+  _refreshing = _refreshing || (async () => {
+    try{
+      const r = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', {
+        method:'POST', headers:{ 'apikey':SUPABASE_KEY, 'Content-Type':'application/json' },
+        body: JSON.stringify({ refresh_token: s.refresh_token }) });
+      if(!r.ok) return null;
+      const data = await r.json();
+      if(!data.expires_at) data.expires_at = Math.floor(Date.now()/1000) + (data.expires_in || 3600);
+      localStorage.setItem('eungyo-auth', JSON.stringify(data));
+      return data.access_token || null;
+    }catch(e){ return null; }
+  })();
+  const tok = await _refreshing; _refreshing = null; return tok;
+}
+async function sbFetch(path, options = {}){
+  const token = await getValidToken();
+  const res = await fetch(SUPABASE_URL + path, { ...options, headers:{
+    'apikey':SUPABASE_KEY, 'Authorization':'Bearer ' + (token || SUPABASE_KEY),
+    'Content-Type':'application/json', ...options.headers } });
+  if(!res.ok){ const e = await res.json().catch(()=>({})); throw new Error(e.message || res.statusText); }
+  /* ⚠ 0813 — 본문 없는 성공을 실패로 읽던 병(messages.html에서 잡은 것과 같은 줄).
+     Prefer: return=minimal 로 POST하면 서버는 **201에 빈 본문**을 준다.
+     204만 걸러내면 201에서 res.json()이 터지고, 그 예외가 catch로 굴러가
+     일이 다 끝난 뒤에 「못 했습니다」가 뜬다.
+     ⭐ 성공·실패는 상태 번호가 가른다. 본문을 읽다 난 예외로 가르지 않는다. */
+  if(res.status === 204 || res.status === 205) return null;
+  const txt = await res.text();
+  if(!txt) return null;
+  try{ return JSON.parse(txt); }catch(e){ return null; }
+}
+function getUser(){ try{ const s = JSON.parse(localStorage.getItem('eungyo-auth')); return s?.user || null; }catch{ return null; } }
+
+// ── 월렛 (get_wallet RPC: label 가공 + bal_after) ──
+function fmtDate(iso){
+  const d = new Date(iso); const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}.${p(d.getMonth()+1)}.${p(d.getDate())} · ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function fmtDateShort(iso){
+  const d = new Date(iso); const p = n => String(n).padStart(2,'0');
+  return `${p(d.getMonth()+1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// 메인: 최근 3건만
+async function loadWalletMini(){
+  const box = document.getElementById('ledger-mini');
+  const user = getUser();
+  if(!user){ if(box) box.innerHTML = '<div class="wallet-empty">로그인이 필요합니다.</div>'; return; }
+  try{
+    const rows = await sbFetch('/rest/v1/rpc/get_wallet', { method:'POST', body: JSON.stringify({ p_limit:3, p_offset:0 }) });
+    if(!box) return;
+    if(!rows || !rows.length){ box.innerHTML = '<div class="wallet-empty">아직 내역이 없습니다.</div>'; return; }
+    box.innerHTML = rows.map(r => {
+      const amt = Number(r.amount);
+      const cls = amt >= 0 ? 'plus' : 'minus';
+      const sign = amt >= 0 ? '+' : '−';
+      return `<div class="row">
+        <div class="row-top"><span class="row-date">${fmtDate(r.created_at)}</span><span class="row-amt ${cls}">${sign} ${Math.abs(amt).toFixed(2)} 🍎</span></div>
+        <div class="row-desc">${esc(r.label)}</div>
+        <div class="row-bal">잔액 ${Number(r.bal_after).toFixed(2)} 알</div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    if(box) box.innerHTML = '<div class="wallet-empty">내역을 불러오지 못했습니다.</div>';
+  }
+}
+
+// 출납부 패널 — 무한 스크롤 + 필터
+let LP_OFFSET = 0, LP_LIMIT = 30, LP_DONE = false, LP_LOADING = false, LP_FILTER = 'all', LP_ROWS = [];
+
+function openLedger(){
+  document.getElementById('ledger-panel').classList.add('open');
+  document.getElementById('ledger-backdrop').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  if(!LP_ROWS.length) resetLedger();
+}
+function closeLedger(){
+  document.getElementById('ledger-panel').classList.remove('open');
+  document.getElementById('ledger-backdrop').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function resetLedger(){
+  LP_OFFSET = 0; LP_DONE = false; LP_ROWS = [];
+  const body = document.getElementById('lp-body'); if(body) body.innerHTML = '';
+  loadLedgerPage();
+}
+async function loadLedgerPage(){
+  if(LP_LOADING || LP_DONE) return;
+  LP_LOADING = true;
+  const ld = document.getElementById('lp-loading'); if(ld) ld.textContent = '불러오는 중…';
+  try{
+    const rows = await sbFetch('/rest/v1/rpc/get_wallet', { method:'POST', body: JSON.stringify({ p_limit:LP_LIMIT, p_offset:LP_OFFSET }) });
+    const got = rows || [];
+    if(got.length < LP_LIMIT) LP_DONE = true;
+    LP_ROWS = LP_ROWS.concat(got);
+    LP_OFFSET += got.length;
+    renderLedger();
+  }catch(e){
+    if(ld) ld.textContent = '불러오지 못했습니다.';
+  }finally{
+    LP_LOADING = false;
+    const ld2 = document.getElementById('lp-loading'); if(ld2 && LP_DONE) ld2.textContent = '';
+  }
+}
+function renderLedger(){
+  const body = document.getElementById('lp-body'); if(!body) return;
+  let rows = LP_ROWS;
+  if(LP_FILTER === 'in') rows = rows.filter(r => Number(r.amount) > 0);
+  else if(LP_FILTER === 'out') rows = rows.filter(r => Number(r.amount) < 0);
+  if(!rows.length){ body.innerHTML = '<div class="wallet-empty">내역이 없습니다.</div>'; return; }
+  body.innerHTML = rows.map(r => {
+    const amt = Number(r.amount);
+    const cls = amt >= 0 ? 'plus' : 'minus';
+    const sign = amt >= 0 ? '+' : '−';
+    return `<div class="lp-row lp-body-row">
+      <span class="lp-c-date">${fmtDateShort(r.created_at)}</span>
+      <span class="lp-c-desc">${esc(r.label)}</span>
+      <span class="lp-c-amt ${cls}">${sign}${Math.abs(amt).toFixed(2)}</span>
+      <span class="lp-c-bal">${Number(r.bal_after).toFixed(2)}</span>
+    </div>`;
+  }).join('');
+}
+function setLedgerFilter(el, f){
+  LP_FILTER = f;
+  document.querySelectorAll('.lp-filters .filter').forEach(x => x.classList.remove('on'));
+  el.classList.add('on');
+  renderLedger();
+}
+function initLedgerScroll(){
+  const tb = document.getElementById('lp-table');
+  if(tb) tb.addEventListener('scroll', () => {
+    if(tb.scrollTop + tb.clientHeight >= tb.scrollHeight - 80) loadLedgerPage();
+  });
+}
+
+/* ══ 헤더 + 6스탯 + 리그 진척 — get_persona_stats RPC 실연동 ══ */
+// 리그 코드 → 한글
+const LEAGUE_KO = {
+  TUTORIAL:'튜토리얼', ROOKIE:'루키리그', SINGLE_A:'싱글A', DOUBLE_A:'더블A',
+  TRIPLE_A:'트리플A', MAJOR:'메이저리그', FORUM:'리버럴아츠포럼'
+};
+// 리그 코드 → [다음 승급 완주 임계, 다음 리그 한글명]. 없으면 최고 경지
+const LEAGUE_NEXT = {
+  TUTORIAL:[10,'루키리그'], ROOKIE:[100,'싱글A'], SINGLE_A:[350,'더블A'],
+  DOUBLE_A:[725,'트리플A'], TRIPLE_A:[1225,'메이저리그']
+};
+function setText(id, v){ const el = document.getElementById(id); if(el) el.textContent = v; }
+
+async function loadPersona(){
+  const user = getUser();
+  if(!user) return;
+  let p;
+  try{
+    // 인자 없이 호출 → 서버에서 auth.uid()로 본인 것만 (자화상 = 나만 보는 거울)
+    p = await sbFetch('/rest/v1/rpc/get_persona_stats', { method:'POST', body:'{}' });
+  }catch(e){ return; }
+  if(!p) return;
+
+  // ① 헤더
+  if(p.nickname) setText('p-nick', p.nickname);
+  const av = document.getElementById('p-avatar');
+  if(av){
+    if(p.avatar_url){ av.innerHTML = `<img src="${p.avatar_url}" alt="프로필">`; }
+    else { av.textContent = '🌿'; }
+  }
+  const lgKo = LEAGUE_KO[p.league] || p.league || '';
+  if(lgKo) setText('p-league', lgKo);
+
+  // ② 6스탯 + 월렛 잔액
+  /* ⚠ 0814 — 여섯 칸 스탯은 포스터로 갈음됐다(결정문 10호).
+     월렛 잔액만 남는다. 「씨앗을 품은 별」은 애초에 하드코딩이었다. */
+  setText('wallet-bal', (Number(p.apple_balance) || 0).toFixed(2));
+
+  /* 리그 진척 막대는 걷었다 — 분모를 안 쓴다(9호). 리그는 머리의 배지로만 선다 */
+
+  // ④ 이번 주의 꽃 + 줄 오른쪽 작은 값
+  renderFlower(p);
+  paintRowSides(p);
+}
+
+/* ══ 이번 주의 꽃 — 12종 중 1택, 28송이 수령(claim_weekly_flower), 안 쓰면 다음 주 소멸 ══ */
+const FLOWER_BASE = SUPABASE_URL + '/storage/v1/object/public/flowers/';
+function flowerUrl(t){ return FLOWER_BASE + t + '.webp'; }
+
+function renderFlower(p){
+  const box = document.getElementById('flower-card'); if(!box) return;
+  const got = p.flower_this_week;
+  const cap = Number(p.flower_cap) || 28;
+  if(got){
+    const left = Number(p.flower_left) || 0;
+    const pct = Math.max(0, Math.min(100, Math.round(left / cap * 100)));
+    box.innerHTML =
+      `<div class="flower-have">
+        <img class="flower-pic" src="${flowerUrl(got)}" alt="이번 주의 꽃">
+        <div class="flower-info">
+          <div class="flower-left"><b>${left}</b> <span>/ ${cap} 송이</span></div>
+          <div class="flower-cap-note">분더카머 순례 때 한 집에 한 송이씩 (집마다 주 1회)</div>
+          <div class="flower-bar"><div class="flower-bar-fill" style="width:${pct}%"></div></div>
+        </div>
+      </div>`;
+  }else{
+    let cells = '';
+    for(let i=1;i<=12;i++){
+      const t = 'flower' + String(i).padStart(2,'0');
+      cells += `<div class="flower-pick" onclick="pickFlower('${t}')"><img src="${flowerUrl(t)}" alt="${t}" loading="lazy"></div>`;
+    }
+    box.innerHTML =
+      `<div class="flower-empty-note">이번 주의 꽃을 한 송이 고르세요. 28송이를 받아, 분더카머를 순례하며 집집마다 한 송이씩 두고 올 수 있어요. (안 쓰면 다음 주에 사라집니다.)</div>
+       <div class="flower-grid">${cells}</div>`;
+  }
+}
+
+let _picking = false;
+async function pickFlower(t){
+  if(_picking) return;
+  _picking = true;
+  const box = document.getElementById('flower-card');
+  if(box) box.classList.add('flower-busy');
+  try{
+    await sbFetch('/rest/v1/rpc/claim_weekly_flower', { method:'POST', body: JSON.stringify({ p_flower: t }) });
+    await loadPersona();   // 수령 후 카드·스탯 갱신
+  }catch(e){
+    alert(e.message || '꽃을 받지 못했어요');
+  }finally{
+    _picking = false;
+    if(box) box.classList.remove('flower-busy');
+  }
+}
+
+/* ══ 프로필 사진 — 자동 센터 정사각 크롭 + webp → avatars 버킷({uid}/avatar.webp) ══ */
+// 단일 진실원: 한 번 올리면 자화상·(추후)maison 대문·에세이 닉네임 옆 등에서 avatar_url 참조
+function squareCropWebp(file, size){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const side = Math.min(img.width, img.height);    // 짧은 변 기준 정사각
+      const sx = (img.width  - side) / 2;
+      const sy = (img.height - side) / 2;              // 중앙
+      const cv = document.createElement('canvas');
+      cv.width = size; cv.height = size;
+      const ctx = cv.getContext('2d');
+      ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+      cv.toBlob(b => b ? resolve(b) : reject(new Error('이미지 변환에 실패했어요')), 'image/webp', 0.9);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('이미지를 읽지 못했어요')); };
+    img.src = url;
+  });
+}
+
+let _avatarBusy = false;
+async function onAvatarPick(files){
+  if(!files || !files[0] || _avatarBusy) return;
+  const user = getUser();
+  if(!user){ alert('로그인이 필요합니다'); return; }
+  _avatarBusy = true;
+  const av = document.getElementById('p-avatar');
+  if(av) av.classList.add('avatar-loading');
+  try{
+    const blob = await squareCropWebp(files[0], 400);
+    const path = user.id + '/avatar.webp';
+    const token = await getValidToken();
+    const up = await fetch(SUPABASE_URL + '/storage/v1/object/avatars/' + path, {
+      method:'POST',
+      headers:{
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + (token || SUPABASE_KEY),
+        'Content-Type': 'image/webp',
+        'x-upsert': 'true'
+      },
+      body: blob
+    });
+    if(!up.ok){ const e = await up.json().catch(()=>({})); throw new Error(e.message || '업로드에 실패했어요'); }
+    const url = SUPABASE_URL + '/storage/v1/object/public/avatars/' + path + '?t=' + Date.now(); // 캐시버스팅
+    await sbFetch('/rest/v1/rpc/set_avatar', { method:'POST', body: JSON.stringify({ p_url: url }) });
+    if(av) av.innerHTML = `<img src="${url}" alt="프로필">`;
+  }catch(e){
+    alert(e.message || '사진을 올리지 못했어요');
+  }finally{
+    _avatarBusy = false;
+    if(av) av.classList.remove('avatar-loading');
+    const inp = document.getElementById('avatar-file'); if(inp) inp.value = '';
+  }
+}
+
+/* ══ 쪽지함 (EG TABELLAE · 0813) ═══════════════════════════
+   요약 한 장 + 여는 문 하나. 여는 문 안쪽은 messages.html 액자다.
+   ⭐ 쪽지의 규칙은 messages.html과 DB가 이미 다 갖고 있다.
+      여기서는 아무것도 새로 정하지 않는다 — 문만 낸다. */
+
+/* 언제 왔는지 — 오늘이면 시각, 올해면 월일, 넘으면 연월일 (쪽지함과 같은 자) */
+function mailWhen(iso){
+  const d = new Date(iso), n = new Date(), p = v => String(v).padStart(2,'0');
+  if(d.toDateString() === n.toDateString()) return `${p(d.getHours())}:${p(d.getMinutes())}`;
+  if(d.getFullYear() === n.getFullYear())   return `${d.getMonth()+1}월 ${d.getDate()}일`;
+  return `${d.getFullYear()}.${p(d.getMonth()+1)}.${p(d.getDate())}`;
+}
+
+let MAIL_BUSY = false;
+async function loadMailSummary(){
+  const card = document.getElementById('mail-card');
+  const line = document.getElementById('mail-line');
+  const sub  = document.getElementById('mail-sub');
+  if(!card || !line || !sub) return;
+  if(MAIL_BUSY) return;
+
+  const put = (unread, l, s) => {
+    card.classList.toggle('unread', !!unread);
+    line.textContent = l;
+    sub.textContent  = s || '';
+  };
+
+  if(!getUser()){ put(false, '로그인하시면 쪽지함이 열립니다.', ''); return; }
+
+  MAIL_BUSY = true;
+  try{
+    /* ⚠ 「안 읽은 것이 있는가」는 eg_has_unread()만이 안다 — 목록을 세어 짐작하지 않는다.
+       ⚠ eg_has_unread()는 참·거짓만 돌려준다. 개수를 물을 길이 애초에 없다(5호). */
+    const [unread, rows] = await Promise.all([
+      sbFetch('/rest/v1/rpc/eg_has_unread', { method:'POST', body:'{}' }),
+      sbFetch('/rest/v1/rpc/eg_inbox', { method:'POST', body: JSON.stringify({ p_limit:1 }) })
+    ]);
+    const last = (rows && rows.length) ? rows[0] : null;
+
+    if(unread === true){
+      put(true, '읽지 않은 쪽지가 놓여 있습니다.',
+          last ? `마지막으로 온 쪽지 — ${last.who} · ${mailWhen(last.sent_at)}` : '');
+    }else if(last){
+      put(false, '우편함이 조용합니다.',
+          `마지막으로 온 쪽지 — ${last.who} · ${mailWhen(last.sent_at)}`);
+    }else{
+      put(false, '아직 온 쪽지가 없습니다.',
+          '한 번 스쳐 간 이들에게 먼저 건네 보실 수 있습니다.');
+    }
+  }catch(e){
+    /* 못 읽어도 문은 열려 있어야 한다 — 요약이 실패했다고 우편함을 닫지 않는다 */
+    put(false, '쪽지함', '지금은 요약을 가져오지 못했습니다.');
+    console.warn('[쪽지] 요약', e);
+  }
+  MAIL_BUSY = false;
+}
+
+/* ⚠ src를 열 때마다 새로 준다 — 방금 온 쪽지가 바로 보여야 한다(타륜 우편함 카드와 같은 까닭) */
+function openMail(){
+  const f = document.getElementById('mail-frame');
+  if(f) f.src = 'messages.html?persona=1';
+  document.getElementById('mail-panel').classList.add('open');
+  document.getElementById('mail-back').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeMail(){
+  const f = document.getElementById('mail-frame'); if(f) f.src = 'about:blank';
+  document.getElementById('mail-panel').classList.remove('open');
+  document.getElementById('mail-back').classList.remove('open');
+  document.body.style.overflow = '';
+  loadMailSummary();                       /* 닫고 나면 봉랍을 다시 잰다 */
+}
+/* 액자 안에서 한 통을 열면 알려 준다 — 그 자리에서 봉랍을 다시 잰다.
+   ⚠ 자화상도 평소 지구의 액자 안에 들어 있다(terra의 enterRoomUrl).
+      쪽지함은 그 안의 또 한 겹이라, messages.html의 소식은 여기까지만 온다.
+      그대로 두면 지구 타륜의 봉랍이 안 내려간다 — 그래서 한 겹 위로 넘긴다. */
+window.addEventListener('message', (e) => {
+  if(!(e && e.data && e.data.eg === 'mail-read')) return;
+  loadMailSummary();
+  try{ if(window.parent && window.parent !== window) window.parent.postMessage({ eg:'mail-read' }, '*'); }catch(err){}
+});
+
+
+/* 줄 오른쪽의 작은 값 — 열지 않아도 안부가 읽히게 (0814) */
+function paintRowSides(p){
+  const set = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
+  set('r-apple-side', (Number(p.apple_balance)||0).toFixed(2) + ' 알');
+  const cap = Number(p.flower_cap) || 28, left = Number(p.flower_left) || 0;
+  set('r-flower-side', p.flower_this_week ? (left + ' 송이') : '고르기');
+}
+/* 도장 수는 포스터가 실은 뒤에 적는다 — 세는 곳을 둘로 두지 않는다 */
+function paintCredSide(){
+  const el = document.getElementById('r-cred-side');
+  if(el) el.textContent = PSTAMPS.length ? (PSTAMPS.length + '장') : '';
+}
+
+/* ══ 크레덴시알 포스터 ═══════════════════════════════════════════
+   0814 결정문 6~9호. 수첩(credencial.html)은 그대로 두고, 같은 우물을
+   다른 판형으로 편다. 여기서는 **읽기만** 한다 — stamp_press.js는 안 건드린다.
+
+   ⚠ 그림은 「찍힌 행의 것」이 먼저다(15호). 한 판에 시안이 여럿이면 찍는 순간
+     하나가 굴려 뽑혀 그 행에 붙박이므로, 판의 대표 그림보다 행이 앞선다.
+     순서를 뒤집으면 몇 달 전 도장이 열 때마다 그림을 갈아입는다. */
+
+/* 코드 머리 → 우주. ⚠ area만 보면 안 갈린다 — peregrinatio 안에 미술관(gal)과
+   르 그랑 투르(per)가 함께 살고, constellatio 안에 입국(con)과 별(star)이 함께 산다. */
+const UNIV = {
+  con:'콘스텔라티오', star:'콘스텔라티오', sta:'EG 스타디움', mus:'EG 뮤세움',
+  col:'콜레주 드 콤포스텔라', gal:'EG 미술관', mca:'EG 음악관', obs:'EG 천문대',
+  per:'르 그랑 투르', cam:'EG 분더카머', dom:'EG 메종', coc:'교양한스푼',
+  pal:'전당', pop:'EG 팝업스토어'
+};
+/* 「있는 그대로」에서 서는 차례 — 안 가 본 곳도 이 차례로 빈 채 선다 */
+const UNIV_ORDER = ['콘스텔라티오','EG 스타디움','EG 뮤세움','콜레주 드 콤포스텔라',
+  'EG 미술관','EG 음악관','EG 천문대','르 그랑 투르','EG 분더카머','EG 메종',
+  '교양한스푼','전당','EG 팝업스토어'];
+
+const univOf = code => UNIV[String(code||'').split('_')[0]] || '그 밖';
+
+let PSTAMPS = [];      /* 내가 받은 도장 (시간순) */
+let PFILTER = 'time';
+
+async function loadPoster(){
+  const box = document.getElementById('poster');
+  if(!box) return;
+  try{
+    const rows = await sbFetch('/rest/v1/stamps?select=' + encodeURIComponent(
+      'inscription,stamped_at,art_url,ink_alpha,' +
+      'stamp_kinds(code,title,area,ink,art_url,ref_type)') +
+      '&order=stamped_at.asc');
+    PSTAMPS = (rows || [])
+      .filter(r => r.stamp_kinds && (r.art_url || r.stamp_kinds.art_url))
+      .map(r => ({
+        ins  : r.inscription || r.stamp_kinds.title || '',
+        at   : r.stamped_at,
+        art  : r.art_url || r.stamp_kinds.art_url,
+        ink  : r.stamp_kinds.ink || '#16130F',
+        a    : r.ink_alpha || 0.86,
+        code : r.stamp_kinds.code,
+        isStar: r.stamp_kinds.ref_type === 'star' || r.stamp_kinds.ref_type === 'star_any',
+        univ : univOf(r.stamp_kinds.code)
+      }))
+      /* ⚠ 0814 시험에서 잡음 — 서버가 준 차례를 믿지 않는다.
+         「시간순」은 이 판의 뼈대라, 한 줄이라도 어긋나면 달 묶음이 두 번 서고
+         맨 끝 날짜가 틀린다. 질의에 order가 붙어 있어도 여기서 한 번 더 세운다. */
+      .sort((x, y) => new Date(x.at) - new Date(y.at));
+  }catch(e){
+    box.innerHTML = '<div class="poster-load">여정을 펴지 못했습니다</div>';
+    return;
+  }
+  drawPoster();
+  paintCredSide();
+}
+
+function pCell(st){
+  const cap = String(st.ins).split('\n')[0];
+  return `<div class="pcell">
+    <div class="pink" style="-webkit-mask-image:url('${esc(st.art)}');mask-image:url('${esc(st.art)}');`
+    + `background:${esc(st.ink)};opacity:${Number(st.a).toFixed(2)}"></div>
+    <div class="pcap">${esc(cap)}</div></div>`;
+}
+function pGroup(head, note, cells){
+  return `<div class="pgroup"><div class="pgh">${esc(head)}`
+    + (note ? `<span class="n">${esc(note)}</span>` : '')
+    + `</div><div class="pgrid">${cells}</div></div>`;
+}
+function pMonth(iso){ const d = new Date(iso); return `${d.getFullYear()}. ${String(d.getMonth()+1).padStart(2,'0')}`; }
+
+function drawPoster(){
+  const box  = document.getElementById('poster');
+  const foot = document.getElementById('posterFoot');
+  if(!box) return;
+
+  if(!PSTAMPS.length){
+    box.innerHTML = '<div class="poster-load">아직 첫 도장을 받지 않으셨습니다.</div>';
+    if(foot) foot.textContent = '';
+    return;
+  }
+
+  let html = '';
+
+  if(PFILTER === 'time'){
+    /* 달로만 묶는다. 날짜가 곧 순서이므로 다른 말을 얹지 않는다 */
+    let cur = null, cells = '';
+    for(const st of PSTAMPS){
+      const m = pMonth(st.at);
+      if(m !== cur){ if(cur) html += pGroup(cur, '', cells); cur = m; cells = ''; }
+      cells += pCell(st);
+    }
+    if(cur) html += pGroup(cur, '', cells);
+
+  }else if(PFILTER === 'area'){
+    /* 내가 간 곳만. 많은 순 — 발자국의 치우침이 곧 자화상이다 */
+    const by = {};
+    for(const st of PSTAMPS) (by[st.univ] = by[st.univ] || []).push(st);
+    Object.keys(by).sort((x,y) => by[y].length - by[x].length)
+      .forEach(u => { html += pGroup(u, '', by[u].map(pCell).join('')); });
+
+  }else if(PFILTER === 'star'){
+    const only = PSTAMPS.filter(st => st.isStar);
+    html = only.length
+      ? pGroup('내가 만난 사람', '', only.map(pCell).join(''))
+      : '<div class="poster-load">아직 별 인장이 없습니다.</div>';
+
+  }else{  /* 있는 그대로 — 안 가 본 우주까지 함께. ⚠ 분모를 쓰지 않는다(9호) */
+    const by = {};
+    for(const st of PSTAMPS) (by[st.univ] = by[st.univ] || []).push(st);
+    for(const u of UNIV_ORDER){
+      html += by[u]
+        ? pGroup(u, '', by[u].map(pCell).join(''))
+        : `<div class="pgroup"><div class="pgh">${esc(u)}</div>`
+          + `<div class="pblank">아직 발자국이 없습니다</div></div>`;
+    }
+  }
+
+  box.innerHTML = html;
+  if(foot){
+    const f = PSTAMPS[0].at, l = PSTAMPS[PSTAMPS.length-1].at;
+    const d = iso => { const x = new Date(iso);
+      return `${x.getFullYear()}.${String(x.getMonth()+1).padStart(2,'0')}.${String(x.getDate()).padStart(2,'0')}`; };
+    foot.textContent = d(f) + ' — ' + d(l);
+  }
+}
+
+document.getElementById('pfilters')?.addEventListener('click', e => {
+  const b = e.target.closest('.pf'); if(!b) return;
+  document.querySelectorAll('#pfilters .pf').forEach(x => x.classList.toggle('on', x === b));
+  PFILTER = b.dataset.f;
+  drawPoster();
+});
+
+/* 조용한 초대장 — 설정 한 줄로 접었다(0814 압축). 문구는 옛 카드 그대로 */
+function openInvite(){
+  const nick = (document.getElementById('p-nick')?.textContent || '').trim();
+  const url  = 'egsalon.com?from=' + (nick || 'eg');
+  try{ navigator.clipboard.writeText('https://' + url); alert('초대장을 복사했습니다.\n' + url); }
+  catch(e){ alert(url); }
+}
+
+// ── 로그아웃 (로컬 세션 제거 후 로그인 화면으로) ──
+function doLogout(){
+  try{ localStorage.removeItem('eungyo-auth'); }catch(e){}
+  location.replace('index.html');
+}
+
+console.log('%c[EG] persona · 쪽지함 액자 머리 종이빛', 'color:#8a6d1f');
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadPersona(); loadWalletMini(); initLedgerScroll(); loadMailSummary(); loadPoster();
+  /* 0728 — 타륜의 황금사과 알림을 누르고 곧장 온 손님은 출납부를 펼친 채로 맞는다.
+     openLedger()가 resetLedger()로 첫 장을 알아서 불러온다. */
+  try{
+    const q = new URLSearchParams(location.search);
+    if (q.get('ledger') === '1') openLedger();
+    if (q.get('mail')   === '1') openMail();   /* 0813 — 같은 문법으로 쪽지함도 펼친 채 맞는다 */
+  }catch(e){}
+});
+</script>
+
+<!-- 폰에서 방을 나가는 문 (0730) — 액자 밖 + 폰일 때만 뜬다. eg_back.js 참조 -->
+<!-- ══ 방 배관 (0815) — 콜레주 1층 혈통 ══════════════════════════
+     ⚠ eg_sky.js는 시간대(m|d|e|n)만 쓰려고 싣는다. 콜레주와 같은 판을 쓴다.
+     ⚠ eg_camera.js는 sweep만 쓴다 — enter는 크기를 덮어써서 이 방을 깬다. -->
+<script src="eg_sky.js?v=0806a"></script>
+<script src="eg_camera.js?v=0804a"></script>
+<script>
+(function(){
+  var P   = new URLSearchParams(location.search);
+  var TOD = ['m','d','e','n'].indexOf(P.get('tod')) >= 0 ? P.get('tod')
+          : (window.egSky && egSky.phase ? egSky.phase() : 'd');
+  /* ⭐ 색 표가 이 표찰 하나로 갈린다. 그림과 색이 늘 같은 시간대를 본다 —
+       두 곳에서 따로 정하면 낮 그림 위에 밤 종이가 앉는 날이 온다. */
+  document.body.setAttribute('data-tod', TOD);
+
+  /* 그림 물리기 — 후보 순서대로, 없으면 낮판. 전부 실패하면 f-fallback 유지 */
+  function setBg(el, cands){
+    if(!el) return;
+    (function step(i){
+      if(i >= cands.length) return;
+      var im = new Image();
+      im.onload  = function(){ el.style.backgroundImage = 'url(' + cands[i] + ')';
+                               el.classList.remove('f-fallback'); };
+      im.onerror = function(){ step(i+1); };
+      im.src = cands[i];
+    })(0);
+  }
+  /* ⚠ 임시 — 자화상 제 그림이 구워질 때까지 콜레주 1층을 빌려 쓴다(0815 소로).
+       제 그림이 오면 이 줄의 college_hall1_ 만 persona_hall_ 로 바꾸면 된다. */
+  function wear(tod){
+    document.body.setAttribute('data-tod', tod);
+    setBg(document.getElementById('canvas0'),
+          ['college_hall1_' + tod + '.webp', 'college_hall1_d.webp']);
+  }
+  wear(TOD);
+  /* ⭐ 편집기(?edit=1)가 벽 넉 벌을 갈아 끼울 때 쓰는 유일한 손잡이.
+     ⚠ 시간대는 여기서만 정한다 — 두 곳에서 정하면 낮 벽에 밤 잉크가 앉는 날이 온다. */
+  window.EGPersonaRoom = { wear: wear, tod: function(){ return document.body.getAttribute('data-tod'); } };
+
+  /* 들어서는 3초 — 천장 우물반자에서 시작해 바닥 대리석을 스치고 금테 패널에 안착.
+     ⚠ sweep은 크기를 안 건드린다(0804 규약). 카드가 벽에 붙은 채로 스크롤만 움직인다.
+     ⚠ 폰·짧은 화면은 sweep이 스스로 즉시 앉힌다(max<40). */
+  function roll(){
+    var sc = document.getElementById('sc0');
+    if(!sc || !window.EGCamera) return;
+    sc.scrollTop = 0;
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){
+      EGCamera.sweep({ box:'#sc0', target:'#tg-board', dir:'down' });
+    });});
+  }
+  if(document.readyState === 'loading') addEventListener('DOMContentLoaded', roll);
+  else roll();
+})();
+</script>
+<script>
+
+/* ══ 시트 여닫기 (0815) — 여섯이 한 문법을 쓴다 ══════════════════
+   ⚠ 우편함·황금사과는 제 팝업이 따로 있다. 시트가 그 위에 겹치지 않게
+     그 둘은 시트를 열지 않고 옛 팝업을 그대로 부른다. */
+let SHEET = null;
+function openSheet(k){
+  if(k === 'mail'){  if(typeof openMail   === 'function'){ openMail();   return; } }
+  if(k === 'apple'){ if(typeof openLedger === 'function'){ openLedger(); return; } }
+  closeSheet();
+  const el = document.getElementById('sheet-' + k);
+  if(!el) return;
+  document.getElementById('sheet-back')?.classList.add('on');
+  el.hidden = false; SHEET = el;
+  document.body.style.overflow = 'hidden';
+  if(k === 'cred' && typeof drawPoster === 'function') drawPoster();
+}
+function closeSheet(){
+  document.getElementById('sheet-back')?.classList.remove('on');
+  if(SHEET){ SHEET.hidden = true; SHEET = null; }
+  document.body.style.overflow = '';
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('.cm'); if(!b) return;
+  openSheet(b.dataset.sheet);
+});
+addEventListener('keydown', e => { if(e.key === 'Escape') closeSheet(); });
+</script>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   각인 편집기 — ?edit=1 일 때만 지어진다 (0816a)
+   ⭐ 소로가 슬라이더로 치수를 맞추고 「값 뽑기」로 CSS를 받아 간다.
+     받은 덩어리를 이 파일 머리의 :root 에 그대로 덮어쓰면 확정된다.
+   ⚠ 콩파뇽 화면에는 한 줄도 안 뜬다. 주소에 ?edit=1 이 없으면 아무것도 안 짓는다.
+   ⚠ 슬라이더는 :root 인라인 값만 건드린다. CSS 규칙은 한 줄도 안 고친다.
+   ══════════════════════════════════════════════════════════════════ */
+(function(){
+  try{ if(new URLSearchParams(location.search).get('edit') !== '1') return; }catch(e){ return; }
+
+  var KEYS = {
+    'ph':       { def:6.2,  min:3.5, max:11,  step:0.1,  label:'사진 크기',  sec:'사진과 머리' },
+    'head-pad': { def:3.2,  min:0,   max:12,  step:0.1,  label:'오른쪽 밀기' },
+    'head-gap': { def:2.0,  min:0.3, max:6,   step:0.1,  label:'사진과 글' },
+    'u-scale':  { def:1.00, min:0.7, max:1.7, step:0.01, label:'글자 크기',  sec:'새김 덩어리' },
+    'slab-max': { def:580,  min:380, max:800, step:4,    label:'폭',        unit:'px' },
+    'slab-h':   { def:64,   min:40,  max:100, step:1,    label:'높이',      unit:'%' },
+    'slab-top': { def:38.3, min:28,  max:52,  step:0.1,  label:'세로 위치',  unit:'%' },
+    'ico':      { def:2.85, min:2,   max:5,   step:0.05, label:'아이콘 원',  sec:'격자' },
+    'row-gap':  { def:2.0,  min:0.8, max:5,   step:0.1,  label:'행 간격' }
+  };
+  var ORDER = ['ph','head-pad','head-gap','u-scale','slab-max','slab-h','slab-top','ico','row-gap'];
+  var STORE = 'eg-persona-edit-0816a';
+
+  var css = document.createElement('style');
+  css.textContent = [
+  '#ed{position:fixed;top:12px;right:12px;z-index:120;width:272px;',
+  ' font-family:"Gowun Batang",serif;color:#d6dee8;background:rgba(9,13,21,0.86);',
+  ' -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);',
+  ' border:1px solid rgba(255,255,255,0.15);border-radius:14px;',
+  ' box-shadow:0 12px 34px rgba(0,0,0,0.5);max-height:calc(100vh - 24px);',
+  ' display:flex;flex-direction:column}',
+  '#ed-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;',
+  ' border-bottom:1px solid rgba(255,255,255,0.12);font-size:12.5px;cursor:pointer;user-select:none}',
+  '#ed-head b{font-weight:400;color:#f0f4f8}#ed-head span{color:#7f8ea2;font-size:11px}',
+  '#ed-body{padding:10px 12px 12px;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none}',
+  '#ed-body::-webkit-scrollbar{display:none}',
+  'body.ed-fold #ed-body{display:none}',
+  '.ed-sec{font-size:10.5px;letter-spacing:0.16em;color:#6f7f94;margin:11px 0 7px}',
+  '.ed-sec:first-child{margin-top:2px}',
+  '.ed-row{display:flex;align-items:center;gap:8px;margin:6px 0}',
+  '.ed-row label{flex:0 0 78px;font-size:11.5px;color:#a9b6c6}',
+  /* ⚠ range는 기본 최소 폭이 있어 flex:1만으로는 안 줄어든다 — min-width:0을 함께 준다 */
+  '.ed-row input[type=range]{flex:1 1 0;min-width:0;height:16px;accent-color:#8fb7dd;',
+  ' background:transparent;cursor:pointer}',
+  '.ed-row .v{flex:0 0 46px;text-align:right;font-size:11px;color:#8fb7dd;',
+  ' font-variant-numeric:tabular-nums}',
+  '.ed-btns{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}',
+  '.ed-btns button{font:inherit;font-size:11.5px;cursor:pointer;color:#cbd5e1;background:transparent;',
+  ' border:1px solid rgba(255,255,255,0.17);border-radius:999px;padding:4px 11px}',
+  '.ed-btns button.on{background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.42)}',
+  '#ed-out{width:100%;height:104px;margin-top:8px;display:none;background:rgba(0,0,0,0.42);',
+  ' color:#bfe0ff;border:1px solid rgba(255,255,255,0.16);border-radius:8px;padding:8px;',
+  ' font-family:ui-monospace,Menlo,monospace;font-size:10.5px;line-height:1.5;resize:vertical}',
+  '#ed-out.on{display:block}',
+  'body.ed-guide #tg-board{outline:1px dashed rgba(255,120,120,0.7)}',
+  'body.ed-guide .slab{outline:1px dashed rgba(120,200,255,0.55)}',
+  'body.ed-guide .e-head{outline:1px dashed rgba(150,255,180,0.45)}',
+  '@media (max-width:760px){#ed{display:none}}'
+  ].join('');
+  document.head.appendChild(css);
+
+  var rows = '';
+  ORDER.forEach(function(k){
+    var d = KEYS[k];
+    if(d.sec) rows += '<div class="ed-sec">' + d.sec + '</div>';
+    rows += '<div class="ed-row"><label>' + d.label + '</label>'
+         +  '<input type="range" id="s-' + k + '" min="' + d.min + '" max="' + d.max
+         +  '" step="' + d.step + '"><span class="v" id="v-' + k + '"></span></div>';
+  });
+
+  var box = document.createElement('div');
+  box.id = 'ed';
+  box.innerHTML =
+    '<div id="ed-head"><b>각인 편집기</b><span id="ed-fold">접기 ▾</span></div>'
+  + '<div id="ed-body">'
+  +   '<div class="ed-sec">벽</div>'
+  +   '<div class="ed-btns" id="ed-tod">'
+  +     '<button data-t="m">아침</button><button data-t="d">한낮</button>'
+  +     '<button data-t="e">저녁</button><button data-t="n">밤</button></div>'
+  +   rows
+  +   '<div class="ed-sec">도구</div>'
+  +   '<div class="ed-btns"><button id="ed-guide">가늠자</button>'
+  +     '<button id="ed-reset">되돌리기</button><button id="ed-copy">값 뽑기</button></div>'
+  +   '<textarea id="ed-out" readonly spellcheck="false"></textarea>'
+  + '</div>';
+  document.body.appendChild(box);
+
+  function fmt(k, v){
+    var u = KEYS[k].unit;
+    if(u) return Math.round(v * 10) / 10 + u;
+    return (Math.round(v * 100) / 100).toFixed(2);
+  }
+  function setVal(k, v){
+    document.documentElement.style.setProperty('--' + k, v);
+    var sl = document.getElementById('s-' + k), o = document.getElementById('v-' + k);
+    if(sl && parseFloat(sl.value) !== v) sl.value = v;
+    if(o) o.textContent = fmt(k, v);
+  }
+  function readAll(){
+    var o = {};
+    ORDER.forEach(function(k){
+      var sl = document.getElementById('s-' + k);
+      o[k] = sl ? parseFloat(sl.value) : KEYS[k].def;
+    });
+    return o;
+  }
+  function save(){ try{ localStorage.setItem(STORE, JSON.stringify(readAll())); }catch(e){} }
+
+  var saved = {};
+  try{ saved = JSON.parse(localStorage.getItem(STORE)) || {}; }catch(e){}
+  ORDER.forEach(function(k){
+    setVal(k, (typeof saved[k] === 'number') ? saved[k] : KEYS[k].def);
+    var sl = document.getElementById('s-' + k);
+    if(sl) sl.addEventListener('input', function(){ setVal(k, parseFloat(sl.value)); save(); });
+  });
+
+  /* 벽 넉 벌 — 방 배관이 낸 손잡이로만 간다 */
+  function paintTod(t){
+    document.querySelectorAll('#ed-tod button').forEach(function(b){
+      b.classList.toggle('on', b.dataset.t === t);
+    });
+  }
+  document.getElementById('ed-tod').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    if(window.EGPersonaRoom) EGPersonaRoom.wear(b.dataset.t);
+    else document.body.setAttribute('data-tod', b.dataset.t);
+    paintTod(b.dataset.t);
+  });
+  paintTod(document.body.getAttribute('data-tod') || 'd');
+
+  document.getElementById('ed-copy').addEventListener('click', function(){
+    var v = readAll();
+    var txt = '/* 교양자화상 각인판 — 소로 확정 치수. 이 파일 머리의 :root 에 덮어쓴다 */\n'
+      + ':root{\n'
+      + '  --u-scale:  ' + v['u-scale'].toFixed(2) + ';\n'
+      + '  --slab-max: ' + Math.round(v['slab-max']) + ';\n'
+      + '  --slab-h:   ' + Math.round(v['slab-h']) + ';\n'
+      + '  --slab-top: ' + v['slab-top'].toFixed(1) + ';\n'
+      + '  --ph:       ' + v['ph'].toFixed(1) + ';\n'
+      + '  --head-pad: ' + v['head-pad'].toFixed(1) + ';\n'
+      + '  --head-gap: ' + v['head-gap'].toFixed(1) + ';\n'
+      + '  --ico:      ' + v['ico'].toFixed(2) + ';\n'
+      + '  --row-gap:  ' + v['row-gap'].toFixed(1) + ';\n'
+      + '}';
+    var out = document.getElementById('ed-out');
+    out.classList.add('on'); out.value = txt; out.select();
+    try{ navigator.clipboard.writeText(txt); }catch(e){}
+  });
+  document.getElementById('ed-reset').addEventListener('click', function(){
+    try{ localStorage.removeItem(STORE); }catch(e){}
+    ORDER.forEach(function(k){ setVal(k, KEYS[k].def); });
+    document.getElementById('ed-out').classList.remove('on');
+  });
+  document.getElementById('ed-guide').addEventListener('click', function(){
+    document.body.classList.toggle('ed-guide'); this.classList.toggle('on');
+  });
+  document.getElementById('ed-head').addEventListener('click', function(){
+    var f = document.body.classList.toggle('ed-fold');
+    document.getElementById('ed-fold').textContent = f ? '펴기 ▸' : '접기 ▾';
+  });
+
+  console.log('%c[EG] 각인 편집기 켜짐 — 손잡이 아홉. 값 뽑기로 CSS를 받으십시오.', 'color:#8fb7dd');
+})();
+</script>
+<script src="eg_back.js?v=20260729"></script>
+</body>
+</html>
