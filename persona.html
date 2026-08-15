@@ -32,33 +32,50 @@
     overflow-x:hidden;
   }
 
-  /* ── 배경: 셰익스피어 앤 컴퍼니 사진 (루트의 persona_bg.webp) ── */
-  .bg{
+  /* ══ 방 — 콜레주 1층 혈통 (0815) ═════════════════════════════
+   *  ⚠ 옛 방식: persona_bg.webp를 position:fixed + cover로 깔았다.
+   *    그림이 1672×941 가로판이라 훑을 세로가 없어 카메라가 못 돌았다.
+   *  ⭐ 새 방식: 941/1672 세로 캔버스가 곧 스크롤 본문이 된다(#sc0).
+   *    카드는 캔버스 위 %좌표에 앉아 벽과 한 몸으로 움직인다.
+   *  ⚠ 스크롤 주체가 body → #sc0로 옮겨간다. sweep이 상자를 요구한다. */
+  html,body{ height:100%; }
+  #sc0{
     position:fixed; inset:0; z-index:0;
-    background-image:url('./persona_bg.webp');
+    overflow-y:auto; overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;
+    background:#0d0905;
+  }
+  #canvas0{
+    position:relative; width:100%;
+    aspect-ratio:941/1672; min-height:100vh;
+    background-repeat:no-repeat;
     background-size:cover;
-    background-position:center;
-    background-color:#140d06;
-    filter:brightness(1.15) saturate(0.9) contrast(0.99);
+    background-position:center top;
+    /* ⚠ 0815 폰에서 잡음 — 캔버스는 941/1672로 서는데 카드가 그보다 길다.
+         그림이 먼저 끝나고 아래가 검은 허공이 됐다. 벽널 색을 이어 붙여 막는다.
+         ⭐ 근본 처방은 카드를 패널 안에 앉히는 것이다(콘텐츠 재편 때). */
+    background-color:#241a10;
   }
-  /* 어둠막 — 사진과 분리(brightness 영향 안 받음). 위/아래만 살짝 */
-  .bg-veil{
-    position:fixed; inset:0; z-index:0; pointer-events:none;
-    background:linear-gradient(180deg, rgba(13,9,5,0.50), rgba(13,9,5,0.38) 45%, rgba(13,9,5,0.60));
+  /* 그림 아래로 넘치는 만큼 바닥을 잇는다 — 대리석이 끊긴 자리 */
+  #canvas0::after{
+    content:''; position:absolute; left:0; right:0; top:100%; height:200vh;
+    background:linear-gradient(180deg,#241a10 0%, #16100a 40%, #0d0905 100%);
+    pointer-events:none; z-index:0;
   }
-  .bg::after{
-    content:''; position:absolute; inset:0;
-    background:
-      radial-gradient(ellipse 60% 45% at 75% 12%, rgba(216,184,96,0.08), transparent 60%);
-  }
-  /* 중앙 콘텐츠 폭(약 480px) 뒤에만 가독성용 세로 어둠 — 좌우 날개는 사진 그대로 밝게 */
-  .bg-center{
-    position:fixed; top:0; bottom:0; left:50%; transform:translateX(-50%);
-    width:480px; max-width:100%; z-index:0; pointer-events:none;
-    background:linear-gradient(90deg, transparent, rgba(13,9,5,0.50) 12%, rgba(13,9,5,0.58) 50%, rgba(13,9,5,0.50) 88%, transparent);
-  }
+  /* 그림이 아직 안 왔을 때만 서는 폴백 — 콜레주 1층과 같은 색 */
+  #canvas0.f-fallback{ background-image:
+    radial-gradient(ellipse at 50% 0%, rgba(201,162,74,.10) 0%, transparent 55%),
+    linear-gradient(180deg,#1b2338 0%,#14100b 100%); }
+
+  /* 안착 자리 — 금테 패널 안쪽 (0815 실측). 카메라가 여기로 온다 */
+  .tgt{ position:absolute; left:50%; transform:translateX(-50%); }
 
   .wrap{ position:relative; z-index:1; max-width:440px; margin:0 auto; padding:0 18px 70px; }
+  /* 캔버스 안에서는 벽에 붙는다 — 금테 패널 위 (0815) */
+  /* 금테 패널 안쪽 — 격자 실측(0815): 좌22 우78 상38 하78 = 폭56% 높이40%
+     ⚠ 어림잡지 말 것. 첫 값(폭64·상36.5)은 좌우로 8%p 넘쳐 촛대를 덮었다. */
+  #tg-board{ top:38%; width:56%; z-index:2; }   /* ⚠ ::after(바닥 잇기)보다 위 */
+  #tg-board .wrap{ max-width:100%; padding:0; }
 
   /* ── 상단 타이틀 ── */
   .topbar{ display:flex; align-items:center; gap:10px; padding:20px 2px 4px; }
@@ -495,10 +512,9 @@
 </style>
 </head>
 <body>
-<div class="bg"></div>
-<div class="bg-veil"></div>
-<div class="bg-center"></div>
-
+<div id="sc0">
+<div id="canvas0" class="f-fallback">
+  <div class="tgt" id="tg-board">
 <div class="wrap">
 
   <div class="topbar">
@@ -676,6 +692,9 @@
   </div>
 
 </div>
+  </div><!-- /#tg-board -->
+</div><!-- /#canvas0 -->
+</div><!-- /#sc0 -->
 
 <!-- 쪽지함 액자 — messages.html 한 파일이 지구(타륜 카드)와 여기 두 곳에서 산다 -->
 <div class="mail-back" id="mail-back" onclick="closeMail()"></div>
@@ -712,7 +731,7 @@
 </div>
 
 <script>
-console.log('[EG] persona 0814f — 포스터 크레덴시알 · 레이더 폐기 · 여섯 칸 갈음');
+console.log('[EG] persona 0815a — 방 골격(콜레주 1층 배경 임시) · sweep 카메라');
 /* ══ 교양자화상 · 황금사과 월렛 — apple_log 실연동 (SSoT = SUM(amount)) ══ */
 const SUPABASE_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
@@ -1272,6 +1291,49 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 
 <!-- 폰에서 방을 나가는 문 (0730) — 액자 밖 + 폰일 때만 뜬다. eg_back.js 참조 -->
+<!-- ══ 방 배관 (0815) — 콜레주 1층 혈통 ══════════════════════════
+     ⚠ eg_sky.js는 시간대(m|d|e|n)만 쓰려고 싣는다. 콜레주와 같은 판을 쓴다.
+     ⚠ eg_camera.js는 sweep만 쓴다 — enter는 크기를 덮어써서 이 방을 깬다. -->
+<script src="eg_sky.js?v=0806a"></script>
+<script src="eg_camera.js?v=0804a"></script>
+<script>
+(function(){
+  var P   = new URLSearchParams(location.search);
+  var TOD = ['m','d','e','n'].indexOf(P.get('tod')) >= 0 ? P.get('tod')
+          : (window.egSky && egSky.phase ? egSky.phase() : 'd');
+
+  /* 그림 물리기 — 후보 순서대로, 없으면 낮판. 전부 실패하면 f-fallback 유지 */
+  function setBg(el, cands){
+    if(!el) return;
+    (function step(i){
+      if(i >= cands.length) return;
+      var im = new Image();
+      im.onload  = function(){ el.style.backgroundImage = 'url(' + cands[i] + ')';
+                               el.classList.remove('f-fallback'); };
+      im.onerror = function(){ step(i+1); };
+      im.src = cands[i];
+    })(0);
+  }
+  /* ⚠ 임시 — 자화상 제 그림이 구워질 때까지 콜레주 1층을 빌려 쓴다(0815 소로).
+       제 그림이 오면 이 줄의 college_hall1_ 만 persona_hall_ 로 바꾸면 된다. */
+  setBg(document.getElementById('canvas0'),
+        ['college_hall1_' + TOD + '.webp', 'college_hall1_d.webp']);
+
+  /* 들어서는 3초 — 천장 우물반자에서 시작해 바닥 대리석을 스치고 금테 패널에 안착.
+     ⚠ sweep은 크기를 안 건드린다(0804 규약). 카드가 벽에 붙은 채로 스크롤만 움직인다.
+     ⚠ 폰·짧은 화면은 sweep이 스스로 즉시 앉힌다(max<40). */
+  function roll(){
+    var sc = document.getElementById('sc0');
+    if(!sc || !window.EGCamera) return;
+    sc.scrollTop = 0;
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){
+      EGCamera.sweep({ box:'#sc0', target:'#tg-board', dir:'down' });
+    });});
+  }
+  if(document.readyState === 'loading') addEventListener('DOMContentLoaded', roll);
+  else roll();
+})();
+</script>
 <script src="eg_back.js?v=20260729"></script>
 </body>
 </html>
