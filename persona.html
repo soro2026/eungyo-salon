@@ -43,7 +43,8 @@
     position:fixed; inset:0; z-index:0;
     overflow-y:auto; overflow-x:hidden;
     -webkit-overflow-scrolling:touch;
-    background:#0d0905;
+    /* ⭐ 그림이 끝난 아래를 이 바탕색이 잇는다 — 옛 #canvas0::after의 일을 넘겨받았다 */
+    background:var(--e-floor,#0d121c);
   }
   #canvas0{
     position:relative; width:100%;
@@ -56,12 +57,14 @@
          ⭐ 근본 처방은 카드를 패널 안에 앉히는 것이다(콘텐츠 재편 때). */
     background-color:var(--e-floor,#141a26);
   }
-  /* 그림 아래로 넘치는 만큼 바닥을 잇는다 — 대리석이 끊긴 자리 */
-  #canvas0::after{
-    content:''; position:absolute; left:0; right:0; top:100%; height:200vh;
-    background:var(--e-floor,#0d121c);
-    pointer-events:none; z-index:0;
-  }
+  /* ⚠⚠ 0816 소로 지적 — 「카메라가 땅속을 파고 들었다 다시 올라온다」.
+       진범이 여기 있었다. ::after는 캔버스 밖으로 나간 절대 요소라 그림에는 안 붙지만
+       **스크롤 상자의 scrollHeight는 늘린다.** 실측: 캔버스 2559 + 헛땅 1800 = 4359.
+       sweep은 「맨 아래까지 훑고 목표로 올라오는」 움직임이라, 그 맨 아래가
+       그림 바닥이 아니라 캄캄한 헛땅 1800px 끝이 되어 있었다.
+     ⭐ 바닥 잇기는 요소가 아니라 **스크롤 상자의 바탕색**이 맡는다(#sc0).
+       요소가 없으니 스크롤도 안 늘어나고, 그림이 짧은 화면에서도 아래가 안 뚫린다.
+     ⚠ 여기에 다시 ::after를 세우지 말 것. 세우는 순간 카메라가 또 땅을 판다. */
   /* 그림이 아직 안 왔을 때만 서는 폴백 — 콜레주 1층과 같은 색 */
   #canvas0.f-fallback{ background-image:
     radial-gradient(ellipse at 50% 0%, rgba(201,162,74,.10) 0%, transparent 55%),
@@ -993,7 +996,7 @@
 </div>
 
 <script>
-console.log('[EG] persona 0816a — 각인판(종이 걷음) · 시트 여섯 · 편집기는 ?edit=1');
+console.log('[EG] persona 0816b — 각인판 · 헛땅 걷음 · 편집기 문 셋(?edit=1 · Ctrl+Alt+E · 관자 다섯 번)');
 /* ══ 교양자화상 · 황금사과 월렛 — apple_log 실연동 (SSoT = SUM(amount)) ══ */
 const SUPABASE_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
@@ -1637,15 +1640,21 @@ addEventListener('keydown', e => { if(e.key === 'Escape') closeSheet(); });
 
 <script>
 /* ══════════════════════════════════════════════════════════════════
-   각인 편집기 — ?edit=1 일 때만 지어진다 (0816a)
-   ⭐ 소로가 슬라이더로 치수를 맞추고 「값 뽑기」로 CSS를 받아 간다.
-     받은 덩어리를 이 파일 머리의 :root 에 그대로 덮어쓰면 확정된다.
-   ⚠ 콩파뇽 화면에는 한 줄도 안 뜬다. 주소에 ?edit=1 이 없으면 아무것도 안 짓는다.
-   ⚠ 슬라이더는 :root 인라인 값만 건드린다. CSS 규칙은 한 줄도 안 고친다.
+   각인 편집기 (0816b) — 소로 전용. 콩파뇽 화면에는 한 줄도 안 지어진다.
+
+   여는 문 셋 — 어느 것이든 하나면 된다
+     ① 주소에  ?edit=1
+     ② Ctrl+Alt+E   (맥은 Cmd+Alt+E)
+     ③ 오른쪽 위 관자 「EG UNIVERSE」를 다섯 번 톡톡
+   ⚠ ②③이 있는 까닭 — 자화상은 지구(terra)의 **액자 안**에서도 열린다.
+     그때는 주소가 액자 것이라 ?edit=1을 붙일 데가 없다(0816 소로).
+     ③은 마우스만으로 되므로 액자 안에서 가장 확실하다.
+
+   한 번 켜면 이 브라우저에 기억된다. 끌 때도 같은 문을 쓴다.
+   ⚠⚠ 편집기가 **꺼져 있으면 슬라이더 값이 화면에 안 먹는다.** 일부러 그렇게 두었다 —
+     실험하다 만 값이 콩파뇽 화면에 뜨는 일을 막는다. 확정은 파일 머리의 :root 에 적는다.
    ══════════════════════════════════════════════════════════════════ */
 (function(){
-  try{ if(new URLSearchParams(location.search).get('edit') !== '1') return; }catch(e){ return; }
-
   var KEYS = {
     'ph':       { def:6.2,  min:3.5, max:11,  step:0.1,  label:'사진 크기',  sec:'사진과 머리' },
     'head-pad': { def:3.2,  min:0,   max:12,  step:0.1,  label:'오른쪽 밀기' },
@@ -1658,10 +1667,14 @@ addEventListener('keydown', e => { if(e.key === 'Escape') closeSheet(); });
     'row-gap':  { def:2.0,  min:0.8, max:5,   step:0.1,  label:'행 간격' }
   };
   var ORDER = ['ph','head-pad','head-gap','u-scale','slab-max','slab-h','slab-top','ico','row-gap'];
-  var STORE = 'eg-persona-edit-0816a';
+  var STORE = 'eg-persona-edit-0816';   /* 슬라이더 값 */
+  var ONKEY = 'eg-persona-edit-on';     /* 문이 열려 있나 */
+  var built = false, styleEl = null;
 
-  var css = document.createElement('style');
-  css.textContent = [
+  function ls(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+  function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+
+  function CSS(){ return [
   '#ed{position:fixed;top:12px;right:12px;z-index:120;width:272px;',
   ' font-family:"Gowun Batang",serif;color:#d6dee8;background:rgba(9,13,21,0.86);',
   ' -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);',
@@ -1678,7 +1691,6 @@ addEventListener('keydown', e => { if(e.key === 'Escape') closeSheet(); });
   '.ed-sec:first-child{margin-top:2px}',
   '.ed-row{display:flex;align-items:center;gap:8px;margin:6px 0}',
   '.ed-row label{flex:0 0 78px;font-size:11.5px;color:#a9b6c6}',
-  /* ⚠ range는 기본 최소 폭이 있어 flex:1만으로는 안 줄어든다 — min-width:0을 함께 준다 */
   '.ed-row input[type=range]{flex:1 1 0;min-width:0;height:16px;accent-color:#8fb7dd;',
   ' background:transparent;cursor:pointer}',
   '.ed-row .v{flex:0 0 46px;text-align:right;font-size:11px;color:#8fb7dd;',
@@ -1687,118 +1699,146 @@ addEventListener('keydown', e => { if(e.key === 'Escape') closeSheet(); });
   '.ed-btns button{font:inherit;font-size:11.5px;cursor:pointer;color:#cbd5e1;background:transparent;',
   ' border:1px solid rgba(255,255,255,0.17);border-radius:999px;padding:4px 11px}',
   '.ed-btns button.on{background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.42)}',
-  '#ed-out{width:100%;height:104px;margin-top:8px;display:none;background:rgba(0,0,0,0.42);',
+  '#ed-out{width:100%;height:112px;margin-top:8px;display:none;background:rgba(0,0,0,0.42);',
   ' color:#bfe0ff;border:1px solid rgba(255,255,255,0.16);border-radius:8px;padding:8px;',
   ' font-family:ui-monospace,Menlo,monospace;font-size:10.5px;line-height:1.5;resize:vertical}',
   '#ed-out.on{display:block}',
   'body.ed-guide #tg-board{outline:1px dashed rgba(255,120,120,0.7)}',
   'body.ed-guide .slab{outline:1px dashed rgba(120,200,255,0.55)}',
   'body.ed-guide .e-head{outline:1px dashed rgba(150,255,180,0.45)}',
-  '@media (max-width:760px){#ed{display:none}}'
-  ].join('');
-  document.head.appendChild(css);
+  '@media (max-width:760px){#ed{width:auto;left:10px;right:10px;top:10px}}'
+  ].join(''); }
 
-  var rows = '';
-  ORDER.forEach(function(k){
-    var d = KEYS[k];
-    if(d.sec) rows += '<div class="ed-sec">' + d.sec + '</div>';
-    rows += '<div class="ed-row"><label>' + d.label + '</label>'
-         +  '<input type="range" id="s-' + k + '" min="' + d.min + '" max="' + d.max
-         +  '" step="' + d.step + '"><span class="v" id="v-' + k + '"></span></div>';
-  });
-
-  var box = document.createElement('div');
-  box.id = 'ed';
-  box.innerHTML =
-    '<div id="ed-head"><b>각인 편집기</b><span id="ed-fold">접기 ▾</span></div>'
-  + '<div id="ed-body">'
-  +   '<div class="ed-sec">벽</div>'
-  +   '<div class="ed-btns" id="ed-tod">'
-  +     '<button data-t="m">아침</button><button data-t="d">한낮</button>'
-  +     '<button data-t="e">저녁</button><button data-t="n">밤</button></div>'
-  +   rows
-  +   '<div class="ed-sec">도구</div>'
-  +   '<div class="ed-btns"><button id="ed-guide">가늠자</button>'
-  +     '<button id="ed-reset">되돌리기</button><button id="ed-copy">값 뽑기</button></div>'
-  +   '<textarea id="ed-out" readonly spellcheck="false"></textarea>'
-  + '</div>';
-  document.body.appendChild(box);
-
-  function fmt(k, v){
-    var u = KEYS[k].unit;
-    if(u) return Math.round(v * 10) / 10 + u;
-    return (Math.round(v * 100) / 100).toFixed(2);
+  function fmt(k,v){ var u=KEYS[k].unit;
+    return u ? (Math.round(v*10)/10)+u : (Math.round(v*100)/100).toFixed(2); }
+  function setVal(k,v){
+    document.documentElement.style.setProperty('--'+k, v);
+    var sl=document.getElementById('s-'+k), o=document.getElementById('v-'+k);
+    if(sl && parseFloat(sl.value)!==v) sl.value=v;
+    if(o) o.textContent=fmt(k,v);
   }
-  function setVal(k, v){
-    document.documentElement.style.setProperty('--' + k, v);
-    var sl = document.getElementById('s-' + k), o = document.getElementById('v-' + k);
-    if(sl && parseFloat(sl.value) !== v) sl.value = v;
-    if(o) o.textContent = fmt(k, v);
-  }
-  function readAll(){
-    var o = {};
+  function readAll(){ var o={};
+    ORDER.forEach(function(k){ var sl=document.getElementById('s-'+k);
+      o[k]= sl ? parseFloat(sl.value) : KEYS[k].def; }); return o; }
+  function save(){ lsSet(STORE, JSON.stringify(readAll())); }
+
+  function build(){
+    if(built) return; built = true;
+    styleEl = document.createElement('style');
+    styleEl.id='ed-style'; styleEl.textContent=CSS();
+    document.head.appendChild(styleEl);
+
+    var rows='';
+    ORDER.forEach(function(k){ var d=KEYS[k];
+      if(d.sec) rows += '<div class="ed-sec">'+d.sec+'</div>';
+      rows += '<div class="ed-row"><label>'+d.label+'</label>'
+           +  '<input type="range" id="s-'+k+'" min="'+d.min+'" max="'+d.max
+           +  '" step="'+d.step+'"><span class="v" id="v-'+k+'"></span></div>';
+    });
+    var box=document.createElement('div'); box.id='ed';
+    box.innerHTML =
+      '<div id="ed-head"><b>각인 편집기</b><span id="ed-fold">접기 ▾</span></div>'
+    + '<div id="ed-body">'
+    +   '<div class="ed-sec">벽</div>'
+    +   '<div class="ed-btns" id="ed-tod">'
+    +     '<button data-t="m">아침</button><button data-t="d">한낮</button>'
+    +     '<button data-t="e">저녁</button><button data-t="n">밤</button></div>'
+    +   rows
+    +   '<div class="ed-sec">도구</div>'
+    +   '<div class="ed-btns"><button id="ed-guide">가늠자</button>'
+    +     '<button id="ed-reset">되돌리기</button><button id="ed-copy">값 뽑기</button>'
+    +     '<button id="ed-off">편집기 끄기</button></div>'
+    +   '<textarea id="ed-out" readonly spellcheck="false"></textarea>'
+    + '</div>';
+    document.body.appendChild(box);
+
+    var saved={}; try{ saved=JSON.parse(ls(STORE))||{}; }catch(e){}
     ORDER.forEach(function(k){
-      var sl = document.getElementById('s-' + k);
-      o[k] = sl ? parseFloat(sl.value) : KEYS[k].def;
+      setVal(k, (typeof saved[k]==='number') ? saved[k] : KEYS[k].def);
+      var sl=document.getElementById('s-'+k);
+      if(sl) sl.addEventListener('input', function(){ setVal(k, parseFloat(sl.value)); save(); });
     });
-    return o;
-  }
-  function save(){ try{ localStorage.setItem(STORE, JSON.stringify(readAll())); }catch(e){} }
 
-  var saved = {};
-  try{ saved = JSON.parse(localStorage.getItem(STORE)) || {}; }catch(e){}
-  ORDER.forEach(function(k){
-    setVal(k, (typeof saved[k] === 'number') ? saved[k] : KEYS[k].def);
-    var sl = document.getElementById('s-' + k);
-    if(sl) sl.addEventListener('input', function(){ setVal(k, parseFloat(sl.value)); save(); });
-  });
-
-  /* 벽 넉 벌 — 방 배관이 낸 손잡이로만 간다 */
-  function paintTod(t){
-    document.querySelectorAll('#ed-tod button').forEach(function(b){
-      b.classList.toggle('on', b.dataset.t === t);
+    function paintTod(t){ document.querySelectorAll('#ed-tod button').forEach(function(x){
+      x.classList.toggle('on', x.dataset.t===t); }); }
+    document.getElementById('ed-tod').addEventListener('click', function(ev){
+      var x=ev.target.closest('button'); if(!x) return;
+      if(window.EGPersonaRoom) EGPersonaRoom.wear(x.dataset.t);
+      else document.body.setAttribute('data-tod', x.dataset.t);
+      paintTod(x.dataset.t);
     });
+    paintTod(document.body.getAttribute('data-tod')||'d');
+
+    document.getElementById('ed-copy').addEventListener('click', function(){
+      var v=readAll();
+      var txt='/* 교양자화상 각인판 — 소로 확정 치수. 이 파일 머리의 :root 에 덮어쓴다 */\n'
+        +':root{\n'
+        +'  --u-scale:  '+v['u-scale'].toFixed(2)+';\n'
+        +'  --slab-max: '+Math.round(v['slab-max'])+';\n'
+        +'  --slab-h:   '+Math.round(v['slab-h'])+';\n'
+        +'  --slab-top: '+v['slab-top'].toFixed(1)+';\n'
+        +'  --ph:       '+v['ph'].toFixed(1)+';\n'
+        +'  --head-pad: '+v['head-pad'].toFixed(1)+';\n'
+        +'  --head-gap: '+v['head-gap'].toFixed(1)+';\n'
+        +'  --ico:      '+v['ico'].toFixed(2)+';\n'
+        +'  --row-gap:  '+v['row-gap'].toFixed(1)+';\n'
+        +'}';
+      var out=document.getElementById('ed-out');
+      out.classList.add('on'); out.value=txt; out.select();
+      try{ navigator.clipboard.writeText(txt); }catch(e){}
+    });
+    document.getElementById('ed-reset').addEventListener('click', function(){
+      try{ localStorage.removeItem(STORE); }catch(e){}
+      ORDER.forEach(function(k){ setVal(k, KEYS[k].def); });
+      document.getElementById('ed-out').classList.remove('on');
+    });
+    document.getElementById('ed-guide').addEventListener('click', function(){
+      document.body.classList.toggle('ed-guide'); this.classList.toggle('on');
+    });
+    document.getElementById('ed-off').addEventListener('click', function(ev){
+      ev.stopPropagation(); turn(false);
+    });
+    document.getElementById('ed-head').addEventListener('click', function(){
+      var f=document.body.classList.toggle('ed-fold');
+      document.getElementById('ed-fold').textContent = f ? '펴기 ▸' : '접기 ▾';
+    });
+    console.log('%c[EG] 각인 편집기 켜짐 — 손잡이 아홉. 「값 뽑기」로 CSS를 받으십시오.','color:#8fb7dd');
   }
-  document.getElementById('ed-tod').addEventListener('click', function(e){
-    var b = e.target.closest('button'); if(!b) return;
-    if(window.EGPersonaRoom) EGPersonaRoom.wear(b.dataset.t);
-    else document.body.setAttribute('data-tod', b.dataset.t);
-    paintTod(b.dataset.t);
-  });
-  paintTod(document.body.getAttribute('data-tod') || 'd');
 
-  document.getElementById('ed-copy').addEventListener('click', function(){
-    var v = readAll();
-    var txt = '/* 교양자화상 각인판 — 소로 확정 치수. 이 파일 머리의 :root 에 덮어쓴다 */\n'
-      + ':root{\n'
-      + '  --u-scale:  ' + v['u-scale'].toFixed(2) + ';\n'
-      + '  --slab-max: ' + Math.round(v['slab-max']) + ';\n'
-      + '  --slab-h:   ' + Math.round(v['slab-h']) + ';\n'
-      + '  --slab-top: ' + v['slab-top'].toFixed(1) + ';\n'
-      + '  --ph:       ' + v['ph'].toFixed(1) + ';\n'
-      + '  --head-pad: ' + v['head-pad'].toFixed(1) + ';\n'
-      + '  --head-gap: ' + v['head-gap'].toFixed(1) + ';\n'
-      + '  --ico:      ' + v['ico'].toFixed(2) + ';\n'
-      + '  --row-gap:  ' + v['row-gap'].toFixed(1) + ';\n'
-      + '}';
-    var out = document.getElementById('ed-out');
-    out.classList.add('on'); out.value = txt; out.select();
-    try{ navigator.clipboard.writeText(txt); }catch(e){}
-  });
-  document.getElementById('ed-reset').addEventListener('click', function(){
-    try{ localStorage.removeItem(STORE); }catch(e){}
-    ORDER.forEach(function(k){ setVal(k, KEYS[k].def); });
-    document.getElementById('ed-out').classList.remove('on');
-  });
-  document.getElementById('ed-guide').addEventListener('click', function(){
-    document.body.classList.toggle('ed-guide'); this.classList.toggle('on');
-  });
-  document.getElementById('ed-head').addEventListener('click', function(){
-    var f = document.body.classList.toggle('ed-fold');
-    document.getElementById('ed-fold').textContent = f ? '펴기 ▸' : '접기 ▾';
-  });
+  function destroy(){
+    if(!built) return; built=false;
+    /* ⚠ 인라인 치수를 반드시 걷는다 — 안 걷으면 실험하다 만 값이 화면에 남는다 */
+    ORDER.forEach(function(k){ document.documentElement.style.removeProperty('--'+k); });
+    var box=document.getElementById('ed'); if(box) box.remove();
+    if(styleEl){ styleEl.remove(); styleEl=null; }
+    document.body.classList.remove('ed-guide','ed-fold');
+    console.log('%c[EG] 각인 편집기 꺼짐 — 파일에 박힌 치수로 돌아갑니다.','color:#7f8ea2');
+  }
+  function turn(on){ lsSet(ONKEY, on ? '1' : '0'); on ? build() : destroy(); }
 
-  console.log('%c[EG] 각인 편집기 켜짐 — 손잡이 아홉. 값 뽑기로 CSS를 받으십시오.', 'color:#8fb7dd');
+  /* ── 여는 문 ① 주소 ── */
+  var byUrl=false;
+  try{ byUrl = new URLSearchParams(location.search).get('edit')==='1'; }catch(e){}
+  if(byUrl) lsSet(ONKEY,'1');
+  if(byUrl || ls(ONKEY)==='1') build();
+
+  /* ── 여는 문 ② Ctrl+Alt+E ── */
+  addEventListener('keydown', function(ev){
+    if(!(ev.ctrlKey || ev.metaKey) || !ev.altKey) return;
+    if((ev.key||'').toLowerCase()!=='e' && ev.code!=='KeyE') return;
+    ev.preventDefault(); turn(!built);
+  }, true);
+
+  /* ── 여는 문 ③ 관자 다섯 번 톡톡 (액자 안에서 가장 확실하다) ── */
+  (function(){
+    var n=0, t=0;
+    document.addEventListener('click', function(ev){
+      if(!ev.target.closest('.e-eyebrow')) return;
+      clearTimeout(t); n++;
+      t=setTimeout(function(){ n=0; }, 900);
+      if(n>=5){ n=0; turn(!built); }
+    });
+  })();
 })();
 </script>
 <script src="eg_back.js?v=20260729"></script>
