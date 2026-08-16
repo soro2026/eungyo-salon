@@ -115,6 +115,12 @@ html,body{height:100%;background:#0d0a07;color:#e8ddc4;
 .pl-when{left:2.2%;font-family:'Cormorant Garamond',serif;}
 .pl-n{right:2.2%;font-family:'Cormorant Garamond',serif;color:rgba(226,192,126,.62);}
 
+/* ⚠ 0816 소로 — 책 모달 위에 회색 띠가 흉하게 얹혀 있었다. 스타일이 아예 없어
+     브라우저 기본 단추가 그대로 나온 것이었다. 책 밖 아무 곳이나 누르면 닫히고
+     ESC 도 듣는다 — 띠까지 둘 까닭이 없다.
+   ⚠ HTML은 그대로 둔다. 지우면 f4InitModal 의 배선이 헛돈다(if(closeBtn) 로 막혀 있긴 하다). */
+.f4book-close-btn{ display:none !important; }
+
 /* 빈 서가 — 아직 한 권도 없을 때 */
 #empty{position:absolute;left:0;right:0;top:38%;text-align:center;
   font-size:clamp(11px,1.3vw,14px);line-height:2.2;color:rgba(233,207,156,.62);
@@ -135,6 +141,9 @@ html,body{height:100%;background:#0d0a07;color:#e8ddc4;
   padding:8px 10px;-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);
   box-shadow:0 4px 18px rgba(0,0,0,.55);}
 #pager.on{display:flex;}
+/* ⚠ 0816 소로 — 대문에 서가 쪽수가 뜰 까닭이 없다. 들어가야 보인다.
+   ⭐ 몸통에 표를 하나 다는 쪽으로 간다 — paint()가 언제 불리든 상관없이 이 한 줄이 막는다. */
+body:not(.in-hall) #pager{display:none !important;}
 #pager button{font:inherit;font-size:15px;color:rgba(233,207,156,.9);background:none;
   border:none;cursor:pointer;padding:2px 10px;transition:color .2s;}
 #pager button:hover:not(:disabled){color:#fff;}
@@ -147,7 +156,9 @@ html,body{height:100%;background:#0d0a07;color:#e8ddc4;
 
 
 /* ── 서고의 음악 단추 — 구 museum.html에서 옮겨온 것 ── */
-#bgmBtn{position:fixed;right:16px;top:calc(14px + env(safe-area-inset-top));z-index:12;
+/* ⚠ 0816 소로 — 액자의 나가는 문(×)이 top 20 에 서므로 14 에 두면 통째로 가린다.
+   한 칸 내린다. 38px 단추 + 여백 → 66. */
+#bgmBtn{position:fixed;right:16px;top:calc(66px + env(safe-area-inset-top));z-index:12;
   font-size:15px;line-height:1;background:rgba(14,10,6,.6);
   border:1px solid rgba(201,162,74,.4);border-radius:50%;width:38px;height:38px;
   cursor:pointer;display:none;transition:background .2s;}
@@ -1040,7 +1051,13 @@ async function loadBooks(){
 function pageCount(){ return Math.max(1, Math.ceil(BOOKS.length / PER_PAGE)); }
 function pageBooks(p){
   const end = BOOKS.length - p*PER_PAGE;
-  return BOOKS.slice(Math.max(0, end-PER_PAGE), Math.max(0, end));
+  const seg = BOOKS.slice(Math.max(0, end-PER_PAGE), Math.max(0, end));
+  /* ⭐ 0816 소로 — 읽는 차례를 뒤집는다. **가장 최신 책이 맨 윗단 왼쪽**에 서고
+       오른쪽으로 · 아래로 · 다음 쪽으로 밀린다. 여태는 정반대라 새 책이 오른쪽
+       맨 아래 구석에 처박히고, 맨 위 왼쪽에 가장 오래된 책이 서 있었다.
+     ⚠ BOOKS 자체(만난 순서)는 안 건드린다 — 쪽 나누기는 그 순서에 기대고 있다.
+       화면에 세울 때만 뒤집는다. slice가 새 배열을 주므로 reverse가 원본을 안 다친다. */
+  return seg.reverse();
 }
 
 function paint(){
@@ -1059,7 +1076,9 @@ function paint(){
          <span class="bkt">${esc(shortTitle(b.answer, b.kind==='spoon' ? 18 : SPINE_MAX))}</span>
        </div>`).join('');
     /* 널 각인 — 그 단의 기간. 페이지 번호가 아니라 시간이 말한다 */
-    const a=seg[0].at, z=seg[seg.length-1].at;
+    /* ⚠ 0816 — 위에서 뒤집었으므로 seg[0]이 최신이다. 각인은 늘 「예전 — 최근」으로 읽어야 한다 */
+    const _t0=seg[0].at, _t1=seg[seg.length-1].at;
+    const a = (_t0<=_t1 ? _t0 : _t1), z = (_t0<=_t1 ? _t1 : _t0);
     const when = (a.getFullYear()===z.getFullYear())
       ? `${ymd(a)} — ${md(z)}` : `${ymd(a)} — ${ymd(z)}`;
     racks.push(
@@ -1085,7 +1104,9 @@ function paint(){
   const pg=$('#pager');
   pg.classList.toggle('on', N>1 && !$('#shelf').classList.contains('edit'));
   if(N>1){
-    const a=list[0], z=list[list.length-1];
+    const _p0=list[0], _p1=list[list.length-1];               /* 뒤집힌 차례 — 표시는 예전→최근 */
+    const a = (_p0 && _p1) ? (_p0.at<=_p1.at ? _p0 : _p1) : _p0;
+    const z = (_p0 && _p1) ? (_p0.at<=_p1.at ? _p1 : _p0) : _p1;
     $('#pgWhen').innerHTML = a && z
       ? `${esc(ymd(a.at))} — ${esc(ymd(z.at))}<b>${list.length}권</b>` : '';
     $('#pgPrev').disabled = (PAGE >= N-1);      /* 더 예전이 없다 */
@@ -1212,6 +1233,7 @@ function enterHall(){
   setTimeout(()=>{
     $('#gate').classList.remove('on');
     $('#hall').classList.add('on');
+      document.body.classList.add('in-hall');      /* 0816 — 이제부터 쪽수가 보인다 */
 
     /* ⭐ 착지는 벽감 **전체**가 아니라 **맨 윗단**이다(0807 소로).
        카메라는 rect 한가운데를 화면 한가운데에 앉힌다. 벽감 전체를 주면
@@ -1837,7 +1859,7 @@ function goBack(){
   location.href='terra.html';          /* 액자 밖에서 혼자 열렸을 때만 여기까지 온다 */
 }
 
-console.log('[EG] bibliotheca 0816b — 한스푼 책 복귀(내가 푼 회차가 곧 책) · 나가는 문이 부모 액자를 닫는다');
+console.log('[EG] bibliotheca 0816c — 최신이 맨 위 왼쪽 · 쪽수는 실내에서만 · 음소거 한 칸 아래 · 모달 띠 걷음 · 한스푼 책 복귀');
 boot();
 bgmInit();
 f4InitModal();      /* 책 모달 손잡이 — 한 번만 묶는다 */
