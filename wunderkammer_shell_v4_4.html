@@ -452,6 +452,19 @@ html, body {
   background:rgba(12,9,6,.78); color:rgba(233,207,156,.92);
 }
 #sl-bar button.go{ background:#c9a84c; color:#241a12; border-color:#c9a84c; font-weight:500; }
+/* ── 글자·속도 손잡이 (0816 소로) ── */
+.sl-knob{
+  display:flex; align-items:center; gap:7px; padding:6px 12px; border-radius:18px;
+  border:1px solid rgba(233,207,156,.34); background:rgba(12,9,6,.78);
+  font-family:'Noto Serif KR',serif; font-size:11px; color:rgba(233,207,156,.78);
+  white-space:nowrap;
+}
+.sl-knob input[type=range]{ width:96px; accent-color:#c9a84c; cursor:pointer; }
+.sl-knob b{
+  font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10.5px;
+  font-weight:400; color:#e9cf9c; min-width:74px; text-align:right;
+}
+@media (max-width:760px){ .sl-knob input[type=range]{ width:64px; } .sl-knob b{ min-width:0; } }
 /* 방 띠 — 맞추면서 일곱 방을 눈으로 넘긴다. DB는 안 건드리는 미리보기다 */
 #sl-rooms{ display:flex; gap:5px; }
 #sl-rooms button{
@@ -1787,7 +1800,7 @@ async function sbFetch(path, options = {}) {
   }
   return res.status === 204 ? null : res.json();
 }
-console.log("%c[EG] wunderkammer 0816a · 메종 체류 인장 — 꽃을 두고 나온 그 순간에", "color:#c9a84c");
+console.log("%c[EG] wunderkammer 0816b · 메종 체류 인장 — 꽃을 두고 나온 그 순간에", "color:#c9a84c");
 function getUser() { try { return JSON.parse(localStorage.getItem('eungyo-auth'))?.user || null; } catch { return null; } }
 
 /* ── 층 구성 (2026.07.28 「세 건물 재편 결정문」 7호로 4층 축소) ──
@@ -2276,6 +2289,11 @@ const Salon = (() => {
     liftT    : 50,
     dockR    : 3,     /* ⋮ 도크 자리 */
     dockT    : 66,
+    tickFont : 0.40,  /* 티커 글자 = 티커 높이 × K (0816 소로 — 손잡이로 고른다)
+                         ⚠ 비율이라 방 크기가 달라도 같은 얼굴로 선다. px으로 박으면
+                           폰에서는 거인, 큰 화면에서는 개미가 된다. */
+    tickSpeed: 34,    /* 티커 흐르는 속도 px/초 (0816 소로)
+                         ⚠ 시간이 아니라 속도를 못 박는다 — 흔적이 늘어도 읽는 속도가 같다 */
     tickW    : 44     /* 꽃 티커 폭 % — 상판 좌우 끝에 물건이 서 있다(0809 실측).
                          일곱 방에서 물건이 가장 안쪽까지 온 곳이 26%·74%이므로
                          28~72%가 공통으로 비어 있다. 폭 44%가 그 안에 딱 든다. */
@@ -2740,6 +2758,7 @@ const Salon = (() => {
       stage.appendChild(tk);
       /* ⚠ 꽃 크기가 티커 높이를 안 따라가면, 상자만 자라고 아무 일도 안 일어나 보인다
          (0809 소로 지적). 칩 글자 크기를 실제 높이에서 뽑아 넣는다. */
+      tk._chips = chips;        /* ⚠ 다시 맞출 때 필요하다 — 없으면 되풀이 수를 못 다시 센다 */
       sizeTick(tk);
       flowTicker(tk, chips);
       if (EDITING) armTick(stage, tk);
@@ -2756,7 +2775,7 @@ const Salon = (() => {
   /* 꽃과 글자는 티커 높이를 따라간다 — 상자만 자라면 맞춰도 아무 일이 안 일어난다 */
   function sizeTick(tk, again){
     const h = tk.clientHeight || 0;
-    if (h > 0){ tk.style.fontSize = Math.max(9, h * 0.40) + 'px'; return; }
+    if (h > 0){ tk.style.fontSize = Math.max(8, h * K.tickFont) + 'px'; return; }
     if (!again) requestAnimationFrame(()=> sizeTick(tk, true));   /* 한 번만 미룬다 */
   }
 
@@ -2765,7 +2784,8 @@ const Salon = (() => {
      ① 한 벌이 통보다 좁으면 통을 채울 만큼 되풀이한다 — 안 그러면 빈 구간이 지나간다
      ② 그렇게 만든 한 벌을 두 벌 이어 붙이고 -50%로 민다 — 이음매가 안 보인다
      ③ 시간 = 한 벌 폭 ÷ 속도. 흔적이 늘어도 읽히는 속도가 그대로다 */
-  const TICK_SPEED = 34;      /* px/초 — 눈이 따라 읽는 속도 */
+  /* ⚠ 옛 상수 TICK_SPEED 는 K.tickSpeed 로 옮겼다(0816). 두 곳에 값이 있으면
+       손잡이를 돌려도 안 움직이는 곳이 생긴다. */
   function flowTicker(tk, chips){
     const track = tk.querySelector('.sl-tick-track');
     if (!track) return;
@@ -2777,9 +2797,26 @@ const Salon = (() => {
       track.innerHTML = new Array(reps * 2).fill(chips).join('');
       requestAnimationFrame(()=>{
         const half = (track.scrollWidth || one * reps * 2) / 2;
-        const sec = Math.max(14, half / TICK_SPEED);
+        const sec = Math.max(6, half / Math.max(6, K.tickSpeed));
         track.style.setProperty('--sl-tick-dur', sec.toFixed(1) + 's');
       });
+    });
+  }
+
+  /* ── 티커 다시 맞추기 (0816 소로 — 글자·속도 손잡이) ──
+     ⚠ 끄는 중(input)에 flowTicker 를 통째로 다시 부르면 track 을 새로 채워
+       애니메이션이 매번 처음으로 돌아간다 — 보면서 맞출 수가 없다.
+       그래서 끄는 중에는 글자와 시간만 갈고, 손을 놓을 때(change) 되풀이 수까지
+       다시 센다. 글자를 줄이면 한 벌이 짧아져 통에 빈 구간이 생기기 때문이다. */
+  function retuneTick(full){
+    const tk = document.querySelector('#sl-stage .sl-tick'); if (!tk) return;
+    sizeTick(tk);
+    if (full && tk._chips){ flowTicker(tk, tk._chips); return; }
+    const track = tk.querySelector('.sl-tick-track'); if (!track) return;
+    requestAnimationFrame(()=>{
+      const half = (track.scrollWidth || 1) / 2;
+      track.style.setProperty('--sl-tick-dur',
+        Math.max(6, half / Math.max(6, K.tickSpeed)).toFixed(1) + 's');
     });
   }
 
@@ -3127,6 +3164,8 @@ const Salon = (() => {
     loadArt(stage, OWNER); renderBoard(stage);
     armFurniture(stage);
     paintInfo();
+    const bar0 = document.getElementById('sl-bar');
+    if (bar0 && bar0._paintKnob) setTimeout(bar0._paintKnob, 60);   /* 티커가 선 뒤에 잰다 */
   }
 
   /* 엘리베이터와 도크 — 무대가 아니라 층 위에 떠 있는 물건이라 따로 잡는다.
@@ -3328,10 +3367,36 @@ const Salon = (() => {
     bar.id='sl-bar'; bar.hidden = true;
     bar.innerHTML = `<span id="sl-rooms"></span>
                      <span class="sl-sep"></span>
+                     <span class="sl-knob">글자<input type="range" id="sl-k-font"
+                        min="0.16" max="0.60" step="0.01"><b id="sl-k-font-v"></b></span>
+                     <span class="sl-knob">속도<input type="range" id="sl-k-spd"
+                        min="14" max="160" step="2"><b id="sl-k-spd-v"></b></span>
+                     <span class="sl-sep"></span>
                      <button type="button" class="go" data-a="save">저장</button>
                      <button type="button" data-a="undo">되돌리기</button>
                      <button type="button" data-a="close">끝내기</button>`;
     document.body.appendChild(bar);
+    /* ── 글자·속도 손잡이 (0816 소로) ──
+       ⚠ 값 표시에 실제 px 을 함께 적는다. 비율만 보이면 바닥값(8px)에 걸렸을 때
+         손잡이를 돌려도 안 변하는 까닭을 알 길이 없다. */
+    const kf = bar.querySelector('#sl-k-font'), ks = bar.querySelector('#sl-k-spd');
+    function paintKnob(){
+      /* ⚠ 티커의 글자 크기와 칩의 글자 크기는 다르다 — 칩이 .62em 이다.
+           손잡이 값에 0.62를 곱해 적으면 CSS와 JS 두 곳에 같은 값이 생긴다.
+           실물 칩에서 읽는다. 그러면 CSS를 고쳐도 표시가 저절로 따라온다. */
+      const chip = document.querySelector('#sl-stage .sl-tick-chip');
+      const px = chip ? parseFloat(getComputedStyle(chip).fontSize) : 0;
+      bar.querySelector('#sl-k-font-v').textContent =
+        K.tickFont.toFixed(2) + (px ? ' · ' + px.toFixed(1) + 'px' : '');
+      bar.querySelector('#sl-k-spd-v').textContent = Math.round(K.tickSpeed);
+    }
+    kf.value = K.tickFont;  ks.value = K.tickSpeed;
+    kf.addEventListener('input',  ()=>{ K.tickFont  = +kf.value; retuneTick(false); paintKnob(); });
+    kf.addEventListener('change', ()=>{ retuneTick(true);  paintKnob(); });
+    ks.addEventListener('input',  ()=>{ K.tickSpeed = +ks.value; retuneTick(false); paintKnob(); });
+    ks.addEventListener('change', ()=>{ retuneTick(true);  paintKnob(); });
+    bar._paintKnob = paintKnob;
+
     loadRoomList().then(paintRoomStrip);
     document.getElementById('sl-rooms').addEventListener('click', e=>{
       const n = e.target.dataset && e.target.dataset.no;
@@ -3357,6 +3422,9 @@ const Salon = (() => {
       if (a === 'undo'){
         Object.assign(K, K_SAVED); pushPos();
         loadArt(stage, OWNER); renderBoard(stage); paintInfo();
+        const kf2 = bar.querySelector('#sl-k-font'), ks2 = bar.querySelector('#sl-k-spd');
+        if (kf2) kf2.value = K.tickFont;  if (ks2) ks2.value = K.tickSpeed;
+        if (bar._paintKnob) bar._paintKnob();
         toast('마지막 저장으로 되돌렸습니다');
       }
       if (a === 'close'){
