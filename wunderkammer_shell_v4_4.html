@@ -106,18 +106,53 @@ html, body {
   padding: 7px 11px 7px 8px; cursor: pointer; text-align: left; white-space: nowrap;
   transition: background 0.2s, border-color 0.2s, color 0.2s;
 }
+/* ⭐ 0816 소로 — 「엘리베이터 같지 않고 안 예쁘다」. 조작반으로 다시 지었다.
+     층 번호가 **누르는 놋쇠 원판**이 되고, 서 있는 층에는 안에서 불이 켜진다.
+     손을 얹으면 그 층이 무엇인지 한 줄. 문 둘 — 원판/이름(엘리베이터)과 ⇢(직행). */
+.lift-row { display:flex; align-items:stretch; gap:4px; }
+.lift-row + .lift-row { margin-top:2px; }
+.lift { flex:1 1 auto; }
+.lift .l-body { display:flex; flex-direction:column; min-width:0; }
+.lift .l-desc { font-size:9.5px; line-height:1.5; letter-spacing:.02em;
+  color: color-mix(in srgb, var(--floor-accent) 62%, transparent);
+  max-height:0; overflow:hidden; opacity:0;
+  transition:max-height .24s ease, opacity .2s ease, margin .24s ease; }
+.lift-row:hover .l-desc { max-height:30px; opacity:1; margin-top:2px; }
 .lift:hover { background: rgba(90,62,34,0.5); border-color: color-mix(in srgb, var(--floor-accent) 45%, transparent); }
+/* 층 원판 — 서 있는 층은 안에서 불이 켜져 있다 */
+.lift .l-no { flex:0 0 auto; width:26px; height:26px; border-radius:50%;
+  display:grid; place-items:center;
+  background:radial-gradient(circle at 34% 30%, rgba(255,255,255,.10), rgba(0,0,0,.42));
+  border:1px solid color-mix(in srgb, var(--floor-accent) 34%, transparent);
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.55);
+  transition:color .2s, box-shadow .25s, border-color .2s; }
+.lift-row:hover .l-no { border-color: color-mix(in srgb, var(--floor-accent) 72%, transparent); }
+.lift-row.now .l-no { color:#241a12; border-color:var(--floor-accent);
+  background:radial-gradient(circle at 34% 30%,
+    color-mix(in srgb, var(--floor-accent) 30%, #fff), var(--floor-accent) 62%,
+    color-mix(in srgb, var(--floor-accent) 60%, #000));
+  box-shadow:0 0 11px color-mix(in srgb, var(--floor-accent) 55%, transparent),
+             inset 0 1px 2px rgba(255,255,255,.4); }
+/* 직행 — 서 있는 층에는 문이 없다 */
+.lift-jump { flex:0 0 auto; width:24px; border-radius:7px; line-height:1; cursor:pointer;
+  border:1px solid color-mix(in srgb, var(--floor-accent) 26%, transparent);
+  background:rgba(0,0,0,.28); color:var(--floor-accent); font-size:12px; font-family:inherit;
+  opacity:0; transition:opacity .2s, background .16s, color .16s; }
+.lift-row:hover .lift-jump { opacity:1; }
+.lift-jump:hover { background:var(--floor-accent); color:#241a12; }
+.lift-row.now .lift-jump { display:none; }
 .lift .l-no {
   font-family: 'Cormorant Garamond', serif; font-size: 12px; letter-spacing: 1px;
   color: color-mix(in srgb, var(--floor-accent) 75%, transparent); width: 22px; text-align: center;
 }
 .lift .l-kr { font-size: 11.5px; color: var(--floor-text-dim); letter-spacing: 0.5px; }
-.lift.now { background: color-mix(in srgb, var(--floor-accent) 85%, transparent); border-color: var(--floor-accent); }
-.lift.now .l-no, .lift.now .l-kr { color: #241a12; }
-.lift.now .l-kr { font-weight: 600; }
+.lift-row.now .lift { background: color-mix(in srgb, var(--floor-accent) 85%, transparent); border-color: var(--floor-accent); }
+.lift-row.now .l-kr { color: #241a12; font-weight: 600; }
+.lift-row.now .l-desc { color: rgba(36,26,18,.72); }
 @media (max-width: 560px){
   .lift { padding: 7px 8px; }
   .lift .l-kr { display: none; }
+  .lift .l-desc, .lift-jump { display: none; }   /* 0816 — 좁은 화면에서는 원판만 */
 }
 
 /* ============================================================
@@ -1840,7 +1875,7 @@ async function sbFetch(path, options = {}) {
   }
   return res.status === 204 ? null : res.json();
 }
-console.log("%c[EG] wunderkammer 0816f · 엘리베이터 조작반(설명·직행) · 4층 자석 · 층을 지구에도 알림 · 메종 체류 인장 — 꽃을 두고 나온 그 순간에", "color:#c9a84c");
+console.log("%c[EG] wunderkammer 0816g · 엘리베이터 조작반(설명·직행 — roomLift 실물) · 4층 자석 · 층을 지구에도 알림 · 메종 체류 인장 — 꽃을 두고 나온 그 순간에", "color:#c9a84c");
 function getUser() { try { return JSON.parse(localStorage.getItem('eungyo-auth'))?.user || null; } catch { return null; } }
 
 /* ── 층 구성 (2026.07.28 「세 건물 재편 결정문」 7호로 4층 축소) ──
@@ -2116,8 +2151,15 @@ function renderFloor(n) {
       ${body}
       <div class="room-elevator" id="roomLift">
         ${[...FLOORS].reverse().map(x=>
-          `<button class="lift${x.n===n?' now':''}" data-f="${x.n}" aria-label="${x.roman}층 ${x.kr}">
-             <span class="l-no">${x.roman}</span><span class="l-kr">${x.kr}</span></button>`).join('')}
+          `<div class="lift-row${x.n===n?' now':''}">
+             <button class="lift" data-f="${x.n}" data-go="lift" aria-label="${x.roman}층 ${x.kr} — 엘리베이터로">
+               <span class="l-no">${x.roman}</span>
+               <span class="l-body"><span class="l-kr">${x.kr}</span>
+                 <span class="l-desc">${x.desc || ''}</span></span>
+             </button>
+             <button class="lift-jump" data-f="${x.n}" data-go="jump"
+                     title="곧장 건너뛰기" aria-label="${x.kr} 로 곧장 건너뛰기">⇢</button>
+           </div>`).join('')}
       </div>
     </div>`;
 
@@ -2130,6 +2172,10 @@ function renderFloor(n) {
   /* 네 층 바로가기 — 4층에서 1층으로 한 번에 간다 */
   const lift = document.getElementById('roomLift');
   if (lift) lift.addEventListener('click', e=>{
+    /* ⚠ 0816 소로 — 문이 둘이 됐다. 엘리베이터(문·띵동·4초)와 직행(페이드 0.3초).
+         ⚠ .lift-jump 를 먼저 본다 — .lift 로 먼저 찾으면 직행 단추가 안 걸린다. */
+    const j = e.target.closest('.lift-jump');
+    if (j){ const to = +j.dataset.f; if (to !== n) jumpToFloor(to); return; }
     const b = e.target.closest('.lift'); if (!b) return;
     const to = +b.dataset.f;
     if (to !== n) goToFloor(to);
