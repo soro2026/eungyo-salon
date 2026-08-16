@@ -329,6 +329,39 @@ html, body {
 .floor-content[data-floor="1"] .sl-tick-chip b{ font-weight:500; opacity:.95; }
 .floor-content[data-floor="1"] .sl-tick-chip i{ font-style:normal; opacity:.72; }
 @keyframes sl-tick-flow{ from{transform:translateX(0)} to{transform:translateX(-50%)} }
+
+/* ── 다녀간 이들 (0816 소로) ──
+   ⚠ can-open 은 내 집에서만 붙는다. EDITING 중에는 티커가 끌어서 옮기는
+     손잡이라 그때도 안 붙인다 — 배치를 맞추다 팝업이 튀어나오면 안 된다. */
+.floor-content[data-floor="1"] .sl-tick.can-open{ cursor:pointer; }
+.floor-content[data-floor="1"] .sl-tick-chip u{
+  font-style:normal; text-decoration:none; opacity:.5; font-size:.86em;
+}
+/* 전체 보기 — 거실 모달(.sl-box) 문법 그대로. 목록이라 폭만 넓힌다 */
+.sl-box.sl-wide{ width:min(680px,94vw); }
+.gb-list{ margin:10px 0 0; max-height:56vh; overflow-y:auto;
+  scrollbar-width:none; -ms-overflow-style:none; }
+.gb-list::-webkit-scrollbar{ display:none; }
+.gb-row{ display:flex; align-items:flex-start; gap:10px;
+  padding:11px 2px; border-bottom:1px solid rgba(201,168,76,.16); }
+.gb-row:last-child{ border-bottom:0; }
+.gb-row > img{ height:26px; width:auto; flex:0 0 auto; margin-top:1px; }
+.gb-main{ flex:1 1 auto; min-width:0; }
+.gb-who{ font-size:13px; color:#e9cf9c; font-weight:500; }
+.gb-when{ font-size:11px; color:rgba(240,235,224,.45); margin-left:.5em; }
+.gb-text{ font-size:13.5px; line-height:1.62; color:#f0ebe0; margin-top:2px;
+  word-break:break-word; white-space:pre-wrap; }
+.gb-act{ flex:0 0 auto; background:none; border:1px solid rgba(201,168,76,.34);
+  color:rgba(240,235,224,.62); border-radius:7px; font-size:11px; padding:4px 9px;
+  cursor:pointer; font-family:inherit; }
+.gb-act:hover{ border-color:rgba(201,168,76,.62); color:#e9cf9c; }
+.gb-row.off .gb-who, .gb-row.off .gb-text{ opacity:.34; }
+.gb-row.off .gb-text{ text-decoration:line-through; }
+.gb-more{ width:100%; margin-top:12px; background:none;
+  border:1px solid rgba(201,168,76,.34); color:#e9cf9c; border-radius:9px;
+  padding:9px 0; cursor:pointer; font-family:inherit; font-size:12.5px; }
+.gb-empty{ padding:22px 2px; text-align:center; font-size:13px;
+  color:rgba(240,235,224,.5); }
 @media (prefers-reduced-motion: reduce){
   .floor-content[data-floor="1"] .sl-tick-track{ animation:none; }
 }
@@ -1754,7 +1787,7 @@ async function sbFetch(path, options = {}) {
   }
   return res.status === 204 ? null : res.json();
 }
-console.log("%c[EG] wunderkammer 0814a · 메종 체류 인장 — 꽃을 두고 나온 그 순간에", "color:#c9a84c");
+console.log("%c[EG] wunderkammer 0816a · 메종 체류 인장 — 꽃을 두고 나온 그 순간에", "color:#c9a84c");
 function getUser() { try { return JSON.parse(localStorage.getItem('eungyo-auth'))?.user || null; } catch { return null; } }
 
 /* ── 층 구성 (2026.07.28 「세 건물 재편 결정문」 7호로 4층 축소) ──
@@ -2225,7 +2258,7 @@ window.addEventListener('resize', () => {
  *     묶여 있어 그대로 못 꺼냈다)
  * ══════════════════════════════════════════════════════════════════════════ */
 const Salon = (() => {
-  let ROOM = null, ART = null, MW = null, OWNER = null, MINE = false;
+  let ROOM = null, ART = null, MW = null, OWNER = null, MINE = false, SEED = 0;
   let QUOTE_DARK = false, TICK_DARK = false, PLAQUE_DARK = false, MEASURED = false;   /* 잉크 — 재기 전엔 안 그린다 */
   const EDIT = new URLSearchParams(location.search).has('edit');
 
@@ -2339,6 +2372,16 @@ const Salon = (() => {
     OWNER = await ownerId();
     MINE  = !!OWNER && OWNER === (getUser()?.id || null);
 
+    /* ⭐ 옛 흔적 창을 미는 눈금 — 거실에 들어올 때마다 하나씩 오른다(0816 소로).
+       서버가 이 값만큼 창을 밀어 옛 인사를 하나씩 갈아 끼운다. 무작위가 아니라
+       순번이라, 밀려나 있던 인사가 반드시 한 번씩 돌아온다.
+       ⚠ 방에 들어올 때만 올린다. refreshBoard(꽃을 두고 난 뒤)가 또 올리면
+         인사 하나 남겼는데 벽이 통째로 갈린다. */
+    try{
+      SEED = (parseInt(localStorage.getItem('eg-wk-seed') || '0', 10) || 0) + 1;
+      localStorage.setItem('eg-wk-seed', String(SEED));
+    }catch(e){ SEED = 0; }
+
     let no = 1;
     if (OWNER){
       try{
@@ -2364,7 +2407,7 @@ const Salon = (() => {
     /* 메시지 보드 — 글귀 한 장 + 방문객 흔적 */
     try{
       MW = await sbFetch('/rest/v1/rpc/get_message_board',
-        { method:'POST', body: JSON.stringify({ p_room_owner: OWNER }) });
+        { method:'POST', body: JSON.stringify({ p_room_owner: OWNER, p_seed: SEED }) });
     }catch(e){ console.warn('[거실] 메시지 보드 조회 실패', e); MW = null; }
 
     await loadArt(stage, OWNER);
@@ -2682,8 +2725,11 @@ const Salon = (() => {
     }
 
     if (traces.length){
+      /* ⚠ 옛 흔적(aged)에만 날짜 한 조각을 붙인다. 안 붙이면 「어제 온 인사」와
+         「두 달 전 인사」가 같은 얼굴로 서서 벽이 언제 것인지 알 수 없게 된다. */
       const chip = x => `<span class="sl-tick-chip">`
         + `<img src="${flowerUrl(x.flower_type)}" alt="" onerror="this.style.display='none'">`
+        + (x.aged ? `<u>${gbWhen(x.created_at)}</u>` : '')
         + `<b>${esc2(x.visitor_nick)}</b>${x.text ? `<i>${esc2(x.text)}</i>` : ''}</span>`;
       /* 끊김 없는 흐름 — 칩 묶음을 두 벌 이어 붙이고 -50%로 민다 */
       const chips = traces.map(chip).join('');
@@ -2697,6 +2743,13 @@ const Salon = (() => {
       sizeTick(tk);
       flowTicker(tk, chips);
       if (EDITING) armTick(stage, tk);
+      /* ⭐ 내 집이면 눌러서 전체를 펼친다. 남의 집에서는 아무 일도 없다 —
+         목록은 세어지고, 세어지는 순간 집집의 인사 수가 순위가 된다(헌장 9.2). */
+      if (MINE && !EDITING){
+        tk.classList.add('can-open');
+        tk.title = '다녀간 이들 — 전체 보기';
+        tk.onclick = ()=> openGuestAll();
+      }
     }
   }
 
@@ -2728,6 +2781,89 @@ const Salon = (() => {
         track.style.setProperty('--sl-tick-dur', sec.toFixed(1) + 's');
       });
     });
+  }
+
+  /* ══ 다녀간 이들 — 전체 보기 (0816 소로) ═══════════════════════════
+     티커는 흐르는 물건이라 지나간 것을 다시 못 본다. 집주인만 한 장에 펼친다.
+     ⚠ get_guestbook_all 은 인자에 방 임자가 없다 — auth.uid() 의 집만 돌려준다.
+       남의 집 번호를 넣어 열어 보는 길이 애초에 없다.
+     ⚠ 내려둔 것도 함께 선다. 되돌릴 수 있어야 「내리기」가 가벼운 단추가 된다.
+     ⚠ 내리기는 PATCH 한 번이다 — 권한이 is_deleted 한 칸으로 좁혀져 있어
+       글 내용은 주인도 못 고친다(헌장 4.1). 서버가 막으면 0건이 돌아오므로
+       return=representation 으로 받아 실패를 눈으로 잡는다.
+     ══════════════════════════════════════════════════════════════ */
+  let GB = { rows: [], done: false, busy: false };
+
+  function gbWhen(iso){
+    const d = new Date(iso); if (isNaN(d)) return '';
+    const y = d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + '년 ' : '';
+    return y + (d.getMonth() + 1) + '월 ' + d.getDate() + '일';
+  }
+
+  async function gbPull(more){
+    if (GB.busy || (more && GB.done)) return;
+    GB.busy = true;
+    try{
+      const before = (more && GB.rows.length) ? GB.rows[GB.rows.length - 1].created_at : null;
+      const r = await sbFetch('/rest/v1/rpc/get_guestbook_all', { method:'POST',
+        body: JSON.stringify({ p_before: before, p_limit: 50 }) }) || [];
+      GB.rows = more ? GB.rows.concat(r) : r;
+      GB.done = r.length < 50;
+    }catch(e){ toast('불러오지 못했습니다 — ' + (e.message || '')); GB.done = true; }
+    GB.busy = false;
+  }
+
+  async function gbHide(id, on){
+    try{
+      const r = await sbFetch('/rest/v1/wunderkammer_guestbook?id=eq.' + encodeURIComponent(id), {
+        method:'PATCH', headers:{ 'Prefer':'return=representation' },
+        body: JSON.stringify({ is_deleted: on }) });
+      if (!r || !r.length) throw new Error('내 집의 글이 아닙니다');
+      const row = GB.rows.find(x => x.id === id); if (row) row.is_deleted = on;
+      gbPaint();
+      await refreshBoard();          /* 벽도 함께 고쳐 선다 */
+      toast(on ? '벽에서 내렸습니다' : '벽에 다시 올렸습니다');
+    }catch(e){ toast('바꾸지 못했습니다 — ' + (e.message || '')); }
+  }
+
+  function gbPaint(){
+    const box = document.getElementById('gb-list'); if (!box) return;
+    if (!GB.rows.length){
+      box.innerHTML = '<div class="gb-empty">아직 다녀간 이가 없습니다</div>'; return;
+    }
+    box.innerHTML = GB.rows.map(x => `
+      <div class="gb-row${x.is_deleted ? ' off' : ''}">
+        <img src="${flowerUrl(x.flower_type)}" alt="" onerror="this.style.display='none'">
+        <div class="gb-main">
+          <div><span class="gb-who">${esc2(x.visitor_nick)}</span><span class="gb-when">${gbWhen(x.created_at)}</span></div>
+          ${x.text ? `<div class="gb-text">${esc2(x.text)}</div>` : ''}
+        </div>
+        <button class="gb-act" type="button" data-id="${esc2(x.id)}" data-on="${x.is_deleted ? 0 : 1}">${x.is_deleted ? '올리기' : '내리기'}</button>
+      </div>`).join('')
+      + (GB.done ? '' : '<button class="gb-more" type="button" id="gb-more">더 보기</button>');
+    box.querySelectorAll('.gb-act').forEach(b =>
+      b.onclick = ()=> gbHide(b.dataset.id, b.dataset.on === '1'));
+    const more = box.querySelector('#gb-more');
+    if (more) more.onclick = async ()=>{ more.textContent = '긷는 중…'; await gbPull(true); gbPaint(); };
+  }
+
+  async function openGuestAll(){
+    closeModal();
+    const m = document.createElement('div');
+    m.id = 'sl-modal'; m.className = 'sl-modal';
+    m.innerHTML = `
+      <div class="sl-box sl-wide">
+        <h3>다녀간 이들</h3>
+        <p class="sl-hint">이 집에 남겨진 인사 전부입니다. 벽에는 최근 것부터 열두 편이 흐릅니다.</p>
+        <div class="gb-list" id="gb-list"><div class="gb-empty">긷는 중…</div></div>
+        <div class="sl-btns"><button class="sl-cancel">닫기</button></div>
+      </div>`;
+    document.body.appendChild(m);
+    m.addEventListener('click', e=>{ if (e.target === m) closeModal(); });
+    m.querySelector('.sl-cancel').onclick = closeModal;
+    GB = { rows: [], done: false, busy: false };
+    await gbPull(false);
+    gbPaint();
   }
 
   /* ── 통합 손잡이 — 엘리베이터 아래 동그란 단추 하나 (0809 소로) ──
@@ -2771,7 +2907,7 @@ const Salon = (() => {
   async function refreshBoard(){
     try{
       MW = await sbFetch('/rest/v1/rpc/get_message_board',
-        { method:'POST', body: JSON.stringify({ p_room_owner: OWNER }) });
+        { method:'POST', body: JSON.stringify({ p_room_owner: OWNER, p_seed: SEED }) });
     }catch(e){ console.warn('[거실] 보드 갱신 실패', e); }
     renderBoard(document.getElementById('sl-stage'));
   }
