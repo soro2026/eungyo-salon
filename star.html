@@ -227,6 +227,13 @@ body.is-admin .framed-wrap:hover .framed-upload{display:flex}
 .tp-mine{font-weight:700}
 .tp-coming{font-size:13px;color:var(--ink-faint)}
 .tp-heritage{font-size:13px}
+/* 0816 — 순회 일정. 날짜 열과 곳 열을 나란히 세운다(줄이 길어도 눈이 안 흔들리게) */
+.tp-sched{display:flex;flex-direction:column;gap:6px}
+.tp-when{display:flex;align-items:baseline;gap:10px;font-size:13px;color:var(--ink-mid)}
+.tp-when .tp-d{flex:0 0 auto;min-width:82px;color:var(--ink-faint);font-variant-numeric:tabular-nums}
+.tp-when .tp-d em{font-style:normal;font-size:11px;margin-left:3px;opacity:.75}
+.tp-when .tp-p{flex:1 1 auto}
+.tp-note{margin-top:9px;font-size:11px;line-height:1.6;color:var(--ink-faint);opacity:.85}
 
 /* ── ③ 별을 따라 떠나는 여행 ── */
 /* ⚠ 0814 소로 — 테두리를 걷는다. 종이 한 장 위에서 선이 늘면 칸이 늘어 보인다.
@@ -576,6 +583,7 @@ body.is-admin .framed-wrap:hover .framed-upload{display:flex}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="eg_rotate.js?v=0816"></script>
 <script src="stamp_press.js?v=0808a"></script>
 <script>
 const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
@@ -882,7 +890,7 @@ async function intrareDone(area){
    ⚠ 각인은 찍는 순간 복사(15호) — 별 이름이 바뀌어도 이 도장은 그날의 이름이다.
    ⚠ 잘못된 obs(원판 없는 코드)면 부품 findKind가 못 찾아 조용히 아무 일도 없다 —
      병이 아니라 30호. 다만 콘솔에서 그림을 걸었는지 먼저 의심할 것.              */
-console.log('[EG] star 0816a — 로그인 문이 최상위로 · 밤하늘 위 종이 640');
+console.log('[EG] star 0816b — 보물 칸 재건축(그림 소장자·곡 공연 일정 3주) · eg_rotate 정본 물림 · 로그인 문 최상위');
 function stampHere(obsCode){
   if(!window.EGStamp) return;
   const opt = { supa: supa, area:'observatorium', bottom: 96 };
@@ -1310,6 +1318,25 @@ async function loadFloor0(starId) {
   // ★ 보물 순례: treasure 장면들이 지금 누구의 분더카머에서 도는지 (반납 안 된 대여)
   const treasureIds = rows.filter(r => r.question_type === 'treasure').map(r => r.seed_id);
   const rentalMap = {};
+  /* ⭐ 0816 — 순회 재료. 「앞으로 이 작품이 서는 곳」을 셈하려면 작품 전체 명단과
+       곳 명단이 있어야 한다. ⚠ 차례(인덱스)가 곧 셈의 근거이므로 정렬을 바꾸면 안 된다 —
+       terra·galerie·concert 가 쓰는 order=id 를 그대로 따른다. */
+  if (treasureIds.length) {
+    try{
+      const [{ data:items }, { data:pins }] = await Promise.all([
+        supa.from('heritage_items').select('id,name,artist,category')
+            .in('category', ['visual','record']).eq('status','active').order('id'),
+        supa.from('terra_pins').select('code,name,kind,sort,meta,active')
+            .in('kind', ['heritage','concert']).eq('active', true).order('sort')
+      ]);
+      TOUR.arts  = (items||[]).filter(x=>x.category==='visual');
+      TOUR.songs = (items||[]).filter(x=>x.category==='record');
+      TOUR.museums = (pins||[]).filter(p=>p.kind==='heritage')
+        .map((p,i)=>({ no: Number((p.meta&&p.meta.museum_no) ?? i), name: p.name, code: p.code }));
+      TOUR.halls   = (pins||[]).filter(p=>p.kind==='concert')
+        .map((p,i)=>({ no: Number((p.meta&&p.meta.hall_no) ?? i), name: p.name, code: p.code }));
+    }catch(e){ console.warn('[별] 순회 재료 로드 실패 — 일정은 접습니다:', e); }
+  }
   if (treasureIds.length) {
     const { data: rentals } = await supa.from('heritage_rentals')
       .select('item_id, user_id, nickname, starts_at')
@@ -1449,30 +1476,60 @@ function layerHtml(label, text) {
     </div>`;
 }
 
-// ── 보물 순례 경로: 이 판/그림이 지금 누구의 분더카머에서 도는가 (글→동기→실물) ──
-//    음반(htg_m…)→2층 서고 / 그림→1층 갤러리. 내 것이면 맨 위, 남들은 줄줄이, 아무도 없으면 헤리티지로.
-function renderTreasurePath(seedId, holders) {
-  const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const isRecord = String(seedId).startsWith('htg_m');
-  const floor = isRecord ? 2 : 1;
-  const where = isRecord ? '서고' : '갤러리';
+/* ═══ 0816 소로 — 보물 아래 칸을 다시 짓는다 ═══
+     옛 문법은 은퇴한 heritage.html 로 보내고, 음반을 「빌려 도는 판」으로 다뤘다.
+   ⭐ 그림 — 지금 누구의 분더카머에 소장 중인가. 아무도 없으면 **앞으로 걸릴 곳**.
+   ⭐ 곡  — 음반 대여 개념은 통째로 걷는다. **이 곡을 만날 공연 일정**만 남긴다.
+   ⚠ 일정은 3주까지만 본다(소로). 그 너머는 작품이 늘면 어차피 밀린다. */
+const TOUR = { arts:null, songs:null, museums:null, halls:null };
+
+/* 앞으로 3주 — 이 작품이 서는 날과 곳 */
+function renderTourSchedule(seedId, isRecord){
+  if (!window.EGRotate) return '';                       /* 부품이 안 실렸으면 조용히 접는다 */
+  const works  = isRecord ? TOUR.songs   : TOUR.arts;
+  const places = isRecord ? TOUR.halls   : TOUR.museums;
+  if (!works || !places || !works.length || !places.length) return '';
+  const list = window.EGRotate.schedule(seedId, places, works, 21);
+  if (!list.length) return '';
+  const esc = t => String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const rows = list.map(x =>
+    `<div class="tp-when"><span class="tp-d">${window.EGRotate.mdKo(x.day)}` +
+    `<em>(${window.EGRotate.wdayKo(x.day)})</em></span>` +
+    `<span class="tp-p">${esc(x.place.name)}</span></div>`).join('');
+  return `<div class="tp-label">${isRecord ? '🎫 이 곡을 만나는 공연 일정' : '🖼 앞으로 걸리는 곳'}</div>
+    <div class="tp-sched">${rows}</div>
+    <div class="tp-note">작품이 늘면 아래 일정은 사전 예고 없이 바뀔 수 있습니다</div>`;
+}
+
+/* 지금 이 그림을 소장한 콩파뇽 — 대여 중인 사람이 곧 소장자다 */
+function renderHolders(holders){
+  const esc = t => String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const list = holders || [];
-  if (!list.length) {
-    return `<div class="treasure-path">
-      <a href="heritage.html" class="tp-link tp-heritage">아직 아무의 ${where}에도 없습니다 — 헤리티지에서 데려오시겠어요 →</a>
-    </div>`;
-  }
+  if (!list.length) return '';
   const myId = currentUser && currentUser.id;
   const lines = [];
   if (list.some(h => h.user_id === myId))
-    lines.push(`<a href="wunderkammer_shell_v4_4.html?floor=${floor}&v=${Date.now()}" class="tp-link tp-mine">🎧 내 ${where}에 있습니다 →</a>`);
+    lines.push(`<a href="wunderkammer_shell_v4_4.html?floor=1&v=${Date.now()}" class="tp-link tp-mine">🖼 내 분더카머에 있습니다 →</a>`);
   list.filter(h => h.user_id !== myId).forEach(h => {
-    lines.push(`<a href="wunderkammer_shell_v4_4.html?user=${encodeURIComponent(h.nickname || '')}&floor=${floor}&v=${Date.now()}" class="tp-link">${esc(h.nickname)}의 분더카머 →</a>`);
+    lines.push(`<a href="wunderkammer_shell_v4_4.html?user=${encodeURIComponent(h.nickname || '')}&floor=1&v=${Date.now()}" class="tp-link">${esc(h.nickname)}의 분더카머 →</a>`);
   });
-  return `<div class="treasure-path">
-    <div class="tp-label">🎧 지금 이 판이 도는 ${where}</div>
-    <div class="tp-list">${lines.join('')}</div>
-  </div>`;
+  return `<div class="tp-label">🗝 지금 이 그림을 소장한 콩파뇽</div>
+    <div class="tp-list">${lines.join('')}</div>`;
+}
+
+function renderTreasurePath(seedId, holders) {
+  const isRecord = String(seedId).startsWith('htg_m');
+  /* 곡 — 소장이라는 개념이 없다. 만나는 날만 알린다(0816 소로) */
+  if (isRecord){
+    const sch = renderTourSchedule(seedId, true);
+    return sch ? `<div class="treasure-path">${sch}</div>` : '';
+  }
+  /* 그림 — 소장자가 있으면 그 명단, 없으면 앞으로 걸릴 곳 */
+  const held = renderHolders(holders);
+  if (held) return `<div class="treasure-path">${held}</div>`;
+  const sch = renderTourSchedule(seedId, false);
+  if (sch) return `<div class="treasure-path">${sch}</div>`;
+  return `<div class="treasure-path"><div class="tp-coming">아직 아무의 분더카머에도 없습니다</div></div>`;
 }
 
 // ── 공개 예정 보물: open_at이 아직 미래면 경로 대신 공개 예정일 안내 (잠긴 톤, 클릭 없음) ──
