@@ -678,7 +678,8 @@ const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-aut
 const asset=(code,slot)=>`${SUPA_URL}/storage/v1/object/public/tour-assets/museum/${code}_${slot}.webp`;
 const HALL_RATIO=941/1672;
 const $=s=>document.querySelector(s);
-console.log("%c[EG] bibliotheca v1.4 · 0807 벽감 편집기 · 그림 대기", "color:#c9a24a");
+/* ⚠ 0816 — 판 도장이 둘이었다(v1.4 · 0816b). 두 곳에 적으면 하나를 고쳤을 때
+   다른 하나가 거짓말을 한다. 아래 한 줄로 모았다. */
 
 const qs=new URLSearchParams(location.search);
 const CODE=qs.get('code')||'trinity';
@@ -709,9 +710,13 @@ function bookImg(answer){
        세로쓰기는 한 줄에 열서넛이 한계다. 넘으면 두 줄이 되어 책등 폭을 다 먹는다.
    ⚠ 자르되 감추지 않는다 — 감싸개 title에 전체가 있어 올리면 다 보인다. */
 const SPINE_MAX = 13;
-const shortTitle = t => {
+/* ⚠ 0816 — 스타디움 정답은 짧지만 한스푼 주인공은 인명이라 길다.
+     「한스푼 · 앙투안 드 생텍쥐페리」가 17자다. 13자에 자르면 이름이 통째로 사라진다.
+     한스푼 책에만 눈금을 넉넉히 준다(0807 실측 — 29자쯤에서 책등이 넘친다). */
+const shortTitle = (t, max) => {
   const s = String(t ?? '');
-  return s.length > SPINE_MAX ? s.slice(0, SPINE_MAX - 1) + '…' : s;
+  const m = max || SPINE_MAX;
+  return s.length > m ? s.slice(0, m - 1) + '…' : s;
 };
 
 /* 키 변주 — 획일하면 서가가 아니라 색종이 띠가 된다(콜레주 0722 수술) */
@@ -982,6 +987,49 @@ async function loadBooks(){
       { answer:r.answer, category:r.category, at:new Date(r.created_at), seed:r.seed_id || '' });
   });
   BOOKS = [...first.values()];          /* created_at 오름차순 그대로 — 만난 순서 */
+
+  /* ⭐⭐ 0816 — 한스푼 책이 돌아온다. 0807 재건축 때 칸이 통째로 빠져 있었다.
+       손님에게는 「뮤세움 책장 맨 위 칸에 꽂혔어요」라 말해 놓고 꽂힐 곳이 없었다.
+     ⚠ 책을 따로 만들어 넣는 것이 아니다 — **내가 푼 회차가 곧 책**이다(강물원칙 2절).
+       그래서 근거는 spoon_quiz_logs 이고, 안 푼 회차는 서가에 서지 않는다.
+     ⚠ 책등에 날짜를 못 박을 수 없다. 회차 재활용(0806 결정문 4호)이 서면서
+       6월에 쓴 글이 9월에 돌아오면 6월이 찍힌다. 그래서 「한스푼 · 주인공」으로 간다(0816 소로).
+     ⚠ 이 집은 칸이 아니라 **순서대로 채우는** 서가다. 그러니 제 순번에 그냥 끼면 된다. */
+  try{
+    const { data:logs } = await supa.from('spoon_quiz_logs')
+      .select('spoon_id,answered_at').eq('user_id', UID).order('answered_at');
+    if (logs && logs.length){
+      const ids = [...new Set(logs.map(l=>l.spoon_id).filter(Boolean))];
+      const { data:sps } = await supa.from('spoons')
+        .select('id,subject,headline,quote,curation_links,layer_knowledge,layer_thought,layer_connection,layer_curation')
+        .in('id', ids);
+      const byId = new Map((sps||[]).map(x=>[x.id, x]));
+      const seen = new Set();
+      for (const l of logs){
+        const sp = byId.get(l.spoon_id);
+        if (!sp || seen.has(sp.id)) continue;      /* 회차당 한 권 — 결정문 5호와 같은 셈 */
+        seen.add(sp.id);
+        BOOKS.push({
+          kind:'spoon',
+          answer:   '한스푼 · ' + (sp.subject || ''),
+          keyword:  sp.quote || '',
+          category: '한스푼 · 매일 한 모금',
+          headline: sp.headline || '',
+          curation_links: sp.curation_links || null,
+          /* 4겹은 questions 가 아니라 spoons 에 산다 — 표지가 그대로 읽을 모양으로 담는다 */
+          library: { knowledge:  sp.layer_knowledge  || '',
+                     thought:    sp.layer_thought    || '',
+                     connection: sp.layer_connection || '',
+                     curation:   sp.layer_curation   || '' },
+          at:   new Date(l.answered_at),
+          seed: ''
+        });
+      }
+      console.log('[EG] 한스푼 책', seen.size, '권 합류');
+    }
+  }catch(e){ console.warn('[EG] 한스푼 책 합류 실패:', e); }
+
+  BOOKS.sort((a,b)=> a.at - b.at);      /* 만난 순서 — 한스푼도 제 순번에 그냥 꽂힌다(0816 소로) */
   PAGE = 0;                             /* 0 = 가장 최근 묶음 */
   paint();
 }
@@ -1008,7 +1056,7 @@ function paint(){
       `<div class="bk" data-i="${r*PER_RACK+i}" title="${esc(b.answer)}"
             style="height:${(94*bookScale(b.answer)).toFixed(1)}%">
          <img class="spine" src="${bookImg(b.answer)}" alt="${esc(b.answer)}" loading="lazy">
-         <span class="bkt">${esc(shortTitle(b.answer))}</span>
+         <span class="bkt">${esc(shortTitle(b.answer, b.kind==='spoon' ? 18 : SPINE_MAX))}</span>
        </div>`).join('');
     /* 널 각인 — 그 단의 기간. 페이지 번호가 아니라 시간이 말한다 */
     const a=seg[0].at, z=seg[seg.length-1].at;
@@ -1306,9 +1354,12 @@ addEventListener('resize', ()=>{ if(window.EGCamera) EGCamera.relayout(); });
     overlay.classList.add('open');                 // 즉시 화면 반응(배경 페이드)
 
     // questions 단건 조회로 4레이어·부제·큐레이션링크 획득
-    const book = { answer:b.answer, category:b.category, keyword:'', library:{}, curation_links:null,
+    const book = { answer:b.answer, category:b.category, keyword:b.keyword||'',
+                   library:b.library||{}, curation_links:b.curation_links||null,
                    metAt: b.at ? ymd(b.at) : '' };            /* 만난 날 — 마지막 쪽에 선다 */
-    try{
+    /* ⭐ 0816 — 한스푼 책은 4겹이 questions 가 아니라 spoons 에 산다.
+         서가에서 담아 온 것을 그대로 쓰고 아래 조회는 건너뛴다. seed_id 가 없어 물어도 빈손이다. */
+    if (b.kind !== 'spoon') try{
       /* ⚠ 분더카머는 sbFetch(생 REST)를 쓰지만 이 집은 supabase-js(supa)를 쓴다.
            빌려온 코드에서 밖을 부르는 곳은 여기 하나뿐이었다(담 넘기 검사 실측). */
       const { data:rows } = await supa.from('questions')
@@ -1786,7 +1837,7 @@ function goBack(){
   location.href='terra.html';          /* 액자 밖에서 혼자 열렸을 때만 여기까지 온다 */
 }
 
-console.log('[EG] bibliotheca 0816a — 나가는 문이 부모 액자를 닫는다 · 체류 도장');
+console.log('[EG] bibliotheca 0816b — 한스푼 책 복귀(내가 푼 회차가 곧 책) · 나가는 문이 부모 액자를 닫는다');
 boot();
 bgmInit();
 f4InitModal();      /* 책 모달 손잡이 — 한 번만 묶는다 */
