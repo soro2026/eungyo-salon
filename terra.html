@@ -398,8 +398,11 @@ window.EGQ = (function(){
   /* 기존 6버튼 중 5개는 나침반 패널로 이주 — HTML·핸들러는 재활용, 화면에서만 숨김 */
   #cityBtn,#starBtn,#layerSpots,#layerMaisons,#editToggle{ display:none !important; }
 
+  /* 0816 — 나침반이 타륜 왼편으로 왔다. 살롱지기에게만 뜬다(admin 판정에서 켠다).
+     top 18 = 타륜(top 10 · 74px)과 세로 한가운데를 맞춘 값. right 116 = 타륜 그늘에서 12px 떨어진 곳. */
   #compassBtn{
-    position:fixed; top:14px; left:150px; z-index:14; width:58px; height:58px;
+    position:fixed; top:18px; right:116px; z-index:29; width:58px; height:58px;
+    display:none;
     padding:0; border:none; background:none; cursor:pointer;
     filter:drop-shadow(0 3px 10px rgba(0,0,0,.55));
     transition:transform .45s cubic-bezier(.4,0,.2,1);
@@ -422,14 +425,34 @@ window.EGQ = (function(){
     transform:translate(-50%,-50%); border-radius:50%; background:#d4af27; box-shadow:0 0 2px rgba(0,0,0,.6); }
   #compassBtn.open #compassNeedle{ transform:rotate(155deg); }
 
+  /* 0816 — 살롱지기 패널. **타륜 도크와 똑같은 곳**에 선다.
+     겹쳐 두는 것이 곧 「한 번에 하나만 편다」는 규칙이다 — 코드로 막기 전에 눈으로 먼저 안다. */
   #navPanel{
-    position:fixed; top:84px; left:20px; z-index:14; width:214px;
+    position:fixed; top:92px; right:16px; left:auto; z-index:28;
+    width:min(248px, calc(100vw - 32px)); max-height:calc(100vh - 118px);
+    overflow-y:auto; scrollbar-width:none;
     background:rgba(10,14,26,.96); border:1px solid var(--line); border-radius:14px;
     backdrop-filter:blur(8px); padding:10px;
     opacity:0; transform:translateY(-10px); pointer-events:none;
     transition:opacity .3s ease, transform .3s ease;
   }
   #navPanel.in{ opacity:1; transform:none; pointer-events:auto; }
+  #navPanel::-webkit-scrollbar{ width:0; height:0; }
+  #navPanel .nav-group:first-child{ border-top:none; margin-top:0; padding-top:0; }
+  /* ⚠⚠ 0816 — 접기·최대높이 규칙이 여태 `#egDock` 접두사로만 있었다.
+     살롱지기 구획을 그냥 옮기면 대시보드 열둘과 천문대 서른다섯이 **통째로 펼쳐진 채** 뜬다.
+     구조 규칙은 여기 어두운 판에도 한 벌 둔다(색만 다르고 뼈대는 같다). */
+  #navPanel .adm-fold{ display:none; }
+  #navPanel .adm-fold.on{ display:block; }
+  #navPanel #navObsList.on{ max-height:240px; overflow-y:auto; scrollbar-width:none; }
+  #navPanel #navObsList::-webkit-scrollbar{ width:0; height:0; }
+  #navPanel .nav-item.adm{ font-size:12.5px; padding:6px 12px; color:var(--cream-dim); }
+  #navPanel .nav-item.adm:hover{ color:var(--gold); }
+  #navPanel .nav-item.adm-head{ font-size:12px; color:var(--cream-dim); padding:7px 12px; }
+  #navPanel .nav-item.adm-head .chev{ display:inline-block; transition:transform .22s ease; }
+  #navPanel .nav-item.adm-head.open .chev{ transform:rotate(90deg); color:var(--gold); }
+  /* 바늘이 빙그르르 — 0816 소로. 열려 있을 때는 155도에 머문다(0717 원판 보존) */
+  #compassBtn:hover:not(.open) #compassNeedle{ transform:rotate(360deg); }
   .nav-group{ padding:2px 0; }
   .nav-group + .nav-group{ border-top:1px solid var(--line); margin-top:4px; padding-top:8px; }
   .nav-label{ font-family:var(--sans); font-size:10px; letter-spacing:.14em; text-transform:uppercase;
@@ -453,7 +476,7 @@ window.EGQ = (function(){
   #cityList{ left:auto !important; right:244px !important; top:92px !important; }
   #starList{ left:auto !important; right:244px !important; top:92px !important; }
   @media (max-width:640px){
-    #compassBtn{ left:16px; right:auto; top:12px; }   /* 타륜(우측)과 자리 분리 */
+    #compassBtn{ right:96px; left:auto; top:16px; width:48px; height:48px; }   /* 타륜(우측)과 자리 분리 */
     #navPanel{ left:16px; right:auto; top:80px; }
     #cityList{ left:16px !important; right:auto !important; top:80px !important; }
     #starList{ left:16px !important; right:auto !important; top:80px !important; }
@@ -1749,6 +1772,20 @@ window.EGQ = (function(){
 
 
 <!-- ═══ EG테라: 통합위젯 도크 (뮤세움·헤리티지·콘스텔라티오 확장 예정) ═══ -->
+<!-- ═══ 0816 — 살롱지기 나침반. 0728에 타륜으로 합치며 걷었던 것을 되세운다.
+     이번엔 손님 메뉴가 아니라 **살롱지기 전용 문**이다. 타륜은 손님 것과 한 글자도
+     다르지 않게 두고, 관리 항목 전부가 이 문 뒤로 물러난다.
+     ⚠ CSS는 0717판이 통째로 살아 있었다 — HTML만 되세웠다.
+     ⚠ compass.webp 는 저장소 뿌리에 있다(maison.html이 지금도 쓴다). ═══ -->
+<button id="compassBtn" class="noimg" aria-label="살롱지기 메뉴">
+  <img id="compassImg" src="compass.webp" alt="" onload="this.closest('#compassBtn').classList.remove('noimg')">
+  <span id="compassFallback" aria-hidden="true">🧭</span>
+  <span id="compassNeedle" aria-hidden="true"></span>
+</button>
+<!-- 살롱지기 패널 — 비어 있는 껍데기다. admin 판정을 지난 뒤 #navAdminGroup 이 통째로
+     이 안으로 이사 온다(id 그대로라 배선은 한 글자도 안 바뀐다). -->
+<div id="navPanel" aria-label="살롱지기"></div>
+
 <button id="helmBtn" aria-label="EG 우주 열기">
   <img src="terra_helm.webp" alt="" onerror="this.style.display='none';this.parentNode.classList.add('noimg')">
   <span id="helmBadge" aria-label="오늘 경기가 있습니다"></span>
@@ -1942,7 +1979,9 @@ window.EGQ = (function(){
 <div style="position:fixed;left:8px;bottom:6px;z-index:70;font-size:9px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.5px;pointer-events:none">maison 0628e</div>
 
 <script>
-console.log('[EG] terra v0814b — 봉투를 실물 두 장으로 · 얹으면 열린다');
+console.log('[EG] terra 0816a — 살롱지기 나침반 분가 · 타륜은 손님 것만');
+/* ⚠ 판 이름을 실제 날짜로 되돌렸다(v0814b → 0816a). 앞선 세 회차의 이름표가
+   이틀 앞서 있었고 terra는 내용이 0815밤인데 도장만 0814에 멈춰 있었다 — 둘 다 여기서 끝낸다. */
 // ── 분더카머로 떠나는 비행: 제트음 (자동재생 막히면 조용히 폴백) ──
 (function(){
   // 빠른 길(enter=1)은 지도 로딩 시간 벌이가 불필요 → 비행기·제트음 생략
@@ -2187,6 +2226,8 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
       const show = (on===undefined) ? !panel.classList.contains("open") : on;
       panel.classList.toggle("open", show);
       if (!show){ toggleCityList(false); toggleStarList(false); closeOrgLists(); }   /* 패널 닫으면 목록도 */
+      /* 0816 — 타륜이 펴지면 나침반은 접힌다. 여는 쪽만 상대를 접으므로 되돌이가 없다 */
+      if (show){ try{ openCompass(false); }catch(e){} }
     };
     /* 떠나기 — 기존 목록 토글 그대로 (2단 전개) */
     /* 0730 — navPopups·navPalais 배선은 여기서 걷어냈다. 두 카드가 AGORA 구획으로 옮겨가
@@ -2210,12 +2251,13 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
     if (window.egSyncFullBtn) window.egSyncFullBtn();   /* 초기 점등 */
     applyLayerVisibility();   /* 초기 on 상태 동기화 */
     /* 지도 빈 곳 클릭 · ESC → 패널 닫기 */
-    document.addEventListener("keydown", (e)=>{ if (e.key==="Escape") openPanel(false); });
+    document.addEventListener("keydown", (e)=>{ if (e.key==="Escape"){ openPanel(false); openCompass(false); } });
     /* 0728 — 지구 클릭 = "나는 여기 남겠다"는 선언. 메뉴가 물러나고 화면이 세계로 찬다.
        try로 감싼 이유: 전체화면이 실패해도 접힘(본래 임무)은 반드시 일어나야 한다. */
     document.getElementById("cesiumContainer").addEventListener("click", ()=>{
       try{ egEnterFullscreen(); }catch(e){}
       openPanel(false);
+      try{ openCompass(false); }catch(e){}   /* 0816 — 지구를 누르면 나침반도 함께 물러난다 */
       /* 0813 — 지구를 누른 것도 「봉투를 지나간」 것이다. 조용히 접고 줄로 넘긴다.
          ⚠ 다른 블록에 사는 함수라 window 경유로 부른다(0813 담 넘기 조항). */
       try{ if (window.tuckMailEnvelope) window.tuckMailEnvelope(); }catch(e){}
@@ -2226,6 +2268,21 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
        아래 블록에서 #egDock 위임으로 건다. 첫 시험에서 이 자리의 직접 배선이 안 물렸다 —
        만드는 블록과 배선하는 블록을 갈라놓지 않는다(함정 A 계보). */
     { const lo = document.getElementById("navLogout"); if (lo) lo.addEventListener("click", ()=> egLogout()); }
+    /* ══ 0816 — 살롱지기 나침반 여닫이 ══
+       타륜 도크와 똑같은 곳에 서므로 둘이 함께 펴지면 겹친다.
+       ⚠ 서로 **여는 쪽만** 상대를 접는다. 양쪽이 다 접으려 들면 되돌이가 생긴다.
+       ⚠ 나침반은 살롱지기에게만 있다 — 없는 손님 화면에서도 이 배선은 조용히 지나간다. */
+    const cBtn = document.getElementById("compassBtn");
+    const cPan = document.getElementById("navPanel");
+    const openCompass = (on)=>{
+      if (!cBtn || !cPan) return;
+      const show = (on===undefined) ? !cPan.classList.contains("in") : on;
+      cPan.classList.toggle("in", show);
+      cBtn.classList.toggle("open", show);
+      if (show) openPanel(false);            /* 나침반이 펴지면 타륜은 접힌다 */
+    };
+    if (cBtn) cBtn.addEventListener("click", (e)=>{ e.stopPropagation(); openCompass(); });
+    window._openCompass = openCompass;
     window._openNavPanel = openPanel;
   })();
   document.getElementById("mEnter").addEventListener("click", ()=> enterMaison(currentMaison));
@@ -3553,7 +3610,19 @@ async function setupAdminEdit(){
     IS_ADMIN = !!(data && data.is_admin);
   }catch(e){ console.warn("admin 확인 실패:", e); }
   if (!IS_ADMIN) return;
-  document.getElementById("navAdminGroup").style.display = "";   /* 0717: 관리 그룹 노출(admin만) */
+  /* ⭐ 0816 — 살롱지기 구획이 타륜에서 나침반 패널로 이사한다(소로 지시).
+       타륜은 이제 손님 것과 한 글자도 다르지 않다 — 배낭 · 우주 · 떠나기 · 보기 · 로그아웃.
+     ⚠ **옮기기만 한다.** id(navEdit·navObsFold·navObsList·navAdmFold·navAdminLinks)가
+       그대로이므로 아래 배선도 buildAdminLinks도 천문대 접이 목록도 고칠 것이 없다.
+     ⚠ 나침반은 여기서 비로소 화면에 선다. 손님에게는 애초에 뜨지 않는다. */
+  const admGrp = document.getElementById("navAdminGroup");
+  const admPan = document.getElementById("navPanel");
+  admGrp.style.display = "";
+  if (admPan){
+    admPan.appendChild(admGrp);                                  /* 타륜 → 나침반 패널 */
+    const cb = document.getElementById("compassBtn");
+    if (cb) cb.style.display = "block";
+  }
   buildAdminLinks();                                             /* 0728: 대시보드 10종 */
   const btn = document.getElementById("navEdit");
   btn.addEventListener("click", ()=>{
