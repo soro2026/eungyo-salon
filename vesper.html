@@ -109,6 +109,12 @@
          border-bottom:1px solid var(--line,#e6dfd0)}
   #dDate{font:700 17px/1.4 'Noto Serif KR',Georgia,serif;color:var(--ink,#464036)}
   #dWho{font:400 12.5px 'Noto Sans KR';color:var(--muted,#948b7a)}
+  #dToday{display:none;margin-left:auto;background:none;border:1px solid var(--line,#e6dfd0);
+          border-radius:999px;padding:4px 12px;cursor:pointer;
+          font:500 11.5px 'Noto Sans KR';color:var(--accent,#8a6d3b)}
+  #dToday:hover{opacity:.75}
+  #mon.viewing #dToday{display:inline-block}
+  #mon.viewing #dTemp{display:none}   /* 지난 일기엔 임시 저장이 뜻이 없다 */
 
   /* ⭐ 유령판 — textarea 는 한 색뿐이라 첫 문장(또렷)과 힌트(흐림)를 함께 못 그린다.
      같은 조판으로 값을 투명 복제해 두고 그 끝에 힌트를 붙인다. 정확히 이어 붙는다. */
@@ -123,7 +129,9 @@
   #dBody::-webkit-scrollbar{width:0}
 
   /* 지난 일기 — 같은 판 안에서 옆으로 밀려 나온다 */
-  #dList{position:absolute;inset:0;background:var(--paper,#faf8f2);padding:24px 28px 8px;
+  /* ⚠ inset:0 이면 세로 딱지까지 덮어 돌아갈 문이 사라진다 (0817 소로 신고).
+     딱지 칸 = 판 여백 28 + 딱지 56 + 사이 16 = 100px 만 비운다. */
+  #dList{position:absolute;inset:0 0 0 100px;background:var(--paper,#faf8f2);padding:24px 28px 8px 0;
          overflow:auto;transform:translateX(-6%);opacity:0;pointer-events:none;
          transition:transform .34s cubic-bezier(.18,.85,.25,1),opacity .22s}
   #mon.past #dList{transform:translateX(0);opacity:1;pointer-events:auto}
@@ -190,6 +198,35 @@
               font-size:11px;color:rgba(232,228,216,.35);writing-mode:vertical-rl;
               text-shadow:0 1px 6px rgba(0,0,0,.9);pointer-events:none;display:none}
   #scrollHint.on{display:block}
+  /* ═══ 0817 소로 — 모니터 아래 물리 버튼 다섯 위에 얹는 투명 손잡이 ═══
+     그림에 이미 그려져 있는 것을 누르게 한다 (창 덮개 손잡이와 같은 문법 · 결정문 24호).
+     ⚠ 좌·우 좌석은 딴 벌로 든다 — 미러가 정확히 대칭이 아니다 (결정문 25호). */
+  #vBar{position:fixed;z-index:12;display:flex;align-items:center;justify-content:space-between;
+        transform-origin:50% 50%;pointer-events:none}
+  #vBar .vb{position:relative;flex:0 0 auto;border-radius:50%;cursor:pointer;pointer-events:auto;
+            border:1px solid transparent;background:transparent;transition:border-color .18s,background .18s}
+  #vBar .vb:hover{border-color:rgba(201,168,106,.75);background:rgba(201,168,106,.14)}
+  #vBar .vb.on{border-color:rgba(201,168,106,.95);background:rgba(201,168,106,.22)}
+  /* 호버하면 글씨가 뜬다 — 동그라미 위쪽에 (소로 ④) */
+  #vBar .vb b{position:absolute;left:50%;bottom:calc(100% + 8px);transform:translateX(-50%);
+              font:500 11.5px 'Noto Sans KR';white-space:nowrap;color:#efe7d6;
+              background:rgba(12,14,20,.82);border:1px solid rgba(201,168,106,.35);
+              border-radius:999px;padding:3px 10px;opacity:0;pointer-events:none;
+              transition:opacity .18s;text-shadow:0 1px 4px rgba(0,0,0,.9)}
+  #vBar .vb:hover b{opacity:1}
+  body.edit #vBar{outline:1px dashed rgba(201,168,106,.7);cursor:move;pointer-events:auto}
+  body.edit #vBar .vb{pointer-events:none}
+  /* ⚠⚠ 0817 소로 — 기내를 끄면 창 덮개 손잡이·음소거·일기장 단추가 허공에 둥둥 떴다.
+     기내에 붙은 물건이므로 기내와 함께 걷는다.
+     ⚠ 이 규칙은 반드시 #homeInfo.on · #scrollHint.on 뒤에 있어야 한다 — 같은 힘이면 뒤가 이긴다. */
+  body:not(.cabin) #shadeBtn,
+  body:not(.cabin) #sndBtn,
+  body:not(.cabin) #homeBtn,
+  body:not(.cabin) #homeInfo,
+  body:not(.cabin) #homeInfo.on,
+  body:not(.cabin) #scrollHint,
+  body:not(.cabin) #scrollHint.on,
+  body:not(.cabin) #vBar{display:none}
   #frames{position:fixed;inset:0;pointer-events:none;z-index:10;display:none;
           transform-origin:50% 50%}
   #frames.flip{transform:scaleX(-1)}
@@ -206,7 +243,7 @@
   /* 접었을 때 남는 것 — 여는 손잡이와 위치 한 줄 */
   #tab{position:fixed;left:12px;top:14px;z-index:21;width:30px;height:30px;border-radius:50%;
        border:1px solid rgba(201,168,106,.5);background:rgba(12,14,20,.55);color:#c9a86a;
-       font-size:14px;line-height:28px;text-align:center;cursor:pointer;display:none;
+       font-size:14px;line-height:28px;text-align:center;cursor:pointer;display:block;
        backdrop-filter:blur(4px)}
   #tab.on{display:block}
   #tab:hover{background:rgba(12,14,20,.85)}
@@ -266,6 +303,13 @@
   <div class="hr"></div>
   <div id="hiTap">&#9992; 여기를 누르면 일기장이 열립니다</div>
 </div>
+<div id="vBar">
+  <button class="vb" data-r="today" title="오늘 일기"><b>오늘 일기</b></button>
+  <button class="vb" data-r="7"     title="지난 7일"><b>지난 7일</b></button>
+  <button class="vb" data-r="30"    title="지난 한 달"><b>지난 한 달</b></button>
+  <button class="vb" data-r="90"    title="지난 3개월"><b>지난 3개월</b></button>
+  <button class="vb" data-r="all"   title="전체 보기"><b>전체 보기</b></button>
+</div>
 <div id="sndBtn" title="기내 소음 켬/끔">&#128266;</div>
 
 <div id="mon">
@@ -284,6 +328,7 @@
       <div id="dHead">
         <span id="dDate">&nbsp;</span>
         <span id="dWho">&nbsp;</span>
+        <button id="dToday">오늘 일기로 &rsaquo;</button>
       </div>
       <div id="dWrap">
         <div id="dGhost" aria-hidden="true"><span id="gSeen"></span><span id="gHint">(이어서 써 보세요&hellip;)</span></div>
@@ -309,7 +354,7 @@
 <div id="tab" title="편집기 열기 (H)">&#9776;</div>
 <div id="mini"></div>
 <div id="keys">H 편집기 &middot; C 기내 &middot; Space 비행 시작/정지<br>&larr; &rarr; 좌석 &middot; L 땅 찾기 &middot; S 창 덮개<br>&#9998; E 끌어서 맞추기</div>
-<div id="hud">
+<div id="hud" class="hide">
   <h1 style="display:flex;align-items:center;justify-content:space-between"><span>EG CRUISE · 편집기 0817c</span><button id="bHide" style="padding:2px 7px;font-size:11px" title="H 키로도 닫힘">✕</button></h1>
 
   <div class="sec">어디서</div>
@@ -326,10 +371,10 @@
     <input type="range" id="alt" min="1" max="20" value="11" step="1">
     <span class="v" id="altV">11km</span></div>
   <div class="row" id="rEnd"><label>도착</label>
-    <input type="range" id="aEnd" min="2" max="60" value="5" step="1">
+    <input type="range" id="aEnd" min="2" max="60" value="50" step="1">
     <span class="v" id="aEndV">0.5km</span></div>
   <div class="row" id="rMin"><label>걸쳐서</label>
-    <input type="range" id="aMin" min="2" max="30" value="10" step="1">
+    <input type="range" id="aMin" min="2" max="30" value="30" step="1">
     <span class="v" id="aMinV">10분</span></div>
   <div class="row">
     <button id="pAuto" class="on" style="flex:1">내림각 자동</button>
@@ -407,7 +452,7 @@
       해가 창 한가운데 머문다. 0817 실측: 대권 고정이면 19분에 창을 벗어난다.
    ⚠ 창 테두리는 판(9:16) 기준 %를 화면 px로 환산해서 그린다 — 세로가 2.8~3.2배다
    ══════════════════════════════════════════════════════════════ */
-console.log("[EG] vesper 0817b \u2014 EG\ubca0\uc2a4\ud398\ub974 \uc77c\uae30\ud310 \u00b7 \ud314\ub808\ud2b8 12\ubc8c \u00b7 \uc11c\ubc84 \uc800\uc7a5");
+console.log("[EG] vesper 0817e \u2014 EG\ubca0\uc2a4\ud398\ub974 \uc77c\uae30\ud310 \u00b7 \ud314\ub808\ud2b8 12\ubc8c \u00b7 \uc11c\ubc84 \uc800\uc7a5");
 
 var KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A";
 var KMH = 900, R_PLATE = 941/1672;
@@ -511,6 +556,11 @@ var LOGO_L = { x:8.0, y:26, s:1.6, rot:-8 };     /* x·y 는 날개 폭·높이 
 var LOGO_R = { x:8.0, y:26, s:1.6, rot:-8 };
 function LOGO(){ return side < 0 ? LOGO_L : LOGO_R; }
 
+/* 0817 소로 — 모니터 아래 물리 버튼 다섯. 줄 하나로 다룬다(손잡이 다섯을 각각 옮기면 지옥이다).
+   x·y·w 는 판(9:16) 기준 % · d 는 동그라미 지름 % · rot/ry 는 홈과 같은 면 기울기. */
+var VBAR_L = { x:67, y:53.5, w:31, d:3.2, rot:-6.3, ry:-13 };
+var VBAR_R = { x:2,  y:53.5, w:31, d:3.2, rot: 6.3, ry: 13 };
+function VBAR(){ return side < 0 ? VBAR_L : VBAR_R; }
 var HOME_L = { x:66, y:36, w:33, h:14, rot:-6.3, ry:-13 };
 var HOME_R = { x:1,  y:36, w:33, h:14, rot: 6.3, ry: 13 };   /* 미러 초깃값 — 소로가 맞춘다 */
 function HOME(){ return side < 0 ? HOME_L : HOME_R; }
@@ -542,6 +592,18 @@ function layoutFrames(){
   var hb = $("homeBtn");
   hb.style.left = hx + "px"; hb.style.top = hy + "px";
   hb.style.width = hw + "px"; hb.style.height = hh + "px";
+
+  /* 0817 — 모니터 아래 물리 버튼 줄. 홈과 같은 화면 좌표 문법(둘 다 fixed).
+     ⚠ 판 밖이므로 미러 셈이 없다 — 좌·우 값을 딴 벌로 든다 (결정문 25호 · 함정 ㉪). */
+  var VB = VBAR(), vb = $("vBar");
+  var vx = cx + (VB.x/100)*w, vy = py + panY + (VB.y/100)*h,
+      vw2 = (VB.w/100)*w, vd = Math.max(14, (VB.d/100)*w);
+  vb.style.left = vx + "px"; vb.style.top = vy + "px";
+  vb.style.width = vw2 + "px"; vb.style.height = vd + "px";
+  vb.style.transform = "rotate(" + VB.rot + "deg) perspective(700px) rotateY(" + VB.ry + "deg)";
+  Array.prototype.forEach.call(vb.querySelectorAll(".vb"), function(b){
+    b.style.width = vd + "px"; b.style.height = vd + "px";
+  });
 
   /* 홈 계기판 — 홈 사각형에 딱 얹는다. 판이 뒤집히면 각도도 반대로 */
   var hi = $("homeInfo");
@@ -793,6 +855,7 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     if (el.closest && el.closest("#homeInfo")) return "home";
     if (el.closest && el.closest(".wing b")) return "logo";
     if (el.closest && el.closest("#shadeBtn")) return "grip";
+    if (el.closest && el.closest("#vBar")) return "vbar";      /* 0817 — 버튼 다섯 줄 */
     return null;
   }
   addEventListener("pointerdown", function(e){
@@ -813,6 +876,9 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     } else if (grab.t === "grip"){
       var GP = GRIP();
       GP.x += dx/grab.w*100; GP.y += dy/grab.h*100;
+    } else if (grab.t === "vbar"){
+      var VB = VBAR();
+      VB.x += dx/grab.w*100; VB.y += dy/grab.h*100;
     } else {
       var LG = LOGO(), ww = 0.75*grab.w, wh = ww*821/1916;
       /* 날개는 판 안이라 뒤집히면 화면상 반대로 움직인다 */
@@ -836,6 +902,12 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     } else if (t === "grip"){
       var GP = GRIP();
       GP.w = Math.max(2, GP.w + d*0.4); GP.h = Math.max(0.6, GP.h + d*0.12);
+    } else if (t === "vbar"){
+      var VB = VBAR();
+      /* 휠 = 줄 길이 · Shift+휠 = 기울기 · Alt+휠 = 동그라미 크기 */
+      if (e.shiftKey) VB.rot += d*0.5;
+      else if (e.altKey) VB.d = Math.max(1.2, VB.d + d*0.15);
+      else VB.w = Math.max(6, VB.w + d*0.7);
     } else {
       var LG = LOGO();
       if (e.shiftKey) LG.rot += d; else LG.s = Math.max(0.2, LG.s + d*0.06);
@@ -845,7 +917,8 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
 
   /* ── 서버 저장 — eg_settings 한 줄. 읽기는 모두, 쓰기는 관리자만 (RLS) ── */
   var saveT = null;
-  function tuneNow(){ return { HL:HOME_L, HR:HOME_R, LL:LOGO_L, LR:LOGO_R, GL:GRIP_L, GR:GRIP_R }; }
+  function tuneNow(){ return { HL:HOME_L, HR:HOME_R, LL:LOGO_L, LR:LOGO_R, GL:GRIP_L, GR:GRIP_R,
+                               BL:VBAR_L, BR:VBAR_R }; }
   function saveTune(){
     /* 끌 때마다 부르지 않게 잠깐 모았다 보낸다 */
     clearTimeout(saveT);
@@ -887,6 +960,7 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     if (v.HL) HOME_L = v.HL; if (v.HR) HOME_R = v.HR;
     if (v.LL) LOGO_L = v.LL; if (v.LR) LOGO_R = v.LR;
     if (v.GL) GRIP_L = v.GL; if (v.GR) GRIP_R = v.GR;
+    if (v.BL) VBAR_L = v.BL; if (v.BR) VBAR_R = v.BR;
   }
 
   function syncHomeEditor(){
@@ -939,7 +1013,10 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
       $("plate").classList.toggle("flip", f);
       $("frames").classList.toggle("flip", f);
       syncHomeEditor(); syncLogoEditor();
-      preview();
+      /* ⚠⚠ 0817 소로 — 좌석을 바꾸면 비행이 리셋됐다. 진범은 preview() 안의 stopAll() 이었다.
+         cruise 는 매 프레임 side 를 다시 읽으므로(해 추종 · 결정문 7호),
+         비행 중에는 아무것도 안 해도 다음 프레임에 반대쪽 창으로 갈아탄다. */
+      if (flight) layoutFrames(); else preview();
       setTimeout(function(){                   /* 다시 켜진다 */
         $("fade").classList.remove("on");
         setTimeout(function(){ swapping = false; }, 340);
@@ -1091,7 +1168,8 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
 
   /* 지금 쓰고 있는 한 편 */
   var D = { day: todayKey(), seq: 1, palette: 1, seed: null, seedText: "",
-            nick: "", loaded: false, dirty: false, saving: false, tmr: null };
+            nick: "", loaded: false, dirty: false, saving: false, tmr: null,
+            viewing: null };   /* 지난 한 편을 보는 중이면 {day,seq} */
 
   /* ⭐ 유령판 — textarea 는 한 색뿐이다. 값을 투명하게 복제해 두고 그 끝에 힌트를 붙인다.
      첫 문장은 또렷하고 「(이어서 써 보세요…)」만 흐리다 (0817 소로). */
@@ -1112,6 +1190,30 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     return v.trim().length > 0;
   }
   function paintCount(){ $("dCount").textContent = myChars() + "자"; }
+
+  /* ── 실제로 쓴 시간 ──
+     ⚠ updated_at − created_at 으로 재면 창밖 본 시간·나중에 고친 시간까지 삼킨다.
+        이 화면에는 「멍때리기」가 설계로 들어 있어서 특히 그렇다.
+     ⭐ 입력과 입력 사이만 더한다. 사이가 120초를 넘으면 그 구간은 자리를 비운 것으로 본다. */
+  var WT = { sec: 0, last: 0 };
+  var WT_GAP = 120;
+  function tick(){
+    var now = Date.now() / 1000;
+    if (WT.last && now - WT.last < WT_GAP) WT.sec += now - WT.last;
+    WT.last = now;
+  }
+  function fmSpan(sec){
+    sec = Math.round(sec || 0);
+    if (sec < 60) return sec + "초";
+    var m = Math.floor(sec / 60), s2 = sec % 60;
+    if (m < 60) return m + "분" + (s2 ? " " + s2 + "초" : "");
+    return Math.floor(m / 60) + "시간" + (m % 60 ? " " + (m % 60) + "분" : "");
+  }
+  /* 소요시간 · 글자수 · 분당 — 글쓰기 훈련 지표 (0817 소로) */
+  function statLine(chars, sec){
+    if (!sec || sec < 20) return chars + "자";      /* 너무 짧으면 분당이 거짓말이 된다 */
+    return fmSpan(sec) + " \u00b7 " + chars + "자 \u00b7 분당 " + Math.round(chars / sec * 60) + "자";
+  }
 
   function note(msg, keep){
     $("dNote").textContent = msg || "";
@@ -1138,7 +1240,8 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     D.saving = true; var w = whereNow();
     return rpc("save_my_diary", { p_wrote_on:D.day, p_seq:D.seq, p_body:$("dBody").value,
       p_palette:D.palette, p_status:status, p_seed_id:D.seed,
-      p_place:w.place, p_lat:w.lat, p_lon:w.lon, p_alt_km:w.alt, p_dist_km:w.dist })
+      p_place:w.place, p_lat:w.lat, p_lon:w.lon, p_alt_km:w.alt, p_dist_km:w.dist,
+      p_write_sec:Math.round(WT.sec) })
       .then(function(){ D.dirty = false;
         note(status === "saved" ? "저장했습니다" : "임시 저장했습니다"); })
       .catch(function(e){ console.warn("[EG] 일기 저장 실패:", e);
@@ -1148,9 +1251,11 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
   /* ⚠ 결정문 13호 — 창밖 보러 나갔다 돌아오니 백지, 그건 다시는 안 쓰게 되는 사고다.
      손을 멈추면 2.5초 뒤 조용히 초안으로 남긴다. */
   function touched(){
+    tick();                                       /* ⚠ 값을 바꾸기 전에 시간부터 잰다 */
     D.dirty = true; paintGhost(); paintCount();
     clearTimeout(D.tmr);
-    D.tmr = setTimeout(function(){ if (D.dirty) saveDiary("draft"); }, 2500);
+    /* ⚠ 지난 일기를 고치는 중이면 draft 로 떨어뜨리지 않는다 — 목록(saved 만)에서 사라진다 */
+    D.tmr = setTimeout(function(){ if (D.dirty) saveDiary(D.viewing ? "saved" : "draft"); }, 2500);
   }
 
   function loadDiary(){
@@ -1182,6 +1287,8 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
       }
       $("dDate").textContent = dayLabel(D.day, D.seq);
       $("dWho").textContent  = D.nick ? D.nick + "의 베스페르" : "나의 베스페르";
+      WT.sec = open ? (+open.write_sec || 0) : 0;    /* 이어 쓰던 초안이면 그때까지 쓴 시간을 이어받는다 */
+      WT.last = 0;
       paintGhost(); paintCount();
       D.loaded = true;
     }).catch(function(e){
@@ -1194,31 +1301,102 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
   }
 
   /* ── 지난 일기 — 판을 벗어나지 않는다 (결정문 13호 · 우주 미아 방지) ── */
+  /* 기간 다섯 — 모니터 아래 물리 버튼 (0817 소로 ③④) */
+  var RANGES = { today:{ d:0,  ko:"오늘 일기" }, "7":{ d:7,  ko:"지난 7일" },
+                 "30":{ d:30, ko:"지난 한 달" }, "90":{ d:90, ko:"지난 3개월" },
+                 all:{ d:null, ko:"전체 보기" } };
+  var RANGE = "7";
+  function inRange(iso){
+    var r = RANGES[RANGE]; if (!r || r.d === null) return true;
+    var t = new Date(iso + "T00:00:00"), now = new Date(todayKey() + "T00:00:00");
+    var gap = Math.round((now - t) / 86400000);
+    return r.d === 0 ? gap === 0 : gap <= r.d;
+  }
   function paintPast(){
-    var box = $("dList");
-    box.innerHTML = '<h4>지난 일기</h4><div class="empty">불러오는 중&hellip;</div>';
-    rpc("get_my_diary_list", { p_offset:0, p_limit:30 }).then(function(rows){
-      if (!rows || !rows.length){
-        box.innerHTML = '<h4>지난 일기</h4><div class="empty">아직 저장한 일기가 없습니다.<br>오늘이 첫 장입니다.</div>';
+    var box = $("dList"), title = (RANGES[RANGE] || {}).ko || "지난 일기";
+    box.innerHTML = '<h4>' + title + '</h4><div class="empty">불러오는 중&hellip;</div>';
+    rpc("get_my_diary_list", { p_offset:0, p_limit:50 }).then(function(rows){
+      rows = (rows || []).filter(function(r){ return inRange(r.wrote_on); });
+      if (!rows.length){
+        box.innerHTML = '<h4>' + title + '</h4><div class="empty">'
+          + (RANGE === "today" ? "오늘 저장한 일기가 아직 없습니다."
+                               : "이 기간에 저장한 일기가 없습니다.") + '</div>';
         return;
       }
-      var h = '<h4>지난 일기</h4>';
+      var h = '<h4>' + title + ' <i style="font-style:normal;opacity:.6">' + rows.length + '편</i></h4>';
       rows.forEach(function(r){
         h += '<div class="dItem" data-d="' + r.wrote_on + '" data-s="' + r.seq + '">'
            + '<b>' + dayLabel(r.wrote_on, r.seq) + '</b>'
            + '<span>' + (r.head || "").replace(/[<>&]/g, "") + '</span>'
-           + '<span><i>' + (r.place || "") + (r.chars ? ' &middot; ' + r.chars + '자' : '') + '</i></span></div>';
+           + '<span><i>' + (r.place || "") + '</i></span>'
+           + '<span><i>' + statLine(r.chars || 0, +r.write_sec || +r.span_sec || 0) + '</i></span></div>';
       });
       box.innerHTML = h;
     }).catch(function(){
       box.innerHTML = '<h4>지난 일기</h4><div class="empty">지금은 불러올 수 없습니다.</div>';
     });
   }
+  /* ── 지난 한 편을 판에 띄운다 (0817 소로 신고 — 목록에 클릭 배관이 없었다) ── */
+  function openEntry(day, seq){
+    return rpc("get_my_diary", { p_day:day }).then(function(rows){
+      var e = null; (rows || []).forEach(function(r){ if (+r.seq === +seq) e = r; });
+      if (!e){ note("그 일기를 찾지 못했습니다"); return; }
+      if (D.dirty) saveDiary(D.viewing ? "saved" : "draft");
+      D.viewing = { day:day, seq:+seq };
+      D.day = day; D.seq = +seq; D.seed = e.seed_id; D.seedText = "";   /* 이미 쓴 글이라 힌트는 없다 */
+      D.dirty = false;
+      paintPalette(e.palette);                                          /* 그날 그 색 그대로 */
+      $("dBody").value = e.body || "";
+      $("dDate").textContent = dayLabel(day, +seq);
+      $("dWho").textContent  = D.nick ? D.nick + "의 베스페르" : "나의 베스페르";
+      $("dSun").textContent  = e.place || "\u00a0";                      /* 그때 어디였는지 */
+      /* ⭐ 소요시간 · 글자수 · 분당 (0817 소로) — 옛 글은 write_sec 이 없을 수 있어 근사로 받는다 */
+      WT.sec = +e.write_sec || Math.max(0,
+        (new Date(e.updated_at) - new Date(e.created_at)) / 1000);
+      WT.last = 0;                                                      /* 이어 쓰면 그때부터 다시 잰다 */
+      $("dAlt").textContent = statLine((e.body || "").length, WT.sec);
+      $("mon").classList.add("viewing");
+      closePast();
+      paintGhost(); paintCount();
+    }).catch(function(){ note("지금은 열 수 없습니다"); });
+  }
+  function backToToday(){
+    if (D.dirty) saveDiary("saved");
+    D.viewing = null; D.loaded = false;
+    $("mon").classList.remove("viewing");
+    $("dSun").textContent = "\u00a0"; $("dAlt").textContent = "";
+    loadDiary().then(function(){ $("dBody").focus(); });
+  }
+  function closePast(){
+    $("mon").classList.remove("past");
+    $("dPast").querySelector("small").innerHTML = "지난 일기 &rsaquo;";
+  }
+  $("dToday").onclick = backToToday;
+  /* 물리 버튼 다섯 — 누르면 그 기간 목록이 판 안에서 열린다 */
+  $("vBar").addEventListener("click", function(e){
+    var b = e.target.closest(".vb"); if (!b) return;
+    RANGE = b.getAttribute("data-r");
+    Array.prototype.forEach.call($("vBar").querySelectorAll(".vb"), function(x){
+      x.classList.toggle("on", x === b);
+    });
+    if (!$("mon").classList.contains("on")) setDiary(true);
+    if (D.dirty) saveDiary(D.viewing ? "saved" : "draft");
+    $("mon").classList.add("past");
+    $("dPast").querySelector("small").innerHTML = "덮기 &rsaquo;";
+    paintPast();
+  });
+  $("dList").addEventListener("click", function(e){
+    var it = e.target.closest(".dItem");
+    if (it) openEntry(it.getAttribute("data-d"), it.getAttribute("data-s"));
+  });
+
   $("dPast").onclick = function(){
     var on = !$("mon").classList.contains("past");
     $("mon").classList.toggle("past", on);
-    $("dPast").querySelector("small").innerHTML = on ? "오늘로 &rsaquo;" : "지난 일기 &rsaquo;";
-    if (on){ if (D.dirty) saveDiary("draft"); paintPast(); }
+    /* ⚠ 닫는 말은 「덮기」다. 「오늘로」는 지난 일기를 볼 때만 쓰는 말이라
+       머리의 dToday 하나로 모았다 — 같은 말이 두 곳에 서면 어느 쪽이 진짜인지 모른다 */
+    $("dPast").querySelector("small").innerHTML = on ? "덮기 &rsaquo;" : "지난 일기 &rsaquo;";
+    if (on){ if (D.dirty) saveDiary(D.viewing ? "saved" : "draft"); paintPast(); }
     else   { $("dBody").focus(); }
   };
 
@@ -1273,7 +1451,7 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
         try{ t.setSelectionRange(t.value.length, t.value.length); }catch(e){}   /* 첫 문장 끝에서 이어 쓴다 */
       }, 380); });
     }else{
-      if (D.dirty) saveDiary("draft");                /* ⚠ 닫을 때 반드시 남긴다 */
+      if (D.dirty) saveDiary(D.viewing ? "saved" : "draft");   /* ⚠ 닫을 때 반드시 남긴다 */
     }
   }
   $("homeBtn").onclick = function(){ setDiary(!$("mon").classList.contains("on")); };
@@ -1284,17 +1462,19 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
   $("dSave").onclick   = function(){
     saveDiary("saved").then(function(){
       if (D.dirty) return;                            /* 저장이 실패했으면 다음 편으로 안 넘어간다 */
+      if (D.viewing){ note("고쳐 두었습니다"); return; }   /* 지난 일기는 그 자리에 그대로 */
       D.loaded = false; loadDiary();                  /* 다음 편 (2) 를 새 색으로 연다 */
     });
   };
   /* ⚠ 창을 닫거나 새로고침해도 남긴다 */
   addEventListener("beforeunload", function(){
-    if (D.dirty && sb && navigator.sendBeacon) saveDiary("draft");
+    if (D.dirty && sb) saveDiary(D.viewing ? "saved" : "draft");
   });
   $("stop").onclick = stopAll;
   $("bCab").onclick = function(){
     var on = !$("plate").classList.contains("on");
     $("plate").classList.toggle("on", on); $("bCab").classList.toggle("on", on);
+    document.body.classList.toggle("cabin", on);      /* 기내에 붙은 물건들이 함께 걷힌다 */
     $("scrollHint").classList.toggle("on", on);
     $("homeInfo").classList.toggle("on", on);
     if (on) playAnnounce();
@@ -1446,6 +1626,19 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
   layoutFrames();
   preview();
   paintHomeIdle();
+
+  /* ═══ 0817 소로 ⑥⑦ — 들어서면 곧바로 난다 ═══
+     손님은 조종간을 만지러 온 것이 아니다. 땅을 찾고, 기내를 켜고, 비행을 시작한 상태로 만난다.
+     ⚠ 조종간(H)은 접힌 채로 있고 살롱지기가 필요할 때만 편다. */
+  (function autoStart(){
+    try{
+      var p = EGGeo.pickSunsetLand(sunLonAt, +$("sel").value);      /* 지금 일몰선에서 땅 (결정문 21호) */
+      if (p){ $("lat").value = p.lat; $("latV").textContent = p.lat + "\u00B0"; }
+      preview();
+      if (!$("plate").classList.contains("on")) $("bCab").click();   /* 기내를 켠다 (안내 방송도 함께) */
+      setTimeout(function(){ $("go").click(); }, 60);                /* 곧바로 비행 */
+    }catch(err){ console.warn("[EG] 자동 출발 실패 — 조종간으로 시작하십시오:", err); }
+  })();
 
   if (KEY && KEY.trim()){
     var mount = function(t){ s.primitives.add(t); console.log("[EG] 실사 타일 root 받음"); };
