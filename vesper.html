@@ -456,6 +456,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
+<script src="stamp_press.js?v=0808a"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="eg_geo.js"></script>
 <script>
@@ -465,7 +466,7 @@
       해가 창 한가운데 머문다. 0817 실측: 대권 고정이면 19분에 창을 벗어난다.
    ⚠ 창 테두리는 판(9:16) 기준 %를 화면 px로 환산해서 그린다 — 세로가 2.8~3.2배다
    ══════════════════════════════════════════════════════════════ */
-console.log("[EG] vesper 0817j \u2014 EG\ubca0\uc2a4\ud398\ub974 \uc77c\uae30\ud310 \u00b7 \ud314\ub808\ud2b8 12\ubc8c \u00b7 \uc11c\ubc84 \uc800\uc7a5");
+console.log("[EG] vesper 0817k \u2014 EG\ubca0\uc2a4\ud398\ub974 \uc77c\uae30\ud310 \u00b7 \ud314\ub808\ud2b8 12\ubc8c \u00b7 \uc11c\ubc84 \uc800\uc7a5");
 
 var KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A";
 var KMH = 900, R_PLATE = 941/1672;
@@ -1284,12 +1285,13 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
       p_place:w.place, p_lat:w.lat, p_lon:w.lon, p_alt_km:w.alt, p_dist_km:w.dist,
       p_write_sec:Math.round(WT.sec) })
       .then(function(){ D.dirty = false;
-        if (status !== "saved"){ note("임시 저장했습니다"); return; }
-        /* ⭐ 도장은 서버가 저장과 한 몸으로 찍는다(하루 한 번 · stamps_uniq_daily).
-           화면은 오늘 것이 처음인지만 물어 말을 고른다. */
-        rpc("has_vesper_stamp_today", {}).then(function(yes){
-          note(yes ? "저장했습니다 · 오늘의 인장을 찍었습니다" : "저장했습니다");
-        }).catch(function(){ note("저장했습니다"); });
+        note(status === "saved" ? "저장했습니다" : "임시 저장했습니다");
+        /* ⭐⭐ 도장은 **놓기만** 한다 — 누르는 것은 손님이다(크레덴시알 결정문 3호).
+           ⚠ 0817에 서버가 저장과 함께 몰래 찍게 지었다가 소로가 무르셨다.
+             그러면 「도장 받기」라는 대목 자체가 사라진다.
+           ⚠ 각인에 날짜를 넣지 않는다 — 수첩이 이미 날짜를 붙인다(두 번 적힌다).
+           ⚠ 이미 오늘 것을 받았으면 부품이 아무것도 안 띄운다. 재촉하지 않는다. */
+        if (status === "saved" && window.EGStamp) offerStamp();
       })
       .catch(function(e){ console.warn("[EG] 일기 저장 실패:", e);
         note(/JWT|auth|401/i.test(String(e && e.message)) ? "로그인이 필요합니다" : "저장하지 못했습니다"); })
@@ -1303,6 +1305,19 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     clearTimeout(D.tmr);
     /* ⚠ 지난 일기를 고치는 중이면 draft 로 떨어뜨리지 않는다 — 목록(saved 만)에서 사라진다 */
     D.tmr = setTimeout(function(){ if (D.dirty) saveDiary(D.viewing ? "saved" : "draft"); }, 2500);
+  }
+
+  /* 도장을 놓는다 — 우측 하단에 인장이 나타나고, 손님이 누르면 꾹 눌린다.
+     그 뒤는 부품이 알아서 한다 — 종이 조각·타륜 깃발·수첩. */
+  function offerStamp(){
+    if (!window.EGStamp || !sb) return;
+    var body = $("dBody").value;
+    rpc("diary_first_line", { p_body: body }).catch(function(){ return null; })
+      .then(function(line){
+        EGStamp.offer({ supa: sb, area: "vesper", kind: "ves_scribere",
+                        inscription: line || null,
+                        bottom: 96 });      /* 조작판 위로 올린다 */
+      });
   }
 
   function loadDiary(){
@@ -1502,6 +1517,9 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
       /* ⚠⚠ 0817 소로 — 판을 닫아도 textarea 가 포커스를 쥐고 있어 단축키가 통째로 죽었다.
          안 보이는 요소도 포커스는 붙들고 있다. 판을 덮을 때 손도 함께 뗀다. */
       try{ $("dBody").blur(); document.body.focus(); }catch(e){}
+      /* ⚠ 잠깐 열렸다 닫히는 화면에서는 놓아둔 도장을 거둔다.
+         나무라지 않고 조용히 — 다음에 저장하면 또 놓인다(3호). */
+      try{ if (window.EGStamp && EGStamp.withdraw) EGStamp.withdraw(); }catch(e){}
     }
   }
   $("homeBtn").onclick = function(){ setDiary(!$("mon").classList.contains("on")); };
