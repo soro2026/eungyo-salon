@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EG cruise 시험판 0817a</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Widgets/widgets.css" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%;background:#05070f;overflow:hidden;
+            font-family:"Apple SD Gothic Neo","Noto Sans KR",sans-serif;color:#e8e4d8}
+  #cesiumContainer{position:fixed;inset:0}
+  .cesium-widget-credits{font-size:9px!important;opacity:.35}
+  #hud{position:fixed;left:14px;top:14px;z-index:20;background:rgba(12,14,20,.82);
+       border:1px solid #3a3730;border-radius:10px;padding:14px 16px;width:290px;
+       backdrop-filter:blur(6px)}
+  #hud h1{margin:0 0 10px;font-size:13px;font-weight:500;letter-spacing:.04em;color:#c9a86a}
+  .row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:12px}
+  .row label{color:#9a9186;min-width:52px}
+  select,input[type=range]{flex:1}
+  select{background:#1a1d24;color:#e8e4d8;border:1px solid #3a3730;border-radius:5px;
+         padding:4px 6px;font-size:12px}
+  button{background:#1a1d24;color:#e8e4d8;border:1px solid #4a463c;border-radius:5px;
+         padding:6px 12px;font-size:12px;cursor:pointer}
+  button:hover{background:#242832}
+  button.on{border-color:#c9a86a;color:#c9a86a}
+  #tel{margin-top:11px;padding-top:10px;border-top:1px solid #2e2b26;
+       font-size:11px;line-height:1.75;color:#b8b2a4;font-variant-numeric:tabular-nums}
+  #tel b{color:#e8e4d8;font-weight:500}
+  #bar{height:3px;background:#2e2b26;border-radius:2px;margin:9px 0 3px;overflow:hidden}
+  #barIn{height:100%;width:0;background:#c9a86a}
+  #note{position:fixed;right:14px;bottom:14px;z-index:20;font-size:11px;color:#6a655c;
+        text-align:right;line-height:1.6}
+</style>
+</head>
+<body>
+<div id="cesiumContainer"></div>
+
+<div id="hud">
+  <h1>EG CRUISE · 시험판 0817a</h1>
+
+  <div class="row"><label>항로</label>
+    <select id="route"></select></div>
+
+  <div class="row"><label>창</label>
+    <button id="bL" class="on">왼쪽 −90°</button>
+    <button id="bR">오른쪽 +90°</button></div>
+
+  <div class="row"><label>배속</label>
+    <input type="range" id="spd" min="1" max="600" value="120" step="1">
+    <span id="spdV" style="min-width:44px;text-align:right">120×</span></div>
+
+  <div class="row"><label>고도</label>
+    <input type="range" id="alt" min="2" max="40" value="11" step="1">
+    <span id="altV" style="min-width:44px;text-align:right">11km</span></div>
+
+  <div class="row"><label>내림각</label>
+    <input type="range" id="pit" min="-80" max="-5" value="-30" step="1">
+    <span id="pitV" style="min-width:44px;text-align:right">-30°</span></div>
+
+  <div class="row" style="margin-top:11px">
+    <button id="go" style="flex:1">이륙</button>
+    <button id="stop">정지</button></div>
+
+  <div id="bar"><div id="barIn"></div></div>
+  <div id="tel">대기 중</div>
+</div>
+
+<div id="note">
+  ⚠ 실사 타일 켜짐 — root 요청 1건/새로고침<br>
+  시계는 실시간(SYSTEM_CLOCK) · 태양이 실제로 움직입니다
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
+<script>
+/* ══════════════════════════════════════════════════════════════
+   EG cruise 시험판 · 0817a
+   결정문 19호 ② — terra 밖에서 부품만 단독으로 돌린다.
+   보는 것 셋: ① 대권 위를 도는가 ② 등속인가 ③ 창이 옳은 쪽을 보는가
+   ══════════════════════════════════════════════════════════════ */
+console.log("[EG] cruise_test 0817a");
+
+const GOOGLE_API_KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A";
+
+const ROUTES = [
+  { n:"포항 → 파리",      a:[36.0190,129.3435], b:[48.8530,  2.3440] },
+  { n:"케첨 → 파리",      a:[43.6805,-114.3637],b:[48.8530,  2.3440] },
+  { n:"쿠바 → 파리",      a:[23.0494, -82.2706],b:[48.8530,  2.3440] },
+  { n:"팜플로나 → 파리",  a:[42.8189,  -1.6442],b:[48.8530,  2.3440] },
+  { n:"파리 → 케첨",      a:[48.8530,  2.3440], b:[43.6805,-114.3637] },
+  { n:"북대서양 정서향",  a:[60.0000, -20.0000],b:[60.0000, -60.0000] },
+];
+
+let viewer, flight = null, sideSign = -1;   /* ⚠ −1 = 왼쪽 창가 (결정문 8호) */
+
+/* ── 지구 세우기 ───────────────────────────────────────────── */
+(async function init(){
+  viewer = new Cesium.Viewer("cesiumContainer",{
+    baseLayer:false, baseLayerPicker:false, geocoder:false, homeButton:false,
+    sceneModePicker:false, navigationHelpButton:false, animation:false,
+    timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false,
+    requestRenderMode:false
+  });
+  window.viewer = viewer;
+
+  /* terra 0722와 같은 배관 — 태양이 실제 지금을 따라간다 */
+  viewer.clock.clockStep = Cesium.ClockStep.SYSTEM_CLOCK;
+  viewer.clock.shouldAnimate = true;
+
+  const s = viewer.scene;
+  s.skyAtmosphere.show = true;
+  s.globe.baseColor = Cesium.Color.fromCssColorString("#0a1326");
+  s.globe.showGroundAtmosphere = true;
+  s.backgroundColor = Cesium.Color.fromCssColorString("#05070f");
+  if (s.fog) s.fog.enabled = true;
+  s.globe.enableLighting = true;
+  s.globe.dynamicAtmosphereLighting = true;
+  s.globe.dynamicAtmosphereLightingFromSun = true;
+  if (s.skyAtmosphere) s.skyAtmosphere.dynamicLighting = Cesium.DynamicAtmosphereLightingType.SUNLIGHT;
+  if (s.moon) s.moon.show = true;
+
+  try{
+    const osm = viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+      url:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      credit:"© OpenStreetMap contributors", maximumLevel:19
+    }));
+    osm.brightness = 0.55; osm.saturation = 0.65; osm.gamma = 0.8;
+  }catch(e){ console.warn("기본 지도 실패:", e); }
+
+  buildRoutes();
+  setView(0);
+
+  if (GOOGLE_API_KEY && GOOGLE_API_KEY.trim()){
+    try{
+      const t = await Cesium.createGooglePhotorealistic3DTileset({ key: GOOGLE_API_KEY });
+      s.primitives.add(t);
+      console.log("[EG] 실사 3D 타일 켜짐 — root 요청 1건");
+    }catch(err){ console.warn("[EG] 타일 실패, 기본 지구로:", err); }
+  }
+})();
+
+/* ── 부품 본체 — 결정문 7호 그대로 ─────────────────────────── */
+function cruise(from, to, kmh, alt, opts){
+  opts = opts || {};
+  const A   = Cesium.Cartographic.fromDegrees(from[1], from[0]);
+  const B   = Cesium.Cartographic.fromDegrees(to[1],   to[0]);
+  const geo = new Cesium.EllipsoidGeodesic(A, B);
+  const dist = geo.surfaceDistance;
+  const ms  = dist / (kmh / 3.6) * 1000;
+  const t0  = performance.now();
+
+  const off = viewer.clock.onTick.addEventListener(()=>{
+    const f  = Math.min((performance.now() - t0) / ms, 0.999);
+    const c  = geo.interpolateUsingFraction(f);
+    /* ⚠ 대권은 방위가 계속 변한다 — 매 프레임 현재점에서 다시 잰다 */
+    const hd = new Cesium.EllipsoidGeodesic(c, B).startHeading;
+    viewer.camera.setView({
+      destination: Cesium.Cartesian3.fromRadians(c.longitude, c.latitude, alt),
+      orientation : { heading: hd + sideSign * Cesium.Math.PI_OVER_TWO,
+                      pitch  : Cesium.Math.toRadians(opts.pitch || -30), roll: 0 }
+    });
+    if (opts.onTick) opts.onTick(f, c, hd, dist);
+    if (f >= 0.999){ off(); if (opts.onDone) opts.onDone(); }
+  });
+  return { stop: off, dist: dist, ms: ms };
+}
+
+/* ── 화면 배관 ─────────────────────────────────────────────── */
+const $ = s => document.getElementById(s);
+
+function buildRoutes(){
+  ROUTES.forEach((r,i)=>{
+    const o = document.createElement("option");
+    o.value = i; o.textContent = r.n; $("route").appendChild(o);
+  });
+}
+
+function setView(i){
+  const r = ROUTES[i];
+  const A = Cesium.Cartographic.fromDegrees(r.a[1], r.a[0]);
+  const B = Cesium.Cartographic.fromDegrees(r.b[1], r.b[0]);
+  const g = new Cesium.EllipsoidGeodesic(A, B);
+  const m = g.interpolateUsingFraction(0.5);
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromRadians(m.longitude, m.latitude,
+                   Math.max(g.surfaceDistance * 1.2, 2000000)),
+    orientation:{ heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 }
+  });
+  const km = g.surfaceDistance/1000;
+  $("tel").innerHTML =
+    `대권 거리 <b>${km.toFixed(0)} km</b><br>` +
+    `실제 비행 <b>${(km/900).toFixed(2)} 시간</b><br>` +
+    `30분에 담으려면 <b>${(km/900/0.5).toFixed(1)}×</b>`;
+}
+
+function fmt(n,d){ return n.toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d}); }
+
+$("route").onchange = e => { stopAll(); setView(+e.target.value); };
+$("spd").oninput = e => $("spdV").textContent = e.target.value + "×";
+$("alt").oninput = e => $("altV").textContent = e.target.value + "km";
+$("pit").oninput = e => $("pitV").textContent = e.target.value + "°";
+
+$("bL").onclick = ()=>{ sideSign = -1; $("bL").classList.add("on"); $("bR").classList.remove("on"); };
+$("bR").onclick = ()=>{ sideSign = +1; $("bR").classList.add("on"); $("bL").classList.remove("on"); };
+
+function stopAll(){
+  if (flight){ flight.stop(); flight = null; }
+  $("barIn").style.width = "0";
+}
+
+$("stop").onclick = stopAll;
+
+$("go").onclick = ()=>{
+  stopAll();
+  const r = ROUTES[+$("route").value];
+  const kmh = 900 * (+$("spd").value);
+  const alt = (+$("alt").value) * 1000;
+  const pitch = +$("pit").value;
+  let last = 0, lastT = performance.now(), rate = 0;
+
+  flight = cruise(r.a, r.b, kmh, alt, {
+    pitch: pitch,
+    onTick: (f, c, hd, dist)=>{
+      $("barIn").style.width = (f*100).toFixed(1) + "%";
+      const now = performance.now();
+      if (now - lastT > 250){
+        rate = (f - last) * dist / 1000 / ((now - lastT)/1000) * 3600;  /* km/h */
+        last = f; lastT = now;
+      }
+      const latD = Cesium.Math.toDegrees(c.latitude);
+      const lonD = Cesium.Math.toDegrees(c.longitude);
+      const hdD  = (Cesium.Math.toDegrees(hd) + 360) % 360;
+      const look = (hdD + sideSign*90 + 360) % 360;
+      const ground = 1670 * Math.cos(c.latitude);
+      const westward = -kmh * Math.sin(hd);           /* 서쪽 성분 */
+      $("tel").innerHTML =
+        `진행 <b>${(f*100).toFixed(1)}%</b> · 남은 <b>${((1-f)*dist/1000).toFixed(0)} km</b><br>` +
+        `위치 <b>${fmt(latD,3)}, ${fmt(lonD,3)}</b><br>` +
+        `진행방위 <b>${fmt(hdD,1)}°</b> · 보는 쪽 <b>${fmt(look,1)}°</b><br>` +
+        `실측 속도 <b>${fmt(rate,0)} km/h</b> (지정 ${fmt(kmh,0)})<br>` +
+        `지면 자전 <b>${fmt(ground,0)} km/h</b> · 서향 <b>${fmt(westward,0)}</b><br>` +
+        `<span style="color:${westward>=ground?'#c9a86a':'#6a655c'}">` +
+        (westward >= ground ? "⭐ 해를 앞지르는 중" :
+         `일몰 ${fmt(ground/(ground-westward),1)}배 느려짐`) + `</span>`;
+    },
+    onDone: ()=>{ $("tel").innerHTML += "<br><b style='color:#c9a86a'>착륙</b>"; }
+  });
+};
+</script>
+</body>
+</html>
