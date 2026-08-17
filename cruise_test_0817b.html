@@ -333,7 +333,14 @@ function stopAll(){ if (flight){ flight.stop(); flight = null; } $("barIn").styl
         var dif = ((azD - lookD + 540)%360)-180;
         var elD = Cesium.Math.toDegrees(sun.el);
         var ground = 1670*Math.cos(Cesium.Math.toRadians(lat));
+        /* 동서 성분 — 서쪽이 양수. hd 90°(동)이면 sin=+1 이므로 부호를 뒤집는다 */
         var west = -KMH*Math.sin(hd);
+        /* 해가 지평선을 지나는 상대 속도. 서쪽으로 갈수록 느려지고 동쪽이면 빨라진다 */
+        var rel = ground - west;
+        var ratio = rel <= 0 ? Infinity : ground/rel;
+        var sunTxt = rel <= 0 ? "해를 앞지르는 중 — 지지 않는다"
+                   : (west > 0 ? "일몰 " + fm(ratio,2) + "배 느려짐"
+                               : "일몰 " + fm(1/ratio,2) + "배 빨라짐");
         $("tel").innerHTML =
           "진행 <b>" + (f*100).toFixed(1) + "%</b> · 남은 <b>"
             + ((1-f)*dist/1000).toFixed(0) + " km</b><br>" +
@@ -344,10 +351,8 @@ function stopAll(){ if (flight){ flight.stop(); flight = null; } $("barIn").styl
           (Math.abs(dif)<35 ? "해가 창 안 (중앙에서 " + fm(dif,0) + "&deg;)"
                             : "해가 창 밖 (" + fm(dif,0) + "&deg;)") + "</span><br>" +
           "실측 <b>" + fm(rate,0) + " km/h</b> · 지면자전 " + fm(ground,0)
-            + " · 서향 " + fm(west,0) + "<br>" +
-          "<span style='color:" + (west>=ground?"#c9a86a":"#6a655c") + "'>" +
-          (west>=ground ? "해를 앞지르는 중"
-                        : "일몰 " + fm(ground/Math.max(ground-west,1),1) + "배 느려짐") + "</span>";
+            + " · " + (west>=0 ? "서향 " : "동향 ") + fm(Math.abs(west),0) + "<br>" +
+          "<span style='color:" + (rel<=0?"#c9a86a":"#6a655c") + "'>" + sunTxt + "</span>";
       },
       onDone: function(){ $("tel").innerHTML += "<br><b style='color:#c9a86a'>착륙</b>"; }
     });
@@ -358,17 +363,27 @@ function stopAll(){ if (flight){ flight.stop(); flight = null; } $("barIn").styl
   setView(0);
 
   if (GOOGLE_API_KEY && GOOGLE_API_KEY.trim()){
-    Cesium.createGooglePhotorealistic3DTileset({ key: GOOGLE_API_KEY }).then(function(t){
+    /* ⚠⚠ 두 문법을 차례로 시도한다 — terra 2211행이 이렇게 되어 있는 데는 까닭이 있었다.
+       객체 인자가 안 먹는 판이 있고, 그때 문자열 인자로 살아난다.
+       0817 시험판에서 이 폴백을 빼먹어 root 실패로 나왔다. */
+    var mount = function(t){
       tileset = t; s.primitives.add(t);
       tileState = "root 받음"; paintTile();
       console.log("[EG] 실사 타일 root 받음 — 과금 1건");
       t.tileLoad.addEventListener(function(){ tLoad++; if (tLoad % 20 === 1) paintTile(); });
       t.tileFailed.addEventListener(function(e){ tFail++; paintTile();
         if (tFail < 4) console.warn("[EG] 타일 실패:", e); });
-    }).catch(function(err){
-      tileState = "root 실패 — 키·리퍼러 의심"; paintTile();
-      console.error("[EG] 타일 root 실패:", err);
-    });
+    };
+    Cesium.createGooglePhotorealistic3DTileset({ key: GOOGLE_API_KEY })
+      .then(mount)
+      .catch(function(e1){
+        console.warn("[EG] 객체 인자 실패 — 문자열 인자로 다시 시도:", e1);
+        return Cesium.createGooglePhotorealistic3DTileset(GOOGLE_API_KEY).then(mount);
+      })
+      .catch(function(err){
+        tileState = "root 실패 (두 문법 모두)"; paintTile();
+        console.error("[EG] 타일 root 실패:", err);
+      });
   } else { tileState = "키 없음"; paintTile(); }
 })();
 </script>
