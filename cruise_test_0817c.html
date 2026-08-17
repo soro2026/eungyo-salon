@@ -229,7 +229,7 @@
     <button id="bFr" style="flex:1">창 테두리</button>
     <button id="bDump" style="flex:1">값 뽑기</button></div>
 
-  <div class="sec">모니터 계기판 (실측 미세조정)</div>
+  <div class="sec">모니터 계기판 — <span id="eSide">왼창</span> 좌석용 (좌·우 따로 저장)</div>
   <div class="row"><label>기울기</label>
     <input type="range" id="eRot" min="-15" max="15" value="-6.3" step="0.1">
     <span class="v" id="eRotV">-6.3&deg;</span></div>
@@ -343,7 +343,11 @@ function stepFrom(lat, lon, brgDeg, km){
 
 /* ── 창 테두리를 실제 크기로 ─────────────────────────────────── */
 var panY = 0, panMin = 0, panMax = 0;
-var HOME = { x:66, y:36, w:33, h:14, rot:-6.3, ry:-13 };   /* 모니터 계기판 자리·각도 */
+/* ⚠ 홈이 판 오른쪽 끝에 붙어 있어 미러 셈이 정확히 대칭이 안 된다 (0817 소로).
+   왼창·오른창을 딴 벌로 들고, 편집기는 지금 보고 있는 쪽을 만진다. */
+var HOME_L = { x:66, y:36, w:33, h:14, rot:-6.3, ry:-13 };
+var HOME_R = { x:1,  y:36, w:33, h:14, rot: 6.3, ry: 13 };   /* 미러 초깃값 — 소로가 맞춘다 */
+function HOME(){ return side < 0 ? HOME_L : HOME_R; }
 function layoutFrames(){
   var vw = innerWidth, vh = innerHeight;
   var w = (vw/vh < R_PLATE) ? Math.max(vh*R_PLATE, vw) : vw;
@@ -362,18 +366,22 @@ function layoutFrames(){
   pl.style.width = w + "px"; pl.style.height = h + "px";
 
   /* 모니터 — 홈 자리에 맞춰 세운다 (판을 따라 움직인다) */
-  var hx = cx + (HOME.x/100)*w, hy = py + panY + (HOME.y/100)*h,
-      hw = (HOME.w/100)*w, hh = (HOME.h/100)*h;
-  if ($("plate").classList.contains("flip")) hx = cx + w - (HOME.x/100)*w - hw;
+  var HM = HOME();
+  var hx = cx + (HM.x/100)*w, hy = py + panY + (HM.y/100)*h,
+      hw = (HM.w/100)*w, hh = (HM.h/100)*h;
   var mw = Math.max(hw*1.9, 380), mh = Math.max(mw*0.72, 300);
   mw = Math.min(mw, vw*0.52); mh = Math.min(mh, vh*0.78);
   /* 홈 단추도 같은 값을 따른다 */
+  /* 단추는 판 안에 있어 판과 함께 미러된다 — 왼창 좌표를 그대로 쓰되,
+     오른창일 땐 fixed 계기판과 같은 자리에 오도록 판 좌표로 되환산 */
   var hb = $("homeBtn");
-  hb.style.left = HOME.x + "%"; hb.style.top = HOME.y + "%";
-  hb.style.width = HOME.w + "%"; hb.style.height = HOME.h + "%";
+  var bx = flipped ? (100 - HM.x - HM.w) : HM.x;   /* 판이 뒤집히므로 좌표를 미리 거꾸로 */
+  hb.style.left = bx + "%"; hb.style.top = HM.y + "%";
+  hb.style.width = HM.w + "%"; hb.style.height = HM.h + "%";
 
   /* 홈 계기판 — 홈 사각형에 딱 얹는다. 판이 뒤집히면 각도도 반대로 */
-  var hi = $("homeInfo"), flipped = $("plate").classList.contains("flip");
+  var flipped = $("plate").classList.contains("flip");
+  var hi = $("homeInfo");
   hi.style.left = hx + "px"; hi.style.top = hy + "px";
   hi.style.width = hw + "px"; hi.style.height = hh + "px";
   hi.style.fontSize = Math.max(11, Math.min(hh*0.16, 20)) + "px";
@@ -381,9 +389,8 @@ function layoutFrames(){
   sb.style.left = (hx + hw - 30) + "px";
   sb.style.top  = (hy + hh + 8) + "px";
 
-  hi.style.transform = flipped
-    ? "rotate(" + (-HOME.rot) + "deg) perspective(700px) rotateY(" + (-HOME.ry) + "deg)"
-    : "rotate(" + HOME.rot + "deg) perspective(700px) rotateY(" + HOME.ry + "deg)";
+  /* 각도도 그 벌의 값 그대로 — 미러 셈 없음 */
+  hi.style.transform = "rotate(" + HM.rot + "deg) perspective(700px) rotateY(" + HM.ry + "deg)";
 
   var mo = $("mon");
   mo.style.width = mw + "px"; mo.style.height = mh + "px";
@@ -534,14 +541,23 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
       $("pitV").textContent = v + "\u00B0";
     }
   }
-  [["eRot","rot","\u00B0"],["eRy","ry","\u00B0"],["eX","x","%"],["eY","y","%"],
-   ["eW","w","%"],["eH","h","%"]].forEach(function(t){
+  var HOME_KEYS = [["eRot","rot","\u00B0"],["eRy","ry","\u00B0"],["eX","x","%"],
+                   ["eY","y","%"],["eW","w","%"],["eH","h","%"]];
+  HOME_KEYS.forEach(function(t){
     $(t[0]).oninput = function(e){
-      HOME[t[1]] = +e.target.value;
+      HOME()[t[1]] = +e.target.value;              /* 지금 보고 있는 쪽만 */
       $(t[0]+"V").textContent = e.target.value + t[2];
       layoutFrames();
     };
   });
+  function syncHomeEditor(){
+    var HM = HOME();
+    $("eSide").textContent = side < 0 ? "왼창" : "오른창";
+    HOME_KEYS.forEach(function(t){
+      $(t[0]).value = HM[t[1]];
+      $(t[0]+"V").textContent = HM[t[1]] + t[2];
+    });
+  }
   ["lat","alt","aEnd","aMin","pit","sel"].forEach(function(id){
     $(id).oninput = function(e){
       var v = +e.target.value;
@@ -583,6 +599,7 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
       var f = (side > 0);
       $("plate").classList.toggle("flip", f);
       $("frames").classList.toggle("flip", f);
+      syncHomeEditor();
       preview();
       setTimeout(function(){                   /* 다시 켜진다 */
         $("fade").classList.remove("on");
@@ -631,24 +648,9 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
   /* ══ 소리 — 띵동 → 방송(10초) → 엔진음이 스르르 (0817 소로) ══ */
   var announced = false, annAudio = null;
   var AC = window.AudioContext || window.webkitAudioContext;
-  var ac = null, engGain = null, engLp = null, sndOn = true, engBase = 0.14;
+  var ac = null, engGain = null, engLp = null, sndOn = true, engBase = 0.07;   /* 0817 소로: 크다 → 절반 */
 
   function ensureAC(){ if (!ac) ac = new AC(); return ac; }
-
-  function chime(){
-    try{
-      var a = ensureAC();
-      [[659.25, 0.00, 0.42],[523.25, 0.34, 0.6]].forEach(function(n){
-        var o = a.createOscillator(), g = a.createGain();
-        o.type = "sine"; o.frequency.value = n[0];
-        g.gain.setValueAtTime(0, a.currentTime + n[1]);
-        g.gain.linearRampToValueAtTime(.22, a.currentTime + n[1] + .04);
-        g.gain.exponentialRampToValueAtTime(.001, a.currentTime + n[1] + n[2]);
-        o.connect(g).connect(a.destination);
-        o.start(a.currentTime + n[1]); o.stop(a.currentTime + n[1] + n[2] + .1);
-      });
-    }catch(e){}
-  }
 
   /* 기내 소음 — 파일 없이 만든다. 백색소음 → 저역필터 = 엔진 웅—
      ⭐ 루프 파일과 달리 이음매가 없고, 필터를 고도에 물릴 수 있다 */
@@ -681,18 +683,16 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     if (announced) return;                       /* 한 번만 */
     announced = true;
     $("sndBtn").classList.add("show");
-    chime();
+    /* ⚠ 차임은 안 낸다 — 소로 녹음에 이미 들어 있다 (0817) */
     annAudio = new Audio(ANNOUNCE_SRC);
     annAudio.volume = 0.9;
     var started = false;
-    /* ⭐ 방송이 실제로 끝나는 순간 엔진음이 올라온다 */
+    /* ⭐ 방송(10초)이 실제로 끝나는 순간 엔진음이 올라온다 */
     annAudio.addEventListener("ended", function(){ engineStart(); });
-    setTimeout(function(){
-      annAudio.play().then(function(){ started = true; })
-        .catch(function(){ /* 파일 없음 — 아래 폴백이 맡는다 */ });
-    }, 1100);
-    /* ⚠ 폴백 — 파일이 없거나 재생이 막히면 띵동+10초 지점에서 */
-    setTimeout(function(){ if (!started) engineStart(); }, 1100 + 10000);
+    annAudio.play().then(function(){ started = true; })
+      .catch(function(){ /* 아직 파일 없음 — 아래 폴백이 맡는다 */ });
+    /* ⚠ 폴백 — 파일이 없거나 재생이 막히면 3초 뒤 조용히 엔진음만 */
+    setTimeout(function(){ if (!started) engineStart(); }, 3000);
   }
   function paintHomeIdle(){
     if (flight) return;
@@ -745,8 +745,10 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
       "해 높이     " + $("sel").value + " deg\n" +
       "항로        " + (mode==="SUN"?"해 추종":"대권 고정") + "\n" +
       "창          " + (side<0?"왼창":"오른창") + "\n" +
-      "계기판      x " + HOME.x + "% · y " + HOME.y + "% · w " + HOME.w + "% · h " + HOME.h +
-        "% · 기울기 " + HOME.rot + " · 돌림Y " + HOME.ry + "\n" +
+      "계기판(왼)  x " + HOME_L.x + " · y " + HOME_L.y + " · w " + HOME_L.w + " · h " + HOME_L.h +
+        " · 기울기 " + HOME_L.rot + " · 돌림Y " + HOME_L.ry + "\n" +
+      "계기판(오)  x " + HOME_R.x + " · y " + HOME_R.y + " · w " + HOME_R.w + " · h " + HOME_R.h +
+        " · 기울기 " + HOME_R.rot + " · 돌림Y " + HOME_R.ry + "\n" +
       "창 시야각   " + halfFovX().toFixed(1)*2 + " deg (화면 " + L.vw + "x" + L.vh + ")";
     t.select();
   };
