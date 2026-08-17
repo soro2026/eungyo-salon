@@ -30,6 +30,10 @@
   .wing i{position:absolute;inset:0;display:block;
           background:url(wing_eg_v1.webp) center/100% 100% no-repeat}
   #plate.flip .wing i{transform:scaleX(-1)}
+  /* ⚠ .wing i 를 되뒤집으면 이미지 좌우가 원래대로 오는데 clip 은 미러된 채다.
+     0817: 오른쪽 창가에서 날개가 부러져 보인 진범. flip 이면 자르는 쪽을 바꾼다. */
+  #plate.flip #wingNear{clip-path:inset(0 0 0 56.8%)}
+  #plate.flip #wingFar {clip-path:inset(0 56.6% 0 0)}
   #wingNear{clip-path:inset(0 56.8% 0 0)}
   #wingFar {clip-path:inset(0 0 0 56.6%)}
   @media (prefers-reduced-motion: no-preference){
@@ -63,6 +67,17 @@
   #dBody{flex:1;font-size:13px;line-height:1.9;resize:none;min-height:120px}
   #monFoot{display:flex;align-items:center;justify-content:space-between;
            padding:8px 13px;border-top:1px solid #2e2b26;font-size:11px;color:#6a655c}
+  /* 모니터 홈 위에 얹는 계기판 — 실측 rotateY −13° · 면 기울기 −6.3° (0817) */
+  #homeInfo{position:fixed;z-index:11;pointer-events:none;
+            transform:rotate(-6.3deg) perspective(700px) rotateY(-13deg);
+            transform-origin:50% 50%;
+            display:flex;flex-direction:column;justify-content:center;gap:5px;
+            padding:0 4%;font-variant-numeric:tabular-nums;
+            color:rgba(232,228,216,.34);text-shadow:0 1px 3px rgba(0,0,0,.9);display:none}
+  #homeInfo.on{display:flex}
+  #homeInfo b{color:rgba(232,228,216,.62);font-weight:400}
+  #hiTap{color:rgba(201,168,106,.5);letter-spacing:.02em}
+  #homeInfo .hr{height:1px;background:rgba(232,228,216,.13);margin:2px 0}
   #scrollHint{position:fixed;right:16px;top:50%;transform:translateY(-50%);z-index:11;
               font-size:11px;color:rgba(232,228,216,.35);writing-mode:vertical-rl;
               text-shadow:0 1px 6px rgba(0,0,0,.9);pointer-events:none;display:none}
@@ -124,6 +139,14 @@
   <div id="homeBtn" title="일기장 (D)"></div>
 </div>
 <div id="scrollHint">위아래로 밀어 보세요</div>
+<div id="homeInfo">
+  <div id="hiWhere">&nbsp;</div>
+  <div class="hr"></div>
+  <div><span id="hiAlt">&mdash;</span> &nbsp;·&nbsp; <span id="hiSpd">900 km/h</span></div>
+  <div><span id="hiElapsed">0:00</span> 비행 &nbsp;·&nbsp; 남은 <b id="hiLeft">30:00</b></div>
+  <div class="hr"></div>
+  <div id="hiTap">&#9992; 여기를 누르면 일기장이 열립니다</div>
+</div>
 
 <div id="mon">
   <div id="monHead">
@@ -212,6 +235,8 @@ console.log("[EG] cruise 편집기 0817c");
 
 var KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A";
 var KMH = 900, R_PLATE = 941/1672;
+var FLIGHT_SEC = 30*60;          /* 한 번의 비행 = 30분 (결정문 6호) */
+function mmss(t){ var m=Math.floor(t/60), s2=Math.floor(t%60); return m+":"+(s2<10?"0":"")+s2; }
 var FOVX = 60;                                   /* Cesium 기본 가로 시야각 */
 
 /* 판(9:16) 기준 창 좌표 — 결정문 10호 실측값 */
@@ -308,6 +333,15 @@ function layoutFrames(){
   if ($("plate").classList.contains("flip")) hx = cx + w - 0.66*w - hw;
   var mw = Math.max(hw*1.9, 380), mh = Math.max(mw*0.72, 300);
   mw = Math.min(mw, vw*0.52); mh = Math.min(mh, vh*0.78);
+  /* 홈 계기판 — 홈 사각형에 딱 얹는다. 판이 뒤집히면 각도도 반대로 */
+  var hi = $("homeInfo"), flipped = $("plate").classList.contains("flip");
+  hi.style.left = hx + "px"; hi.style.top = hy + "px";
+  hi.style.width = hw + "px"; hi.style.height = hh + "px";
+  hi.style.fontSize = Math.max(9, Math.min(hh*0.115, 15)) + "px";
+  hi.style.transform = flipped
+    ? "rotate(6.3deg) perspective(700px) rotateY(13deg)"
+    : "rotate(-6.3deg) perspective(700px) rotateY(-13deg)";
+
   var mo = $("mon");
   mo.style.width = mw + "px"; mo.style.height = mh + "px";
   mo.style.left = Math.max(12, Math.min(vw-mw-12, hx + hw/2 - mw/2)) + "px";
@@ -542,6 +576,13 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     else if (k === "arrowup")   { e.preventDefault(); panBy(60); }
     else if (k === "arrowdown") { e.preventDefault(); panBy(-60); }
   });
+  function paintHomeIdle(){
+    if (flight) return;
+    $("hiAlt").textContent = (+$("alt").value).toFixed(1) + " km";
+    $("hiElapsed").textContent = "0:00";
+    $("hiLeft").textContent = mmss(FLIGHT_SEC);
+    $("hiWhere").textContent = $("where").textContent || "이륙 대기";
+  }
   function setDiary(open){
     $("mon").classList.toggle("on", open);
     if (open){
@@ -561,8 +602,9 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     var on = !$("plate").classList.contains("on");
     $("plate").classList.toggle("on", on); $("bCab").classList.toggle("on", on);
     $("scrollHint").classList.toggle("on", on);
-    if (!on) setDiary(false);
-    if (on){ panY = 0; layoutFrames();
+    $("homeInfo").classList.toggle("on", on);
+    /* ⚠ 기내를 꺼도 일기장은 안 닫는다 — 창밖 보러 나갔다 와도 쓰던 글이 그대로 (0817 소로) */
+    if (on){ panY = 0; layoutFrames(); paintHomeIdle();
       setTimeout(function(){ $("scrollHint").classList.remove("on"); }, 4000);
       /* 기내를 켜면 테두리는 걷는다 — 창틀이 이미 제자리를 말한다 */
       $("frames").classList.remove("on"); $("bFr").classList.remove("on"); }
@@ -597,13 +639,19 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     flight = cruise(lat, lon, { alt:alt, pitch:+$("pit").value, sky:+$("pit").value,
       altEnd:altEnd, descSec:descSec,
       onTick: function(sec, la, lo, brg, look, sun, dist, rel, pit){
-        $("barIn").style.width = Math.min(sec/1800*100,100)+"%";
+        $("barIn").style.width = Math.min(sec/FLIGHT_SEC*100,100)+"%";
         if (sec - wT > 1){ wT = sec;
           var wx = EGGeo.where(la, lo);
           $("where").textContent = wx;
           $("mini").textContent = wx + "   ·   " + Math.round(dist) + " km";
           $("monWhere").textContent = wx;
+          $("hiWhere").textContent = wx;
         }
+        /* 홈 계기판 — 남은 시간은 30분 고정 (결정문 6호) */
+        var left = Math.max(0, FLIGHT_SEC - sec);
+        $("hiAlt").textContent = (rel/1000).toFixed(1) + " km";
+        $("hiElapsed").textContent = mmss(sec);
+        $("hiLeft").textContent = left > 0 ? mmss(left) : "착륙";
         var az = deg(sun.az), el = Cesium.Math.toDegrees(sun.el);
         var dif = ((az - look + 540)%360)-180;
         var m = Math.floor(sec/60), ss = Math.floor(sec%60);
@@ -650,6 +698,7 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
   setAltMode(true); setPitMode(true);
   layoutFrames();
   preview();
+  paintHomeIdle();
 
   if (KEY && KEY.trim()){
     var mount = function(t){ s.primitives.add(t); console.log("[EG] 실사 타일 root 받음"); };
