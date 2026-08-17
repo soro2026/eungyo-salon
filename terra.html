@@ -1423,6 +1423,13 @@ window.EGQ = (function(){
      ⭐ 옆에 두는 한 어느 한쪽은 반드시 접힌다. 다투게 두지 않고 **층을 나눈다.** */
   .dock-fr{ display:block; font-family:var(--serif); font-size:10px; font-weight:400;
     font-style:italic; color:#a8987a; letter-spacing:.02em; margin-top:2px; }
+  /* ⭐⭐ 0817 소로 — 「들어가면 같은 줄 오른쪽, 안 들어가면 아랫줄」.
+     0816에 무너진 까닭은 flex 둘이 폭을 다퉜고 한글이 글자 단위로 접혔기 때문이다.
+     한 span 안에 넣고 둘 다 nowrap 으로 묶으면 덩어리는 통째로만 움직인다. */
+  .dock-main > span:first-child{ min-width:0; }        /* ⚠ 이게 없으면 flex 아이템이 안 줄어 넘친다 */
+  .dock-ko{ font-weight:inherit; white-space:nowrap; } /* ⚠ 제목은 절대 안 접힌다 — 0816 사고의 처방 */
+  .dock-la{ font-family:var(--serif); font-size:10px; font-weight:400; font-style:italic;
+    color:#a8987a; letter-spacing:.02em; margin-left:6px; white-space:nowrap; }
   /* 0816 — 아직 안 연 곳의 셋째 줄. 소개문(dock-sub)은 또렷이 두고 시기만 낮춘다.
      ⚠ waiting 을 쓰면 소개문까지 흐려진다 — 손님이 읽어야 할 줄이라 그러면 안 된다. */
   .dock-eta{ font-size:9.5px; color:#a08b52; margin-top:4px;
@@ -2005,7 +2012,7 @@ window.EGQ = (function(){
 <div style="position:fixed;left:8px;bottom:6px;z-index:70;font-size:9px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.5px;pointer-events:none">maison 0628e</div>
 
 <script>
-console.log('[EG] terra 0816j — 타륜 접으면 판 셋도 접힘 · 걸음 세기가 층 이동을 받음 · 르 그랑 투르 한 묶음');
+console.log('[EG] terra 0817c — EG베스페르 ANIMA 첫 카드 · 타륜 원어 병기 열하나 (자화상은 병기 없음)');
 /* ⚠ 판 이름을 실제 날짜로 되돌렸다(v0814b → 0816a). 앞선 세 회차의 이름표가
    이틀 앞서 있었고 terra는 내용이 0815밤인데 도장만 0814에 멈춰 있었다 — 둘 다 여기서 끝낸다. */
 // ── 분더카머로 떠나는 비행: 제트음 (자동재생 막히면 조용히 폴백) ──
@@ -5791,6 +5798,31 @@ const DOCK_SECTIONS = [
   { key:"agora",     latin:"AGORA",     ko:"아고라" }      /* 광장 — 오고 감 */
 ];
 
+/* ⭐⭐ 0817 — 원어를 제목 **옆**에 붙인다.
+   ⚠⚠ 0816에 같은 것을 시도했다가 「콜레주 드 콤포스텔라」가 다섯 줄로 무너졌다.
+      진짜 원인은 「옆에 둔 것」이 아니라 **flex 아이템 둘로 폭을 다투게 한 것**이었다.
+      그리고 한글은 어절이 아니라 **글자 단위로 접힌다** — 그래서 제목이 세로로 섰다.
+   ⭐ 처방 셋. 이 셋이 함께 있어야 안 무너진다.
+      ① 제목과 원어를 **한 span 안**에 넣는다 — flex가 아니라 글 흐름이 된다
+      ② 둘 다 white-space:nowrap — 덩어리는 통째로만 움직인다
+      ③ span 에 min-width:0 — 폭이 모자라면 원어가 통째로 아랫줄로 내려간다
+   결과 — 짧은 것은 같은 줄 오른쪽에, 긴 것(콜레주)은 저절로 아랫줄에. */
+function applyDockLatin(el, id){
+  const la = DOCK_LATIN[id];
+  if (!la || !el) return;
+  const sp = el.querySelector(".dock-main > span:first-child");
+  if (!sp || sp.querySelector(".dock-la")) return;      /* 두 번 붙이지 않는다 */
+  const ko = document.createElement("b");
+  ko.className = "dock-ko";
+  ko.textContent = sp.textContent;                      /* 원래 제목을 그대로 옮긴다 */
+  const it = document.createElement("i");
+  it.className = "dock-la";
+  it.textContent = la;
+  sp.textContent = "";
+  sp.appendChild(ko);
+  sp.appendChild(it);
+}
+
 function renderDock(items){
   const dock = document.getElementById("dockUni");   /* 0728: 우주 목록만 다시 그린다 (나침반 구획 보존) */
   if (!dock) return;
@@ -5819,6 +5851,7 @@ function renderDock(items){
         if (sb) sb.textContent = it.sub;
       }
       if (it.onClick) el.addEventListener("click", it.onClick);
+      applyDockLatin(el, it.id);                   /* 0817 — 원어 병기는 여기 한 곳에서 (DOCK_LATIN) */
       addDockShortcut(el, it.id);
       dock.appendChild(el);
       if (it.after){                               /* 펼침 목록은 카드 뒤 형제로 (옛 나침반 문법 승계) */
@@ -5835,6 +5868,38 @@ function renderDock(items){
    내려온 다음에야 나타나서, 정작 타륜이 절실한 느린 연결에는 영영 안 떴다.
    순서를 뒤집는다. z-index 28 < 로더 50이므로 비행 중에는 EG Air 뒤에 숨어
    있다가, 로더가 걷히는 순간 이미 펼쳐진 채로 나타난다. */
+/* ⚠⚠ 0817 — 이름 확정(소로). 곳은 EG베스페르, 글은 교양일기.
+   「석양에 기내에서 쓰는 교양일기」 한 줄이 결정문 17호의 두 칸을 함께 채웠다. */
+const SUNSET_NAME = "EG베스페르";
+const SUNSET_SUB  = "석양에 기내에서 쓰는 교양일기";
+const SUNSET_URL  = "cruise_test_0817c.html";   /* ⚠ 본공사 때 terra 안으로 심는다 (결정문 19호 ⑧) */
+
+/* ⭐⭐ 0817 — 타륜 원어 병기. **여기 한 곳에만** 둔다.
+   카드는 열일곱 장인데 이름이 다섯 군데(이름표·밑그림·uni배열·정적 HTML·각 push)에
+   흩어져 있다. 장마다 원어를 박으면 0816 조항 ④에 그대로 걸린다 —
+   방마다 고치면 언젠가 빠뜨린다. **받는 곳(renderDock)에서 한 번에 붙인다.**
+   ⚠ 없는 것은 비워 둔다. 한글로 지은 이름에 라틴어를 억지로 만들어 붙이지 않는다. */
+const DOCK_LATIN = {
+  stadium:      "Stadium",                  /* 라틴어 — 경주로 */
+  museum:       "Museum",                   /* 라틴어 (그리스어 Mouseion) */
+  constellatio: "Constellatio",             /* 라틴어 — 별의 모임 */
+  tour:         "Le Grand Tour",            /* 프랑스어 */
+  sunset:       "Vesper",                   /* 라틴어 — 저녁, 그리고 저녁별 */
+  wunder:       "Wunderkammer",             /* 독일어 — 경이의 방 */
+  college:      "Collège de Compostelle",   /* 프랑스어 */
+  ecole:        "École normale",            /* 프랑스어 */
+  salon:        "Salon des Compagnons",     /* 프랑스어 */
+  credencial:   "Credencial",               /* 스페인어 — 순례자 여권 */
+  tabellae:     "Tabellae"                  /* 라틴어 — 밀랍 서판 */
+  /* 비워 둔 것: spoon · persona · heritage · tourmusic · popup · palais
+     — 한글로 지은 이름이거나 르 그랑 투르에 딸린 것이라 머리가 이미 병기한다
+     ⚠⚠ 교양 자화상에 Persona 를 붙였다가 0817 소로가 무르셨다.
+        헌장이 융의 개성화를 척추로 삼는데(1.3.2·2.4), 그 체계에서 페르소나는
+        **벗어야 할 사회적 가면**이다. 자화상은 반대로 그리는 것이다.
+        라틴어 뜻만 맞고 방향이 정반대인 이름은 안 붙인다. 파일 이름 persona.html 은
+        판 이름이므로 그대로 둔다(0816 조항 ① — 이름표는 사실, 판 이름은 고유명사). */
+};
+
 const DOCK_SKELETON = [
   { id:"stadium",      sec:"arena",     name:"EG스타디움" },
   { id:"spoon",        sec:"lectio",    name:"교양 한스푼" },
@@ -5842,6 +5907,7 @@ const DOCK_SKELETON = [
   { id:"constellatio", sec:"mundus",    name:"EG콘스텔라티오" },
   { id:"heritage",     sec:"mundus",    name:"오늘의 미술관", cap:"LE GRAND TOUR" },
   { id:"tourmusic",    sec:"mundus",    name:"콘서트", cap:"LE GRAND TOUR" },
+  { id:"sunset",       sec:"anima",     name:SUNSET_NAME },
   { id:"wunder",       sec:"anima",     name:"EG분더카머" },
   { id:"persona",      sec:"anima",     name:"교양 자화상" },
   { id:"college",      sec:"convivium", name:"콜레주 드 콤포스텔라" },
@@ -5889,6 +5955,10 @@ function buildDockSkeleton(){
           + '<div class="dock-sub">' + ((DOCK_SOON[u.id] || u.id === "tourmusic") ? "곧 문을 엽니다" : "지구 도착 대기…") + '</div>',
       onClick: null };   /* 타일 오기 전 본체 클릭은 조용히 무시 — 숏컷은 살아 있다 */
   }).concat(dockAgoraItems()));
+  /* ⚠ 배낭 두 장은 정적 HTML이라 renderDock 을 안 거친다 — 여기서 따로 붙인다.
+     applyDockLatin 이 두 번 붙이지 않으므로 몇 번 불려도 무해하다. */
+  applyDockLatin(document.getElementById("dockCredencial"), "credencial");
+  applyDockLatin(document.getElementById("dockMail"),       "tabellae");
   fillAgoraCounts();
   dock.classList.add("open");   /* 펼친 채로 등장 */
 }
@@ -6107,7 +6177,6 @@ async function loadDock(){
          머리는 문패일 뿐이라 눌러도 아무 데도 안 간다. */
     items.push({ id:"tour", sec:"mundus", cls:"uni nogo tour-lead",
       html: '<div class="dock-main"><span>EG 르 그랑 투르</span></div>'
-          + '<div class="dock-fr">Le Grand Tour</div>'
           + '<div class="dock-sub"></div>',
       sub: "명화와 명곡을 만나는 순례길",
       onClick: null });
@@ -6164,6 +6233,16 @@ async function loadDock(){
        0816 소로 — 아니마 두 채만 한 줄로 댕글거렸다. 다른 구획은 모두 문패 + 둘째 줄이다.
        ⚠ 미술관·음악관의 둘째 줄은 날마다 바뀌는 편성이지만, 이 둘은 늘 같은 곳이다.
          그래서 실데이터가 아니라 소개문을 건다 — 문구는 여기 두 곳에서만 정한다. */
+    /* ANIMA ✈ 선셋 저널 — 아니마의 첫 카드 (0817 소로).
+       분더카머(내 집) · 자화상(나를 봄) 앞에 하루를 적는 곳이 선다.
+       셋 다 남이 못 보는 것이라 한 구획이 맞다 — 결정문 3호·16호.
+       ⚠ 이름은 SUNSET_NAME 한 줄에서만 온다. 여기에 활자를 박지 말 것. */
+    items.push({ id:"sunset", sec:"anima", cls:"uni",
+      html: '<div class="dock-main"><span>' + SUNSET_NAME + '</span></div>'
+          + '<div class="dock-sub"></div>',
+      sub: SUNSET_SUB,
+      onClick: ()=> enterRoomUrl(SUNSET_URL, SUNSET_NAME) });
+
     items.push({ id:"wunder", sec:"anima", cls:"uni",
       html: '<div class="dock-main"><span>EG분더카머</span></div>'
           + '<div class="dock-sub"></div>',
@@ -6203,7 +6282,6 @@ async function loadDock(){
       elId:"navCollege",
       html: '<div class="dock-main"><span>콜레주 드 콤포스텔라</span>'
           + '<span class="chev" aria-hidden="true">›</span></div>'
-          + '<div class="dock-fr">Collège de Compostelle</div>'
           + '<div class="dock-sub"></div>'
           /* ⚠ 0816 — 소개문에 수강 정보를 이어 붙였더니 둘 다 안 읽혔다. 줄을 가른다.
                「LAB 001」 꼴이라 DB 활자가 아니다 — html로 넣어도 안전하다. */
@@ -6221,7 +6299,6 @@ async function loadDock(){
          출판사·지식채널이 먼저 밟는 길이라, 언제 열리는지가 곧 신뢰다. */
     items.push({ id:"ecole", sec:"convivium", cls:"uni",
       html: '<div class="dock-main"><span>에콜 노르말</span></div>'
-          + '<div class="dock-fr">École normale</div>'
           + '<div class="dock-sub"></div>'
           + '<div class="dock-eta">2026년 11월 오픈</div>',
       sub: "살롱 프로페서 육성을 위한 EG교육원",
@@ -6230,7 +6307,6 @@ async function loadDock(){
     /* CONVIVIUM 🍷 살롱 데 콩파뇽 — 셸 미착공. 문패만 (0728 소로 · 0816 문안) */
     items.push({ id:"salon", sec:"convivium", cls:"uni",
       html: '<div class="dock-main"><span>살롱 데 콩파뇽</span></div>'
-          + '<div class="dock-fr">Salon des Compagnons</div>'
           + '<div class="dock-sub"></div>'
           + '<div class="dock-eta">2027년 1월 오픈</div>',
       sub: "교양의 벗들이 함께 하는 소모임",
