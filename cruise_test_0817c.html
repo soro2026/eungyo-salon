@@ -94,7 +94,10 @@
             transform-origin:50% 50%;
             display:flex;flex-direction:column;justify-content:center;gap:5px;
             padding:0 4%;font-variant-numeric:tabular-nums;
-            color:rgba(232,228,216,.82);text-shadow:0 1px 4px rgba(0,0,0,.95);display:none}
+            color:rgba(232,228,216,.82);text-shadow:0 1px 4px rgba(0,0,0,.95);display:none;
+            overflow:hidden;box-sizing:border-box}
+  #homeInfo>div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 0 auto}
+  #homeInfo .hr{flex:0 0 auto}
   #homeInfo.on{display:flex}
   #homeInfo b{color:#f2eddf;font-weight:500}
   #hiTap{color:rgba(201,168,106,.42);letter-spacing:.02em;font-size:.9em}
@@ -109,6 +112,11 @@
   body.edit #homeInfo{outline:1px dashed rgba(201,168,106,.7);cursor:move;pointer-events:auto}
   body.edit .wing b{outline:1px dashed rgba(201,168,106,.7);cursor:move;pointer-events:auto}
   body.edit #homeBtn{pointer-events:none}
+  body.edit #shadeBtn{outline:1px dashed rgba(201,168,106,.7);cursor:move}
+  #saveTag{position:fixed;right:16px;top:16px;z-index:25;background:rgba(12,14,20,.9);
+           border:1px solid #c9a86a;border-radius:6px;padding:5px 11px;font-size:11px;
+           color:#c9a86a;opacity:0;transition:opacity .25s;pointer-events:none}
+  #saveTag.on{opacity:1}
   #editTip{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:24;
            background:rgba(12,14,20,.9);border:1px solid #c9a86a;border-radius:8px;
            padding:8px 14px;font-size:12px;color:#e8e4d8;display:none;line-height:1.7}
@@ -178,10 +186,11 @@
 <div id="homeBtn" title="일기장 (D)"></div>
 <div id="shadeBtn" data-tip="창 닫기" title="창 덮개 (S)"></div>
 <div id="scrollHint">위아래로 밀어 보세요</div>
+<div id="saveTag"></div>
 <div id="editTip">
-  <b>편집 중</b> &mdash; 계기판·EG 글자를 <b>끌어서</b> 옮기고,
+  <b>편집 중</b> &mdash; 계기판 · EG 글자 · 창 덮개 손잡이를 <b>끌어서</b> 옮기고,
   <b>휠</b>로 크기, <b>Shift+휠</b>로 기울기 &nbsp;·&nbsp;
-  <b>E</b> 로 끝내고 저장
+  <b>E</b> 로 끝내기 &nbsp;·&nbsp; 손 떼면 <b>서버에 저장</b>
 </div>
 <div id="homeInfo">
   <div id="hiWhere">&nbsp;</div>
@@ -213,7 +222,7 @@
 
 <div id="tab" title="편집기 열기 (H)">&#9776;</div>
 <div id="mini"></div>
-<div id="keys">H 편집기 &middot; C 기내 &middot; Space 비행 시작/정지<br>&larr; &rarr; 좌석 &middot; L 땅 찾기 &middot; S 창 덮개</div>
+<div id="keys">H 편집기 &middot; C 기내 &middot; Space 비행 시작/정지<br>&larr; &rarr; 좌석 &middot; L 땅 찾기 &middot; S 창 덮개<br>&#9998; E 끌어서 맞추기</div>
 <div id="hud">
   <h1 style="display:flex;align-items:center;justify-content:space-between"><span>EG CRUISE · 편집기 0817c</span><button id="bHide" style="padding:2px 7px;font-size:11px" title="H 키로도 닫힘">✕</button></h1>
 
@@ -286,11 +295,11 @@
     <span class="v" id="eHV">14%</span></div>
   <div class="sec">날개 EG 글자 — <span id="lSide">왼창</span>용</div>
   <div class="row"><label>가로</label>
-    <input type="range" id="lX" min="0" max="20" value="4.5" step="0.1">
-    <span class="v" id="lXV">4.5%</span></div>
+    <input type="range" id="lX" min="0" max="20" value="8" step="0.1">
+    <span class="v" id="lXV">8%</span></div>
   <div class="row"><label>세로</label>
-    <input type="range" id="lY" min="5" max="45" value="19" step="0.5">
-    <span class="v" id="lYV">19%</span></div>
+    <input type="range" id="lY" min="5" max="45" value="26" step="0.5">
+    <span class="v" id="lYV">26%</span></div>
   <div class="row"><label>크기</label>
     <input type="range" id="lS" min="0.4" max="4" value="1.6" step="0.05">
     <span class="v" id="lSV">1.6%</span></div>
@@ -303,6 +312,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="eg_geo.js"></script>
 <script>
 /* ══════════════════════════════════════════════════════════════
@@ -316,7 +326,17 @@ console.log("[EG] cruise 편집기 0817c");
 var KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A";
 var KMH = 900, R_PLATE = 941/1672;
 var FLIGHT_SEC = 30*60;
-var ANNOUNCE_SRC = "cabin_announce_v1.mp3";     /* ⭐ 소로가 올릴 안내 방송 파일 이름 */          /* 한 번의 비행 = 30분 (결정문 6호) */
+var ANNOUNCE_SRC = "cabin_announce_v1.mp3";     /* ⭐ 소로가 올릴 안내 방송 파일 이름 */
+/* ── 서버 저장 — EG의 다른 편집기와 같은 자리(eg_settings) · 같은 문법 ── */
+var SUPA_URL = "https://cyhlotwdisjvoxvfkpnd.supabase.co";
+var SUPA_KEY = "sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR";
+var TUNE_KEY = "cruise_tune";                   /* eg_settings.key */
+var sb = null;
+try{
+  if (window.supabase) sb = window.supabase.createClient(SUPA_URL, SUPA_KEY, {
+    auth:{ storageKey:"eungyo-auth", persistSession:true, autoRefreshToken:true }
+  });
+}catch(e){ console.warn("[EG] Supabase 미연결:", e); }     /* ⭐ 소로가 올릴 안내 방송 파일 이름 */          /* 한 번의 비행 = 30분 (결정문 6호) */
 function mmss(t){ var m=Math.floor(t/60), s2=Math.floor(t%60); return m+":"+(s2<10?"0":"")+s2; }
 var FOVX = 60;                                   /* Cesium 기본 가로 시야각 */
 
@@ -395,8 +415,14 @@ var panY = 0, panMin = 0, panMax = 0;
 /* ⚠ 홈이 판 오른쪽 끝에 붙어 있어 미러 셈이 정확히 대칭이 안 된다 (0817 소로).
    왼창·오른창을 딴 벌로 들고, 편집기는 지금 보고 있는 쪽을 만진다. */
 /* 날개 EG 글자 — 이미지에서 지우고 HTML 로 얹은 것. 좌·우 따로 (0817 소로) */
-var LOGO_L = { x:4.5, y:19, s:1.6, rot:-8 };     /* x·y 는 날개 폭·높이 %, s 는 글자 크기 % */
-var LOGO_R = { x:4.5, y:19, s:1.6, rot:-8 };
+/* 윙렛 남색판 실측 x 4.5~15.4% · y 20.6~43.2% — 그 안쪽에 앉힌다 (0817) */
+/* 창 덮개 손잡이 — 그림 속 그것 위에 얹는 투명 판. 좌·우 따로 (0817 소로) */
+var GRIP_L = { x:15.5, y:29.75, w:11.5, h:2.0 };
+var GRIP_R = { x:15.5, y:29.75, w:11.5, h:2.0 };
+function GRIP(){ return side < 0 ? GRIP_L : GRIP_R; }
+
+var LOGO_L = { x:8.0, y:26, s:1.6, rot:-8 };     /* x·y 는 날개 폭·높이 %, s 는 글자 크기 % */
+var LOGO_R = { x:8.0, y:26, s:1.6, rot:-8 };
 function LOGO(){ return side < 0 ? LOGO_L : LOGO_R; }
 
 var HOME_L = { x:66, y:36, w:33, h:14, rot:-6.3, ry:-13 };
@@ -435,7 +461,20 @@ function layoutFrames(){
   var hi = $("homeInfo");
   hi.style.left = hx + "px"; hi.style.top = hy + "px";
   hi.style.width = hw + "px"; hi.style.height = hh + "px";
-  hi.style.fontSize = Math.max(11, Math.min(hh*0.16, 20)) + "px";
+  /* ⚠ 높이에만 물리면 창을 좁혔을 때 글자가 홈 밖으로 넘친다 (0817 소로).
+     폭에도 물리고, 그래도 넘치면 아래에서 한 번 더 줄인다. */
+  var fs = Math.min(hh*0.155, hw*0.052, 20);
+  hi.style.fontSize = Math.max(7.5, fs) + "px";
+  hi.style.lineHeight = "1.32";
+  /* 넘치면 맞을 때까지 줄인다 (최대 여덟 번) */
+  (function fitHome(){
+    var n = 0;
+    while (n < 8 && (hi.scrollHeight > hi.clientHeight + 1 || hi.scrollWidth > hi.clientWidth + 1)){
+      fs *= 0.92; hi.style.fontSize = Math.max(6, fs) + "px"; n++;
+      if (fs < 6.2) break;
+    }
+  })();
+
   var sb = $("sndBtn");
   sb.style.left = (hx + hw - 30) + "px";
   sb.style.top  = (hy + hh + 8) + "px";
@@ -473,11 +512,11 @@ function layoutFrames(){
     e.style.height = ((c.H+3)/100*h) + "px";
   });
   /* 덮개 손잡이 — 그림 속 그 자리 (가까운 창 위, 실측 0817) */
-  var sb2 = $("shadeBtn"), gx = flipped ? (1 - 0.155 - 0.115) : 0.155;
-  sb2.style.left   = (cx + gx*w) + "px";
-  sb2.style.top    = (py + panY + 0.2975*h) + "px";
-  sb2.style.width  = (0.115*w) + "px";
-  sb2.style.height = (0.020*h) + "px";
+  var sb2 = $("shadeBtn"), GP = GRIP();
+  sb2.style.left   = (cx + (GP.x/100)*w) + "px";
+  sb2.style.top    = (py + panY + (GP.y/100)*h) + "px";
+  sb2.style.width  = ((GP.w/100)*w) + "px";
+  sb2.style.height = ((GP.h/100)*h) + "px";
 
   /* 창 테두리 (선만) */
   ["near","far"].forEach(function(k){
@@ -667,6 +706,7 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
   function tuneTarget(el){
     if (el.closest && el.closest("#homeInfo")) return "home";
     if (el.closest && el.closest(".wing b")) return "logo";
+    if (el.closest && el.closest("#shadeBtn")) return "grip";
     return null;
   }
   addEventListener("pointerdown", function(e){
@@ -684,6 +724,9 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     if (grab.t === "home"){
       var HM = HOME();
       HM.x += dx/grab.w*100; HM.y += dy/grab.h*100;
+    } else if (grab.t === "grip"){
+      var GP = GRIP();
+      GP.x += dx/grab.w*100; GP.y += dy/grab.h*100;
     } else {
       var LG = LOGO(), ww = 0.75*grab.w, wh = ww*821/1916;
       /* 날개는 판 안이라 뒤집히면 화면상 반대로 움직인다 */
@@ -704,6 +747,9 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     if (t === "home"){
       var HM = HOME();
       if (e.shiftKey) HM.rot += d*0.5; else { HM.w += d*0.6; HM.h += d*0.26; }
+    } else if (t === "grip"){
+      var GP = GRIP();
+      GP.w = Math.max(2, GP.w + d*0.4); GP.h = Math.max(0.6, GP.h + d*0.12);
     } else {
       var LG = LOGO();
       if (e.shiftKey) LG.rot += d; else LG.s = Math.max(0.2, LG.s + d*0.06);
@@ -711,18 +757,50 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     layoutFrames(); syncHomeEditor(); syncLogoEditor(); saveTune();
   }, { passive:false, capture:true });
 
-  /* 브라우저에 저장 — 새로고침해도 남는다 */
+  /* ── 서버 저장 — eg_settings 한 줄. 읽기는 모두, 쓰기는 관리자만 (RLS) ── */
+  var saveT = null;
+  function tuneNow(){ return { HL:HOME_L, HR:HOME_R, LL:LOGO_L, LR:LOGO_R, GL:GRIP_L, GR:GRIP_R }; }
   function saveTune(){
-    try{ localStorage.setItem("eg_cruise_tune",
-      JSON.stringify({ HL:HOME_L, HR:HOME_R, LL:LOGO_L, LR:LOGO_R })); }catch(e){}
+    /* 끌 때마다 부르지 않게 잠깐 모았다 보낸다 */
+    clearTimeout(saveT);
+    saveT = setTimeout(pushTune, 500);
+  }
+  function pushTune(){
+    try{ localStorage.setItem("eg_cruise_tune2", JSON.stringify(tuneNow())); }catch(e){}
+    if (!sb){ flashSave("연결 없음"); return; }
+    sb.from("eg_settings")
+      .upsert({ key:TUNE_KEY, val:tuneNow(), updated_at:new Date().toISOString() },
+              { onConflict:"key" })
+      .then(function(r){
+        if (r.error){ console.warn("[EG] 저장 실패:", r.error.message);
+                      flashSave(r.error.message.indexOf("row-level") >= 0 ? "관리자 로그인 필요" : "저장 실패"); }
+        else flashSave("서버 저장됨");
+      });
+  }
+  function flashSave(msg){
+    var e = $("saveTag"); if (!e) return;
+    e.textContent = msg; e.classList.add("on");
+    clearTimeout(e._t); e._t = setTimeout(function(){ e.classList.remove("on"); }, 2200);
   }
   function loadTune(){
+    /* 먼저 브라우저 값으로 그려 두고, 서버 값이 오면 덮는다 */
     try{
-      var v = JSON.parse(localStorage.getItem("eg_cruise_tune") || "null");
-      if (!v) return;
-      if (v.HL) HOME_L = v.HL; if (v.HR) HOME_R = v.HR;
-      if (v.LL) LOGO_L = v.LL; if (v.LR) LOGO_R = v.LR;
+      var v = JSON.parse(localStorage.getItem("eg_cruise_tune2") || "null");
+      if (v) applyTune(v);
     }catch(e){}
+    if (!sb) return;
+    sb.from("eg_settings").select("val").eq("key", TUNE_KEY).maybeSingle()
+      .then(function(r){
+        if (r.error || !r.data || !r.data.val) return;
+        applyTune(r.data.val);
+        syncHomeEditor(); syncLogoEditor(); layoutFrames();
+        console.log("[EG] 서버에서 편집값을 받았습니다");
+      });
+  }
+  function applyTune(v){
+    if (v.HL) HOME_L = v.HL; if (v.HR) HOME_R = v.HR;
+    if (v.LL) LOGO_L = v.LL; if (v.LR) LOGO_R = v.LR;
+    if (v.GL) GRIP_L = v.GL; if (v.GR) GRIP_R = v.GR;
   }
 
   function syncHomeEditor(){
@@ -920,28 +998,45 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     if (on) layoutFrames();
   };
   $("bDump").onclick = function(){
-    var t = $("dump") || document.createElement("textarea");
-    t.id="dump"; t.rows=7; t.readOnly=true;
-    if (!t.parentNode) $("hud").appendChild(t);
     var L = layoutFrames();
-    t.value =
+    var txt =
       "위도        " + $("lat").value + "\n" +
       "고도        " + $("alt").value + " km\n" +
-      "내림각      " + $("pit").value + " deg\n" +
       "해 높이     " + $("sel").value + " deg\n" +
       "항로        " + (mode==="SUN"?"해 추종":"대권 고정") + "\n" +
-      "창          " + (side<0?"왼창":"오른창") + "\n" +
-      "EG글자(왼) x " + LOGO_L.x + " · y " + LOGO_L.y + " · 크기 " + LOGO_L.s +
-        " · 기울기 " + LOGO_L.rot + "\n" +
-      "EG글자(오) x " + LOGO_R.x + " · y " + LOGO_R.y + " · 크기 " + LOGO_R.s +
-        " · 기울기 " + LOGO_R.rot + "\n" +
-      "계기판(왼)  x " + HOME_L.x + " · y " + HOME_L.y + " · w " + HOME_L.w + " · h " + HOME_L.h +
-        " · 기울기 " + HOME_L.rot + " · 돌림Y " + HOME_L.ry + "\n" +
-      "계기판(오)  x " + HOME_R.x + " · y " + HOME_R.y + " · w " + HOME_R.w + " · h " + HOME_R.h +
-        " · 기울기 " + HOME_R.rot + " · 돌림Y " + HOME_R.ry + "\n" +
-      "창 시야각   " + halfFovX().toFixed(1)*2 + " deg (화면 " + L.vw + "x" + L.vh + ")";
-    t.select();
+      "EG글자(왼) x " + LOGO_L.x.toFixed(2) + " · y " + LOGO_L.y.toFixed(2) +
+        " · 크기 " + LOGO_L.s.toFixed(2) + " · 기울기 " + LOGO_L.rot.toFixed(1) + "\n" +
+      "EG글자(오) x " + LOGO_R.x.toFixed(2) + " · y " + LOGO_R.y.toFixed(2) +
+        " · 크기 " + LOGO_R.s.toFixed(2) + " · 기울기 " + LOGO_R.rot.toFixed(1) + "\n" +
+      "계기판(왼)  x " + HOME_L.x.toFixed(2) + " · y " + HOME_L.y.toFixed(2) +
+        " · w " + HOME_L.w.toFixed(2) + " · h " + HOME_L.h.toFixed(2) +
+        " · 기울기 " + HOME_L.rot.toFixed(1) + " · 돌림Y " + HOME_L.ry.toFixed(1) + "\n" +
+      "계기판(오)  x " + HOME_R.x.toFixed(2) + " · y " + HOME_R.y.toFixed(2) +
+        " · w " + HOME_R.w.toFixed(2) + " · h " + HOME_R.h.toFixed(2) +
+        " · 기울기 " + HOME_R.rot.toFixed(1) + " · 돌림Y " + HOME_R.ry.toFixed(1) + "\n" +
+      "화면        " + L.vw + "x" + L.vh + " · 창 시야각 " + (halfFovX()*2).toFixed(1) + " deg\n" +
+      "RAW " + JSON.stringify({HL:HOME_L,HR:HOME_R,LL:LOGO_L,LR:LOGO_R});
+    console.log("[EG] 값 뽑기\n" + txt);
+    /* ⚠ readOnly textarea 의 select() 는 조용히 실패한다 — 클립보드로 바로 (0817) */
+    var done = function(ok){
+      $("bDump").textContent = ok ? "복사됨 ✓" : "콘솔에 찍음";
+      setTimeout(function(){ $("bDump").textContent = "값 뽑기"; }, 1800);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt).then(function(){ done(true); })
+        .catch(function(){ fallbackCopy(txt, done); });
+    } else fallbackCopy(txt, done);
   };
+  function fallbackCopy(txt, done){
+    try{
+      var ta = document.createElement("textarea");
+      ta.value = txt;
+      ta.style.cssText = "position:fixed;left:-9999px;top:0";
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      var ok = document.execCommand("copy");
+      document.body.removeChild(ta); done(ok);
+    }catch(e){ done(false); }
+  }
   $("go").onclick = function(){
     stopAll();
     var lat = +$("lat").value, lon = sunLonAt(lat, +$("sel").value);
