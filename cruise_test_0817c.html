@@ -32,6 +32,25 @@
   /* ⚠⚠ 판 scaleX(-1)이 위치·clip을 통째로 미러하므로 이미지는 절대 안 건드린다.
      되뒤집기를 얹었다가 두 번(0817) 부러졌다. 글자만 HTML 로 얹어 되세운다. */
   /* 자리·크기·기울기는 JS(LOGO)가 덮어쓴다 */
+  /* ⭐ 창 덮개 — 기내 PNG 뒤에 두면 창 구멍 모양대로 잘린다.
+     멀미나는 분, 글에만 집중하고 싶은 분을 위해 (0817 소로) */
+  .shade{position:absolute;background:linear-gradient(#cdbfa8,#c3b49c 62%,#b6a68e);
+         box-shadow:0 4px 12px rgba(0,0,0,.28) inset;
+         transform:translateY(-101%);transition:transform .75s cubic-bezier(.35,.9,.3,1)}
+  #plate.shut .shade{transform:translateY(0)}
+  .shade::after{content:"";position:absolute;left:38%;right:38%;bottom:2.5%;height:2.5%;
+                border-radius:99px;background:rgba(90,78,62,.5)}
+  /* 손잡이 — 그림에 이미 그려져 있는 그것 위에 얹는다 (실측 0817).
+     따로 그리지 않는다. 손을 올리면 살짝 빛나고, 누르면 덮개가 내려온다. */
+  #shadeBtn{position:fixed;z-index:11;pointer-events:auto;cursor:pointer;border-radius:99px;
+            background:transparent;transition:background .2s,box-shadow .2s}
+  #shadeBtn:hover{background:rgba(255,244,214,.13);
+                  box-shadow:0 0 14px 3px rgba(255,244,214,.16)}
+  #shadeBtn::after{content:attr(data-tip);position:absolute;left:50%;top:112%;
+                   transform:translateX(-50%);white-space:nowrap;font-size:11px;
+                   color:rgba(232,228,216,.0);transition:color .2s;pointer-events:none;
+                   text-shadow:0 1px 5px rgba(0,0,0,.9)}
+  #shadeBtn:hover::after{color:rgba(232,228,216,.78)}
   .wing b{position:absolute;font-family:Georgia,serif;font-weight:500;color:#f4f0e4;
           letter-spacing:.03em;pointer-events:none;white-space:nowrap;
           text-shadow:0 0 2px rgba(0,0,0,.3);transform-origin:50% 50%}
@@ -45,12 +64,12 @@
      그래서 기내 판만 위아래로 밀고 Cesium 캔버스는 그대로 둔다. */
   #plate{transition:none}
   /* 모니터 홈 — 실측 left 66% top 36% w 33% h 14% (0817) */
-  #homeBtn{position:absolute;left:66%;top:36%;width:33%;height:14%;
-           /* 자리와 크기는 JS(HOME)가 덮어쓴다 — 편집기 조절값 */
+  /* ⚠ 판 밖(fixed)에 둔다. 판 안에 두면 미러되어 계기판(fixed)과 좌표계가 갈린다 — 0817 */
+  #homeBtn{position:fixed;z-index:11;
            pointer-events:auto;cursor:pointer;border-radius:6px;
            box-shadow:inset 0 0 0 0 rgba(201,168,106,0);transition:box-shadow .2s}
   #homeBtn:hover{box-shadow:inset 0 0 0 2px rgba(201,168,106,.55)}
-  #plate.flip #homeBtn{transform:scaleX(-1);transform-origin:50% 50%}
+
   /* 모니터 — 홈에 접혀 있다가 오른쪽 경첩으로 돌아 나온다 */
   #mon{position:fixed;z-index:12;transform-origin:right center;
        transform:rotateY(-58deg) translateX(16%) scale(.58);opacity:0;
@@ -86,6 +105,15 @@
           cursor:pointer;display:none;backdrop-filter:blur(3px)}
   #sndBtn.show{display:block}
   #sndBtn.off{color:rgba(120,114,100,.6);border-color:rgba(120,114,100,.3)}
+  /* ⭐ 콕 짚어 끌어 맞추는 편집 — 슬라이더로 좌표계를 뒤쫓는 대신 눈으로 (0817 소로) */
+  body.edit #homeInfo{outline:1px dashed rgba(201,168,106,.7);cursor:move;pointer-events:auto}
+  body.edit .wing b{outline:1px dashed rgba(201,168,106,.7);cursor:move;pointer-events:auto}
+  body.edit #homeBtn{pointer-events:none}
+  #editTip{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:24;
+           background:rgba(12,14,20,.9);border:1px solid #c9a86a;border-radius:8px;
+           padding:8px 14px;font-size:12px;color:#e8e4d8;display:none;line-height:1.7}
+  body.edit #editTip{display:block}
+  #editTip b{color:#c9a86a;font-weight:500}
   #scrollHint{position:fixed;right:16px;top:50%;transform:translateY(-50%);z-index:11;
               font-size:11px;color:rgba(232,228,216,.35);writing-mode:vertical-rl;
               text-shadow:0 1px 6px rgba(0,0,0,.9);pointer-events:none;display:none}
@@ -143,10 +171,18 @@
 <div id="plate">
   <div class="wing" id="wingNear"><i></i><b>EG</b></div>
   <div class="wing" id="wingFar"><i></i><b>EG</b></div>
+  <div class="shade" id="shNear"></div>
+  <div class="shade" id="shFar"></div>
   <div id="cabin"></div>
-  <div id="homeBtn" title="일기장 (D)"></div>
 </div>
+<div id="homeBtn" title="일기장 (D)"></div>
+<div id="shadeBtn" data-tip="창 닫기" title="창 덮개 (S)"></div>
 <div id="scrollHint">위아래로 밀어 보세요</div>
+<div id="editTip">
+  <b>편집 중</b> &mdash; 계기판·EG 글자를 <b>끌어서</b> 옮기고,
+  <b>휠</b>로 크기, <b>Shift+휠</b>로 기울기 &nbsp;·&nbsp;
+  <b>E</b> 로 끝내고 저장
+</div>
 <div id="homeInfo">
   <div id="hiWhere">&nbsp;</div>
   <div class="hr"></div>
@@ -177,7 +213,7 @@
 
 <div id="tab" title="편집기 열기 (H)">&#9776;</div>
 <div id="mini"></div>
-<div id="keys">H 편집기 &middot; C 기내 &middot; Space 비행 시작/정지<br>&larr; &rarr; 좌석 &middot; L 땅 찾기</div>
+<div id="keys">H 편집기 &middot; C 기내 &middot; Space 비행 시작/정지<br>&larr; &rarr; 좌석 &middot; L 땅 찾기 &middot; S 창 덮개</div>
 <div id="hud">
   <h1 style="display:flex;align-items:center;justify-content:space-between"><span>EG CRUISE · 편집기 0817c</span><button id="bHide" style="padding:2px 7px;font-size:11px" title="H 키로도 닫힘">✕</button></h1>
 
@@ -227,6 +263,8 @@
     <button id="bFr" style="flex:1">창 테두리</button>
     <button id="bDump" style="flex:1">값 뽑기</button></div>
 
+  <div class="row" style="margin-top:10px">
+    <button id="bEdit" style="flex:1">&#9998; 끌어서 맞추기 (E)</button></div>
   <div class="sec">모니터 계기판 — <span id="eSide">왼창</span> 좌석용 (좌·우 따로 저장)</div>
   <div class="row"><label>기울기</label>
     <input type="range" id="eRot" min="-15" max="15" value="-6.3" step="0.1">
@@ -388,13 +426,10 @@ function layoutFrames(){
       hw = (HM.w/100)*w, hh = (HM.h/100)*h;
   var mw = Math.max(hw*1.9, 380), mh = Math.max(mw*0.72, 300);
   mw = Math.min(mw, vw*0.52); mh = Math.min(mh, vh*0.78);
-  /* 홈 단추도 같은 값을 따른다 */
-  /* 단추는 판 안에 있어 판과 함께 미러된다 — 왼창 좌표를 그대로 쓰되,
-     오른창일 땐 fixed 계기판과 같은 자리에 오도록 판 좌표로 되환산 */
+  /* 홈 단추 — 계기판과 똑같은 화면 좌표 (둘 다 fixed) */
   var hb = $("homeBtn");
-  var bx = flipped ? (100 - HM.x - HM.w) : HM.x;   /* 판이 뒤집히므로 좌표를 미리 거꾸로 */
-  hb.style.left = bx + "%"; hb.style.top = HM.y + "%";
-  hb.style.width = HM.w + "%"; hb.style.height = HM.h + "%";
+  hb.style.left = hx + "px"; hb.style.top = hy + "px";
+  hb.style.width = hw + "px"; hb.style.height = hh + "px";
 
   /* 홈 계기판 — 홈 사각형에 딱 얹는다. 판이 뒤집히면 각도도 반대로 */
   var hi = $("homeInfo");
@@ -429,6 +464,21 @@ function layoutFrames(){
     e.style.top  = (0.36*h) + "px";
   });
 
+  /* 창 덮개 — 창보다 조금 크게 잡아 틈이 안 보이게 */
+  [["shNear","near"],["shFar","far"]].forEach(function(t){
+    var e = $(t[0]), c = WIN[t[1]];
+    e.style.left   = ((c.L-1.5)/100*w) + "px";
+    e.style.top    = ((c.T-1.5)/100*h) + "px";
+    e.style.width  = ((c.W+3)/100*w) + "px";
+    e.style.height = ((c.H+3)/100*h) + "px";
+  });
+  /* 덮개 손잡이 — 그림 속 그 자리 (가까운 창 위, 실측 0817) */
+  var sb2 = $("shadeBtn"), gx = flipped ? (1 - 0.155 - 0.115) : 0.155;
+  sb2.style.left   = (cx + gx*w) + "px";
+  sb2.style.top    = (py + panY + 0.2975*h) + "px";
+  sb2.style.width  = (0.115*w) + "px";
+  sb2.style.height = (0.020*h) + "px";
+
   /* 창 테두리 (선만) */
   ["near","far"].forEach(function(k){
     var e = $(k === "near" ? "frNear" : "frFar"), c = WIN[k];
@@ -450,7 +500,11 @@ function cruise(lat0, lon0, opt){
   var lat = lat0, lon = lon0, t0 = performance.now(), tp = t0, gT = 0;
   var lastRel = opt.alt, lastPit = 0;
   var brg0 = null, dist = 0;
+  /* ⚠⚠ 리스너 전체를 감싼다. onTick 안쪽만 감쌌더니 setView·sunAzEl 에서 난 오류가
+     그대로 Cesium 렌더 루프를 세웠다 (0817 두 번). 여기서 나는 어떤 오류도 비행을 못 멈춘다. */
+  var errN = 0;
   var off = viewer.clock.onTick.addEventListener(function(){
+   try{
     var now = performance.now(), dt = (now - tp)/1000, sec = (now-t0)/1000; tp = now;
     var s = sunAzEl(lat, lon);
     var az = deg(s.az);
@@ -482,12 +536,24 @@ function cruise(lat0, lon0, opt){
     }
     var pit = (pitMode === "AUTO") ? horizonDeg(rel) + opt.sky : opt.pitch;
 
-    viewer.camera.setView({
-      destination: Cesium.Cartesian3.fromDegrees(lon, lat, groundH + rel),
-      orientation:{ heading: look, pitch: Cesium.Math.toRadians(pit), roll:0 }
-    });
+    if (!window.__egShut){                      /* 창이 닫혀 있으면 그리지 않는다 */
+      viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(lon, lat, groundH + rel),
+        orientation:{ heading: look, pitch: Cesium.Math.toRadians(pit), roll:0 }
+      });
+    }
     lastRel = rel; lastPit = pit;
-    if (opt.onTick) opt.onTick(sec, lat, lon, brg, deg(look), s, dist, lastRel, lastPit);
+    /* ⚠ 계기판 한 줄이 죽어도 Cesium 렌더가 통째로 멈추지 않게 감싼다 (0817) */
+    if (opt.onTick){
+      try{ opt.onTick(sec, lat, lon, brg, deg(look), s, dist, lastRel, lastPit); }
+      catch(err){ if (!window.__egTickWarned){ window.__egTickWarned = true;
+                    console.error("[EG] 계기판 오류 — 비행은 계속합니다:", err); } }
+    }
+   }catch(fatal){
+     errN++;
+     if (errN < 3) console.error("[EG] 비행 오류 " + errN + "회:", fatal);
+     if (errN === 20){ console.error("[EG] 오류가 잦아 비행을 멈춥니다"); off(); }
+   }
   });
   return { stop: off };
 }
@@ -588,6 +654,77 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
       $(t[0]+"V").textContent = LG[t[1]] + t[2];
     });
   }
+  /* ── 끌어서 맞추기 ─────────────────────────────────────── */
+  var editing = false, grab = null;
+  function setEdit(on){
+    editing = on;
+    document.body.classList.toggle("edit", on);
+    $("bEdit").classList.toggle("on", on);
+    if (!on) saveTune();
+  }
+  $("bEdit").onclick = function(){ setEdit(!editing); };
+
+  function tuneTarget(el){
+    if (el.closest && el.closest("#homeInfo")) return "home";
+    if (el.closest && el.closest(".wing b")) return "logo";
+    return null;
+  }
+  addEventListener("pointerdown", function(e){
+    if (!editing) return;
+    var t = tuneTarget(e.target); if (!t) return;
+    e.preventDefault(); e.stopPropagation();
+    var L = layoutFrames();
+    grab = { t:t, x:e.clientX, y:e.clientY, w:L.w, h:L.h,
+             flip:$("plate").classList.contains("flip") };
+  }, true);
+  addEventListener("pointermove", function(e){
+    if (!grab) return;
+    var dx = e.clientX - grab.x, dy = e.clientY - grab.y;
+    grab.x = e.clientX; grab.y = e.clientY;
+    if (grab.t === "home"){
+      var HM = HOME();
+      HM.x += dx/grab.w*100; HM.y += dy/grab.h*100;
+    } else {
+      var LG = LOGO(), ww = 0.75*grab.w, wh = ww*821/1916;
+      /* 날개는 판 안이라 뒤집히면 화면상 반대로 움직인다 */
+      LG.x += (grab.flip ? -dx : dx)/ww*100;
+      LG.y += dy/wh*100;
+    }
+    layoutFrames();
+  }, true);
+  addEventListener("pointerup", function(){
+    if (!grab) return;
+    grab = null; syncHomeEditor(); syncLogoEditor(); saveTune();
+  }, true);
+  addEventListener("wheel", function(e){
+    if (!editing) return;
+    var t = tuneTarget(e.target); if (!t) return;
+    e.preventDefault(); e.stopPropagation();
+    var d = e.deltaY > 0 ? -1 : 1;
+    if (t === "home"){
+      var HM = HOME();
+      if (e.shiftKey) HM.rot += d*0.5; else { HM.w += d*0.6; HM.h += d*0.26; }
+    } else {
+      var LG = LOGO();
+      if (e.shiftKey) LG.rot += d; else LG.s = Math.max(0.2, LG.s + d*0.06);
+    }
+    layoutFrames(); syncHomeEditor(); syncLogoEditor(); saveTune();
+  }, { passive:false, capture:true });
+
+  /* 브라우저에 저장 — 새로고침해도 남는다 */
+  function saveTune(){
+    try{ localStorage.setItem("eg_cruise_tune",
+      JSON.stringify({ HL:HOME_L, HR:HOME_R, LL:LOGO_L, LR:LOGO_R })); }catch(e){}
+  }
+  function loadTune(){
+    try{
+      var v = JSON.parse(localStorage.getItem("eg_cruise_tune") || "null");
+      if (!v) return;
+      if (v.HL) HOME_L = v.HL; if (v.HR) HOME_R = v.HR;
+      if (v.LL) LOGO_L = v.LL; if (v.LR) LOGO_R = v.LR;
+    }catch(e){}
+  }
+
   function syncHomeEditor(){
     var HM = HOME();
     $("eSide").textContent = side < 0 ? "왼창" : "오른창";
@@ -680,6 +817,8 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     else if (k === "l")   $("bLand").click();
     else if (k === "f")   $("bFr").click();
     else if (k === "d")   setDiary(!$("mon").classList.contains("on"));
+    else if (k === "s")   setShade(!shut);
+    else if (k === "e")   setEdit(!editing);
     else if (k === "arrowup")   { e.preventDefault(); panBy(60); }
     else if (k === "arrowdown") { e.preventDefault(); panBy(-60); }
   });
@@ -739,6 +878,15 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     $("hiLeft").textContent = mmss(FLIGHT_SEC);
     $("hiWhere").textContent = $("where").textContent || "이륙 대기";
   }
+  var shut = false;
+  function setShade(on){
+    shut = on; window.__egShut = on;
+    $("plate").classList.toggle("shut", on);
+    $("shadeBtn").setAttribute("data-tip", on ? "창 열기" : "창 닫기");
+    /* ⚠ 닫혀 있으면 카메라를 안 옮긴다 — 안 보이는 것을 30분간 그릴 까닭이 없다.
+       좌표와 시간은 계속 흐르므로 다시 열면 그동안 간 만큼 가 있다. */
+  }
+  $("shadeBtn").onclick = function(e){ e.stopPropagation(); setShade(!shut); };
   function setDiary(open){
     $("mon").classList.toggle("on", open);
     if (open){
@@ -868,7 +1016,8 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
   addEventListener("pointerup", function(){ dragY = null; });
   addEventListener("resize", function(){ layoutFrames(); });
 
-  setAltMode(true); setPitMode(true);
+  loadTune();
+  setAltMode(true); setPitMode(true); syncHomeEditor(); syncLogoEditor();
   layoutFrames();
   preview();
   paintHomeIdle();
