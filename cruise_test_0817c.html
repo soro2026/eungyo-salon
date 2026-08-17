@@ -28,15 +28,15 @@
   /* ⚠ 판을 scaleX(-1) 로 뒤집으면 날개의 EG 글자까지 거울상이 된다.
      안쪽에 한 겹을 더 두고 되뒤집어 글자만 바로 세운다 (0817 소로). */
   .wing i{position:absolute;inset:0;display:block;
-          background:url(wing_eg_v1.webp) center/100% 100% no-repeat}
-  /* ⚠⚠ 판을 scaleX(-1)로 뒤집으면 위치도 clip도 통째로 미러된다.
-     여기에 clip을 또 뒤집으면 두 번 뒤집혀 부러진다 — 0817 두 번 걸림.
-     그래서 .wing i(이미지)만 되뒤집어 로고를 세우고, 나머지는 안 건드린다.
-     단 이미지를 되뒤집으면 날개 좌우가 그림상 반대가 되므로,
-     flip 때는 near/far 의 「그림 절반」도 서로 바꿔야 이어진다. */
-  #plate.flip .wing i{transform:scaleX(-1)}
-  #plate.flip #wingNear i{clip-path:inset(0 0 0 0)}
-  #plate.flip #wingFar  i{clip-path:inset(0 0 0 0)}
+          background:url(wing_blank_v1.webp) center/100% 100% no-repeat}
+  /* ⚠⚠ 판 scaleX(-1)이 위치·clip을 통째로 미러하므로 이미지는 절대 안 건드린다.
+     되뒤집기를 얹었다가 두 번(0817) 부러졌다. 글자만 HTML 로 얹어 되세운다. */
+  .wing b{position:absolute;left:4.5%;top:19%;width:11%;height:25%;
+          display:flex;align-items:center;justify-content:center;
+          font-family:Georgia,serif;font-weight:500;color:#f4f0e4;
+          font-size:1px;letter-spacing:.04em;pointer-events:none;
+          text-shadow:0 0 2px rgba(0,0,0,.25);transform:rotate(-8deg)}
+  #plate.flip .wing b{transform:rotate(8deg) scaleX(-1)}
   #wingNear{clip-path:inset(0 56.8% 0 0)}
   #wingFar {clip-path:inset(0 0 0 56.6%)}
   @media (prefers-reduced-motion: no-preference){
@@ -82,6 +82,12 @@
   #homeInfo b{color:#f2eddf;font-weight:500}
   #hiTap{color:rgba(201,168,106,.42);letter-spacing:.02em;font-size:.9em}
   #homeInfo .hr{height:1px;background:rgba(232,228,216,.22);margin:2px 0}
+  #sndBtn{position:fixed;z-index:12;width:26px;height:26px;border-radius:50%;
+          border:1px solid rgba(201,168,106,.4);background:rgba(12,14,20,.5);
+          color:rgba(201,168,106,.75);font-size:12px;line-height:24px;text-align:center;
+          cursor:pointer;display:none;backdrop-filter:blur(3px)}
+  #sndBtn.show{display:block}
+  #sndBtn.off{color:rgba(120,114,100,.6);border-color:rgba(120,114,100,.3)}
   #scrollHint{position:fixed;right:16px;top:50%;transform:translateY(-50%);z-index:11;
               font-size:11px;color:rgba(232,228,216,.35);writing-mode:vertical-rl;
               text-shadow:0 1px 6px rgba(0,0,0,.9);pointer-events:none;display:none}
@@ -137,8 +143,8 @@
 <div id="cesiumContainer"></div>
 <div id="fade"></div>
 <div id="plate">
-  <div class="wing" id="wingNear"><i></i></div>
-  <div class="wing" id="wingFar"><i></i></div>
+  <div class="wing" id="wingNear"><i></i><b>EG</b></div>
+  <div class="wing" id="wingFar"><i></i><b>EG</b></div>
   <div id="cabin"></div>
   <div id="homeBtn" title="일기장 (D)"></div>
 </div>
@@ -146,11 +152,13 @@
 <div id="homeInfo">
   <div id="hiWhere">&nbsp;</div>
   <div class="hr"></div>
-  <div><span id="hiAlt">&mdash;</span> &nbsp;·&nbsp; <span id="hiSpd">900 km/h</span></div>
+  <div>고도 <b id="hiAlt">&mdash;</b> <span id="hiVs"></span></div>
+  <div id="hiPos" style="font-size:.88em">&nbsp;</div>
   <div><span id="hiElapsed">0:00</span> 비행 &nbsp;·&nbsp; 남은 <b id="hiLeft">30:00</b></div>
   <div class="hr"></div>
   <div id="hiTap">&#9992; 여기를 누르면 일기장이 열립니다</div>
 </div>
+<div id="sndBtn" title="기내 소음 켬/끔">&#128266;</div>
 
 <div id="mon">
   <div id="monHead">
@@ -171,7 +179,7 @@
 
 <div id="tab" title="편집기 열기 (H)">&#9776;</div>
 <div id="mini"></div>
-<div id="keys">H 편집기 &middot; C 기내 &middot; Space 이륙/정지<br>&larr; &rarr; 좌석 &middot; L 땅 찾기</div>
+<div id="keys">H 편집기 &middot; C 기내 &middot; Space 비행 시작/정지<br>&larr; &rarr; 좌석 &middot; L 땅 찾기</div>
 <div id="hud">
   <h1 style="display:flex;align-items:center;justify-content:space-between"><span>EG CRUISE · 편집기 0817c</span><button id="bHide" style="padding:2px 7px;font-size:11px" title="H 키로도 닫힘">✕</button></h1>
 
@@ -212,8 +220,8 @@
     <button id="wR" style="flex:1">오른창</button></div>
 
   <div class="row" style="margin-top:9px">
-    <button id="go" style="flex:1">이륙 &middot; 900km/h</button>
-    <button id="stop">정지</button></div>
+    <button id="go" style="flex:1">비행 시작 &middot; 900km/h</button>
+    <button id="stop">비행 정지</button></div>
   <div class="row">
     <button id="bLand" style="flex:1">&#9733; 땅 찾기</button></div>
   <div class="row">
@@ -258,7 +266,8 @@ console.log("[EG] cruise 편집기 0817c");
 
 var KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A";
 var KMH = 900, R_PLATE = 941/1672;
-var FLIGHT_SEC = 30*60;          /* 한 번의 비행 = 30분 (결정문 6호) */
+var FLIGHT_SEC = 30*60;
+var ANNOUNCE_SRC = "cabin_announce_v1.mp3";     /* ⭐ 소로가 올릴 안내 방송 파일 이름 */          /* 한 번의 비행 = 30분 (결정문 6호) */
 function mmss(t){ var m=Math.floor(t/60), s2=Math.floor(t%60); return m+":"+(s2<10?"0":"")+s2; }
 var FOVX = 60;                                   /* Cesium 기본 가로 시야각 */
 
@@ -367,7 +376,11 @@ function layoutFrames(){
   var hi = $("homeInfo"), flipped = $("plate").classList.contains("flip");
   hi.style.left = hx + "px"; hi.style.top = hy + "px";
   hi.style.width = hw + "px"; hi.style.height = hh + "px";
-  hi.style.fontSize = Math.max(9, Math.min(hh*0.115, 15)) + "px";
+  hi.style.fontSize = Math.max(11, Math.min(hh*0.16, 20)) + "px";
+  var sb = $("sndBtn");
+  sb.style.left = (hx + hw - 30) + "px";
+  sb.style.top  = (hy + hh + 8) + "px";
+
   hi.style.transform = flipped
     ? "rotate(" + (-HOME.rot) + "deg) perspective(700px) rotateY(" + (-HOME.ry) + "deg)"
     : "rotate(" + HOME.rot + "deg) perspective(700px) rotateY(" + HOME.ry + "deg)";
@@ -382,6 +395,7 @@ function layoutFrames(){
   ["wingNear","wingFar"].forEach(function(id, k){
     var e = $(id);
     e.style.width = ww + "px"; e.style.height = wh + "px";
+    var b = e.querySelector("b"); if (b) b.style.fontSize = (ww*0.052) + "px";
     e.style.left = ((k === 0 ? 8 : -2)/100*w) + "px";
     e.style.top  = (0.36*h) + "px";
   });
@@ -614,6 +628,72 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     else if (k === "arrowup")   { e.preventDefault(); panBy(60); }
     else if (k === "arrowdown") { e.preventDefault(); panBy(-60); }
   });
+  /* ══ 소리 — 띵동 → 방송(10초) → 엔진음이 스르르 (0817 소로) ══ */
+  var announced = false, annAudio = null;
+  var AC = window.AudioContext || window.webkitAudioContext;
+  var ac = null, engGain = null, engLp = null, sndOn = true, engBase = 0.14;
+
+  function ensureAC(){ if (!ac) ac = new AC(); return ac; }
+
+  function chime(){
+    try{
+      var a = ensureAC();
+      [[659.25, 0.00, 0.42],[523.25, 0.34, 0.6]].forEach(function(n){
+        var o = a.createOscillator(), g = a.createGain();
+        o.type = "sine"; o.frequency.value = n[0];
+        g.gain.setValueAtTime(0, a.currentTime + n[1]);
+        g.gain.linearRampToValueAtTime(.22, a.currentTime + n[1] + .04);
+        g.gain.exponentialRampToValueAtTime(.001, a.currentTime + n[1] + n[2]);
+        o.connect(g).connect(a.destination);
+        o.start(a.currentTime + n[1]); o.stop(a.currentTime + n[1] + n[2] + .1);
+      });
+    }catch(e){}
+  }
+
+  /* 기내 소음 — 파일 없이 만든다. 백색소음 → 저역필터 = 엔진 웅—
+     ⭐ 루프 파일과 달리 이음매가 없고, 필터를 고도에 물릴 수 있다 */
+  function engineStart(){
+    if (engGain || !sndOn) return;
+    try{
+      var a = ensureAC();
+      var buf = a.createBuffer(1, a.sampleRate*2, a.sampleRate);
+      var d = buf.getChannelData(0);
+      for (var i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+      var src = a.createBufferSource(); src.buffer = buf; src.loop = true;
+      engLp = a.createBiquadFilter(); engLp.type = "lowpass";
+      engLp.frequency.value = 420; engLp.Q.value = 0.4;
+      engGain = a.createGain(); engGain.gain.value = 0;
+      src.connect(engLp).connect(engGain).connect(a.destination);
+      src.start();
+      engGain.gain.linearRampToValueAtTime(engBase, a.currentTime + 2.5);   /* 스르르 */
+    }catch(e){}
+  }
+  function engineSet(on){
+    sndOn = on;
+    $("sndBtn").classList.toggle("off", !on);
+    $("sndBtn").innerHTML = on ? "&#128266;" : "&#128263;";
+    if (!engGain){ if (on && announced) engineStart(); return; }
+    engGain.gain.linearRampToValueAtTime(on ? engBase : 0, ensureAC().currentTime + 0.6);
+  }
+  $("sndBtn").onclick = function(){ engineSet(!sndOn); };
+
+  function playAnnounce(){
+    if (announced) return;                       /* 한 번만 */
+    announced = true;
+    $("sndBtn").classList.add("show");
+    chime();
+    annAudio = new Audio(ANNOUNCE_SRC);
+    annAudio.volume = 0.9;
+    var started = false;
+    /* ⭐ 방송이 실제로 끝나는 순간 엔진음이 올라온다 */
+    annAudio.addEventListener("ended", function(){ engineStart(); });
+    setTimeout(function(){
+      annAudio.play().then(function(){ started = true; })
+        .catch(function(){ /* 파일 없음 — 아래 폴백이 맡는다 */ });
+    }, 1100);
+    /* ⚠ 폴백 — 파일이 없거나 재생이 막히면 띵동+10초 지점에서 */
+    setTimeout(function(){ if (!started) engineStart(); }, 1100 + 10000);
+  }
   function paintHomeIdle(){
     if (flight) return;
     $("hiAlt").textContent = (+$("alt").value).toFixed(1) + " km";
@@ -641,6 +721,7 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     $("plate").classList.toggle("on", on); $("bCab").classList.toggle("on", on);
     $("scrollHint").classList.toggle("on", on);
     $("homeInfo").classList.toggle("on", on);
+    if (on) playAnnounce();
     /* ⚠ 기내를 꺼도 일기장은 안 닫는다 — 창밖 보러 나갔다 와도 쓰던 글이 그대로 (0817 소로) */
     if (on){ panY = 0; layoutFrames(); paintHomeIdle();
       setTimeout(function(){ $("scrollHint").classList.remove("on"); }, 4000);
@@ -689,7 +770,15 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
         }
         /* 홈 계기판 — 남은 시간은 30분 고정 (결정문 6호) */
         var left = Math.max(0, FLIGHT_SEC - sec);
-        $("hiAlt").textContent = (rel/1000).toFixed(1) + " km";
+        $("hiAlt").textContent = Math.round(rel).toLocaleString() + " m";
+        var vs = (rel - lastRelShown)/Math.max(sec - lastRelAt, 0.5);   /* m/s */
+        if (sec - lastRelAt > 0.9){
+          $("hiVs").textContent = Math.abs(vs) < 0.3 ? "· 수평"
+            : "· " + (vs<0 ? "&#8600; " : "&#8599; ").replace("&#8600; ","\u2198 ").replace("&#8599; ","\u2197 ")
+              + Math.abs(vs*60).toFixed(0) + " m/분";
+          lastRelShown = rel; lastRelAt = sec;
+        }
+        $("hiPos").textContent = fm(la,3) + ", " + fm(lo,3);
         $("hiElapsed").textContent = mmss(sec);
         $("hiLeft").textContent = left > 0 ? mmss(left) : "착륙";
         var az = deg(sun.az), el = Cesium.Math.toDegrees(sun.el);
