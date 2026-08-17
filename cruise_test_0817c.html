@@ -31,12 +31,10 @@
           background:url(wing_blank_v1.webp) center/100% 100% no-repeat}
   /* ⚠⚠ 판 scaleX(-1)이 위치·clip을 통째로 미러하므로 이미지는 절대 안 건드린다.
      되뒤집기를 얹었다가 두 번(0817) 부러졌다. 글자만 HTML 로 얹어 되세운다. */
-  .wing b{position:absolute;left:4.5%;top:19%;width:11%;height:25%;
-          display:flex;align-items:center;justify-content:center;
-          font-family:Georgia,serif;font-weight:500;color:#f4f0e4;
-          font-size:1px;letter-spacing:.04em;pointer-events:none;
-          text-shadow:0 0 2px rgba(0,0,0,.25);transform:rotate(-8deg)}
-  #plate.flip .wing b{transform:rotate(8deg) scaleX(-1)}
+  /* 자리·크기·기울기는 JS(LOGO)가 덮어쓴다 */
+  .wing b{position:absolute;font-family:Georgia,serif;font-weight:500;color:#f4f0e4;
+          letter-spacing:.03em;pointer-events:none;white-space:nowrap;
+          text-shadow:0 0 2px rgba(0,0,0,.3);transform-origin:50% 50%}
   #wingNear{clip-path:inset(0 56.8% 0 0)}
   #wingFar {clip-path:inset(0 0 0 56.6%)}
   @media (prefers-reduced-motion: no-preference){
@@ -248,6 +246,19 @@
   <div class="row"><label>높이</label>
     <input type="range" id="eH" min="8" max="24" value="14" step="0.5">
     <span class="v" id="eHV">14%</span></div>
+  <div class="sec">날개 EG 글자 — <span id="lSide">왼창</span>용</div>
+  <div class="row"><label>가로</label>
+    <input type="range" id="lX" min="0" max="20" value="4.5" step="0.1">
+    <span class="v" id="lXV">4.5%</span></div>
+  <div class="row"><label>세로</label>
+    <input type="range" id="lY" min="5" max="45" value="19" step="0.5">
+    <span class="v" id="lYV">19%</span></div>
+  <div class="row"><label>크기</label>
+    <input type="range" id="lS" min="0.4" max="4" value="1.6" step="0.05">
+    <span class="v" id="lSV">1.6%</span></div>
+  <div class="row"><label>기울기</label>
+    <input type="range" id="lR" min="-30" max="30" value="-8" step="1">
+    <span class="v" id="lRV">-8&deg;</span></div>
   <div id="bar"><div id="barIn"></div></div>
   <div id="tel">대기 중</div>
   <div id="where" style="margin-top:8px;padding-top:8px;border-top:1px solid #2e2b26;font-size:12px;color:#c9a86a">&nbsp;</div>
@@ -345,10 +356,16 @@ function stepFrom(lat, lon, brgDeg, km){
 var panY = 0, panMin = 0, panMax = 0;
 /* ⚠ 홈이 판 오른쪽 끝에 붙어 있어 미러 셈이 정확히 대칭이 안 된다 (0817 소로).
    왼창·오른창을 딴 벌로 들고, 편집기는 지금 보고 있는 쪽을 만진다. */
+/* 날개 EG 글자 — 이미지에서 지우고 HTML 로 얹은 것. 좌·우 따로 (0817 소로) */
+var LOGO_L = { x:4.5, y:19, s:1.6, rot:-8 };     /* x·y 는 날개 폭·높이 %, s 는 글자 크기 % */
+var LOGO_R = { x:4.5, y:19, s:1.6, rot:-8 };
+function LOGO(){ return side < 0 ? LOGO_L : LOGO_R; }
+
 var HOME_L = { x:66, y:36, w:33, h:14, rot:-6.3, ry:-13 };
 var HOME_R = { x:1,  y:36, w:33, h:14, rot: 6.3, ry: 13 };   /* 미러 초깃값 — 소로가 맞춘다 */
 function HOME(){ return side < 0 ? HOME_L : HOME_R; }
 function layoutFrames(){
+  var flipped = $("plate").classList.contains("flip");
   var vw = innerWidth, vh = innerHeight;
   var w = (vw/vh < R_PLATE) ? Math.max(vh*R_PLATE, vw) : vw;
   var h = w/R_PLATE;
@@ -380,7 +397,6 @@ function layoutFrames(){
   hb.style.width = HM.w + "%"; hb.style.height = HM.h + "%";
 
   /* 홈 계기판 — 홈 사각형에 딱 얹는다. 판이 뒤집히면 각도도 반대로 */
-  var flipped = $("plate").classList.contains("flip");
   var hi = $("homeInfo");
   hi.style.left = hx + "px"; hi.style.top = hy + "px";
   hi.style.width = hw + "px"; hi.style.height = hh + "px";
@@ -402,7 +418,13 @@ function layoutFrames(){
   ["wingNear","wingFar"].forEach(function(id, k){
     var e = $(id);
     e.style.width = ww + "px"; e.style.height = wh + "px";
-    var b = e.querySelector("b"); if (b) b.style.fontSize = (ww*0.052) + "px";
+    var b = e.querySelector("b"), LG = LOGO();
+    if (b){
+      b.style.left = LG.x + "%"; b.style.top = LG.y + "%";
+      b.style.fontSize = (ww*LG.s/100) + "px";
+      b.style.transform = flipped ? "rotate(" + (-LG.rot) + "deg) scaleX(-1)"
+                                  : "rotate(" + LG.rot + "deg)";
+    }
     e.style.left = ((k === 0 ? 8 : -2)/100*w) + "px";
     e.style.top  = (0.36*h) + "px";
   });
@@ -550,6 +572,22 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
       layoutFrames();
     };
   });
+  var LOGO_KEYS = [["lX","x","%"],["lY","y","%"],["lS","s","%"],["lR","rot","\u00B0"]];
+  LOGO_KEYS.forEach(function(t){
+    $(t[0]).oninput = function(e){
+      LOGO()[t[1]] = +e.target.value;
+      $(t[0]+"V").textContent = e.target.value + t[2];
+      layoutFrames();
+    };
+  });
+  function syncLogoEditor(){
+    var LG = LOGO();
+    $("lSide").textContent = side < 0 ? "왼창" : "오른창";
+    LOGO_KEYS.forEach(function(t){
+      $(t[0]).value = LG[t[1]];
+      $(t[0]+"V").textContent = LG[t[1]] + t[2];
+    });
+  }
   function syncHomeEditor(){
     var HM = HOME();
     $("eSide").textContent = side < 0 ? "왼창" : "오른창";
@@ -599,7 +637,7 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
       var f = (side > 0);
       $("plate").classList.toggle("flip", f);
       $("frames").classList.toggle("flip", f);
-      syncHomeEditor();
+      syncHomeEditor(); syncLogoEditor();
       preview();
       setTimeout(function(){                   /* 다시 켜진다 */
         $("fade").classList.remove("on");
@@ -745,6 +783,10 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
       "해 높이     " + $("sel").value + " deg\n" +
       "항로        " + (mode==="SUN"?"해 추종":"대권 고정") + "\n" +
       "창          " + (side<0?"왼창":"오른창") + "\n" +
+      "EG글자(왼) x " + LOGO_L.x + " · y " + LOGO_L.y + " · 크기 " + LOGO_L.s +
+        " · 기울기 " + LOGO_L.rot + "\n" +
+      "EG글자(오) x " + LOGO_R.x + " · y " + LOGO_R.y + " · 크기 " + LOGO_R.s +
+        " · 기울기 " + LOGO_R.rot + "\n" +
       "계기판(왼)  x " + HOME_L.x + " · y " + HOME_L.y + " · w " + HOME_L.w + " · h " + HOME_L.h +
         " · 기울기 " + HOME_L.rot + " · 돌림Y " + HOME_L.ry + "\n" +
       "계기판(오)  x " + HOME_R.x + " · y " + HOME_R.y + " · w " + HOME_R.w + " · h " + HOME_R.h +
@@ -758,7 +800,7 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     if (lon === null) return;
     var alt = (+$("alt").value)*1000, HF = halfFovX();
     var altEnd = (+$("aEnd").value)/10*1000, descSec = (+$("aMin").value)*60;
-    var wT = 0;
+    var wT = 0, lastRelShown = alt, lastRelAt = 0;   /* 하강 속도 셈용 */
     flight = cruise(lat, lon, { alt:alt, pitch:+$("pit").value, sky:+$("pit").value,
       altEnd:altEnd, descSec:descSec,
       onTick: function(sec, la, lo, brg, look, sun, dist, rel, pit){
