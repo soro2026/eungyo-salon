@@ -12,7 +12,15 @@
   .cesium-widget-credits{font-size:9px!important;opacity:.3}
 
   /* ── 기내 판 — 결정문 9호: 폭은 화면을 채우고 위아래가 잘린다 ── */
-  #plate{position:fixed;left:0;top:0;pointer-events:none;z-index:6;display:none}
+  /* ⚠ 좌우를 바꾸면 카메라만 돌 게 아니라 기내 그림도 뒤집혀야 한다.
+     안 그러면 오른쪽 창가에 앉아 왼쪽 창가 사진을 보게 된다 (0817 소로). */
+  #plate{position:fixed;left:0;top:0;pointer-events:none;z-index:6;display:none;
+         transform-origin:50% 50%}
+  #plate.flip{transform:scaleX(-1)}
+  /* 좌석을 옮기는 사이의 암전 */
+  #fade{position:fixed;inset:0;z-index:15;background:#05070f;opacity:0;
+        pointer-events:none;transition:opacity .32s ease}
+  #fade.on{opacity:1}
   #plate.on{display:block}
   #cabin{position:absolute;left:0;top:0;width:100%;height:100%;
          background:url(cabin_window_v1.webp) center/100% 100% no-repeat}
@@ -23,7 +31,9 @@
     @keyframes wflex{0%,100%{transform:translateY(0)}50%{transform:translateY(-.35%)}}
     .wing{animation:wflex 7s ease-in-out infinite}
   }
-  #frames{position:fixed;inset:0;pointer-events:none;z-index:10;display:none}
+  #frames{position:fixed;inset:0;pointer-events:none;z-index:10;display:none;
+          transform-origin:50% 50%}
+  #frames.flip{transform:scaleX(-1)}
   #frames.on{display:block}
   .fr{position:absolute;border:1.5px solid rgba(201,168,106,.8);border-radius:44% / 30%}
   .fr b{position:absolute;left:2px;top:-18px;font-size:10px;font-weight:400;
@@ -44,6 +54,10 @@
   #mini{position:fixed;left:52px;top:19px;z-index:21;font-size:12px;color:rgba(232,228,216,.75);
         text-shadow:0 1px 6px rgba(0,0,0,.8);display:none;pointer-events:none}
   #mini.on{display:block}
+  #keys{position:fixed;right:14px;bottom:14px;z-index:21;font-size:11px;
+        color:rgba(232,228,216,.45);text-shadow:0 1px 6px rgba(0,0,0,.9);
+        display:none;pointer-events:none;text-align:right;line-height:1.7}
+  #keys.on{display:block}
   #hud h1{margin:0 0 10px;font-size:13px;font-weight:500;letter-spacing:.04em;color:#c9a86a}
   .sec{margin:11px 0 5px;padding-top:9px;border-top:1px solid #2e2b26;
        font-size:10px;letter-spacing:.1em;color:#6a655c}
@@ -66,6 +80,7 @@
 </head>
 <body>
 <div id="cesiumContainer"></div>
+<div id="fade"></div>
 <div id="plate">
   <div class="wing" id="wingNear"></div>
   <div class="wing" id="wingFar"></div>
@@ -78,6 +93,7 @@
 
 <div id="tab" title="편집기 열기 (H)">&#9776;</div>
 <div id="mini"></div>
+<div id="keys">H 편집기 &middot; C 기내 &middot; Space 이륙/정지<br>&larr; &rarr; 좌석 &middot; L 땅 찾기</div>
 <div id="hud">
   <h1 style="display:flex;align-items:center;justify-content:space-between"><span>EG CRUISE · 편집기 0817c</span><button id="bHide" style="padding:2px 7px;font-size:11px" title="H 키로도 닫힘">✕</button></h1>
 
@@ -88,16 +104,27 @@
   <div class="row"><span style="font-size:11px;color:#6a655c" id="latHint">&nbsp;</span></div>
 
   <div class="sec">어떻게</div>
-  <div class="row"><label>고도</label>
-    <input type="range" id="alt" min="1" max="20" value="4" step="1">
-    <span class="v" id="altV">4km</span></div>
-  <div class="row"><label>내림각</label>
-    <input type="range" id="pit" min="-45" max="-2" value="-10" step="1">
-    <span class="v" id="pitV">-10&deg;</span></div>
+  <div class="row">
+    <button id="aFix" style="flex:1">고도 고정</button>
+    <button id="aDsc" class="on" style="flex:1">&#8600; 강하</button></div>
+  <div class="row"><label>시작</label>
+    <input type="range" id="alt" min="1" max="20" value="11" step="1">
+    <span class="v" id="altV">11km</span></div>
+  <div class="row" id="rEnd"><label>도착</label>
+    <input type="range" id="aEnd" min="2" max="60" value="5" step="1">
+    <span class="v" id="aEndV">0.5km</span></div>
+  <div class="row" id="rMin"><label>걸쳐서</label>
+    <input type="range" id="aMin" min="2" max="30" value="10" step="1">
+    <span class="v" id="aMinV">10분</span></div>
+  <div class="row">
+    <button id="pAuto" class="on" style="flex:1">내림각 자동</button>
+    <button id="pMan" style="flex:1">직접</button></div>
+  <div class="row"><label id="pitL">하늘</label>
+    <input type="range" id="pit" min="-10" max="10" value="0" step="1">
+    <span class="v" id="pitV">반반</span></div>
   <div class="row"><label>해 높이</label>
     <input type="range" id="sel" min="-6" max="8" value="-1" step="1">
     <span class="v" id="selV">-1&deg;</span></div>
-
   <div class="sec">항로</div>
   <div class="row">
     <button id="mSun" class="on" style="flex:1">해 추종</button>
@@ -141,6 +168,10 @@ var WIN = { near:{L:7.1,  T:32.8, W:24.3, H:21.9},
             far :{L:48.8, T:37.5, W:8.9,  H:13.9} };
 
 var viewer, flight = null, side = -1, mode = "SUN";
+var altMode = "DSC", pitMode = "AUTO", groundH = 0;
+var Re_M = 6371000;
+/* 지평선 각도 — 이 값에 맞추면 하늘과 땅이 반반이 된다 (0817 실측) */
+function horizonDeg(relAlt){ return -Cesium.Math.toDegrees(Math.acos(Re_M/(Re_M+relAlt))); }
 var LATHINT = [[70,"노르웨이해·북극"],[65,"캐나다 북부"],[60,"허드슨만 — 물뿐"],
   [55,"매니토바 호수지대"],[50,"캐나다 대평원"],[45,"미국 북부 대평원"],
   [40,"콜로라도 로키"],[35,"뉴멕시코 고원·협곡"],[30,"시에라마드레"],
@@ -244,10 +275,11 @@ function halfFovX(){
 
 /* ── 부품 ──────────────────────────────────────────────────── */
 function cruise(lat0, lon0, opt){
-  var lat = lat0, lon = lon0, t0 = performance.now(), tp = t0;
+  var lat = lat0, lon = lon0, t0 = performance.now(), tp = t0, gT = 0;
+  var lastRel = opt.alt, lastPit = 0;
   var brg0 = null, dist = 0;
   var off = viewer.clock.onTick.addEventListener(function(){
-    var now = performance.now(), dt = (now - tp)/1000; tp = now;
+    var now = performance.now(), dt = (now - tp)/1000, sec = (now-t0)/1000; tp = now;
     var s = sunAzEl(lat, lon);
     var az = deg(s.az);
     var brg;
@@ -258,11 +290,32 @@ function cruise(lat0, lon0, opt){
     var p = stepFrom(lat, lon, brg, km); lat = p[0]; lon = p[1];
 
     var look = Cesium.Math.toRadians((brg + side*90 + 360) % 360);
+
+    /* 지면 높이 — 1초에 한 번만 잰다. 로키에서 300m 절대고도면 땅속이다 */
+    if (now - gT > 1000){
+      gT = now;
+      try{
+        var hh = viewer.scene.sampleHeight(
+          Cesium.Cartographic.fromDegrees(lon, lat));
+        if (Cesium.defined(hh)) groundH = hh;
+      }catch(e){}
+    }
+
+    /* 강하 — 시작 고도에서 도착 고도로, 완만하게 */
+    var rel = opt.alt;
+    if (altMode === "DSC"){
+      var f2 = Math.min(sec/opt.descSec, 1);
+      var e2 = f2 < 0.5 ? 2*f2*f2 : 1 - Math.pow(-2*f2+2, 2)/2;   /* ease-in-out */
+      rel = opt.alt + (opt.altEnd - opt.alt)*e2;
+    }
+    var pit = (pitMode === "AUTO") ? horizonDeg(rel) + opt.sky : opt.pitch;
+
     viewer.camera.setView({
-      destination: Cesium.Cartesian3.fromDegrees(lon, lat, opt.alt),
-      orientation:{ heading: look, pitch: Cesium.Math.toRadians(opt.pitch), roll:0 }
+      destination: Cesium.Cartesian3.fromDegrees(lon, lat, groundH + rel),
+      orientation:{ heading: look, pitch: Cesium.Math.toRadians(pit), roll:0 }
     });
-    if (opt.onTick) opt.onTick((now-t0)/1000, lat, lon, brg, deg(look), s, dist);
+    lastRel = rel; lastPit = pit;
+    if (opt.onTick) opt.onTick(sec, lat, lon, brg, deg(look), s, dist, lastRel, lastPit);
   });
   return { stop: off };
 }
@@ -286,13 +339,16 @@ function preview(){
   viewer.camera.setView({
     destination: Cesium.Cartesian3.fromDegrees(lon, lat, (+$("alt").value)*1000),
     orientation:{ heading: Cesium.Math.toRadians(az),
-                  pitch: Cesium.Math.toRadians(+$("pit").value), roll:0 }
+                  pitch: Cesium.Math.toRadians(pitchNow((+$("alt").value)*1000)), roll:0 }
   });
   $("tel").innerHTML =
     "지금 이 위도의 일몰 지점<br>위치 <b>" + fm(lat,1) + ", " + fm(lon,2) + "</b><br>" +
     "&#9788; 방위 <b>" + fm(az,1) + "&deg;</b> · 고도 <b>" + fm(Cesium.Math.toDegrees(s.el),1) + "&deg;</b><br>" +
     "진행 방위 <b>" + fm(brg,1) + "&deg;</b> · 창 시야각 <b>" + fm(halfFovX()*2,1) + "&deg;</b>";
   $("where").textContent = EGGeo.where(lat, lon);
+}
+function pitchNow(relAlt){
+  return (pitMode === "AUTO") ? horizonDeg(relAlt) + (+$("pit").value) : (+$("pit").value);
 }
 function stopAll(){ if (flight){ flight.stop(); flight=null; } $("barIn").style.width="0"; }
 
@@ -325,17 +381,66 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     osm.brightness=0.55; osm.saturation=0.65; osm.gamma=0.8;
   }catch(e){}
 
-  ["lat","alt","pit","sel"].forEach(function(id){
+  function pitLabel(){
+    var v = +$("pit").value;
+    if (pitMode === "AUTO"){
+      $("pitL").textContent = "하늘";
+      $("pitV").textContent = v === 0 ? "반반" : (v > 0 ? "+" + v : "" + v);
+    } else {
+      $("pitL").textContent = "내림각";
+      $("pitV").textContent = v + "\u00B0";
+    }
+  }
+  ["lat","alt","aEnd","aMin","pit","sel"].forEach(function(id){
     $(id).oninput = function(e){
-      var v = e.target.value;
-      $(id+"V").textContent = v + ({lat:"\u00B0",alt:"km",pit:"\u00B0",sel:"\u00B0"}[id]);
+      var v = +e.target.value;
+      if (id === "aEnd") $("aEndV").textContent = (v/10).toFixed(1) + "km";
+      else if (id === "aMin") $("aMinV").textContent = v + "분";
+      else if (id === "pit") pitLabel();
+      else $(id+"V").textContent = v + ({lat:"\u00B0",alt:"km",sel:"\u00B0"}[id]);
       preview();
     };
   });
+  function setAltMode(d){
+    altMode = d ? "DSC" : "FIX";
+    $("aDsc").classList.toggle("on", d); $("aFix").classList.toggle("on", !d);
+    $("rEnd").style.display = d ? "" : "none";
+    $("rMin").style.display = d ? "" : "none";
+  }
+  $("aDsc").onclick = function(){ setAltMode(true);  preview(); };
+  $("aFix").onclick = function(){ setAltMode(false); preview(); };
+  function setPitMode(a){
+    pitMode = a ? "AUTO" : "MAN";
+    $("pAuto").classList.toggle("on", a); $("pMan").classList.toggle("on", !a);
+    $("pit").min = a ? -10 : -45; $("pit").max = a ? 10 : -2;
+    $("pit").value = a ? 0 : -5;
+    pitLabel(); preview();
+  }
+  $("pAuto").onclick = function(){ setPitMode(true); };
+  $("pMan").onclick  = function(){ setPitMode(false); };
   $("mSun").onclick = function(){ mode="SUN"; pick("mSun","mGeo",true); };
   $("mGeo").onclick = function(){ mode="GEO"; pick("mSun","mGeo",false); };
-  $("wL").onclick = function(){ side=-1; pick("wL","wR",true); preview(); };
-  $("wR").onclick = function(){ side=+1; pick("wL","wR",false); preview(); };
+  var swapping = false;
+  function swapSeat(next){
+    if (swapping || side === next) return;
+    swapping = true;
+    $("fade").classList.add("on");            /* 어두워진다 */
+    setTimeout(function(){
+      side = next;
+      pick("wL","wR", side < 0);
+      /* 오른쪽 창가면 기내 그림과 창 테두리를 좌우로 뒤집는다 */
+      var f = (side > 0);
+      $("plate").classList.toggle("flip", f);
+      $("frames").classList.toggle("flip", f);
+      preview();
+      setTimeout(function(){                   /* 다시 켜진다 */
+        $("fade").classList.remove("on");
+        setTimeout(function(){ swapping = false; }, 340);
+      }, 90);
+    }, 340);
+  }
+  $("wL").onclick = function(){ swapSeat(-1); };
+  $("wR").onclick = function(){ swapSeat(+1); };
   $("bLand").onclick = function(){
     var p = EGGeo.pickSunsetLand(sunLonAt, +$("sel").value);
     if (!p){
@@ -352,12 +457,22 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     $("hud").classList.toggle("hide", !open);
     $("tab").classList.toggle("on", !open);
     $("mini").classList.toggle("on", !open);
+    $("keys").classList.toggle("on", !open);
   }
   $("bHide").onclick = function(){ setHud(false); };
   $("tab").onclick   = function(){ setHud(true); };
+  /* ⭐ 접은 채로도 다 된다 — 편집기를 열지 않고 기내만 보고 싶을 때 */
   addEventListener("keydown", function(e){
-    if (e.key === "h" || e.key === "H") setHud($("hud").classList.contains("hide"));
-    if (e.key === "Escape") setHud(false);
+    if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    var k = e.key.toLowerCase();
+    if (k === "h")        setHud($("hud").classList.contains("hide"));
+    else if (k === "escape") setHud(false);
+    else if (k === "c")   $("bCab").click();
+    else if (k === " ")   { e.preventDefault(); if (flight) stopAll(); else $("go").click(); }
+    else if (k === "arrowleft")  swapSeat(-1);
+    else if (k === "arrowright") swapSeat(+1);
+    else if (k === "l")   $("bLand").click();
+    else if (k === "f")   $("bFr").click();
   });
   $("stop").onclick = stopAll;
   $("bCab").onclick = function(){
@@ -391,10 +506,12 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     stopAll();
     var lat = +$("lat").value, lon = sunLonAt(lat, +$("sel").value);
     if (lon === null) return;
-    var alt = (+$("alt").value)*1000, pitch = +$("pit").value, HF = halfFovX();
+    var alt = (+$("alt").value)*1000, HF = halfFovX();
+    var altEnd = (+$("aEnd").value)/10*1000, descSec = (+$("aMin").value)*60;
     var wT = 0;
-    flight = cruise(lat, lon, { alt:alt, pitch:pitch,
-      onTick: function(sec, la, lo, brg, look, sun, dist){
+    flight = cruise(lat, lon, { alt:alt, pitch:+$("pit").value, sky:+$("pit").value,
+      altEnd:altEnd, descSec:descSec,
+      onTick: function(sec, la, lo, brg, look, sun, dist, rel, pit){
         $("barIn").style.width = Math.min(sec/1800*100,100)+"%";
         if (sec - wT > 1){ wT = sec;
           var wx = EGGeo.where(la, lo);
@@ -407,6 +524,9 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
         $("tel").innerHTML =
           "경과 <b>" + m + "분 " + (ss<10?"0":"") + ss + "초</b> · 이동 <b>"
             + dist.toFixed(0) + " km</b><br>" +
+          "고도 <b>" + (rel/1000).toFixed(2) + " km</b>"
+            + (altMode==="DSC" ? " <span style='color:#c9a86a'>&#8600;</span>" : "")
+            + " · 내림각 <b>" + fm(pit,2) + "&deg;</b> · 지면 " + Math.round(groundH) + "m<br>" +
           "위치 <b>" + fm(la,3) + ", " + fm(lo,3) + "</b><br>" +
           "진행 <b>" + fm(brg,1) + "&deg;</b> · 보는 쪽 <b>" + fm(look,1) + "&deg;</b><br>" +
           "&#9788; 방위 <b>" + fm(az,1) + "&deg;</b> · 고도 <b>" + fm(el,1) + "&deg;</b><br>" +
@@ -418,6 +538,7 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
   };
   addEventListener("resize", function(){ layoutFrames(); });
 
+  setAltMode(true); setPitMode(true);
   layoutFrames();
   preview();
 
