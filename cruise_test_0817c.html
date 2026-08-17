@@ -29,11 +29,14 @@
      안쪽에 한 겹을 더 두고 되뒤집어 글자만 바로 세운다 (0817 소로). */
   .wing i{position:absolute;inset:0;display:block;
           background:url(wing_eg_v1.webp) center/100% 100% no-repeat}
+  /* ⚠⚠ 판을 scaleX(-1)로 뒤집으면 위치도 clip도 통째로 미러된다.
+     여기에 clip을 또 뒤집으면 두 번 뒤집혀 부러진다 — 0817 두 번 걸림.
+     그래서 .wing i(이미지)만 되뒤집어 로고를 세우고, 나머지는 안 건드린다.
+     단 이미지를 되뒤집으면 날개 좌우가 그림상 반대가 되므로,
+     flip 때는 near/far 의 「그림 절반」도 서로 바꿔야 이어진다. */
   #plate.flip .wing i{transform:scaleX(-1)}
-  /* ⚠ .wing i 를 되뒤집으면 이미지 좌우가 원래대로 오는데 clip 은 미러된 채다.
-     0817: 오른쪽 창가에서 날개가 부러져 보인 진범. flip 이면 자르는 쪽을 바꾼다. */
-  #plate.flip #wingNear{clip-path:inset(0 0 0 56.8%)}
-  #plate.flip #wingFar {clip-path:inset(0 56.6% 0 0)}
+  #plate.flip #wingNear i{clip-path:inset(0 0 0 0)}
+  #plate.flip #wingFar  i{clip-path:inset(0 0 0 0)}
   #wingNear{clip-path:inset(0 56.8% 0 0)}
   #wingFar {clip-path:inset(0 0 0 56.6%)}
   @media (prefers-reduced-motion: no-preference){
@@ -45,6 +48,7 @@
   #plate{transition:none}
   /* 모니터 홈 — 실측 left 66% top 36% w 33% h 14% (0817) */
   #homeBtn{position:absolute;left:66%;top:36%;width:33%;height:14%;
+           /* 자리와 크기는 JS(HOME)가 덮어쓴다 — 편집기 조절값 */
            pointer-events:auto;cursor:pointer;border-radius:6px;
            box-shadow:inset 0 0 0 0 rgba(201,168,106,0);transition:box-shadow .2s}
   #homeBtn:hover{box-shadow:inset 0 0 0 2px rgba(201,168,106,.55)}
@@ -73,11 +77,11 @@
             transform-origin:50% 50%;
             display:flex;flex-direction:column;justify-content:center;gap:5px;
             padding:0 4%;font-variant-numeric:tabular-nums;
-            color:rgba(232,228,216,.34);text-shadow:0 1px 3px rgba(0,0,0,.9);display:none}
+            color:rgba(232,228,216,.82);text-shadow:0 1px 4px rgba(0,0,0,.95);display:none}
   #homeInfo.on{display:flex}
-  #homeInfo b{color:rgba(232,228,216,.62);font-weight:400}
-  #hiTap{color:rgba(201,168,106,.5);letter-spacing:.02em}
-  #homeInfo .hr{height:1px;background:rgba(232,228,216,.13);margin:2px 0}
+  #homeInfo b{color:#f2eddf;font-weight:500}
+  #hiTap{color:rgba(201,168,106,.42);letter-spacing:.02em;font-size:.9em}
+  #homeInfo .hr{height:1px;background:rgba(232,228,216,.22);margin:2px 0}
   #scrollHint{position:fixed;right:16px;top:50%;transform:translateY(-50%);z-index:11;
               font-size:11px;color:rgba(232,228,216,.35);writing-mode:vertical-rl;
               text-shadow:0 1px 6px rgba(0,0,0,.9);pointer-events:none;display:none}
@@ -217,6 +221,25 @@
     <button id="bFr" style="flex:1">창 테두리</button>
     <button id="bDump" style="flex:1">값 뽑기</button></div>
 
+  <div class="sec">모니터 계기판 (실측 미세조정)</div>
+  <div class="row"><label>기울기</label>
+    <input type="range" id="eRot" min="-15" max="15" value="-6.3" step="0.1">
+    <span class="v" id="eRotV">-6.3&deg;</span></div>
+  <div class="row"><label>돌림Y</label>
+    <input type="range" id="eRy" min="-35" max="35" value="-13" step="0.5">
+    <span class="v" id="eRyV">-13&deg;</span></div>
+  <div class="row"><label>가로</label>
+    <input type="range" id="eX" min="50" max="80" value="66" step="0.5">
+    <span class="v" id="eXV">66%</span></div>
+  <div class="row"><label>세로</label>
+    <input type="range" id="eY" min="25" max="50" value="36" step="0.5">
+    <span class="v" id="eYV">36%</span></div>
+  <div class="row"><label>폭</label>
+    <input type="range" id="eW" min="20" max="45" value="33" step="0.5">
+    <span class="v" id="eWV">33%</span></div>
+  <div class="row"><label>높이</label>
+    <input type="range" id="eH" min="8" max="24" value="14" step="0.5">
+    <span class="v" id="eHV">14%</span></div>
   <div id="bar"><div id="barIn"></div></div>
   <div id="tel">대기 중</div>
   <div id="where" style="margin-top:8px;padding-top:8px;border-top:1px solid #2e2b26;font-size:12px;color:#c9a86a">&nbsp;</div>
@@ -311,6 +334,7 @@ function stepFrom(lat, lon, brgDeg, km){
 
 /* ── 창 테두리를 실제 크기로 ─────────────────────────────────── */
 var panY = 0, panMin = 0, panMax = 0;
+var HOME = { x:66, y:36, w:33, h:14, rot:-6.3, ry:-13 };   /* 모니터 계기판 자리·각도 */
 function layoutFrames(){
   var vw = innerWidth, vh = innerHeight;
   var w = (vw/vh < R_PLATE) ? Math.max(vh*R_PLATE, vw) : vw;
@@ -329,18 +353,24 @@ function layoutFrames(){
   pl.style.width = w + "px"; pl.style.height = h + "px";
 
   /* 모니터 — 홈 자리에 맞춰 세운다 (판을 따라 움직인다) */
-  var hx = cx + 0.66*w, hy = py + panY + 0.36*h, hw = 0.33*w, hh = 0.14*h;
-  if ($("plate").classList.contains("flip")) hx = cx + w - 0.66*w - hw;
+  var hx = cx + (HOME.x/100)*w, hy = py + panY + (HOME.y/100)*h,
+      hw = (HOME.w/100)*w, hh = (HOME.h/100)*h;
+  if ($("plate").classList.contains("flip")) hx = cx + w - (HOME.x/100)*w - hw;
   var mw = Math.max(hw*1.9, 380), mh = Math.max(mw*0.72, 300);
   mw = Math.min(mw, vw*0.52); mh = Math.min(mh, vh*0.78);
+  /* 홈 단추도 같은 값을 따른다 */
+  var hb = $("homeBtn");
+  hb.style.left = HOME.x + "%"; hb.style.top = HOME.y + "%";
+  hb.style.width = HOME.w + "%"; hb.style.height = HOME.h + "%";
+
   /* 홈 계기판 — 홈 사각형에 딱 얹는다. 판이 뒤집히면 각도도 반대로 */
   var hi = $("homeInfo"), flipped = $("plate").classList.contains("flip");
   hi.style.left = hx + "px"; hi.style.top = hy + "px";
   hi.style.width = hw + "px"; hi.style.height = hh + "px";
   hi.style.fontSize = Math.max(9, Math.min(hh*0.115, 15)) + "px";
   hi.style.transform = flipped
-    ? "rotate(6.3deg) perspective(700px) rotateY(13deg)"
-    : "rotate(-6.3deg) perspective(700px) rotateY(-13deg)";
+    ? "rotate(" + (-HOME.rot) + "deg) perspective(700px) rotateY(" + (-HOME.ry) + "deg)"
+    : "rotate(" + HOME.rot + "deg) perspective(700px) rotateY(" + HOME.ry + "deg)";
 
   var mo = $("mon");
   mo.style.width = mw + "px"; mo.style.height = mh + "px";
@@ -490,6 +520,14 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
       $("pitV").textContent = v + "\u00B0";
     }
   }
+  [["eRot","rot","\u00B0"],["eRy","ry","\u00B0"],["eX","x","%"],["eY","y","%"],
+   ["eW","w","%"],["eH","h","%"]].forEach(function(t){
+    $(t[0]).oninput = function(e){
+      HOME[t[1]] = +e.target.value;
+      $(t[0]+"V").textContent = e.target.value + t[2];
+      layoutFrames();
+    };
+  });
   ["lat","alt","aEnd","aMin","pit","sel"].forEach(function(id){
     $(id).oninput = function(e){
       var v = +e.target.value;
@@ -626,6 +664,8 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
       "해 높이     " + $("sel").value + " deg\n" +
       "항로        " + (mode==="SUN"?"해 추종":"대권 고정") + "\n" +
       "창          " + (side<0?"왼창":"오른창") + "\n" +
+      "계기판      x " + HOME.x + "% · y " + HOME.y + "% · w " + HOME.w + "% · h " + HOME.h +
+        "% · 기울기 " + HOME.rot + " · 돌림Y " + HOME.ry + "\n" +
       "창 시야각   " + halfFovX().toFixed(1)*2 + " deg (화면 " + L.vw + "x" + L.vh + ")";
     t.select();
   };
