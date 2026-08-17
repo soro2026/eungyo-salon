@@ -29,10 +29,21 @@
   .fr b{position:absolute;left:2px;top:-18px;font-size:10px;font-weight:400;
         color:rgba(201,168,106,.8);letter-spacing:.04em}
 
-  #hud{position:fixed;left:14px;top:14px;z-index:20;background:rgba(12,14,20,.86);
+  #hud{position:fixed;left:14px;top:14px;transition:transform .28s ease,opacity .2s;z-index:20;background:rgba(12,14,20,.86);
        border:1px solid #3a3730;border-radius:10px;padding:13px 15px;width:312px;
        backdrop-filter:blur(6px);max-height:calc(100vh - 28px);overflow:auto}
   #hud::-webkit-scrollbar{display:none}
+  #hud.hide{transform:translateX(calc(-100% - 20px));opacity:0;pointer-events:none}
+  /* 접었을 때 남는 것 — 여는 손잡이와 위치 한 줄 */
+  #tab{position:fixed;left:12px;top:14px;z-index:21;width:30px;height:30px;border-radius:50%;
+       border:1px solid rgba(201,168,106,.5);background:rgba(12,14,20,.55);color:#c9a86a;
+       font-size:14px;line-height:28px;text-align:center;cursor:pointer;display:none;
+       backdrop-filter:blur(4px)}
+  #tab.on{display:block}
+  #tab:hover{background:rgba(12,14,20,.85)}
+  #mini{position:fixed;left:52px;top:19px;z-index:21;font-size:12px;color:rgba(232,228,216,.75);
+        text-shadow:0 1px 6px rgba(0,0,0,.8);display:none;pointer-events:none}
+  #mini.on{display:block}
   #hud h1{margin:0 0 10px;font-size:13px;font-weight:500;letter-spacing:.04em;color:#c9a86a}
   .sec{margin:11px 0 5px;padding-top:9px;border-top:1px solid #2e2b26;
        font-size:10px;letter-spacing:.1em;color:#6a655c}
@@ -65,8 +76,10 @@
   <div class="fr" id="frFar"><b>먼 창</b></div>
 </div>
 
+<div id="tab" title="편집기 열기 (H)">&#9776;</div>
+<div id="mini"></div>
 <div id="hud">
-  <h1>EG CRUISE · 편집기 0817c</h1>
+  <h1 style="display:flex;align-items:center;justify-content:space-between"><span>EG CRUISE · 편집기 0817c</span><button id="bHide" style="padding:2px 7px;font-size:11px" title="H 키로도 닫힘">✕</button></h1>
 
   <div class="sec">어디서</div>
   <div class="row"><label>위도</label>
@@ -335,6 +348,17 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     $("tel").innerHTML += "<br><span style='color:#c9a86a'>&#9733; 땅 찾음 — 북위 "
       + p.lat + "&deg; · 내륙 밀도 " + p.s + "/9</span>";
   };
+  function setHud(open){
+    $("hud").classList.toggle("hide", !open);
+    $("tab").classList.toggle("on", !open);
+    $("mini").classList.toggle("on", !open);
+  }
+  $("bHide").onclick = function(){ setHud(false); };
+  $("tab").onclick   = function(){ setHud(true); };
+  addEventListener("keydown", function(e){
+    if (e.key === "h" || e.key === "H") setHud($("hud").classList.contains("hide"));
+    if (e.key === "Escape") setHud(false);
+  });
   $("stop").onclick = stopAll;
   $("bCab").onclick = function(){
     var on = !$("plate").classList.contains("on");
@@ -372,7 +396,11 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     flight = cruise(lat, lon, { alt:alt, pitch:pitch,
       onTick: function(sec, la, lo, brg, look, sun, dist){
         $("barIn").style.width = Math.min(sec/1800*100,100)+"%";
-        if (sec - wT > 1){ wT = sec; $("where").textContent = EGGeo.where(la, lo); }
+        if (sec - wT > 1){ wT = sec;
+          var wx = EGGeo.where(la, lo);
+          $("where").textContent = wx;
+          $("mini").textContent = wx + "   ·   " + Math.round(dist) + " km";
+        }
         var az = deg(sun.az), el = Cesium.Math.toDegrees(sun.el);
         var dif = ((az - look + 540)%360)-180;
         var m = Math.floor(sec/60), ss = Math.floor(sec%60);
