@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EG cruise 시험판 0817b</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Widgets/widgets.css" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%;background:#05070f;overflow:hidden;
+            font-family:"Apple SD Gothic Neo","Noto Sans KR",sans-serif;color:#e8e4d8}
+  #cesiumContainer{position:fixed;inset:0}
+  .cesium-widget-credits{font-size:9px!important;opacity:.35}
+
+  #frames{position:fixed;inset:0;pointer-events:none;z-index:10;display:none}
+  #frames.on{display:block}
+  .fr{position:absolute;border:1.5px solid rgba(201,168,106,.85);border-radius:44% / 30%}
+  .fr b{position:absolute;left:0;top:-17px;font-size:10px;font-weight:400;
+        color:rgba(201,168,106,.85);letter-spacing:.04em}
+  #frNear{left:7.1%;top:32.8%;width:24.3%;height:21.9%}
+  #frFar {left:48.8%;top:37.5%;width:8.9%;height:13.9%}
+
+  #hud{position:fixed;left:14px;top:14px;z-index:20;background:rgba(12,14,20,.85);
+       border:1px solid #3a3730;border-radius:10px;padding:14px 16px;width:302px;
+       backdrop-filter:blur(6px)}
+  #hud h1{margin:0 0 11px;font-size:13px;font-weight:500;letter-spacing:.04em;color:#c9a86a}
+  .row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:12px}
+  .row label{color:#9a9186;min-width:50px}
+  select,input[type=range]{flex:1}
+  select{background:#1a1d24;color:#e8e4d8;border:1px solid #3a3730;border-radius:5px;
+         padding:4px 6px;font-size:12px}
+  button{background:#1a1d24;color:#e8e4d8;border:1px solid #4a463c;border-radius:5px;
+         padding:6px 11px;font-size:12px;cursor:pointer}
+  button:hover{background:#242832}
+  button.on{border-color:#c9a86a;color:#c9a86a}
+  #tel{margin-top:11px;padding-top:10px;border-top:1px solid #2e2b26;
+       font-size:11px;line-height:1.8;color:#b8b2a4;font-variant-numeric:tabular-nums}
+  #tel b{color:#e8e4d8;font-weight:500}
+  #bar{height:3px;background:#2e2b26;border-radius:2px;margin:9px 0 3px;overflow:hidden}
+  #barIn{height:100%;width:0;background:#c9a86a}
+  #tile{margin-top:9px;padding-top:8px;border-top:1px solid #2e2b26;font-size:11px;color:#8a8177}
+  #note{position:fixed;right:14px;bottom:22px;z-index:20;font-size:11px;color:#6a655c;
+        text-align:right;line-height:1.7}
+</style>
+</head>
+<body>
+<div id="cesiumContainer"></div>
+
+<div id="frames">
+  <div class="fr" id="frNear"><b>가까운 창</b></div>
+  <div class="fr" id="frFar"><b>먼 창</b></div>
+</div>
+
+<div id="hud">
+  <h1>EG CRUISE · 시험판 0817b</h1>
+
+  <div class="row"><label>항로</label><select id="route"></select></div>
+
+  <div class="row"><label>보는 쪽</label>
+    <button id="bL" class="on">왼창 −90</button>
+    <button id="bR">오른창 +90</button>
+    <button id="bS">해</button></div>
+
+  <div class="row"><label>고도</label>
+    <input type="range" id="alt" min="1" max="20" value="10" step="1">
+    <span id="altV" style="min-width:42px;text-align:right">10km</span></div>
+
+  <div class="row"><label>내림각</label>
+    <input type="range" id="pit" min="-45" max="-2" value="-10" step="1">
+    <span id="pitV" style="min-width:42px;text-align:right">-10&deg;</span></div>
+
+  <div class="row" style="margin-top:10px">
+    <button id="go" style="flex:1">이륙 &middot; 900km/h</button>
+    <button id="stop">정지</button></div>
+
+  <div class="row">
+    <button id="bFr" style="flex:1">창 테두리</button>
+    <button id="bCity" style="flex:1">도시 확인</button></div>
+
+  <div id="bar"><div id="barIn"></div></div>
+  <div id="tel">대기 중</div>
+  <div id="tile">타일 &mdash; 대기</div>
+</div>
+
+<div id="note">
+  정속 900km/h 고정 &middot; 배속 없음<br>
+  시계는 실시간(SYSTEM_CLOCK) &mdash; 태양이 실제로 움직입니다
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
+<script>
+/* ══════════════════════════════════════════════════════════════
+   EG cruise 시험판 0817b   결정문 19호 ②
+   ① 대권을 도는가 ② 등속인가 ③ 창이 옳은 쪽을 보는가 ④ 해가 창에 걸리는가
+   ⚠ 기내 그림은 안 얹는다. 어긋났을 때 범인을 못 가른다. 창 자리는 테두리로만.
+   ══════════════════════════════════════════════════════════════ */
+console.log("[EG] cruise_test 0817b");
+
+var GOOGLE_API_KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A";
+var KMH = 900;                                  /* 정속 고정 */
+
+var viewer, flight = null, sideMode = "L";      /* L · R · SUN */
+var tileset = null, tileState = "대기", tLoad = 0, tFail = 0;
+
+var ROUTES = [
+  { n:"지금 일몰 · 북위 60", sun:60 },
+  { n:"지금 일몰 · 북위 50", sun:50 },
+  { n:"지금 일몰 · 북위 40", sun:40 },
+  { n:"파리 → 팜플로나", a:[48.8530,2.3440],   b:[42.8189,-1.6442] },
+  { n:"파리 → 런던",     a:[48.8530,2.3440],   b:[51.5074,-0.1278] },
+  { n:"포항 → 파리",     a:[36.0190,129.3435], b:[48.8530,2.3440] },
+  { n:"케첨 → 파리",     a:[43.6805,-114.3637],b:[48.8530,2.3440] }
+];
+
+/* ── 결정문 14호 실물 — 지금 해가 머리 위인 곳 ─────────────── */
+function subsolarPoint(jd){
+  try{
+    var icrf = Cesium.Simon1994PlanetaryPositions
+                 .computeSunPositionInEarthInertialFrame(jd);
+    var m = Cesium.Transforms.computeIcrfToFixedMatrix(jd)
+         || Cesium.Transforms.computeTemeToPseudoFixedMatrix(jd);   /* EOP 전이면 폴백 */
+    var ecef = Cesium.Matrix3.multiplyByVector(m, icrf, new Cesium.Cartesian3());
+    return Cesium.Cartographic.fromCartesian(ecef);
+  }catch(e){
+    var d = Cesium.JulianDate.toDate(jd);
+    var doy = Math.floor((d - Date.UTC(d.getUTCFullYear(),0,0)) / 864e5);
+    var fr = d.getUTCHours() + d.getUTCMinutes()/60 + d.getUTCSeconds()/3600;
+    return new Cesium.Cartographic(Cesium.Math.toRadians(-15*(fr-12)),
+             Cesium.Math.toRadians(23.44)*Math.sin(2*Math.PI*(284+doy)/365), 0);
+  }
+}
+
+/* 그 지점에서 본 태양의 방위·고도 (북 기준 시계방향) */
+function sunAzEl(lat, lon){
+  var sp = subsolarPoint(viewer.clock.currentTime);
+  var dir = Cesium.Cartesian3.normalize(
+      Cesium.Cartesian3.fromRadians(sp.longitude, sp.latitude, 0), new Cesium.Cartesian3());
+  var sun = Cesium.Cartesian3.multiplyByScalar(dir, 1.496e11, new Cesium.Cartesian3());
+  var pos = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
+  var inv = Cesium.Matrix4.inverse(
+      Cesium.Transforms.eastNorthUpToFixedFrame(pos), new Cesium.Matrix4());
+  var loc = Cesium.Matrix4.multiplyByPoint(inv, sun, new Cesium.Cartesian3());
+  var n = Cesium.Cartesian3.normalize(loc, new Cesium.Cartesian3());
+  return { az: Math.atan2(n.x, n.y), el: Math.asin(n.z) };
+}
+
+/* 그 위도에서 해가 지평선에 걸리는 경도 */
+function sunsetLonAt(latDeg, sunAltDeg){
+  var s = subsolarPoint(viewer.clock.currentTime);
+  var f = Cesium.Math.toRadians(latDeg), d = s.latitude, h = Cesium.Math.toRadians(sunAltDeg);
+  var cosH = (Math.sin(h) - Math.sin(f)*Math.sin(d)) / (Math.cos(f)*Math.cos(d));
+  if (cosH < -1 || cosH > 1) return null;         /* 백야·극야 */
+  return Cesium.Math.toDegrees(s.longitude + Math.acos(cosH));
+}
+
+function destPoint(lat, lon, brgDeg, km){
+  var R = 6371, d = km/R;
+  var f1 = Cesium.Math.toRadians(lat), l1 = Cesium.Math.toRadians(lon),
+      b  = Cesium.Math.toRadians(brgDeg);
+  var f2 = Math.asin(Math.sin(f1)*Math.cos(d) + Math.cos(f1)*Math.sin(d)*Math.cos(b));
+  var l2 = l1 + Math.atan2(Math.sin(b)*Math.sin(d)*Math.cos(f1),
+                           Math.cos(d) - Math.sin(f1)*Math.sin(f2));
+  return [Cesium.Math.toDegrees(f2), ((Cesium.Math.toDegrees(l2)+540)%360)-180];
+}
+
+/* 일몰 항로 — 왼쪽 창에 해가 걸리는 방위로 대권을 놓는다 */
+function fillSunRoutes(){
+  ROUTES.forEach(function(r){
+    if (!r.sun) return;
+    var lon = sunsetLonAt(r.sun, -0.83);
+    if (lon === null){ r.a = null; r.dead = "백야·극야"; return; }
+    var L = ((lon + 540) % 360) - 180;
+    var s = sunAzEl(r.sun, L);
+    var az = (Cesium.Math.toDegrees(s.az) + 360) % 360;
+    r.brg = (az + 90) % 360;                      /* 왼쪽 창에 해 */
+    r.a = [r.sun, L];
+    r.b = destPoint(r.sun, L, r.brg, 900*3);      /* 3시간치 */
+  });
+}
+
+/* ── 부품 본체 — 결정문 7호 ─────────────────────────────────── */
+function cruise(from, to, kmh, alt, opts){
+  opts = opts || {};
+  var A = Cesium.Cartographic.fromDegrees(from[1], from[0]);
+  var B = Cesium.Cartographic.fromDegrees(to[1],   to[0]);
+  var geo = new Cesium.EllipsoidGeodesic(A, B);
+  var dist = geo.surfaceDistance;
+  var ms = dist / (kmh/3.6) * 1000;
+  var t0 = performance.now();
+
+  var off = viewer.clock.onTick.addEventListener(function(){
+    var f = Math.min((performance.now()-t0)/ms, 0.999);
+    var c = geo.interpolateUsingFraction(f);
+    var hd = new Cesium.EllipsoidGeodesic(c, B).startHeading;   /* 매 프레임 다시 */
+    var latD = Cesium.Math.toDegrees(c.latitude), lonD = Cesium.Math.toDegrees(c.longitude);
+    var sun = sunAzEl(latD, lonD);
+
+    var look;
+    if (sideMode === "SUN") look = sun.az;
+    else look = hd + (sideMode === "L" ? -1 : 1) * Cesium.Math.PI_OVER_TWO;
+
+    viewer.camera.setView({
+      destination: Cesium.Cartesian3.fromRadians(c.longitude, c.latitude, alt),
+      orientation : { heading: look, pitch: Cesium.Math.toRadians(opts.pitch||-10), roll:0 }
+    });
+    if (opts.onTick) opts.onTick(f, latD, lonD, hd, look, sun, dist);
+    if (f >= 0.999){ off(); if (opts.onDone) opts.onDone(); }
+  });
+  return { stop: off, dist: dist, ms: ms };
+}
+
+/* ── 화면 ──────────────────────────────────────────────────── */
+function $(s){ return document.getElementById(s); }
+function deg(r){ return (Cesium.Math.toDegrees(r)+360)%360; }
+function fm(n,d){ return n.toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d}); }
+
+function paintTile(){
+  var bad = tileState.indexOf("실패") >= 0;
+  $("tile").innerHTML = "타일 &mdash; <b style='color:" + (bad?"#e07a5f":"#7fa87a") + "'>"
+    + tileState + "</b> · 받음 " + tLoad + " · 실패 " + tFail;
+}
+
+function buildRoutes(){
+  $("route").innerHTML = "";
+  ROUTES.forEach(function(r,i){
+    var o = document.createElement("option");
+    o.value = i; o.textContent = r.dead ? r.n + " (" + r.dead + ")" : r.n;
+    if (!r.a) o.disabled = true;
+    $("route").appendChild(o);
+  });
+}
+
+function setView(i){
+  var r = ROUTES[i];
+  if (!r.a){ $("tel").textContent = "이 위도는 지금 " + r.dead + " 입니다"; return; }
+  var A = Cesium.Cartographic.fromDegrees(r.a[1], r.a[0]);
+  var B = Cesium.Cartographic.fromDegrees(r.b[1], r.b[0]);
+  var g = new Cesium.EllipsoidGeodesic(A, B);
+  var m = g.interpolateUsingFraction(0.5);
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromRadians(m.longitude, m.latitude,
+                   Math.max(g.surfaceDistance*1.3, 1500000)),
+    orientation:{ heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 }
+  });
+  var km = g.surfaceDistance/1000;
+  var s = sunAzEl(r.a[0], r.a[1]);
+  $("tel").innerHTML =
+    "출발 <b>" + fm(r.a[0],2) + ", " + fm(r.a[1],2) + "</b><br>" +
+    "대권 <b>" + km.toFixed(0) + " km</b> · 정속이면 <b>" + (km/KMH).toFixed(2) + " 시간</b><br>" +
+    "출발점 태양 방위 <b>" + fm(deg(s.az),1) + "&deg;</b> · 고도 <b>"
+      + fm(Cesium.Math.toDegrees(s.el),1) + "&deg;</b>" +
+    (r.brg ? "<br>진행 방위 <b>" + fm(r.brg,1) + "&deg;</b> — 왼쪽 창에 해가 오도록" : "");
+}
+
+function pickSide(m){
+  sideMode = m;
+  ["bL","bR","bS"].forEach(function(id){ $(id).classList.remove("on"); });
+  $({L:"bL",R:"bR",SUN:"bS"}[m]).classList.add("on");
+}
+
+function stopAll(){ if (flight){ flight.stop(); flight = null; } $("barIn").style.width="0"; }
+
+/* ── 지구 세우기 ───────────────────────────────────────────── */
+(function init(){
+  viewer = new Cesium.Viewer("cesiumContainer",{
+    baseLayer:false, baseLayerPicker:false, geocoder:false, homeButton:false,
+    sceneModePicker:false, navigationHelpButton:false, animation:false,
+    timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false,
+    requestRenderMode:false
+  });
+  window.viewer = viewer;
+  viewer.clock.clockStep = Cesium.ClockStep.SYSTEM_CLOCK;
+  viewer.clock.shouldAnimate = true;
+
+  var s = viewer.scene;
+  s.skyAtmosphere.show = true;
+  s.globe.baseColor = Cesium.Color.fromCssColorString("#0a1326");
+  s.globe.showGroundAtmosphere = true;
+  s.backgroundColor = Cesium.Color.fromCssColorString("#05070f");
+  if (s.fog) s.fog.enabled = true;
+  s.globe.enableLighting = true;
+  s.globe.dynamicAtmosphereLighting = true;
+  s.globe.dynamicAtmosphereLightingFromSun = true;
+  if (s.skyAtmosphere) s.skyAtmosphere.dynamicLighting = Cesium.DynamicAtmosphereLightingType.SUNLIGHT;
+  if (s.moon) s.moon.show = true;
+
+  try{
+    var osm = viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+      url:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      credit:"© OpenStreetMap contributors", maximumLevel:19 }));
+    osm.brightness = 0.55; osm.saturation = 0.65; osm.gamma = 0.8;
+  }catch(e){ console.warn("기본 지도 실패:", e); }
+
+  /* 배선 */
+  $("route").onchange = function(e){ stopAll(); setView(+e.target.value); };
+  $("alt").oninput = function(e){ $("altV").textContent = e.target.value+"km"; };
+  $("pit").oninput = function(e){ $("pitV").textContent = e.target.value+"\u00B0"; };
+  $("bL").onclick = function(){ pickSide("L"); };
+  $("bR").onclick = function(){ pickSide("R"); };
+  $("bS").onclick = function(){ pickSide("SUN"); };
+  $("stop").onclick = stopAll;
+  $("bFr").onclick = function(){
+    $("frames").classList.toggle("on");
+    $("bFr").classList.toggle("on", $("frames").classList.contains("on"));
+  };
+  $("bCity").onclick = function(){
+    stopAll();
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(2.2945, 48.8530, 900),
+      orientation:{ heading:Cesium.Math.toRadians(20),
+                    pitch:Cesium.Math.toRadians(-25), roll:0 },
+      duration: 2.0
+    });
+    $("tel").innerHTML = "파리 에펠탑 상공 900m<br>" +
+      "<b>여기서 건물이 입체로 서면</b> 키·리퍼러는 정상입니다.<br>" +
+      "여기도 평평하면 키 문제, 여기만 되면 시골은 커버리지 밖입니다.";
+  };
+  $("go").onclick = function(){
+    stopAll();
+    var r = ROUTES[+$("route").value];
+    if (!r.a) return;
+    var alt = (+$("alt").value)*1000, pitch = +$("pit").value;
+    var last=0, lastT=performance.now(), rate=0;
+
+    flight = cruise(r.a, r.b, KMH, alt, {
+      pitch: pitch,
+      onTick: function(f, lat, lon, hd, look, sun, dist){
+        $("barIn").style.width = (f*100).toFixed(1)+"%";
+        var now = performance.now();
+        if (now-lastT > 300){
+          rate = (f-last)*dist/1000/((now-lastT)/1000)*3600; last=f; lastT=now;
+        }
+        var hdD = deg(hd), lookD = deg(look), azD = deg(sun.az);
+        var dif = ((azD - lookD + 540)%360)-180;
+        var elD = Cesium.Math.toDegrees(sun.el);
+        var ground = 1670*Math.cos(Cesium.Math.toRadians(lat));
+        var west = -KMH*Math.sin(hd);
+        $("tel").innerHTML =
+          "진행 <b>" + (f*100).toFixed(1) + "%</b> · 남은 <b>"
+            + ((1-f)*dist/1000).toFixed(0) + " km</b><br>" +
+          "위치 <b>" + fm(lat,3) + ", " + fm(lon,3) + "</b><br>" +
+          "진행 <b>" + fm(hdD,1) + "&deg;</b> · 보는 쪽 <b>" + fm(lookD,1) + "&deg;</b><br>" +
+          "&#9788; 방위 <b>" + fm(azD,1) + "&deg;</b> · 고도 <b>" + fm(elD,1) + "&deg;</b><br>" +
+          "<span style='color:" + (Math.abs(dif)<35?"#c9a86a":"#6a655c") + "'>" +
+          (Math.abs(dif)<35 ? "해가 창 안 (중앙에서 " + fm(dif,0) + "&deg;)"
+                            : "해가 창 밖 (" + fm(dif,0) + "&deg;)") + "</span><br>" +
+          "실측 <b>" + fm(rate,0) + " km/h</b> · 지면자전 " + fm(ground,0)
+            + " · 서향 " + fm(west,0) + "<br>" +
+          "<span style='color:" + (west>=ground?"#c9a86a":"#6a655c") + "'>" +
+          (west>=ground ? "해를 앞지르는 중"
+                        : "일몰 " + fm(ground/Math.max(ground-west,1),1) + "배 느려짐") + "</span>";
+      },
+      onDone: function(){ $("tel").innerHTML += "<br><b style='color:#c9a86a'>착륙</b>"; }
+    });
+  };
+
+  fillSunRoutes();
+  buildRoutes();
+  setView(0);
+
+  if (GOOGLE_API_KEY && GOOGLE_API_KEY.trim()){
+    Cesium.createGooglePhotorealistic3DTileset({ key: GOOGLE_API_KEY }).then(function(t){
+      tileset = t; s.primitives.add(t);
+      tileState = "root 받음"; paintTile();
+      console.log("[EG] 실사 타일 root 받음 — 과금 1건");
+      t.tileLoad.addEventListener(function(){ tLoad++; if (tLoad % 20 === 1) paintTile(); });
+      t.tileFailed.addEventListener(function(e){ tFail++; paintTile();
+        if (tFail < 4) console.warn("[EG] 타일 실패:", e); });
+    }).catch(function(err){
+      tileState = "root 실패 — 키·리퍼러 의심"; paintTile();
+      console.error("[EG] 타일 root 실패:", err);
+    });
+  } else { tileState = "키 없음"; paintTile(); }
+})();
+</script>
+</body>
+</html>
