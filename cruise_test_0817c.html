@@ -11,6 +11,18 @@
   #cesiumContainer{position:fixed;inset:0}
   .cesium-widget-credits{font-size:9px!important;opacity:.3}
 
+  /* ── 기내 판 — 결정문 9호: 폭은 화면을 채우고 위아래가 잘린다 ── */
+  #plate{position:fixed;left:0;top:0;pointer-events:none;z-index:6;display:none}
+  #plate.on{display:block}
+  #cabin{position:absolute;left:0;top:0;width:100%;height:100%;
+         background:url(cabin_window_v1.webp) center/100% 100% no-repeat}
+  .wing{position:absolute;background:url(wing_eg_v1.webp) center/100% 100% no-repeat}
+  #wingNear{clip-path:inset(0 56.8% 0 0)}
+  #wingFar {clip-path:inset(0 0 0 56.6%)}
+  @media (prefers-reduced-motion: no-preference){
+    @keyframes wflex{0%,100%{transform:translateY(0)}50%{transform:translateY(-.35%)}}
+    .wing{animation:wflex 7s ease-in-out infinite}
+  }
   #frames{position:fixed;inset:0;pointer-events:none;z-index:10;display:none}
   #frames.on{display:block}
   .fr{position:absolute;border:1.5px solid rgba(201,168,106,.8);border-radius:44% / 30%}
@@ -43,6 +55,11 @@
 </head>
 <body>
 <div id="cesiumContainer"></div>
+<div id="plate">
+  <div class="wing" id="wingNear"></div>
+  <div class="wing" id="wingFar"></div>
+  <div id="cabin"></div>
+</div>
 <div id="frames">
   <div class="fr" id="frNear"><b>가까운 창</b></div>
   <div class="fr" id="frFar"><b>먼 창</b></div>
@@ -82,14 +99,17 @@
   <div class="row">
     <button id="bLand" style="flex:1">&#9733; 땅 찾기</button></div>
   <div class="row">
+    <button id="bCab" style="flex:1">&#9992; 기내</button>
     <button id="bFr" style="flex:1">창 테두리</button>
     <button id="bDump" style="flex:1">값 뽑기</button></div>
 
   <div id="bar"><div id="barIn"></div></div>
   <div id="tel">대기 중</div>
+  <div id="where" style="margin-top:8px;padding-top:8px;border-top:1px solid #2e2b26;font-size:12px;color:#c9a86a">&nbsp;</div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
+<script src="eg_geo.js"></script>
 <script>
 /* ══════════════════════════════════════════════════════════════
    EG cruise 편집기 0817c
@@ -153,47 +173,14 @@ function sunLonAt(latDeg, elDeg){
   return ((Cesium.Math.toDegrees(s.longitude + Math.acos(c)) + 540) % 360) - 180;
 }
 
-/* ── 육지 마스크 — 1도 격자 180x360, 비트로 압축 (10.5KB) ─────
-   요청도 값도 안 나간다. 바다 한복판을 피하는 데 이거 하나면 된다.
-   ⚠ 1도는 약 111km라 해안선이 뭉개진다. 그래서 이웃 칸까지 세어 「내륙」을 고른다. */
-var LANDB64 = "/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////wAP////////////////////////////////////////////////////////AAAH//////////////////////////////////////////////////////8AAAAAH//////////////4D/n//////////////////////////////////8AAAAAAP//////////////AAAA/////////////////////////////////+AAAAAAAA////////////wAAA/wAH///////////////////////////////+AAAAAD4B///////////7wwAAD+AB///////////////////////////////+AAAAAAAP///////////fgCAAD8A/////////////////////////////////+AAAAAD+P///////////8AAAAAAP////////////////////////////////zgAAAAAAX///////////PwAAAAAAf///////////////////////////////gAAAAAAAAX////////////wAAAAAAF//////////////////////////////gAAAAAAAAAAiARsAv/////+AAAAAAA//////////////////////////////sAAAAAAAAAABgAAAP/+Gl/8AAAAAAAf/////////////////////////////+AAAAAAAAAAAAAAAHQABh5+AAAAAAAA//////////////////////////////gAAAAAAAAAAAAAAAAAAD/8AAAAAAAA7+///////////5////////////////4AAAAAAAAAAAAAAAAAAAb+AAAAAAAAAAAM/gB//////4//////////////+gAAAAAAAAAAAAAAAAAAAB38AAAAAAAAAAAAAAAGD////4D/////////////4AAAAAAAAAAAAAAAAAAAAABoAAAAAAAAAAAAAAAAB////8A////////////mAAAAAAAAAAAAAAAAAAAAAAHAAAAAAAAAAAAAAAAAADf/gAAB//////////AAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAAAAAAAAAAAAAP4AAAAAAL+HgBj/AAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/AAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD4AwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8AAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAAAAAAAAAAAAAH+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB4AAAAAAAAAAAAAAAAAAF/gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4AAAAAAAAAAAAAAAAAAB/gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAOAAAAAAAAAAAAAAAAAAD/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcAAAHAAAAAAAAAAAAAAAAAAD/gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcAAADQAAAAAAAAAAAAAAAAAD/8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYAAAAAAAAAAAAAAAAAB/8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4AAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABYAAAAcAAAAAAAAAAAAAAAAAD//4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/AAAAQAAAAAAAAAAAAAAAAAB//4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/AAAAgAAAAAAAAAAAAAAAAAB//4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//AAABAAAAAAAAAAAAAAAAAAA//3AAAAAAAAAAAAQAAAAAAAAAAAAAAAOAAF//gAAAAAAAAAAAAAAAAAAAAAA//vgAAAAAAAAAAA/4AAAAAAAAAAAAAAP8AG//gAAAAAAAAAAAAAAAAAAAAAAf//wAAAAAAAAAAA/+AAAAAAAAAAAAAAP/AP//wAAAAAAAAAAAAAAAAAAAAAA///wAAAAAAAAAAA//AAAAAAAAAAAAAAP/////4AAAAAAAAAAAAAAAAAAAAAA///8AAAAAAAAAAB//gAAAAAAAAAAAAAf/////4AAAAAAAAAAAAAAAAAAAAAAf//8AAAAAAAAAAB//gAAAAAAAAAAAAAf/////4AAAAAAAAAAAAAAAAAAAAAAf//+AAAAAAAAAAD//wAAAAAAAAAAAAAf/////8AAAAAAAAAAAAAAAAAAAAAAf///AAAAAAAAAAH//4AAAAAAAAAAAAA//////8AAAAAAAAAAAAAAAAAAAAAAf//+AAAAAAAAAAH//4AAAAAAAAAAAAB//////4AAAAAAAAAAAAAAAAAAAAAAf//+AAAAAAAAAAH//4AEAAAAAAAAAAA//////4AAAAAAAAAAAAAAAAAAAAAAf///gAAAAAAAAAH//+AOAAAAAAAAAAB//////wAAAAAAAAAAAAAAAAAAAAAAP///4AAAAAAAAAP//+APAAAAAAAAAAA//////gAAAAAAAAAAAAAAAAAAAAAAP////AAAAAAAAAP///AfAAAAAAAAAAA//////AAAAAAAAAAAAIAAAAAAAAAAP////gAAAAAAAAP//+AfAAAAAAAAAAAf////+AAEAAAAAAAAAAAAAAAAAAAAP////wAAAAAAAAf//+APgEAAAAAAAAAD////+AAIAAAAAAAAAAAAAAAAAAAAP////wAAAAAAAAf//+APgAAAAAAAAAAAf///8AAAAAAAAAAAAAAAAAAAAAAAP////wAAAAAAAA////gPgAAAAAAAAAAAP///wAAAAAAAAAAgAAAAAAAAAAAAf////4AAAAAAAA////wPgAAAAAAAAAAAP//3wAAAAAAAAAAAAAAAAAAAAAAB/////4AAAAAAAA////8PwAAAAAAAAAAAH//XgAABABAAAAAAAAAAAAAAAAAH/////4AAAAAAAA////+BwAAAAAAAAAAAD/8HgAAAAAAAAAAAAAAAAAAAAAAP/////4AAAAAAAA////+AwAAAAAAAAAAAA38DgAAAAAAQAAAAAAAAAAAAAAAP/////4AAAAAAAAf///+AQAAAAAAAAAAAAD8DAAAAAAAAAAAAAAAAAAAAAAAf/////8AAAAAAAAf///8AQAAAAAAAAAAAAB+CAAAAAAAAAAAAAAAAAAAAAAAf/////+AAAAAAAAP///8AAAAAAAAAAAAAACgCAEAAAAAAAAAAAAAAAAAAAAA///////AAAAAAAAP///+AAAAAAAAAAAAAAAAAAgBAAAAAAAAAAAAAAAAAAAA///////AAAAAAAAf///8AAAAAAAAAAAABCAAAGgAAAAAAAAAAAAAAAAAAAAB///////gAAAAAAAf///4AAAAAAAAAAAAfsgAOMAAAAAAAAAAAAAAAAAAAAAD///////gAAAAAAAf///4AAAAAAAAAAB+AABA/4AAAAAAAAAAAAAAAAAAAAAD///////gAAAAAAA////4AAAAAAAAAADgAAAIf8BAAAAAAAAAAAAAAAAAAAAH///////gAAAAAAA////4AAAAAAAAAAMABAAI/ywAAAAAAAAAAAAAAAAAAAAH//////8AAAAAAAA////4AAAAAAAAAAcAAQAD/gAAAAAAAAAAAAAAAAAAAAAD//////4AAAAAAAB////8AAAAAAAAAA8AxQif/AAAAAAAAAAAAAAAAAAAAAAH/////+AAAAAAAAD////+AAAAAAAAAB8P5wAL4AgAAAAAAAAAAAAAAAAAAAAH////+4AAAAAAAAH/////AAAAAAAAABwP50QwAAAAAAAAAAAAAAAAAAAAAAAD/////AAAAAAAAAH/////AAAAAAAAAD4f8ASgAAAAAAAAAAAAAAAAAAAAAAAD////4AAAAAAAAAH/////gAAAAAAAAHgf8cIAAAAAAAAAAAAAAAAAAAAAAAAB////8AAAAAAAAAD/////wAAAAAAAAHQf8AIAAAAAAAAAAAAAAAAAAAAAAAAB////4AAAAAAAAAD/////8AAAAAAAAMwH8AIAAAAAAAAAAAAAAAAAAAAAAAAAf///4AAAAAAAAAD/////+AAAAAAAAZgB8BAAAAAAAAAAAAAAAAAAAAAAAAAAf///wAAAAAACAA3//////AAAAAAAAxgA+AAAAAAAAAAAAAAAAAAAAAAAAAAA////gAAAAAAP/B///////gAAAAAABDgAeAAAAAAAAAAAAAAAAAAAAAAAAAAAf//wAAAAAAAf/////////gAAAAMAADAAMDAAAAAAAAAAAAAAAAAAAAAAAAAE///gAAAAAAB//////////wAAAAMAAEAAADgIAAAAAAAAAAAAAAAAAAAAAAA8///AAAAAAAB//////////wAAABIAAMAAEHAAAAAAAAAAAAAAAAAAAAAAAAAyPf+AAAAAAAD//////////4AAADoAAIEACBAAAAAAAAAAAAAAAAAAAAAAAADgPfIAAAAAAAH/////////34AAADwAAIPABIAAAAAAAAAAAAAAAAAAAAAAAADABIAAAAAAAAH/////////gIAAADwAAEfgALAAAAAAAAAAAAAAAAAAAAAAAAHAAAAAAAAAAAf/////////gBAAAHwAAM/gAKAAAAAAAAAAAAAAAAAAAAAAAA/AAAAAAAAAAAf/////////eAAAAHwAAP/gAsAAAAAAAAAAAAAAAAAAAAAAAD/gAAAAAAAAAAf////////+fgAAAPwAAP/gAwAAAAAAAAAAAAAAAAAAAAAAAH/AAAAAAAAAAAf////////8/8AAAPwAAP/gAgAAAAAAAAAAAAAAAAAAAAAAH/wAAAAAAAAAAAP////////4f+AAAf8AD//AAwAAAAAAAAAAAAAAAAAAAAAAf/wAAAAAAAAAAAP////////4//gAAf+AB/+AAwAAAAAAAAAAAAAAAAAAAAAD/lwAD8AAAAAAAAP////////x//4AAf/AD/8QAAAAAAAAAAAAAAAgAAAAAAAH/B4ABwAAAAAAAAP////////h//8AAf/gD/8YAAAAAAAAAAAAAAAAAAAAAAAH+A4AYAAAAAAAAAP////////j//+AAf/4H/+IAAAAAAAAAAAAAAAAAAAAAAAH8AQBggAAAAAAAAf////////n//+ADf/4P//YAAAAAAAAAAAAAAAAAAAAAAAP8AAvAAAAAAAAAAP////////H///AD///////ggAAAAAAAAAAAAAAAAAAAACf8AAAAAAAAAAAAAP///////+H//+AP///////4gAAAAAAAAAAAAAAAAAAAAI/8AAAAAAAAAAAAAH///////+f/44Af///////8QAAAAAAAAAAAAAAAAAAAAJ/+AAEAAAAAAAAAAH///////+f/wB/f////////AAAAAAAAAAAAAAAAAAAAAZ/+AAMAAAAAAAAAAD///////8//wH//////////AAAAAAAAAAAAAAAAAAAAB3/+AAcAAAAAAAAAAB///////8//h///////////gAAAAAAAAAAAAAAAAAAAAv//AAYAAAAAAAAAAAf/////////H///////////wAAAAAAAAAAAAAAAAAAABv//xAYAAAAAAAAAAAP//////3//H///////////gAAAAAAAAAAAAAAAAAAACf////4AAAAAAAAAAAP////v////////////////gAAAAAAAAAAAAAAAAAAAG/////4AAAAAAAAAAAP///8PwD//////////////gCAAAAAAAAAAAAAAAAAAH/////4AAAAAAAAAAQH///4GAB//////////////gBAAAAAAAAAAAAAAAAAAP/////+AAAAAAAAAAAD//+AAAB//////////////gjwAAAAAAAAAAAAAAAAB///////gAAAAAAAAAAB//8AAAA//////////////Ah2AAAAAAAAAAAAAAAAB///////wAAAAAAAAAAAh/+AAAA//////////////A4fwAAAAAAAAAAAAAAAD///////wAAAAAAAAAAAgf+AABs//////////////g4D4AAAAAAAAAAAAAAAH///////wAAAAAAAAAAH+AAYDH//////////////+g4AYAAAAAAAAAAAAAAAH///////oAAAAAAAQAAH/AACGP//////////////8BwAMAAAAAAAAAAAAAAAP///////8AAAAAAAAAAH/IMCOH//////////////+ZwAMAAAAAAAAAAAAAAAP///////8AAAAAAAAAAH/gMHfV///////////////v4AMAAAAAAAAAAAAAAAP////////gAAAAAAAAAH/wAcP8PA//////////////8AAAAAAAAAAAAAAAAAP////////gAAAAAAAAAH/4Fw/4AA//////////////+ACAAAAAAAAAAAAAAAP////////wgAAAAAAAADj/jz/+AD///////////////4HgAAAAAAAAAAAAAAP////////8wAAAAAAAAAB//P/+EP///////////////8CAAAAAAAAAAAAAAAP/////////+AAAAAAAAAB//v//GP///////////////+AAAAAAAAAAAAAAAAP/////////pAAAAAAAAAD/////vP////////////////BAAAAAAAAAAAAAAAP/////////gCgAAAAAAAD///////////////////////iAAAAAAAAAAAAAAAL////////7wPgAAAAAAAf///////////////////////yAAAAAAAAAAAAAABv////////+MMAAAAAAAAC///////////////////////7AAAAAAAAAAAAAAC///////////kAAAAAAAAQP//////////////////////zAAAAAAAAAAAAAAD///////////6AAAAAAAAPH//////////////////////6AAwAAAAAAAAAAAn///////x///8AAAAAAAPPx//////////////////////6AA4AAAAAAAAAABP///////x///8AAAAAAAPHAf/////////////////////4AA8AAAAAEAAAAAP///////z///4AAAAAAADuAEDv//////////////////+AAA+AAAAABQAAADf//////8Af//AAAAAAAAAcAPQH//////////////////8AAA/AAAAAAMAAAC///////wAf/+AAAAAAAAAYAOeH///////////////////AAA/gAAAAABcAAP//////8AAf/+AAAAAAAAB8AA+i///////////////////wAAfgAAAAAB0AAX//////4AA/94AAAAAAAAAYA5+C///////////////////4AAHQAAAAA/xAD///////gAA/wQAAAAAAAAAAB9/Ab///////////////////+ODgAAAAH/9z////////gAA/wAAAMAAAAAACB//D7////////////////////+A/YAAAP///////////wAA/AAAB+AAAAAAAB/+H//////////////////////jP+AAAH///////////4AwgHQAD/AAAAAAAAf/H///////////////////////n/6AMAf//////////+DBAbwAH/AAADAAAAN/j/////////////////////////+AwAf///////////zwx/AAP/wAAP8AAAB/4/+f//////////////////////47w/////////////qAD+QAP/wABr8AAAAf8f+D////////////////////////4EP///////////5gD/8A///gAAAAAAAf//5+P///8//////////////////+AD////////+//fz4Y/wA7//4AAAAAAAD///+I////v/////////////////wAP////////QsDPzwD8AAf///wAAAAAAG///wIBe/3+/////////////////AAB///+B/2H/+DnDxf8AAz////AAAAAAA//wAAAA8Pv//////////////9H8AAAH8gAAAAAP+A8f//8AA3///ogAAAAAABtgAAAAAfv/////////////8AAAwAAAAAAAAON/8E4//9AADf////gAAAAAAAAAAABwAPZ+///////4nv/gAAAAAAAAAAAAAf/+4/Y/94AAD////+wAAAAAAAAAAABwAHhH///////8AHwAAAAAAAAAAAAAAP+Ac8+M/gAAD////+8AAAAAAAAAAAA4AAAH///+O+HAAHAAAAAAAAAAAAAAACAwACAcAAAAP/////+AAAAAAAAAAAAMAAAAX///6AAAAAAAAAAAAAAAAAAAAAD/wMzz8AAAP/////2AAAAAAAAAAAAD4AAAA////AAAB/oAAAAAAAAAAAAAABoCGc8X/AH///////4AAAAAAAAAAAAAB4AAAAB9+AAAAAAAAAAAAAAAAAAAAAEcIA5MfAI///////8AAAAAPFAAAAAAAAAAAAAcAAAAAAAAAAAAAAAAAAAAAAAeHznn/h////////4AAAABXsAAAAAAAAAAAAD4AAAAAAAAAAAAAAAAAAAAAAAAAA///uAf//////+AAAABrvwAAAAAAAAAAH8AAAAAAAAAAAAAAAAAAAAAAAAAAA/gD/p////////AAAAAAAAAACxBwAAAAHgAAAAAAAAAAAAAAAAAAAAAAAAAAAA///+x/////76fAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//8AFb///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-var LAND = (function(){
-  var raw = atob(LANDB64), n = raw.length, out = new Uint8Array(n);
-  for (var i=0;i<n;i++) out[i] = raw.charCodeAt(i);
-  return out;
-})();
-function isLand(i, j){                       /* i 0..179 (남→북) · j 0..359 (서→동) */
-  if (i < 0 || i > 179) return false;
-  j = ((j % 360) + 360) % 360;
-  var k = i*360 + j;
-  return ((LAND[k >> 3] >> (7 - (k & 7))) & 1) === 1;
-}
-function cellOf(lat, lon){
-  return [ Math.min(Math.max(Math.floor(lat + 90), 0), 179),
-           ((Math.floor(lon + 180) % 360) + 360) % 360 ];
-}
-function inlandScore(lat, lon){              /* 3x3 이웃 중 육지 칸 수 0~9 */
-  var c = cellOf(lat, lon), n = 0;
-  for (var di=-1; di<=1; di++) for (var dj=-1; dj<=1; dj++)
-    if (isLand(c[0]+di, c[1]+dj)) n++;
-  return n;
-}
-
-/* ⭐ 지금 일몰선을 훑어 가장 땅다운 곳을 고른다 */
-function pickSunsetLand(elDeg){
-  var best = null, cand = [];
-  for (var lat = 64; lat >= -54; lat -= 2){
-    var lon = sunLonAt(lat, elDeg);
-    if (lon === null) continue;              /* 백야·극야 */
-    var s = inlandScore(lat, lon);
-    if (s >= 5) cand.push({ lat:lat, lon:lon, s:s });
-  }
-  if (!cand.length) return null;             /* 일몰선이 통째로 바다 — 하루 중 8% */
-  cand.forEach(function(c){ c.score = c.s + Math.random()*4; });
-  cand.sort(function(a,b){ return b.score - a.score; });
-  return cand[0];
-}
-
+/* 육지·도시·대양은 eg_geo.js 가 맡는다 (EGGeo)
+   ⚠ 부품이 안 실렸어도 화면이 죽지 않게 대역을 세운다 — 0817 실제로 겪었다 */
+var EGGeo = window.EGGeo || {
+  inland: function(){ return 9; },
+  where:  function(){ return "eg_geo.js 없음"; },
+  pickSunsetLand: function(){ return null; },
+  nearest: function(){ return null; }
+};
 function stepFrom(lat, lon, brgDeg, km){
   var Re=6371, d=km/Re, f1=Cesium.Math.toRadians(lat), l1=Cesium.Math.toRadians(lon),
       b=Cesium.Math.toRadians(brgDeg);
@@ -211,6 +198,22 @@ function layoutFrames(){
   /* 가까운 창의 세로 한가운데가 화면 한가운데에 오도록 판을 세운다 */
   var focus = (WIN.near.T + WIN.near.H/2)/100;
   var py = vh*0.5 - h*focus;
+
+  /* 기내 판 전체 */
+  var pl = $("plate");
+  pl.style.left = cx + "px"; pl.style.top = py + "px";
+  pl.style.width = w + "px"; pl.style.height = h + "px";
+
+  /* 날개 두 겹 — 0817 확정값 s75 · near 8% · far −2% · top 36% */
+  var ww = 0.75*w, wh = ww * 821/1916;
+  ["wingNear","wingFar"].forEach(function(id, k){
+    var e = $(id);
+    e.style.width = ww + "px"; e.style.height = wh + "px";
+    e.style.left = ((k === 0 ? 8 : -2)/100*w) + "px";
+    e.style.top  = (0.36*h) + "px";
+  });
+
+  /* 창 테두리 (선만) */
   ["near","far"].forEach(function(k){
     var e = $(k === "near" ? "frNear" : "frFar"), c = WIN[k];
     e.style.left   = (cx + c.L/100*w) + "px";
@@ -218,7 +221,7 @@ function layoutFrames(){
     e.style.width  = (c.W/100*w) + "px";
     e.style.height = (c.H/100*h) + "px";
   });
-  return { w:w, h:h, vw:vw, vh:vh };
+  return { w:w, h:h, vw:vw, vh:vh, cx:cx, py:py };
 }
 /* 가까운 창의 가로 시야각 절반 */
 function halfFovX(){
@@ -263,7 +266,7 @@ function preview(){
   var lat = +$("lat").value, el = +$("sel").value;
   var lon = sunLonAt(lat, el);
   $("latHint").textContent = latHint(lat) + (lon===null ? " — 백야·극야"
-    : "  ·  " + (inlandScore(lat,lon) >= 5 ? "내륙 " + inlandScore(lat,lon) + "/9" : "바다"));
+    : "  ·  " + (EGGeo.inland(lat,lon) >= 5 ? "내륙 " + EGGeo.inland(lat,lon) + "/9" : "바다"));
   if (lon === null){ $("tel").textContent = "이 위도는 지금 백야·극야입니다"; return; }
   var s = sunAzEl(lat, lon);
   var az = deg(s.az), brg = (az - side*90 + 360)%360;
@@ -276,6 +279,7 @@ function preview(){
     "지금 이 위도의 일몰 지점<br>위치 <b>" + fm(lat,1) + ", " + fm(lon,2) + "</b><br>" +
     "&#9788; 방위 <b>" + fm(az,1) + "&deg;</b> · 고도 <b>" + fm(Cesium.Math.toDegrees(s.el),1) + "&deg;</b><br>" +
     "진행 방위 <b>" + fm(brg,1) + "&deg;</b> · 창 시야각 <b>" + fm(halfFovX()*2,1) + "&deg;</b>";
+  $("where").textContent = EGGeo.where(lat, lon);
 }
 function stopAll(){ if (flight){ flight.stop(); flight=null; } $("barIn").style.width="0"; }
 
@@ -320,7 +324,7 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
   $("wL").onclick = function(){ side=-1; pick("wL","wR",true); preview(); };
   $("wR").onclick = function(){ side=+1; pick("wL","wR",false); preview(); };
   $("bLand").onclick = function(){
-    var p = pickSunsetLand(+$("sel").value);
+    var p = EGGeo.pickSunsetLand(sunLonAt, +$("sel").value);
     if (!p){
       $("tel").innerHTML = "지금 일몰선은 <b>통째로 바다</b>입니다.<br>" +
         "하루 중 약 8%가 그렇습니다 — 대양의 일몰이 되겠습니다.";
@@ -332,6 +336,13 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
       + p.lat + "&deg; · 내륙 밀도 " + p.s + "/9</span>";
   };
   $("stop").onclick = stopAll;
+  $("bCab").onclick = function(){
+    var on = !$("plate").classList.contains("on");
+    $("plate").classList.toggle("on", on); $("bCab").classList.toggle("on", on);
+    if (on){ layoutFrames();
+      /* 기내를 켜면 테두리는 걷는다 — 창틀이 이미 제자리를 말한다 */
+      $("frames").classList.remove("on"); $("bFr").classList.remove("on"); }
+  };
   $("bFr").onclick = function(){
     var on = !$("frames").classList.contains("on");
     $("frames").classList.toggle("on", on); $("bFr").classList.toggle("on", on);
@@ -357,9 +368,11 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     var lat = +$("lat").value, lon = sunLonAt(lat, +$("sel").value);
     if (lon === null) return;
     var alt = (+$("alt").value)*1000, pitch = +$("pit").value, HF = halfFovX();
+    var wT = 0;
     flight = cruise(lat, lon, { alt:alt, pitch:pitch,
       onTick: function(sec, la, lo, brg, look, sun, dist){
         $("barIn").style.width = Math.min(sec/1800*100,100)+"%";
+        if (sec - wT > 1){ wT = sec; $("where").textContent = EGGeo.where(la, lo); }
         var az = deg(sun.az), el = Cesium.Math.toDegrees(sun.el);
         var dif = ((az - look + 540)%360)-180;
         var m = Math.floor(sec/60), ss = Math.floor(sec%60);
@@ -375,7 +388,7 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
           + "</span>";
       }});
   };
-  addEventListener("resize", function(){ if ($("frames").classList.contains("on")) layoutFrames(); });
+  addEventListener("resize", function(){ layoutFrames(); });
 
   layoutFrames();
   preview();
