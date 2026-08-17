@@ -24,13 +24,49 @@
   #plate.on{display:block}
   #cabin{position:absolute;left:0;top:0;width:100%;height:100%;
          background:url(cabin_window_v1.webp) center/100% 100% no-repeat}
-  .wing{position:absolute;background:url(wing_eg_v1.webp) center/100% 100% no-repeat}
+  .wing{position:absolute}
+  /* ⚠ 판을 scaleX(-1) 로 뒤집으면 날개의 EG 글자까지 거울상이 된다.
+     안쪽에 한 겹을 더 두고 되뒤집어 글자만 바로 세운다 (0817 소로). */
+  .wing i{position:absolute;inset:0;display:block;
+          background:url(wing_eg_v1.webp) center/100% 100% no-repeat}
+  #plate.flip .wing i{transform:scaleX(-1)}
   #wingNear{clip-path:inset(0 56.8% 0 0)}
   #wingFar {clip-path:inset(0 0 0 56.6%)}
   @media (prefers-reduced-motion: no-preference){
     @keyframes wflex{0%,100%{transform:translateY(0)}50%{transform:translateY(-.35%)}}
     .wing{animation:wflex 7s ease-in-out infinite}
   }
+  /* ⭐ 창밖은 무한히 멀어 고개를 들어도 안 움직인다. 움직이는 것은 창틀이다.
+     그래서 기내 판만 위아래로 밀고 Cesium 캔버스는 그대로 둔다. */
+  #plate{transition:none}
+  /* 모니터 홈 — 실측 left 66% top 36% w 33% h 14% (0817) */
+  #homeBtn{position:absolute;left:66%;top:36%;width:33%;height:14%;
+           pointer-events:auto;cursor:pointer;border-radius:6px;
+           box-shadow:inset 0 0 0 0 rgba(201,168,106,0);transition:box-shadow .2s}
+  #homeBtn:hover{box-shadow:inset 0 0 0 2px rgba(201,168,106,.55)}
+  #plate.flip #homeBtn{transform:scaleX(-1);transform-origin:50% 50%}
+  /* 모니터 — 홈에 접혀 있다가 오른쪽 경첩으로 돌아 나온다 */
+  #mon{position:fixed;z-index:12;transform-origin:right center;
+       transform:rotateY(-58deg) translateX(16%) scale(.58);opacity:0;
+       pointer-events:none;transition:transform .62s cubic-bezier(.18,.85,.25,1),opacity .3s;
+       background:#14110d;border:1px solid #3a3730;border-radius:10px;
+       box-shadow:0 18px 60px rgba(0,0,0,.6);overflow:hidden;display:flex;flex-direction:column}
+  #mon.on{transform:rotateY(-5deg) translateX(0) scale(1);opacity:1;pointer-events:auto}
+  #monHead{display:flex;align-items:center;justify-content:space-between;
+           padding:9px 13px;border-bottom:1px solid #2e2b26;font-size:11px;color:#9a9186}
+  #monWhere{color:#c9a86a}
+  #monBody{flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:9px;overflow:auto}
+  #monBody::-webkit-scrollbar{display:none}
+  #dTitle,#dBody{background:#f0ebe0;border:none;border-radius:6px;color:#2e2a22;
+                 font-family:Georgia,"Apple SD Gothic Neo",serif;padding:10px 12px;outline:none}
+  #dTitle{font-size:15px}
+  #dBody{flex:1;font-size:13px;line-height:1.9;resize:none;min-height:120px}
+  #monFoot{display:flex;align-items:center;justify-content:space-between;
+           padding:8px 13px;border-top:1px solid #2e2b26;font-size:11px;color:#6a655c}
+  #scrollHint{position:fixed;right:16px;top:50%;transform:translateY(-50%);z-index:11;
+              font-size:11px;color:rgba(232,228,216,.35);writing-mode:vertical-rl;
+              text-shadow:0 1px 6px rgba(0,0,0,.9);pointer-events:none;display:none}
+  #scrollHint.on{display:block}
   #frames{position:fixed;inset:0;pointer-events:none;z-index:10;display:none;
           transform-origin:50% 50%}
   #frames.flip{transform:scaleX(-1)}
@@ -82,9 +118,24 @@
 <div id="cesiumContainer"></div>
 <div id="fade"></div>
 <div id="plate">
-  <div class="wing" id="wingNear"></div>
-  <div class="wing" id="wingFar"></div>
+  <div class="wing" id="wingNear"><i></i></div>
+  <div class="wing" id="wingFar"><i></i></div>
   <div id="cabin"></div>
+  <div id="homeBtn" title="일기장 (D)"></div>
+</div>
+<div id="scrollHint">위아래로 밀어 보세요</div>
+
+<div id="mon">
+  <div id="monHead">
+    <span>&#9992; EG 교양일기</span>
+    <span id="monWhere"></span>
+    <button id="monX" style="padding:2px 8px;font-size:11px">&#10005;</button>
+  </div>
+  <div id="monBody">
+    <input id="dTitle" placeholder="오늘의 제목">
+    <textarea id="dBody" placeholder="창밖을 보며&#10;오늘 어디를 다녀왔는지 적어 보세요"></textarea>
+  </div>
+  <div id="monFoot"><span id="dCount">0자</span><span id="dAlt"></span></div>
 </div>
 <div id="frames">
   <div class="fr" id="frNear"><b>가까운 창</b></div>
@@ -234,6 +285,7 @@ function stepFrom(lat, lon, brgDeg, km){
 }
 
 /* ── 창 테두리를 실제 크기로 ─────────────────────────────────── */
+var panY = 0, panMin = 0, panMax = 0;
 function layoutFrames(){
   var vw = innerWidth, vh = innerHeight;
   var w = (vw/vh < R_PLATE) ? Math.max(vh*R_PLATE, vw) : vw;
@@ -243,10 +295,23 @@ function layoutFrames(){
   var focus = (WIN.near.T + WIN.near.H/2)/100;
   var py = vh*0.5 - h*focus;
 
-  /* 기내 판 전체 */
+  /* 기내 판 전체 — panY 만큼 위아래로 민다 (창밖은 안 움직인다) */
   var pl = $("plate");
-  pl.style.left = cx + "px"; pl.style.top = py + "px";
+  panMin = -(h + py - vh);          /* 더 내릴 수 없는 한계 (판 아래끝이 화면 바닥) */
+  panMax = -py;                     /* 더 올릴 수 없는 한계 (판 위끝이 화면 천장) */
+  panY = Math.max(panMin, Math.min(panMax, panY));
+  pl.style.left = cx + "px"; pl.style.top = (py + panY) + "px";
   pl.style.width = w + "px"; pl.style.height = h + "px";
+
+  /* 모니터 — 홈 자리에 맞춰 세운다 (판을 따라 움직인다) */
+  var hx = cx + 0.66*w, hy = py + panY + 0.36*h, hw = 0.33*w, hh = 0.14*h;
+  if ($("plate").classList.contains("flip")) hx = cx + w - 0.66*w - hw;
+  var mw = Math.max(hw*1.9, 380), mh = Math.max(mw*0.72, 300);
+  mw = Math.min(mw, vw*0.52); mh = Math.min(mh, vh*0.78);
+  var mo = $("mon");
+  mo.style.width = mw + "px"; mo.style.height = mh + "px";
+  mo.style.left = Math.max(12, Math.min(vw-mw-12, hx + hw/2 - mw/2)) + "px";
+  mo.style.top  = Math.max(12, Math.min(vh-mh-12, hy + hh/2 - mh/2)) + "px";
 
   /* 날개 두 겹 — 0817 확정값 s75 · near 8% · far −2% · top 36% */
   var ww = 0.75*w, wh = ww * 821/1916;
@@ -473,12 +538,32 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     else if (k === "arrowright") swapSeat(+1);
     else if (k === "l")   $("bLand").click();
     else if (k === "f")   $("bFr").click();
+    else if (k === "d")   setDiary(!$("mon").classList.contains("on"));
+    else if (k === "arrowup")   { e.preventDefault(); panBy(60); }
+    else if (k === "arrowdown") { e.preventDefault(); panBy(-60); }
   });
+  function setDiary(open){
+    $("mon").classList.toggle("on", open);
+    if (open){
+      layoutFrames();
+      $("monWhere").textContent = $("where").textContent || "";
+      setTimeout(function(){ $("dBody").focus(); }, 400);
+    }
+  }
+  $("homeBtn").onclick = function(){ setDiary(!$("mon").classList.contains("on")); };
+  $("monX").onclick    = function(){ setDiary(false); };
+  $("dBody").oninput   = function(){
+    $("dCount").textContent = ($("dTitle").value.length + this.value.length) + "자";
+  };
+  $("dTitle").oninput  = function(){ $("dBody").oninput.call($("dBody")); };
   $("stop").onclick = stopAll;
   $("bCab").onclick = function(){
     var on = !$("plate").classList.contains("on");
     $("plate").classList.toggle("on", on); $("bCab").classList.toggle("on", on);
-    if (on){ layoutFrames();
+    $("scrollHint").classList.toggle("on", on);
+    if (!on) setDiary(false);
+    if (on){ panY = 0; layoutFrames();
+      setTimeout(function(){ $("scrollHint").classList.remove("on"); }, 4000);
       /* 기내를 켜면 테두리는 걷는다 — 창틀이 이미 제자리를 말한다 */
       $("frames").classList.remove("on"); $("bFr").classList.remove("on"); }
   };
@@ -517,6 +602,7 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
           var wx = EGGeo.where(la, lo);
           $("where").textContent = wx;
           $("mini").textContent = wx + "   ·   " + Math.round(dist) + " km";
+          $("monWhere").textContent = wx;
         }
         var az = deg(sun.az), el = Cesium.Math.toDegrees(sun.el);
         var dif = ((az - look + 540)%360)-180;
@@ -524,6 +610,7 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
         $("tel").innerHTML =
           "경과 <b>" + m + "분 " + (ss<10?"0":"") + ss + "초</b> · 이동 <b>"
             + dist.toFixed(0) + " km</b><br>" +
+          ($("dAlt").textContent = (rel/1000).toFixed(1) + " km · " + Math.round(dist) + " km 비행") &&
           "고도 <b>" + (rel/1000).toFixed(2) + " km</b>"
             + (altMode==="DSC" ? " <span style='color:#c9a86a'>&#8600;</span>" : "")
             + " · 내림각 <b>" + fm(pit,2) + "&deg;</b> · 지면 " + Math.round(groundH) + "m<br>" +
@@ -536,6 +623,28 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
           + "</span>";
       }});
   };
+  /* 판 밀기 — 휠·드래그·화살표. 기내가 켜져 있을 때만 */
+  function panBy(dy){
+    if (!$("plate").classList.contains("on")) return;
+    panY = Math.max(panMin, Math.min(panMax, panY + dy));
+    layoutFrames();
+  }
+  addEventListener("wheel", function(e){
+    if (!$("plate").classList.contains("on")) return;
+    if ($("mon").classList.contains("on")) return;      /* 일기장 열려 있으면 두지 않는다 */
+    e.preventDefault(); panBy(-e.deltaY * 0.9);
+  }, { passive:false });
+  var dragY = null;
+  addEventListener("pointerdown", function(e){
+    if (!$("plate").classList.contains("on")) return;
+    if (e.target.closest("#hud,#mon,#tab")) return;
+    dragY = e.clientY;
+  });
+  addEventListener("pointermove", function(e){
+    if (dragY === null) return;
+    panBy(e.clientY - dragY); dragY = e.clientY;
+  });
+  addEventListener("pointerup", function(){ dragY = null; });
   addEventListener("resize", function(){ layoutFrames(); });
 
   setAltMode(true); setPitMode(true);
