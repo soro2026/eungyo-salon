@@ -288,7 +288,7 @@
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&amp;family=Noto+Sans+KR:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
 </head>
-<body>
+<body tabindex="-1">
 <div id="cesiumContainer"></div>
 <div id="fade"></div>
 <div id="plate">
@@ -465,7 +465,7 @@
       해가 창 한가운데 머문다. 0817 실측: 대권 고정이면 19분에 창을 벗어난다.
    ⚠ 창 테두리는 판(9:16) 기준 %를 화면 px로 환산해서 그린다 — 세로가 2.8~3.2배다
    ══════════════════════════════════════════════════════════════ */
-console.log("[EG] vesper 0817g \u2014 EG\ubca0\uc2a4\ud398\ub974 \uc77c\uae30\ud310 \u00b7 \ud314\ub808\ud2b8 12\ubc8c \u00b7 \uc11c\ubc84 \uc800\uc7a5");
+console.log("[EG] vesper 0817h \u2014 EG\ubca0\uc2a4\ud398\ub974 \uc77c\uae30\ud310 \u00b7 \ud314\ub808\ud2b8 12\ubc8c \u00b7 \uc11c\ubc84 \uc800\uc7a5");
 
 var KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A";
 var KMH = 900, R_PLATE = 941/1672;
@@ -1064,7 +1064,15 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
   $("tab").onclick   = function(){ setHud(true); };
   /* ⭐ 접은 채로도 다 된다 — 편집기를 열지 않고 기내만 보고 싶을 때 */
   addEventListener("keydown", function(e){
-    if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    if (e.isComposing) return;                    /* 한글 조합 중에는 손대지 않는다 */
+    if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)){
+      /* ⚠ 안전망 — 일기판이 닫혀 있는데도 글칸이 포커스를 쥐고 있으면 놓게 하고 계속 간다.
+         ①번 처방이 어디선가 새더라도 단축키가 통째로 죽지는 않는다. */
+      var live = $("mon").classList.contains("on") && e.target.closest && e.target.closest("#mon");
+      if (live) return;
+      try{ e.target.blur(); }catch(err){}
+    }
+    if (!e.key) return;
     var k = e.key.toLowerCase();
     if (k === "h")        setHud($("hud").classList.contains("hide"));
     else if (k === "escape") setHud(false);
@@ -1469,6 +1477,9 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
       }, 380); });
     }else{
       if (D.dirty) saveDiary(D.viewing ? "saved" : "draft");   /* ⚠ 닫을 때 반드시 남긴다 */
+      /* ⚠⚠ 0817 소로 — 판을 닫아도 textarea 가 포커스를 쥐고 있어 단축키가 통째로 죽었다.
+         안 보이는 요소도 포커스는 붙들고 있다. 판을 덮을 때 손도 함께 뗀다. */
+      try{ $("dBody").blur(); document.body.focus(); }catch(e){}
     }
   }
   $("homeBtn").onclick = function(){ setDiary(!$("mon").classList.contains("on")); };
