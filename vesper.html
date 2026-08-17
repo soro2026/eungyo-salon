@@ -465,7 +465,7 @@
       해가 창 한가운데 머문다. 0817 실측: 대권 고정이면 19분에 창을 벗어난다.
    ⚠ 창 테두리는 판(9:16) 기준 %를 화면 px로 환산해서 그린다 — 세로가 2.8~3.2배다
    ══════════════════════════════════════════════════════════════ */
-console.log("[EG] vesper 0817h \u2014 EG\ubca0\uc2a4\ud398\ub974 \uc77c\uae30\ud310 \u00b7 \ud314\ub808\ud2b8 12\ubc8c \u00b7 \uc11c\ubc84 \uc800\uc7a5");
+console.log("[EG] vesper 0817j \u2014 EG\ubca0\uc2a4\ud398\ub974 \uc77c\uae30\ud310 \u00b7 \ud314\ub808\ud2b8 12\ubc8c \u00b7 \uc11c\ubc84 \uc800\uc7a5");
 
 var KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A";
 var KMH = 900, R_PLATE = 941/1672;
@@ -1017,10 +1017,14 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
   $("pMan").onclick  = function(){ setPitMode(false); };
   $("mSun").onclick = function(){ mode="SUN"; pick("mSun","mGeo",true); };
   $("mGeo").onclick = function(){ mode="GEO"; pick("mSun","mGeo",false); };
-  var swapping = false;
+  var swapping = false, swapGuard = null;
   function swapSeat(next){
+    /* ⚠⚠ 0817 — swapping 은 한 번 굳으면 좌석이 영영 안 바뀐다.
+       가운데 어느 줄이 예외를 내도 반드시 풀리게 안전 시계를 함께 건다. */
     if (swapping || side === next) return;
     swapping = true;
+    clearTimeout(swapGuard);
+    swapGuard = setTimeout(function(){ swapping = false; }, 1600);
     $("fade").classList.add("on");            /* 어두워진다 */
     setTimeout(function(){
       side = next;
@@ -1063,7 +1067,18 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
   $("bHide").onclick = function(){ setHud(false); };
   $("tab").onclick   = function(){ setHud(true); };
   /* ⭐ 접은 채로도 다 된다 — 편집기를 열지 않고 기내만 보고 싶을 때 */
+  window.__egKeysReady = true;
   addEventListener("keydown", function(e){
+    /* ⚠ 0817 — C·←→ 가 안 먹힌 까닭을 세 번 헛짚었다. 이번엔 재고 간다.
+       첫 입력 때 한 번만 말한다. 무엇이 포커스를 쥐고 있는지가 여기서 드러난다. */
+    if (!window.__egKeySeen){
+      window.__egKeySeen = true;
+      console.log("[EG] 첫 키 입력:", e.key,
+                  "· 잡고 있는 것:", (document.activeElement && document.activeElement.tagName) + "#" +
+                                    ((document.activeElement && document.activeElement.id) || "-"),
+                  "· 기내여닫이:", typeof window.egCabin,
+                  "· 좌석:", typeof window.egSwapSeat);
+    }
     if (e.isComposing) return;                    /* 한글 조합 중에는 손대지 않는다 */
     if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)){
       /* ⚠ 안전망 — 일기판이 닫혀 있는데도 글칸이 포커스를 쥐고 있으면 놓게 하고 계속 간다.
@@ -1076,10 +1091,11 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     var k = e.key.toLowerCase();
     if (k === "h")        setHud($("hud").classList.contains("hide"));
     else if (k === "escape") setHud(false);
-    else if (k === "c")   $("bCab").click();
+    else if (k === "c")   { if (window.egCabin) window.egCabin();
+                            else console.warn("[EG] 기내 여닫이가 아직 안 섰습니다 — init 이 중간에 멈췄을 수 있습니다"); }
     else if (k === " ")   { e.preventDefault(); if (flight) stopAll(); else $("go").click(); }
-    else if (k === "arrowleft")  swapSeat(-1);
-    else if (k === "arrowright") swapSeat(+1);
+    else if (k === "arrowleft")  { try{ swapSeat(-1); }catch(err){ console.warn("[EG] 좌석:", err); } }
+    else if (k === "arrowright") { try{ swapSeat(+1); }catch(err){ console.warn("[EG] 좌석:", err); } }
     else if (k === "l")   $("bLand").click();
     else if (k === "f")   $("bFr").click();
     else if (k === "d")   setDiary(!$("mon").classList.contains("on"));
@@ -1268,7 +1284,13 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
       p_place:w.place, p_lat:w.lat, p_lon:w.lon, p_alt_km:w.alt, p_dist_km:w.dist,
       p_write_sec:Math.round(WT.sec) })
       .then(function(){ D.dirty = false;
-        note(status === "saved" ? "저장했습니다" : "임시 저장했습니다"); })
+        if (status !== "saved"){ note("임시 저장했습니다"); return; }
+        /* ⭐ 도장은 서버가 저장과 한 몸으로 찍는다(하루 한 번 · stamps_uniq_daily).
+           화면은 오늘 것이 처음인지만 물어 말을 고른다. */
+        rpc("has_vesper_stamp_today", {}).then(function(yes){
+          note(yes ? "저장했습니다 · 오늘의 인장을 찍었습니다" : "저장했습니다");
+        }).catch(function(){ note("저장했습니다"); });
+      })
       .catch(function(e){ console.warn("[EG] 일기 저장 실패:", e);
         note(/JWT|auth|401/i.test(String(e && e.message)) ? "로그인이 필요합니다" : "저장하지 못했습니다"); })
       .then(function(){ D.saving = false; });
@@ -1499,7 +1521,11 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     if (D.dirty && sb) saveDiary(D.viewing ? "saved" : "draft");
   });
   $("stop").onclick = stopAll;
-  $("bCab").onclick = function(){
+  /* ⚠⚠ 0817 소로 — C·←→ 가 안 먹혔다. 키 처리부가 **남의 onclick 에 얹혀** 있었던 것이
+     근본 약점이다. 배선이 한 줄이라도 어긋나면 키가 통째로 죽는다.
+     ⭐ 이름 있는 함수로 꺼내 두고, 키는 이것을 **직접** 부른다.
+        단추도 같은 함수를 쓰므로 둘이 갈릴 일이 없다 (0816 조항 ⑧). */
+  window.egCabin = function toggleCabin(){
     var on = !$("plate").classList.contains("on");
     $("plate").classList.toggle("on", on); $("bCab").classList.toggle("on", on);
     document.body.classList.toggle("cabin", on);      /* 기내에 붙은 물건들이 함께 걷힌다 */
@@ -1512,6 +1538,8 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
       /* 기내를 켜면 테두리는 걷는다 — 창틀이 이미 제자리를 말한다 */
       $("frames").classList.remove("on"); $("bFr").classList.remove("on"); }
   };
+  $("bCab").onclick = window.egCabin;
+  window.egSwapSeat = swapSeat;
   $("bFr").onclick = function(){
     var on = !$("frames").classList.contains("on");
     $("frames").classList.toggle("on", on); $("bFr").classList.toggle("on", on);
@@ -1658,6 +1686,9 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
   /* ═══ 0817 소로 ⑥⑦ — 들어서면 곧바로 난다 ═══
      손님은 조종간을 만지러 온 것이 아니다. 땅을 찾고, 기내를 켜고, 비행을 시작한 상태로 만난다.
      ⚠ 조종간(H)은 접힌 채로 있고 살롱지기가 필요할 때만 편다. */
+  console.log("[EG] vesper init 완주 \u2014 단축키 준비:", !!window.__egKeysReady,
+              "· 기내여닫이:", typeof window.egCabin);
+
   (function autoStart(){
     try{
       var p = EGGeo.pickSunsetLand(sunLonAt, +$("sel").value);      /* 지금 일몰선에서 땅 (결정문 21호) */
