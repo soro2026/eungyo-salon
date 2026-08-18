@@ -1452,74 +1452,8 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
       document.body.removeChild(ta); done(ok);
     }catch(e){ done(false); }
   }
-  $("go").onclick = function(){
-    stopAll();
-    var lat = +$("lat").value, lon = sunLonAt(lat, +$("sel").value);
-    if (lon === null) return;
-    var alt = (+$("alt").value)*1000, HF = halfFovX();
-    var altEnd = (+$("aEnd").value)/10*1000, descSec = (+$("aMin").value)*60;
-    var wT = 0, lastRelShown = alt, lastRelAt = 0;   /* 하강 속도 셈용 */
-    flight = cruise(lat, lon, { alt:alt, pitch:+$("pit").value, sky:+$("pit").value,
-      altEnd:altEnd, descSec:descSec,
-      onTick: function(sec, la, lo, brg, look, sun, dist, rel, pit){
-        $("barIn").style.width = Math.min(sec/FLIGHT_SEC*100,100)+"%";
-        if (sec - wT > 1){ wT = sec;
-          var wx = EGGeo.where(la, lo);
-          $("where").textContent = wx;
-          $("mini").textContent = wx + "   ·   " + Math.round(dist) + " km";
-          $("hiWhere").textContent = wx;
-          VNOW.place = wx;                          /* 일기에 함께 적힐 곳 */
-        }
-        /* 홈 계기판 — 남은 시간은 30분 고정 (결정문 6호) */
-        var left = Math.max(0, FLIGHT_SEC - sec);
-        $("hiAlt").textContent = Math.round(rel).toLocaleString() + " m";
-        var vs = (rel - lastRelShown)/Math.max(sec - lastRelAt, 0.5);   /* m/s */
-        if (sec - lastRelAt > 0.9){
-          $("hiVs").textContent = Math.abs(vs) < 0.3 ? "· 수평"
-            : "· " + (vs<0 ? "&#8600; " : "&#8599; ").replace("&#8600; ","\u2198 ").replace("&#8599; ","\u2197 ")
-              + Math.abs(vs*60).toFixed(0) + " m/분";
-          lastRelShown = rel; lastRelAt = sec;
-        }
-        $("hiPos").textContent = fm(la,3) + ", " + fm(lo,3);
-        $("hiElapsed").textContent = mmss(sec);
-        /* ── EG베스페르 발 — 「일몰까지」와 고도·비행거리 (0817) ── */
-        VNOW.la = la; VNOW.lo = lo; VNOW.rel = rel; VNOW.dist = dist;
-        if (sec - VNOW.at > 0.9){
-          var elNow = sun ? Cesium.Math.toDegrees(sun.el) : null;
-          if (elNow != null){
-            if (VNOW.el != null && sec > VNOW.at){
-              var rate = (elNow - VNOW.el) / (sec - VNOW.at);        /* 도/초 */
-              if (rate < -1e-5 && elNow > -0.83){
-                VNOW.sunLeft = (elNow + 0.83) / -rate;               /* −0.83° = 해가 지평선에 걸리는 각 */
-              }else if (elNow <= -0.83){ VNOW.sunLeft = 0; }
-            }
-            VNOW.el = elNow;
-          }
-          VNOW.at = sec;
-          $("dSun").textContent = VNOW.sunLeft == null ? "\u00a0"
-            : (VNOW.sunLeft > 0 ? "일몰까지 " + mmss(VNOW.sunLeft) : "해가 졌습니다");
-          $("dAlt").textContent = (rel/1000).toFixed(1) + " km \u00b7 " + Math.round(dist) + " km 비행";
-        }
-        $("hiLeft").textContent = left > 0 ? mmss(left) : "착륙";
-        var az = deg(sun.az), el = Cesium.Math.toDegrees(sun.el);
-        var dif = ((az - look + 540)%360)-180;
-        var m = Math.floor(sec/60), ss = Math.floor(sec%60);
-        $("tel").innerHTML =
-          "경과 <b>" + m + "분 " + (ss<10?"0":"") + ss + "초</b> · 이동 <b>"
-            + dist.toFixed(0) + " km</b><br>" +
-          ($("dAlt").textContent = (rel/1000).toFixed(1) + " km · " + Math.round(dist) + " km 비행") &&
-          "고도 <b>" + (rel/1000).toFixed(2) + " km</b>"
-            + (altMode==="DSC" ? " <span style='color:#c9a86a'>&#8600;</span>" : "")
-            + " · 내림각 <b>" + fm(pit,2) + "&deg;</b> · 지면 " + Math.round(groundH) + "m<br>" +
-          "위치 <b>" + fm(la,3) + ", " + fm(lo,3) + "</b><br>" +
-          "진행 <b>" + fm(brg,1) + "&deg;</b> · 보는 쪽 <b>" + fm(look,1) + "&deg;</b><br>" +
-          "&#9788; 방위 <b>" + fm(az,1) + "&deg;</b> · 고도 <b>" + fm(el,1) + "&deg;</b><br>" +
-          "<span style='color:" + (Math.abs(dif)<=HF?"#c9a86a":"#e07a5f") + "'>" +
-          (Math.abs(dif)<=HF ? "해가 창 안 (중앙에서 " + fm(dif,1) + "&deg;)"
-                             : "해가 창 밖 (" + fm(dif,1) + "&deg; · 한계 " + fm(HF,1) + "&deg;)")
-          + "</span>";
-      }});
-  };
+  /* ⚠ 옛 순항용 go 핸들러는 걷었다 (0818) — 두 벌이 서면 나중 것이 이겨
+     공중에서 택싱하는 일이 났다. 지상 시험판은 taxi() 만 쓴다. */
   /* 판 밀기 — 휠·드래그·화살표. 기내가 켜져 있을 때만 */
   function panBy(dy){
     if (!$("plate").classList.contains("on")) return;
