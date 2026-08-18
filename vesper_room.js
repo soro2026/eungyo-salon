@@ -82,8 +82,10 @@ function grabFocus(){
    ⚠ 지구(#cesiumContainer)와 방(#vesperRoom)만 남긴다. 나머지는 화면에서만 사라지고
      terra 쪽 셈은 그대로 돈다 — 지우는 게 아니라 덮는 것이다. */
 var HOST_CSS =
-"body.vesper-on > *:not(#cesiumContainer):not(#vesperRoom):not(script):not(style):not(link)" +
-"{display:none !important}" +
+"body.vesper-on > *:not(#cesiumContainer):not(#vesperRoom):not(#vesperExit)" +
+":not(script):not(style):not(link){display:none !important}" +
+/* ⚠⚠ 0818 — #vesperExit 를 :not 에 빠뜨려 마스크가 제 나가는 문까지 덮었다.
+     방 밖에 두는 물건을 늘릴 때마다 여기에 이름을 더해야 한다. 잊기 쉬운 곳이다. */
 /* 나가는 문 — 방이 스스로 단다.
    ⚠ terra 의 #doorway 문틀은 background:#000 으로 화면을 덮는다. 방은 그 아래 지구를
      보여야 하므로 못 쓴다. ⚠ #homeBtn 은 나가는 문이 아니라 일기판 손잡이다(0817).
@@ -108,7 +110,17 @@ var HOST_CSS =
 "#vesperRoom #monGrip:hover{opacity:.85}" +
 "#vesperRoom #monGrip::after{content:'';position:absolute;right:5px;bottom:5px;width:9px;height:9px;" +
 "border-right:2px solid var(--muted,#948b7a);border-bottom:2px solid var(--muted,#948b7a);border-radius:0 0 3px 0}" +
-"#vesperRoom #mon.sizing{transition:opacity .3s}";
+"#vesperRoom #mon.sizing{transition:opacity .3s}" +
+
+/* C2 게이트 알림 (0818 소로) — 준비가 되면 조용히 알린다. 재촉이 아니라 안내다.
+   ⚠ 알림창도 소리도 아니다. 한 줄이 떠올랐다가, 누르면 열리고 안 누르면 저절로 열린다. */
+"#vesperRoom #gateNote{position:fixed;left:50%;bottom:11%;transform:translateX(-50%) translateY(8px);" +
+"z-index:28;padding:11px 22px;border-radius:99px;cursor:pointer;pointer-events:auto;" +
+"background:rgba(12,14,20,.62);border:1px solid rgba(201,168,106,.34);backdrop-filter:blur(6px);" +
+"color:rgba(232,228,216,.9);font:400 13.5px/1 'Noto Serif KR',Georgia,serif;letter-spacing:.02em;" +
+"opacity:0;transition:opacity .5s ease,transform .5s cubic-bezier(.2,.8,.3,1)}" +
+"#vesperRoom #gateNote.on{opacity:1;transform:translateX(-50%) translateY(0)}" +
+"#vesperRoom #gateNote:hover{background:rgba(201,168,106,.2);color:#f4e8cc}";
 
 
 var CSS = `#vesperRoom{margin:0;height:100%;background:#05070f;overflow:hidden;
@@ -1884,14 +1896,37 @@ function bootRoom(hostViewer, spot){
       setShade(true);                                    /* 덮개를 내린다 — 카메라는 계속 선다 */
       $("plate").classList.add("gate");
 
-      var opened = false;
+      var t0 = Date.now(), opened = false, ready = false;
+      var STAY = 1500;    /* ⚠ 0818 소로 — 덮개가 열리는 순간 파리 건물이 코앞에 보였다 사라졌다.
+                             카메라는 이미 옮겼는데 그 지점 타일이 아직 안 와서, 직전에 보던
+                             곳의 타일이 잔상으로 남은 것이다. 교체될 시간을 준다. */
+      var AUTO = 2500;    /* 알린 뒤 저절로 열릴 때까지 — 매일 오는 손님을 붙잡지 않는다(13호) */
+
       var open = function(why){
         if (opened) return; opened = true;
         GATE = false;
         setShade(false);                                 /* 덮개가 스르르 올라간다 */
         $("plate").classList.remove("gate");
+        var gn = $("gateNote"); if (gn) gn.classList.remove("on");
+        setTimeout(function(){ if (gn && gn.remove) gn.remove(); }, 600);
         console.log("[EG] 게이트 열림 \u2014", why);
         setTimeout(function(){ $("go").click(); }, 420);  /* 덮개가 다 오른 뒤 출발 */
+      };
+
+      /* ⭐ 준비가 끝났다고 알린다 — 실제 여객기도 이륙 전에 창 덮개를 열어 달라고 한다 */
+      var markReady = function(why){
+        if (ready || opened) return;
+        var left = STAY - (Date.now() - t0);
+        if (left > 0){ setTimeout(function(){ markReady(why); }, left); return; }
+        ready = true;
+        console.log("[EG] 게이트 준비 \u2014", why);
+        var gn = document.createElement("div");
+        gn.id = "gateNote";
+        gn.textContent = "이제 창을 열 수 있습니다";
+        gn.onclick = function(){ open("손님이 열었습니다"); };
+        ROOT.appendChild(gn);
+        requestAnimationFrame(function(){ gn.classList.add("on"); });
+        setTimeout(function(){ open("스스로 열렸습니다"); }, AUTO);
       };
 
       /* ⚠ terra 의 tileset 은 블록 지역 변수라 밖에서 못 쓴다.
@@ -1899,22 +1934,32 @@ function bootRoom(hostViewer, spot){
       var ts = null;
       try{
         var ps = viewer.scene.primitives;
-        for (var i=0;i<ps.length;i++){
-          var pr = ps.get(i);
-          if (pr && typeof pr.allTilesLoaded !== "undefined"){ ts = pr; break; }
+        for (var i2=0;i2<ps.length;i2++){
+          var pr = ps.get(i2);
+          if (pr && typeof pr.tilesLoaded !== "undefined"){ ts = pr; break; }
         }
       }catch(e){}
 
-      if (ts && ts.allTilesLoaded && ts.allTilesLoaded.addEventListener){
-        var off = ts.allTilesLoaded.addEventListener(function(){
-          try{ off(); }catch(e){}
-          open("타일이 다 실렸습니다");
+      if (ts){
+        /* ⚠⚠ 0818 — allTilesLoaded 를 한 번만 듣고 믿었더니, 카메라를 옮긴 직후
+             「직전 곳은 다 왔다」로 즉시 발화해 버렸다. 신호 한 번은 못 믿는다.
+           ⭐ 연속 세 프레임 참일 때만 인정한다. 그때는 새 지점을 요청한 뒤다. */
+        var okN = 0;
+        var offTick = viewer.clock.onTick.addEventListener(function(){
+          /* ⚠ 리스너 전체를 감싼다 — 여기서 난 오류가 렌더 루프를 세운 적이 있다(17호 ㉥) */
+          try{
+            if (ts.tilesLoaded) okN++; else okN = 0;
+            if (okN >= 3){ offTick(); markReady("타일이 다 실렸습니다"); }
+          }catch(err){ try{ offTick(); }catch(e2){} markReady("타일을 못 살폈습니다"); }
         });
+        setTimeout(function(){ try{ offTick(); }catch(e){} markReady("안전 시계"); }, 8000);
+      } else {
+        /* 실사 타일이 아예 없는 판 — 기본 지구라 기다릴 것이 없다 */
+        markReady("실사 타일 없음");
       }
-      /* 그물 — 타일이 영영 안 오거나(느린 곳·시골) 그 지점에 실사 타일이 없을 때 */
-      setTimeout(function(){ open("안전 시계"); }, 8000);
-      /* ⭐ 건너뛰기 — 매일 오는 손님에게 8초는 매번 벽이다 (eg_camera 조항 ②) */
-      $("shadeBtn").addEventListener("click", function(){ open("손님이 열었습니다"); }, { once:true });
+
+      /* ⭐ 건너뛰기 — 덮개를 직접 눌러도 열린다 (eg_camera 조항 ②) */
+      $("shadeBtn").addEventListener("click", function(){ open("덮개를 누르셨습니다"); }, { once:true });
 
     }catch(err){ console.warn("[EG] 자동 출발 실패 \u2014 조종간으로 시작하십시오:", err); }
   })();
@@ -1947,7 +1992,7 @@ function mountHtml(){
   EXIT = document.createElement("button");
   EXIT.id = "vesperExit";
   EXIT.type = "button";
-  EXIT.title = "지구로 돌아가기";
+  EXIT.title = "지구로 돌아가기   ·   H 조종간";   /* ⭐ #tab 을 감췄으니 H 를 알 길을 남긴다 */
   EXIT.setAttribute("aria-label", "지구로 돌아가기");
   EXIT.textContent = "\u00D7";
   EXIT.onclick = function(){ leave(); };
