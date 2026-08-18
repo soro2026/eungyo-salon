@@ -4,6 +4,11 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 <title>EG테라 — 지구가 로비다</title>
+<!-- 0818 — favicon.ico 404. 선언이 없으면 브라우저가 뿌리에서 /favicon.ico 를 찾는데
+     저장소에 그 이름이 없다. 새로 굽지 않는다 — PWA 아이콘이 이미 서 있다.
+     ⚠ 다른 집들(index·persona·bibliotheca …)도 선언이 없다. 이 한 줄은 그 집들을
+       손볼 때 함께 옮긴다. 오늘 판에는 terra 만 들어간다. -->
+<link rel="icon" href="icon-192.png" />
 
 <!-- ════════════════════════════════════════════════════════════════
      소로님께: API 키는 아래 단 한 곳입니다.
@@ -2072,6 +2077,13 @@ let IS_ADMIN=false, EDIT_MODE=false, selEnt=null, MOVING=false;   // admin 좌�
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
 });
+/* ⭐⭐ 0818 — 「한 문서 · 한 root」의 사촌, 「한 문서 · 한 클라이언트」.
+   방(vesper_room 등)이 제 벌을 또 만들면 같은 storageKey(eungyo-auth)를 두 벌이 붙들고
+   GoTrueClient 경고가 뜬다. 더 나쁜 것은 **토큰 갱신이 둘로 갈리는 것**이다 —
+   방이 일기를 저장하는 순간 어느 쪽 토큰이 이겼는지 알 수 없게 된다.
+   ⚠ viewer 를 건네주는 것과 똑같이, 클라이언트도 집주인 것을 받아 쓰게 한다.
+   ⚠ 이 줄을 지우면 방이 조용히 제 벌을 만든다 — 터지지 않으므로 더 늦게 발견된다. */
+window.egSupa = supa;
 
 /* 0728 — 「← 살롱으로」 폐기. terra가 곧 살롱의 첫 화면이 되었으므로
    옛 메뉴판으로 돌아갈 문이 필요 없어졌다. 나가는 길은 타륜 안에 있다. */
@@ -2218,8 +2230,14 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   if (GOOGLE_API_KEY && GOOGLE_API_KEY.trim()){
     try{
       let tileset;
-      try { tileset = await Cesium.createGooglePhotorealistic3DTileset({ key: GOOGLE_API_KEY }); }
-      catch(e){ tileset = await Cesium.createGooglePhotorealistic3DTileset(GOOGLE_API_KEY); }
+      /* ⚠⚠ 0818 — 두 겹은 그대로 두되 **순서를 뒤집었다**.
+         이 Cesium 판은 문자열 인자를 받는다. 객체({key:…})를 먼저 시도하면 주소에
+         [object Object] 가 박힌 채로 나가 매번 400 을 한 번씩 낸다(인증 실패라
+         root 로는 안 세어질 공산이 크지만, 콘솔이 매번 붉어진다).
+         ⚠ 겹 자체를 걷지는 않는다 — 0817에 「없어도 되겠지」로 걷었다가 타일이
+           통째로 안 떴다(v1.4 함정 ㉨). 판이 바뀌면 객체 인자가 정답이 될 수 있다. */
+      try { tileset = await Cesium.createGooglePhotorealistic3DTileset(GOOGLE_API_KEY); }
+      catch(e){ tileset = await Cesium.createGooglePhotorealistic3DTileset({ key: GOOGLE_API_KEY }); }
       s.primitives.add(tileset);
       // globe.show 는 끄지 않음 — 실사 타일이 없는 시골(케첨 등)에서도 지도가 보이도록
       console.log("[EG] 실사 3D 모드 — 구글 포토리얼 타일이 켜졌습니다.");
@@ -6025,7 +6043,7 @@ async function enterVesperRoom(spot){
     if (typeof endVoyage === "function") endVoyage();   /* 딴 데를 여는 순간 그 여정은 끝이다 (0814) */
     await loadScriptOnce("eg_geo.js?v=0818a");
     await loadScriptOnce("stamp_press.js?v=0808a");
-    await loadScriptOnce("vesper_room.js?v=0818i");   /* ⚠ 방 파일을 고치면 이 꼬리표도 함께 올린다 */
+    await loadScriptOnce("vesper_room.js?v=0818j");   /* ⚠ 방 파일을 고치면 이 꼬리표도 함께 올린다 */
     if (!window.egVesper) throw new Error("egVesper 창구가 안 열렸습니다");
     window.egVesper.enter(viewer, spot || null);
   }catch(err){

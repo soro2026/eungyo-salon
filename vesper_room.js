@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════
-   EG베스페르 — 방(room) 판  ·  vesper_room.js  ·  v0818a
+   EG베스페르 — 방(room) 판  ·  vesper_room.js  ·  v0818j
    2026.08.18 소로 × 파이스 · 142회차
 
    ⭐⭐ 왜 이 파일이 생겼나 — 「한 문서 · 한 root」
@@ -85,11 +85,23 @@ function grabFocus(){
      (v127 함정 A 의 사촌). ⭐ 받는 곳에서 한 번에 막는다.
    ⚠ 지구(#cesiumContainer)와 방(#vesperRoom)만 남긴다. 나머지는 화면에서만 사라지고
      terra 쪽 셈은 그대로 돈다 — 지우는 게 아니라 덮는 것이다. */
+/* ⭐⭐ 0818 저녁 — 같은 병을 세 번째로 겪고서야 목록을 이름 붙여 꺼냈다.
+     ⚠ 0818 낮: #vesperExit 를 빠뜨려 마스크가 제 나가는 문을 덮었다.
+     ⚠ 0818 밤: #egStampDock · #egStampFlash 를 빠뜨려 **인장이 아예 안 나타났다.**
+       (stamp_press.js 149·153행 — 둘 다 document.body 직계로 붙는다.
+        어제까지는 액자라 남의 문서였으므로 마스크가 안 닿았다. 방으로 옮기며 생긴 회귀다.)
+   ⭐ 규칙 — 방 밖(body 직계)에 서는 물건을 새로 달면 **이 배열에만** 더한다.
+     선택자 문자열을 손으로 이어붙이지 않는다. 거기서 빠뜨리는 것이다.
+   ⚠ 독서비행도 이 방 문법을 그대로 쓴다. 거기서도 같은 배열을 둘 것. */
+var KEEP = ["#cesiumContainer",   /* 지구 — 방의 창밖이다 */
+            "#vesperRoom",        /* 방 몸통 */
+            "#vesperExit",        /* 나가는 문 */
+            "#egStampDock",       /* 인장 — 손님이 누르는 곳 (stamp_press) */
+            "#egStampFlash"];     /* 인장 — 종이 조각이 뜨는 판 (stamp_press) */
+
 var HOST_CSS =
-"body.vesper-on > *:not(#cesiumContainer):not(#vesperRoom):not(#vesperExit)" +
+"body.vesper-on > *" + KEEP.map(function(s){ return ":not(" + s + ")"; }).join("") +
 ":not(script):not(style):not(link){display:none !important}" +
-/* ⚠⚠ 0818 — #vesperExit 를 :not 에 빠뜨려 마스크가 제 나가는 문까지 덮었다.
-     방 밖에 두는 물건을 늘릴 때마다 여기에 이름을 더해야 한다. 잊기 쉬운 곳이다. */
 /* 나가는 문 — 방이 스스로 단다.
    ⚠ terra 의 #doorway 문틀은 background:#000 으로 화면을 덮는다. 방은 그 아래 지구를
      보여야 하므로 못 쓴다. ⚠ #homeBtn 은 나가는 문이 아니라 일기판 손잡이다(0817).
@@ -582,7 +594,7 @@ var HTML = `<div id="fade"></div>
       해가 창 한가운데 머문다. 0817 실측: 대권 고정이면 19분에 창을 벗어난다.
    ⚠ 창 테두리는 판(9:16) 기준 %를 화면 px로 환산해서 그린다 — 세로가 2.8~3.2배다
    ══════════════════════════════════════════════════════════════ */
-console.log("[EG] vesper 0817k \u2014 EG\ubca0\uc2a4\ud398\ub974 \uc77c\uae30\ud310 \u00b7 \ud314\ub808\ud2b8 12\ubc8c \u00b7 \uc11c\ubc84 \uc800\uc7a5");
+console.log("[EG] vesper_room 0818j — 마스크에 인장 둘 · 클라이언트 한 벌 · KEEP 배열");
 
 /* ⚠ 0818 — 구글 API 키를 걷었다. 이 방은 terra 의 타일을 그대로 쓴다.
    키가 여기 남아 있으면 root 요청이 또 나가고, 그것이 곧 청구서다. */
@@ -593,12 +605,20 @@ var ANNOUNCE_SRC = "cabin_announce_v1.mp3";     /* ⭐ 소로가 올릴 안내 �
 var SUPA_URL = "https://cyhlotwdisjvoxvfkpnd.supabase.co";
 var SUPA_KEY = "sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR";
 var TUNE_KEY = "cruise_tune";                   /* eg_settings.key */
+/* ⭐⭐ 0818 — 「한 문서 · 한 클라이언트」. viewer 를 집주인에게서 받아 쓰듯 클라이언트도 받는다.
+   ⚠ 제 벌을 또 만들면 같은 storageKey(eungyo-auth)를 두 벌이 붙들고 토큰 갱신이 갈린다.
+     터지지 않고 GoTrueClient 경고만 뜨므로, 일기가 한 번 안 저장되기 전까지는 안 보인다.
+   ⚠ 폴백은 남긴다 — 이 파일은 액자(vesper.html)에서도 돌 수 있어야 한다. 그때는 집주인이 없다. */
 var sb = null;
 try{
-  if (window.supabase) sb = window.supabase.createClient(SUPA_URL, SUPA_KEY, {
+  if (window.egSupa) sb = window.egSupa;                    /* ⭐ 집주인 것 */
+  else if (window.supabase) sb = window.supabase.createClient(SUPA_URL, SUPA_KEY, {
     auth:{ storageKey:"eungyo-auth", persistSession:true, autoRefreshToken:true }
   });
-}catch(e){ console.warn("[EG] Supabase 미연결:", e); }     /* ⭐ 소로가 올릴 안내 방송 파일 이름 */          /* 한 번의 비행 = 30분 (결정문 6호) */
+}catch(e){ console.warn("[EG] Supabase 미연결:", e); }
+/* ⚠ 0818 — 여기에 「안내 방송 파일 이름」·「한 번의 비행 = 30분」 주석 둘이 붙어 있었다.
+   0818 낮에 몸통을 옮겨 오면서 딸려 온 껍데기다. 제 임자(ANNOUNCE_SRC · FLIGHT_SEC)는
+   위에 따로 서 있으므로 걷었다. 남기면 다음 사람이 이 줄을 그 물건으로 읽는다. */
 function mmss(t){ var m=Math.floor(t/60), s2=Math.floor(t%60); return m+":"+(s2<10?"0":"")+s2; }
 var FOVX = 60;                                   /* Cesium 기본 가로 시야각 */
 
@@ -2131,5 +2151,5 @@ function leave(){
   console.log("[EG] 베스페르 방을 걷었습니다 — 카메라를 terra 로 되돌렸습니다.");
 }
 
-window.egVesper = { enter: enter, leave: leave, version: "0818a" };
+window.egVesper = { enter: enter, leave: leave, version: "0818j" };
 })();
