@@ -469,7 +469,7 @@
       해가 창 한가운데 머문다. 0817 실측: 대권 고정이면 19분에 창을 벗어난다.
    ⚠ 창 테두리는 판(9:16) 기준 %를 화면 px로 환산해서 그린다 — 세로가 2.8~3.2배다
    ══════════════════════════════════════════════════════════════ */
-console.log("[EG] taxi 0818a — 제네바 지상 활주 · 게이트→푸시백→백트랙→이륙");
+console.log("[EG] taxi 0818c — 제네바 23 · 이륙 후 좌선회 118° · 밀라노 침로");
 
 var KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A";
 var KMH = 900, R_PLATE = 941/1672;
@@ -708,24 +708,21 @@ function halfFovX(){
    0818 소로가 위성사진에서 딴 열두 점. 소수 5자리 (좌표 수칙).
    ⭐ 점을 「꺾는 곳」으로 쓰지 않는다. 회전 **속도**를 제한하면 코너가 저절로 원호를 그린다. */
 var GVA = [
-  { n:"게이트",      la:46.23432, lo:6.11116, v:0,   hold:6 },
-  { n:"푸시백 회전", la:46.23461, lo:6.11074, v:8,   back:true },
-  { n:"푸시백 끝",   la:46.23465, lo:6.11004, v:8,   back:true },
-  { n:"택싱 1차",    la:46.23570, lo:6.11159, v:28 },
-  { n:"좌회전",      la:46.23614, lo:6.11147, v:18 },
-  { n:"직진",        la:46.23667, lo:6.11073, v:24 },
-  { n:"우회전",      la:46.23703, lo:6.11076, v:18 },
-  { n:"긴 직진",     la:46.24776, lo:6.12649, v:34 },
-  { n:"어프로치 턴", la:46.24946, lo:6.12733, v:20 },
-  { n:"활주로 정렬", la:46.24985, lo:6.12626, v:12, hold:5 },
-  { n:"이륙 활주",   la:46.23438, lo:6.10355, v:290, roll:true }
+  { n:"활주로 정렬", la:46.24985, lo:6.12626, v:0,   hold:6 },   /* 05 끝에서 23 으로 돌아선 채 */
+  { n:"이륙 활주",   la:46.23438, lo:6.10355, v:290, roll:true } /* 2.4km · 방위 225.5° */
 ];
-var GATE_HDG = 131.2, TURN_GND = 3.2, TURN_PUSH = 1.6, SEAT_H = 5.4;
+/* ⚠ 0818 소로 — 게이트·푸시백·택싱은 걷었다.
+     새벽이라 캄캄하고, 3분 넘게 아무 일도 안 일어나 「독서용」이라는 성격과 어긋났다.
+     ⭐ 푸시백은 진행 방향과 기수 방향이 반대라, 그 둘을 한 변수로 다룬 탓에
+       뒤로 간 뒤 앞으로 못 돌아섰다(소로 신고). 다시 지을 때는 둘을 나눌 것. */
+  var GATE_HDG = 225.5, TURN_GND = 3.2, TURN_PUSH = 1.6, SEAT_H = 5.4;
+  /* 이륙 뒤 이 방위로 돌아 나간다 — 제네바 → 밀라노 대권 초기 방위 */
+  var COURSE = 107.5, TURN_AIR = 3.0, BANK_MAX = 25, BANK_RATE = 6;
 
 function taxi(opt){
   var i = 0, la = GVA[0].la, lo = GVA[0].lo, hdg = GATE_HDG;
   var v = 0, held = 0, t0 = performance.now(), tp = t0, gH = null, gT = 0, dist = 0;
-  var airborne = false, pitch = 0, climbAlt = 0;
+  var airborne = false, pitch = 0, climbAlt = 0, bank = 0;
 
   function brgTo(a1,o1,a2,o2){
     var p1=Cesium.Math.toRadians(a1), p2=Cesium.Math.toRadians(a2), dl=Cesium.Math.toRadians(o2-o1);
@@ -742,7 +739,7 @@ function taxi(opt){
   var off = viewer.clock.onTick.addEventListener(function(){
    try{
     var now = performance.now(), dt = Math.min((now-tp)/1000, .12), sec = (now-t0)/1000; tp = now;
-    if (airborne && climbAlt > 900) return;
+    if (airborne && climbAlt > 2600) return;   /* 선회를 마치고도 한동안 더 오른다 (0818) */
 
     var tgt = GVA[Math.min(i+1, GVA.length-1)], cur = GVA[i];
     var d = mTo(la, lo, tgt.la, tgt.lo);
@@ -775,6 +772,23 @@ function taxi(opt){
     if (airborne){
       pitch = Math.min(pitch + 5.5*dt, 12);
       climbAlt += (v/3.6) * Math.sin(Cesium.Math.toRadians(pitch)) * dt;
+
+      /* ⭐ 이륙 뒤 선회 (0818 소로) — 활주로 방위에서 항로 방위로 돌아 나간다.
+         제네바 23(225.5°) → 밀라노(107.5°) = 왼쪽으로 118°.
+         ⚠ 실제 여객기는 「표준율 선회」 — 분당 3도, 즉 초당 3도로 돈다. 118°면 약 40초.
+         ⚠ 200m 아래에서는 돌지 않는다. 실제 절차이기도 하고, 지면에 너무 가깝다. */
+      if (climbAlt > 200){
+        var dH = ((COURSE - hdg + 540) % 360) - 180;
+        if (Math.abs(dH) > 0.6){
+          var turn = Math.min(Math.abs(dH), TURN_AIR * dt) * (dH < 0 ? -1 : 1);
+          hdg = (hdg + turn + 360) % 360;
+          /* 뱅크 — 도는 쪽으로 기운다. 다 돌면 천천히 풀린다. */
+          bank += Math.max(-BANK_RATE*dt, Math.min(BANK_RATE*dt,
+                    (BANK_MAX * (dH < 0 ? -1 : 1)) - bank));
+        } else {
+          bank += Math.max(-BANK_RATE*dt, Math.min(BANK_RATE*dt, -bank));
+        }
+      }
       var p2 = stepFrom(la, lo, hdg, (v/3.6)*dt/1000); la = p2[0]; lo = p2[1];
     }
 
@@ -785,12 +799,17 @@ function taxi(opt){
     }
     var base = (gH === null ? 430 : gH);
     var look = Cesium.Math.toRadians((hdg + side*90 + 360) % 360);
+    /* ⚠ 창가 시점은 옆을 본다. 그래서 기체의 뱅크가 카메라에는 **위아래 기울기**로 온다.
+       왼쪽 창은 아래를 내려다보고, 오른쪽 창은 하늘로 열린다 — side 로 부호가 갈린다. */
+    var camPit = (airborne ? -2 : 0) + (bank * side * -1) * 0.85;
     viewer.camera.setView({
       destination: Cesium.Cartesian3.fromDegrees(lo, la, base + SEAT_H + climbAlt),
-      orientation: { heading: look, pitch: Cesium.Math.toRadians(airborne ? -2 : 0), roll: 0 }
+      orientation: { heading: look,
+                     pitch: Cesium.Math.toRadians(Math.max(-70, Math.min(70, camPit))),
+                     roll:  Cesium.Math.toRadians(bank * 0.35) }
     });
     if (opt.onTick){
-      try{ opt.onTick(sec, la, lo, hdg, v, dist, (GVA[i]||{}).n, airborne, climbAlt); }
+      try{ opt.onTick(sec, la, lo, hdg, v, dist, (GVA[i]||{}).n, airborne, climbAlt, bank); }
       catch(err){ if(!window.__egTaxiWarned){ window.__egTaxiWarned=true; console.error("[EG] 계기판:", err); } }
     }
    }catch(err){ console.error("[EG] 활주 오류:", err); }
@@ -1370,17 +1389,21 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     applyClock();
     var wT = 0;
     flight = taxi({
-      onTick: function(sec, la, lo, hdg, v, dist, name, air, climb){
+      onTick: function(sec, la, lo, hdg, v, dist, name, air, climb, bank){
         if (sec - wT > .5){ wT = sec;
           $("mini").textContent = (name || "") + "   \u00b7   " + Math.round(v) + " km/h"
             + (air ? "   \u00b7   \uc0c1\uc2b9 " + Math.round(climb) + " m" : "");
           $("where").textContent   = air ? "\uc774\ub959" : (name || "");
-          $("hiWhere").textContent = "Gen\u00e8ve \u00b7 " + (name || "");
-          $("hiAlt").innerHTML     = Math.round(v) + " <small>km/h</small>";
+          $("hiWhere").textContent = "Gen\u00e8ve \u00b7 \ud65c\uc8fc\ub85c 23";
+          $("hiAlt").innerHTML     = Math.round(v) + " <small>km/h</small>"
+            + (air ? "  \u00b7  \u2197 " + Math.round(climb) + " m" : "");
           $("hiPos").textContent   = la.toFixed(4) + ", " + lo.toFixed(4);
           $("hiElapsed").textContent = mmss(sec);
-          $("hiLeft").textContent  = air ? "\uc774\ub959" : (name || "");
-          $("barIn").style.width   = Math.min(sec/480*100, 100) + "%";
+          $("hiLeft").textContent  = !air ? "\ud65c\uc8fc"
+            : (Math.abs(bank) > 3 ? (bank < 0 ? "\u21b0 \uc88c\uc120\ud68c " : "\u21b1 \uc6b0\uc120\ud68c ")
+                                     + Math.round(Math.abs(bank)) + "\u00b0"
+                                  : "\u2197 " + Math.round(hdg) + "\u00b0");
+          $("barIn").style.width   = Math.min(sec/110*100, 100) + "%";
         }
       }
     });
@@ -1495,17 +1518,18 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
   $("clk").oninput = function(){ CLOCK_OFF = +this.value; applyClock(); };
   applyClock();
 
-  (function standAtGate(){
+  (function standOnRunway(){
     try{
-      side = 1;                       /* ⭐ 오른쪽 좌석 — 터미널과 기체들이 보이는 쪽 */
+      side = 1;                       /* 오른쪽 좌석 */
       viewer.camera.setView({
         destination: Cesium.Cartesian3.fromDegrees(GVA[0].lo, GVA[0].la, 430 + SEAT_H),
-        orientation:{ heading: Cesium.Math.toRadians((GATE_HDG + 90) % 360), pitch: 0, roll: 0 }
+        orientation:{ heading: Cesium.Math.toRadians((GATE_HDG + side*90 + 360) % 360), pitch: 0, roll: 0 }
       });
       layoutFrames();
       if (!$("plate").classList.contains("on")) $("bCab").click();
-      $("mini").textContent = "\uac8c\uc774\ud2b8   \u00b7   Space \ub97c \ub204\ub974\uba74 \ucd9c\ubc1c\ud569\ub2c8\ub2e4";
-    }catch(err){ console.warn("[EG] 게이트 세우기 실패:", err); }
+      $("mini").textContent = "\ud65c\uc8fc\ub85c 23   \u00b7   Space \ub97c \ub204\ub974\uba74 \uc774\ub959\ud569\ub2c8\ub2e4";
+      $("hiWhere").textContent = "Gen\u00e8ve \u00b7 \ud65c\uc8fc\ub85c 23";
+    }catch(err){ console.warn("[EG] 활주로 세우기 실패:", err); }
   })();
 
   if (KEY && KEY.trim()){
