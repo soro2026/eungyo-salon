@@ -41,6 +41,7 @@ var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
 var STYLED = false;              /* 겉옷은 한 번만 입힌다 */
 var LISTENERS = [];              /* EGV_on 이 적어 두는 곳 */
 var CAM = null;                  /* terra 카메라를 적어 두는 곳 */
+var HOMEWARD = false;            /* 되돌릴 곳을 몰라 「내 집 위」로 가야 하는가 */
 var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
 var MON_SIZE = null;             /* A3 — 손님이 맞춰 둔 일기판 크기. 셈보다 이것이 먼저다 */
 var SPOT = null;                 /* C1 — 타륜에서 고르신 곳 {lat, lon, s} */
@@ -2045,19 +2046,19 @@ function restoreCam(v){
   var apply = function(){
     try{
       if (target){
+        /* ⚠⚠ 0818 소로 — 여기에 「300km 아래면 1,000km 로 들어올린다」를 두었다가 걷었다.
+             웨스트민스터 상공에 일부러 내려앉으셨는데 나올 때 런던 1,000km 로 튀어올랐다.
+           ⭐ 앞서 「부옇게 아무것도 없던」 화면의 진짜 원인은 고도가 아니라 **바다 한복판**이었다.
+             고도는 죄가 없었고, 낮게 계신 것은 손님의 선택이다.
+             되돌리기는 되돌리기여야지 고쳐 주는 것이 아니다. 들어오기 직전 그대로 돌려놓는다. */
         v.camera.setView({ destination: target.pos,
           orientation:{ heading:target.heading, pitch:target.pitch, roll:target.roll } });
-        /* 너무 낮으면 들어올린다 — 300km 아래면 지구가 안 보인다 */
-        var carto = Cesium.Cartographic.fromCartesian(v.camera.position);
-        if (carto && carto.height < 300000){
-          v.camera.setView({
-            destination: Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, 1000000),
-            orientation:{ heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 } });
-        }
       } else {
-        v.camera.setView({
-          destination: Cesium.Cartesian3.fromDegrees(2.3440, 48.8530, 1000000),
-          orientation:{ heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 } });
+        /* ⭐ 0818 소로 — 돌아갈 곳을 모를 때 「파리 상공 1,000km」는 아무 데도 아니다.
+             로그인하면 들어가는 그 곳, 손님의 분더카머 머리 위로 보낸다.
+           ⚠ goToMyHome 은 DB 를 왕복하고 날아가는 애니메이션이라 여기서 기다리지 않는다.
+             방을 다 걷은 뒤에 부르도록 leave 가 맡는다. 여기서는 자리만 잡아 둔다. */
+        HOMEWARD = true;
       }
     }catch(e){ console.warn("[EG] 카메라 되돌리기 실패:", e); }
   };
@@ -2071,13 +2072,13 @@ function restoreCam(v){
       var want = target.lat.toFixed(3) + ", " + target.lon.toFixed(3);
       var same = (Math.abs(target.lat - Cesium.Math.toDegrees(c2.latitude)) < 0.01 &&
                   Math.abs(target.lon - Cesium.Math.toDegrees(c2.longitude)) < 0.01);
-      var lifted = target.hgt < 300000;
+      var dh = Math.abs(target.hgt - c2.height);
       console.log("[EG] 지구로 \u2014 되돌림", now, "· 고도", Math.round(c2.height/1000) + "km",
-                  "· 적어 둔 곳", want, same ? "\u2705 일치" : "\u26a0 어긋남",
-                  lifted ? "· \u2b06 낮아서 들어올림" : "");
+                  "· 적어 둔 곳", want, Math.round(target.hgt/1000) + "km",
+                  (same && dh < 1000) ? "\u2705 일치" : "\u26a0 어긋남");
     } else {
-      console.warn("[EG] \u26a0 지구로 \u2014 폴백(파리 상공)", now,
-                   "· 적어 둔 곳이 없습니다. saveCam 이 실패했다는 뜻입니다.");
+      console.warn("[EG] \u26a0 지구로 \u2014 적어 둔 곳이 없습니다(saveCam 실패)."
+                 + " 손님의 집 위로 보냅니다.");
     }
   }catch(e){}
   CAM = null;
@@ -2118,6 +2119,15 @@ function leave(){
   try{ document.body.classList.remove("cabin","edit","vesper-on"); }catch(e){}
   /* ⭐ terra 쪽 타륜을 다시 그린다 — 나올 땐 늘 타륜을 돌아본다(0728). */
   try{ if (typeof window.refreshDock === "function") window.refreshDock(false); }catch(e){}
+  /* ⚠ 방을 다 걷은 뒤에 집으로 날아간다 — 걷는 중에 부르면 애니메이션이 겹친다.
+     ⭐ 로그인 전이면 goToMyHome 이 스스로 파리 전경으로 물러선다. */
+  if (HOMEWARD){
+    HOMEWARD = false;
+    try{
+      if (typeof window.goToMyHome === "function") window.goToMyHome();
+      else if (typeof window.flyToParisOverview === "function") window.flyToParisOverview();
+    }catch(e){ console.warn("[EG] 집으로 못 갔습니다:", e); }
+  }
   console.log("[EG] 베스페르 방을 걷었습니다 — 카메라를 terra 로 되돌렸습니다.");
 }
 
