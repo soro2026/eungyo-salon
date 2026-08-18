@@ -4207,6 +4207,14 @@ function stopOrbit(){
   if (orbitTick){ orbitTick(); orbitTick = null; }
   viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY); // 자유 조작 복원
 }
+/* ⭐⭐ 0818 밤 — 방(베스페르·독서비행)이 들어올 때 이 사슬을 먼저 풀어야 한다.
+   ⚠ 궤도가 걸려 있으면 두 가지가 함께 망가진다 —
+     ① 궤도 tick 이 매 프레임 lookAt 으로 카메라를 집으로 끌어당긴다.
+        방이 setView 로 일몰 지점에 앉혀도 다음 프레임에 도로 끌려간다.
+     ② camera.position 이 **세계 좌표가 아니라 궤도 중심 기준 상대 좌표**로 읽힌다.
+        그래서 「직전 곳」을 적으면 고도 -6373km 같은 헛것이 적힌다(0818 소로 콘솔).
+   ⭐ stopOrbit 은 tick 을 떼고 lookAtTransform(IDENTITY) 까지 해 준다. 둘 다 필요하다. */
+window.stopOrbit = stopOrbit;
 </script>
 
 <script>
@@ -6041,9 +6049,12 @@ async function openSunsetPanel(){
 async function enterVesperRoom(spot){
   try{
     if (typeof endVoyage === "function") endVoyage();   /* 딴 데를 여는 순간 그 여정은 끝이다 (0814) */
+    /* ⚠⚠ 0818 밤 — 궤도(집 위를 도는 것)를 여기서 세운다. 안 세우면 방에 들어간 뒤에도
+       계속 돌면서 카메라를 집으로 끌어당긴다. 소로가 보신 「창 열 때 0.5초 파리 라탱」이 그것이다. */
+    try{ stopOrbit(); }catch(e){}
     await loadScriptOnce("eg_geo.js?v=0818a");
     await loadScriptOnce("stamp_press.js?v=0808a");
-    await loadScriptOnce("vesper_room.js?v=0818k");   /* ⚠ 방 파일을 고치면 이 꼬리표도 함께 올린다 */
+    await loadScriptOnce("vesper_room.js?v=0818m");   /* ⚠ 방 파일을 고치면 이 꼬리표도 함께 올린다 */
     if (!window.egVesper) throw new Error("egVesper 창구가 안 열렸습니다");
     window.egVesper.enter(viewer, spot || null);
   }catch(err){

@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════
-   EG베스페르 — 방(room) 판  ·  vesper_room.js  ·  v0818k
+   EG베스페르 — 방(room) 판  ·  vesper_room.js  ·  v0818m
    2026.08.18 소로 × 파이스 · 142회차
 
    ⭐⭐ 왜 이 파일이 생겼나 — 「한 문서 · 한 root」
@@ -594,7 +594,7 @@ var HTML = `<div id="fade"></div>
       해가 창 한가운데 머문다. 0817 실측: 대권 고정이면 19분에 창을 벗어난다.
    ⚠ 창 테두리는 판(9:16) 기준 %를 화면 px로 환산해서 그린다 — 세로가 2.8~3.2배다
    ══════════════════════════════════════════════════════════════ */
-console.log("[EG] vesper_room 0818k — 남의 비행 끊기 · 게이트 바빴는지 확인 · 인장 마스크");
+console.log("[EG] vesper_room 0818m — 궤도 사슬 풀기 · 헛좌표 막이 · 남의 비행 끊기");
 
 /* ⚠ 0818 — 구글 API 키를 걷었다. 이 방은 terra 의 타일을 그대로 쓴다.
    키가 여기 남아 있으면 root 요청이 또 나가고, 그것이 곧 청구서다. */
@@ -2079,6 +2079,15 @@ function saveCam(v){
     CAM.lon = Cesium.Math.toDegrees(c.longitude);
     CAM.lat = Cesium.Math.toDegrees(c.latitude);
     CAM.hgt = c.height;
+    /* ⚠⚠ 0818 밤 — 궤도가 걸려 있으면 상대 좌표가 읽힌다(고도 -6373km). 그것을 적어 두면
+         나갈 때 지구 중심으로 보내는 꼴이 되고, 손님은 남극 상공 9km 같은 데 떨어진다.
+       ⭐ 위에서 사슬을 풀었으니 이제 안 나와야 정상이다. 그래도 한 번 더 본다 —
+         말이 안 되는 좌표는 **적지 않는 편이 낫다.** 그러면 되돌리기가 집으로 물러선다. */
+    if (!isFinite(CAM.hgt) || CAM.hgt < -1000 || CAM.hgt > 1e8){
+      console.warn("[EG] \u26a0 직전 곳이 말이 안 됩니다 \u2014 고도",
+                   Math.round(CAM.hgt/1000) + "km. 적지 않습니다. 나갈 때 집으로 갑니다.");
+      CAM = null; return;
+    }
     console.log("[EG] 들어오기 직전 곳을 적어 둡니다 \u2014",
                 CAM.lat.toFixed(3) + ", " + CAM.lon.toFixed(3),
                 "· 고도", Math.round(CAM.hgt/1000) + "km");
@@ -2105,6 +2114,9 @@ function restoreCam(v){
          그러면 손님은 적어 둔 곳이 아니라 그 비행의 목적지에 떨어진다 — 아주 낯선 곳에.
          ⚠ rAF 로 한 번 더 걸 때도 함께 끊는다. 한 번만 끊으면 그 사이에 새로 뜬다. */
       try{ v.camera.cancelFlight(); }catch(e2){}
+      /* ⚠ 궤도가 다시 걸려 있으면 setView 의 좌표가 상대 좌표로 해석된다. 먼저 푼다. */
+      try{ if (typeof window.stopOrbit === "function") window.stopOrbit(); }catch(e2){}
+      try{ v.camera.lookAtTransform(Cesium.Matrix4.IDENTITY); }catch(e2){}
       if (target){
         /* ⚠⚠ 0818 소로 — 여기에 「300km 아래면 1,000km 로 들어올린다」를 두었다가 걷었다.
              웨스트민스터 상공에 일부러 내려앉으셨는데 나올 때 런던 1,000km 로 튀어올랐다.
@@ -2160,6 +2172,16 @@ function enter(hostViewer, spot){
      ⭐ completeFlight 다 — cancelFlight 가 아니다. 취소하면 카메라가 가던 길 한복판에 서고,
        그 어중간한 좌표를 「직전 곳」으로 적게 된다. 가려던 곳까지 보낸 뒤에 적는다. */
   try{ hostViewer.camera.completeFlight(); }catch(e){}
+  /* ⚠⚠⚠ 0818 밤 · 소로 콘솔이 잡아 준 진범 — 궤도(orbit).
+       terra 는 집·핀에 닿으면 startOrbit 으로 그 곳을 빙빙 돈다. 그때 카메라에는
+       **궤도 중심을 원점으로 하는 좌표계(transform)** 가 걸린다.
+     ⚠ 그러면 두 가지가 함께 망가진다 —
+       ① 궤도 tick 이 매 프레임 lookAt 으로 카메라를 도로 끌어간다 → 창 열 때 파리가 비친다
+       ② camera.position 을 읽으면 세계 좌표가 아니라 상대 좌표가 나온다
+          → 「직전 곳 · 고도 -6373km」 (지구 중심보다 아래) 라는 헛것이 적혔다
+     ⭐ completeFlight 뒤에 세운다 — 비행이 끝나면서 궤도를 새로 켜는 길이 terra 에 넷 있다. */
+  try{ if (typeof window.stopOrbit === "function") window.stopOrbit(); }catch(e){}
+  try{ hostViewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY); }catch(e){}   /* 그물 */
   saveCam(hostViewer);
   document.body.classList.add("vesper-on");
   /* ⚠⚠ terra 의 enterRoomUrl 은 방에 들 때 useDefaultRenderLoop = false 로 지구를 재운다.
@@ -2202,5 +2224,5 @@ function leave(){
   console.log("[EG] 베스페르 방을 걷었습니다 — 카메라를 terra 로 되돌렸습니다.");
 }
 
-window.egVesper = { enter: enter, leave: leave, version: "0818k" };
+window.egVesper = { enter: enter, leave: leave, version: "0818m" };
 })();
