@@ -5883,7 +5883,47 @@ function renderDock(items){
    「석양에 기내에서 쓰는 교양일기」 한 줄이 결정문 17호의 두 칸을 함께 채웠다. */
 const SUNSET_NAME = "EG베스페르";
 const SUNSET_SUB  = "석양에 기내에서 쓰는 교양일기";
-const SUNSET_URL  = "vesper.html";              /* ⚠ 본공사 때 terra 안으로 심는다 (결정문 19호 ⑧) */
+const SUNSET_URL  = "vesper.html";              /* ⚠ 액자 판 — 이제 안 쓴다. 되돌릴 때를 위해 남긴다 */
+
+/* ══ 0818 베스페르 본공사 — 액자를 걷고 방으로 ══════════════════════════════
+   ⭐⭐ 왜 — 「한 문서 · 한 root」
+     액자(iframe)는 별도 문서라 WebGL 자원을 못 건네받는다. 그래서 vesper.html 이
+     지구를 한 벌 더 세우고, 구글 실사 타일의 **root 요청이 한 번 더** 나갔다.
+     ⚠ 구글 과금 단위가 바로 그 root 다. 개별 타일은 셈에 안 들어가고 문 여는 값만 낸다.
+       게다가 root 는 하루 10,000 이라는 기본 할당량이 있어, 규모가 커지면 비용 이전에
+       **지구가 멈추는** 문제가 된다.
+     ⭐ 이제 terra 의 viewer 를 그대로 건넨다. root 추가 0 · Cesium 3MB 재수신 0.
+   ⭐ 곁들여 낫는 것 — 0817 의 C · ←→ 병. 포커스를 뺏길 부모가 없어진다.
+
+   ⚠ 방 몸통은 EGGeo(육지 판정)와 EGStamp(인장)를 쓰는데 terra 는 그 둘을 안 싣는다.
+     terra 를 무겁게 만들지 않으려고 **들어갈 때 함께 받는다** — 안 들어가는 손님은 안 받는다. */
+function loadScriptOnce(src){
+  return new Promise(function(ok, no){
+    var key = src.split("?")[0];
+    if (document.querySelector('script[data-eg="' + key + '"]')) return ok();
+    var el = document.createElement("script");
+    el.src = src; el.async = false;
+    el.setAttribute("data-eg", key);
+    el.onload = function(){ ok(); };
+    el.onerror = function(){ no(new Error(src)); };
+    document.head.appendChild(el);
+  });
+}
+
+async function enterVesperRoom(){
+  try{
+    if (typeof endVoyage === "function") endVoyage();   /* 딴 데를 여는 순간 그 여정은 끝이다 (0814) */
+    await loadScriptOnce("eg_geo.js?v=0818a");
+    await loadScriptOnce("stamp_press.js?v=0808a");
+    await loadScriptOnce("vesper_room.js?v=0818a");
+    if (!window.egVesper) throw new Error("egVesper 창구가 안 열렸습니다");
+    window.egVesper.enter(viewer);
+  }catch(err){
+    console.error("[EG] 베스페르 방을 못 열었습니다:", err);
+    /* ⚠ 못 열면 옛 액자 길로 물러선다 — 손님을 빈손으로 돌려보내지 않는다 */
+    try{ enterRoomUrl(SUNSET_URL, SUNSET_NAME); }catch(e){}
+  }
+}
 
 /* ⭐⭐ 0817 — 타륜 원어 병기. **여기 한 곳에만** 둔다.
    카드는 열일곱 장인데 이름이 다섯 군데(이름표·밑그림·uni배열·정적 HTML·각 push)에
@@ -6252,7 +6292,7 @@ async function loadDock(){
       html: '<div class="dock-main"><span>' + SUNSET_NAME + '</span></div>'
           + '<div class="dock-sub"></div>',
       sub: SUNSET_SUB,
-      onClick: ()=> enterRoomUrl(SUNSET_URL, SUNSET_NAME) });
+      onClick: ()=> enterVesperRoom() });
 
     items.push({ id:"wunder", sec:"anima", cls:"uni",
       html: '<div class="dock-main"><span>EG분더카머</span></div>'
