@@ -1023,6 +1023,7 @@ async function loadBooks(){
         seen.add(sp.id);
         BOOKS.push({
           kind:'spoon',
+          spoon_id: sp.id,          /* 0818 — 흔적(오피니언)이 이 번호로 붙는다 */
           answer:   '한스푼 · ' + (sp.subject || ''),
           keyword:  sp.quote || '',
           category: '한스푼 · 매일 한 모금',
@@ -1397,6 +1398,12 @@ addEventListener('resize', ()=>{ if(window.EGCamera) EGCamera.relayout(); });
         if(q.category) book.category = q.category;
       }
     }catch(e){ console.warn('[F4] library 조회 실패', e); }
+    /* ⭐ 0818 — 한스푼 책이면 그 회차의 흔적을 함께 길어 온다 (0525 설계의 콩파뇽 흔적 쪽) */
+    book.kind = b.kind || ''; book.spoon_id = b.spoon_id || null;
+    if (book.spoon_id) try{
+      const { data:ops } = await supa.rpc('spoon_opinions', { p_spoon_id: book.spoon_id });
+      book.opinions = Array.isArray(ops) ? ops : [];
+    }catch(e){ console.warn('[흔적] 오피니언 조회 실패', e); book.opinions = []; }
     f4CurrentBook = book;
 
     f4BuildCover(book);
@@ -1610,6 +1617,8 @@ addEventListener('resize', ()=>{ if(window.EGCamera) EGCamera.relayout(); });
     if(lib.connection) pages.push(f4MakeInnerPage('LAYER 3 · 연결', '삶과 이어보기', lib.connection, pages.length + 1));
     if(lib.curation)        pages.push(f4MakeCurationPage(lib.curation, pages.length + 1, book.curation_links));
     else if(book.curation_links) pages.push(f4MakeCurationPage('', pages.length + 1, book.curation_links));
+    /* 0818 — 한스푼 책이면 흔적 쪽이 완독 앞에 선다 */
+    if (book.kind === 'spoon' && book.spoon_id) pages.push(f4MakeTracePage(book, pages.length + 1));
     pages.push(f4MakeLastPage(book, pages.length + 1));
     return pages;
   }
@@ -1701,6 +1710,41 @@ addEventListener('resize', ()=>{ if(window.EGCamera) EGCamera.relayout(); });
   }
 
   // 마지막 페이지 — 지성소로 돌아가기
+
+  /* ⭐⭐ 0818 — 콩파뇽 흔적. 0525 회의록의 책 모달은 일곱 쪽이었고 그중 한 쪽이 이것이다.
+       0526 강물 원칙 5.3 — 「사유 남긴 사람은 닉네임과 사유가 책 본문에 선다」.
+       0806 리듬재편 6호 — 「오피니언은 회차에 쌓인다. 바퀴가 돌면 이전 바퀴가 아래 깔린다」.
+     ⚠ 한스푼 책에만 선다. 스타디움에서 만난 책에는 오피니언이라는 물건이 없다.
+     ⚠ 시간순이다 — 새 글을 위로 올리지 않는다. 지층은 쌓인 차례대로라야 지층이다.
+     ⚠ 글이 빈 사람은 애초에 창이 안 낸다. 퀴즈만 푼 사람을 「말 없는 사람」으로 진열하지 않는다. */
+  function f4MakeTracePage(book, num){
+    const div = document.createElement('div');
+    div.className = 'f4book-page-view f4page-inner';
+    const rows = (book.opinions || []).map(o => `
+      <div style="margin:0 0 15px;padding-bottom:13px;border-bottom:1px solid rgba(180,150,80,.14)">
+        <div style="font-size:10.5px;color:rgba(150,120,60,.9);letter-spacing:.08em;
+                    font-family:'Cormorant Garamond',serif;margin-bottom:5px">
+          ${f4EscTrace(o.nickname)}
+          <span style="color:rgba(120,100,60,.4);margin-left:7px">${f4EscTrace(String(o.at||'').slice(0,10).replace(/-/g,'. '))}</span>
+        </div>
+        <div style="font-size:12.5px;line-height:1.85;color:#4a3820;font-family:'Noto Serif KR',serif;
+                    word-break:keep-all">${f4EscTrace(o.body)}</div>
+      </div>`).join('');
+    div.innerHTML = `
+      <div class="f4page-lines"></div>
+      <div class="f4page-inner-content">
+        <div class="f4page-layer-tag">TRACES &middot; 콩파뇽 흔적</div>
+        <div class="f4page-layer-heading">함께 읽은 사람들</div>
+        <div class="f4page-layer-body" style="padding-top:4px">
+          ${rows || '<div style="font-size:12px;color:rgba(100,80,40,.45);line-height:1.9">아직 아무도 한 줄을 남기지 않았습니다.<br>이 회차가 다시 열리는 날, 여기에 이야기가 쌓입니다.</div>'}
+        </div>
+      </div>
+      <div class="f4page-num-inner">${num}</div>
+      <div class="f4page-corner"></div>`;
+    return div;
+  }
+  function f4EscTrace(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
   function f4MakeLastPage(book, num){
     const div = document.createElement('div');
     div.className = 'f4book-page-view f4page-philemon';
@@ -1860,7 +1904,7 @@ function goBack(){
   location.href='terra.html';          /* 액자 밖에서 혼자 열렸을 때만 여기까지 온다 */
 }
 
-console.log('[EG] bibliotheca 0818a — 넘김 손 바꿈(▶ = 다음 쪽·더 예전) · 최신이 맨 위 왼쪽 · 한스푼 책');
+console.log('[EG] bibliotheca 0818b — 콩파뇽 흔적 쪽 · 넘김 손 바꿈(▶ = 더 예전) · × 걷음');
 boot();
 bgmInit();
 f4InitModal();      /* 책 모달 손잡이 — 한 번만 묶는다 */

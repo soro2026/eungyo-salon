@@ -2259,7 +2259,7 @@ async function sbFetch(path, options = {}) {
   }
   return res.status === 204 ? null : res.json();
 }
-console.log("%c[EG] wunderkammer 0818d \u00b7 \u25b2 \uc9c1\ud589\uc740 \ud6d1\uc9c0 \uc54a\uace0 \uacf3\ubc14\ub85c(\uac70\uc2e4 \uadf8\ub9bc \u00b7 \ucc45\uc7a5 \uc804\uccb4 \u00b7 \uc11c\uac00 \uc0c1\ub2e8 \u00b7 \uccab \uc904 \uc561\uc790) \u00b7 \ub18b\uc1e0 \uc870\uc791\ubc18 \u00b7 \ucc45 \ubaa8\ub2ec", "color:#c9a84c");
+console.log("%c[EG] wunderkammer 0818f · 3층에 한스푼 책 · 콩파뇽 흔적 쪽 · 2층 안착은 맨 윗칸 · ▲ 직행 · 놋쇠 조작반", "color:#c9a84c");
 function getUser() { try { return JSON.parse(localStorage.getItem('eungyo-auth'))?.user || null; } catch { return null; } }
 
 /* ── 층 구성 (2026.07.28 「세 건물 재편 결정문」 7호로 4층 축소) ──
@@ -4368,8 +4368,13 @@ const Floor3 = (() => {
   function runCamera(){
     if (!window.EGCamera) return;
     const s = shelf();
-    /* ⭐ 0818 소로 — 2층의 안착 지점은 **책장 전체**다. 첫 단이 아니라 감의 한가운데에 선다 */
-    const CAM = { L:s.l, T:s.top, W:s.r-s.l, H:(s.bot-s.top) };
+    /* ⭐ 0818 소로 — 2층의 안착 지점은 **맨 윗칸**이다.
+         감 전체를 주었더니 중심이 둘째 칸에 앉아 책이 화면에 꽉 찼다(소로 실물 확인).
+       ⚠ 카메라는 rect 의 **세로 한가운데**를 화면 복판에 놓는다. 그러니 「위로 올리기」는
+         각도를 트는 일이 아니라 **rect 를 첫 칸으로 좁히는 일**이다.
+         top~b1 = 첫 칸. 아래로 20%만 여유를 둬 둘째 칸 표지 머리가 살짝 걸치게 한다 —
+         한 칸만 뚝 떨어져 보이면 서가가 아니라 진열대가 된다(3층 1.5배와 같은 뜻). */
+    const CAM = { L:s.l, T:s.top, W:s.r-s.l, H:(s.b1-s.top)*1.2 };
     const opts = { box:'#bk-scroll', fit:'#bk-fit', ratio:STAGE_AR, rect:CAM };
     /* 폰(세로)은 스크롤 길이가 0이라 카메라가 헛돈다 — 바로 앉힌다 */
     const scrollable = (innerWidth/innerHeight) >= STAGE_AR;
@@ -5356,6 +5361,14 @@ const Floor3 = (() => {
         if(q.category) book.category = q.category;
       }
     }catch(e){ console.warn('[F4] library 조회 실패', e); }
+    /* ⭐ 0818 — 한스푼 책이면 그 회차의 흔적을 함께 길어 온다.
+       ⚠ 열 때 한 번만 부른다. 서가를 그릴 때 전량을 받으면 문 여는 데만 몇 초가 걸린다. */
+    book.kind = b.kind || ''; book.spoon_id = b.spoon_id || null;
+    if (book.spoon_id) try{
+      const ops = await sbFetch('/rest/v1/rpc/spoon_opinions', {
+        method:'POST', body: JSON.stringify({ p_spoon_id: book.spoon_id }) });
+      book.opinions = Array.isArray(ops) ? ops : [];
+    }catch(e){ console.warn('[흔적] 오피니언 조회 실패', e); book.opinions = []; }
     f4CurrentBook = book;
 
     f4BuildCover(book);
@@ -5571,6 +5584,8 @@ const Floor3 = (() => {
     if(lib.connection) pages.push(f4MakeInnerPage('LAYER 3 · 연결', '삶과 이어보기', lib.connection, pages.length + 1));
     if(lib.curation)        pages.push(f4MakeCurationPage(lib.curation, pages.length + 1, book.curation_links));
     else if(book.curation_links) pages.push(f4MakeCurationPage('', pages.length + 1, book.curation_links));
+    /* 0818 — 한스푼 책이면 흔적 쪽이 완독 앞에 선다 */
+    if (book.kind === 'spoon' && book.spoon_id) pages.push(f4MakeTracePage(book, pages.length + 1));
     pages.push(f4MakeLastPage(book, pages.length + 1));
     return pages;
   }
@@ -5662,6 +5677,41 @@ const Floor3 = (() => {
   }
 
   // 마지막 페이지 — 지성소로 돌아가기
+
+  /* ⭐⭐ 0818 — 콩파뇽 흔적. 0525 회의록의 책 모달은 일곱 쪽이었고 그중 한 쪽이 이것이다.
+       0526 강물 원칙 5.3 — 「사유 남긴 사람은 닉네임과 사유가 책 본문에 선다」.
+       0806 리듬재편 6호 — 「오피니언은 회차에 쌓인다. 바퀴가 돌면 이전 바퀴가 아래 깔린다」.
+     ⚠ 한스푼 책에만 선다. 스타디움에서 만난 책에는 오피니언이라는 물건이 없다.
+     ⚠ 시간순이다 — 새 글을 위로 올리지 않는다. 지층은 쌓인 차례대로라야 지층이다.
+     ⚠ 글이 빈 사람은 애초에 창이 안 낸다. 퀴즈만 푼 사람을 「말 없는 사람」으로 진열하지 않는다. */
+  function f4MakeTracePage(book, num){
+    const div = document.createElement('div');
+    div.className = 'f4book-page-view f4page-inner';
+    const rows = (book.opinions || []).map(o => `
+      <div style="margin:0 0 15px;padding-bottom:13px;border-bottom:1px solid rgba(180,150,80,.14)">
+        <div style="font-size:10.5px;color:rgba(150,120,60,.9);letter-spacing:.08em;
+                    font-family:'Cormorant Garamond',serif;margin-bottom:5px">
+          ${f4EscTrace(o.nickname)}
+          <span style="color:rgba(120,100,60,.4);margin-left:7px">${f4EscTrace(String(o.at||'').slice(0,10).replace(/-/g,'. '))}</span>
+        </div>
+        <div style="font-size:12.5px;line-height:1.85;color:#4a3820;font-family:'Noto Serif KR',serif;
+                    word-break:keep-all">${f4EscTrace(o.body)}</div>
+      </div>`).join('');
+    div.innerHTML = `
+      <div class="f4page-lines"></div>
+      <div class="f4page-inner-content">
+        <div class="f4page-layer-tag">TRACES &middot; 콩파뇽 흔적</div>
+        <div class="f4page-layer-heading">함께 읽은 사람들</div>
+        <div class="f4page-layer-body" style="padding-top:4px">
+          ${rows || '<div style="font-size:12px;color:rgba(100,80,40,.45);line-height:1.9">아직 아무도 한 줄을 남기지 않았습니다.<br>이 회차가 다시 열리는 날, 여기에 이야기가 쌓입니다.</div>'}
+        </div>
+      </div>
+      <div class="f4page-num-inner">${num}</div>
+      <div class="f4page-corner"></div>`;
+    return div;
+  }
+  function f4EscTrace(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
   function f4MakeLastPage(book, num){
     const div = document.createElement('div');
     div.className = 'f4book-page-view f4page-philemon';
@@ -6000,9 +6050,14 @@ const Floor4 = (() => {
     if (!window.f4OpenBook){
       console.warn('[지성소] 책 모달 부품이 없습니다'); return;
     }
-    /* 이 집의 칸 이름을 뮤세움의 칸 이름으로 옮겨 준다 — answer · at 두 개뿐이다 */
+    /* 이 집의 칸 이름을 뮤세움의 칸 이름으로 옮겨 준다.
+       ⚠ 0818 — 한스푼 책은 4겹이 questions 가 아니라 spoons 에 산다. 창이 그것을 통째로
+         담아 주므로(shelf_of), 여기서는 그대로 얹어 보내기만 한다. */
     f4OpenBook({ answer: b.title || '', category: b.category || '',
-                 seed_id: b.seed_id || '', at: b.met_on || '' });
+                 seed_id: b.seed_id || '', at: b.met_on || '',
+                 kind: b.kind || 'quiz', spoon_id: b.spoon_id || null,
+                 keyword: b.keyword || '', headline: b.headline || '',
+                 library: b.library || null, curation_links: b.curation_links || null });
   }
   function closeCard(){ if (window.f4CloseBook) f4CloseBook(); }
 
