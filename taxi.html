@@ -469,7 +469,7 @@
       해가 창 한가운데 머문다. 0817 실측: 대권 고정이면 19분에 창을 벗어난다.
    ⚠ 창 테두리는 판(9:16) 기준 %를 화면 px로 환산해서 그린다 — 세로가 2.8~3.2배다
    ══════════════════════════════════════════════════════════════ */
-console.log("[EG] taxi 0818d — 들어서면 곧바로 활주 · 앞으로만 간다 · 지면 실측");
+console.log("[EG] taxi 0818h — 이륙→선회→순항 11km · 고도별 속도·피치");
 
 var KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A";
 var KMH = 900, R_PLATE = 941/1672;
@@ -717,7 +717,7 @@ var GVA = [
        뒤로 간 뒤 앞으로 못 돌아섰다(소로 신고). 다시 지을 때는 둘을 나눌 것. */
   var GATE_HDG = 225.5, TURN_GND = 3.2, TURN_PUSH = 1.6, SEAT_H = 5.4;
   /* 이륙 뒤 이 방위로 돌아 나간다 — 제네바 → 밀라노 대권 초기 방위 */
-  var COURSE = 107.5, TURN_AIR = 3.0, BANK_MAX = 25, BANK_RATE = 6;
+  var COURSE = 107.5, TURN_AIR = 3.0, BANK_MAX = 18, BANK_RATE = 3.5;
   /* ⚠ 타원체 기준 높이. 제네바 공항 표고 430m(해수면) + 지오이드고 약 48m */
   var GND_FALLBACK = 478;
 
@@ -741,7 +741,7 @@ function taxi(opt){
   var off = viewer.clock.onTick.addEventListener(function(){
    try{
     var now = performance.now(), dt = Math.min((now-tp)/1000, .12), sec = (now-t0)/1000; tp = now;
-    if (airborne && climbAlt > 2600) return;   /* 선회를 마치고도 한동안 더 오른다 (0818) */
+    if (airborne && climbAlt > 11000) return;   /* 순항 고도 11km 까지 오른다 (0818) */
 
     var tgt = GVA[Math.min(i+1, GVA.length-1)], cur = GVA[i];
     var d = mTo(la, lo, tgt.la, tgt.lo);
@@ -773,7 +773,18 @@ function taxi(opt){
 
     if (tgt.roll && v > 255 && !airborne) airborne = true;
     if (airborne){
-      pitch = Math.min(pitch + 5.5*dt, 12);
+      /* ⭐⭐ 0818 소로 — 뜨고 나면 활주 셈에서 떼어낸다.
+         옛 판은 v = √(2·a·s) 를 계속 써서 목표점을 지나자 속도가 133km/h 로 떨어졌고,
+         그 속도로 계속 오르는 「곡예 비행」이 났다(소로 신고).
+         ⭐ 고도에 따라 속도·피치를 갈아 끼운다. 실제 여객기 프로파일과 거의 같다. */
+      var CL = [[0,290,12],[500,320,11],[1500,400,9],[3000,500,7],
+                [6000,650,5],[9000,780,3],[11000,850,0]];
+      var k = 0; while (k < CL.length-2 && climbAlt > CL[k+1][0]) k++;
+      var a0=CL[k][0], a1=CL[k+1][0], f=Math.max(0,Math.min(1,(climbAlt-a0)/(a1-a0)));
+      var vT = CL[k][1] + (CL[k+1][1]-CL[k][1])*f;
+      var pT = CL[k][2] + (CL[k+1][2]-CL[k][2])*f;
+      v     += Math.max(-20*dt, Math.min(20*dt, (vT - v) * .5));
+      pitch += Math.max(-2*dt,  Math.min(2*dt,  (pT - pitch) * .8));
       climbAlt += (v/3.6) * Math.sin(Cesium.Math.toRadians(pitch)) * dt;
 
       /* ⭐ 이륙 뒤 선회 (0818 소로) — 활주로 방위에서 항로 방위로 돌아 나간다.
@@ -813,15 +824,21 @@ function taxi(opt){
       }catch(e){}
     }
     var base = gOK ? gH : GND_FALLBACK;
+    /* ⚠ 0818 — 왼쪽 창이 이상하다는 신고에 부호를 뒤집었다가 되돌렸다.
+       소로 확인: **오른쪽 창은 제대로 달린다.** 즉 이 식이 맞다.
+       ⭐ 왼쪽 창에서 지면이 왼→오른쪽으로 흐르는 것은 물리적으로 정상이다
+         (기차 왼쪽 자리와 같다). 어색해 보여도 어긋난 것이 아니다. */
     var look = Cesium.Math.toRadians((hdg + side*90 + 360) % 360);
-    /* ⚠ 창가 시점은 옆을 본다. 그래서 기체의 뱅크가 카메라에는 **위아래 기울기**로 온다.
-       왼쪽 창은 아래를 내려다보고, 오른쪽 창은 하늘로 열린다 — side 로 부호가 갈린다. */
-    var camPit = (airborne ? -2 : 0) + (bank * side * -1) * 0.85;
+    /* ⚠⚠ 0818 소로 — 선회가 어지러웠다. 뱅크를 카메라에 **두 번** 물린 탓이다.
+       pitch 로 21도 + roll 로 9도 = 체감 30도. 실제 25도보다 되레 컸다.
+       ⭐ 실제 승객은 뱅크를 거의 못 느낀다 — 원심력과 중력이 합쳐져 몸은 아래로 눌린다.
+         눈에 보이는 것은 **창밖 지평선이 기우는 것**뿐이다. 그러니 roll 하나만 남긴다. */
+    var camPit = (airborne ? -2 : 0) + (bank * side * -1) * 0.22;
     viewer.camera.setView({
       destination: Cesium.Cartesian3.fromDegrees(lo, la, base + SEAT_H + climbAlt),
       orientation: { heading: look,
                      pitch: Cesium.Math.toRadians(Math.max(-70, Math.min(70, camPit))),
-                     roll:  Cesium.Math.toRadians(bank * 0.35) }
+                     roll:  Cesium.Math.toRadians(bank * 0.55) }   /* 지평선이 기우는 것 — 이것만 남긴다 */
     });
     if (opt.onTick){
       try{ opt.onTick(sec, la, lo, hdg, v, dist, (GVA[i]||{}).n, airborne, climbAlt, bank); }
@@ -1410,8 +1427,9 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
             + (air ? "   \u00b7   \uc0c1\uc2b9 " + Math.round(climb) + " m" : "");
           $("where").textContent   = air ? "\uc774\ub959" : (name || "");
           $("hiWhere").textContent = "Gen\u00e8ve \u00b7 \ud65c\uc8fc\ub85c 23";
-          $("hiAlt").innerHTML     = Math.round(v) + " <small>km/h</small>"
-            + (air ? "  \u00b7  \u2197 " + Math.round(climb) + " m" : "");
+          $("hiAlt").innerHTML = air
+            ? (climb/1000).toFixed(1) + " <small>km</small>  \u00b7  " + Math.round(v) + " <small>km/h</small>"
+            : Math.round(v) + " <small>km/h</small>";
           $("hiPos").textContent   = la.toFixed(4) + ", " + lo.toFixed(4);
           $("hiElapsed").textContent = mmss(sec);
           $("hiLeft").textContent  = !air ? "\ud65c\uc8fc"
