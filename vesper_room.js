@@ -45,6 +45,9 @@ var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
 var MON_SIZE = null;             /* A3 — 손님이 맞춰 둔 일기판 크기. 셈보다 이것이 먼저다 */
 var SPOT = null;                 /* C1 — 타륜에서 고르신 곳 {lat, lon, s} */
 var GATE = false;                /* C2 — 게이트(출발 전) 닫힘인가. 쉬는 닫힘과 구분한다 */
+var TIMERS = [];                 /* ⚠ 게이트·열림 예약. 방을 걷은 뒤 터지면 없는 DOM 을 만진다 */
+function EGV_later(fn, ms){ var t = setTimeout(fn, ms); TIMERS.push(t); return t; }
+function EGV_clearTimers(){ TIMERS.forEach(function(t){ clearTimeout(t); }); TIMERS.length = 0; }
 var USE_GATE = true;             /* ⚠ 안전망 — 내리면 오늘 아침 판(바로 출발)으로 돌아간다 */
 
 /* ── 리스너 장부 ─────────────────────────────────────────────
@@ -1710,6 +1713,13 @@ function bootRoom(hostViewer, spot){
      근본 약점이다. 배선이 한 줄이라도 어긋나면 키가 통째로 죽는다.
      ⭐ 이름 있는 함수로 꺼내 두고, 키는 이것을 **직접** 부른다.
         단추도 같은 함수를 쓰므로 둘이 갈릴 일이 없다 (0816 조항 ⑧). */
+  /* ⚠ 0818 소로 — × 로 나왔는데 기내 소음이 그대로였다.
+     소리는 AudioContext 라 DOM 을 지워도 안 죽는다. 방을 걷을 때 직접 꺼야 한다. */
+  window.__egHush = function(){
+    try{ if (annAudio){ annAudio.pause(); annAudio.currentTime = 0; annAudio = null; } }catch(e){}
+    try{ if (engGain) engGain.gain.linearRampToValueAtTime(0, ensureAC().currentTime + 0.25); }catch(e){}
+    try{ setTimeout(function(){ if (ac && ac.close) ac.close(); ac = null; engGain = null; engLp = null; }, 400); }catch(e){}
+  };
   window.egCabin = function toggleCabin(){
     var on = !$("plate").classList.contains("on");
     $("plate").classList.toggle("on", on); $("bCab").classList.toggle("on", on);
@@ -1908,16 +1918,16 @@ function bootRoom(hostViewer, spot){
         setShade(false);                                 /* 덮개가 스르르 올라간다 */
         $("plate").classList.remove("gate");
         var gn = $("gateNote"); if (gn) gn.classList.remove("on");
-        setTimeout(function(){ if (gn && gn.remove) gn.remove(); }, 600);
+        EGV_later(function(){ if (gn && gn.remove) gn.remove(); }, 600);
         console.log("[EG] 게이트 열림 \u2014", why);
-        setTimeout(function(){ $("go").click(); }, 420);  /* 덮개가 다 오른 뒤 출발 */
+        EGV_later(function(){ var g = $("go"); if (g) g.click(); }, 420);  /* 덮개가 다 오른 뒤 출발 */
       };
 
       /* ⭐ 준비가 끝났다고 알린다 — 실제 여객기도 이륙 전에 창 덮개를 열어 달라고 한다 */
       var markReady = function(why){
         if (ready || opened) return;
         var left = STAY - (Date.now() - t0);
-        if (left > 0){ setTimeout(function(){ markReady(why); }, left); return; }
+        if (left > 0){ EGV_later(function(){ markReady(why); }, left); return; }
         ready = true;
         console.log("[EG] 게이트 준비 \u2014", why);
         var gn = document.createElement("div");
@@ -1926,7 +1936,7 @@ function bootRoom(hostViewer, spot){
         gn.onclick = function(){ open("손님이 열었습니다"); };
         ROOT.appendChild(gn);
         requestAnimationFrame(function(){ gn.classList.add("on"); });
-        setTimeout(function(){ open("스스로 열렸습니다"); }, AUTO);
+        EGV_later(function(){ open("스스로 열렸습니다"); }, AUTO);
       };
 
       /* ⚠ terra 의 tileset 은 블록 지역 변수라 밖에서 못 쓴다.
@@ -1952,7 +1962,7 @@ function bootRoom(hostViewer, spot){
             if (okN >= 3){ offTick(); markReady("타일이 다 실렸습니다"); }
           }catch(err){ try{ offTick(); }catch(e2){} markReady("타일을 못 살폈습니다"); }
         });
-        setTimeout(function(){ try{ offTick(); }catch(e){} markReady("안전 시계"); }, 8000);
+        EGV_later(function(){ try{ offTick(); }catch(e){} markReady("안전 시계"); }, 8000);
       } else {
         /* 실사 타일이 아예 없는 판 — 기본 지구라 기다릴 것이 없다 */
         markReady("실사 타일 없음");
@@ -2008,11 +2018,42 @@ function saveCam(v){
             heading: v.camera.heading, pitch: v.camera.pitch, roll: v.camera.roll };
   }catch(e){ CAM = null; }
 }
+/* ⚠⚠ 0818 소로 — × 로 나왔더니 카메라가 바다 위 11km 에 남아 「부옇게 아무 변화 없이」였다.
+     방은 30분 동안 카메라를 서쪽으로 끌고 간다. 그 마지막 곳이 대양 한복판이면
+     지구로 돌아온 손님에게는 아무것도 없는 화면이 된다.
+   ⭐ 그래서 되돌리기에 층을 셋 둔다 —
+     ① 들어오기 직전 곳으로 (있으면)
+     ② 없거나 실패하면 파리 상공 1,000km — terra 가 처음 서는 그 곳
+     ③ 어느 쪽이든 고도가 낮으면 올린다. 지표가 코앞이면 어지럽다
+   ⚠ 그리고 한 프레임 뒤에 한 번 더 건다 — 방의 마지막 setView 가 뒤늦게 덮는 일이 있다. */
 function restoreCam(v){
-  if (!CAM || !v) return;
+  if (!v){ CAM = null; return; }
+  var target = CAM;
+  var apply = function(){
+    try{
+      if (target){
+        v.camera.setView({ destination: target.pos,
+          orientation:{ heading:target.heading, pitch:target.pitch, roll:target.roll } });
+        /* 너무 낮으면 들어올린다 — 300km 아래면 지구가 안 보인다 */
+        var carto = Cesium.Cartographic.fromCartesian(v.camera.position);
+        if (carto && carto.height < 300000){
+          v.camera.setView({
+            destination: Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, 1000000),
+            orientation:{ heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 } });
+        }
+      } else {
+        v.camera.setView({
+          destination: Cesium.Cartesian3.fromDegrees(2.3440, 48.8530, 1000000),
+          orientation:{ heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 } });
+      }
+    }catch(e){ console.warn("[EG] 카메라 되돌리기 실패:", e); }
+  };
+  apply();
+  try{ requestAnimationFrame(apply); }catch(e){}
   try{
-    v.camera.setView({ destination: CAM.pos,
-      orientation:{ heading:CAM.heading, pitch:CAM.pitch, roll:CAM.roll } });
+    var c2 = Cesium.Cartographic.fromCartesian(v.camera.position);
+    console.log("[EG] 지구로 \u2014", target ? "들어오기 직전 곳" : "파리 상공(폴백)",
+                "· 고도", Math.round((c2 ? c2.height : 0)/1000) + "km");
   }catch(e){}
   CAM = null;
 }
@@ -2037,6 +2078,8 @@ function enter(hostViewer, spot){
 
 function leave(){
   var v = (typeof viewer !== "undefined") ? viewer : null;
+  EGV_clearTimers();                                  /* ⚠ 예약이 남으면 없는 DOM 을 만진다 */
+  try{ if (window.__egHush) window.__egHush(); }catch(e){}   /* ⭐ 기내 소음을 끈다 */
   /* ⚠ 순서가 중요하다 — stopAll 은 $("barIn") 을 만진다. 방을 지운 뒤 부르면 터진다.
      그리고 저장이 가장 먼저다. 손님이 쓴 것을 잃는 일만은 없어야 한다. */
   try{ if (typeof D !== "undefined" && D && D.dirty && typeof saveDiary === "function")
