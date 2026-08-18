@@ -469,7 +469,7 @@
       해가 창 한가운데 머문다. 0817 실측: 대권 고정이면 19분에 창을 벗어난다.
    ⚠ 창 테두리는 판(9:16) 기준 %를 화면 px로 환산해서 그린다 — 세로가 2.8~3.2배다
    ══════════════════════════════════════════════════════════════ */
-console.log("[EG] taxi 0818c — 제네바 23 · 이륙 후 좌선회 118° · 밀라노 침로");
+console.log("[EG] taxi 0818d — 들어서면 곧바로 활주 · 앞으로만 간다 · 지면 실측");
 
 var KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A";
 var KMH = 900, R_PLATE = 941/1672;
@@ -708,7 +708,7 @@ function halfFovX(){
    0818 소로가 위성사진에서 딴 열두 점. 소수 5자리 (좌표 수칙).
    ⭐ 점을 「꺾는 곳」으로 쓰지 않는다. 회전 **속도**를 제한하면 코너가 저절로 원호를 그린다. */
 var GVA = [
-  { n:"활주로 정렬", la:46.24985, lo:6.12626, v:0,   hold:6 },   /* 05 끝에서 23 으로 돌아선 채 */
+  { n:"활주로 23",   la:46.24985, lo:6.12626, v:0 },   /* 들어서면 곧바로 구른다 (0818 소로) */
   { n:"이륙 활주",   la:46.23438, lo:6.10355, v:290, roll:true } /* 2.4km · 방위 225.5° */
 ];
 /* ⚠ 0818 소로 — 게이트·푸시백·택싱은 걷었다.
@@ -718,11 +718,13 @@ var GVA = [
   var GATE_HDG = 225.5, TURN_GND = 3.2, TURN_PUSH = 1.6, SEAT_H = 5.4;
   /* 이륙 뒤 이 방위로 돌아 나간다 — 제네바 → 밀라노 대권 초기 방위 */
   var COURSE = 107.5, TURN_AIR = 3.0, BANK_MAX = 25, BANK_RATE = 6;
+  /* ⚠ 타원체 기준 높이. 제네바 공항 표고 430m(해수면) + 지오이드고 약 48m */
+  var GND_FALLBACK = 478;
 
 function taxi(opt){
   var i = 0, la = GVA[0].la, lo = GVA[0].lo, hdg = GATE_HDG;
   var v = 0, held = 0, t0 = performance.now(), tp = t0, gH = null, gT = 0, dist = 0;
-  var airborne = false, pitch = 0, climbAlt = 0, bank = 0;
+  var airborne = false, pitch = 0, climbAlt = 0, bank = 0, gOK = false;
 
   function brgTo(a1,o1,a2,o2){
     var p1=Cesium.Math.toRadians(a1), p2=Cesium.Math.toRadians(a2), dl=Cesium.Math.toRadians(o2-o1);
@@ -756,15 +758,16 @@ function taxi(opt){
         if (d < 60 && GVA[i+2]) want = Math.min(want, GVA[i+2].v + 6);
         v += Math.max(-14*dt, Math.min(14*dt, (want - v) * .6));
       }
+      /* ⚠⚠ 0818 소로 — 비행기가 뒤로 갔다. 푸시백을 걷으면서 back 배관만 남겨 둔 탓이다.
+         두 점짜리 경로에는 뒤로 갈 일이 없으므로 통째로 걷는다.
+         ⭐ 앞으로만 간다. 진행 방향 = 기수 방향. */
       var wantH = brgTo(la, lo, tgt.la, tgt.lo);
-      if (tgt.back || cur.back) wantH = (wantH + 180) % 360;
       var diff = ((wantH - hdg + 540) % 360) - 180;
-      var rate = ((tgt.back||cur.back) ? TURN_PUSH : TURN_GND) * dt * (v > 40 ? 2.2 : 1);
+      var rate = TURN_GND * dt * (v > 40 ? 2.2 : 1);
       hdg = (hdg + Math.max(-rate, Math.min(rate, diff)) + 360) % 360;
 
-      var go = (tgt.back || cur.back) ? (hdg + 180) % 360 : hdg;
       var km = (v/3.6) * dt / 1000; dist += km;
-      var p = stepFrom(la, lo, go, km); la = p[0]; lo = p[1];
+      var p = stepFrom(la, lo, hdg, km); la = p[0]; lo = p[1];
       if (d < (v > 100 ? 40 : 14) && i < GVA.length-2){ i++; held = 0; }
     }
 
@@ -792,12 +795,24 @@ function taxi(opt){
       var p2 = stepFrom(la, lo, hdg, (v/3.6)*dt/1000); la = p2[0]; lo = p2[1];
     }
 
-    if (now - gT > 700){
+    /* ⚠⚠ 0818 소로 — 기체가 땅속에 잠겼다.
+       ㉠ sampleHeight 는 3D 타일이 실려야 값을 준다. 안 실리면 undefined 다.
+       ㉡ 폴백으로 둔 430m 는 **해수면 기준 표고**인데, fromDegrees 의 높이는
+          **타원체 기준**이다. 스위스에서 그 차이(지오이드고)가 +48m 쯤 된다.
+          그래서 48m 를 땅속에서 출발했다.
+       ⭐ 타일이 실릴 때까지는 478m 로 버티고, 실리면 실측으로 갈아탄다.
+       ⚠ 실측이 한 번이라도 성공하면 그 뒤로는 폴백을 다시 안 쓴다. */
+    if (now - gT > 400){
       gT = now;
-      try{ var hh = viewer.scene.sampleHeight(Cesium.Cartographic.fromDegrees(lo, la));
-           if (Cesium.defined(hh)) gH = hh; }catch(e){}
+      try{
+        var cg = Cesium.Cartographic.fromDegrees(lo, la);
+        var hh = viewer.scene.sampleHeight(cg);
+        if (!Cesium.defined(hh) && viewer.scene.globe)
+          hh = viewer.scene.globe.getHeight(cg);
+        if (Cesium.defined(hh) && hh > -500 && hh < 9000){ gH = hh; gOK = true; }
+      }catch(e){}
     }
-    var base = (gH === null ? 430 : gH);
+    var base = gOK ? gH : GND_FALLBACK;
     var look = Cesium.Math.toRadians((hdg + side*90 + 360) % 360);
     /* ⚠ 창가 시점은 옆을 본다. 그래서 기체의 뱅크가 카메라에는 **위아래 기울기**로 온다.
        왼쪽 창은 아래를 내려다보고, 오른쪽 창은 하늘로 열린다 — side 로 부호가 갈린다. */
@@ -1522,13 +1537,15 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     try{
       side = 1;                       /* 오른쪽 좌석 */
       viewer.camera.setView({
-        destination: Cesium.Cartesian3.fromDegrees(GVA[0].lo, GVA[0].la, 430 + SEAT_H),
+        destination: Cesium.Cartesian3.fromDegrees(GVA[0].lo, GVA[0].la, GND_FALLBACK + SEAT_H),
         orientation:{ heading: Cesium.Math.toRadians((GATE_HDG + side*90 + 360) % 360), pitch: 0, roll: 0 }
       });
       layoutFrames();
       if (!$("plate").classList.contains("on")) $("bCab").click();
-      $("mini").textContent = "\ud65c\uc8fc\ub85c 23   \u00b7   Space \ub97c \ub204\ub974\uba74 \uc774\ub959\ud569\ub2c8\ub2e4";
+      $("mini").textContent = "\ud65c\uc8fc\ub85c 23";
       $("hiWhere").textContent = "Gen\u00e8ve \u00b7 \ud65c\uc8fc\ub85c 23";
+      /* ⚠ 타일이 실린 뒤에 굴러야 지면 높이를 제대로 잡는다 (0818 — 땅속에 잠긴 병) */
+      setTimeout(function(){ $("go").click(); }, 1200);
     }catch(err){ console.warn("[EG] 활주로 세우기 실패:", err); }
   })();
 
