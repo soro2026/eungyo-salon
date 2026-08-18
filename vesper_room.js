@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════
-   EG베스페르 — 방(room) 판  ·  vesper_room.js  ·  v0818j
+   EG베스페르 — 방(room) 판  ·  vesper_room.js  ·  v0818k
    2026.08.18 소로 × 파이스 · 142회차
 
    ⭐⭐ 왜 이 파일이 생겼나 — 「한 문서 · 한 root」
@@ -594,7 +594,7 @@ var HTML = `<div id="fade"></div>
       해가 창 한가운데 머문다. 0817 실측: 대권 고정이면 19분에 창을 벗어난다.
    ⚠ 창 테두리는 판(9:16) 기준 %를 화면 px로 환산해서 그린다 — 세로가 2.8~3.2배다
    ══════════════════════════════════════════════════════════════ */
-console.log("[EG] vesper_room 0818j — 마스크에 인장 둘 · 클라이언트 한 벌 · KEEP 배열");
+console.log("[EG] vesper_room 0818k — 남의 비행 끊기 · 게이트 바빴는지 확인 · 인장 마스크");
 
 /* ⚠ 0818 — 구글 API 키를 걷었다. 이 방은 terra 의 타일을 그대로 쓴다.
    키가 여기 남아 있으면 root 요청이 또 나가고, 그것이 곧 청구서다. */
@@ -924,6 +924,9 @@ function preview(){
   if (lon === null){ $("tel").textContent = "이 위도는 지금 백야·극야입니다"; return; }
   var s = sunAzEl(lat, lon);
   var az = deg(s.az), brg = (az - side*90 + 360)%360;
+  /* ⚠⚠ 0818 밤 — 날아가는 중인 카메라는 setView 를 덮는다. 놓기 전에 끊는다.
+     ⭐ 여기서는 cancelFlight 다 — 집주인이 어디로 가고 있었든, 방은 일몰 지점에 앉는다. */
+  try{ viewer.camera.cancelFlight(); }catch(e){}
   viewer.camera.setView({
     destination: Cesium.Cartesian3.fromDegrees(lon, lat, (+$("alt").value)*1000),
     orientation:{ heading: Cesium.Math.toRadians(az),
@@ -1454,6 +1457,10 @@ function bootRoom(hostViewer, spot){
     var body = $("dBody").value;
     rpc("diary_first_line", { p_body: body }).catch(function(){ return null; })
       .then(function(line){
+        /* ⚠ 0818 밤 — leave() 가 나가면서 dirty 한 일기를 저장한다. 지난 일기를 고치는 중이면
+             그 저장이 "saved" 라 여기까지 온다. 그때는 방이 이미 걷힌 뒤라, 인장이
+             terra 화면 위에 홀로 떠오른다. 늦게 온 응답은 방이 아직 있을 때만 받는다. */
+        if (!ROOT || !document.body.contains(ROOT)) return;
         EGStamp.offer({ supa: sb, area: "vesper", kind: "ves_scribere",
                         inscription: line || null,
                         bottom: 96 });      /* 조작판 위로 올린다 */
@@ -1911,6 +1918,16 @@ function bootRoom(hostViewer, spot){
       var p = SPOT || EGGeo.pickSunsetLand(sunLonAt, +$("sel").value);   /* 결정문 21호 */
       if (p){ $("lat").value = p.lat; $("latV").textContent = p.lat + "\u00B0"; }
       preview();
+      /* ⭐ 진단 — 앉힌 직후 카메라가 정말 그 곳에 있는가.
+         ⚠ 여기 찍힌 곳과 게이트가 열릴 때 찍힌 곳이 다르면, 그 사이에 누가 카메라를
+           끌고 간 것이다(남의 flyTo). 문구가 아니라 숫자로 대조한다. */
+      try{
+        var c0 = Cesium.Cartographic.fromCartesian(viewer.camera.position);
+        console.log("[EG] 앉혔습니다 \u2014",
+          Cesium.Math.toDegrees(c0.latitude).toFixed(3) + ", " +
+          Cesium.Math.toDegrees(c0.longitude).toFixed(3),
+          "\u00b7 고도", Math.round(c0.height/1000) + "km");
+      }catch(e){}
       if (!$("plate").classList.contains("on")) $("bCab").click();   /* 기내를 켠다 (안내 방송도 함께) */
 
       if (!USE_GATE){                                    /* 안전망을 내렸을 때 — 옛 흐름 */
@@ -1941,6 +1958,14 @@ function bootRoom(hostViewer, spot){
         var gn = $("gateNote"); if (gn) gn.classList.remove("on");
         EGV_later(function(){ if (gn && gn.remove) gn.remove(); }, 600);
         console.log("[EG] 게이트 열림 \u2014", why);
+        /* ⭐ 진단 — 여는 순간 카메라가 어디 있는가. 「앉혔습니다」와 다르면 남이 끌고 간 것이다. */
+        try{
+          var c1 = Cesium.Cartographic.fromCartesian(viewer.camera.position);
+          console.log("[EG] 여는 순간 창밖 \u2014",
+            Cesium.Math.toDegrees(c1.latitude).toFixed(3) + ", " +
+            Cesium.Math.toDegrees(c1.longitude).toFixed(3),
+            "\u00b7 고도", Math.round(c1.height/1000) + "km");
+        }catch(e){}
         EGV_later(function(){ var g = $("go"); if (g) g.click(); }, 420);  /* 덮개가 다 오른 뒤 출발 */
       };
 
@@ -1972,15 +1997,25 @@ function bootRoom(hostViewer, spot){
       }catch(e){}
 
       if (ts){
-        /* ⚠⚠ 0818 — allTilesLoaded 를 한 번만 듣고 믿었더니, 카메라를 옮긴 직후
-             「직전 곳은 다 왔다」로 즉시 발화해 버렸다. 신호 한 번은 못 믿는다.
-           ⭐ 연속 세 프레임 참일 때만 인정한다. 그때는 새 지점을 요청한 뒤다. */
-        var okN = 0;
+        /* ⚠⚠ 0818 낮 — allTilesLoaded 를 한 번만 듣고 믿었더니, 카메라를 옮긴 직후
+             「직전 곳은 다 왔다」로 즉시 발화해 버렸다. 그래서 연속 세 프레임으로 고쳤다.
+           ⚠⚠ 0818 밤 — 그것으로도 모자랐다. **세 프레임은 50밀리초다.**
+             직전에 보던 곳(소로의 경우 파리)의 타일은 이미 다 실려 있으므로
+             tilesLoaded 가 처음부터 참이고, 새 지점을 요청하기도 전에 셋을 채운다.
+           ⭐ 그래서 「한 번이라도 바빠졌는가」를 먼저 묻는다. 바빠졌다는 것은
+             새 지점의 타일을 실제로 요청했다는 뜻이고, 그 뒤의 「다 왔다」만이 참말이다.
+           ⚠ 바다·오지처럼 실사 타일이 아예 없는 곳은 영영 안 바빠진다. 그때는
+             90프레임(약 1.5초) 내리 조용한 것을 「정말 실을 게 없다」로 인정한다.
+             ⚠ 8초 그물은 그대로 둔다 — 이 셈이 어긋나도 손님을 가둬 두지 않는다. */
+        var okN = 0, busy = false;
         var offTick = viewer.clock.onTick.addEventListener(function(){
           /* ⚠ 리스너 전체를 감싼다 — 여기서 난 오류가 렌더 루프를 세운 적이 있다(17호 ㉥) */
           try{
-            if (ts.tilesLoaded) okN++; else okN = 0;
-            if (okN >= 3){ offTick(); markReady("타일이 다 실렸습니다"); }
+            if (ts.tilesLoaded) okN++; else { okN = 0; busy = true; }
+            if (okN >= (busy ? 3 : 90)){
+              offTick();
+              markReady(busy ? "타일이 다 실렸습니다" : "실을 타일이 없는 곳입니다");
+            }
           }catch(err){ try{ offTick(); }catch(e2){} markReady("타일을 못 살폈습니다"); }
         });
         EGV_later(function(){ try{ offTick(); }catch(e){} markReady("안전 시계"); }, 8000);
@@ -2065,6 +2100,11 @@ function restoreCam(v){
   var target = CAM;
   var apply = function(){
     try{
+      /* ⚠⚠ 0818 밤 — 되돌리기가 「먹히다가 안 먹히다가」 한 진범.
+         terra 의 flyTo 가 아직 날고 있으면 setView 는 한 프레임만 먹고 도로 덮인다.
+         그러면 손님은 적어 둔 곳이 아니라 그 비행의 목적지에 떨어진다 — 아주 낯선 곳에.
+         ⚠ rAF 로 한 번 더 걸 때도 함께 끊는다. 한 번만 끊으면 그 사이에 새로 뜬다. */
+      try{ v.camera.cancelFlight(); }catch(e2){}
       if (target){
         /* ⚠⚠ 0818 소로 — 여기에 「300km 아래면 1,000km 로 들어올린다」를 두었다가 걷었다.
              웨스트민스터 상공에 일부러 내려앉으셨는데 나올 때 런던 1,000km 로 튀어올랐다.
@@ -2109,6 +2149,17 @@ function enter(hostViewer, spot){
   if (ROOT) leave();                  /* 남아 있으면 먼저 걷는다 */
   mountStyle();
   mountHtml();
+  /* ⚠⚠⚠ 0818 밤 — setView 는 **날아가는 중인 카메라를 못 이긴다.**
+       Cesium 의 camera.flyTo 는 트윈이라 매 프레임 카메라를 다시 쓴다. 그 사이에
+       setView 를 부르면 그 한 프레임만 먹고 다음 프레임에 도로 덮인다.
+     ⚠ terra 에는 flyTo 가 열 곳 있고, 취소를 거는 곳은 한 곳뿐이었다.
+       그중 goToMyHome 은 await 를 넷 거친 뒤에 나는 비행이라 **부른 지 몇 초 뒤에 출발한다.**
+       소로의 집이 파리 라탱이므로, 그 늦은 비행이 방 안까지 따라 들어와
+       ① 게이트가 열릴 때 라탱 건물을 비추고 ② 나갈 때 되돌리기를 덮었다.
+       「먹히다가 안 먹히다가」는 손님이 그 비행과 겹쳤느냐 아니냐였다.
+     ⭐ completeFlight 다 — cancelFlight 가 아니다. 취소하면 카메라가 가던 길 한복판에 서고,
+       그 어중간한 좌표를 「직전 곳」으로 적게 된다. 가려던 곳까지 보낸 뒤에 적는다. */
+  try{ hostViewer.camera.completeFlight(); }catch(e){}
   saveCam(hostViewer);
   document.body.classList.add("vesper-on");
   /* ⚠⚠ terra 의 enterRoomUrl 은 방에 들 때 useDefaultRenderLoop = false 로 지구를 재운다.
@@ -2151,5 +2202,5 @@ function leave(){
   console.log("[EG] 베스페르 방을 걷었습니다 — 카메라를 terra 로 되돌렸습니다.");
 }
 
-window.egVesper = { enter: enter, leave: leave, version: "0818j" };
+window.egVesper = { enter: enter, leave: leave, version: "0818k" };
 })();
