@@ -2151,7 +2151,6 @@ body.standalone #backBtn{display:block;}
 
 <!-- ② 내부 페이지 — overlay 밖으로 분리 (fixed 독립 레이어) -->
 <div class="f4book-modal" id="f4bookModal">
-  <button class="f4book-close-btn">×</button>
 
   <!-- 페이지들 -->
   <div id="f4bookPages" style="position:relative;width:340px;height:460px;min-height:460px;overflow:hidden;flex-shrink:0;flex-grow:0">
@@ -2260,7 +2259,7 @@ async function sbFetch(path, options = {}) {
   }
   return res.status === 204 ? null : res.json();
 }
-console.log("%c[EG] wunderkammer 0818b · 놋쇠 조작반(눈높이 아래) · 세 곳 차례 통일(최신이 맨 위 왼쪽 · \u25b6 = 더 예전) · 책 모달 되찾음 · 엘리베이터 그림자 걷음", "color:#c9a84c");
+console.log("%c[EG] wunderkammer 0818c · \u25b2 \uc9c1\ud589\uc740 \uce74\uba54\ub77c \uc5c6\uc774 \uacf3\ubc14\ub85c · \ub18b\uc1e0 \uc870\uc791\ubc18 · \uc138 \uacf3 \ucc28\ub840 \ud1b5\uc77c · \ucc45 \ubaa8\ub2ec \ub418\ucc3e\uc74c(\u00d7 \uac77\uc74c)", "color:#c9a84c");
 function getUser() { try { return JSON.parse(localStorage.getItem('eungyo-auth'))?.user || null; } catch { return null; } }
 
 /* ── 층 구성 (2026.07.28 「세 건물 재편 결정문」 7호로 4층 축소) ──
@@ -2276,7 +2275,7 @@ const FLOORS = [
     bg1:'#2a1d18', bg2:'#4a3226', accent:'#c9a84c', text:'#f0ebe0', dim:'#bfa88a' },
   { n: 2, roman: 'II',  fr: 'Bibliothèque',       kr: '책의 방',          desc:'읽은 책의 표지가 선반에 선다',
     bg1:'#2a1410', bg2:'#4a1822', accent:'#b8884c', text:'#e8d4a0', dim:'#a07c66' },
-  { n: 3, roman: 'III', fr: 'Sanctuaire',         kr: '내 교양의 지성소', desc:'가장 깊은 곳 — 아무에게도 안 보여도 되는',
+  { n: 3, roman: 'III', fr: 'Sanctuaire',         kr: '내 교양의 지성소', desc:'은밀하게 스며드는 교양이 응결되는 곳',
     bg1:'#1a0e12', bg2:'#2e1018', accent:'#c9a84c', text:'#e8d4a0', dim:'#a07c66' },
   { n: 4, roman: 'IV',  fr: 'Le Mur des Visages', kr: '내가 사랑한 얼굴들', desc:'품은 별의 액자가 걸린 벽',
     bg1:'#0c0a08', bg2:'#181210', accent:'#8a6a3a', text:'#a89878', dim:'#6b5838' },
@@ -2293,6 +2292,14 @@ const SFX = {
 
 let currentFloor = 1;
 let transitioning = false;
+/* ⭐⭐ 0818 소로 — 「삼각형을 누르면 카메라 워크 없이 바로 최종 지점에」.
+     엘리베이터(⇡)는 문이 닫히고 열리는 4초에 들어서는 3초가 얹혀야 뜻이 맞지만,
+     직행(▲)은 **이미 아는 곳으로 곧장 가는 문**이라 연출이 오히려 방해가 된다.
+   ⚠ 층마다 카메라를 따로 고치지 않는다 — 받는 곳(runCamera)에서 한 번에 본다(0816 조항 ④).
+   ⚠⚠ 선언은 **쓰는 곳보다 앞**에 둔다. landOnFloor 가 이 값을 읽는데 let 은 TDZ 가 있어
+       선언 뒤에 두면 순서가 어긋나는 날 화면이 통째로 선다(0817 딱지 — 두 번 넘어진 자리).
+     한 번 쓰고 저절로 꺼진다. 남겨 두면 다음 입장까지 연출이 죽는다. */
+let egSkipCamera = false;
 let muted = false;
 
 const floorLayer  = document.getElementById('floorLayer');
@@ -2576,6 +2583,9 @@ function renderFloor(n) {
   if (n === 3) Floor4.mount();   // 치타델레
   if (n === 2) Floor3.mount();   // 서고
   if (n === 1) Salon.mount();    // 거실
+  /* ⚠ 카메라는 두 겹 rAF 뒤에 도니 그보다 늦게 끈다. 세 겹이면 넉넉하다 */
+  if (egSkipCamera) requestAnimationFrame(()=>requestAnimationFrame(
+    ()=>requestAnimationFrame(()=>{ egSkipCamera = false; })));
 
   renderAnchorList();
 }
@@ -2680,6 +2690,7 @@ function landOnFloor(target){
 function jumpToFloor(target){
   if (transitioning) return;
   if (target < 1 || target > TOP_FLOOR || target === currentFloor) return;
+  egSkipCamera = true;
   transitioning = true; syncLiftLamp();
   if (bootHint) bootHint.style.opacity = '0';
   const veil = document.getElementById('wkJump');
@@ -4353,7 +4364,7 @@ const Floor3 = (() => {
     /* 폰(세로)은 스크롤 길이가 0이라 카메라가 헛돈다 — 바로 앉힌다 */
     const scrollable = (innerWidth/innerHeight) >= STAGE_AR;
     requestAnimationFrame(()=>requestAnimationFrame(()=>{
-      try { scrollable ? EGCamera.enter(opts) : EGCamera.settle(opts); }
+      try { (scrollable && !egSkipCamera) ? EGCamera.enter(opts) : EGCamera.settle(opts); }
       catch(e){ console.warn('[책의 방] 카메라', e); }
     }));
   }
@@ -5666,8 +5677,8 @@ const Floor3 = (() => {
     const overlay = document.getElementById('f4bookModalOverlay');
     document.getElementById('f4coverBook3D').addEventListener('click', f4EnterBook);
     overlay.addEventListener('click', f4OverlayClick);
-    const closeBtn = document.querySelector('.f4book-close-btn');
-    if(closeBtn) closeBtn.addEventListener('click', f4CloseBook);
+    /* ⚠ 0818 소로 — 맨 위 × 를 걷었다(옷이 없어 브라우저 기본 단추로 서 있었다).
+         닫는 문은 둘 남는다 — 바깥 누르기(f4OverlayClick)와 ESC. 책은 덮으면 닫힌다. */
     const l = document.getElementById('f4navLeft');
     const r = document.getElementById('f4navRight');
     if(l) l.addEventListener('click', ()=>f4TurnPage(-1));
@@ -5993,7 +6004,7 @@ const Floor4 = (() => {
     const opts = { box:'#f4-scroll', fit:'#f4-fit', ratio:STAGE_AR, rect:CAM };
     const scrollable = (innerWidth/innerHeight) >= STAGE_AR;
     requestAnimationFrame(()=>requestAnimationFrame(()=>{
-      try { scrollable ? EGCamera.enter(opts) : EGCamera.settle(opts); }
+      try { (scrollable && !egSkipCamera) ? EGCamera.enter(opts) : EGCamera.settle(opts); }
       catch(e){ console.warn('[지성소] 카메라', e); }
     }));
   }
@@ -6667,7 +6678,7 @@ const Floor5 = (() => {
     const opts = { box:'#f5-scroll', fit:'#f5-fit', ratio:STAGE_AR, rect:CAM };
     const scrollable = (innerWidth/innerHeight) >= STAGE_AR;
     requestAnimationFrame(()=>requestAnimationFrame(()=>{
-      try { scrollable ? EGCamera.enter(opts) : EGCamera.settle(opts); }
+      try { (scrollable && !egSkipCamera) ? EGCamera.enter(opts) : EGCamera.settle(opts); }
       catch(e){ console.warn('[액자방] 카메라', e); }
     }));
   }
