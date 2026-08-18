@@ -2259,7 +2259,7 @@ async function sbFetch(path, options = {}) {
   }
   return res.status === 204 ? null : res.json();
 }
-console.log("%c[EG] wunderkammer 0818c · \u25b2 \uc9c1\ud589\uc740 \uce74\uba54\ub77c \uc5c6\uc774 \uacf3\ubc14\ub85c · \ub18b\uc1e0 \uc870\uc791\ubc18 · \uc138 \uacf3 \ucc28\ub840 \ud1b5\uc77c · \ucc45 \ubaa8\ub2ec \ub418\ucc3e\uc74c(\u00d7 \uac77\uc74c)", "color:#c9a84c");
+console.log("%c[EG] wunderkammer 0818d \u00b7 \u25b2 \uc9c1\ud589\uc740 \ud6d1\uc9c0 \uc54a\uace0 \uacf3\ubc14\ub85c(\uac70\uc2e4 \uadf8\ub9bc \u00b7 \ucc45\uc7a5 \uc804\uccb4 \u00b7 \uc11c\uac00 \uc0c1\ub2e8 \u00b7 \uccab \uc904 \uc561\uc790) \u00b7 \ub18b\uc1e0 \uc870\uc791\ubc18 \u00b7 \ucc45 \ubaa8\ub2ec", "color:#c9a84c");
 function getUser() { try { return JSON.parse(localStorage.getItem('eungyo-auth'))?.user || null; } catch { return null; } }
 
 /* ── 층 구성 (2026.07.28 「세 건물 재편 결정문」 7호로 4층 축소) ──
@@ -2583,9 +2583,10 @@ function renderFloor(n) {
   if (n === 3) Floor4.mount();   // 치타델레
   if (n === 2) Floor3.mount();   // 서고
   if (n === 1) Salon.mount();    // 거실
-  /* ⚠ 카메라는 두 겹 rAF 뒤에 도니 그보다 늦게 끈다. 세 겹이면 넉넉하다 */
-  if (egSkipCamera) requestAnimationFrame(()=>requestAnimationFrame(
-    ()=>requestAnimationFrame(()=>{ egSkipCamera = false; })));
+  /* ⚠⚠ 0818 — 여기서 시간으로 껐다가 틀렸다. 층의 카메라는 rAF 두 겹 뒤가 아니라
+       **배경 그림을 다 받은 뒤**(await setBg)에 돈다. 수십 밀리초가 아니라 수백이다.
+     ⭐ 그래서 끄는 일은 시계가 아니라 **쓰는 쪽**이 한다 — 각 층 카메라가 읽으면서 끈다.
+       한 번에 한 층만 서므로 서로 먹을 일이 없다. */
 
   renderAnchorList();
 }
@@ -2691,6 +2692,10 @@ function jumpToFloor(target){
   if (transitioning) return;
   if (target < 1 || target > TOP_FLOOR || target === currentFloor) return;
   egSkipCamera = true;
+  /* ⚠⚠ 안전 시계 — 배경 그림이 안 떠서 층이 카메라를 아예 안 부르면 이 열쇠가 남고,
+       그다음 정상 입장에서 연출이 조용히 죽는다. 3초 뒤에는 무조건 되돌린다
+       (0817 vesper 의 swapping 과 같은 자리다 — 안 풀리는 깃발은 병이 된다). */
+  setTimeout(function(){ egSkipCamera = false; }, 3000);
   transitioning = true; syncLiftLamp();
   if (bootHint) bootHint.style.opacity = '0';
   const veil = document.getElementById('wkJump');
@@ -2705,6 +2710,7 @@ function jumpToFloor(target){
 function goToFloor(target) {
   if (transitioning) return;
   if (target < 1 || target > TOP_FLOOR || target === currentFloor) return;
+  egSkipCamera = false;        /* ⚠ 엘리베이터는 언제나 들어서는 연출이 산다 (0818) */
   transitioning = true; syncLiftLamp();
   if (bootHint) bootHint.style.opacity = '0';
 
@@ -3023,8 +3029,11 @@ const Salon = (() => {
     if (sc){
       sc.scrollTop = 0;
       if (window.EGCamera){
+        /* ▲ 직행이면 훑지 않고 그림 앞에 곧장 선다 (0818 소로) */
+        const skip = egSkipCamera; egSkipCamera = false;
         requestAnimationFrame(()=> requestAnimationFrame(()=>
-          EGCamera.sweep({ box:'#sl-scroll', target:'.sl-art', dir:'up', fallback:.35 })));
+          EGCamera.sweep({ box:'#sl-scroll', target:'.sl-art', dir:'up',
+                           fallback:.35, instant: skip })));
       }
     }
   }
@@ -4359,12 +4368,14 @@ const Floor3 = (() => {
   function runCamera(){
     if (!window.EGCamera) return;
     const s = shelf();
-    const CAM = { L:s.l, T:s.top, W:s.r-s.l, H:(s.b1-s.top)*1.5 };
+    /* ⭐ 0818 소로 — 2층의 안착 지점은 **책장 전체**다. 첫 단이 아니라 감의 한가운데에 선다 */
+    const CAM = { L:s.l, T:s.top, W:s.r-s.l, H:(s.bot-s.top) };
     const opts = { box:'#bk-scroll', fit:'#bk-fit', ratio:STAGE_AR, rect:CAM };
     /* 폰(세로)은 스크롤 길이가 0이라 카메라가 헛돈다 — 바로 앉힌다 */
     const scrollable = (innerWidth/innerHeight) >= STAGE_AR;
     requestAnimationFrame(()=>requestAnimationFrame(()=>{
-      try { (scrollable && !egSkipCamera) ? EGCamera.enter(opts) : EGCamera.settle(opts); }
+      const skip = egSkipCamera; egSkipCamera = false;   /* 읽는 쪽이 끈다 (0818) */
+      try { (scrollable && !skip) ? EGCamera.enter(opts) : EGCamera.settle(opts); }
       catch(e){ console.warn('[책의 방] 카메라', e); }
     }));
   }
@@ -6004,7 +6015,8 @@ const Floor4 = (() => {
     const opts = { box:'#f4-scroll', fit:'#f4-fit', ratio:STAGE_AR, rect:CAM };
     const scrollable = (innerWidth/innerHeight) >= STAGE_AR;
     requestAnimationFrame(()=>requestAnimationFrame(()=>{
-      try { (scrollable && !egSkipCamera) ? EGCamera.enter(opts) : EGCamera.settle(opts); }
+      const skip = egSkipCamera; egSkipCamera = false;   /* 읽는 쪽이 끈다 (0818) */
+      try { (scrollable && !skip) ? EGCamera.enter(opts) : EGCamera.settle(opts); }
       catch(e){ console.warn('[지성소] 카메라', e); }
     }));
   }
@@ -6674,11 +6686,15 @@ const Floor5 = (() => {
   function runCamera(){
     if (!window.EGCamera) return;
     const s = co();
-    const CAM = { L:s.l, T:s.t, W:s.r-s.l, H:(s.b-s.t)*0.5 };
+    /* ⭐ 0818 소로 — 4층의 안착 지점은 **첫 줄 액자**다. 어림으로 반을 자르지 않고
+         자리표 첫 칸의 중심을 그대로 쓴다 — 벽이 좁아져도 첫 줄에 정확히 선다. */
+    const SL0 = slots()[0];
+    const CAM = { L:s.l, T:s.t, W:s.r-s.l, H:Math.max(4, (SL0.y - s.t) * 2) };
     const opts = { box:'#f5-scroll', fit:'#f5-fit', ratio:STAGE_AR, rect:CAM };
     const scrollable = (innerWidth/innerHeight) >= STAGE_AR;
     requestAnimationFrame(()=>requestAnimationFrame(()=>{
-      try { (scrollable && !egSkipCamera) ? EGCamera.enter(opts) : EGCamera.settle(opts); }
+      const skip = egSkipCamera; egSkipCamera = false;   /* 읽는 쪽이 끈다 (0818) */
+      try { (scrollable && !skip) ? EGCamera.enter(opts) : EGCamera.settle(opts); }
       catch(e){ console.warn('[액자방] 카메라', e); }
     }));
   }
