@@ -2016,7 +2016,20 @@ function saveCam(v){
   try{
     CAM = { pos: v.camera.position.clone(),
             heading: v.camera.heading, pitch: v.camera.pitch, roll: v.camera.roll };
-  }catch(e){ CAM = null; }
+    /* ⚠ 0818 소로 — 「직전 곳」과 「파리 폴백」이 겉보기로 같아 구분이 안 됐다.
+       terra 가 처음 서는 곳이 마침 파리 상공 1,000km 라, 직전 화면이 파리면 두 길이 포개진다.
+       ⭐ 담은 좌표를 사람이 읽을 수 있게 적어 둔다 — 문구가 아니라 숫자로 대조한다. */
+    var c = Cesium.Cartographic.fromCartesian(CAM.pos);
+    CAM.lon = Cesium.Math.toDegrees(c.longitude);
+    CAM.lat = Cesium.Math.toDegrees(c.latitude);
+    CAM.hgt = c.height;
+    console.log("[EG] 들어오기 직전 곳을 적어 둡니다 \u2014",
+                CAM.lat.toFixed(3) + ", " + CAM.lon.toFixed(3),
+                "· 고도", Math.round(CAM.hgt/1000) + "km");
+  }catch(e){
+    CAM = null;
+    console.warn("[EG] \u26a0 카메라를 못 적었습니다 \u2014 나갈 때 파리 상공으로 갑니다:", e);
+  }
 }
 /* ⚠⚠ 0818 소로 — × 로 나왔더니 카메라가 바다 위 11km 에 남아 「부옇게 아무 변화 없이」였다.
      방은 30분 동안 카메라를 서쪽으로 끌고 간다. 그 마지막 곳이 대양 한복판이면
@@ -2052,8 +2065,20 @@ function restoreCam(v){
   try{ requestAnimationFrame(apply); }catch(e){}
   try{
     var c2 = Cesium.Cartographic.fromCartesian(v.camera.position);
-    console.log("[EG] 지구로 \u2014", target ? "들어오기 직전 곳" : "파리 상공(폴백)",
-                "· 고도", Math.round((c2 ? c2.height : 0)/1000) + "km");
+    var now = Cesium.Math.toDegrees(c2.latitude).toFixed(3) + ", "
+            + Cesium.Math.toDegrees(c2.longitude).toFixed(3);
+    if (target){
+      var want = target.lat.toFixed(3) + ", " + target.lon.toFixed(3);
+      var same = (Math.abs(target.lat - Cesium.Math.toDegrees(c2.latitude)) < 0.01 &&
+                  Math.abs(target.lon - Cesium.Math.toDegrees(c2.longitude)) < 0.01);
+      var lifted = target.hgt < 300000;
+      console.log("[EG] 지구로 \u2014 되돌림", now, "· 고도", Math.round(c2.height/1000) + "km",
+                  "· 적어 둔 곳", want, same ? "\u2705 일치" : "\u26a0 어긋남",
+                  lifted ? "· \u2b06 낮아서 들어올림" : "");
+    } else {
+      console.warn("[EG] \u26a0 지구로 \u2014 폴백(파리 상공)", now,
+                   "· 적어 둔 곳이 없습니다. saveCam 이 실패했다는 뜻입니다.");
+    }
   }catch(e){}
   CAM = null;
 }
