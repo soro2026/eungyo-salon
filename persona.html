@@ -1005,6 +1005,13 @@
 </style>
 </head>
 <body>
+<!-- ⭐ 0818 소로 — 「파파팍 튀는 느낌」. 직행은 카메라가 즉시 앉으므로 자리 잡기 전 한 프레임이
+     그대로 보인다. 그래서 **자리를 다 잡은 뒤에 모습을 보인다.**
+     ⚠ 안전 시계가 반드시 함께 있어야 한다 — 신호가 한 번이라도 어긋나면 화면이 영영 투명해진다. -->
+<style>
+  body.eg-jump   { opacity:0; }
+  body.eg-jump.eg-shown { opacity:1; transition:opacity .42s ease; }
+</style>
 <div id="sc0">
 <div id="canvas0" class="f-fallback">
   <div class="tgt" id="tg-board">
@@ -1200,7 +1207,7 @@
      같은 물건이 두 곳에 서면 고칠 곳도 둘이 된다. -->
 
 <script>
-console.log('[EG] persona 0818a — 미니 타륜은 카메라 워크 없이 곧바로(jump=1) · 로그아웃이 최상위로');
+console.log('[EG] persona 0818b — 직행은 페이드로 들어오고 액자는 10% 위로 · 미니 타륜(jump=1)');
 /* ⚠ 판 이름을 실제 날짜로 되돌렸다(0818f → 0816g). 앞선 세 회차의 이름표가 이틀 앞서 있었다. */
 /* ══ 교양자화상 · 황금사과 월렛 — apple_log 실연동 (SSoT = SUM(amount)) ══ */
 const SUPABASE_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
@@ -2132,10 +2139,38 @@ document.addEventListener('DOMContentLoaded', () => {
        ⚠ 신호 이름은 분더카머 ▲ 와 같은 `jump=1`이다. 보내는 쪽은 terra —
          한쪽만 고치면 연출이 조용히 살아 있거나 조용히 죽는다.
        ⚠ sweep 은 instant 를 이미 알고 있다(eg_camera 규약). 새로 만든 손잡이가 아니다. */
-    var JUMP = false;
-    try{ JUMP = new URLSearchParams(location.search).get('jump') === '1'; }catch(e){}
+    /* ⚠ 0818 — `PANEL` 은 이 파일의 다른 블록이 이미 쓰는 이름이다(2205행 · 지금 선 단).
+         여기는 IIFE 안이라 가려지지만, 같은 이름이 두 뜻으로 살면 다음 사람이 헷갈린다.
+         새 이름을 지을 때는 grep 부터 — 0815 함정 ㉤과 같은 자리다. */
+    var Q = null, JUMP = false, FRAMED_ON = '';
+    try{ Q = new URLSearchParams(location.search);
+         JUMP = Q.get('jump') === '1';
+         FRAMED_ON = Q.get('panel') || (Q.get('ledger')==='1' ? 'apple' : (Q.get('mail')==='1' ? 'mail' : ''));
+    }catch(e){}
+
+    /* ⭐ 0818 소로 — 액자로 곧장 들어오면 「목이 잘리는 느낌」. 카메라는 겨냥한 것의
+         한가운데를 화면 복판에 놓으므로, 액자가 열린 판에서는 그 머리(제목)가 위로 넘어간다.
+       ⚠ 공용 부품(eg_camera)에 손잡이를 더하지 않는다 — 그것을 부르는 집이 여럿이라
+         꼬리표를 함께 올려야 하고, 이 한 곳을 위해 다섯 집을 흔들 까닭이 없다.
+         여기서 화면 높이의 10%만 도로 올린다. */
+    function lift(){
+      if (!FRAMED_ON) return;
+      try{ sc.scrollTop = Math.max(0, sc.scrollTop - sc.clientHeight * 0.10); }catch(e){}
+    }
+    function shown(){ try{ document.body.classList.add('eg-shown'); }catch(e){} }
+    if (JUMP) document.body.classList.add('eg-jump');
+    setTimeout(shown, 900);            /* ⚠ 안전 시계 — 어느 신호가 어긋나도 화면은 반드시 보인다 */
+
     requestAnimationFrame(function(){ requestAnimationFrame(function(){
-      EGCamera.sweep({ box:'#sc0', target:'#tg-board', dir:'down', instant: JUMP });
+      EGCamera.sweep({ box:'#sc0', target:'#tg-board', dir:'down', instant: JUMP,
+                       onDone: function(){
+                         /* 액자는 이 뒤에 열릴 수도 있다 — 두 겹 뒤에 한 번 더 올린다 */
+                         lift();
+                         requestAnimationFrame(function(){ requestAnimationFrame(function(){
+                           lift(); shown();
+                         });});
+                       } });
+      if (!JUMP) shown();              /* 연출로 들어오면 처음부터 보인다 */
     });});
   }
   if(document.readyState === 'loading') addEventListener('DOMContentLoaded', roll);
