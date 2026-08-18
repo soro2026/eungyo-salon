@@ -592,6 +592,8 @@ window.EGQ = (function(){
   #concertList{ background:rgba(13,20,36,.96); }
   /* 0816 — 미술관은 자줏빛, 음악관은 감청빛, 콜레주는 서재의 갈색 */
   #collegeList{ background:rgba(22,18,12,.96); }
+  /* 0818 — 넷째 판. 베스페르는 일몰이라 검붉은 밤 */
+  #sunsetList{ background:rgba(30,17,14,.96); }
   .tour-head{
     display:flex;align-items:baseline;justify-content:center;gap:7px;
     padding:8px 6px 10px;border-bottom:1px solid rgba(201,162,39,.22);margin-bottom:6px;
@@ -1749,6 +1751,7 @@ window.EGQ = (function(){
 <div id="starList"></div>
 <div id="cityList"></div>
 <div id="galerieList" class="tour-list"></div>
+<div id="sunsetList" class="tour-list"></div>
 <div id="concertList" class="tour-list"></div>
 <!-- 0816 — 콜레주도 미술관·음악관과 같은 판을 쓴다(소로). 세 과목까지 함께 듣는 곳이라
      문패 하나로는 안에 무엇이 있는지 알 길이 없었다. -->
@@ -5661,10 +5664,10 @@ async function openCollegePanel(){
 
 function closeTourLists(){
   /* 0816 — 콜레주가 셋째 판으로 들어왔다. 여기 빠뜨리면 판 둘이 겹쳐 뜬다. */
-  ["galerieList","concertList","collegeList"].forEach(id=>{
+  ["galerieList","concertList","collegeList","sunsetList"].forEach(id=>{
     const b = document.getElementById(id); if (b) b.classList.remove("in");
   });
-  ["navGalerie","navConcert","navCollege"].forEach(id=>{
+  ["navGalerie","navConcert","navCollege","navSunset"].forEach(id=>{
     const b = document.getElementById(id); if (b) b.classList.remove("open");
   });
 }
@@ -5910,14 +5913,121 @@ function loadScriptOnce(src){
   });
 }
 
-async function enterVesperRoom(){
+/* ══ 0818 C1 — 「지금 해가 지는 곳」 판 ═══════════════════════════════════
+   ⭐ 소로 0818 — 「그 시점의 일몰 지역 4~5개를 슬라이드로」. 형제(미술관·음악관)의
+     tour-list 문법을 그대로 넷째로 쓴다. 손짓이 늘지 않는다.
+   ⚠ 곳 이름을 타륜 카드에 박지 않는다. 일몰선은 15분에 1도씩 흐르는데 타륜은
+     하루 한 번 그린다 — 박는 순간 거짓이 된다(결정문 14호의 사촌).
+     그래서 카드는 「석양에 기내에서 쓰는 교양일기」로 두고, 곳은 누를 때 셈한다.
+   ⚠ EGGeo(73KB)는 누른 사람만 받는다. */
+
+/* 태양 셈 — eg_geo 는 위도별 일몰 경도를 물어보는 함수를 받는다 */
+function egSubsolar(date){
+  var d = (date.getTime()/86400000) + 2440587.5 - 2451545.0;
+  var g = (357.529 + 0.98560028*d) * Math.PI/180;
+  var q = (280.459 + 0.98564736*d) * Math.PI/180;
+  var L = q + (1.915*Math.sin(g) + 0.020*Math.sin(2*g)) * Math.PI/180;
+  var e = (23.439 - 0.00000036*d) * Math.PI/180;
+  var dec = Math.asin(Math.sin(e)*Math.sin(L));
+  var gmst = (18.697374558 + 24.06570982441908*d) % 24;
+  var lon = -((gmst*15 + 180) % 360 - 180);
+  var ra = Math.atan2(Math.cos(e)*Math.sin(L), Math.cos(L));
+  lon = ((lon + ra*180/Math.PI + 540) % 360) - 180;
+  return { lat:dec, lon:lon };
+}
+function egSunsetLonAt(latDeg, elDeg){
+  var sp = egSubsolar(new Date());
+  var f = latDeg*Math.PI/180, dcl = sp.lat, h = elDeg*Math.PI/180;
+  var c = (Math.sin(h) - Math.sin(f)*Math.sin(dcl))/(Math.cos(f)*Math.cos(dcl));
+  if (c < -1 || c > 1) return null;
+  return ((sp.lon + Math.acos(c)*180/Math.PI + 540) % 360) - 180;
+}
+
+/* 지금 일몰선 위의 땅다운 곳들 — pickSunsetLand 와 같은 셈이되 하나가 아니라 여럿 */
+function sunsetSpots(limit){
+  var out = [];
+  for (var lat=64; lat>=-54; lat-=2){
+    var lon = egSunsetLonAt(lat, 3);              /* 태양 고도 3° — 결정문 21호의 값 */
+    if (lon === null) continue;
+    var sc = EGGeo.inland(lat, lon);
+    if (sc >= 5) out.push({ lat:lat, lon:lon, s:sc });
+  }
+  if (!out.length) return [];
+  out.sort(function(a,b){ return b.s - a.s; });
+  /* ⚠ 위도가 붙어 있으면 사실상 같은 곳이다. 8도 이상 떨어진 것만 남긴다. */
+  var pick = [];
+  for (var i=0;i<out.length && pick.length<(limit||5);i++){
+    var ok = true;
+    for (var j=0;j<pick.length;j++) if (Math.abs(pick[j].lat - out[i].lat) < 8){ ok = false; break; }
+    if (ok) pick.push(out[i]);
+  }
+  return pick;
+}
+
+async function openSunsetPanel(){
+  const box = document.getElementById("sunsetList");
+  const btn = document.getElementById("navSunset");
+  if (!box) return;
+  const willOpen = !box.classList.contains("in");
+  closeTourLists(); try{ closeOrgLists(); }catch(e){}
+  try{ toggleCityList(false); toggleStarList(false); }catch(e){}
+  if (!willOpen) return;
+
+  const head = '<div class="tour-head"><span class="th-la">VESPER</span>'
+             + '<span class="th-ko">지금 해가 지는 곳</span></div>';
+  box.innerHTML = head + '<div class="tour-empty">일몰선을 훑는 중…</div>';
+  box.classList.add("in");
+  if (btn) btn.classList.add("open");
+
+  let spots = [];
+  try{
+    await loadScriptOnce("eg_geo.js?v=0818a");
+    spots = sunsetSpots(5);
+  }catch(err){ console.warn("[EG] 일몰선을 못 훑었습니다:", err); }
+
+  box.innerHTML = head;
+  if (!spots.length){
+    const e0 = document.createElement("div");
+    e0.className = "tour-empty";
+    /* ⚠ 하루의 약 8%는 일몰선이 통째로 바다다. 그것도 사실대로 말한다(14호). */
+    e0.textContent = "지금 일몰선은 통째로 바다입니다.\n대양의 일몰이 되겠습니다.";
+    box.appendChild(e0);
+  }
+  spots.forEach(function(sp, k){
+    const b = document.createElement("button");
+    b.className = "tour-item" + (k === 0 ? " today" : "");
+    const nm = document.createElement("div"); nm.className = "ti-nm";
+    if (k === 0){ const d = document.createElement("span"); d.className = "ti-dot"; nm.appendChild(d); }
+    const t = document.createElement("span");
+    const near = EGGeo.nearest(sp.lat, sp.lon);
+    t.textContent = near ? (near.country || near.name) : "이름 없는 땅";
+    nm.appendChild(t); b.appendChild(nm);
+    const l = document.createElement("div");
+    l.className = "ti-work";
+    l.textContent = EGGeo.where(sp.lat, sp.lon);      /* 계기판에 뜨는 그 한 줄 */
+    b.appendChild(l);
+    b.addEventListener("click", function(){ closeTourLists(); enterVesperRoom(sp); });
+    box.appendChild(b);
+  });
+
+  /* 맨 아래 — 형제 판의 go 버튼 자리. ⭐ 고르는 일이 짐이 되지 않게(13호) */
+  const go = document.createElement("button");
+  go.className = "tour-item";
+  const gn = document.createElement("div"); gn.className = "ti-nm";
+  const gt = document.createElement("span"); gt.textContent = "알아서 골라 주세요";
+  gn.appendChild(gt); go.appendChild(gn);
+  go.addEventListener("click", function(){ closeTourLists(); enterVesperRoom(); });
+  box.appendChild(go);
+}
+
+async function enterVesperRoom(spot){
   try{
     if (typeof endVoyage === "function") endVoyage();   /* 딴 데를 여는 순간 그 여정은 끝이다 (0814) */
     await loadScriptOnce("eg_geo.js?v=0818a");
     await loadScriptOnce("stamp_press.js?v=0808a");
-    await loadScriptOnce("vesper_room.js?v=0818b");   /* ⚠ 방 파일을 고치면 이 꼬리표도 함께 올린다 */
+    await loadScriptOnce("vesper_room.js?v=0818c");   /* ⚠ 방 파일을 고치면 이 꼬리표도 함께 올린다 */
     if (!window.egVesper) throw new Error("egVesper 창구가 안 열렸습니다");
-    window.egVesper.enter(viewer);
+    window.egVesper.enter(viewer, spot || null);
   }catch(err){
     console.error("[EG] 베스페르 방을 못 열었습니다:", err);
     /* ⚠ 못 열면 옛 액자 길로 물러선다 — 손님을 빈손으로 돌려보내지 않는다 */
@@ -6288,11 +6398,16 @@ async function loadDock(){
        분더카머(내 집) · 자화상(나를 봄) 앞에 하루를 적는 곳이 선다.
        셋 다 남이 못 보는 것이라 한 구획이 맞다 — 결정문 3호·16호.
        ⚠ 이름은 SUNSET_NAME 한 줄에서만 온다. 여기에 활자를 박지 말 것. */
+    /* 0818 — 형제(미술관·음악관)와 한 꼴로. 누르면 왼쪽으로 판이 펴진다.
+       ⚠ 곳 이름을 sub 에 박지 않는다 — 일몰선은 15분에 1도씩 흐르는데
+         타륜은 하루 한 번 그린다. 박으면 곧 거짓이 된다. 곳은 판을 열 때 셈한다. */
     items.push({ id:"sunset", sec:"anima", cls:"uni",
-      html: '<div class="dock-main"><span>' + SUNSET_NAME + '</span></div>'
+      elId:"navSunset",
+      html: '<div class="dock-main"><span>' + SUNSET_NAME + '</span>'
+          + '<span class="chev" aria-hidden="true">\u203A</span></div>'
           + '<div class="dock-sub"></div>',
       sub: SUNSET_SUB,
-      onClick: ()=> enterVesperRoom() });
+      onClick: ()=> openSunsetPanel() });
 
     items.push({ id:"wunder", sec:"anima", cls:"uni",
       html: '<div class="dock-main"><span>EG분더카머</span></div>'

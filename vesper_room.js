@@ -42,6 +42,10 @@ var STYLED = false;              /* 겉옷은 한 번만 입힌다 */
 var LISTENERS = [];              /* EGV_on 이 적어 두는 곳 */
 var CAM = null;                  /* terra 카메라를 적어 두는 곳 */
 var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
+var MON_SIZE = null;             /* A3 — 손님이 맞춰 둔 일기판 크기. 셈보다 이것이 먼저다 */
+var SPOT = null;                 /* C1 — 타륜에서 고르신 곳 {lat, lon, s} */
+var GATE = false;                /* C2 — 게이트(출발 전) 닫힘인가. 쉬는 닫힘과 구분한다 */
+var USE_GATE = true;             /* ⚠ 안전망 — 내리면 오늘 아침 판(바로 출발)으로 돌아간다 */
 
 /* ── 리스너 장부 ─────────────────────────────────────────────
    ⚠ 옮겨온 몸통은 리스너를 익명 함수로 붙인다. 익명은 뗄 수가 없다.
@@ -84,11 +88,27 @@ var HOST_CSS =
    ⚠ terra 의 #doorway 문틀은 background:#000 으로 화면을 덮는다. 방은 그 아래 지구를
      보여야 하므로 못 쓴다. ⚠ #homeBtn 은 나가는 문이 아니라 일기판 손잡이다(0817).
    ⚠ :not(.cabin) 규칙에 안 걸리게 독립 id 로 둔다 — 창을 덮어도 나갈 수는 있어야 한다. */
-"#vesperExit{position:fixed;left:14px;top:14px;z-index:30;width:30px;height:30px;" +
+"#vesperExit{position:fixed;right:14px;top:14px;z-index:30;width:30px;height:30px;" +
 "border-radius:50%;border:1px solid rgba(201,168,106,.4);background:rgba(12,14,20,.55);" +
 "color:rgba(201,168,106,.8);font:400 15px/28px 'Noto Serif KR',Georgia,serif;text-align:center;" +
 "cursor:pointer;backdrop-filter:blur(3px);transition:background .2s,color .2s}" +
-"#vesperExit:hover{background:rgba(201,168,106,.16);color:#f0e2c0}";
+"#vesperExit:hover{background:rgba(201,168,106,.16)color:#f0e2c0}" +
+
+/* A1 ⚠ 우상단은 #saveTag(right:16 top:16) 자리다. 저장할 때만 뜨지만 겹친다 — 한 칸 내린다. */
+"#vesperRoom #saveTag{top:58px !important}" +
+/* A2 편집기 손잡이 감추기 (0818 소로 — 「H로 열어보는 복잡한 선택지들을 손님에겐 안 보이게」)
+   ⚠ 걷는 게 아니라 감춘다. #hud 안의 손잡이를 참조하는 코드가 여기저기 있어
+     지우면 null 로 터진다(딱지 0817). ⭐ 소로는 H 로 여전히 펴실 수 있다 — 키는 살아 있다. */
+"#vesperRoom #tab,#vesperRoom #keys,#vesperRoom #mini{display:none !important}" +
+
+/* A3 일기판 크기 조절 (0818 소로 — 「창 크기가 고정이라 정작 일몰을 가린다」)
+   ⭐ 베스페르는 창밖을 보며 쓰는 것이다. 판이 창을 덮으면 뜻의 절반이 죽는다. */
+"#vesperRoom #monGrip{position:absolute;right:0;bottom:0;width:22px;height:22px;" +
+"cursor:nwse-resize;z-index:3;opacity:.35;transition:opacity .2s}" +
+"#vesperRoom #monGrip:hover{opacity:.85}" +
+"#vesperRoom #monGrip::after{content:'';position:absolute;right:5px;bottom:5px;width:9px;height:9px;" +
+"border-right:2px solid var(--muted,#948b7a);border-bottom:2px solid var(--muted,#948b7a);border-radius:0 0 3px 0}" +
+"#vesperRoom #mon.sizing{transition:opacity .3s}";
 
 
 var CSS = `#vesperRoom{margin:0;height:100%;background:#05070f;overflow:hidden;
@@ -730,6 +750,14 @@ function layoutFrames(){
   hi.style.transform = "rotate(" + HM.rot + "deg) perspective(700px) rotateY(" + HM.ry + "deg)";
 
   var mo = $("mon");
+  /* ⚠⚠ A3 0818 — 여기가 함정이었다. 크기가 CSS 가 아니라 이 셈에서 나오는데,
+     layoutFrames 는 창 크기가 바뀔 때마다·판을 열 때마다 불린다. 그래서 손님이
+     모서리를 끌어 늘려도 다음 호출에서 곧바로 튕겨 돌아왔다.
+     ⭐ 한 번이라도 손으로 맞춘 적이 있으면 그 값이 이 셈을 이긴다. */
+  if (MON_SIZE && isFinite(MON_SIZE.w) && isFinite(MON_SIZE.h)){
+    mw = Math.min(MON_SIZE.w, vw - 24);
+    mh = Math.min(MON_SIZE.h, vh - 24);
+  }
   mo.style.width = mw + "px"; mo.style.height = mh + "px";
   mo.style.left = Math.max(12, Math.min(vw-mw-12, hx + hw/2 - mw/2)) + "px";
   mo.style.top  = Math.max(12, Math.min(vh-mh-12, hy + hh/2 - mh/2)) + "px";
@@ -878,7 +906,8 @@ function stopAll(){ if (flight){ flight.stop(); flight=null; } $("barIn").style.
 
 function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("on",!onA); }
 
-function bootRoom(hostViewer){
+function bootRoom(hostViewer, spot){
+  SPOT = spot || null;
   /* ⭐⭐ 0818 「한 문서 · 한 root」 — 여기가 오늘 공사의 알맹이다.
      옛 판: new Cesium.Viewer 로 지구를 한 벌 더 만들고 타일도 한 벌 더 받았다.
        액자(iframe)는 별도 문서라 WebGL 자원을 못 건네받는다. 그래서 terra 가 이미
@@ -1231,8 +1260,14 @@ function bootRoom(hostViewer){
     $("hiWhere").textContent = $("where").textContent || "이륙 대기";
   }
   var shut = false;
+  /* ══ C2 0818 — 닫힘이 둘이다 ═══════════════════════════════════════
+     ⚠ 지금까지 덮개는 「절약 장치」였다. 닫으면 카메라가 멎고, 카메라가 멎으면
+       타일을 안 받는다 (아래 __egShut 관문). 비행 중 눈을 쉬는 데는 옳다.
+     ⚠ 그런데 게이트의 닫힘은 정반대 일을 해야 한다 — 닫힌 채로 카메라가 서서
+       타일을 받아야 하니까. 한 깃발로 둘을 하면 반드시 엉킨다.
+     ⭐ 그래서 GATE 는 따로 둔다. 그림은 같고 셈은 다르다. */
   function setShade(on){
-    shut = on; window.__egShut = on;
+    shut = on; window.__egShut = on && !GATE;   /* ⚠ 게이트 닫힘은 카메라를 안 멈춘다 */
     $("plate").classList.toggle("shut", on);
     $("shadeBtn").setAttribute("data-tip", on ? "창 열기" : "창 닫기");
     /* ⚠ 닫혀 있으면 카메라를 안 옮긴다 — 안 보이는 것을 30분간 그릴 까닭이 없다.
@@ -1557,15 +1592,66 @@ function bootRoom(hostViewer){
     function up(){
       if (!on) return;
       on = false; mo.classList.remove("drag"); hd.classList.remove("grabbing"); clamp();
-      try{ localStorage.setItem("eg_vesper_pos",
-        JSON.stringify({ x:parseFloat(mo.style.left), y:parseFloat(mo.style.top) })); }catch(e){}
+      saveMon();
     }
     hd.addEventListener("pointerup", up);
     hd.addEventListener("pointercancel", up);
     EGV_on("resize", function(){ if ($("mon").classList.contains("on")) clamp(); });
+    /* ══ A3 크기 조절 (0818 소로) ═══════════════════════════════════
+       ⚠ resize:both 를 붙이는 것만으론 안 된다 — layoutFrames 가 매번 덮는다.
+         MON_SIZE 에 적어 두고, 그 셈이 이 값을 이기지 못하게 해 두었다(위 참조).
+       ⭐ 손잡이를 두 번 누르면 자동 크기로 돌아간다 — 망쳤을 때 나갈 문. */
+    var MIN_W = 320, MIN_H = 260;
+    (function gripMon(){
+      var g = document.createElement("div");
+      g.id = "monGrip"; g.title = "끌어서 크기 조절 · 두 번 누르면 자동";
+      mo.appendChild(g);
+      var gx=0, gy=0, gw=0, gh=0, sizing=false;
+      g.addEventListener("pointerdown", function(e){
+        e.preventDefault(); e.stopPropagation();
+        var r = mo.getBoundingClientRect();
+        sizing = true; gx = e.clientX; gy = e.clientY; gw = r.width; gh = r.height;
+        mo.classList.add("sizing"); g.setPointerCapture(e.pointerId);
+      });
+      g.addEventListener("pointermove", function(e){
+        if (!sizing) return;
+        /* ⚠ 최소가 없으면 0 으로 접혀 다시 못 잡는다 · 최대는 화면의 92% */
+        var w = Math.max(MIN_W, Math.min(innerWidth *0.92, gw + e.clientX - gx));
+        var h = Math.max(MIN_H, Math.min(innerHeight*0.92, gh + e.clientY - gy));
+        mo.style.width = w + "px"; mo.style.height = h + "px";
+      });
+      function gup(){
+        if (!sizing) return;
+        sizing = false; mo.classList.remove("sizing");
+        var r = mo.getBoundingClientRect();
+        MON_SIZE = { w:r.width, h:r.height };
+        clamp(); saveMon();
+      }
+      g.addEventListener("pointerup", gup);
+      g.addEventListener("pointercancel", gup);
+      /* 두 번 누르면 자동 크기로 — 기억을 지우고 셈에 맡긴다 */
+      g.addEventListener("dblclick", function(e){
+        e.preventDefault(); e.stopPropagation();
+        MON_SIZE = null; saveMon(); layoutFrames(); clamp();
+      });
+    })();
+
+    /* ⚠ 위치와 크기를 한 곳에 적는다 — 두 곳에서 관리하면 반드시 어긋난다 */
+    function saveMon(){
+      try{
+        var o = { x:parseFloat(mo.style.left), y:parseFloat(mo.style.top) };
+        if (MON_SIZE){ o.w = MON_SIZE.w; o.h = MON_SIZE.h; }
+        localStorage.setItem("eg_vesper_pos", JSON.stringify(o));
+      }catch(e){}
+    }
+
     window._vesperPos = function(){
       try{
         var p = JSON.parse(localStorage.getItem("eg_vesper_pos") || "null");
+        if (p && isFinite(p.w) && isFinite(p.h)){
+          MON_SIZE = { w:p.w, h:p.h };
+          mo.style.width = p.w + "px"; mo.style.height = p.h + "px";
+        }
         if (p && isFinite(p.x) && isFinite(p.y)){ mo.style.left = p.x + "px"; mo.style.top = p.y + "px"; clamp(); return true; }
       }catch(e){}
       return false;
@@ -1778,12 +1864,59 @@ function bootRoom(hostViewer){
 
   (function autoStart(){
     try{
-      var p = EGGeo.pickSunsetLand(sunLonAt, +$("sel").value);      /* 지금 일몰선에서 땅 (결정문 21호) */
+      /* 앉을 곳 — 타륜에서 고르셨으면 그 곳, 아니면 지금 일몰선에서 가장 땅다운 곳 */
+      var p = SPOT || EGGeo.pickSunsetLand(sunLonAt, +$("sel").value);   /* 결정문 21호 */
       if (p){ $("lat").value = p.lat; $("latV").textContent = p.lat + "\u00B0"; }
       preview();
       if (!$("plate").classList.contains("on")) $("bCab").click();   /* 기내를 켠다 (안내 방송도 함께) */
-      setTimeout(function(){ $("go").click(); }, 60);                /* 곧바로 비행 */
-    }catch(err){ console.warn("[EG] 자동 출발 실패 — 조종간으로 시작하십시오:", err); }
+
+      if (!USE_GATE){                                    /* 안전망을 내렸을 때 — 옛 흐름 */
+        setTimeout(function(){ $("go").click(); }, 60);
+        return;
+      }
+
+      /* ══ C2 게이트 ═══════════════════════════════════════════════════
+         ⭐ 0818 소로 — 「창 닫힌 상태로 지구 타일이 세팅될 때까지 기다리자」.
+           로딩 막대를 없애는 가장 정직한 방법은, 그 시간에 다른 일이 일어나게 두는 것이다.
+         ⚠ 여는 신호는 시계가 아니라 타일이다. 3초 걸리면 3초, 0.3초면 0.3초.
+           안전 시계(8초)는 그 위에 얹는 그물이지 본체가 아니다 (0818 조항). */
+      GATE = true;
+      setShade(true);                                    /* 덮개를 내린다 — 카메라는 계속 선다 */
+      $("plate").classList.add("gate");
+
+      var opened = false;
+      var open = function(why){
+        if (opened) return; opened = true;
+        GATE = false;
+        setShade(false);                                 /* 덮개가 스르르 올라간다 */
+        $("plate").classList.remove("gate");
+        console.log("[EG] 게이트 열림 \u2014", why);
+        setTimeout(function(){ $("go").click(); }, 420);  /* 덮개가 다 오른 뒤 출발 */
+      };
+
+      /* ⚠ terra 의 tileset 은 블록 지역 변수라 밖에서 못 쓴다.
+         ⭐ primitives 를 훑어 찾는다 — 그래야 terra 를 안 건드린다. */
+      var ts = null;
+      try{
+        var ps = viewer.scene.primitives;
+        for (var i=0;i<ps.length;i++){
+          var pr = ps.get(i);
+          if (pr && typeof pr.allTilesLoaded !== "undefined"){ ts = pr; break; }
+        }
+      }catch(e){}
+
+      if (ts && ts.allTilesLoaded && ts.allTilesLoaded.addEventListener){
+        var off = ts.allTilesLoaded.addEventListener(function(){
+          try{ off(); }catch(e){}
+          open("타일이 다 실렸습니다");
+        });
+      }
+      /* 그물 — 타일이 영영 안 오거나(느린 곳·시골) 그 지점에 실사 타일이 없을 때 */
+      setTimeout(function(){ open("안전 시계"); }, 8000);
+      /* ⭐ 건너뛰기 — 매일 오는 손님에게 8초는 매번 벽이다 (eg_camera 조항 ②) */
+      $("shadeBtn").addEventListener("click", function(){ open("손님이 열었습니다"); }, { once:true });
+
+    }catch(err){ console.warn("[EG] 자동 출발 실패 \u2014 조종간으로 시작하십시오:", err); }
   })();
 
   grabFocus();          /* 그물 — 아래 설명 */
@@ -1839,7 +1972,7 @@ function restoreCam(v){
   CAM = null;
 }
 
-function enter(hostViewer){
+function enter(hostViewer, spot){
   if (!hostViewer){ console.error("[EG] 베스페르 — viewer 를 못 받았습니다."); return false; }
   if (ROOT) leave();                  /* 남아 있으면 먼저 걷는다 */
   mountStyle();
@@ -1851,7 +1984,7 @@ function enter(hostViewer){
      ⭐ 방 판에서는 정반대다. 이 지구가 곧 창밖이다. 재우면 창이 얼어붙는다. */
   try{ hostViewer.useDefaultRenderLoop = true; }catch(e){}
   var ok = false;
-  try{ ok = bootRoom(hostViewer); }
+  try{ ok = bootRoom(hostViewer, spot); }
   catch(err){ console.error("[EG] 베스페르 착석 실패:", err); leave(); return false; }
   console.log("[EG] 베스페르 방 — terra 의 지구를 그대로 씁니다. root 추가 없음.");
   return ok;
@@ -1866,6 +1999,7 @@ function leave(){
   try{ if (typeof stopAll === "function") stopAll(); }catch(e){}
   EGV_off();
   restoreCam(v);
+  GATE = false; SPOT = null;
   if (EXIT){ try{ EXIT.remove(); }catch(e){} EXIT = null; }
   if (ROOT){ try{ ROOT.remove(); }catch(e){} ROOT = null; }
   try{ document.body.classList.remove("cabin","edit","vesper-on"); }catch(e){}
