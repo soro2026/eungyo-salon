@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0819j
+   EG독서비행 — 방(room) 판 · reading_room.js · v0819k
    2026.08.19 소로 × 파이스 · 144회차
    ⚠ 판번호는 아래 VERSION 하나가 정본이다. 0819e 까지 이 줄이 a 로 남아 있었다 —
      「적어 두는 것과 읽는 것은 다른 일」의 표본. 고칠 때 둘을 함께 올린다.
@@ -46,7 +46,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0819j";
+  var VERSION = "0819k";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -473,12 +473,16 @@
 /* ⭐ 항로도 — 고정 고리라 지도 타일이 필요 없다. 경로 자체가 지도다 */
 #egrMap{flex:1 1 auto;min-height:0;position:relative}
 #egrMap svg{width:100%;height:100%;display:block}
+/* 밑그림 — 항로보다 뒤. 있는 듯 없는 듯해야 항로가 산다 */
+#egrMap .ne-lake{fill:#16222e;stroke:#22384a;stroke-width:.6}
+#egrMap .ne-border{fill:none;stroke:#242c38;stroke-width:.7;stroke-dasharray:3 3}
+#egrMap .ne-river{fill:none;stroke:#1c2c3a;stroke-width:.7}
 #egrMap .seg{fill:none;stroke:#2c3a4c;stroke-width:1.6;stroke-linecap:round}
 #egrMap .seg.now{stroke:#c9a84c;stroke-width:2.2}
 #egrMap .wp{fill:#3c4a5c}
 #egrMap .wp.now{fill:#c9a84c}
-#egrMap .wpt{fill:#7d8794;font-size:9.5px;font-family:Georgia,'Noto Serif KR',serif}
-#egrMap .wpt.now{fill:#e6d9ae}
+#egrMap .wpt{fill:#5f6a78;font-size:8.5px;font-family:Georgia,'Noto Serif KR',serif}
+#egrMap .wpt.now{fill:#e6d9ae;font-size:9.5px}
 #egrMap .ship{fill:#f2e8cf}
 #egrInfo .strip{flex:0 0 auto;display:grid;grid-template-columns:repeat(4,1fr);
   gap:2px 14px;border-top:1px solid #1d2430;padding-top:8px;margin-top:6px}
@@ -1017,6 +1021,8 @@
       if (pts[i][1] < loMin) loMin = pts[i][1];
       if (pts[i][1] > loMax) loMax = pts[i][1];
     }
+    /* ⚠ 상자는 **항로만** 보고 잡는다. 밑그림까지 넣어 잡으면 노선이 상자 한복판에서
+       쪼그라든다 — 주인공은 항로다. 밑그림은 넘치는 대로 잘린다(clip). */
     var kx = Math.cos(Cesium.Math.toRadians((laMin + laMax) / 2));   /* ⭐ 경도 보정 */
     var w = (loMax - loMin) * kx, h = (laMax - laMin);
     if (w <= 0) w = 1e-6; if (h <= 0) h = 1e-6;
@@ -1028,9 +1034,31 @@
       y: function (la) { return oy + (laMax - la) * s; }
     };
   }
+  /* 밑그림 한 겹 — 점 배열들을 path 로. 상자 밖은 clipPath 가 자른다 */
+  function neLayer(segs, cls, close) {
+    if (!segs || !segs.length) return "";
+    var out = "", i, j, s, d;
+    for (i = 0; i < segs.length; i++) {
+      s = segs[i]; d = "";
+      for (j = 0; j < s.length; j++)
+        d += (j ? "L" : "M") + MAPF.x(s[j][1]).toFixed(1) + " " + MAPF.y(s[j][0]).toFixed(1) + " ";
+      if (close) d += "Z";
+      out += '<path class="' + cls + '" d="' + d + '"/>';
+    }
+    return out;
+  }
   function buildMap(route) {
     MAPF = mapFit(route);
     var N = route.legs.length, s, j, d, p, out = [];
+    /* ── 밑그림 (있으면) — 항로보다 먼저 그려 뒤에 깔린다 */
+    var ne = (window.EGMapNE && EGMapNE.get) ? EGMapNE.get(route.code) : null;
+    if (ne) {
+      out.push('<g clip-path="url(#egrClip)">');
+      out.push(neLayer(ne.river, "ne-river", false));
+      out.push(neLayer(ne.border, "ne-border", false));
+      out.push(neLayer(ne.lake, "ne-lake", true));       /* 호수가 맨 위 — 강이 물고 들어온다 */
+      out.push('</g>');
+    }
     /* 구간마다 따로 그린다 — 지금 나는 구간만 금빛으로 바꾸려면 조각이 나뉘어야 한다 */
     for (s = 0; s < N; s++) {
       d = "";
@@ -1040,14 +1068,22 @@
       }
       out.push('<path class="seg" id="egrSeg' + s + '" d="' + d + '"/>');
     }
+    /* ⭐ 길목 점과 이름. 이름은 점 아래위로 번갈아 — 열둘이 한 줄에 서면 겹친다 */
     for (s = 0; s < N; s++) {
       p = route.legs[s];
-      out.push('<circle class="wp" id="egrWp' + s + '" cx="' + MAPF.x(p[1]).toFixed(1)
-        + '" cy="' + MAPF.y(p[0]).toFixed(1) + '" r="2.4"/>');
+      var px = MAPF.x(p[1]), py = MAPF.y(p[0]);
+      out.push('<circle class="wp" id="egrWp' + s + '" cx="' + px.toFixed(1)
+        + '" cy="' + py.toFixed(1) + '" r="2.4"/>');
+      var up = (s % 2 === 0);
+      var anc = (px < 40) ? "start" : (px > MAPBOX.w - 40 ? "end" : "middle");
+      out.push('<text class="wpt" id="egrWt' + s + '" text-anchor="' + anc + '" x="' + px.toFixed(1)
+        + '" y="' + (py + (up ? -7 : 13)).toFixed(1) + '">' + esc(p[2]) + '</text>');
     }
     /* 비행기 — 기수가 위(북)를 보게 그린다. rotate(heading) 이 곧 방위다 */
     out.push('<g id="egrShip"><path class="ship" d="M0,-7.5 L4.6,5.2 L0,2.6 L-4.6,5.2 Z"/></g>');
     return '<svg viewBox="0 0 ' + MAPBOX.w + ' ' + MAPBOX.h + '" preserveAspectRatio="xMidYMid meet">'
+      + '<defs><clipPath id="egrClip"><rect x="0" y="0" width="' + MAPBOX.w
+      + '" height="' + MAPBOX.h + '"/></clipPath></defs>'
       + out.join("") + '</svg>';
   }
   var mapSeg = -1;
@@ -1062,8 +1098,10 @@
     for (var i = 0; i < old.length; i++) old[i].classList.remove("now");
     mapSeg = s.seg;
     var sg = box.querySelector("#egrSeg" + s.seg); if (sg) sg.classList.add("now");
-    var a = box.querySelector("#egrWp" + s.seg); if (a) a.classList.add("now");
-    var b2 = box.querySelector("#egrWp" + ((s.seg + 1) % s.legN)); if (b2) b2.classList.add("now");
+    var nx = (s.seg + 1) % s.legN;
+    ["#egrWp" + s.seg, "#egrWt" + s.seg, "#egrWp" + nx, "#egrWt" + nx].forEach(function (q) {
+      var el = box.querySelector(q); if (el) el.classList.add("now");
+    });
   }
 
   /* ══ 소리 (0819g) — 방송 → 엔진음. 베스페르 0817 문법 그대로 ══════════
