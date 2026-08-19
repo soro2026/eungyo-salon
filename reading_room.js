@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0819g
+   EG독서비행 — 방(room) 판 · reading_room.js · v0819h
    2026.08.19 소로 × 파이스 · 144회차
    ⚠ 판번호는 아래 VERSION 하나가 정본이다. 0819e 까지 이 줄이 a 로 남아 있었다 —
      「적어 두는 것과 읽는 것은 다른 일」의 표본. 고칠 때 둘을 함께 올린다.
@@ -46,7 +46,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0819g";
+  var VERSION = "0819h";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -135,6 +135,34 @@
     { l: 69.926, t: 31.758, w: 5.526, h: 9.151 }
   ];
   var CABIN = { m: "jet_cabin_m.webp", d: "jet_cabin_d.webp", e: "jet_cabin_e.webp", n: "jet_cabin_n.webp" };
+
+  /* ── 좌석 모니터 (0819h) ─────────────────────────────────────────
+     ⚠ 화면이 네모가 아니라 **사다리꼴**이다 — 0819 실측(검정 화소 연결성분 · 네 변 직선 맞춤).
+       오른쪽이 앞으로 나와 17px 길다. 네모를 얹으면 모서리가 12px 뜬다.
+     ⭐ 네 점 사영변환(matrix3d)으로 평면 UI 를 그 자리에 앉힌다 — 부품 없이 셈 여덟 줄.
+     좌표는 판(941×1672) 기준 %. 테두리 안쪽으로 0.5% 들여 앉힌다. */
+  var MON = {
+    tl: [58.02, 42.02], tr: [93.89, 42.35],
+    br: [92.92, 56.16], bl: [57.62, 54.81],
+    w: 620, h: 424                       /* UI 원판 크기(px) — 실물 비율 1.46 근사 */
+  };
+  /* 단위 사각형(w×h) → 임의 네 점 사영변환. 표준 호모그래피 셈 —
+     기저 세 점으로 아핀을 풀고 넷째 점이 원근(g·h)을 정한다 */
+  function homography(w2, h2, p) {   /* p = [[x,y]×4] TL TR BR BL (px) */
+    var x0 = p[0][0], y0 = p[0][1], x1 = p[1][0], y1 = p[1][1];
+    var x2 = p[2][0], y2 = p[2][1], x3 = p[3][0], y3 = p[3][1];
+    var dx1 = x1 - x2, dx2 = x3 - x2, dy1 = y1 - y2, dy2 = y3 - y2;
+    var sx = x0 - x1 + x2 - x3, sy = y0 - y1 + y2 - y3;
+    var den = dx1 * dy2 - dx2 * dy1;
+    var g = (sx * dy2 - dx2 * sy) / den, hh = (dx1 * sy - sx * dy1) / den;
+    var a = x1 - x0 + g * x1, b = x3 - x0 + hh * x3, c = x0;
+    var d = y1 - y0 + g * y1, e = y3 - y0 + hh * y3, f = y0;
+    /* 열 우선(matrix3d) · (0..1)² 이므로 w·h 로 나눠 넣는다 */
+    return "matrix3d(" + [a / w2, d / w2, 0, g / w2,
+                          b / h2, e / h2, 0, hh / h2,
+                          0, 0, 1, 0,
+                          c, f, 0, 1].join(",") + ")";
+  }
 
   /* ── 셈 ──────────────────────────────────────────────────────── */
   var Re_M = 6371000;
@@ -360,7 +388,7 @@
         if (errN === 20) { console.error("[EG] 오류가 잦아 비행을 멈춥니다"); off(); }
       }
     });
-    return { stop: off };
+    return { stop: off, routeCode: route.code };
   }
 
   /* ══ 겉옷 ══════════════════════════════════════════════════════ */
@@ -409,7 +437,65 @@
 #readingSnd.off{color:#7a6c4d}
 #readingFade{position:fixed;inset:0;z-index:20;background:#05070f;opacity:0;
   pointer-events:none;transition:opacity .28s}
-#readingFade.on{opacity:1}`;
+#readingFade.on{opacity:1}
+/* ══ 좌석 모니터 (0819h) — 기내 IFE 문법: 지도 화면 ↔ 책 ══════════ */
+#egrMon{position:fixed;left:0;top:0;transform-origin:0 0;z-index:8;pointer-events:auto;
+  background:#0a0c10;color:#cfd6de;font:13px/1.55 Georgia,'Noto Serif KR',serif;
+  overflow:hidden;border-radius:6px}
+#readingRoom.out #egrMon{display:none}
+#egrMon .scr{position:absolute;inset:0 0 44px 0;display:none;overflow:hidden}
+#egrMon .scr.on{display:block}
+#egrMon .tabs{position:absolute;left:0;right:0;bottom:0;height:44px;display:flex;
+  border-top:1px solid #1d2430;background:#0d1015}
+#egrMon .tabs button{flex:1;border:0;background:transparent;color:#6d7887;cursor:pointer;
+  font:13px Georgia,'Noto Serif KR',serif;letter-spacing:.06em}
+#egrMon .tabs button.on{color:#e6d9ae;background:#12161d}
+#egrInfo{padding:22px 26px}
+#egrInfo .rte{font-size:15px;color:#e6d9ae;letter-spacing:.04em;margin-bottom:4px}
+#egrInfo .leg{color:#8fa0b4;font-size:12px;margin-bottom:16px}
+#egrInfo .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 22px}
+#egrInfo .cell b{display:block;font-weight:normal;color:#5f6a78;font-size:10.5px;
+  letter-spacing:.14em;margin-bottom:1px}
+#egrInfo .cell span{font-size:17px;color:#dfe6ee;font-variant-numeric:tabular-nums}
+#egrInfo .cell small{color:#7d8794;font-size:11px}
+#egrBook{padding:18px 22px}
+#egrBook input{width:100%;box-sizing:border-box;background:#12161d;border:1px solid #263041;
+  color:#dfe6ee;padding:9px 12px;border-radius:4px;font:13px 'Noto Serif KR',Georgia,serif}
+#egrBook input:focus{outline:none;border-color:#8a743c}
+#egrBook .hint{color:#5f6a78;font-size:11.5px;margin:8px 2px}
+#egrBook .list{position:absolute;left:22px;right:22px;top:74px;bottom:8px;overflow:auto}
+#egrBook .row{display:flex;gap:10px;align-items:center;padding:7px 6px;border-radius:4px;cursor:pointer}
+#egrBook .row:hover{background:#141a23}
+#egrBook .row img{width:30px;height:42px;object-fit:cover;border-radius:2px;background:#1a212c}
+#egrBook .row .t{flex:1;min-width:0}
+#egrBook .row .t b{display:block;font-weight:normal;color:#dfe6ee;font-size:13px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#egrBook .row .t small{color:#7d8794;font-size:11px}
+#egrBook .row .tag{font-size:10px;color:#c9a84c;border:1px solid #4a3f22;border-radius:3px;
+  padding:1px 5px;white-space:nowrap}
+#egrBook .sect{color:#5f6a78;font-size:10.5px;letter-spacing:.14em;margin:10px 4px 3px}
+#egrBook .chosen{display:flex;gap:16px}
+#egrBook .chosen img{width:96px;height:138px;object-fit:cover;border-radius:3px;
+  box-shadow:0 4px 14px rgba(0,0,0,.5)}
+#egrBook .chosen .t b{display:block;font-weight:normal;color:#e6d9ae;font-size:15px;margin-bottom:2px}
+#egrBook .chosen .t small{color:#8fa0b4;font-size:12px}
+#egrBook .chosen .acts{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+#egrMon .btn{border:1px solid #3a4356;background:#151b25;color:#cfd6de;
+  border-radius:4px;padding:6px 12px;cursor:pointer;font:12px 'Noto Serif KR',Georgia,serif}
+#egrMon .btn:hover{border-color:#8a743c;color:#e6d9ae}
+#egrBook .notes{margin-top:14px;max-height:132px;overflow:auto;border-top:1px solid #1d2430;padding-top:8px}
+#egrBook .note{padding:5px 4px;color:#9aa5b1;font-size:12px;cursor:pointer;border-radius:3px}
+#egrBook .note:hover{background:#141a23;color:#dfe6ee}
+#egrBook .note b{font-weight:normal;color:#c9a84c;margin-right:8px}
+#egrWrite{position:absolute;inset:0;background:#0d1015;padding:16px 20px;display:none}
+#egrWrite.on{display:block}
+#egrWrite .hd{color:#e6d9ae;font-size:13px;margin-bottom:8px}
+#egrWrite textarea{width:100%;box-sizing:border-box;height:calc(100% - 84px);resize:none;
+  background:#12161d;border:1px solid #263041;color:#dfe6ee;padding:12px;border-radius:4px;
+  font:13.5px/1.7 'Noto Serif KR',Georgia,serif}
+#egrWrite textarea:focus{outline:none;border-color:#8a743c}
+#egrWrite .ft{margin-top:8px;display:flex;gap:8px;align-items:center}
+#egrWrite .note-msg{color:#7d8794;font-size:11px;margin-left:auto}`;
     document.head.appendChild(css);
   }
 
@@ -525,12 +611,24 @@
       sh[i].style.width = ((W.w + 2.4) / 100 * w) + "px";
       sh[i].style.height = ((W.h + 2.4) / 100 * h) + "px";
     }
+    /* 모니터 — 사다리꼴 네 점에 앉힌다(0819h). 판 % → 화면 px → matrix3d.
+       ⚠ 오른창(거울)이면 x' = 100−x 에 좌·우 모서리도 서로 바뀐다 —
+         TL↔TR · BL↔BR 을 안 바꾸면 변환이 안팎으로 뒤집혀 글이 거울이 된다 */
+    if (MONEL) {
+      function px(c) { return [cx + w * (flip ? (100 - c[0]) : c[0]) / 100, top + h * c[1] / 100]; }
+      var pts = flip
+        ? [px(MON.tr), px(MON.tl), px(MON.bl), px(MON.br)]
+        : [px(MON.tl), px(MON.tr), px(MON.br), px(MON.bl)];
+      MONEL.style.transform = homography(MON.w, MON.h, pts);
+    }
   }
 
   /* ⭐ 휠 — 기내를 위아래로 본다. 창밖은 함께 움직이되 비행은 안 멈춘다.
      ⚠ #readingRoom 이 pointer-events:none 이라 휠이 안 닿는다. window 에 건다. */
   function onWheel(e) {
     if (!ROOT) return;
+    /* ⚠ 모니터 안 목록(검색 결과·기록들)은 제 스크롤이 있다 — 판을 밀지 않는다 */
+    if (e.target && e.target.closest && e.target.closest("#egrMon")) return;
     e.preventDefault();
     panY = Math.max(panMin, Math.min(panMax, panY - e.deltaY * 0.9));
     layout();
@@ -595,6 +693,276 @@
       });
     } catch (e) { HOMEWARD = true; }
     CAM = null;
+  }
+
+  /* ══ 좌석 모니터 (0819h) — 실제 기내 IFE 와 같은 문법 ══════════════
+     지도 화면 ↔ 엔터테인먼트. 여기서는 엔터테인먼트 대신 **책**이 앉는다.
+     ⚠⚠ 비행정보에 「남은 시간」이 없다 — 14호. 끝이 없는 비행이다.
+     ⭐ 화면이 셋이 아니라 둘이다 — 책이 없을 때의 모습이 곧 검색 한 문(20·21호). */
+  var MONEL = null, TAB = "info", BOOK = null, SINFO = null;
+  var WD = { seq: 1, dirty: false, saving: false, tmr: null, sec: 0, last: 0 };
+
+  /* 물과 전기 — egSupa(집주인 클라이언트) 한 벌로 두 손을 짓는다.
+     ⚠ Ⅱ층 셸의 sbFetch 를 복사하지 않는다 — 그 손은 localStorage 를 직접 읽는데,
+       여기는 egSupa 가 이미 세션·갱신을 다 들고 있다. 「한 문서 · 한 클라이언트」. */
+  var SUPA_URL = "https://cyhlotwdisjvoxvfkpnd.supabase.co";
+  var SUPA_KEY = "sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR";
+  function egr_sb() { return window.egSupa || null; }
+  function egr_token() {
+    var sb = egr_sb();
+    if (!sb) return Promise.resolve(null);
+    return sb.auth.getSession().then(function (r) {
+      return (r && r.data && r.data.session && r.data.session.access_token) || null;
+    }).catch(function () { return null; });
+  }
+  function egr_fetch(path, options) {
+    options = options || {};
+    return egr_token().then(function (token) {
+      var hd = { apikey: SUPA_KEY, Authorization: "Bearer " + (token || SUPA_KEY),
+                 "Content-Type": "application/json" };
+      if (options.headers) for (var k in options.headers) hd[k] = options.headers[k];
+      return fetch(SUPA_URL + path, Object.assign({}, options, { headers: hd }));
+    }).then(function (res) {
+      if (!res.ok) return res.json().catch(function () { return {}; }).then(function (e) {
+        var msg = e.message || e.error || e.msg || res.statusText || ("HTTP " + res.status);
+        throw new Error(msg);
+      });
+      return res.status === 204 ? null : res.json();
+    });
+  }
+  function egr_uid() {
+    var sb = egr_sb();
+    if (!sb) return Promise.resolve(null);
+    return sb.auth.getUser().then(function (r) {
+      return (r && r.data && r.data.user && r.data.user.id) || null;
+    }).catch(function () { return null; });
+  }
+  function rpc(name, args) {
+    return egr_fetch("/rest/v1/rpc/" + name, { method: "POST", body: JSON.stringify(args || {}) });
+  }
+  function bookAddReady() {
+    if (!window.EGBookAdd) return false;
+    try {
+      EGBookAdd.init({ url: SUPA_URL, key: SUPA_KEY, sbFetch: egr_fetch, getValidToken: egr_token });
+      return true;
+    } catch (e) { console.warn("[EG] 책 들이는 손 연결 실패:", e); return false; }
+  }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  function mountMonitor(route) {
+    MONEL = document.createElement("div");
+    MONEL.id = "egrMon";
+    MONEL.style.width = MON.w + "px"; MONEL.style.height = MON.h + "px";
+    MONEL.innerHTML =
+      '<div id="egrInfo" class="scr on">'
+      + '<div class="rte">' + esc(route.name) + '</div>'
+      + '<div class="leg" id="egrLeg">—</div>'
+      + '<div class="grid">'
+      + '<div class="cell"><b>현지 시각</b><span id="egrClock">—</span></div>'
+      + '<div class="cell"><b>해발 고도</b><span id="egrAlt">—</span> <small>m</small></div>'
+      + '<div class="cell"><b>대지 속도</b><span id="egrSpd">—</span> <small>km/h</small></div>'
+      + '<div class="cell"><b>승강률</b><span id="egrVs">—</span> <small>m/분</small></div>'
+      + '<div class="cell"><b>좌표</b><span id="egrPos" style="font-size:13px">—</span></div>'
+      + '<div class="cell"><b>비행 거리</b><span id="egrDist">—</span> <small>km</small></div>'
+      + '</div></div>'
+      + '<div id="egrBook" class="scr"></div>'
+      + '<div id="egrWrite"><div class="hd" id="egrWHd">기록</div>'
+      + '<textarea id="egrWBody" placeholder="그 책에 관한 나의 기록"></textarea>'
+      + '<div class="ft"><button class="btn" id="egrWSave" type="button">저장</button>'
+      + '<button class="btn" id="egrWClose" type="button">닫기</button>'
+      + '<span class="note-msg" id="egrWMsg"></span></div></div>'
+      + '<div class="tabs"><button id="egrTabI" class="on" type="button">비행정보</button>'
+      + '<button id="egrTabB" type="button">읽는 책</button></div>';
+    ROOT.appendChild(MONEL);
+    EGR_on(MONEL.querySelector("#egrTabI"), "click", function () { setTab("info"); });
+    EGR_on(MONEL.querySelector("#egrTabB"), "click", function () { setTab("book"); });
+    EGR_on(MONEL.querySelector("#egrWSave"), "click", function () { saveNote("saved"); });
+    EGR_on(MONEL.querySelector("#egrWClose"), "click", function () {
+      if (WD.dirty) saveNote("draft");
+      MONEL.querySelector("#egrWrite").classList.remove("on");
+    });
+    EGR_on(MONEL.querySelector("#egrWBody"), "input", touched);
+    paintBook();
+  }
+  function setTab(t) {
+    TAB = t;
+    if (!MONEL) return;
+    MONEL.querySelector("#egrInfo").classList.toggle("on", t === "info");
+    MONEL.querySelector("#egrBook").classList.toggle("on", t === "book");
+    MONEL.querySelector("#egrTabI").classList.toggle("on", t === "info");
+    MONEL.querySelector("#egrTabB").classList.toggle("on", t === "book");
+  }
+
+  /* — 비행정보. 400ms 마다 (onTick 이 부른다) — */
+  function paintInfo(s) {
+    if (!MONEL || TAB !== "info") return;
+    var utc = new Date();
+    var loc = (utc.getUTCHours() + utc.getUTCMinutes() / 60 + s.lon / 15 + 24) % 24;
+    var hh2 = Math.floor(loc), mm = Math.floor((loc - hh2) * 60);
+    MONEL.querySelector("#egrClock").textContent = hh2 + ":" + (mm < 10 ? "0" : "") + mm;
+    MONEL.querySelector("#egrLeg").textContent = s.leg + "  →  " + s.next;
+    MONEL.querySelector("#egrAlt").textContent = Math.round(s.alt).toLocaleString();
+    MONEL.querySelector("#egrSpd").textContent = Math.round(s.kmh);
+    var v = Math.round(s.vs);
+    MONEL.querySelector("#egrVs").textContent = (v > 0 ? "+" : "") + v;
+    MONEL.querySelector("#egrPos").textContent =
+      Math.abs(s.lat).toFixed(3) + "°" + (s.lat >= 0 ? "N" : "S") + " · "
+      + Math.abs(s.lon).toFixed(3) + "°" + (s.lon >= 0 ? "E" : "W");
+    MONEL.querySelector("#egrDist").textContent = Math.round(s.dist).toLocaleString();
+  }
+
+  /* — 책 화면. 없으면 곧 검색 한 문(20호) — */
+  function paintBook() {
+    if (!MONEL) return;
+    var el = MONEL.querySelector("#egrBook");
+    if (!BOOK) {
+      el.innerHTML = '<input id="egrQ" placeholder="읽을 책을 검색하십시오 — 서가와 바깥을 함께 훑습니다">'
+        + '<div class="hint">엔터로 검색 · 서가에 없으면 그 자리에서 들입니다</div>'
+        + '<div class="list" id="egrList"></div>';
+      var q = el.querySelector("#egrQ");
+      EGR_on(q, "keydown", function (e) {
+        if (e.key === "Enter") { e.stopPropagation(); doSearch(q.value); }
+      });
+      return;
+    }
+    var noteHtml = '<div class="notes" id="egrNotes"></div>';
+    el.innerHTML = '<div class="chosen">'
+      + '<img src="' + esc(BOOK.cover_url || "") + '" onerror="this.style.visibility=\'hidden\'">'
+      + '<div class="t"><b>' + esc(BOOK.title) + '</b><small>' + esc(BOOK.author || "") + '</small>'
+      + '<div class="acts"><button class="btn" id="egrWNew" type="button">기록 쓰기</button>'
+      + '<button class="btn" id="egrBSwap" type="button">다른 책</button></div></div></div>'
+      + noteHtml;
+    EGR_on(el.querySelector("#egrWNew"), "click", function () { openWrite(null); });
+    EGR_on(el.querySelector("#egrBSwap"), "click", function () { BOOK = null; paintBook(); });
+    loadNotes();
+  }
+  function doSearch(qs) {
+    var list = MONEL && MONEL.querySelector("#egrList");
+    if (!list || !String(qs || "").trim()) return;
+    if (!bookAddReady()) { list.innerHTML = '<div class="hint">책 들이는 손이 아직 안 실렸습니다</div>'; return; }
+    list.innerHTML = '<div class="hint">훑는 중…</div>';
+    egr_uid().then(function (uid) {
+      if (!uid) { list.innerHTML = '<div class="hint">로그인이 필요합니다</div>'; return; }
+      return EGBookAdd.search(qs, uid).then(function (r) { renderSearch(list, r, uid); });
+    }).catch(function (e) { list.innerHTML = '<div class="hint">' + esc(e.message || e) + '</div>'; });
+  }
+  function rowHtml(b, tag) {
+    return '<div class="row"><img src="' + esc(b.cover_url || "") + '" onerror="this.style.visibility=\'hidden\'">'
+      + '<div class="t"><b>' + esc(b.title) + '</b><small>' + esc(b.author || "") + '</small></div>'
+      + (tag ? '<span class="tag">' + tag + '</span>' : '') + '</div>';
+  }
+  function renderSearch(list, r, uid) {
+    var html = "", picks = [];
+    function add(b, tag, act) { html += rowHtml(b, tag); picks.push(act); }
+    if (r.mine.length) { html += '<div class="sect">내 서가</div>';
+      r.mine.forEach(function (b) { add(b, "", function () { choose(b); }); }); }
+    if (r.kept && r.kept.length) { html += '<div class="sect">보관함</div>';
+      r.kept.forEach(function (b) { add(b, "보관함", function () { choose(b); }); }); }
+    if (r.outer.length) { html += '<div class="sect">바깥 우물</div>';
+      r.outer.forEach(function (b) {
+        add(b, b.owned ? "이미 있음" : "들이기", function () {
+          if (b.owned) { pickOwned(b.owned_id, uid); return; }
+          var msg = MONEL.querySelector("#egrList");
+          msg.insertAdjacentHTML("afterbegin", '<div class="hint" id="egrAddMsg">들이는 중…</div>');
+          EGBookAdd.add(b, uid, function (st) {
+            var m2 = MONEL.querySelector("#egrAddMsg");
+            if (m2) m2.textContent = { cover: "표지를 옮겨 오는 중…", seq: "자리를 받는 중…", insert: "서가에 꽂는 중…" }[st] || "…";
+          }).then(function (out) { choose(out.row); })
+            .catch(function (e) { var m2 = MONEL.querySelector("#egrAddMsg");
+              if (m2) m2.textContent = "못 들였습니다 — " + (e.message || e); });
+        });
+      }); }
+    if (!html) html = '<div class="hint">아무것도 못 찾았습니다</div>';
+    if (r.outerError) html += '<div class="hint">⚠ 바깥 우물: ' + esc(r.outerError) + '</div>';
+    list.innerHTML = html;
+    var rows = list.querySelectorAll(".row");
+    for (var i = 0; i < rows.length; i++) (function (i2) {
+      EGR_on(rows[i2], "click", function () { picks[i2] && picks[i2](); });
+    })(i);
+  }
+  function pickOwned(id, uid) {
+    egr_fetch("/rest/v1/wunderkammer_books?id=eq." + encodeURIComponent(id)
+      + "&select=id,title,author,cover_url").then(function (rows) {
+        if (rows && rows[0]) choose(rows[0]);
+      }).catch(function (e) { console.warn("[EG] 책 확인 실패:", e); });
+  }
+  function choose(b) {
+    BOOK = b;
+    /* ⭐ 표지가 모니터에 걸린다(20호 ⑤) — 좌석에서 꽂은 책도 곧 wunderkammer_books 다(22호) */
+    paintBook();
+  }
+  function loadNotes() {
+    var box = MONEL && MONEL.querySelector("#egrNotes");
+    if (!box || !BOOK) return;
+    rpc("get_my_book_notes", { p_book: BOOK.id }).then(function (rows) {
+      rows = rows || [];
+      if (!rows.length) { box.innerHTML = '<div class="hint">아직 기록이 없습니다 — 첫 회차를 여십시오</div>'; return; }
+      box.innerHTML = rows.map(function (n) {
+        return '<div class="note" data-seq="' + n.seq + '"><b>제' + n.seq + '회</b>'
+          + esc(String(n.body || "").replace(/\s+/g, " ").slice(0, 42))
+          + (n.status === "draft" ? ' <span class="tag">초안</span>' : "") + '</div>';
+      }).join("");
+      var items = box.querySelectorAll(".note");
+      for (var i = 0; i < items.length; i++) (function (el2) {
+        EGR_on(el2, "click", function () {
+          var sq = +el2.getAttribute("data-seq");
+          var row = rows.filter(function (n) { return n.seq === sq; })[0];
+          openWrite(row);
+        });
+      })(items[i]);
+    }).catch(function (e) { box.innerHTML = '<div class="hint">' + esc(e.message || e) + '</div>'; });
+  }
+  function openWrite(row) {
+    var w = MONEL.querySelector("#egrWrite");
+    var go = function (seq, body) {
+      WD.seq = seq; WD.dirty = false; WD.sec = 0; WD.last = 0;
+      MONEL.querySelector("#egrWHd").textContent = BOOK.title + " · 제" + seq + "회";
+      MONEL.querySelector("#egrWBody").value = body || "";
+      MONEL.querySelector("#egrWMsg").textContent = "";
+      w.classList.add("on");
+      MONEL.querySelector("#egrWBody").focus();
+    };
+    if (row) { go(row.seq, row.body); return; }
+    rpc("book_note_next_seq", { p_book: BOOK.id })
+      .then(function (n) { go(Math.max(1, +n || 1), ""); })
+      .catch(function () { go(1, ""); });
+  }
+  /* ⚠ 창밖 보러 나갔다 돌아오니 백지 — 그건 다시는 안 쓰게 되는 사고다(v1.4 13호).
+     손을 멈추면 2.5초 뒤 조용히 초안으로 남긴다. 베스페르 touched 문법 그대로. */
+  function touched() {
+    var now = performance.now();
+    if (WD.last && now - WD.last < 5000) WD.sec += (now - WD.last) / 1000;
+    WD.last = now;
+    WD.dirty = true;
+    clearTimeout(WD.tmr);
+    WD.tmr = setTimeout(function () { if (WD.dirty) saveNote("draft"); }, 2500);
+  }
+  function saveNote(status) {
+    if (!BOOK || WD.saving) return;
+    var body = MONEL.querySelector("#egrWBody").value;
+    if (status === "saved" && !body.trim()) {
+      MONEL.querySelector("#egrWMsg").textContent = "아직 쓴 글이 없습니다"; return;
+    }
+    WD.saving = true;
+    var s = SINFO || {};
+    rpc("save_my_book_note", {
+      p_book: BOOK.id, p_seq: WD.seq, p_body: body, p_status: status,
+      p_route: (flight && flight.routeCode) || null,
+      p_place: s.leg || null,
+      p_lat: (typeof s.lat === "number") ? +s.lat.toFixed(5) : null,
+      p_lon: (typeof s.lon === "number") ? +s.lon.toFixed(5) : null,
+      p_alt_km: (typeof s.alt === "number") ? +(s.alt / 1000).toFixed(2) : null,
+      p_write_sec: Math.round(WD.sec)
+    }).then(function () {
+      WD.dirty = false;
+      MONEL.querySelector("#egrWMsg").textContent = status === "saved" ? "저장했습니다" : "임시 저장";
+      if (status === "saved") loadNotes();
+      /* ⚠ 도장(16호)은 stamp_kinds 에 독서비행 줄이 서면 여기서 놓는다 — 원판은 소로 몫 */
+    }).catch(function (e) {
+      MONEL.querySelector("#egrWMsg").textContent =
+        /JWT|auth|401|로그인/i.test(String(e && e.message)) ? "로그인이 필요합니다" : "저장하지 못했습니다";
+    }).then(function () { WD.saving = false; });
   }
 
   /* ══ 소리 (0819g) — 방송 → 엔진음. 베스페르 0817 문법 그대로 ══════════
@@ -680,16 +1048,20 @@
       else if (k === "arrowright") swapSeat(+1);
     });
     paintCabin(route.legs[0][1]);
+    mountMonitor(route);             /* ⭐ 좌석 모니터 — layout 이 사다리꼴에 앉힌다 */
+    layout();
     playAnnounce();                  /* 방송 → 끝나면 엔진음이 스르르 (0817 문법) */
 
     var hud = ROOT.querySelector("#hud"), hudT = 0;
     flight = cruise(route, {
       sky: 6,
       onTick: function (s) {
+        SINFO = s;                   /* 기록 저장이 좌표를 읽는다 */
         var now = performance.now();
         if (now - hudT < 400) return; hudT = now;
         paintCabin(s.lon);
         engineTune(s.rel);           /* 낮으면 굵게 · 높으면 멀게 */
+        paintInfo(s);                /* ⭐ 모니터 비행정보 — 「남은 시간」은 없다(14호) */
         /* msl 노선은 해발이 정본이다 — 「지면 위」로 읽으면 산비탈마다 숫자가 널뛴다 */
         hud.textContent = route.name + " · " + s.leg + " → " + s.next
           + "  ·  " + (route.mode === "msl"
@@ -730,6 +1102,9 @@
 
   function leave() {
     var v = viewer;
+    /* ⚠ 쓰다 만 기록이 있으면 초안으로 건진다 — 방이 걷히기 전에, 이 방이 아직 있을 때.
+       늦게 온 응답은 그냥 버려진다(31호 ㉤) — MONEL 이 이미 null 이라 만질 DOM 이 없다. */
+    try { clearTimeout(WD.tmr); if (WD.dirty && BOOK) saveNote("draft"); } catch (e) { }
     EGR_clearTimers();
     try { hush(); } catch (e) { }   /* ⚠ 제 소리는 제 손으로 끈다 — __egHush 는 베스페르 것 */
     try { if (flight) { flight.stop(); flight = null; } } catch (e) { }
@@ -748,6 +1123,10 @@
     }
     viewer = null;
     OUT = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
+    MONEL = null; TAB = "info"; SINFO = null;
+    WD.dirty = false; WD.saving = false;
+    /* ⚠ BOOK 은 남긴다 — 같은 세션에서 다시 타면 읽던 책이 그대로 걸려 있는 편이 맞다.
+       상태 칸이 아니라 이 창의 기억일 뿐이다(11호와 안 부딪힘 — 저장 안 함) */
     console.log("[EG] 독서비행 방을 걷었습니다 — 카메라를 terra 로 되돌렸습니다.");
   }
 
