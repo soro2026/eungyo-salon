@@ -2150,7 +2150,7 @@ body.standalone #backBtn{display:block;}
 <!-- EG Credencial — 찍기 부품 (0804) · 이 파일은 supabase-js가 없어 REST로 스스로 간다 -->
 <script src="stamp_press.js?v=0808a"></script>
 <!-- ⭐ 0819 · 책 들이는 손 (독서비행 v2.0 30호) — Ⅱ층과 좌석이 나눠 쓴다 -->
-<script src="eg_book_add.js?v=0819b"></script>
+<script src="eg_book_add.js?v=0819c"></script>
 <!-- EG 하늘 한 벌 (0729) — 시각 구간은 여기 하나에서만 정한다. eg_sky.js 참조 -->
 <script src="eg_sky.js?v=0806e"></script>
 <script src="eg_camera.js?v=0804a"></script>
@@ -5268,6 +5268,7 @@ const Floor3 = (() => {
     currentBook = book;
     buildFlipbook(book, paginateEssay(book));
     modal.classList.add('open');
+    loadBookNotes(book);              /* ⭐ 0819 — 독서비행 기록을 데려온다 */
     // 내 책일 때만 글쓰기 버튼 (미래 순례 ?user= 대비)
     const myUid = getUser()?.id;
     const mine = !book.owner_id || book.owner_id === myUid;
@@ -5290,12 +5291,31 @@ const Floor3 = (() => {
     ];
   }
 
+  /* ⭐⭐ 0819 — 독서비행 기록(eg_book_notes)을 책 모달로 데려온다.
+     ⚠ 소로: 「페터 카멘친트 입력한 내용이 저장은 된 거 같은데 책 모달 안에는 연결이 안 되어 있음」
+       맞다. 좌석에서 쓴 글은 eg_book_notes 에 사는데 이 모달은 essay_body 만 보고 있었다.
+     ⭐ 23호 — 글은 한 종류다. 옛 essay 와 새 회차를 **한 책 안에서 이어 붙인다.**
+       회차마다 새 면에서 시작한다 — 장이 바뀌면 새 쪽에서 시작하는 실제 책처럼. */
+  function bookSections(book){
+    const out = [];
+    const own = (book.essay_body || '').trim();
+    if (own) out.push({ title: book.essay_title || book.title || '', body: own });
+    (book.__notes || []).forEach(n => {
+      const b = String(n.body || '').trim();
+      if (!b) return;
+      out.push({ title: '제' + n.seq + '회' + (n.place ? ' · ' + n.place : ''), body: b });
+    });
+    return out;
+  }
   // 실측: 본문을 면 크기에 맞춰 여러 면으로 분할 (넘치면 다음 면 / 단락이 면보다 길면 어절로 쪼갬)
   function paginateEssay(book){
-    const body = (book.essay_body || '').trim();
-    if(!body) return { faces: emptyFaces(book), empty:true };
-    const title = book.essay_title || book.title || '';
-    const paras = body.split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
+    const sections = bookSections(book);
+    if(!sections.length) return { faces: emptyFaces(book), empty:true };
+    const paras = [];
+    sections.forEach((sec, si) => {
+      paras.push({ __head: sec.title, __first: si === 0 });
+      sec.body.split(/\n{2,}/).map(s => s.trim()).filter(Boolean).forEach(t => paras.push(t));
+    });
 
     // 측정용 면 — 실제 .front 와 동일 클래스·컨텍스트(modal 안), 화면 밖
     const host = document.createElement('div');
@@ -5308,13 +5328,16 @@ const Floor3 = (() => {
     const overflow = () => pc.scrollHeight > pc.clientHeight + 1;
 
     const faces = [];
-    let first = true;
     const queue = paras.slice();
     let guard = 0;
-    while(queue.length && guard++ < 300){
-      const t = first ? title : '';
+    let t = '';
+    while(queue.length && guard++ < 400){
+      /* ⭐ 회차 머리를 만나면 그 면은 거기서 새로 시작한다 */
+      if(queue[0] && queue[0].__head !== undefined){ t = queue.shift().__head || ''; }
+      else t = '';
       const accepted = [];
       while(queue.length){
+        if(queue[0] && queue[0].__head !== undefined) break;   /* 다음 회차 — 이 면 마감 */
         render(t, [...accepted, queue[0]]);
         if(!overflow()){ accepted.push(queue.shift()); continue; }
         if(accepted.length === 0){
@@ -5334,11 +5357,24 @@ const Floor3 = (() => {
         }
         break; // 이 면 마감
       }
-      faces.push({ title: t || null, paras: accepted });
-      first = false;
+      if(accepted.length || t) faces.push({ title: t || null, paras: accepted });
     }
     host.remove();
     return { faces, empty:false };
+  }
+  /* ⭐ 0819 — eg_book_notes 를 데려와 책을 다시 짠다.
+     ⚠ 늦게 온 응답은 그 사이 다른 책을 열었으면 버린다 — 남의 책에 남의 글이 서면 안 된다. */
+  function loadBookNotes(book){
+    if (!book || !book.id) return;
+    sbFetch('/rest/v1/rpc/get_my_book_notes', {
+      method: 'POST', body: JSON.stringify({ p_book: book.id })
+    }).then(rows => {
+      if (currentBook !== book) return;
+      const got = (rows || []).filter(n => String(n.body || '').trim());
+      if (!got.length) return;
+      book.__notes = got;
+      buildFlipbook(book, paginateEssay(book));
+    }).catch(e => console.warn('[책의 방] 독서비행 기록을 못 데려왔습니다:', e && e.message));
   }
   function closeBook() {
     modal.classList.remove('open');

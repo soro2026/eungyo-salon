@@ -37,7 +37,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0819b';
+  var VERSION = '0819c';
   var C = null;                       /* { url, key, sbFetch, getValidToken } */
 
   function init(cfg) {
@@ -165,31 +165,42 @@
     });
   }
 
-  /* ── 표지 복사 : 1차 직접 fetch → 막히면 Edge Function 프록시 ──
-     ⚠ blob 이라 sbFetch 를 못 쓴다 — 날 fetch + 토큰 */
+  /* ── 표지 받기 ── ⭐⭐ 0819 개편 — **언제나 프록시로 받는다.**
+     ⚠⚠ 옛 판은 「1차 직접 fetch → 막히면 프록시」였다. 그런데 직접 fetch 가
+        **성공하는 것이 문제**였다 — 네이버가 준 458×687 축소판이 그대로 들어왔다.
+        소로 0819: 「그게 썸네일임. 화질이 아주 밑바닥」. 32권이 그렇게 들어와 있다.
+     ⭐ Edge Function v13 이 원본 후보 여럿을 실제로 받아 보고 가장 큰 것을 골라 준다.
+        형태를 추측하지 않으므로 CDN 규칙이 바뀌어도 이 셈은 안 무너진다.
+     ⚠ 호출이 하나 늘지만 책 들일 때 한 번뿐이라 부담이 없다. */
   function fetchCoverBlob(coverUrl) {
     var c = need();
-    return fetch(coverUrl, { mode: 'cors' }).then(function (r) {
-      if (!r.ok) return null;
-      return r.blob().then(function (b) { return (b && b.size > 0) ? { blob: b, via: '직접' } : null; });
-    }).catch(function () { return null; })
-      .then(function (got) {
-        if (got) return got;
-        return c.getValidToken().then(function (token) {
-          if (!token) throw new Error('로그인 세션 없음');
-          return fetch(c.url + '/functions/v1/naver-book-search', {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + token, 'apikey': c.key, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ img: coverUrl })
-          });
-        }).then(function (r2) {
-          if (!r2.ok) throw new Error('표지 프록시 실패 ' + r2.status);
-          return r2.blob();
-        }).then(function (b2) {
-          if (!b2 || b2.size === 0) throw new Error('표지 빈 응답');
-          return { blob: b2, via: '프록시' };
-        });
+    return c.getValidToken().then(function (token) {
+      if (!token) throw new Error('로그인 세션 없음');
+      return fetch(c.url + '/functions/v1/naver-book-search', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token, 'apikey': c.key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ img: coverUrl })
       });
+    }).then(function (r) {
+      if (!r.ok) throw new Error('표지 프록시 실패 ' + r.status);
+      var from = r.headers.get('X-EG-Cover-From');
+      var bytes = r.headers.get('X-EG-Cover-Bytes');
+      if (bytes) console.log('[EGBookAdd] 표지 ' + Math.round(+bytes / 1024) + 'KB'
+        + (from ? ' ← ' + decodeURIComponent(from).slice(0, 90) : ''));
+      return r.blob();
+    }).then(function (b) {
+      if (!b || b.size === 0) throw new Error('표지 빈 응답');
+      return { blob: b, via: '프록시' };
+    }).catch(function (e) {
+      /* ⚠ 프록시가 통째로 막히면 그때만 날 fetch — 없는 것보다는 축소판이 낫다 */
+      console.warn('[EGBookAdd] 프록시 실패, 직접 받기로 물러섭니다:', e && e.message);
+      return fetch(coverUrl, { mode: 'cors' }).then(function (r2) {
+        if (!r2.ok) return null;
+        return r2.blob().then(function (b2) {
+          return (b2 && b2.size > 0) ? { blob: b2, via: '직접(축소판)' } : null;
+        });
+      }).catch(function () { return null; });
+    });
   }
 
   function imgSize(blob) {

@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0819k
+   EG독서비행 — 방(room) 판 · reading_room.js · v0819M
    2026.08.19 소로 × 파이스 · 144회차
    ⚠ 판번호는 아래 VERSION 하나가 정본이다. 0819e 까지 이 줄이 a 로 남아 있었다 —
      「적어 두는 것과 읽는 것은 다른 일」의 표본. 고칠 때 둘을 함께 올린다.
@@ -46,7 +46,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0819k";
+  var VERSION = "0819M";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -473,6 +473,17 @@
 /* ⭐ 항로도 — 고정 고리라 지도 타일이 필요 없다. 경로 자체가 지도다 */
 #egrMap{flex:1 1 auto;min-height:0;position:relative}
 #egrMap svg{width:100%;height:100%;display:block}
+/* ⭐ 확대 다섯 단계 — 실제 IFE 지도의 그것. 겹침은 감추는 게 아니라 퍼뜨려 푼다 */
+#egrZoom{position:absolute;right:2px;top:2px;display:flex;gap:3px;align-items:center}
+#egrZoom button{width:19px;height:19px;padding:0;border:1px solid #263041;background:#12161d;
+  color:#7d8794;border-radius:3px;cursor:pointer;font:12px/1 Georgia,serif}
+#egrZoom button:hover:not(:disabled){border-color:#8a743c;color:#e6d9ae}
+#egrZoom button:disabled{opacity:.3;cursor:default}
+#egrZoom .lv{color:#5f6a78;font-size:9.5px;min-width:38px;text-align:center;
+  font-variant-numeric:tabular-nums}
+#egrMap .wpt{fill:#5f6a78;font-size:8.5px;font-family:Georgia,'Noto Serif KR',serif}
+#egrMap .wpt.now{fill:#e6d9ae;font-size:9.5px}
+#egrMap .wpt.hide{display:none}
 /* 밑그림 — 항로보다 뒤. 있는 듯 없는 듯해야 항로가 산다 */
 #egrMap .ne-lake{fill:#16222e;stroke:#22384a;stroke-width:.6}
 #egrMap .ne-border{fill:none;stroke:#242c38;stroke-width:.7;stroke-dasharray:3 3}
@@ -481,8 +492,6 @@
 #egrMap .seg.now{stroke:#c9a84c;stroke-width:2.2}
 #egrMap .wp{fill:#3c4a5c}
 #egrMap .wp.now{fill:#c9a84c}
-#egrMap .wpt{fill:#5f6a78;font-size:8.5px;font-family:Georgia,'Noto Serif KR',serif}
-#egrMap .wpt.now{fill:#e6d9ae;font-size:9.5px}
 #egrMap .ship{fill:#f2e8cf}
 #egrInfo .strip{flex:0 0 auto;display:grid;grid-template-columns:repeat(4,1fr);
   gap:2px 14px;border-top:1px solid #1d2430;padding-top:8px;margin-top:6px}
@@ -521,16 +530,72 @@
 #egrBook .note{padding:5px 4px;color:#9aa5b1;font-size:12px;cursor:pointer;border-radius:3px}
 #egrBook .note:hover{background:#141a23;color:#dfe6ee}
 #egrBook .note b{font-weight:normal;color:#c9a84c;margin-right:8px}
-#egrWrite{position:absolute;left:0;right:0;top:0;bottom:44px;background:#0d1015;
-  padding:14px 20px 10px;display:none}
-#egrWrite.on{display:flex;flex-direction:column}
-#egrWrite .hd{color:#e6d9ae;font-size:13px;margin-bottom:7px;flex:0 0 auto}
-#egrWrite textarea{flex:1 1 auto;width:100%;box-sizing:border-box;resize:none;min-height:0;
-  background:#12161d;border:1px solid #263041;color:#dfe6ee;padding:12px;border-radius:4px;
-  font:13.5px/1.7 'Noto Serif KR',Georgia,serif}
-#egrWrite textarea:focus{outline:none;border-color:#8a743c}
-#egrWrite .ft{margin-top:8px;display:flex;gap:8px;align-items:center;flex:0 0 auto}
-#egrWrite .note-msg{color:#7d8794;font-size:11px;margin-left:auto}`;
+/* ══ 독서일지 판 (0819M) — ⭐ 모니터에서 승격시켰다 ═══════════════════
+   ⚠⚠ 소로 0819: 「모니터가 좀 작아서 나같은 노안에게는 무척 부담스러운데」.
+     맞다. 모니터는 517×362px 인데 그 안에 글칸을 넣으면 실제 쓸 폭이 400px 남짓이다.
+     ⭐ 베스페르 일기판처럼 별도 판으로 뺀다. 모니터는 「보는 곳」, 판은 「쓰는 곳」.
+   ⭐ 글씨 크기 단추를 단다 — 노안 배려는 곁다리가 아니라 이 집의 손님 절반의 문제다. */
+#egrDesk{position:fixed;z-index:22;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:min(920px,92vw);height:min(660px,86vh);display:none;
+  background:#0d1015;border:1px solid #2a323f;border-radius:10px;
+  box-shadow:0 18px 60px rgba(0,0,0,.6);color:#cfd6de;
+  font-family:Georgia,'Noto Serif KR',serif;overflow:hidden;pointer-events:auto}
+#egrDesk.on{display:flex;flex-direction:column}
+#egrDesk .hd{display:flex;align-items:center;gap:12px;padding:12px 16px;
+  border-bottom:1px solid #1d2430;background:#12161d;flex:0 0 auto}
+#egrDesk .hd img{width:36px;height:52px;object-fit:cover;border-radius:2px;background:#1a212c}
+#egrDesk .hd .t{flex:1;min-width:0}
+#egrDesk .hd .t b{display:block;font-weight:normal;color:#e6d9ae;font-size:16px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#egrDesk .hd .t small{color:#8fa0b4;font-size:12px}
+#egrDesk .hd .cnt{color:#7d8794;font-size:12px;font-variant-numeric:tabular-nums}
+#egrDesk .hd .fs{display:flex;gap:3px}
+#egrDesk .body{flex:1 1 auto;min-height:0;display:flex}
+/* 왼쪽 — 정돈된 기록들 */
+#egrDesk .side{width:246px;flex:0 0 auto;border-right:1px solid #1d2430;
+  display:flex;flex-direction:column;background:#0a0c10}
+#egrDesk .rng{display:flex;flex-wrap:wrap;gap:4px;padding:10px 10px 8px;flex:0 0 auto}
+#egrDesk .rng button{border:1px solid #263041;background:#12161d;color:#7d8794;
+  border-radius:3px;padding:3px 8px;cursor:pointer;font:11.5px Georgia,'Noto Serif KR',serif}
+#egrDesk .rng button.on{border-color:#8a743c;color:#e6d9ae;background:#171d26}
+#egrDesk .arch{flex:1 1 auto;overflow:auto;padding:0 8px 10px}
+#egrDesk .bk{margin-top:8px}
+#egrDesk .bk .bt{display:flex;gap:8px;align-items:center;padding:4px 6px;border-radius:4px;
+  color:#8fa0b4;font-size:12px;cursor:pointer}
+#egrDesk .bk .bt:hover{background:#12161d;color:#dfe6ee}
+#egrDesk .bk .bt img{width:18px;height:26px;object-fit:cover;border-radius:1px;background:#1a212c}
+#egrDesk .bk .bt span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#egrDesk .bk .bt em{font-style:normal;color:#5f6a78;font-size:10.5px}
+#egrDesk .ent{padding:4px 8px 4px 34px;color:#7d8794;font-size:11.5px;cursor:pointer;
+  border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#egrDesk .ent:hover{background:#12161d;color:#dfe6ee}
+#egrDesk .ent.on{color:#e6d9ae;background:#141a23}
+#egrDesk .ent b{font-weight:normal;color:#c9a84c;margin-right:6px}
+#egrDesk .ent i{font-style:normal;color:#4e5866;font-size:10px;margin-left:5px}
+#egrDesk .none{color:#5f6a78;font-size:11.5px;padding:14px 8px;line-height:1.7}
+/* 오른쪽 — 글칸 */
+#egrDesk .pane{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;padding:14px 18px 12px}
+#egrDesk textarea{flex:1 1 auto;min-height:0;width:100%;box-sizing:border-box;resize:none;
+  background:#12161d;border:1px solid #263041;color:#e4ebf3;padding:16px 18px;border-radius:5px;
+  font-family:'Noto Serif KR',Georgia,serif;font-size:17px;line-height:1.9}
+#egrDesk textarea:focus{outline:none;border-color:#8a743c}
+#egrDesk .ft{margin-top:10px;display:flex;gap:8px;align-items:center;flex:0 0 auto}
+#egrDesk .msg{color:#7d8794;font-size:12px;margin-left:auto}
+#egrDesk .btn{border:1px solid #3a4356;background:#151b25;color:#cfd6de;
+  border-radius:4px;padding:7px 15px;cursor:pointer;font:13px 'Noto Serif KR',Georgia,serif}
+#egrDesk .btn:hover{border-color:#8a743c;color:#e6d9ae}
+#egrDesk .btn.sm{padding:3px 8px;font-size:12px}
+#egrVeil{position:fixed;inset:0;z-index:21;background:rgba(4,6,10,.55);display:none;
+  pointer-events:auto}
+#egrVeil.on{display:block}
+/* 모니터 한 켠의 최근 책 표지 (⑥) */
+#egrRecent{position:absolute;right:6px;bottom:6px;width:44px;cursor:pointer;
+  opacity:.82;transition:opacity .2s}
+#egrRecent:hover{opacity:1}
+#egrRecent img{width:44px;height:63px;object-fit:cover;border-radius:2px;display:block;
+  box-shadow:0 3px 10px rgba(0,0,0,.6)}
+#egrRecent .cap{color:#7d8794;font-size:8px;text-align:center;margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}`;
     document.head.appendChild(css);
   }
 
@@ -794,6 +859,9 @@
       + '<div class="rte">' + esc(route.name) + '</div>'
       + '<div class="leg" id="egrLeg">—</div>'
       + '<div id="egrMap">' + buildMap(route) + '</div>'
+      + '<div id="egrZoom"><button id="egrZout" type="button" disabled>&#8722;</button>'
+      + '<span class="lv" id="egrZlv">전체</span>'
+      + '<button id="egrZin" type="button">&#43;</button></div>'
       + '<div class="strip">'
       + '<div class="cell"><b>현지 시각</b><span id="egrClock">—</span></div>'
       + '<div class="cell"><b>해발</b><span id="egrAlt">—</span> <small>m</small></div>'
@@ -803,23 +871,41 @@
       + '<div class="tail"><span id="egrPos">—</span><span id="egrDist">—</span></div>'
       + '</div>'
       + '<div id="egrBook" class="scr"></div>'
-      + '<div id="egrWrite"><div class="hd" id="egrWHd">기록</div>'
-      + '<textarea id="egrWBody" placeholder="그 책에 관한 나의 기록"></textarea>'
-      + '<div class="ft"><button class="btn" id="egrWSave" type="button">저장</button>'
-      + '<button class="btn" id="egrWClose" type="button">닫기</button>'
-      + '<span class="note-msg" id="egrWMsg"></span></div></div>'
       + '<div class="tabs"><button id="egrTabI" class="on" type="button">비행정보</button>'
       + '<button id="egrTabB" type="button">읽는 책</button></div>';
     ROOT.appendChild(MONEL);
+    mountDesk();                     /* ⭐ 독서일지 판 — 모니터 밖 별도 판 */
     EGR_on(MONEL.querySelector("#egrTabI"), "click", function () { setTab("info"); });
     EGR_on(MONEL.querySelector("#egrTabB"), "click", function () { setTab("book"); });
-    EGR_on(MONEL.querySelector("#egrWSave"), "click", function () { saveNote("saved"); });
-    EGR_on(MONEL.querySelector("#egrWClose"), "click", function () {
-      if (WD.dirty) saveNote("draft");
-      MONEL.querySelector("#egrWrite").classList.remove("on");
-    });
-    EGR_on(MONEL.querySelector("#egrWBody"), "input", touched);
+    EGR_on(MONEL.querySelector("#egrZin"), "click", function () { setZoom(zi + 1, route); });
+    EGR_on(MONEL.querySelector("#egrZout"), "click", function () { setZoom(zi - 1, route); });
     paintBook();
+    paintRecent();                   /* ⑥ 모니터 한 켠의 최근 책 표지 */
+  }
+
+  /* ══ ⑥ 최근 책 표지 — 비행정보 화면 한 켠에 (0819M · 소로) ══════════
+     ⭐ 누르면 「읽는 책」으로 간다. 지금 읽는 책이 없으면 마지막으로 기록한 책이 선다. */
+  var RECENT = null;
+  function paintRecent() {
+    var box = MONEL && MONEL.querySelector("#egrMap");
+    if (!box) return;
+    var old = MONEL.querySelector("#egrRecent");
+    if (old) old.parentNode.removeChild(old);
+    var b = BOOK || RECENT;
+    if (!b || !b.cover_url) return;
+    var el = document.createElement("div");
+    el.id = "egrRecent";
+    el.title = b.title + (b.author ? " · " + b.author : "");
+    el.innerHTML = '<img src="' + esc(b.cover_url) + '" onerror="this.parentNode.style.display=\'none\'">'
+      + '<div class="cap">' + esc(String(b.title).slice(0, 7)) + '</div>';
+    MONEL.querySelector("#egrInfo").appendChild(el);
+    EGR_on(el, "click", function () { if (!BOOK && RECENT) BOOK = RECENT; setTab("book"); paintBook(); });
+  }
+  /* 마지막으로 기록한 책을 데려온다 — 탑승하자마자 표지가 서 있게 */
+  function loadRecent() {
+    rpc("get_my_recent_book", {}).then(function (rows) {
+      if (rows && rows[0]) { RECENT = rows[0]; if (!BOOK) paintRecent(); }
+    }).catch(function () { /* 없으면 없는 대로 */ });
   }
   function setTab(t) {
     TAB = t;
@@ -831,7 +917,7 @@
   }
 
   /* — 비행정보. 400ms 마다 (onTick 이 부른다) — */
-  function paintInfo(s) {
+  function paintInfo(s, route) {
     if (!MONEL || TAB !== "info") return;
     var utc = new Date();
     var loc = (utc.getUTCHours() + utc.getUTCMinutes() / 60 + s.lon / 15 + 24) % 24;
@@ -846,10 +932,139 @@
       Math.abs(s.lat).toFixed(3) + "°" + (s.lat >= 0 ? "N" : "S") + "  "
       + Math.abs(s.lon).toFixed(3) + "°" + (s.lon >= 0 ? "E" : "W");
     MONEL.querySelector("#egrDist").textContent = "비행 " + Math.round(s.dist).toLocaleString() + " km";
-    paintMap(s);                     /* ⭐ 항로도 — 비행기만 옮긴다 */
+    paintMap(s, route);              /* ⭐ 항로도 — 확대 중이면 지도가 따라 흐른다 */
   }
 
-  /* — 책 화면. 없으면 곧 검색 한 문(20호) — */
+  /* ══ 독서일지 판 (0819M) ═══════════════════════════════════════════
+     ⭐ 왼쪽은 정돈된 기록들, 오른쪽은 글칸. 베스페르 일기판과 같은 문법이다.
+     ⚠ 판이 떠 있는 동안에도 비행은 계속된다 — 14호. 멈추게 하지 않는다. */
+  var DESK = null, VEIL = null, ARANGE = 30, FSIZE = 17;
+  var RANGES = [["오늘", 1], ["7일", 7], ["30일", 30], ["90일", 90], ["전체", null]];
+
+  function mountDesk() {
+    VEIL = document.createElement("div"); VEIL.id = "egrVeil";
+    DESK = document.createElement("div"); DESK.id = "egrDesk";
+    DESK.innerHTML =
+      '<div class="hd"><img id="egrDCov" alt=""><div class="t">'
+      + '<b id="egrDTitle">독서일지</b><small id="egrDSub">&nbsp;</small></div>'
+      + '<span class="cnt" id="egrDCnt">0자</span>'
+      + '<span class="fs"><button class="btn sm" id="egrFsm" type="button" title="글씨 작게">가&#8722;</button>'
+      + '<button class="btn sm" id="egrFsp" type="button" title="글씨 크게">가&#43;</button></span>'
+      + '<button class="btn sm" id="egrDX" type="button">&#10005;</button></div>'
+      + '<div class="body"><div class="side">'
+      + '<div class="rng" id="egrRng"></div><div class="arch" id="egrArch"></div></div>'
+      + '<div class="pane"><textarea id="egrDBody" placeholder="그 책에 관한 나의 기록"></textarea>'
+      + '<div class="ft"><button class="btn" id="egrDSave" type="button">저장</button>'
+      + '<button class="btn" id="egrDNew" type="button">다음 회차</button>'
+      + '<span class="msg" id="egrDMsg"></span></div></div></div>';
+    ROOT.appendChild(VEIL); ROOT.appendChild(DESK);
+    var rng = DESK.querySelector("#egrRng");
+    RANGES.forEach(function (r) {
+      var b = document.createElement("button");
+      b.type = "button"; b.textContent = r[0];
+      b.className = (r[1] === ARANGE) ? "on" : "";
+      EGR_on(b, "click", function () {
+        ARANGE = r[1];
+        var all = rng.querySelectorAll("button");
+        for (var i = 0; i < all.length; i++) all[i].classList.remove("on");
+        b.classList.add("on");
+        loadArchive();
+      });
+      rng.appendChild(b);
+    });
+    EGR_on(DESK.querySelector("#egrDX"), "click", closeDesk);
+    EGR_on(VEIL, "click", closeDesk);
+    EGR_on(DESK.querySelector("#egrDSave"), "click", function () { saveNote("saved"); });
+    EGR_on(DESK.querySelector("#egrDNew"), "click", function () {
+      if (WD.dirty) saveNote("draft");
+      openWrite(null);
+    });
+    EGR_on(DESK.querySelector("#egrDBody"), "input", function () {
+      touched();
+      DESK.querySelector("#egrDCnt").textContent =
+        DESK.querySelector("#egrDBody").value.length + "자";
+    });
+    EGR_on(DESK.querySelector("#egrFsp"), "click", function () { setFont(FSIZE + 2); });
+    EGR_on(DESK.querySelector("#egrFsm"), "click", function () { setFont(FSIZE - 2); });
+  }
+  /* ⭐ 노안 배려 — 이 집 손님 절반의 문제다. 곁다리가 아니다 */
+  function setFont(px) {
+    FSIZE = Math.max(13, Math.min(28, px));
+    var t = DESK && DESK.querySelector("#egrDBody");
+    if (t) { t.style.fontSize = FSIZE + "px"; t.style.lineHeight = (FSIZE > 20 ? 1.8 : 1.9); }
+    try { localStorage.setItem("eg_read_fs", String(FSIZE)); } catch (e) { }
+  }
+  function openDesk() {
+    if (!DESK) return;
+    try { var f = +localStorage.getItem("eg_read_fs"); if (f) FSIZE = f; } catch (e) { }
+    setFont(FSIZE);
+    VEIL.classList.add("on"); DESK.classList.add("on");
+    loadArchive();
+  }
+  function closeDesk() {
+    if (!DESK) return;
+    if (WD.dirty) saveNote("draft");
+    VEIL.classList.remove("on"); DESK.classList.remove("on");
+  }
+
+  /* ③ 아카이빙 — 기간으로 좁히고 책별로 묶는다 */
+  function loadArchive() {
+    var box = DESK && DESK.querySelector("#egrArch");
+    if (!box) return;
+    box.innerHTML = '<div class="none">불러오는 중…</div>';
+    rpc("get_my_book_archive", { p_days: ARANGE }).then(function (rows) {
+      rows = rows || [];
+      if (!rows.length) {
+        box.innerHTML = '<div class="none">이 기간에 쓴 기록이 없습니다.<br>'
+          + '모니터에서 책을 고르고 첫 회차를 여십시오.</div>';
+        return;
+      }
+      /* 책별로 묶는다 — 서버가 이미 책 단위로 정렬해 준다 */
+      var html = "", cur = null;
+      rows.forEach(function (r) {
+        if (r.book_id !== cur) {
+          cur = r.book_id;
+          html += '<div class="bk"><div class="bt" data-bk="' + r.book_id + '">'
+            + '<img src="' + esc(r.cover_url || "") + '" onerror="this.style.visibility=\'hidden\'">'
+            + '<span>' + esc(r.title) + '</span></div>';
+        }
+        html += '<div class="ent" data-bk="' + r.book_id + '" data-seq="' + r.seq + '">'
+          + '<b>제' + r.seq + '회</b>'
+          + esc(String(r.body || "").replace(/\s+/g, " ").slice(0, 22))
+          + (r.status === "draft" ? '<i>초안</i>' : "") + '</div>';
+      });
+      box.innerHTML = html;
+      var ents = box.querySelectorAll(".ent"), i;
+      for (i = 0; i < ents.length; i++) (function (el) {
+        EGR_on(el, "click", function () {
+          var bk = el.getAttribute("data-bk"), sq = +el.getAttribute("data-seq");
+          var row = rows.filter(function (r) { return r.book_id === bk && r.seq === sq; })[0];
+          if (!row) return;
+          if (!BOOK || BOOK.id !== bk) {
+            BOOK = { id: bk, title: row.title, author: row.author, cover_url: row.cover_url };
+            paintBook(); paintRecent();
+          }
+          openWrite({ seq: row.seq, body: row.body });
+          var on = box.querySelectorAll(".ent.on");
+          for (var j = 0; j < on.length; j++) on[j].classList.remove("on");
+          el.classList.add("on");
+        });
+      })(ents[i]);
+      var bts = box.querySelectorAll(".bt");
+      for (i = 0; i < bts.length; i++) (function (el) {
+        EGR_on(el, "click", function () {
+          var bk = el.getAttribute("data-bk");
+          var row = rows.filter(function (r) { return r.book_id === bk; })[0];
+          if (!row) return;
+          BOOK = { id: bk, title: row.title, author: row.author, cover_url: row.cover_url };
+          paintBook(); paintRecent(); openWrite(null);
+        });
+      })(bts[i]);
+    }).catch(function (e) {
+      box.innerHTML = '<div class="none">' + esc(e.message || e) + '</div>';
+    });
+  }
+
   function paintBook() {
     if (!MONEL) return;
     var el = MONEL.querySelector("#egrBook");
@@ -868,10 +1083,12 @@
       + '<img src="' + esc(BOOK.cover_url || "") + '" onerror="this.style.visibility=\'hidden\'">'
       + '<div class="t"><b>' + esc(BOOK.title) + '</b><small>' + esc(BOOK.author || "") + '</small>'
       + '<div class="acts"><button class="btn" id="egrWNew" type="button">기록 쓰기</button>'
+      + '<button class="btn" id="egrWArch" type="button">지난 기록</button>'
       + '<button class="btn" id="egrBSwap" type="button">다른 책</button></div></div></div>'
       + noteHtml;
     EGR_on(el.querySelector("#egrWNew"), "click", function () { openWrite(null); });
-    EGR_on(el.querySelector("#egrBSwap"), "click", function () { BOOK = null; paintBook(); });
+    EGR_on(el.querySelector("#egrWArch"), "click", function () { openDesk(); });
+    EGR_on(el.querySelector("#egrBSwap"), "click", function () { BOOK = null; paintBook(); paintRecent(); });
     loadNotes();
   }
   function doSearch(qs) {
@@ -925,9 +1142,9 @@
       }).catch(function (e) { console.warn("[EG] 책 확인 실패:", e); });
   }
   function choose(b) {
-    BOOK = b;
+    BOOK = b; RECENT = b;
     /* ⭐ 표지가 모니터에 걸린다(20호 ⑤) — 좌석에서 꽂은 책도 곧 wunderkammer_books 다(22호) */
-    paintBook();
+    paintBook(); paintRecent();
   }
   function loadNotes() {
     var box = MONEL && MONEL.querySelector("#egrNotes");
@@ -951,14 +1168,20 @@
     }).catch(function (e) { box.innerHTML = '<div class="hint">' + esc(e.message || e) + '</div>'; });
   }
   function openWrite(row) {
-    var w = MONEL.querySelector("#egrWrite");
+    if (!BOOK || !DESK) return;
     var go = function (seq, body) {
       WD.seq = seq; WD.dirty = false; WD.sec = 0; WD.last = 0;
-      MONEL.querySelector("#egrWHd").textContent = BOOK.title + " · 제" + seq + "회";
-      MONEL.querySelector("#egrWBody").value = body || "";
-      MONEL.querySelector("#egrWMsg").textContent = "";
-      w.classList.add("on");
-      MONEL.querySelector("#egrWBody").focus();
+      DESK.querySelector("#egrDTitle").textContent = BOOK.title;
+      DESK.querySelector("#egrDSub").textContent =
+        (BOOK.author ? BOOK.author + " · " : "") + "제" + seq + "회";
+      var cv = DESK.querySelector("#egrDCov");
+      cv.src = BOOK.cover_url || ""; cv.style.visibility = BOOK.cover_url ? "" : "hidden";
+      var t = DESK.querySelector("#egrDBody");
+      t.value = body || "";
+      DESK.querySelector("#egrDCnt").textContent = t.value.length + "자";
+      DESK.querySelector("#egrDMsg").textContent = "";
+      openDesk();
+      t.focus();
     };
     if (row) { go(row.seq, row.body); return; }
     rpc("book_note_next_seq", { p_book: BOOK.id })
@@ -976,11 +1199,11 @@
     WD.tmr = setTimeout(function () { if (WD.dirty) saveNote("draft"); }, 2500);
   }
   function saveNote(status) {
-    if (!BOOK || WD.saving) return;
-    var body = MONEL.querySelector("#egrWBody").value;
-    if (status === "saved" && !body.trim()) {
-      MONEL.querySelector("#egrWMsg").textContent = "아직 쓴 글이 없습니다"; return;
-    }
+    if (!BOOK || WD.saving || !DESK) return;
+    var body = DESK.querySelector("#egrDBody").value;
+    var msg = DESK.querySelector("#egrDMsg");
+    if (status === "saved" && !body.trim()) { msg.textContent = "아직 쓴 글이 없습니다"; return; }
+    if (!body.trim() && status === "draft") { WD.dirty = false; return; }
     WD.saving = true;
     var s = SINFO || {};
     rpc("save_my_book_note", {
@@ -993,24 +1216,37 @@
       p_write_sec: Math.round(WD.sec)
     }).then(function () {
       WD.dirty = false;
-      MONEL.querySelector("#egrWMsg").textContent = status === "saved" ? "저장했습니다" : "임시 저장";
-      if (status === "saved") loadNotes();
+      msg.textContent = status === "saved" ? "저장했습니다" : "임시 저장";
+      RECENT = BOOK; paintRecent();
+      loadNotes();
+      if (DESK.classList.contains("on")) loadArchive();
       /* ⚠ 도장(16호)은 stamp_kinds 에 독서비행 줄이 서면 여기서 놓는다 — 원판은 소로 몫 */
     }).catch(function (e) {
-      MONEL.querySelector("#egrWMsg").textContent =
+      msg.textContent =
         /JWT|auth|401|로그인/i.test(String(e && e.message)) ? "로그인이 필요합니다" : "저장하지 못했습니다";
     }).then(function () { WD.saving = false; });
   }
 
-  /* ══ 항로도 (0819j) — 실제 IFE 의 moving map ═══════════════════════
+  /* ══ 항로도 (0819L) — 실제 IFE 의 moving map ═══════════════════════
      ⭐ 지도 타일을 안 부른다. 경로가 고정 고리라 **경로 자체가 지도**다.
         타일을 부르면 새 의존이 생기고 저작자 표시가 하나 더 는다(39호).
      ⚠⚠ 경도를 위도의 코사인으로 눌러야 한다. 안 누르면 알프스가 옆으로 늘어난다 —
         46°N 에서 실측 7.41:1 이 5.12:1 로 바뀐다(실제 464km × 90km).
      ⚠ 날짜변경선을 넘는 노선(인천→뉴욕 같은 것)은 경도가 튄다.
-        지금은 닫힌 고리뿐이라 안 걸리지만, 직선 장거리를 실을 때 여기를 먼저 볼 것. */
+        지금은 닫힌 고리뿐이라 안 걸리지만, 직선 장거리를 실을 때 여기를 먼저 볼 것.
+
+     ⭐⭐ 확대 다섯 단계 (0819L · 소로) — 겹침을 **감추지 않고 퍼뜨려** 푼다.
+        「전체보기 → +1 → +2 → +3 → +4」. 확대하면 지도가 비행기를 따라 흐른다.
+        ⭐ 겹침 판정을 배율마다 다시 셈하므로, 벌어지면 이름이 저절로 나타난다 —
+          숨기는 규칙과 확대가 따로가 아니라 한 벌이다.
+        ⚠ 지금 나는 구간의 두 이름은 겹침 판정에서 언제나 이긴다. */
   var MAPBOX = { w: 584, h: 196, pad: 18 };
-  var MAPF = null;                 /* 좌표 → 화면 변환 (노선마다 한 번 셈) */
+  var MAPF = null;                 /* 좌표 → 화면 변환 */
+  var MAPBASE = null;              /* 전체보기일 때의 변환 (배율의 기준) */
+  var ZOOM = [1, 2, 4, 8, 16];
+  var ZLABEL = ["전체", "+1", "+2", "+3", "+4"];
+  var zi = 0;                      /* 지금 단계 */
+  var mapSeg = -1;
 
   function mapFit(route) {
     var pts = curvePoints(route, 12);
@@ -1027,14 +1263,28 @@
     var w = (loMax - loMin) * kx, h = (laMax - laMin);
     if (w <= 0) w = 1e-6; if (h <= 0) h = 1e-6;
     var s = Math.min((MAPBOX.w - MAPBOX.pad * 2) / w, (MAPBOX.h - MAPBOX.pad * 2) / h);
-    var ox = (MAPBOX.w - w * s) / 2, oy = (MAPBOX.h - h * s) / 2;
+    return { s: s, kx: kx, loMin: loMin, laMax: laMax,
+             ox: (MAPBOX.w - w * s) / 2, oy: (MAPBOX.h - h * s) / 2 };
+  }
+  /* 배율과 중심을 받아 변환 하나를 만든다. 중심이 없으면 전체보기 */
+  function mapView(base, mul, cLa, cLo) {
+    var s = base.s * mul, ox, oy;
+    if (mul === 1 || cLa == null) {
+      ox = base.ox * 1; oy = base.oy * 1;
+      return {
+        s: s, mul: mul,
+        x: function (lo) { return ox + (lo - base.loMin) * base.kx * base.s; },
+        y: function (la) { return oy + (base.laMax - la) * base.s; }
+      };
+    }
+    /* ⭐ 비행기를 화면 한복판에 둔다 — 실제 네비게이션의 그것 */
     return {
-      x: function (lo) { return ox + (lo - loMin) * kx * s; },
-      /* ⚠ SVG 는 y 가 아래로 자란다. 위도는 위로 자란다 — 뒤집는다 */
-      y: function (la) { return oy + (laMax - la) * s; }
+      s: s, mul: mul,
+      x: function (lo) { return MAPBOX.w / 2 + (lo - cLo) * base.kx * s; },
+      y: function (la) { return MAPBOX.h / 2 - (la - cLa) * s; }
     };
   }
-  /* 밑그림 한 겹 — 점 배열들을 path 로. 상자 밖은 clipPath 가 자른다 */
+  /* 밑그림 한 겹 — 상자 밖은 clipPath 가 자른다 */
   function neLayer(segs, cls, close) {
     if (!segs || !segs.length) return "";
     var out = "", i, j, s, d;
@@ -1047,8 +1297,9 @@
     }
     return out;
   }
-  function buildMap(route) {
-    MAPF = mapFit(route);
+  function buildMap(route, cLa, cLo) {
+    if (!MAPBASE) MAPBASE = mapFit(route);
+    MAPF = mapView(MAPBASE, ZOOM[zi], cLa, cLo);
     var N = route.legs.length, s, j, d, p, out = [];
     /* ── 밑그림 (있으면) — 항로보다 먼저 그려 뒤에 깔린다 */
     var ne = (window.EGMapNE && EGMapNE.get) ? EGMapNE.get(route.code) : null;
@@ -1059,26 +1310,42 @@
       out.push(neLayer(ne.lake, "ne-lake", true));       /* 호수가 맨 위 — 강이 물고 들어온다 */
       out.push('</g>');
     }
-    /* 구간마다 따로 그린다 — 지금 나는 구간만 금빛으로 바꾸려면 조각이 나뉘어야 한다 */
+    out.push('<g clip-path="url(#egrClip)">');
+    /* 구간마다 따로 그린다 — 지금 나는 구간만 금빛으로 바꾸려면 조각이 나뉘어야 한다.
+       ⭐ 확대할수록 표본을 늘린다. 안 늘리면 파고들었을 때 곡선이 각져 보인다 */
+    var per = 14 + zi * 8;
     for (s = 0; s < N; s++) {
       d = "";
-      for (j = 0; j <= 14; j++) {
-        p = curveOf(route, s, j / 14);
+      for (j = 0; j <= per; j++) {
+        p = curveOf(route, s, j / per);
         d += (j ? "L" : "M") + MAPF.x(p[1]).toFixed(1) + " " + MAPF.y(p[0]).toFixed(1) + " ";
       }
       out.push('<path class="seg" id="egrSeg' + s + '" d="' + d + '"/>');
     }
-    /* ⭐ 길목 점과 이름. 이름은 점 아래위로 번갈아 — 열둘이 한 줄에 서면 겹친다 */
+    /* ⭐⭐ 길목 이름 — 겹침을 화면 좌표로 미리 재서 감춘다.
+       ⚠ 감추는 규칙은 확대와 한 벌이다. 벌어지면 저절로 다시 나타난다.
+       실제 IFE 도 이렇게 한다 — 확대하면 지명이 나타나고 축소하면 사라진다. */
+    var placed = [], hide = {};
     for (s = 0; s < N; s++) {
       p = route.legs[s];
       var px = MAPF.x(p[1]), py = MAPF.y(p[0]);
+      var up = (s % 2 === 0);
+      var ty = py + (up ? -7 : 13);
+      var half = String(p[2]).length * 4.6;             /* 글자 폭 어림 (8.5px 한글) */
+      var clash = false;
+      for (j = 0; j < placed.length; j++) {
+        if (Math.abs(placed[j][1] - ty) < 11
+            && Math.abs(placed[j][0] - px) < (placed[j][2] + half)) { clash = true; break; }
+      }
+      if (clash) hide[s] = true; else placed.push([px, ty, half]);
+      var anc = (px < 46) ? "start" : (px > MAPBOX.w - 46 ? "end" : "middle");
       out.push('<circle class="wp" id="egrWp' + s + '" cx="' + px.toFixed(1)
         + '" cy="' + py.toFixed(1) + '" r="2.4"/>');
-      var up = (s % 2 === 0);
-      var anc = (px < 40) ? "start" : (px > MAPBOX.w - 40 ? "end" : "middle");
-      out.push('<text class="wpt" id="egrWt' + s + '" text-anchor="' + anc + '" x="' + px.toFixed(1)
-        + '" y="' + (py + (up ? -7 : 13)).toFixed(1) + '">' + esc(p[2]) + '</text>');
+      out.push('<text class="wpt' + (hide[s] ? " hide" : "") + '" id="egrWt' + s
+        + '" text-anchor="' + anc + '" x="' + px.toFixed(1)
+        + '" y="' + ty.toFixed(1) + '">' + esc(p[2]) + '</text>');
     }
+    out.push('</g>');
     /* 비행기 — 기수가 위(북)를 보게 그린다. rotate(heading) 이 곧 방위다 */
     out.push('<g id="egrShip"><path class="ship" d="M0,-7.5 L4.6,5.2 L0,2.6 L-4.6,5.2 Z"/></g>');
     return '<svg viewBox="0 0 ' + MAPBOX.w + ' ' + MAPBOX.h + '" preserveAspectRatio="xMidYMid meet">'
@@ -1086,22 +1353,49 @@
       + '" height="' + MAPBOX.h + '"/></clipPath></defs>'
       + out.join("") + '</svg>';
   }
-  var mapSeg = -1;
-  function paintMap(s) {
+  /* ⭐ 확대 중이면 지도가 비행기를 따라 흐른다 — 실제 네비게이션의 그것.
+     ⚠ 확대일 때는 좌표계 자체가 매 틱 바뀌므로 다시 그린다. 400ms 에 한 번이고
+       조각이 백 개 남짓이라 가볍다. 전체보기에서는 비행기 하나만 옮긴다. */
+  var redrawT = 0;
+  function paintMap(s, route) {
     var box = MONEL && MONEL.querySelector("#egrMap");
-    if (!box || !MAPF) return;
+    if (!box || !MAPBASE) return;
+    if (zi > 0) {
+      var now2 = performance.now();
+      if (now2 - redrawT > 380) {
+        redrawT = now2;
+        box.innerHTML = buildMap(route, s.lat, s.lon);
+        mapSeg = -1;                                   /* 다시 그렸으니 강조를 새로 */
+      }
+    }
     var ship = box.querySelector("#egrShip");
     if (ship) ship.setAttribute("transform",
-      "translate(" + MAPF.x(s.lon).toFixed(1) + "," + MAPF.y(s.lat).toFixed(1) + ") rotate(" + s.hd.toFixed(1) + ")");
+      "translate(" + MAPF.x(s.lon).toFixed(1) + "," + MAPF.y(s.lat).toFixed(1)
+      + ") rotate(" + s.hd.toFixed(1) + ")");
     if (s.seg === mapSeg) return;               /* 구간이 안 바뀌면 손대지 않는다 */
     var old = box.querySelectorAll(".now");
     for (var i = 0; i < old.length; i++) old[i].classList.remove("now");
     mapSeg = s.seg;
     var sg = box.querySelector("#egrSeg" + s.seg); if (sg) sg.classList.add("now");
     var nx = (s.seg + 1) % s.legN;
+    /* ⚠ 지금 구간의 두 이름은 겹침 판정에서 언제나 이긴다 — hide 를 걷는다 */
     ["#egrWp" + s.seg, "#egrWt" + s.seg, "#egrWp" + nx, "#egrWt" + nx].forEach(function (q) {
-      var el = box.querySelector(q); if (el) el.classList.add("now");
+      var el = box.querySelector(q);
+      if (el) { el.classList.add("now"); el.classList.remove("hide"); }
     });
+  }
+  function setZoom(next, route) {
+    zi = Math.max(0, Math.min(ZOOM.length - 1, next));
+    var box = MONEL && MONEL.querySelector("#egrMap");
+    if (!box) return;
+    var c = (zi > 0 && SINFO) ? SINFO : null;
+    box.innerHTML = buildMap(route, c && c.lat, c && c.lon);
+    mapSeg = -1;
+    var lv = MONEL.querySelector("#egrZlv");
+    if (lv) lv.textContent = ZLABEL[zi];
+    MONEL.querySelector("#egrZout").disabled = (zi === 0);
+    MONEL.querySelector("#egrZin").disabled = (zi === ZOOM.length - 1);
+    if (SINFO) paintMap(SINFO, route);
   }
 
   /* ══ 소리 (0819g) — 방송 → 엔진음. 베스페르 0817 문법 그대로 ══════════
@@ -1188,6 +1482,7 @@
     });
     paintCabin(route.legs[0][1]);
     mountMonitor(route);             /* ⭐ 좌석 모니터 — layout 이 사다리꼴에 앉힌다 */
+    loadRecent();                    /* ⑥ 마지막으로 기록한 책 표지를 데려온다 */
     layout();
     playAnnounce();                  /* 방송 → 끝나면 엔진음이 스르르 (0817 문법) */
 
@@ -1200,7 +1495,7 @@
         if (now - hudT < 400) return; hudT = now;
         paintCabin(s.lon);
         engineTune(s.rel);           /* 낮으면 굵게 · 높으면 멀게 */
-        paintInfo(s);                /* ⭐ 모니터 비행정보 — 「남은 시간」은 없다(14호) */
+        paintInfo(s, route);         /* ⭐ 모니터 비행정보 — 「남은 시간」은 없다(14호) */
         /* msl 노선은 해발이 정본이다 — 「지면 위」로 읽으면 산비탈마다 숫자가 널뛴다 */
         hud.textContent = route.name + " · " + s.leg + " → " + s.next
           + "  ·  " + (route.mode === "msl"
@@ -1262,8 +1557,8 @@
     }
     viewer = null;
     OUT = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
-    MONEL = null; TAB = "info"; SINFO = null;
-    MAPF = null; mapSeg = -1;
+    MONEL = null; TAB = "info"; SINFO = null; DESK = null; VEIL = null; RECENT = null;
+    MAPF = null; MAPBASE = null; mapSeg = -1; zi = 0; redrawT = 0;
     WD.dirty = false; WD.saving = false;
     /* ⚠ BOOK 은 남긴다 — 같은 세션에서 다시 타면 읽던 책이 그대로 걸려 있는 편이 맞다.
        상태 칸이 아니라 이 창의 기억일 뿐이다(11호와 안 부딪힘 — 저장 안 함) */
