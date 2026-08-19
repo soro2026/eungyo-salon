@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0819Q
+   EG독서비행 — 방(room) 판 · reading_room.js · v0819T
    2026.08.19 소로 × 파이스 · 144회차
    ⚠ 판번호는 아래 VERSION 하나가 정본이다. 0819e 까지 이 줄이 a 로 남아 있었다 —
      「적어 두는 것과 읽는 것은 다른 일」의 표본. 고칠 때 둘을 함께 올린다.
@@ -46,7 +46,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0819Q";
+  var VERSION = "0819T";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -92,11 +92,15 @@
     kind: "tour",                    /* tour 관광기 · liner 여객기 */
     felt: 220,                       /* ⭐ 체감(속도÷고도). 25호 — 이 값 하나가 속도를 다 정한다 */
     /* ⭐ 0819f — 소로 시승 뒤 msl 로 전환. 지면추종은 알프스에서 급강하·급상승을 낳는다.
-       msl 3600m — 계곡(400~1500m) 위로는 시원하게 높고, 고개(2000~2800m)와는 다정하게
-       가깝다. 몽블랑·마터호른 옆구리(3000m대)를 지날 때만 그물이 살짝 밀어올린다. */
+       ⚠⚠ 0819R — 3600 이 **낮았다.** 소로 캡처에서 몽블랑 남서 사면을 지나며
+          해발 3,887m · 승강률 −398m/분 (㉡ 상한의 하한에 딱 붙음) · 속도 104km/h.
+          앞보기가 계속 밀어올리다 내려오기를 되풀이한 것이다 — 진짜 순항이 아니었다.
+       ⭐ 3950 으로 올린다. 몽블랑 4,808 · 마터호른 4,478 보다는 낮아 봉우리가 위에 남고,
+          어깨선·능선·빙하는 눈높이에 온다. 계곡(400~1500)에서는 여전히 시원하게 높다.
+       ⚠ 더 올리면(4200+) 봉우리가 발밑으로 내려가 알프스가 언덕이 된다. 여기가 상한이다. */
     mode: "msl",                     /* 'msl' 절대고도(산악) · 'agl' 지면추종(협곡·해안) */
-    msl: 3600,                       /* 순항 해발고도(m) — mode:'msl' 일 때 */
-    floor: 250,                      /* 앞 지면과의 최소 여유(m) — 그물 */
+    msl: 3950,                       /* 순항 해발고도(m) — mode:'msl' 일 때 */
+    floor: 320,                      /* 앞 지면과의 최소 여유(m) — 그물. 0819R 250→320 */
     agl: 700,                        /* ↓ 셋은 mode:'agl' 노선이 쓴다. 알프스는 안 읽는다 */
     aglLow: 450, aglHigh: 1600,      /* 봉우리 옆 · 계곡 위 */
     loop: true,                      /* ⭐ 닫힌 고리 — 끝나지 않는다(13·14호) */
@@ -232,7 +236,11 @@
   function cruise(route, opt) {
     opt = opt || {};
     var L = route.legs, N = L.length;
-    var seg = 0, u = 0;              /* 지금 몇 번째 구간의 어디쯤인가 */
+    /* ⭐ 0819T — 시작 지점을 밖에서 받는다. 안 주면 첫 길목(옛 판과 같다).
+       ⚠ 11호(「읽는 중」 상태 칸을 안 짓는다)와 안 부딪힌다 —
+         그 조항이 막은 것은 **진도**이지 「내가 있던 곳」이 아니다.
+         고리에는 끝이 없으므로 진도가 될 수 없고, 남은 것도 셀 수 없다(14호). */
+    var seg = Math.max(0, (opt.startSeg | 0)) % N, u = Math.min(0.999, Math.max(0, +opt.startU || 0));
     /* ⚠⚠ 0819 소로 — 「멀리 산을 두고 도시 위를 빙글빙글」.
        첫 판은 목표점을 **좇아가는** 셈이었다. 방위를 한 프레임에 조금씩만 돌리는데
        돌 수 있는 것보다 목표가 옆에 오면 영원히 그 둘레를 돈다 — 꼬리를 쫓는 개다.
@@ -242,7 +250,7 @@
          표류가 구조적으로 없다. 앞으로 가는 것이 보장된다. */
     function P(i2) { return legAt(route, i2); }
     function onCurve(sg, uu) { return curveOf(route, sg, uu); }
-    var pos = onCurve(0, 0);
+    var pos = onCurve(seg, u);
     var lat = pos[0], lon = pos[1];
     var ahead = onCurve(0, 0.02);
     var hd = bearing(lat, lon, ahead[0], ahead[1]);
@@ -310,6 +318,12 @@
     var off = viewer.clock.onTick.addEventListener(function () {
       try {
         var now = performance.now(), dt = Math.min((now - tp) / 1000, 0.25); tp = now;
+        /* ⭐⭐ 0819T 일시정지 — 창밖이 그 지점에 선다.
+           ⚠⚠ tp 를 **매 프레임 계속 밀어야 한다.** 멈춘 동안 tp 를 안 고치면
+              재개하는 순간 dt 가 몇 분치로 부풀어 비행기가 순간이동한다.
+              그래서 return 을 위가 아니라 여기에 둔다 — tp = now 다음이다.
+           ⭐ 카메라는 그대로 두므로 화면은 얼어붙은 게 아니라 「멈춰 서 있다」. */
+        if (PAUSED) return;
 
         /* ── 지면 — 150ms 에 한 점씩 돌아가며(위 ㉠ 주석). 몰아 쏘지 않는다 */
         if (now - gT > 150) {
@@ -407,7 +421,8 @@
         if (errN === 20) { console.error("[EG] 오류가 잦아 비행을 멈춥니다"); off(); }
       }
     });
-    return { stop: off, routeCode: route.code };
+    return { stop: off, routeCode: route.code,
+             where: function () { return { seg: seg, u: u }; } };
   }
 
   /* ══ 겉옷 ══════════════════════════════════════════════════════ */
@@ -433,9 +448,6 @@
   box-shadow:0 4px 12px rgba(0,0,0,.28) inset;
   transform:translateY(-101%);transition:transform .75s cubic-bezier(.35,.9,.3,1)}
 #readingRoom.shut .shade{transform:translateY(0)}
-#readingRoom #hud{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:12;
-  pointer-events:none;font:12px/1.6 Georgia,serif;color:rgba(240,232,214,.72);
-  text-shadow:0 1px 6px rgba(0,0,0,.85);white-space:nowrap;letter-spacing:.02em}
 #readingExit{position:fixed;right:18px;top:18px;z-index:14;width:38px;height:38px;
   border-radius:50%;cursor:pointer;pointer-events:auto;font-size:17px;line-height:1;
   background:radial-gradient(circle at 35% 30%,#3f3524,#241d12);
@@ -492,6 +504,14 @@
   border:1px solid #43371f;color:#c9b586;
   box-shadow:inset 0 2px 5px rgba(0,0,0,.6),0 1px 0 rgba(255,244,210,.35)}
 #readingSnd.off{color:#7a6c4d}
+#readingSnd.mus{color:#e6d9ae;box-shadow:inset 0 2px 5px rgba(0,0,0,.6),0 1px 0 rgba(255,244,210,.35),0 0 12px 2px rgba(230,217,174,.22)}
+#readingPause{position:fixed;right:18px;top:110px;z-index:14;width:38px;height:38px;
+  border-radius:50%;cursor:pointer;pointer-events:auto;font-size:13px;line-height:1;
+  background:radial-gradient(circle at 35% 30%,#3f3524,#241d12);
+  border:1px solid #43371f;color:#c9b586;
+  box-shadow:inset 0 2px 5px rgba(0,0,0,.6),0 1px 0 rgba(255,244,210,.35)}
+#readingPause.on{color:#f0dfb4;border-color:#8a743c}
+#readingRoom.out #readingPause{display:none}
 #readingFade{position:fixed;inset:0;z-index:20;background:#05070f;opacity:0;
   pointer-events:none;transition:opacity .28s}
 #readingFade.on{opacity:1}
@@ -643,7 +663,7 @@
     ROOT = document.createElement("div");
     ROOT.id = "readingRoom";
     ROOT.innerHTML = '<div id="fit"><div id="plate"></div><div id="plateB"></div></div>'
-      + '<div id="hud"></div><div id="readingFade"></div>';
+      + '<div id="readingFade"></div>';
     document.body.appendChild(ROOT);
     EXIT = document.createElement("button");
     EXIT.id = "readingExit"; EXIT.type = "button";
@@ -663,8 +683,13 @@
     var sn = document.createElement("button");
     sn.id = "readingSnd"; sn.type = "button"; sn.innerHTML = "&#128266;"; sn.title = "기내 소음";
     ROOT.appendChild(sn);
-    EGR_on(sn, "click", function () { engineSet(!sndOn); });
+    EGR_on(sn, "click", function () { setChannel(CH + 1); });
     /* ⭐ 창 덮개 손잡이 — 그림 속 그것 위. 방(ROOT) 안이라 KEEP 을 안 늘린다 */
+    var pz = document.createElement("button");
+    pz.id = "readingPause"; pz.type = "button";
+    pz.innerHTML = "&#10073;&#10073;"; pz.title = "잠깐 멈춤 (Space)";
+    ROOT.appendChild(pz);
+    EGR_on(pz, "click", togglePause);
     var gp = document.createElement("div");
     gp.id = "readingGrip"; gp.setAttribute("data-tip", "창 닫기"); gp.title = "창 덮개 (S)";
     ROOT.appendChild(gp);
@@ -682,6 +707,44 @@
   var cvW = 0, cvH = 0;            /* 캔버스 마지막 크기 — 같으면 resize 를 안 부른다 */
   var OUT = false;                 /* 0819g — 외부 보기. 왕복 하나, 별도 갈래가 아니다(0호) */
   var SHUT = false;                /* 0819P — 창 덮개. 24호 · 손님이 여닫는다 */
+  var PAUSED = false;              /* 0819T — 일시정지. cruise 루프가 이 값을 본다 */
+
+  /* ══ 이어 타기 (0819T) ═════════════════════════════════════════════
+     ⚠ 소로 0819: 「꽤 왔는데 다시 리셋하면 처음부터 시작하는 게 너무 아까운데」
+     ⭐ 나갔던 곳을 적어 두었다가 다시 타면 거기서 시작한다. 책갈피와 같은 물건이다.
+     ⚠⚠ 서버에 안 적는다 — 브라우저에만. 11호가 「저장하면 어긋나는 날이 온다」고
+        경계한 그 곳이라, 어긋나도 잃을 것이 없는 데에만 둔다.
+     ⚠ 열두 시간이 지나면 잊는다. 어제 날던 곳을 오늘 이어 타는 건 책갈피가 아니라
+       기록이고, 그건 이 방이 안 하는 일이다.
+     ⚠ 아무 말도 안 띄운다 — 「이어서 탑승합니다」 같은 알림 없이 그냥 거기 있다(3호 문법). */
+  var RESUME_KEY = "eg_read_where", RESUME_MS = 12 * 3600 * 1000;
+  function readResume(code) {
+    try {
+      var w = JSON.parse(localStorage.getItem(RESUME_KEY) || "null");
+      if (!w || w.code !== code) return null;
+      if (Date.now() - (w.at || 0) > RESUME_MS) return null;
+      return { seg: w.seg | 0, u: +w.u || 0 };
+    } catch (e) { return null; }
+  }
+  function writeResume() {
+    try {
+      if (!flight || !flight.where) return;
+      var w = flight.where();
+      localStorage.setItem(RESUME_KEY, JSON.stringify({
+        code: flight.routeCode, seg: w.seg, u: w.u, at: Date.now() }));
+    } catch (e) { }
+  }
+  function togglePause() {
+    PAUSED = !PAUSED;
+    var b = document.getElementById("readingPause");
+    if (b) {
+      b.innerHTML = PAUSED ? "&#9654;" : "&#10073;&#10073;";
+      b.title = PAUSED ? "비행 다시 (Space)" : "잠깐 멈춤 (Space)";
+      b.classList.toggle("on", PAUSED);
+    }
+    /* ⭐ 멈춘 동안에도 있던 곳을 적어 둔다 — 창을 그냥 닫아도 안 잃는다 */
+    if (PAUSED) writeResume();
+  }
 
   /* ⭐ 덮개 손잡이 — 그림 속 그 곳 위에 얹는 투명 판. 좌·우 따로(거울이라 홈이 안 대칭).
      ⚠ 처음 값은 어림이다. 소로가 E 편집기로 맞춰 저장하시면 서버 값이 이깁니다. */
@@ -1651,9 +1714,87 @@
   var AC = window.AudioContext || window.webkitAudioContext;
   var ac = null, engGain = null, engLp = null, annAudio = null;
   var sndOn = true, announced = false, engBase = 0.07;   /* 0817 소로: 크다 → 절반 */
+
+  /* ══ 기내 오디오 갈래 셋 (0819R) ═══════════════════════════════════
+     ⚠ 소로 0819: 「이 엄청난 광경을 비행기 소음과 듣는데 좀 짜증이 나더라.
+       비행기에서 이어폰 끼듯, 우리도 소음 대신 음악을 고르게」
+     ⭐ 실제 기내 IFE 의 오디오 채널이 이것이다. 단추 하나로 셋을 돈다 —
+       엔진음(기본) → 기내 음악 → 끔 → 엔진음…
+     ⭐ 음악은 **뮤세움 열두 곡을 그대로** 쓴다. 이미 이 집 사람이 고른 곡이고,
+       새 파일을 안 들인다(22호의 사촌 — 같은 것을 두 곳에 두지 않는다).
+     ⚠ 곡당 4~5MB 다. 미리 다 받지 않는다 — 하나씩, 끝나면 다음.
+     ⚠ 무작위로 매번 뽑으면 방금 들은 곡이 또 나온다. 열둘을 섞어 한 바퀴 돌고
+       다시 섞되, 새 첫 곡이 직전 곡과 같지 않게 한 번 더 민다. */
+  var CH = 0;                      /* 0 엔진음 · 1 음악 · 2 끔 */
+  var CH_ICON = ["&#128266;", "&#9835;", "&#128263;"];
+  var CH_TIP = ["기내 소음", "기내 음악", "소리 끔"];
+  var MUSIC_N = 12, MUSIC_VOL = 0.15;
+  var mus = null, musSrc = null, musGain = null, musQ = [], musI = 0;
+
   function ensureAC() { if (!ac) ac = new AC(); return ac; }
+  function shuffleMusic() {
+    var last = musQ.length ? musQ[musQ.length - 1] : -1, i, j, t;
+    musQ = [];
+    for (i = 1; i <= MUSIC_N; i++) musQ.push(i);
+    for (i = musQ.length - 1; i > 0; i--) {
+      j = Math.floor(Math.random() * (i + 1)); t = musQ[i]; musQ[i] = musQ[j]; musQ[j] = t;
+    }
+    if (musQ[0] === last && musQ.length > 1) { musQ.push(musQ.shift()); }
+    musI = 0;
+  }
+  function musicSrc(n) { return "muse_bgm_" + (n < 10 ? "0" : "") + n + ".mp3"; }
+  function musicNext() {
+    if (CH !== 1 || !mus) return;
+    if (musI >= musQ.length) shuffleMusic();
+    mus.src = musicSrc(musQ[musI++]);
+    mus.play().catch(function (e) { console.warn("[EG] 곡을 못 열었습니다:", e && e.message); });
+  }
+  function musicStart() {
+    if (!mus) {
+      mus = new Audio();
+      mus.preload = "none";
+      mus.crossOrigin = "anonymous";
+      mus.addEventListener("ended", musicNext);
+      /* ⚠ 곡 하나가 막혀도 방송처럼 멈추면 안 된다 — 다음 곡으로 넘어간다 */
+      mus.addEventListener("error", function () { if (CH === 1) EGR_later(musicNext, 400); });
+      try {
+        var a = ensureAC();
+        musSrc = a.createMediaElementSource(mus);
+        musGain = a.createGain(); musGain.gain.value = 0;
+        musSrc.connect(musGain).connect(a.destination);
+      } catch (e) {
+        /* ⚠ WebAudio 로 못 물리면 element 볼륨으로 간다 — 페이드만 못할 뿐 소리는 난다 */
+        console.warn("[EG] 음악을 WebAudio 에 못 물렸습니다:", e && e.message);
+        musGain = null; mus.volume = MUSIC_VOL;
+      }
+    }
+    if (!musQ.length) shuffleMusic();
+    /* ⭐ 2.4초에 걸쳐 샤르르 — 엔진음이 드는 시간과 같게. 둘이 한 문법이어야 한다 */
+    if (musGain) {
+      try {
+        var a2 = ensureAC();
+        musGain.gain.cancelScheduledValues(a2.currentTime);
+        musGain.gain.setValueAtTime(musGain.gain.value, a2.currentTime);
+        musGain.gain.linearRampToValueAtTime(MUSIC_VOL, a2.currentTime + 2.4);
+      } catch (e) { }
+    }
+    if (mus.src) { mus.play().catch(function () { }); } else musicNext();
+  }
+  function musicStop(kill) {
+    if (!mus) return;
+    if (musGain) {
+      try {
+        var a3 = ensureAC();
+        musGain.gain.cancelScheduledValues(a3.currentTime);
+        musGain.gain.setValueAtTime(musGain.gain.value, a3.currentTime);
+        musGain.gain.linearRampToValueAtTime(0, a3.currentTime + 0.9);   /* 엔진음과 같은 걸음 */
+      } catch (e) { }
+    }
+    if (kill) { try { mus.pause(); mus.src = ""; } catch (e) { } }
+    else EGR_later(function () { if (CH !== 1) { try { mus.pause(); } catch (e) { } } }, 1000);
+  }
   function engineStart() {
-    if (engGain || !sndOn) return;
+    if (engGain || CH !== 0) return;
     try {
       var a = ensureAC();
       var buf = a.createBuffer(1, a.sampleRate * 2, a.sampleRate);
@@ -1665,7 +1806,7 @@
       engGain = a.createGain(); engGain.gain.value = 0;
       src.connect(engLp).connect(engGain).connect(a.destination);
       src.start();
-      engGain.gain.linearRampToValueAtTime(engBase, a.currentTime + 2.5);   /* 스르르 */
+      engGain.gain.linearRampToValueAtTime(engBase, a.currentTime + 2.4);   /* 스르르 — 음악과 같은 걸음 */
     } catch (e) { }
   }
   /* ⭐ 고도에 물린다 — 지면 가까이(굵은 웅—) 480Hz · 높이 오르면(먼 쉬—) 300Hz */
@@ -1673,27 +1814,70 @@
     if (!engLp) return;
     try { engLp.frequency.value = 480 - Math.min(Math.max(rel, 0), 4000) / 4000 * 180; } catch (e) { }
   }
-  function engineSet(on) {
-    sndOn = on;
+  /* ⭐ 갈래 하나를 고른다 — 단추가 셋을 돌린다. 브라우저에 기억한다.
+     ⭐⭐ 0819S 소로 — 「소음이 페이드 아웃되고 음악이 샤르르」.
+        ⚠ 0819R 은 둘을 **동시에** 물리고 들였다. 그러면 겹치는 1.4초 동안
+          엔진음과 음악이 함께 울려 가장 지저분한 대목이 된다.
+        ⭐ 실물은 순서가 있다 — 한쪽이 비켜준 **뒤에** 다른 쪽이 든다.
+          이어폰을 끼는 것도 그렇다: 소음이 먼저 멀어지고, 그다음 음악이 온다.
+        ⚠ 켜는 쪽 시간을 끄는 쪽보다 길게 둔다(0.9 → 2.4초). 비대칭이 자연스럽다 —
+          소리는 사라질 때보다 다가올 때 더 천천히 와야 놀라지 않는다. */
+  var chT = null;
+  function setChannel(n, quick) {
+    var prev = CH;
+    CH = ((n % 3) + 3) % 3;
+    sndOn = (CH === 0);
     var b = document.getElementById("readingSnd");
-    if (b) { b.classList.toggle("off", !on); b.innerHTML = on ? "&#128266;" : "&#128263;"; }
-    if (!engGain) { if (on && announced) engineStart(); return; }
-    engGain.gain.linearRampToValueAtTime(on ? engBase : 0, ensureAC().currentTime + 0.6);
+    if (b) {
+      b.innerHTML = CH_ICON[CH];
+      b.title = CH_TIP[CH] + " (다음: " + CH_TIP[(CH + 1) % 3] + ")";
+      b.classList.toggle("off", CH === 2);
+      b.classList.toggle("mus", CH === 1);
+    }
+    try { localStorage.setItem("eg_read_ch", String(CH)); } catch (e) { }
+    clearTimeout(chT);
+
+    /* ── ① 물러날 것을 먼저 재운다 (0.9초) ── */
+    var out = 0.9;
+    if (prev === 0 && engGain) {
+      try { engGain.gain.linearRampToValueAtTime(0, ensureAC().currentTime + out); } catch (e) { }
+    }
+    if (prev === 1) musicStop(false);
+
+    /* ── ② 비켜준 뒤에 들어온다 ── */
+    var enter = function () {
+      if (!ROOT || !document.body.contains(ROOT)) return;
+      if (CH === 0) {
+        if (engGain) {
+          try { engGain.gain.linearRampToValueAtTime(engBase, ensureAC().currentTime + 2.4); } catch (e) { }
+        } else if (announced) engineStart();
+      } else if (CH === 1) musicStart();
+    };
+    /* ⚠ 첫 탑승(quick)이나 갈래가 안 바뀌었으면 기다릴 까닭이 없다 */
+    if (quick || prev === CH || prev === 2) enter();
+    else chT = setTimeout(enter, out * 1000 + 120);
   }
+  function engineSet(on) { setChannel(on ? 0 : 2); }   /* 옛 이름 — 부르는 곳이 남아 있을 때 */
   function playAnnounce() {
     if (announced) return; announced = true;
     annAudio = new Audio(ANNOUNCE_SRC);
     annAudio.volume = 0.9;
     var started = false;
-    annAudio.addEventListener("ended", function () { engineStart(); });   /* 끝나는 순간 스르르 */
+    /* ⭐ 방송이 끝나면 **지금 고른 갈래**로 넘어간다 — 음악 갈래면 음악이 스르르 든다 */
+    var after = function () { if (CH === 0) engineStart(); else if (CH === 1) musicStart(); };
+    annAudio.addEventListener("ended", after);
     annAudio.play().then(function () { started = true; }).catch(function () { });
-    /* ⚠ 폴백 — 파일이 없거나 재생이 막히면 3초 뒤 조용히 엔진음만 */
-    EGR_later(function () { if (!started) engineStart(); }, 3000);
+    /* ⚠ 폴백 — 파일이 없거나 재생이 막히면 3초 뒤 조용히 다음 갈래로 */
+    EGR_later(function () { if (!started) after(); }, 3000);
   }
   function hush() {
     try { if (annAudio) { annAudio.pause(); annAudio = null; } } catch (e) { }
     try { if (engGain) engGain.gain.linearRampToValueAtTime(0, ensureAC().currentTime + 0.25); } catch (e) { }
+    /* ⚠ 음악은 element 라 gain 만 내리면 계속 흐른다 — 실제로 멈춰야 한다 */
+    try { musicStop(true); } catch (e) { }
+    try { clearTimeout(chT); } catch (e) { }
     engGain = null; engLp = null; announced = false;
+    mus = null; musSrc = null; musGain = null; musQ = []; musI = 0;
   }
 
   /* ══ 착석 ══════════════════════════════════════════════════════ */
@@ -1716,7 +1900,8 @@
       if (e.isComposing || !e.key) return;
       if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
       var k = e.key.toLowerCase();
-      if (k === "c") toggleOut();
+      if (k === " " || e.code === "Space") { e.preventDefault(); togglePause(); }
+      else if (k === "c") toggleOut();
       else if (k === "s") toggleShade();
       else if (k === "e") setEdit(!editing);
       else if (k === "arrowleft") swapSeat(-1);
@@ -1761,11 +1946,16 @@
     mountMonitor(route);             /* ⭐ 좌석 모니터 — layout 이 사다리꼴에 앉힌다 */
     loadRecent();                    /* ⑥ 마지막으로 기록한 책 표지를 데려온다 */
     layout();
-    playAnnounce();                  /* 방송 → 끝나면 엔진음이 스르르 (0817 문법) */
+    /* ⭐ 지난번에 고른 갈래를 그대로 — 매번 소음으로 되돌아가면 고른 뜻이 없다 */
+    try { var c0 = localStorage.getItem("eg_read_ch"); if (c0 !== null) CH = +c0 || 0; } catch (e) { }
+    setChannel(CH, true);            /* ⚠ 첫 탑승은 곧장 — 방송이 시간을 이미 준다 */
+    playAnnounce();                  /* 방송 → 끝나면 고른 갈래로 (0817·0819R 문법) */
 
-    var hud = ROOT.querySelector("#hud"), hudT = 0;
+    var hudT = 0;                    /* ⚠ #hud 는 0819R 에 걷었다 — 셈 주기만 남는다 */
+    /* ⭐ 나갔던 곳에서 이어 탄다 — 없으면 첫 길목. 아무 말도 안 띄운다 */
+    var rz = readResume(route.code) || { seg: 0, u: 0 };
     flight = cruise(route, {
-      sky: 6,
+      sky: 6, startSeg: rz.seg, startU: rz.u,
       onTick: function (s) {
         SINFO = s;                   /* 기록 저장이 좌표를 읽는다 */
         var now = performance.now();
@@ -1773,12 +1963,10 @@
         paintCabin(s.lon);
         engineTune(s.rel);           /* 낮으면 굵게 · 높으면 멀게 */
         paintInfo(s, route);         /* ⭐ 모니터 비행정보 — 「남은 시간」은 없다(14호) */
-        /* msl 노선은 해발이 정본이다 — 「지면 위」로 읽으면 산비탈마다 숫자가 널뛴다 */
-        hud.textContent = route.name + " · " + s.leg + " → " + s.next
-          + "  ·  " + (route.mode === "msl"
-              ? "해발 " + Math.round(s.alt) + "m"
-              : "지면 위 " + Math.round(s.rel) + "m")
-          + " · " + Math.round(s.kmh) + "km/h";
+        /* ⚠⚠ 0819R — 화면 아래 계기판 한 줄을 걷었다(소로).
+           모니터가 서면서 노선·길목·고도·속도 넷이 통째로 겹쳤고,
+           무엇보다 **기내에 없는 물건이 허공에 떠 있었다**(8호 실물 절차).
+           계기판을 없앤 게 아니라 제 곳으로 옮겨 앉힌 것이다. */
       }
     });
     console.log("%c[EG] reading_room " + VERSION + " — " + route.name + " · 길목 " + route.legs.length + "점 · 끝없는 고리", "color:#c9a84c");
@@ -1821,6 +2009,8 @@
        안 누른 것은 손해가 아니므로 나무라지 않고 아무 말도 안 띄운다(3호). */
     try { if (window.EGStamp && EGStamp.withdraw) EGStamp.withdraw(); } catch (e) { }
     try { hush(); } catch (e) { }   /* ⚠ 제 소리는 제 손으로 끈다 — __egHush 는 베스페르 것 */
+    /* ⭐ 있던 곳을 적어 둔다 — flight 를 세우기 **전**이어야 값이 살아 있다 */
+    try { writeResume(); } catch (e) { }
     try { if (flight) { flight.stop(); flight = null; } } catch (e) { }
     EGR_off();
     moveCredits(false);              /* ⚠ 크레딧을 제자리로 — 방보다 먼저 돌려놓는다 */
@@ -1838,7 +2028,7 @@
     }
     viewer = null;
     OUT = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
-    SHUT = false; editing = false; egrab = null; cvW = 0; cvH = 0;
+    SHUT = false; editing = false; egrab = null; cvW = 0; cvH = 0; PAUSED = false;
     try { clearTimeout(tuneT); clearTimeout(fadeT); } catch (e) { }
     MONEL = null; TAB = "info"; SINFO = null; DESK = null; VEIL = null; RECENT = null;
     MAPF = null; MAPBASE = null; mapSeg = -1; zi = 0; redrawT = 0;
