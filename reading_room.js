@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0819V
+   EG독서비행 — 방(room) 판 · reading_room.js · v0819W
    2026.08.19 소로 × 파이스 · 144회차
    ⚠ 판번호는 아래 VERSION 하나가 정본이다. 0819e 까지 이 줄이 a 로 남아 있었다 —
      「적어 두는 것과 읽는 것은 다른 일」의 표본. 고칠 때 둘을 함께 올린다.
@@ -46,7 +46,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0819V";
+  var VERSION = "0819W";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -150,11 +150,13 @@
   var MON = {
     tl: [58.02, 42.02], tr: [93.89, 42.35],
     br: [92.92, 56.16], bl: [57.62, 54.81],
-    /* ⭐ 0819U — 원판 880×580(비율 1.517). 사다리꼴 실비율 1.518 에 왜곡 없이 앉는다.
-       ⚠ 옛 620×424 는 1.462 라 사영변환이 가로로 살짝 늘여 앉히고 있었다.
-         글자가 0.4% 넓어지는 정도라 눈에 안 띄었지만, 셈이 맞으면 안 맞을 까닭이 없다. */
-    w: 880, h: 580
+    /* ⚠⚠ 0819W — 원판 크기(w·h)를 이 객체에서 **뺐다.** 아래 MON_W · MON_H 로 옮겼다.
+       까닭은 41호 ㉬ 를 보라 — 편집값이 설계값을 덮어 화면 절반이 사라졌다. */
   };
+  /* ⭐⭐ 원판 크기 — **설계값이다. 편집값이 아니다.**
+     880×580(비율 1.517)이 사다리꼴 실비율 1.518 에 왜곡 없이 앉는다.
+     ⚠⚠ MON 안에 두었다가 0819V 에서 사고가 났다(41호 ㉬). 여기는 아무도 안 덮는다. */
+  var MON_W = 880, MON_H = 580;
   /* 단위 사각형(w×h) → 임의 네 점 사영변환. 표준 호모그래피 셈 —
      기저 세 점으로 아핀을 풀고 넷째 점이 원근(g·h)을 정한다 */
   function homography(w2, h2, p) {   /* p = [[x,y]×4] TL TR BR BL (px) */
@@ -474,9 +476,19 @@
   background:rgba(255,244,214,.06)}
 #readingRoom.edit #egrMon{outline:2px dashed rgba(201,168,106,.75);cursor:move}
 #readingRoom.edit #egrMon *{pointer-events:none}   /* 끄는 동안 속 단추가 안 눌리게 */
+/* ⭐ 모서리 손잡이 넷 — 편집 중에만 선다. 한 점씩 끌어 베젤에 맞춘다 */
+.egrCorner{display:none;position:fixed;z-index:19;width:22px;height:22px;margin:-11px 0 0 -11px;
+  border-radius:50%;cursor:crosshair;pointer-events:auto;
+  background:rgba(201,168,106,.22);border:2px solid rgba(201,168,106,.9);
+  box-shadow:0 0 10px 2px rgba(0,0,0,.5)}
+#readingRoom.edit .egrCorner{display:block}
+.egrCorner:hover{background:rgba(240,223,180,.55);transform:scale(1.15)}
+.egrCorner::after{content:attr(data-k);position:absolute;left:50%;top:120%;
+  transform:translateX(-50%);font:9px Georgia,serif;color:rgba(232,228,216,.75);
+  pointer-events:none;text-shadow:0 1px 4px rgba(0,0,0,.9)}
 #readingTune{position:fixed;left:18px;bottom:18px;z-index:24;display:none;pointer-events:auto;
   background:rgba(12,15,20,.93);border:1px solid #2a323f;border-radius:8px;padding:11px 15px;
-  color:#9aa5b1;font:11.5px/1.75 Georgia,'Noto Serif KR',serif;max-width:320px}
+  color:#9aa5b1;font:11.5px/1.75 Georgia,'Noto Serif KR',serif;max-width:440px}
 #readingRoom.edit #readingTune{display:block}
 #readingTune b{color:#e6d9ae;font-weight:normal}
 #readingTune .sv{color:#c9a84c;font-size:11px}
@@ -838,47 +850,72 @@
     editing = on;
     ROOT.classList.toggle("edit", on);
     if (!on) { clearPreview(); pushTune(); }   /* ⚠ 미리보기가 화면에 눌러앉지 않게 */
-    else tuneSay();
+    else { mountMonHandles(); layout(); tuneSay(); }
   }
   function tuneTarget(el) {
     if (!el || !el.closest) return null;
+    if (el.closest(".egrCorner")) return "corner";   /* ⭐ 모서리가 먼저 — 모니터 위에 얹혀 있다 */
     if (el.closest("#readingGrip")) return "grip";
     if (el.closest("#egrMon")) return "mon";
     return null;
   }
-  /* 모니터 네 점을 통째로 옮긴다 — 사영변환이라 한 점만 끌면 모양이 일그러진다 */
-  function monMove(dxp, dyp) {
-    ["tl", "tr", "br", "bl"].forEach(function (k) { MON[k][0] += dxp; MON[k][1] += dyp; });
+  /* ⭐⭐ 0819W 소로 — 「베젤이 여러 겹이라, 짙은 외곽 베젤에 얇게 맞춰 줘요」.
+     ⚠ 통째로 옮기고 통째로 키우는 것만으로는 베젤에 못 맞춘다. 화면이 사다리꼴이라
+       모서리마다 어긋나는 양이 다르기 때문이다 — **한 점씩 잡아야 한다.**
+     ⭐ 그래서 편집 중에는 네 모서리에 손잡이가 뜬다. 하나를 끌면 그 점만 움직이고,
+       가운데를 끌면 넷이 함께 움직인다(옛 문법 그대로). */
+  var MON_KEYS = ["tl", "tr", "br", "bl"];
+  var MON_KO = { tl: "좌상", tr: "우상", br: "우하", bl: "좌하" };
+  function monMove(dxp, dyp, only) {
+    (only ? [only] : MON_KEYS).forEach(function (k) { MON[k][0] += dxp; MON[k][1] += dyp; });
   }
   function monScale(f) {
-    var ks = ["tl", "tr", "br", "bl"], mx0 = 0, my0 = 0;
-    ks.forEach(function (k) { mx0 += MON[k][0] / 4; my0 += MON[k][1] / 4; });
-    ks.forEach(function (k) {
+    var mx0 = 0, my0 = 0;
+    MON_KEYS.forEach(function (k) { mx0 += MON[k][0] / 4; my0 += MON[k][1] / 4; });
+    MON_KEYS.forEach(function (k) {
       MON[k][0] = mx0 + (MON[k][0] - mx0) * f;
       MON[k][1] = my0 + (MON[k][1] - my0) * f;
+    });
+  }
+  /* 모서리 손잡이 넷 — 편집 중에만 선다. 방(ROOT) 안이라 KEEP 을 안 늘린다 */
+  function mountMonHandles() {
+    if (!ROOT || ROOT.querySelector(".egrCorner")) return;
+    MON_KEYS.forEach(function (k) {
+      var h = document.createElement("div");
+      h.className = "egrCorner"; h.setAttribute("data-k", k);
+      h.title = MON_KO[k] + " 모서리 — 끌어서 베젤에 맞춥니다";
+      ROOT.appendChild(h);
     });
   }
   function tuneSay() {
     var box = ROOT && ROOT.querySelector("#readingTune");
     if (!box) return;
-    var GP = GRIP();
-    box.innerHTML = '<b>편집 중</b> — 창 덮개 손잡이와 모니터를 <b>끌어서</b> 옮기고,'
-      + ' <b>휠</b>로 크기를 맞추십시오. <b>E</b> 로 닫으면 저장됩니다.<br>'
+    box.innerHTML = '<b>편집 중</b> &mdash; <b>E</b> 로 닫으면 저장됩니다.<br>'
+      + '⭐ <b>모서리 넷</b>을 하나씩 끌어 짙은 베젤 안쪽에 맞추십시오.<br>'
+      + '&nbsp;&nbsp;모서리 위 <b>휠</b> = 위아래 0.05% · <b>Shift+휠</b> = 좌우<br>'
+      + '&nbsp;&nbsp;모니터 가운데를 끌면 넷이 함께 · 그 위 휠 = 크기<br>'
       + '<b>T</b> — 조명 미리보기 · 지금 '
       + (PREVIEW ? '<span class="sv">' + THEME_KO[PREVIEW] + '</span>' : '진짜 시각')
-      + '<br>'
-      + '<span class="sv">손잡이 ' + (side < 0 ? "왼창" : "오른창")
-      + ' x ' + GP.x.toFixed(2) + ' y ' + GP.y.toFixed(2)
-      + ' w ' + GP.w.toFixed(2) + ' h ' + GP.h.toFixed(2)
-      + ' · 모니터 좌상 ' + MON.tl[0].toFixed(2) + ',' + MON.tl[1].toFixed(2) + '</span>';
+      + '<br><span class="sv">'
+      + MON_KEYS.map(function (k) {
+          return MON_KO[k] + ' ' + MON[k][0].toFixed(2) + ',' + MON[k][1].toFixed(2);
+        }).join(' · ')
+      + '</span>';
   }
-  function tuneNow() { return { GL: GRIP_L, GR: GRIP_R, MON: MON }; }
+  /* ⚠⚠ 41호 ㉬ — 편집값에 **설계값을 섞지 않는다.** 네 모서리만 적는다.
+     0819V 에서 MON 을 통째로 적었더니 옛 원판 크기(620×424)가 함께 저장됐고,
+     새 설계(880×580)를 덮어 아래단이 화면 밖으로 나갔다. */
+  function tuneNow() {
+    return { GL: GRIP_L, GR: GRIP_R,
+             MON: { tl: MON.tl, tr: MON.tr, br: MON.br, bl: MON.bl } };
+  }
   function applyTune(v) {
     if (!v) return;
     if (v.GL) GRIP_L = v.GL;
     if (v.GR) GRIP_R = v.GR;
-    if (v.MON && v.MON.tl) { MON.tl = v.MON.tl; MON.tr = v.MON.tr; MON.br = v.MON.br; MON.bl = v.MON.bl;
-                             if (v.MON.w) MON.w = v.MON.w; if (v.MON.h) MON.h = v.MON.h; }
+    /* ⚠⚠ w·h 는 읽지 않는다 — 이미 저장된 헌 값(620×424)이 서버에 남아 있고,
+       그것이 0819V 의 화면을 반토막 냈다. 원판 크기는 설계가 정한다. */
+    if (v.MON && v.MON.tl) { MON.tl = v.MON.tl; MON.tr = v.MON.tr; MON.br = v.MON.br; MON.bl = v.MON.bl; }
   }
   function pushTune() {
     try { localStorage.setItem("eg_reading_tune", JSON.stringify(tuneNow())); } catch (e) { }
@@ -892,8 +929,15 @@
       });
   }
   function loadTune() {
-    /* 먼저 브라우저 값으로 그려 두고, 서버 값이 오면 덮는다 (베스페르 문법) */
-    try { applyTune(JSON.parse(localStorage.getItem("eg_reading_tune") || "null")); } catch (e) { }
+    /* 먼저 브라우저 값으로 그려 두고, 서버 값이 오면 덮는다 (베스페르 문법)
+       ⚠⚠ 0819W — 브라우저에 남은 헌 값에도 w·h 가 들어 있다. applyTune 이 이미
+          무시하지만, 씻어 두지 않으면 다음에 저장할 때 되살아날 길이 남는다. */
+    try {
+      var lv = JSON.parse(localStorage.getItem("eg_reading_tune") || "null");
+      if (lv && lv.MON) { delete lv.MON.w; delete lv.MON.h;
+        try { localStorage.setItem("eg_reading_tune", JSON.stringify(lv)); } catch (e2) { } }
+      applyTune(lv);
+    } catch (e) { }
     var sb = egr_sb(); if (!sb) return;
     sb.from("eg_settings").select("val").eq("key", TUNE_KEY).maybeSingle()
       .then(function (r) {
@@ -971,6 +1015,13 @@
       gb.style.width = (GP.w / 100 * w) + "px";
       gb.style.height = (GP.h / 100 * h) + "px";
     }
+    /* 모서리 손잡이 넷 — 모니터 네 점 위에 (편집 중에만 보인다) */
+    var cs = ROOT.querySelectorAll(".egrCorner");
+    for (var ci = 0; ci < cs.length; ci++) {
+      var kk = cs[ci].getAttribute("data-k"), pc = MON[kk];
+      cs[ci].style.left = (cx + (flip ? (100 - pc[0]) : pc[0]) / 100 * w) + "px";
+      cs[ci].style.top = (top + pc[1] / 100 * h) + "px";
+    }
     /* ⭐ 저작자 표시 명판 (39호) — 판을 따라간다. 기내에 붙은 것이므로.
        ⚠ 외부 보기(C)에서는 기내가 없으니 화면 왼쪽 아래로 물러선다 */
     var cr = ROOT.querySelector(".cesium-viewer-bottom.eg-plaque");
@@ -989,7 +1040,7 @@
       var pts = flip
         ? [px(MON.tr), px(MON.tl), px(MON.bl), px(MON.br)]
         : [px(MON.tl), px(MON.tr), px(MON.br), px(MON.bl)];
-      MONEL.style.transform = homography(MON.w, MON.h, pts);
+      MONEL.style.transform = homography(MON_W, MON_H, pts);
     }
   }
 
@@ -1244,10 +1295,19 @@
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
     return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 
-function mountMonitor(route) {
+  /* ⚠⚠ 41호 ㉬ 의 그물 — 아래단이 원판 밖으로 나가면 화면 절반이 조용히 사라진다.
+     0819V 에서 실제로 그랬고 콘솔에 한 줄도 안 찍혔다. 다음엔 여기서 잡힌다. */
+  var LOW_BOTTOM = 568;            /* #egrLow top 418 + height 150 — CSS 와 함께 고친다 */
+  function checkMonFit() {
+    if (MON_H >= LOW_BOTTOM) return;
+    console.error("[EG] 모니터 원판이 짧습니다 — 높이 " + MON_H
+      + "px 인데 아래단이 " + LOW_BOTTOM + "px 에서 끝납니다.");
+  }
+  function mountMonitor(route) {
     MONEL = document.createElement("div");
     MONEL.id = "egrMon";
-    MONEL.style.width = MON.w + "px"; MONEL.style.height = MON.h + "px";
+    checkMonFit();
+    MONEL.style.width = MON_W + "px"; MONEL.style.height = MON_H + "px";
     MONEL.innerHTML =
       '<div id="egrHead"><div class="t"><b>' + esc(route.name) + '</b>'
       + '<small id="egrLeg">&nbsp;</small></div>'
@@ -2031,7 +2091,8 @@ function paintBook() {
       e.preventDefault(); e.stopPropagation();
       var vw2 = window.innerWidth, vh2 = window.innerHeight, R2 = PLATE_W / PLATE_H;
       var w2 = (vw2 / vh2 < R2) ? Math.max(vh2 * R2, vw2) : vw2;
-      egrab = { t: t, x: e.clientX, y: e.clientY, w: w2, h: w2 / R2, flip: (side > 0) };
+      egrab = { t: t, x: e.clientX, y: e.clientY, w: w2, h: w2 / R2, flip: (side > 0),
+                k: (t === "corner") ? e.target.closest(".egrCorner").getAttribute("data-k") : null };
     }, true);
     EGR_on(window, "pointermove", function (e) {
       if (!egrab) return;
@@ -2040,6 +2101,7 @@ function paintBook() {
       /* ⚠ 거울일 때는 화면상 오른쪽이 판에서는 왼쪽이다 — 부호를 뒤집는다 */
       var px = (egrab.flip ? -dx : dx) / egrab.w * 100, py2 = dy / egrab.h * 100;
       if (egrab.t === "grip") { var GP = GRIP(); GP.x += px; GP.y += py2; }
+      else if (egrab.t === "corner") monMove(px, py2, egrab.k);   /* ⭐ 그 점만 */
       else monMove(px, py2);
       layout(); tuneSay();
     }, true);
@@ -2054,6 +2116,12 @@ function paintBook() {
       if (t === "grip") {
         var GP = GRIP();
         GP.w = Math.max(2, GP.w + d * 0.4); GP.h = Math.max(0.5, GP.h + d * 0.1);
+      } else if (t === "corner") {
+        /* ⭐ 모서리 위 휠 = 세로 미세 이동 0.05% · Shift+휠 = 가로.
+           끌기로는 한 픽셀을 못 맞춘다 — 베젤 두께가 화면에서 2~3px 이다 */
+        var kk2 = e.target.closest(".egrCorner").getAttribute("data-k");
+        if (e.shiftKey) MON[kk2][0] += d * 0.05 * (side > 0 ? -1 : 1);
+        else MON[kk2][1] -= d * 0.05;
       } else monScale(1 + d * 0.02);
       layout(); tuneSay(); saveTuneSoon();
     }, { passive: false, capture: true });
