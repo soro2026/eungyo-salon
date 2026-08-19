@@ -6064,6 +6064,30 @@ async function enterVesperRoom(spot){
   }
 }
 
+/* ══ 0819 · EG독서비행 ═══════════════════════════════════════════════
+   ⚠ 방 파일을 고치면 아래 꼬리표도 같은 판에서 함께 올린다.
+     안 올리면 브라우저가 헌 판을 붙든다 — 방에 들 때 동적으로 부르는 스크립트는
+     그때 이미 일반 로딩이라 강제 새로고침도 안 듣는다(0818 낮에 덴 그것). */
+const READ_ROUTES = [{ code:"alps_traverse", name:"알프스 종단",
+                       face:"몽블랑에서 돌로미티까지 · 빙하와 석회암 탑" }];
+function dayIndex(){
+  const d = new Date();
+  return Math.floor((d - new Date(d.getFullYear(),0,0)) / 86400000);
+}
+async function enterReadingRoom(code){
+  try{
+    if (typeof endVoyage === "function") endVoyage();   /* 딴 데를 여는 순간 그 여정은 끝이다 (0814) */
+    /* ⚠⚠ 궤도를 여기서도 세운다 — 방이 다시 세우지만, 방 파일을 받는 동안에도 돌고 있다 */
+    try{ stopOrbit(); }catch(e){}
+    await loadScriptOnce("stamp_press.js?v=0808a");
+    await loadScriptOnce("reading_room.js?v=0819a");
+    if (!window.egReading) throw new Error("egReading 창구가 안 열렸습니다");
+    window.egReading.enter(viewer, code || "alps_traverse");
+  }catch(err){
+    console.error("[EG] 독서비행을 못 열었습니다:", err);
+  }
+}
+
 /* ⭐⭐ 0817 — 타륜 원어 병기. **여기 한 곳에만** 둔다.
    카드는 열일곱 장인데 이름이 다섯 군데(이름표·밑그림·uni배열·정적 HTML·각 push)에
    흩어져 있다. 장마다 원어를 박으면 0816 조항 ④에 그대로 걸린다 —
@@ -6368,7 +6392,7 @@ async function loadDock(){
     items.push({ id:"tour", sec:"mundus", cls:"uni nogo tour-lead",
       html: '<div class="dock-main"><span>EG 르 그랑 투르</span></div>'
           + '<div class="dock-sub"></div>',
-      sub: "명화와 명곡을 만나는 순례길",
+      sub: "명화 · 명곡 · 명저를 만나는 순례길",   /* 0819 — 셋째(독서비행)가 섰다 */
       onClick: null });
 
     /* MUNDUS — 르 그랑 투르 미술관 (0804 · 오늘의 관 + 접이 목록. 음악관 카드의 형제) */
@@ -6417,6 +6441,23 @@ async function loadDock(){
         sub: sub,                                  /* 활자는 textContent로 넣는다 — 곡 제목에 <>가 섞여도 안전 */
         onClick: !cHalls.length ? null
                : (cHalls.length === 1 ? (()=> flyToPark(today)) : (()=> toggleConcertListPanel())) });
+    }
+
+    /* MUNDUS — 르 그랑 투르 독서비행 (0819 · 셋째. 형제 둘과 한 꼴).
+       ⚠ 형제 둘은 EG 가 오늘의 편성을 내놓지만 이 곳은 손님이 제 책을 들고 온다.
+         그래서 얼굴은 편성이 아니라 **곳**이다 — 결정문 v2.0 5호를 이것으로 닫았다.
+       ⚠ 활자를 손으로 적지 않는다. 노선이 늘면 타륜이 스스로 바뀐다. */
+    {
+      const rs = (window.egReading && window.egReading.routes) ? window.egReading.routes() : READ_ROUTES;
+      const today = rs.length ? rs[(dayIndex() % rs.length + rs.length) % rs.length] : null;
+      items.push({ id:"tourread", sec:"mundus", cls:"uni tour-kid",
+        elId:"navReading", after:"subReading",
+        html: '<div class="dock-main"><span>오늘의 독서비행</span>'
+            + (rs.length > 1 ? '<span class="chev" aria-hidden="true">\u203A</span>' : '')
+            + '</div>'
+            + '<div class="dock-sub"></div>',
+        sub: today ? (today.name + " · " + today.face) : "첫 노선을 여는 중",
+        onClick: !today ? null : (()=> enterReadingRoom(today.code)) });
     }
 
     /* ANIMA 🗝 분더카머 — 내 집 상공 회전 + 대문 팝업 (goToMyHome 그대로)
