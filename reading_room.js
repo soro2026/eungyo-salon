@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0819f
+   EG독서비행 — 방(room) 판 · reading_room.js · v0819g
    2026.08.19 소로 × 파이스 · 144회차
    ⚠ 판번호는 아래 VERSION 하나가 정본이다. 0819e 까지 이 줄이 a 로 남아 있었다 —
      「적어 두는 것과 읽는 것은 다른 일」의 표본. 고칠 때 둘을 함께 올린다.
@@ -46,7 +46,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0819f";
+  var VERSION = "0819g";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -217,27 +217,37 @@
          groundRaw 는 계단이고, groundH 는 그것을 좇아가는 매끈한 값이다. */
     var groundRaw = 0;
     /* ㉠ 앞보기 — 곡선 앞 열두 km 여덟 점의 지면 중 최고값. 지형추종 레이더의 셈이다.
-       산이 다가오면 미리 오르고, 지나가면 ㉡의 걸음으로 천천히 내려온다. */
+       ⚠⚠ 0819 판1 소로 — 「1초에 1~2회 틱틱」. 아홉 점을 한 프레임에 몰아 쐈다.
+          sampleHeight 는 장면을 찌르는 값비싼 손이라 그 프레임이 통째로 늦는다 —
+          어제 잡은 딸꾹과 같은 모양의 병을 재는 쪽에 새로 심은 것.
+       ⭐ 한 프레임에 **한 점씩** 돌아가며 잰다(150ms 간격 · 1.35초에 한 바퀴).
+          재는 총량은 같고 어느 프레임도 무겁지 않다. */
     var gAhead = 0;
     var LOOK_KM = [0, 1.5, 3, 4.5, 6, 8, 10, 12];
+    var LA = [];                     /* 점마다 마지막 측정값 — [0]이 발밑 */
+    var laIdx = 0;
     function groundAt(sg, uu) {
       var p = onCurve(sg, uu);
       var hh = viewer.scene.sampleHeight(Cesium.Cartographic.fromDegrees(p[1], p[0]));
       return Cesium.defined(hh) ? hh : null;
     }
-    function lookAhead(sg, uu, segKm0) {
-      var mx = null, sg2 = sg, uu2 = uu, sk = segKm0, j, k, step;
-      for (j = 0; j < LOOK_KM.length; j++) {
-        step = LOOK_KM[j] - (j ? LOOK_KM[j - 1] : 0);
-        uu2 += step / sk;
-        while (uu2 >= 1) {
-          uu2 -= 1; sg2 = (sg2 + 1) % N;
-          sk = Math.max(gcKm(P(sg2)[0], P(sg2)[1], P(sg2 + 1)[0], P(sg2 + 1)[1]), 0.001);
-        }
-        k = groundAt(sg2, uu2);
-        if (k !== null && (mx === null || k > mx)) mx = k;
+    function sampleOne(sg, uu, segKm0) {
+      var kmAt = LOOK_KM[laIdx], sg2 = sg, uu2 = uu, sk = segKm0;
+      uu2 += kmAt / sk;
+      while (uu2 >= 1) {
+        uu2 -= 1; sg2 = (sg2 + 1) % N;
+        sk = Math.max(gcKm(P(sg2)[0], P(sg2)[1], P(sg2 + 1)[0], P(sg2 + 1)[1]), 0.001);
       }
-      return mx;
+      var k = groundAt(sg2, uu2);
+      if (k !== null) {
+        LA[laIdx] = k;
+        if (laIdx === 0) groundRaw = k;
+        var mx = null, j;
+        for (j = 0; j < LA.length; j++) if (LA[j] != null && (mx === null || LA[j] > mx)) mx = LA[j];
+        if (mx !== null) gAhead = mx;
+      }
+      laIdx = (laIdx + 1) % LOOK_KM.length;
+      return k;
     }
     /* ㉢ 계단을 폈다 — agl 노선용 연속 셈. 옛 3단은 경계(900·2600)에서 목표가 900m 씩
        통째로 뛰었다 — 분당 13,500m. 그 줄에 「화면에 안 드러난다」고 적어 두기까지 했다.
@@ -255,27 +265,21 @@
       try {
         var now = performance.now(), dt = Math.min((now - tp) / 1000, 0.25); tp = now;
 
-        /* ── 지면 높이 — 1초에 한 번, 발밑 한 점 + 앞 열두 km 여덟 점(㉠).
-           ⚠ 아홉 번의 sampleHeight 는 이미 실린 타일을 읽는 것이라 네트워크 비용이 없다 */
-        if (now - gT > 1000) {
+        /* ── 지면 — 150ms 에 한 점씩 돌아가며(위 ㉠ 주석). 몰아 쏘지 않는다 */
+        if (now - gT > 150) {
           gT = now;
           try {
-            var hh = viewer.scene.sampleHeight(Cesium.Cartographic.fromDegrees(lon, lat));
-            if (Cesium.defined(hh)) {
-              groundRaw = hh;
-              var segK0 = Math.max(gcKm(P(seg)[0], P(seg)[1], P(seg + 1)[0], P(seg + 1)[1]), 0.001);
-              var mx = lookAhead(seg, u, segK0);
-              gAhead = (mx === null) ? groundRaw : Math.max(groundRaw, mx);
-              /* ⭐ 0819 소로 — 「초기에 계속 올라가는 느낌」.
-                 첫 측정 때 목표 고도에 한 번에 맞춰 앉힌다 — 순항 중 진입이므로
-                 (활주로 생략) 처음부터 순항 고도가 맞다. ㉡의 걸음은 그 다음부터다. */
-              if (!settled) {
-                settled = true;
-                groundH = groundRaw;
-                alt = (route.mode === "msl")
-                  ? Math.max(route.msl || 3600, gAhead + (route.floor || 250))
-                  : groundRaw + aglWant(gAhead);
-              }
+            var segK0 = Math.max(gcKm(P(seg)[0], P(seg)[1], P(seg + 1)[0], P(seg + 1)[1]), 0.001);
+            sampleOne(seg, u, segK0);
+            /* ⭐ 0819 소로 — 「초기에 계속 올라가는 느낌」.
+               첫 발밑 측정 때 목표 고도에 한 번에 맞춰 앉힌다 — 순항 중 진입이므로
+               (활주로 생략) 처음부터 순항 고도가 맞다. ㉡의 걸음은 그 다음부터다. */
+            if (!settled && LA[0] != null) {
+              settled = true;
+              groundH = groundRaw;
+              alt = (route.mode === "msl")
+                ? Math.max(route.msl || 3600, gAhead + (route.floor || 250))
+                : groundRaw + aglWant(gAhead);
             }
           } catch (e) { }
         }
@@ -388,20 +392,52 @@
   background:radial-gradient(circle at 35% 30%,#3f3524,#241d12);
   border:1px solid #43371f;color:#c9b586;
   box-shadow:inset 0 2px 5px rgba(0,0,0,.6),0 1px 0 rgba(255,244,210,.35)}
-#readingExit:hover{border-color:#d9bd7e;color:#f0dfb4}`;
+#readingExit:hover{border-color:#d9bd7e;color:#f0dfb4}
+/* 0819g — 좌석 전환·외부 보기·소리 */
+#readingRoom.flip #plate{transform:scaleX(-1)}   /* 그림만 거울 — 글은 안 뒤집는다 */
+#readingRoom.out #plate,#readingRoom.out .shade{visibility:hidden}
+.readingSeat{position:fixed;top:50%;transform:translateY(-50%);z-index:13;width:34px;height:56px;
+  cursor:pointer;pointer-events:auto;border:0;background:transparent;color:rgba(240,232,214,.34);
+  font-size:30px;line-height:1;text-shadow:0 1px 6px rgba(0,0,0,.8);transition:color .25s}
+.readingSeat:hover{color:rgba(240,232,214,.85)}
+#readingSeatL{left:6px}#readingSeatR{right:6px}
+#readingSnd{position:fixed;right:18px;top:64px;z-index:14;width:38px;height:38px;
+  border-radius:50%;cursor:pointer;pointer-events:auto;font-size:15px;line-height:1;
+  background:radial-gradient(circle at 35% 30%,#3f3524,#241d12);
+  border:1px solid #43371f;color:#c9b586;
+  box-shadow:inset 0 2px 5px rgba(0,0,0,.6),0 1px 0 rgba(255,244,210,.35)}
+#readingSnd.off{color:#7a6c4d}
+#readingFade{position:fixed;inset:0;z-index:20;background:#05070f;opacity:0;
+  pointer-events:none;transition:opacity .28s}
+#readingFade.on{opacity:1}`;
     document.head.appendChild(css);
   }
 
   function mountHtml() {
     ROOT = document.createElement("div");
     ROOT.id = "readingRoom";
-    ROOT.innerHTML = '<div id="fit"><div id="plate"></div></div><div id="hud"></div>';
+    ROOT.innerHTML = '<div id="fit"><div id="plate"></div></div><div id="hud"></div>'
+      + '<div id="readingFade"></div>';
     document.body.appendChild(ROOT);
     EXIT = document.createElement("button");
     EXIT.id = "readingExit"; EXIT.type = "button";
     EXIT.textContent = "×"; EXIT.title = "내리기";
     document.body.appendChild(EXIT);
     EGR_on(EXIT, "click", function () { leave(); });
+    /* 0819g — 좌·우 창 화살표. 방 밖 물건이 아니라 방(ROOT) 안이다 — KEEP 을 안 늘린다 */
+    var sL = document.createElement("button");
+    sL.id = "readingSeatL"; sL.className = "readingSeat"; sL.type = "button";
+    sL.innerHTML = "&#8249;"; sL.title = "왼쪽 창 (←)";
+    var sR = document.createElement("button");
+    sR.id = "readingSeatR"; sR.className = "readingSeat"; sR.type = "button";
+    sR.innerHTML = "&#8250;"; sR.title = "오른쪽 창 (→)";
+    ROOT.appendChild(sL); ROOT.appendChild(sR);
+    EGR_on(sL, "click", function () { swapSeat(-1); });
+    EGR_on(sR, "click", function () { swapSeat(+1); });
+    var sn = document.createElement("button");
+    sn.id = "readingSnd"; sn.type = "button"; sn.innerHTML = "&#128266;"; sn.title = "기내 소음";
+    ROOT.appendChild(sn);
+    EGR_on(sn, "click", function () { engineSet(!sndOn); });
   }
 
   /* ══ 판 세우기 ═══════════════════════════════════════════════
@@ -409,6 +445,32 @@
      ⭐ 스크롤이 아니다. 판·창밖·덮개가 모두 fixed 이고 panY 하나로 함께 민다.
        ⚠⚠ 좌표계를 둘로 나누면 창밖만 제자리에 남는다(0819 실제로 겪음). */
   var panY = 0, panMin = 0, panMax = 0;
+  var OUT = false;                 /* 0819g — 외부 보기. 왕복 하나, 별도 갈래가 아니다(0호) */
+
+  /* ⭐ 좌석 전환 — cruise 가 매 프레임 side 를 다시 읽으므로 비행은 안 끊긴다.
+     ⚠ 짧은 암전으로 덮는다. 창밖 방위가 180° 도는 순간을 맨눈에 보이면 어지럽다. */
+  var swapping = false;
+  function swapSeat(next) {
+    if (!ROOT || swapping || side === next) return;
+    swapping = true;
+    var fade = ROOT.querySelector("#readingFade");
+    fade.classList.add("on");
+    EGR_later(function () {
+      side = next;
+      ROOT.classList.toggle("flip", side > 0);
+      layout();
+      EGR_later(function () {
+        fade.classList.remove("on");
+        EGR_later(function () { swapping = false; }, 320);
+      }, 120);
+    }, 300);
+  }
+  function toggleOut() {
+    if (!ROOT) return;
+    OUT = !OUT;
+    ROOT.classList.toggle("out", OUT);
+    layout();
+  }
 
   function layout() {
     if (!ROOT) return;
@@ -431,14 +493,25 @@
     fit.style.left = cx + "px"; fit.style.top = top + "px";
     fit.style.width = w + "px"; fit.style.height = h + "px";
 
-    /* ⭐ 창밖 — 판과 똑같은 화면 좌표. 둘 다 fixed 라 함께 움직인다 */
+    /* 0819g — 오른쪽 창가면 그림이 거울이다. 창·캔버스 좌표도 거울로 잰다.
+       ⭐ 날개가 없어 베스페르의 되뒤집기 두 겹이 통째로 없다 — x' = 100 − l − w 한 줄이다 */
+    var flip = (side > 0);
+    function mx(l2, w2) { return flip ? (100 - l2 - w2) : l2; }
+
+    /* ⭐ 창밖 — 판과 똑같은 화면 좌표. 둘 다 fixed 라 함께 움직인다.
+       0819g · 외부(OUT)면 화면을 통째로 연다 — 잠깐 눈 돌리는 왕복이다(0호) */
     var cv = document.getElementById("cesiumContainer");
     if (cv) {
       cv.style.position = "fixed";
-      cv.style.left = (cx + w * CANVAS.l / 100) + "px";
-      cv.style.top = (top + h * CANVAS.t / 100) + "px";
-      cv.style.width = (w * CANVAS.w / 100) + "px";
-      cv.style.height = (h * CANVAS.h / 100) + "px";
+      if (OUT) {
+        cv.style.left = "0px"; cv.style.top = "0px";
+        cv.style.width = vw + "px"; cv.style.height = vh + "px";
+      } else {
+        cv.style.left = (cx + w * mx(CANVAS.l, CANVAS.w) / 100) + "px";
+        cv.style.top = (top + h * CANVAS.t / 100) + "px";
+        cv.style.width = (w * CANVAS.w / 100) + "px";
+        cv.style.height = (h * CANVAS.h / 100) + "px";
+      }
       cv.style.right = "auto"; cv.style.bottom = "auto";   /* ⚠ terra 의 inset:0 을 푼다 */
       cv.style.zIndex = "4";
       try { if (viewer) viewer.resize(); } catch (e) { }
@@ -447,7 +520,7 @@
     var sh = ROOT.querySelectorAll(".shade");
     for (var i = 0; i < sh.length; i++) {
       var W = WINS[i]; if (!W) continue;
-      sh[i].style.left = (cx + (W.l - 1.2) / 100 * w) + "px";
+      sh[i].style.left = (cx + (mx(W.l, W.w) - 1.2) / 100 * w) + "px";
       sh[i].style.top = (top + (W.t - 1.2) / 100 * h) + "px";
       sh[i].style.width = ((W.w + 2.4) / 100 * w) + "px";
       sh[i].style.height = ((W.h + 2.4) / 100 * h) + "px";
@@ -524,6 +597,64 @@
     CAM = null;
   }
 
+  /* ══ 소리 (0819g) — 방송 → 엔진음. 베스페르 0817 문법 그대로 ══════════
+     ⭐ 엔진음은 파일이 아니다 — 백색소음을 그 자리에서 만들어 저역필터로 거른다.
+        루프 이음매가 없고 용량이 0이다. 그리고 0817에 적어만 두고 못 쓴 것을
+        오늘 쓴다 — **필터를 고도에 물린다.** 낮으면 굵게, 높으면 멀게.
+     ⚠ 방송(cabin_announce_v1.mp3)은 당분간 베스페르와 같은 파일이다(소로 0819 —
+        「나중에 다시 녹음할게」). 갈아탈 때 이 한 줄만 바꾼다.
+     ⚠⚠ window.__egHush 를 쓰지 않는다 — 그건 베스페르가 제 소리를 끄려고 내놓은
+        창구다. 두 방이 한 문서에 사니, 여기서 그 이름을 부르면 남의 소리를 끄고
+        제 소리는 남긴다. leave() 는 이 방의 hush() 를 직접 부른다. */
+  var ANNOUNCE_SRC = "cabin_announce_v1.mp3";
+  var AC = window.AudioContext || window.webkitAudioContext;
+  var ac = null, engGain = null, engLp = null, annAudio = null;
+  var sndOn = true, announced = false, engBase = 0.07;   /* 0817 소로: 크다 → 절반 */
+  function ensureAC() { if (!ac) ac = new AC(); return ac; }
+  function engineStart() {
+    if (engGain || !sndOn) return;
+    try {
+      var a = ensureAC();
+      var buf = a.createBuffer(1, a.sampleRate * 2, a.sampleRate);
+      var d = buf.getChannelData(0);
+      for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      var src = a.createBufferSource(); src.buffer = buf; src.loop = true;
+      engLp = a.createBiquadFilter(); engLp.type = "lowpass";
+      engLp.frequency.value = 420; engLp.Q.value = 0.4;
+      engGain = a.createGain(); engGain.gain.value = 0;
+      src.connect(engLp).connect(engGain).connect(a.destination);
+      src.start();
+      engGain.gain.linearRampToValueAtTime(engBase, a.currentTime + 2.5);   /* 스르르 */
+    } catch (e) { }
+  }
+  /* ⭐ 고도에 물린다 — 지면 가까이(굵은 웅—) 480Hz · 높이 오르면(먼 쉬—) 300Hz */
+  function engineTune(rel) {
+    if (!engLp) return;
+    try { engLp.frequency.value = 480 - Math.min(Math.max(rel, 0), 4000) / 4000 * 180; } catch (e) { }
+  }
+  function engineSet(on) {
+    sndOn = on;
+    var b = document.getElementById("readingSnd");
+    if (b) { b.classList.toggle("off", !on); b.innerHTML = on ? "&#128266;" : "&#128263;"; }
+    if (!engGain) { if (on && announced) engineStart(); return; }
+    engGain.gain.linearRampToValueAtTime(on ? engBase : 0, ensureAC().currentTime + 0.6);
+  }
+  function playAnnounce() {
+    if (announced) return; announced = true;
+    annAudio = new Audio(ANNOUNCE_SRC);
+    annAudio.volume = 0.9;
+    var started = false;
+    annAudio.addEventListener("ended", function () { engineStart(); });   /* 끝나는 순간 스르르 */
+    annAudio.play().then(function () { started = true; }).catch(function () { });
+    /* ⚠ 폴백 — 파일이 없거나 재생이 막히면 3초 뒤 조용히 엔진음만 */
+    EGR_later(function () { if (!started) engineStart(); }, 3000);
+  }
+  function hush() {
+    try { if (annAudio) { annAudio.pause(); annAudio = null; } } catch (e) { }
+    try { if (engGain) engGain.gain.linearRampToValueAtTime(0, ensureAC().currentTime + 0.25); } catch (e) { }
+    engGain = null; engLp = null; announced = false;
+  }
+
   /* ══ 착석 ══════════════════════════════════════════════════════ */
   function bootRoom(hostViewer, route) {
     viewer = hostViewer;
@@ -539,7 +670,17 @@
     EGR_on(window, "touchstart", onTouchStart, { passive: true });
     EGR_on(window, "touchmove", onTouchMove, { passive: false });
     EGR_on(window, "touchend", onTouchEnd, { passive: true });
+    /* 0819g — 키보드. C 기내↔외부 · ←→ 좌석. 글칸이 쥐고 있으면 손대지 않는다 */
+    EGR_on(window, "keydown", function (e) {
+      if (e.isComposing || !e.key) return;
+      if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+      var k = e.key.toLowerCase();
+      if (k === "c") toggleOut();
+      else if (k === "arrowleft") swapSeat(-1);
+      else if (k === "arrowright") swapSeat(+1);
+    });
     paintCabin(route.legs[0][1]);
+    playAnnounce();                  /* 방송 → 끝나면 엔진음이 스르르 (0817 문법) */
 
     var hud = ROOT.querySelector("#hud"), hudT = 0;
     flight = cruise(route, {
@@ -548,6 +689,7 @@
         var now = performance.now();
         if (now - hudT < 400) return; hudT = now;
         paintCabin(s.lon);
+        engineTune(s.rel);           /* 낮으면 굵게 · 높으면 멀게 */
         /* msl 노선은 해발이 정본이다 — 「지면 위」로 읽으면 산비탈마다 숫자가 널뛴다 */
         hud.textContent = route.name + " · " + s.leg + " → " + s.next
           + "  ·  " + (route.mode === "msl"
@@ -589,7 +731,7 @@
   function leave() {
     var v = viewer;
     EGR_clearTimers();
-    try { if (window.__egHush) window.__egHush(); } catch (e) { }
+    try { hush(); } catch (e) { }   /* ⚠ 제 소리는 제 손으로 끈다 — __egHush 는 베스페르 것 */
     try { if (flight) { flight.stop(); flight = null; } } catch (e) { }
     EGR_off();
     restoreCam(v);
@@ -605,6 +747,7 @@
       } catch (e) { console.warn("[EG] 집으로 못 갔습니다:", e); }
     }
     viewer = null;
+    OUT = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
     console.log("[EG] 독서비행 방을 걷었습니다 — 카메라를 terra 로 되돌렸습니다.");
   }
 
