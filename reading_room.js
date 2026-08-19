@@ -31,7 +31,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0819b";
+  var VERSION = "0819c";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -258,15 +258,16 @@
     var css = document.createElement("style");
     css.id = "readingRoomCss";
     css.textContent = HOST + `
-#readingRoom{position:fixed;inset:0;z-index:5;pointer-events:none;overflow:auto;
-  scrollbar-width:none;-ms-overflow-style:none}
-#readingRoom::-webkit-scrollbar{display:none}
-/* ⚠ 세로 9:16 판 — 폭은 언제나 화면을 채우고 위아래가 잘리는 것이 설계다(v1.4 9호).
-   ⚠⚠ 캔버스를 position:fixed 로 두지 않는다. 판이 스크롤하면 창만 올라가고 지구는 제자리에 남는다. */
-#readingRoom #fit{position:relative;margin:0 auto}
+/* ⚠⚠ 0819 — 첫 판에서 스크롤 방식으로 지었다가 창밖이 통째로 어긋났다.
+   #cesiumContainer 는 body 직계라 방이 스크롤해도 안 따라온다.
+   v1.4 함정 ㉢ 을 주석에 옮겨 적어 놓고 정반대로 지은 것이다.
+   ⭐ 베스페르 문법으로 고친다 — 스크롤이 없다. 판도 창밖도 fixed 이고,
+     휠이 panY 하나를 바꾸면 둘이 함께 밀린다. 좌표계가 하나여야 안 어긋난다. */
+#readingRoom{position:fixed;inset:0;z-index:5;pointer-events:none;overflow:hidden}
+#readingRoom #fit{position:fixed;pointer-events:none}
 #readingRoom #plate{position:absolute;left:0;top:0;width:100%;height:100%;
   pointer-events:none;z-index:6;background-size:100% 100%;background-repeat:no-repeat}
-#readingRoom .shade{position:absolute;z-index:5;
+#readingRoom .shade{position:fixed;z-index:5;
   background:linear-gradient(#d8cfc0,#cdc3b2 62%,#c0b6a4);
   box-shadow:0 4px 12px rgba(0,0,0,.28) inset;
   transform:translateY(-101%);transition:transform .75s cubic-bezier(.35,.9,.3,1)}
@@ -295,38 +296,74 @@
     EGR_on(EXIT, "click", function () { leave(); });
   }
 
-  /* 판 세우기 — 폭은 화면을 채우고 위아래가 잘린다 */
+  /* ══ 판 세우기 ═══════════════════════════════════════════════
+     ⚠ 세로 9:16 — 폭은 언제나 화면을 채우고 위아래가 잘린다(v1.4 9호).
+     ⭐ 스크롤이 아니다. 판·창밖·덮개가 모두 fixed 이고 panY 하나로 함께 민다.
+       ⚠⚠ 좌표계를 둘로 나누면 창밖만 제자리에 남는다(0819 실제로 겪음). */
+  var panY = 0, panMin = 0, panMax = 0;
+
   function layout() {
     if (!ROOT) return;
-    var fit = ROOT.querySelector("#fit");
     var R = PLATE_W / PLATE_H;
     var vw = window.innerWidth, vh = window.innerHeight;
     var w = (vw / vh < R) ? Math.max(vh * R, vw) : vw;
     var h = w / R;
+    var cx = (vw - w) / 2;
+    /* 첫 창의 세로 한가운데가 화면 한가운데에 오도록 판을 세운다 */
+    var focus = (WINS[0].t + WINS[0].h / 2) / 100;
+    var py = vh * 0.5 - h * focus;
+
+    panMin = -(h + py - vh);          /* 더 내릴 수 없는 한계 (판 아래끝이 화면 바닥) */
+    panMax = -py;                     /* 더 올릴 수 없는 한계 (판 위끝이 화면 천장) */
+    if (panMin > panMax) { var t0 = panMin; panMin = panMax; panMax = t0; }
+    panY = Math.max(panMin, Math.min(panMax, panY));
+    var top = py + panY;
+
+    var fit = ROOT.querySelector("#fit");
+    fit.style.left = cx + "px"; fit.style.top = top + "px";
     fit.style.width = w + "px"; fit.style.height = h + "px";
 
+    /* ⭐ 창밖 — 판과 똑같은 화면 좌표. 둘 다 fixed 라 함께 움직인다 */
     var cv = document.getElementById("cesiumContainer");
     if (cv) {
-      cv.style.position = "absolute";
-      cv.style.left = (w * CANVAS.l / 100) + "px";
-      cv.style.top = (h * CANVAS.t / 100) + "px";
+      cv.style.position = "fixed";
+      cv.style.left = (cx + w * CANVAS.l / 100) + "px";
+      cv.style.top = (top + h * CANVAS.t / 100) + "px";
       cv.style.width = (w * CANVAS.w / 100) + "px";
       cv.style.height = (h * CANVAS.h / 100) + "px";
+      cv.style.right = "auto"; cv.style.bottom = "auto";   /* ⚠ terra 의 inset:0 을 푼다 */
       cv.style.zIndex = "4";
       try { if (viewer) viewer.resize(); } catch (e) { }
     }
-    ROOT.querySelectorAll(".shade").forEach(function (el, i) {
-      var W = WINS[i]; if (!W) return;
-      el.style.left = (w * W.l / 100) + "px"; el.style.top = (h * W.t / 100) + "px";
-      el.style.width = (w * W.w / 100) + "px"; el.style.height = (h * W.h / 100) + "px";
-    });
-    /* 창이 화면 한가운데 오도록 스크롤 — 첫 착지점 */
-    if (!ROOT.__scrolled) {
-      ROOT.__scrolled = true;
-      var mid = h * (CANVAS.t + CANVAS.h / 2) / 100;
-      ROOT.scrollTop = Math.max(0, mid - vh * 0.5);
+    /* 창 덮개 — 창보다 조금 크게 잡아 틈이 안 보이게 */
+    var sh = ROOT.querySelectorAll(".shade");
+    for (var i = 0; i < sh.length; i++) {
+      var W = WINS[i]; if (!W) continue;
+      sh[i].style.left = (cx + (W.l - 1.2) / 100 * w) + "px";
+      sh[i].style.top = (top + (W.t - 1.2) / 100 * h) + "px";
+      sh[i].style.width = ((W.w + 2.4) / 100 * w) + "px";
+      sh[i].style.height = ((W.h + 2.4) / 100 * h) + "px";
     }
   }
+
+  /* ⭐ 휠 — 기내를 위아래로 본다. 창밖은 함께 움직이되 비행은 안 멈춘다.
+     ⚠ #readingRoom 이 pointer-events:none 이라 휠이 안 닿는다. window 에 건다. */
+  function onWheel(e) {
+    if (!ROOT) return;
+    e.preventDefault();
+    panY = Math.max(panMin, Math.min(panMax, panY - e.deltaY * 0.9));
+    layout();
+  }
+  /* 손가락으로도 — 폰·태블릿 */
+  var tY = null;
+  function onTouchStart(e) { if (e.touches && e.touches.length === 1) tY = e.touches[0].clientY; }
+  function onTouchMove(e) {
+    if (tY === null || !e.touches || e.touches.length !== 1) return;
+    var y = e.touches[0].clientY;
+    panY = Math.max(panMin, Math.min(panMax, panY + (y - tY)));
+    tY = y; layout(); e.preventDefault();
+  }
+  function onTouchEnd() { tY = null; }
 
   /* ⭐ 기내 넉 벌 — 현지 시각에 맞춰 고른다.
      ⚠ 콜레주·미술관과 같은 m·d·e·n 문법. 창밖은 Cesium 이 실시간으로 그린다. */
@@ -358,7 +395,9 @@
   function restoreCam(v) {
     if (!v) return;
     var cv = document.getElementById("cesiumContainer");
-    if (cv) { cv.style.position = ""; cv.style.left = ""; cv.style.top = ""; cv.style.width = ""; cv.style.height = ""; cv.style.zIndex = ""; }
+    if (cv) { cv.style.position = ""; cv.style.left = ""; cv.style.top = "";
+              cv.style.right = ""; cv.style.bottom = "";
+              cv.style.width = ""; cv.style.height = ""; cv.style.zIndex = ""; }
     try { v.resize(); } catch (e) { }
     if (!CAM) { HOMEWARD = true; return; }
     try {
@@ -388,6 +427,10 @@
     document.body.classList.add("reading-on");
     layout();
     EGR_on(window, "resize", layout);
+    EGR_on(window, "wheel", onWheel, { passive: false });
+    EGR_on(window, "touchstart", onTouchStart, { passive: true });
+    EGR_on(window, "touchmove", onTouchMove, { passive: false });
+    EGR_on(window, "touchend", onTouchEnd, { passive: true });
     paintCabin(route.legs[0][1]);
 
     var hud = ROOT.querySelector("#hud"), hudT = 0;
