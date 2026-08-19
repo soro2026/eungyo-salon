@@ -631,13 +631,15 @@ html, body {
 }
 .floor-content[data-floor="3"].editing .cover-book.sel .bk-handle { display: block; }
 .floor-content[data-floor="3"] .cover-book .bk-del {
-  position: absolute; left: -11px; top: -11px; width: 24px; height: 24px;
-  border-radius: 50%; background: rgba(120,36,28,0.95); border: 2px solid #e9cf9c;
-  color: #f5e6c8; font-size: 11px; line-height: 1; padding: 0;
-  cursor: pointer; display: none; z-index: 7;
+  /* ⚠ 0819 — 24px 붉은 원이 표지 그림자에 묻혀 아무도 못 찾았다. 키우고 띄운다 */
+  position: absolute; left: -13px; top: -13px; width: 30px; height: 30px;
+  border-radius: 50%; background: rgba(58,42,30,.96); border: 2px solid #e9cf9c;
+  color: #f5e6c8; font-size: 14px; line-height: 1; padding: 0;
+  box-shadow: 0 3px 10px rgba(0,0,0,.6);
+  cursor: pointer; display: none; z-index: 11;
 }
 .floor-content[data-floor="3"].editing .cover-book.sel .bk-del { display: block; }
-.floor-content[data-floor="3"] .cover-book .bk-del:hover { background: rgba(160,48,36,1); }
+.floor-content[data-floor="3"] .cover-book .bk-del:hover { background: rgba(100,74,50,1); }
 .floor-content[data-floor="3"] .bk-edit-toggle {
   position: absolute; left: 50%; bottom: 54px; transform: translateX(-50%);
   padding: 9px 18px; border-radius: 20px; font-size: 13px; cursor: pointer;
@@ -2156,6 +2158,7 @@ body.standalone #backBtn{display:block;}
     <button class="bm-dock-h" id="bm-dock-h" aria-label="조종간">⋮</button>
     <div class="bm-dock-menu" id="bm-dock-menu" hidden>
       <button class="bm-dock-b" id="essay-write-btn" title="글쓰기">✎</button>
+      <button class="bm-dock-b" id="bm-keep-btn" title="보관함에 넣기">🗄</button>
     </div>
   </div>
   <div class="modal-hint">페이지 가장자리를 클릭해 넘기세요 · ESC로 닫기</div>
@@ -2321,7 +2324,7 @@ if (window.EGBookAdd) {
 } else {
   console.warn('[책의 방] eg_book_add.js 가 없습니다 — 책 들이기가 서지 않습니다');
 }
-console.log("%c[EG] wunderkammer 0819b · 책 들이는 손 부품화 · 한 문 검색 · 보관함(지우기→보관)", "color:#c9a84c");
+console.log("%c[EG] wunderkammer 0819c · 책 들이는 손 부품화 · 한 문 검색 · 보관함 · 펼친 책에서 넣기", "color:#c9a84c");
 function getUser() { try { return JSON.parse(localStorage.getItem('eungyo-auth'))?.user || null; } catch { return null; } }
 
 /* ── 층 구성 (2026.07.28 「세 건물 재편 결정문」 7호로 4층 축소) ──
@@ -5000,16 +5003,27 @@ const Floor3 = (() => {
     editMode = !editMode;
     const fc = document.querySelector('.floor-content[data-floor="3"]');
     if (fc) fc.classList.toggle('editing', editMode);
-    /* ⚠ 0819 — 이 모드 안에 보관이 숨어 있었다. 있다는 것만이라도 알린다 */
+    /* ⚠ 0819 — 이 모드 안에 보관이 숨어 있었다. 다음에 무엇을 할지까지 말한다 */
     const tip = document.getElementById('bk-edit-tip');
     if (tip) tip.hidden = !editMode;
     const btn = document.getElementById('bk-edit-toggle');
     if (btn) { btn.classList.toggle('on', editMode); btn.textContent = editMode ? '✓' : '✎'; }
     if (!editMode && selEl) { selEl.classList.remove('sel'); selEl = null; }
+    editTip();
   }
   function selectBook(el) {
     if (selEl && selEl !== el) selEl.classList.remove('sel');
     selEl = el; el.classList.add('sel');
+    editTip();
+  }
+
+  /* 고르기 전과 뒤에 다른 말을 한다 — 걸음이 끊기던 곳이 여기였다 */
+  function editTip(){
+    const tip = document.getElementById('bk-edit-tip');
+    if (!tip || tip.hidden) return;
+    tip.innerHTML = selEl
+      ? '모서리 <b>🗄</b> 를 누르면 보관함에 들어갑니다 · <b>◢</b> 는 크기'
+      : '옮기거나 보관하려면 <b>책을 한 번 누르세요</b>';
   }
 
   function bindEdit(el) {
@@ -5367,6 +5381,28 @@ const Floor3 = (() => {
     }
   }
   document.getElementById('essay-write-btn').addEventListener('click', openEssayEditor);
+  /* ⭐ 0819 — 보관함으로 가는 주 경로.
+     ⚠ 편집 모드 안 🗄 은 아무도 못 찾았다(소로 0819). 손님의 뜻은
+       「이 책을 내리고 싶다」이지 「배치를 고치고 싶다」가 아니다 —
+       그 뜻은 책을 펼친 다음에 생긴다. 그러니 문도 거기 있어야 한다 */
+  (function(){
+    const kb = document.getElementById('bm-keep-btn');
+    if (!kb) return;
+    kb.addEventListener('click', async () => {
+      if (!currentBook) return;
+      if (!confirm(`『${currentBook.title}』을(를) 보관함에 넣을까요?\n서가에서만 내려옵니다. 글도 그대로 남고 언제든 다시 꺼낼 수 있습니다.`)) return;
+      kb.disabled = true;
+      try {
+        await EGBookAdd.archive(currentBook.id, true);
+        const gone = currentBook.id;
+        closeBook();
+        BOOKS = BOOKS.filter(b => b.id !== gone);
+        currentShelfPage = Math.min(currentShelfPage, Math.max(0, Math.ceil((BOOKS.length||1)/PER_PAGE) - 1));
+        buildPages(); buildShelfPages(); buildDots();
+      } catch(e){ alert('보관함에 넣지 못했습니다 — ' + (e.message||e)); }
+      finally { kb.disabled = false; }
+    });
+  })();
   (function(){
     const h = document.getElementById('bm-dock-h'), m = document.getElementById('bm-dock-menu');
     if (h && m) h.addEventListener('click', () => {
