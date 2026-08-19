@@ -31,7 +31,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0819c";
+  var VERSION = "0819d";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -163,12 +163,24 @@
     opt = opt || {};
     var L = route.legs, N = L.length;
     var seg = 0, u = 0;              /* 지금 몇 번째 구간의 어디쯤인가 */
-    var lat = L[0][0], lon = L[0][1];
-    var hd = bearing(L[0][0], L[0][1], L[1][0], L[1][1]);
+    /* ⚠⚠ 0819 소로 — 「멀리 산을 두고 도시 위를 빙글빙글」.
+       첫 판은 목표점을 **좇아가는** 셈이었다. 방위를 한 프레임에 조금씩만 돌리는데
+       돌 수 있는 것보다 목표가 옆에 오면 영원히 그 둘레를 돈다 — 꼬리를 쫓는 개다.
+       게다가 첫 구간은 Catmull 제어점에 마지막 길목(코르티나·동쪽 끝)이 끼어들어
+       목표 자체가 옆으로 틀어져 있었다.
+       ⭐ 좇지 않는다. **곡선 위에 태운다** — 자리도 방위도 곡선이 직접 준다.
+         표류가 구조적으로 없다. 앞으로 가는 것이 보장된다. */
+    function P(i2) { var k = ((i2 % N) + N) % N; return L[k]; }
+    function onCurve(sg, uu) {
+      return [catmull(P(sg - 1)[0], P(sg)[0], P(sg + 1)[0], P(sg + 2)[0], uu),
+              catmull(P(sg - 1)[1], P(sg)[1], P(sg + 1)[1], P(sg + 2)[1], uu)];
+    }
+    var pos = onCurve(0, 0);
+    var lat = pos[0], lon = pos[1];
+    var ahead = onCurve(0, 0.02);
+    var hd = bearing(lat, lon, ahead[0], ahead[1]);
     var roll = 0, tp = performance.now(), gT = 0, dist = 0, errN = 0;
-    var rel = route.agl;
-
-    function P(i) { var k = ((i % N) + N) % N; return L[k]; }
+    var rel = route.agl, settled = false;
 
     var off = viewer.clock.onTick.addEventListener(function () {
       try {
@@ -180,45 +192,49 @@
           gT = now;
           try {
             var hh = viewer.scene.sampleHeight(Cesium.Cartographic.fromDegrees(lon, lat));
-            if (Cesium.defined(hh)) groundH = hh;
+            if (Cesium.defined(hh)) {
+              groundH = hh;
+              /* ⭐ 0819 소로 — 「초기에 계속 올라가는 느낌」.
+                 시작 rel(agl 700)과 첫 지형이 원하는 rel(계곡 1600)이 달라
+                 30초를 기어 올라가고 있었다. 첫 측정 때 한 번에 맞춰 앉힌다 —
+                 순항 중 진입이므로(활주로 생략) 처음부터 순항 고도가 맞다. */
+              if (!settled) {
+                settled = true;
+                if (groundH > 2600) rel = route.aglLow;
+                else if (groundH < 900) rel = route.aglHigh;
+                else rel = route.agl;
+              }
+            }
           } catch (e) { }
         }
 
-        /* ── ⭐ 속도는 셈이 낸다 (v2.0 25호) — 체감(속도÷고도)을 일정하게.
-           지면에 가까울수록 저절로 느려진다. 소로가 눈으로 잡으신 그것. */
+        /* ── ⭐ 속도는 셈이 낸다 (v2.0 25호) — 체감(속도÷고도)을 일정하게 */
         var kmh = Math.max(60, Math.min(route.felt * (rel / 1000), 900));
         var km = kmh * dt / 3600; dist += km;
 
-        /* ── 길목 좇기 — 곡선 위의 다음 점을 보고 방위를 부드럽게 돌린다 */
+        /* ── ⭐ 곡선 위를 나아간다 — u 를 거리만큼 민다 */
         var segKm = Math.max(gcKm(P(seg)[0], P(seg)[1], P(seg + 1)[0], P(seg + 1)[1]), 0.001);
         u += km / segKm;
-        while (u >= 1) { u -= 1; seg = (seg + 1) % N; segKm = Math.max(gcKm(P(seg)[0], P(seg)[1], P(seg + 1)[0], P(seg + 1)[1]), 0.001); }
+        while (u >= 1) { u -= 1; seg = (seg + 1) % N;
+          segKm = Math.max(gcKm(P(seg)[0], P(seg)[1], P(seg + 1)[0], P(seg + 1)[1]), 0.001); }
 
-        var ua = Math.min(u + 0.11, 1);        /* ⭐ 앞을 더 멀리 본다 — 미리 돌면 급선회가 안 생긴다(0819) */
-        var tLat = catmull(P(seg - 1)[0], P(seg)[0], P(seg + 1)[0], P(seg + 2)[0], ua);
-        var tLon = catmull(P(seg - 1)[1], P(seg)[1], P(seg + 1)[1], P(seg + 2)[1], ua);
-        var want = bearing(lat, lon, tLat, tLon);
+        var here = onCurve(seg, u);
+        lat = here[0]; lon = here[1];
 
-        /* ⭐ 뱅크 — 방위가 도는 빠르기에서 나온다(실제 조종처럼).
-           ⚠ 뱅크를 카메라에 두 번 물리지 않는다. roll 하나만 남긴다(v1.1 17호 ㉧) */
-        var turn = angDiff(hd, want);
-        var rate = turn / Math.max(dt, 0.001);                 /* °/s */
-        /* ⚠ 뱅크의 뿌리는 여기다 — 방위가 홱 돌면 뱅크도 홱 선다.
-           한 프레임에 도는 각을 좁히면 뱅크가 저절로 얕아진다. */
-        hd = (hd + Math.max(-1.6, Math.min(1.6, turn)) * Math.min(dt * 1.6, 1) + 360) % 360;
-        /* ⭐ 0819 소로(taxi 실사용) — 「10도 넘으면 이상한 느낌」.
-           v1.1 17호 ㉧ 이 이미 적어 둔 것이다 — 실제 승객은 뱅크를 거의 못 느낀다.
-           눈에 보이는 것은 창밖 지평선이 기우는 것뿐이고, 그게 크면 곧 멀미다.
-           ⚠ 상한 10도. 그리고 되돌아오는 것이 기우는 것보다 빨라야 한다 —
-             기울 때 부드럽고 펼 때 굼뜨면 계속 기울어 있는 느낌이 남는다. */
-        var wantRoll = Math.max(-ROLL_MAX, Math.min(ROLL_MAX, rate * 1.1));
+        /* 방위 — 곡선의 접선. 조금 앞의 점을 본다 */
+        var ua = u + 0.02, sg2 = seg;
+        if (ua >= 1) { ua -= 1; sg2 = (seg + 1) % N; }
+        var nx = onCurve(sg2, ua);
+        var want = bearing(lat, lon, nx[0], nx[1]);
+        /* ⭐ 뱅크 — 방위가 도는 빠르기에서 나온다. 상한 10°(0819 소로 · taxi 실사용).
+           ⚠ 곡선이 주는 방위라 홱 돌 일이 없지만, 길목을 넘는 순간을 위해 눅인다 */
+        var turnRate = angDiff(hd, want) / Math.max(dt, 0.001);        /* °/s */
+        hd = (hd + angDiff(hd, want) * Math.min(dt * 3.0, 1) + 360) % 360;
+        var wantRoll = Math.max(-ROLL_MAX, Math.min(ROLL_MAX, turnRate * 1.1));
         var ease = (Math.abs(wantRoll) < Math.abs(roll)) ? 1.9 : 1.1;   /* 펼 때 조금 빠르게 */
         roll += (wantRoll - roll) * Math.min(dt * ease, 1);
 
-        var p = stepFrom(lat, lon, hd, km); lat = p[0]; lon = p[1];
-
-        /* ── 고도 — 계곡에서는 높이, 봉우리 옆에서는 낮게.
-           ⚠ 지면이 솟으면 상대고도를 줄여 「스치는」 느낌을 낸다 */
+        /* ── 고도 — 계곡에서는 높이, 봉우리 옆에서는 낮게 */
         var wantRel = route.agl;
         if (groundH > 2600) wantRel = route.aglLow;
         else if (groundH < 900) wantRel = route.aglHigh;
