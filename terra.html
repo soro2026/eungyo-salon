@@ -2239,6 +2239,37 @@ window.egSupa = supa;
       try { tileset = await Cesium.createGooglePhotorealistic3DTileset(GOOGLE_API_KEY); }
       catch(e){ tileset = await Cesium.createGooglePhotorealistic3DTileset({ key: GOOGLE_API_KEY }); }
       s.primitives.add(tileset);
+      /* ⭐⭐ 0819 소로 — 「멀리 떨어진 산들이 엄청 번쩍번쩍 불안정하다」.
+         ⚠⚠ 타일셋을 만들어 놓고 **아무 값도 안 정하고 있었다.** 전부 기본값이라
+            LOD 전환이 그대로 드러났다. 구글 타일의 속성이 아니라 우리 설정의 빈칸이었다.
+         ⭐ 손 넷 — 다 함께 걸어야 효과가 난다:
+           ① skipLevelOfDetail=false  기본은 true 다. 중간 LOD 를 **건너뛰어** 저해상도에서
+              고해상도로 확 갈아탄다 — 그 순간이 「번쩍」이다. 끄면 계단으로 올라간다
+           ② dynamicScreenSpaceError  멀리 있는 것을 덜 정밀하게 잡는다. 멀수록 자주
+              갈아타던 것이 잦아들고, 요청도 준다(과금에도 이롭다)
+           ③ cacheBytes 를 넉넉히   타일을 버렸다 다시 받으면 또 번쩍인다. 기본 512MB 를
+              1GB 로. 알프스처럼 한 고리를 도는 노선은 곧 다시 그곳으로 온다
+           ④ preloadWhenHidden      가려져 있어도 미리 받아 둔다. 좌석을 갈아탈 때(←→)
+              반대쪽 창이 통째로 다시 실리던 것이 줄어든다
+         ⚠ 값 이름이 Cesium 판마다 갈린다 — 없는 이름에 넣어도 조용히 무시되므로
+           try 로 감싸고 실제로 박혔는지 콘솔에 찍는다. 「넣었다」와 「박혔다」는 다르다. */
+      try {
+        tileset.skipLevelOfDetail = false;
+        tileset.dynamicScreenSpaceError = true;
+        tileset.dynamicScreenSpaceErrorDensity = 0.00278;
+        tileset.dynamicScreenSpaceErrorFactor = 4.0;
+        tileset.preloadWhenHidden = true;
+        tileset.preferLeaves = false;
+        if ('cacheBytes' in tileset) {
+          tileset.cacheBytes = 1073741824;                 /* 1GB */
+          tileset.maximumCacheOverflowBytes = 536870912;   /* 넘칠 때 0.5GB 까지 */
+        }
+        console.log('[EG] 타일 안정화 — skipLOD ' + tileset.skipLevelOfDetail
+          + ' · dynSSE ' + tileset.dynamicScreenSpaceError
+          + ' · SSE ' + tileset.maximumScreenSpaceError
+          + ('cacheBytes' in tileset ? ' · 캐시 ' + Math.round(tileset.cacheBytes / 1048576) + 'MB' : ''));
+      } catch (e) { console.warn('[EG] 타일 안정화 값이 안 박혔습니다:', e); }
+      window.egTileset = tileset;      /* ⭐ 방들이 제 값으로 잠깐 바꿔 쓸 수 있게 */
       // globe.show 는 끄지 않음 — 실사 타일이 없는 시골(케첨 등)에서도 지도가 보이도록
       console.log("[EG] 실사 3D 모드 — 구글 포토리얼 타일이 켜졌습니다.");
     }catch(err){
@@ -6082,7 +6113,7 @@ async function enterReadingRoom(code){
     await loadScriptOnce("stamp_press.js?v=0808a");
     await loadScriptOnce("eg_book_add.js?v=0819c");   /* 좌석 모니터의 검색 한 문(21호) */
     await loadScriptOnce("eg_map_ne.js?v=0819b");     /* 항로도 밑그림 · Natural Earth */
-    await loadScriptOnce("reading_room.js?v=0819W");
+    await loadScriptOnce("reading_room.js?v=0819Z");
     if (!window.egReading) throw new Error("egReading 창구가 안 열렸습니다");
     window.egReading.enter(viewer, code || "alps_traverse");
   }catch(err){

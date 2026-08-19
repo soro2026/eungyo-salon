@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0819W
+   EG독서비행 — 방(room) 판 · reading_room.js · v0819Z
    2026.08.19 소로 × 파이스 · 144회차
    ⚠ 판번호는 아래 VERSION 하나가 정본이다. 0819e 까지 이 줄이 a 로 남아 있었다 —
      「적어 두는 것과 읽는 것은 다른 일」의 표본. 고칠 때 둘을 함께 올린다.
@@ -46,7 +46,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0819W";
+  var VERSION = "0819Z";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -576,44 +576,51 @@
 #egrMap .wpt{fill:var(--mapSub,#5c3418);font:500 18px 'Noto Sans KR',serif}
 #egrMap .wpt.now{fill:var(--mapInk,#331b0a);font-weight:700;font-size:20px}
 #egrMap .wpt.hide{display:none}
-#egrMap .ship{fill:var(--mapInk,#331b0a);stroke:var(--planeRing,#ffe4c4);stroke-width:1.2}
+/* ⚠ vector-effect — scale 을 키워도 테두리 굵기는 그대로 둔다.
+   안 두면 +4 에서 선이 2.6배가 되어 비행기가 뭉툭해진다 */
+#egrMap .ship{fill:var(--mapInk,#331b0a);stroke:var(--planeRing,#ffe4c4);stroke-width:1.6;
+  stroke-linejoin:round;vector-effect:non-scaling-stroke}
 /* ── 아래단 ── */
 #egrLow{position:absolute;left:34px;right:34px;top:418px;height:150px;
   display:grid;grid-template-columns:471fr 349fr;gap:12px}
+/* ⚠⚠ 0819X — line-height 를 **반드시 적는다.** 안 적으면 브라우저 기본(normal)이
+   폰트마다 1.15~1.35 로 달라 셈이 안 맞는다. 0819W 에서 게이지가 175.6px 이 되어
+   150px 상자를 25.6px 넘쳤고, 원판 여백 12px 밖으로 나간 만큼 그대로 잘렸다.
+   ⭐ 절대 px 로 짠 판은 안에 든 것의 높이를 손으로 셈해 두어야 한다(41호 ㉭). */
 #egrGauge{border:1px solid var(--line,#3a3226);border-radius:12px;
   background:var(--panel,#1c1710);box-shadow:inset 0 2px 8px rgba(0,0,0,.5);
-  padding:16px 22px;display:grid;grid-template-columns:1fr 1fr;gap:10px 18px;
+  padding:12px 20px;display:grid;grid-template-columns:1fr 1fr;gap:5px 18px;
   transition:background 3s linear}
 #egrGauge .c{border-left:2px solid var(--ring,#59492f);padding-left:12px;min-width:0}
-#egrGauge .c i{display:block;font:700 18px Tahoma,sans-serif;color:var(--muted,#9a8f77);
+#egrGauge .c i{display:block;font:700 17px/1.1 Tahoma,sans-serif;color:var(--muted,#9a8f77);
   letter-spacing:.2em;font-style:normal;transition:color 3s linear}
-#egrGauge .c b{display:block;font:700 36px Tahoma,sans-serif;color:var(--glow,#f0dfb4);
+#egrGauge .c b{display:block;font:700 36px/1 Tahoma,sans-serif;color:var(--glow,#f0dfb4);
   margin-top:2px;letter-spacing:.02em;text-shadow:0 0 12px var(--glowSoft,rgba(240,223,180,.25));
   white-space:nowrap;transition:color 3s linear}
 #egrGauge .c b u{font:700 17px Tahoma,sans-serif;color:var(--muted,#9a8f77);
   text-decoration:none;margin-left:3px}
 /* 책칸 */
 #egrBookBox{position:relative;border:1px solid var(--line,#3a3226);border-radius:12px;
-  background:var(--bookBg,rgba(201,169,97,.08));padding:16px 18px 0;
-  display:flex;align-items:flex-end;gap:14px;overflow:hidden;transition:background 3s linear}
-#egrBookBox .cv{width:118px;height:168px;margin:-22px 0 -26px;border-radius:6px;flex:none;
+  background:var(--bookBg,rgba(201,169,97,.08));padding:12px 16px 0;
+  display:flex;align-items:flex-end;gap:12px;overflow:hidden;transition:background 3s linear}
+#egrBookBox .cv{width:112px;height:158px;margin:-18px 0 -24px;border-radius:6px;flex:none;
   object-fit:cover;background:linear-gradient(160deg,#dce8ee,#a9c3d2);
   box-shadow:0 6px 24px rgba(0,0,0,.55);transform:rotate(-4deg);z-index:1;cursor:pointer}
-#egrBookBox .shelf{position:absolute;left:0;right:0;bottom:0;height:20px;z-index:2;
+#egrBookBox .shelf{position:absolute;left:0;right:0;bottom:0;height:18px;z-index:2;
   background:var(--pocket,#3a3226);border-top:1px solid var(--ring,#59492f);
   box-shadow:0 -3px 10px rgba(0,0,0,.45);transition:background 3s linear}
-#egrBookBox .t{position:relative;z-index:3;display:flex;flex-direction:column;gap:3px;
-  padding-bottom:30px;min-width:0;flex:1}
-#egrBookBox .t i{font:700 17px Tahoma,sans-serif;color:var(--accent,#c9a961);
+#egrBookBox .t{position:relative;z-index:3;display:flex;flex-direction:column;gap:2px;
+  padding-bottom:22px;min-width:0;flex:1}
+#egrBookBox .t i{font:700 16px/1.15 Tahoma,sans-serif;color:var(--accent,#c9a961);
   letter-spacing:.18em;font-style:normal;transition:color 3s linear}
-#egrBookBox .t b{font:700 21px/1.3 'Noto Serif KR',serif;color:var(--ink,#efe4cd);
+#egrBookBox .t b{font:700 21px/1.25 'Noto Serif KR',serif;color:var(--ink,#efe4cd);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color 3s linear}
-#egrBookBox .t small{font:400 17px 'Noto Sans KR',serif;color:var(--muted,#9a8f77);
+#egrBookBox .t small{font:400 16px/1.2 'Noto Sans KR',serif;color:var(--muted,#9a8f77);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color 3s linear}
-#egrBookBox .t a{margin-top:6px;align-self:flex-start;text-decoration:none;
-  border:1px solid var(--ring,#59492f);border-radius:6px;padding:7px 14px;cursor:pointer;
+#egrBookBox .t a{margin-top:5px;align-self:flex-start;text-decoration:none;
+  border:1px solid var(--ring,#59492f);border-radius:6px;padding:6px 13px;cursor:pointer;
   background:var(--btn,#3f3524);color:var(--glow,#f0dfb4);
-  font:700 18px Tahoma,sans-serif;letter-spacing:.12em;
+  font:700 17px/1 Tahoma,sans-serif;letter-spacing:.12em;
   box-shadow:0 2px 6px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,235,190,.2)}
 #egrBookBox .t a:hover{border-color:var(--accent,#c9a961)}
 #egrBookBox.empty{align-items:center;justify-content:center;padding-bottom:16px;cursor:pointer}
@@ -789,6 +796,53 @@
      ⚠ 좌석(밝은 베이지)이 y 70% 아래 왼쪽을 침범한다. 64.5% 가 안전하다. */
   var PLAQUE = { x: 4.2, y: 64.5 };
   var CREDIT_HOME = null;
+
+  /* ══ 타일 안정화 — 방에 있는 동안만 (0819Z) ═══════════════════════════
+     ⚠⚠ 소로 0819: 「멀리 산들이 번쩍번쩍 불안정하다」. terra 에서 넷을 잡았지만
+        독서비행은 조건이 더 나쁘다 — **해발 3.9km 저고도 순항**이라 지평선까지
+        수백 km 가 한 화면에 들어오고, 그 먼 것들이 쉼 없이 LOD 를 갈아탄다.
+     ⭐ 방에 있는 동안만 한 겹 더 조인다. 나갈 때 원래대로 돌려놓는다 —
+        terra 와 다른 우주가 제 값으로 살아야 한다(카메라 되돌리기와 같은 문법).
+     ⚠ 값을 적어 두고 그대로 되돌린다. 「기본값이 이랬겠지」로 되돌리면 언젠가 어긋난다. */
+  var TILE_SAVE = null;
+  function tuneTiles(on) {
+    var ts = window.egTileset;
+    if (!ts) return;
+    try {
+      if (on) {
+        if (TILE_SAVE) return;
+        TILE_SAVE = { sse: ts.maximumScreenSpaceError,
+                      den: ts.dynamicScreenSpaceErrorDensity,
+                      fac: ts.dynamicScreenSpaceErrorFactor,
+                      dyn: ts.dynamicScreenSpaceError,
+                      skip: ts.skipLevelOfDetail,
+                      bfc: ts.backFaceCulling };
+        ts.skipLevelOfDetail = false;
+        ts.dynamicScreenSpaceError = true;
+        /* ⭐ 멀리를 더 과감히 놓아 준다 — 저고도라 먼 것이 아주 많다.
+           density 를 키우면 「먼 곳」의 기준이 가까워져, 지평선 쪽이 일찍 뭉개진다.
+           ⚠ 뭉개지는 게 아니라 **안 바뀌는 것**이 목적이다. 번쩍임은 바뀔 때 난다. */
+        ts.dynamicScreenSpaceErrorDensity = 0.0062;
+        ts.dynamicScreenSpaceErrorFactor = 6.0;
+        ts.maximumScreenSpaceError = 20;      /* 기본 16 → 20. 갈아타는 횟수 자체를 줄인다 */
+        /* ⚠ 0819 캡처의 **파란 삼각형** — 봉우리를 스칠 때 카메라가 타일 껍질 안으로
+           들어가 뒷면이 보인 것이다. backFaceCulling 을 켜면 뒷면을 아예 안 그린다.
+           ⭐ 그물(floor 320)이 이미 막고 있지만, 한 프레임이라도 뚫으면 눈에 띈다. */
+        if ('backFaceCulling' in ts) ts.backFaceCulling = true;
+        console.log("[EG] 기내 타일 설정 — SSE 20 · dynDensity 0.0062 · skipLOD off");
+      } else {
+        if (!TILE_SAVE) return;
+        ts.maximumScreenSpaceError = TILE_SAVE.sse;
+        ts.dynamicScreenSpaceErrorDensity = TILE_SAVE.den;
+        ts.dynamicScreenSpaceErrorFactor = TILE_SAVE.fac;
+        ts.dynamicScreenSpaceError = TILE_SAVE.dyn;
+        ts.skipLevelOfDetail = TILE_SAVE.skip;
+        if ('bfc' in TILE_SAVE && 'backFaceCulling' in ts) ts.backFaceCulling = TILE_SAVE.bfc;
+        TILE_SAVE = null;
+        console.log("[EG] 타일 설정을 terra 것으로 돌려놓았습니다");
+      }
+    } catch (e) { console.warn("[EG] 타일 설정을 못 만졌습니다:", e); }
+  }
 
   /* Cesium 크레딧 판을 방 안으로 데려온다 — 그냥 DOM 요소라 옮겨도 안 부서진다.
      ⭐ Cesium 이 creditContainer 옵션으로 바깥 요소를 지정하는 것을 공식 지원하므로
@@ -1299,9 +1353,23 @@
      0819V 에서 실제로 그랬고 콘솔에 한 줄도 안 찍혔다. 다음엔 여기서 잡힌다. */
   var LOW_BOTTOM = 568;            /* #egrLow top 418 + height 150 — CSS 와 함께 고친다 */
   function checkMonFit() {
-    if (MON_H >= LOW_BOTTOM) return;
-    console.error("[EG] 모니터 원판이 짧습니다 — 높이 " + MON_H
-      + "px 인데 아래단이 " + LOW_BOTTOM + "px 에서 끝납니다.");
+    if (MON_H < LOW_BOTTOM) {
+      console.error("[EG] 모니터 원판이 짧습니다 — 높이 " + MON_H
+        + "px 인데 아래단이 " + LOW_BOTTOM + "px 에서 끝납니다.");
+    }
+    /* ⭐⭐ 0819X — 안에 든 것이 상자를 넘치는지 **실제로 잰다.**
+       ⚠⚠ CSS 만으로는 검산이 안 된다. 0819W 에서 line-height 를 안 적어
+          게이지가 25.6px 넘쳤는데 콘솔에 한 줄도 안 찍혔고, 소로가 눈으로 잡으셨다.
+       ⚠ 글꼴이 늦게 실리면 높이가 바뀐다 — 다음 프레임에 잰다. */
+    EGR_later(function () {
+      if (!MONEL || !document.body.contains(MONEL)) return;
+      ["#egrGauge", "#egrBookBox", "#egrHead", "#egrMap"].forEach(function (q) {
+        var el = MONEL.querySelector(q); if (!el) return;
+        var over = el.scrollHeight - el.clientHeight;
+        if (over > 2) console.warn("[EG] " + q + " 가 상자를 " + over
+          + "px 넘칩니다 — 아래가 잘립니다");
+      });
+    }, 700);
   }
   function mountMonitor(route) {
     MONEL = document.createElement("div");
@@ -1732,6 +1800,16 @@ function paintBook() {
   var ZLABEL = ["전체", "+1", "+2", "+3", "+4"];
   var zi = 0;                      /* 지금 단계 */
   var mapSeg = -1;
+  /* ⭐⭐ 비행기 (0819Y) — **비너스 시안의 그 아이콘**이다. 동체·주날개·꼬리날개가
+     또렷한 실루엣이라 25mm 로 줄여도 비행기로 읽힌다. 화살촉보다 훨씬 낫다.
+     기수가 위(-y)를 보게 그려져 있어 rotate(heading) 이 곧 방위다. */
+  var SHIP_D = "M0,-9 L2,-2 L11,1 L11,3.5 L2,2.5 L1.5,8 L4.5,10.5 L4.5,12.5 "
+             + "L0,11 L-4.5,12.5 L-4.5,10.5 L-1.5,8 L-2,2.5 L-11,3.5 L-11,1 L-2,-2 Z";
+  /* ⚠⚠ 소로 0819: 「확대하면 할수록 더 작게 느껴진다」.
+     크기는 같은데 **주변이 커지니 상대적으로 작아 보이는** 것이다 — 맞는 관찰이다.
+     ⭐ 배율마다 키운다. 화면 배율 0.587 을 곱한 실크기를 셈해 두었다.
+       전체 19px · +1 23px · +2 26px · +3 30px · +4 33px  (원판 기준 33~57) */
+  var SHIP_SCALE = [1.5, 1.75, 2.0, 2.3, 2.6];
 
   function mapFit(route) {
     var pts = curvePoints(route, 12);
@@ -1832,7 +1910,7 @@ function paintBook() {
     }
     out.push('</g>');
     /* 비행기 — 기수가 위(북)를 보게 그린다. rotate(heading) 이 곧 방위다 */
-    out.push('<g id="egrShip"><path class="ship" d="M0,-7.5 L4.6,5.2 L0,2.6 L-4.6,5.2 Z"/></g>');
+    out.push('<g id="egrShip"><path class="ship" d="' + SHIP_D + '"/></g>');
     return '<svg viewBox="0 0 ' + MAPBOX.w + ' ' + MAPBOX.h + '" preserveAspectRatio="xMidYMid meet">'
       + '<defs><clipPath id="egrClip"><rect x="0" y="0" width="' + MAPBOX.w
       + '" height="' + MAPBOX.h + '"/></clipPath></defs>'
@@ -1856,7 +1934,7 @@ function paintBook() {
     var ship = box.querySelector("#egrShip");
     if (ship) ship.setAttribute("transform",
       "translate(" + MAPF.x(s.lon).toFixed(1) + "," + MAPF.y(s.lat).toFixed(1)
-      + ") rotate(" + s.hd.toFixed(1) + ")");
+      + ") rotate(" + s.hd.toFixed(1) + ") scale(" + (SHIP_SCALE[zi] || 1.5) + ")");
     if (s.seg === mapSeg) return;               /* 구간이 안 바뀌면 손대지 않는다 */
     var old = box.querySelectorAll(".now");
     for (var i = 0; i < old.length; i++) old[i].classList.remove("now");
@@ -2128,6 +2206,7 @@ function paintBook() {
     loadTune();                      /* 저장된 편집값 — 브라우저 먼저, 서버가 덮는다 */
     paintCabin(route.legs[0][1]);
     moveCredits(true);               /* ⭐ 39호 — 저작자 표시를 기내 나무 판 위로 */
+    tuneTiles(true);                 /* ⭐ 저고도 순항용 타일 설정 — 나갈 때 되돌린다 */
     mountMonitor(route);             /* ⭐ 좌석 모니터 — layout 이 사다리꼴에 앉힌다 */
     loadRecent();                    /* ⑥ 마지막으로 기록한 책 표지를 데려온다 */
     layout();
@@ -2198,6 +2277,7 @@ function paintBook() {
     try { writeResume(); } catch (e) { }
     try { if (flight) { flight.stop(); flight = null; } } catch (e) { }
     EGR_off();
+    tuneTiles(false);                /* ⚠ 타일 설정을 terra 것으로 — 방보다 먼저 */
     moveCredits(false);              /* ⚠ 크레딧을 제자리로 — 방보다 먼저 돌려놓는다 */
     restoreCam(v);
     if (EXIT) { try { EXIT.remove(); } catch (e) { } EXIT = null; }
