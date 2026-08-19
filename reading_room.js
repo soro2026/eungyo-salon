@@ -1,6 +1,21 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0819a
+   EG독서비행 — 방(room) 판 · reading_room.js · v0819f
    2026.08.19 소로 × 파이스 · 144회차
+   ⚠ 판번호는 아래 VERSION 하나가 정본이다. 0819e 까지 이 줄이 a 로 남아 있었다 —
+     「적어 두는 것과 읽는 것은 다른 일」의 표본. 고칠 때 둘을 함께 올린다.
+
+   ⭐ 0819f — 소로 알프스 시승 「급강하·급상승 반복, 멀미」의 처방 네 벌 + 노선 mode
+     ㉠ 발밑이 아니라 앞을 본다   — 곡선 앞 12km 여덟 점의 지면 중 최고값이 기준
+     ㉡ 승강률 상한               — 분당 400m. 실제 여객기 순항 승강률의 상단
+                                    ⚠ 바닥(지면+120m)을 뚫을 때만 3배로 급히 오른다
+     ㉢ 계단을 없앤다             — 3단(450/700/1600)을 연속 셈으로 폈다.
+                                    「경계 깜빡임은 화면에 안 드러난다」고 적었던 그 줄이 진범
+     ㉣ 속도를 고도에서 뗀다      — 속도가 보는 고도는 시정수 20초의 딴 값.
+                                    체감(25호)은 그대로, 출렁임만 사라진다
+     ㉤ 노선 mode — 'agl' 지면추종(협곡·해안) · 'msl' 절대고도(산악)
+        ⭐ 알프스는 msl 이다. 실제 관광비행도 알프스를 지면추종으로 안 난다 —
+          비행기는 평평하고 산이 솟았다 가라앉는다. 그것이 창밖의 실물이다.
+        ⚠ msl 에도 그물은 남는다 — 앞 지면이 순항고도를 넘보면 ㉡의 걸음으로 밀어올린다
 
    ⭐ 한 줄 — 읽을 책을 손에 들고 좌석에 앉아, 창밖이 흐르는 동안 읽는다.
       0호(소로) 「곁에 두는 것이지 켜 두는 것이 아니다」 — 숲도 카페도 보라고 있는 게 아니다.
@@ -31,7 +46,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0819e";
+  var VERSION = "0819f";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -76,7 +91,13 @@
     face: "몽블랑에서 돌로미티까지 · 빙하와 석회암 탑",   /* 타륜 카드 둘째 줄 */
     kind: "tour",                    /* tour 관광기 · liner 여객기 */
     felt: 220,                       /* ⭐ 체감(속도÷고도). 25호 — 이 값 하나가 속도를 다 정한다 */
-    agl: 700,                        /* 지면 위 기본 고도(m) — 「스치듯」 */
+    /* ⭐ 0819f — 소로 시승 뒤 msl 로 전환. 지면추종은 알프스에서 급강하·급상승을 낳는다.
+       msl 3600m — 계곡(400~1500m) 위로는 시원하게 높고, 고개(2000~2800m)와는 다정하게
+       가깝다. 몽블랑·마터호른 옆구리(3000m대)를 지날 때만 그물이 살짝 밀어올린다. */
+    mode: "msl",                     /* 'msl' 절대고도(산악) · 'agl' 지면추종(협곡·해안) */
+    msl: 3600,                       /* 순항 해발고도(m) — mode:'msl' 일 때 */
+    floor: 250,                      /* 앞 지면과의 최소 여유(m) — 그물 */
+    agl: 700,                        /* ↓ 셋은 mode:'agl' 노선이 쓴다. 알프스는 안 읽는다 */
     aglLow: 450, aglHigh: 1600,      /* 봉우리 옆 · 계곡 위 */
     loop: true,                      /* ⭐ 닫힌 고리 — 끝나지 않는다(13·14호) */
     /* ⚠ 봉우리 정상이 아니라 옆구리를 스치게 3~6km 비켜 찍었다.
@@ -180,48 +201,107 @@
     var ahead = onCurve(0, 0.02);
     var hd = bearing(lat, lon, ahead[0], ahead[1]);
     var roll = 0, tp = performance.now(), gT = 0, dist = 0, errN = 0;
-    var rel = route.agl, settled = false;
+    /* ⭐⭐ 0819f — 고도의 정본은 rel(지면 위)이 아니라 alt(해발)다.
+       rel 로 들면 지면이 계단일 때 카메라도 계단이 된다 — 소로 시승의 멀미가 그것.
+       alt 는 ㉡의 걸음(분당 400m)으로만 움직이므로 지면이 어떻게 날뛰어도 잔잔하다. */
+    /* ⚠ 첫 지면 측정 전에도 카메라는 돈다 — 초기값이 땅속이면 첫 1초가 지옥이다.
+       msl 노선은 순항고도로, agl 노선은 어림 1,600m 로 들고 settled 가 바로잡는다. */
+    var alt = (route.mode === "msl") ? (route.msl || 3600) : 1600, settled = false;
+    var spdH = 1200;                 /* ㉣ 속도가 보는 고도(지면 위) — 시정수 20초의 딴 값 */
+    var prevAlt = alt, vs = 0;       /* 승강률 m/분 — 계기판이 쓴다 */
+    var CLIMB = 400 / 60;            /* ㉡ 승강률 상한 m/s — 실제 여객기 순항 승강률의 상단 */
     /* ⚠⚠ 0819 소로 — 「고도가 바뀔 때 1초마다 딸꾹」.
        지면은 1초에 한 번 재는데 카메라는 매 프레임 그 값을 쓴다. 그래서 잰 순간마다
        절대고도가 계단처럼 툭 뛰었다(200km/h 면 1초에 60m — 산비탈이면 수십 m 차이).
        ⭐ 재는 주기를 줄이면 무겁다. **읽는 값을 부드럽게** 한다 — 공짜다.
          groundRaw 는 계단이고, groundH 는 그것을 좇아가는 매끈한 값이다. */
     var groundRaw = 0;
+    /* ㉠ 앞보기 — 곡선 앞 열두 km 여덟 점의 지면 중 최고값. 지형추종 레이더의 셈이다.
+       산이 다가오면 미리 오르고, 지나가면 ㉡의 걸음으로 천천히 내려온다. */
+    var gAhead = 0;
+    var LOOK_KM = [0, 1.5, 3, 4.5, 6, 8, 10, 12];
+    function groundAt(sg, uu) {
+      var p = onCurve(sg, uu);
+      var hh = viewer.scene.sampleHeight(Cesium.Cartographic.fromDegrees(p[1], p[0]));
+      return Cesium.defined(hh) ? hh : null;
+    }
+    function lookAhead(sg, uu, segKm0) {
+      var mx = null, sg2 = sg, uu2 = uu, sk = segKm0, j, k, step;
+      for (j = 0; j < LOOK_KM.length; j++) {
+        step = LOOK_KM[j] - (j ? LOOK_KM[j - 1] : 0);
+        uu2 += step / sk;
+        while (uu2 >= 1) {
+          uu2 -= 1; sg2 = (sg2 + 1) % N;
+          sk = Math.max(gcKm(P(sg2)[0], P(sg2)[1], P(sg2 + 1)[0], P(sg2 + 1)[1]), 0.001);
+        }
+        k = groundAt(sg2, uu2);
+        if (k !== null && (mx === null || k > mx)) mx = k;
+      }
+      return mx;
+    }
+    /* ㉢ 계단을 폈다 — agl 노선용 연속 셈. 옛 3단은 경계(900·2600)에서 목표가 900m 씩
+       통째로 뛰었다 — 분당 13,500m. 그 줄에 「화면에 안 드러난다」고 적어 두기까지 했다.
+       ⭐ 꺾은선 하나면 끝이다: 지면 600m 이하 → 1600 · 1500m → 700 · 2600m 이상 → 450 */
+    function lerp2(g, g0, v0, g1, v1) { return v0 + (v1 - v0) * (g - g0) / (g1 - g0); }
+    function aglWant(g) {
+      var lo = route.aglLow || 450, mid = route.agl || 700, hi = route.aglHigh || 1600;
+      if (g <= 600)  return hi;
+      if (g <= 1500) return lerp2(g, 600, hi, 1500, mid);
+      if (g <= 2600) return lerp2(g, 1500, mid, 2600, lo);
+      return lo;
+    }
 
     var off = viewer.clock.onTick.addEventListener(function () {
       try {
         var now = performance.now(), dt = Math.min((now - tp) / 1000, 0.25); tp = now;
 
-        /* ── 지면 높이 — 1초에 한 번만 잰다.
-           ⚠ 절대고도로 날면 몽블랑(4,808m)에서 산속으로 들어간다 */
+        /* ── 지면 높이 — 1초에 한 번, 발밑 한 점 + 앞 열두 km 여덟 점(㉠).
+           ⚠ 아홉 번의 sampleHeight 는 이미 실린 타일을 읽는 것이라 네트워크 비용이 없다 */
         if (now - gT > 1000) {
           gT = now;
           try {
             var hh = viewer.scene.sampleHeight(Cesium.Cartographic.fromDegrees(lon, lat));
             if (Cesium.defined(hh)) {
               groundRaw = hh;
+              var segK0 = Math.max(gcKm(P(seg)[0], P(seg)[1], P(seg + 1)[0], P(seg + 1)[1]), 0.001);
+              var mx = lookAhead(seg, u, segK0);
+              gAhead = (mx === null) ? groundRaw : Math.max(groundRaw, mx);
               /* ⭐ 0819 소로 — 「초기에 계속 올라가는 느낌」.
-                 시작 rel(agl 700)과 첫 지형이 원하는 rel(계곡 1600)이 달라
-                 30초를 기어 올라가고 있었다. 첫 측정 때 한 번에 맞춰 앉힌다 —
-                 순항 중 진입이므로(활주로 생략) 처음부터 순항 고도가 맞다. */
+                 첫 측정 때 목표 고도에 한 번에 맞춰 앉힌다 — 순항 중 진입이므로
+                 (활주로 생략) 처음부터 순항 고도가 맞다. ㉡의 걸음은 그 다음부터다. */
               if (!settled) {
                 settled = true;
-                groundH = groundRaw;                 /* 첫 값은 그대로 앉힌다 */
-                if (groundRaw > 2600) rel = route.aglLow;
-                else if (groundRaw < 900) rel = route.aglHigh;
-                else rel = route.agl;
+                groundH = groundRaw;
+                alt = (route.mode === "msl")
+                  ? Math.max(route.msl || 3600, gAhead + (route.floor || 250))
+                  : groundRaw + aglWant(gAhead);
               }
             }
           } catch (e) { }
         }
 
-        /* ⭐ 지면을 매 프레임 부드럽게 좇는다 — 계단을 비탈로 편다.
-           ⚠ 1.8 은 「1초에 약 83%를 따라잡는다」. 더 크면 계단이 남고,
-             더 작으면 산이 다가올 때 반응이 늦어 비탈에 파묻힌다. */
+        /* ⭐ 지면을 매 프레임 부드럽게 좇는다 — 계기판·속도가 읽는 값이다.
+           ⚠ 1.8 은 「1초에 약 83%를 따라잡는다」. */
         groundH += (groundRaw - groundH) * Math.min(dt * 1.8, 1);
 
-        /* ── ⭐ 속도는 셈이 낸다 (v2.0 25호) — 체감(속도÷고도)을 일정하게 */
-        var kmh = Math.max(60, Math.min(route.felt * (rel / 1000), 900));
+        /* ── ⭐⭐ 고도 (0819f) — 목표는 셈이 내고, 걸음은 ㉡이 낸다 ──
+           msl  순항 해발고도로 평평하게. 앞 지면이 넘보면 floor 만큼 위로 밀린다
+           agl  앞 지면 최고값 기준으로 aglWant — 계곡·해안용 */
+        var wantAlt = (route.mode === "msl")
+          ? Math.max(route.msl || 3600, gAhead + (route.floor || 250))
+          : gAhead + aglWant(gAhead);
+        var dA = wantAlt - alt;
+        var step = CLIMB * dt;                       /* ㉡ 분당 400m 의 걸음 */
+        /* ⚠ 그물 — 발밑 지면+120m 를 뚫기 직전이면 걸음을 3배로. 멀미보다 추락이 나쁘다 */
+        if (alt < groundH + 120 && dA > 0) step *= 3;
+        alt += Math.max(-step, Math.min(step, dA));
+        if (alt < groundH + 80) alt = groundH + 80;  /* 최후의 바닥 */
+        var rel = alt - groundH;                     /* 계기판·지평선 각이 쓰는 지면 위 높이 */
+
+        /* ── ⭐ 속도는 셈이 낸다 (25호) — 다만 ㉣ 고도 출렁임은 안 받는다.
+           속도가 보는 고도는 시정수 20초의 딴 값. 체감은 일정하고 속도는 잔잔하다 */
+        spdH += (rel - spdH) * Math.min(dt / 20, 1);
+        var kmh = Math.max(60, Math.min(route.felt * (spdH / 1000), 900));
         var km = kmh * dt / 3600; dist += km;
 
         /* ── ⭐ 곡선 위를 나아간다 — u 를 거리만큼 민다 */
@@ -246,28 +326,26 @@
         var ease = (Math.abs(wantRoll) < Math.abs(roll)) ? 1.9 : 1.1;   /* 펼 때 조금 빠르게 */
         roll += (wantRoll - roll) * Math.min(dt * ease, 1);
 
-        /* ── 고도 — 계곡에서는 높이, 봉우리 옆에서는 낮게 */
-        var wantRel = route.agl;
-        if (groundH > 2600) wantRel = route.aglLow;
-        else if (groundH < 900) wantRel = route.aglHigh;
-        /* ⚠ 경계(2600·900)를 스칠 때 판정이 깜빡이지만, rel 이 dt×0.25 로
-           아주 천천히 좇으므로 화면에는 안 드러난다. 여기는 손대지 않는다. */
-        rel += (wantRel - rel) * Math.min(dt * 0.25, 1);       /* 아주 천천히 */
+        /* ⚠ 0819f — 옛 3단 고도 블록이 여기 있었다. 진범이라 원인째 걷었다.
+           고도는 위(㉠㉡㉢)에서 이미 alt 로 섰다. */
 
         /* 창가 시점 — 창밖이 지나간다(v1.4 8호). 왼쪽 창가는 빼기다 */
         var look = Cesium.Math.toRadians((hd + side * 90 + 360) % 360);
-        var pit = horizonDeg(rel) + (opt.sky || 6);
+        var pit = horizonDeg(Math.max(rel, 80)) + (opt.sky || 6);
 
         if (!window.__egShut) {
           viewer.camera.setView({
-            destination: Cesium.Cartesian3.fromDegrees(lon, lat, groundH + rel),
+            destination: Cesium.Cartesian3.fromDegrees(lon, lat, alt),
             orientation: { heading: look, pitch: Cesium.Math.toRadians(pit), roll: Cesium.Math.toRadians(roll) }
           });
         }
 
+        /* 승강률 — 항상 잰다. 계기판이 없어도 값은 흘러야 한다 */
+        vs += ((alt - prevAlt) / Math.max(dt, 0.001) * 60 - vs) * Math.min(dt, 1); prevAlt = alt;
+
         /* ⚠ 계기판 한 줄이 죽어도 Cesium 렌더가 통째로 멈추지 않게 감싼다(0817) */
         if (opt.onTick) {
-          try { opt.onTick({ lat: lat, lon: lon, hd: hd, kmh: kmh, rel: rel, ground: groundH, dist: dist, leg: P(seg)[2], next: P(seg + 1)[2], roll: roll }); }
+          try { opt.onTick({ lat: lat, lon: lon, hd: hd, kmh: kmh, rel: rel, alt: alt, vs: vs, ground: groundH, dist: dist, leg: P(seg)[2], next: P(seg + 1)[2], roll: roll }); }
           catch (err) {
             if (!window.__egRTickWarned) { window.__egRTickWarned = true; console.error("[EG] 계기판 오류 — 비행은 계속합니다:", err); }
           }
@@ -470,8 +548,12 @@
         var now = performance.now();
         if (now - hudT < 400) return; hudT = now;
         paintCabin(s.lon);
+        /* msl 노선은 해발이 정본이다 — 「지면 위」로 읽으면 산비탈마다 숫자가 널뛴다 */
         hud.textContent = route.name + " · " + s.leg + " → " + s.next
-          + "  ·  지면 위 " + Math.round(s.rel) + "m · " + Math.round(s.kmh) + "km/h";
+          + "  ·  " + (route.mode === "msl"
+              ? "해발 " + Math.round(s.alt) + "m"
+              : "지면 위 " + Math.round(s.rel) + "m")
+          + " · " + Math.round(s.kmh) + "km/h";
       }
     });
     console.log("%c[EG] reading_room " + VERSION + " — " + route.name + " · 길목 " + route.legs.length + "점 · 끝없는 고리", "color:#c9a84c");
