@@ -31,7 +31,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0819d";
+  var VERSION = "0819e";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -181,6 +181,12 @@
     var hd = bearing(lat, lon, ahead[0], ahead[1]);
     var roll = 0, tp = performance.now(), gT = 0, dist = 0, errN = 0;
     var rel = route.agl, settled = false;
+    /* ⚠⚠ 0819 소로 — 「고도가 바뀔 때 1초마다 딸꾹」.
+       지면은 1초에 한 번 재는데 카메라는 매 프레임 그 값을 쓴다. 그래서 잰 순간마다
+       절대고도가 계단처럼 툭 뛰었다(200km/h 면 1초에 60m — 산비탈이면 수십 m 차이).
+       ⭐ 재는 주기를 줄이면 무겁다. **읽는 값을 부드럽게** 한다 — 공짜다.
+         groundRaw 는 계단이고, groundH 는 그것을 좇아가는 매끈한 값이다. */
+    var groundRaw = 0;
 
     var off = viewer.clock.onTick.addEventListener(function () {
       try {
@@ -193,20 +199,26 @@
           try {
             var hh = viewer.scene.sampleHeight(Cesium.Cartographic.fromDegrees(lon, lat));
             if (Cesium.defined(hh)) {
-              groundH = hh;
+              groundRaw = hh;
               /* ⭐ 0819 소로 — 「초기에 계속 올라가는 느낌」.
                  시작 rel(agl 700)과 첫 지형이 원하는 rel(계곡 1600)이 달라
                  30초를 기어 올라가고 있었다. 첫 측정 때 한 번에 맞춰 앉힌다 —
                  순항 중 진입이므로(활주로 생략) 처음부터 순항 고도가 맞다. */
               if (!settled) {
                 settled = true;
-                if (groundH > 2600) rel = route.aglLow;
-                else if (groundH < 900) rel = route.aglHigh;
+                groundH = groundRaw;                 /* 첫 값은 그대로 앉힌다 */
+                if (groundRaw > 2600) rel = route.aglLow;
+                else if (groundRaw < 900) rel = route.aglHigh;
                 else rel = route.agl;
               }
             }
           } catch (e) { }
         }
+
+        /* ⭐ 지면을 매 프레임 부드럽게 좇는다 — 계단을 비탈로 편다.
+           ⚠ 1.8 은 「1초에 약 83%를 따라잡는다」. 더 크면 계단이 남고,
+             더 작으면 산이 다가올 때 반응이 늦어 비탈에 파묻힌다. */
+        groundH += (groundRaw - groundH) * Math.min(dt * 1.8, 1);
 
         /* ── ⭐ 속도는 셈이 낸다 (v2.0 25호) — 체감(속도÷고도)을 일정하게 */
         var kmh = Math.max(60, Math.min(route.felt * (rel / 1000), 900));
@@ -238,6 +250,8 @@
         var wantRel = route.agl;
         if (groundH > 2600) wantRel = route.aglLow;
         else if (groundH < 900) wantRel = route.aglHigh;
+        /* ⚠ 경계(2600·900)를 스칠 때 판정이 깜빡이지만, rel 이 dt×0.25 로
+           아주 천천히 좇으므로 화면에는 안 드러난다. 여기는 손대지 않는다. */
         rel += (wantRel - rel) * Math.min(dt * 0.25, 1);       /* 아주 천천히 */
 
         /* 창가 시점 — 창밖이 지나간다(v1.4 8호). 왼쪽 창가는 빼기다 */
