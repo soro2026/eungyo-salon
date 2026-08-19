@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0819M
+   EG독서비행 — 방(room) 판 · reading_room.js · v0819P
    2026.08.19 소로 × 파이스 · 144회차
    ⚠ 판번호는 아래 VERSION 하나가 정본이다. 0819e 까지 이 줄이 a 로 남아 있었다 —
      「적어 두는 것과 읽는 것은 다른 일」의 표본. 고칠 때 둘을 함께 올린다.
@@ -46,7 +46,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0819M";
+  var VERSION = "0819P";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -127,7 +127,9 @@
      ⚠ 0819 실측. 넉 벌의 창 좌표가 최대 2.3px 안에서 일치함을 확인했다.
      ⭐ 날개가 없다 — .wing 두 겹·되뒤집기·wing_blank 가 통째로 빠졌다. */
   var PLATE_W = 941, PLATE_H = 1672;
-  var CANVAS = { l: 3.613, t: 25.837, w: 71.838, h: 28.947 };     /* 창 넷을 다 덮는 한 장 */
+  /* ⚠ 0819P — CANVAS 사각형을 걷었다. 창밖이 화면 전체를 덮으므로 더는 안 쓴다.
+     ⭐ 남겨 두면 다음 사람이 「창밖 크기」를 여기서 찾다가 헛돈다. 값을 지운다.
+     var CANVAS = { l:3.613, t:25.837, w:71.838, h:28.947 };   ← 0819N 까지 쓰던 것 */
   var WINS = [                                                    /* 창 덮개가 앉을 곳 */
     { l: 3.613, t: 25.837, w: 27.630, h: 28.947 },
     { l: 38.682, t: 28.947, w: 14.665, h: 19.378 },
@@ -438,6 +440,29 @@
   border:1px solid #43371f;color:#c9b586;
   box-shadow:inset 0 2px 5px rgba(0,0,0,.6),0 1px 0 rgba(255,244,210,.35)}
 #readingExit:hover{border-color:#d9bd7e;color:#f0dfb4}
+/* ⭐ 창 덮개 손잡이 (0819P) — 그림 속 그것 위에 얹는 투명 판.
+   따로 그리지 않는다. 손을 올리면 살짝 빛나고, 누르면 덮개가 내려온다(24호 문법). */
+#readingGrip{position:fixed;z-index:11;pointer-events:auto;cursor:pointer;border-radius:99px;
+  background:transparent;transition:background .2s,box-shadow .2s}
+#readingGrip:hover{background:rgba(255,244,214,.13);
+  box-shadow:0 0 14px 3px rgba(255,244,214,.16)}
+#readingGrip::after{content:attr(data-tip);position:absolute;left:50%;top:118%;
+  transform:translateX(-50%);white-space:nowrap;font-size:11px;font-family:Georgia,serif;
+  color:rgba(232,228,216,0);transition:color .2s;pointer-events:none;
+  text-shadow:0 1px 5px rgba(0,0,0,.9)}
+#readingGrip:hover::after{color:rgba(232,228,216,.78)}
+#readingRoom.out #readingGrip{display:none}
+/* 편집기 — 베스페르 문법. 끌어서 옮기고 휠로 키운다 */
+#readingRoom.edit #readingGrip{outline:1px dashed rgba(201,168,106,.75);cursor:move;
+  background:rgba(255,244,214,.06)}
+#readingRoom.edit #egrMon{outline:2px dashed rgba(201,168,106,.75);cursor:move}
+#readingRoom.edit #egrMon *{pointer-events:none}   /* 끄는 동안 속 단추가 안 눌리게 */
+#readingTune{position:fixed;left:18px;bottom:18px;z-index:24;display:none;pointer-events:auto;
+  background:rgba(12,15,20,.93);border:1px solid #2a323f;border-radius:8px;padding:11px 15px;
+  color:#9aa5b1;font:11.5px/1.75 Georgia,'Noto Serif KR',serif;max-width:320px}
+#readingRoom.edit #readingTune{display:block}
+#readingTune b{color:#e6d9ae;font-weight:normal}
+#readingTune .sv{color:#c9a84c;font-size:11px}
 /* 0819g — 좌석 전환·외부 보기·소리 */
 #readingRoom.flip #plate{transform:scaleX(-1)}   /* 그림만 거울 — 글은 안 뒤집는다 */
 #readingRoom.out #plate,#readingRoom.out .shade{visibility:hidden}
@@ -624,6 +649,14 @@
     sn.id = "readingSnd"; sn.type = "button"; sn.innerHTML = "&#128266;"; sn.title = "기내 소음";
     ROOT.appendChild(sn);
     EGR_on(sn, "click", function () { engineSet(!sndOn); });
+    /* ⭐ 창 덮개 손잡이 — 그림 속 그것 위. 방(ROOT) 안이라 KEEP 을 안 늘린다 */
+    var gp = document.createElement("div");
+    gp.id = "readingGrip"; gp.setAttribute("data-tip", "창 닫기"); gp.title = "창 덮개 (S)";
+    ROOT.appendChild(gp);
+    EGR_on(gp, "click", function () { if (!editing) toggleShade(); });
+    var tn = document.createElement("div");
+    tn.id = "readingTune";
+    ROOT.appendChild(tn);
   }
 
   /* ══ 판 세우기 ═══════════════════════════════════════════════
@@ -631,7 +664,16 @@
      ⭐ 스크롤이 아니다. 판·창밖·덮개가 모두 fixed 이고 panY 하나로 함께 민다.
        ⚠⚠ 좌표계를 둘로 나누면 창밖만 제자리에 남는다(0819 실제로 겪음). */
   var panY = 0, panMin = 0, panMax = 0;
+  var cvW = 0, cvH = 0;            /* 캔버스 마지막 크기 — 같으면 resize 를 안 부른다 */
   var OUT = false;                 /* 0819g — 외부 보기. 왕복 하나, 별도 갈래가 아니다(0호) */
+  var SHUT = false;                /* 0819P — 창 덮개. 24호 · 손님이 여닫는다 */
+
+  /* ⭐ 덮개 손잡이 — 그림 속 그 곳 위에 얹는 투명 판. 좌·우 따로(거울이라 홈이 안 대칭).
+     ⚠ 처음 값은 어림이다. 소로가 E 편집기로 맞춰 저장하시면 서버 값이 이깁니다. */
+  var GRIP_L = { x: 20.0, y: 27.0, w: 9.0, h: 1.8 };
+  var GRIP_R = { x: 20.0, y: 27.0, w: 9.0, h: 1.8 };
+  function GRIP() { return side < 0 ? GRIP_L : GRIP_R; }
+  var TUNE_KEY = "reading_tune";   /* eg_settings.key — 베스페르는 cruise_tune */
 
   /* ⭐ 좌석 전환 — cruise 가 매 프레임 side 를 다시 읽으므로 비행은 안 끊긴다.
      ⚠ 짧은 암전으로 덮는다. 창밖 방위가 180° 도는 순간을 맨눈에 보이면 어지럽다. */
@@ -657,6 +699,88 @@
     ROOT.classList.toggle("out", OUT);
     layout();
   }
+
+  /* ══ 창 덮개 (0819P) — 24호 · 손님이 여닫는다 ═══════════════════════
+     ⚠ 자동으로 안 닫는다. 「멀미나는 분, 글에만 집중하고 싶은 분」을 위한 손이다.
+       실제 여객기는 이착륙 때 덮개를 **여는데**, 그건 규정이고 여기는 취향이다. */
+  function toggleShade() {
+    if (!ROOT) return;
+    SHUT = !SHUT;
+    ROOT.classList.toggle("shut", SHUT);
+    var g = ROOT.querySelector("#readingGrip");
+    if (g) g.setAttribute("data-tip", SHUT ? "창 열기" : "창 닫기");
+  }
+
+  /* ══ 편집기 (0819P) — 베스페르 문법 그대로 ═════════════════════════
+     E 로 켜고 끈다. 끌어서 옮기고 휠로 키운다. 끄면 저장한다.
+     ⚠ 값은 eg_settings 에 한 줄(reading_tune). 읽기는 모두, 쓰기는 관리자만(RLS). */
+  var editing = false, egrab = null, tuneT = null;
+  function setEdit(on) {
+    editing = on;
+    ROOT.classList.toggle("edit", on);
+    if (!on) pushTune();
+  }
+  function tuneTarget(el) {
+    if (!el || !el.closest) return null;
+    if (el.closest("#readingGrip")) return "grip";
+    if (el.closest("#egrMon")) return "mon";
+    return null;
+  }
+  /* 모니터 네 점을 통째로 옮긴다 — 사영변환이라 한 점만 끌면 모양이 일그러진다 */
+  function monMove(dxp, dyp) {
+    ["tl", "tr", "br", "bl"].forEach(function (k) { MON[k][0] += dxp; MON[k][1] += dyp; });
+  }
+  function monScale(f) {
+    var ks = ["tl", "tr", "br", "bl"], mx0 = 0, my0 = 0;
+    ks.forEach(function (k) { mx0 += MON[k][0] / 4; my0 += MON[k][1] / 4; });
+    ks.forEach(function (k) {
+      MON[k][0] = mx0 + (MON[k][0] - mx0) * f;
+      MON[k][1] = my0 + (MON[k][1] - my0) * f;
+    });
+  }
+  function tuneSay() {
+    var box = ROOT && ROOT.querySelector("#readingTune");
+    if (!box) return;
+    var GP = GRIP();
+    box.innerHTML = '<b>편집 중</b> — 창 덮개 손잡이와 모니터를 <b>끌어서</b> 옮기고,'
+      + ' <b>휠</b>로 크기를 맞추십시오. <b>E</b> 로 닫으면 저장됩니다.<br>'
+      + '<span class="sv">손잡이 ' + (side < 0 ? "왼창" : "오른창")
+      + ' x ' + GP.x.toFixed(2) + ' y ' + GP.y.toFixed(2)
+      + ' w ' + GP.w.toFixed(2) + ' h ' + GP.h.toFixed(2)
+      + ' · 모니터 좌상 ' + MON.tl[0].toFixed(2) + ',' + MON.tl[1].toFixed(2) + '</span>';
+  }
+  function tuneNow() { return { GL: GRIP_L, GR: GRIP_R, MON: MON }; }
+  function applyTune(v) {
+    if (!v) return;
+    if (v.GL) GRIP_L = v.GL;
+    if (v.GR) GRIP_R = v.GR;
+    if (v.MON && v.MON.tl) { MON.tl = v.MON.tl; MON.tr = v.MON.tr; MON.br = v.MON.br; MON.bl = v.MON.bl;
+                             if (v.MON.w) MON.w = v.MON.w; if (v.MON.h) MON.h = v.MON.h; }
+  }
+  function pushTune() {
+    try { localStorage.setItem("eg_reading_tune", JSON.stringify(tuneNow())); } catch (e) { }
+    var sb = egr_sb(); if (!sb) return;
+    sb.from("eg_settings")
+      .upsert({ key: TUNE_KEY, val: tuneNow(), updated_at: new Date().toISOString() },
+              { onConflict: "key" })
+      .then(function (r) {
+        if (r.error) console.warn("[EG] 편집값 저장 실패:", r.error.message);
+        else console.log("[EG] 편집값을 서버에 적었습니다");
+      });
+  }
+  function loadTune() {
+    /* 먼저 브라우저 값으로 그려 두고, 서버 값이 오면 덮는다 (베스페르 문법) */
+    try { applyTune(JSON.parse(localStorage.getItem("eg_reading_tune") || "null")); } catch (e) { }
+    var sb = egr_sb(); if (!sb) return;
+    sb.from("eg_settings").select("val").eq("key", TUNE_KEY).maybeSingle()
+      .then(function (r) {
+        if (r.error || !r.data || !r.data.val) return;
+        applyTune(r.data.val);
+        if (ROOT) layout();
+        console.log("[EG] 서버에서 편집값을 받았습니다");
+      });
+  }
+  function saveTuneSoon() { clearTimeout(tuneT); tuneT = setTimeout(pushTune, 600); }
 
   function layout() {
     if (!ROOT) return;
@@ -684,25 +808,29 @@
     var flip = (side > 0);
     function mx(l2, w2) { return flip ? (100 - l2 - w2) : l2; }
 
-    /* ⭐ 창밖 — 판과 똑같은 화면 좌표. 둘 다 fixed 라 함께 움직인다.
-       0819g · 외부(OUT)면 화면을 통째로 연다 — 잠깐 눈 돌리는 왕복이다(0호) */
+    /* ⭐⭐ 창밖 — **화면에 못박는다.** 판만 움직이고 지구는 안 움직인다 (0819P · 소로).
+       ⚠⚠ 0819N 까지는 캔버스가 판과 같은 top(= py + panY)을 써서 스크롤할 때
+          지구가 판을 따라 함께 흘렀다. 창 구멍이 지구 위를 훑는 게 아니라
+          창과 지구가 한 덩어리로 미끄러졌다 — 기내를 둘러보는 게 아니라 세상이 흔들렸다.
+       ⭐ 베스페르는 처음부터 이랬다. 창밖이 화면 전체를 덮고, 창 구멍 뚫린 판이 그 위를 덮는다.
+          판이 어디로 가든 구멍 뒤에는 언제나 그 지점의 지구가 있다.
+       ⚠ 기내 판은 창 넷이 실제로 뚫려 있다(알파 10.2% 실측). 그래서 이 방식이 선다.
+       ⚠ 픽셀이 1.7배로 는다. 다만 C(외부 보기)에서 이미 같은 크기를 쓰고 있어 감당이 확인됐다. */
     var cv = document.getElementById("cesiumContainer");
     if (cv) {
       cv.style.position = "fixed";
-      if (OUT) {
-        cv.style.left = "0px"; cv.style.top = "0px";
-        cv.style.width = vw + "px"; cv.style.height = vh + "px";
-      } else {
-        cv.style.left = (cx + w * mx(CANVAS.l, CANVAS.w) / 100) + "px";
-        cv.style.top = (top + h * CANVAS.t / 100) + "px";
-        cv.style.width = (w * CANVAS.w / 100) + "px";
-        cv.style.height = (h * CANVAS.h / 100) + "px";
-      }
+      cv.style.left = "0px"; cv.style.top = "0px";
+      cv.style.width = vw + "px"; cv.style.height = vh + "px";
       cv.style.right = "auto"; cv.style.bottom = "auto";   /* ⚠ terra 의 inset:0 을 푼다 */
       cv.style.zIndex = "4";
-      try { if (viewer) viewer.resize(); } catch (e) { }
+      /* ⚠ 같은 크기면 resize 를 안 부른다 — 매 프레임 부르면 Cesium 이 통째로 다시 잰다 */
+      if (cvW !== vw || cvH !== vh) {
+        cvW = vw; cvH = vh;
+        try { if (viewer) viewer.resize(); } catch (e) { }
+      }
     }
-    /* 창 덮개 — 창보다 조금 크게 잡아 틈이 안 보이게 */
+    /* 창 덮개 — 창보다 조금 크게 잡아 틈이 안 보이게.
+       ⭐ 덮개는 창 구멍의 짝이므로 **판을 따라간다**(top). 창밖과 달리 함께 움직여야 맞다. */
     var sh = ROOT.querySelectorAll(".shade");
     for (var i = 0; i < sh.length; i++) {
       var W = WINS[i]; if (!W) continue;
@@ -710,6 +838,15 @@
       sh[i].style.top = (top + (W.t - 1.2) / 100 * h) + "px";
       sh[i].style.width = ((W.w + 2.4) / 100 * w) + "px";
       sh[i].style.height = ((W.h + 2.4) / 100 * h) + "px";
+    }
+    /* ⭐ 덮개 손잡이 — 그림 속 그것 위에 얹는 투명 판. 편집기가 만진다(0819P) */
+    var gb = ROOT.querySelector("#readingGrip");
+    if (gb) {
+      var GP = GRIP();
+      gb.style.left = (cx + mx(GP.x, GP.w) / 100 * w) + "px";
+      gb.style.top = (top + GP.y / 100 * h) + "px";
+      gb.style.width = (GP.w / 100 * w) + "px";
+      gb.style.height = (GP.h / 100 * h) + "px";
     }
     /* 모니터 — 사다리꼴 네 점에 앉힌다(0819h). 판 % → 화면 px → matrix3d.
        ⚠ 오른창(거울)이면 x' = 100−x 에 좌·우 모서리도 서로 바뀐다 —
@@ -1065,6 +1202,29 @@
     });
   }
 
+  /* ══ 인장 (0819N) — 16호 「도장은 저장할 때 한 번」 ═══════════════════
+     ⭐ vol_lectio · area volatus · motto VOLATVS · daily_per_area
+     ⚠⚠ 규칙이 daily_per_area 하나뿐인 까닭 — 소로 0819: 「독서일지 매일 1회차분」.
+        회차마다 주면 「많이 쓰면 많이 받는다」가 되어 14호(재촉 금지)가 무너진다.
+        하루에 세 권을 읽고 세 편을 써도 도장은 하나다. 그것이 이 집의 셈이다.
+     ⚠ 3호 — 저절로 안 찍는다. 놓아두기만 하고 누르는 것은 손님이다.
+       안 눌러도 아무 손해가 없고, 다음 날 또 저장하면 또 놓인다.
+     ⭐ 원판이 없으면 아무 일도 안 일어난다 — stamp_press 가 art_url 로 거른다(30호).
+       그래서 줄을 먼저 세워도 손님 화면은 조용하다. 소로가 구우면 그날부터 선다. */
+  function offerStamp() {
+    if (!window.EGStamp || !BOOK) return;
+    /* ⚠ 늦게 온 응답은 방이 아직 있을 때만 받는다 — 0818 밤 베스페르에서 덴 곳.
+       × 로 내리며 초안이 저장되면 여기까지 오는데, 그때는 terra 위에 인장이 홀로 뜬다. */
+    if (!ROOT || !document.body.contains(ROOT)) return;
+    var mark = (window.EGBookAdd && EGBookAdd.inscription)
+      ? EGBookAdd.inscription(BOOK.title) : String(BOOK.title || "").slice(0, 24);
+    try {
+      EGStamp.offer({ supa: egr_sb(), area: "volatus", kind: "vol_lectio",
+                      inscription: mark || null,
+                      bottom: 96 });      /* 기록판 위로 올린다 */
+    } catch (e) { console.warn("[EG] 인장을 못 놓았습니다:", e); }
+  }
+
   function paintBook() {
     if (!MONEL) return;
     var el = MONEL.querySelector("#egrBook");
@@ -1220,7 +1380,9 @@
       RECENT = BOOK; paintRecent();
       loadNotes();
       if (DESK.classList.contains("on")) loadArchive();
-      /* ⚠ 도장(16호)은 stamp_kinds 에 독서비행 줄이 서면 여기서 놓는다 — 원판은 소로 몫 */
+      /* ⭐ 16호 — 도장은 **저장할 때** 한 번. 초안에는 안 놓는다.
+         자동 초안까지 도장을 놓으면 「글을 쓰다 멈춘 것」에도 상을 주는 꼴이 된다. */
+      if (status === "saved") offerStamp();
     }).catch(function (e) {
       msg.textContent =
         /JWT|auth|401|로그인/i.test(String(e && e.message)) ? "로그인이 필요합니다" : "저장하지 못했습니다";
@@ -1471,15 +1633,51 @@
     EGR_on(window, "touchstart", onTouchStart, { passive: true });
     EGR_on(window, "touchmove", onTouchMove, { passive: false });
     EGR_on(window, "touchend", onTouchEnd, { passive: true });
-    /* 0819g — 키보드. C 기내↔외부 · ←→ 좌석. 글칸이 쥐고 있으면 손대지 않는다 */
+    /* 0819g — 키보드. C 기내↔외부 · ←→ 좌석 · S 창 덮개 · E 편집기 */
     EGR_on(window, "keydown", function (e) {
       if (e.isComposing || !e.key) return;
       if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
       var k = e.key.toLowerCase();
       if (k === "c") toggleOut();
+      else if (k === "s") toggleShade();
+      else if (k === "e") setEdit(!editing);
       else if (k === "arrowleft") swapSeat(-1);
       else if (k === "arrowright") swapSeat(+1);
     });
+    /* ── 편집기 손 — 끌기·휠 (베스페르 문법) ── */
+    EGR_on(window, "pointerdown", function (e) {
+      if (!editing) return;
+      var t = tuneTarget(e.target); if (!t) return;
+      e.preventDefault(); e.stopPropagation();
+      var vw2 = window.innerWidth, vh2 = window.innerHeight, R2 = PLATE_W / PLATE_H;
+      var w2 = (vw2 / vh2 < R2) ? Math.max(vh2 * R2, vw2) : vw2;
+      egrab = { t: t, x: e.clientX, y: e.clientY, w: w2, h: w2 / R2, flip: (side > 0) };
+    }, true);
+    EGR_on(window, "pointermove", function (e) {
+      if (!egrab) return;
+      var dx = e.clientX - egrab.x, dy = e.clientY - egrab.y;
+      egrab.x = e.clientX; egrab.y = e.clientY;
+      /* ⚠ 거울일 때는 화면상 오른쪽이 판에서는 왼쪽이다 — 부호를 뒤집는다 */
+      var px = (egrab.flip ? -dx : dx) / egrab.w * 100, py2 = dy / egrab.h * 100;
+      if (egrab.t === "grip") { var GP = GRIP(); GP.x += px; GP.y += py2; }
+      else monMove(px, py2);
+      layout(); tuneSay();
+    }, true);
+    EGR_on(window, "pointerup", function () {
+      if (!egrab) return; egrab = null; saveTuneSoon();
+    }, true);
+    EGR_on(window, "wheel", function (e) {
+      if (!editing) return;
+      var t = tuneTarget(e.target); if (!t) return;
+      e.preventDefault(); e.stopPropagation();
+      var d = e.deltaY > 0 ? -1 : 1;
+      if (t === "grip") {
+        var GP = GRIP();
+        GP.w = Math.max(2, GP.w + d * 0.4); GP.h = Math.max(0.5, GP.h + d * 0.1);
+      } else monScale(1 + d * 0.02);
+      layout(); tuneSay(); saveTuneSoon();
+    }, { passive: false, capture: true });
+    loadTune();                      /* 저장된 편집값 — 브라우저 먼저, 서버가 덮는다 */
     paintCabin(route.legs[0][1]);
     mountMonitor(route);             /* ⭐ 좌석 모니터 — layout 이 사다리꼴에 앉힌다 */
     loadRecent();                    /* ⑥ 마지막으로 기록한 책 표지를 데려온다 */
@@ -1540,6 +1738,9 @@
        늦게 온 응답은 그냥 버려진다(31호 ㉤) — MONEL 이 이미 null 이라 만질 DOM 이 없다. */
     try { clearTimeout(WD.tmr); if (WD.dirty && BOOK) saveNote("draft"); } catch (e) { }
     EGR_clearTimers();
+    /* ⚠ 놓아둔 도장을 조용히 거둔다 — 방이 걷히는데 인장만 terra 위에 남으면 안 된다.
+       안 누른 것은 손해가 아니므로 나무라지 않고 아무 말도 안 띄운다(3호). */
+    try { if (window.EGStamp && EGStamp.withdraw) EGStamp.withdraw(); } catch (e) { }
     try { hush(); } catch (e) { }   /* ⚠ 제 소리는 제 손으로 끈다 — __egHush 는 베스페르 것 */
     try { if (flight) { flight.stop(); flight = null; } } catch (e) { }
     EGR_off();
@@ -1557,6 +1758,8 @@
     }
     viewer = null;
     OUT = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
+    SHUT = false; editing = false; egrab = null; cvW = 0; cvH = 0;
+    try { clearTimeout(tuneT); } catch (e) { }
     MONEL = null; TAB = "info"; SINFO = null; DESK = null; VEIL = null; RECENT = null;
     MAPF = null; MAPBASE = null; mapSeg = -1; zi = 0; redrawT = 0;
     WD.dirty = false; WD.saving = false;
