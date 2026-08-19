@@ -31,7 +31,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0819a";
+  var VERSION = "0819b";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -43,6 +43,11 @@
   var viewer = null;
   var flight = null;
   var side = -1;                   /* 좌석 — 왼창 −1 · 오른창 +1 (v1.4 8호) */
+  /* ⚠⚠ 뱅크 상한 — 0819 소로가 taxi 실사용에서 잡으신 값.
+     10도를 넘으면 창밖 지평선이 너무 기울어 몸이 먼저 이상하다고 안다.
+     실제 여객기 표준 선회도 25~30도이나, 그건 「타고 있는 사람」 기준이고
+     화면으로 보는 사람에게는 몸이 안 따라오므로 훨씬 작아야 한다. */
+  var ROLL_MAX = 10;
   var groundH = 0;
 
   /* ⚠ 방 밖에 두는 물건은 이 배열에만 더한다. 선택자를 손으로 잇지 않는다.
@@ -189,7 +194,7 @@
         u += km / segKm;
         while (u >= 1) { u -= 1; seg = (seg + 1) % N; segKm = Math.max(gcKm(P(seg)[0], P(seg)[1], P(seg + 1)[0], P(seg + 1)[1]), 0.001); }
 
-        var ua = Math.min(u + 0.06, 1);        /* 조금 앞을 본다 — 미리 돌기 시작한다 */
+        var ua = Math.min(u + 0.11, 1);        /* ⭐ 앞을 더 멀리 본다 — 미리 돌면 급선회가 안 생긴다(0819) */
         var tLat = catmull(P(seg - 1)[0], P(seg)[0], P(seg + 1)[0], P(seg + 2)[0], ua);
         var tLon = catmull(P(seg - 1)[1], P(seg)[1], P(seg + 1)[1], P(seg + 2)[1], ua);
         var want = bearing(lat, lon, tLat, tLon);
@@ -198,9 +203,17 @@
            ⚠ 뱅크를 카메라에 두 번 물리지 않는다. roll 하나만 남긴다(v1.1 17호 ㉧) */
         var turn = angDiff(hd, want);
         var rate = turn / Math.max(dt, 0.001);                 /* °/s */
-        hd = (hd + Math.max(-3.0, Math.min(3.0, turn)) * Math.min(dt * 2.2, 1) + 360) % 360;
-        var wantRoll = Math.max(-22, Math.min(22, rate * 1.6));
-        roll += (wantRoll - roll) * Math.min(dt * 1.4, 1);
+        /* ⚠ 뱅크의 뿌리는 여기다 — 방위가 홱 돌면 뱅크도 홱 선다.
+           한 프레임에 도는 각을 좁히면 뱅크가 저절로 얕아진다. */
+        hd = (hd + Math.max(-1.6, Math.min(1.6, turn)) * Math.min(dt * 1.6, 1) + 360) % 360;
+        /* ⭐ 0819 소로(taxi 실사용) — 「10도 넘으면 이상한 느낌」.
+           v1.1 17호 ㉧ 이 이미 적어 둔 것이다 — 실제 승객은 뱅크를 거의 못 느낀다.
+           눈에 보이는 것은 창밖 지평선이 기우는 것뿐이고, 그게 크면 곧 멀미다.
+           ⚠ 상한 10도. 그리고 되돌아오는 것이 기우는 것보다 빨라야 한다 —
+             기울 때 부드럽고 펼 때 굼뜨면 계속 기울어 있는 느낌이 남는다. */
+        var wantRoll = Math.max(-ROLL_MAX, Math.min(ROLL_MAX, rate * 1.1));
+        var ease = (Math.abs(wantRoll) < Math.abs(roll)) ? 1.9 : 1.1;   /* 펼 때 조금 빠르게 */
+        roll += (wantRoll - roll) * Math.min(dt * ease, 1);
 
         var p = stepFrom(lat, lon, hd, km); lat = p[0]; lon = p[1];
 
