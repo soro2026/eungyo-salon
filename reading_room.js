@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0819P
+   EG독서비행 — 방(room) 판 · reading_room.js · v0819Q
    2026.08.19 소로 × 파이스 · 144회차
    ⚠ 판번호는 아래 VERSION 하나가 정본이다. 0819e 까지 이 줄이 a 로 남아 있었다 —
      「적어 두는 것과 읽는 것은 다른 일」의 표본. 고칠 때 둘을 함께 올린다.
@@ -46,7 +46,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0819P";
+  var VERSION = "0819Q";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -424,8 +424,10 @@
      휠이 panY 하나를 바꾸면 둘이 함께 밀린다. 좌표계가 하나여야 안 어긋난다. */
 #readingRoom{position:fixed;inset:0;z-index:5;pointer-events:none;overflow:hidden}
 #readingRoom #fit{position:fixed;pointer-events:none}
-#readingRoom #plate{position:absolute;left:0;top:0;width:100%;height:100%;
+#readingRoom #plate,#readingRoom #plateB{position:absolute;left:0;top:0;width:100%;height:100%;
   pointer-events:none;z-index:6;background-size:100% 100%;background-repeat:no-repeat}
+/* ⭐ 윗겹 — 조명이 바뀔 때만 3초에 걸쳐 드러난다. 평소엔 투명하게 겹쳐만 있다 */
+#readingRoom #plateB{z-index:7;opacity:0}
 #readingRoom .shade{position:fixed;z-index:5;
   background:linear-gradient(#d8cfc0,#cdc3b2 62%,#c0b6a4);
   box-shadow:0 4px 12px rgba(0,0,0,.28) inset;
@@ -463,9 +465,22 @@
 #readingRoom.edit #readingTune{display:block}
 #readingTune b{color:#e6d9ae;font-weight:normal}
 #readingTune .sv{color:#c9a84c;font-size:11px}
+/* ⭐⭐ 저작자 표시 (0819Q · 39호) — 가리지 않는다. 기내에 옮겨 단다.
+   ⚠⚠ 0819P 에서 창밖이 화면 전체가 되며 크레딧이 화면 오른쪽 아래로 갔는데,
+      그곳은 기내 그림이 덮는다. 즉 **가려졌다.** Cesium·구글 타일 모두
+      저작자 표시가 이용 조건이라 그대로 두면 개막 뒤에 걸린다.
+   ⭐ 창 아래 호두나무 판 위에 옅게 한 줄 — 실제 기내에도 제조사 명판이 붙어 있다.
+      숨기는 대신 제 곳을 주는 쪽이 이 집 문법이고, 실물에도 더 가깝다. */
+#readingRoom .cesium-viewer-bottom.eg-plaque{position:fixed;z-index:9;
+  left:auto;right:auto;bottom:auto;top:auto;pointer-events:auto;text-align:left}
+#readingRoom .cesium-viewer-bottom.eg-plaque .cesium-widget-credits{
+  font-size:9px!important;opacity:.62;color:#efe6d2;
+  text-shadow:0 1px 2px rgba(0,0,0,.55);line-height:1.5}
+#readingRoom .cesium-viewer-bottom.eg-plaque .cesium-widget-credits a{color:#efe6d2}
+#readingRoom .cesium-viewer-bottom.eg-plaque:hover .cesium-widget-credits{opacity:.95}
 /* 0819g — 좌석 전환·외부 보기·소리 */
-#readingRoom.flip #plate{transform:scaleX(-1)}   /* 그림만 거울 — 글은 안 뒤집는다 */
-#readingRoom.out #plate,#readingRoom.out .shade{visibility:hidden}
+#readingRoom.flip #plate,#readingRoom.flip #plateB{transform:scaleX(-1)}   /* 그림만 거울 — 글은 안 뒤집는다 */
+#readingRoom.out #plate,#readingRoom.out #plateB,#readingRoom.out .shade{visibility:hidden}
 .readingSeat{position:fixed;top:50%;transform:translateY(-50%);z-index:13;width:34px;height:56px;
   cursor:pointer;pointer-events:auto;border:0;background:transparent;color:rgba(240,232,214,.34);
   font-size:30px;line-height:1;text-shadow:0 1px 6px rgba(0,0,0,.8);transition:color .25s}
@@ -627,8 +642,8 @@
   function mountHtml() {
     ROOT = document.createElement("div");
     ROOT.id = "readingRoom";
-    ROOT.innerHTML = '<div id="fit"><div id="plate"></div></div><div id="hud"></div>'
-      + '<div id="readingFade"></div>';
+    ROOT.innerHTML = '<div id="fit"><div id="plate"></div><div id="plateB"></div></div>'
+      + '<div id="hud"></div><div id="readingFade"></div>';
     document.body.appendChild(ROOT);
     EXIT = document.createElement("button");
     EXIT.id = "readingExit"; EXIT.type = "button";
@@ -674,6 +689,26 @@
   var GRIP_R = { x: 20.0, y: 27.0, w: 9.0, h: 1.8 };
   function GRIP() { return side < 0 ? GRIP_L : GRIP_R; }
   var TUNE_KEY = "reading_tune";   /* eg_settings.key — 베스페르는 cruise_tune */
+  /* ⭐ 저작자 표시가 앉을 곳 — 창 아래 호두나무 판 위 (판 좌표 %, 실측 0819)
+     ⚠ 좌석(밝은 베이지)이 y 70% 아래 왼쪽을 침범한다. 64.5% 가 안전하다. */
+  var PLAQUE = { x: 4.2, y: 64.5 };
+  var CREDIT_HOME = null;
+
+  /* Cesium 크레딧 판을 방 안으로 데려온다 — 그냥 DOM 요소라 옮겨도 안 부서진다.
+     ⭐ Cesium 이 creditContainer 옵션으로 바깥 요소를 지정하는 것을 공식 지원하므로
+       옮기는 것은 정상 용법이다. 방을 걷을 때 제자리로 돌려놓는다. */
+  function moveCredits(into) {
+    var c = document.querySelector(".cesium-viewer-bottom");
+    if (!c) return;
+    if (into) {
+      if (!CREDIT_HOME) CREDIT_HOME = c.parentNode;
+      if (ROOT) { ROOT.appendChild(c); c.classList.add("eg-plaque"); }
+    } else {
+      c.classList.remove("eg-plaque");
+      c.style.left = c.style.top = "";
+      if (CREDIT_HOME) { CREDIT_HOME.appendChild(c); CREDIT_HOME = null; }
+    }
+  }
 
   /* ⭐ 좌석 전환 — cruise 가 매 프레임 side 를 다시 읽으므로 비행은 안 끊긴다.
      ⚠ 짧은 암전으로 덮는다. 창밖 방위가 180° 도는 순간을 맨눈에 보이면 어지럽다. */
@@ -848,6 +883,16 @@
       gb.style.width = (GP.w / 100 * w) + "px";
       gb.style.height = (GP.h / 100 * h) + "px";
     }
+    /* ⭐ 저작자 표시 명판 (39호) — 판을 따라간다. 기내에 붙은 것이므로.
+       ⚠ 외부 보기(C)에서는 기내가 없으니 화면 왼쪽 아래로 물러선다 */
+    var cr = ROOT.querySelector(".cesium-viewer-bottom.eg-plaque");
+    if (cr) {
+      if (OUT) { cr.style.left = "12px"; cr.style.top = (vh - 26) + "px"; }
+      else {
+        cr.style.left = (cx + (flip ? (100 - PLAQUE.x - 26) : PLAQUE.x) / 100 * w) + "px";
+        cr.style.top = (top + PLAQUE.y / 100 * h) + "px";
+      }
+    }
     /* 모니터 — 사다리꼴 네 점에 앉힌다(0819h). 판 % → 화면 px → matrix3d.
        ⚠ 오른창(거울)이면 x' = 100−x 에 좌·우 모서리도 서로 바뀐다 —
          TL↔TR · BL↔BR 을 안 바꾸면 변환이 안팎으로 뒤집혀 글이 거울이 된다 */
@@ -889,13 +934,46 @@
     if (hour < 17) return CABIN.d;
     return CABIN.e;
   }
+  /* ⭐⭐ 조명 넉 벌 갈아끼우기 (0819Q) — 실제 일출은 삼십 분에 걸쳐 오는데
+     0819P 까지는 배경 그림을 한 프레임에 통째로 바꿔 **기내만 스위치**였다.
+     소로가 해 뜨는 것을 보시다가 잡으신 곳이다.
+     ⭐ 판을 두 겹으로 둔다 — 아래(#plate)가 지금 것, 위(#plateB)가 다음 것.
+       위 겹을 3초에 걸쳐 드러내고, 끝나면 아래로 옮겨 담는다. 판을 새로 굽지 않는다.
+     ⚠ 첫 그림은 겹치지 않는다 — 탑승하자마자 3초 동안 판이 반투명하면 사고로 보인다. */
+  var fadeT = null;
   function paintCabin(lon) {
-    var plate = ROOT && ROOT.querySelector("#plate"); if (!plate) return;
+    if (!ROOT) return;
+    var plate = ROOT.querySelector("#plate"), pb = ROOT.querySelector("#plateB");
+    if (!plate) return;
     var d = new Date();
     var utc = d.getUTCHours() + d.getUTCMinutes() / 60;
     var local = (utc + (lon || 0) / 15 + 24) % 24;          /* 태양시 어림 */
     var f = cabinFor(local);
-    if (plate.__f !== f) { plate.__f = f; plate.style.backgroundImage = "url(" + f + ")"; }
+    if (plate.__f === f) return;
+    if (!plate.__f || !pb) {                                /* 첫 그림 — 그냥 앉힌다 */
+      plate.__f = f; plate.style.backgroundImage = "url(" + f + ")";
+      return;
+    }
+    if (pb.__f === f) return;                               /* 이미 그 겹으로 넘어가는 중 */
+    pb.__f = f;
+    pb.style.backgroundImage = "url(" + f + ")";
+    pb.style.transition = "none";
+    pb.style.opacity = "0";
+    /* ⚠ 다음 프레임에 켜야 전환이 걸린다 — 같은 프레임에 0→1 이면 브라우저가 건너뛴다 */
+    requestAnimationFrame(function () {
+      if (!ROOT || !document.body.contains(ROOT)) return;
+      pb.style.transition = "opacity 3s linear";
+      pb.style.opacity = "1";
+    });
+    clearTimeout(fadeT);
+    fadeT = setTimeout(function () {
+      if (!ROOT || !document.body.contains(ROOT)) return;
+      plate.__f = pb.__f;
+      plate.style.backgroundImage = pb.style.backgroundImage;
+      pb.style.transition = "none";
+      pb.style.opacity = "0";
+      pb.__f = null;
+    }, 3100);
   }
 
   /* ══ 카메라 되돌리기 ══════════════════════════════════════════════ */
@@ -1679,6 +1757,7 @@
     }, { passive: false, capture: true });
     loadTune();                      /* 저장된 편집값 — 브라우저 먼저, 서버가 덮는다 */
     paintCabin(route.legs[0][1]);
+    moveCredits(true);               /* ⭐ 39호 — 저작자 표시를 기내 나무 판 위로 */
     mountMonitor(route);             /* ⭐ 좌석 모니터 — layout 이 사다리꼴에 앉힌다 */
     loadRecent();                    /* ⑥ 마지막으로 기록한 책 표지를 데려온다 */
     layout();
@@ -1744,6 +1823,7 @@
     try { hush(); } catch (e) { }   /* ⚠ 제 소리는 제 손으로 끈다 — __egHush 는 베스페르 것 */
     try { if (flight) { flight.stop(); flight = null; } } catch (e) { }
     EGR_off();
+    moveCredits(false);              /* ⚠ 크레딧을 제자리로 — 방보다 먼저 돌려놓는다 */
     restoreCam(v);
     if (EXIT) { try { EXIT.remove(); } catch (e) { } EXIT = null; }
     if (ROOT) { try { ROOT.remove(); } catch (e) { } ROOT = null; }
@@ -1759,7 +1839,7 @@
     viewer = null;
     OUT = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
     SHUT = false; editing = false; egrab = null; cvW = 0; cvH = 0;
-    try { clearTimeout(tuneT); } catch (e) { }
+    try { clearTimeout(tuneT); clearTimeout(fadeT); } catch (e) { }
     MONEL = null; TAB = "info"; SINFO = null; DESK = null; VEIL = null; RECENT = null;
     MAPF = null; MAPBASE = null; mapSeg = -1; zi = 0; redrawT = 0;
     WD.dirty = false; WD.saving = false;
