@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0819h
+   EG독서비행 — 방(room) 판 · reading_room.js · v0819i
    2026.08.19 소로 × 파이스 · 144회차
    ⚠ 판번호는 아래 VERSION 하나가 정본이다. 0819e 까지 이 줄이 a 로 남아 있었다 —
      「적어 두는 것과 읽는 것은 다른 일」의 표본. 고칠 때 둘을 함께 올린다.
@@ -46,7 +46,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0819h";
+  var VERSION = "0819i";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -487,14 +487,15 @@
 #egrBook .note{padding:5px 4px;color:#9aa5b1;font-size:12px;cursor:pointer;border-radius:3px}
 #egrBook .note:hover{background:#141a23;color:#dfe6ee}
 #egrBook .note b{font-weight:normal;color:#c9a84c;margin-right:8px}
-#egrWrite{position:absolute;inset:0;background:#0d1015;padding:16px 20px;display:none}
-#egrWrite.on{display:block}
-#egrWrite .hd{color:#e6d9ae;font-size:13px;margin-bottom:8px}
-#egrWrite textarea{width:100%;box-sizing:border-box;height:calc(100% - 84px);resize:none;
+#egrWrite{position:absolute;left:0;right:0;top:0;bottom:44px;background:#0d1015;
+  padding:14px 20px 10px;display:none}
+#egrWrite.on{display:flex;flex-direction:column}
+#egrWrite .hd{color:#e6d9ae;font-size:13px;margin-bottom:7px;flex:0 0 auto}
+#egrWrite textarea{flex:1 1 auto;width:100%;box-sizing:border-box;resize:none;min-height:0;
   background:#12161d;border:1px solid #263041;color:#dfe6ee;padding:12px;border-radius:4px;
   font:13.5px/1.7 'Noto Serif KR',Georgia,serif}
 #egrWrite textarea:focus{outline:none;border-color:#8a743c}
-#egrWrite .ft{margin-top:8px;display:flex;gap:8px;align-items:center}
+#egrWrite .ft{margin-top:8px;display:flex;gap:8px;align-items:center;flex:0 0 auto}
 #egrWrite .note-msg{color:#7d8794;font-size:11px;margin-left:auto}`;
     document.head.appendChild(css);
   }
