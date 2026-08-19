@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0819i
+   EG독서비행 — 방(room) 판 · reading_room.js · v0819j
    2026.08.19 소로 × 파이스 · 144회차
    ⚠ 판번호는 아래 VERSION 하나가 정본이다. 0819e 까지 이 줄이 a 로 남아 있었다 —
      「적어 두는 것과 읽는 것은 다른 일」의 표본. 고칠 때 둘을 함께 올린다.
@@ -46,7 +46,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0819i";
+  var VERSION = "0819j";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -203,6 +203,25 @@
       + (-p0 + 3 * p1 - 3 * p2 + p3) * t3);
   }
 
+  /* ⭐⭐ 곡선을 모듈 수준에 둔다 — 비행과 항로도가 **같은 곡선**을 봐야 한다.
+     ⚠ cruise 안에만 두고 지도가 제 벌로 다시 셈하면, 언젠가 한쪽만 고쳐 놓고
+       「지도와 실제가 다르다」를 며칠 헤매게 된다(22호의 사촌 — 같은 것을 두 곳에서 관리). */
+  function legAt(route, i2) {
+    var L = route.legs, N = L.length, k = ((i2 % N) + N) % N;
+    return L[k];
+  }
+  function curveOf(route, sg, uu) {
+    return [catmull(legAt(route, sg - 1)[0], legAt(route, sg)[0], legAt(route, sg + 1)[0], legAt(route, sg + 2)[0], uu),
+            catmull(legAt(route, sg - 1)[1], legAt(route, sg)[1], legAt(route, sg + 1)[1], legAt(route, sg + 2)[1], uu)];
+  }
+  /* 고리 전체를 점으로 — 구간마다 per 점씩 */
+  function curvePoints(route, per) {
+    var out = [], N = route.legs.length, s, j;
+    for (s = 0; s < N; s++) for (j = 0; j < per; j++) out.push(curveOf(route, s, j / per));
+    out.push(curveOf(route, 0, 0));           /* 고리를 닫는다 */
+    return out;
+  }
+
   /* ══════════════════════════════════════════════════════════════════
      비행 — 길목 고리를 끝없이 돈다
      ⚠⚠ 리스너 전체를 감싼다. onTick 안쪽만 감쌌더니 setView 에서 난 오류가
@@ -219,11 +238,8 @@
        목표 자체가 옆으로 틀어져 있었다.
        ⭐ 좇지 않는다. **곡선 위에 태운다** — 자리도 방위도 곡선이 직접 준다.
          표류가 구조적으로 없다. 앞으로 가는 것이 보장된다. */
-    function P(i2) { var k = ((i2 % N) + N) % N; return L[k]; }
-    function onCurve(sg, uu) {
-      return [catmull(P(sg - 1)[0], P(sg)[0], P(sg + 1)[0], P(sg + 2)[0], uu),
-              catmull(P(sg - 1)[1], P(sg)[1], P(sg + 1)[1], P(sg + 2)[1], uu)];
-    }
+    function P(i2) { return legAt(route, i2); }
+    function onCurve(sg, uu) { return curveOf(route, sg, uu); }
     var pos = onCurve(0, 0);
     var lat = pos[0], lon = pos[1];
     var ahead = onCurve(0, 0.02);
@@ -377,7 +393,8 @@
 
         /* ⚠ 계기판 한 줄이 죽어도 Cesium 렌더가 통째로 멈추지 않게 감싼다(0817) */
         if (opt.onTick) {
-          try { opt.onTick({ lat: lat, lon: lon, hd: hd, kmh: kmh, rel: rel, alt: alt, vs: vs, ground: groundH, dist: dist, leg: P(seg)[2], next: P(seg + 1)[2], roll: roll }); }
+          try { opt.onTick({ lat: lat, lon: lon, hd: hd, kmh: kmh, rel: rel, alt: alt, vs: vs, ground: groundH, dist: dist, leg: P(seg)[2], next: P(seg + 1)[2], roll: roll,
+                             seg: seg, legN: N }); }
           catch (err) {
             if (!window.__egRTickWarned) { window.__egRTickWarned = true; console.error("[EG] 계기판 오류 — 비행은 계속합니다:", err); }
           }
@@ -450,14 +467,27 @@
 #egrMon .tabs button{flex:1;border:0;background:transparent;color:#6d7887;cursor:pointer;
   font:13px Georgia,'Noto Serif KR',serif;letter-spacing:.06em}
 #egrMon .tabs button.on{color:#e6d9ae;background:#12161d}
-#egrInfo{padding:22px 26px}
-#egrInfo .rte{font-size:15px;color:#e6d9ae;letter-spacing:.04em;margin-bottom:4px}
-#egrInfo .leg{color:#8fa0b4;font-size:12px;margin-bottom:16px}
-#egrInfo .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 22px}
-#egrInfo .cell b{display:block;font-weight:normal;color:#5f6a78;font-size:10.5px;
-  letter-spacing:.14em;margin-bottom:1px}
-#egrInfo .cell span{font-size:17px;color:#dfe6ee;font-variant-numeric:tabular-nums}
-#egrInfo .cell small{color:#7d8794;font-size:11px}
+#egrInfo{padding:14px 18px 10px;display:flex;flex-direction:column}
+#egrInfo .rte{font-size:14px;color:#e6d9ae;letter-spacing:.04em;flex:0 0 auto}
+#egrInfo .leg{color:#8fa0b4;font-size:11.5px;margin:1px 0 6px;flex:0 0 auto}
+/* ⭐ 항로도 — 고정 고리라 지도 타일이 필요 없다. 경로 자체가 지도다 */
+#egrMap{flex:1 1 auto;min-height:0;position:relative}
+#egrMap svg{width:100%;height:100%;display:block}
+#egrMap .seg{fill:none;stroke:#2c3a4c;stroke-width:1.6;stroke-linecap:round}
+#egrMap .seg.now{stroke:#c9a84c;stroke-width:2.2}
+#egrMap .wp{fill:#3c4a5c}
+#egrMap .wp.now{fill:#c9a84c}
+#egrMap .wpt{fill:#7d8794;font-size:9.5px;font-family:Georgia,'Noto Serif KR',serif}
+#egrMap .wpt.now{fill:#e6d9ae}
+#egrMap .ship{fill:#f2e8cf}
+#egrInfo .strip{flex:0 0 auto;display:grid;grid-template-columns:repeat(4,1fr);
+  gap:2px 14px;border-top:1px solid #1d2430;padding-top:8px;margin-top:6px}
+#egrInfo .cell b{display:block;font-weight:normal;color:#5f6a78;font-size:9.5px;
+  letter-spacing:.12em;margin-bottom:1px}
+#egrInfo .cell span{font-size:15px;color:#dfe6ee;font-variant-numeric:tabular-nums}
+#egrInfo .cell small{color:#7d8794;font-size:10px}
+#egrInfo .tail{flex:0 0 auto;color:#6d7887;font-size:10.5px;margin-top:6px;
+  display:flex;justify-content:space-between;font-variant-numeric:tabular-nums}
 #egrBook{padding:18px 22px}
 #egrBook input{width:100%;box-sizing:border-box;background:#12161d;border:1px solid #263041;
   color:#dfe6ee;padding:9px 12px;border-radius:4px;font:13px 'Noto Serif KR',Georgia,serif}
@@ -759,14 +789,15 @@
       '<div id="egrInfo" class="scr on">'
       + '<div class="rte">' + esc(route.name) + '</div>'
       + '<div class="leg" id="egrLeg">—</div>'
-      + '<div class="grid">'
+      + '<div id="egrMap">' + buildMap(route) + '</div>'
+      + '<div class="strip">'
       + '<div class="cell"><b>현지 시각</b><span id="egrClock">—</span></div>'
-      + '<div class="cell"><b>해발 고도</b><span id="egrAlt">—</span> <small>m</small></div>'
+      + '<div class="cell"><b>해발</b><span id="egrAlt">—</span> <small>m</small></div>'
       + '<div class="cell"><b>대지 속도</b><span id="egrSpd">—</span> <small>km/h</small></div>'
       + '<div class="cell"><b>승강률</b><span id="egrVs">—</span> <small>m/분</small></div>'
-      + '<div class="cell"><b>좌표</b><span id="egrPos" style="font-size:13px">—</span></div>'
-      + '<div class="cell"><b>비행 거리</b><span id="egrDist">—</span> <small>km</small></div>'
-      + '</div></div>'
+      + '</div>'
+      + '<div class="tail"><span id="egrPos">—</span><span id="egrDist">—</span></div>'
+      + '</div>'
       + '<div id="egrBook" class="scr"></div>'
       + '<div id="egrWrite"><div class="hd" id="egrWHd">기록</div>'
       + '<textarea id="egrWBody" placeholder="그 책에 관한 나의 기록"></textarea>'
@@ -808,9 +839,10 @@
     var v = Math.round(s.vs);
     MONEL.querySelector("#egrVs").textContent = (v > 0 ? "+" : "") + v;
     MONEL.querySelector("#egrPos").textContent =
-      Math.abs(s.lat).toFixed(3) + "°" + (s.lat >= 0 ? "N" : "S") + " · "
+      Math.abs(s.lat).toFixed(3) + "°" + (s.lat >= 0 ? "N" : "S") + "  "
       + Math.abs(s.lon).toFixed(3) + "°" + (s.lon >= 0 ? "E" : "W");
-    MONEL.querySelector("#egrDist").textContent = Math.round(s.dist).toLocaleString();
+    MONEL.querySelector("#egrDist").textContent = "비행 " + Math.round(s.dist).toLocaleString() + " km";
+    paintMap(s);                     /* ⭐ 항로도 — 비행기만 옮긴다 */
   }
 
   /* — 책 화면. 없으면 곧 검색 한 문(20호) — */
@@ -964,6 +996,74 @@
       MONEL.querySelector("#egrWMsg").textContent =
         /JWT|auth|401|로그인/i.test(String(e && e.message)) ? "로그인이 필요합니다" : "저장하지 못했습니다";
     }).then(function () { WD.saving = false; });
+  }
+
+  /* ══ 항로도 (0819j) — 실제 IFE 의 moving map ═══════════════════════
+     ⭐ 지도 타일을 안 부른다. 경로가 고정 고리라 **경로 자체가 지도**다.
+        타일을 부르면 새 의존이 생기고 저작자 표시가 하나 더 는다(39호).
+     ⚠⚠ 경도를 위도의 코사인으로 눌러야 한다. 안 누르면 알프스가 옆으로 늘어난다 —
+        46°N 에서 실측 7.41:1 이 5.12:1 로 바뀐다(실제 464km × 90km).
+     ⚠ 날짜변경선을 넘는 노선(인천→뉴욕 같은 것)은 경도가 튄다.
+        지금은 닫힌 고리뿐이라 안 걸리지만, 직선 장거리를 실을 때 여기를 먼저 볼 것. */
+  var MAPBOX = { w: 584, h: 196, pad: 18 };
+  var MAPF = null;                 /* 좌표 → 화면 변환 (노선마다 한 번 셈) */
+
+  function mapFit(route) {
+    var pts = curvePoints(route, 12);
+    var laMin = 90, laMax = -90, loMin = 180, loMax = -180, i;
+    for (i = 0; i < pts.length; i++) {
+      if (pts[i][0] < laMin) laMin = pts[i][0];
+      if (pts[i][0] > laMax) laMax = pts[i][0];
+      if (pts[i][1] < loMin) loMin = pts[i][1];
+      if (pts[i][1] > loMax) loMax = pts[i][1];
+    }
+    var kx = Math.cos(Cesium.Math.toRadians((laMin + laMax) / 2));   /* ⭐ 경도 보정 */
+    var w = (loMax - loMin) * kx, h = (laMax - laMin);
+    if (w <= 0) w = 1e-6; if (h <= 0) h = 1e-6;
+    var s = Math.min((MAPBOX.w - MAPBOX.pad * 2) / w, (MAPBOX.h - MAPBOX.pad * 2) / h);
+    var ox = (MAPBOX.w - w * s) / 2, oy = (MAPBOX.h - h * s) / 2;
+    return {
+      x: function (lo) { return ox + (lo - loMin) * kx * s; },
+      /* ⚠ SVG 는 y 가 아래로 자란다. 위도는 위로 자란다 — 뒤집는다 */
+      y: function (la) { return oy + (laMax - la) * s; }
+    };
+  }
+  function buildMap(route) {
+    MAPF = mapFit(route);
+    var N = route.legs.length, s, j, d, p, out = [];
+    /* 구간마다 따로 그린다 — 지금 나는 구간만 금빛으로 바꾸려면 조각이 나뉘어야 한다 */
+    for (s = 0; s < N; s++) {
+      d = "";
+      for (j = 0; j <= 14; j++) {
+        p = curveOf(route, s, j / 14);
+        d += (j ? "L" : "M") + MAPF.x(p[1]).toFixed(1) + " " + MAPF.y(p[0]).toFixed(1) + " ";
+      }
+      out.push('<path class="seg" id="egrSeg' + s + '" d="' + d + '"/>');
+    }
+    for (s = 0; s < N; s++) {
+      p = route.legs[s];
+      out.push('<circle class="wp" id="egrWp' + s + '" cx="' + MAPF.x(p[1]).toFixed(1)
+        + '" cy="' + MAPF.y(p[0]).toFixed(1) + '" r="2.4"/>');
+    }
+    /* 비행기 — 기수가 위(북)를 보게 그린다. rotate(heading) 이 곧 방위다 */
+    out.push('<g id="egrShip"><path class="ship" d="M0,-7.5 L4.6,5.2 L0,2.6 L-4.6,5.2 Z"/></g>');
+    return '<svg viewBox="0 0 ' + MAPBOX.w + ' ' + MAPBOX.h + '" preserveAspectRatio="xMidYMid meet">'
+      + out.join("") + '</svg>';
+  }
+  var mapSeg = -1;
+  function paintMap(s) {
+    var box = MONEL && MONEL.querySelector("#egrMap");
+    if (!box || !MAPF) return;
+    var ship = box.querySelector("#egrShip");
+    if (ship) ship.setAttribute("transform",
+      "translate(" + MAPF.x(s.lon).toFixed(1) + "," + MAPF.y(s.lat).toFixed(1) + ") rotate(" + s.hd.toFixed(1) + ")");
+    if (s.seg === mapSeg) return;               /* 구간이 안 바뀌면 손대지 않는다 */
+    var old = box.querySelectorAll(".now");
+    for (var i = 0; i < old.length; i++) old[i].classList.remove("now");
+    mapSeg = s.seg;
+    var sg = box.querySelector("#egrSeg" + s.seg); if (sg) sg.classList.add("now");
+    var a = box.querySelector("#egrWp" + s.seg); if (a) a.classList.add("now");
+    var b2 = box.querySelector("#egrWp" + ((s.seg + 1) % s.legN)); if (b2) b2.classList.add("now");
   }
 
   /* ══ 소리 (0819g) — 방송 → 엔진음. 베스페르 0817 문법 그대로 ══════════
@@ -1125,6 +1225,7 @@
     viewer = null;
     OUT = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
     MONEL = null; TAB = "info"; SINFO = null;
+    MAPF = null; mapSeg = -1;
     WD.dirty = false; WD.saving = false;
     /* ⚠ BOOK 은 남긴다 — 같은 세션에서 다시 타면 읽던 책이 그대로 걸려 있는 편이 맞다.
        상태 칸이 아니라 이 창의 기억일 뿐이다(11호와 안 부딪힘 — 저장 안 함) */
