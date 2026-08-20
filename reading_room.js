@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0820y
+   EG독서비행 — 방(room) 판 · reading_room.js · v0820z
    2026.08.20 소로 × 파이스 · 145회차
    ⭐⭐ 0820a — 기록판을 비너스 시안 넉 벌로 다시 지었다.
      ① 색 이름을 --dk- 로 갈랐다. ⚠⚠ 모니터와 **같은 이름에 정반대 값**이기 때문이다
@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0820y";
+  var VERSION = "0820z";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1439,6 +1439,9 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     var cs = Math.max(0.2, Math.cos(lat * Math.PI / 180));
     return [lat + (km / 111.32) * Math.cos(b), lon + (km / (111.32 * cs)) * Math.sin(b)];
   }
+  /* ⚠⚠ 0820z — 갈림값(5·9·17·20)이 여기와 cabinFor 두 곳에 **똑같이** 적혀 있었다.
+     지금은 같지만 한쪽만 고치면 「구름은 밤인데 기내는 저녁」이 된다.
+     ⭐ 갈림값은 여기 하나뿐이고, cabinFor 는 이것이 낸 글자로 원판을 고른다. */
   function themeKey(hour) {
     if (hour < 5 || hour >= 20) return "n";
     if (hour < 9) return "m";
@@ -1507,7 +1510,9 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     if (!viewer || !CLON) return;
     if (!Cesium.CloudCollection) { console.warn("[EG] 이 Cesium 판에는 CloudCollection 이 없습니다"); return; }
     var s0 = SINFO; if (!s0) return;
-    var hour = (new Date().getUTCHours() + new Date().getUTCMinutes() / 60 + (s0.lon || 0) / 15 + 24) % 24;
+    /* ⚠⚠ 0820z — 옛 판은 new Date() 를 **두 번** 불렀다. 자정을 넘는 찰나에
+         23시의 시와 0시의 분을 섞어 든다. 드물지만 나면 원인을 못 찾는 갈래다. */
+    var hour = solarHour(s0.lon);
     clKind = PREVIEW || themeKey(hour);
     var K = CLOUD_KIND[clKind], r = mkRand(clSeed(RCODE, hour));
     clRnd = r;
@@ -1683,8 +1688,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
   /* ⭐ 미리보기(T)로 조명을 돌리면 구름 갈래도 함께 돈다 — 자를 대는 일이지 하늘을 꾸미는 게 아니다 */
   function cloudRekind() {
     if (!CLOUDS || !SINFO) return;
-    var d = new Date();
-    var hour = (d.getUTCHours() + d.getUTCMinutes() / 60 + (SINFO.lon || 0) / 15 + 24) % 24;
+    var hour = solarHour(SINFO.lon);                       /* ⭐ 0820z — 셈은 한 곳에서만 */
     var want = PREVIEW || themeKey(hour);
     if (want !== clKind) cloudsBuild();
   }
@@ -1971,12 +1975,17 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
 
   /* ⭐ 기내 넉 벌 — 현지 시각에 맞춰 고른다.
      ⚠ 콜레주·미술관과 같은 m·d·e·n 문법. 창밖은 Cesium 이 실시간으로 그린다. */
-  function cabinFor(hour) {
-    if (hour < 5 || hour >= 20) return CABIN.n;
-    if (hour < 9) return CABIN.m;
-    if (hour < 17) return CABIN.d;
-    return CABIN.e;
+  /* ⭐⭐ 0820z — 태양시 어림을 **여기 한 곳에서만** 낸다.
+     ⚠ 0820y 까지 paintCabin 과 paintInfo 가 같은 셈을 제 벌로 하나씩 갖고 있었다.
+       값이 같아 지금은 안 드러나지만, 언젠가 한쪽만 고쳐 놓고
+       「계기판 시각과 조명이 다르다」를 헤매게 되는 자리다(22호).
+     ⚠ getHours() 를 쓰지 않는다 — 그건 보는 사람의 시계다. 여기가 알고 싶은 것은
+       **비행기 밑 땅의 해**다. UTC 에 경도를 더한다. */
+  function solarHour(lon) {
+    var d = new Date();
+    return (d.getUTCHours() + d.getUTCMinutes() / 60 + (lon || 0) / 15 + 24) % 24;
   }
+  function cabinFor(hour) { return CABIN[themeKey(hour)] || CABIN.e; }
   /* ⭐⭐ 모니터 테마 넉 벌 (0819U) — EG 전속 디자이너 비너스 시안 A·B·C·D.
      ⚠⚠ 비너스가 넷을 그려 왔는데 **기내 조명 넉 벌과 정확히 짝**이었다.
         cabinFor() 가 이미 태양시로 넷을 가르고 있으므로 셈을 하나도 안 더한다 —
@@ -2072,6 +2081,14 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     }
   };
   var themeNow = "";
+  /* ⚠⚠ 0820z 진범 — 모니터에 **실제로 실린** 갈래를 따로 센다.
+     enter() 는 paintCabin 을 **mountMonitor 보다 먼저** 부른다. 그때 MONEL 은 아직 없어서
+     색을 못 싣는데 themeNow 는 박힌다. 그 다음 mountMonitor 의 첫 붓이
+     `k === themeNow` 로 물러나 **모니터에 색이 한 번도 안 실린다.**
+     그러면 var(--x, 폴백) 이 전부 폴백을 쓰는데, 그 폴백이 하필 THEME.e —
+     그래서 대낮에 저녁판이 떴다(0820 소로 신고).
+   ⭐ 「어느 갈래인가」와 「모니터에 실었는가」는 서로 다른 물음이다. 따로 센다. */
+  var themeMon = "";
   /* ⭐⭐ 조명 미리보기 (0819V · 소로) — 편집기 안에서만 넉 벌을 손으로 돌린다.
      ⚠⚠ 8호(거짓 하늘 금지)를 안 어긴다. 손님 화면은 언제나 진짜 태양시고,
         이건 **자를 대는 일**이지 하늘을 꾸미는 일이 아니다. 창 덮개 좌표를
@@ -2098,10 +2115,12 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     /* CABIN 파일 이름에서 갈래 글자를 되찾는다 — 조명과 테마를 한 값으로 묶는다 */
     var k = "e";
     for (var g in CABIN) if (CABIN[g] === file) k = g;
-    if (k === themeNow || !ROOT) return;
+    if (!ROOT) return;
+    /* ⚠ 갈래가 같아도, 모니터에 아직 안 실렸으면 물러나지 않는다 */
+    if (k === themeNow && (!MONEL || themeMon === k)) return;
     themeNow = k;
     var t = THEME[k] || THEME.e, v;
-    if (MONEL) for (v in t) MONEL.style.setProperty("--" + v, t[v]);
+    if (MONEL) { for (v in t) MONEL.style.setProperty("--" + v, t[v]); themeMon = k; }
     /* ⭐ 기록판도 같은 조명을 받는다 — 해가 뜨면 종이도 함께 아침이 된다.
        ⚠⚠ 이름을 --dk- 로 가른다. 모니터와 **같은 이름 다른 값**이기 때문이다
          (A 이른아침: 모니터 ink #e4ecf2 / 기록판 ink #2e3a42). 섞으면 흰 종이에 흰 글자다. */
@@ -2122,9 +2141,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     if (!ROOT) return;
     var plate = ROOT.querySelector("#plate"), pb = ROOT.querySelector("#plateB");
     if (!plate) return;
-    var d = new Date();
-    var utc = d.getUTCHours() + d.getUTCMinutes() / 60;
-    var local = (utc + (lon || 0) / 15 + 24) % 24;          /* 태양시 어림 */
+    var local = solarHour(lon);                             /* ⭐ 0820z — 셈은 한 곳에서만 */
     /* ⭐ 편집기 미리보기가 켜져 있으면 그것이 이긴다 — 편집 중에만 값이 든다 */
     var f = PREVIEW ? CABIN[PREVIEW] : cabinFor(local);
     setTheme(f);
@@ -2300,7 +2317,9 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       + '</div>'
       + '<div id="egrPick"></div>';
     ROOT.appendChild(MONEL);
-    setTheme(cabinFor(12));           /* 첫 붓 — paintCabin 이 곧 제 값으로 고친다 */
+    /* ⭐ 0820z — 첫 붓을 **진짜 태양시**로. 옛 판은 정오 고정이라, 밤에 타면
+       한낮으로 한 번 칠했다가 3초에 걸쳐 밤으로 넘어갔다(잠깐 낮이 번쩍했다) */
+    setTheme(cabinFor(solarHour(route.legs[0][1])));
     MONEL.querySelector("#egrMap").innerHTML = buildMap(route);
     mountDesk();                      /* ⭐ 독서일지 판 — 모니터 밖 별도 판 */
     EGR_on(MONEL.querySelector("#egrZin"), "click", function () { setZoom(zi + 1, route); });
@@ -2363,8 +2382,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
   /* — 비행정보. 400ms 마다 (onTick 이 부른다) — */
   function paintInfo(s, route) {
     if (!MONEL) return;
-    var utc = new Date();
-    var loc = (utc.getUTCHours() + utc.getUTCMinutes() / 60 + s.lon / 15 + 24) % 24;
+    var loc = solarHour(s.lon);                             /* ⭐ 0820z — 조명과 같은 셈 */
     var hh2 = Math.floor(loc), mm = Math.floor((loc - hh2) * 60);
     var q = function (id) { return MONEL.querySelector(id); };
     q("#egrClock").textContent = (hh2 < 10 ? "0" : "") + hh2 + ":" + (mm < 10 ? "0" : "") + mm;
@@ -2612,8 +2630,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     var el = DESK.querySelector("#egrDMsg"); if (!el) return;
     var s = SINFO;
     if (!s) { el.textContent = ""; return; }
-    var utc = new Date();
-    var loc = (utc.getUTCHours() + utc.getUTCMinutes() / 60 + s.lon / 15 + 24) % 24;
+    var loc = solarHour(s.lon);                            /* ⭐ 0820z — 계기판과 같은 셈 */
     var hh = Math.floor(loc), mm = Math.floor((loc - hh) * 60);
     el.textContent = (s.leg || "") + " 상공 · 고도 " + Math.round(s.alt).toLocaleString() + "m · "
       + (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm;
@@ -3489,7 +3506,7 @@ function paintBook() {
     viewer = null;
     OUT = false; BARE = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
     SHUT = false; editing = false; egrab = null; IS_ADMIN = false; cvW = 0; cvH = 0; PAUSED = false;
-    PREVIEW = null; themeNow = ""; RESUME = null;   /* ⚠ 다음 탑승은 진짜 시각으로 */
+    PREVIEW = null; themeNow = ""; themeMon = ""; RESUME = null;   /* ⚠ 다음 탑승은 진짜 시각으로 */
     try { clearTimeout(tuneT); clearTimeout(fadeT); } catch (e) { }
     FPSEL = null; FPSM = null;                 /* ⭐ 0820i */
     CLDEL = null; RCODE = ""; clKind = ""; clT = 0;   /* ⭐ 0820j — CLON·CLD 는 남긴다 */
