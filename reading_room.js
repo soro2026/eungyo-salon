@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0820s
+   EG독서비행 — 방(room) 판 · reading_room.js · v0820t
    2026.08.20 소로 × 파이스 · 145회차
    ⭐⭐ 0820a — 기록판을 비너스 시안 넉 벌로 다시 지었다.
      ① 색 이름을 --dk- 로 갈랐다. ⚠⚠ 모니터와 **같은 이름에 정반대 값**이기 때문이다
@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0820s";
+  var VERSION = "0820t";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1387,25 +1387,45 @@
        떨기당 90~130개 (일곱 배) · 대신 떨기 수를 반으로
        쌓기는 **3차원 랜덤** — 평면 고리를 버리고, 아래 넓고 위 좁은 봉투 안에
        완전 무작위로 붓는다. 콜리플라워는 설계도가 아니라 우연으로 쌓인다 */
+  /* ⭐⭐ 0820t — 마지막 두 단: 그늘과 꽃송이 (소로 「아직 가짜 티」).
+     ① 세로 명암 — 실물 구름은 **밑이 어둡고 위가 밝다.** 조각 전부가 같은 흰색이면
+        아무리 쌓아도 종잇장이다. brightness 를 높이(v)에 물린다 — 공짜 입체감
+     ② 두 층 — 속살과 꽃송이를 가른다.
+        속살: 굵은 조각 소수가 부피를 채운다 (안 보이는 속을 잔 조각으로 채우면 낭비)
+        꽃송이: 잔 조각 다수를 **겉면 위쪽에만** 얹는다 — 콜리플라워는 겉에만 있다
+        같은 크기 조각만 쓰면 멀리서 알알이 세인다(0820 캡처의 팝콘) */
   function clPlace(g, lat, lon) {
     var r = g.r;
     g.lat = lat; g.lon = lon;
-    var W = g.w * CLD.siz;                     /* 발자국 지름(m) */
-    var HT = Math.min(W * 0.45 * CLD.hgt, g.hCap || 1e9);   /* 떨기 총 키 */
+    var W = g.w * CLD.siz;
+    var HT = Math.min(W * 0.45 * CLD.hgt, g.hCap || 1e9);
+    var nCore = Math.max(6, Math.round(g.p.length * 0.22));
     for (var i = 0; i < g.p.length; i++) {
-      /* ⭐ 세로 먼저 — 완전 랜덤. 아래(0)가 넓고 위(1)가 좁은 봉투 */
-      var v = Math.pow(r(), 1.35);             /* 0~1 · 아래로 살짝 몰림 */
-      var envR = (W / 2) * (1 - 0.62 * v);     /* 그 높이에서 허용되는 반지름 */
-      var d = envR * Math.sqrt(r());
+      var core = (i < nCore), v, envR, d, w;
+      if (core) {
+        /* 속살 — 아래쪽에 굵게. 부피를 만든다 */
+        v = Math.pow(r(), 1.6) * 0.7;
+        envR = (W / 2) * (1 - 0.55 * v);
+        d = envR * Math.sqrt(r()) * 0.8;
+        w = (W * 0.26 + W * 0.14 * r()) * (1 - 0.2 * v);
+      } else {
+        /* 꽃송이 — 위쪽 · 겉면 가까이 · 잘게 */
+        v = 0.35 + 0.65 * Math.pow(r(), 0.7);
+        envR = (W / 2) * (1 - 0.62 * v);
+        d = envR * (0.55 + 0.45 * Math.sqrt(r()));   /* ⭐ 겉면 쪽으로 몬다 */
+        w = (130 + 170 * r()) * CLD.siz * (1 - 0.15 * v);
+      }
       var a2 = r() * 360;
       var ll = offLL(lat, lon, d / 1000, a2);
-      var w = (180 + 200 * r()) * CLD.siz * (1 - 0.25 * v);  /* ⭐ 조각 180~380m */
       var h = w * (0.7 + 0.5 * r());
-      var alt = g.base + v * Math.max(0, HT - h) + h / 2;    /* 봉투 안 아무 높이 */
+      if (g.hCap) h = Math.min(h, g.hCap);
+      var alt = g.base + v * Math.max(0, HT - h) + h / 2;
       var pf = g.p[i];
       pf.position = Cesium.Cartesian3.fromDegrees(ll[1], ll[0], alt);
       pf.scale = new Cesium.Cartesian2(w, h);
       pf.maximumSize = new Cesium.Cartesian3(w / 2, h / 2, w * 0.45);
+      /* ⭐⭐ 그늘 — 밑 0.68 · 꼭대기 1.0. 이 한 줄이 종잇장을 입체로 만든다 */
+      pf.brightness = Math.min(1, (0.68 + 0.32 * v) * (g.br0 || 1) * CLD.brt);
     }
   }
   function cloudsBuild() {
@@ -1440,15 +1460,16 @@
                 w: rng(r, K.sz), base: Math.min(baseH + (r() - 0.5) * 160, CL_TOP - 350),
                 hCap: 0, p: [] };
       g.hCap = Math.max(180, CL_TOP - g.base);   /* ⭐ 이 떨기가 자랄 수 있는 키 */
+      g.br0 = rng(r, K.br);                      /* ⭐ 0820t — 갈래 밝기. 그늘은 clPlace 몫 */
       var np = rint(g.r, K.puff);
       if (made + np > CAP) break;
       made += np;
       for (var j = 0; j < np; j++) {
-        /* ⭐ 0820p — 색을 안 준다(흰색) · slice 를 안 준다(자동). 어제 콘솔판 그대로 */
+        /* ⭐ 0820p — 색을 안 준다(흰색) · slice 를 안 준다(자동).
+           ⭐ 0820t — 밝기는 여기서 안 준다. clPlace 가 높이에 물려 준다(그늘) */
         var o = { position: Cesium.Cartesian3.ZERO,
                   scale: new Cesium.Cartesian2(1, 1),
-                  maximumSize: new Cesium.Cartesian3(1, 1, 1),
-                  brightness: Math.min(1, rng(g.r, K.br) * CLD.brt) };
+                  maximumSize: new Cesium.Cartesian3(1, 1, 1) };
         g.p.push(CLOUDS.add(o));
       }
       /* ⚠⚠ 0820L — √r(넓이 균등) 뿌리기를 무른다. 셈해 보니 여덟 떨기가 **전부
