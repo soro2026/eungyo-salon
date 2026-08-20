@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0820x
+   EG독서비행 — 방(room) 판 · reading_room.js · v0820y
    2026.08.20 소로 × 파이스 · 145회차
    ⭐⭐ 0820a — 기록판을 비너스 시안 넉 벌로 다시 지었다.
      ① 색 이름을 --dk- 로 갈랐다. ⚠⚠ 모니터와 **같은 이름에 정반대 값**이기 때문이다
@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0820x";
+  var VERSION = "0820y";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -142,11 +142,15 @@
        ⚠⚠ 0819R — 3600 이 **낮았다.** 소로 캡처에서 몽블랑 남서 사면을 지나며
           해발 3,887m · 승강률 −398m/분 (㉡ 상한의 하한에 딱 붙음) · 속도 104km/h.
           앞보기가 계속 밀어올리다 내려오기를 되풀이한 것이다 — 진짜 순항이 아니었다.
-       ⭐ 3950 으로 올린다. 몽블랑 4,808 · 마터호른 4,478 보다는 낮아 봉우리가 위에 남고,
-          어깨선·능선·빙하는 눈높이에 온다. 계곡(400~1500)에서는 여전히 시원하게 높다.
-       ⚠ 더 올리면(4200+) 봉우리가 발밑으로 내려가 알프스가 언덕이 된다. 여기가 상한이다. */
+       ⭐ 0819R 3950 → **0820y 4100**(소로 시승 판정). 몽블랑 4,808 · 마터호른 4,478
+          보다는 여전히 낮아 봉우리가 위에 남고, 어깨선·능선·빙하가 눈높이에 온다.
+          계곡(400~1500)에서는 시원하게 높다.
+       ⚠ 4200+ 는 안 된다 — 봉우리가 발밑으로 내려가 알프스가 언덕이 된다.
+         4100 은 그 상한 바로 아래다. 여기서 더 올릴 때는 반드시 타 보고 정한다.
+       ⚠⚠ 이 숫자를 고치면 **구름 꼭대기(CL_TOP)의 폴백도 함께** 봐야 한다.
+          같은 값을 두 곳에 적어 둔 자리다(22호). */
     mode: "msl",                     /* 'msl' 절대고도(산악) · 'agl' 지면추종(협곡·해안) */
-    msl: 3950,                       /* 순항 해발고도(m) — mode:'msl' 일 때 */
+    msl: 4100,                       /* 순항 해발고도(m) — mode:'msl' 일 때 */
     floor: 320,                      /* 앞 지면과의 최소 여유(m) — 그물. 0819R 250→320 */
     agl: 700,                        /* ↓ 셋은 mode:'agl' 노선이 쓴다. 알프스는 안 읽는다 */
     aglLow: 450, aglHigh: 1600,      /* 봉우리 옆 · 계곡 위 */
@@ -306,7 +310,13 @@
     var lat = pos[0], lon = pos[1];
     var ahead = onCurve(0, 0.02);
     var hd = bearing(lat, lon, ahead[0], ahead[1]);
-    var roll = 0, tp = performance.now(), gT = 0, dist = 0, errN = 0;
+    /* ⭐⭐ 0820y — dist(km)·flown(초)는 **이 탑승분**이다. 계기판 아래 두 배지가 읽는다.
+       ⚠ 서버에 안 쌓는다. 쌓는 순간 「누적 성취」가 되어 11호(진도 칸을 안 짓는다)와
+         부딪히고, 헌장이 막은 그 도파민 훅이 된다. 이어 타면 자리만 이어지고 셈은 새로 선다 —
+         실제 기내 모니터가 그 편의 시간·거리만 세는 것과 같다.
+       ⭐ flown 은 PAUSED 일 때 안 는다. 아래 루프가 멈춤이면 dt 를 더하기 전에 물러나므로
+         **따로 재지 않아도 「순수 비행만」이 된다**(0820 소로 요청). */
+    var roll = 0, tp = performance.now(), gT = 0, dist = 0, flown = 0, errN = 0;
     /* ⭐⭐ 0819f — 고도의 정본은 rel(지면 위)이 아니라 alt(해발)다.
        rel 로 들면 지면이 계단일 때 카메라도 계단이 된다 — 소로 시승의 멀미가 그것.
        alt 는 ㉡의 걸음(분당 400m)으로만 움직이므로 지면이 어떻게 날뛰어도 잔잔하다. */
@@ -422,6 +432,7 @@
         spdH += (rel - spdH) * Math.min(dt / 20, 1);
         var kmh = Math.max(60, Math.min(route.felt * (spdH / 1000), 900));
         var km = kmh * dt / 3600; dist += km;
+        flown += dt;                 /* ⭐ 여기는 PAUSED 를 이미 지난 자리다 — 순수 비행만 쌓인다 */
 
         /* ── ⭐ 곡선 위를 나아간다 — u 를 거리만큼 민다 */
         var segKm = Math.max(gcKm(P(seg)[0], P(seg)[1], P(seg + 1)[0], P(seg + 1)[1]), 0.001);
@@ -464,7 +475,7 @@
 
         /* ⚠ 계기판 한 줄이 죽어도 Cesium 렌더가 통째로 멈추지 않게 감싼다(0817) */
         if (opt.onTick) {
-          try { opt.onTick({ lat: lat, lon: lon, hd: hd, kmh: kmh, rel: rel, alt: alt, vs: vs, ground: groundH, dist: dist, leg: P(seg)[2], next: P(seg + 1)[2], roll: roll,
+          try { opt.onTick({ lat: lat, lon: lon, hd: hd, kmh: kmh, rel: rel, alt: alt, vs: vs, ground: groundH, dist: dist, flown: flown, leg: P(seg)[2], next: P(seg + 1)[2], roll: roll,
                              seg: seg, legN: N }); }
           catch (err) {
             if (!window.__egRTickWarned) { window.__egRTickWarned = true; console.error("[EG] 계기판 오류 — 비행은 계속합니다:", err); }
@@ -478,8 +489,12 @@
     });
     return { stop: off, routeCode: route.code,
              where: function () { return { seg: seg, u: u }; },
-             /* ⭐ 0820g — 「출발점으로」가 부른다. 곡선 위 어디로든 옮겨 앉힌다 */
-             goTo: function (s2, u2) { seg = ((s2 | 0) % N + N) % N; u = +u2 || 0; dist = 0; } };
+             /* ⭐ 0820g — 「출발점으로」가 부른다. 곡선 위 어디로든 옮겨 앉힌다.
+                ⚠⚠ 0820y — 여기 있던 `dist = 0` 을 **걷었다.** 「출발점으로」는 자리를
+                  옮기는 손이지 탑승을 새로 하는 손이 아니다(위 주석에 그렇게 적혀 있다).
+                  거리·시간이 화면에 안 서 있던 동안은 아무래도 좋았지만, 이제는 R 한 번에
+                  「총 비행거리」가 0 이 되어 총계라는 말 자체가 거짓이 된다. */
+             goTo: function (s2, u2) { seg = ((s2 | 0) % N + N) % N; u = +u2 || 0; } };
   }
 
   /* ══ 겉옷 ══════════════════════════════════════════════════════ */
@@ -674,7 +689,11 @@
 #egrCtl .ico{font-size:19px}
 #egrCtl .ico.on{color:var(--accent,#c9a961)}
 /* ── 항로도 ── */
-#egrMap{position:absolute;left:34px;right:34px;top:88px;height:318px;
+/* ⭐⭐ 0820y — 지도 상자의 네 값을 **여기 한 곳에만** 적는다.
+   #egrTrip(아래 두 배지)이 같은 상자를 겹쳐 써야 하는데, 두 곳에 따로 적으면
+   언젠가 한쪽만 고쳐 놓고 「배지가 지도 밖에 떠 있다」를 헤매게 된다(22호). */
+#egrMon{--mapL:34px;--mapR:34px;--mapT:88px;--mapH:318px}
+#egrMap{position:absolute;left:var(--mapL);right:var(--mapR);top:var(--mapT);height:var(--mapH);
   border:1px solid var(--ring,#59492f);border-radius:12px;overflow:hidden;
   background:var(--map,#a86e46);box-shadow:inset 0 2px 12px rgba(0,0,0,.45);
   transition:background 3s linear}
@@ -697,6 +716,26 @@
    안 두면 +4 에서 선이 2.6배가 되어 비행기가 뭉툭해진다 */
 #egrMap .ship{fill:var(--mapInk,#331b0a);stroke:var(--planeRing,#ffe4c4);stroke-width:1.6;
   stroke-linejoin:round;vector-effect:non-scaling-stroke}
+/* ── 지도 아래 두 배지 (0820y 소로) — 총 비행시간 · 총 비행거리 ──
+   ⚠⚠ #egrMap **안에 넣지 않는다.** 확대할 때마다 지도의 innerHTML 이 통째로
+     갈리므로(setZoom → buildMap) 안에 두면 +를 누르는 순간 배지가 사라진다.
+     같은 상자를 겹쳐 세우고 좌표는 위 --map* 하나에서 받는다.
+   ⚠ pointer-events:none — 지도를 끌거나 누르는 손을 배지가 가로채면 안 된다.
+   ⭐ 계기판에 6칸을 넣는 길은 셈으로 막혔다: 3행이면 204px 라 150px 상자를
+     54px 넘친다(0819W 에서 25.6px 넘쳐 잘린 그 병의 두 배). 그래서 지도 위다. */
+#egrTrip{position:absolute;left:var(--mapL);right:var(--mapR);top:var(--mapT);height:var(--mapH);
+  pointer-events:none;z-index:2;
+  display:flex;align-items:flex-end;justify-content:space-between;padding:0 14px 12px}
+#egrTrip .b{display:flex;align-items:baseline;gap:8px;padding:5px 12px;border-radius:9px;
+  background:var(--tripBg,rgba(243,219,192,.58));
+  backdrop-filter:blur(1.5px);-webkit-backdrop-filter:blur(1.5px);
+  transition:background 3s linear}
+#egrTrip i{font:700 14px/1 Tahoma,sans-serif;font-style:normal;letter-spacing:.18em;
+  color:var(--mapSub,#5c3418);transition:color 3s linear}
+#egrTrip b{font:700 26px/1 Tahoma,sans-serif;letter-spacing:.02em;
+  color:var(--mapInk,#331b0a);transition:color 3s linear}
+#egrTrip b u{font:700 14px Tahoma,sans-serif;text-decoration:none;margin-left:3px;
+  color:var(--mapSub,#5c3418)}
 /* ── 아래단 ── */
 #egrLow{position:absolute;left:34px;right:34px;top:418px;height:150px;
   display:grid;grid-template-columns:471fr 349fr;gap:12px}
@@ -1481,7 +1520,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
        TV 지직임이 된다(소로 캡처 오른창). 실물의 안개를 우리는 못 그리므로,
        꼭대기를 순항고도 250m 아래에 가둔다 — **늘 위에서 굽어보는 구름**이 된다.
        ⭐ 그리고 이것이 그리려던 그림이다: 운해 위로 솟은 봉우리, 그 위를 나는 기체 */
-    var CL_TOP = Math.max(1500, (s0.alt || 3950) - 250);
+    var CL_TOP = Math.max(1500, (s0.alt || 4100) - 250);   /* ⚠ 0820y — ROUTES.msl 과 같은 값을 적는 자리 */
     var nGrp = Math.max(1, Math.round(rint(r, K.grp) * CLD.den));
     /* ⚠⚠ 0820m — CAP 480 을 걷었다(소로 「예단하지 말고 극대치에서 빼자」).
        0819 fps 도 새똥도 전부 타 보고 나온 것이다 — 낭떠러지가 어디인지는
@@ -1956,7 +1995,8 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       pocket: "linear-gradient(180deg,#333f4a,#1a2129)",
       map: "linear-gradient(180deg,#aebfca,#8ea3b1 60%,#7e93a1)",
       grid: "rgba(30,45,60,.12)", mapInk: "#16242f", mapSub: "#33475a",
-      mapDash: "#31465a", mapDot: "#3d5468", planeRing: "#e8f2fa"
+      mapDash: "#31465a", mapDot: "#3d5468", planeRing: "#e8f2fa",
+      tripBg: "rgba(226,236,243,.62)"
     },
     d: {   /* B · 한낮 — 맑은 하늘, 아이보리·스카이 */
       screen: "#f4f2ec", ink: "#33322c", muted: "#8a8676", accent: "#3d6e8f",
@@ -1968,7 +2008,8 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       pocket: "linear-gradient(180deg,#d6d1c0,#b9b4a2)",
       map: "linear-gradient(180deg,#cfe3ef,#b1cfe0 60%,#9fc2d6)",
       grid: "rgba(40,80,110,.1)", mapInk: "#1d3a4d", mapSub: "#3d6079",
-      mapDash: "#4d7690", mapDot: "#5a86a0", planeRing: "#ffffff"
+      mapDash: "#4d7690", mapDot: "#5a86a0", planeRing: "#ffffff",
+      tripBg: "rgba(244,250,254,.66)"
     },
     e: {   /* C · 저녁 노을 — 황동·앰버 (비너스 「현재 확정안」) */
       screen: "#14110c", ink: "#efe4cd", muted: "#9a8f77", accent: "#c9a961",
@@ -1980,7 +2021,8 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       pocket: "linear-gradient(180deg,#3a3226,#241d12)",
       map: "linear-gradient(180deg,#c98d5f,#a86e46 60%,#8f5a38)",
       grid: "rgba(70,35,15,.14)", mapInk: "#331b0a", mapSub: "#5c3418",
-      mapDash: "#6d4020", mapDot: "#7a4a26", planeRing: "#ffe4c4"
+      mapDash: "#6d4020", mapDot: "#7a4a26", planeRing: "#ffe4c4",
+      tripBg: "rgba(243,219,192,.58)"
     },
     n: {   /* D · 한밤 — 심야 네이비, 달빛 */
       screen: "#0c0f16", ink: "#dbe2ee", muted: "#6d7686", accent: "#7ea3c2",
@@ -1992,7 +2034,10 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       pocket: "linear-gradient(180deg,#28303f,#141924)",
       map: "linear-gradient(180deg,#2b3a52,#1f2c40 60%,#182335)",
       grid: "rgba(160,190,230,.07)", mapInk: "#c4d6ea", mapSub: "#6d84a0",
-      mapDash: "#44587a", mapDot: "#4d648a", planeRing: "#0c0f16"
+      mapDash: "#44587a", mapDot: "#4d648a", planeRing: "#0c0f16",
+      /* ⚠⚠ 한밤만 정반대다 — 지도가 어둡고 mapInk 가 밝다(#c4d6ea).
+         넷을 한 색으로 두면 이 벌에서 글씨가 배경에 먹힌다. 여기만 어두운 판이다. */
+      tripBg: "rgba(9,13,20,.55)"
     }
   };
   /* ⭐⭐ 기록판 팔레트 (0820a) — EG 전속 디자이너 비너스 시안 넉 벌. 값은 시안 소스 그대로.
@@ -2239,6 +2284,11 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       + '<button id="egrRst" class="ico" type="button" title="출발점으로 (R)">&#8634;</button>'
       + '</div></div>'
       + '<div id="egrMap"></div>'
+      /* ⭐ 0820y — 지도 위 두 배지. **지도 밖 형제**다(위 CSS 주석의 까닭) */
+      + '<div id="egrTrip">'
+      + '<div class="b"><i>FLIGHT TIME</i><b id="egrFt">0:00</b></div>'
+      + '<div class="b"><i>DISTANCE</i><b id="egrDist">0<u>KM</u></b></div>'
+      + '</div>'
       + '<div id="egrLow">'
       + '<div id="egrGauge">'
       + '<div class="c"><i>LOCAL TIME</i><b id="egrClock">—</b></div>'
@@ -2293,6 +2343,23 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
   }
   function setTab(t) { TAB = t; if (t === "book") openPick(); }   /* 옛 이름 — 부르는 곳이 남아 있다 */
 
+  /* ⭐ 0820y — 비행시간 꼴. 한 시간 넘으면 앞에 시가 붙는다.
+     ⚠ 초를 세운 까닭 — 회차당 20~30분이라 h:mm 만 두면 첫 오 분이 「0:00」에 멎어
+       계기가 죽은 줄 안다. 초가 흐르면 「살아 있다」가 눈에 보인다.
+     ⚠ 400ms 마다 다시 그리므로 초는 어차피 매끄럽게 안 흐른다 — 그래도 충분하다. */
+  function hms(sec) {
+    var t = Math.max(0, Math.floor(sec));
+    var h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), q = t % 60;
+    var mm = (m < 10 ? "0" : "") + m, ss = (q < 10 ? "0" : "") + q;
+    return h > 0 ? (h + ":" + mm + ":" + ss) : (m + ":" + ss);
+  }
+  /* ⚠ 10km 아래에서만 소수 한 자리 — 출발 직후 「0 KM」이 오래 서 있지 않게.
+     325km/h 면 1분에 5.4km 다. 넘어서면 정수가 읽기 편하다 */
+  function kmTxt(km) {
+    var k = Math.max(0, km || 0);
+    return k < 10 ? k.toFixed(1) : Math.round(k).toLocaleString();
+  }
+
   /* — 비행정보. 400ms 마다 (onTick 이 부른다) — */
   function paintInfo(s, route) {
     if (!MONEL) return;
@@ -2306,6 +2373,10 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     q("#egrSpd").innerHTML = Math.round(s.kmh) + "<u>KM/H</u>";
     var v = Math.round(s.vs);
     q("#egrVs").innerHTML = (v > 0 ? "+" : "") + v + "<u>M/MIN</u>";
+    /* ⭐ 0820y — 지도 위 두 배지. ⚠ 없을 수도 있으니 반드시 확인하고 만진다 */
+    var ft = q("#egrFt"), ds = q("#egrDist");
+    if (ft) ft.textContent = hms(s.flown);
+    if (ds) ds.innerHTML = kmTxt(s.dist) + "<u>KM</u>";
     paintMap(s, route);              /* ⭐ 항로도 — 확대 중이면 지도가 따라 흐른다 */
     paintWhere();                    /* ⭐ 기록판 아래줄 — 지금 나는 곳이 흐른다 */
   }
