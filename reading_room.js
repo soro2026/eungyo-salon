@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0820v
+   EG독서비행 — 방(room) 판 · reading_room.js · v0820w
    2026.08.20 소로 × 파이스 · 145회차
    ⭐⭐ 0820a — 기록판을 비너스 시안 넉 벌로 다시 지었다.
      ① 색 이름을 --dk- 로 갈랐다. ⚠⚠ 모니터와 **같은 이름에 정반대 값**이기 때문이다
@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0820v";
+  var VERSION = "0820w";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -990,14 +990,24 @@
      ⭐ 열쇠에 사람을 넣는다. 저장소 전수 조사로 같은 병이 여섯 곳 나왔다 —
        세 곳이 넘으니 공용 손 하나로 묶는다(0808 꼬리표 수칙과 같은 갈래).
      ⚠ 서버를 부르지 않는다 — storageKey 에 이미 들어 있는 것을 읽기만 한다. 요청 0. */
-  function egr_uid() {
+  /* ⚠⚠ 0820w — 이 손의 이름이 원래 `egr_uid` 였는데, **2154행에 같은 이름이 이미 있었다.**
+       그쪽은 Promise 를 돌려주는 딴 물건이고(2718행이 .then 으로 쓴다),
+       같은 스코프에 함수 선언이 둘이면 **나중 것이 앞의 것을 덮는다.**
+       그래서 아래 lsKey 가 부른 것은 이 손이 아니라 그 손이었고, 열쇠가 이렇게 됐다 —
+         eg_read_desk:[object Promise]      ⚠⚠ 온 손님이 열쇠 하나를 나눠 썼다
+       Promise 는 truthy 라 `|| "anon"` 에도 안 걸리고 그대로 글자가 됐다.
+     ⚠ 문법은 완전히 정상이다. node --check 도 통과하고 콘솔에도 한 줄 안 찍힌다.
+       잡은 것은 실행이 아니라 **파서로 스코프를 물어본 것**이다.
+     ⭐ 수칙 둘 — ① 새 이름을 지을 때는 그 파일 안부터 grep 한다(0818 조항 ⑥).
+       ② 이름 등장 횟수가 「늘었다」는 반영의 증거가 아니다. 이 병은 는 것 자체가 병이었다. */
+  function egr_uid_ls() {
     try {
       var j = JSON.parse(localStorage.getItem("eungyo-auth") || "null");
       var u = j && (j.user || (j.currentSession && j.currentSession.user));
       return (u && u.id) ? String(u.id).slice(0, 8) : null;
     } catch (e) { return null; }
   }
-  function lsKey(name) { return name + ":" + (egr_uid() || "anon"); }
+  function lsKey(name) { return name + ":" + (egr_uid_ls() || "anon"); }
   function lsGet(name) { try { return localStorage.getItem(lsKey(name)); } catch (e) { return null; } }
   function lsSet(name, v) { try { localStorage.setItem(lsKey(name), String(v)); } catch (e) { } }
 
@@ -3311,6 +3321,14 @@ function paintBook() {
        ⚠ 1.2초를 기다리는 것은 타일이 실리는 동안 구름까지 얹으면 첫 화면이 늦기 때문이다 */
     EGR_later(function () { if (ROOT && CLON) cloudsBuild(); }, 1200);
     console.log("%c[EG] reading_room " + VERSION + " — " + route.name + " · 길목 " + route.legs.length + "점 · 끝없는 고리", "color:#c9a84c");
+    /* ⭐ 0820w — 열쇠를 한 줄 찍는다. 브라우저 안은 내가 조회할 수 없는 곳이라
+         「코드가 맞으니 되겠지」로 넘어가면 0820v 처럼 조용히 안 듣는다(위 993행 주석).
+       ⚠ 값을 안 찍고 이름만 찍는다 — uid 앞 8자는 사람을 가리키는 표식이다.
+       ⭐ 소로가 캡처 한 장으로 판정하실 수 있게 anon 일 때는 경고로 나온다. */
+    var k = lsKey("eg_read_desk");
+    console.log(/anon$/.test(k) ? "%c[EG] ⚠ 열쇠 " + k + " — 로그인 전이라 사람 표식이 없습니다"
+                                : "%c[EG] 열쇠 " + k + " — 사람 표식 있음",
+                /anon$/.test(k) ? "color:#c98d5f" : "color:#7a9a7e");
     return true;
   }
 
