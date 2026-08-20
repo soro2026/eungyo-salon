@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>EG 관리자 — 격납고</title>
+<!--
+  ══════════════════════════════════════════════════════════════════════
+  EG 격납고 — admin_hangar.html · v0820a
+  2026.08.20 소로 × 파이스
+
+  ⭐ 왜 이 곳이 생겼나 (0820 소로 — 「지금부터는 비행기도 콘솔에 넣어야」)
+    독서비행의 기내 원판이 저장소 파일(jet_cabin_*.webp)로 살고 있었다.
+    기체가 하나일 때는 참을 만했지만 둘이 되는 순간 여덟 장이 되고,
+    고칠 때마다 소로가 깃허브에 올려야 했다.
+    ⚠ 0805 에 소로가 이미 답을 세워 두셨다 — 「자산은 Storage에 산다.
+      던지면 그 자리에서 갈린다. 깃허브 업로드가 필요 없다.」
+    이 곳은 그 문법(admin_daily_lines 의 ✈ 비행 화면 자산 칸)을
+    기내 원판으로 옮겨 온 것이다.
+
+  ⚠⚠ 굽기 값이 로더 자산과 다르다 — 그대로 베끼면 안 된다
+    ① 긴 변 상한 1600 → **1800**
+       기내 원판은 941×1672 가 규격이고 창·지도판 좌표를 그 판에서 실측했다.
+       1600 으로 줄이면 900×1600 이 되어 규격이 깨진다.
+    ② 용량 상한 300KB → **500KB**
+       기내는 디테일이 많다. 300 에 걸리면 화질이 뭉개진다.
+    ③ 알파를 지킨다 — 마젠타를 뚫은 판이라 투명이 생명이다.
+       webp 알파는 무손실이다(결정문 5호).
+
+  ⚠ 규격이 어긋나면 **올리기 전에 막는다.** 올려 놓고 나중에 화면에서
+    발견하면 어디가 틀렸는지 못 찾는다.
+  ══════════════════════════════════════════════════════════════════════
+-->
+<style>
+:root{
+  --gold:#C9A84C; --gold-d:#B8881E; --chalk:#f0ebe0; --ink:#0a0e1a;
+  --ok:#7fe0a6; --warn:#ffb060; --bad:#ff8080;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{
+  min-height:100%;
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(201,168,76,.07) 0%, transparent 45%),
+    radial-gradient(ellipse at 80% 100%, rgba(80,90,160,.10) 0%, transparent 50%),
+    var(--ink);
+  color:var(--chalk);
+  font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;
+  line-height:1.7;
+}
+.wrap{max-width:980px;margin:0 auto;padding:40px 20px 90px}
+.back{display:inline-block;margin-bottom:24px;font-size:13px;
+  color:rgba(240,235,224,.5);text-decoration:none}
+.back:hover{color:var(--gold)}
+
+.head{text-align:center;margin-bottom:34px}
+.head-eg{font-size:11px;letter-spacing:.3em;color:var(--gold);opacity:.7}
+.head-title{font-size:22px;font-weight:900;letter-spacing:.06em;margin-top:8px}
+.head-sub{font-size:13px;color:rgba(240,235,224,.5);margin-top:6px}
+
+.blocked{text-align:center;padding:120px 20px}
+.blocked-icon{font-size:40px;margin-bottom:18px;opacity:.5}
+.blocked-msg{font-size:16px;color:rgba(240,235,224,.6)}
+.loading{text-align:center;padding:80px 20px;color:rgba(240,235,224,.4)}
+
+/* 기체 한 채 */
+.craft{background:rgba(255,255,255,.035);
+  border:1px solid rgba(201,168,76,.18);border-radius:16px;
+  padding:20px 22px 24px;margin-bottom:20px}
+.craft-top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+.craft-name{font-size:17px;font-weight:900;color:#fff}
+.craft-code{font-size:12px;color:var(--gold);letter-spacing:.08em}
+.craft-note{font-size:12.5px;color:rgba(240,235,224,.45);margin-bottom:16px}
+.craft-spec{font-size:11.5px;color:rgba(240,235,224,.35);margin-top:2px}
+
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media(max-width:760px){ .grid{grid-template-columns:repeat(2,1fr)} }
+
+.slot{border:1px solid rgba(240,235,224,.13);border-radius:12px;
+  overflow:hidden;cursor:pointer;background:rgba(0,0,0,.25);
+  transition:border-color .15s,transform .12s}
+.slot:hover{border-color:var(--gold);transform:translateY(-2px)}
+.slot.busy{opacity:.45;pointer-events:none}
+.slot-label{font-size:12px;font-weight:700;letter-spacing:.04em;
+  padding:8px 10px;background:rgba(255,255,255,.05);
+  display:flex;justify-content:space-between;align-items:center;gap:6px}
+.slot-key{font-size:10px;color:rgba(240,235,224,.35);font-weight:400}
+/* ⭐ 바둑판 바닥 — 투명이 살아 있는지 눈으로 보인다. 마젠타를 뚫었는지 여기서 드러난다 */
+.slot-thumb{aspect-ratio:941/1672;display:flex;align-items:center;justify-content:center;
+  font-size:11.5px;color:rgba(240,235,224,.32);text-align:center;padding:10px;
+  background-color:#20242e;
+  background-image:
+    linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.05) 75%),
+    linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.05) 75%);
+  background-size:16px 16px; background-position:0 0,8px 8px}
+.slot-thumb img{width:100%;height:100%;object-fit:contain;display:block}
+.slot-info{font-size:10.5px;padding:5px 10px 7px;color:rgba(240,235,224,.4);
+  border-top:1px solid rgba(240,235,224,.07);min-height:24px}
+.slot-info b{color:var(--ok);font-weight:700}
+.slot-info i{color:var(--warn);font-style:normal;font-weight:700}
+
+.say{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
+  max-width:calc(100% - 40px);
+  background:rgba(10,14,26,.96);border:1px solid rgba(201,168,76,.4);
+  border-radius:12px;padding:12px 20px;font-size:13.5px;
+  opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;
+  box-shadow:0 8px 30px rgba(0,0,0,.5)}
+.say.on{opacity:1}
+.say.ok{border-color:rgba(127,224,166,.5)}
+.say.bad{border-color:rgba(255,128,128,.5)}
+
+.tip{font-size:12.5px;color:rgba(240,235,224,.42);line-height:1.9;
+  border-left:2px solid var(--gold-d);padding-left:12px;margin:8px 0 26px}
+.tip b{color:var(--gold);font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="terra.html">← 테라로</a>
+
+  <div id="gate" class="loading">⬤ 확인 중...</div>
+
+  <div id="app" style="display:none">
+    <div class="head">
+      <div class="head-eg">E G · H A N G A R</div>
+      <div class="head-title">격납고 — 기내 원판</div>
+      <div class="head-sub">독서비행의 기내 넉 벌을 갈아 끼웁니다</div>
+    </div>
+
+    <div class="tip">
+      칸을 누르고 그림을 고르면 <b>webp로 구워 그 자리에 앉힙니다.</b> 파일 이름은 아무래도 좋습니다 — 칸이 이름을 압니다.<br>
+      규격은 <b>941 × 1672</b>입니다. 어긋나면 올리기 전에 막습니다.<br>
+      마젠타를 뚫은 <b>투명</b>이 살아 있으면 바둑판 바닥이 비칩니다.<br>
+      갈아 끼우면 1분 안에 손님 화면에 닿습니다. 깃허브에 올릴 필요가 없습니다.
+    </div>
+
+    <div id="crafts"></div>
+  </div>
+</div>
+
+<input type="file" id="aFile" accept="image/*" style="display:none">
+<div class="say" id="say"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY, { auth:{ storageKey:'eungyo-auth' } });
+
+const $ = s => document.querySelector(s);
+
+/* ══ 규격 — 코드와 같은 값이다 ══════════════════════════════════════
+   ⚠⚠ reading_room.js 의 PLATE_W · PLATE_H 와 **같은 숫자**다.
+     창·지도판 좌표를 이 판에서 실측했으므로 여기가 틀리면 전부 어긋난다.
+     한쪽을 고치면 다른 쪽도 고친다. */
+const SPEC_W = 941, SPEC_H = 1672;
+const TOL    = 4;              /* 허용 오차 px — 생성기가 1픽셀씩 흘리는 일이 잦다 */
+const MAXLONG = 1800;          /* ⚠ 로더 자산은 1600 이다. 기내는 규격을 지켜야 해 더 크다 */
+const MAXKB   = 500;           /* ⚠ 로더 자산은 300. 기내는 디테일이 많아 뭉개진다 */
+
+const BUCKET = 'tour-assets';
+const DIR    = 'hangar/';
+const PUB    = SUPA_URL + '/storage/v1/object/public/' + BUCKET + '/' + DIR;
+
+/* ══ 격납고에 선 기체들 ═══════════════════════════════════════════
+   ⭐ 기체가 늘면 **이 배열에만 한 벌 더한다.** 화면은 스스로 늘어난다.
+     0820 에 노선을 늘렸더니 타륜이 스스로 바뀐 것과 같은 문법이다.
+   ⚠ code 는 reading_room.js 의 CABIN 이 부르는 이름과 같아야 한다. */
+const CRAFTS = [
+  { code:'bre', name:'브레게 14',      note:'남방 우편비행 — 개방 조종석 · 정면 보기',
+    spec:'생텍쥐페리 · 아에로포스탈 · 1927' },
+  { code:'jet', name:'자가용 제트기',  note:'알프스 종단 — 창가 보기 · 창 넷',
+    spec:'⚠ 지금은 저장소 파일(jet_cabin_*.webp)이 선다. 여기 올리면 이쪽이 이긴다' }
+];
+const PHASES = [
+  { k:'m', label:'이른 아침' },
+  { k:'d', label:'한낮' },
+  { k:'e', label:'노을' },
+  { k:'n', label:'한밤' }
+];
+
+let TARGET = null;
+let sayT = null;
+function say(msg, kind){
+  const el = $('#say');
+  el.textContent = msg;
+  el.className = 'say on' + (kind ? ' ' + kind : '');
+  clearTimeout(sayT);
+  sayT = setTimeout(()=>{ el.className = 'say'; }, kind==='bad' ? 6000 : 3600);
+}
+
+function showBlocked(msg){
+  $('#gate').innerHTML =
+    '<div class="blocked"><div class="blocked-icon">🔒</div><div class="blocked-msg">'+msg+'</div></div>';
+}
+
+async function init(){
+  const { data:{ user } } = await supa.auth.getUser();
+  if(!user){ showBlocked('로그인이 필요합니다.'); return; }
+  const { data:me } = await supa.from('users').select('is_admin').eq('id', user.id).maybeSingle();
+  if(!me || !me.is_admin){ showBlocked('관리자 권한이 없습니다.'); return; }
+  $('#gate').style.display = 'none';
+  $('#app').style.display = 'block';
+  drawAll();
+}
+
+function drawAll(){
+  const host = $('#crafts');
+  host.innerHTML = '';
+  CRAFTS.forEach(c=>{
+    const box = document.createElement('div');
+    box.className = 'craft';
+    box.innerHTML =
+      '<div class="craft-top"><span class="craft-name">'+c.name+'</span>'
+      + '<span class="craft-code">'+c.code+'_cabin_*</span></div>'
+      + '<div class="craft-note">'+c.note+'</div>'
+      + '<div class="craft-spec">'+c.spec+'</div>'
+      + '<div class="grid"></div>';
+    const g = box.querySelector('.grid');
+    PHASES.forEach(p=>{
+      const key = c.code + '_cabin_' + p.k;
+      const el = document.createElement('div');
+      el.className = 'slot'; el.dataset.key = key;
+      el.innerHTML =
+        '<div class="slot-label">'+p.label+'<span class="slot-key">'+p.k+'</span></div>'
+        + '<div class="slot-thumb">불러오는 중…</div>'
+        + '<div class="slot-info">&nbsp;</div>';
+      const th = el.querySelector('.slot-thumb');
+      const nf = el.querySelector('.slot-info');
+      const im = new Image();
+      im.onload = ()=>{
+        th.textContent = ''; th.appendChild(im);
+        /* ⚠ 올라간 뒤에도 규격을 다시 잰다 — 되읽어 확인한다. 「잘 됐겠지」 금지 */
+        const ok = Math.abs(im.naturalWidth-SPEC_W)<=TOL && Math.abs(im.naturalHeight-SPEC_H)<=TOL;
+        nf.innerHTML = im.naturalWidth+'×'+im.naturalHeight
+          + (ok ? ' <b>규격 맞음</b>' : ' <i>⚠ 규격 어긋남</i>');
+      };
+      im.onerror = ()=>{
+        th.textContent = '비어 있음\n눌러서 올리기';
+        th.style.whiteSpace = 'pre-line';
+        nf.innerHTML = '&nbsp;';
+      };
+      im.src = PUB + key + '.webp?v=' + Date.now();
+      el.onclick = ()=>{ TARGET = { key:key, label:c.name+' · '+p.label }; $('#aFile').click(); };
+      g.appendChild(el);
+    });
+    host.appendChild(box);
+  });
+}
+
+/* ══ 굽기 — admin_daily_lines 의 투척함 문법. 값만 기내에 맞췄다 ══ */
+async function readBitmap(file){
+  if(window.createImageBitmap){ try{ return await createImageBitmap(file); }catch(e){} }
+  return await new Promise((res,rej)=>{
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = ()=>{ URL.revokeObjectURL(url); res(im); };
+    im.onerror = ()=>{ URL.revokeObjectURL(url); rej(new Error('그림을 열지 못했습니다')); };
+    im.src = url;
+  });
+}
+function canvasBlob(cv,q){
+  return new Promise(res=>{ cv.toBlob ? cv.toBlob(b=>res(b),'image/webp',q) : res(null); });
+}
+async function bake(file){
+  const bmp = await readBitmap(file);
+  const sw = bmp.width, sh = bmp.height;
+
+  /* ⚠⚠ 규격 검사 — **올리기 전에** 막는다.
+     올려 놓고 화면에서 발견하면 어디가 틀렸는지 못 찾는다.
+     ⭐ 다만 세로가 1~4px 흘린 것은 그 자리에서 늘려 준다(생성기가 자주 그런다). */
+  const dw = Math.abs(sw - SPEC_W), dh = Math.abs(sh - SPEC_H);
+  if(dw > TOL || dh > TOL){
+    if(bmp.close) bmp.close();
+    throw new Error('규격이 다릅니다 — ' + sw + '×' + sh
+      + ' (있어야 할 크기 ' + SPEC_W + '×' + SPEC_H + ')');
+  }
+
+  /* 규격 안이면 정확히 941×1672 로 앉힌다 — 오차를 여기서 지운다 */
+  const cv = document.createElement('canvas');
+  cv.width = SPEC_W; cv.height = SPEC_H;
+  const cx = cv.getContext('2d');
+  cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
+  cx.clearRect(0,0,SPEC_W,SPEC_H);          /* ⭐ 알파를 지킨다 — 채우지 않는다 */
+  cx.drawImage(bmp, 0, 0, SPEC_W, SPEC_H);
+
+  /* ⭐ 투명이 살아 있는지 그 자리에서 잰다 — 마젠타를 안 뚫고 올리는 사고를 막는다 */
+  let clear = 0;
+  try{
+    const d = cx.getImageData(0,0,SPEC_W,SPEC_H).data;
+    for(let i=3;i<d.length;i+=4) if(d[i] < 16) clear++;
+  }catch(e){ clear = -1; }
+
+  if(bmp.close) bmp.close();
+
+  let q = 0.92, blob = await canvasBlob(cv,q);
+  while(blob && blob.size > MAXKB*1024 && q > 0.60){ q -= 0.06; blob = await canvasBlob(cv,q); }
+  if(!blob || blob.type !== 'image/webp') return { blob:file, raw:true, clear:clear };
+  return { blob:blob, raw:false, clear:clear, q:q };
+}
+
+$('#aFile').addEventListener('change', async e=>{
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if(!f || !TARGET) return;
+  const el = document.querySelector('.slot[data-key="'+TARGET.key+'"]');
+  if(el) el.classList.add('busy');
+
+  let baked;
+  try{ baked = await bake(f); }
+  catch(err){ if(el) el.classList.remove('busy'); say(TARGET.label + ' — ' + err.message, 'bad'); return; }
+
+  const { error } = await supa.storage.from(BUCKET)
+    .upload(DIR + TARGET.key + '.webp', baked.blob,
+            { upsert:true, contentType:'image/webp', cacheControl:'60' });
+  if(el) el.classList.remove('busy');
+  if(error){ say('올리지 못했습니다 — ' + error.message, 'bad'); return; }
+
+  const pct = baked.clear < 0 ? null : (baked.clear/(SPEC_W*SPEC_H)*100);
+  let msg = TARGET.label + ' — ' + Math.round(baked.blob.size/1024) + 'KB 로 구워 앉혔습니다';
+  if(baked.raw) msg += ' (이 브라우저가 webp 를 못 구워 원본 그대로)';
+  if(pct !== null) msg += ' · 투명 ' + pct.toFixed(0) + '%';
+  say(msg, (pct !== null && pct < 3) ? 'bad' : 'ok');
+  /* ⚠ 투명이 거의 없으면 창을 안 뚫은 판일 수 있다 — 조용히 넘기지 않는다 */
+  if(pct !== null && pct < 3){
+    setTimeout(()=>say('⚠ 투명한 곳이 ' + pct.toFixed(0) + '% 뿐입니다 — 창을 안 뚫은 판이 아닌지 보십시오','bad'), 3800);
+  }
+  drawAll();                                 /* ⭐ 되읽기 — 미리보기가 곧 검산이다 */
+});
+
+init();
+</script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0820z
+   EG독서비행 — 방(room) 판 · reading_room.js · v0820B
    2026.08.20 소로 × 파이스 · 145회차
    ⭐⭐ 0820a — 기록판을 비너스 시안 넉 벌로 다시 지었다.
      ① 색 이름을 --dk- 로 갈랐다. ⚠⚠ 모니터와 **같은 이름에 정반대 값**이기 때문이다
@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0820z";
+  var VERSION = "0820B";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -133,7 +133,65 @@
      ⭐ 길목이 곧 뷰포인트다 — 26호(뷰포인트 출처)가 이것으로 닫혔다.
      ══════════════════════════════════════════════════════════════════ */
   var ROUTES = [{
+    /* ══ 0820A — 두 번째 노선. 「남방 우편비행」(Courrier Sud) ══════════════
+       ⭐ 1927년 10월, 스물일곱의 생텍쥐페리가 케이프 주비 비행장 책임자로 부임해
+         열여덟 달을 살았다. 그 사막에서 첫 소설 《남방 우편기》를 끝냈고,
+         뒷날의 《인간의 대지》와 《어린 왕자》의 모래도 여기서 나왔다.
+       ⭐⭐ 고리를 **왕복으로 짰다.** 남행은 해안선 안쪽(왼쪽 사막·오른쪽 바다),
+         북행은 바다 쪽으로 비켜 돌아온다. 우편기가 실제로 그렇게 오갔고,
+         무엇보다 **좌석을 바꾸면 창밖이 통째로 달라진다**(0819 좌석 전환).
+       ⚠ 되짚는 길을 같은 점으로 적으면 Catmull 곡선이 그 곳에서 뾰족해진다.
+         북행 길목은 경도를 서쪽으로 밀어 타원 고리가 되게 했다.
+       ⚠ 좌표 — 타르파야·다클라 둘은 신뢰 소스로 재대조한 값이다(0820A).
+         나머지는 해안선 위 어림점이라 소수 5자리를 채우지 않았다.
+         **길목은 곡선을 잡는 점이지 마을 번지가 아니다** — 다만 정본이 아님을 적어 둔다. */
+    code: "sud_courrier",
+    craft: "bre",                    /* ⭐ 0820B — 노선이 기체를 갖는다. 격납고의 bre_cabin_* 를 입는다 */
+    name: "남방 우편비행",
+    face: "케이프 주비의 해안 사막 · 생텍쥐페리의 1927년",
+    kind: "tour",
+    /* ⚠⚠ 알프스와 물리가 다르다. 사하라 해안은 평탄해 순항 해발고도가 뜻이 없다 —
+         지면추종(agl)이 맞다. 그리고 우편기는 낮게, 느리게 났다.
+       ⭐ felt 420 → 지면 위 320m 에서 약 134km/h. 브레게 14 의 순항이 그쯤이다.
+       ⚠ felt 가 크면 고도가 조금만 흔들려도 속도가 크게 흔들린다.
+         해안 사막이라 견딘다 — 산악 노선에 이 값을 옮겨 쓰지 말 것. */
+    felt: 420,
+    mode: "agl",
+    msl: 900,                        /* ⚠ agl 노선이라 안 읽는다. 그물로만 둔다 */
+    floor: 180,
+    agl: 320,                        /* 바탕 고도 — 모래언덕 위 */
+    aglLow: 260, aglHigh: 480,       /* 높은 땅 옆 · 낮은 곳 위 */
+    loop: true,
+    legs: [
+      /* ── 남행 · 해안선을 따라 (오른쪽 창에 대서양) ── */
+      [30.42780,  -9.59810, "아가디르 · 수스 하구"],
+      /* ⚠ 북쪽 끝 선회 — 같은 까닭으로 166° 되꺾임을 지운다.
+         ⭐ 덤으로 안티아틀라스 산자락이 왼쪽 창에 온다. 사막만 스무 시간은 길다 */
+      [30.20000,  -9.30000, "수스 계곡"],
+      [29.70000,  -9.70000, "안티아틀라스 서단"],
+      [29.37970, -10.17300, "시디 이프니"],
+      [28.43800, -11.30000, "탄탄 플라주"],
+      [27.94516, -12.92550, "케이프 주비 · 타르파야"],
+      [27.15000, -13.20000, "라윤 · 사기아 하구"],
+      [26.13280, -14.48570, "부즈두르"],
+      [23.71806, -15.93194, "비야 시스네로스 · 다클라"],
+      [20.93300, -17.03300, "포르 에티엔 · 누아디부"],
+      /* ⚠⚠ 남쪽 끝 선회 — 이 둘이 없으면 여기서 171° 로 **되꺾인다.**
+         Catmull 곡선이 그 곳에서 뾰족해지고, 뱅크가 상한(10°)에 붙어
+         기울어진 채 한참을 돈다. 반원을 그리게 점을 벌려 놓는다. */
+      [20.72000, -17.09000, "캅 블랑 · 곶 끝"],
+      [20.78000, -17.35000, "곶 바깥 · 선회"],
+      [21.30000, -17.38000, "대서양 북상"],
+      /* ── 북행 · 바다 쪽으로 비켜 (왼쪽 창에 사막) ── */
+      [23.60000, -16.45000, "리오 데 오로 앞바다"],
+      [26.20000, -15.05000, "부즈두르 앞바다"],
+      [27.90000, -13.45000, "주비 곶 앞바다"],
+      [29.30000, -10.70000, "이프니 앞바다"],
+      [30.10000, -10.05000, "아가디르 앞바다"]
+    ]
+  }, {
     code: "alps_traverse",
+    craft: "jet",                    /* ⚠ 격납고가 비어 있으면 저장소 jet_cabin_*.webp 가 선다 */
     name: "알프스 종단",
     face: "몽블랑에서 돌로미티까지 · 빙하와 석회암 탑",   /* 타륜 카드 둘째 줄 */
     kind: "tour",                    /* tour 관광기 · liner 여객기 */
@@ -191,7 +249,22 @@
     { l: 58.555, t: 30.742, w: 8.714, h: 10.287 },
     { l: 69.926, t: 31.758, w: 5.526, h: 9.151 }
   ];
-  var CABIN = { m: "jet_cabin_m.webp", d: "jet_cabin_d.webp", e: "jet_cabin_e.webp", n: "jet_cabin_n.webp" };
+  /* ══ 기내 원판 — 격납고(Storage)가 먼저, 저장소가 폴백 (0820B 소로) ══════
+     ⭐ 0805 에 소로가 세우신 문법 그대로다 — 「자산은 Storage 에 산다.
+       콘솔에서 던지면 그 자리에서 갈린다. 깃허브 업로드가 필요 없다.」
+       로더의 sky·jet 이 그러하고, 이제 기내도 그렇다.
+     ⚠⚠ **폴백을 먼저 세운다.** 격납고에 아직 없으면 저장소 파일이 그대로 뜬다.
+       크레덴시알 30호 — 없으면 안 나타난다. 넉 장을 다 올리기 전에 열어도 무사하다.
+     ⚠ ?v=분 단위 — 갈아 끼우면 1분 안에 손님에게 닿는다(로더와 같은 문법).
+     ⚠ 기체가 늘면 CRAFT 한 줄만 바꾼다. 파일 이름을 손으로 적지 않는다. */
+  var HANGAR = SUPA_URL + "/storage/v1/object/public/tour-assets/hangar/";
+  var CRAFT = "jet";               /* 지금 탄 기체 — enter() 가 노선을 보고 채운다 */
+  function cabinUrl(k) {
+    return HANGAR + CRAFT + "_cabin_" + k + ".webp?v=" + Math.floor(Date.now() / 60000);
+  }
+  function cabinFallback(k) { return "jet_cabin_" + k + ".webp"; }
+  /* ⚠ CABIN 은 이제 **주소가 아니라 갈래 글자**를 담는다. setTheme 이 이걸로 갈래를 되찾는다 */
+  var CABIN = { m: "m", d: "d", e: "e", n: "n" };
 
   /* ── 좌석 모니터 (0819h) ─────────────────────────────────────────
      ⚠ 화면이 네모가 아니라 **사다리꼴**이다 — 0819 실측(검정 화소 연결성분 · 네 변 직선 맞춤).
@@ -1985,7 +2058,8 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     var d = new Date();
     return (d.getUTCHours() + d.getUTCMinutes() / 60 + (lon || 0) / 15 + 24) % 24;
   }
-  function cabinFor(hour) { return CABIN[themeKey(hour)] || CABIN.e; }
+  /* ⚠ 0820B — cabinFor 를 걷었다. CABIN 이 갈래 글자만 담게 되어 themeKey 와 똑같아졌다.
+     같은 일을 하는 손이 둘이면 언젠가 한쪽만 고친다(22호). */
   /* ⭐⭐ 모니터 테마 넉 벌 (0819U) — EG 전속 디자이너 비너스 시안 A·B·C·D.
      ⚠⚠ 비너스가 넷을 그려 왔는데 **기내 조명 넉 벌과 정확히 짝**이었다.
         cabinFor() 가 이미 태양시로 넷을 가르고 있으므로 셈을 하나도 안 더한다 —
@@ -2111,10 +2185,11 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     PREVIEW = null;
     paintCabin(SINFO ? SINFO.lon : 0);
   }
-  function setTheme(file) {
-    /* CABIN 파일 이름에서 갈래 글자를 되찾는다 — 조명과 테마를 한 값으로 묶는다 */
-    var k = "e";
-    for (var g in CABIN) if (CABIN[g] === file) k = g;
+  /* ⚠⚠ 0820B — 여기 있던 「파일 이름에서 갈래 글자를 되찾는」 되짚기를 **걷었다.**
+       원판이 격납고로 가면서 주소가 길어져, 이름으로 글자를 되찾는 손이 더는 성립하지 않는다.
+     ⭐ 애초에 되짚을 일이 아니었다 — 부르는 쪽이 이미 글자를 쥐고 있었다.
+       0820z 의 진범(같은 갈래인데 안 실림)도 이 되짚기 옆에서 났다. */
+  function setTheme(k) {
     if (!ROOT) return;
     /* ⚠ 갈래가 같아도, 모니터에 아직 안 실렸으면 물러나지 않는다 */
     if (k === themeNow && (!MONEL || themeMon === k)) return;
@@ -2136,6 +2211,36 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
      ⭐ 판을 두 겹으로 둔다 — 아래(#plate)가 지금 것, 위(#plateB)가 다음 것.
        위 겹을 3초에 걸쳐 드러내고, 끝나면 아래로 옮겨 담는다. 판을 새로 굽지 않는다.
      ⚠ 첫 그림은 겹치지 않는다 — 탑승하자마자 3초 동안 판이 반투명하면 사고로 보인다. */
+  /* ══ 0820B — 격납고를 두드려 보고, 있을 때만 갈아입는다 ══════════════
+     ⭐ 0805 로더의 문법 그대로다 — 「위상 판을 먼저 두드려 보고, 있을 때만
+       갈아입는다. 없으면 저장소의 것이 그대로 선다.」
+     ⚠⚠ 배경 그림(background-image)은 **실패를 알려주지 않는다.** 없는 주소를
+       넣으면 아무 일도 안 일어나고 판이 통째로 빈다. 콘솔에 한 줄도 안 찍힌다.
+       그래서 Image() 로 먼저 두드린다 — 이것이 유일하게 실패를 아는 길이다.
+     ⚠ 두드린 결과를 기억한다. 매 프레임 두드리면 요청이 폭발한다.
+     ⚠ 물음이 오가는 동안에는 폴백이 서 있다 — 판이 비는 순간이 없다. */
+  var PLATE_OK = {};               /* "bre_d" → true(격납고) · false(저장소) · undefined(안 물어봄) */
+  function plateUrl(k) {
+    var id = CRAFT + "_" + k;
+    if (PLATE_OK[id] === true) return cabinUrl(k);
+    if (PLATE_OK[id] === undefined) {
+      PLATE_OK[id] = null;                                  /* 묻는 중 — 두 번 안 묻는다 */
+      var im = new Image();
+      im.onload = function () {
+        PLATE_OK[id] = true;
+        /* ⭐ 있었다면 그 자리에서 갈아입는다 — 다음 조명 바뀔 때까지 안 기다린다 */
+        if (ROOT && SINFO) { var pl = ROOT.querySelector("#plate"); if (pl) pl.__f = null; paintCabin(SINFO.lon); }
+      };
+      im.onerror = function () {
+        PLATE_OK[id] = false;
+        /* ⚠ 조용히 물러난다. 격납고가 비어 있는 것은 사고가 아니다(크레덴시알 30호) */
+        if (window.__egAdmin) console.log("[EG] 격납고에 " + id + " 가 없습니다 — 저장소 판이 섭니다");
+      };
+      im.src = cabinUrl(k);
+    }
+    return cabinFallback(k);                                /* 묻는 중이거나 없으면 저장소 */
+  }
+
   var fadeT = null;
   function paintCabin(lon) {
     if (!ROOT) return;
@@ -2143,17 +2248,18 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     if (!plate) return;
     var local = solarHour(lon);                             /* ⭐ 0820z — 셈은 한 곳에서만 */
     /* ⭐ 편집기 미리보기가 켜져 있으면 그것이 이긴다 — 편집 중에만 값이 든다 */
-    var f = PREVIEW ? CABIN[PREVIEW] : cabinFor(local);
+    var f = PREVIEW || themeKey(local);                     /* ⭐ 0820B — 갈래 글자 하나다 */
     setTheme(f);
-    cloudRekind();                                          /* ⭐ 0820j — 갈래도 한 값으로 */                                            /* ⭐ 모니터 테마도 한 값으로 */
+    cloudRekind();                                          /* ⭐ 0820j — 갈래도 한 값으로 */
     if (plate.__f === f) return;
+    var url = plateUrl(f);                                  /* ⭐ 격납고에 있으면 그것, 없으면 저장소 */
     if (!plate.__f || !pb) {                                /* 첫 그림 — 그냥 앉힌다 */
-      plate.__f = f; plate.style.backgroundImage = "url(" + f + ")";
+      plate.__f = f; plate.style.backgroundImage = "url(" + url + ")";
       return;
     }
     if (pb.__f === f) return;                               /* 이미 그 겹으로 넘어가는 중 */
     pb.__f = f;
-    pb.style.backgroundImage = "url(" + f + ")";
+    pb.style.backgroundImage = "url(" + url + ")";
     pb.style.transition = "none";
     pb.style.opacity = "0";
     /* ⚠ 다음 프레임에 켜야 전환이 걸린다 — 같은 프레임에 0→1 이면 브라우저가 건너뛴다 */
@@ -2319,7 +2425,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     ROOT.appendChild(MONEL);
     /* ⭐ 0820z — 첫 붓을 **진짜 태양시**로. 옛 판은 정오 고정이라, 밤에 타면
        한낮으로 한 번 칠했다가 3초에 걸쳐 밤으로 넘어갔다(잠깐 낮이 번쩍했다) */
-    setTheme(cabinFor(solarHour(route.legs[0][1])));
+    setTheme(themeKey(solarHour(route.legs[0][1])));
     MONEL.querySelector("#egrMap").innerHTML = buildMap(route);
     mountDesk();                      /* ⭐ 독서일지 판 — 모니터 밖 별도 판 */
     EGR_on(MONEL.querySelector("#egrZin"), "click", function () { setZoom(zi + 1, route); });
@@ -3409,6 +3515,9 @@ function paintBook() {
     playAnnounce();                  /* 방송 → 끝나면 고른 갈래로 (0817·0819R 문법) */
 
     RCODE = route.code || "";        /* ⭐ 0820j — 씨앗이 노선을 본다 */
+    /* ⭐ 0820B — 기체를 여기서 정한다. 원판 주소가 전부 이 한 글자에서 나온다.
+       ⚠ 노선에 craft 가 없으면 제트기다 — 옛 노선이 그대로 뜬다 */
+    CRAFT = route.craft || "jet";
     var hudT = 0;                    /* ⚠ #hud 는 0819R 에 걷었다 — 셈 주기만 남는다 */
     /* ⭐ 나갔던 곳에서 이어 탄다 — 없으면 첫 길목. 아무 말도 안 띄운다 */
     var rz = RESUME || { seg: 0, u: 0 };   /* ⭐ enter() 가 미리 받아 둔다 */
