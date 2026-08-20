@@ -1870,7 +1870,12 @@ body.bowed #sndBtn{display:none}
   function soundBuild(){
     if(ambAudio) return;
     ambAudio = new Audio(AMB_SRC);
-    ambAudio.loop = true; ambAudio.volume = AMB_VOL;
+    /* ⚠⚠ 0820j — 여기가 대문을 잠갔다. 0820f 에서 상수(AMB_VOL·MUS_VOL)를 VOL 객체로
+         바꾸면서 **musAudio 줄만 고치고 이 줄을 빠뜨렸다.** 없는 이름을 부르니
+         ReferenceError 가 나고, enter() 가 그 자리에서 멎어 대문이 영영 안 열렸다.
+       ⚠ 문법 검사는 이것을 못 잡는다 — 선언 누락은 실행해 봐야 안다(0817 딱지 그것).
+       ⭐ 수칙 — 이름을 갈 때는 그 이름을 **전수 grep 해서 0건이 될 때까지** 센다. */
+    ambAudio.loop = true; ambAudio.volume = VOL.amb;
     /* ⚠ 녹음이 아직 없어도 조용히 넘어간다 — 음악만 흐르고 아무 일도 안 일어난다 */
     ambAudio.addEventListener('error', ()=>{ console.warn('[spoon] 카페 소음 파일이 아직 없습니다'); });
     const n = Math.floor(Math.random()*MUS_N)+1;    /* ⭐ 그날 그 창의 한 곡 */
@@ -1976,11 +1981,15 @@ body.bowed #sndBtn{display:none}
   let entered=false;
   function enter(){
     if(entered || !SPOT) return; entered=true;
-    /* ⭐ 여기가 손님의 첫 손짓이다 — 소리를 여기서 켠다(자동재생 정책이 열리는 유일한 곳) */
-    soundStart();
-    /* ⭐ 0820g — 서버에 맞춰 둔 소리가 있으면 그것으로 갈아입는다.
-       ⚠ 조절판 배선도 여기서 건다 — 굽고 안 걸면 밀어도 아무 일이 없다. */
-    tuneWire(); tuneLoad();
+    /* ⚠⚠ 0820j — 여기 순서가 사고를 냈다(소로 0820: 「모든 카페 문이 잠겨버림」).
+         0820h 에서 tuneWire()·tuneLoad() 를 **문 여는 일보다 앞에** 두었더니,
+         그 둘 중 하나가 터지는 순간 아래가 통째로 안 돌아 대문이 영영 안 열렸다.
+         스크롤바가 드러난 것도 같은 원인이다 — html.in-room 이 안 붙어
+         스크롤바를 감추는 그 줄이 안 돌았다. **두 증상이 한 원인이었다.**
+       ⭐ 처방 둘 —
+         ① 문 여는 일을 **먼저** 한다. 소리는 그 뒤다.
+         ② 소리 쪽은 통째로 try 로 감싼다. 소리 때문에 문이 안 열리는 일은 없어야 한다.
+       ⚠ 조항 — **곁다리가 본길을 막지 않게 한다.** 나중에 더한 것일수록 뒤에 둔다. */
     $('#fade').classList.add('on');
     setTimeout(()=>{
       $('#gate').classList.add('dismiss');
@@ -1997,6 +2006,11 @@ body.bowed #sndBtn{display:none}
       document.body.classList.add('in-room');
       document.documentElement.classList.add('in-room');   /* 스크롤바는 html의 것 */
       $('#fade').classList.remove('on');
+      /* ⭐ 0820j — 소리는 **방이 다 선 뒤에** 켠다. 그리고 통째로 try 로 감싼다.
+         ⚠ 여기가 터져도 손님은 이미 방 안에 있다 — 소리만 조용할 뿐 아무것도 안 막힌다.
+         ⚠ 자동재생 정책은 여전히 열려 있다 — 손님이 정문을 누른 그 손짓이 이미 있었다. */
+      try{ soundStart(); }catch(e){ console.warn('[spoon] 소리를 못 켰습니다:', e); }
+      try{ tuneWire(); tuneLoad(); }catch(e){ console.warn('[spoon] 소리 조절판:', e); }
     }, 520);
   }
   $('#gate').addEventListener('click', enter);
@@ -2172,7 +2186,7 @@ body.bowed #sndBtn{display:none}
 
 <!-- 폰에서 방을 나가는 문 (0730) — 액자 밖 + 폰일 때만 뜬다. eg_back.js 참조 -->
 <script src="eg_back.js?v=20260729">
-console.log('[EG] hello_spoon 0820h — 소리 맞추기 단추(보이는 것으로)');
+console.log('[EG] hello_spoon 0820j — ⚠ 대문 잠김 수리(AMB_VOL 누락) · 소리는 방 뒤로');
 </script>
 </body>
 </html>
