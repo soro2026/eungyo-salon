@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0820w
+   EG독서비행 — 방(room) 판 · reading_room.js · v0820x
    2026.08.20 소로 × 파이스 · 145회차
    ⭐⭐ 0820a — 기록판을 비너스 시안 넉 벌로 다시 지었다.
      ① 색 이름을 --dk- 로 갈랐다. ⚠⚠ 모니터와 **같은 이름에 정반대 값**이기 때문이다
@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0820w";
+  var VERSION = "0820x";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -747,6 +747,25 @@
   background:var(--screen,#14110c);transition:background 3s linear}
 #egrPick.on{display:flex;flex-direction:column}
 #egrPick .top{display:flex;align-items:center;gap:12px;flex:0 0 auto}
+/* ⭐ 0820x — 찾는 손을 **칸 안쪽**에 둔다(소로 0820).
+   ⚠ 전에는 칸 오른쪽에 「닫기」가 붙어 있었다. 글을 다 쓰고 눈이 오른쪽으로 가는데
+     거기 있는 것이 나가는 문이라, 찾으려던 손이 닫는 손을 먼저 만났다.
+   ⚠⚠ 그리고 화면에 찾는 손이 아예 없어서 안내가 「엔터로 검색」이라고 **글로만** 알렸다 —
+     없는 손을 말로 대신하고 있었다(21호 「검색은 한 문」의 빈 곳).
+   ⭐ wrap 을 상대좌표로 두고 찾기를 그 안에 앉힌다. 입력 오른쪽 여백은 단추만큼 비운다. */
+#egrPick .qwrap{position:relative;flex:1;min-width:0;display:flex}
+#egrPick .qwrap input{padding-right:94px}
+#egrPick .find{position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  border:1px solid var(--accent,#c9a961);background:transparent;color:var(--accent,#c9a961);
+  padding:7px 15px;border-radius:6px;cursor:pointer;line-height:1;
+  font:700 17px 'Noto Sans KR',serif;transition:background .15s ease,color .15s ease}
+#egrPick .find:hover{background:var(--accent,#c9a961);color:var(--screen,#14110c)}
+/* ⚠ 나가는 문은 오른쪽 끝에 ✕ 하나로. 글자를 지우면 찾는 손과 안 헷갈린다 */
+#egrPick .xbtn{flex:0 0 auto;width:40px;height:40px;border-radius:7px;cursor:pointer;
+  border:1px solid var(--ring,#59492f);background:transparent;color:var(--muted,#9a8f77);
+  font:400 21px/1 Tahoma,sans-serif;display:grid;place-items:center;
+  transition:color .15s ease,border-color .15s ease}
+#egrPick .xbtn:hover{color:var(--ink,#efe4cd);border-color:var(--ink,#efe4cd)}
 #egrPick input{flex:1;box-sizing:border-box;background:var(--panel,#1c1710);
   border:1px solid var(--ring,#59492f);color:var(--ink,#efe4cd);padding:12px 16px;
   border-radius:7px;font:400 20px 'Noto Sans KR',serif}
@@ -2704,15 +2723,18 @@ function paintBook() {
     if (!MONEL) return;
     var el = MONEL.querySelector("#egrPick");
     el.innerHTML = '<div class="top">'
-      + '<input id="egrQ" placeholder="읽을 책을 검색하십시오">'
-      + '<button class="btn" id="egrQx" type="button">닫기</button></div>'
-      + '<div class="hint">엔터로 검색 &middot; 서가와 바깥을 함께 훑고, 없으면 그 자리에서 들입니다</div>'
+      + '<div class="qwrap"><input id="egrQ" placeholder="읽을 책을 검색하십시오">'
+      + '<button class="find" id="egrGo" type="button">찾기</button></div>'
+      + '<button class="xbtn" id="egrQx" type="button" title="닫기" aria-label="닫기">&#10005;</button></div>'
+      + '<div class="hint">서가와 바깥을 함께 훑고, 없으면 그 자리에서 들입니다</div>'
       + '<div class="list" id="egrList"></div>';
     el.classList.add("on");
     var q = el.querySelector("#egrQ");
     EGR_on(q, "keydown", function (e) {
       if (e.key === "Enter") { e.stopPropagation(); doSearch(q.value); }
     });
+    /* ⭐ 0820x — 엔터와 찾기가 **같은 손을 부른다.** 갈래를 둘로 두면 언젠가 한쪽만 고친다 */
+    EGR_on(el.querySelector("#egrGo"), "click", function () { doSearch(q.value); });
     EGR_on(el.querySelector("#egrQx"), "click", closePick);
     q.focus();
   }
