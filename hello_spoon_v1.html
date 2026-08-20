@@ -145,7 +145,10 @@ main.stage{
   background:#0E0A07;
   overflow:hidden;
 }
-/* 배경 이미지 */
+/* 배경 이미지
+   ⚠ 0820b — 그림 이름을 여기 안 박는다. 곳마다 잔이 다르므로 JS 가 건다(cupChain).
+     여기 박아 두면 곳이 바뀌어도 같은 잔이 뜨고, 두 곳에서 관리하게 된다.
+   ⭐ 그림이 하나도 없는 곳을 위해 teacup_hero 를 바탕에 남긴다 — 검은 화면은 안 낸다. */
 .hero-bg{
   position:absolute;inset:0;
   background-image:url('./teacup_hero.webp');
@@ -652,13 +655,41 @@ main.stage{
   font-size:18px;color:var(--gold);
   align-self:center;margin-left:6px;
 }
-.end .tomorrow{
-  font-size:13.5px;color:var(--sub);
-  text-align:center;font-style:italic;
-  font-family:"Noto Serif KR",serif;
-  letter-spacing:.02em;
-  margin-top:8px;
+/* ⭐ 0820b — 「잔을 내려놓기」. 나가는 문이 아니라 고개를 드는 손이다.
+   ⚠ .way 카드와 다른 옷을 입힌다 — 저것들은 「어디로 간다」이고 이건 「여기 머문다」다.
+     같은 옷이면 손님이 셋째 갈 곳으로 읽는다. */
+.end .bow{
+  align-self:center;margin-top:26px;
+  border:1px solid var(--line);background:transparent;color:var(--sub);
+  padding:11px 26px;border-radius:999px;cursor:pointer;
+  font-family:"Noto Serif KR",serif;font-size:14.5px;letter-spacing:.06em;
+  transition:color .25s ease,border-color .25s ease;
 }
+.end .bow:hover{color:var(--coffee);border-color:var(--gold)}
+
+/* ══ 카페에 무대를 내준다 (0820b · 소로) ═══════════════════════════
+   ⚠ 새로 받는 그림이 0장이다. #room 은 들어올 때 이미 실려 뒤에 서 있었고,
+     여태 앞의 판과 어두운 막이 덮어 조연으로 보였을 뿐이다.
+   ⭐ 걷는 것 셋 — 판(.app) · 어두운 막(#roomVeil) · 스크롤 여지
+   ⚠ 판을 display:none 으로 지우지 않는다. 되돌아올 문이 없어지고,
+     그 안의 요소를 만지는 손들이 그날로 터진다. 투명하게 물러나게만 한다. */
+body.bowed .app{
+  opacity:0;transform:translate(-50%,-50%) scale(.985);
+  pointer-events:none;
+  transition:opacity 1.5s ease,transform 1.5s ease;
+}
+body.bowed #roomVeil{opacity:0;transition:opacity 1.9s ease}   /* 막이 걷히며 밝아진다 */
+body.bowed #scrollSpace{pointer-events:none}
+/* ⭐ 되돌아오는 손 — 아무 데나 누르면 판이 돌아온다.
+   ⚠ 안 두면 손님이 카페에 갇힌다. 나가는 문이 아니라고 해 놓고 문을 없애면 안 된다. */
+#bowBack{position:fixed;inset:0;z-index:3;display:none;cursor:pointer}
+body.bowed #bowBack{display:block}
+#bowBack span{position:absolute;left:0;right:0;bottom:clamp(28px,7vh,68px);
+  text-align:center;color:rgba(255,250,242,.72);
+  font:400 13.5px/1 "Noto Serif KR",serif;letter-spacing:.08em;
+  text-shadow:0 2px 12px rgba(0,0,0,.7);
+  opacity:0;animation:bowHint 1s ease 2.2s forwards}
+@keyframes bowHint{to{opacity:1}}
 
 /* === BUTTONS === */
 .btnrow{
@@ -805,12 +836,14 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
 <!-- 시각 판정 — 다섯 우주가 한 벌에서만 읽는다 (v128 함정 F) -->
 <script src="eg_sky.js?v=0806e"></script>
 <!-- EG Credencial — 찍기 부품 (0804) -->
-<script src="stamp_press.js?v=0820a"></script>
+<script src="stamp_press.js?v=0808a"></script>
 </head>
 <body>
 
 <!-- 방 — 카드 뒤에 깔린다 -->
 <div id="room"><img id="roomImg" alt=""><div id="roomVeil"></div></div>
+<!-- ⭐ 0820b — 카페를 보는 동안 화면을 받는 판. 아무 데나 누르면 판이 돌아온다 -->
+<div id="bowBack"><span>아무 곳이나 누르면 돌아옵니다</span></div>
 
 <!-- 정문 -->
 <div id="gate" role="button" tabindex="0" aria-label="안으로 들어가기">
@@ -826,7 +859,12 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
 </div>
 <div id="fade"></div>
 
-<div class="app">
+<!-- ⚠⚠ 0820b — `is-hero` 를 HTML 에 박는다(소로 0820 「흰 띠를 없애줘요」).
+     첫 화면은 hero 카드이고, 그때 머리띠는 이미지 위에 투명하게 떠야 한다.
+   ⚠ 전에는 카드에만 `show` 가 박혀 있고 `.app` 의 is-hero 는 JS 가 붙기를 기다렸다 —
+     **첫 상태가 두 곳에 나뉘어 있었고, 한쪽만 서면 흰 띠가 드러났다.**
+   ⭐ 2단계로 넘어가면 show() 의 toggle 이 알아서 뗀다. 손이 늘지 않는다. -->
+<div class="app is-hero">
 
   <!-- ====== HEADER ====== -->
   <header class="bar">
@@ -989,17 +1027,14 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
             </span>
             <span class="arrow">→</span>
           </a>
-          <a class="way" href="#wunder" id="wayWunder">
-            <span class="ico">🚪</span>
-            <span class="txt">
-              <span class="name">분더카머 자서전에서 보기</span>
-              <span class="desc">오늘 한 컷이 누적됐어요</span>
-            </span>
-            <span class="arrow">→</span>
-          </a>
         </div>
 
-        <p class="tomorrow" id="endTomorrow">내일 아침 7시, 또 만나요.</p>
+        <!-- ⭐ 0820b — 마지막에 카페에 무대를 내준다(소로 0820).
+             ⚠ 새로 받는 그림이 없다. 방 사진(#room)은 들어올 때 이미 실려 뒤에 서 있고,
+               앞의 판과 어두운 막만 물러나면 그것이 온 화면을 갖는다(22호의 사촌).
+             ⚠ 나가는 문이 아니다 — 여기서 나가면 손님은 아무 데도 안 간다.
+               한 모금을 다 마시고 고개를 드는 일이다. -->
+        <button class="bow" id="bowBtn" type="button">잔을 내려놓기</button>
       </div>
     </article>
 
@@ -1322,8 +1357,7 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
   const btnSave = document.querySelector('[data-save]');
   const btnSkip = document.querySelector('[data-skip]');
   const endTitle = document.getElementById('endTitle');
-  const wayWunder = document.getElementById('wayWunder');
-  const endTomorrow = document.getElementById('endTomorrow');
+  const bowBtn = document.getElementById('bowBtn');
 
   // ── 카드 전환 ────────────────────────────────────────
   function show(step){
@@ -1489,18 +1523,34 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
   });
 
   // ── 종료 카드 두 분기 ────────────────────────────────
+  /* ⚠ 0820b — 「분더카머 자서전에서 보기」와 「내일 아침 7시」를 걷었다(소로 0820).
+       앞엣것은 아직 없는 개념이었고, 뒤엣것은 지금 리듬과 안 맞았다.
+     ⭐ 껍데기를 안 남긴다 — HTML·CSS·배선을 함께 걷었다(0818 조항 ⑤).
+       HTML만 걷고 여기서 계속 부르면 그날로 null 이 터진다. */
   function applyEndBranch(){
     if(state.saved === true){
       endTitle.innerHTML = '오늘의 한 모금이<br>정리됐어요.';
-      wayWunder.style.display = '';
-      endTomorrow.textContent = '내일 아침 7시, 또 만나요.';
     } else {
       endTitle.innerHTML = '오늘의 책이<br>뮤세움 책장에 꽂혔어요.';
-      wayWunder.style.display = 'none';
-      endTomorrow.textContent = '사유는 천천히 남기셔도 됩니다.\n내일 아침 7시, 또 만나요.';
-      endTomorrow.style.whiteSpace = 'pre-line';
     }
   }
+
+  /* ⭐ 0820b — 잔을 내려놓기. 판이 물러나고 카페가 온 화면을 갖는다.
+     ⚠ 여기서 아무 데도 안 보낸다. 소리도 안 끄고 방도 안 걷는다 —
+       한 모금을 다 마시고 고개를 드는 일이지 나가는 일이 아니다.
+     ⚠ 되돌아오는 손을 반드시 함께 건다. 안 두면 손님이 카페에 갇힌다. */
+  const bowBack = document.getElementById('bowBack');
+  if(bowBtn) bowBtn.addEventListener('click', function(){
+    document.body.classList.add('bowed');
+  });
+  if(bowBack) bowBack.addEventListener('click', function(){
+    document.body.classList.remove('bowed');
+  });
+  /* ⚠ Esc 도 받는다 — 폰이 아닌 화면에서 눌러 볼 곳을 못 찾는 일이 없게 */
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && document.body.classList.contains('bowed'))
+      document.body.classList.remove('bowed');
+  });
 
   /* ── EG Credencial 도장 (0806) ───────────────────────────────
      알베르게 1호 — 몸통은 곳의 얼굴(그 카페), 각인은 그날의 것(그날의 한 스푼).
@@ -1593,6 +1643,30 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
   const PUB=p=>`${SUPA_URL}/storage/v1/object/public/tour-assets/${p}`;
   const asset=(code,k)=>PUB(`hansfoon/${code}_${k}.webp`);
 
+  /* ══ 그날의 찻잔 (0820b · 소로) ══════════════════════════════════
+     ⭐ 곳마다 잔이 다르다. 라 쿠폴이면 라 쿠폴의 잔이다.
+     ⚠⚠ 순번으로 스무 장을 돌리지 않는다 — 오늘이 라 쿠폴인데 체셔의 파이가 나오면
+       그 순간 거짓이 된다(8호의 사촌). 곳에 매면 어긋날 길이 구조적으로 없다.
+     ⭐ 표를 안 늘린다 — 정문·실내와 같은 이름 규칙으로 Storage 에만 얹는다(22호).
+         hansfoon/<곳>_cup_1.webp … _cup_5.webp
+     ⭐ 한 장만 있어도 돈다. 채워지는 대로 그 곳에서 갈린다.
+     ⚠ 씨앗은 곳 + 날수다 — 같은 날 두 번 들어와도 같은 잔이 나온다(8호).
+     ⚠ 없으면 teacup_hero.webp 로 물러선다. 0장인 곳도 멀쩡히 선다. */
+  const CUP_MAX = 5;
+  function cupChain(code){
+    /* 그날의 첫 후보부터 차례로 — 앞엣것이 없으면 다음, 끝내 없으면 옛 그림 */
+    const n = (kstDay() + hashCode(code)) % CUP_MAX;
+    const urls = [];
+    for(let i=0;i<CUP_MAX;i++) urls.push(asset(code,'cup_'+(((n+i)%CUP_MAX)+1)));
+    urls.push('./teacup_hero.webp');
+    return urls;
+  }
+  /* ⚠ 곳마다 시작점을 달리 둔다 — 안 그러면 열세 곳이 같은 날 다 1번을 쓴다 */
+  function hashCode(s){
+    let h=0; for(let i=0;i<String(s).length;i++) h=(h*31+String(s).charCodeAt(i))|0;
+    return Math.abs(h);
+  }
+
   /* 시각 — eg_sky 한 벌에서만 읽는다. ⏱가 켜져 있으면 그것이 이긴다 */
   function phase(){
     if(window.EG_TT_TOD) return window.EG_TT_TOD;
@@ -1640,6 +1714,9 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
 
     const t=phase();
     bgChain($('#gate'), [asset(SPOT.code,'gate_'+t), asset(SPOT.code,'gate_d')]);
+    /* ⭐ 0820b — 그날의 찻잔. ⚠ 이 줄은 **두 곳**에 있다(boot · EGSpoonRelay).
+         타임머신이 날짜를 옮길 때 잔도 함께 갈려야 한다 — 한쪽만 걸면 잔만 어제 것이 남는다. */
+    { const hb = $('.hero-bg'); if (hb) bgChain(hb, cupChain(SPOT.code)); }
     $('#gTitle').textContent = SPOT.name || '';
     const m=SPOT.meta||{};
     $('#gSub').textContent = m.subtitle || [m.city_en,m.country].filter(Boolean).join(' · ') || '';
@@ -1748,6 +1825,9 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
     SPOT = (want && LIST.find(h=>h.code===want)) || LIST[ kstDay() % LIST.length ];
     const t=phase();
     bgChain($('#gate'), [asset(SPOT.code,'gate_'+t), asset(SPOT.code,'gate_d')]);
+    /* ⭐ 0820b — 그날의 찻잔. ⚠ 이 줄은 **두 곳**에 있다(boot · EGSpoonRelay).
+         타임머신이 날짜를 옮길 때 잔도 함께 갈려야 한다 — 한쪽만 걸면 잔만 어제 것이 남는다. */
+    { const hb = $('.hero-bg'); if (hb) bgChain(hb, cupChain(SPOT.code)); }
     $('#gTitle').textContent = SPOT.name || '';
     const m=SPOT.meta||{};
     $('#gSub').textContent = m.subtitle || [m.city_en,m.country].filter(Boolean).join(' · ') || '';
@@ -1814,7 +1894,7 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
 
 <!-- 폰에서 방을 나가는 문 (0730) — 액자 밖 + 폰일 때만 뜬다. eg_back.js 참조 -->
 <script src="eg_back.js?v=20260729">
-console.log('[EG] hello_spoon 0816a — 개막일 2026-08-14(금) 시험 운전 · 강물 재개 (옛 9/07이 슬롯을 0에 눌러 두고 있었다)');
+console.log('[EG] hello_spoon 0820b — 종료 카드 정리 · 잔을 내려놓기(카페 전면)');
 </script>
 </body>
 </html>
