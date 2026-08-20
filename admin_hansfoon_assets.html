@@ -278,6 +278,21 @@ input[type=file]{display:none;}
           ⚠ 네 벌은 반드시 <b>같은 구도</b>여야 합니다. 한낮 판을 씨앗으로 조명만 가십시오.</div>
         <div class="slot-grid" id="hallSlots"></div>
       </div>
+
+      <div class="card">
+        <h2>찻잔 — 그날의 한 잔 (최대 5벌)</h2>
+        <div class="hint"><b>941 × 1672 세로(9:16)</b>, 무텍스트. 한스푼을 열면 가장 먼저 뜨는
+          <b>첫 화면의 배경</b>입니다. 그 위에 오늘의 문장이 한 줄씩 타이핑됩니다.<br>
+          ⭐ <b>그 카페의 잔·음식</b>으로. 라 쿠폴이면 라 쿠폴의 것입니다 — 순번으로 돌리지 않으므로
+          곳과 잔이 어긋날 일이 없습니다.<br>
+          ⚠ <b>아래쪽 3분의 1은 비워 주십시오.</b> 그곳에 문장 세 줄과 「시작하기」가 앉습니다.
+          잔은 화면 위쪽·가운데에 두는 편이 좋습니다.<br>
+          ⚠ <b>사람 없음 · 읽히는 글자 없음.</b> 김이 오르는 그림이면 더 좋습니다(김 애니메이션이 그 위에 겹칩니다).<br>
+          ⭐ <b>한 장만 올려도 그날부터 섭니다.</b> 다섯을 다 채우실 필요가 없습니다 —
+          빈 번호는 건너뛰고, 한 장도 없으면 지금 쓰던 그 찻잔으로 물러섭니다.<br>
+          ⚠ 곳이 열셋이라 한 카페는 <b>13일마다</b> 옵니다. 다섯 벌이면 <b>65일</b> 동안 안 겹칩니다.</div>
+        <div class="slot-grid" id="cupSlots"></div>
+      </div>
     </div>
 
   </div>
@@ -298,16 +313,20 @@ const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
 const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth'}});
 const BUCKET='tour-assets';          /* 방 그림 */
 const PUB=(b,p)=>`${SUPA_URL}/storage/v1/object/public/${b}/${p}`;
-console.log("%c[EG] admin_hansfoon_assets v1.1 · 0807 편성표 · 마르는 날", "color:#c9a24a");
+console.log("%c[EG] admin_hansfoon_assets v1.2 · 0820 찻잔 다섯 칸", "color:#c9a24a");
 
 let pickTarget=null, HALLS=[], PLAN=null;
 
 const TODS=[['m','아침'],['d','낮'],['e','저녁'],['n','밤']];
 const gatePath=(code,t)=>`hansfoon/${code}_gate_${t}.webp`;
 const hallPath=(code,t)=>`hansfoon/${code}_hall_${t}.webp`;
+/* ⭐ 0820 — 그날의 찻잔. 셸(hello_spoon_v1.js 안 cupChain)과 **같은 이름 규칙**이다.
+   ⚠ 한쪽만 고치면 콘솔에 올린 그림을 셸이 영영 못 찾는다. 고칠 때는 둘을 함께 본다. */
+const CUP_MAX=5;
+const cupPath=(code,i)=>`hansfoon/${code}_cup_${i}.webp`;
 
 /* 규격 — 한 곳에서만 정한다 */
-const SPEC={ gate:{w:1672,h:941}, hall:{w:941,h:1672} };
+const SPEC={ gate:{w:1672,h:941}, hall:{w:941,h:1672}, cup:{w:941,h:1672} };
 const TARGET_KB=900;             /* 이보다 크면 화질을 한 단계씩 낮춘다 */
 
 function toast(m){const t=document.getElementById('toast');t.innerHTML=m;
@@ -534,23 +553,35 @@ function renderToday(){
     + '⭐ 곳이 늘어도 도장은 하루 한 장입니다(알베르게 원칙 2호). 순회만 길어집니다.';
 }
 
-/* 여덟 칸의 순서 — 차례 투척함이 이 순서로 채운다 */
+/* 열세 칸의 순서 — 차례 투척함이 이 순서로 채운다
+   ⭐ 0820 — 찻잔 다섯을 더했다. 투척함·집계·미리보기가 모두 이 목록 하나를 읽으므로
+     여기만 고치면 나머지가 저절로 따라온다(0818 조항 — 같은 것을 두 곳에 두지 않는다). */
 function slotsOf(code){
   return [
     ...TODS.map(([t,label])=>({ kind:'gate', t, label:'정문 '+label, path:gatePath(code,t) })),
     ...TODS.map(([t,label])=>({ kind:'hall', t, label:'실내 '+label, path:hallPath(code,t) })),
+    ...Array.from({length:CUP_MAX},(_,i)=>({ kind:'cup', t:String(i+1),
+        label:'찻잔 '+(i+1)+'번', path:cupPath(code,i+1) })),
   ];
 }
+/* ⚠ 찻잔은 없어도 되는 칸이다 — 집계의 「다 찼다」는 앞 여덟만 센다(아래 refreshTally) */
+const REQUIRED_SLOTS = 8;
 
 async function refreshTally(){
   const box=document.getElementById('tally');
   box.innerHTML=HALLS.map(h=>
     `<div class="chip ${h.active?'':'sleep'}" id="tl-${h.code}" onclick="jumpHall('${h.code}')">${esc(h.name)} <b>…</b></div>`).join('');
   for(const h of HALLS){
-    const n=(await Promise.all(slotsOf(h.code).map(s=>exists(BUCKET,s.path)))).filter(Boolean).length;
+    const all = slotsOf(h.code);
+    const got = await Promise.all(all.map(s=>exists(BUCKET,s.path)));
+    /* ⚠ 0820 — 찻잔은 없어도 되는 칸이라 「다 찼다」 판정에서 뺀다.
+       한 그릇에 담으면 열세 칸을 다 채우기 전엔 어느 곳도 완성으로 안 선다. */
+    const need = all.filter((s,i)=>s.kind!=='cup' && got[i]).length;
+    const cups = all.filter((s,i)=>s.kind==='cup' && got[i]).length;
     const el=document.getElementById('tl-'+h.code); if(!el) continue;
-    el.innerHTML=`${esc(h.name)} <b>${n}/8</b>`;
-    el.classList.toggle('done', n===8);
+    el.innerHTML=`${esc(h.name)} <b>${need}/${REQUIRED_SLOTS}</b>`
+      + (cups ? ` <span style="opacity:.75">잔 ${cups}</span>` : '');
+    el.classList.toggle('done', need===REQUIRED_SLOTS);
   }
 }
 function exists(bucket,path){
@@ -581,8 +612,9 @@ function renderHall(){
 function buildSlots(){
   const h=currentHall(); if(!h) return;
   const all=slotsOf(h.code);
-  const g=all.filter(s=>s.kind==='gate'), l=all.filter(s=>s.kind==='hall');
-  const head=s=>`<div class="s-name">${s.label.split(' ')[1]} (${s.t})</div>
+  const g=all.filter(s=>s.kind==='gate'), l=all.filter(s=>s.kind==='hall'),
+        c=all.filter(s=>s.kind==='cup');
+  const head=s=>`<div class="s-name">${s.kind==='cup'?s.label:s.label.split(' ')[1]+' ('+s.t+')'}</div>
     <div class="s-sub">${s.kind==='gate'?'1672 × 941':'941 × 1672'}</div>`;
   document.getElementById('gateSlots').innerHTML=g.map(s=>
     `<div class="slot" data-path="${s.path}" data-kind="gate" id="sl-${s.kind}-${s.t}">
@@ -590,8 +622,13 @@ function buildSlots(){
   document.getElementById('hallSlots').innerHTML=l.map(s=>
     `<div class="slot tall" data-path="${s.path}" data-kind="hall" id="sl-${s.kind}-${s.t}">
       ${head(s)}<div class="s-state">확인 중…</div></div>`).join('');
+  /* ⭐ 0820 — 찻잔 다섯. 실내와 같은 세로 규격이라 .tall 을 그대로 쓴다 */
+  document.getElementById('cupSlots').innerHTML=c.map(s=>
+    `<div class="slot tall" data-path="${s.path}" data-kind="cup" id="sl-${s.kind}-${s.t}">
+      ${head(s)}<div class="s-state">확인 중…</div></div>`).join('');
   wire(document.getElementById('gateSlots'));
   wire(document.getElementById('hallSlots'));
+  wire(document.getElementById('cupSlots'));   /* ⚠ 칸을 굽고 배선을 안 걸면 눌러도 아무 일이 없다 */
   all.forEach(s=>paint('sl-'+s.kind+'-'+s.t, s.path, head(s), s.kind));
 }
 function wire(box){
