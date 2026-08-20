@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0820i
+   EG독서비행 — 방(room) 판 · reading_room.js · v0820j
    2026.08.20 소로 × 파이스 · 145회차
    ⭐⭐ 0820a — 기록판을 비너스 시안 넉 벌로 다시 지었다.
      ① 색 이름을 --dk- 로 갈랐다. ⚠⚠ 모니터와 **같은 이름에 정반대 값**이기 때문이다
@@ -30,6 +30,20 @@
         평균만 보면 구름을 얹고도 「멀쩡합니다」라고 말하게 된다.
      ⚠ 손님에게는 F 가 아무 일도 안 한다(0820h 49호 문법 그대로).
      ⚠ 첫 서른 프레임과 20초는 안 믿는다 — 타일이 실리는 동안이다.
+
+   ⭐⭐ 0820j — 구름. 51호.
+     ⚠⚠ 어제 제가 낸 「덩이 여럿을 겹쳐 부피를 만든다」를 **무른다.**
+        CloudCollection 은 빌보드마다 3D 노이즈를 칠하므로 비용이 **개수가 아니라
+        화면을 덮는 넓이**에 붙는다. 한 곳에 일곱을 겹치면 같은 화소를 일곱 번 칠한다.
+     ⭐ 실물 적운 무리는 **쌓여** 있지 않고 **모여** 있다. 밑면 하나를 함께 쓰며
+        옆으로 늘어서고, 무리와 무리 사이에 빈 하늘이 있다. 빈 곳이 있어야 큰 것이 커 보인다.
+     ⭐⭐ 밑면은 **지면을 안 따라간다.** 대기가 정하는 해발 하나로 평평하다 —
+        알프스에서 봉우리가 구름을 뚫고 나오는 것이 그 까닭이다.
+        ⭐ 그래서 sampleHeight 를 한 발도 안 쏜다. 41호 ㉧에 구조적으로 안 걸린다.
+     ⭐ 갈래는 값이 아니라 **범위**다(소로 0820). 씨앗이 그 안에서 한 점을 고른다.
+        씨앗 = 노선 + 그날 + floor(태양시/3) → 하루에 여덟 하늘. 8호를 안 어긴다.
+     ⚠ 방 전용이다 — 나갈 때 primitives.remove. terra 하늘에 안 남긴다.
+     ⚠ 조절판(G)은 관리자만. 저장하는 것은 **배율 넷뿐**이고 범위표는 코드가 쥔다(41호 ㉬).
 
    ⚠ 판번호는 아래 VERSION 하나가 정본이다. 0819e 까지 이 줄이 a 로 남아 있었다 —
      「적어 두는 것과 읽는 것은 다른 일」의 표본. 고칠 때 둘을 함께 올린다.
@@ -76,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0820i";
+  var VERSION = "0820j";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -358,7 +372,7 @@
         var now = performance.now(), rawMs = now - tp;
         var dt = Math.min(rawMs / 1000, 0.25); tp = now;
         /* ⭐ 0820i — 재고 있는 값을 주워 담기만 한다. 새로 재지 않는다 */
-        fpsTick(rawMs); fpsPaint(now);
+        fpsTick(rawMs); fpsPaint(now); cloudTick(now);
         /* ⭐⭐ 0819T 일시정지 — 창밖이 그 지점에 선다.
            ⚠⚠ tp 를 **매 프레임 계속 밀어야 한다.** 멈춘 동안 tp 를 안 고치면
               재개하는 순간 dt 가 몇 분치로 부풀어 비행기가 순간이동한다.
@@ -541,6 +555,22 @@
 #egrFps .w{color:#c9a84c}
 #egrFps .bad{color:#e0866a}
 #egrFps .dim{color:#5d6672}
+/* ⭐ 구름 조절판 (0820j) — 계기 바로 아래. 재면서 밀 수 있어야 소로가 정하신다(0820 ㉳) */
+#egrCloud{position:fixed;left:18px;top:104px;z-index:27;display:none;width:236px;
+  background:rgba(10,13,18,.90);border:1px solid #2a323f;border-radius:7px;padding:10px 13px 11px;
+  color:#8f9aa6;font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+#readingRoom.cld #egrCloud{display:block}
+#egrCloud .hd{color:#e6d9ae;margin-bottom:7px}
+#egrCloud .hd i{color:#5d6672;font-style:normal;float:right}
+#egrCloud label{display:flex;align-items:center;gap:7px;margin:5px 0}
+#egrCloud label span{width:40px;color:#8f9aa6;flex:none}
+#egrCloud label b{width:44px;text-align:right;color:#c9a84c;font-weight:normal;flex:none}
+#egrCloud input[type=range]{flex:1;height:3px;accent-color:#c9a84c;cursor:pointer;min-width:0}
+#egrCloud .row{display:flex;gap:6px;margin-top:9px}
+#egrCloud button{flex:1;background:#1a212a;border:1px solid #2f3947;border-radius:5px;
+  color:#b9c2cc;font:10.5px ui-monospace,Menlo,monospace;padding:5px 0;cursor:pointer}
+#egrCloud button:hover{border-color:#c9a84c;color:#e6d9ae}
+#egrCloud .st{margin-top:8px;color:#5d6672;font-size:10.5px}
 /* ⭐⭐ 저작자 표시 (0819Q · 39호) — 가리지 않는다. 기내에 옮겨 단다.
    ⚠⚠ 0819P 에서 창밖이 화면 전체가 되며 크레딧이 화면 오른쪽 아래로 갔는데,
       그곳은 기내 그림이 덮는다. 즉 **가려졌다.** Cesium·구글 타일 모두
@@ -1259,7 +1289,10 @@
       + (PAUSED ? " \u00b7 \uba48\ucda4" : "") + '</span>\n'
       + (warm
           ? '     <span class="dim">\u26a0 \ub370\uc6b0\ub294 \uc911 \u2014 20\ucd08 \uc9c0\ub09c \ub4a4\uc5d0 \ubcf4\uc2ed\uc2dc\uc624</span>'
-          : '     <span class="dim">\uad6c\ub984 \uc5c6\uc74c \u00b7 \ub204\ub974\uba74 \ub2e4\uc2dc \uc7ac\uae30</span>');
+          : '     <span class="dim">' + (CLOUDS && CL.length
+              ? '\uad6c\ub984 ' + CL.length + '\ub5a8\uae30 \u00b7 ' + cloudCount() + '\ub369\uc774'
+              : '\uad6c\ub984 \uaebc\uc9d0')
+            + ' \u00b7 \ub204\ub974\uba74 \ub2e4\uc2dc \uc7ac\uae30</span>');
   }
   function toggleFps() {
     /* ⚠ 손님에게는 아무 일도 안 일어난다 — 49호 문법 그대로다 */
@@ -1270,6 +1303,214 @@
     else if (FPSM) {
       console.log("[EG] fps \uacc4\uae30 \uaebc\ub9bc \u2014 \ucd5c\uc800 "
         + (FPSM.worst > 0 ? (1000 / FPSM.worst).toFixed(1) : "-") + "fps");
+    }
+  }
+
+  /* ══ 구름 (0820j · 51호) ═══════════════════════════════════════════
+     ⭐ 갈래 넷은 **범위**다. 씨앗이 그 안에서 한 점을 고른다.
+     ⚠ 겹쳐 쌓지 않는다 — 옆으로 모여 서고 무리 사이에 빈 하늘을 남긴다.
+     ⭐ 밑면은 해발 하나로 평평하다. 지면을 안 따라간다(그래서 봉우리가 뚫고 나온다). */
+  var CLOUD_KIND = {
+    m: { ko: "이른 아침", grp: [16, 24], puff: [5, 8],  base: [1700, 2300],
+         sz: [520, 900],  hz: [.42, .60], gap: [1.5, 2.2], br: [.72, .88], sl: [.30, .42],
+         tint: "#eaf0f7" },
+    d: { ko: "한낮",     grp: [22, 32], puff: [6, 10], base: [2100, 2800],
+         sz: [700, 1300], hz: [.55, .85], gap: [1.6, 2.4], br: [.95, 1.12], sl: [.34, .48],
+         tint: "#ffffff" },
+    e: { ko: "저녁",     grp: [14, 22], puff: [5, 9],  base: [2400, 3200],
+         sz: [900, 1700], hz: [.65, 1.05], gap: [1.8, 2.8], br: [.60, .80], sl: [.32, .46],
+         tint: "#ffd7b4" },
+    n: { ko: "한밤",     grp: [7, 12],   puff: [3, 6],  base: [1800, 2500],
+         sz: [600, 1100], hz: [.38, .58], gap: [1.6, 2.4], br: [.16, .28], sl: [.28, .40],
+         tint: "#cfd8e6" }
+  };
+  var RCODE = "";                /* 지금 노선 코드 — 씨앗이 쓴다. enter 가 채운다 */
+  var CL_R = 42;                 /* km — 구름 상자 반지름. 뒤로 이만큼 빠지면 앞으로 옮긴다 */
+  var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때 반드시 remove */
+  var CL = [];                   /* 떨기 장부 */
+  var CLON = true, clIdx = 0, clT = 0, clKind = "", clRnd = null;
+  /* ⭐ 손잡이 넷 — 이것만 저장한다. 범위표는 코드가 쥔다(41호 ㉬ — 편집값에 설계값 금지) */
+  var CLD = { den: 1.0, siz: 1.0, hgt: 1.0, brt: 1.0 };
+
+  /* 씨앗 — 노선 + 그날 + 세 시간 띠. 하루에 여덟 하늘이 된다 */
+  function clSeed(code, hour) {
+    var d = new Date();
+    var day = d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+    var band = Math.floor((((hour % 24) + 24) % 24) / 3);
+    var str = (code || "?") + "|" + day + "|" + band, h = 2166136261 >>> 0, i;
+    for (i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    return h >>> 0;
+  }
+  function mkRand(seed) {          /* mulberry32 — 짧고 고르다 */
+    var a = seed >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function rng(r, a) { return a[0] + (a[1] - a[0]) * r(); }
+  function rint(r, a) { return Math.round(rng(r, a)); }
+  /* km·방위 → 위경도. ⚠ 경도는 위도의 코사인으로 눌러야 한다(0819 항로도와 같은 셈) */
+  function offLL(lat, lon, km, brg) {
+    var b = brg * Math.PI / 180;
+    var cs = Math.max(0.2, Math.cos(lat * Math.PI / 180));
+    return [lat + (km / 111.32) * Math.cos(b), lon + (km / (111.32 * cs)) * Math.sin(b)];
+  }
+  function themeKey(hour) {
+    if (hour < 5 || hour >= 20) return "n";
+    if (hour < 9) return "m";
+    if (hour < 17) return "d";
+    return "e";
+  }
+  /* 떨기 하나를 (lat,lon) 에 다시 앉힌다 — ⭐ 지우고 새로 만들지 않고 **옮기기만** 한다 */
+  function clPlace(g, lat, lon) {
+    var K = CLOUD_KIND[clKind] || CLOUD_KIND.d, r = g.r;
+    g.lat = lat; g.lon = lon;
+    var spread = g.w * rng(r, K.gap) * CLD.siz / 1000;   /* km */
+    for (var i = 0; i < g.p.length; i++) {
+      var a = r() * 360, d = spread * Math.sqrt(r());
+      var ll = offLL(lat, lon, d, a);
+      /* ⭐ 바깥일수록 작게 — 무리가 가운데가 두툼한 한 덩어리로 읽힌다 */
+      var f = 1 - 0.42 * (spread > 0 ? d / spread : 0);
+      var w = g.w * CLD.siz * f, h = w * rng(r, K.hz) * CLD.hgt;
+      var pf = g.p[i];
+      /* ⚠⚠ 밑면 평평 — 아래끝을 base 에 맞춘다. 그래서 중심은 base + h/2 다 */
+      pf.position = Cesium.Cartesian3.fromDegrees(ll[1], ll[0], g.base + h / 2);
+      pf.scale = new Cesium.Cartesian2(w, h);
+      pf.maximumSize = new Cesium.Cartesian3(w / 2, h / 2, w * 0.34);
+    }
+  }
+  function cloudsBuild() {
+    cloudsOff();
+    if (!viewer || !CLON) return;
+    if (!Cesium.CloudCollection) { console.warn("[EG] 이 Cesium 판에는 CloudCollection 이 없습니다"); return; }
+    var s0 = SINFO; if (!s0) return;
+    var hour = (new Date().getUTCHours() + new Date().getUTCMinutes() / 60 + (s0.lon || 0) / 15 + 24) % 24;
+    clKind = PREVIEW || themeKey(hour);
+    var K = CLOUD_KIND[clKind], r = mkRand(clSeed(RCODE, hour));
+    clRnd = r;
+    try {
+      CLOUDS = viewer.scene.primitives.add(new Cesium.CloudCollection({ noiseDetail: 16.0 }));
+    } catch (e) { console.warn("[EG] 구름을 못 세웠습니다:", e); CLOUDS = null; return; }
+    var tint = null;
+    try { tint = Cesium.Color.fromCssColorString(K.tint); } catch (e) { }
+    var nGrp = Math.max(1, Math.round(rint(r, K.grp) * CLD.den));
+    /* ⚠ 그물 — 손잡이를 끝까지 밀면 700덩이가 넘는다. 화면이 죽는 곳은 안 보여 준다 */
+    var CAP = 480, made = 0;
+    var baseH = rng(r, K.base) * CLD.hgt;
+    for (var i = 0; i < nGrp; i++) {
+      var g = { r: mkRand((clSeed(RCODE, hour) + i * 2654435761) >>> 0),
+                w: rng(r, K.sz), base: baseH + (r() - 0.5) * 160, p: [] };
+      var np = rint(g.r, K.puff);
+      if (made + np > CAP) break;
+      made += np;
+      for (var j = 0; j < np; j++) {
+        var o = { position: Cesium.Cartesian3.ZERO,
+                  scale: new Cesium.Cartesian2(1, 1),
+                  maximumSize: new Cesium.Cartesian3(1, 1, 1),
+                  slice: rng(g.r, K.sl),
+                  brightness: rng(g.r, K.br) * CLD.brt };
+        if (tint) o.color = tint;
+        g.p.push(CLOUDS.add(o));
+      }
+      /* 첫 뿌리기 — 상자 안 아무 곳. ⭐ 발밑 3km 안에는 안 놓는다(창을 통째로 덮는다) */
+      var d0 = 3 + (CL_R - 3) * Math.sqrt(g.r());
+      var ll0 = offLL(s0.lat, s0.lon, d0, g.r() * 360);
+      clPlace(g, ll0[0], ll0[1]);
+      CL.push(g);
+    }
+    clIdx = 0;
+    console.log("[EG] 구름 " + CL.length + "떨기 · " + cloudCount() + "덩이 — "
+      + K.ko + " · 씨앗 " + clSeed(RCODE, hour));
+    cloudSay();
+  }
+  function cloudCount() { var n = 0, i; for (i = 0; i < CL.length; i++) n += CL[i].p.length; return n; }
+  function cloudsOff() {
+    if (CLOUDS && viewer) {
+      /* ⚠⚠ 방 전용이다. 안 걷으면 terra 하늘에 남아 집·핀 위를 떠다닌다 */
+      try { viewer.scene.primitives.remove(CLOUDS); } catch (e) { }
+    }
+    CLOUDS = null; CL = []; clIdx = 0;
+  }
+  /* ⭐ 41호 ㉧ — 한 프레임에 **한 떨기씩** 돌아가며 살핀다. 몰아 옮기지 않는다 */
+  function cloudTick(now) {
+    if (!CLOUDS || !CL.length || !SINFO) return;
+    if (now - clT < 120) return; clT = now;
+    var g = CL[clIdx]; clIdx = (clIdx + 1) % CL.length;
+    var s2 = SINFO;
+    var cs = Math.max(0.2, Math.cos(s2.lat * Math.PI / 180));
+    var dy = (g.lat - s2.lat) * 111.32, dx = (g.lon - s2.lon) * 111.32 * cs;
+    if (dx * dx + dy * dy <= CL_R * CL_R) return;      /* 아직 상자 안이다 */
+    /* 앞쪽 반원으로 옮긴다 — 뒤로 빠진 떨기가 앞에서 다시 다가온다 */
+    var brg = (s2.hd || 0) + (g.r() - 0.5) * 150;
+    var d2 = CL_R * (0.72 + 0.28 * g.r());
+    var ll = offLL(s2.lat, s2.lon, d2, brg);
+    clPlace(g, ll[0], ll[1]);
+  }
+
+  /* ── 조절판 (G) — ⚠ 관리자만. 재면서 밀 수 있어야 소로가 정하신다 ── */
+  var CLDEL = null;
+  var CL_BARS = [["den", "빽빽함", .2, 2.2, .05], ["siz", "크기", .4, 2.2, .05],
+                 ["hgt", "높이", .5, 1.8, .05], ["brt", "밝기", .3, 1.6, .05]];
+  function cloudSay() {
+    if (!CLDEL) return;
+    var i = CLDEL.querySelector(".st");
+    if (i) i.textContent = CLON
+      ? (CLOUD_KIND[clKind] ? CLOUD_KIND[clKind].ko + " · " : "")
+        + CL.length + "떨기 · " + cloudCount() + "덩이"
+      : "꺼짐";
+    CL_BARS.forEach(function (b) {
+      var el = CLDEL.querySelector('[data-v="' + b[0] + '"]');
+      if (el) el.textContent = CLD[b[0]].toFixed(2);
+    });
+  }
+  function mountCloudPanel() {
+    if (!ROOT || CLDEL) return;
+    CLDEL = document.createElement("div");
+    CLDEL.id = "egrCloud";
+    CLDEL.innerHTML = '<div class="hd">구름 <i>G</i></div>'
+      + CL_BARS.map(function (b) {
+          return '<label><span>' + b[1] + '</span>'
+            + '<input type="range" data-k="' + b[0] + '" min="' + b[2] + '" max="' + b[3]
+            + '" step="' + b[4] + '" value="' + CLD[b[0]] + '"><b data-v="' + b[0] + '">'
+            + CLD[b[0]].toFixed(2) + '</b></label>';
+        }).join("")
+      + '<div class="st"></div>'
+      + '<div class="row"><button data-a="re">다시 뿌리기</button>'
+      + '<button data-a="off">끄기</button></div>';
+    ROOT.appendChild(CLDEL);
+    EGR_on(CLDEL, "input", function (e) {
+      var k = e.target && e.target.getAttribute("data-k"); if (!k) return;
+      CLD[k] = +e.target.value;
+      cloudSay();
+      /* ⚠ 미는 동안 매번 다시 세우면 손이 무겁다 — 손을 뗀 뒤 250ms 에 한 번 */
+      clearTimeout(CLDEL.__t);
+      CLDEL.__t = setTimeout(function () { cloudsBuild(); saveTuneSoon(); }, 250);
+    });
+    EGR_on(CLDEL, "click", function (e) {
+      var a = e.target && e.target.getAttribute("data-a"); if (!a) return;
+      if (a === "re") { cloudsBuild(); }
+      else { CLON = false; cloudsOff(); cloudSay(); toggleCloudPanel(false); }
+    });
+  }
+  /* ⭐ 미리보기(T)로 조명을 돌리면 구름 갈래도 함께 돈다 — 자를 대는 일이지 하늘을 꾸미는 게 아니다 */
+  function cloudRekind() {
+    if (!CLOUDS || !SINFO) return;
+    var d = new Date();
+    var hour = (d.getUTCHours() + d.getUTCMinutes() / 60 + (SINFO.lon || 0) / 15 + 24) % 24;
+    var want = PREVIEW || themeKey(hour);
+    if (want !== clKind) cloudsBuild();
+  }
+  function toggleCloudPanel(on) {
+    if (!ROOT || !IS_ADMIN) return;          /* ⚠ 손님에게는 아무 일도 안 일어난다(49호) */
+    var want = (on === undefined) ? !ROOT.classList.contains("cld") : !!on;
+    ROOT.classList.toggle("cld", want);
+    if (want) {
+      mountCloudPanel();
+      if (!CLON) { CLON = true; cloudsBuild(); }
+      cloudSay();
     }
   }
 
@@ -1349,7 +1590,9 @@
      새 설계(880×580)를 덮어 아래단이 화면 밖으로 나갔다. */
   function tuneNow() {
     return { GL: GRIP_L, GR: GRIP_R, EL: ENG_L, ER: ENG_R,
-             MON: { tl: MON.tl, tr: MON.tr, br: MON.br, bl: MON.bl } };
+             MON: { tl: MON.tl, tr: MON.tr, br: MON.br, bl: MON.bl },
+             /* ⭐ 0820j — 구름 손잡이 넷. ⚠ 배율만 적는다. 갈래 범위표는 코드가 쥔다 */
+             CLD: { den: CLD.den, siz: CLD.siz, hgt: CLD.hgt, brt: CLD.brt } };
   }
   function applyTune(v) {
     if (!v) return;
@@ -1367,6 +1610,11 @@
     /* ⚠⚠ w·h 는 읽지 않는다 — 이미 저장된 헌 값(620×424)이 서버에 남아 있고,
        그것이 0819V 의 화면을 반토막 냈다. 원판 크기는 설계가 정한다. */
     if (v.MON && v.MON.tl) { MON.tl = v.MON.tl; MON.tr = v.MON.tr; MON.br = v.MON.br; MON.bl = v.MON.bl; }
+    /* ⭐ 0820j — 넷 다 수(數)이고 범위 안일 때만 읽는다. 모양이 다르면 안 읽는다 */
+    if (v.CLD) CL_BARS.forEach(function (b) {
+      var x = v.CLD[b[0]];
+      if (typeof x === "number" && isFinite(x) && x >= b[2] && x <= b[3]) CLD[b[0]] = x;
+    });
   }
   function pushTune() {
     try { localStorage.setItem("eg_reading_tune", JSON.stringify(tuneNow())); } catch (e) { }
@@ -1688,7 +1936,8 @@
     var local = (utc + (lon || 0) / 15 + 24) % 24;          /* 태양시 어림 */
     /* ⭐ 편집기 미리보기가 켜져 있으면 그것이 이긴다 — 편집 중에만 값이 든다 */
     var f = PREVIEW ? CABIN[PREVIEW] : cabinFor(local);
-    setTheme(f);                                            /* ⭐ 모니터 테마도 한 값으로 */
+    setTheme(f);
+    cloudRekind();                                          /* ⭐ 0820j — 갈래도 한 값으로 */                                            /* ⭐ 모니터 테마도 한 값으로 */
     if (plate.__f === f) return;
     if (!plate.__f || !pb) {                                /* 첫 그림 — 그냥 앉힌다 */
       plate.__f = f; plate.style.backgroundImage = "url(" + f + ")";
@@ -2853,6 +3102,7 @@ function paintBook() {
       else if (k === "s") toggleShade();
       else if (k === "e") setEdit(!editing);
       else if (k === "f") toggleFps();        /* ⭐ 0820i — 관리자만 */
+      else if (k === "g") toggleCloudPanel();  /* ⭐ 0820j — 관리자만 */
       else if (k === "arrowleft") swapSeat(-1);
       else if (k === "arrowright") swapSeat(+1);
     });
@@ -2921,6 +3171,7 @@ function paintBook() {
     setChannel(CH, true);            /* ⚠ 첫 탑승은 곧장 — 방송이 시간을 이미 준다 */
     playAnnounce();                  /* 방송 → 끝나면 고른 갈래로 (0817·0819R 문법) */
 
+    RCODE = route.code || "";        /* ⭐ 0820j — 씨앗이 노선을 본다 */
     var hudT = 0;                    /* ⚠ #hud 는 0819R 에 걷었다 — 셈 주기만 남는다 */
     /* ⭐ 나갔던 곳에서 이어 탄다 — 없으면 첫 길목. 아무 말도 안 띄운다 */
     var rz = RESUME || { seg: 0, u: 0 };   /* ⭐ enter() 가 미리 받아 둔다 */
@@ -2939,6 +3190,9 @@ function paintBook() {
            계기판을 없앤 게 아니라 제 곳으로 옮겨 앉힌 것이다. */
       }
     });
+    /* ⭐ 0820j — 첫 좌표가 든 뒤에 세운다. SINFO 가 없으면 어디에 뿌릴지를 모른다.
+       ⚠ 1.2초를 기다리는 것은 타일이 실리는 동안 구름까지 얹으면 첫 화면이 늦기 때문이다 */
+    EGR_later(function () { if (ROOT && CLON) cloudsBuild(); }, 1200);
     console.log("%c[EG] reading_room " + VERSION + " — " + route.name + " · 길목 " + route.legs.length + "점 · 끝없는 고리", "color:#c9a84c");
     return true;
   }
@@ -3003,12 +3257,14 @@ function paintBook() {
         else if (typeof window.flyToParisOverview === "function") window.flyToParisOverview();
       } catch (e) { console.warn("[EG] 집으로 못 갔습니다:", e); }
     }
+    cloudsOff();                     /* ⚠⚠ 0820j — viewer 를 놓기 **전에** 걷는다 */
     viewer = null;
     OUT = false; BARE = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
     SHUT = false; editing = false; egrab = null; IS_ADMIN = false; cvW = 0; cvH = 0; PAUSED = false;
     PREVIEW = null; themeNow = ""; RESUME = null;   /* ⚠ 다음 탑승은 진짜 시각으로 */
     try { clearTimeout(tuneT); clearTimeout(fadeT); } catch (e) { }
     FPSEL = null; FPSM = null;                 /* ⭐ 0820i */
+    CLDEL = null; RCODE = ""; clKind = ""; clT = 0;   /* ⭐ 0820j — CLON·CLD 는 남긴다 */
     MONEL = null; TAB = "info"; SINFO = null; DESK = null; RECENT = null;
     ENGEL = null; ENG_NICK = ""; ENG_SINCE = "";
     ARCH = []; DSIZE = null; NICK = "";
