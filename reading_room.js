@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0820h
+   EG독서비행 — 방(room) 판 · reading_room.js · v0820i
    2026.08.20 소로 × 파이스 · 145회차
    ⭐⭐ 0820a — 기록판을 비너스 시안 넉 벌로 다시 지었다.
      ① 색 이름을 --dk- 로 갈랐다. ⚠⚠ 모니터와 **같은 이름에 정반대 값**이기 때문이다
@@ -23,6 +23,14 @@
      창 폭 회귀로 잰 각인 구간의 벽 축소율이 0.104 다. 오른쪽이 왼쪽의 10%로 줄어드는
      벽이라, 그 원근을 글자에 그대로 주면 가는 획이 좌우로 갈려 글자가 망가진다.
      ⭐ 0820e — 균등 배율 + 회전으로 되돌린다. rot 은 창 위선 실측값 10.8°
+   ⭐⭐ 0820i — fps 계기(F). ⚠ 관리자만. **구름을 얹기 전에 기준선을 잰다.**
+     ⚠⚠ 0819 「틱틱틱」은 **평균으로 안 잡혔다.** 아홉 발을 한 프레임에 몰아 쏘아
+        1초에 한두 번만 늦었는데 평균 fps 는 58 언저리로 멀쩡했다.
+     ⭐ 그래서 셋을 함께 본다 — 평균 · 최악 1% · 이 비행에서 가장 느렸던 한 프레임.
+        평균만 보면 구름을 얹고도 「멀쩡합니다」라고 말하게 된다.
+     ⚠ 손님에게는 F 가 아무 일도 안 한다(0820h 49호 문법 그대로).
+     ⚠ 첫 서른 프레임과 20초는 안 믿는다 — 타일이 실리는 동안이다.
+
    ⚠ 판번호는 아래 VERSION 하나가 정본이다. 0819e 까지 이 줄이 a 로 남아 있었다 —
      「적어 두는 것과 읽는 것은 다른 일」의 표본. 고칠 때 둘을 함께 올린다.
 
@@ -68,7 +76,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0820h";
+  var VERSION = "0820i";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -347,7 +355,10 @@
 
     var off = viewer.clock.onTick.addEventListener(function () {
       try {
-        var now = performance.now(), dt = Math.min((now - tp) / 1000, 0.25); tp = now;
+        var now = performance.now(), rawMs = now - tp;
+        var dt = Math.min(rawMs / 1000, 0.25); tp = now;
+        /* ⭐ 0820i — 재고 있는 값을 주워 담기만 한다. 새로 재지 않는다 */
+        fpsTick(rawMs); fpsPaint(now);
         /* ⭐⭐ 0819T 일시정지 — 창밖이 그 지점에 선다.
            ⚠⚠ tp 를 **매 프레임 계속 밀어야 한다.** 멈춘 동안 tp 를 안 고치면
               재개하는 순간 dt 가 몇 분치로 부풀어 비행기가 순간이동한다.
@@ -519,6 +530,17 @@
 #readingRoom.edit #readingTune{display:block}
 #readingTune b{color:#e6d9ae;font-weight:normal}
 #readingTune .sv{color:#c9a84c;font-size:11px}
+/* ⭐ fps 계기 (0820i) — 관리자만. 편집기(왼쪽 아래)와 안 겹치게 왼쪽 위에 둔다.
+   ⚠ 밖(C)·감추기(V) 에서도 살아 있어야 한다 — 가장 무거운 곳이 바로 거기다 */
+#egrFps{position:fixed;left:18px;top:18px;z-index:27;display:none;pointer-events:auto;
+  cursor:pointer;background:rgba(10,13,18,.90);border:1px solid #2a323f;border-radius:7px;
+  padding:9px 13px;color:#8f9aa6;white-space:pre;letter-spacing:.02em;
+  font:11px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+#readingRoom.fps #egrFps{display:block}
+#egrFps b{color:#e6d9ae;font-weight:normal}
+#egrFps .w{color:#c9a84c}
+#egrFps .bad{color:#e0866a}
+#egrFps .dim{color:#5d6672}
 /* ⭐⭐ 저작자 표시 (0819Q · 39호) — 가리지 않는다. 기내에 옮겨 단다.
    ⚠⚠ 0819P 에서 창밖이 화면 전체가 되며 크레딧이 화면 오른쪽 아래로 갔는데,
       그곳은 기내 그림이 덮는다. 즉 **가려졌다.** Cesium·구글 타일 모두
@@ -901,6 +923,12 @@
     var tn = document.createElement("div");
     tn.id = "readingTune";
     ROOT.appendChild(tn);
+    /* ⭐ fps 계기 (0820i) — 방(ROOT) 안이라 KEEP 을 안 늘린다 */
+    FPSEL = document.createElement("div");
+    FPSEL.id = "egrFps";
+    FPSEL.title = "\ub204\ub974\uba74 \ub2e4\uc2dc \uc7ac\uae30 (F \ub85c \uc5ec\ub2eb\uae30)";
+    ROOT.appendChild(FPSEL);
+    EGR_on(FPSEL, "click", function () { fpsReset(); });
   }
 
   /* ══ 판 세우기 ═══════════════════════════════════════════════
@@ -1187,6 +1215,62 @@
     ROOT.classList.toggle("shut", SHUT);
     var g = ROOT.querySelector("#readingGrip");
     if (g) g.setAttribute("data-tip", SHUT ? "창 열기" : "창 닫기");
+  }
+
+  /* ══ fps 계기 (0820i) ══════════════════════════════════════════════
+     ⚠⚠ 왜 짓나 — 구름은 「무거워졌다」를 눈으로 못 잰다. 기준선이 없으면
+        덩이 수도 개수도 말로만 정하게 된다. 재고 짓는다.
+     ⭐ 최악 1% 를 함께 본다. 0819 딸꾹이 평균으로 안 잡힌 것이 그 까닭이다.
+     ⚠ 값비싼 손을 안 쓴다 — 이미 재고 있는 프레임 간격을 주워 담기만 한다(41호 ㉧). */
+  var FPSEL = null, FPSM = null;
+  function fpsReset() {
+    FPSM = { ring: [], cap: 180, worst: 0, cnt: 0, t0: performance.now(), say: 0 };
+  }
+  function fpsTick(ms) {
+    if (!FPSM) return;
+    /* ⚠ 탭이 숨었다 돌아오면 몇 초짜리 프레임이 찍힌다. 그건 우리 셈이 아니다 */
+    if (!(ms > 0.2 && ms < 500)) return;
+    var r = FPSM.ring;
+    r.push(ms); if (r.length > FPSM.cap) r.shift();
+    FPSM.cnt++;
+    /* ⚠ 첫 서른 프레임은 버린다 — 방이 서고 타일이 실리는 동안이다 */
+    if (FPSM.cnt > 30 && ms > FPSM.worst) FPSM.worst = ms;
+  }
+  function fpsPaint(now) {
+    if (!FPSM || !FPSEL || !ROOT || !ROOT.classList.contains("fps")) return;
+    if (now - FPSM.say < 250) return;      /* 4초에 한 번이 아니라 1초에 네 번이면 넉넉하다 */
+    FPSM.say = now;
+    var r = FPSM.ring; if (r.length < 10) return;
+    var s2 = r.slice().sort(function (a, b) { return a - b; });
+    var mean = 0, i; for (i = 0; i < s2.length; i++) mean += s2[i];
+    mean /= s2.length;
+    var p99 = s2[Math.max(0, Math.round(s2.length * 0.99) - 1)];
+    var F = function (ms) { return ms > 0 ? (1000 / ms).toFixed(1) : "\u2014"; };
+    var sec = Math.round((now - FPSM.t0) / 1000);
+    var mm = Math.floor(sec / 60), ss = sec % 60;
+    var warm = sec < 20;
+    var badp = (p99 > 1000 / 30), badw = (FPSM.worst > 1000 / 24);
+    FPSEL.innerHTML =
+        '<b>fps</b>  \ud3c9\uade0 ' + F(mean)
+      + '   \ucd5c\uc545 1% <span class="' + (badp ? "bad" : "w") + '">' + F(p99) + '</span>\n'
+      + '     \ucd5c\uc800 <span class="' + (badw ? "bad" : "w") + '">' + F(FPSM.worst) + '</span>'
+      + '   ' + (mm ? mm + "\ubd84 " : "") + ss + '\ucd08'
+      + '   <span class="dim">' + (OUT ? "\ubc16(C)" : "\uae30\ub0b4")
+      + (PAUSED ? " \u00b7 \uba48\ucda4" : "") + '</span>\n'
+      + (warm
+          ? '     <span class="dim">\u26a0 \ub370\uc6b0\ub294 \uc911 \u2014 20\ucd08 \uc9c0\ub09c \ub4a4\uc5d0 \ubcf4\uc2ed\uc2dc\uc624</span>'
+          : '     <span class="dim">\uad6c\ub984 \uc5c6\uc74c \u00b7 \ub204\ub974\uba74 \ub2e4\uc2dc \uc7ac\uae30</span>');
+  }
+  function toggleFps() {
+    /* ⚠ 손님에게는 아무 일도 안 일어난다 — 49호 문법 그대로다 */
+    if (!ROOT || !IS_ADMIN) return;
+    var on = !ROOT.classList.contains("fps");
+    ROOT.classList.toggle("fps", on);
+    if (on) { fpsReset(); }
+    else if (FPSM) {
+      console.log("[EG] fps \uacc4\uae30 \uaebc\ub9bc \u2014 \ucd5c\uc800 "
+        + (FPSM.worst > 0 ? (1000 / FPSM.worst).toFixed(1) : "-") + "fps");
+    }
   }
 
   /* ══ 편집기 (0819P) — 베스페르 문법 그대로 ═════════════════════════
@@ -2768,6 +2852,7 @@ function paintBook() {
       else if (k === "r") toStart();          /* ⭐ 0820g — 출발점으로 */
       else if (k === "s") toggleShade();
       else if (k === "e") setEdit(!editing);
+      else if (k === "f") toggleFps();        /* ⭐ 0820i — 관리자만 */
       else if (k === "arrowleft") swapSeat(-1);
       else if (k === "arrowright") swapSeat(+1);
     });
@@ -2923,6 +3008,7 @@ function paintBook() {
     SHUT = false; editing = false; egrab = null; IS_ADMIN = false; cvW = 0; cvH = 0; PAUSED = false;
     PREVIEW = null; themeNow = ""; RESUME = null;   /* ⚠ 다음 탑승은 진짜 시각으로 */
     try { clearTimeout(tuneT); clearTimeout(fadeT); } catch (e) { }
+    FPSEL = null; FPSM = null;                 /* ⭐ 0820i */
     MONEL = null; TAB = "info"; SINFO = null; DESK = null; RECENT = null;
     ENGEL = null; ENG_NICK = ""; ENG_SINCE = "";
     ARCH = []; DSIZE = null; NICK = "";
