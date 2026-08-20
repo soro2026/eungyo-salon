@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0820c
+   EG독서비행 — 방(room) 판 · reading_room.js · v0820d
    2026.08.20 소로 × 파이스 · 145회차
    ⭐⭐ 0820a — 기록판을 비너스 시안 넉 벌로 다시 지었다.
      ① 색 이름을 --dk- 로 갈랐다. ⚠⚠ 모니터와 **같은 이름에 정반대 값**이기 때문이다
@@ -19,6 +19,11 @@
      ⭐ 닉네임 글자로 저절로 갈린다: 한글 「~ 전용기」 / 영문 「~ private jet」
      ⭐ 날짜는 users.created_at (실측: 17명 전원 있음). 없으면 이름만 새긴다
      ⭐ 좌·우 벽을 따로 둔다 — 거울 셈을 안 쓰므로 0819 ㉪ 를 구조적으로 안 밟는다
+   ⭐ 0820d — 각인을 **네 점 사영변환**으로 바꿨다(소로).
+     ⚠ rot+skewX 는 평면 안에서 눕히는 셈이라 소실점으로 안 모인다. 벽에 안 눕는다
+     ⭐ 모니터가 쓰는 homography 를 그대로 쓴다 — 새로 지을 셈이 없었다
+     ⭐ 모서리 손잡이 넷(.egEngCorner) · 가운데를 끌면 넷이 함께 · 휠 = 글자 크기
+     ⚠ 서버에 남은 옛 모양(x/y/rot/skew)은 안 읽는다 — 네 점이 다 있을 때만
    ⚠ 판번호는 아래 VERSION 하나가 정본이다. 0819e 까지 이 줄이 a 로 남아 있었다 —
      「적어 두는 것과 읽는 것은 다른 일」의 표본. 고칠 때 둘을 함께 올린다.
 
@@ -64,7 +69,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0820c";
+  var VERSION = "0820d";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -564,8 +569,9 @@
    ⭐ 좌·우 벽을 따로 둔다(ENG_L·ENG_R). 거울 셈을 아예 안 쓰므로
      0819 ㉪(모서리 짝을 안 바꿔 글이 거울이 된 것)를 구조적으로 안 밟는다.
    ⚠ 밖(C)에서는 감춘다 — 기내 벽이다. */
-#egrEng{position:absolute;z-index:6;pointer-events:none;white-space:nowrap;
-  transform-origin:0 50%;user-select:none;-webkit-user-select:none;
+#egrEng{position:absolute;left:0;top:0;z-index:6;pointer-events:none;white-space:nowrap;
+  width:900px;height:210px;transform-origin:0 0;user-select:none;-webkit-user-select:none;
+  display:flex;flex-direction:column;justify-content:center;
   font-family:'Noto Sans KR','Helvetica Neue',sans-serif;font-weight:300;
   color:var(--eng-ink,rgba(255,228,180,.82));
   text-shadow:0 1px 0 var(--eng-dn,rgba(255,225,180,.16)),
@@ -575,7 +581,16 @@
 #egrEng .d{display:block;margin-top:.42em;font-size:.5em;letter-spacing:.34em;opacity:.72}
 #readingRoom.out #egrEng,#readingRoom.bare #egrEng{display:none}
 #readingRoom.edit #egrEng{pointer-events:auto;cursor:move;
-  outline:1px dashed rgba(255,255,255,.4);outline-offset:6px}
+  outline:1px dashed rgba(255,255,255,.35)}
+/* ⭐ 각인 모서리 손잡이 — 모니터 것과 갈래를 나눈다(선택자가 겹치면 서로를 끈다) */
+.egEngCorner{display:none;position:fixed;z-index:19;width:20px;height:20px;
+  margin:-10px 0 0 -10px;border-radius:50%;cursor:grab;
+  border:2px solid rgba(255,235,190,.9);background:rgba(120,90,40,.45)}
+#readingRoom.edit .egEngCorner{display:block}
+.egEngCorner:hover{background:rgba(240,223,180,.55);transform:scale(1.15)}
+.egEngCorner::after{content:attr(data-k);position:absolute;left:50%;top:120%;
+  transform:translateX(-50%);font:700 10px Tahoma,sans-serif;color:#ffe9c0;
+  text-shadow:0 1px 3px #000}
 /* ⭐ 감추기 — 밖에서만 나타난다. 누르면 판 둘이 함께 걷히고 창밖만 남는다(0820 소로) */
 #readingHide{position:fixed;right:22px;top:74px;z-index:26;display:none;
   width:38px;height:38px;border-radius:10px;cursor:pointer;line-height:1;
@@ -886,6 +901,12 @@
     ENGEL = document.createElement("div");
     ENGEL.id = "egrEng";
     ROOT.appendChild(ENGEL);
+    MON_KEYS.forEach(function (k) {
+      var hh = document.createElement("div");
+      hh.className = "egEngCorner"; hh.setAttribute("data-k", k);
+      hh.title = "각인 " + MON_KO[k] + " 모서리";
+      ROOT.appendChild(hh);
+    });
     loadEngrave();
     /* ⭐ 창 덮개 손잡이 — 그림 속 그것 위. 방(ROOT) 안이라 KEEP 을 안 늘린다 */
     var gp = document.createElement("div");
@@ -951,8 +972,13 @@
   var PLAQUE = { x: 4.2, y: 64.5 };
   /* ⭐ 벽 각인 (0820c 소로) — 1번·2번 창 사이 위쪽. 좌·우 벽 따로.
      ⚠ 처음 값은 어림이다. 소로가 E 편집기로 맞춰 저장하시면 서버 값이 이깁니다. */
-  var ENG_L = { x: 30.0, y: 20.0, rot: -3.0, skew: -8.0, size: 1.55 };
-  var ENG_R = { x: 30.0, y: 20.0, rot: -3.0, skew: -8.0, size: 1.55 };
+  /* ⚠⚠ 0820d — rot+skewX 를 버렸다. **평면 안에서 눕히는 셈이라 소실점으로 안 모인다**(소로).
+     ⭐ 모니터가 쓰는 네 점 사영변환을 그대로 쓴다 — 벽이 멀어지는 쪽 모서리를 좁히면
+       글자가 저절로 그 평면에 눕는다. 부품이 이미 서 있어 새로 지을 셈이 없다.
+     ⚠⚠ 원판(ENG_W×ENG_H)은 **설계값**이다. 편집값과 한 그릇에 안 담는다 — 0819W 사고. */
+  var ENG_W = 900, ENG_H = 210;
+  var ENG_L = { tl: [27, 2], tr: [78, 12], br: [78, 30], bl: [27, 22], fs: 78 };
+  var ENG_R = { tl: [27, 2], tr: [78, 12], br: [78, 30], bl: [27, 22], fs: 78 };
   function ENG() { return side < 0 ? ENG_L : ENG_R; }
   var ENGEL = null, ENG_NICK = "", ENG_SINCE = "";
   /* ⭐ 조명 넉 벌 — 밝은 벽에서는 파인 자국, 어두운 벽에서는 빛 받은 글자.
@@ -1046,6 +1072,21 @@
       ? { n: nick + " 전용기", d: d ? d : "" }
       : { n: nick + " private jet", d: d ? ("since " + d) : "" };
   }
+  /* ⚠ 원판이 900px 인데 닉네임 길이는 손님마다 다르다. 넘치면 조용히 줄인다.
+     ⭐ 41호 ㉭ 문법 — 셈으로 짐작하지 않고 **실측**해서 잰다. */
+  function fitEngrave() {
+    if (!ENGEL) return;
+    var EN = ENG();
+    ENGEL.style.fontSize = EN.fs + "px";
+    var n = ENGEL.querySelector(".n"); if (!n) return;
+    var over = n.scrollWidth - (ENG_W - 40);
+    if (over > 0) {
+      var k = (ENG_W - 40) / n.scrollWidth;
+      ENGEL.style.fontSize = Math.max(14, EN.fs * k) + "px";
+      console.log("[EG] 각인이 원판을 " + Math.round(over) + "px 넘쳐 " +
+                  Math.round(k * 100) + "% 로 줄였습니다");
+    }
+  }
   function paintEngrave() {
     if (!ENGEL) return;
     var t = engraveText(ENG_NICK, ENG_SINCE);
@@ -1053,8 +1094,10 @@
       ? '<span class="n">' + esc(t.n) + '</span>'
         + (t.d ? '<span class="d">' + esc(t.d) + '</span>' : "")
       : "";
-    ENGEL.style.display = t ? "" : "none";
-    if (ROOT) layout();
+    ENGEL.style.display = t ? "" : "flex";
+    if (!t) ENGEL.style.display = "none";
+    if (ROOT) { layout(); /* ⚠ 글꼴이 실린 뒤에 재야 실측이 맞는다 */
+                EGR_later(fitEngrave, 700); }
   }
   function loadEngrave() {
     var sb = egr_sb(); if (!sb || !sb.auth) return;
@@ -1135,7 +1178,8 @@
     if (!el || !el.closest) return null;
     if (el.closest(".egrCorner")) return "corner";   /* ⭐ 모서리가 먼저 — 모니터 위에 얹혀 있다 */
     if (el.closest("#readingGrip")) return "grip";
-    if (el.closest("#egrEng")) return "eng";      /* ⭐ 0820c — 벽 각인 */
+    if (el.closest(".egEngCorner")) return "engcorner";   /* ⭐ 모서리가 먼저 */
+    if (el.closest("#egrEng")) return "eng";              /* ⭐ 0820c — 벽 각인 */
     if (el.closest("#egrMon")) return "mon";
     return null;
   }
@@ -1174,7 +1218,8 @@
       + '⭐ <b>모서리 넷</b>을 하나씩 끌어 짙은 베젤 안쪽에 맞추십시오.<br>'
       + '&nbsp;&nbsp;모서리 위 <b>휠</b> = 위아래 0.05% · <b>Shift+휠</b> = 좌우<br>'
       + '&nbsp;&nbsp;모니터 가운데를 끌면 넷이 함께 · 그 위 휠 = 크기<br>'
-      + '⭐ <b>벽 각인</b>을 끌어 옮기고 &mdash; 휠 = 크기 · Shift+휠 = 회전 · Alt+휠 = 기울기<br>'
+      + '⭐ <b>벽 각인</b> &mdash; 모서리 넷을 끌어 벽 평면에 맞춥니다(멀어지는 쪽을 좁히면 원근)<br>'
+      + '&nbsp;&nbsp;가운데를 끌면 넷이 함께 · 그 위 <b>휠</b> = 글자 크기<br>'
       + '&nbsp;&nbsp;<b>&larr; &rarr;</b> 로 좌석을 바꾸면 <b>반대쪽 벽</b>을 따로 맞춥니다<br>'
       + '<b>T</b> — 조명 미리보기 · 지금 '
       + (PREVIEW ? '<span class="sv">' + THEME_KO[PREVIEW] + '</span>' : '진짜 시각')
@@ -1195,8 +1240,12 @@
     if (!v) return;
     if (v.GL) GRIP_L = v.GL;
     if (v.GR) GRIP_R = v.GR;
-    if (v.EL) ENG_L = v.EL;
-    if (v.ER) ENG_R = v.ER;      /* ⭐ 0820c — 좌·우 벽 각인 */
+    /* ⚠⚠ 0820d — 각인 좌표의 **모양이 바뀌었다**(x/y/rot/skew → 네 점).
+       서버에 남은 옛 모양을 그대로 읽으면 tl 이 undefined 라 변환이 통째로 깨진다.
+       ⭐ 네 점이 다 있을 때만 읽는다. 0819W 의 「헌 값이 새 설계를 덮는다」와 같은 갈래다. */
+    function engOk(o) { return o && o.tl && o.tr && o.br && o.bl; }
+    if (engOk(v.EL)) ENG_L = v.EL;
+    if (engOk(v.ER)) ENG_R = v.ER;
     /* ⚠⚠ w·h 는 읽지 않는다 — 이미 저장된 헌 값(620×424)이 서버에 남아 있고,
        그것이 0819V 의 화면을 반토막 냈다. 원판 크기는 설계가 정한다. */
     if (v.MON && v.MON.tl) { MON.tl = v.MON.tl; MON.tr = v.MON.tr; MON.br = v.MON.br; MON.bl = v.MON.bl; }
@@ -1320,10 +1369,16 @@
        ⚠ flip 을 여기서 쓰면 글이 뒤집힌다. 각 벌이 이미 그 좌석 화면의 좌표다. */
     if (ENGEL) {
       var EN = ENG();
-      ENGEL.style.left = (cx + w * EN.x / 100) + "px";
-      ENGEL.style.top = (top + h * EN.y / 100) + "px";
-      ENGEL.style.fontSize = (w * EN.size / 100) + "px";
-      ENGEL.style.transform = "rotate(" + EN.rot + "deg) skewX(" + EN.skew + "deg)";
+      var epx = function (c) { return [cx + w * c[0] / 100, top + h * c[1] / 100]; };
+      ENGEL.style.fontSize = EN.fs + "px";
+      ENGEL.style.transform =
+        homography(ENG_W, ENG_H, [epx(EN.tl), epx(EN.tr), epx(EN.br), epx(EN.bl)]);
+      var ec = ROOT.querySelectorAll(".egEngCorner");
+      for (var ei = 0; ei < ec.length; ei++) {
+        var ek = ec[ei].getAttribute("data-k"), ep = EN[ek];
+        ec[ei].style.left = (cx + ep[0] / 100 * w) + "px";
+        ec[ei].style.top = (top + ep[1] / 100 * h) + "px";
+      }
     }
     /* 모니터 — 사다리꼴 네 점에 앉힌다(0819h). 판 % → 화면 px → matrix3d.
        ⚠ 오른창(거울)이면 x' = 100−x 에 좌·우 모서리도 서로 바뀐다 —
@@ -2691,7 +2746,9 @@ function paintBook() {
       var vw2 = window.innerWidth, vh2 = window.innerHeight, R2 = PLATE_W / PLATE_H;
       var w2 = (vw2 / vh2 < R2) ? Math.max(vh2 * R2, vw2) : vw2;
       egrab = { t: t, x: e.clientX, y: e.clientY, w: w2, h: w2 / R2, flip: (side > 0),
-                k: (t === "corner") ? e.target.closest(".egrCorner").getAttribute("data-k") : null };
+                k: (t === "corner") ? e.target.closest(".egrCorner").getAttribute("data-k")
+                   : (t === "engcorner") ? e.target.closest(".egEngCorner").getAttribute("data-k")
+                   : null };
     }, true);
     EGR_on(window, "pointermove", function (e) {
       if (!egrab) return;
@@ -2701,9 +2758,12 @@ function paintBook() {
       var px = (egrab.flip ? -dx : dx) / egrab.w * 100, py2 = dy / egrab.h * 100;
       if (egrab.t === "grip") { var GP = GRIP(); GP.x += px; GP.y += py2; }
       /* ⚠ 각인은 좌·우 벌이 따로라 거울 부호를 **안 쓴다.** dx 를 그대로 쓴다 */
-      else if (egrab.t === "eng") {
-        var EN2 = ENG();
-        EN2.x += dx / egrab.w * 100; EN2.y += py2;
+      else if (egrab.t === "eng" || egrab.t === "engcorner") {
+        /* ⚠ 각인은 좌·우 벌이 따로라 거울 부호를 **안 쓴다.** dx 를 그대로 쓴다 */
+        var EN2 = ENG(), exp2 = dx / egrab.w * 100;
+        (egrab.t === "engcorner" ? [egrab.k] : MON_KEYS).forEach(function (k3) {
+          EN2[k3][0] += exp2; EN2[k3][1] += py2;
+        });
       }
       else if (egrab.t === "corner") monMove(px, py2, egrab.k);   /* ⭐ 그 점만 */
       else monMove(px, py2);
@@ -2726,12 +2786,16 @@ function paintBook() {
         var kk2 = e.target.closest(".egrCorner").getAttribute("data-k");
         if (e.shiftKey) MON[kk2][0] += d * 0.05 * (side > 0 ? -1 : 1);
         else MON[kk2][1] -= d * 0.05;
+      } else if (t === "engcorner") {
+        /* ⭐ 모서리 위 휠 = 세로 미세 이동 0.05% · Shift+휠 = 가로 */
+        var ek2 = e.target.closest(".egEngCorner").getAttribute("data-k");
+        if (e.shiftKey) ENG()[ek2][0] += d * 0.05;
+        else ENG()[ek2][1] -= d * 0.05;
       } else if (t === "eng") {
-        /* ⭐ 휠 = 크기 · Shift+휠 = 회전 · Alt+휠 = 기울기(원근) */
+        /* ⭐ 휠 = 글자 크기(원판 안에서). 상자는 모서리 넷이 정한다 */
         var EN3 = ENG();
-        if (e.shiftKey) EN3.rot += d * 0.5;
-        else if (e.altKey) EN3.skew += d * 0.7;
-        else EN3.size = Math.max(0.4, Math.min(6, EN3.size + d * 0.04));
+        EN3.fs = Math.max(20, Math.min(190, EN3.fs + d * 3));
+        fitEngrave();
       } else monScale(1 + d * 0.02);
       layout(); tuneSay(); saveTuneSoon();
     }, { passive: false, capture: true });
