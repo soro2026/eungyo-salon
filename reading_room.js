@@ -1323,8 +1323,8 @@
     /* ⚠⚠ 0820k — 첫 판 br .16~.28 은 검은 하늘에 그냥 묻혔다(소로 「구름이 전혀 없어」).
        달빛 적운은 어둡지만 **하늘보다는 밝다** — 그 관계가 없으면 없는 것과 같다.
        base 도 올린다: 순항 3950 에서 1800m 구름은 발밑 멀리라 화면에 거의 안 든다 */
-    n: { ko: "한밤",     grp: [7, 12],  puff: [4, 7],  base: [2500, 3100],
-         sz: [700, 1300], hz: [.42, .62], gap: [1.6, 2.4], br: [.42, .58], sl: [.28, .40],
+    n: { ko: "한밤",     grp: [9, 14],  puff: [4, 7],  base: [2700, 3300],
+         sz: [900, 1700], hz: [.42, .62], gap: [1.6, 2.4], br: [.42, .58], sl: [.28, .40],
          tint: "#dfe6f2" }
   };
   var RCODE = "";                /* 지금 노선 코드 — 씨앗이 쓴다. enter 가 채운다 */
@@ -1418,9 +1418,15 @@
         if (tint) o.color = tint;
         g.p.push(CLOUDS.add(o));
       }
-      /* 첫 뿌리기 — 상자 안 아무 곳. ⭐ 발밑 3km 안에는 안 놓는다(창을 통째로 덮는다) */
-      var d0 = 3 + (CL_R - 3) * Math.sqrt(g.r());
-      var ll0 = offLL(s0.lat, s0.lon, d0, g.r() * 360);
+      /* ⚠⚠ 0820L — √r(넓이 균등) 뿌리기를 무른다. 셈해 보니 여덟 떨기가 **전부
+         13km 밖**으로 갔다(소로 「지평선에 쥐똥」). 균등이 옳아 보여도 구경꾼은
+         한 점에 서 있다 — 가까이가 비면 하늘 전체가 빈 것으로 보인다.
+         ⭐ r^1.5 로 가까이 치우치고, 첫 두 떨기는 앞쪽 3~9km 에 못 박는다.
+            447km/h 면 9km 는 1분 12초 — 탑승하자마자 큰 구름이 다가온다 */
+      var d0, brg0;
+      if (i < 2) { d0 = 3 + 6 * g.r(); brg0 = (s0.hd || 0) + (g.r() - 0.5) * 90; }
+      else { d0 = 3 + (CL_R - 3) * Math.pow(g.r(), 1.5); brg0 = g.r() * 360; }
+      var ll0 = offLL(s0.lat, s0.lon, d0, brg0);
       clPlace(g, ll0[0], ll0[1]);
       CL.push(g);
     }
@@ -1448,7 +1454,8 @@
     if (dx * dx + dy * dy <= CL_R * CL_R) return;      /* 아직 상자 안이다 */
     /* 앞쪽 반원으로 옮긴다 — 뒤로 빠진 떨기가 앞에서 다시 다가온다 */
     var brg = (s2.hd || 0) + (g.r() - 0.5) * 150;
-    var d2 = CL_R * (0.72 + 0.28 * g.r());
+    /* ⭐ 0820L — 0.72~1.0 R 로 되돌리면 영영 지평선에만 산다. 가깝게도 온다 */
+    var d2 = CL_R * (0.30 + 0.55 * Math.pow(g.r(), 1.3));
     var ll = offLL(s2.lat, s2.lon, d2, brg);
     clPlace(g, ll[0], ll[1]);
   }
@@ -1484,14 +1491,47 @@
       + '<div class="row"><button data-a="re">다시 뿌리기</button>'
       + '<button data-a="off">끄기</button></div>';
     ROOT.appendChild(CLDEL);
-    EGR_on(CLDEL, "input", function (e) {
-      var k = e.target && e.target.getAttribute("data-k"); if (!k) return;
-      CLD[k] = +e.target.value;
+    function clInput(k, val) {
+      CLD[k] = val;
       cloudSay();
       /* ⚠ 미는 동안 매번 다시 세우면 손이 무겁다 — 손을 뗀 뒤 250ms 에 한 번 */
       clearTimeout(CLDEL.__t);
       CLDEL.__t = setTimeout(function () { cloudsBuild(); saveTuneSoon(); }, 250);
+    }
+    EGR_on(CLDEL, "input", function (e) {
+      var k = e.target && e.target.getAttribute("data-k"); if (!k) return;
+      clInput(k, +e.target.value);
     });
+    /* ⚠⚠ 0820L — 소로 화면에서 손잡이가 두 판째 안 밀렸다. 원인을 못 짚었으므로
+       브라우저 기본 끌기에 **안 기댄다** — pointer 이벤트로 우리가 직접 끈다.
+       위쪽 누가 pointerdown 의 기본동작을 막아도 pointer 이벤트 자체는 온다.
+       ⭐ 그리고 첫 pointerdown 에 콘솔 한 줄 — 다음 캡처가 「닿았는지」를 말해 준다 */
+    EGR_on(CLDEL, "pointerdown", function (e) {
+      console.log("[EG] 구름 조절판에 손이 닿았습니다:", e.target.tagName);
+      var inp = e.target && e.target.closest && e.target.closest("input[type=range]");
+      if (!inp) return;
+      e.preventDefault();
+      try { inp.setPointerCapture(e.pointerId); } catch (e2) { }
+      var k = inp.getAttribute("data-k");
+      var mn = +inp.min, mx = +inp.max, st = +inp.step || 0.05;
+      function put(cx) {
+        var r2 = inp.getBoundingClientRect();
+        var t = Math.max(0, Math.min(1, (cx - r2.left) / Math.max(1, r2.width)));
+        var v = mn + (mx - mn) * t;
+        v = Math.round(v / st) * st;
+        inp.value = v.toFixed(2);
+        clInput(k, +inp.value);
+      }
+      put(e.clientX);
+      function mv(ev) { put(ev.clientX); }
+      function up(ev) {
+        window.removeEventListener("pointermove", mv, true);
+        window.removeEventListener("pointerup", up, true);
+        try { inp.releasePointerCapture(ev.pointerId); } catch (e3) { }
+      }
+      window.addEventListener("pointermove", mv, true);
+      window.addEventListener("pointerup", up, true);
+    }, true);
     EGR_on(CLDEL, "click", function (e) {
       var a = e.target && e.target.getAttribute("data-a"); if (!a) return;
       if (a === "re") { cloudsBuild(); }
