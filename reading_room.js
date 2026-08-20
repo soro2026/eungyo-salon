@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0820f
+   EG독서비행 — 방(room) 판 · reading_room.js · v0820g
    2026.08.20 소로 × 파이스 · 145회차
    ⭐⭐ 0820a — 기록판을 비너스 시안 넉 벌로 다시 지었다.
      ① 색 이름을 --dk- 로 갈랐다. ⚠⚠ 모니터와 **같은 이름에 정반대 값**이기 때문이다
@@ -68,7 +68,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0820f";
+  var VERSION = "0820g";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -452,7 +452,9 @@
       }
     });
     return { stop: off, routeCode: route.code,
-             where: function () { return { seg: seg, u: u }; } };
+             where: function () { return { seg: seg, u: u }; },
+             /* ⭐ 0820g — 「출발점으로」가 부른다. 곡선 위 어디로든 옮겨 앉힌다 */
+             goTo: function (s2, u2) { seg = ((s2 | 0) % N + N) % N; u = +u2 || 0; dist = 0; } };
   }
 
   /* ══ 겉옷 ══════════════════════════════════════════════════════ */
@@ -920,22 +922,65 @@
      ⚠ 열두 시간이 지나면 잊는다. 어제 날던 곳을 오늘 이어 타는 건 책갈피가 아니라
        기록이고, 그건 이 방이 안 하는 일이다.
      ⚠ 아무 말도 안 띄운다 — 「이어서 탑승합니다」 같은 알림 없이 그냥 거기 있다(3호 문법). */
-  var RESUME_KEY = "eg_read_where", RESUME_MS = 12 * 3600 * 1000;
-  function readResume(code) {
+  /* ⚠⚠ 0820g — localStorage 는 **브라우저의 것이지 사람의 것이 아니다**(소로 0820).
+       한 컴퓨터에서 계정을 바꾸면 남의 값을 그대로 물려받는다. 헨리로 들어가니
+       소로가 날던 곳을 이어 타던 그것이다.
+     ⭐ 열쇠에 사람을 넣는다. 저장소 전수 조사로 같은 병이 여섯 곳 나왔다 —
+       세 곳이 넘으니 공용 손 하나로 묶는다(0808 꼬리표 수칙과 같은 갈래).
+     ⚠ 서버를 부르지 않는다 — storageKey 에 이미 들어 있는 것을 읽기만 한다. 요청 0. */
+  function egr_uid() {
     try {
-      var w = JSON.parse(localStorage.getItem(RESUME_KEY) || "null");
-      if (!w || w.code !== code) return null;
-      if (Date.now() - (w.at || 0) > RESUME_MS) return null;
-      return { seg: w.seg | 0, u: +w.u || 0 };
+      var j = JSON.parse(localStorage.getItem("eungyo-auth") || "null");
+      var u = j && (j.user || (j.currentSession && j.currentSession.user));
+      return (u && u.id) ? String(u.id).slice(0, 8) : null;
     } catch (e) { return null; }
   }
+  function lsKey(name) { return name + ":" + (egr_uid() || "anon"); }
+  function lsGet(name) { try { return localStorage.getItem(lsKey(name)); } catch (e) { return null; } }
+  function lsSet(name, v) { try { localStorage.setItem(lsKey(name), String(v)); } catch (e) { } }
+
+  var RESUME_MS = 12 * 3600 * 1000;
+  /* ⭐⭐ 0820g — 이어 타기를 **서버로 옮겼다**(소로 판정).
+     ⚠ 11호를 안 어긴다. 11호가 막은 것은 **진도**이고 이것은 「내가 있던 곳」이다.
+       고리에는 끝이 없어 진도가 될 수 없고 남은 것도 셀 수 없다(14호).
+     ⭐ 옮겨서 얻은 것 — 사람이 따라가고, 기기가 따라가고, 열두 시간 그물이
+       **서버 시각**으로 쳐진다. 기기 시계를 안 믿어도 된다.
+     ⚠ 규칙 셋은 그대로 — 아무 말도 안 띄운다 · 열두 시간이면 잊는다 · 남이 못 본다 */
+  var RESUME = null;               /* 방 세우기 전에 받아 둔다 — bootRoom 은 동기다 */
+  function loadResume(code) {
+    return new Promise(function (res) {
+      var done = false;
+      /* ⚠ 서버가 느리면 방이 안 열린다. 1.2초 그물 — 못 받으면 첫 길목에서 뜬다 */
+      var t = setTimeout(function () { if (!done) { done = true; res(null); } }, 1200);
+      rpc("get_my_flight_resume", {}).then(function (rows) {
+        if (done) return; done = true; clearTimeout(t);
+        var r = (rows && rows[0]) || null;
+        res((r && r.route_code === code) ? { seg: r.seg | 0, u: +r.u || 0 } : null);
+      }).catch(function () { if (!done) { done = true; clearTimeout(t); res(null); } });
+    });
+  }
   function writeResume() {
-    try {
-      if (!flight || !flight.where) return;
-      var w = flight.where();
-      localStorage.setItem(RESUME_KEY, JSON.stringify({
-        code: flight.routeCode, seg: w.seg, u: w.u, at: Date.now() }));
-    } catch (e) { }
+    if (!flight || !flight.where) return;
+    var w = flight.where();
+    rpc("save_my_flight_resume", { p_route: flight.routeCode, p_seg: w.seg, p_u: w.u })
+      .catch(function () { });      /* ⚠ 조용히 물러난다. 비행을 멈출 일이 아니다 */
+  }
+  /* ⭐ 「출발점으로」 (0820 소로) — 열두 시간을 기다리지 않고 첫 길목으로.
+     ⚠ 「다시 시작」이 아니다. 고리에는 시작점이 없다 — 노선의 첫 길목으로 데려다 놓는 손이다.
+     ⚠ 확인을 안 묻는다. 잃을 것이 없고 다시 눌러도 되는 일이라, 묻는 순간 그게 겁이 된다. */
+  function toStart() {
+    if (!ROOT || !flight || !flight.goTo || swapping) return;
+    swapping = true;
+    rpc("clear_my_flight_resume", {}).catch(function () { });
+    var fade = ROOT.querySelector("#readingFade");
+    fade.classList.add("on");
+    EGR_later(function () {
+      try { flight.goTo(0, 0); } catch (e) { }
+      EGR_later(function () {
+        fade.classList.remove("on");
+        EGR_later(function () { swapping = false; }, 320);
+      }, 120);
+    }, 300);
   }
   function togglePause() {
     PAUSED = !PAUSED;
@@ -1703,6 +1748,7 @@
       + '<button id="egrZin" type="button" title="가까이 보기">&#43;</button>'
       + '<button id="egrSnd" class="ico" type="button">&#128266;</button>'
       + '<button id="egrPz" class="ico" type="button" title="잠깐 멈춤 (Space)">&#10073;&#10073;</button>'
+      + '<button id="egrRst" class="ico" type="button" title="출발점으로 (R)">&#8634;</button>'
       + '</div></div>'
       + '<div id="egrMap"></div>'
       + '<div id="egrLow">'
@@ -1724,6 +1770,9 @@
     /* ⭐ 0819U 소로 — 「모니터에 음악 켜기 버튼」. 손이 한 곳에 모인다 */
     EGR_on(MONEL.querySelector("#egrSnd"), "click", function () { setChannel(CH + 1); });
     EGR_on(MONEL.querySelector("#egrPz"), "click", togglePause);
+    /* ⚠ 0820g — 여기를 빠뜨렸다가 검산에 걸렸다. 단추를 굽고 배선을 안 건 것 —
+       0819 ㉮(만들어 놓고 값을 안 정한다)의 사촌이다. 이름 등장 횟수로 잡았다 */
+    EGR_on(MONEL.querySelector("#egrRst"), "click", toStart);
     paintBook();
   }
 
@@ -1894,12 +1943,12 @@
       var r = DESK.getBoundingClientRect();
       var o = { x: r.left, y: r.top };
       if (DSIZE) { o.w = DSIZE.w; o.h = DSIZE.h; }     /* ⚠ 크기는 DSIZE 가 있을 때만 적는다 */
-      localStorage.setItem("eg_read_desk", JSON.stringify(o));
+      localStorage.setItem(lsKey("eg_read_desk"), JSON.stringify(o));
     } catch (e) { }
   }
   function restoreDesk() {
     try {
-      var p = JSON.parse(localStorage.getItem("eg_read_desk") || "null");
+      var p = JSON.parse(localStorage.getItem(lsKey("eg_read_desk")) || "null");
       if (p && isFinite(p.w) && isFinite(p.h)) {
         DSIZE = { w: Math.max(MIN_W, p.w), h: Math.max(MIN_H, p.h) };
         DESK.style.width = DSIZE.w + "px"; DESK.style.height = DSIZE.h + "px";
@@ -1973,11 +2022,11 @@
     FSIZE = Math.max(13, Math.min(28, px));
     var t = DESK && DESK.querySelector("#egrDBody");
     if (t) { t.style.fontSize = FSIZE + "px"; t.style.lineHeight = (FSIZE > 20 ? 1.85 : 1.95); }
-    try { localStorage.setItem("eg_read_fs", String(FSIZE)); } catch (e) { }
+    lsSet("eg_read_fs", FSIZE);
   }
   function openDesk() {
     if (!DESK) return;
-    try { var f = +localStorage.getItem("eg_read_fs"); if (f) FSIZE = f; } catch (e) { }
+    var f = +lsGet("eg_read_fs"); if (f) FSIZE = f;
     setFont(FSIZE);
     DESK.classList.add("on");
     clampDesk();
@@ -2636,7 +2685,7 @@ function paintBook() {
     var prev = CH;
     CH = ((n % 3) + 3) % 3;
     sndOn = (CH === 0);
-    try { localStorage.setItem("eg_read_ch", String(CH)); } catch (e) { }
+    lsSet("eg_read_ch", CH);          /* ⭐ 0820g — 열쇠에 사람이 든다 */
     syncCtl();                       /* ⭐ 모니터 안 단추도 함께 — 한 곳에서 둘 다 만진다 */
     clearTimeout(chT);
 
@@ -2707,6 +2756,7 @@ function paintBook() {
       else if (k === " " || e.code === "Space") { e.preventDefault(); togglePause(); }
       else if (k === "c") toggleOut();
       else if (k === "v") { if (OUT) toggleBare(); }   /* 0820b — 밖에서만 */
+      else if (k === "r") toStart();          /* ⭐ 0820g — 출발점으로 */
       else if (k === "s") toggleShade();
       else if (k === "e") setEdit(!editing);
       else if (k === "arrowleft") swapSeat(-1);
@@ -2773,13 +2823,13 @@ function paintBook() {
     loadRecent();                    /* ⑥ 마지막으로 기록한 책 표지를 데려온다 */
     layout();
     /* ⭐ 지난번에 고른 갈래를 그대로 — 매번 소음으로 되돌아가면 고른 뜻이 없다 */
-    try { var c0 = localStorage.getItem("eg_read_ch"); if (c0 !== null) CH = +c0 || 0; } catch (e) { }
+    var c0 = lsGet("eg_read_ch"); if (c0 !== null) CH = +c0 || 0;
     setChannel(CH, true);            /* ⚠ 첫 탑승은 곧장 — 방송이 시간을 이미 준다 */
     playAnnounce();                  /* 방송 → 끝나면 고른 갈래로 (0817·0819R 문법) */
 
     var hudT = 0;                    /* ⚠ #hud 는 0819R 에 걷었다 — 셈 주기만 남는다 */
     /* ⭐ 나갔던 곳에서 이어 탄다 — 없으면 첫 길목. 아무 말도 안 띄운다 */
-    var rz = readResume(route.code) || { seg: 0, u: 0 };
+    var rz = RESUME || { seg: 0, u: 0 };   /* ⭐ enter() 가 미리 받아 둔다 */
     flight = cruise(route, {
       sky: 6, startSeg: rz.seg, startU: rz.u,
       onTick: function (s) {
@@ -2819,10 +2869,15 @@ function paintBook() {
     /* ⚠ 이 지구가 곧 창밖이다. 재우면 창이 얼어붙는다 */
     try { hostViewer.useDefaultRenderLoop = true; } catch (e) { }
 
-    var ok = false;
-    try { ok = bootRoom(hostViewer, routeBy(code)); }
-    catch (err) { console.error("[EG] 독서비행 착석 실패:", err); leave(); return false; }
-    return ok;
+    /* ⭐ 이어 탈 곳을 먼저 받는다 — bootRoom 이 동기라 여기서 기다린다(그물 1.2초) */
+    var rt = routeBy(code);
+    loadResume(rt.code).then(function (r) {
+      RESUME = r;
+      if (!ROOT) return;            /* ⚠ 기다리는 사이에 나가셨다 */
+      try { bootRoom(hostViewer, rt); }
+      catch (err) { console.error("[EG] 독서비행 착석 실패:", err); leave(); }
+    });
+    return true;
   }
 
   function leave() {
@@ -2857,7 +2912,7 @@ function paintBook() {
     viewer = null;
     OUT = false; BARE = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
     SHUT = false; editing = false; egrab = null; cvW = 0; cvH = 0; PAUSED = false;
-    PREVIEW = null; themeNow = "";   /* ⚠ 다음 탑승은 진짜 시각으로 */
+    PREVIEW = null; themeNow = ""; RESUME = null;   /* ⚠ 다음 탑승은 진짜 시각으로 */
     try { clearTimeout(tuneT); clearTimeout(fadeT); } catch (e) { }
     MONEL = null; TAB = "info"; SINFO = null; DESK = null; RECENT = null;
     ENGEL = null; ENG_NICK = ""; ENG_SINCE = "";
