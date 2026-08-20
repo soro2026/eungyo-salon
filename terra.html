@@ -4858,20 +4858,35 @@ window.tuckMailEnvelope = tuckMailEnvelope;
   }
 }
 
-/* 도장 깃발 — stamp_press가 찍는 순간 localStorage('eg_stamp_flag')에 자국을 남긴다.
+/* 도장 깃발 — stamp_press가 찍는 순간 localStorage('eg_stamp_flag:사람')에 자국을 남긴다.
    30분 안이면 타륜 좌상단에 그 도장의 자국이 선다. 수첩을 펼치면 즉시 내려가고,
    안 펼쳐도 30분이면 저절로 내려간다 — 안 눌러도 아무 일이 없다(3호).
-   개수는 말하지 않는다: 여러 장을 받아도 깃발은 마지막 한 자국뿐이다(5호). */
+   개수는 말하지 않는다: 여러 장을 받아도 깃발은 마지막 한 자국뿐이다(5호).
+   ⚠⚠ 0820a — 열쇠에 사람 표식이 붙었다. 한 컴퓨터에서 계정을 갈면 앞사람이 받은
+     도장의 깃발이 내 타륜에 서던 것을 막는다.
+   ⭐ 열쇠 꼴은 stamp_press 가 정하고 여기는 창구(EGStamp.flagKey)로 물어본다 —
+     두 곳에서 관리하면 한쪽만 고치는 날이 온다(0818 조항).
+   ⚠ 그런데 stamp_press.js?v=0820a 는 **방에 들어갈 때 동적으로 실린다.** 타륜이 처음 설 때는
+     아직 없을 수 있으므로 같은 꼴을 여기서도 지을 수 있게 폴백을 둔다. */
 const STAMP_FLAG_MS = 30*60*1000;
+const STAMP_FLAG_BASE = "eg_stamp_flag";
+function stampFlagKey(){
+  try{ if (window.EGStamp && typeof EGStamp.flagKey === "function") return EGStamp.flagKey(); }catch(e){}
+  try{
+    const j = JSON.parse(localStorage.getItem("eungyo-auth") || "null");
+    const u = j && (j.user || (j.currentSession && j.currentSession.user));
+    return STAMP_FLAG_BASE + ":" + ((u && u.id) ? String(u.id).slice(0,8) : "anon");
+  }catch(e){ return STAMP_FLAG_BASE + ":anon"; }
+}
 function readStampFlag(){
   try{
-    const v = JSON.parse(localStorage.getItem("eg_stamp_flag") || "null");
+    const v = JSON.parse(localStorage.getItem(stampFlagKey()) || "null");
     if (v && v.at && v.art && (Date.now() - v.at) < STAMP_FLAG_MS) return v;
   }catch(e){}
   return null;
 }
 function clearStampFlag(){
-  try{ localStorage.removeItem("eg_stamp_flag"); }catch(e){}
+  try{ localStorage.removeItem(stampFlagKey()); }catch(e){}
   tickStampFlag();
 }
 function tickStampFlag(){
@@ -5238,7 +5253,14 @@ function wireTerra(){
     if (hs) hs.addEventListener("click", (e)=>{ e.stopPropagation(); openCredCard(true); }); }
   /* 도장은 iframe(다른 창)에서 찍힌다 — storage 사건은 찍은 창 밖 모든 창에 즉시 온다.
      한 박자 늦던 깃발이 이걸로 그 자리에서 선다. 30초 틱은 30분 내림용으로 남긴다. */
-  window.addEventListener("storage", (e)=>{ if (e.key === "eg_stamp_flag") tickStampFlag(); });
+  /* 도장은 iframe(다른 창)에서 찍힌다 — storage 사건은 찍은 창 밖 모든 창에 즉시 온다.
+     한 박자 늦던 깃발이 이걸로 그 자리에서 선다. 30초 틱은 30분 내림용으로 남긴다.
+     ⚠⚠ 0820a — 열쇠 뒤에 사람 표식이 붙었으므로 `===` 로는 **영영 안 걸린다.**
+       앞자락으로 견준다. 이 한 줄을 안 고치면 깃발이 30초 틱에만 기대게 되어
+       「한 박자 늦던 것」으로 조용히 되돌아간다 — 콘솔에 아무것도 안 찍힌다. */
+  window.addEventListener("storage", (e)=>{
+    if (e.key && e.key.indexOf(STAMP_FLAG_BASE) === 0) tickStampFlag();
+  });
   tickStampFlag();
   setInterval(tickStampFlag, 30000);   /* 30초마다 — 30분이 지나면 스스로 내려간다 */
   /* 0813 — 봉랍. 들어올 때 한 번 재고, 그 뒤로는 3분에 한 번만 돌아본다.
@@ -6084,8 +6106,8 @@ async function enterVesperRoom(spot){
        계속 돌면서 카메라를 집으로 끌어당긴다. 소로가 보신 「창 열 때 0.5초 파리 라탱」이 그것이다. */
     try{ stopOrbit(); }catch(e){}
     await loadScriptOnce("eg_geo.js?v=0818a");
-    await loadScriptOnce("stamp_press.js?v=0808a");
-    await loadScriptOnce("vesper_room.js?v=0820b");   /* ⚠ 방 파일을 고치면 이 꼬리표도 함께 올린다 */
+    await loadScriptOnce("stamp_press.js?v=0820a");
+    await loadScriptOnce("vesper_room.js?v=0820c");   /* ⚠ 방 파일을 고치면 이 꼬리표도 함께 올린다 */
     if (!window.egVesper) throw new Error("egVesper 창구가 안 열렸습니다");
     window.egVesper.enter(viewer, spot || null);
   }catch(err){
@@ -6110,10 +6132,10 @@ async function enterReadingRoom(code){
     if (typeof endVoyage === "function") endVoyage();   /* 딴 데를 여는 순간 그 여정은 끝이다 (0814) */
     /* ⚠⚠ 궤도를 여기서도 세운다 — 방이 다시 세우지만, 방 파일을 받는 동안에도 돌고 있다 */
     try{ stopOrbit(); }catch(e){}
-    await loadScriptOnce("stamp_press.js?v=0808a");
+    await loadScriptOnce("stamp_press.js?v=0820a");
     await loadScriptOnce("eg_book_add.js?v=0819c");   /* 좌석 모니터의 검색 한 문(21호) */
     await loadScriptOnce("eg_map_ne.js?v=0819b");     /* 항로도 밑그림 · Natural Earth */
-    await loadScriptOnce("reading_room.js?v=0820v");
+    await loadScriptOnce("reading_room.js?v=0820w");
     if (!window.egReading) throw new Error("egReading 창구가 안 열렸습니다");
     window.egReading.enter(viewer, code || "alps_traverse");
   }catch(err){

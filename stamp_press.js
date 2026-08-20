@@ -8,7 +8,7 @@
           ⚠ 부르는 쪽 꼬리표를 ?v=0808a로 올려야 캐시가 갈린다.
 
    쓰는 법 — 그 우주의 파일에 두 줄:
-     <script src="stamp_press.js?v=0805a"></script>
+     <script src="stamp_press.js?v=0820a"></script>
      EGStamp.offer({ supa, area:'musica' });
 
    supabase-js가 없는 파일이면 supa를 빼고 부른다 — 스스로 REST로 간다:
@@ -36,6 +36,28 @@
 (function(){
 "use strict";
 if (window.EGStamp) return;
+
+var SP_VERSION = "0820a";
+console.log("[EG] stamp_press " + SP_VERSION + " — 깃발 열쇠에 사람 표식");
+
+/* ⚠⚠ 0820a — localStorage 는 **브라우저의 것이지 사람의 것이 아니다.**
+     한 컴퓨터에서 계정을 갈면 앞사람 값을 그대로 물려받는다(소로 0820 · 헨리 건).
+   ⭐ 열쇠 뒤에 사람 표식(uid 앞 8자)을 붙인다. 계정마다 서랍이 갈린다.
+   ⚠ 서버를 안 부른다 — eungyo-auth 에 이미 든 것을 읽기만 한다. 요청 0.
+   ⚠⚠ 이름을 `sp_` 로 가른 까닭 — reading_room.js 에서 같은 손을 `egr_uid` 로 지었다가
+     그 파일에 이미 있던 같은 이름(Promise 판)에 덮여 열쇠가 통째로
+     `[object Promise]` 가 됐다(0820w에 잡음). **새 이름은 그 파일 안부터 grep 한다.**
+   ⭐ 이 파일은 **공용 부품**이다. 여기를 고치면 부르는 열네 곳의 꼬리표를
+     같은 판에서 함께 올린다(0808 수칙). ⚠ terra 직행표만 보면 빠진다 — 저장소 전체 grep. */
+function sp_uid_ls(){
+  try{
+    var j = JSON.parse(localStorage.getItem("eungyo-auth") || "null");
+    var u = j && (j.user || (j.currentSession && j.currentSession.user));
+    return (u && u.id) ? String(u.id).slice(0, 8) : null;
+  }catch(e){ return null; }
+}
+var FLAG_BASE = "eg_stamp_flag";
+function spKey(){ return FLAG_BASE + ":" + (sp_uid_ls() || "anon"); }
 
 var CSS = ''
 + '#egStampDock{position:fixed;right:18px;bottom:18px;z-index:2147483000;'
@@ -362,9 +384,14 @@ async function offer(opt){
       dock.classList.remove('on');
       flash(art, kind.ink || '#2E3F63');
       /* 0803 저녁 — 도장 깃발. 타륜(terra)이 이 자국을 읽어 30분 동안 세운다.
-         여러 장을 받아도 마지막 한 자국만 남는다 — 개수는 말하지 않는다(5호). */
+         여러 장을 받아도 마지막 한 자국만 남는다 — 개수는 말하지 않는다(5호).
+         ⚠⚠ 0820a — 열쇠에 사람 표식을 넣는다. localStorage 는 기기의 것이지 사람의 것이 아니라,
+           한 컴퓨터에서 계정을 갈면 앞사람이 받은 도장의 깃발이 내 타륜에 선다.
+           30분 그물이 있어 창은 좁지만, 그 30분 안에 갈아타면 그대로 겪는다.
+         ⭐ 열쇠 꼴은 spKey() 한 곳이 정하고 **창구(EGStamp.flagKey)로 내준다** —
+           terra 가 제 손으로 또 지으면 두 곳에서 관리하게 되고 언젠가 어긋난다(0818 조항). */
       var mark = { art:art, ink:kind.ink || '#2E3F63', at:Date.now() };
-      try{ localStorage.setItem('eg_stamp_flag', JSON.stringify(mark)); }catch(e){}
+      try{ localStorage.setItem(spKey(), JSON.stringify(mark)); }catch(e){}
       /* 0803 밤 — 이 우주가 타륜 안 액자로 열려 있으면 부모에게 곧장 알린다.
          storage 사건에만 기대면 브라우저·창 구성에 따라 안 오는 경우가 있었다.
          두 길을 다 두되 부모 쪽에서 같은 함수 하나로 받는다. */
@@ -375,5 +402,10 @@ async function offer(opt){
   }catch(e){ console.warn('[EGStamp] 물러납니다:', e); }
 }
 
-window.EGStamp = { offer: offer, withdraw: withdraw };
+/* ⭐ 0820a — 열쇠 꼴을 창구로 내준다. 읽는 쪽(terra)이 제 손으로 또 지으면
+     같은 것을 두 곳에서 관리하게 되고, 한쪽만 고치는 날이 반드시 온다(0818 조항).
+   ⚠ flagBase 는 storage 사건에서 열쇠 이름을 견줄 때 쓴다 — 사람 표식이 뒤에 붙으므로
+     `===` 가 아니라 **앞자락 비교**라야 한다. */
+window.EGStamp = { offer: offer, withdraw: withdraw,
+                   flagKey: spKey, flagBase: FLAG_BASE, version: SP_VERSION };
 })();

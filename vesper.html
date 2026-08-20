@@ -456,7 +456,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
-<script src="stamp_press.js?v=0808a"></script>
+<script src="stamp_press.js?v=0820a"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="eg_geo.js"></script>
 <script>
@@ -1485,10 +1485,23 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
       mo.style.left = (ox + e.clientX - sx) + "px";
       mo.style.top  = (oy + e.clientY - sy) + "px";
     });
+    /* ⚠⚠ 0820c — 열쇠에 사람 표식을 넣는다. localStorage 는 기기의 것이지 사람의 것이 아니다.
+       ⚠ 이 파일은 **폴백**이다(방이 안 열릴 때만 선다). 그래도 같은 규칙을 쓴다 —
+         한쪽만 옛 방식이면 하필 물러선 손님이 앞사람 판을 물려받고,
+         그런 길은 잘 안 돌아서 사고가 나도 재현이 안 된다.
+       ⭐ 방(vesper_room.js)과 **같은 열쇠 꼴**이라 서랍도 그대로 이어진다. */
+    function ves_uid_ls(){
+      try{
+        var j = JSON.parse(localStorage.getItem("eungyo-auth") || "null");
+        var u = j && (j.user || (j.currentSession && j.currentSession.user));
+        return (u && u.id) ? String(u.id).slice(0, 8) : null;
+      }catch(e){ return null; }
+    }
+    function vesKey(){ return "eg_vesper_pos:" + (ves_uid_ls() || "anon"); }
     function up(){
       if (!on) return;
       on = false; mo.classList.remove("drag"); hd.classList.remove("grabbing"); clamp();
-      try{ localStorage.setItem("eg_vesper_pos",
+      try{ localStorage.setItem(vesKey(),
         JSON.stringify({ x:parseFloat(mo.style.left), y:parseFloat(mo.style.top) })); }catch(e){}
     }
     hd.addEventListener("pointerup", up);
@@ -1496,7 +1509,7 @@ function pick(a,b,onA){ $(a).classList.toggle("on",onA); $(b).classList.toggle("
     addEventListener("resize", function(){ if ($("mon").classList.contains("on")) clamp(); });
     window._vesperPos = function(){
       try{
-        var p = JSON.parse(localStorage.getItem("eg_vesper_pos") || "null");
+        var p = JSON.parse(localStorage.getItem(vesKey()) || "null");
         if (p && isFinite(p.x) && isFinite(p.y)){ mo.style.left = p.x + "px"; mo.style.top = p.y + "px"; clamp(); return true; }
       }catch(e){}
       return false;

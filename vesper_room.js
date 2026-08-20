@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════
-   EG베스페르 — 방(room) 판  ·  vesper_room.js  ·  v0820b
+   EG베스페르 — 방(room) 판  ·  vesper_room.js  ·  v0820c
    2026.08.18 소로 × 파이스 · 142회차
 
    ⭐⭐ 왜 이 파일이 생겼나 — 「한 문서 · 한 root」
@@ -96,7 +96,7 @@ function grabFocus(){
 /* ⭐⭐ 0818 저녁 — 같은 병을 세 번째로 겪고서야 목록을 이름 붙여 꺼냈다.
      ⚠ 0818 낮: #vesperExit 를 빠뜨려 마스크가 제 나가는 문을 덮었다.
      ⚠ 0818 밤: #egStampDock · #egStampFlash 를 빠뜨려 **인장이 아예 안 나타났다.**
-       (stamp_press.js 149·153행 — 둘 다 document.body 직계로 붙는다.
+       (stamp_press.js?v=0820a 149·153행 — 둘 다 document.body 직계로 붙는다.
         어제까지는 액자라 남의 문서였으므로 마스크가 안 닿았다. 방으로 옮기며 생긴 회귀다.)
    ⭐ 규칙 — 방 밖(body 직계)에 서는 물건을 새로 달면 **이 배열에만** 더한다.
      선택자 문자열을 손으로 이어붙이지 않는다. 거기서 빠뜨리는 것이다.
@@ -602,7 +602,26 @@ var HTML = `<div id="fade"></div>
       해가 창 한가운데 머문다. 0817 실측: 대권 고정이면 19분에 창을 벗어난다.
    ⚠ 창 테두리는 판(9:16) 기준 %를 화면 px로 환산해서 그린다 — 세로가 2.8~3.2배다
    ══════════════════════════════════════════════════════════════ */
-console.log("[EG] vesper_room 0818n — 게이트 내림 · 궤도 사슬 풀기 · 헛좌표 막이");
+console.log("[EG] vesper_room 0820c — 편집기 관리자 전용 · 열쇠에 사람 표식");
+
+/* ⚠⚠ 0820w/0820c — localStorage 는 **브라우저의 것이지 사람의 것이 아니다.**
+     한 컴퓨터에서 계정을 갈면 앞사람이 맞춰 둔 일기판 크기를 그대로 물려받는다.
+     소로가 0820에 잡으신 그것(헨리가 소로 비행을 이어 탔다)과 같은 갈래다.
+   ⭐ 열쇠 뒤에 사람 표식(uid 앞 8자)을 붙인다. 계정마다 서랍이 갈린다.
+   ⚠ 서버를 안 부른다 — eungyo-auth 에 이미 든 것을 읽기만 한다. 요청 0.
+   ⚠⚠ 이름을 `ves_` 로 가르고 **최상단에 둔 까닭 둘** —
+     ① reading_room.js 에서 같은 손을 `egr_uid` 로 지었다가 그 파일에 이미 있던
+        같은 이름(Promise 판)에 덮여 열쇠가 통째로 `[object Promise]` 가 됐다.
+        **새 이름은 그 파일 안부터 grep 한다.**
+     ② IIFE 안에 두면 enter() 에서 못 부른다 — 콘솔 도장이 열쇠를 못 찍는다. */
+function ves_uid_ls(){
+  try{
+    var j = JSON.parse(localStorage.getItem("eungyo-auth") || "null");
+    var u = j && (j.user || (j.currentSession && j.currentSession.user));
+    return (u && u.id) ? String(u.id).slice(0, 8) : null;
+  }catch(e){ return null; }
+}
+function vesKey(){ return "eg_vesper_pos:" + (ves_uid_ls() || "anon"); }
 
 /* ⚠ 0818 — 구글 API 키를 걷었다. 이 방은 terra 의 타일을 그대로 쓴다.
    키가 여기 남아 있으면 root 요청이 또 나가고, 그것이 곧 청구서다. */
@@ -1705,18 +1724,19 @@ function bootRoom(hostViewer, spot){
       });
     })();
 
-    /* ⚠ 위치와 크기를 한 곳에 적는다 — 두 곳에서 관리하면 반드시 어긋난다 */
+    /* ⚠ 위치와 크기를 한 곳에 적는다 — 두 곳에서 관리하면 반드시 어긋난다
+       ⭐ 0820w — 열쇠에 사람 표식이 든다. 손은 파일 위쪽 vesKey() 에 있다 */
     function saveMon(){
       try{
         var o = { x:parseFloat(mo.style.left), y:parseFloat(mo.style.top) };
         if (MON_SIZE){ o.w = MON_SIZE.w; o.h = MON_SIZE.h; }
-        localStorage.setItem("eg_vesper_pos", JSON.stringify(o));
+        localStorage.setItem(vesKey(), JSON.stringify(o));
       }catch(e){}
     }
 
     window._vesperPos = function(){
       try{
-        var p = JSON.parse(localStorage.getItem("eg_vesper_pos") || "null");
+        var p = JSON.parse(localStorage.getItem(vesKey()) || "null");
         if (p && isFinite(p.w) && isFinite(p.h)){
           MON_SIZE = { w:p.w, h:p.h };
           mo.style.width = p.w + "px"; mo.style.height = p.h + "px";
@@ -2218,6 +2238,12 @@ function enter(hostViewer, spot){
   try{ ok = bootRoom(hostViewer, spot); }
   catch(err){ console.error("[EG] 베스페르 착석 실패:", err); leave(); return false; }
   console.log("[EG] 베스페르 방 — terra 의 지구를 그대로 씁니다. root 추가 없음.");
+  /* ⭐ 0820c — 열쇠를 한 줄 찍는다. 브라우저 안은 내가 조회할 수 없는 곳이라
+       「코드가 맞으니 되겠지」로 넘기면 0820v 처럼 조용히 안 듣는다. */
+  var vk = vesKey();
+  console.log(/anon$/.test(vk) ? "%c[EG] ⚠ 열쇠 " + vk + " — 로그인 전이라 사람 표식이 없습니다"
+                               : "%c[EG] 열쇠 " + vk + " — 사람 표식 있음",
+              /anon$/.test(vk) ? "color:#c98d5f" : "color:#7a9a7e");
   return ok;
 }
 
@@ -2250,5 +2276,5 @@ function leave(){
   console.log("[EG] 베스페르 방을 걷었습니다 — 카메라를 terra 로 되돌렸습니다.");
 }
 
-window.egVesper = { enter: enter, leave: leave, version: "0820b" };
+window.egVesper = { enter: enter, leave: leave, version: "0820c" };
 })();

@@ -111,7 +111,7 @@
 
   /* ⚠ 방 밖에 두는 물건은 이 배열에만 더한다. 선택자를 손으로 잇지 않는다.
      0818 하루에 같은 병을 두 번 겪었다(#vesperExit 낮 · 인장 둘 밤).
-     stamp_press.js 는 도크·플래시를 document.body 직계로 붙이므로 마스크에 정통으로 걸린다. */
+     stamp_press.js?v=0820a 는 도크·플래시를 document.body 직계로 붙이므로 마스크에 정통으로 걸린다. */
   /* ⚠⚠ 방 밖(body 직계)에 두는 물건은 **여기에만** 더한다. 손으로 선택자를 이어붙이면
      반드시 하나를 빠뜨린다 — 0818 하루에 두 번 빠뜨렸다(31호 ㉢). 0820b 에 #readingHide 추가. */
   var KEEP = ["#cesiumContainer", "#readingRoom", "#readingExit", "#readingHide",
