@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0820j
+   EG독서비행 — 방(room) 판 · reading_room.js · v0820p
    2026.08.20 소로 × 파이스 · 145회차
    ⭐⭐ 0820a — 기록판을 비너스 시안 넉 벌로 다시 지었다.
      ① 색 이름을 --dk- 로 갈랐다. ⚠⚠ 모니터와 **같은 이름에 정반대 값**이기 때문이다
@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0820j";
+  var VERSION = "0820p";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -556,7 +556,11 @@
 #egrFps .bad{color:#e0866a}
 #egrFps .dim{color:#5d6672}
 /* ⭐ 구름 조절판 (0820j) — 계기 바로 아래. 재면서 밀 수 있어야 소로가 정하신다(0820 ㉳) */
-#egrCloud{position:fixed;left:18px;top:104px;z-index:27;display:none;width:236px;
+/* ⚠⚠ 0820n — pointer-events:auto. #readingRoom 이 none 이라 자식은 저절로 못 만진다.
+   0820k 에서 넣었다고 믿었는데 **패치 스크립트가 중간에 실패하며 이 줄이 유실됐다.**
+   검산 grep 이 「10건 있음」을 보고 박힌 줄 알았다 — 전부 원래 있던 남의 것이었다.
+   ⭐ 이름 등장 횟수 검산은 **바꾸기 전후의 차이**를 세야 한다. 절대 수만 세면 속는다 */
+#egrCloud{position:fixed;left:18px;top:104px;z-index:27;display:none;width:236px;pointer-events:auto;
   background:rgba(10,13,18,.90);border:1px solid #2a323f;border-radius:7px;padding:10px 13px 11px;
   color:#8f9aa6;font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 #readingRoom.cld #egrCloud{display:block}
@@ -1310,25 +1314,26 @@
      ⭐ 갈래 넷은 **범위**다. 씨앗이 그 안에서 한 점을 고른다.
      ⚠ 겹쳐 쌓지 않는다 — 옆으로 모여 서고 무리 사이에 빈 하늘을 남긴다.
      ⭐ 밑면은 해발 하나로 평평하다. 지면을 안 따라간다(그래서 봉우리가 뚫고 나온다). */
+  /* ⚠⚠ 0820p — 어제 콘솔로 부었던 「근사한」 구름과 코드의 차이가 셋이었다.
+     어제 것은 색 없음(흰색) · slice 자동 · brightness 기본이었는데, 제가 셋 다 얹었다:
+       tint      → 흰 노이즈에 색을 곱하니 살구빛 얼룩이 됐다. 걷는다 — 구름은 희다
+       slice     → 손으로 0.28~0.48 을 박으니 단면이 어긋나 점묘 얼룩이 났다. 자동(-1)에 맡긴다
+       br .4~.6  → 밤이라고 어둡게 하니 잿빛 반점이 됐다. 밝기는 1.0 근처, 밤만 살짝
+     ⭐ **잘 되던 것과의 차이부터 지운다** — 부품이 있다는 것과 맞는다는 것은 다른 일이다(㉱)
+     ⭐ 그리고 멀리 있는 구름이 점으로 부서진다 — 상자를 42→24km 로 당기고 크기를 키운다.
+        가까운 큰 것 여럿이 먼 작은 것 수십보다 낫다 */
   var CLOUD_KIND = {
-    m: { ko: "이른 아침", grp: [16, 24], puff: [5, 8],  base: [1700, 2300],
-         sz: [520, 900],  hz: [.42, .60], gap: [1.5, 2.2], br: [.72, .88], sl: [.30, .42],
-         tint: "#eaf0f7" },
-    d: { ko: "한낮",     grp: [22, 32], puff: [6, 10], base: [2100, 2800],
-         sz: [700, 1300], hz: [.55, .85], gap: [1.6, 2.4], br: [.95, 1.12], sl: [.34, .48],
-         tint: "#ffffff" },
-    e: { ko: "저녁",     grp: [14, 22], puff: [5, 9],  base: [2400, 3200],
-         sz: [900, 1700], hz: [.65, 1.05], gap: [1.8, 2.8], br: [.60, .80], sl: [.32, .46],
-         tint: "#ffd7b4" },
-    /* ⚠⚠ 0820k — 첫 판 br .16~.28 은 검은 하늘에 그냥 묻혔다(소로 「구름이 전혀 없어」).
-       달빛 적운은 어둡지만 **하늘보다는 밝다** — 그 관계가 없으면 없는 것과 같다.
-       base 도 올린다: 순항 3950 에서 1800m 구름은 발밑 멀리라 화면에 거의 안 든다 */
-    n: { ko: "한밤",     grp: [9, 14],  puff: [4, 7],  base: [2700, 3300],
-         sz: [900, 1700], hz: [.42, .62], gap: [1.6, 2.4], br: [.42, .58], sl: [.28, .40],
-         tint: "#dfe6f2" }
+    m: { ko: "이른 아침", grp: [10, 15], puff: [5, 8],  base: [1900, 2400],
+         sz: [900, 1600],  hz: [.45, .62], gap: [1.5, 2.2], br: [.92, 1.0] },
+    d: { ko: "한낮",     grp: [13, 19], puff: [6, 10], base: [2200, 2800],
+         sz: [1100, 2000], hz: [.50, .70], gap: [1.6, 2.4], br: [1.0, 1.0] },
+    e: { ko: "저녁",     grp: [9, 14],  puff: [5, 9],  base: [2400, 3000],
+         sz: [1200, 2200], hz: [.52, .75], gap: [1.8, 2.8], br: [.88, .98] },
+    n: { ko: "한밤",     grp: [7, 11],  puff: [4, 7],  base: [2700, 3300],
+         sz: [1000, 1800], hz: [.45, .62], gap: [1.6, 2.4], br: [.72, .85] }
   };
   var RCODE = "";                /* 지금 노선 코드 — 씨앗이 쓴다. enter 가 채운다 */
-  var CL_R = 42;                 /* km — 구름 상자 반지름. 뒤로 이만큼 빠지면 앞으로 옮긴다 */
+  var CL_R = 24;                 /* km — 구름 상자 반지름. 뒤로 이만큼 빠지면 앞으로 옮긴다 */
   var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때 반드시 remove */
   var CL = [];                   /* 떨기 장부 */
   var CLON = true, clIdx = 0, clT = 0, clKind = "", clRnd = null;
@@ -1398,8 +1403,6 @@
     try {
       CLOUDS = viewer.scene.primitives.add(new Cesium.CloudCollection({ noiseDetail: 16.0 }));
     } catch (e) { console.warn("[EG] 구름을 못 세웠습니다:", e); CLOUDS = null; return; }
-    var tint = null;
-    try { tint = Cesium.Color.fromCssColorString(K.tint); } catch (e) { }
     var nGrp = Math.max(1, Math.round(rint(r, K.grp) * CLD.den));
     /* ⚠⚠ 0820m — CAP 480 을 걷었다(소로 「예단하지 말고 극대치에서 빼자」).
        0819 fps 도 새똥도 전부 타 보고 나온 것이다 — 낭떠러지가 어디인지는
@@ -1414,12 +1417,11 @@
       if (made + np > CAP) break;
       made += np;
       for (var j = 0; j < np; j++) {
+        /* ⭐ 0820p — 색을 안 준다(흰색) · slice 를 안 준다(자동). 어제 콘솔판 그대로 */
         var o = { position: Cesium.Cartesian3.ZERO,
                   scale: new Cesium.Cartesian2(1, 1),
                   maximumSize: new Cesium.Cartesian3(1, 1, 1),
-                  slice: rng(g.r, K.sl),
-                  brightness: rng(g.r, K.br) * CLD.brt };
-        if (tint) o.color = tint;
+                  brightness: Math.min(1, rng(g.r, K.br) * CLD.brt) };
         g.p.push(CLOUDS.add(o));
       }
       /* ⚠⚠ 0820L — √r(넓이 균등) 뿌리기를 무른다. 셈해 보니 여덟 떨기가 **전부
@@ -1436,9 +1438,20 @@
     }
     clIdx = 0;
     var buildMs = performance.now() - __t0;
+    /* ⭐ 0820n — 「세웠다」와 「보인다」는 다른 일이다. 가장 가까운 떨기의 거리·밑면을
+       함께 찍는다 — 화면에 없으면 이 줄이 왜를 말한다 (0820k 에서 유실됐던 그물) */
+    var near = null, nd = 1e9, q;
+    for (q = 0; q < CL.length; q++) {
+      var cs2 = Math.max(0.2, Math.cos(s0.lat * Math.PI / 180));
+      var qy = (CL[q].lat - s0.lat) * 111.32, qx = (CL[q].lon - s0.lon) * 111.32 * cs2;
+      var qd = Math.sqrt(qx * qx + qy * qy);
+      if (qd < nd) { nd = qd; near = CL[q]; }
+    }
     console.log("[EG] 구름 " + CL.length + "떨기 · " + cloudCount() + "덩이 · 뿌리기 "
       + buildMs.toFixed(0) + "ms — "
-      + K.ko + " · 씨앗 " + clSeed(RCODE, hour));
+      + K.ko + " · 씨앗 " + clSeed(RCODE, hour)
+      + (near ? " · 최근접 " + nd.toFixed(1) + "km · 밑면 " + near.base.toFixed(0)
+              + "m (기체 " + Math.round((s0.alt || 0)) + "m)" : ""));
     cloudSay();
   }
   function cloudCount() { var n = 0, i; for (i = 0; i < CL.length; i++) n += CL[i].p.length; return n; }
