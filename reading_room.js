@@ -1,6 +1,14 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0819Z
-   2026.08.19 소로 × 파이스 · 144회차
+   EG독서비행 — 방(room) 판 · reading_room.js · v0820a
+   2026.08.20 소로 × 파이스 · 145회차
+   ⭐⭐ 0820a — 기록판을 비너스 시안 넉 벌로 다시 지었다.
+     ① 색 이름을 --dk- 로 갈랐다. ⚠⚠ 모니터와 **같은 이름에 정반대 값**이기 때문이다
+        (A 이른아침: 모니터 ink #e4ecf2 / 기록판 ink #2e3a42). 섞으면 흰 종이에 흰 글자다
+     ② 막(#egrVeil)을 걷었다 — 떠 있는 판이라야 밖(C)에서도 창밖을 안 가린다
+     ③ 왼쪽 246px 목록 → 78px 회차 타임라인. 책별 묶음은 「책 목록」 층으로
+     ④ 끌어 옮기고 모서리로 크기를 바꾼다. 두 번 누르면 설계 크기로 돌아온다
+     ⑤ 아래줄이 지금 나는 곳을 흘린다 · 저장 알림은 2초만 그 곳을 빌린다
+     ⚠ 손님이 끈 크기(DSIZE)와 설계값(DESK_W·DESK_H)을 한 그릇에 안 담는다 — 0819W 사고
    ⚠ 판번호는 아래 VERSION 하나가 정본이다. 0819e 까지 이 줄이 a 로 남아 있었다 —
      「적어 두는 것과 읽는 것은 다른 일」의 표본. 고칠 때 둘을 함께 올린다.
 
@@ -46,7 +54,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0819Z";
+  var VERSION = "0820a";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -649,65 +657,151 @@
 #egrPick .row .t small{font:400 17px 'Noto Sans KR',serif;color:var(--muted,#9a8f77)}
 #egrPick .row .tag{font:700 15px Tahoma,sans-serif;color:var(--accent,#c9a961);
   border:1px solid var(--ring,#59492f);border-radius:5px;padding:3px 8px;white-space:nowrap;flex:none}
-/* ══ 독서일지 판 (0819M) — ⭐ 모니터에서 승격시켰다 ═══════════════════
-   ⚠⚠ 소로 0819: 「모니터가 좀 작아서 나같은 노안에게는 무척 부담스러운데」.
-     맞다. 모니터는 517×362px 인데 그 안에 글칸을 넣으면 실제 쓸 폭이 400px 남짓이다.
-     ⭐ 베스페르 일기판처럼 별도 판으로 뺀다. 모니터는 「보는 곳」, 판은 「쓰는 곳」.
-   ⭐ 글씨 크기 단추를 단다 — 노안 배려는 곁다리가 아니라 이 집의 손님 절반의 문제다. */
-#egrDesk{position:fixed;z-index:22;left:50%;top:50%;transform:translate(-50%,-50%);
-  width:min(920px,92vw);height:min(660px,86vh);display:none;
-  background:#0d1015;border:1px solid #2a323f;border-radius:10px;
-  box-shadow:0 18px 60px rgba(0,0,0,.6);color:#cfd6de;
-  font-family:Georgia,'Noto Serif KR',serif;overflow:hidden;pointer-events:auto}
-#egrDesk.on{display:flex;flex-direction:column}
-#egrDesk .hd{display:flex;align-items:center;gap:12px;padding:12px 16px;
-  border-bottom:1px solid #1d2430;background:#12161d;flex:0 0 auto}
-#egrDesk .hd img{width:36px;height:52px;object-fit:cover;border-radius:2px;background:#1a212c}
-#egrDesk .hd .t{flex:1;min-width:0}
-#egrDesk .hd .t b{display:block;font-weight:normal;color:#e6d9ae;font-size:16px;
+/* ══ 독서일지 판 (0820a) — EG 전속 디자이너 비너스 시안 넉 벌 ══════════
+   ⚠⚠ 색 이름을 --dk- 로 갈라 두었다. 모니터와 **같은 이름에 정반대 값**이기 때문이다.
+     모니터 A 이른아침 ink #e4ecf2 (어두운 화면 위 밝은 글자)
+     기록판 A 이른아침 ink #2e3a42 (밝은 종이 위 어두운 글자)
+     한 그릇에 담으면 흰 종이에 흰 글자가 된다. 0819W 와 같은 갈래의 병이다.
+   ⚠ 시안의 판 바깥 배경(desk)은 안 쓴다 — 그 곳에는 진짜 창밖이 있다.
+     비너스가 깔아 둔 그라데이션은 모니터 지도 색과 같은 값이라, 배치용으로 둔 것이다.
+   ⭐ 막(#egrVeil)을 걷었다. 떠 있는 판이라야 밖에 나가서도 창밖을 안 가린다(0820 소로).
+   ⭐ 원판 920×640. ⚠ 손님이 끈 크기는 기억값, 이 수는 설계값 — 섞지 않는다(0819W). */
+#egrDesk{position:fixed;z-index:22;display:none;flex-direction:column;
+  width:920px;height:640px;left:50%;top:50%;margin:-320px 0 0 -460px;
+  background:var(--dk-paper,#faf4ea);border:1px solid var(--dk-frame,#d3c3a4);
+  border-radius:22px;box-shadow:0 30px 90px rgba(10,20,30,.45);
+  color:var(--dk-ink,#3d3222);font-family:'Noto Sans KR',system-ui,sans-serif;
+  overflow:hidden;pointer-events:auto;
+  transition:background .6s linear,border-color .6s linear,color .6s linear}
+#egrDesk.on{display:flex;flex-direction:row}
+#egrDesk.drag{opacity:.94}
+#egrDesk.sizing{transition:none}
+/* ── 왼쪽 레일 — 회차 타임라인 (78px) ── */
+#egrDesk .rail{width:78px;flex:0 0 auto;display:flex;flex-direction:column;align-items:center;
+  padding:22px 0 18px;box-sizing:border-box;
+  background:var(--dk-rail,#f0e6d4);border-right:1px solid var(--dk-line,#e6dbc4);
+  transition:background .6s linear}
+#egrDesk .tl{flex:1 1 auto;min-height:0;width:100%;overflow:auto;
+  display:flex;flex-direction:column;align-items:center;
+  scrollbar-width:none}
+#egrDesk .tl::-webkit-scrollbar{display:none}
+#egrDesk .tl .lk{width:1px;height:26px;background:var(--dk-line2,#d8c9ab);flex:none}
+#egrDesk .tl .nd{display:flex;flex-direction:column;align-items:center;cursor:pointer;flex:none}
+#egrDesk .tl .nd i{width:7px;height:7px;border-radius:50%;background:var(--dk-dot,#c4ad88);
+  font-style:normal;flex:none;transition:background .25s,box-shadow .25s}
+#egrDesk .tl .nd b{display:block;margin-top:5px;font:500 11px 'Noto Sans KR';
+  color:var(--dk-muted,#9a8a6e);text-align:center;line-height:1.3;font-weight:500}
+#egrDesk .tl .nd small{display:block;font:500 10px Tahoma,sans-serif;
+  color:var(--dk-muted,#9a8a6e)}
+#egrDesk .tl .nd.on i{width:9px;height:9px;background:var(--dk-accent,#a8642f);
+  box-shadow:0 0 0 3px var(--dk-accentSoft,#f3e2cd)}
+#egrDesk .tl .nd.on b,#egrDesk .tl .nd.on small{color:var(--dk-accent,#a8642f);font-weight:700}
+#egrDesk .tl .none{font:500 11px 'Noto Sans KR';color:var(--dk-muted,#9a8a6e);
+  text-align:center;line-height:1.6;padding:8px 6px}
+#egrDesk .books{width:40px;height:40px;border-radius:12px;flex:none;cursor:pointer;
+  border:1px solid var(--dk-line2,#d8c9ab);background:var(--dk-paper,#faf4ea);
+  display:flex;align-items:center;justify-content:center;gap:2px;padding:0;
+  box-shadow:0 1px 3px rgba(40,35,25,.15)}
+#egrDesk .books:hover{border-color:var(--dk-accent,#a8642f)}
+#egrDesk .books s{width:4px;border-radius:1px;text-decoration:none;display:block}
+#egrDesk .books s:nth-child(1){height:13px;background:var(--dk-dot,#c4ad88)}
+#egrDesk .books s:nth-child(2){height:16px;background:var(--dk-accent,#a8642f)}
+#egrDesk .books s:nth-child(3){height:11px;background:var(--dk-line2,#d8c9ab)}
+#egrDesk .rail .cap{font:500 9.5px 'Noto Sans KR';color:var(--dk-muted,#9a8a6e);margin-top:5px}
+/* ── 오른쪽 본체 ── */
+#egrDesk .main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;position:relative}
+/* 탭 줄 — ⭐ 여기를 잡고 판을 끈다(머리줄이 따로 없는 시안이라 이 줄이 그 몫을 한다) */
+#egrDesk .top{display:flex;align-items:center;gap:8px;padding:16px 22px 0;
+  flex:0 0 auto;cursor:grab}
+#egrDesk .top.grabbing{cursor:grabbing}
+#egrDesk .tabs{display:flex;gap:6px;align-items:center}
+#egrDesk .tabs button{font:500 11.5px 'Noto Sans KR';color:var(--dk-muted,#9a8a6e);
+  background:var(--dk-tab,#f4ecdc);border:1px solid var(--dk-line,#e6dbc4);border-bottom:none;
+  border-radius:8px 8px 0 0;padding:6px 12px 8px;margin-bottom:-1px;cursor:pointer}
+#egrDesk .tabs button.on{color:var(--dk-accent,#a8642f);font-weight:700;
+  background:var(--dk-paper,#faf4ea)}
+#egrDesk .sp{flex:1}
+#egrDesk .fs{font:600 12px 'Noto Sans KR';color:var(--dk-muted,#9a8a6e);cursor:pointer;
+  border:1px solid var(--dk-line2,#d8c9ab);border-radius:7px;padding:4px 9px;background:none}
+#egrDesk .fs:hover{color:var(--dk-accent,#a8642f);border-color:var(--dk-accent,#a8642f)}
+#egrDesk .x{font:400 16px 'Noto Sans KR';color:var(--dk-muted,#9a8a6e);padding:2px 6px;
+  border:0;background:none;cursor:pointer;line-height:1}
+#egrDesk .x:hover{color:var(--dk-accent,#a8642f)}
+/* 종이 */
+#egrDesk .sheet{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;
+  border-top:1px solid var(--dk-line,#e6dbc4)}
+#egrDesk .ttl{display:flex;align-items:baseline;gap:10px;padding:18px 26px 0;flex:0 0 auto}
+#egrDesk .ttl b{font:700 16px 'Noto Serif KR',serif;color:var(--dk-ink,#3d3222);white-space:nowrap}
+#egrDesk .ttl small{font:400 12.5px 'Noto Sans KR';color:var(--dk-muted,#9a8a6e);white-space:nowrap}
+/* ⚠ 오른쪽 270px 를 비운다 — 책 표지가 그 곳에 걸린다(시안).
+   ⚠⚠ line-height 를 반드시 적는다. 안 적으면 브라우저 기본이 폰트마다 갈린다(41호 ㉭) */
+#egrDesk textarea{flex:1 1 auto;min-height:0;width:auto;box-sizing:border-box;resize:none;
+  margin:12px 270px 0 26px;padding:0;border:0;background:transparent;
+  font-family:'Noto Serif KR',Georgia,serif;font-size:17px;line-height:1.95;
+  color:var(--dk-ink2,#4a3e2c);transition:color .6s linear}
+#egrDesk textarea::placeholder{color:var(--dk-muted,#9a8a6e);opacity:.65}
+#egrDesk textarea:focus{outline:none}
+#egrDesk.narrow textarea{margin-right:26px}
+/* 아래줄 — 지금 나는 곳 · 글자수 · 걸린 시간 */
+#egrDesk .ft{display:flex;align-items:center;gap:10px;padding:12px 22px 16px;flex:0 0 auto}
+#egrDesk .ft .place{font:500 11.5px 'Noto Sans KR';color:var(--dk-muted,#9a8a6e);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46%}
+#egrDesk .ft .mid{font:400 11px 'Noto Sans KR';color:var(--dk-line2,#d8c9ab)}
+#egrDesk .ft .cnt{font:500 11.5px 'Noto Sans KR';color:var(--dk-accent,#a8642f);white-space:nowrap}
+#egrDesk .ft .btn{font:500 12.5px 'Noto Sans KR';cursor:pointer;white-space:nowrap;
+  border-radius:999px;padding:7px 16px;
+  border:1px solid var(--dk-line2,#d8c9ab);background:none;color:var(--dk-accent,#a8642f)}
+#egrDesk .ft .btn:hover{border-color:var(--dk-accent,#a8642f)}
+#egrDesk .ft .btn.go{font-weight:600;padding:8px 22px;border:0;
+  background:var(--dk-btn,linear-gradient(180deg,#c07a3e,#a8642f));color:var(--dk-btnFg,#faf4ea);
+  box-shadow:0 3px 10px rgba(0,0,0,.25)}
+#egrDesk .ft .btn:disabled{opacity:.45;cursor:default}
+/* 책 표지 — −5° 로 걸린다 */
+#egrDesk .cover{position:absolute;right:44px;bottom:70px;width:178px;height:300px;
+  object-fit:cover;border-radius:8px;transform:rotate(-5deg);cursor:pointer;
+  background:linear-gradient(160deg,#dce8ee,#a9c3d2);
+  box-shadow:14px 16px 22px -6px rgba(10,25,40,.45)}
+#egrDesk.narrow .cover{display:none}
+/* 크기 조절 손잡이 — ⚠ 최소가 없으면 0 으로 접혀 다시 못 잡는다 */
+#egrDesk .grip{position:absolute;right:6px;bottom:6px;width:16px;height:16px;z-index:4;
+  border-right:2px solid var(--dk-line2,#d8c9ab);border-bottom:2px solid var(--dk-line2,#d8c9ab);
+  border-radius:0 0 6px 0;cursor:nwse-resize;opacity:.75}
+#egrDesk .grip:hover{opacity:1;border-color:var(--dk-accent,#a8642f)}
+/* ── 책 목록 층 (0820a 소로) — 판을 덮는다 ──
+   ⭐ 왼쪽 246px 목록이 78px 레일로 줄면서 갈 곳이 이 층뿐이었다.
+   ⚠ 검색은 안 붙인다 — 그것은 모니터의 몫이다(21호 · 검색은 한 문) */
+#egrDesk .booklist{position:absolute;inset:0;z-index:6;display:none;flex-direction:column;
+  background:var(--dk-paper,#faf4ea);border-radius:22px}
+#egrDesk .booklist.on{display:flex}
+#egrDesk .booklist .bh{display:flex;align-items:center;gap:10px;padding:18px 24px 12px;
+  border-bottom:1px solid var(--dk-line,#e6dbc4);flex:0 0 auto}
+#egrDesk .booklist .bh b{font:700 15px 'Noto Serif KR',serif;color:var(--dk-ink,#3d3222)}
+#egrDesk .booklist .bh small{font:400 12px 'Noto Sans KR';color:var(--dk-muted,#9a8a6e)}
+#egrDesk .booklist .bl{flex:1 1 auto;min-height:0;overflow:auto;padding:10px 18px 18px}
+#egrDesk .booklist .bk{display:flex;gap:14px;padding:12px 8px;border-radius:10px}
+#egrDesk .booklist .bk:hover{background:var(--dk-tab,#f4ecdc)}
+#egrDesk .booklist .bk img{width:52px;height:74px;object-fit:cover;border-radius:4px;flex:none;
+  background:var(--dk-tab,#f4ecdc);box-shadow:0 3px 10px rgba(20,15,5,.2);cursor:pointer}
+#egrDesk .booklist .bk .bi{flex:1;min-width:0}
+#egrDesk .booklist .bk .bi b{display:block;font:600 14px 'Noto Serif KR',serif;
+  color:var(--dk-ink,#3d3222);cursor:pointer;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#egrDesk .hd .t small{color:#8fa0b4;font-size:12px}
-#egrDesk .hd .cnt{color:#7d8794;font-size:12px;font-variant-numeric:tabular-nums}
-#egrDesk .hd .fs{display:flex;gap:3px}
-#egrDesk .body{flex:1 1 auto;min-height:0;display:flex}
-/* 왼쪽 — 정돈된 기록들 */
-#egrDesk .side{width:246px;flex:0 0 auto;border-right:1px solid #1d2430;
-  display:flex;flex-direction:column;background:#0a0c10}
-#egrDesk .rng{display:flex;flex-wrap:wrap;gap:4px;padding:10px 10px 8px;flex:0 0 auto}
-#egrDesk .rng button{border:1px solid #263041;background:#12161d;color:#7d8794;
-  border-radius:3px;padding:3px 8px;cursor:pointer;font:11.5px Georgia,'Noto Serif KR',serif}
-#egrDesk .rng button.on{border-color:#8a743c;color:#e6d9ae;background:#171d26}
-#egrDesk .arch{flex:1 1 auto;overflow:auto;padding:0 8px 10px}
-#egrDesk .bk{margin-top:8px}
-#egrDesk .bk .bt{display:flex;gap:8px;align-items:center;padding:4px 6px;border-radius:4px;
-  color:#8fa0b4;font-size:12px;cursor:pointer}
-#egrDesk .bk .bt:hover{background:#12161d;color:#dfe6ee}
-#egrDesk .bk .bt img{width:18px;height:26px;object-fit:cover;border-radius:1px;background:#1a212c}
-#egrDesk .bk .bt span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#egrDesk .bk .bt em{font-style:normal;color:#5f6a78;font-size:10.5px}
-#egrDesk .ent{padding:4px 8px 4px 34px;color:#7d8794;font-size:11.5px;cursor:pointer;
-  border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#egrDesk .ent:hover{background:#12161d;color:#dfe6ee}
-#egrDesk .ent.on{color:#e6d9ae;background:#141a23}
-#egrDesk .ent b{font-weight:normal;color:#c9a84c;margin-right:6px}
-#egrDesk .ent i{font-style:normal;color:#4e5866;font-size:10px;margin-left:5px}
-#egrDesk .none{color:#5f6a78;font-size:11.5px;padding:14px 8px;line-height:1.7}
-/* 오른쪽 — 글칸 */
-#egrDesk .pane{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;padding:14px 18px 12px}
-#egrDesk textarea{flex:1 1 auto;min-height:0;width:100%;box-sizing:border-box;resize:none;
-  background:#12161d;border:1px solid #263041;color:#e4ebf3;padding:16px 18px;border-radius:5px;
-  font-family:'Noto Serif KR',Georgia,serif;font-size:17px;line-height:1.9}
-#egrDesk textarea:focus{outline:none;border-color:#8a743c}
-#egrDesk .ft{margin-top:10px;display:flex;gap:8px;align-items:center;flex:0 0 auto}
-#egrDesk .msg{color:#7d8794;font-size:12px;margin-left:auto}
-#egrDesk .btn{border:1px solid #3a4356;background:#151b25;color:#cfd6de;
-  border-radius:4px;padding:7px 15px;cursor:pointer;font:13px 'Noto Serif KR',Georgia,serif}
-#egrDesk .btn:hover{border-color:#8a743c;color:#e6d9ae}
-#egrDesk .btn.sm{padding:3px 8px;font-size:12px}
-#egrVeil{position:fixed;inset:0;z-index:21;background:rgba(4,6,10,.55);display:none;
-  pointer-events:auto}
-#egrVeil.on{display:block}
-/* ⚠ 0819U — #egrRecent 를 걷었다. 표지가 아래단 책칸(NOW READING)으로 들어갔다 */`;
+#egrDesk .booklist .bk .bi small{display:block;font:400 11.5px 'Noto Sans KR';
+  color:var(--dk-muted,#9a8a6e);margin-top:2px}
+#egrDesk .booklist .ents{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+#egrDesk .booklist .ent{font:500 11.5px 'Noto Sans KR';cursor:pointer;
+  border:1px solid var(--dk-line2,#d8c9ab);border-radius:999px;padding:4px 11px;
+  color:var(--dk-muted,#9a8a6e);background:none;max-width:230px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#egrDesk .booklist .ent:hover{color:var(--dk-accent,#a8642f);border-color:var(--dk-accent,#a8642f)}
+#egrDesk .booklist .ent u{text-decoration:none;color:var(--dk-accent,#a8642f);font-weight:700;
+  margin-right:5px}
+#egrDesk .booklist .ent i{font-style:normal;color:var(--dk-dot,#c4ad88);margin-left:5px}
+#egrDesk .booklist .none{font:400 12.5px 'Noto Sans KR';color:var(--dk-muted,#9a8a6e);
+  padding:26px 10px;line-height:1.8;text-align:center}
+/* ⚠ 0820a — #egrVeil 을 걷었다. 막이 있으면 밖에 나가서 창밖을 볼 때 그 위에 어둠이 덮인다.
+   ⭐ 그리고 .out 에 #egrDesk 규칙을 안 둔다 — 밖에서도 판은 살아 있어야 한다(0820 소로) */`;
+
     document.head.appendChild(css);
   }
 
@@ -1184,6 +1278,37 @@
       mapDash: "#44587a", mapDot: "#4d648a", planeRing: "#0c0f16"
     }
   };
+  /* ⭐⭐ 기록판 팔레트 (0820a) — EG 전속 디자이너 비너스 시안 넉 벌. 값은 시안 소스 그대로.
+     ⚠⚠ 모니터 THEME 과 **이름이 겹치는데 값이 정반대**다. 그래서 --dk- 로 가른다.
+        모니터는 어두운 화면 위 밝은 글자, 기록판은 밝은 종이 위 어두운 글자다.
+     ⚠ 시안의 판 바깥 배경(desk)은 안 옮겼다 — 그 곳에는 진짜 창밖이 있다.
+        비너스가 깔아 둔 그라데이션은 모니터 지도 색과 같은 값이라 배치용으로 둔 것이다. */
+  var DESK_THEME = {
+    m: {   /* A · 이른 아침 — 새벽 안개, 은청색 */
+      paper: "#f4f6f7", rail: "#e7ecef", frame: "#c2ccd3", line: "#dde4e8",
+      line2: "#c5cfd6", tab: "#edf1f3", ink: "#2e3a42", ink2: "#3c4a54",
+      muted: "#7f8e99", accent: "#4a7590", accentSoft: "#d8e6ee", dot: "#a4b4bf",
+      btn: "linear-gradient(180deg,#5d8aa5,#4a7590)", btnFg: "#f2f6f8"
+    },
+    d: {   /* B · 한낮 — 종이·하늘 (비너스 「확정 기준안」) */
+      paper: "#f6f4ee", rail: "#ece9df", frame: "#c6c1ae", line: "#ddd8c8",
+      line2: "#d1ccba", tab: "#f0ede3", ink: "#33322c", ink2: "#3f3c33",
+      muted: "#8a8676", accent: "#3d6e8f", accentSoft: "#dce8ef", dot: "#b3ad99",
+      btn: "linear-gradient(180deg,#4d80a2,#3d6e8f)", btnFg: "#f4f2ec"
+    },
+    e: {   /* C · 저녁 노을 — 황동·앰버 */
+      paper: "#faf4ea", rail: "#f0e6d4", frame: "#d3c3a4", line: "#e6dbc4",
+      line2: "#d8c9ab", tab: "#f4ecdc", ink: "#3d3222", ink2: "#4a3e2c",
+      muted: "#9a8a6e", accent: "#a8642f", accentSoft: "#f3e2cd", dot: "#c4ad88",
+      btn: "linear-gradient(180deg,#c07a3e,#a8642f)", btnFg: "#faf4ea"
+    },
+    n: {   /* D · 한밤 — 심야 네이비, 달빛 (⭐ 넷 중 유일하게 어두운 종이) */
+      paper: "#161c28", rail: "#1d2432", frame: "#2c3648", line: "#242e3f",
+      line2: "#33405556", tab: "#1a2130", ink: "#dbe2ee", ink2: "#c4cfdf",
+      muted: "#6d7a8e", accent: "#8fb0c9", accentSoft: "#26374a", dot: "#43536b",
+      btn: "linear-gradient(180deg,#4a6f92,#3a5a7a)", btnFg: "#e8eef6"
+    }
+  };
   var themeNow = "";
   /* ⭐⭐ 조명 미리보기 (0819V · 소로) — 편집기 안에서만 넉 벌을 손으로 돌린다.
      ⚠⚠ 8호(거짓 하늘 금지)를 안 어긴다. 손님 화면은 언제나 진짜 태양시고,
@@ -1211,10 +1336,15 @@
     /* CABIN 파일 이름에서 갈래 글자를 되찾는다 — 조명과 테마를 한 값으로 묶는다 */
     var k = "e";
     for (var g in CABIN) if (CABIN[g] === file) k = g;
-    if (k === themeNow || !MONEL) return;
+    if (k === themeNow || !ROOT) return;
     themeNow = k;
-    var t = THEME[k] || THEME.e;
-    for (var v in t) MONEL.style.setProperty("--" + v, t[v]);
+    var t = THEME[k] || THEME.e, v;
+    if (MONEL) for (v in t) MONEL.style.setProperty("--" + v, t[v]);
+    /* ⭐ 기록판도 같은 조명을 받는다 — 해가 뜨면 종이도 함께 아침이 된다.
+       ⚠⚠ 이름을 --dk- 로 가른다. 모니터와 **같은 이름 다른 값**이기 때문이다
+         (A 이른아침: 모니터 ink #e4ecf2 / 기록판 ink #2e3a42). 섞으면 흰 종이에 흰 글자다. */
+    var dk = DESK_THEME[k] || DESK_THEME.e;
+    for (v in dk) ROOT.style.setProperty("--dk-" + v, dk[v]);
   }
   /* ⭐⭐ 조명 넉 벌 갈아끼우기 (0819Q) — 실제 일출은 삼십 분에 걸쳐 오는데
      0819P 까지는 배경 그림을 한 프레임에 통째로 바꿔 **기내만 스위치**였다.
@@ -1299,7 +1429,7 @@
      ⚠⚠ 비행정보에 「남은 시간」이 없다 — 14호. 끝이 없는 비행이다.
      ⭐ 화면이 셋이 아니라 둘이다 — 책이 없을 때의 모습이 곧 검색 한 문(20·21호). */
   var MONEL = null, TAB = "info", BOOK = null, SINFO = null;
-  var WD = { seq: 1, dirty: false, saving: false, tmr: null, sec: 0, last: 0 };
+  var WD = { seq: 1, dirty: false, saving: false, tmr: null, sec: 0, last: 0, msgUntil: 0 };
 
   /* 물과 전기 — egSupa(집주인 클라이언트) 한 벌로 두 손을 짓는다.
      ⚠ Ⅱ층 셸의 sbFetch 를 복사하지 않는다 — 그 손은 localStorage 를 직접 읽는데,
@@ -1452,30 +1582,63 @@
     var v = Math.round(s.vs);
     q("#egrVs").innerHTML = (v > 0 ? "+" : "") + v + "<u>M/MIN</u>";
     paintMap(s, route);              /* ⭐ 항로도 — 확대 중이면 지도가 따라 흐른다 */
+    paintWhere();                    /* ⭐ 기록판 아래줄 — 지금 나는 곳이 흐른다 */
   }
-  /* ══ 독서일지 판 (0819M) ═══════════════════════════════════════════
-     ⭐ 왼쪽은 정돈된 기록들, 오른쪽은 글칸. 베스페르 일기판과 같은 문법이다.
+  /* ══ 독서일지 판 (0820a) — 비너스 시안 넉 벌 ═══════════════════════
+     ⭐ 왼쪽은 78px 회차 타임라인, 오른쪽은 종이 한 장. 책별 묶음 목록은 「책 목록」 층으로.
+     ⭐ 막이 없다 — 떠 있는 판이라야 밖(C)에 나가서도 창밖을 안 가린다(0820 소로).
      ⚠ 판이 떠 있는 동안에도 비행은 계속된다 — 14호. 멈추게 하지 않는다. */
-  var DESK = null, VEIL = null, ARANGE = 30, FSIZE = 17;
-  var RANGES = [["오늘", 1], ["7일", 7], ["30일", 30], ["90일", 90], ["전체", null]];
+  var DESK = null, ARANGE = 7, FSIZE = 17, NICK = "";
+  var ARCH = [];                  /* 마지막으로 받은 아카이브 행 전체 */
+  var RANGES = [["최근 7일", 7], ["30일", 30], ["6개월", 180], ["전체", null]];
+  /* ⚠⚠ 설계값이다. 손님이 끈 크기(DSIZE)와 **한 그릇에 담지 않는다** — 0819W 사고 그대로 */
+  var DESK_W = 920, DESK_H = 640, MIN_W = 640, MIN_H = 500, NARROW = 760, LOW = 560;
+  var DSIZE = null;               /* 기억값 — 손님이 모서리를 끈 크기 */
+
+  var WEEK = ["일", "월", "화", "수", "목", "금", "토"];
+  function dateKo(d) {
+    return d.getFullYear() + "년 " + (d.getMonth() + 1) + "월 " + d.getDate() + "일 "
+         + WEEK[d.getDay()] + "요일";
+  }
+  function mdKo(d) { return (d.getMonth() + 1) + "." + d.getDate(); }
+  function sameDay(a, b) {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth()
+        && a.getDate() === b.getDate();
+  }
+  function secKo(n) {
+    n = Math.max(0, Math.round(n));
+    return Math.floor(n / 60) + "분 " + (n % 60) + "초";
+  }
 
   function mountDesk() {
-    VEIL = document.createElement("div"); VEIL.id = "egrVeil";
     DESK = document.createElement("div"); DESK.id = "egrDesk";
     DESK.innerHTML =
-      '<div class="hd"><img id="egrDCov" alt=""><div class="t">'
-      + '<b id="egrDTitle">독서일지</b><small id="egrDSub">&nbsp;</small></div>'
-      + '<span class="cnt" id="egrDCnt">0자</span>'
-      + '<span class="fs"><button class="btn sm" id="egrFsm" type="button" title="글씨 작게">가&#8722;</button>'
-      + '<button class="btn sm" id="egrFsp" type="button" title="글씨 크게">가&#43;</button></span>'
-      + '<button class="btn sm" id="egrDX" type="button">&#10005;</button></div>'
-      + '<div class="body"><div class="side">'
-      + '<div class="rng" id="egrRng"></div><div class="arch" id="egrArch"></div></div>'
-      + '<div class="pane"><textarea id="egrDBody" placeholder="그 책에 관한 나의 기록"></textarea>'
-      + '<div class="ft"><button class="btn" id="egrDSave" type="button">저장</button>'
-      + '<button class="btn" id="egrDNew" type="button">다음 회차</button>'
-      + '<span class="msg" id="egrDMsg"></span></div></div></div>';
-    ROOT.appendChild(VEIL); ROOT.appendChild(DESK);
+        '<div class="rail">'
+      +   '<div class="tl" id="egrTL"></div>'
+      +   '<button class="books" id="egrBooks" type="button" title="책 목록">'
+      +     '<s></s><s></s><s></s></button>'
+      +   '<span class="cap">책 목록</span>'
+      + '</div>'
+      + '<div class="main">'
+      +   '<div class="top" id="egrTop"><div class="tabs" id="egrRng"></div><span class="sp"></span>'
+      +     '<button class="fs" id="egrFsm" type="button" title="글씨 작게">가&#8722;</button>'
+      +     '<button class="fs" id="egrFsp" type="button" title="글씨 크게">가&#43;</button>'
+      +     '<button class="x" id="egrDX" type="button" title="덮기">&#10005;</button></div>'
+      +   '<div class="sheet">'
+      +     '<div class="ttl"><b id="egrDDate">&nbsp;</b><small id="egrDWho">&nbsp;</small></div>'
+      +     '<textarea id="egrDBody" placeholder="그 책에 관한 나의 기록"></textarea>'
+      +     '<div class="ft"><span class="place" id="egrDMsg">&nbsp;</span>'
+      +       '<span class="mid">&middot;</span><span class="cnt" id="egrDCnt">0자</span>'
+      +       '<span class="sp"></span>'
+      +       '<button class="btn" id="egrDNew" type="button">다음 회차</button>'
+      +       '<button class="btn go" id="egrDSave" type="button">저장</button></div>'
+      +   '</div>'
+      +   '<img class="cover" id="egrDCov" alt="">'
+      + '</div>'
+      + '<div class="grip" id="egrDGrip"></div>'
+      + '<div class="booklist" id="egrBookList"></div>';
+    ROOT.appendChild(DESK);
+
     var rng = DESK.querySelector("#egrRng");
     RANGES.forEach(function (r) {
       var b = document.createElement("button");
@@ -1483,104 +1646,298 @@
       b.className = (r[1] === ARANGE) ? "on" : "";
       EGR_on(b, "click", function () {
         ARANGE = r[1];
-        var all = rng.querySelectorAll("button");
-        for (var i = 0; i < all.length; i++) all[i].classList.remove("on");
+        var all = rng.querySelectorAll("button"), i;
+        for (i = 0; i < all.length; i++) all[i].classList.remove("on");
         b.classList.add("on");
         loadArchive();
       });
       rng.appendChild(b);
     });
+
     EGR_on(DESK.querySelector("#egrDX"), "click", closeDesk);
-    EGR_on(VEIL, "click", closeDesk);
     EGR_on(DESK.querySelector("#egrDSave"), "click", function () { saveNote("saved"); });
     EGR_on(DESK.querySelector("#egrDNew"), "click", function () {
       if (WD.dirty) saveNote("draft");
       openWrite(null);
     });
-    EGR_on(DESK.querySelector("#egrDBody"), "input", function () {
-      touched();
-      DESK.querySelector("#egrDCnt").textContent =
-        DESK.querySelector("#egrDBody").value.length + "자";
-    });
+    EGR_on(DESK.querySelector("#egrDBody"), "input", function () { touched(); paintCount(); });
     EGR_on(DESK.querySelector("#egrFsp"), "click", function () { setFont(FSIZE + 2); });
     EGR_on(DESK.querySelector("#egrFsm"), "click", function () { setFont(FSIZE - 2); });
+    EGR_on(DESK.querySelector("#egrDCov"), "click", openPick);
+    EGR_on(DESK.querySelector("#egrBooks"), "click", function () { showBookList(true); });
+    dragDesk();
+    restoreDesk();
+    NICK = "";
+    loadNick();
   }
-  /* ⭐ 노안 배려 — 이 집 손님 절반의 문제다. 곁다리가 아니다 */
+
+  /* ⭐ 「Puffin의 독서일지」 — 베스페르가 쓰는 길 그대로 */
+  function loadNick() {
+    var sb = egr_sb();
+    if (!sb || !sb.auth) return;
+    sb.auth.getUser().then(function (r) {
+      var u = r && r.data && r.data.user; if (!u) return null;
+      return sb.from("users").select("nickname").eq("id", u.id).maybeSingle()
+        .then(function (x) { return (x.data && x.data.nickname) || null; });
+    }).then(function (n) {
+      if (!DESK || !document.body.contains(DESK)) return;   /* 늦게 온 응답 */
+      NICK = n || "";
+      var w = DESK.querySelector("#egrDWho");
+      if (w && NICK) w.textContent = NICK + "의 독서일지";
+    }).catch(function () { });
+  }
+
+  /* ── 판 옮기기 · 크기 조절 (0820a 소로 · 베스페르 문법) ──
+     ⚠ 화면 밖으로 나가면 못 돌아온다. 가장자리를 문다.
+     ⚠ 최소가 없으면 0 으로 접혀 다시 못 잡는다. 최대는 화면의 94%. */
+  function clampDesk() {
+    if (!DESK) return;
+    var r = DESK.getBoundingClientRect();
+    var x = Math.max(8, Math.min(innerWidth - r.width - 8, r.left));
+    var y = Math.max(8, Math.min(innerHeight - r.height - 8, r.top));
+    DESK.style.margin = "0"; DESK.style.left = x + "px"; DESK.style.top = y + "px";
+    /* ⚠ 표지는 −5° 로 걸려 실높이가 314px 다. 판이 낮으면 날짜 줄을 덮는다 —
+       판정에 높이를 함께 넣는다. 셈: 표지 위끝 = 높이 − (314 + bottom 70) */
+    DESK.classList.toggle("narrow", r.width < NARROW || r.height < LOW);
+  }
+  function saveDeskPos() {
+    if (!DESK) return;
+    try {
+      var r = DESK.getBoundingClientRect();
+      var o = { x: r.left, y: r.top };
+      if (DSIZE) { o.w = DSIZE.w; o.h = DSIZE.h; }     /* ⚠ 크기는 DSIZE 가 있을 때만 적는다 */
+      localStorage.setItem("eg_read_desk", JSON.stringify(o));
+    } catch (e) { }
+  }
+  function restoreDesk() {
+    try {
+      var p = JSON.parse(localStorage.getItem("eg_read_desk") || "null");
+      if (p && isFinite(p.w) && isFinite(p.h)) {
+        DSIZE = { w: Math.max(MIN_W, p.w), h: Math.max(MIN_H, p.h) };
+        DESK.style.width = DSIZE.w + "px"; DESK.style.height = DSIZE.h + "px";
+      }
+      if (p && isFinite(p.x) && isFinite(p.y)) {
+        DESK.style.margin = "0"; DESK.style.left = p.x + "px"; DESK.style.top = p.y + "px";
+      }
+    } catch (e) { }
+  }
+  function dragDesk() {
+    var hd = DESK.querySelector("#egrTop"), on = false, sx = 0, sy = 0, ox = 0, oy = 0;
+    EGR_on(hd, "pointerdown", function (e) {
+      if (e.target.closest("button")) return;          /* 탭·가−·✕ 는 제 일을 한다 */
+      var r = DESK.getBoundingClientRect();
+      on = true; sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top;
+      DESK.style.margin = "0"; DESK.style.left = ox + "px"; DESK.style.top = oy + "px";
+      DESK.classList.add("drag"); hd.classList.add("grabbing");
+      try { hd.setPointerCapture(e.pointerId); } catch (er) { }
+    });
+    EGR_on(hd, "pointermove", function (e) {
+      if (!on) return;
+      DESK.style.left = (ox + e.clientX - sx) + "px";
+      DESK.style.top = (oy + e.clientY - sy) + "px";
+    });
+    function up() {
+      if (!on) return;
+      on = false; DESK.classList.remove("drag"); hd.classList.remove("grabbing");
+      clampDesk(); saveDeskPos();
+    }
+    EGR_on(hd, "pointerup", up); EGR_on(hd, "pointercancel", up);
+
+    var g = DESK.querySelector("#egrDGrip"), sz = false, gx = 0, gy = 0, gw = 0, gh = 0;
+    EGR_on(g, "pointerdown", function (e) {
+      e.preventDefault(); e.stopPropagation();
+      var r = DESK.getBoundingClientRect();
+      sz = true; gx = e.clientX; gy = e.clientY; gw = r.width; gh = r.height;
+      DESK.style.margin = "0"; DESK.style.left = r.left + "px"; DESK.style.top = r.top + "px";
+      DESK.classList.add("sizing");
+      try { g.setPointerCapture(e.pointerId); } catch (er) { }
+    });
+    EGR_on(g, "pointermove", function (e) {
+      if (!sz) return;
+      var w = Math.max(MIN_W, Math.min(innerWidth * 0.94, gw + e.clientX - gx));
+      var h = Math.max(MIN_H, Math.min(innerHeight * 0.94, gh + e.clientY - gy));
+      DESK.style.width = w + "px"; DESK.style.height = h + "px";
+      DESK.classList.toggle("narrow", w < NARROW || h < LOW);
+    });
+    function gup() {
+      if (!sz) return;
+      sz = false; DESK.classList.remove("sizing");
+      var r = DESK.getBoundingClientRect();
+      DSIZE = { w: r.width, h: r.height };
+      clampDesk(); saveDeskPos();
+    }
+    EGR_on(g, "pointerup", gup); EGR_on(g, "pointercancel", gup);
+    /* 두 번 누르면 설계 크기로 — 망쳤을 때 나갈 문 */
+    EGR_on(g, "dblclick", function (e) {
+      e.preventDefault(); e.stopPropagation();
+      DSIZE = null;
+      DESK.style.width = DESK_W + "px"; DESK.style.height = DESK_H + "px";
+      DESK.style.left = ((innerWidth - DESK_W) / 2) + "px";
+      DESK.style.top = ((innerHeight - DESK_H) / 2) + "px";
+      clampDesk(); saveDeskPos();
+    });
+    EGR_on(window, "resize", function () { if (DESK && DESK.classList.contains("on")) clampDesk(); });
+  }
+
+  /* ⭐ 노안 배려 — 이 집 손님 절반의 문제다. 곁다리가 아니다.
+     ⚠ 시안 기본은 15.5px 인데 여기서는 17 로 시작한다. 가− 로 내려가고 그 값은 기억된다. */
   function setFont(px) {
     FSIZE = Math.max(13, Math.min(28, px));
     var t = DESK && DESK.querySelector("#egrDBody");
-    if (t) { t.style.fontSize = FSIZE + "px"; t.style.lineHeight = (FSIZE > 20 ? 1.8 : 1.9); }
+    if (t) { t.style.fontSize = FSIZE + "px"; t.style.lineHeight = (FSIZE > 20 ? 1.85 : 1.95); }
     try { localStorage.setItem("eg_read_fs", String(FSIZE)); } catch (e) { }
   }
   function openDesk() {
     if (!DESK) return;
     try { var f = +localStorage.getItem("eg_read_fs"); if (f) FSIZE = f; } catch (e) { }
     setFont(FSIZE);
-    VEIL.classList.add("on"); DESK.classList.add("on");
+    DESK.classList.add("on");
+    clampDesk();
     loadArchive();
   }
   function closeDesk() {
     if (!DESK) return;
     if (WD.dirty) saveNote("draft");
-    VEIL.classList.remove("on"); DESK.classList.remove("on");
+    showBookList(false);
+    DESK.classList.remove("on");
+    /* ⚠ 안 보이는 요소도 포커스는 붙들고 있다 — 덮을 때 손도 함께 뗀다(0817 딱지) */
+    try { DESK.querySelector("#egrDBody").blur(); } catch (e) { }
+  }
+
+  function paintCount() {
+    if (!DESK) return;
+    var t = DESK.querySelector("#egrDBody");
+    DESK.querySelector("#egrDCnt").textContent =
+      t.value.length + "자 · " + secKo(WD.sec);
+  }
+  /* 아래줄 왼쪽 — ⭐ 지금 나는 곳이 흐른다. paintInfo 가 400ms 마다 부른다 */
+  function paintWhere() {
+    if (!DESK || !DESK.classList.contains("on") || WD.msgUntil > Date.now()) return;
+    var el = DESK.querySelector("#egrDMsg"); if (!el) return;
+    var s = SINFO;
+    if (!s) { el.textContent = ""; return; }
+    var utc = new Date();
+    var loc = (utc.getUTCHours() + utc.getUTCMinutes() / 60 + s.lon / 15 + 24) % 24;
+    var hh = Math.floor(loc), mm = Math.floor((loc - hh) * 60);
+    el.textContent = (s.leg || "") + " 상공 · 고도 " + Math.round(s.alt).toLocaleString() + "m · "
+      + (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm;
+  }
+  function say(t) {                       /* 저장 알림 — 2초만 곳을 빌린다 */
+    if (!DESK) return;
+    var el = DESK.querySelector("#egrDMsg"); if (!el) return;
+    WD.msgUntil = Date.now() + 2000;
+    el.textContent = t;
+  }
+
+  /* ── 왼쪽 레일 — 지금 책의 회차 타임라인 ──
+     ⭐ 오늘 쓴 것은 「오늘」, 지난 것은 「제N회」. 열려 있는 회차가 굵게 선다.
+     ⚠ 아직 저장 안 한 새 회차는 서버에 없다 — 맨 위에 「지금」으로 세운다. */
+  function railPaint() {
+    if (!DESK) return;
+    var box = DESK.querySelector("#egrTL"); if (!box) return;
+    var rows = [], i;
+    if (BOOK) for (i = 0; i < ARCH.length; i++)
+      if (ARCH[i].book_id === BOOK.id) rows.push(ARCH[i]);
+    rows.sort(function (a, b) { return b.seq - a.seq; });
+    var today = new Date(), html = "", first = true;
+    var live = BOOK && !rows.some(function (r) { return r.seq === WD.seq; });
+    if (live) {
+      html += '<div class="nd on" data-seq="' + WD.seq + '"><i></i>'
+            + '<b>지금</b><small>' + mdKo(today) + '</small></div>';
+      first = false;
+    }
+    for (i = 0; i < rows.length; i++) {
+      var d = new Date(rows[i].updated_at);
+      var nm = sameDay(d, today) ? "오늘" : ("제" + rows[i].seq + "회");
+      if (!first || i > 0) html += '<span class="lk"></span>';
+      first = false;
+      html += '<div class="nd' + (rows[i].seq === WD.seq && !live ? " on" : "")
+            + '" data-seq="' + rows[i].seq + '"><i></i><b>' + nm + '</b>'
+            + '<small>' + mdKo(d) + '</small></div>';
+    }
+    if (!html) html = '<div class="none">첫 회차를<br>여기서 씁니다</div>';
+    box.innerHTML = html;
+    var nds = box.querySelectorAll(".nd[data-seq]");
+    for (i = 0; i < nds.length; i++) (function (el) {
+      EGR_on(el, "click", function () {
+        var sq = +el.getAttribute("data-seq");
+        if (sq === WD.seq) return;
+        var row = rows.filter(function (r) { return r.seq === sq; })[0];
+        if (row) openWrite(row);
+      });
+    })(nds[i]);
   }
 
   /* ③ 아카이빙 — 기간으로 좁히고 책별로 묶는다 */
   function loadArchive() {
-    var box = DESK && DESK.querySelector("#egrArch");
-    if (!box) return;
-    box.innerHTML = '<div class="none">불러오는 중…</div>';
+    if (!DESK) return;
     rpc("get_my_book_archive", { p_days: ARANGE }).then(function (rows) {
-      rows = rows || [];
-      if (!rows.length) {
-        box.innerHTML = '<div class="none">이 기간에 쓴 기록이 없습니다.<br>'
-          + '모니터에서 책을 고르고 첫 회차를 여십시오.</div>';
-        return;
-      }
-      /* 책별로 묶는다 — 서버가 이미 책 단위로 정렬해 준다 */
-      var html = "", cur = null;
-      rows.forEach(function (r) {
-        if (r.book_id !== cur) {
-          cur = r.book_id;
-          html += '<div class="bk"><div class="bt" data-bk="' + r.book_id + '">'
-            + '<img src="' + esc(r.cover_url || "") + '" onerror="this.style.visibility=\'hidden\'">'
-            + '<span>' + esc(r.title) + '</span></div>';
-        }
-        html += '<div class="ent" data-bk="' + r.book_id + '" data-seq="' + r.seq + '">'
-          + '<b>제' + r.seq + '회</b>'
-          + esc(String(r.body || "").replace(/\s+/g, " ").slice(0, 22))
-          + (r.status === "draft" ? '<i>초안</i>' : "") + '</div>';
-      });
-      box.innerHTML = html;
-      var ents = box.querySelectorAll(".ent"), i;
-      for (i = 0; i < ents.length; i++) (function (el) {
-        EGR_on(el, "click", function () {
-          var bk = el.getAttribute("data-bk"), sq = +el.getAttribute("data-seq");
-          var row = rows.filter(function (r) { return r.book_id === bk && r.seq === sq; })[0];
-          if (!row) return;
-          if (!BOOK || BOOK.id !== bk) {
-            BOOK = { id: bk, title: row.title, author: row.author, cover_url: row.cover_url };
-            paintBook(); paintRecent();
-          }
-          openWrite({ seq: row.seq, body: row.body });
-          var on = box.querySelectorAll(".ent.on");
-          for (var j = 0; j < on.length; j++) on[j].classList.remove("on");
-          el.classList.add("on");
-        });
-      })(ents[i]);
-      var bts = box.querySelectorAll(".bt");
-      for (i = 0; i < bts.length; i++) (function (el) {
-        EGR_on(el, "click", function () {
-          var bk = el.getAttribute("data-bk");
-          var row = rows.filter(function (r) { return r.book_id === bk; })[0];
-          if (!row) return;
-          BOOK = { id: bk, title: row.title, author: row.author, cover_url: row.cover_url };
-          paintBook(); paintRecent(); openWrite(null);
-        });
-      })(bts[i]);
+      if (!DESK || !document.body.contains(DESK)) return;   /* 늦게 온 응답 */
+      ARCH = rows || [];
+      railPaint();
+      if (DESK.querySelector("#egrBookList").classList.contains("on")) paintBookList();
     }).catch(function (e) {
-      box.innerHTML = '<div class="none">' + esc(e.message || e) + '</div>';
+      console.warn("[EG] 기록을 못 불러왔습니다:", e);
     });
+  }
+
+  /* ── 「책 목록」 층 (0820a 소로) — 판을 덮는다 ──
+     ⚠ 검색은 안 붙인다. 새 책을 들이는 문은 모니터 쪽 한 문이다(21호). */
+  function showBookList(on) {
+    if (!DESK) return;
+    var el = DESK.querySelector("#egrBookList");
+    el.classList.toggle("on", !!on);
+    if (on) paintBookList();
+  }
+  function paintBookList() {
+    if (!DESK) return;
+    var el = DESK.querySelector("#egrBookList");
+    var head = '<div class="bh"><b>책 목록</b>'
+             + '<small>' + esc(RANGES.filter(function (r) { return r[1] === ARANGE; })[0][0])
+             + ' 안에 기록이 있는 책</small><span class="sp" style="flex:1"></span>'
+             + '<button class="x" id="egrBLx" type="button">&#10005;</button></div>';
+    var body = "", cur = null, i;
+    for (i = 0; i < ARCH.length; i++) {
+      var r = ARCH[i];
+      if (r.book_id !== cur) {
+        if (cur !== null) body += '</div></div></div>';
+        cur = r.book_id;
+        body += '<div class="bk"><img src="' + esc(r.cover_url || "")
+              + '" onerror="this.style.visibility=\'hidden\'" data-bk="' + r.book_id + '" alt="">'
+              + '<div class="bi"><b data-bk="' + r.book_id + '">' + esc(r.title) + '</b>'
+              + '<small>' + esc(r.author || "") + '</small><div class="ents">';
+      }
+      body += '<button class="ent" type="button" data-bk="' + r.book_id + '" data-seq="' + r.seq
+            + '"><u>제' + r.seq + '회</u>'
+            + esc(String(r.body || "").replace(/\s+/g, " ").slice(0, 18))
+            + (r.status === "draft" ? '<i>초안</i>' : "") + '</button>';
+    }
+    if (cur !== null) body += '</div></div></div>';
+    if (!body) body = '<div class="none">이 기간에 쓴 기록이 없습니다.<br>'
+                    + '모니터에서 책을 고르고 첫 회차를 여십시오.</div>';
+    el.innerHTML = head + '<div class="bl">' + body + '</div>';
+    EGR_on(el.querySelector("#egrBLx"), "click", function () { showBookList(false); });
+
+    function pick(bk, sq) {
+      var row = ARCH.filter(function (r) {
+        return r.book_id === bk && (sq == null || r.seq === sq); })[0];
+      if (!row) return;
+      if (!BOOK || BOOK.id !== bk) {
+        BOOK = { id: bk, title: row.title, author: row.author, cover_url: row.cover_url };
+        RECENT = BOOK; paintBook();
+      }
+      showBookList(false);
+      if (sq == null) openWrite(null); else openWrite(row);
+    }
+    var ents = el.querySelectorAll(".ent"), j;
+    for (j = 0; j < ents.length; j++) (function (b) {
+      EGR_on(b, "click", function () {
+        pick(b.getAttribute("data-bk"), +b.getAttribute("data-seq")); });
+    })(ents[j]);
+    var tops = el.querySelectorAll("[data-bk]:not(.ent)");
+    for (j = 0; j < tops.length; j++) (function (b) {
+      EGR_on(b, "click", function () { pick(b.getAttribute("data-bk"), null); });
+    })(tops[j]);
   }
 
   /* ══ 인장 (0819N) — 16호 「도장은 저장할 때 한 번」 ═══════════════════
@@ -1719,24 +2076,27 @@ function paintBook() {
   
   function openWrite(row) {
     if (!BOOK || !DESK) return;
-    var go = function (seq, body) {
-      WD.seq = seq; WD.dirty = false; WD.sec = 0; WD.last = 0;
-      DESK.querySelector("#egrDTitle").textContent = BOOK.title;
-      DESK.querySelector("#egrDSub").textContent =
-        (BOOK.author ? BOOK.author + " · " : "") + "제" + seq + "회";
+    var go = function (seq, body, sec, when) {
+      WD.seq = seq; WD.dirty = false; WD.last = 0; WD.msgUntil = 0;
+      /* ⭐ 지난 회차를 다시 열면 그때까지 걸린 시간부터 이어 센다.
+         ⚠ 0 부터 세면 서버의 greatest 가 옛 값을 지켜서 「0분 34초」가 영영 안 늘어난다. */
+      WD.sec = +sec || 0;
+      DESK.querySelector("#egrDDate").textContent = dateKo(when || new Date());
+      DESK.querySelector("#egrDWho").textContent = NICK ? (NICK + "의 독서일지") : "독서일지";
       var cv = DESK.querySelector("#egrDCov");
       cv.src = BOOK.cover_url || ""; cv.style.visibility = BOOK.cover_url ? "" : "hidden";
+      cv.title = BOOK.title + (BOOK.author ? " · " + BOOK.author : "");
       var t = DESK.querySelector("#egrDBody");
       t.value = body || "";
-      DESK.querySelector("#egrDCnt").textContent = t.value.length + "자";
-      DESK.querySelector("#egrDMsg").textContent = "";
+      paintCount(); railPaint();
       openDesk();
       t.focus();
+      try { t.setSelectionRange(t.value.length, t.value.length); } catch (e) { }
     };
-    if (row) { go(row.seq, row.body); return; }
+    if (row) { go(row.seq, row.body, row.write_sec, row.updated_at ? new Date(row.updated_at) : null); return; }
     rpc("book_note_next_seq", { p_book: BOOK.id })
-      .then(function (n) { go(Math.max(1, +n || 1), ""); })
-      .catch(function () { go(1, ""); });
+      .then(function (n) { go(Math.max(1, +n || 1), "", 0, null); })
+      .catch(function () { go(1, "", 0, null); });
   }
   /* ⚠ 창밖 보러 나갔다 돌아오니 백지 — 그건 다시는 안 쓰게 되는 사고다(v1.4 13호).
      손을 멈추면 2.5초 뒤 조용히 초안으로 남긴다. 베스페르 touched 문법 그대로. */
@@ -1751,8 +2111,7 @@ function paintBook() {
   function saveNote(status) {
     if (!BOOK || WD.saving || !DESK) return;
     var body = DESK.querySelector("#egrDBody").value;
-    var msg = DESK.querySelector("#egrDMsg");
-    if (status === "saved" && !body.trim()) { msg.textContent = "아직 쓴 글이 없습니다"; return; }
+    if (status === "saved" && !body.trim()) { say("아직 쓴 글이 없습니다"); return; }
     if (!body.trim() && status === "draft") { WD.dirty = false; return; }
     WD.saving = true;
     var s = SINFO || {};
@@ -1764,17 +2123,19 @@ function paintBook() {
       p_lon: (typeof s.lon === "number") ? +s.lon.toFixed(5) : null,
       p_alt_km: (typeof s.alt === "number") ? +(s.alt / 1000).toFixed(2) : null,
       p_write_sec: Math.round(WD.sec)
-    }).then(function () {
+    }).then(function (out) {
       WD.dirty = false;
-      msg.textContent = status === "saved" ? "저장했습니다" : "임시 저장";
+      /* ⭐ 서버가 돌려준 행의 status 를 그대로 믿는다.
+         한 번 saved 면 자동 초안이 와도 안 내려간다(0820 서버 걸쇠). 화면이 서버를 앞지르지 않게. */
+      var st = (out && out.status) || status;
+      say(st === "saved" ? "저장했습니다" : "임시 저장");
       RECENT = BOOK; paintRecent();
       if (DESK.classList.contains("on")) loadArchive();
       /* ⭐ 16호 — 도장은 **저장할 때** 한 번. 초안에는 안 놓는다.
          자동 초안까지 도장을 놓으면 「글을 쓰다 멈춘 것」에도 상을 주는 꼴이 된다. */
       if (status === "saved") offerStamp();
     }).catch(function (e) {
-      msg.textContent =
-        /JWT|auth|401|로그인/i.test(String(e && e.message)) ? "로그인이 필요합니다" : "저장하지 못했습니다";
+      say(/JWT|auth|401|로그인/i.test(String(e && e.message)) ? "로그인이 필요합니다" : "저장하지 못했습니다");
     }).then(function () { WD.saving = false; });
   }
 
@@ -2296,7 +2657,8 @@ function paintBook() {
     SHUT = false; editing = false; egrab = null; cvW = 0; cvH = 0; PAUSED = false;
     PREVIEW = null; themeNow = "";   /* ⚠ 다음 탑승은 진짜 시각으로 */
     try { clearTimeout(tuneT); clearTimeout(fadeT); } catch (e) { }
-    MONEL = null; TAB = "info"; SINFO = null; DESK = null; VEIL = null; RECENT = null;
+    MONEL = null; TAB = "info"; SINFO = null; DESK = null; RECENT = null;
+    ARCH = []; DSIZE = null; NICK = "";
     MAPF = null; MAPBASE = null; mapSeg = -1; zi = 0; redrawT = 0;
     WD.dirty = false; WD.saving = false;
     /* ⚠ BOOK 은 남긴다 — 같은 세션에서 다시 타면 읽던 책이 그대로 걸려 있는 편이 맞다.
