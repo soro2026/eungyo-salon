@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0820a
+   EG독서비행 — 방(room) 판 · reading_room.js · v0820b
    2026.08.20 소로 × 파이스 · 145회차
    ⭐⭐ 0820a — 기록판을 비너스 시안 넉 벌로 다시 지었다.
      ① 색 이름을 --dk- 로 갈랐다. ⚠⚠ 모니터와 **같은 이름에 정반대 값**이기 때문이다
@@ -9,6 +9,11 @@
      ④ 끌어 옮기고 모서리로 크기를 바꾼다. 두 번 누르면 설계 크기로 돌아온다
      ⑤ 아래줄이 지금 나는 곳을 흘린다 · 저장 알림은 2초만 그 곳을 빌린다
      ⚠ 손님이 끈 크기(DSIZE)와 설계값(DESK_W·DESK_H)을 한 그릇에 안 담는다 — 0819W 사고
+   ⭐ 0820b — 밖(C)에서도 계기판이 곁에 있다(소로).
+     ⚠ 사영변환을 풀고 화면 높이의 34%로 줄여 왼쪽 아래에 똑바로 앉힌다.
+       기내 판이 없는데 좌석 사다리꼴에 앉히면 허공에 기울어진 채 뜬다
+     ⭐ 감추기(V · 눈 단추) — 계기판과 기록판이 함께 걷히고 창밖만 남는다
+       ⚠ 되돌릴 단추는 남긴다. 다 감추면 다시 부를 문이 없다
    ⚠ 판번호는 아래 VERSION 하나가 정본이다. 0819e 까지 이 줄이 a 로 남아 있었다 —
      「적어 두는 것과 읽는 것은 다른 일」의 표본. 고칠 때 둘을 함께 올린다.
 
@@ -54,7 +59,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0820a";
+  var VERSION = "0820b";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -76,7 +81,10 @@
   /* ⚠ 방 밖에 두는 물건은 이 배열에만 더한다. 선택자를 손으로 잇지 않는다.
      0818 하루에 같은 병을 두 번 겪었다(#vesperExit 낮 · 인장 둘 밤).
      stamp_press.js 는 도크·플래시를 document.body 직계로 붙이므로 마스크에 정통으로 걸린다. */
-  var KEEP = ["#cesiumContainer", "#readingRoom", "#readingExit", "#egStampDock", "#egStampFlash"];
+  /* ⚠⚠ 방 밖(body 직계)에 두는 물건은 **여기에만** 더한다. 손으로 선택자를 이어붙이면
+     반드시 하나를 빠뜨린다 — 0818 하루에 두 번 빠뜨렸다(31호 ㉢). 0820b 에 #readingHide 추가. */
+  var KEEP = ["#cesiumContainer", "#readingRoom", "#readingExit", "#readingHide",
+              "#egStampDock", "#egStampFlash"];
 
   function EGR_later(fn, ms) { var t = setTimeout(fn, ms); TIMERS.push(t); return t; }
   function EGR_clearTimers() { TIMERS.forEach(function (t) { clearTimeout(t); }); TIMERS.length = 0; }
@@ -538,7 +546,22 @@
   background:var(--screen,#14110c);color:var(--ink,#efe4cd);overflow:hidden;border-radius:10px;
   font-family:'Noto Sans KR',Georgia,serif;
   transition:background 3s linear,color 3s linear}
-#readingRoom.out #egrMon{display:none}
+/* ⭐ 0820b — .out 에서 모니터를 감추던 줄을 걷었다(소로).
+   창밖을 보러 나가도 계기판은 곁에 있어야 한다 — 실제 기내 IFE 도 꺼지지 않는다.
+   ⚠ 다만 좌석 사다리꼴에 앉는 사영변환은 밖에서 풀어야 한다. 기내 판이 없으면
+     허공에 기울어진 채 뜬다. layout() 이 OUT 이면 똑바로 세워 왼쪽 아래에 앉힌다. */
+#readingRoom.out #egrMon{border:1px solid var(--ring,#59492f);
+  box-shadow:0 18px 60px rgba(0,0,0,.55)}
+/* ⭐ 감추기 — 밖에서만 나타난다. 누르면 판 둘이 함께 걷히고 창밖만 남는다(0820 소로) */
+#readingHide{position:fixed;right:22px;top:74px;z-index:26;display:none;
+  width:38px;height:38px;border-radius:10px;cursor:pointer;line-height:1;
+  border:1px solid rgba(255,255,255,.22);background:rgba(12,16,24,.5);
+  color:rgba(255,255,255,.82);font:400 17px/1 Tahoma,sans-serif;
+  backdrop-filter:blur(4px);align-items:center;justify-content:center}
+#readingRoom.out ~ #readingHide,#readingHide.on{display:flex}
+#readingHide:hover{border-color:rgba(255,255,255,.5);color:#fff}
+#readingRoom.bare #egrMon,#readingRoom.bare #egrDesk,
+#readingRoom.bare .readingSeat{display:none}
 #egrMon .btn{border:1px solid var(--ring,#59492f);background:var(--btn,#3f3524);
   color:var(--glow,#f0dfb4);border-radius:6px;padding:9px 16px;cursor:pointer;
   font:600 17px 'Noto Sans KR',serif;letter-spacing:.02em;
@@ -816,6 +839,13 @@
     EXIT.textContent = "×"; EXIT.title = "내리기";
     document.body.appendChild(EXIT);
     EGR_on(EXIT, "click", function () { leave(); });
+    /* ⭐ 감추기 (0820 소로) — 「밖에서 창밖만 보고 싶을 때」.
+       ⚠ 방 밖(body 직계) 물건이라 KEEP 에 반드시 더한다 — 0818 에 두 번 빠뜨린 그것(31호 ㉢) */
+    HIDE = document.createElement("button");
+    HIDE.id = "readingHide"; HIDE.type = "button";
+    HIDE.innerHTML = "&#128065;"; HIDE.title = "판 감추기 (V)";
+    document.body.appendChild(HIDE);
+    EGR_on(HIDE, "click", function () { toggleBare(); });
     /* 0819g — 좌·우 창 화살표. 방 밖 물건이 아니라 방(ROOT) 안이다 — KEEP 을 안 늘린다 */
     var sL = document.createElement("button");
     sL.id = "readingSeatL"; sL.className = "readingSeat"; sL.type = "button";
@@ -845,6 +875,7 @@
   var panY = 0, panMin = 0, panMax = 0;
   var cvW = 0, cvH = 0;            /* 캔버스 마지막 크기 — 같으면 resize 를 안 부른다 */
   var OUT = false;                 /* 0819g — 외부 보기. 왕복 하나, 별도 갈래가 아니다(0호) */
+  var BARE = false, HIDE = null;   /* 0820b — 밖에서 판 둘을 함께 걷는다 */
   var SHUT = false;                /* 0819P — 창 덮개. 24호 · 손님이 여닫는다 */
   var PAUSED = false;              /* 0819T — 일시정지. cruise 루프가 이 값을 본다 */
 
@@ -976,7 +1007,21 @@
     if (!ROOT) return;
     OUT = !OUT;
     ROOT.classList.toggle("out", OUT);
+    /* ⚠ 기내로 돌아오면 감추기를 푼다 — 좌석에 앉았는데 계기판이 없으면 사고로 보인다 */
+    if (!OUT && BARE) toggleBare();
+    if (HIDE) HIDE.classList.toggle("on", OUT);
     layout();
+  }
+  /* ⭐ 감추기 (0820 소로) — 계기판과 기록판이 함께 걷히고 창밖만 남는다.
+     ⚠ 되돌리는 단추는 남긴다. 다 감추면 다시 부를 문이 없다. */
+  function toggleBare() {
+    if (!ROOT) return;
+    BARE = !BARE;
+    ROOT.classList.toggle("bare", BARE);
+    if (HIDE) {
+      HIDE.innerHTML = BARE ? "&#128373;" : "&#128065;";
+      HIDE.title = BARE ? "판 다시 보기 (V)" : "판 감추기 (V)";
+    }
   }
 
   /* ══ 창 덮개 (0819P) — 24호 · 손님이 여닫는다 ═══════════════════════
@@ -1184,11 +1229,22 @@
        ⚠ 오른창(거울)이면 x' = 100−x 에 좌·우 모서리도 서로 바뀐다 —
          TL↔TR · BL↔BR 을 안 바꾸면 변환이 안팎으로 뒤집혀 글이 거울이 된다 */
     if (MONEL) {
-      function px(c) { return [cx + w * (flip ? (100 - c[0]) : c[0]) / 100, top + h * c[1] / 100]; }
-      var pts = flip
-        ? [px(MON.tr), px(MON.tl), px(MON.bl), px(MON.br)]
-        : [px(MON.tl), px(MON.tr), px(MON.br), px(MON.bl)];
-      MONEL.style.transform = homography(MON_W, MON_H, pts);
+      if (OUT) {
+        /* ⭐⭐ 0820b — 밖에서는 좌석이 없다. 사영변환을 풀고 화면에 똑바로 앉힌다.
+           ⚠ 원판 880×580 을 그대로 놓으면 화면을 반쯤 먹는다 — 화면 높이의 34%로 줄인다.
+             기내에서 실크기가 517×362 이니 밖에서도 그만한 크기로 보이는 셈이다.
+           ⚠ 기록판이 가운데에 뜨므로 계기판은 왼쪽 아래에 둔다. 서로 안 겹친다. */
+        var sc = Math.max(0.42, Math.min(0.72, vh * 0.34 / MON_H));
+        var mx0 = 26, my0 = vh - MON_H * sc - 26;
+        MONEL.style.transform = "translate(" + mx0 + "px," + my0 + "px) scale(" + sc + ")";
+      } else {
+        var px = function (c) {
+          return [cx + w * (flip ? (100 - c[0]) : c[0]) / 100, top + h * c[1] / 100]; };
+        var pts = flip
+          ? [px(MON.tr), px(MON.tl), px(MON.bl), px(MON.br)]
+          : [px(MON.tl), px(MON.tr), px(MON.br), px(MON.bl)];
+        MONEL.style.transform = homography(MON_W, MON_H, pts);
+      }
     }
   }
 
@@ -2518,6 +2574,7 @@ function paintBook() {
       if (k === "t") cyclePreview();   /* ⭐ 편집기 안에서만 — 조명 넉 벌 미리보기 */
       else if (k === " " || e.code === "Space") { e.preventDefault(); togglePause(); }
       else if (k === "c") toggleOut();
+      else if (k === "v") { if (OUT) toggleBare(); }   /* 0820b — 밖에서만 */
       else if (k === "s") toggleShade();
       else if (k === "e") setEdit(!editing);
       else if (k === "arrowleft") swapSeat(-1);
@@ -2642,6 +2699,7 @@ function paintBook() {
     moveCredits(false);              /* ⚠ 크레딧을 제자리로 — 방보다 먼저 돌려놓는다 */
     restoreCam(v);
     if (EXIT) { try { EXIT.remove(); } catch (e) { } EXIT = null; }
+    if (HIDE) { try { HIDE.remove(); } catch (e) { } HIDE = null; }
     if (ROOT) { try { ROOT.remove(); } catch (e) { } ROOT = null; }
     try { document.body.classList.remove("reading-on"); } catch (e) { }
     try { if (typeof window.refreshDock === "function") window.refreshDock(false); } catch (e) { }
@@ -2653,7 +2711,7 @@ function paintBook() {
       } catch (e) { console.warn("[EG] 집으로 못 갔습니다:", e); }
     }
     viewer = null;
-    OUT = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
+    OUT = false; BARE = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
     SHUT = false; editing = false; egrab = null; cvW = 0; cvH = 0; PAUSED = false;
     PREVIEW = null; themeNow = "";   /* ⚠ 다음 탑승은 진짜 시각으로 */
     try { clearTimeout(tuneT); clearTimeout(fadeT); } catch (e) { }
