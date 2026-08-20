@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0820g
+   EG독서비행 — 방(room) 판 · reading_room.js · v0820h
    2026.08.20 소로 × 파이스 · 145회차
    ⭐⭐ 0820a — 기록판을 비너스 시안 넉 벌로 다시 지었다.
      ① 색 이름을 --dk- 로 갈랐다. ⚠⚠ 모니터와 **같은 이름에 정반대 값**이기 때문이다
@@ -68,7 +68,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0820g";
+  var VERSION = "0820h";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1126,13 +1126,15 @@
     var sb = egr_sb(); if (!sb || !sb.auth) return;
     sb.auth.getUser().then(function (r) {
       var u = r && r.data && r.data.user; if (!u) return null;
-      return sb.from("users").select("nickname,created_at").eq("id", u.id).maybeSingle()
+      /* ⭐ is_admin 을 여기서 함께 받는다 — 요청이 안 는다 */
+      return sb.from("users").select("nickname,created_at,is_admin").eq("id", u.id).maybeSingle()
         .then(function (x) { return x.data || null; });
     }).then(function (row) {
       if (!ENGEL || !ROOT || !document.body.contains(ROOT)) return;   /* 늦게 온 응답 */
       if (!row) return;
       ENG_NICK = row.nickname || "";
       ENG_SINCE = row.created_at || "";
+      IS_ADMIN = !!row.is_admin;    /* ⭐ 0820h — 편집기 열쇠 */
       paintEngrave();
     }).catch(function (e) { console.warn("[EG] 각인을 못 새겼습니다:", e); });
   }
@@ -1190,8 +1192,15 @@
   /* ══ 편집기 (0819P) — 베스페르 문법 그대로 ═════════════════════════
      E 로 켜고 끈다. 끌어서 옮기고 휠로 키운다. 끄면 저장한다.
      ⚠ 값은 eg_settings 에 한 줄(reading_tune). 읽기는 모두, 쓰기는 관리자만(RLS). */
+  /* ⚠⚠ 0820h — 편집기가 손님에게도 열려 있었다(소로 0820).
+       E 를 누르면 편집 안내문·모서리 손잡이·각인 점선이 손님 화면에 뜬다.
+       저장은 RLS(eg_settings 는 is_admin 만 쓴다)가 막지만 **화면이 흔들린다.**
+     ⭐ 기본을 false 로 둔다 — 모르면 안 연다. 관리자로 확인된 뒤부터 열린다.
+     ⚠ 캐시하지 않는다. 브라우저에 적어 두면 위조할 수 있고, 그러면 또 화면이 흔들린다. */
+  var IS_ADMIN = false;
   var editing = false, egrab = null, tuneT = null;
   function setEdit(on) {
+    if (on && !IS_ADMIN) return;    /* ⚠ 손님에게는 아무 일도 안 일어난다(0820h) */
     editing = on;
     ROOT.classList.toggle("edit", on);
     if (!on) { clearPreview(); pushTune(); }   /* ⚠ 미리보기가 화면에 눌러앉지 않게 */
@@ -2911,7 +2920,7 @@ function paintBook() {
     }
     viewer = null;
     OUT = false; BARE = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
-    SHUT = false; editing = false; egrab = null; cvW = 0; cvH = 0; PAUSED = false;
+    SHUT = false; editing = false; egrab = null; IS_ADMIN = false; cvW = 0; cvH = 0; PAUSED = false;
     PREVIEW = null; themeNow = ""; RESUME = null;   /* ⚠ 다음 탑승은 진짜 시각으로 */
     try { clearTimeout(tuneT); clearTimeout(fadeT); } catch (e) { }
     MONEL = null; TAB = "info"; SINFO = null; DESK = null; RECENT = null;

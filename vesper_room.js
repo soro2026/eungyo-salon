@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════
-   EG베스페르 — 방(room) 판  ·  vesper_room.js  ·  v0818n
+   EG베스페르 — 방(room) 판  ·  vesper_room.js  ·  v0820b
    2026.08.18 소로 × 파이스 · 142회차
 
    ⭐⭐ 왜 이 파일이 생겼나 — 「한 문서 · 한 root」
@@ -500,7 +500,7 @@ var HTML = `<div id="fade"></div>
 
 <div id="tab" title="편집기 열기 (H)">&#9776;</div>
 <div id="mini"></div>
-<div id="keys">H 편집기 &middot; C 기내 &middot; Space 비행 시작/정지<br>&larr; &rarr; 좌석 &middot; L 땅 찾기 &middot; S 창 덮개<br>&#9998; E 끌어서 맞추기</div>
+<div id="keys">H 편집기 &middot; C 기내 &middot; Space 비행 시작/정지<br>&larr; &rarr; 좌석 &middot; L 땅 찾기 &middot; S 창 덮개<br><span class="ed">&#9998; E 끌어서 맞추기</span></div>
 <div id="hud" class="hide">
   <h1 style="display:flex;align-items:center;justify-content:space-between"><span>EG CRUISE · 편집기 0817c</span><button id="bHide" style="padding:2px 7px;font-size:11px" title="H 키로도 닫힘">✕</button></h1>
 
@@ -1006,7 +1006,22 @@ function bootRoom(hostViewer, spot){
   }
   /* ── 끌어서 맞추기 ─────────────────────────────────────── */
   var editing = false, grab = null;
+  /* ⚠⚠ 0820b — 편집기는 관리자만. 손님 화면에서는 단추도 안내줄도 감춘다 */
+  var IS_ADMIN = false;
+  function setAdmin(on){
+    IS_ADMIN = !!on;
+    try{
+      var b = $("bEdit"); if (b) b.style.display = IS_ADMIN ? "" : "none";
+      var k = $("keys");
+      var e2 = k && k.querySelector(".ed");
+      if (e2) e2.style.display = IS_ADMIN ? "" : "none";
+    }catch(e){}
+    if (!IS_ADMIN && editing) setEdit(false);
+  }
   function setEdit(on){
+    /* ⚠⚠ 0820b — 편집기가 손님에게도 열려 있었다. 키(E)뿐 아니라 **단추가 화면에 보였다**.
+       독서비행 0820h 와 같은 처방 — 모르면 안 연다. */
+    if (on && !IS_ADMIN) return;
     editing = on;
     ROOT.classList.toggle("edit", on);
     $("bEdit").classList.toggle("on", on);
@@ -1482,8 +1497,11 @@ function bootRoom(hostViewer, spot){
                  rpc("get_diary_seed", {}).catch(function(){ return []; }) ];
     if (sb) jobs.push(sb.auth.getUser().then(function(r){
         var u = r && r.data && r.data.user; if (!u) return null;
-        return sb.from("users").select("nickname").eq("id", u.id).maybeSingle()
-                 .then(function(x){ return (x.data && x.data.nickname) || null; }).catch(function(){ return null; });
+        return sb.from("users").select("nickname,is_admin").eq("id", u.id).maybeSingle()
+                 .then(function(x){
+                   /* ⭐ 0820b — is_admin 을 여기서 함께 받는다. 요청이 안 는다 */
+                   if (x.data) setAdmin(!!x.data.is_admin);
+                   return (x.data && x.data.nickname) || null; }).catch(function(){ return null; });
       }).catch(function(){ return null; }));
     return Promise.all(jobs).then(function(res){
       var mine = res[0] || [], seed = (res[1] || [])[0] || null, nick = res[2] || null;
@@ -2232,5 +2250,5 @@ function leave(){
   console.log("[EG] 베스페르 방을 걷었습니다 — 카메라를 terra 로 되돌렸습니다.");
 }
 
-window.egVesper = { enter: enter, leave: leave, version: "0818n" };
+window.egVesper = { enter: enter, leave: leave, version: "0820b" };
 })();
