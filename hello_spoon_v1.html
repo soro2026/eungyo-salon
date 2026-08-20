@@ -808,6 +808,16 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
 #fade.on{opacity:1}
 
 /* ── ⏱ 시간 여행 (살롱지기 전용 · 콜레주·미술관 이식) ── */
+/* ⭐ 0820c — 소리 단추. 타임머신(#ttBtn)의 형제라 같은 옷을 입되 오른쪽 아래에 선다.
+   ⚠ 방에 들어간 뒤에만 뜬다 — 정문 밖에서는 울릴 소리가 없다. */
+#sndBtn{position:fixed;right:14px;bottom:14px;z-index:70;width:38px;height:38px;
+  border-radius:50%;border:1px solid rgba(232,221,196,.30);background:rgba(14,10,7,.62);
+  color:rgba(232,221,196,.82);font-size:15px;cursor:pointer;display:none;
+  backdrop-filter:blur(6px);transition:color .2s ease,border-color .2s ease}
+#sndBtn:hover{color:rgba(232,221,196,1);border-color:rgba(232,221,196,.6)}
+body.in-room #sndBtn{display:block}
+/* ⚠ 카페를 보는 동안(bowed)에는 감춘다 — 그 화면에는 아무것도 안 얹는다 */
+body.bowed #sndBtn{display:none}
 #ttBtn{position:fixed;left:14px;bottom:14px;z-index:70;width:38px;height:38px;
   border-radius:50%;border:1px solid rgba(232,221,196,.30);background:rgba(14,10,7,.62);
   color:rgba(232,221,196,.82);font-size:16px;cursor:pointer;display:none;
@@ -1610,6 +1620,8 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
 
 <!-- ⏱ 시간 여행 (살롱지기 전용) -->
 <button id="ttBtn" title="시간 여행 — 그 날짜·그 시각의 카페로">⏱</button>
+<!-- ⭐ 0820c — 소리. 한 단추가 넷을 돈다: 끔 → 소음 → 소음+음악 → 음악 -->
+<button id="sndBtn" type="button" title="소리 — 카페 소음 · 음악">♪</button>
 <div id="ttPanel">
   <span class="heb">시간 여행 — 화면 판정만 바뀝니다.<br>⚠ 여행 중에는 퀴즈·사유가 DB에 안 앉습니다.</span>
   <input type="date" id="ttDate">
@@ -1758,10 +1770,54 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
     $('#gate').classList.add('on');
   }
 
+  /* ══ 카페 소리 (0820c · 소로) ═══════════════════════════════════
+     ⭐ 두 겹이다 — 바탕에 카페 백색소음(잔 달그락·웅성거림), 그 위에 뮤세움 음악.
+       ⚠ 음악이 소음보다 **작아야** 「카페 안에서 음악이 흐른다」가 된다.
+         반대면 「음악 위에 소음을 얹었다」로 들린다.
+     ⭐ 파일을 새로 안 들인다 — 뮤세움 열두 곡을 그대로 쓴다(22호, 독서비행과 같은 갈래).
+     ⚠ 백색소음은 곳마다 안 가른다. 소로 0820: 「모든 카페 공용」.
+     ⚠⚠ 자동재생 정책 — 브라우저는 손님이 손대기 전에는 소리를 못 내게 한다.
+       ⭐ 이 집에는 마침 좋은 곳이 있다: **정문을 누르는 그 손짓**.
+         뮤세움처럼 「실패하면 첫 클릭을 기다리는」 그물을 따로 안 짜도 된다. */
+  const AMB_SRC = './cafe_ambience.mp3';   /* ⚠ 소로가 녹음해 넣을 한 벌 */
+  const MUS_N   = 12;
+  const AMB_VOL = 0.22, MUS_VOL = 0.09;
+  let ambAudio=null, musAudio=null, soundMode=2;   /* 0 끔 · 1 소음 · 2 소음+음악 · 3 음악 */
+
+  function soundBuild(){
+    if(ambAudio) return;
+    ambAudio = new Audio(AMB_SRC);
+    ambAudio.loop = true; ambAudio.volume = AMB_VOL;
+    /* ⚠ 녹음이 아직 없어도 조용히 넘어간다 — 음악만 흐르고 아무 일도 안 일어난다 */
+    ambAudio.addEventListener('error', ()=>{ console.warn('[spoon] 카페 소음 파일이 아직 없습니다'); });
+    const n = Math.floor(Math.random()*MUS_N)+1;    /* ⭐ 그날 그 창의 한 곡 */
+    musAudio = new Audio('muse_bgm_' + String(n).padStart(2,'0') + '.mp3');
+    musAudio.loop = true; musAudio.volume = MUS_VOL;
+  }
+  function soundApply(){
+    if(!ambAudio) return;
+    const wantAmb = (soundMode===1 || soundMode===2);
+    const wantMus = (soundMode===2 || soundMode===3);
+    /* ⚠ play() 는 약속을 돌려준다. 막히면 조용히 접는다 — 손님에게 아무 말도 안 한다 */
+    if(wantAmb) ambAudio.play().catch(()=>{}); else ambAudio.pause();
+    if(wantMus) musAudio.play().catch(()=>{}); else musAudio.pause();
+    const b = document.getElementById('sndBtn');
+    if(b) b.textContent = ['🔇','☕','♪','🎵'][soundMode];
+  }
+  function soundStart(){ soundBuild(); soundApply(); }
+  function soundStop(){
+    /* ⚠ 나갈 때 반드시 끈다. Audio 는 DOM 을 지워도 안 죽는다(0818 베스페르에서 덴 곳) */
+    try{ if(ambAudio){ ambAudio.pause(); ambAudio.src=''; } }catch(e){}
+    try{ if(musAudio){ musAudio.pause(); musAudio.src=''; } }catch(e){}
+    ambAudio = musAudio = null;
+  }
+
   /* ── 안으로 ── */
   let entered=false;
   function enter(){
     if(entered || !SPOT) return; entered=true;
+    /* ⭐ 여기가 손님의 첫 손짓이다 — 소리를 여기서 켠다(자동재생 정책이 열리는 유일한 곳) */
+    soundStart();
     $('#fade').classList.add('on');
     setTimeout(()=>{
       $('#gate').classList.add('dismiss');
@@ -1782,6 +1838,18 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
   }
   $('#gate').addEventListener('click', enter);
   $('#gate').addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' ') enter(); });
+
+  /* ⭐ 0820c — 소리 단추. 한 손이 넷을 돈다(독서비행의 셋짜리와 같은 문법).
+     ⚠ 굽고 배선을 안 걸면 눌러도 아무 일이 없다 — 오늘만 세 번째 피하는 함정이다. */
+  {
+    const sb = document.getElementById('sndBtn');
+    if(sb) sb.addEventListener('click', ()=>{
+      soundMode = (soundMode + 1) % 4;
+      soundApply();
+    });
+    /* ⚠ 창을 닫거나 딴 곳으로 가면 반드시 끈다. Audio 는 DOM 을 지워도 안 죽는다 */
+    window.addEventListener('pagehide', soundStop);
+  }
 
   /* ── 방 훑기 — 스크롤한 만큼 방만 흐른다 ──
      ⚠ 처음은 한가운데(상판)에서 시작한다. 위로 올리면 바닥, 내리면 천장.
@@ -1935,7 +2003,7 @@ html.in-room::-webkit-scrollbar{display:none;width:0;height:0}
 
 <!-- 폰에서 방을 나가는 문 (0730) — 액자 밖 + 폰일 때만 뜬다. eg_back.js 참조 -->
 <script src="eg_back.js?v=20260729">
-console.log('[EG] hello_spoon 0820c — 그날의 찻잔 · 김을 잔 입에');
+console.log('[EG] hello_spoon 0820d — 카페 소리(소음+음악) · 김을 잔 입에');
 </script>
 </body>
 </html>
