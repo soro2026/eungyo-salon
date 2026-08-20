@@ -1386,6 +1386,7 @@
     }
   }
   function cloudsBuild() {
+    var __t0 = performance.now();
     cloudsOff();
     if (!viewer || !CLON) return;
     if (!Cesium.CloudCollection) { console.warn("[EG] 이 Cesium 판에는 CloudCollection 이 없습니다"); return; }
@@ -1400,8 +1401,11 @@
     var tint = null;
     try { tint = Cesium.Color.fromCssColorString(K.tint); } catch (e) { }
     var nGrp = Math.max(1, Math.round(rint(r, K.grp) * CLD.den));
-    /* ⚠ 그물 — 손잡이를 끝까지 밀면 700덩이가 넘는다. 화면이 죽는 곳은 안 보여 준다 */
-    var CAP = 480, made = 0;
+    /* ⚠⚠ 0820m — CAP 480 을 걷었다(소로 「예단하지 말고 극대치에서 빼자」).
+       0819 fps 도 새똥도 전부 타 보고 나온 것이다 — 낭떠러지가 어디인지는
+       셈이 아니라 소로 화면이 정한다. 계기(F)가 곁에 있으니 눈 감고 가는 게 아니다.
+       ⚠ 다만 스스로 어는 것 하나만 막는다: 2000덩이 위는 뿌리기 자체가 몇 초를 먹는다 */
+    var CAP = 2000, made = 0;
     var baseH = rng(r, K.base) * CLD.hgt;
     for (var i = 0; i < nGrp; i++) {
       var g = { r: mkRand((clSeed(RCODE, hour) + i * 2654435761) >>> 0),
@@ -1431,7 +1435,9 @@
       CL.push(g);
     }
     clIdx = 0;
-    console.log("[EG] 구름 " + CL.length + "떨기 · " + cloudCount() + "덩이 — "
+    var buildMs = performance.now() - __t0;
+    console.log("[EG] 구름 " + CL.length + "떨기 · " + cloudCount() + "덩이 · 뿌리기 "
+      + buildMs.toFixed(0) + "ms — "
       + K.ko + " · 씨앗 " + clSeed(RCODE, hour));
     cloudSay();
   }
@@ -1462,7 +1468,9 @@
 
   /* ── 조절판 (G) — ⚠ 관리자만. 재면서 밀 수 있어야 소로가 정하신다 ── */
   var CLDEL = null;
-  var CL_BARS = [["den", "빽빽함", .2, 2.2, .05], ["siz", "크기", .4, 2.2, .05],
+  /* ⭐ 0820m — 빽빽함 위끝을 4.0 으로 연다. 한낮 32떨기 × 4.0 = 128떨기 ≈ 1000덩이.
+     내리는 손이 편하도록 극대치에서 시작해 빼며 내려온다(소로) */
+  var CL_BARS = [["den", "빽빽함", .2, 4.0, .05], ["siz", "크기", .4, 2.2, .05],
                  ["hgt", "높이", .5, 1.8, .05], ["brt", "밝기", .3, 1.6, .05]];
   function cloudSay() {
     if (!CLDEL) return;
