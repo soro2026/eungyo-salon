@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0820b
+   EG독서비행 — 방(room) 판 · reading_room.js · v0820c
    2026.08.20 소로 × 파이스 · 145회차
    ⭐⭐ 0820a — 기록판을 비너스 시안 넉 벌로 다시 지었다.
      ① 색 이름을 --dk- 로 갈랐다. ⚠⚠ 모니터와 **같은 이름에 정반대 값**이기 때문이다
@@ -14,6 +14,11 @@
        기내 판이 없는데 좌석 사다리꼴에 앉히면 허공에 기울어진 채 뜬다
      ⭐ 감추기(V · 눈 단추) — 계기판과 기록판이 함께 걷히고 창밖만 남는다
        ⚠ 되돌릴 단추는 남긴다. 다 감추면 다시 부를 문이 없다
+   ⭐ 0820c — 벽 각인. 1번·2번 창 사이 위쪽에 「누구의 전용기인가」를 새긴다(소로)
+     ⚠ 금패가 아니라 각인이다 — 붙인 물건은 밝은 판에서 금박이 묻힌다
+     ⭐ 닉네임 글자로 저절로 갈린다: 한글 「~ 전용기」 / 영문 「~ private jet」
+     ⭐ 날짜는 users.created_at (실측: 17명 전원 있음). 없으면 이름만 새긴다
+     ⭐ 좌·우 벽을 따로 둔다 — 거울 셈을 안 쓰므로 0819 ㉪ 를 구조적으로 안 밟는다
    ⚠ 판번호는 아래 VERSION 하나가 정본이다. 0819e 까지 이 줄이 a 로 남아 있었다 —
      「적어 두는 것과 읽는 것은 다른 일」의 표본. 고칠 때 둘을 함께 올린다.
 
@@ -59,7 +64,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0820b";
+  var VERSION = "0820c";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -552,6 +557,25 @@
      허공에 기울어진 채 뜬다. layout() 이 OUT 이면 똑바로 세워 왼쪽 아래에 앉힌다. */
 #readingRoom.out #egrMon{border:1px solid var(--ring,#59492f);
   box-shadow:0 18px 60px rgba(0,0,0,.55)}
+/* ══ 벽 각인 (0820c) — 「이 비행기는 누구의 것인가」 ═══════════════════
+   ⭐⭐ 금패가 아니라 각인이다. 붙인 물건은 호두나무 결 위에 떠 보이고,
+     밝은 판(아침·낮)에서 금박이 묻힌다. 각인은 색이 없다 —
+     파인 자국은 **위 모서리가 어둡고 아래가 밝다.** 그 관계가 조명 넉 벌에 저절로 맞는다.
+   ⭐ 좌·우 벽을 따로 둔다(ENG_L·ENG_R). 거울 셈을 아예 안 쓰므로
+     0819 ㉪(모서리 짝을 안 바꿔 글이 거울이 된 것)를 구조적으로 안 밟는다.
+   ⚠ 밖(C)에서는 감춘다 — 기내 벽이다. */
+#egrEng{position:absolute;z-index:6;pointer-events:none;white-space:nowrap;
+  transform-origin:0 50%;user-select:none;-webkit-user-select:none;
+  font-family:'Noto Sans KR','Helvetica Neue',sans-serif;font-weight:300;
+  color:var(--eng-ink,rgba(255,228,180,.82));
+  text-shadow:0 1px 0 var(--eng-dn,rgba(255,225,180,.16)),
+              0 -1px 0 var(--eng-up,rgba(0,0,0,.45));
+  transition:color 3s linear,text-shadow 3s linear}
+#egrEng .n{display:block;letter-spacing:.2em}
+#egrEng .d{display:block;margin-top:.42em;font-size:.5em;letter-spacing:.34em;opacity:.72}
+#readingRoom.out #egrEng,#readingRoom.bare #egrEng{display:none}
+#readingRoom.edit #egrEng{pointer-events:auto;cursor:move;
+  outline:1px dashed rgba(255,255,255,.4);outline-offset:6px}
 /* ⭐ 감추기 — 밖에서만 나타난다. 누르면 판 둘이 함께 걷히고 창밖만 남는다(0820 소로) */
 #readingHide{position:fixed;right:22px;top:74px;z-index:26;display:none;
   width:38px;height:38px;border-radius:10px;cursor:pointer;line-height:1;
@@ -858,6 +882,11 @@
     EGR_on(sR, "click", function () { swapSeat(+1); });
     /* ⚠ 0819U — 소리·멈춤 단추를 밖에서 걷었다. 모니터 조작판으로 들어갔다(소로).
        화면 가장자리에 셋이 세로로 서 있던 것이 × 하나만 남는다. */
+    /* ⭐ 벽 각인 (0820c) — 방(ROOT) 안이라 KEEP 을 안 늘린다 */
+    ENGEL = document.createElement("div");
+    ENGEL.id = "egrEng";
+    ROOT.appendChild(ENGEL);
+    loadEngrave();
     /* ⭐ 창 덮개 손잡이 — 그림 속 그것 위. 방(ROOT) 안이라 KEEP 을 안 늘린다 */
     var gp = document.createElement("div");
     gp.id = "readingGrip"; gp.setAttribute("data-tip", "창 닫기"); gp.title = "창 덮개 (S)";
@@ -920,6 +949,20 @@
   /* ⭐ 저작자 표시가 앉을 곳 — 창 아래 호두나무 판 위 (판 좌표 %, 실측 0819)
      ⚠ 좌석(밝은 베이지)이 y 70% 아래 왼쪽을 침범한다. 64.5% 가 안전하다. */
   var PLAQUE = { x: 4.2, y: 64.5 };
+  /* ⭐ 벽 각인 (0820c 소로) — 1번·2번 창 사이 위쪽. 좌·우 벽 따로.
+     ⚠ 처음 값은 어림이다. 소로가 E 편집기로 맞춰 저장하시면 서버 값이 이깁니다. */
+  var ENG_L = { x: 30.0, y: 20.0, rot: -3.0, skew: -8.0, size: 1.55 };
+  var ENG_R = { x: 30.0, y: 20.0, rot: -3.0, skew: -8.0, size: 1.55 };
+  function ENG() { return side < 0 ? ENG_L : ENG_R; }
+  var ENGEL = null, ENG_NICK = "", ENG_SINCE = "";
+  /* ⭐ 조명 넉 벌 — 밝은 벽에서는 파인 자국, 어두운 벽에서는 빛 받은 글자.
+     ⚠ 소로 0820: 「밤에는 자동으로 흰 글씨」. n 이 그것이다. */
+  var ENG_THEME = {
+    m: { ink: "rgba(58,48,38,.62)", up: "rgba(0,0,0,.22)", dn: "rgba(255,252,245,.5)" },
+    d: { ink: "rgba(62,52,40,.58)", up: "rgba(0,0,0,.2)",  dn: "rgba(255,253,248,.55)" },
+    e: { ink: "rgba(255,228,180,.8)", up: "rgba(0,0,0,.45)", dn: "rgba(255,222,170,.16)" },
+    n: { ink: "rgba(238,244,252,.88)", up: "rgba(0,0,0,.5)", dn: "rgba(200,220,245,.14)" }
+  };
   var CREDIT_HOME = null;
 
   /* ══ 타일 안정화 — 방에 있는 동안만 (0819Z) ═══════════════════════════
@@ -983,6 +1026,49 @@
       c.style.left = c.style.top = "";
       if (CREDIT_HOME) { CREDIT_HOME.appendChild(c); CREDIT_HOME = null; }
     }
+  }
+
+  /* ══ 벽 각인 문안 (0820c) ═══════════════════════════════════════════
+     ⭐ 닉네임 글자에 따라 저절로 갈린다(소로 0820).
+        한글 닉  →  「파이스 전용기」
+        영문 닉  →  「lonelywalden private jet」
+     ⚠ 날짜는 지어내지 않는다 — users.created_at 이 있을 때만 적는다.
+       17명 전원에게 있는 것을 실측했지만, 없는 분에게는 이름만 새긴다. */
+  function engraveText(nick, since) {
+    if (!nick) return null;
+    var ko = /[\uAC00-\uD7A3]/.test(nick);
+    var d = null;
+    if (since) {
+      var t = new Date(since);
+      if (!isNaN(t)) d = t.getFullYear() + ". " + (t.getMonth() + 1);
+    }
+    return ko
+      ? { n: nick + " 전용기", d: d ? d : "" }
+      : { n: nick + " private jet", d: d ? ("since " + d) : "" };
+  }
+  function paintEngrave() {
+    if (!ENGEL) return;
+    var t = engraveText(ENG_NICK, ENG_SINCE);
+    ENGEL.innerHTML = t
+      ? '<span class="n">' + esc(t.n) + '</span>'
+        + (t.d ? '<span class="d">' + esc(t.d) + '</span>' : "")
+      : "";
+    ENGEL.style.display = t ? "" : "none";
+    if (ROOT) layout();
+  }
+  function loadEngrave() {
+    var sb = egr_sb(); if (!sb || !sb.auth) return;
+    sb.auth.getUser().then(function (r) {
+      var u = r && r.data && r.data.user; if (!u) return null;
+      return sb.from("users").select("nickname,created_at").eq("id", u.id).maybeSingle()
+        .then(function (x) { return x.data || null; });
+    }).then(function (row) {
+      if (!ENGEL || !ROOT || !document.body.contains(ROOT)) return;   /* 늦게 온 응답 */
+      if (!row) return;
+      ENG_NICK = row.nickname || "";
+      ENG_SINCE = row.created_at || "";
+      paintEngrave();
+    }).catch(function (e) { console.warn("[EG] 각인을 못 새겼습니다:", e); });
   }
 
   /* ⭐ 좌석 전환 — cruise 가 매 프레임 side 를 다시 읽으므로 비행은 안 끊긴다.
@@ -1049,6 +1135,7 @@
     if (!el || !el.closest) return null;
     if (el.closest(".egrCorner")) return "corner";   /* ⭐ 모서리가 먼저 — 모니터 위에 얹혀 있다 */
     if (el.closest("#readingGrip")) return "grip";
+    if (el.closest("#egrEng")) return "eng";      /* ⭐ 0820c — 벽 각인 */
     if (el.closest("#egrMon")) return "mon";
     return null;
   }
@@ -1087,6 +1174,8 @@
       + '⭐ <b>모서리 넷</b>을 하나씩 끌어 짙은 베젤 안쪽에 맞추십시오.<br>'
       + '&nbsp;&nbsp;모서리 위 <b>휠</b> = 위아래 0.05% · <b>Shift+휠</b> = 좌우<br>'
       + '&nbsp;&nbsp;모니터 가운데를 끌면 넷이 함께 · 그 위 휠 = 크기<br>'
+      + '⭐ <b>벽 각인</b>을 끌어 옮기고 &mdash; 휠 = 크기 · Shift+휠 = 회전 · Alt+휠 = 기울기<br>'
+      + '&nbsp;&nbsp;<b>&larr; &rarr;</b> 로 좌석을 바꾸면 <b>반대쪽 벽</b>을 따로 맞춥니다<br>'
       + '<b>T</b> — 조명 미리보기 · 지금 '
       + (PREVIEW ? '<span class="sv">' + THEME_KO[PREVIEW] + '</span>' : '진짜 시각')
       + '<br><span class="sv">'
@@ -1099,13 +1188,15 @@
      0819V 에서 MON 을 통째로 적었더니 옛 원판 크기(620×424)가 함께 저장됐고,
      새 설계(880×580)를 덮어 아래단이 화면 밖으로 나갔다. */
   function tuneNow() {
-    return { GL: GRIP_L, GR: GRIP_R,
+    return { GL: GRIP_L, GR: GRIP_R, EL: ENG_L, ER: ENG_R,
              MON: { tl: MON.tl, tr: MON.tr, br: MON.br, bl: MON.bl } };
   }
   function applyTune(v) {
     if (!v) return;
     if (v.GL) GRIP_L = v.GL;
     if (v.GR) GRIP_R = v.GR;
+    if (v.EL) ENG_L = v.EL;
+    if (v.ER) ENG_R = v.ER;      /* ⭐ 0820c — 좌·우 벽 각인 */
     /* ⚠⚠ w·h 는 읽지 않는다 — 이미 저장된 헌 값(620×424)이 서버에 남아 있고,
        그것이 0819V 의 화면을 반토막 냈다. 원판 크기는 설계가 정한다. */
     if (v.MON && v.MON.tl) { MON.tl = v.MON.tl; MON.tr = v.MON.tr; MON.br = v.MON.br; MON.bl = v.MON.bl; }
@@ -1224,6 +1315,15 @@
         cr.style.left = (cx + (flip ? (100 - PLAQUE.x - 26) : PLAQUE.x) / 100 * w) + "px";
         cr.style.top = (top + PLAQUE.y / 100 * h) + "px";
       }
+    }
+    /* ⭐ 벽 각인 — 좌·우 벌을 따로 두므로 **거울 셈을 안 쓴다.**
+       ⚠ flip 을 여기서 쓰면 글이 뒤집힌다. 각 벌이 이미 그 좌석 화면의 좌표다. */
+    if (ENGEL) {
+      var EN = ENG();
+      ENGEL.style.left = (cx + w * EN.x / 100) + "px";
+      ENGEL.style.top = (top + h * EN.y / 100) + "px";
+      ENGEL.style.fontSize = (w * EN.size / 100) + "px";
+      ENGEL.style.transform = "rotate(" + EN.rot + "deg) skewX(" + EN.skew + "deg)";
     }
     /* 모니터 — 사다리꼴 네 점에 앉힌다(0819h). 판 % → 화면 px → matrix3d.
        ⚠ 오른창(거울)이면 x' = 100−x 에 좌·우 모서리도 서로 바뀐다 —
@@ -1401,6 +1501,9 @@
          (A 이른아침: 모니터 ink #e4ecf2 / 기록판 ink #2e3a42). 섞으면 흰 종이에 흰 글자다. */
     var dk = DESK_THEME[k] || DESK_THEME.e;
     for (v in dk) ROOT.style.setProperty("--dk-" + v, dk[v]);
+    /* ⭐ 벽 각인도 같은 조명을 받는다 — 밤이면 흰 글씨가 된다(0820 소로) */
+    var en = ENG_THEME[k] || ENG_THEME.e;
+    for (v in en) ROOT.style.setProperty("--eng-" + v, en[v]);
   }
   /* ⭐⭐ 조명 넉 벌 갈아끼우기 (0819Q) — 실제 일출은 삼십 분에 걸쳐 오는데
      0819P 까지는 배경 그림을 한 프레임에 통째로 바꿔 **기내만 스위치**였다.
@@ -2597,6 +2700,11 @@ function paintBook() {
       /* ⚠ 거울일 때는 화면상 오른쪽이 판에서는 왼쪽이다 — 부호를 뒤집는다 */
       var px = (egrab.flip ? -dx : dx) / egrab.w * 100, py2 = dy / egrab.h * 100;
       if (egrab.t === "grip") { var GP = GRIP(); GP.x += px; GP.y += py2; }
+      /* ⚠ 각인은 좌·우 벌이 따로라 거울 부호를 **안 쓴다.** dx 를 그대로 쓴다 */
+      else if (egrab.t === "eng") {
+        var EN2 = ENG();
+        EN2.x += dx / egrab.w * 100; EN2.y += py2;
+      }
       else if (egrab.t === "corner") monMove(px, py2, egrab.k);   /* ⭐ 그 점만 */
       else monMove(px, py2);
       layout(); tuneSay();
@@ -2618,6 +2726,12 @@ function paintBook() {
         var kk2 = e.target.closest(".egrCorner").getAttribute("data-k");
         if (e.shiftKey) MON[kk2][0] += d * 0.05 * (side > 0 ? -1 : 1);
         else MON[kk2][1] -= d * 0.05;
+      } else if (t === "eng") {
+        /* ⭐ 휠 = 크기 · Shift+휠 = 회전 · Alt+휠 = 기울기(원근) */
+        var EN3 = ENG();
+        if (e.shiftKey) EN3.rot += d * 0.5;
+        else if (e.altKey) EN3.skew += d * 0.7;
+        else EN3.size = Math.max(0.4, Math.min(6, EN3.size + d * 0.04));
       } else monScale(1 + d * 0.02);
       layout(); tuneSay(); saveTuneSoon();
     }, { passive: false, capture: true });
@@ -2716,6 +2830,7 @@ function paintBook() {
     PREVIEW = null; themeNow = "";   /* ⚠ 다음 탑승은 진짜 시각으로 */
     try { clearTimeout(tuneT); clearTimeout(fadeT); } catch (e) { }
     MONEL = null; TAB = "info"; SINFO = null; DESK = null; RECENT = null;
+    ENGEL = null; ENG_NICK = ""; ENG_SINCE = "";
     ARCH = []; DSIZE = null; NICK = "";
     MAPF = null; MAPBASE = null; mapSeg = -1; zi = 0; redrawT = 0;
     WD.dirty = false; WD.saving = false;
