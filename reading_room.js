@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   EG독서비행 — 방(room) 판 · reading_room.js · v0820p
+   EG독서비행 — 방(room) 판 · reading_room.js · v0820r
    2026.08.20 소로 × 파이스 · 145회차
    ⭐⭐ 0820a — 기록판을 비너스 시안 넉 벌로 다시 지었다.
      ① 색 이름을 --dk- 로 갈랐다. ⚠⚠ 모니터와 **같은 이름에 정반대 값**이기 때문이다
@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0820p";
+  var VERSION = "0820r";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1323,13 +1323,13 @@
      ⭐ 그리고 멀리 있는 구름이 점으로 부서진다 — 상자를 42→24km 로 당기고 크기를 키운다.
         가까운 큰 것 여럿이 먼 작은 것 수십보다 낫다 */
   var CLOUD_KIND = {
-    m: { ko: "이른 아침", grp: [10, 15], puff: [5, 8],  base: [1900, 2400],
+    m: { ko: "이른 아침", grp: [7, 10],  puff: [11, 16],  base: [1900, 2400],
          sz: [900, 1600],  hz: [.45, .62], gap: [1.5, 2.2], br: [.92, 1.0] },
-    d: { ko: "한낮",     grp: [13, 19], puff: [6, 10], base: [2200, 2800],
+    d: { ko: "한낮",     grp: [9, 13],  puff: [12, 18], base: [2200, 2800],
          sz: [1100, 2000], hz: [.50, .70], gap: [1.6, 2.4], br: [1.0, 1.0] },
-    e: { ko: "저녁",     grp: [9, 14],  puff: [5, 9],  base: [2400, 3000],
+    e: { ko: "저녁",     grp: [7, 10],  puff: [11, 16],  base: [2400, 3000],
          sz: [1200, 2200], hz: [.52, .75], gap: [1.8, 2.8], br: [.88, .98] },
-    n: { ko: "한밤",     grp: [7, 11],  puff: [4, 7],  base: [2700, 3300],
+    n: { ko: "한밤",     grp: [5, 8],   puff: [9, 14],  base: [2700, 3300],
          sz: [1000, 1800], hz: [.45, .62], gap: [1.6, 2.4], br: [.72, .85] }
   };
   var RCODE = "";                /* 지금 노선 코드 — 씨앗이 쓴다. enter 가 채운다 */
@@ -1373,21 +1373,32 @@
     return "e";
   }
   /* 떨기 하나를 (lat,lon) 에 다시 앉힌다 — ⭐ 지우고 새로 만들지 않고 **옮기기만** 한다 */
+  /* ⚠⚠ 0820q — 조리법 교체(소로 「잘개 쪼개서 뭉쳐야 구름 맛」).
+     실측: 옛 판은 흩뿌림 반경이 덩이 폭의 2배라 간격 2.1km vs 폭 1.5km —
+     **서로 안 닿아 공 여덟 개가 따로 떴다.** 적운의 조리법은 세 줄이다:
+       ① 잘게 — 큰 공 몇이 아니라 폭 40% 짜리 덩이 열둘~열여섯
+       ② 겹치게 — 흩뿌림을 발자국 **반지름 안**에 가둔다. 간격 < 폭이면 한 몸으로 읽힌다
+       ③ 봉긋하게 — 가운데 크고 높게 · 가장자리 작고 낮게 · 밑면은 한 줄(이미 있던 것)
+     한가운데 심(core) 하나는 자리를 못박는다 — 전부 무작위면 가끔 속 빈 도넛이 나온다 */
   function clPlace(g, lat, lon) {
-    var K = CLOUD_KIND[clKind] || CLOUD_KIND.d, r = g.r;
+    var r = g.r;
     g.lat = lat; g.lon = lon;
-    var spread = g.w * rng(r, K.gap) * CLD.siz / 1000;   /* km */
+    var W = g.w * CLD.siz;                 /* 떨기 발자국 지름(m) */
+    var unit = W * 0.40;                   /* 기본 덩이 폭 — 잘게 */
     for (var i = 0; i < g.p.length; i++) {
-      var a = r() * 360, d = spread * Math.sqrt(r());
-      var ll = offLL(lat, lon, d, a);
-      /* ⭐ 바깥일수록 작게 — 무리가 가운데가 두툼한 한 덩어리로 읽힌다 */
-      var f = 1 - 0.42 * (spread > 0 ? d / spread : 0);
-      var w = g.w * CLD.siz * f, h = w * rng(r, K.hz) * CLD.hgt;
+      var d, a2;
+      if (i === 0) { d = 0; a2 = 0; }                       /* ⭐ 심 — 한가운데 */
+      else { d = (W / 2) * (0.15 + 0.75 * Math.sqrt(r())); a2 = r() * 360; }
+      var frac = d / (W / 2);                               /* 0 가운데 · 1 가장자리 */
+      var ll = offLL(lat, lon, d / 1000, a2);
+      var w = unit * (1 - 0.48 * frac) * (0.85 + 0.30 * r());
+      var h = w * (0.55 + 0.35 * (1 - frac)) * CLD.hgt;     /* ⭐ 가운데가 봉긋 */
+      if (g.hCap) h = Math.min(h, g.hCap);                  /* ⚠ 천장 — 순항길을 안 넘본다 */
       var pf = g.p[i];
       /* ⚠⚠ 밑면 평평 — 아래끝을 base 에 맞춘다. 그래서 중심은 base + h/2 다 */
       pf.position = Cesium.Cartesian3.fromDegrees(ll[1], ll[0], g.base + h / 2);
       pf.scale = new Cesium.Cartesian2(w, h);
-      pf.maximumSize = new Cesium.Cartesian3(w / 2, h / 2, w * 0.34);
+      pf.maximumSize = new Cesium.Cartesian3(w / 2, h / 2, w * 0.4);
     }
   }
   function cloudsBuild() {
@@ -1401,8 +1412,15 @@
     var K = CLOUD_KIND[clKind], r = mkRand(clSeed(RCODE, hour));
     clRnd = r;
     try {
-      CLOUDS = viewer.scene.primitives.add(new Cesium.CloudCollection({ noiseDetail: 16.0 }));
+      /* ⭐ 0820r — 결을 곱게. 16 이면 가까운 구름에서 노이즈 낟알이 눈에 보인다.
+         32 는 2의 거듭제곱이라 안전하고, 생성이 한 번뿐이라 비행 중 비용이 없다 */
+      CLOUDS = viewer.scene.primitives.add(new Cesium.CloudCollection({ noiseDetail: 32.0 }));
     } catch (e) { console.warn("[EG] 구름을 못 세웠습니다:", e); CLOUDS = null; return; }
+    /* ⚠⚠ 0820r — 구름을 **안 뚫는다.** 뚫는 순간 노이즈가 화면 가득 확대되어
+       TV 지직임이 된다(소로 캡처 오른창). 실물의 안개를 우리는 못 그리므로,
+       꼭대기를 순항고도 250m 아래에 가둔다 — **늘 위에서 굽어보는 구름**이 된다.
+       ⭐ 그리고 이것이 그리려던 그림이다: 운해 위로 솟은 봉우리, 그 위를 나는 기체 */
+    var CL_TOP = Math.max(1500, (s0.alt || 3950) - 250);
     var nGrp = Math.max(1, Math.round(rint(r, K.grp) * CLD.den));
     /* ⚠⚠ 0820m — CAP 480 을 걷었다(소로 「예단하지 말고 극대치에서 빼자」).
        0819 fps 도 새똥도 전부 타 보고 나온 것이다 — 낭떠러지가 어디인지는
@@ -1412,7 +1430,9 @@
     var baseH = rng(r, K.base) * CLD.hgt;
     for (var i = 0; i < nGrp; i++) {
       var g = { r: mkRand((clSeed(RCODE, hour) + i * 2654435761) >>> 0),
-                w: rng(r, K.sz), base: baseH + (r() - 0.5) * 160, p: [] };
+                w: rng(r, K.sz), base: Math.min(baseH + (r() - 0.5) * 160, CL_TOP - 350),
+                hCap: 0, p: [] };
+      g.hCap = Math.max(180, CL_TOP - g.base);   /* ⭐ 이 떨기가 자랄 수 있는 키 */
       var np = rint(g.r, K.puff);
       if (made + np > CAP) break;
       made += np;
