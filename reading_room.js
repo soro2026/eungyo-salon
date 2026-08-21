@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0821h";
+  var VERSION = "0821i";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -307,6 +307,8 @@
     jet: []
   };
   var INSTR = [], LAMPS = [], BLINK = [];
+  /* ⭐ 0821i — 램프 다섯의 숨 주기(초). 소수로 어긋나게 — 다시 겹치는 데 몇 분 걸린다 */
+  var LAMP_BR = [3.1, 4.3, 3.7, 4.9, 3.4];
   var INSEL = null, LAMPEL = null, BLKEL = null;
   /* ⭐ 기체별 편집값 그릇 — 복엽기에서 민 값이 제트기 것을 안 건드린다.
      ⚠ 0821e 까지 편집값이 한 벌뿐이라 applyTune 에 「제트기에만」 임시 가드를 걸어 두었다.
@@ -909,8 +911,25 @@
   border-radius:50%;background:radial-gradient(circle at 35% 30%,#f0dcae,#8a6a34 62%,#2a2118);
   box-shadow:0 0 5px rgba(0,0,0,.7),0 0 8px rgba(255,190,110,.35)}
 /* ⭐ 0821h — 램프 다섯. 계기마다 하나씩, 작게 */
+/* ⭐⭐ 0821i 소로 — 「불빛이 강해졌다 약해졌다 숨쉬듯」. 실물 진공관 계기등이
+     전압 흔들림에 그러하다. 더 밝아도 좋다 하셨으니 위로 1.55배까지 오른다.
+   ⚠⚠ **opacity 는 안 건드린다.** 그건 paintLamp 가 「언제 켜는가」로 쓰는 값이라,
+     여기서 애니메이션을 걸면 밤낮 판정과 맥동이 같은 손잡이를 두고 다툰다(22호).
+     ⭐ filter:brightness 를 쓴다 — 켜고 끄는 일과 숨쉬는 일이 서로 안 만난다.
+   ⚠ 다섯이 한 박자로 뛰면 계기판 전체가 명멸해 사고로 보인다. --lp 로 주기를
+     제각각 주고, 램프마다 시작점(--ld)을 밀어 서로 어긋나게 둔다.
+   ⚠ 주기를 소수로 어긋나게 잡았다(3.1·4.3·3.7·4.9·3.4초) — 최소공배수가 커서
+     다섯이 다시 겹치는 데 몇 분이 걸린다. 규칙이 눈에 안 잡힌다. */
+@keyframes egrBreath{
+  0%{filter:brightness(.78)}
+  34%{filter:brightness(1.42)}
+  57%{filter:brightness(1.05)}
+  76%{filter:brightness(1.55)}
+  100%{filter:brightness(.78)}
+}
 .egrLamp{position:fixed;border-radius:50%;mix-blend-mode:screen;transition:opacity 1.2s ease;
-  background:radial-gradient(circle,rgba(255,205,140,.95) 0%,rgba(255,160,60,.42) 42%,rgba(255,130,40,.12) 68%,transparent 78%)}
+  background:radial-gradient(circle,rgba(255,205,140,.95) 0%,rgba(255,160,60,.42) 42%,rgba(255,130,40,.12) 68%,transparent 78%);
+  animation:egrBreath var(--lp,3.7s) ease-in-out var(--ld,0s) infinite}
 .egrBlk{position:fixed;border-radius:50%;background:#ff4a2e;
   box-shadow:0 0 7px rgba(255,70,40,.95),0 0 18px rgba(255,50,20,.6);
   animation:egrBlk var(--ms,1400ms) steps(1,end) infinite}
@@ -2297,6 +2316,9 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       le.style.left = (cx + w * lo.x / 100 - lr / 2) + "px";
       le.style.top = (top + h * lo.y / 100 - lr / 2) + "px";
       le.style.width = lr + "px"; le.style.height = lr + "px";
+      /* ⭐ 0821i — 숨 주기. 램프마다 다르게, 시작점도 밀어 둔다 */
+      le.style.setProperty("--lp", LAMP_BR[li % LAMP_BR.length] + "s");
+      le.style.setProperty("--ld", "-" + (li * 0.83).toFixed(2) + "s");
     }
     if (BLKEL) for (var bi = 0; bi < BLINK.length; bi++) {
       var bo = BLINK[bi], be = BLKEL.children[bi]; if (!be) continue;
