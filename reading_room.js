@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0821c";
+  var VERSION = "0821d";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -291,7 +291,12 @@
   function cabinUrl(k) {
     return HANGAR + CRAFT + "_cabin_" + k + ".webp?v=" + Math.floor(Date.now() / 60000);
   }
-  function cabinFallback(k) { return "jet_cabin_" + k + ".webp"; }
+  /* ⭐⭐ 0821d 소로 — 남의 기체를 입히지 않는다. 폴백은 **제 기체의 저장소 판**이고,
+       그것도 없으면 아무것도 안 세운다 — 창밖만 보인다.
+     ⚠⚠ 0821c 까지는 여기가 활자로 "jet_" 이었다. 복엽기를 타도 제트기 기내가 섰고,
+       그게 사고인지 폴백인지 화면으로는 알 길이 없었다(소로 0821 「복엽기 안 보임」).
+     ⭐ 크레덴시알 30호와 같은 정신 — 없으면 그냥 없다. 딴것으로 때우지 않는다. */
+  function cabinFallback(k) { return CRAFT + "_cabin_" + k + ".webp"; }
   /* ⚠ CABIN 은 이제 **주소가 아니라 갈래 글자**를 담는다. setTheme 이 이걸로 갈래를 되찾는다 */
   var CABIN = { m: "m", d: "d", e: "e", n: "n" };
 
@@ -1100,7 +1105,9 @@
     var sR = document.createElement("button");
     sR.id = "readingSeatR"; sR.className = "readingSeat"; sR.type = "button";
     sR.innerHTML = "&#8250;"; sR.title = "오른쪽 창 (→)";
-    ROOT.appendChild(sL); ROOT.appendChild(sR);
+    /* ⭐ 0821d — 정면 기체는 좌석이 하나다. 눌러도 아무 일 없는 물건을 세우지 않는다.
+       ⚠ 8호(실물 절차) — 기내에 없는 것이 화면에 서 있으면 그것이 곧 거짓말이다. */
+    if (SPEC.seats) { ROOT.appendChild(sL); ROOT.appendChild(sR); }
     EGR_on(sL, "click", function () { swapSeat(-1); });
     EGR_on(sR, "click", function () { swapSeat(+1); });
     /* ⚠ 0819U — 소리·멈춤 단추를 밖에서 걷었다. 모니터 조작판으로 들어갔다(소로).
@@ -2265,19 +2272,27 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     if (PLATE_OK[id] === undefined) {
       PLATE_OK[id] = null;                                  /* 묻는 중 — 두 번 안 묻는다 */
       var im = new Image();
-      im.onload = function () {
-        PLATE_OK[id] = true;
-        /* ⭐ 있었다면 그 자리에서 갈아입는다 — 다음 조명 바뀔 때까지 안 기다린다 */
-        if (ROOT && SINFO) { var pl = ROOT.querySelector("#plate"); if (pl) pl.__f = null; paintCabin(SINFO.lon); }
+      /* ⚠⚠⚠ 0821d 진범 — 여기서 SINFO 를 봤다. 원판이 **캐시에 있으면 onload 가
+           첫 onTick 보다 빨라** SINFO 가 null 이고, 그러면 이 손이 통째로 안 돈다.
+           그 뒤 paintCabin 은 plate.__f 가 같아 400ms 마다 조기 반환했다 — 영영 폴백.
+         ⭐ 처방: 다시 그리지 않는다. **꼬리표만 지운다.** 다음 onTick(400ms 안)이
+           저절로 갈아입힌다. 아무 값에도 기대지 않는다. */
+      var forget = function () {
+        if (!ROOT) return;
+        var pl = ROOT.querySelector("#plate"); if (pl) pl.__f = null;
+        var pb2 = ROOT.querySelector("#plateB"); if (pb2) pb2.__f = null;
       };
+      im.onload = function () { PLATE_OK[id] = true; forget(); };
       im.onerror = function () {
-        PLATE_OK[id] = false;
+        PLATE_OK[id] = false; forget();
         /* ⚠ 조용히 물러난다. 격납고가 비어 있는 것은 사고가 아니다(크레덴시알 30호) */
-        if (window.__egAdmin) console.log("[EG] 격납고에 " + id + " 가 없습니다 — 저장소 판이 섭니다");
+        if (window.__egAdmin) console.log("[EG] 격납고에 " + id + " 가 없습니다 — 저장소 판을 찾습니다");
       };
       im.src = cabinUrl(k);
     }
-    return cabinFallback(k);                                /* 묻는 중이거나 없으면 저장소 */
+    /* ⭐ 0821d — 묻는 중에는 **아무것도 안 세운다.** 창밖만 보인다.
+       ⚠ 옛 판은 여기서 남의 기체를 세웠고, 그 위장이 오늘 두 시간을 먹었다. */
+    return (PLATE_OK[id] === false) ? cabinFallback(k) : "";
   }
 
   var fadeT = null;
@@ -2290,14 +2305,22 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     var f = PREVIEW || themeKey(local);                     /* ⭐ 0820B — 갈래 글자 하나다 */
     setTheme(f);
     cloudRekind();                                          /* ⭐ 0820j — 갈래도 한 값으로 */
-    if (plate.__f === f) return;
-    var url = plateUrl(f);                                  /* ⭐ 격납고에 있으면 그것, 없으면 저장소 */
-    if (!plate.__f || !pb) {                                /* 첫 그림 — 그냥 앉힌다 */
-      plate.__f = f; plate.style.backgroundImage = "url(" + url + ")";
+    /* ⭐⭐ 0821d — 두드림을 시작시키는 손이라 **조기 반환보다 먼저** 부른다.
+       ⚠ 옛 판은 plate.__f 만 보고 물러나서, 격납고 응답이 와도 읽어 줄 손이 없었다.
+         갈래가 같아도 **출처가 갈리면 다시 그린다** — 0820z(같은 갈래인데 안 실림)의 사촌. */
+    var url = plateUrl(f);
+    if (plate.__f === f && plate.__u === url) return;
+    if (!url) {                                             /* ⭐ 아직 모르거나 원판이 없다 — 창밖만 */
+      plate.__f = f; plate.__u = "";
+      plate.style.backgroundImage = "none";
       return;
     }
-    if (pb.__f === f) return;                               /* 이미 그 겹으로 넘어가는 중 */
-    pb.__f = f;
+    if (!plate.__f || !plate.__u || !pb) {                  /* 첫 그림 — 그냥 앉힌다 */
+      plate.__f = f; plate.__u = url; plate.style.backgroundImage = "url(" + url + ")";
+      return;
+    }
+    if (pb.__f === f && pb.__u === url) return;             /* 이미 그 겹으로 넘어가는 중 */
+    pb.__f = f; pb.__u = url;
     pb.style.backgroundImage = "url(" + url + ")";
     pb.style.transition = "none";
     pb.style.opacity = "0";
@@ -2310,7 +2333,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     clearTimeout(fadeT);
     fadeT = setTimeout(function () {
       if (!ROOT || !document.body.contains(ROOT)) return;
-      plate.__f = pb.__f;
+      plate.__f = pb.__f; plate.__u = pb.__u;
       plate.style.backgroundImage = pb.style.backgroundImage;
       pb.style.transition = "none";
       pb.style.opacity = "0";
