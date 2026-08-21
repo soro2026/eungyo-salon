@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0821M";
+  var VERSION = "0821N";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -613,9 +613,22 @@
     var LOOK_KM = [0, 1.5, 3, 4.5, 6, 8, 10, 12];
     var LA = [];                     /* 점마다 마지막 측정값 — [0]이 발밑 */
     var laIdx = 0;
+    /* ⚠⚠⚠ 0821N 진범 — **sampleHeight 는 지형만 찌르지 않는다.**
+       Cesium 문서 그대로 「globe, 3D Tiles, **또는 장면의 primitive**」의 높이를 낸다.
+       발밑(LOOK_KM[0]=0km)을 재는 자리에 있는 것은 지면이 아니라 **우리 기체**다.
+       ⭐ 그래서 되먹임 고리가 선다 — 기체 높이를 지면으로 읽고 floor(250m)만큼 위로
+         가면, 다음번엔 그 새 자리를 또 찌른다. 분당 400m 상한이 유일한 제동이라
+         10분이면 8,800m 다. 속도도 rel 에 물려 633km/h 가 된다(소로 화면 실측과 일치).
+       ⚠ 「여러 번 나타남」의 까닭 — 기체가 화면 밖으로 나가면 안 찔려서 진짜 지면을
+         되찾고 내려온다. 그래서 올랐다 내렸다 한다.
+       ⭐ 처방 — objectsToExclude 로 우리 기체를 셈에서 뺀다. 이 인자는 처음부터
+         이런 일을 위해 있는 자리다.
+       ⚠ 구름(CloudCollection)은 안 걸린다 — 찌를 수 있는 기하가 아니다. */
     function groundAt(sg, uu) {
       var p = onCurve(sg, uu);
-      var hh = viewer.scene.sampleHeight(Cesium.Cartographic.fromDegrees(p[1], p[0]));
+      var hh = viewer.scene.sampleHeight(
+        Cesium.Cartographic.fromDegrees(p[1], p[0]),
+        BODYENT ? [BODYENT] : undefined);
       return Cesium.defined(hh) ? hh : null;
     }
     function sampleOne(sg, uu, segKm0) {
@@ -696,7 +709,7 @@
     function aimCam() {
       if (window.__egShut || !viewer) return;
       /* ⭐⭐ 0821L — 주인이 여기서 넘어간다. 겨누는 문은 여전히 이 함수 하나뿐이다 */
-      if (BODY) { paintBody(); orbitCam(); return; }
+      if (BODY) { paintBody(); spinProp(); orbitCam(); return; }
       var look = Cesium.Math.toRadians(clampAng(hd + side * SPEC.view + LOOK.y) + 360);
       var pit = horizonDeg(Math.max(rel, 80)) + (opt.sky || 6) + LOOK.p;
       pit = Math.max(-88, Math.min(88, pit));
@@ -1493,6 +1506,43 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   var BODYENT = null;              /* 지구 위에 선 기체 (Primitive Model) */
   var BODYWAIT = false;            /* 받는 중 — 5.4MB 라 몇 초 걸린다. 겹쳐 안 세우게 */
   var BODYWAS = false;             /* B 를 누르기 전의 OUT — 되돌릴 값 */
+  /* ══ ⭐⭐ 0821N 프로펠러 — **Cesium 애니메이션을 안 쓴다** ═══════════════
+     ⚠⚠ 0821M 이 안 돈 까닭 — `ModelAnimationCollection.update` 는 첫 줄에서
+       `if (JulianDate.equals(frameState.time, this._previousTime)) return false;`
+       를 한다. **viewer.clock 이 안 흐르면 매 프레임 같은 시각**이라 여기서 즉시
+       물러난다. 내가 준 animationTime 콜백은 그 뒤에 있어서 **한 번도 안 불렸다.**
+     ⚠ clock.shouldAnimate 를 켜면 돌지만, 그건 terra 의 시계다 — 태양 위치가 흐르고
+       남의 방까지 따라 움직인다. 41호 ㉨ 과 같은 갈래(남의 것을 안 건드린다).
+     ⭐ 처방 — 노드를 **직접 돌린다.** GLB 는 그대로 쓴다(v5 의 알맹이는 애니메이션이
+       아니라 **노드가 갈려 있다는 것**이었다). 우리 시계로 돌리니 남의 시계와 무관하고,
+       속도도 여기 숫자 하나가 정한다.
+     ⚠ 회전축은 X — 기수 축이다. translation 은 허브 자리(Z 0.127)를 되돌리는 값이라
+       GLB 를 구울 때 정점에서 뺀 그것과 짝이다. 한쪽만 고치면 프로펠러가 날아간다. */
+  var PROPND = null, PROPTRY = 0;
+  var PROP_RPS = 5.0;              /* 초당 바퀴 — 실물 25 는 스트로보로 거꾸로 돈다 */
+  var PROP_TR = null;
+  function spinProp() {
+    if (!BODYENT) return;
+    /* ⚠ 모델이 설 때까지 기다린다 — fromGltfAsync 가 풀려도 첫 update 전에는 노드가 없다.
+       ⭐ 스무 번만 두드리고 그만둔다. 애니 없는 몸에서 매 프레임 헛손질하지 않게. */
+    if (!PROPND) {
+      if (PROPTRY > 20 || !BODYENT.ready) { PROPTRY++; return; }
+      try {
+        PROPND = BODYENT.getNode("EG_prop_hub");
+        if (PROPND) {
+          var t = PROPND.matrix ? Cesium.Matrix4.getTranslation(PROPND.matrix, new Cesium.Cartesian3())
+                                : new Cesium.Cartesian3(0, 0, 0.127);
+          PROP_TR = t;
+          console.log("[EG] 프로펠러를 잡았습니다 — 초당 " + PROP_RPS + "바퀴");
+        }
+      } catch (e) { }
+      PROPTRY++;
+      if (!PROPND) return;
+    }
+    var th = (performance.now() / 1000) * PROP_RPS * 2 * Math.PI;
+    PROPND.matrix = Cesium.Matrix4.fromRotationTranslation(
+      Cesium.Matrix3.fromRotationX(th), PROP_TR, new Cesium.Matrix4());
+  }
   var ORB = { yaw: 40, pit: 12, dist: 26 };
   var ORB0 = { yaw: 40, pit: 12 }; /* 다음 탑승이 여기서 시작한다 */
   /* ⚠ ?v= 분 단위 — 격납고에서 갈아 끼우면 1분 안에 닿는다(기내 원판과 같은 문법) */
@@ -1533,20 +1583,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
             m.imageBasedLighting.sphericalHarmonicCoefficients = sh;
           } catch (e) { }
           BODYENT = viewer.scene.primitives.add(m);
-          /* ⭐ 0821M — 프로펠러. ⚠⚠ Primitive Model 은 애니메이션을 **저절로 안 튼다**
-             (Entity 는 틀어 주는데 Primitive 는 activeAnimations 에 손으로 건다).
-             ⚠ animationTime 을 우리 시계로 준다 — viewer.clock 의 shouldAnimate·multiplier
-               가 어떻게 서 있든 프로펠러는 제 속도로 돈다. 멈춤(Space)과도 무관하다 —
-               실물도 공중에서 멈추면 엔진이 도는 채로 떠 있는 것이니 그게 맞다.
-             ⚠ 애니가 없는 몸(다른 기체)이면 조용히 물러난다 — try 가 그 그물이다. */
-          try {
-            m.activeAnimations.addAll({
-              loop: Cesium.ModelAnimationLoop.REPEAT,
-              animationTime: function (d) { return (performance.now() / 1000) % d; }
-            });
-          } catch (e) {
-            try { m.activeAnimations.addAll({ loop: Cesium.ModelAnimationLoop.REPEAT }); } catch (e2) { }
-          }
+          PROPND = null; PROPTRY = 0;
           console.log("[EG] 기체가 섰습니다 — " + bodyUrl());
         })
         .catch(function (e) { BODYWAIT = false; console.warn("[EG] 기체를 못 세웠습니다:", e); });
@@ -1557,6 +1594,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   function bodyOff() {
     if (BODYENT && viewer) { try { viewer.scene.primitives.remove(BODYENT); } catch (e) { } }
     BODYENT = null; BODYWAIT = false;
+    PROPND = null; PROPTRY = 0; PROP_TR = null;   /* ⭐ 기체와 함께 놓는다 — 다음 판이 다시 잡는다 */
   }
   function toggleBody() {
     if (!ROOT) return;
