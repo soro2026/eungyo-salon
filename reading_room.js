@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0821i";
+  var VERSION = "0821j";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -262,8 +262,16 @@
        하늘 65% + 코밍 + 계기판. 휠 한 번 내리면 지도판, 그것이 고갯짓이다.
        ⚠ roll 6 — 정면에선 롤이 지평선을 통째로 기울인다. 상한 10 은 셀 수 있다.
          셈이 아니라 어림이다. 소로가 타 보고 정한다. */
+    /* ⭐⭐ 0821j freelook — 브레게 14 는 **개방 조종석**이다. 몸을 내밀어 옆을 본다.
+       ⚠ 제트기에는 안 준다 — 창가 시점이라 창틀이 시야를 정한다. 고개를 돌리면
+         창틀이 따라오지 않아 거짓말이 된다(8호). 정면 기체만의 손이다.
+       ⭐ peek [a,b] — 고개를 a° 돌리면 판이 물러나기 시작해 b° 에서 사라진다.
+         한 판짜리 조종석 그림으로 옆을 보면 앞쪽 코밍이 옆 하늘에 겹친다.
+         물러나게 두는 편이 정직하고, 개방 조종석에선 그것이 실물이다.
+       ⚠ 셈이 낸 값이 아니라 어림이다. 소로가 타 보고 두 숫자를 정한다. */
     bre: { view: 0, seats: false, roll: 6, focus: 0.38,
            shake: true, wind: 1,   /* ⭐ 0821g — 개방 조종석. 기체가 덜컹이고 바람이 든다 */
+           freelook: true, peek: [12, 46],
            wins: [],
            mon: { tl: [29.5, 61.1], tr: [69.2, 61.1], br: [69.2, 77.2], bl: [29.5, 77.2] } }
   };
@@ -575,6 +583,10 @@
     var alt = (route.mode === "msl") ? (route.msl || 3600) : 1600, settled = false;
     var spdH = 1200;                 /* ㉣ 속도가 보는 고도(지면 위) — 시정수 20초의 딴 값 */
     var prevAlt = alt, vs = 0;       /* 승강률 m/분 — 계기판이 쓴다 */
+    /* ⚠⚠ 0821j — rel(지면 위 높이)이 원래 tick 안의 var 였다. 멈춤(PAUSED) 중에도
+       aimCam 이 지평선각을 내려면 값이 프레임을 넘어 살아 있어야 한다.
+       ⭐ 여기로 끌어올린다. tick 안에서는 대입만 한다 — 두 곳에 var 를 두지 않는다. */
+    var rel = 120;
     var CLIMB = 400 / 60;            /* ㉡ 승강률 상한 m/s — 실제 여객기 순항 승강률의 상단 */
     /* ⚠⚠ 0819 소로 — 「고도가 바뀔 때 1초마다 딸꾹」.
        지면은 1초에 한 번 재는데 카메라는 매 프레임 그 값을 쓴다. 그래서 잰 순간마다
@@ -627,6 +639,28 @@
       return lo;
     }
 
+    /* ══ ⭐⭐ 0821j — 카메라를 겨누는 손. 파일에 이 한 곳뿐이다 ═════════════
+       ⚠ 0821i 까지 이 셈이 tick 한복판에 풀어져 있었다. 멈춤(PAUSED)일 때는
+         아예 안 돌아서, 멈춰 놓고 고개를 돌리면 아무 일도 안 일어났을 것이다.
+         ⭐ 손으로 떼어 두니 멈춤 갈래에서도 부를 수 있다 — 「멈춰 서서 둘러보기」가
+           덤으로 생겼다. 세워 놓고 아콩카과를 올려다보는 것이 이 비행에서 제일 좋다.
+       ⚠ 창가 시점 — 창밖이 지나간다(v1.4 8호). 왼쪽 창가는 빼기다.
+         기체가 시점을 정한다 — 제트기 view 90(창가) · 복엽기 0(정면).
+       ⚠⚠ pitch 는 ±90 을 넘으면 Cesium 이 뒤집힌다.
+         ⭐ 검산 실측 — 지금 상한(+70/−80)에서 최대 77.4° 라 **이 조임은 한 번도 안 걸린다.**
+           그래도 남긴다. 상한을 늘리거나 sky 를 키우는 날 여기가 그물이다.
+         ⚠ 「걸리지도 않는 조임」이라고 지우면, 늘리는 사람이 뒤집힘을 화면에서 만난다. */
+    function aimCam() {
+      if (window.__egShut || !viewer) return;
+      var look = Cesium.Math.toRadians(clampAng(hd + side * SPEC.view + LOOK.y) + 360);
+      var pit = horizonDeg(Math.max(rel, 80)) + (opt.sky || 6) + LOOK.p;
+      pit = Math.max(-88, Math.min(88, pit));
+      viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(lon, lat, alt),
+        orientation: { heading: look, pitch: Cesium.Math.toRadians(pit), roll: Cesium.Math.toRadians(roll) }
+      });
+    }
+
     var off = viewer.clock.onTick.addEventListener(function () {
       try {
         var now = performance.now(), rawMs = now - tp;
@@ -638,7 +672,9 @@
               재개하는 순간 dt 가 몇 분치로 부풀어 비행기가 순간이동한다.
               그래서 return 을 위가 아니라 여기에 둔다 — tp = now 다음이다.
            ⭐ 카메라는 그대로 두므로 화면은 얼어붙은 게 아니라 「멈춰 서 있다」. */
-        if (PAUSED) return;
+        /* ⭐ 0821j — 고갯짓은 멈춤 중에도 산다. dt 를 이미 쥔 자리라 새로 재는 게 없다 */
+        lookTick(dt);
+        if (PAUSED) { aimCam(); return; }
 
         /* ── 지면 — 150ms 에 한 점씩 돌아가며(위 ㉠ 주석). 몰아 쏘지 않는다 */
         if (now - gT > 150) {
@@ -675,7 +711,7 @@
         if (alt < groundH + 120 && dA > 0) step *= 3;
         alt += Math.max(-step, Math.min(step, dA));
         if (alt < groundH + 80) alt = groundH + 80;  /* 최후의 바닥 */
-        var rel = alt - groundH;                     /* 계기판·지평선 각이 쓰는 지면 위 높이 */
+        rel = alt - groundH;                         /* 계기판·지평선 각이 쓰는 지면 위 높이 */
 
         /* ── ⭐ 속도는 셈이 낸다 (25호) — 다만 ㉣ 고도 출렁임은 안 받는다.
            속도가 보는 고도는 시정수 20초의 딴 값. 체감은 일정하고 속도는 잔잔하다 */
@@ -713,17 +749,7 @@
         /* ⚠ 0819f — 옛 3단 고도 블록이 여기 있었다. 진범이라 원인째 걷었다.
            고도는 위(㉠㉡㉢)에서 이미 alt 로 섰다. */
 
-        /* 창가 시점 — 창밖이 지나간다(v1.4 8호). 왼쪽 창가는 빼기다 */
-        /* ⭐ 0821b — 기체가 시점을 정한다. 제트기 view 90(창가) · 복엽기 0(정면) */
-        var look = Cesium.Math.toRadians((hd + side * SPEC.view + 360) % 360);
-        var pit = horizonDeg(Math.max(rel, 80)) + (opt.sky || 6);
-
-        if (!window.__egShut) {
-          viewer.camera.setView({
-            destination: Cesium.Cartesian3.fromDegrees(lon, lat, alt),
-            orientation: { heading: look, pitch: Cesium.Math.toRadians(pit), roll: Cesium.Math.toRadians(roll) }
-          });
-        }
+        aimCam();
 
         /* 승강률 — 항상 잰다. 계기판이 없어도 값은 흘러야 한다 */
         vs += ((alt - prevAlt) / Math.max(dt, 0.001) * 60 - vs) * Math.min(dt, 1); prevAlt = alt;
@@ -764,8 +790,22 @@
    v1.4 함정 ㉢ 을 주석에 옮겨 적어 놓고 정반대로 지은 것이다.
    ⭐ 베스페르 문법으로 고친다 — 스크롤이 없다. 판도 창밖도 fixed 이고,
      휠이 panY 하나를 바꾸면 둘이 함께 밀린다. 좌표계가 하나여야 안 어긋난다. */
-#readingRoom{position:fixed;inset:0;z-index:5;pointer-events:none;overflow:hidden}
+#readingRoom{position:fixed;inset:0;z-index:5;pointer-events:none;overflow:hidden;--peek:1}
 #readingRoom #fit{position:fixed;pointer-events:none}
+/* ⭐⭐ 0821j 고갯짓 — 판 겹이 **한 값(--peek)** 을 함께 본다.
+   ⚠ 22호 — 물러나는 정도를 겹마다 따로 적으면 언젠가 한 겹만 남아 허공에 뜬다.
+     실제로 모니터가 그 위험이 가장 크다. 지도판은 조종석 판의 % 좌표에 사영변환으로
+     앉아 있어서, 판이 물러났는데 저만 남으면 하늘 한복판에 기울어진 채 뜬다.
+   ⚠ .egrLamp 개별 opacity 는 안 건드린다 — paintLamp 가 「언제 켜는가」로 쓰는 값이다.
+     그릇(#egrLamps)만 물린다. 위 916행 경고와 같은 갈래다.
+   ⚠ 기록판(#egrDesk)은 안 물린다 — 소로가 손수 연 판이라 고개 돌린다고 흐려지면 안 된다. */
+#readingRoom #fit,#readingRoom #egrInstr,#readingRoom #egrLamps,#readingRoom #egrBlink,
+#readingRoom #egrEng,#readingRoom .shade,#readingRoom #readingGrip,#egrMon{
+  opacity:var(--peek,1)}
+/* ⚠ 사라진 판을 못 누르게 — 안 보이는 것이 손을 붙들면 그게 유령이다(0817 딱지) */
+#readingRoom.peeking #egrMon,#readingRoom.peeking #readingGrip{pointer-events:none}
+/* ⚠ 끌 때 글자가 파랗게 잡히면 고갯짓이 아니라 드래그로 읽힌다 */
+body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 #readingRoom #plate,#readingRoom #plateB{position:absolute;left:0;top:0;width:100%;height:100%;
   pointer-events:none;z-index:6;background-size:100% 100%;background-repeat:no-repeat}
 /* ⭐ 윗겹 — 조명이 바뀔 때만 3초에 걸쳐 드러난다. 평소엔 투명하게 겹쳐만 있다 */
@@ -1373,6 +1413,54 @@
   var SHUT = false;                /* 0819P — 창 덮개. 24호 · 손님이 여닫는다 */
   var PAUSED = false;              /* 0819T — 일시정지. cruise 루프가 이 값을 본다 */
 
+  /* ══ 고갯짓 — 자유시점 (0821j) ═══════════════════════════════════════
+     ⚠⚠ **카메라를 직접 안 잡는다.** 셈(cruise)이 매 프레임 heading·pitch·roll 을
+       통째로 setView 하므로, 카메라를 따로 돌리는 손을 두면 다음 프레임에 지워진다.
+       그리고 궤도(orbit)·flyTo 와 주인이 둘이 되어 41호 ㉠ 의 사슬로 되돌아간다.
+     ⭐ 처방 — **셈이 낸 각도에 오프셋만 더한다.** 주인은 여전히 하나다.
+         look = hd + side*SPEC.view + LOOK.y      pit = 지평선각 + sky + LOOK.p
+       고갯짓이 아무리 커도 비행은 제 길을 간다. 사슬이 원천 차단된다.
+     ⭐ 손을 떼면 스스로 정면으로 돌아온다 — **이것이 없으면 안 된다.**
+       뒤를 본 채 20분 날다가 「고장 났다」가 되는 것이 자유시점의 흔한 최후다.
+     ⚠ on — 고갯짓이 진행 중일 때만 참. 정면으로 다 돌아오면 스스로 거짓이 되어
+       lookTick 이 매 프레임 하는 일이 0 이 된다(㉧ — 평소에 아무것도 안 쓴다). */
+  var LOOK = { y: 0, p: 0, hold: false, idle: 0, on: false };
+  function clampAng(a) { return (a + 540) % 360 - 180; }
+  /* ⭐ 판이 물러나는 정도 — 고개를 돌린 각도 하나가 정한다. CSS 변수 한 줄로 내보낸다 */
+  function peekPaint() {
+    if (!ROOT) return;
+    var pk = (SPEC && SPEC.peek) || [12, 46], a = Math.abs(LOOK.y);
+    var v = (!SPEC || !SPEC.freelook || OUT) ? 1
+          : (a <= pk[0]) ? 1 : (a >= pk[1]) ? 0 : 1 - (a - pk[0]) / (pk[1] - pk[0]);
+    ROOT.style.setProperty("--peek", v.toFixed(3));
+    ROOT.classList.toggle("peeking", v < 0.995);
+  }
+  /* ⭐ 매 프레임 한 번. 붙들고 있으면 그대로, 놓으면 뜸 들였다가 정면으로 */
+  function lookTick(dt) {
+    if (!LOOK.on) return;
+    if (LOOK.hold) { LOOK.idle = 0; return; }
+    LOOK.idle += dt;
+    if (LOOK.idle < 0.5) return;          /* ⚠ 뜸 — 손 떼자마자 홱 돌면 낚아채인 느낌이 난다 */
+    /* ⚠⚠ 0821j 검산 — 지수 감쇠만 걸었더니 **꼬리가 길었다.** 137° 에서 10° 까지는
+       3.37초로 설계대로였는데, 2° 이내가 5.12초 · 완전 정지가 6.63초였다.
+       그동안 이 손이 매 프레임 계속 돌고 peekPaint 까지 불렀다.
+       ⭐ 처방 — 지수에 **바닥 속도**를 더한다. 큰 각은 지수가 빠르게 줄이고,
+         남은 몇 도는 초당 26°로 곧장 끊는다. 셈으로 다시 태워 3.8초에 정면을 봤다.
+       ⚠ 지수만으로는 0 에 영원히 안 닿는다 — 「거의 0」과 「0」은 다른 값이다. */
+    /* ⭐ τ 1.4초 · 바닥 18°/s — 뒤를 완전히 본 180° 에서 3.43초 · 90° 에서 2.62초.
+       설계의 「3~4초」 안이다. 후보 다섯을 태워 고른 값이지 눈대중이 아니다. */
+    var k = Math.min(dt / 1.4, 1), fl = 18 * dt;
+    LOOK.y -= Math.sign(LOOK.y) * Math.min(Math.abs(LOOK.y), Math.abs(LOOK.y) * k + fl);
+    LOOK.p -= Math.sign(LOOK.p) * Math.min(Math.abs(LOOK.p), Math.abs(LOOK.p) * k + fl);
+    if (!LOOK.y && !LOOK.p) LOOK.on = false;   /* ⭐ 다 돌아왔으면 이 손이 하는 일이 0 이 된다 */
+    peekPaint();
+  }
+  function lookReset() {
+    LOOK.y = 0; LOOK.p = 0; LOOK.hold = false; LOOK.idle = 0; LOOK.on = false;
+    if (ROOT) { ROOT.style.setProperty("--peek", "1"); ROOT.classList.remove("peeking", "looking"); }
+    try { document.body.classList.remove("reading-look"); } catch (e) { }
+  }
+
   /* ══ 이어 타기 (0819T) ═════════════════════════════════════════════
      ⚠ 소로 0819: 「꽤 왔는데 다시 리셋하면 처음부터 시작하는 게 너무 아까운데」
      ⭐ 나갔던 곳을 적어 두었다가 다시 타면 거기서 시작한다. 책갈피와 같은 물건이다.
@@ -1631,6 +1719,9 @@
     if (!ROOT) return;
     OUT = !OUT;
     ROOT.classList.toggle("out", OUT);
+    /* ⭐ 0821j — 밖은 제 시점을 갖는다. 고개를 돌린 채 나가면 밖도 비뚤어져 보인다.
+       ⚠ 그리고 밖에서는 모니터가 왼쪽 아래 제 자리로 서므로 --peek 을 반드시 1 로 푼다 */
+    lookReset();
     /* ⚠ 기내로 돌아오면 감추기를 푼다 — 좌석에 앉았는데 계기판이 없으면 사고로 보인다 */
     if (!OUT && BARE) toggleBare();
     if (HIDE) HIDE.classList.toggle("on", OUT);
@@ -3870,6 +3961,57 @@ function paintBook() {
     EGR_on(window, "pointerup", function () {
       if (!egrab) return; egrab = null; saveTuneSoon();
     }, true);
+    /* ── ⭐⭐ 고갯짓 (0821j) — 끌면 고개가 돈다 ────────────────────────────
+       ⚠ **거품 단계**에 단다(위 편집기 손은 붙듦 단계다). 편집 중이면 그 손이 먼저
+         잡고 stopPropagation 하므로 여기까지 안 온다 — 두 손이 안 다툰다.
+       ⚠ #readingRoom 이 pointer-events:none 이라 판 위 끌기는 그 아래 지구에 닿는다.
+         그래서 window 에 건다(휠과 같은 까닭).
+       ⚠⚠ 4px 문턱 — 없으면 단추 누르기를 통째로 뺏는다. 눌렀다 뗀 것은 클릭이지
+         고갯짓이 아니다. 문턱을 넘은 뒤에야 비로소 고개가 돌기 시작한다.
+       ⭐ 부호 — 마우스를 오른쪽으로 밀면 고개가 오른쪽으로 돈다(1인칭 문법).
+         「세계를 붙들어 끈다」로 하고 싶으시면 아래 두 부호만 뒤집으면 됩니다. */
+    var lg = null;
+    function lookable(t) {
+      if (editing || !ROOT) return false;
+      /* ⭐ 0821j 소로 — 「밖에서 보는 게 원래 계획」. 밖(C)은 판이 없으니 **기체 불문**이다.
+         기내는 개방 조종석(freelook 기체)만 — 제트기는 창틀이 시야를 정한다(8호) */
+      if (!OUT && !SPEC.freelook) return false;
+      if (!t || !t.closest) return true;
+      return !t.closest("#egrMon,#egrDesk,#readingExit,#readingHide,.readingSeat,button,input,textarea,select,a");
+    }
+    EGR_on(window, "pointerdown", function (e) {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      if (!lookable(e.target)) return;
+      lg = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: false };
+    });
+    EGR_on(window, "pointermove", function (e) {
+      if (!lg || e.pointerId !== lg.id) return;
+      var dx = e.clientX - lg.x, dy = e.clientY - lg.y;
+      if (!lg.moved) {
+        if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+        lg.moved = true; LOOK.hold = true; LOOK.on = true;
+        ROOT.classList.add("looking");
+        try { document.body.classList.add("reading-look"); } catch (e2) { }
+      }
+      lg.x = e.clientX; lg.y = e.clientY;
+      /* ⭐ 화면 폭 절반에 90° — 손목 한 번에 옆이 보인다. 두 바퀴 감기지 않게 ±180 로 감는다 */
+      var vw = window.innerWidth || 1, vh = window.innerHeight || 1;
+      LOOK.y = clampAng(LOOK.y + dx / vw * 180);
+      /* ⚠ 위 +70 / 아래 −80 — 발밑을 더 볼 수 있게 아래를 넉넉히 준다.
+         개방 조종석이라 아래가 곧 볼거리다(안데스 협곡). 위는 하늘뿐이라 덜 준다 */
+      LOOK.p = Math.max(-80, Math.min(70, LOOK.p - dy / vh * 120));
+      peekPaint();
+    });
+    function lookRelease() {
+      if (!lg) return;
+      lg = null; LOOK.hold = false; LOOK.idle = 0;
+      if (ROOT) ROOT.classList.remove("looking");
+      try { document.body.classList.remove("reading-look"); } catch (e) { }
+    }
+    EGR_on(window, "pointerup", lookRelease);
+    EGR_on(window, "pointercancel", lookRelease);
+    /* ⚠ 창 밖으로 끌고 나가 떼면 pointerup 이 안 온다 — 그러면 영원히 붙든 채가 된다 */
+    EGR_on(window, "blur", lookRelease);
     EGR_on(window, "wheel", function (e) {
       if (!editing) return;
       var wt = e.target, t = tuneTarget(wt);
@@ -4048,6 +4190,9 @@ function paintBook() {
     restoreCam(v);
     if (EXIT) { try { EXIT.remove(); } catch (e) { } EXIT = null; }
     if (HIDE) { try { HIDE.remove(); } catch (e) { } HIDE = null; }
+    /* ⭐ 0821j — ROOT 가 아직 살아 있을 때 되돌린다. body 꼬리표(reading-look)는
+       방 밖 물건이라 여기서 안 떼면 나가서도 글자가 안 잡히는 채로 남는다(31호 ㉢ 갈래) */
+    lookReset();
     if (ROOT) { try { ROOT.remove(); } catch (e) { } ROOT = null; }
     try { document.body.classList.remove("reading-on"); } catch (e) { }
     try { if (typeof window.refreshDock === "function") window.refreshDock(false); } catch (e) { }
