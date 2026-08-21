@@ -597,6 +597,8 @@ window.EGQ = (function(){
   #concertList{ background:rgba(13,20,36,.96); }
   /* 0816 — 미술관은 자줏빛, 음악관은 감청빛, 콜레주는 서재의 갈색 */
   #collegeList{ background:rgba(22,18,12,.96); }
+  /* 0821 — 다섯째 판. 독서비행은 순항 고도의 하늘 — 짙은 청람 밤 */
+  #readingList{ background:rgba(12,22,30,.96); }
   /* 0818 — 넷째 판. 베스페르는 일몰이라 검붉은 밤 */
   #sunsetList{ background:rgba(30,17,14,.96); }
   .tour-head{
@@ -1758,6 +1760,7 @@ window.EGQ = (function(){
 <div id="galerieList" class="tour-list"></div>
 <div id="sunsetList" class="tour-list"></div>
 <div id="concertList" class="tour-list"></div>
+<div id="readingList" class="tour-list"></div>
 <!-- 0816 — 콜레주도 미술관·음악관과 같은 판을 쓴다(소로). 세 과목까지 함께 듣는 곳이라
      문패 하나로는 안에 무엇이 있는지 알 길이 없었다. -->
 <div id="collegeList" class="tour-list"></div>
@@ -5746,10 +5749,10 @@ async function openCollegePanel(){
 
 function closeTourLists(){
   /* 0816 — 콜레주가 셋째 판으로 들어왔다. 여기 빠뜨리면 판 둘이 겹쳐 뜬다. */
-  ["galerieList","concertList","collegeList","sunsetList"].forEach(id=>{
+  ["galerieList","concertList","collegeList","sunsetList","readingList"].forEach(id=>{
     const b = document.getElementById(id); if (b) b.classList.remove("in");
   });
-  ["navGalerie","navConcert","navCollege","navSunset"].forEach(id=>{
+  ["navGalerie","navConcert","navCollege","navSunset","navReading"].forEach(id=>{
     const b = document.getElementById(id); if (b) b.classList.remove("open");
   });
 }
@@ -5813,6 +5816,52 @@ async function openTourPanel(kind){
 }
 function toggleGalerieList(){ return openTourPanel("galerie"); }
 function toggleConcertListPanel(){ return openTourPanel("concert"); }
+
+/* 0821b — 다섯째 판 · 독서비행 노선 고르기 (소로 지시).
+   ⭐ 화살표(›)가 어제까지 거짓말을 했다 — 목록이 없어서 누르면 오늘 노선으로 갔다.
+     형제(음악관)의 openTourPanel 문법을 물려받되, 노선은 서버가 아니라
+     reading_room 이 이미 쥐고 있어(egReading.routes) 기다림 없이 즉시 편다.
+   ⚠ 활자를 손으로 적지 않는다 — 노선이 늘면 이 판도 스스로 는다. */
+function toggleReadingListPanel(){
+  const box = document.getElementById("readingList");
+  const btn = document.getElementById("navReading");
+  if (!box) return;
+  const willOpen = !box.classList.contains("in");
+  closeTourLists(); closeOrgLists();
+  try{ toggleCityList(false); toggleStarList(false); }catch(e){}
+  if (!willOpen) return;
+  box.innerHTML = '<div class="tour-head"><span class="th-la">VOLATUS</span>'
+                + '<span class="th-ko">르 그랑 투르 · 독서비행</span></div>';
+  box.classList.add("in");
+  if (btn) btn.classList.add("open");
+  const rs = (window.egReading && window.egReading.routes) ? window.egReading.routes() : [];
+  if (!rs.length){
+    const e0 = document.createElement("div");
+    e0.className = "tour-empty"; e0.textContent = "첫 노선을 여는 중입니다";
+    box.appendChild(e0); return;
+  }
+  const ti = ((dayIndex() % rs.length) + rs.length) % rs.length;   /* 오늘의 노선 */
+  rs.forEach((r, i)=>{
+    const b = document.createElement("button");
+    b.className = "tour-item" + (i === ti ? " today" : "");
+    const nm = document.createElement("div"); nm.className = "ti-nm";
+    if (i === ti){ const d = document.createElement("span"); d.className = "ti-dot"; nm.appendChild(d); }
+    const t = document.createElement("span");
+    t.textContent = r.name || r.code;               /* 활자는 textContent — <>가 섞여도 안전 */
+    nm.appendChild(t); b.appendChild(nm);
+    if (r.face){
+      const l = document.createElement("div");
+      l.className = "ti-work"; l.textContent = r.face;
+      b.appendChild(l);
+    }
+    b.addEventListener("click", ()=>{
+      closeTourLists();
+      try{ document.getElementById("egDock").classList.remove("open"); }catch(e){}
+      enterReadingRoom(r.code);
+    });
+    box.appendChild(b);
+  });
+}
 
 function addDockShortcut(el, id){
   if (id === "tourmusic"){
@@ -6138,7 +6187,7 @@ async function enterReadingRoom(code){
     await loadScriptOnce("stamp_press.js?v=0820a");
     await loadScriptOnce("eg_book_add.js?v=0819c");   /* 좌석 모니터의 검색 한 문(21호) */
     await loadScriptOnce("eg_map_ne.js?v=0819b");     /* 항로도 밑그림 · Natural Earth */
-    await loadScriptOnce("reading_room.js?v=0820B");
+    await loadScriptOnce("reading_room.js?v=0821b");
     if (!window.egReading) throw new Error("egReading 창구가 안 열렸습니다");
     window.egReading.enter(viewer, code || "alps_traverse");
   }catch(err){
@@ -6515,7 +6564,9 @@ async function loadDock(){
             + '</div>'
             + '<div class="dock-sub"></div>',
         sub: today ? (today.name + " · " + today.face) : "첫 노선을 여는 중",
-        onClick: !today ? null : (()=> enterReadingRoom(today.code)) });
+        onClick: !today ? null
+               : (rs.length === 1 ? (()=> enterReadingRoom(today.code))
+                                  : (()=> toggleReadingListPanel())) });
     }
 
     /* ANIMA 🗝 분더카머 — 내 집 상공 회전 + 대문 팝업 (goToMyHome 그대로)
