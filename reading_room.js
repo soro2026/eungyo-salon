@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0821Q";
+  var VERSION = "0821R";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -709,7 +709,7 @@
     function aimCam() {
       if (window.__egShut || !viewer) return;
       /* ⭐⭐ 0821L — 주인이 여기서 넘어간다. 겨누는 문은 여전히 이 함수 하나뿐이다 */
-      if (BODY) { paintBody(); spinProp(); orbitCam(); return; }
+      if (BODY) { paintBody(); spinProp(); holdTick(dt); orbitCam(); return; }
       var look = Cesium.Math.toRadians(clampAng(hd + side * SPEC.view + LOOK.y) + 360);
       var pit = horizonDeg(Math.max(rel, 80)) + (opt.sky || 6) + LOOK.p;
       pit = Math.max(-88, Math.min(88, pit));
@@ -1519,6 +1519,69 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⚠ 회전축은 X — 기수 축이다. translation 은 허브 자리(Z 0.127)를 되돌리는 값이라
        GLB 를 구울 때 정점에서 뺀 그것과 짝이다. 한쪽만 고치면 프로펠러가 날아간다. */
   var PROPND = null, PROPTRY = 0;
+  /* ══ ⭐⭐ 0821R 손 맞잡기 — 아웃 오브 아프리카 (소로 0821) ═══════════════
+     ⚠ 「비행 내내는 고문」(소로). 사진이 되지 장면이 안 된다. 그리고 계기가 있는
+       조종석에서 20분간 한 손을 뒤로 뻗고 있는 건 실물도 아니다.
+     ⭐ 난기류(0821g)와 같은 문법 — 드물게, 매번 다르게. 다만 조건이 하나 더 붙는다:
+       **가까이 다가오면 자주 일어난다.** 0820 딱지 ㉸ 가 그것이다 —
+       「균등은 공평하지만 아름답지 않다. 보는 사람이 있는 곳을 셈에 넣는다.」
+       멀리서는 팔이 몇 픽셀이라 일어나도 아무 일이 아니다.
+     ⚠ 노드 셋을 돌린다 — 팔 둘은 어깨에서(X축), 뒷사람 허리는 앞으로(Y축).
+       ⭐ arm_b 는 torso_b 의 **자식**이라 허리를 돌리면 저절로 따라간다.
+         따로 돌리면 회전이 두 번 먹어 손이 어긋난다(v13 에서 실제로 그랬다). */
+  var HOLD = { on: false, t: 0, dur: 0, next: 0, ph: 0 };
+  var ARMF = null, ARMB = null, WAIST = null, ND_TR = {};
+  var ARM_DOWN = -88, ARM_UP = 0, LEAN_DEG = 26;   /* GLB v14 가 이 각도로 구워졌다 */
+  function holdReset() {
+    HOLD.on = false; HOLD.t = 0; HOLD.ph = 0;
+    HOLD.next = performance.now() + (40 + Math.random() * 60) * 1000;
+    ARMF = ARMB = WAIST = null; ND_TR = {};
+  }
+  function grabNode(nm) {
+    try {
+      var n = BODYENT.getNode(nm);
+      if (n && !ND_TR[nm]) {
+        ND_TR[nm] = n.matrix ? Cesium.Matrix4.getTranslation(n.matrix, new Cesium.Cartesian3())
+                             : new Cesium.Cartesian3(0, 0, 0);
+      }
+      return n;
+    } catch (e) { return null; }
+  }
+  function setNode(n, nm, axis, deg) {
+    if (!n) return;
+    var m3 = (axis === "x") ? Cesium.Matrix3.fromRotationX(Cesium.Math.toRadians(deg))
+                            : Cesium.Matrix3.fromRotationY(Cesium.Math.toRadians(deg));
+    n.matrix = Cesium.Matrix4.fromRotationTranslation(m3, ND_TR[nm], new Cesium.Matrix4());
+  }
+  function holdTick(dt) {
+    if (!BODYENT || !BODYENT.ready) return;
+    if (!ARMF) { ARMF = grabNode("EG_arm_f"); ARMB = grabNode("EG_arm_b"); WAIST = grabNode("EG_torso_b"); }
+    if (!ARMF || !WAIST) return;
+    var now = performance.now();
+    if (!HOLD.on && now > HOLD.next) {
+      /* ⭐ 가까이 왔으면 거의 늘, 멀면 가끔 — 「늘」은 아니다. 기계가 되면 장면이 죽는다 */
+      var near = (ORB.dist < 18);
+      if (near || Math.random() < 0.28) {
+        HOLD.on = true; HOLD.t = 0; HOLD.dur = 26 + Math.random() * 12;
+      } else {
+        HOLD.next = now + (60 + Math.random() * 90) * 1000;
+      }
+    }
+    if (HOLD.on) {
+      HOLD.t += dt;
+      if (HOLD.t > HOLD.dur) {
+        HOLD.on = false;
+        HOLD.next = now + (90 + Math.random() * 150) * 1000;
+      }
+    }
+    /* ⚠ 뚝 끊기면 인형이 된다 — 1.4초에 걸쳐 팔이 올라가고 몸이 기운다 */
+    HOLD.ph += ((HOLD.on ? 1 : 0) - HOLD.ph) * Math.min(dt / 1.4, 1);
+    if (HOLD.ph < 0.0015 && !HOLD.on) HOLD.ph = 0;
+    var e = HOLD.ph * HOLD.ph * (3 - 2 * HOLD.ph);      /* 부드럽게 들고 놓는다 */
+    setNode(ARMF, "EG_arm_f", "x", ARM_DOWN + (ARM_UP - ARM_DOWN) * e);
+    setNode(ARMB, "EG_arm_b", "x", ARM_DOWN + (ARM_UP - ARM_DOWN) * e);
+    setNode(WAIST, "EG_torso_b", "y", -LEAN_DEG * e);   /* ⚠ 기수가 X− 라 앞으로 숙이면 −Y */
+  }
   /* ⚠⚠ 0821P 소로 — 「너무 느려서 장난감 같다 · 회전이 일정하지 않다」.
      ⭐ 둘이 한 뿌리다. 2엽은 **180° 대칭**이라, 눈에 보이는 것은 프레임마다 찍힌
        스냅샷이고 fps 가 흔들리면 순방향↔역회전이 오간다 — 그것이 「덜컹거림」이다.
@@ -1608,7 +1671,8 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   function bodyOff() {
     if (BODYENT && viewer) { try { viewer.scene.primitives.remove(BODYENT); } catch (e) { } }
     BODYENT = null; BODYWAIT = false;
-    PROPND = null; PROPTRY = 0; PROP_TR = null;   /* ⭐ 기체와 함께 놓는다 — 다음 판이 다시 잡는다 */
+    PROPND = null; PROPTRY = 0; PROP_TR = null;
+    holdReset();                     /* ⭐ 팔·허리도 기체와 함께 놓는다 */   /* ⭐ 기체와 함께 놓는다 — 다음 판이 다시 잡는다 */
   }
   function toggleBody() {
     if (!ROOT) return;
