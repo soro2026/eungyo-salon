@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0821L";
+  var VERSION = "0821M";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -280,7 +280,7 @@
                 Cesium 은 모델의 X+ 를 앞으로 보므로 안 돌리면 **뒤로 난다.**
               ⚠ dist·pit 는 셈이 아니라 어림이다. 날개폭 14.3m 를 화면에 담는 거리로
                 26m 를 깔았다. 소로가 타 보고 정한다. */
-           body: { yaw: 180, dist: 26, minD: 12, maxD: 120, pit: 12 },
+           body: { yaw: 180, dist: 26, minD: 12, maxD: 120, pit: 12, glow: [1.2, 1.25, 1.4] },
            wins: [],
            mon: { tl: [29.5, 61.1], tr: [69.2, 61.1], br: [69.2, 77.2], bl: [29.5, 77.2] } }
   };
@@ -659,7 +659,9 @@
          ⭐ 검산 실측 — 지금 상한(+70/−80)에서 최대 77.4° 라 **이 조임은 한 번도 안 걸린다.**
            그래도 남긴다. 상한을 늘리거나 sky 를 키우는 날 여기가 그물이다.
          ⚠ 「걸리지도 않는 조임」이라고 지우면, 늘리는 사람이 뒤집힘을 화면에서 만난다. */
-    /* ⭐⭐ 0821L — 기체를 지구 위에 앉힌다. 감상 중일 때만 부른다(비용 0).
+    /* ⭐⭐ 0821M — 기체를 지구 위에 앉힌다. Primitive 라 여기서 적은 modelMatrix 가
+       **이 프레임 그림에 그대로 쓰인다.** 카메라(setView)와 같은 값 · 같은 프레임 —
+       뒤처짐이 구조적으로 없다.
        ⚠ hd 에 SPEC.body.yaw 를 더한다 — 브레게는 기수가 X− 라 180 이다.
        ⚠ roll 은 cruise 가 낸 뱅크 그대로. 부호가 뒤집혀 보이면 여기 한 곳만 뒤집는다. */
     function paintBody() {
@@ -668,8 +670,7 @@
       var c = Cesium.Cartesian3.fromDegrees(lon, lat, alt);
       var hpr = new Cesium.HeadingPitchRoll(
         Cesium.Math.toRadians(hd + (B.yaw || 0)), 0, Cesium.Math.toRadians(roll));
-      BODYENT.position = c;
-      BODYENT.orientation = Cesium.Transforms.headingPitchRollQuaternion(c, hpr);
+      BODYENT.modelMatrix = Cesium.Transforms.headingPitchRollToFixedFrame(c, hpr);
     }
     /* ⭐⭐ 궤도 — 기체를 중심에 두고 그 둘레에 카메라를 놓는다.
        ⚠ 각은 **기체 기준**(hd + ORB.yaw)이다. 북쪽 기준으로 두면 선회할 때마다
@@ -1489,27 +1490,73 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⚠ yaw 는 **기체 기준**이다(hd 에 더한다). 기체가 커브를 돌면 카메라도 따라 돈다 —
        북쪽 기준으로 두면 선회할 때마다 기체가 화면에서 홱 돌아간다. */
   var BODY = false;                /* 감상 중인가 */
-  var BODYENT = null;              /* 지구 위에 선 기체 */
+  var BODYENT = null;              /* 지구 위에 선 기체 (Primitive Model) */
+  var BODYWAIT = false;            /* 받는 중 — 5.4MB 라 몇 초 걸린다. 겹쳐 안 세우게 */
   var BODYWAS = false;             /* B 를 누르기 전의 OUT — 되돌릴 값 */
   var ORB = { yaw: 40, pit: 12, dist: 26 };
   var ORB0 = { yaw: 40, pit: 12 }; /* 다음 탑승이 여기서 시작한다 */
   /* ⚠ ?v= 분 단위 — 격납고에서 갈아 끼우면 1분 안에 닿는다(기내 원판과 같은 문법) */
   function bodyUrl() { return hangarBase() + CRAFT + "_body.glb?v=" + Math.floor(Date.now() / 60000); }
+  /* ⚠⚠⚠ 0821M 진범 — **Entity 로 세우면 기체가 한 프레임 뒤처진다.**
+       Cesium 의 clock.onTick 에는 Viewer 가 저를 먼저 걸어 두었고(Viewer 가 만들어질 때),
+       그 손이 dataSourceDisplay.update() 로 Entity 의 화면 자리를 정한다.
+       우리 cruise 는 **그다음에** 등록됐으므로 나중에 돈다 —
+       그래서 우리가 자리를 갱신할 때는 이번 프레임의 그림이 이미 정해진 뒤다.
+       ⭐ 카메라는 setView 라 즉시 듣는데 기체만 한 박자 늦는다. 200km/h · 60fps 면
+         0.93m(2°), 최악 1%(10fps)면 5.6m(12°). 프레임 간격이 흔들리면 그 양도 흔들린다.
+         **그것이 소로가 보신 「지진」이다.**
+       ⚠ 기내에서는 이 병이 있어도 안 보였다 — 26m 앞에 견줄 물건이 없었으니까.
+         기체를 세우는 순간 처음 드러났다.
+     ⭐⭐ 처방 — Primitive 로 세운다. visualizer 를 안 거치므로 modelMatrix 에 적은 값이
+       **그 프레임 그림에 그대로 쓰인다.** 카메라와 기체가 같은 프레임의 같은 값을 본다.
+       구름(CloudCollection)을 primitives 에 넣은 것과 같은 문법이고, 더 가볍기까지 하다. */
   function bodyOn() {
-    if (!viewer || BODYENT || !SPEC.body) return;
+    if (!viewer || BODYENT || BODYWAIT || !SPEC.body) return;
+    BODYWAIT = true;
     try {
-      /* ⚠ description 을 안 준다 — 주면 클릭했을 때 InfoBox 가 뜬다. 여기 클릭은 궤도 손이다 */
-      BODYENT = viewer.entities.add({
-        position: Cesium.Cartesian3.fromDegrees(0, 0, 0),
-        model: { uri: bodyUrl(), scale: 1, minimumPixelSize: 0 }
-      });
-      console.log("[EG] 기체를 세웁니다 — " + bodyUrl());
-    } catch (e) { BODYENT = null; console.warn("[EG] 기체를 못 세웠습니다:", e); }
+      Cesium.Model.fromGltfAsync({ url: bodyUrl(), scale: 1, incrementallyLoadTextures: false })
+        .then(function (m) {
+          BODYWAIT = false;
+          /* ⚠ 늦게 온 응답은 방이 아직 있고 아직 감상 중일 때만 받는다(41호 ㉤).
+             5.4MB 라 몇 초 걸린다 — 그 사이 소로가 B 를 다시 누르면 세우면 안 된다. */
+          if (!ROOT || !viewer || !BODY) { try { m.destroy(); } catch (e) { } return; }
+          /* ⭐ 0821M — 달빛. 밤 안데스에서 기체가 숯덩이가 되지 않게, 방향 없는
+             빛 한 줌을 **이 기체에만** 얹는다(SH 앰비언트의 첫 계수 = 균일광).
+             ⚠ scene.light 를 안 건드린다 — 그건 지형까지 비추는 헤드라이트가 되어
+               terra 의 밤이 통째로 깨진다. 이 손은 이 Model 밖으로 한 발도 안 나간다.
+             ⚠ 푸른 기(1.2·1.25·1.4)는 달빛의 색이다. 낮에는 태양광에 묻혀 티가 안 난다.
+             ⚠ 셈이 아니라 어림이다 — 소로가 타 보고 glow 세 숫자를 정한다. */
+          try {
+            var g0 = (SPEC.body && SPEC.body.glow) || [1.2, 1.25, 1.4];
+            var sh = [new Cesium.Cartesian3(g0[0], g0[1], g0[2])];
+            for (var si = 0; si < 8; si++) sh.push(new Cesium.Cartesian3(0, 0, 0));
+            m.imageBasedLighting.sphericalHarmonicCoefficients = sh;
+          } catch (e) { }
+          BODYENT = viewer.scene.primitives.add(m);
+          /* ⭐ 0821M — 프로펠러. ⚠⚠ Primitive Model 은 애니메이션을 **저절로 안 튼다**
+             (Entity 는 틀어 주는데 Primitive 는 activeAnimations 에 손으로 건다).
+             ⚠ animationTime 을 우리 시계로 준다 — viewer.clock 의 shouldAnimate·multiplier
+               가 어떻게 서 있든 프로펠러는 제 속도로 돈다. 멈춤(Space)과도 무관하다 —
+               실물도 공중에서 멈추면 엔진이 도는 채로 떠 있는 것이니 그게 맞다.
+             ⚠ 애니가 없는 몸(다른 기체)이면 조용히 물러난다 — try 가 그 그물이다. */
+          try {
+            m.activeAnimations.addAll({
+              loop: Cesium.ModelAnimationLoop.REPEAT,
+              animationTime: function (d) { return (performance.now() / 1000) % d; }
+            });
+          } catch (e) {
+            try { m.activeAnimations.addAll({ loop: Cesium.ModelAnimationLoop.REPEAT }); } catch (e2) { }
+          }
+          console.log("[EG] 기체가 섰습니다 — " + bodyUrl());
+        })
+        .catch(function (e) { BODYWAIT = false; console.warn("[EG] 기체를 못 세웠습니다:", e); });
+    } catch (e) { BODYWAIT = false; console.warn("[EG] 기체를 못 세웠습니다:", e); }
   }
-  /* ⚠⚠ 방 전용이다 — 나갈 때 반드시 거둔다. terra 지구에 기체만 남으면 안 된다(구름과 같은 갈래) */
+  /* ⚠⚠ 방 전용이다 — 나갈 때 반드시 거둔다. 구름과 같은 갈래다.
+     여기서 안 거두면 방은 걷혔는데 브레게 14 만 terra 지구 위를 계속 난다. */
   function bodyOff() {
-    if (BODYENT && viewer) { try { viewer.entities.remove(BODYENT); } catch (e) { } }
-    BODYENT = null;
+    if (BODYENT && viewer) { try { viewer.scene.primitives.remove(BODYENT); } catch (e) { } }
+    BODYENT = null; BODYWAIT = false;
   }
   function toggleBody() {
     if (!ROOT) return;
