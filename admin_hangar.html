@@ -7,8 +7,25 @@
 <title>EG 관리자 — 격납고</title>
 <!--
   ══════════════════════════════════════════════════════════════════════
-  EG 격납고 — admin_hangar.html · v0820a
-  2026.08.20 소로 × 파이스
+  EG 격납고 — admin_hangar.html · v0821a
+  2026.08.20 소로 × 파이스 · 0821 동체(GLB) 칸 신설
+
+  ⭐⭐ 0821 — 기체에 **몸이 생겼다.** 칸이 두 줄이 됐다.
+    윗줄  기내 원판 넉 벌  {code}_cabin_{m,d,e,n}.webp   ← 안에서 보는 것
+    아랫줄 동체 한 벌      {code}_body.glb                ← 밖에서 보는 것
+    ⚠ 갈래를 안 지었다 — **모든 기체가 몸을 갖는다.** 아직 없는 기체는
+      「비어 있음」으로 선다. 없으면 없는 게 정직하다(30호).
+
+  ⚠⚠ 동체 칸은 **굽지 않는다.** GLB 는 그림이 아니라 짐이다.
+    대신 **그 자리에서 뜯어 잰다** — 콘솔이 대신 보는 것은 그대로다.
+      ① glTF 인가 · 버전 2 인가 · 덩이가 4바이트로 정렬됐는가
+      ② buffer 길이가 BIN 덩이와 맞는가 (자리에 덮어쓰다 뭉갠 판을 잡는다)
+      ③ 축척 — 날개폭·전장·전고. ⭐ EG 는 **1단위 = 1미터**다
+      ④ ⭐ 기수 축 — 계기판이 좌석보다 앞이면 그쪽이 기수다.
+         ⚠ 정점을 하나도 안 읽는다. accessor 의 min/max 만 본다(공짜)
+      ⑤ 크레딧(asset.extras) 이 살아 있는가 — CC BY 는 출처 표기가 조건이다(39호)
+    ⚠ 막는 것은 **glTF 가 아닐 때뿐**이다. 나머지는 재서 보여주기만 한다 —
+      막을 규격이 아직 없다. 규격이 서면 그때 막는다.
 
   ⭐ 왜 이 곳이 생겼나 (0820 소로 — 「지금부터는 비행기도 콘솔에 넣어야」)
     독서비행의 기내 원판이 저장소 파일(jet_cabin_*.webp)로 살고 있었다.
@@ -99,6 +116,25 @@ html,body{
 .slot-info b{color:var(--ok);font-weight:700}
 .slot-info i{color:var(--warn);font-style:normal;font-weight:700}
 
+/* ══ 동체 칸 (0821) — 그림이 아니라 짐이다 ═══════════════════════════
+   ⚠⚠ .slot-thumb 의 aspect-ratio:941/1672 을 **물려받으면 안 된다.**
+     세로로 길쭉한 빈 칸이 되어 실측 넉 줄이 허공에 뜬다.
+     기체는 가로로 길다 — 여기서 비율을 통째로 무른다.
+   ⭐ 한 줄을 통째로 쓴다(grid-column:1/-1). 실측이 넉 줄이라 좁으면 접힌다. */
+.row-body{margin-top:12px}
+.slot.body .slot-thumb{aspect-ratio:auto;min-height:96px;display:block;
+  padding:12px 14px;text-align:left;color:rgba(240,235,224,.5);
+  background-image:none;background-color:rgba(0,0,0,.28)}
+.mm{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:4px 18px;
+  font-size:11.5px;line-height:1.75}
+.mm span{color:rgba(240,235,224,.38)}
+.mm em{font-style:normal;color:var(--chalk);font-weight:700}
+.mm .ok{color:var(--ok);font-weight:700}
+.mm .bad{color:var(--bad);font-weight:700}
+.mm .warn{color:var(--warn);font-weight:700}
+.body-empty{font-size:12.5px;color:rgba(240,235,224,.32);
+  padding:26px 0;text-align:center;white-space:pre-line}
+
 .say{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
   max-width:calc(100% - 40px);
   background:rgba(10,14,26,.96);border:1px solid rgba(201,168,76,.4);
@@ -131,7 +167,8 @@ html,body{
       칸을 누르고 그림을 고르면 <b>webp로 구워 그 자리에 앉힙니다.</b> 파일 이름은 아무래도 좋습니다 — 칸이 이름을 압니다.<br>
       규격은 <b>941 × 1672</b>입니다. 어긋나면 올리기 전에 막습니다.<br>
       마젠타를 뚫은 <b>투명</b>이 살아 있으면 바둑판 바닥이 비칩니다.<br>
-      갈아 끼우면 1분 안에 손님 화면에 닿습니다. 깃허브에 올릴 필요가 없습니다.
+      갈아 끼우면 1분 안에 손님 화면에 닿습니다. 깃허브에 올릴 필요가 없습니다.<br>
+      아래 <b>동체</b> 칸은 밖에서 보는 몸(<b>.glb</b>)입니다. 굽지 않고 그대로 앉히되, 올리기 전에 <b>뜯어서 재 드립니다.</b>
     </div>
 
     <div id="crafts"></div>
@@ -139,6 +176,9 @@ html,body{
 </div>
 
 <input type="file" id="aFile" accept="image/*" style="display:none">
+<!-- ⚠ 그림 칸과 **다른 input** 이다. 하나를 돌려 쓰면서 accept 를 갈아 끼우면
+     고르는 창이 뜨는 사이에 값이 바뀌어 엉뚱한 칸에 앉는다(0821 순서 병과 같은 갈래). -->
+<input type="file" id="gFile" accept=".glb,model/gltf-binary" style="display:none">
 <div class="say" id="say"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -162,6 +202,19 @@ const BUCKET = 'tour-assets';
 const DIR    = 'hangar/';
 const PUB    = SUPA_URL + '/storage/v1/object/public/' + BUCKET + '/' + DIR;
 
+/* ══ 동체 (0821) ═══════════════════════════════════════════════════
+   ⚠ 이름 규약 — 기내가 {code}_cabin_{phase}.webp 이니 몸은 {code}_body.glb 다.
+     ⭐ 부르는 쪽(reading_room)이 이 이름을 손으로 적지 않고 code 로 짓는다.
+   ⚠ 상한은 **막는 값이 아니라 일러 주는 값**이다. 무거우면 손님 기계에서
+     처음 뜨는 데 오래 걸린다 — 재서 알려만 준다. 판정은 소로가 한다. */
+const BODY_EXT  = '.glb';
+const BODY_WARN = 12;          /* MB — 이보다 크면 노랗게 일러 준다 */
+const BODY_MAX  = 45;          /* MB — Supabase 한 파일 상한(50) 아래로 잡은 그물 */
+/* ⭐ 기수 축을 재는 낱말 — 계기판이 좌석보다 앞이면 그쪽이 기수다.
+   ⚠ 이름이 안 맞는 기체는 조용히 「판정 못함」으로 물러난다. 틀린 답보다 낫다. */
+const RE_INSTR = /panel|compass|_alt|tach|oil|fuel|press|temp|controleur|instrument|gauge|yoke|pedal/i;
+const RE_SEAT  = /seat|siege/i;
+
 /* ══ 격납고에 선 기체들 ═══════════════════════════════════════════
    ⭐ 기체가 늘면 **이 배열에만 한 벌 더한다.** 화면은 스스로 늘어난다.
      0820 에 노선을 늘렸더니 타륜이 스스로 바뀐 것과 같은 문법이다.
@@ -181,6 +234,12 @@ const PHASES = [
 
 let TARGET = null;
 let sayT = null;
+/* ⚠⚠ 0821 — 동체는 5.67MB 다. 그림 칸을 하나 올릴 때마다 drawAll 이 도는데,
+     ?v= 를 붙이면 매번 새 주소라 캐시를 못 쓴다. 기내 넉 장을 갈아 끼우면
+     같은 동체를 **네 번 다시 받는다** — 22MB.
+   ⭐ 이 창이 한 번 잰 것을 쥐고 있는다. 되읽기는 **그 칸을 올린 직후에만** 한다 —
+     검산이 필요한 곳은 방금 손댄 자리뿐이다. */
+const BODY_SEEN = {};
 function say(msg, kind){
   const el = $('#say');
   el.textContent = msg;
@@ -244,6 +303,44 @@ function drawAll(){
       el.onclick = ()=>{ TARGET = { key:key, label:c.name+' · '+p.label }; $('#aFile').click(); };
       g.appendChild(el);
     });
+
+    /* ── ⭐ 동체 한 칸 (0821) — 한 줄을 통째로 쓴다 ───────────────────── */
+    const bkey = c.code + '_body';
+    const be = document.createElement('div');
+    be.className = 'slot body row-body'; be.dataset.key = bkey;
+    be.innerHTML =
+      '<div class="slot-label">동체 — 밖에서 보는 몸<span class="slot-key">' + bkey + BODY_EXT + '</span></div>'
+      + '<div class="slot-thumb"><div class="body-empty">재는 중…</div></div>'
+      + '<div class="slot-info">&nbsp;</div>';
+    const bt = be.querySelector('.slot-thumb'), bn = be.querySelector('.slot-info');
+    /* ⚠⚠ 그림과 달리 Image() 로 두드릴 수 없다. fetch 로 받아 **그 자리에서 뜯는다.**
+       ⭐ 덤으로 CORS 가 열려 있는지도 여기서 드러난다 — 방(Cesium)도 같은 길로 받는다.
+         못 받으면 방에서도 못 받는다. 여기서 미리 아는 편이 낫다. */
+    (async ()=>{
+      const paint = (m, mb)=>{
+        if(!m){ bt.innerHTML = '<div class="body-empty">비어 있음\n눌러서 올리기</div>'; bn.innerHTML = '&nbsp;'; return; }
+        if(!m.ok){ bt.innerHTML = '<div class="body-empty">⚠ ' + m.why + '</div>'; bn.innerHTML = '<i>못 읽는 판입니다</i>'; return; }
+        bt.innerHTML = bodyCard(m, mb);
+        bn.innerHTML = m.warn.length ? '<i>⚠ 살펴볼 곳 ' + m.warn.length + '</i>' : '<b>이상 없습니다</b>';
+      };
+      if(Object.prototype.hasOwnProperty.call(BODY_SEEN, bkey)){
+        const s = BODY_SEEN[bkey]; paint(s && s.m, s && s.mb); return;
+      }
+      try{
+        const res = await fetch(PUB + bkey + BODY_EXT + '?v=' + Date.now());
+        if(!res.ok) throw new Error('없음');
+        const buf = await res.arrayBuffer();
+        const m = probeGLB(buf), mb = buf.byteLength/1048576;
+        BODY_SEEN[bkey] = { m:m, mb:mb };
+        paint(m, mb);
+      }catch(err){
+        BODY_SEEN[bkey] = null;
+        paint(null);
+      }
+    })();
+    be.onclick = ()=>{ TARGET = { key:bkey, label:c.name + ' · 동체', body:true }; $('#gFile').click(); };
+    box.appendChild(be);
+
     host.appendChild(box);
   });
 }
@@ -298,6 +395,114 @@ async function bake(file){
   return { blob:blob, raw:false, clear:clear, q:q };
 }
 
+/* ══ 동체 뜯어보기 (0821) — 굽지 않는다. 재기만 한다 ═══════════════════
+   ⚠⚠ **정점을 하나도 안 읽는다.** accessor 에 min/max 가 이미 박혀 있으므로
+     바운딩박스도 기수 축도 그것만으로 난다. 7만 꼭짓점을 훑으면
+     고르는 순간 화면이 몇 초 선다 — 41호 ㉧(값비싼 손을 몰아 쓰지 않는다).
+   ⭐ 축은 이름으로 정하지 않고 **재서** 정한다. 가장 긴 축이 날개폭,
+     가장 짧은 축이 높이, 남은 하나가 기수 축이다. 다음 기체에도 그대로 통한다. */
+function probeGLB(buf){
+  const dv = new DataView(buf), U8 = new Uint8Array(buf);
+  const r = { ok:false, why:'', warn:[] };
+  if(buf.byteLength < 20){ r.why = '너무 작습니다 — GLB 가 아닙니다'; return r; }
+  if(dv.getUint32(0,true) !== 0x46546C67){ r.why = 'glTF 가 아닙니다 (머리 네 글자가 glTF 여야 합니다)'; return r; }
+  r.ver = dv.getUint32(4,true);
+  if(r.ver !== 2){ r.why = 'glTF ' + r.ver + ' 판입니다 — 2 판만 받습니다'; return r; }
+  const total = dv.getUint32(8,true);
+  r.headOk = (total === buf.byteLength);
+  if(!r.headOk) r.warn.push('머리에 적힌 길이(' + total + ')와 실제 크기가 다릅니다');
+
+  /* 덩이 훑기 — ⚠ 4바이트 정렬은 규격이다. 어긋나면 다른 프로그램이 못 연다 */
+  let off = 12, jsonTxt = null, binLen = 0, alignOk = true;
+  while(off + 8 <= buf.byteLength){
+    const ln = dv.getUint32(off,true), ty = dv.getUint32(off+4,true);
+    if(ln % 4 !== 0) alignOk = false;
+    if(off + 8 + ln > buf.byteLength){ r.why = '덩이가 파일 밖으로 나갑니다 — 잘린 파일입니다'; return r; }
+    if(ty === 0x4E4F534A) jsonTxt = new TextDecoder().decode(U8.subarray(off+8, off+8+ln));
+    else if(ty === 0x004E4942) binLen = ln;
+    off += 8 + ln;
+  }
+  r.alignOk = alignOk;
+  if(!alignOk) r.warn.push('덩이가 4바이트로 안 맞습니다');
+  if(!jsonTxt){ r.why = 'JSON 덩이가 없습니다'; return r; }
+  let g; try{ g = JSON.parse(jsonTxt); }catch(e){ r.why = 'JSON 을 읽지 못했습니다'; return r; }
+  r.binLen = binLen;
+
+  /* ⚠⚠ buffer 길이 대조 — **자리에 덮어쓰다 뒤를 뭉갠 판**이 여기서 잡힌다.
+     0821 에 그림을 갈아 끼울 때 가장 무서웠던 사고다. */
+  const bl = (g.buffers && g.buffers[0] && g.buffers[0].byteLength) || 0;
+  r.bufOk = (bl <= binLen && binLen - bl < 4);
+  if(!r.bufOk) r.warn.push('buffer 길이(' + bl + ')가 BIN 덩이(' + binLen + ')와 안 맞습니다');
+
+  r.images = (g.images || []).length;
+  r.mats   = (g.materials || []).length;
+
+  /* 삼각형 · 바운딩박스 · 기수 축 — accessor 만 본다 */
+  const AC = g.accessors || [];
+  let tri = 0, mn = [1e9,1e9,1e9], mx = [-1e9,-1e9,-1e9];
+  const inX = [], seX = [];
+  (g.meshes || []).forEach(me => (me.primitives || []).forEach(pr => {
+    if(pr.indices != null && AC[pr.indices]) tri += AC[pr.indices].count / 3;
+    const pa = pr.attributes && pr.attributes.POSITION;
+    const a  = (pa != null) ? AC[pa] : null;
+    if(!a || !a.min || !a.max) return;
+    for(let i=0;i<3;i++){ if(a.min[i]<mn[i]) mn[i]=a.min[i]; if(a.max[i]>mx[i]) mx[i]=a.max[i]; }
+    const nm = (pr.material != null && g.materials[pr.material] && g.materials[pr.material].name) || '';
+    const cx = (a.min[0] + a.max[0]) / 2;          /* ⚠ 아래에서 축이 정해지면 다시 고른다 */
+    if(RE_INSTR.test(nm)) inX.push([a.min, a.max]);
+    else if(RE_SEAT.test(nm)) seX.push([a.min, a.max]);
+  }));
+  r.tri = Math.round(tri);
+  if(mn[0] > 1e8){ r.why = '꼭짓점이 없습니다 — 빈 모델입니다'; return r; }
+
+  const size = [mx[0]-mn[0], mx[1]-mn[1], mx[2]-mn[2]];
+  const AX = ['X','Y','Z'];
+  const span = size.indexOf(Math.max.apply(null,size));          /* 날개폭 */
+  const tall = size.indexOf(Math.min.apply(null,size));          /* 높이 */
+  const nose = [0,1,2].find(i => i !== span && i !== tall);
+  r.span = size[span]; r.len = size[nose]; r.tallV = size[tall];
+  r.axSpan = AX[span]; r.axNose = AX[nose]; r.axTall = AX[tall];
+
+  /* ⭐ 기수 — 계기판·페달이 좌석보다 앞이다. 조종사는 계기판 뒤에 앉는다.
+     ⚠ 어느 한쪽이라도 못 찾으면 판정하지 않는다. 틀린 답이 더 나쁘다. */
+  if(inX.length && seX.length){
+    const mid = arr => { let s=0; arr.forEach(p => s += (p[0][nose]+p[1][nose])/2); return s/arr.length; };
+    const ci = mid(inX), cs = mid(seX);
+    r.nose = (ci < cs) ? (AX[nose] + '−') : (AX[nose] + '+');
+    r.noseWhy = '계기 ' + ci.toFixed(2) + ' · 좌석 ' + cs.toFixed(2);
+  }
+
+  const ex = (g.asset && g.asset.extras) || null;
+  r.credit = !!(ex && (ex.author || ex.license));
+  if(!r.credit) r.warn.push('크레딧(asset.extras)이 없습니다 — CC BY 는 출처 표기가 조건입니다');
+  r.author = ex && ex.author ? String(ex.author).split(' ')[0] : null;
+  r.ok = true;
+  return r;
+}
+
+function bodyCard(m, mb){
+  const f = (v,u) => '<em>' + v.toFixed(2) + '</em><span>' + u + '</span>';
+  const one = m => m ? '<span class="ok">✔</span>' : '<span class="bad">✘</span>';
+  let h = '<div class="mm">'
+    + '<div><span>무게 </span><em>' + mb.toFixed(2) + 'MB</em>'
+      + (mb > BODY_WARN ? ' <span class="warn">무겁습니다</span>' : '') + '</div>'
+    + '<div><span>삼각형 </span><em>' + (m.tri/1000).toFixed(1) + 'k</em>'
+      + '<span> · 그림 </span><em>' + m.images + '</em></div>'
+    + '<div><span>날개폭 </span>' + f(m.span,'m') + '<span> (' + m.axSpan + ')</span></div>'
+    + '<div><span>전장 </span>' + f(m.len,'m') + '<span> (' + m.axNose + ')</span></div>'
+    + '<div><span>전고 </span>' + f(m.tallV,'m') + '<span> (' + m.axTall + ')</span></div>'
+    + '<div><span>기수 </span>'
+      + (m.nose ? '<em>' + m.nose + '</em><span> ' + m.noseWhy + '</span>'
+                : '<span class="warn">판정 못함</span>') + '</div>'
+    + '<div><span>덩이 정렬 </span>' + one(m.alignOk)
+      + '<span> · 길이 </span>' + one(m.bufOk && m.headOk) + '</div>'
+    + '<div><span>크레딧 </span>' + one(m.credit)
+      + (m.author ? '<span> ' + m.author + '</span>' : '') + '</div>'
+    + '</div>';
+  if(m.warn.length) h += '<div style="margin-top:8px;font-size:11px;color:var(--warn)">⚠ ' + m.warn.join('<br>⚠ ') + '</div>';
+  return h;
+}
+
 $('#aFile').addEventListener('change', async e=>{
   const f = e.target.files && e.target.files[0];
   e.target.value = '';
@@ -325,6 +530,43 @@ $('#aFile').addEventListener('change', async e=>{
     setTimeout(()=>say('⚠ 투명한 곳이 ' + pct.toFixed(0) + '% 뿐입니다 — 창을 안 뚫은 판이 아닌지 보십시오','bad'), 3800);
   }
   drawAll();                                 /* ⭐ 되읽기 — 미리보기가 곧 검산이다 */
+});
+
+/* ══ 동체 올리기 (0821) ═══════════════════════════════════════════════
+   ⚠ 순서가 중요하다 — **재고 나서 올린다.** 올려 놓고 뜯으면 깨진 판이
+     이미 손님 쪽에 가 있다. 기내 원판의 「규격은 올리기 전에 막는다」와 같은 문법이다. */
+$('#gFile').addEventListener('change', async e=>{
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if(!f || !TARGET || !TARGET.body) return;
+  const el = document.querySelector('.slot[data-key="'+TARGET.key+'"]');
+  if(el) el.classList.add('busy');
+  const done = ()=>{ if(el) el.classList.remove('busy'); };
+
+  const mb = f.size / 1048576;
+  if(mb > BODY_MAX){ done(); say(TARGET.label + ' — ' + mb.toFixed(1) + 'MB 입니다. ' + BODY_MAX + 'MB 를 넘으면 못 올립니다', 'bad'); return; }
+
+  let m;
+  try{ m = probeGLB(await f.arrayBuffer()); }
+  catch(err){ done(); say(TARGET.label + ' — 파일을 열지 못했습니다', 'bad'); return; }
+  if(!m.ok){ done(); say(TARGET.label + ' — ' + m.why, 'bad'); return; }
+
+  const { error } = await supa.storage.from(BUCKET)
+    .upload(DIR + TARGET.key + BODY_EXT, f,
+            { upsert:true, contentType:'model/gltf-binary', cacheControl:'60' });
+  done();
+  if(error){ say('올리지 못했습니다 — ' + error.message, 'bad'); return; }
+
+  /* ⭐ 방금 손댄 자리만 잊는다 — drawAll 이 이 칸만 서버에서 되읽어 검산한다 */
+  delete BODY_SEEN[TARGET.key];
+
+  let msg = TARGET.label + ' — ' + mb.toFixed(2) + 'MB · 삼각형 ' + (m.tri/1000).toFixed(1) + 'k · '
+          + '날개폭 ' + m.span.toFixed(2) + 'm 로 앉혔습니다';
+  if(m.nose) msg += ' · 기수 ' + m.nose;
+  say(msg, m.warn.length ? 'bad' : 'ok');
+  /* ⚠ 살펴볼 곳이 있으면 조용히 넘기지 않는다 — 투명 3% 경고와 같은 갈래다 */
+  if(m.warn.length) setTimeout(()=>say('⚠ ' + m.warn[0], 'bad'), 3800);
+  drawAll();                                 /* ⭐ 되읽기 — 서버에서 다시 받아 다시 잰다 */
 });
 
 init();
