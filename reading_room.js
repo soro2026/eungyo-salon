@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0821e";
+  var VERSION = "0821g";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -250,6 +250,7 @@
      ⚠ 복엽기 wins 가 비어 있다 — 개방 조종석이라 창 덮개가 없다. 덮개(S)·손잡이가
        저절로 잠든다. focus 는 wins 를 못 쓰니 값(0.38)으로 직접 준다. */
   var CRAFT_SPEC = {
+    /* ⚠ 제트기는 shake·wind 를 안 적는다 — 없는 것이 곧 값이다(순항 제트기는 안 흔들린다) */
     jet: { view: 90, seats: true, roll: 10, focus: null,
            wins: [ { l: 3.613, t: 25.837, w: 27.630, h: 28.947 },
                    { l: 38.682, t: 28.947, w: 14.665, h: 19.378 },
@@ -262,10 +263,50 @@
        ⚠ roll 6 — 정면에선 롤이 지평선을 통째로 기울인다. 상한 10 은 셀 수 있다.
          셈이 아니라 어림이다. 소로가 타 보고 정한다. */
     bre: { view: 0, seats: false, roll: 6, focus: 0.38,
+           shake: true, wind: 1,   /* ⭐ 0821g — 개방 조종석. 기체가 덜컹이고 바람이 든다 */
            wins: [],
            mon: { tl: [29.5, 61.1], tr: [69.2, 61.1], br: [69.2, 77.2], bl: [29.5, 77.2] } }
   };
   var SPEC = CRAFT_SPEC.jet;       /* 지금 탄 기체의 명세 — applyCraft 가 채운다 */
+
+  /* ══ 0821f — 계기 바늘 · 호박 램프 · 붉은 불빛 ═══════════════════════
+     ⭐⭐ 원판의 바늘을 **지우지 않는다.** 원판에 구워진 화소라 CSS 로는 못 지운다.
+       대신 그 위에 빛나는 바늘을 얹으면 밑엣것이 조명 아래 그림자로 물러난다.
+       원판을 안 건드리니 넉 벌 일치(2px)도 그대로다.
+     ⚠⚠ 아래 좌표는 **셈이 낸 값이 아니라 어림이다.** 사진을 눈대중한 것이라
+       반드시 어긋난다. 소로가 편집기(E)에서 밀어 정하고, 그 값이 서버에 남는다.
+       ⭐ 「콘솔은 파이스 도구지 소로 도구가 아니다」(0820 ㉳) — 화면에서 밀 수 있어야 한다.
+     ⚠ src 는 **이미 흐르는 값**의 이름이다. 새로 재는 것이 하나도 없다.
+       z = 0점이 몇 도에서 시작하는가 · sp = 눈금 한 바퀴가 몇 도인가 · r = 바늘 길이(판 높이 %) */
+  var INSTR_DEF = {
+    bre: [
+      { k: "spd", nm: "AIR SPEED", src: "kmh",  x: 25.0, y: 82.0, r: 2.6, z: 225, sp: 270, lo: 0,    hi: 220 },
+      { k: "hdg", nm: "나침반",     src: "hd",   x: 37.5, y: 81.5, r: 2.6, z: 0,   sp: 360, lo: 0,    hi: 360 },
+      { k: "alt", nm: "고도계",     src: "alt",  x: 50.0, y: 81.5, r: 2.8, z: 225, sp: 270, lo: 0,    hi: 6000 },
+      { k: "vsi", nm: "승강률",     src: "vs",   x: 62.5, y: 81.5, r: 2.6, z: 270, sp: 180, lo: -600, hi: 600 },
+      { k: "rol", nm: "ELEVATOR",  src: "roll", x: 75.0, y: 82.0, r: 2.6, z: 270, sp: 120, lo: -8,   hi: 8 }
+    ],
+    jet: []                        /* ⚠ 제트기 원판에는 아날로그 계기가 없다 */
+  };
+  /* ⭐ when — 언제 켜는가. night(밤만) · dusk(저녁부터) · always(늘) · off */
+  var LAMP_DEF = {
+    bre: { x: 50.0, y: 84.0, r: 26.0, a: 0.55, when: "dusk" },
+    jet: null
+  };
+  /* ⚠ 둘의 주기를 일부러 어긋나게 둔다. 맞아떨어지면 크리스마스 장식이 된다 */
+  var BLINK_DEF = {
+    bre: [ { k: "b1", x: 43.5, y: 87.5, r: 0.42, ms: 1400 },
+           { k: "b2", x: 56.5, y: 87.5, r: 0.42, ms: 2100 } ],
+    jet: []
+  };
+  var INSTR = [], LAMP = null, BLINK = [];
+  var INSEL = null, LAMPEL = null, BLKEL = null;
+  /* ⭐ 기체별 편집값 그릇 — 복엽기에서 민 값이 제트기 것을 안 건드린다.
+     ⚠ 0821e 까지 편집값이 한 벌뿐이라 applyTune 에 「제트기에만」 임시 가드를 걸어 두었다.
+       그 임시 처방을 여기서 제대로 연다. */
+  var TUNE_C = { jet: {}, bre: {} };
+  function cpy(o) { var r = {}, k; for (k in o) r[k] = (o[k] && o[k].slice) ? o[k].slice() : o[k]; return r; }
+  function cpyArr(a) { return (a || []).map(cpy); }
   var WINS = SPEC.wins;                                           /* 창 덮개가 앉을 곳 */
   /* ══ 기내 원판 — 격납고(Storage)가 먼저, 저장소가 폴백 (0820B 소로) ══════
      ⭐ 0805 에 소로가 세우신 문법 그대로다 — 「자산은 Storage 에 산다.
@@ -294,6 +335,85 @@
     MON.br = SPEC.mon.br.slice(); MON.bl = SPEC.mon.bl.slice();
     ROLL_MAX = SPEC.roll;
     side = -1;                     /* ⭐ 정면 기체는 여기 고정 — flip 열 곳이 저절로 잠든다 */
+    applyCraftTune();              /* ⭐ 0821f — 이 기체의 계기·램프·불빛·모니터를 싣는다 */
+  }
+  /* ⭐ 저장된 값이 있으면 그것, 없으면 명세의 어림값. 모양이 다르면 안 읽는다(41호 ㉬) */
+  function applyCraftTune() {
+    var t = TUNE_C[CRAFT] || {};
+    var okI = t.I && t.I.length && typeof t.I[0].x === "number" && typeof t.I[0].z === "number";
+    INSTR = cpyArr(okI ? t.I : (INSTR_DEF[CRAFT] || []));
+    LAMP  = (t.L && typeof t.L.x === "number") ? cpy(t.L)
+          : (LAMP_DEF[CRAFT] ? cpy(LAMP_DEF[CRAFT]) : null);
+    var okB = t.B && t.B.length && typeof t.B[0].x === "number";
+    BLINK = cpyArr(okB ? t.B : (BLINK_DEF[CRAFT] || []));
+    if (t.M && t.M.tl && t.M.tl.length === 2) {
+      MON.tl = t.M.tl.slice(); MON.tr = t.M.tr.slice();
+      MON.br = t.M.br.slice(); MON.bl = t.M.bl.slice();
+    }
+    if (ROOT) { mountInstr(); layout(); }
+  }
+  /* ⭐ DOM 은 개수가 바뀔 때만 다시 짓는다 — 기체가 갈리면 계기 수가 달라진다 */
+  function mountInstr() {
+    if (!ROOT) return;
+    if (!INSEL) {
+      INSEL = document.createElement("div"); INSEL.id = "egrInstr"; ROOT.appendChild(INSEL);
+      LAMPEL = document.createElement("div"); LAMPEL.id = "egrLamp"; ROOT.appendChild(LAMPEL);
+      BLKEL = document.createElement("div"); BLKEL.id = "egrBlink"; ROOT.appendChild(BLKEL);
+    }
+    var i, h;
+    h = ""; for (i = 0; i < INSTR.length; i++)
+      h += '<div class="egrNeedle" data-k="' + INSTR[i].k + '" title="' + INSTR[i].nm + '"><i></i></div>';
+    if (INSEL.innerHTML !== h) INSEL.innerHTML = h;
+    h = ""; for (i = 0; i < BLINK.length; i++)
+      h += '<div class="egrBlk" data-k="' + BLINK[i].k + '"></div>';
+    if (BLKEL.innerHTML !== h) BLKEL.innerHTML = h;
+    LAMPEL.style.display = LAMP ? "" : "none";
+    paintLamp();
+  }
+  function instrOf(k) { for (var i = 0; i < INSTR.length; i++) if (INSTR[i].k === k) return INSTR[i]; return null; }
+  function blinkOf(k) { for (var i = 0; i < BLINK.length; i++) if (BLINK[i].k === k) return BLINK[i]; return null; }
+  /* ⭐ 램프는 조명 갈래에 물린다 — 밤에 타면 계기만 살아 있고 낮엔 꺼진다 */
+  function paintLamp() {
+    if (!LAMPEL || !LAMP) return;
+    var w = LAMP.when || "dusk";
+    var on = (w === "always") ? true
+           : (w === "off") ? false
+           : (w === "dusk") ? (themeNow === "e" || themeNow === "n")
+           : (themeNow === "n");
+    LAMPEL.style.opacity = (on || editing) ? String(LAMP.a) : "0";
+  }
+  /* ⭐ 바늘 — 이미 흐르는 값을 각도로 옮긴다. 새로 재는 것이 없다.
+     ⚠ onTick 은 400ms 스로틀이라 뚝뚝 끊긴다 — CSS transition 이 사이를 메운다 */
+  function paintNeedles(s) {
+    if (!INSEL || !INSTR.length || !s) return;
+    for (var i = 0; i < INSTR.length; i++) {
+      var o = INSTR[i], el = INSEL.children[i]; if (!el) continue;
+      var v = (o.src === "kmh") ? s.kmh : (o.src === "hd") ? s.hd
+            : (o.src === "alt") ? s.alt : (o.src === "vs") ? s.vs
+            : (o.src === "roll") ? s.roll : (o.src === "rel") ? s.rel : 0;
+      var deg;
+      if (o.src === "hd") deg = o.z + v;                 /* 나침반은 방위를 그대로 */
+      else {
+        var t = ((v - o.lo) / ((o.hi - o.lo) || 1));
+        deg = o.z + Math.max(0, Math.min(1, t)) * o.sp;
+      }
+      /* ⚠⚠ 0821f — 셈으로 태워 잡은 곳. 각도를 그대로 주면 두 가지가 난다.
+         ① 359° → 1° 로 넘어갈 때 transition 이 **먼 길(358도)로 거꾸로** 돈다
+         ② 첫 그림이 0 에서 시작해 382° 까지 한 바퀴 돌아간다
+         ⭐ 처방 — 앞 각도에서 가장 가까운 등가각을 고른다. 첫 그림은 transition 없이 앉힌다. */
+      if (el.__d === undefined) {
+        el.style.transition = "none";
+        el.style.transform = "rotate(" + deg.toFixed(1) + "deg)";
+        void el.offsetWidth;                             /* 강제로 한 번 재게 해 transition 을 건너뛴다 */
+        el.style.transition = "";
+        el.__d = deg;
+        continue;
+      }
+      while (deg - el.__d > 180) deg -= 360;
+      while (deg - el.__d < -180) deg += 360;
+      el.__d = deg;
+      el.style.transform = "rotate(" + deg.toFixed(1) + "deg)";
+    }
   }
   function cabinUrl(k) {
     return hangarBase() + CRAFT + "_cabin_" + k + ".webp?v=" + Math.floor(Date.now() / 60000);
@@ -544,7 +664,11 @@
         /* ── ⭐ 속도는 셈이 낸다 (25호) — 다만 ㉣ 고도 출렁임은 안 받는다.
            속도가 보는 고도는 시정수 20초의 딴 값. 체감은 일정하고 속도는 잔잔하다 */
         spdH += (rel - spdH) * Math.min(dt / 20, 1);
-        var kmh = Math.max(60, Math.min(route.felt * (spdH / 1000), 900));
+        /* ⚠ 0821g 소로 — 푸엔테 델 잉카(지면 4,100m · AGL 500m)에서 60km/h 까지
+           떨어졌다. 속도가 AGL 에 비례하는 셈이라 높은 협곡에서 기어간다.
+           ⭐ 바닥을 120 으로 — 브레게 14 는 실속 언저리에서도 그보다 빠르다.
+           제트기 노선은 AGL 이 커서 이 바닥에 닿을 일이 없다(알프스 최저 264). */
+        var kmh = Math.max(120, Math.min(route.felt * (spdH / 1000), 900));
         var km = kmh * dt / 3600; dist += km;
         flown += dt;                 /* ⭐ 여기는 PAUSED 를 이미 지난 자리다 — 순수 비행만 쌓인다 */
 
@@ -721,6 +845,57 @@
 /* 0819g — 좌석 전환·외부 보기·소리 */
 #readingRoom.flip #plate,#readingRoom.flip #plateB{transform:scaleX(-1)}   /* 그림만 거울 — 글은 안 뒤집는다 */
 #readingRoom.out #plate,#readingRoom.out #plateB,#readingRoom.out .shade{visibility:hidden}
+/* ══ 0821g — 기체 덜컹 (소로) ═══════════════════════════════════
+   ⭐⭐ 판이 아니라 **방(ROOT) 통째**를 흔든다. 바늘·램프·계기판이 판 좌표에
+     따로 서 있어서, 판만 흔들면 바늘이 계기에서 떠 붙박이로 남는다.
+     ROOT 가 화면 꽉 찬 fixed 라 transform 을 걸어도 자식 fixed 좌표가 안 어긋난다.
+   ⚠ 창밖(cesiumContainer)은 방 밖(z4)에 살아 안 흔들린다 — 머리는 관성으로 버티고
+     기체가 덜컹이는, 정확히 그 탑승감이다. 지도 글자가 흔들리는 것은 매력이다(소로).
+   ⚠ 스텝 간격을 일부러 불균등하게 — 규칙적이면 요람이 된다. */
+@keyframes egrHum{
+  0%{transform:translate(0,0) rotate(0)}
+  13%{transform:translate(.6px,1.3px) rotate(.04deg)}
+  29%{transform:translate(-.5px,.4px) rotate(-.03deg)}
+  47%{transform:translate(.3px,1.7px) rotate(.05deg)}
+  61%{transform:translate(-.7px,.8px) rotate(-.04deg)}
+  83%{transform:translate(.4px,1.1px) rotate(.02deg)}
+  100%{transform:translate(0,0) rotate(0)}
+}
+#readingRoom.craft-bre{animation:egrHum 3.7s ease-in-out infinite}
+/* 덜컹 — 난기류 턱. 세기는 JS 가 매번 다르게 준다(--jY·--jR) */
+@keyframes egrJolt{
+  0%{transform:none}
+  22%{transform:translateY(var(--jY,7px)) rotate(var(--jR,.3deg))}
+  55%{transform:translateY(calc(var(--jY,7px) * -0.3)) rotate(calc(var(--jR,.3deg) * -0.4))}
+  100%{transform:none}
+}
+#readingRoom.craft-bre.jolt{animation:egrJolt .55s cubic-bezier(.2,.7,.3,1) 1}
+/* ══ 0821f — 계기 바늘 · 호박 램프 · 붉은 불빛 ═══════════════════
+   ⚠ 판(#plate z-index 6·7) 위에 선다. 모니터(11)보다는 아래여야 조작판이 안 가린다 */
+#egrInstr,#egrLamp,#egrBlink{position:fixed;left:0;top:0;pointer-events:none;z-index:8}
+.egrNeedle{position:fixed;width:0;height:0;pointer-events:none;
+  transition:transform .45s cubic-bezier(.33,.9,.4,1)}
+.egrNeedle i{position:absolute;bottom:0;display:block;border-radius:1px 1px 0 0;
+  background:linear-gradient(180deg,#ffe6bd 0%,#ffc46a 40%,#e09a3c 100%);
+  box-shadow:0 0 5px rgba(255,196,116,.95),0 0 13px rgba(255,150,50,.55)}
+/* ⚠ 바늘 뿌리를 덮는 작은 축 — 원판의 옛 바늘 뿌리를 가려 준다 */
+.egrNeedle::after{content:"";position:absolute;left:-3px;top:-3px;width:6px;height:6px;
+  border-radius:50%;background:radial-gradient(circle,#ffe6bd,#b8763a);
+  box-shadow:0 0 6px rgba(255,180,90,.8)}
+#egrLamp{border-radius:50%;mix-blend-mode:screen;transition:opacity 1.2s ease;
+  background:radial-gradient(circle,rgba(255,205,140,.95) 0%,rgba(255,160,60,.42) 42%,rgba(255,130,40,.12) 68%,transparent 78%)}
+.egrBlk{position:fixed;border-radius:50%;background:#ff4a2e;
+  box-shadow:0 0 7px rgba(255,70,40,.95),0 0 18px rgba(255,50,20,.6);
+  animation:egrBlk var(--ms,1400ms) steps(1,end) infinite}
+@keyframes egrBlk{0%,52%{opacity:1}53%,100%{opacity:.07}}
+/* 편집 중에만 잡을 수 있다 — 평소엔 손이 통과한다 */
+#readingRoom.edit .egrNeedle,#readingRoom.edit .egrBlk,
+#readingRoom.edit #egrLamp{pointer-events:auto;cursor:move}
+#readingRoom.edit .egrNeedle::before{content:"";position:absolute;left:-9px;top:-9px;
+  width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.3);
+  border:1px dashed rgba(201,168,106,.9)}
+#readingRoom.edit #egrLamp{outline:1px dashed rgba(201,168,106,.55)}
+#readingRoom.edit .egrBlk{outline:1px dashed rgba(255,140,110,.9);outline-offset:3px}
 .readingSeat{position:fixed;top:50%;transform:translateY(-50%);z-index:13;width:34px;height:56px;
   cursor:pointer;pointer-events:auto;border:0;background:transparent;color:rgba(240,232,214,.34);
   font-size:30px;line-height:1;text-shadow:0 1px 6px rgba(0,0,0,.8);transition:color .25s}
@@ -1090,6 +1265,7 @@
   function mountHtml() {
     ROOT = document.createElement("div");
     ROOT.id = "readingRoom";
+    ROOT.classList.add("craft-" + CRAFT);   /* ⭐ 0821g — 덜컹이 기체를 보고 붙는다 */
     ROOT.innerHTML = '<div id="fit"><div id="plate"></div><div id="plateB"></div></div>'
       + '<div id="readingFade"></div>';
     document.body.appendChild(ROOT);
@@ -1843,6 +2019,9 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     if (el.closest(".egrCorner")) return "corner";   /* ⭐ 모서리가 먼저 — 모니터 위에 얹혀 있다 */
     if (el.closest("#readingGrip")) return "grip";
     if (el.closest("#egrEng")) return "eng";              /* ⭐ 0820c — 벽 각인 */
+    if (el.closest(".egrNeedle")) return "needle";   /* ⭐ 0821f */
+    if (el.closest(".egrBlk")) return "blink";
+    if (el.closest("#egrLamp")) return "lamp";
     if (el.closest("#egrMon")) return "mon";
     return null;
   }
@@ -1884,6 +2063,12 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       + '⭐ <b>벽 각인</b>을 끌어 옮기고 &mdash; 휠 = 크기 · Shift+휠 = 회전 · Alt+휠 = 눕히기<br>'
       + '&nbsp;&nbsp;기울기 <b>10.8°</b> 는 창 위선 실측값입니다 &mdash; 벽과 나란합니다<br>'
       + '&nbsp;&nbsp;<b>&larr; &rarr;</b> 로 좌석을 바꾸면 <b>반대쪽 벽</b>을 따로 맞춥니다<br>'
+      + '⭐ <b>계기 바늘 다섯</b> — 끌어 옮기고 · 휠 = 길이<br>'
+      + '&nbsp;&nbsp;<b>Shift+휠</b> = 0점 방향 · <b>Alt+휠</b> = 눈금 한 바퀴 각도<br>'
+      + '&nbsp;&nbsp;⚠ 지금 좌표는 눈대중한 어림입니다 — 밀어서 정하십시오<br>'
+      + '⭐ <b>호박 램프</b> — 끌기 · 휠 = 크기 · Shift+휠 = 밝기 · <b>L</b> = 언제 켤지<br>'
+      + '⭐ <b>붉은 불빛 둘</b> — 끌기 · 휠 = 크기 · Shift+휠 = 빠르기<br>'
+      + '&nbsp;&nbsp;⚠ 둘의 주기를 어긋나게 두십시오. 맞으면 장식이 됩니다<br>'
       + '<b>T</b> — 조명 미리보기 · 지금 '
       + (PREVIEW ? '<span class="sv">' + THEME_KO[PREVIEW] + '</span>' : '진짜 시각')
       + '<br><span class="sv">'
@@ -1896,7 +2081,11 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
      0819V 에서 MON 을 통째로 적었더니 옛 원판 크기(620×424)가 함께 저장됐고,
      새 설계(880×580)를 덮어 아래단이 화면 밖으로 나갔다. */
   function tuneNow() {
+    /* ⭐ 0821f — 지금 기체 칸을 갱신하고 전체를 적는다. 다른 기체 값은 그대로 보존된다 */
+    TUNE_C[CRAFT] = { I: cpyArr(INSTR), L: LAMP ? cpy(LAMP) : null, B: cpyArr(BLINK),
+                      M: { tl: MON.tl.slice(), tr: MON.tr.slice(), br: MON.br.slice(), bl: MON.bl.slice() } };
     return { GL: GRIP_L, GR: GRIP_R, EL: ENG_L, ER: ENG_R,
+             IC: TUNE_C,                     /* ⭐ 기체별 칸 */
              MON: { tl: MON.tl, tr: MON.tr, br: MON.br, bl: MON.bl },
              /* ⭐ 0820j — 구름 손잡이 넷. ⚠ 배율만 적는다. 갈래 범위표는 코드가 쥔다 */
              CLD: { den: CLD.den, siz: CLD.siz, hgt: CLD.hgt, brt: CLD.brt } };
@@ -1916,9 +2105,12 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     if (engOk(v.ER)) ENG_R = v.ER;
     /* ⚠⚠ w·h 는 읽지 않는다 — 이미 저장된 헌 값(620×424)이 서버에 남아 있고,
        그것이 0819V 의 화면을 반토막 냈다. 원판 크기는 설계가 정한다. */
-    /* ⚠⚠ 0821b — 편집값은 **제트기 기준**으로 저장돼 있다. 복엽기 지도판에 입히면
-       제트기 사다리꼴이 판 한가운데 뜬다. 기체별 칸이 서기 전까지 제트기에만 입힌다. */
-    if (CRAFT === "jet" && v.MON && v.MON.tl) { MON.tl = v.MON.tl; MON.tr = v.MON.tr; MON.br = v.MON.br; MON.bl = v.MON.bl; }
+    /* ⭐⭐ 0821f — 기체별 칸을 읽는다. 0821b 의 「제트기에만」 임시 가드를 여기서 푼다.
+       ⚠ 옛 판(IC 가 없던 때)의 MON 은 제트기 기준이므로 제트기 칸으로 옮겨 읽는다 —
+         버리면 소로가 0819W 에 베젤에 맞춰 미신 값이 사라진다. */
+    if (v.IC) { var ck; for (ck in v.IC) if (CRAFT_SPEC[ck] && v.IC[ck]) TUNE_C[ck] = v.IC[ck]; }
+    else if (v.MON && v.MON.tl) TUNE_C.jet = { M: { tl: v.MON.tl, tr: v.MON.tr, br: v.MON.br, bl: v.MON.bl } };
+    applyCraftTune();
     /* ⭐ 0820j — 넷 다 수(數)이고 범위 안일 때만 읽는다. 모양이 다르면 안 읽는다 */
     if (v.CLD) CL_BARS.forEach(function (b) {
       var x = v.CLD[b[0]];
@@ -2037,6 +2229,11 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
        ⚠ 외부 보기(C)에서는 기내가 없으니 화면 왼쪽 아래로 물러선다 */
     var cr = ROOT.querySelector(".cesium-viewer-bottom.eg-plaque");
     if (cr) {
+      /* ⚠ 0821f — 계기·램프·불빛은 기내에 붙은 물건이다. 밖에서는 함께 물러난다 */
+      var qv = OUT ? "hidden" : "visible";
+      if (INSEL) INSEL.style.visibility = qv;
+      if (LAMPEL) LAMPEL.style.visibility = qv;
+      if (BLKEL) BLKEL.style.visibility = qv;
       if (OUT) { cr.style.left = "12px"; cr.style.top = (vh - 26) + "px"; }
       else {
         cr.style.left = (cx + (flip ? (100 - PLAQUE.x - 26) : PLAQUE.x) / 100 * w) + "px";
@@ -2054,6 +2251,32 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       ENGEL.style.top = (top + h * EN.y / 100) + "px";
       ENGEL.style.fontSize = (w * EN.size / 100) + "px";
       ENGEL.style.transform = "rotate(" + EN.rot + "deg) skewX(" + EN.skew + "deg)";
+    }
+    /* ⭐ 0821f — 계기 바늘 · 램프 · 불빛. 판을 따라간다(각인과 같은 문법).
+       ⚠ 복엽기는 좌석이 하나라 거울 셈(mx)을 안 쓴다 — 제트기에는 애초에 계기가 없다 */
+    if (INSEL) for (var qi = 0; qi < INSTR.length; qi++) {
+      var qo = INSTR[qi], qe = INSEL.children[qi]; if (!qe) continue;
+      var qw = Math.max(1.4, h * qo.r / 100 * 0.055);
+      qe.style.left = (cx + w * qo.x / 100) + "px";
+      qe.style.top = (top + h * qo.y / 100) + "px";
+      var qn = qe.firstChild;
+      qn.style.height = (h * qo.r / 100) + "px";
+      qn.style.width = qw + "px";
+      qn.style.left = (-qw / 2) + "px";
+    }
+    if (LAMPEL && LAMP) {
+      var lr = h * LAMP.r / 100;
+      LAMPEL.style.left = (cx + w * LAMP.x / 100 - lr / 2) + "px";
+      LAMPEL.style.top = (top + h * LAMP.y / 100 - lr / 2) + "px";
+      LAMPEL.style.width = lr + "px"; LAMPEL.style.height = lr + "px";
+    }
+    if (BLKEL) for (var bi = 0; bi < BLINK.length; bi++) {
+      var bo = BLINK[bi], be = BLKEL.children[bi]; if (!be) continue;
+      var br = Math.max(2, h * bo.r / 100);
+      be.style.left = (cx + w * bo.x / 100 - br / 2) + "px";
+      be.style.top = (top + h * bo.y / 100 - br / 2) + "px";
+      be.style.width = br + "px"; be.style.height = br + "px";
+      be.style.setProperty("--ms", bo.ms + "ms");
     }
     /* 모니터 — 사다리꼴 네 점에 앉힌다(0819h). 판 % → 화면 px → matrix3d.
        ⚠ 오른창(거울)이면 x' = 100−x 에 좌·우 모서리도 서로 바뀐다 —
@@ -2257,6 +2480,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     /* ⭐ 벽 각인도 같은 조명을 받는다 — 밤이면 흰 글씨가 된다(0820 소로) */
     var en = ENG_THEME[k] || ENG_THEME.e;
     for (v in en) ROOT.style.setProperty("--eng-" + v, en[v]);
+    paintLamp();                                          /* ⭐ 0821f — 램프도 같은 조명에 물린다 */
   }
   /* ⭐⭐ 조명 넉 벌 갈아끼우기 (0819Q) — 실제 일출은 삼십 분에 걸쳐 오는데
      0819P 까지는 배경 그림을 한 프레임에 통째로 바꿔 **기내만 스위치**였다.
@@ -3325,6 +3549,7 @@ function paintBook() {
   var ANNOUNCE_SRC = "cabin_announce_v1.mp3";
   var AC = window.AudioContext || window.webkitAudioContext;
   var ac = null, engGain = null, engLp = null, annAudio = null;
+  var windGain = null, windBp = null;   /* ⭐ 0821g — 바람. 엔진과 같은 소음원의 둘째 갈래 */
   var sndOn = true, announced = false, engBase = 0.07;   /* 0817 소로: 크다 → 절반 */
 
   /* ══ 기내 오디오 갈래 셋 (0819R) ═══════════════════════════════════
@@ -3417,6 +3642,13 @@ function paintBook() {
       engLp.frequency.value = 420; engLp.Q.value = 0.4;
       engGain = a.createGain(); engGain.gain.value = 0;
       src.connect(engLp).connect(engGain).connect(a.destination);
+      /* ⭐ 0821g — 바람. 파일이 아니라 **같은 백색소음의 둘째 귀**다.
+         밴드패스가 쉬이— 대역만 남긴다. 세기는 windTune 이 속도를 보고 준다.
+         ⚠ SPEC.wind 가 없는 기체(제트기)는 목표가 0 이라 저절로 조용하다. */
+      windBp = a.createBiquadFilter(); windBp.type = "bandpass";
+      windBp.frequency.value = 700; windBp.Q.value = 0.6;
+      windGain = a.createGain(); windGain.gain.value = 0;
+      src.connect(windBp).connect(windGain).connect(a.destination);
       src.start();
       engGain.gain.linearRampToValueAtTime(engBase, a.currentTime + 2.4);   /* 스르르 — 음악과 같은 걸음 */
     } catch (e) { }
@@ -3425,6 +3657,17 @@ function paintBook() {
   function engineTune(rel) {
     if (!engLp) return;
     try { engLp.frequency.value = 480 - Math.min(Math.max(rel, 0), 4000) / 4000 * 180; } catch (e) { }
+  }
+  /* ⭐ 0821g — 바람은 속도에 물린다. 빨라지면 거세지고 날카로워진다.
+     ⚠ setTargetAtTime(0.8초) — 값을 톡 넣으면 딱딱 끊긴다. 바람은 스며야 한다. */
+  function windTune(kmh) {
+    if (!windBp || !windGain) return;
+    var t = Math.min(1, Math.max(0, (kmh - 100) / 280));      /* 100 → 380km/h 를 0 → 1 로 */
+    try {
+      var a = ensureAC();
+      windBp.frequency.setTargetAtTime(480 + t * 1100, a.currentTime, 0.8);
+      windGain.gain.setTargetAtTime(engBase * (SPEC.wind || 0) * (0.5 + 1.3 * t), a.currentTime, 0.8);
+    } catch (e) { }
   }
   /* ⭐ 갈래 하나를 고른다 — 단추가 셋을 돌린다. 브라우저에 기억한다.
      ⭐⭐ 0819S 소로 — 「소음이 페이드 아웃되고 음악이 샤르르」.
@@ -3482,7 +3725,7 @@ function paintBook() {
     /* ⚠ 음악은 element 라 gain 만 내리면 계속 흐른다 — 실제로 멈춰야 한다 */
     try { musicStop(true); } catch (e) { }
     try { clearTimeout(chT); } catch (e) { }
-    engGain = null; engLp = null; announced = false;
+    engGain = null; engLp = null; windGain = null; windBp = null; announced = false;
     mus = null; musSrc = null; musGain = null; musQ = []; musI = 0;
   }
 
@@ -3515,6 +3758,13 @@ function paintBook() {
       else if (k === "e") setEdit(!editing);
       else if (k === "f") toggleFps();        /* ⭐ 0820i — 관리자만 */
       else if (k === "g") toggleCloudPanel();  /* ⭐ 0820j — 관리자만 */
+      else if (k === "l") {                   /* ⭐ 0821f — 램프를 언제 켤지. 편집 중에만 */
+        if (editing && LAMP) {
+          var LW = ["night", "dusk", "always", "off"];
+          LAMP.when = LW[(LW.indexOf(LAMP.when || "dusk") + 1) % 4];
+          paintLamp(); tuneSay(); saveTuneSoon();
+        }
+      }
       else if (k === "arrowleft") swapSeat(-1);
       else if (k === "arrowright") swapSeat(+1);
     });
@@ -3526,7 +3776,9 @@ function paintBook() {
       var vw2 = window.innerWidth, vh2 = window.innerHeight, R2 = PLATE_W / PLATE_H;
       var w2 = (vw2 / vh2 < R2) ? Math.max(vh2 * R2, vw2) : vw2;
       egrab = { t: t, x: e.clientX, y: e.clientY, w: w2, h: w2 / R2, flip: (side > 0),
-                k: (t === "corner") ? e.target.closest(".egrCorner").getAttribute("data-k") : null };
+                k: (t === "corner") ? e.target.closest(".egrCorner").getAttribute("data-k")
+                 : (t === "needle") ? e.target.closest(".egrNeedle").getAttribute("data-k")
+                 : (t === "blink") ? e.target.closest(".egrBlk").getAttribute("data-k") : null };
     }, true);
     EGR_on(window, "pointermove", function (e) {
       if (!egrab) return;
@@ -3541,6 +3793,10 @@ function paintBook() {
         var EN2 = ENG();
         EN2.x += dx / egrab.w * 100; EN2.y += py2;
       }
+      /* ⭐ 0821f — 계기·램프·불빛. 복엽기는 좌석이 하나라 거울 부호를 안 쓴다 */
+      else if (egrab.t === "needle") { var IO = instrOf(egrab.k); if (IO) { IO.x += dx / egrab.w * 100; IO.y += py2; } }
+      else if (egrab.t === "blink") { var BO = blinkOf(egrab.k); if (BO) { BO.x += dx / egrab.w * 100; BO.y += py2; } }
+      else if (egrab.t === "lamp") { if (LAMP) { LAMP.x += dx / egrab.w * 100; LAMP.y += py2; } }
       else if (egrab.t === "corner") monMove(px, py2, egrab.k);   /* ⭐ 그 점만 */
       else monMove(px, py2);
       layout(); tuneSay();
@@ -3562,6 +3818,30 @@ function paintBook() {
         var kk2 = e.target.closest(".egrCorner").getAttribute("data-k");
         if (e.shiftKey) MON[kk2][0] += d * 0.05 * (side > 0 ? -1 : 1);
         else MON[kk2][1] -= d * 0.05;
+      } else if (t === "needle") {
+        /* ⭐ 휠 = 바늘 길이 · Shift+휠 = 0점 방향 · Alt+휠 = 눈금 한 바퀴 각도
+           ⚠ 0점 방향과 한 바퀴 각도, 이 둘이 바늘을 실제 눈금에 앉힌다.
+             ⭐ 나침반은 sp 를 안 쓴다 — 방위를 그대로 받으므로 z 만 맞추면 된다 */
+        var IW = instrOf(e.target.closest(".egrNeedle").getAttribute("data-k"));
+        if (IW) {
+          if (e.altKey) IW.sp = Math.max(30, Math.min(360, IW.sp + d * 5));
+          else if (e.shiftKey) IW.z = (IW.z + d * 3 + 360) % 360;
+          else IW.r = Math.max(0.4, Math.min(20, IW.r + d * 0.12));
+        }
+      } else if (t === "blink") {
+        /* ⭐ 휠 = 크기 · Shift+휠 = 깜빡이는 빠르기
+           ⚠ 둘의 주기를 일부러 어긋나게 두십시오. 맞아떨어지면 장식이 됩니다 */
+        var BW = blinkOf(e.target.closest(".egrBlk").getAttribute("data-k"));
+        if (BW) {
+          if (e.shiftKey) BW.ms = Math.max(300, Math.min(6000, BW.ms - d * 100));
+          else BW.r = Math.max(0.1, Math.min(4, BW.r + d * 0.04));
+        }
+      } else if (t === "lamp") {
+        if (LAMP) {
+          if (e.shiftKey) LAMP.a = Math.max(0.05, Math.min(1, LAMP.a + d * 0.05));
+          else LAMP.r = Math.max(3, Math.min(90, LAMP.r + d * 1.2));
+          paintLamp();
+        }
       } else if (t === "eng") {
         /* ⭐ 휠 = 크기 · Shift+휠 = 회전 · Alt+휠 = 눕히기 */
         var EN3 = ENG();
@@ -3571,6 +3851,7 @@ function paintBook() {
       } else monScale(1 + d * 0.02);
       layout(); tuneSay(); saveTuneSoon();
     }, { passive: false, capture: true });
+    mountInstr();                    /* ⭐ 0821f — 계기·램프·불빛 DOM. loadTune 이 값을 덮는다 */
     loadTune();                      /* 저장된 편집값 — 브라우저 먼저, 서버가 덮는다 */
     paintCabin(route.legs[0][1]);
     moveCredits(true);               /* ⭐ 39호 — 저작자 표시를 기내 나무 판 위로 */
@@ -3597,7 +3878,9 @@ function paintBook() {
         if (now - hudT < 400) return; hudT = now;
         paintCabin(s.lon);
         engineTune(s.rel);           /* 낮으면 굵게 · 높으면 멀게 */
+        windTune(s.kmh);             /* ⭐ 0821g — 빠르면 거세게. 개방 조종석의 몫 */
         paintInfo(s, route);         /* ⭐ 모니터 비행정보 — 「남은 시간」은 없다(14호) */
+        paintNeedles(s);             /* ⭐ 0821f — 계기 바늘. 값은 이미 여기 다 있다 */
         /* ⚠⚠ 0819R — 화면 아래 계기판 한 줄을 걷었다(소로).
            모니터가 서면서 노선·길목·고도·속도 넷이 통째로 겹쳤고,
            무엇보다 **기내에 없는 물건이 허공에 떠 있었다**(8호 실물 절차).
@@ -3607,6 +3890,23 @@ function paintBook() {
     /* ⭐ 0820j — 첫 좌표가 든 뒤에 세운다. SINFO 가 없으면 어디에 뿌릴지를 모른다.
        ⚠ 1.2초를 기다리는 것은 타일이 실리는 동안 구름까지 얹으면 첫 화면이 늦기 때문이다 */
     EGR_later(function () { if (ROOT && CLON) cloudsBuild(); }, 1200);
+    /* ⭐ 0821g — 난기류. 8~25초에 한 번, 세기도 간격도 매번 다르게.
+       ⚠ 규칙적이면 붉은 불빛과 같은 병(장식)이 된다.
+       ⚠ 편집 중에는 건너뛴다 — 바늘 맞추는 손 밑에서 덜컹이면 못 맞춘다.
+       EGR_later 를 타므로 leave 의 EGR_clearTimers 가 함께 걷어 간다. */
+    (function joltLoop() {
+      if (!ROOT || !SPEC.shake) return;
+      EGR_later(function () {
+        if (!ROOT || !SPEC.shake) return;
+        if (!PAUSED && !OUT && !editing) {
+          ROOT.style.setProperty("--jY", (4 + Math.random() * 7).toFixed(1) + "px");
+          ROOT.style.setProperty("--jR", ((Math.random() < 0.5 ? -1 : 1) * (0.15 + Math.random() * 0.3)).toFixed(2) + "deg");
+          ROOT.classList.add("jolt");
+          EGR_later(function () { if (ROOT) ROOT.classList.remove("jolt"); }, 600);
+        }
+        joltLoop();
+      }, 8000 + Math.random() * 17000);
+    })();
     console.log("%c[EG] reading_room " + VERSION + " — " + route.name + " · 길목 " + route.legs.length + "점 · 끝없는 고리", "color:#c9a84c");
     /* ⭐ 0820w — 열쇠를 한 줄 찍는다. 브라우저 안은 내가 조회할 수 없는 곳이라
          「코드가 맞으니 되겠지」로 넘어가면 0820v 처럼 조용히 안 듣는다(위 993행 주석).
@@ -3623,6 +3923,11 @@ function paintBook() {
   function enter(hostViewer, code) {
     if (!hostViewer) { console.error("[EG] 독서비행 — viewer 를 못 받았습니다."); return false; }
     if (ROOT) leave();
+    /* ⚠⚠⚠ 0821f — 오늘 **네 번째** 순서 병. 화살표를 만드는 손(mountHtml)이
+       좌석이 없음을 아는 손(applyCraft)보다 먼저였다. 「그리는 손보다 먼저」라고
+       적어 놓고 mountHtml 을 셈에서 뺐다. 기체를 맨 앞에서 정한다. */
+    var rt = routeBy(code);
+    applyCraft(rt.craft || "jet");
     mountStyle(); mountHtml();
 
     /* ⚠⚠⚠ 궤도 사슬부터 푼다. 순서가 중요하다(0818 밤 진범).
@@ -3640,11 +3945,6 @@ function paintBook() {
     try { hostViewer.useDefaultRenderLoop = true; } catch (e) { }
 
     /* ⭐ 이어 탈 곳을 먼저 받는다 — bootRoom 이 동기라 여기서 기다린다(그물 1.2초) */
-    var rt = routeBy(code);
-    /* ⭐⭐ 0821b — 기체를 **여기서** 정한다. 0820B 는 cruise 직전에 정해서
-       첫 paintCabin·mountMonitor·shade 가 제트기 명세로 섰다 — 0820z(순서 진범)와
-       같은 갈래를 하루 만에 또 밟을 뻔했다. 그리는 손보다 먼저, 한 번만. */
-    applyCraft(rt.craft || "jet");
     loadResume(rt.code).then(function (r) {
       RESUME = r;
       if (!ROOT) return;            /* ⚠ 기다리는 사이에 나가셨다 */
@@ -3686,6 +3986,7 @@ function paintBook() {
     cloudsOff();                     /* ⚠⚠ 0820j — viewer 를 놓기 **전에** 걷는다 */
     viewer = null;
     OUT = false; BARE = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
+    INSEL = null; LAMPEL = null; BLKEL = null;   /* ⚠ 0821f — 방과 함께 걷힌다. 다음 탑승이 다시 세운다 */
     SHUT = false; editing = false; egrab = null; IS_ADMIN = false; cvW = 0; cvH = 0; PAUSED = false;
     PREVIEW = null; themeNow = ""; themeMon = ""; RESUME = null;   /* ⚠ 다음 탑승은 진짜 시각으로 */
     try { clearTimeout(tuneT); clearTimeout(fadeT); } catch (e) { }
