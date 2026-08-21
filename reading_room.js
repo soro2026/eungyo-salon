@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0821j";
+  var VERSION = "0821k";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -3863,6 +3863,11 @@ function paintBook() {
   function hush() {
     try { if (annAudio) { annAudio.pause(); annAudio = null; } } catch (e) { }
     try { if (engGain) engGain.gain.linearRampToValueAtTime(0, ensureAC().currentTime + 0.25); } catch (e) { }
+    /* ⚠⚠ 0821k 소로 딱지 — 「복엽기는 × 로 내려도 바람이 안 멈춘다」.
+       0821g 에 바람 가지를 달면서 여기 끄는 줄을 안 더했다. 참조만 null 로 버리면
+       노드는 그래프에 산 채라 마지막 볼륨 그대로 계속 분다 — 손잡이 없는 수도꼭지.
+       ⭐ 가지를 새로 달면 hush 에 끄는 줄부터 짝으로 단다(㉮ 의 사촌 — 끄는 길 누락). */
+    try { if (windGain) windGain.gain.linearRampToValueAtTime(0, ensureAC().currentTime + 0.25); } catch (e) { }
     /* ⚠ 음악은 element 라 gain 만 내리면 계속 흐른다 — 실제로 멈춰야 한다 */
     try { musicStop(true); } catch (e) { }
     try { clearTimeout(chT); } catch (e) { }
