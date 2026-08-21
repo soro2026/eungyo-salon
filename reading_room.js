@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0821g";
+  var VERSION = "0821h";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -288,10 +288,17 @@
     ],
     jet: []                        /* ⚠ 제트기 원판에는 아날로그 계기가 없다 */
   };
-  /* ⭐ when — 언제 켜는가. night(밤만) · dusk(저녁부터) · always(늘) · off */
+  /* ⭐ when — 언제 켜는가. night(밤만) · dusk(저녁부터) · always(늘) · off
+     ⭐⭐ 0821h 소로 — 「호박 램프는 다섯 개. 좀 작게」. 계기마다 하나씩 붙는다.
+     ⚠ 하나로 크게 덮으면 계기판 전체가 노래져 눈금이 묻힌다. 다섯이 각자 제 계기만
+       비추면 실제 야간 계기 조명이 된다 — 브레게 14 에는 계기마다 작은 전구가 달렸다. */
   var LAMP_DEF = {
-    bre: { x: 50.0, y: 84.0, r: 26.0, a: 0.55, when: "dusk" },
-    jet: null
+    bre: [ { k: "l1", x: 25.0, y: 82.0, r: 9.0, a: 0.5, when: "dusk" },
+           { k: "l2", x: 37.5, y: 81.5, r: 9.0, a: 0.5, when: "dusk" },
+           { k: "l3", x: 50.0, y: 81.5, r: 9.5, a: 0.5, when: "dusk" },
+           { k: "l4", x: 62.5, y: 81.5, r: 9.0, a: 0.5, when: "dusk" },
+           { k: "l5", x: 75.0, y: 82.0, r: 9.0, a: 0.5, when: "dusk" } ],
+    jet: []
   };
   /* ⚠ 둘의 주기를 일부러 어긋나게 둔다. 맞아떨어지면 크리스마스 장식이 된다 */
   var BLINK_DEF = {
@@ -299,7 +306,7 @@
            { k: "b2", x: 56.5, y: 87.5, r: 0.42, ms: 2100 } ],
     jet: []
   };
-  var INSTR = [], LAMP = null, BLINK = [];
+  var INSTR = [], LAMPS = [], BLINK = [];
   var INSEL = null, LAMPEL = null, BLKEL = null;
   /* ⭐ 기체별 편집값 그릇 — 복엽기에서 민 값이 제트기 것을 안 건드린다.
      ⚠ 0821e 까지 편집값이 한 벌뿐이라 applyTune 에 「제트기에만」 임시 가드를 걸어 두었다.
@@ -342,8 +349,9 @@
     var t = TUNE_C[CRAFT] || {};
     var okI = t.I && t.I.length && typeof t.I[0].x === "number" && typeof t.I[0].z === "number";
     INSTR = cpyArr(okI ? t.I : (INSTR_DEF[CRAFT] || []));
-    LAMP  = (t.L && typeof t.L.x === "number") ? cpy(t.L)
-          : (LAMP_DEF[CRAFT] ? cpy(LAMP_DEF[CRAFT]) : null);
+    /* ⚠ 0821h — 램프가 하나(객체)에서 다섯(배열)로 바뀌었다. 옛 값은 모양이 달라 안 읽는다(41호 ㉬) */
+    var okL = t.L && t.L.length && typeof t.L[0].x === "number";
+    LAMPS = cpyArr(okL ? t.L : (LAMP_DEF[CRAFT] || []));
     var okB = t.B && t.B.length && typeof t.B[0].x === "number";
     BLINK = cpyArr(okB ? t.B : (BLINK_DEF[CRAFT] || []));
     if (t.M && t.M.tl && t.M.tl.length === 2) {
@@ -357,7 +365,7 @@
     if (!ROOT) return;
     if (!INSEL) {
       INSEL = document.createElement("div"); INSEL.id = "egrInstr"; ROOT.appendChild(INSEL);
-      LAMPEL = document.createElement("div"); LAMPEL.id = "egrLamp"; ROOT.appendChild(LAMPEL);
+      LAMPEL = document.createElement("div"); LAMPEL.id = "egrLamps"; ROOT.appendChild(LAMPEL);
       BLKEL = document.createElement("div"); BLKEL.id = "egrBlink"; ROOT.appendChild(BLKEL);
     }
     var i, h;
@@ -367,21 +375,27 @@
     h = ""; for (i = 0; i < BLINK.length; i++)
       h += '<div class="egrBlk" data-k="' + BLINK[i].k + '"></div>';
     if (BLKEL.innerHTML !== h) BLKEL.innerHTML = h;
-    LAMPEL.style.display = LAMP ? "" : "none";
+    h = ""; for (i = 0; i < LAMPS.length; i++)
+      h += '<div class="egrLamp" data-k="' + LAMPS[i].k + '"></div>';
+    if (LAMPEL.innerHTML !== h) LAMPEL.innerHTML = h;
     paintLamp();
   }
   function instrOf(k) { for (var i = 0; i < INSTR.length; i++) if (INSTR[i].k === k) return INSTR[i]; return null; }
   function blinkOf(k) { for (var i = 0; i < BLINK.length; i++) if (BLINK[i].k === k) return BLINK[i]; return null; }
   /* ⭐ 램프는 조명 갈래에 물린다 — 밤에 타면 계기만 살아 있고 낮엔 꺼진다 */
   function paintLamp() {
-    if (!LAMPEL || !LAMP) return;
-    var w = LAMP.when || "dusk";
-    var on = (w === "always") ? true
-           : (w === "off") ? false
-           : (w === "dusk") ? (themeNow === "e" || themeNow === "n")
-           : (themeNow === "n");
-    LAMPEL.style.opacity = (on || editing) ? String(LAMP.a) : "0";
+    if (!LAMPEL) return;
+    for (var i = 0; i < LAMPS.length; i++) {
+      var L = LAMPS[i], el = LAMPEL.children[i]; if (!el) continue;
+      var w = L.when || "dusk";
+      var on = (w === "always") ? true
+             : (w === "off") ? false
+             : (w === "dusk") ? (themeNow === "e" || themeNow === "n")
+             : (themeNow === "n");
+      el.style.opacity = (on || editing) ? String(L.a) : "0";
+    }
   }
+  function lampOf(k) { for (var i = 0; i < LAMPS.length; i++) if (LAMPS[i].k === k) return LAMPS[i]; return null; }
   /* ⭐ 바늘 — 이미 흐르는 값을 각도로 옮긴다. 새로 재는 것이 없다.
      ⚠ onTick 은 400ms 스로틀이라 뚝뚝 끊긴다 — CSS transition 이 사이를 메운다 */
   function paintNeedles(s) {
@@ -872,17 +886,30 @@
 #readingRoom.craft-bre.jolt{animation:egrJolt .55s cubic-bezier(.2,.7,.3,1) 1}
 /* ══ 0821f — 계기 바늘 · 호박 램프 · 붉은 불빛 ═══════════════════
    ⚠ 판(#plate z-index 6·7) 위에 선다. 모니터(11)보다는 아래여야 조작판이 안 가린다 */
-#egrInstr,#egrLamp,#egrBlink{position:fixed;left:0;top:0;pointer-events:none;z-index:8}
+/* ⚠⚠ 0821h 진범 — 여기 z-index 가 **8** 이었는데, #egrMon(모니터)도 **8** 이다.
+     같은 층이면 나중에 붙은 쪽이 이긴다. bootRoom 이 mountInstr 다음에 mountMonitor 를
+     부르므로 모니터가 위에 덮여, 그 큰 박스 아래 든 바늘·램프·불빛이 손에 안 잡혔다.
+     ⭐ 0821f 주석에 「모니터(11)보다 아래」라고 적어 두었는데 **그 11 이 틀린 값이었다.**
+       값을 확인 안 하고 적은 주석이 스스로를 속였다(22호의 사촌).
+     ⚠ 12 로 올린다 — 모니터(8)·손잡이(11) 위, 암전(20)·기록판(22) 아래. */
+#egrInstr,#egrLamps,#egrBlink{position:fixed;left:0;top:0;pointer-events:none;z-index:12}
 .egrNeedle{position:fixed;width:0;height:0;pointer-events:none;
   transition:transform .45s cubic-bezier(.33,.9,.4,1)}
-.egrNeedle i{position:absolute;bottom:0;display:block;border-radius:1px 1px 0 0;
-  background:linear-gradient(180deg,#ffe6bd 0%,#ffc46a 40%,#e09a3c 100%);
-  box-shadow:0 0 5px rgba(255,196,116,.95),0 0 13px rgba(255,150,50,.55)}
-/* ⚠ 바늘 뿌리를 덮는 작은 축 — 원판의 옛 바늘 뿌리를 가려 준다 */
-.egrNeedle::after{content:"";position:absolute;left:-3px;top:-3px;width:6px;height:6px;
-  border-radius:50%;background:radial-gradient(circle,#ffe6bd,#b8763a);
-  box-shadow:0 0 6px rgba(255,180,90,.8)}
-#egrLamp{border-radius:50%;mix-blend-mode:screen;transition:opacity 1.2s ease;
+/* ⭐⭐ 0821h 소로 — 「끝은 뾰족하게, 중심은 두텁게. 광택 있는 블랙으로」.
+     ⚠ 사각 막대는 계기 바늘이 아니다. clip-path 로 쐐기를 깎는다 —
+       뿌리에서 가장 넓고(폭 100%), 끝으로 갈수록 좁아져 한 점으로 모인다.
+     ⚠ 노란 바늘은 낡은 아이보리 눈금에 묻혔다. 검정이 눈금 위에 선다 —
+       그리고 원판의 옛 바늘도 검정이라, 겹치면 그것이 곧 그림자가 된다. */
+.egrNeedle i{position:absolute;bottom:0;display:block;
+  clip-path:polygon(50% 0%, 100% 78%, 62% 100%, 38% 100%, 0% 78%);
+  background:linear-gradient(100deg,#5c5f66 0%,#14171c 18%,#0a0c10 46%,#2b3038 62%,#0c0e12 82%,#43474e 100%);
+  filter:drop-shadow(0 0 2px rgba(0,0,0,.85)) drop-shadow(0 1px 1px rgba(255,255,255,.18))}
+/* ⚠ 뿌리를 덮는 놋쇠 축 — 원판의 옛 바늘 뿌리를 가린다. 검정 바늘과 대비도 준다 */
+.egrNeedle::after{content:"";position:absolute;left:-4px;top:-4px;width:8px;height:8px;
+  border-radius:50%;background:radial-gradient(circle at 35% 30%,#f0dcae,#8a6a34 62%,#2a2118);
+  box-shadow:0 0 5px rgba(0,0,0,.7),0 0 8px rgba(255,190,110,.35)}
+/* ⭐ 0821h — 램프 다섯. 계기마다 하나씩, 작게 */
+.egrLamp{position:fixed;border-radius:50%;mix-blend-mode:screen;transition:opacity 1.2s ease;
   background:radial-gradient(circle,rgba(255,205,140,.95) 0%,rgba(255,160,60,.42) 42%,rgba(255,130,40,.12) 68%,transparent 78%)}
 .egrBlk{position:fixed;border-radius:50%;background:#ff4a2e;
   box-shadow:0 0 7px rgba(255,70,40,.95),0 0 18px rgba(255,50,20,.6);
@@ -890,11 +917,11 @@
 @keyframes egrBlk{0%,52%{opacity:1}53%,100%{opacity:.07}}
 /* 편집 중에만 잡을 수 있다 — 평소엔 손이 통과한다 */
 #readingRoom.edit .egrNeedle,#readingRoom.edit .egrBlk,
-#readingRoom.edit #egrLamp{pointer-events:auto;cursor:move}
-#readingRoom.edit .egrNeedle::before{content:"";position:absolute;left:-9px;top:-9px;
-  width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.3);
+#readingRoom.edit .egrLamp{pointer-events:auto;cursor:move}
+#readingRoom.edit .egrNeedle::before{content:"";position:absolute;left:-11px;top:-11px;
+  width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.35);
   border:1px dashed rgba(201,168,106,.9)}
-#readingRoom.edit #egrLamp{outline:1px dashed rgba(201,168,106,.55)}
+#readingRoom.edit .egrLamp{outline:1px dashed rgba(201,168,106,.55)}
 #readingRoom.edit .egrBlk{outline:1px dashed rgba(255,140,110,.9);outline-offset:3px}
 .readingSeat{position:fixed;top:50%;transform:translateY(-50%);z-index:13;width:34px;height:56px;
   cursor:pointer;pointer-events:auto;border:0;background:transparent;color:rgba(240,232,214,.34);
@@ -2021,7 +2048,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     if (el.closest("#egrEng")) return "eng";              /* ⭐ 0820c — 벽 각인 */
     if (el.closest(".egrNeedle")) return "needle";   /* ⭐ 0821f */
     if (el.closest(".egrBlk")) return "blink";
-    if (el.closest("#egrLamp")) return "lamp";
+    if (el.closest(".egrLamp")) return "lamp";
     if (el.closest("#egrMon")) return "mon";
     return null;
   }
@@ -2066,7 +2093,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       + '⭐ <b>계기 바늘 다섯</b> — 끌어 옮기고 · 휠 = 길이<br>'
       + '&nbsp;&nbsp;<b>Shift+휠</b> = 0점 방향 · <b>Alt+휠</b> = 눈금 한 바퀴 각도<br>'
       + '&nbsp;&nbsp;⚠ 지금 좌표는 눈대중한 어림입니다 — 밀어서 정하십시오<br>'
-      + '⭐ <b>호박 램프</b> — 끌기 · 휠 = 크기 · Shift+휠 = 밝기 · <b>L</b> = 언제 켤지<br>'
+      + '⭐ <b>호박 램프 다섯</b> — 끌기 · 휠 = 크기 · Shift+휠 = 밝기 · <b>L</b> = 언제 켤지<br>'
       + '⭐ <b>붉은 불빛 둘</b> — 끌기 · 휠 = 크기 · Shift+휠 = 빠르기<br>'
       + '&nbsp;&nbsp;⚠ 둘의 주기를 어긋나게 두십시오. 맞으면 장식이 됩니다<br>'
       + '<b>T</b> — 조명 미리보기 · 지금 '
@@ -2082,7 +2109,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
      새 설계(880×580)를 덮어 아래단이 화면 밖으로 나갔다. */
   function tuneNow() {
     /* ⭐ 0821f — 지금 기체 칸을 갱신하고 전체를 적는다. 다른 기체 값은 그대로 보존된다 */
-    TUNE_C[CRAFT] = { I: cpyArr(INSTR), L: LAMP ? cpy(LAMP) : null, B: cpyArr(BLINK),
+    TUNE_C[CRAFT] = { I: cpyArr(INSTR), L: cpyArr(LAMPS), B: cpyArr(BLINK),
                       M: { tl: MON.tl.slice(), tr: MON.tr.slice(), br: MON.br.slice(), bl: MON.bl.slice() } };
     return { GL: GRIP_L, GR: GRIP_R, EL: ENG_L, ER: ENG_R,
              IC: TUNE_C,                     /* ⭐ 기체별 칸 */
@@ -2264,11 +2291,12 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       qn.style.width = qw + "px";
       qn.style.left = (-qw / 2) + "px";
     }
-    if (LAMPEL && LAMP) {
-      var lr = h * LAMP.r / 100;
-      LAMPEL.style.left = (cx + w * LAMP.x / 100 - lr / 2) + "px";
-      LAMPEL.style.top = (top + h * LAMP.y / 100 - lr / 2) + "px";
-      LAMPEL.style.width = lr + "px"; LAMPEL.style.height = lr + "px";
+    if (LAMPEL) for (var li = 0; li < LAMPS.length; li++) {
+      var lo = LAMPS[li], le = LAMPEL.children[li]; if (!le) continue;
+      var lr = h * lo.r / 100;
+      le.style.left = (cx + w * lo.x / 100 - lr / 2) + "px";
+      le.style.top = (top + h * lo.y / 100 - lr / 2) + "px";
+      le.style.width = lr + "px"; le.style.height = lr + "px";
     }
     if (BLKEL) for (var bi = 0; bi < BLINK.length; bi++) {
       var bo = BLINK[bi], be = BLKEL.children[bi]; if (!be) continue;
@@ -3759,9 +3787,11 @@ function paintBook() {
       else if (k === "f") toggleFps();        /* ⭐ 0820i — 관리자만 */
       else if (k === "g") toggleCloudPanel();  /* ⭐ 0820j — 관리자만 */
       else if (k === "l") {                   /* ⭐ 0821f — 램프를 언제 켤지. 편집 중에만 */
-        if (editing && LAMP) {
+        /* ⭐ 다섯이 한 계기판의 조명이다 — 함께 돈다. 따로 돌 이유가 없다 */
+        if (editing && LAMPS.length) {
           var LW = ["night", "dusk", "always", "off"];
-          LAMP.when = LW[(LW.indexOf(LAMP.when || "dusk") + 1) % 4];
+          var nx = LW[(LW.indexOf(LAMPS[0].when || "dusk") + 1) % 4];
+          for (var lk = 0; lk < LAMPS.length; lk++) LAMPS[lk].when = nx;
           paintLamp(); tuneSay(); saveTuneSoon();
         }
       }
@@ -3771,14 +3801,28 @@ function paintBook() {
     /* ── 편집기 손 — 끌기·휠 (베스페르 문법) ── */
     EGR_on(window, "pointerdown", function (e) {
       if (!editing) return;
-      var t = tuneTarget(e.target); if (!t) return;
+      /* ⭐⭐ 0821h — 그물 두 겹. 층을 12 로 올려 놓고도 여기서 한 번 더 훑는다.
+         ⚠ 오늘 z-index 를 「모니터는 11」이라 **확인 없이 적은 주석** 하나 때문에
+           바늘·램프·불빛이 통째로 손에 안 잡혔다. 층 다툼은 앞으로도 날 수 있다 —
+           elementsFromPoint 는 그 점의 겹을 위에서부터 다 돌려주므로, 무엇이 덮여
+           있어도 편집 대상을 찾아낸다. ⚠ pointer-events:none 인 겹은 애초에 안 나온다. */
+      var tgt = e.target, t = tuneTarget(tgt);
+      if (!t && document.elementsFromPoint) {
+        var stack = document.elementsFromPoint(e.clientX, e.clientY) || [];
+        for (var si = 0; si < stack.length; si++) {
+          var tv = tuneTarget(stack[si]);
+          if (tv) { t = tv; tgt = stack[si]; break; }
+        }
+      }
+      if (!t) return;
       e.preventDefault(); e.stopPropagation();
       var vw2 = window.innerWidth, vh2 = window.innerHeight, R2 = PLATE_W / PLATE_H;
       var w2 = (vw2 / vh2 < R2) ? Math.max(vh2 * R2, vw2) : vw2;
       egrab = { t: t, x: e.clientX, y: e.clientY, w: w2, h: w2 / R2, flip: (side > 0),
-                k: (t === "corner") ? e.target.closest(".egrCorner").getAttribute("data-k")
-                 : (t === "needle") ? e.target.closest(".egrNeedle").getAttribute("data-k")
-                 : (t === "blink") ? e.target.closest(".egrBlk").getAttribute("data-k") : null };
+                k: (t === "corner") ? tgt.closest(".egrCorner").getAttribute("data-k")
+                 : (t === "needle") ? tgt.closest(".egrNeedle").getAttribute("data-k")
+                 : (t === "blink") ? tgt.closest(".egrBlk").getAttribute("data-k")
+                 : (t === "lamp") ? tgt.closest(".egrLamp").getAttribute("data-k") : null };
     }, true);
     EGR_on(window, "pointermove", function (e) {
       if (!egrab) return;
@@ -3796,7 +3840,7 @@ function paintBook() {
       /* ⭐ 0821f — 계기·램프·불빛. 복엽기는 좌석이 하나라 거울 부호를 안 쓴다 */
       else if (egrab.t === "needle") { var IO = instrOf(egrab.k); if (IO) { IO.x += dx / egrab.w * 100; IO.y += py2; } }
       else if (egrab.t === "blink") { var BO = blinkOf(egrab.k); if (BO) { BO.x += dx / egrab.w * 100; BO.y += py2; } }
-      else if (egrab.t === "lamp") { if (LAMP) { LAMP.x += dx / egrab.w * 100; LAMP.y += py2; } }
+      else if (egrab.t === "lamp") { var LO = lampOf(egrab.k); if (LO) { LO.x += dx / egrab.w * 100; LO.y += py2; } }
       else if (egrab.t === "corner") monMove(px, py2, egrab.k);   /* ⭐ 그 점만 */
       else monMove(px, py2);
       layout(); tuneSay();
@@ -3806,7 +3850,15 @@ function paintBook() {
     }, true);
     EGR_on(window, "wheel", function (e) {
       if (!editing) return;
-      var t = tuneTarget(e.target); if (!t) return;
+      var wt = e.target, t = tuneTarget(wt);
+      if (!t && document.elementsFromPoint) {           /* ⭐ 0821h — 끌기와 같은 그물 */
+        var ws = document.elementsFromPoint(e.clientX, e.clientY) || [];
+        for (var wi = 0; wi < ws.length; wi++) {
+          var wv = tuneTarget(ws[wi]);
+          if (wv) { t = wv; wt = ws[wi]; break; }
+        }
+      }
+      if (!t) return;
       e.preventDefault(); e.stopPropagation();
       var d = e.deltaY > 0 ? -1 : 1;
       if (t === "grip") {
@@ -3815,14 +3867,14 @@ function paintBook() {
       } else if (t === "corner") {
         /* ⭐ 모서리 위 휠 = 세로 미세 이동 0.05% · Shift+휠 = 가로.
            끌기로는 한 픽셀을 못 맞춘다 — 베젤 두께가 화면에서 2~3px 이다 */
-        var kk2 = e.target.closest(".egrCorner").getAttribute("data-k");
+        var kk2 = wt.closest(".egrCorner").getAttribute("data-k");
         if (e.shiftKey) MON[kk2][0] += d * 0.05 * (side > 0 ? -1 : 1);
         else MON[kk2][1] -= d * 0.05;
       } else if (t === "needle") {
         /* ⭐ 휠 = 바늘 길이 · Shift+휠 = 0점 방향 · Alt+휠 = 눈금 한 바퀴 각도
            ⚠ 0점 방향과 한 바퀴 각도, 이 둘이 바늘을 실제 눈금에 앉힌다.
              ⭐ 나침반은 sp 를 안 쓴다 — 방위를 그대로 받으므로 z 만 맞추면 된다 */
-        var IW = instrOf(e.target.closest(".egrNeedle").getAttribute("data-k"));
+        var IW = instrOf(wt.closest(".egrNeedle").getAttribute("data-k"));
         if (IW) {
           if (e.altKey) IW.sp = Math.max(30, Math.min(360, IW.sp + d * 5));
           else if (e.shiftKey) IW.z = (IW.z + d * 3 + 360) % 360;
@@ -3831,15 +3883,16 @@ function paintBook() {
       } else if (t === "blink") {
         /* ⭐ 휠 = 크기 · Shift+휠 = 깜빡이는 빠르기
            ⚠ 둘의 주기를 일부러 어긋나게 두십시오. 맞아떨어지면 장식이 됩니다 */
-        var BW = blinkOf(e.target.closest(".egrBlk").getAttribute("data-k"));
+        var BW = blinkOf(wt.closest(".egrBlk").getAttribute("data-k"));
         if (BW) {
           if (e.shiftKey) BW.ms = Math.max(300, Math.min(6000, BW.ms - d * 100));
           else BW.r = Math.max(0.1, Math.min(4, BW.r + d * 0.04));
         }
       } else if (t === "lamp") {
-        if (LAMP) {
-          if (e.shiftKey) LAMP.a = Math.max(0.05, Math.min(1, LAMP.a + d * 0.05));
-          else LAMP.r = Math.max(3, Math.min(90, LAMP.r + d * 1.2));
+        var LW2 = lampOf(wt.closest(".egrLamp").getAttribute("data-k"));
+        if (LW2) {
+          if (e.shiftKey) LW2.a = Math.max(0.05, Math.min(1, LW2.a + d * 0.05));
+          else LW2.r = Math.max(1.5, Math.min(60, LW2.r + d * 0.5));
           paintLamp();
         }
       } else if (t === "eng") {
