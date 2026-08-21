@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0821d";
+  var VERSION = "0821e";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -275,7 +275,14 @@
        크레덴시알 30호 — 없으면 안 나타난다. 넉 장을 다 올리기 전에 열어도 무사하다.
      ⚠ ?v=분 단위 — 갈아 끼우면 1분 안에 손님에게 닿는다(로더와 같은 문법).
      ⚠ 기체가 늘면 CRAFT 한 줄만 바꾼다. 파일 이름을 손으로 적지 않는다. */
-  var HANGAR = SUPA_URL + "/storage/v1/object/public/tour-assets/hangar/";
+  /* ⚠⚠⚠ 0821e 진범 — 여기는 **파일이 실리는 순간 도는 최상위 문**이다.
+       SUPA_URL 은 2400행 언저리에서야 값이 드는데, var 는 선언만 위로 올라가고
+       값은 제자리에서 들어간다. 그래서 이 줄이 돌 때 SUPA_URL 은 undefined 였고,
+       "undefined/storage/v1/..." 라는 주소가 **박제**됐다. 나중에 값이 채워져도 소용없다.
+     ⚠ 문법 검사로는 못 잡는다 — 오류가 아니라 조용히 undefined 다(0817 딱지의 사촌).
+       그리고 폴백이 제트기를 세워 주는 바람에 **어제 시운전도 통과한 적이 없었다.**
+     ⭐ 처방 — 상수를 함수로. 부를 때 읽으면 순서 의존이 통째로 사라진다. */
+  function hangarBase() { return SUPA_URL + "/storage/v1/object/public/tour-assets/hangar/"; }
   var CRAFT = "jet";               /* 지금 탄 기체 — enter() 가 applyCraft 로 채운다 */
   function applyCraft(c) {
     CRAFT = CRAFT_SPEC[c] ? c : "jet";
@@ -289,7 +296,7 @@
     side = -1;                     /* ⭐ 정면 기체는 여기 고정 — flip 열 곳이 저절로 잠든다 */
   }
   function cabinUrl(k) {
-    return HANGAR + CRAFT + "_cabin_" + k + ".webp?v=" + Math.floor(Date.now() / 60000);
+    return hangarBase() + CRAFT + "_cabin_" + k + ".webp?v=" + Math.floor(Date.now() / 60000);
   }
   /* ⭐⭐ 0821d 소로 — 남의 기체를 입히지 않는다. 폴백은 **제 기체의 저장소 판**이고,
        그것도 없으면 아무것도 안 세운다 — 창밖만 보인다.
