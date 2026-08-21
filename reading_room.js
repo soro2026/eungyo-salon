@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0821k";
+  var VERSION = "0821L";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -252,6 +252,8 @@
   var CRAFT_SPEC = {
     /* ⚠ 제트기는 shake·wind 를 안 적는다 — 없는 것이 곧 값이다(순항 제트기는 안 흔들린다) */
     jet: { view: 90, seats: true, roll: 10, focus: null,
+           /* ⭐ 0821L — 몸. 파일이 없으면 그냥 안 선다(30호). 벌은 미리 둔다 */
+           body: { yaw: 180, dist: 30, minD: 14, maxD: 140, pit: 10 },
            wins: [ { l: 3.613, t: 25.837, w: 27.630, h: 28.947 },
                    { l: 38.682, t: 28.947, w: 14.665, h: 19.378 },
                    { l: 58.555, t: 30.742, w: 8.714, h: 10.287 },
@@ -272,6 +274,13 @@
     bre: { view: 0, seats: false, roll: 6, focus: 0.38,
            shake: true, wind: 1,   /* ⭐ 0821g — 개방 조종석. 기체가 덜컹이고 바람이 든다 */
            freelook: true, peek: [12, 46],
+           /* ⭐⭐ 0821L — 몸(B). 격납고의 bre_body.glb 를 지구 위에 세운다.
+              ⚠⚠ yaw 180 — **기수가 X− 다.** 콘솔이 그렇게 쟀고(계기 −1.82 · 좌석 −0.61),
+                프로펠러 단면(X−4.39~−3.66 에서 Z 가 상하 대칭)이 같은 답을 냈다.
+                Cesium 은 모델의 X+ 를 앞으로 보므로 안 돌리면 **뒤로 난다.**
+              ⚠ dist·pit 는 셈이 아니라 어림이다. 날개폭 14.3m 를 화면에 담는 거리로
+                26m 를 깔았다. 소로가 타 보고 정한다. */
+           body: { yaw: 180, dist: 26, minD: 12, maxD: 120, pit: 12 },
            wins: [],
            mon: { tl: [29.5, 61.1], tr: [69.2, 61.1], br: [69.2, 77.2], bl: [29.5, 77.2] } }
   };
@@ -650,8 +659,43 @@
          ⭐ 검산 실측 — 지금 상한(+70/−80)에서 최대 77.4° 라 **이 조임은 한 번도 안 걸린다.**
            그래도 남긴다. 상한을 늘리거나 sky 를 키우는 날 여기가 그물이다.
          ⚠ 「걸리지도 않는 조임」이라고 지우면, 늘리는 사람이 뒤집힘을 화면에서 만난다. */
+    /* ⭐⭐ 0821L — 기체를 지구 위에 앉힌다. 감상 중일 때만 부른다(비용 0).
+       ⚠ hd 에 SPEC.body.yaw 를 더한다 — 브레게는 기수가 X− 라 180 이다.
+       ⚠ roll 은 cruise 가 낸 뱅크 그대로. 부호가 뒤집혀 보이면 여기 한 곳만 뒤집는다. */
+    function paintBody() {
+      if (!BODYENT) return;
+      var B = SPEC.body || {};
+      var c = Cesium.Cartesian3.fromDegrees(lon, lat, alt);
+      var hpr = new Cesium.HeadingPitchRoll(
+        Cesium.Math.toRadians(hd + (B.yaw || 0)), 0, Cesium.Math.toRadians(roll));
+      BODYENT.position = c;
+      BODYENT.orientation = Cesium.Transforms.headingPitchRollQuaternion(c, hpr);
+    }
+    /* ⭐⭐ 궤도 — 기체를 중심에 두고 그 둘레에 카메라를 놓는다.
+       ⚠ 각은 **기체 기준**(hd + ORB.yaw)이다. 북쪽 기준으로 두면 선회할 때마다
+         기체가 화면에서 홱 돌아간다 — 「둘레를 돈다」가 아니라 「기체가 도는」 것이 된다.
+       ⚠ ENU 프레임에 오프셋을 태워 자리를 내고, 그 반대 방향을 보게 겨눈다.
+         카메라에서 기체로 향하는 방향이므로 heading 은 +180 · pitch 는 부호를 뒤집는다. */
+    function orbitCam() {
+      var c = Cesium.Cartesian3.fromDegrees(lon, lat, alt);
+      var enu = Cesium.Transforms.eastNorthUpToFixedFrame(c);
+      var ay = hd + ORB.yaw;
+      var cy = Cesium.Math.toRadians(ay), cp = Cesium.Math.toRadians(ORB.pit), d = ORB.dist;
+      var off = new Cesium.Cartesian3(
+        d * Math.cos(cp) * Math.sin(cy),
+        d * Math.cos(cp) * Math.cos(cy),
+        d * Math.sin(cp));
+      var pos = Cesium.Matrix4.multiplyByPoint(enu, off, new Cesium.Cartesian3());
+      viewer.camera.setView({
+        destination: pos,
+        orientation: { heading: Cesium.Math.toRadians(ay + 180),
+                       pitch: Cesium.Math.toRadians(-ORB.pit), roll: 0 }
+      });
+    }
     function aimCam() {
       if (window.__egShut || !viewer) return;
+      /* ⭐⭐ 0821L — 주인이 여기서 넘어간다. 겨누는 문은 여전히 이 함수 하나뿐이다 */
+      if (BODY) { paintBody(); orbitCam(); return; }
       var look = Cesium.Math.toRadians(clampAng(hd + side * SPEC.view + LOOK.y) + 360);
       var pit = horizonDeg(Math.max(rel, 80)) + (opt.sky || 6) + LOOK.p;
       pit = Math.max(-88, Math.min(88, pit));
@@ -1027,6 +1071,11 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 #egrEng .n{display:block;letter-spacing:.2em}
 #egrEng .d{display:block;margin-top:.42em;font-size:.5em;letter-spacing:.34em;opacity:.72}
 #readingRoom.out #egrEng,#readingRoom.bare #egrEng{display:none}
+/* ⭐⭐ 0821L — 감상 중(B)에는 기록판을 걷는다. 기체를 보려고 세운 화면인데
+   920×660 판이 한복판을 덮으면 볼 것이 안 보인다.
+   ⚠ 걷는 것이지 잃는 것이 아니다 — B 를 다시 누르면 그 자리에 그대로 있다.
+   ⚠ 계기판·지도판은 안 걷는다(47호 — 밖에서도 곁에 있다). 가리면 V 로 걷는다. */
+#readingRoom.bodyview #egrDesk{display:none}
 #readingRoom.edit #egrEng{pointer-events:auto;cursor:move;
   outline:1px dashed rgba(255,255,255,.4);outline-offset:6px}
 /* ⭐ 감추기 — 밖에서만 나타난다. 누르면 판 둘이 함께 걷히고 창밖만 남는다(0820 소로) */
@@ -1425,6 +1474,60 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⚠ on — 고갯짓이 진행 중일 때만 참. 정면으로 다 돌아오면 스스로 거짓이 되어
        lookTick 이 매 프레임 하는 일이 0 이 된다(㉧ — 평소에 아무것도 안 쓴다). */
   var LOOK = { y: 0, p: 0, hold: false, idle: 0, on: false };
+
+  /* ══ ⭐⭐ 기체 감상 — B (0821L) ═══════════════════════════════════════
+     ⚠⚠ **고갯짓과 문법이 정반대다.** 소로 0821: 「밖에서 기체 바라보기는
+       고갯짓 문법과 완전히 다른 거라야 해」. 0821k 배관을 재사용하지 않는다.
+         고갯짓  카메라 제자리, 시선만 돈다     cruise 가 **잡은 채** 오프셋만 더한다
+         감상    카메라가 기체 둘레를 돈다     cruise 가 **놓고** 궤도가 잡는다
+       ⭐ 주인이 바뀌는 일인데도 **겨누는 문은 여전히 하나다** — aimCam 안에서
+         orbitCam 으로 넘긴다. 0821j 가 얻은 가장 큰 것을 안 깨뜨린다.
+       ⚠⚠ Cesium 의 trackedEntity·lookAtTransform 은 **쓰지 않는다.**
+         좌표계가 기체에 묶여 41호 ㉠ 의 사슬로 되돌아간다. 오프셋을 셈으로 직접 낸다.
+     ⭐ 겉옷을 새로 안 짰다 — B 는 밖(C)을 **품는다.** `.out` 이 이미 조종석 판을
+       걷고 계기판을 왼쪽 아래로 보낸다. 판을 다루는 손이 여전히 toggleOut 한 곳이다.
+     ⚠ yaw 는 **기체 기준**이다(hd 에 더한다). 기체가 커브를 돌면 카메라도 따라 돈다 —
+       북쪽 기준으로 두면 선회할 때마다 기체가 화면에서 홱 돌아간다. */
+  var BODY = false;                /* 감상 중인가 */
+  var BODYENT = null;              /* 지구 위에 선 기체 */
+  var BODYWAS = false;             /* B 를 누르기 전의 OUT — 되돌릴 값 */
+  var ORB = { yaw: 40, pit: 12, dist: 26 };
+  var ORB0 = { yaw: 40, pit: 12 }; /* 다음 탑승이 여기서 시작한다 */
+  /* ⚠ ?v= 분 단위 — 격납고에서 갈아 끼우면 1분 안에 닿는다(기내 원판과 같은 문법) */
+  function bodyUrl() { return hangarBase() + CRAFT + "_body.glb?v=" + Math.floor(Date.now() / 60000); }
+  function bodyOn() {
+    if (!viewer || BODYENT || !SPEC.body) return;
+    try {
+      /* ⚠ description 을 안 준다 — 주면 클릭했을 때 InfoBox 가 뜬다. 여기 클릭은 궤도 손이다 */
+      BODYENT = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(0, 0, 0),
+        model: { uri: bodyUrl(), scale: 1, minimumPixelSize: 0 }
+      });
+      console.log("[EG] 기체를 세웁니다 — " + bodyUrl());
+    } catch (e) { BODYENT = null; console.warn("[EG] 기체를 못 세웠습니다:", e); }
+  }
+  /* ⚠⚠ 방 전용이다 — 나갈 때 반드시 거둔다. terra 지구에 기체만 남으면 안 된다(구름과 같은 갈래) */
+  function bodyOff() {
+    if (BODYENT && viewer) { try { viewer.entities.remove(BODYENT); } catch (e) { } }
+    BODYENT = null;
+  }
+  function toggleBody() {
+    if (!ROOT) return;
+    if (!SPEC.body) return;        /* ⚠ 몸이 없는 기체 — 조용히 물러난다(30호) */
+    BODY = !BODY;
+    if (BODY) {
+      ORB.yaw = ORB0.yaw; ORB.pit = ORB0.pit;   /* ⭐ 늘 같은 각도에서 만난다 */
+      ORB.dist = SPEC.body.dist || 26;
+      BODYWAS = OUT;
+      if (!OUT) toggleOut();       /* ⭐ OUT 을 다루는 손은 여전히 한 곳이다 */
+      bodyOn();
+    } else {
+      bodyOff();
+      if (OUT !== BODYWAS) toggleOut();
+    }
+    ROOT.classList.toggle("bodyview", BODY);
+    layout();
+  }
   function clampAng(a) { return (a + 540) % 360 - 180; }
   /* ⭐ 판이 물러나는 정도 — 고개를 돌린 각도 하나가 정한다. CSS 변수 한 줄로 내보낸다 */
   function peekPaint() {
@@ -2449,6 +2552,15 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     /* ⚠ 모니터 안 목록(검색 결과·기록들)은 제 스크롤이 있다 — 판을 밀지 않는다 */
     if (e.target && e.target.closest && e.target.closest("#egrMon")) return;
     e.preventDefault();
+    /* ⭐⭐ 0821L — 감상 중에는 밀 판이 없다. 휠이 거리를 잰다.
+       ⚠ 곱셈으로 민다 — 더하기로 하면 가까이서 홱 지나가고 멀리서는 안 움직인다.
+         지수라 어느 거리에서나 「한 칸」의 느낌이 같다. */
+    if (BODY) {
+      var B = SPEC.body || {};
+      ORB.dist = Math.max(B.minD || 12,
+                 Math.min(B.maxD || 120, ORB.dist * Math.exp(e.deltaY * 0.0012)));
+      return;
+    }
     panY = Math.max(panMin, Math.min(panMax, panY - e.deltaY * 0.9));
     layout();
   }
@@ -3890,14 +4002,16 @@ function paintBook() {
     EGR_on(window, "touchstart", onTouchStart, { passive: true });
     EGR_on(window, "touchmove", onTouchMove, { passive: false });
     EGR_on(window, "touchend", onTouchEnd, { passive: true });
-    /* 0819g — 키보드. C 기내↔외부 · ←→ 좌석 · S 창 덮개 · E 편집기 */
+    /* 키보드 — C 기내↔외부 · ⭐ B 기체 감상(0821L) · ←→ 좌석 · S 창 덮개 · E 편집기 */
     EGR_on(window, "keydown", function (e) {
       if (e.isComposing || !e.key) return;
       if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
       var k = e.key.toLowerCase();
       if (k === "t") cyclePreview();   /* ⭐ 편집기 안에서만 — 조명 넉 벌 미리보기 */
       else if (k === " " || e.code === "Space") { e.preventDefault(); togglePause(); }
-      else if (k === "c") toggleOut();
+      /* ⭐ 0821L — B 로 기체를 밖에서 본다. C 는 그대로 「기내를 감춘다」 */
+      else if (k === "b") toggleBody();
+      else if (k === "c") { if (BODY) toggleBody(); else toggleOut(); }
       else if (k === "v") { if (OUT) toggleBare(); }   /* 0820b — 밖에서만 */
       else if (k === "r") toStart();          /* ⭐ 0820g — 출발점으로 */
       else if (k === "s") toggleShade();
@@ -3966,6 +4080,45 @@ function paintBook() {
     EGR_on(window, "pointerup", function () {
       if (!egrab) return; egrab = null; saveTuneSoon();
     }, true);
+    /* ── ⭐⭐ 궤도 끌기 (0821L) — 기체 둘레를 돈다 ──────────────────────────
+       ⚠⚠ **고갯짓 배관을 재사용하지 않았다**(소로 0821). 문법이 반대다 —
+         저쪽은 시선만 돌고 여기는 카메라가 옮겨 다닌다. 손을 따로 둔다.
+       ⭐ 다투지 않는 까닭은 조건이 서로 배타적이기 때문이다 —
+         lookable 은 BODY 면 false, orbitable 은 BODY 라야 true.
+       ⚠ 4px 문턱은 저쪽과 같은 값이다 — 없으면 단추 누르기를 통째로 뺏는다.
+       ⚠ 손을 떼도 **제자리로 안 돌아온다.** 고갯짓은 돌아와야 하고(뒤를 본 채
+         20분 날면 고장으로 보인다) 감상은 돌아오면 안 된다 — 보려고 세운 각이다.
+       ⭐ 위아래 상한 ±80° — 90°에서 짐벌이 뒤집힌다. 바로 위·바로 아래는 안 준다. */
+    var og = null;
+    function orbitable(t) {
+      if (!BODY || editing || !ROOT) return false;
+      if (!t || !t.closest) return true;
+      return !t.closest("#egrMon,#egrDesk,#readingExit,#readingHide,.readingSeat,button,input,textarea,select,a");
+    }
+    EGR_on(window, "pointerdown", function (e) {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      if (!orbitable(e.target)) return;
+      og = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: false };
+    });
+    EGR_on(window, "pointermove", function (e) {
+      if (!og || e.pointerId !== og.id) return;
+      var dx = e.clientX - og.x, dy = e.clientY - og.y;
+      if (!og.moved) {
+        if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+        og.moved = true;
+        if (ROOT) ROOT.classList.add("looking");     /* ⭐ 손 모양만 빌린다 — 끄는 중이라는 표시 */
+      }
+      og.x = e.clientX; og.y = e.clientY;
+      /* ⭐ 화면 절반을 끌면 180° — 고갯짓과 같은 손맛으로 맞췄다 */
+      var w = Math.max(window.innerWidth, 1), h = Math.max(window.innerHeight, 1);
+      ORB.yaw = (ORB.yaw - dx / (w / 2) * 180 + 360) % 360;
+      ORB.pit = Math.max(-80, Math.min(80, ORB.pit + dy / (h / 2) * 90));
+    });
+    function orbRelease() { if (!og) return; og = null; if (ROOT) ROOT.classList.remove("looking"); }
+    EGR_on(window, "pointerup", orbRelease);
+    EGR_on(window, "pointercancel", orbRelease);
+    /* ⚠ 창 밖으로 끌고 나가 떼면 pointerup 이 안 온다 — 고갯짓과 같은 그물이다 */
+    EGR_on(window, "blur", orbRelease);
     /* ── ⭐⭐ 고갯짓 (0821j) — 끌면 고개가 돈다 ────────────────────────────
        ⚠ **거품 단계**에 단다(위 편집기 손은 붙듦 단계다). 편집 중이면 그 손이 먼저
          잡고 stopPropagation 하므로 여기까지 안 온다 — 두 손이 안 다툰다.
@@ -3978,6 +4131,9 @@ function paintBook() {
     var lg = null;
     function lookable(t) {
       if (editing || !ROOT) return false;
+      /* ⭐⭐ 0821L — 감상 중에는 고갯짓이 **물러난다.** 궤도 손이 같은 끌기를 쓴다.
+         ⚠ 두 손이 한 몸짓을 다투면 카메라 주인이 둘이 된다 — 41호 ㉠ 이 여기로도 온다 */
+      if (BODY) return false;
       /* ⭐ 0821j 소로 — 「밖에서 보는 게 원래 계획」. 밖(C)은 판이 없으니 **기체 불문**이다.
          기내는 개방 조종석(freelook 기체)만 — 제트기는 창틀이 시야를 정한다(8호) */
       if (!OUT && !SPEC.freelook) return false;
@@ -4209,8 +4365,13 @@ function paintBook() {
       } catch (e) { console.warn("[EG] 집으로 못 갔습니다:", e); }
     }
     cloudsOff();                     /* ⚠⚠ 0820j — viewer 를 놓기 **전에** 걷는다 */
+    /* ⚠⚠ 0821L — 기체도 **viewer 를 놓기 전에** 거둔다. 구름과 같은 갈래다.
+       여기서 안 거두면 방은 걷혔는데 브레게 14 만 terra 지구 위를 계속 난다. */
+    bodyOff();
     viewer = null;
     OUT = false; BARE = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
+    BODY = false; BODYWAS = false;   /* ⭐ 0821L — 다음 탑승은 조종석에서 시작한다 */
+    ORB.yaw = ORB0.yaw; ORB.pit = ORB0.pit;
     INSEL = null; LAMPEL = null; BLKEL = null;   /* ⚠ 0821f — 방과 함께 걷힌다. 다음 탑승이 다시 세운다 */
     SHUT = false; editing = false; egrab = null; IS_ADMIN = false; cvW = 0; cvH = 0; PAUSED = false;
     PREVIEW = null; themeNow = ""; themeMon = ""; RESUME = null;   /* ⚠ 다음 탑승은 진짜 시각으로 */
