@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0821R";
+  var VERSION = "0821S";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -709,7 +709,7 @@
     function aimCam() {
       if (window.__egShut || !viewer) return;
       /* ⭐⭐ 0821L — 주인이 여기서 넘어간다. 겨누는 문은 여전히 이 함수 하나뿐이다 */
-      if (BODY) { paintBody(); spinProp(); holdTick(dt); orbitCam(); return; }
+      if (BODY) { paintBody(); spinProp(); holdTick(); orbitCam(); return; }
       var look = Cesium.Math.toRadians(clampAng(hd + side * SPEC.view + LOOK.y) + 360);
       var pit = horizonDeg(Math.max(rel, 80)) + (opt.sky || 6) + LOOK.p;
       pit = Math.max(-88, Math.min(88, pit));
@@ -1502,6 +1502,13 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
        걷고 계기판을 왼쪽 아래로 보낸다. 판을 다루는 손이 여전히 toggleOut 한 곳이다.
      ⚠ yaw 는 **기체 기준**이다(hd 에 더한다). 기체가 커브를 돌면 카메라도 따라 돈다 —
        북쪽 기준으로 두면 선회할 때마다 기체가 화면에서 홱 돌아간다. */
+  /* ⚠⚠ 0821S — Cesium 기본 카메라 컨트롤러(휠 줌·드래그)는 **늘 켜져 있었다.**
+       terra 도 방도 끄지 않는다. 지금까지 무사했던 것은 cruise 가 매 프레임 setView 로
+       덮어써서 티가 안 났을 뿐이다 — **한 프레임이라도 멈추면 주인이 바뀐다.**
+       0821R 에서 aimCam 이 죽자 즉시 휠이 지구를 당겼다(소로 신고).
+     ⭐ 그물 — 방에 있는 동안 입력을 끈다. 카메라 주인은 aimCam 하나뿐이어야 한다(41호 ㉠).
+     ⚠ 원래 값을 기억했다가 나갈 때 되돌린다. terra 에서는 손님이 지구를 돌려야 한다. */
+  var CAMCTL = null;
   var BODY = false;                /* 감상 중인가 */
   var BODYENT = null;              /* 지구 위에 선 기체 (Primitive Model) */
   var BODYWAIT = false;            /* 받는 중 — 5.4MB 라 몇 초 걸린다. 겹쳐 안 세우게 */
@@ -1529,11 +1536,11 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⚠ 노드 셋을 돌린다 — 팔 둘은 어깨에서(X축), 뒷사람 허리는 앞으로(Y축).
        ⭐ arm_b 는 torso_b 의 **자식**이라 허리를 돌리면 저절로 따라간다.
          따로 돌리면 회전이 두 번 먹어 손이 어긋난다(v13 에서 실제로 그랬다). */
-  var HOLD = { on: false, t: 0, dur: 0, next: 0, ph: 0 };
+  var HOLD = { on: false, t: 0, dur: 0, next: 0, ph: 0, tp: 0 };
   var ARMF = null, ARMB = null, WAIST = null, ND_TR = {};
   var ARM_DOWN = -88, ARM_UP = 0, LEAN_DEG = 26;   /* GLB v14 가 이 각도로 구워졌다 */
   function holdReset() {
-    HOLD.on = false; HOLD.t = 0; HOLD.ph = 0;
+    HOLD.on = false; HOLD.t = 0; HOLD.ph = 0; HOLD.tp = 0;
     HOLD.next = performance.now() + (40 + Math.random() * 60) * 1000;
     ARMF = ARMB = WAIST = null; ND_TR = {};
   }
@@ -1553,11 +1560,21 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
                             : Cesium.Matrix3.fromRotationY(Cesium.Math.toRadians(deg));
     n.matrix = Cesium.Matrix4.fromRotationTranslation(m3, ND_TR[nm], new Cesium.Matrix4());
   }
-  function holdTick(dt) {
+  /* ⚠⚠⚠ 0821S 진범 — 이 손이 `holdTick(dt)` 로 불리고 있었다.
+       `dt` 는 onTick **콜백 안**의 지역 변수인데, 부르는 자리(aimCam)는 cruise 스코프라
+       체인에 없다. 매 프레임 ReferenceError 가 나고, cruise 의 그물이 스무 번 잡은 뒤
+       off() 로 비행을 멈춘다. 카메라를 겨누는 곳도 aimCam 이라 **화면이 통째로 언다.**
+     ⚠ node --check 도 내 acorn 검사기도 못 잡았다 — 파일 어딘가에 `var dt` 가 있으면
+       통과시키는 물건이었다. 0817 딱지에 「스코프 분석」이라 적어 놓고 안 지켰다.
+     ⭐ 처방 — spinProp 과 같은 문법으로. **제 시간을 스스로 잰다.** 남의 스코프를 안 빌린다. */
+  function holdTick() {
     if (!BODYENT || !BODYENT.ready) return;
+    var _now = performance.now();
+    var dt = HOLD.tp ? Math.min((_now - HOLD.tp) / 1000, 0.25) : 0;
+    HOLD.tp = _now;
     if (!ARMF) { ARMF = grabNode("EG_arm_f"); ARMB = grabNode("EG_arm_b"); WAIST = grabNode("EG_torso_b"); }
     if (!ARMF || !WAIST) return;
-    var now = performance.now();
+    var now = _now;
     if (!HOLD.on && now > HOLD.next) {
       /* ⭐ 가까이 왔으면 거의 늘, 멀면 가끔 — 「늘」은 아니다. 기계가 되면 장면이 죽는다 */
       var near = (ORB.dist < 18);
@@ -4159,6 +4176,11 @@ function paintBook() {
       var s = document.createElement("div"); s.className = "shade"; fit.insertBefore(s, fit.firstChild);
     });
     document.body.classList.add("reading-on");
+    /* ⭐ 0821S — 남의 손을 떼어 둔다. 되돌리는 자리는 leave 의 tuneTiles 옆이다 */
+    try {
+      var scc = viewer.scene.screenSpaceCameraController;
+      CAMCTL = scc.enableInputs; scc.enableInputs = false;
+    } catch (e) { CAMCTL = null; }
     layout();
     EGR_on(window, "resize", layout);
     EGR_on(window, "wheel", onWheel, { passive: false });
@@ -4509,6 +4531,10 @@ function paintBook() {
     try { writeResume(); } catch (e) { }
     try { if (flight) { flight.stop(); flight = null; } } catch (e) { }
     EGR_off();
+    /* ⚠⚠ 0821S — 카메라 입력을 되돌린다. **방보다 먼저** — 뒤에서 예외가 나면 못 되돌리고,
+       그러면 terra 로 나가서 지구가 안 돌아간다(손님은 고장으로 읽는다). */
+    try { if (v && CAMCTL !== null) v.scene.screenSpaceCameraController.enableInputs = CAMCTL; } catch (e) { }
+    CAMCTL = null;
     tuneTiles(false);                /* ⚠ 타일 설정을 terra 것으로 — 방보다 먼저 */
     moveCredits(false);              /* ⚠ 크레딧을 제자리로 — 방보다 먼저 돌려놓는다 */
     restoreCam(v);
