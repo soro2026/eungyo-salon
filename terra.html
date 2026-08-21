@@ -5822,7 +5822,7 @@ function toggleConcertListPanel(){ return openTourPanel("concert"); }
      형제(음악관)의 openTourPanel 문법을 물려받되, 노선은 서버가 아니라
      reading_room 이 이미 쥐고 있어(egReading.routes) 기다림 없이 즉시 편다.
    ⚠ 활자를 손으로 적지 않는다 — 노선이 늘면 이 판도 스스로 는다. */
-function toggleReadingListPanel(){
+async function toggleReadingListPanel(){
   const box = document.getElementById("readingList");
   const btn = document.getElementById("navReading");
   if (!box) return;
@@ -5834,6 +5834,10 @@ function toggleReadingListPanel(){
                 + '<span class="th-ko">르 그랑 투르 · 독서비행</span></div>';
   box.classList.add("in");
   if (btn) btn.classList.add("open");
+  /* ⭐ 0821c — 판이 제 손으로 싣는다. 미리 싣기가 아직 안 끝났어도 여기서 기다린다.
+     ⚠ 이미 실려 있으면 loadScriptOnce 가 그 자리에서 돌아온다 — 기다림이 없다. */
+  try{ await loadScriptOnce("reading_room.js?v=" + EG_READ_V); }catch(e){}
+  if (!box.classList.contains("in")) return;     /* ⚠ 기다리는 사이에 닫으셨다 */
   const rs = (window.egReading && window.egReading.routes) ? window.egReading.routes() : [];
   if (!rs.length){
     const e0 = document.createElement("div");
@@ -6031,6 +6035,8 @@ const SUNSET_URL  = "vesper.html";              /* ⚠ 액자 판 — 이제 안
 
    ⚠ 방 몸통은 EGGeo(육지 판정)와 EGStamp(인장)를 쓰는데 terra 는 그 둘을 안 싣는다.
      terra 를 무겁게 만들지 않으려고 **들어갈 때 함께 받는다** — 안 들어가는 손님은 안 받는다. */
+/* ⭐ 0821c — 방 판번호는 여기 하나뿐이다. 두 곳에 적으면 한쪽만 고치는 날이 온다(22호) */
+const EG_READ_V = "0821c";
 function loadScriptOnce(src){
   return new Promise(function(ok, no){
     var key = src.split("?")[0];
@@ -6173,8 +6179,26 @@ async function enterVesperRoom(spot){
    ⚠ 방 파일을 고치면 아래 꼬리표도 같은 판에서 함께 올린다.
      안 올리면 브라우저가 헌 판을 붙든다 — 방에 들 때 동적으로 부르는 스크립트는
      그때 이미 일반 로딩이라 강제 새로고침도 안 듣는다(0818 낮에 덴 그것). */
+/* ⚠⚠ 0821c — 진범이 여기 있었다. reading_room.js 는 **방에 들 때 비로소 실리므로**
+     타륜을 그리는 순간에는 window.egReading 이 없다. 그래서 이 폴백이 서는데,
+     여기 알프스만 활자로 적혀 있어 노선을 늘려도 타륜이 하나로 보였다.
+     ⭐ 바로 위 6507행 주석이 「활자를 손으로 적지 않는다」인데 그 아래에 활자가 있었다.
+   ⭐ 처방 — 이 표를 늘리지 않는다. 대신 **부팅 때 한 번 조용히 싣고 다시 그린다**(아래).
+     이 줄은 이제 실패했을 때의 최후 그물이다. 노선을 더해도 여기는 안 건드린다. */
 const READ_ROUTES = [{ code:"alps_traverse", name:"알프스 종단",
                        face:"몽블랑에서 돌로미티까지 · 빙하와 석회암 탑" }];
+/* ⭐ 0821c — 노선 목록의 주인은 reading_room 하나다. 타륜이 그것을 보고 그리도록
+     첫 화면 뒤에 조용히 실어 둔다. 실리면 도크를 다시 그려 진짜 노선이 선다.
+   ⚠ 실패해도 아무 일도 안 일어난다 — 위 그물이 그대로 선다. */
+(function preloadReadingRoutes(){
+  var go = function(){
+    loadScriptOnce("reading_room.js?v=" + EG_READ_V)
+      .then(function(){ try{ if (typeof refreshDock === "function") refreshDock(false); }catch(e){} })
+      .catch(function(){ console.warn("[EG] 노선 목록 미리 싣기 실패 — 폴백으로 섭니다"); });
+  };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", go);
+  else setTimeout(go, 0);
+})();
 function dayIndex(){
   const d = new Date();
   return Math.floor((d - new Date(d.getFullYear(),0,0)) / 86400000);
@@ -6187,7 +6211,7 @@ async function enterReadingRoom(code){
     await loadScriptOnce("stamp_press.js?v=0820a");
     await loadScriptOnce("eg_book_add.js?v=0819c");   /* 좌석 모니터의 검색 한 문(21호) */
     await loadScriptOnce("eg_map_ne.js?v=0819b");     /* 항로도 밑그림 · Natural Earth */
-    await loadScriptOnce("reading_room.js?v=0821b");
+    await loadScriptOnce("reading_room.js?v=" + EG_READ_V);
     if (!window.egReading) throw new Error("egReading 창구가 안 열렸습니다");
     window.egReading.enter(viewer, code || "alps_traverse");
   }catch(err){
@@ -6560,13 +6584,11 @@ async function loadDock(){
       items.push({ id:"tourread", sec:"mundus", cls:"uni tour-kid",
         elId:"navReading", after:"subReading",
         html: '<div class="dock-main"><span>오늘의 독서비행</span>'
-            + (rs.length > 1 ? '<span class="chev" aria-hidden="true">\u203A</span>' : '')
+            + '<span class="chev" aria-hidden="true">\u203A</span>'   /* ⭐ 0821c — 늘 띄운다. 눌러야 진짜 목록에 닿는다 */
             + '</div>'
             + '<div class="dock-sub"></div>',
         sub: today ? (today.name + " · " + today.face) : "첫 노선을 여는 중",
-        onClick: !today ? null
-               : (rs.length === 1 ? (()=> enterReadingRoom(today.code))
-                                  : (()=> toggleReadingListPanel())) });
+        onClick: (()=> toggleReadingListPanel()) });   /* ⭐ 0821c — 늘 목록으로. 고르는 것은 손님이다 */
     }
 
     /* ANIMA 🗝 분더카머 — 내 집 상공 회전 + 대문 팝업 (goToMyHome 그대로)
