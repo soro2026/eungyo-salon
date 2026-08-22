@@ -45,6 +45,19 @@
      ⚠ 방 전용이다 — 나갈 때 primitives.remove. terra 하늘에 안 남긴다.
      ⚠ 조절판(G)은 관리자만. 저장하는 것은 **배율 넷뿐**이고 범위표는 코드가 쥔다(41호 ㉬).
 
+   ⭐⭐ 0822g — 파리 시승 4회차 반영(소로 「급선회인데 날개가 완벽한 수평」).
+     ⚠⚠ 뱅크의 천장이 낮았다 — CRAFT_SPEC.bre.roll 이 6 이라 사크레쾨르 선회는
+        이미 상한에 닿고도 6° 였다. **게인을 올려도 안 바뀌는 곳이었다.**
+     ⭐⭐ 그런데 그 6 은 0819 소로가 taxi 로 잡으신 **기내 시점**의 값이다 —
+        「창밖 지평선이 너무 기울어 몸이 먼저 이상하다고 안다」. 밖에서 보는 그림과 무관하다.
+        ⭐ 그래서 뱅크를 **상한 없이 하나** 만들고 쓰는 곳이 각자 자른다.
+          카메라 ← SPEC.roll(몸)  ·  기체 ← route.bankBody(눈). 실측 대조 —
+          알프스 0.499°→0.500° · 안데스 0.878°→0.879°. 취항 중인 둘은 그대로다.
+     ⚠ 파리 게인 22 · 기체 상한 20°(소로 판정). 기내는 여전히 6° 에서 잘린다.
+     ⚠⚠ **아직 범인 미확정** — 기내 지평선은 기우는데 기체만 수평이라면
+        값이 아니라 닿는 길이 문제다. window.EG_BANK 로 넣는 값을 내놓게 했다.
+        20° 가 찍히는데 날개가 수평이면 **GLB 축**이고, 1~2° 면 값이다.
+
    ⭐⭐ 0822f — 파리 시승 2·3회차 반영(소로). 둘을 고쳤다.
      ① ⚠⚠⚠ **뱅크 진범** (소로 「선회할 때 롤링을 하나도 안 하네. 자동차처럼 몸만 스르르」)
         turnRate 가 `angDiff(hd, want)/dt` 였는데 그건 **오차**지 한 프레임에 돈 각도가 아니다.
@@ -123,7 +136,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0822f";
+  var VERSION = "0822g";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -211,7 +224,11 @@
          알프스 0.50° · 안데스 0.88°. 그래서 취항 중인 둘은 한 톨도 안 바뀐다.
        ⭐ 파리는 8 이다(소로 0822 「8번 게인 좋은 듯. 파리는 선회 구간이 바닥이
          아름다워서 얼마든지」). 순항 5.1° · 큰 선회에서 상한 10° 에 닿는다. */
-    bankGain: 8,
+    bankGain: 22,
+    /* ⭐ 0822g 신설 — **기체**의 뱅크 상한. 안 적으면 기체 명세(bre 는 6°) 그대로다.
+       ⚠ 카메라는 여기 안 걸린다 — 기내 지평선은 여전히 6° 에서 잘린다(0819 소로 판정).
+       ⭐ 20° 는 소로 판정(0822 ㉡). 실제 여객기 표준 선회 25~30° 의 바로 아래다. */
+    bankBody: 20,
     /* ⭐⭐ 0822d 신설 — 앞보기 거리를 **노선이 정한다.** 안 적으면 지금까지의 12km 다.
        ⚠⚠ 12km 는 **제트기 숫자**였다. 814km/h 에서 53초 앞이고 그동안 354m 를 오를 수 있다 —
          알프스 봉우리에 딱 맞는다. 그런데 80km/h 에서 12km 는 **540초(9분) 앞**이다.
@@ -888,8 +905,24 @@
       if (!BODYENT) return;
       var B = SPEC.body || {};
       var c = Cesium.Cartesian3.fromDegrees(lon, lat, alt);
+      /* ⭐ 0822g — 기체는 **눈이 정한 상한**으로 자른다. 안 적으면 기체 상한 그대로다.
+         ⚠ 카메라(aimCam)는 SPEC.roll 로 자른다 — 그쪽은 몸이 정한 값이라 안 건드린다. */
+      var rb = route.bankBody || ROLL_MAX;
+      var bodyRoll = Math.max(-rb, Math.min(rb, roll));
+      /* ⭐⭐ 0822g 관측 장치 (소로 「급선회인데 날개가 완벽한 수평」) —
+         기내 지평선은 기우는데 기체만 안 기운다면 값이 아니라 **닿는 길**이 문제다.
+         짐작을 멈추고 지금 넣고 있는 값을 그대로 내놓는다. 콘솔에 EG_BANK 라고 치면 나온다.
+         ⚠ 셈이 아니라 대입뿐이라 프레임에 얹히는 비용이 없다.
+         ⭐ 가르는 법 — 여기 20° 가 찍히는데 날개가 수평이면 **축이 어긋난 것**이고,
+           1~2° 가 찍히면 값이 작은 것이다. 한 판으로 갈린다. */
+      try {
+        window.EG_BANK = { 기체: +bodyRoll.toFixed(1), 날것: +roll.toFixed(1),
+                           카메라상한: ROLL_MAX, 기체상한: rb,
+                           길목: P(seg)[2] + " → " + P(seg + 1)[2] };
+      } catch (e) { }
       var hpr = new Cesium.HeadingPitchRoll(
-        Cesium.Math.toRadians(hd + (B.yaw || 0)), 0, Cesium.Math.toRadians(roll));
+        Cesium.Math.toRadians(hd + (B.yaw || 0)), 0,
+        Cesium.Math.toRadians(bodyRoll));
       BODYENT.modelMatrix = Cesium.Transforms.headingPitchRollToFixedFrame(c, hpr);
     }
     /* ⭐⭐ 궤도 — 기체를 중심에 두고 그 둘레에 카메라를 놓는다.
@@ -922,7 +955,10 @@
       pit = Math.max(-88, Math.min(88, pit));
       viewer.camera.setView({
         destination: Cesium.Cartesian3.fromDegrees(lon, lat, alt),
-        orientation: { heading: look, pitch: Cesium.Math.toRadians(pit), roll: Cesium.Math.toRadians(roll) }
+        /* ⚠ 0822g — 여기서 자른다. roll 은 이제 상한 없이 오므로, 0819 소로가 taxi 로
+           잡으신 그 값(SPEC.roll)을 쓰는 곳이 바로 이 한 곳이다. 멀미의 잣대다. */
+        orientation: { heading: look, pitch: Cesium.Math.toRadians(pit),
+                       roll: Cesium.Math.toRadians(Math.max(-ROLL_MAX, Math.min(ROLL_MAX, roll))) }
       });
     }
 
@@ -1058,10 +1094,22 @@
         var turnRate = angDiff(wantPrev, want) / Math.max(dt, 0.001);   /* ⭐ 진짜 °/s */
         wantPrev = want;
         hd = (hd + angDiff(hd, want) * Math.min(dt * 3.0, 1) + 360) % 360;
-        var wantRoll = Math.max(-ROLL_MAX,
-                       Math.min(ROLL_MAX, turnRate * (route.bankGain || 5.5)));
+        /* ⚠⚠⚠ 0822g 진범 둘째 (소로 「몽마르트르 선회가 밋밋하다」) —
+             게인이 모자란 게 아니었다. **천장이 낮았다.** CRAFT_SPEC.bre.roll 이 6 이라
+             사크레쾨르 선회는 이미 상한에 닿고도 6° 였다. 게인을 아무리 올려도 안 바뀐다.
+           ⭐⭐ 그런데 상한을 그냥 올리면 0819 소로 판정을 어긴다 —
+             「10도를 넘으면 창밖 지평선이 너무 기울어 **몸이 먼저 이상하다고 안다**」.
+             그 값은 **기내 시점**의 값이다. 밖에서 보는 그림과는 아무 상관이 없다.
+           ⭐⭐⭐ 그래서 뱅크를 **상한 없이 하나** 만들고, 쓰는 곳이 각자 자른다 —
+             카메라는 SPEC.roll(몸이 정한 값) · 기체는 route.bankBody(눈이 정한 값).
+             실제 여객기 표준 선회가 25~30° 인데 그건 밖에서 보는 그림의 값이다.
+           ⚠ 변수를 둘로 늘리지 않는다. 하나를 만들고 두 곳에서 자른다 —
+             둘로 두면 언젠가 한쪽만 고쳐 놓고 반나절을 헤맨다(0820A 의 그 병). */
+        var wantRoll = turnRate * (route.bankGain || 5.5);
         var ease = (Math.abs(wantRoll) < Math.abs(roll)) ? 1.9 : 1.1;   /* 펼 때 조금 빠르게 */
         roll += (wantRoll - roll) * Math.min(dt * ease, 1);
+        /* ⚠ 잘리지 않은 값이 끝없이 자라지 않게 넉넉한 그물 하나만 둔다 */
+        roll = Math.max(-45, Math.min(45, roll));
 
         /* ⚠ 0819f — 옛 3단 고도 블록이 여기 있었다. 진범이라 원인째 걷었다.
            고도는 위(㉠㉡㉢)에서 이미 alt 로 섰다. */
