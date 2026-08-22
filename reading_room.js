@@ -45,6 +45,20 @@
      ⚠ 방 전용이다 — 나갈 때 primitives.remove. terra 하늘에 안 남긴다.
      ⚠ 조절판(G)은 관리자만. 저장하는 것은 **배율 넷뿐**이고 범위표는 코드가 쥔다(41호 ㉬).
 
+   ⭐⭐⭐ 0823a — 이어 타기 셋을 한꺼번에 (장거리 결정문 v1.0 · 25~27호).
+     소로 0822 밤, 안데스를 81분 나신 뒤 — 「모든 비행에 저장 기능 필수!
+     이거 끄면 다시 처음부터 라는 생각이 엄청 불편한 마음을 준다」
+     ① ⚠⚠ 열두 시간 그물을 **없앴다**(25호). 진도를 막으려고 걸었는데 마감이 되어 있었다.
+        ⭐ 시간을 재는 것은 무엇이든 시계다. 14호가 금한 그것이었다.
+     ② ⭐ 길목을 넘길 때마다 적는다(26호) + pagehide 에 keepalive 한 발.
+        ⚠ 옛 판은 저장 시점이 둘뿐이었다 — 새로고침·탭 닫기로 한 톨도 안 남았다.
+        실측: 그날 표에 안데스 줄이 **아예 없었다.**
+     ③ ⚠⚠ 서버 열쇠가 user_id 하나였다 — 안데스를 적으면 파리가 지워졌다(27호).
+        ⭐ (user_id, route_code) 겹열쇠. get 은 노선 전부를 낸다.
+        ⚠ 그리고 그 김에 드러난 것 — 「출발점으로」가 **전 노선을 다 지우고 있었다.**
+          노선이 하나일 때는 같은 뜻이라 안 보였다.
+     ⭐ 새 노선이 검사기이듯, **새 조항도 검사기다.** 겹열쇠를 놓자 clear 가 드러났다.
+
    ⭐ 0822i — 기수 부호(소로 안데스 실측 「V/S +400 인데 머리가 숙여짐」).
      ⚠ 슬롯을 바꾸면 **축 방향도 함께 뒤집힌다.** 자리는 맞았고 부호가 반대였다.
        swapPR 인 기체만 뒤집는다. 뱅크는 안 건드린다 — 파리에서 소로가 확인하셨다.
@@ -153,7 +167,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0822i";
+  var VERSION = "0823b";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -805,6 +819,9 @@
          그 조항이 막은 것은 **진도**이지 「내가 있던 곳」이 아니다.
          고리에는 끝이 없으므로 진도가 될 수 없고, 남은 것도 셀 수 없다(14호). */
     var seg = Math.max(0, (opt.startSeg | 0)) % N, u = Math.min(0.999, Math.max(0, +opt.startU || 0));
+    /* ⭐ 0823a — 마지막으로 적어 둔 길목. 시작 길목으로 앉혀 둔다.
+       ⚠ −1 로 두면 뜨자마자 한 발이 나간다 — 방금 읽어 온 값을 도로 적는 헛발이다. */
+    var savedSeg = seg;
     /* ⚠⚠ 0819 소로 — 「멀리 산을 두고 도시 위를 빙글빙글」.
        첫 판은 목표점을 **좇아가는** 셈이었다. 방위를 한 프레임에 조금씩만 돌리는데
        돌 수 있는 것보다 목표가 옆에 오면 영원히 그 둘레를 돈다 — 꼬리를 쫓는 개다.
@@ -1113,6 +1130,17 @@
         u += km / segKm;
         while (u >= 1) { u -= 1; seg = (seg + 1) % N;
           segKm = Math.max(gcKm(P(seg)[0], P(seg)[1], P(seg + 1)[0], P(seg + 1)[1]), 0.001); }
+        /* ⭐⭐ 0823a (26호) — 길목을 넘길 때마다 있던 곳을 적는다.
+           ⚠ 옛 판은 저장 시점이 둘뿐이라(멈춤·나가기) 새로고침·탭 닫기로 한 톨도 안 남았다.
+             소로가 안데스 81분을 나신 날 표에 안데스 줄이 아예 없었다.
+           ⭐ 요청은 길목당 한 번뿐이다 — 안데스 15길목/81분이면 5분에 한 번,
+             파리 50길목/48분이면 1분에 한 번. 셈이 아니라 대입이라 프레임 비용도 없다.
+           ⚠ 여기서 writeResume() 을 부르지 않는다 — 그 손은 flight.where() 를 거치는데
+             지금 이 곳은 flight 가 아직 대입되기 전일 수 있다(첫 프레임). 값이 손안에 있다. */
+        if (seg !== savedSeg) {
+          savedSeg = seg;
+          saveWhere(route.code, seg, u);
+        }
 
         var here = onCurve(seg, u);
         lat = here[0]; lon = here[1];
@@ -1187,7 +1215,10 @@
                   옮기는 손이지 탑승을 새로 하는 손이 아니다(위 주석에 그렇게 적혀 있다).
                   거리·시간이 화면에 안 서 있던 동안은 아무래도 좋았지만, 이제는 R 한 번에
                   「총 비행거리」가 0 이 되어 총계라는 말 자체가 거짓이 된다. */
-             goTo: function (s2, u2) { seg = ((s2 | 0) % N + N) % N; u = +u2 || 0; } };
+             /* ⚠ 0823a — savedSeg 도 함께 옮긴다. 안 옮기면 옛 값이 남아
+                「출발점으로」 직후 길목 하나를 안 적고 지나간다(옛 값과 우연히 같을 때).
+                ⭐ 그리고 방금 지운 서버에 도로 적는 헛발도 막는다 — clear 와 짝이다. */
+             goTo: function (s2, u2) { seg = ((s2 | 0) % N + N) % N; u = +u2 || 0; savedSeg = seg; } };
   }
 
   /* ══ 겉옷 ══════════════════════════════════════════════════════ */
@@ -1484,6 +1515,34 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color 3s linear}
 #egrHead .t small{display:block;font:400 19px 'Noto Sans KR',serif;color:var(--muted,#9a8f77);
   margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color 3s linear}
+/* ⭐⭐ 0823b — 물음판. 나갈 때(저장하시겠습니까)와 들어올 때(이어서 타기)가 **한 벌을 함께 쓴다.**
+   ⚠ 둘로 지으면 언젠가 한쪽만 고쳐 놓고 「나갈 때만 이상하다」를 헤매게 된다(22호).
+   ⚠ 방(ROOT) 안이다 — KEEP 을 안 늘린다(41호 ㉢).
+   ⚠ z-index 21 — 암전판(#readingFade, 20)보다 위다. 안 그러면 「출발점으로」 암전에 묻힌다.
+   ⚠⚠ pointer-events:auto — **#readingRoom 이 none 이라 자식은 저절로 못 만진다**(0820n).
+     0820n 에 같은 병을 겪고 주석까지 남겨 두었는데 오늘 또 밟았다. 판이 뜨는데 단추가
+     안 눌리면 손님은 방에 갇힌다 — 이 판에서는 가장 나쁜 고장이다. */
+#egrAsk{position:absolute;inset:0;z-index:21;display:none;align-items:center;justify-content:center;
+  background:rgba(6,8,14,.72);backdrop-filter:blur(3px);pointer-events:auto}
+#egrAsk.on{display:flex}
+#egrAsk .card{width:min(460px,82vw);padding:34px 32px 26px;border-radius:14px;
+  background:linear-gradient(180deg,#2b2418,#1d1810);border:1px solid #59492f;
+  box-shadow:0 18px 48px rgba(0,0,0,.62);text-align:center}
+#egrAsk .q{font:600 21px 'Noto Serif KR',serif;color:#efe4cd;line-height:1.55}
+#egrAsk .w{margin-top:10px;font:400 17px 'Noto Sans KR',sans-serif;color:#c9a961}
+#egrAsk .row{margin-top:26px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+#egrAsk button{min-width:150px;padding:13px 20px;border-radius:9px;cursor:pointer;
+  font:600 17px 'Noto Sans KR',sans-serif;border:1px solid #59492f;
+  background:#3f3524;color:#f0dfb4}
+#egrAsk button:hover{border-color:#c9a961;color:#fff3d6}
+#egrAsk button.sub{background:transparent;color:#9a8f77}
+#egrAsk button.sub:hover{color:#c9b586}
+/* ⭐ 저장했다는 한 번의 반짝임 — 아무 단추도 안 짓는다. 말 한 줄이 스르르 떴다 진다 */
+#egrSaved{position:absolute;left:50%;top:38px;transform:translateX(-50%);z-index:19;
+  padding:10px 20px;border-radius:8px;background:rgba(28,24,16,.92);border:1px solid #59492f;
+  color:#c9a961;font:600 16px 'Noto Sans KR',sans-serif;opacity:0;pointer-events:none;
+  transition:opacity .45s ease}
+#egrSaved.on{opacity:1}
 /* 조작판 — 확대 · 소리 · 멈춤이 한 줄에 모인다(0819U 소로) */
 #egrCtl{display:flex;align-items:center;gap:1px;border:1px solid var(--ring,#59492f);
   border-radius:9px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.5);flex:none}
@@ -1497,6 +1556,10 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   font:600 18px 'Noto Sans KR',serif;letter-spacing:.02em}
 #egrCtl .ico{font-size:19px}
 #egrCtl .ico.on{color:var(--accent,#c9a961)}
+/* ⭐ 0823b — 글자 단추(저장). .lv(확대판)와 같은 크기·자간으로 한 줄에 앉는다 */
+#egrCtl .txt{min-width:72px;font:600 18px 'Noto Sans KR',sans-serif;letter-spacing:.02em;
+  color:var(--accent2,#c9b586)}
+#egrCtl .txt:not(:disabled):hover{color:var(--accent,#c9a961)}
 /* ── 항로도 ── */
 /* ⭐⭐ 0820y — 지도 상자의 네 값을 **여기 한 곳에만** 적는다.
    #egrTrip(아래 두 배지)이 같은 상자를 겹쳐 써야 하는데, 두 곳에 따로 적으면
@@ -1786,13 +1849,19 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     ROOT.id = "readingRoom";
     ROOT.classList.add("craft-" + CRAFT);   /* ⭐ 0821g — 덜컹이 기체를 보고 붙는다 */
     ROOT.innerHTML = '<div id="fit"><div id="plate"></div><div id="plateB"></div></div>'
-      + '<div id="readingFade"></div>';
+      + '<div id="readingFade"></div>'
+      /* ⭐ 0823b — 물음판·반짝임. 방 안이라 KEEP 을 안 늘린다 */
+      + '<div id="egrAsk"><div class="card">'
+      + '<div class="q"></div><div class="w"></div><div class="row"></div>'
+      + '</div></div>'
+      + '<div id="egrSaved">여기까지 비행을 저장했습니다</div>';
     document.body.appendChild(ROOT);
     EXIT = document.createElement("button");
     EXIT.id = "readingExit"; EXIT.type = "button";
     EXIT.textContent = "×"; EXIT.title = "내리기";
     document.body.appendChild(EXIT);
-    EGR_on(EXIT, "click", function () { leave(); });
+    /* ⚠ 0823b — 바로 안 나간다. 「여기까지 비행을 저장하시겠습니까?」를 먼저 묻는다 */
+    EGR_on(EXIT, "click", function () { askLeave(); });
     /* ⭐ 감추기 (0820 소로) — 「밖에서 창밖만 보고 싶을 때」.
        ⚠ 방 밖(body 직계) 물건이라 KEEP 에 반드시 더한다 — 0818 에 두 번 빠뜨린 그것(31호 ㉢) */
     HIDE = document.createElement("button");
@@ -2192,13 +2261,25 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   function lsGet(name) { try { return localStorage.getItem(lsKey(name)); } catch (e) { return null; } }
   function lsSet(name, v) { try { localStorage.setItem(lsKey(name), String(v)); } catch (e) { } }
 
-  var RESUME_MS = 12 * 3600 * 1000;
   /* ⭐⭐ 0820g — 이어 타기를 **서버로 옮겼다**(소로 판정).
      ⚠ 11호를 안 어긴다. 11호가 막은 것은 **진도**이고 이것은 「내가 있던 곳」이다.
        고리에는 끝이 없어 진도가 될 수 없고 남은 것도 셀 수 없다(14호).
-     ⭐ 옮겨서 얻은 것 — 사람이 따라가고, 기기가 따라가고, 열두 시간 그물이
-       **서버 시각**으로 쳐진다. 기기 시계를 안 믿어도 된다.
-     ⚠ 규칙 셋은 그대로 — 아무 말도 안 띄운다 · 열두 시간이면 잊는다 · 남이 못 본다 */
+
+     ⚠⚠⚠ 0823a — 장거리 결정문 25~27호. **셋을 한꺼번에 고쳤다.**
+       소로 0822 밤(안데스 완주 도전 중) —
+         「모든 비행에 저장 기능 필수! 이거 끄면 다시 처음부터 라는 생각이
+          엄청 불편한 마음을 준다」
+
+       ① ⚠⚠ **열두 시간 그물 자체가 재촉이었다**(25호). 진도를 막으려고 걸었는데
+          손님에게는 「오늘 안에 못 끝내면 처음부터」— 마감이 되어 있었다.
+          ⭐ 시간을 재는 것은 무엇이든 시계다. 서버에서 걷어냈다.
+       ② ⭐ 저장 시점이 둘뿐이었다(멈춤·나가기). 새로고침·탭 닫기로는 한 톨도 안 남았다.
+          ⭐ 길목을 지날 때마다 적는다(26호) + pagehide 에 keepalive 한 발.
+       ③ ⚠⚠ eg_flight_resume 의 열쇠가 user_id 하나였다 — **안데스를 적으면 파리가
+          지워졌다.** 노선이 하나였을 때 지은 표라 그때는 안 드러났다(27호).
+          ⭐ 서버 겹열쇠 (user_id, route_code) 로. get 은 이제 **노선 전부**를 낸다.
+
+     ⚠ 규칙 둘은 그대로 — 아무 말도 안 띄운다 · 남이 못 본다 */
   var RESUME = null;               /* 방 세우기 전에 받아 둔다 — bootRoom 은 동기다 */
   function loadResume(code) {
     return new Promise(function (res) {
@@ -2207,24 +2288,135 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       var t = setTimeout(function () { if (!done) { done = true; res(null); } }, 1200);
       rpc("get_my_flight_resume", {}).then(function (rows) {
         if (done) return; done = true; clearTimeout(t);
-        var r = (rows && rows[0]) || null;
-        res((r && r.route_code === code) ? { seg: r.seg | 0, u: +r.u || 0 } : null);
+        /* ⚠⚠ 0823a — rows[0] 이 아니다. 이제 **노선 전부**가 온다.
+           옛 판은 한 줄만 왔고 그 줄이 다른 노선이면 null 을 냈다 — 겹열쇠 이전의 모습이다. */
+        var r = null;
+        if (rows && rows.length) for (var i = 0; i < rows.length; i++) {
+          if (rows[i] && rows[i].route_code === code) { r = rows[i]; break; }
+        }
+        res(r ? { seg: r.seg | 0, u: +r.u || 0 } : null);
       }).catch(function () { if (!done) { done = true; clearTimeout(t); res(null); } });
     });
   }
+  /* ⭐⭐ 0823b — 있던 곳을 적는 손은 **하나뿐**이다. 셋이 함께 부른다
+       (길목 넘김 26호 · 좌석 저장 단추 · 나가기).
+     ⚠⚠ 마지막 요청을 붙들어 둔다. 「그냥 나가기」가 지우는데 조금 전에 떠난 저장이
+       **나중에 닿으면 지운 것이 되살아난다.** 길목 저장 직후 × 를 누르면 실제로 난다.
+       ⭐ 지우는 손이 이것을 기다렸다 쏜다. 값이 아니라 차례의 문제라 순서로 푼다. */
+  var SAVE_LAST = Promise.resolve();
+  function saveWhere(code, seg, u) {
+    if (!code) return SAVE_LAST;
+    SAVE_LAST = rpc("save_my_flight_resume", { p_route: code, p_seg: seg, p_u: u })
+      .catch(function () { });     /* ⚠ 조용히 물러난다. 비행을 멈출 일이 아니다 */
+    return SAVE_LAST;
+  }
+  /* ⭐ 있던 곳을 적는 손 — 셋이 함께 부른다(길목 넘김 · 멈춤 · 나가기).
+     ⚠ 노선 코드를 반드시 함께 보낸다. 겹열쇠라 없으면 서버가 조용히 물러난다. */
   function writeResume() {
     if (!flight || !flight.where) return;
     var w = flight.where();
-    rpc("save_my_flight_resume", { p_route: flight.routeCode, p_seg: w.seg, p_u: w.u })
-      .catch(function () { });      /* ⚠ 조용히 물러난다. 비행을 멈출 일이 아니다 */
+    saveWhere(flight.routeCode, w.seg, w.u);
   }
-  /* ⭐ 「출발점으로」 (0820 소로) — 열두 시간을 기다리지 않고 첫 길목으로.
+  /* ⭐⭐ 0823a — 탭이 닫히는 순간의 한 발. **약속을 못 기다리는 곳**이라 동기로 쏜다.
+     ⚠ egr_fetch 는 egr_token() 약속을 먼저 기다린다 — pagehide 에서는 그 사이에 창이 죽는다.
+       그래서 마지막으로 쓴 토막을 적어 두었다가 그것으로 바로 쏜다(egr_fetch 가 채운다).
+     ⭐ keepalive:true — 창이 사라져도 브라우저가 끝까지 보낸다. 64KB 안이면 보장된다.
+     ⚠ 이것은 그물이지 본손이 아니다. 본손은 길목마다 적는 쪽이다 — 토막이 상해 있어도
+       잃는 것이 한 길목뿐이라 조용히 실패해도 된다. */
+  function writeResumeBeacon() {
+    if (!flight || !flight.where) return;
+    try {
+      var w = flight.where();
+      fetch(SUPA_URL + "/rest/v1/rpc/save_my_flight_resume", {
+        method: "POST", keepalive: true,
+        headers: { apikey: SUPA_KEY, "Content-Type": "application/json",
+                   Authorization: "Bearer " + (TOKEN_LAST || SUPA_KEY) },
+        body: JSON.stringify({ p_route: flight.routeCode, p_seg: w.seg, p_u: w.u })
+      }).catch(function () { });
+    } catch (e) { }
+  }
+  /* ⭐⭐ 0823b — 물음판 한 벌 (소로 0822 판정).
+     ⚠⚠ 0820 에 「아무 말도 안 띄운다」로 정했던 것을 **무른다.**
+       그때 까닭은 「물음이 뜨는 순간 손님은 내가 뭘 잘못했나를 생각한다」였다.
+       ⚠ 그런데 **소리 없는 저장은 소리 없는 상실과 구분이 안 된다.** 손님은 저장됐는지
+         알 길이 없어 매번 「날아갔을까」를 생각하게 된다 — 조용함이 만든 불안이었다.
+       ⭐ 소로 0822 — 「저장하기 버튼이 있어서 그걸 누르고(심리적 안정감)」.
+
+     ⚠ 말투 규칙 — **아무도 안 나무란다.**
+       ✕ 「저장하지 않고 나가면 기록이 사라집니다」  ← 겁을 준다. 손님이 잘못한 사람이 된다
+       ⭐ 「여기까지 비행을 저장하시겠습니까?」        ← 묻기만 한다
+     ⚠ 「적어 두다」를 안 쓴다(소로 0822 「이 표현 별로」). 저장·불러오기 그대로 쓴다. */
+  function ask(q, note, choices) {
+    if (!ROOT) return;
+    var box = ROOT.querySelector("#egrAsk");
+    if (!box) return;
+    box.querySelector(".q").textContent = q;
+    var w = box.querySelector(".w");
+    w.textContent = note || ""; w.style.display = note ? "" : "none";
+    var row = box.querySelector(".row");
+    row.innerHTML = "";
+    choices.forEach(function (c) {
+      var b = document.createElement("button");
+      b.type = "button"; b.textContent = c.label;
+      if (c.sub) b.className = "sub";
+      /* ⚠ EGR_on 으로 걸지 않는다 — 판이 여러 번 뜨므로 배열이 계속 자란다.
+         판을 지울 때 단추도 함께 사라지니 리스너도 함께 간다. */
+      b.addEventListener("click", function () {
+        box.classList.remove("on");
+        try { c.go(); } catch (e) { console.error("[EG] 물음판:", e); }
+      });
+      row.appendChild(b);
+    });
+    box.classList.add("on");
+  }
+  /* ⭐ 저장했다는 한 번의 반짝임 — 단추를 안 짓는다. 말 한 줄이 떴다 스르르 진다 */
+  var savedTmr = null;
+  function saySaved() {
+    if (!ROOT) return;
+    var el = ROOT.querySelector("#egrSaved");
+    if (!el) return;
+    el.classList.add("on");
+    clearTimeout(savedTmr);
+    savedTmr = setTimeout(function () { try { el.classList.remove("on"); } catch (e) { } }, 1600);
+  }
+  /* ⭐ 좌석의 「저장」 단추가 부른다 — 나가지 않고도 눌러 안심할 수 있게 */
+  function saveNow() {
+    if (!flight) return;
+    writeResume();
+    saySaved();
+  }
+  /* ⭐⭐ 나가기 물음 (소로 0822) — × 를 누르면 바로 안 나간다.
+     ⚠ 「그냥 나가기」는 자동으로 적힌 것까지 지운다(갈래 다). 손님이 안 남기기로 했는데
+       길목 자동 저장분이 남아 있으면 **말과 실물이 어긋난다.**
+     ⭐ 자동 저장은 그대로 둔다 — 사고(브라우저가 죽는 것)에는 안 잃고, 손님 뜻은 지킨다. */
+  function askLeave() {
+    if (!flight) { leave(); return; }
+    var w = null, place = "";
+    try {
+      w = flight.where();
+      var rt = routeBy(flight.routeCode);
+      place = (rt && rt.legs && rt.legs[w.seg] && rt.legs[w.seg][2]) || "";
+    } catch (e) { }
+    ask("여기까지 비행을 저장하시겠습니까?", place, [
+      { label: "저장하고 나가기", go: function () { leave(); } },
+      { label: "그냥 나가기", sub: true, go: function () { leave({ discard: true }); } }
+    ]);
+  }
+  /* ⭐ 「출발점으로」 (0820 소로) — 노선의 첫 길목으로 데려다 놓는 손.
+     ⚠ 0823a — 옛 주석은 「열두 시간을 기다리지 않고」였다. 그물이 없어졌으므로 그 말도 걷는다.
+       ⭐ 그물이 잊는 규칙이었다면 이 단추는 **손님이 스스로 처음으로 가는 문**이다. 남는다.
      ⚠ 「다시 시작」이 아니다. 고리에는 시작점이 없다 — 노선의 첫 길목으로 데려다 놓는 손이다.
      ⚠ 확인을 안 묻는다. 잃을 것이 없고 다시 눌러도 되는 일이라, 묻는 순간 그게 겁이 된다. */
   function toStart() {
     if (!ROOT || !flight || !flight.goTo || swapping) return;
     swapping = true;
-    rpc("clear_my_flight_resume", {}).catch(function () { });
+    /* ⚠⚠ 0823a — 노선 코드를 반드시 넘긴다. 옛 판은 인자가 없어 **전 노선을 다 지웠다.**
+       파리에서 「출발점으로」를 한 번 누르면 안데스·알프스 기록까지 날아갔다.
+       ⚠ 겹열쇠(27호)를 놓고 나서야 드러난 병이다 — 노선이 하나일 때는 같은 뜻이었다.
+       ⚠ 0823b — 조금 전에 떠난 저장을 기다렸다 지운다. 안 기다리면 되살아난다 */
+    var rc0 = flight.routeCode;
+    SAVE_LAST.then(function () { return rpc("clear_my_flight_resume", { p_route: rc0 }); })
+      .catch(function () { });
     var fade = ROOT.querySelector("#readingFade");
     fade.classList.add("on");
     EGR_later(function () {
@@ -3522,9 +3714,16 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       return (r && r.data && r.data.session && r.data.session.access_token) || null;
     }).catch(function () { return null; });
   }
+  /* ⭐ 0823a — 마지막으로 쓴 토막. pagehide 한 발(writeResumeBeacon)이 이것으로 쏜다.
+     ⚠ 그곳에서는 egr_token() 약속을 기다릴 수 없다 — 기다리는 사이에 창이 죽는다.
+     ⭐ 길목마다 요청이 나가므로(26호) 이 값은 늘 갓 쓴 것이다. 따로 갱신할 손이 없다.
+     ⚠ localStorage 를 직접 뜯지 않는다 — 「한 문서 · 한 클라이언트」(41호 ㉣).
+       egSupa 가 이미 갱신을 들고 있으니 그 손이 낸 것을 받아 적기만 한다. */
+  var TOKEN_LAST = null;
   function egr_fetch(path, options) {
     options = options || {};
     return egr_token().then(function (token) {
+      if (token) TOKEN_LAST = token;
       var hd = { apikey: SUPA_KEY, Authorization: "Bearer " + (token || SUPA_KEY),
                  "Content-Type": "application/json" };
       if (options.headers) for (var k in options.headers) hd[k] = options.headers[k];
@@ -3593,6 +3792,11 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       + '<button id="egrZin" type="button" title="가까이 보기">&#43;</button>'
       + '<button id="egrSnd" class="ico" type="button">&#128266;</button>'
       + '<button id="egrPz" class="ico" type="button" title="잠깐 멈춤 (Space)">&#10073;&#10073;</button>'
+      /* ⭐ 0823b 소로 — 「저장하기 버튼이 있어서 그걸 누르고(심리적 안정감)」.
+         ⚠ 나가지 않고도 누를 수 있어야 한다. 그게 이 단추가 있는 까닭이다.
+         ⚠ 그림글자(💾)를 안 쓴다 — 1930년대 복엽기 조종석에 플로피디스크가 뜬다.
+           글자 두 자가 가장 정직하다. 확대판(.lv)과 같은 어법으로 앉혔다. */
+      + '<button id="egrSave" class="txt" type="button" title="여기까지 비행을 저장">저장</button>'
       + '<button id="egrRst" class="ico" type="button" title="출발점으로 (R)">&#8634;</button>'
       + '</div></div>'
       + '<div id="egrMap"></div>'
@@ -3625,6 +3829,9 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     /* ⚠ 0820g — 여기를 빠뜨렸다가 검산에 걸렸다. 단추를 굽고 배선을 안 건 것 —
        0819 ㉮(만들어 놓고 값을 안 정한다)의 사촌이다. 이름 등장 횟수로 잡았다 */
     EGR_on(MONEL.querySelector("#egrRst"), "click", toStart);
+    /* ⚠ 0823b — 위 0820g 주석 그대로. 단추를 굽고 배선을 안 걸면 아무 일도 안 난다.
+       ⭐ 이름 등장 횟수로 검산한다 — egrSave 는 굽는 곳 · 거는 곳 둘이어야 한다 */
+    EGR_on(MONEL.querySelector("#egrSave"), "click", saveNow);
     paintBook();
   }
 
@@ -4646,6 +4853,10 @@ function paintBook() {
     } catch (e) { CAMCTL = null; }
     layout();
     EGR_on(window, "resize", layout);
+    /* ⭐⭐ 0823a (26호 그물) — 탭을 닫거나 다른 곳으로 옮겨 갈 때 한 발.
+       ⚠ unload 가 아니라 pagehide 다 — 폰 사파리는 unload 를 안 부른다.
+       ⚠ EGR_on 으로 건다. 손으로 addEventListener 를 쓰면 나갈 때 안 떼진다(31호 ㉢ 갈래). */
+    EGR_on(window, "pagehide", function () { try { writeResumeBeacon(); } catch (e) { } });
     EGR_on(window, "wheel", onWheel, { passive: false });
     EGR_on(window, "touchstart", onTouchStart, { passive: true });
     EGR_on(window, "touchmove", onTouchMove, { passive: false });
@@ -4981,15 +5192,35 @@ function paintBook() {
 
     /* ⭐ 이어 탈 곳을 먼저 받는다 — bootRoom 이 동기라 여기서 기다린다(그물 1.2초) */
     loadResume(rt.code).then(function (r) {
-      RESUME = r;
       if (!ROOT) return;            /* ⚠ 기다리는 사이에 나가셨다 */
-      try { bootRoom(hostViewer, rt); }
-      catch (err) { console.error("[EG] 독서비행 착석 실패:", err); leave(); }
+      /* ⭐⭐ 0823b (소로 0822) — 저장된 것이 있으면 **묻고 나서** 뜬다.
+         ⚠ 없으면 아무것도 안 띄우고 그냥 첫 길목에서 뜬다 — 물을 것이 없으니 안 묻는다.
+         ⭐ 곳 이름을 함께 보인다. 「저장 파일이 있습니다」가 아니라 **「내가 있던 곳」**이라야
+           손님이 기억을 되찾는다. 파일을 고르는 일이 아니라 하던 비행으로 돌아가는 일이다. */
+      var place = "";
+      try { place = (r && rt.legs[r.seg] && rt.legs[r.seg][2]) || ""; } catch (e) { }
+      function go(rr) {
+        RESUME = rr;
+        if (!ROOT) return;
+        try { bootRoom(hostViewer, rt); }
+        catch (err) { console.error("[EG] 독서비행 착석 실패:", err); leave(); }
+      }
+      if (!r) { go(null); return; }
+      ask("지난번 " + (place || "비행 중") + "에서 멈추셨습니다",
+          "저장된 비행을 불러올까요?", [
+        { label: "이어서 타기", go: function () { go(r); } },
+        { label: "처음부터", sub: true, go: function () {
+            /* ⚠ 여기서는 지워도 경주가 없다 — 아직 비행이 안 섰으니 떠난 저장이 없다 */
+            rpc("clear_my_flight_resume", { p_route: rt.code }).catch(function () { });
+            go(null);
+          } }
+      ]);
     });
     return true;
   }
 
-  function leave() {
+  function leave(opt) {
+    opt = opt || {};
     var v = viewer;
     /* ⚠ 쓰다 만 기록이 있으면 초안으로 건진다 — 방이 걷히기 전에, 이 방이 아직 있을 때.
        늦게 온 응답은 그냥 버려진다(31호 ㉤) — MONEL 이 이미 null 이라 만질 DOM 이 없다. */
@@ -4999,8 +5230,23 @@ function paintBook() {
        안 누른 것은 손해가 아니므로 나무라지 않고 아무 말도 안 띄운다(3호). */
     try { if (window.EGStamp && EGStamp.withdraw) EGStamp.withdraw(); } catch (e) { }
     try { hush(); } catch (e) { }   /* ⚠ 제 소리는 제 손으로 끈다 — __egHush 는 베스페르 것 */
-    /* ⭐ 있던 곳을 적어 둔다 — flight 를 세우기 **전**이어야 값이 살아 있다 */
-    try { writeResume(); } catch (e) { }
+    /* ⭐ 있던 곳을 적어 둔다 — flight 를 세우기 **전**이어야 값이 살아 있다
+       ⚠⚠ 0823b — 「그냥 나가기」(opt.discard)면 적는 대신 **지운다.**
+         길목 자동 저장(26호)이 이미 적어 둔 것이 있으므로, 안 적기만 해서는 부족하다.
+         손님이 「이번 것은 없던 걸로」를 고른 것이니 그 말대로 한다.
+       ⚠ 이 갈래는 × 를 눌러 물음판을 거친 길에서만 온다. 오류·재입장으로 부르는 leave()
+         는 인자가 없으므로 지금까지처럼 조용히 저장한다 — 사고로 잃지 않는다. */
+    if (opt.discard) {
+      try {
+        var rc = flight && flight.routeCode;
+        /* ⚠⚠ 조금 전에 떠난 저장을 **기다렸다** 지운다. 안 기다리면 되살아난다 */
+        if (rc) SAVE_LAST.then(function () {
+          return rpc("clear_my_flight_resume", { p_route: rc });
+        }).catch(function () { });
+      } catch (e) { }
+    } else {
+      try { writeResume(); } catch (e) { }
+    }
     try { if (flight) { flight.stop(); flight = null; } } catch (e) { }
     EGR_off();
     /* ⚠⚠ 0821S — 카메라 입력을 되돌린다. **방보다 먼저** — 뒤에서 예외가 나면 못 되돌리고,
