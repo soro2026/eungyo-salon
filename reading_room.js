@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0822b";
+  var VERSION = "0822c";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -338,6 +338,24 @@
      ⚠ 0821e 까지 편집값이 한 벌뿐이라 applyTune 에 「제트기에만」 임시 가드를 걸어 두었다.
        그 임시 처방을 여기서 제대로 연다. */
   var TUNE_C = { jet: {}, bre: {} };
+  /* ══ ⭐⭐ 0822c — 동체 질감 (B 감상 중 E 로 민다) ═══════════════════════
+     ⚠⚠ metallic 은 여기 없다. czm_modelMaterial 에 metallic 필드가 **없기 때문**이다
+       (modelMaterial.glsl — baseColor·diffuse·specular·roughness·normalEC·occlusion·
+        emissive 뿐). 금속도는 diffuse·specular 로 이미 접혀 들어온 뒤라 되돌리려면
+       원래 색을 알아야 한다 — **굽는 값**이지 미는 값이 아니다. GLB 의 MR 지도가 쥔다.
+     ⭐ 그래도 아쉽지 않다. 광택을 내는 것은 metallic 이 아니라 roughness 와 빛이다 —
+       specular 환경맵이 없으면 금속 반사분이 0 이라(ImageBasedLightingStageFS 91행)
+       광택은 직사 태양광이 낸다. 미는 셋이 정확히 그 셋이다.
+     ⚠ rough·glow 는 **곱하는 값**이다. MR 지도가 정한 금속판/천의 비율은 그대로 두고
+       통째로 민다 — 지도를 긁지 않는다(41호 ㉬ 와 같은 갈래). */
+  var SKIN_DEF = { rough: 1.00, glow: 1.00, tilt: 0.42 };
+  /* ⚠ cpy() 를 안 쓴다 — 그 손은 아래에 선언돼 있다. 호이스팅으로 돌긴 하지만
+     0821e(HANGAR var 호이스팅)가 정확히 이 모양이었다. 의존을 아예 안 만든다. */
+  var SKIN = { rough: 1.00, glow: 1.00, tilt: 0.42 };
+  var SKIN_BARS = [["rough", "거칠기", .30, 1.80, .01],
+                   ["glow", "채움광", .30, 2.50, .02],
+                   ["tilt", "기울기", .00, 1.00, .02]];
+  var SKINEL = null, SKINSH = null;   /* 판 · CustomShader (한 번만 짓는다) */
   function cpy(o) { var r = {}, k; for (k in o) r[k] = (o[k] && o[k].slice) ? o[k].slice() : o[k]; return r; }
   function cpyArr(a) { return (a || []).map(cpy); }
   var WINS = SPEC.wins;                                           /* 창 덮개가 앉을 곳 */
@@ -384,6 +402,13 @@
       MON.tl = t.M.tl.slice(); MON.tr = t.M.tr.slice();
       MON.br = t.M.br.slice(); MON.bl = t.M.bl.slice();
     }
+    /* ⭐ 0822c — 질감 셋. ⚠ 수(數)이고 범위 안일 때만 읽는다(구름 손잡이와 같은 그물) */
+    SKIN_BARS.forEach(function (b) {
+      var x = t.S && t.S[b[0]];
+      SKIN[b[0]] = (typeof x === "number" && isFinite(x) && x >= b[2] && x <= b[3])
+                   ? x : SKIN_DEF[b[0]];
+    });
+    applySkin();
     if (ROOT) { mountInstr(); layout(); }
   }
   /* ⭐ DOM 은 개수가 바뀔 때만 다시 짓는다 — 기체가 갈리면 계기 수가 달라진다 */
@@ -950,6 +975,22 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   color:#b9c2cc;font:10.5px ui-monospace,Menlo,monospace;padding:5px 0;cursor:pointer}
 #egrCloud button:hover{border-color:#c9a84c;color:#e6d9ae}
 #egrCloud .st{margin-top:8px;color:#5d6672;font-size:10.5px}
+/* ⭐ 0822c — 동체 질감 판. ⚠ 구름판(왼쪽 18px)과 안 겹치게 오른쪽에 세운다.
+   ⚠ pointer-events:auto — #readingRoom 이 none 이라 안 주면 슬라이더가 안 잡힌다. */
+#egrSkin{position:fixed;right:18px;top:104px;z-index:27;display:none;width:224px;pointer-events:auto;
+  background:rgba(10,13,18,.90);border:1px solid #2a323f;border-radius:7px;padding:10px 13px 11px;
+  color:#8f9aa6;font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+#readingRoom.skinedit #egrSkin{display:block}
+#egrSkin b{display:block;color:#e6d9ae;font-weight:normal;margin-bottom:7px}
+#egrSkin label{display:flex;align-items:center;gap:7px;margin:5px 0}
+#egrSkin label span{width:40px;flex:none}
+#egrSkin label i{width:38px;text-align:right;color:#c9a84c;font-style:normal;flex:none}
+#egrSkin input[type=range]{flex:1;height:3px;accent-color:#c9a84c;cursor:pointer;min-width:0}
+#egrSkin .rw{display:flex;align-items:center;gap:8px;margin-top:9px}
+#egrSkin em{flex:1;color:#5d6672;font-style:normal;font-size:10px}
+#egrSkin button{background:#1a212a;border:1px solid #2f3947;border-radius:5px;
+  color:#b9c2cc;font:10.5px ui-monospace,Menlo,monospace;padding:5px 9px;cursor:pointer}
+#egrSkin button:hover{border-color:#c9a84c;color:#e6d9ae}
 /* ⭐⭐ 저작자 표시 (0819Q · 39호) — 가리지 않는다. 기내에 옮겨 단다.
    ⚠⚠ 0819P 에서 창밖이 화면 전체가 되며 크레딧이 화면 오른쪽 아래로 갔는데,
       그곳은 기내 그림이 덮는다. 즉 **가려졌다.** Cesium·구글 타일 모두
@@ -1688,21 +1729,49 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
              ⚠ specular 환경맵이 없으면 금속 반사분은 0 이다(ImageBasedLightingStageFS 91행).
                광택은 직사 태양광이 내고, 이 손은 **형태를 세우는 채움광**이다.
              ⚠ 0.42 는 셈이 아니라 어림이다. 소로가 타 보고 정한다. */
-          try {
-            var g0 = (SPEC.body && SPEC.body.glow) || [1.2, 1.25, 1.4];
-            var gd = (SPEC.body && SPEC.body.tilt);
-            if (gd == null) gd = 0.42;
-            var sh = [new Cesium.Cartesian3(g0[0], g0[1], g0[2]),
-                      new Cesium.Cartesian3(g0[0] * gd, g0[1] * gd, g0[2] * gd)];
-            for (var si = 0; si < 7; si++) sh.push(new Cesium.Cartesian3(0, 0, 0));
-            m.imageBasedLighting.sphericalHarmonicCoefficients = sh;
-          } catch (e) { }
           BODYENT = viewer.scene.primitives.add(m);
+          applySkin();                   /* ⭐ 빛도 거칠기도 여기 한 손에서 나간다(22호) */
           PROPND = null; PROPTRY = 0;
           console.log("[EG] 기체가 섰습니다 — " + bodyUrl());
         })
         .catch(function (e) { BODYWAIT = false; console.warn("[EG] 기체를 못 세웠습니다:", e); });
     } catch (e) { BODYWAIT = false; console.warn("[EG] 기체를 못 세웠습니다:", e); }
+  }
+  /* ══ ⭐⭐ 0822c — 질감을 기체에 내보내는 손. **여기 한 곳뿐이다** ═══════════
+     ⚠ 0821M 까지 이 셈이 bodyOn 안에 풀어져 있었다. 그러면 슬라이더를 밀 때마다
+       기체를 다시 세워야 한다 — aimCam 을 한 손으로 모은 것과 같은 까닭으로 떼어 둔다.
+     ⭐ 채움광 — sphericalHarmonics.glsl 의 계수 차례는 [L00, L1_1, L10, L11, …] 이고
+       L1_1 이 y 에 곱해진다. 그리고 Model.js updateReferenceMatrices 가 이 셈을
+       referenceMatrix(= 우리 modelMatrix)에 yUpToZUp 을 곱한 틀에서 돌리므로
+       **y 가 기체의 위쪽**이다. 지구 어디를 날아도 다시 안 맞춰도 된다 — 기체와 함께 돈다.
+     ⚠ scene.light 를 안 건드린다 — 지형까지 비추는 헤드라이트가 되어 terra 의 밤이 깨진다.
+     ⭐ 거칠기 — CustomShader 를 **한 번만 짓고** 뒤로는 setUniform 만 부른다.
+       customShader 에 새 물건을 대입할 때마다 Cesium 이 셰이더를 다시 짜므로,
+       슬라이더 한 칸마다 대입하면 화면이 끊긴다.
+     ⚠ metallic 은 여기서 못 민다 — czm_modelMaterial 에 그 필드가 없다. GLB 가 쥔다. */
+  function applySkin() {
+    if (!BODYENT) return;
+    try {
+      var g0 = (SPEC.body && SPEC.body.glow) || [1.2, 1.25, 1.4];
+      var gm = SKIN.glow, gd = SKIN.tilt;
+      var sh = [new Cesium.Cartesian3(g0[0] * gm, g0[1] * gm, g0[2] * gm),
+                new Cesium.Cartesian3(g0[0] * gm * gd, g0[1] * gm * gd, g0[2] * gm * gd)];
+      for (var si = 0; si < 7; si++) sh.push(new Cesium.Cartesian3(0, 0, 0));
+      BODYENT.imageBasedLighting.sphericalHarmonicCoefficients = sh;
+    } catch (e) { }
+    try {
+      if (!SKINSH) {
+        SKINSH = new Cesium.CustomShader({
+          uniforms: { u_egRough: { type: Cesium.UniformType.FLOAT, value: 1.0 } },
+          fragmentShaderText:
+            "void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material) {\n" +
+            "  material.roughness = clamp(material.roughness * u_egRough, 0.03, 1.0);\n" +
+            "}"
+        });
+      }
+      SKINSH.setUniform("u_egRough", SKIN.rough);
+      if (BODYENT.customShader !== SKINSH) BODYENT.customShader = SKINSH;
+    } catch (e) { }
   }
   /* ⚠⚠ 방 전용이다 — 나갈 때 반드시 거둔다. 구름과 같은 갈래다.
      여기서 안 거두면 방은 걷혔는데 브레게 14 만 terra 지구 위를 계속 난다. */
@@ -1727,6 +1796,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       if (OUT !== BODYWAS) toggleOut();
     }
     ROOT.classList.toggle("bodyview", BODY);
+    skinShow();                    /* ⭐ 0822c — B 를 끄면 질감 판도 함께 걷힌다 */
     layout();
   }
   function clampAng(a) { return (a + 540) % 360 - 180; }
@@ -2448,12 +2518,61 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
      ⚠ 캐시하지 않는다. 브라우저에 적어 두면 위조할 수 있고, 그러면 또 화면이 흔들린다. */
   var IS_ADMIN = false;
   var editing = false, egrab = null, tuneT = null;
+  /* ══ ⭐ 0822c — 동체 질감 판. B 감상 중에 E 를 누르면 여기가 뜬다 ═══════════
+     ⚠ 계기 편집기와 **같은 키(E)** 를 쓴다. 새 글자를 안 만든 까닭은 22호다 —
+       「밖에서 몸을 본다」는 상태가 이미 있으므로, 그 상태가 무엇을 편집할지 정한다.
+     ⚠ #readingRoom 이 pointer-events:none 이라 판에 auto 를 따로 준다(구름판과 같다). */
+  function mountSkin() {
+    if (!ROOT || SKINEL) return;
+    SKINEL = document.createElement("div"); SKINEL.id = "egrSkin";
+    var h = '<b>동체 질감</b>';
+    SKIN_BARS.forEach(function (b) {
+      h += '<label><span>' + b[1] + '</span><input type="range" data-k="' + b[0] +
+           '" min="' + b[2] + '" max="' + b[3] + '" step="' + b[4] + '"><i data-v="' + b[0] + '">–</i></label>';
+    });
+    h += '<div class="rw"><em>금속도는 GLB 가 쥔다</em><button data-k="reset">기본값</button></div>';
+    SKINEL.innerHTML = h;
+    ROOT.appendChild(SKINEL);
+    SKINEL.addEventListener("input", function (e) {
+      var k = e.target && e.target.getAttribute("data-k");
+      if (!k || SKIN[k] === undefined) return;
+      var v = parseFloat(e.target.value);
+      if (!isFinite(v)) return;
+      SKIN[k] = v; applySkin(); skinSay(); saveTuneSoon();
+    });
+    SKINEL.addEventListener("click", function (e) {
+      if (!e.target || e.target.getAttribute("data-k") !== "reset") return;
+      SKIN_BARS.forEach(function (b) { SKIN[b[0]] = SKIN_DEF[b[0]]; });
+      applySkin(); skinSay(); saveTuneSoon();
+    });
+    /* ⚠ 판 위의 끌기가 기체를 돌리지 않게 여기서 끊는다. input 은 orbitable 이 이미
+       빼 주지만, 판의 **여백**을 끌면 그 그물에 안 걸린다. */
+    SKINEL.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+    skinSay();
+  }
+  function skinSay() {
+    if (!SKINEL) return;
+    SKIN_BARS.forEach(function (b) {
+      var s = SKINEL.querySelector('input[data-k="' + b[0] + '"]');
+      var i = SKINEL.querySelector('i[data-v="' + b[0] + '"]');
+      if (s && document.activeElement !== s) s.value = SKIN[b[0]];
+      if (i) i.textContent = SKIN[b[0]].toFixed(2);
+    });
+  }
+  /* ⭐ 판이 언제 뜨는가 — 한 곳에서 정한다. B 를 끄면 편집 중이라도 함께 걷힌다 */
+  function skinShow() {
+    if (!ROOT) return;
+    var on = !!(editing && BODY && IS_ADMIN);
+    if (on) { mountSkin(); skinSay(); }
+    ROOT.classList.toggle("skinedit", on);
+  }
   function setEdit(on) {
     if (on && !IS_ADMIN) return;    /* ⚠ 손님에게는 아무 일도 안 일어난다(0820h) */
     editing = on;
     ROOT.classList.toggle("edit", on);
     if (!on) { clearPreview(); pushTune(); }   /* ⚠ 미리보기가 화면에 눌러앉지 않게 */
     else { mountMonHandles(); layout(); tuneSay(); }
+    skinShow();                     /* ⭐ 0822c */
   }
   function tuneTarget(el) {
     if (!el || !el.closest) return null;
@@ -2524,6 +2643,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
   function tuneNow() {
     /* ⭐ 0821f — 지금 기체 칸을 갱신하고 전체를 적는다. 다른 기체 값은 그대로 보존된다 */
     TUNE_C[CRAFT] = { I: cpyArr(INSTR), L: cpyArr(LAMPS), B: cpyArr(BLINK),
+                      S: { rough: SKIN.rough, glow: SKIN.glow, tilt: SKIN.tilt },
                       M: { tl: MON.tl.slice(), tr: MON.tr.slice(), br: MON.br.slice(), bl: MON.bl.slice() } };
     return { GL: GRIP_L, GR: GRIP_R, EL: ENG_L, ER: ENG_R,
              IC: TUNE_C,                     /* ⭐ 기체별 칸 */
@@ -4239,6 +4359,11 @@ function paintBook() {
     /* ── 편집기 손 — 끌기·휠 (베스페르 문법) ── */
     EGR_on(window, "pointerdown", function (e) {
       if (!editing) return;
+      /* ⚠⚠ 0822c — 감상(B) 중에는 계기 편집기가 물러난다. 그때 E 는 질감 판을 연다.
+         두 편집기가 한 키를 쓰되 **조건이 배타적이라 어느 순간에도 하나만 잡는다** —
+         고갯짓(lookable)과 궤도(orbitable)를 가른 것과 같은 문법이다.
+         ⚠ 이 줄이 없으면 감상 중에 걷힌 지도판 모서리가 잡혀 조용히 밀린다. */
+      if (BODY) return;
       /* ⭐⭐ 0821h — 그물 두 겹. 층을 12 로 올려 놓고도 여기서 한 번 더 훑는다.
          ⚠ 오늘 z-index 를 「모니터는 11」이라 **확인 없이 적은 주석** 하나 때문에
            바늘·램프·불빛이 통째로 손에 안 잡혔다. 층 다툼은 앞으로도 날 수 있다 —
@@ -4297,9 +4422,13 @@ function paintBook() {
        ⭐ 위아래 상한 ±80° — 90°에서 짐벌이 뒤집힌다. 바로 위·바로 아래는 안 준다. */
     var og = null;
     function orbitable(t) {
-      if (!BODY || editing || !ROOT) return false;
+      /* ⚠⚠ 0822c — 「editing」을 뺐다. 질감을 밀면서 기체를 돌려 보지 못하면
+         반대쪽 면을 볼 수가 없다 — 광택은 각도에 따라 나타나는 것이라 치명적이다.
+         ⭐ 대신 판을 그물에 넣는다. input 은 원래 목록이 빼 주고, 판의 여백은
+           #egrSkin 이 뺀다(판 자체도 pointerdown 을 끊는다 — 그물 두 겹, 0821h). */
+      if (!BODY || !ROOT) return false;
       if (!t || !t.closest) return true;
-      return !t.closest("#egrMon,#egrDesk,#readingExit,#readingHide,.readingSeat,button,input,textarea,select,a");
+      return !t.closest("#egrSkin,#egrMon,#egrDesk,#readingExit,#readingHide,.readingSeat,button,input,textarea,select,a");
     }
     EGR_on(window, "pointerdown", function (e) {
       if (e.pointerType === "mouse" && e.button !== 0) return;
@@ -4587,6 +4716,10 @@ function paintBook() {
     PREVIEW = null; themeNow = ""; themeMon = ""; RESUME = null;   /* ⚠ 다음 탑승은 진짜 시각으로 */
     try { clearTimeout(tuneT); clearTimeout(fadeT); } catch (e) { }
     FPSEL = null; FPSM = null;                 /* ⭐ 0820i */
+    /* ⚠ 0822c — 판은 ROOT 와 함께 걷히지만 **참조는 남는다.** 다음 탑승 때
+       mountSkin 이 「이미 있다」고 물러나 판이 영영 안 뜬다 — 0821k 의 바람과 같은 갈래
+       (트는 손과 놓는 손은 한 발주다). SKINSH 도 옛 Model 에 물려 있으니 함께 놓는다. */
+    SKINEL = null; SKINSH = null;
     CLDEL = null; RCODE = ""; clKind = ""; clT = 0;   /* ⭐ 0820j — CLON·CLD 는 남긴다 */
     MONEL = null; TAB = "info"; SINFO = null; DESK = null; RECENT = null;
     ENGEL = null; ENG_NICK = ""; ENG_SINCE = "";
