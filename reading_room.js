@@ -90,7 +90,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0822a";
+  var VERSION = "0822b";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1677,10 +1677,24 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
                terra 의 밤이 통째로 깨진다. 이 손은 이 Model 밖으로 한 발도 안 나간다.
              ⚠ 푸른 기(1.2·1.25·1.4)는 달빛의 색이다. 낮에는 태양광에 묻혀 티가 안 난다.
              ⚠ 셈이 아니라 어림이다 — 소로가 타 보고 glow 세 숫자를 정한다. */
+          /* ⭐⭐ 0822b — 위는 하늘빛 아래는 지면빛. 한 계수(균일광)만 주면 어느 면이나
+             같은 빛이라 **광택이 안 생긴다** — 기체가 종이처럼 평평해진다.
+             ⚠ 원전 확인(Cesium 1.123):
+               sphericalHarmonics.glsl — 계수 차례가 [L00, L1_1, L10, L11, …] 이고
+                 L1_1 이 **y** 에 곱해진다.
+               Model.js updateReferenceMatrices — 이 셈이 도는 좌표계는 referenceMatrix
+                 (= 우리 modelMatrix) 에 yUpToZUp 을 곱한 것이라, **y 가 기체의 위쪽**이다.
+                 ⭐ 그래서 지구 어디를 날아도 다시 안 맞춰도 된다. 기체와 함께 돈다.
+             ⚠ specular 환경맵이 없으면 금속 반사분은 0 이다(ImageBasedLightingStageFS 91행).
+               광택은 직사 태양광이 내고, 이 손은 **형태를 세우는 채움광**이다.
+             ⚠ 0.42 는 셈이 아니라 어림이다. 소로가 타 보고 정한다. */
           try {
             var g0 = (SPEC.body && SPEC.body.glow) || [1.2, 1.25, 1.4];
-            var sh = [new Cesium.Cartesian3(g0[0], g0[1], g0[2])];
-            for (var si = 0; si < 8; si++) sh.push(new Cesium.Cartesian3(0, 0, 0));
+            var gd = (SPEC.body && SPEC.body.tilt);
+            if (gd == null) gd = 0.42;
+            var sh = [new Cesium.Cartesian3(g0[0], g0[1], g0[2]),
+                      new Cesium.Cartesian3(g0[0] * gd, g0[1] * gd, g0[2] * gd)];
+            for (var si = 0; si < 7; si++) sh.push(new Cesium.Cartesian3(0, 0, 0));
             m.imageBasedLighting.sphericalHarmonicCoefficients = sh;
           } catch (e) { }
           BODYENT = viewer.scene.primitives.add(m);
