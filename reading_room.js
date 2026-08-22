@@ -167,7 +167,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0823b";
+  var VERSION = "0823c";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -835,13 +835,22 @@
     var lat = pos[0], lon = pos[1];
     var ahead = onCurve(0, 0.02);
     var hd = bearing(lat, lon, ahead[0], ahead[1]);
-    /* ⭐⭐ 0820y — dist(km)·flown(초)는 **이 탑승분**이다. 계기판 아래 두 배지가 읽는다.
-       ⚠ 서버에 안 쌓는다. 쌓는 순간 「누적 성취」가 되어 11호(진도 칸을 안 짓는다)와
-         부딪히고, 헌장이 막은 그 도파민 훅이 된다. 이어 타면 자리만 이어지고 셈은 새로 선다 —
-         실제 기내 모니터가 그 편의 시간·거리만 세는 것과 같다.
+    /* ⭐⭐ 0820y — dist(km)·flown(초)는 **이 비행분**이다. 계기판 아래 두 배지가 읽는다.
+       ⚠⚠ 0823c — 0820y 의 「서버에 안 쌓는다」를 **소로 판정으로 물렀다.**
+         소로 0822 — 「모니터에 총 비행시간과 거리가 리셋되지 않고 저것까지 저장되어야
+         진짜 저장이지 않을까」 · 「비행이 리셋되는 기분, 이런 게 더 불쾌한 경험임」
+
+         ⚠ 옛 까닭은 「쌓는 순간 누적 성취가 되어 11호와 부딪힌다」였다. **과했다.**
+           11호가 막은 것은 「남은 것이 있는 표시」— 몇 %를 읽었나 같은 것이다.
+           시간과 거리는 남은 것이 없다. **방금 내가 난 만큼**이다.
+         ⭐ 그리고 되돌리는 쪽이 오히려 거짓말이었다 — 「저장했다」고 해 놓고 총계가 0 이 됐다.
+         ⚠ 통산이 아니다. 「출발점으로」·「처음부터」를 누르면 0 으로 돌아간다.
+           **이 비행 한 회의 길이**이지 평생 쌓이는 수가 아니다.
        ⭐ flown 은 PAUSED 일 때 안 는다. 아래 루프가 멈춤이면 dt 를 더하기 전에 물러나므로
          **따로 재지 않아도 「순수 비행만」이 된다**(0820 소로 요청). */
-    var roll = 0, tp = performance.now(), gT = 0, dist = 0, flown = 0, errN = 0, SPDLOG = 0;
+    var roll = 0, tp = performance.now(), gT = 0, errN = 0, SPDLOG = 0;
+    var dist = Math.max(0, +opt.startDist || 0);      /* ⭐ 0823c — 이어받는다 */
+    var flown = Math.max(0, opt.startFlown | 0);
     /* ⭐ 0822f — 곡선의 접선이 직전 프레임에 가리키던 방위. 뱅크의 잣대다.
        ⚠ 첫 프레임은 hd 와 같게 두어 turnRate 가 0 에서 시작하게 한다 — 들어서자마자
          기울어 있으면 「탑승한 순간 이미 선회 중」이 된다. */
@@ -1139,7 +1148,7 @@
              지금 이 곳은 flight 가 아직 대입되기 전일 수 있다(첫 프레임). 값이 손안에 있다. */
         if (seg !== savedSeg) {
           savedSeg = seg;
-          saveWhere(route.code, seg, u);
+          saveWhere(route.code, seg, u, Math.round(flown), dist);
         }
 
         var here = onCurve(seg, u);
@@ -1209,16 +1218,23 @@
       }
     });
     return { stop: off, routeCode: route.code,
-             where: function () { return { seg: seg, u: u }; },
+             /* ⭐ 0823c — 총계 둘을 함께 낸다. 적는 손이 이 하나만 보면 된다 */
+             where: function () { return { seg: seg, u: u, flown: Math.round(flown), dist: dist }; },
              /* ⭐ 0820g — 「출발점으로」가 부른다. 곡선 위 어디로든 옮겨 앉힌다.
-                ⚠⚠ 0820y — 여기 있던 `dist = 0` 을 **걷었다.** 「출발점으로」는 자리를
+                ⚠⚠ 0820y — 여기 있던 `dist = 0` 을 **걷었다.** 「출발점으로」는 곳을
                   옮기는 손이지 탑승을 새로 하는 손이 아니다(위 주석에 그렇게 적혀 있다).
                   거리·시간이 화면에 안 서 있던 동안은 아무래도 좋았지만, 이제는 R 한 번에
-                  「총 비행거리」가 0 이 되어 총계라는 말 자체가 거짓이 된다. */
-             /* ⚠ 0823a — savedSeg 도 함께 옮긴다. 안 옮기면 옛 값이 남아
-                「출발점으로」 직후 길목 하나를 안 적고 지나간다(옛 값과 우연히 같을 때).
-                ⭐ 그리고 방금 지운 서버에 도로 적는 헛발도 막는다 — clear 와 짝이다. */
-             goTo: function (s2, u2) { seg = ((s2 | 0) % N + N) % N; u = +u2 || 0; savedSeg = seg; } };
+                  「총 비행거리」가 0 이 되어 총계라는 말 자체가 거짓이 된다.
+                ⚠⚠⚠ 0823c — **그 판단을 다시 뒤집었다.** 총계가 서버에 남게 되자 뜻이 바뀌었다.
+                  옛 판에서 총계는 「이 창을 연 뒤로」였다 — 그래서 R 이 0 으로 만들면 거짓이었다.
+                  ⭐ 이제 총계는 「이 비행 한 회」다. R 은 그 회를 닫고 새 회를 여는 손이므로
+                    0 이 되는 것이 **맞다.** 그리고 서버 줄도 함께 지워진다(toStart 가 지운다).
+                  ⭐ 이 갈래가 총계를 통산이 아니게 지키는 곳이다 — 언제든 0 으로 돌아갈 문이 있다.
+                ⚠ 같은 줄을 사흘에 두 번 뒤집었다. 값이 아니라 **그 값이 뜻하는 것**이 바뀌었다. */
+             goTo: function (s2, u2) {
+               seg = ((s2 | 0) % N + N) % N; u = +u2 || 0; savedSeg = seg;
+               dist = 0; flown = 0;
+             } };
   }
 
   /* ══ 겉옷 ══════════════════════════════════════════════════════ */
@@ -2294,7 +2310,9 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
         if (rows && rows.length) for (var i = 0; i < rows.length; i++) {
           if (rows[i] && rows[i].route_code === code) { r = rows[i]; break; }
         }
-        res(r ? { seg: r.seg | 0, u: +r.u || 0 } : null);
+        res(r ? { seg: r.seg | 0, u: +r.u || 0,
+                  /* ⭐ 0823c — 총계 둘도 함께 받는다. 없으면 0 이라 옛 줄도 그냥 선다 */
+                  flown: r.flown | 0, dist: +r.dist || 0 } : null);
       }).catch(function () { if (!done) { done = true; clearTimeout(t); res(null); } });
     });
   }
@@ -2304,9 +2322,11 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
        **나중에 닿으면 지운 것이 되살아난다.** 길목 저장 직후 × 를 누르면 실제로 난다.
        ⭐ 지우는 손이 이것을 기다렸다 쏜다. 값이 아니라 차례의 문제라 순서로 푼다. */
   var SAVE_LAST = Promise.resolve();
-  function saveWhere(code, seg, u) {
+  function saveWhere(code, seg, u, flown, dist) {
     if (!code) return SAVE_LAST;
-    SAVE_LAST = rpc("save_my_flight_resume", { p_route: code, p_seg: seg, p_u: u })
+    /* ⭐ 0823c — 총계 둘을 함께 실어 보낸다. ⚠ 안 주면 서버가 옛 값을 지킨다(coalesce) */
+    SAVE_LAST = rpc("save_my_flight_resume", { p_route: code, p_seg: seg, p_u: u,
+                                               p_flown: flown | 0, p_dist: +dist || 0 })
       .catch(function () { });     /* ⚠ 조용히 물러난다. 비행을 멈출 일이 아니다 */
     return SAVE_LAST;
   }
@@ -2315,7 +2335,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   function writeResume() {
     if (!flight || !flight.where) return;
     var w = flight.where();
-    saveWhere(flight.routeCode, w.seg, w.u);
+    saveWhere(flight.routeCode, w.seg, w.u, w.flown, w.dist);
   }
   /* ⭐⭐ 0823a — 탭이 닫히는 순간의 한 발. **약속을 못 기다리는 곳**이라 동기로 쏜다.
      ⚠ egr_fetch 는 egr_token() 약속을 먼저 기다린다 — pagehide 에서는 그 사이에 창이 죽는다.
@@ -2331,7 +2351,8 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
         method: "POST", keepalive: true,
         headers: { apikey: SUPA_KEY, "Content-Type": "application/json",
                    Authorization: "Bearer " + (TOKEN_LAST || SUPA_KEY) },
-        body: JSON.stringify({ p_route: flight.routeCode, p_seg: w.seg, p_u: w.u })
+        body: JSON.stringify({ p_route: flight.routeCode, p_seg: w.seg, p_u: w.u,
+                               p_flown: w.flown | 0, p_dist: +w.dist || 0 })
       }).catch(function () { });
     } catch (e) { }
   }
@@ -2408,6 +2429,20 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⚠ 「다시 시작」이 아니다. 고리에는 시작점이 없다 — 노선의 첫 길목으로 데려다 놓는 손이다.
      ⚠ 확인을 안 묻는다. 잃을 것이 없고 다시 눌러도 되는 일이라, 묻는 순간 그게 겁이 된다. */
   function toStart() {
+    if (!ROOT || !flight || !flight.goTo || swapping) return;
+    /* ⚠⚠ 0823c — 0820 에 「확인을 안 묻는다」로 정한 까닭은 **「잃을 것이 없고」** 였다.
+       총계가 이어지게 된 지금은 그 전제가 무너졌다 — 이 단추 한 번에 81분과 292km 가 간다.
+       ⭐ 규칙이 아니라 규칙이 딛고 선 사실이 바뀌었다. 조건이 사라지면 규칙도 안 선다.
+       ⚠ 다만 겁을 주지 않는다. 무엇이 사라지는지만 적고 나무라지 않는다. */
+    var w = null;
+    try { w = flight.where(); } catch (e) { }
+    var lost = w ? (hms(w.flown) + " · " + kmTxt(w.dist) + "km") : "";
+    ask("이 비행을 닫고 출발점에서 새로 시작할까요?", lost ? "지금까지 " + lost : "", [
+      { label: "출발점으로", go: doToStart },
+      { label: "그대로 두기", sub: true, go: function () { } }
+    ]);
+  }
+  function doToStart() {
     if (!ROOT || !flight || !flight.goTo || swapping) return;
     swapping = true;
     /* ⚠⚠ 0823a — 노선 코드를 반드시 넘긴다. 옛 판은 인자가 없어 **전 노선을 다 지웠다.**
@@ -5114,10 +5149,14 @@ function paintBook() {
     /* ⭐ 0820B→0821b — 기체는 enter 첫머리 applyCraft 가 정한다. 여기 있던 대입은
        그리는 손(paintCabin·mountMonitor)보다 늦어 첫 화면이 제트기 명세로 섰다 — 걷었다. */
     var hudT = 0;                    /* ⚠ #hud 는 0819R 에 걷었다 — 셈 주기만 남는다 */
-    /* ⭐ 나갔던 곳에서 이어 탄다 — 없으면 첫 길목. 아무 말도 안 띄운다 */
-    var rz = RESUME || { seg: 0, u: 0 };   /* ⭐ enter() 가 미리 받아 둔다 */
+    /* ⭐ 나갔던 곳에서 이어 탄다 — 없으면 첫 길목.
+       ⚠ 0823b — 저장된 것이 있으면 enter() 가 이미 물었다. 여기서는 안 묻는다 */
+    var rz = RESUME || { seg: 0, u: 0, flown: 0, dist: 0 };   /* ⭐ enter() 가 미리 받아 둔다 */
     flight = cruise(route, {
       sky: 6, startSeg: rz.seg, startU: rz.u,
+      /* ⭐⭐ 0823c (소로 0822) — 총 비행시간·거리도 이어받는다.
+         「저장했다」고 해 놓고 총계가 0 으로 돌아오면 리셋된 기분이 든다 — 실제 겪으신 것이다 */
+      startFlown: rz.flown, startDist: rz.dist,
       onTick: function (s) {
         SINFO = s;                   /* 기록 저장이 좌표를 읽는다 */
         var now = performance.now();
