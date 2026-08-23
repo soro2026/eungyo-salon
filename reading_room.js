@@ -167,7 +167,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0823k";
+  var VERSION = "0823m";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -5788,61 +5788,69 @@ function paintBook() {
       return out;
     } catch (e) { console.warn("[EG] 노드를 못 읽었습니다:", e); return []; }
   }
-  /* ⭐⭐ 0823k 자 — **정점을 직접 읽는다.** 0823j 의 경계구가 반쯤 거짓말을 했다.
-     ⚠⚠ 구 반지름을 세 축에 똑같이 더하니 큰 노드일수록 상자가 부풀었다 —
-       Wing.001 이 폭·높이·길이 64.33 으로 똑같이 나왔고 minY 가 −26.51 이 됐다.
-       ⭐ 그때 중심(midX·midZ)만은 정직했다. 반지름과 무관한 값이라서다.
-       ⭐⭐ 얻은 수칙 — **경계구는 중심은 정직하고 테두리는 부풀린다.**
-     ⚠ 그런데 피벗(경첩이 어디인가)은 테두리라야 나온다. 그래서 정점으로 내려간다.
-     ⚠⚠ 995,000 삼각형을 다 훑으면 화면이 몇 초 선다(41호 ㉧).
-       ⭐ 그래서 **이름을 주면 그것만** 읽는다. 기어 열셋 · 스포일러 열여덟이면 공짜다.
-     ⭐ 노드 변환을 태운다(v184). 787 은 노드 스케일이 0.14~2.05 라 안 태우면 답이 뒤집힌다. */
+  /* ⭐⭐ 0823m 자 — **여덟 꼭짓점만 옮긴다.** 오늘 오전에 이미 걸은 길인데 잊었다.
+     ⚠⚠ 0823k 가 정점을 직접 읽으려다 0개를 냈다. 두 가지를 함께 틀렸다 —
+       ㉠ Cesium 은 정점을 GPU 에 올리고 CPU 사본을 버린다. typedArray 가 애초에 없다
+       ㉡ `sp` 한 이름으로 깔끔하게 합치면서 **0823j 에서 되던 폴백 갈래를 잘랐다**
+          (pr.primitive.boundingSphere 만 보고 pr.boundingSphere 를 안 봤다)
+     ⭐⭐ 옳은 길은 v187 에 제 손으로 적혀 있었다 — glTF accessor 의 min/max 가
+       **정확한 상자**다(구가 아니다). 여덟 꼭짓점만 변환에 태우면 공짜다(41호 ㉧).
+     ⭐ 그리고 폴백을 **끊지 않는다.** 상자가 없으면 구로, 구도 없으면 건너뛴다.
+       어느 길로 쟀는지 표에 적는다 — 못 재고도 잰 척하지 않게. */
   function probeBody(pick) {
     var m = BODYENT && BODYENT._nodesByName;
     if (!m) { console.warn("[EG] 기체가 아직 안 섰습니다 — B 를 누르고 다시 부르십시오"); return []; }
-    var C = Cesium, names = pick && pick.length ? pick : Object.keys(m), rows = [];
+    var C = Cesium, names = pick && pick.length ? pick : Object.keys(m), rows = [], said = 0;
     for (var i = 0; i < names.length; i++) {
       var nd = m[names[i]]; if (!nd) continue;
       var rn = nd._runtimeNode || nd.runtimeNode; if (!rn) continue;
       var T = rn.computedTransform || rn.transformToRoot || rn.transform || null;
       var prims = rn.runtimePrimitives || (rn.node && rn.node.primitives) || [];
-      var lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9], nV = 0;
+      var lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9], how = "", v = new C.Cartesian3();
       for (var j = 0; j < prims.length; j++) {
         var pr = prims[j], sp = pr.primitive || pr;
-        var at = sp.attributes || (sp.node && sp.node.attributes) || [];
-        var pos = null;
-        for (var k = 0; k < at.length; k++)
-          if (at[k].semantic === "POSITION" || at[k].name === "POSITION") { pos = at[k]; break; }
-        if (!pos) continue;
-        /* ⭐ 정점 배열을 찾는다 — typedArray 가 살아 있으면 그것, 아니면 packedTypedArray */
-        var arr = pos.typedArray || pos.packedTypedArray || null;
-        if (!arr) {           /* ⚠ GPU 로 올라가고 CPU 사본이 버려진 경우 — 구로 물러난다 */
-          var bs = sp.boundingSphere; if (!bs) continue;
-          var c0 = bs.center, r0 = bs.radius;
-          if (T) c0 = C.Matrix4.multiplyByPoint(T, c0, new C.Cartesian3());
-          lo = [Math.min(lo[0], c0.x - r0), Math.min(lo[1], c0.y - r0), Math.min(lo[2], c0.z - r0)];
-          hi = [Math.max(hi[0], c0.x + r0), Math.max(hi[1], c0.y + r0), Math.max(hi[2], c0.z + r0)];
-          nV = -1; continue;
+        /* ⭐ 관측 장치 — 첫 프리미티브에서 무엇이 있는지 먼저 본다(짐작 금지) */
+        if (!said) { said = 1;
+          try { console.log("[EG] primitive 열쇠 —", Object.keys(sp).join(" ")); } catch (e) { }
+          try { var a0 = (sp.attributes || [])[0];
+            if (a0) console.log("[EG] attribute 열쇠 —", Object.keys(a0).join(" ")); } catch (e) { }
         }
-        var v = new C.Cartesian3();
-        for (var q = 0; q + 2 < arr.length; q += 3) {
-          v.x = arr[q]; v.y = arr[q + 1]; v.z = arr[q + 2];
-          if (T) C.Matrix4.multiplyByPoint(T, v, v);
-          if (v.x < lo[0]) lo[0] = v.x; if (v.x > hi[0]) hi[0] = v.x;
-          if (v.y < lo[1]) lo[1] = v.y; if (v.y > hi[1]) hi[1] = v.y;
-          if (v.z < lo[2]) lo[2] = v.z; if (v.z > hi[2]) hi[2] = v.z;
-          nV++;
+        var at = sp.attributes || pr.attributes || [], pos = null, k;
+        for (k = 0; k < at.length; k++)
+          if (at[k] && (at[k].semantic === "POSITION" || at[k].name === "POSITION")) { pos = at[k]; break; }
+        var mn = pos && pos.min, mx = pos && pos.max;
+        if (mn && mx) {                       /* ⭐ 길 ㉠ — 정확한 상자. 여덟 꼭짓점 */
+          how = how || "상자";
+          for (var q = 0; q < 8; q++) {
+            v.x = (q & 1) ? mx.x : mn.x; v.y = (q & 2) ? mx.y : mn.y; v.z = (q & 4) ? mx.z : mn.z;
+            if (T) C.Matrix4.multiplyByPoint(T, v, v);
+            if (v.x < lo[0]) lo[0] = v.x; if (v.x > hi[0]) hi[0] = v.x;
+            if (v.y < lo[1]) lo[1] = v.y; if (v.y > hi[1]) hi[1] = v.y;
+            if (v.z < lo[2]) lo[2] = v.z; if (v.z > hi[2]) hi[2] = v.z;
+          }
+          continue;
         }
+        /* ⚠ 길 ㉡ — 구로 물러난다. ⭐ 사슬을 끊지 않는다(0823k 가 여기서 넘어졌다) */
+        var bs = sp.boundingSphere || pr.boundingSphere
+              || (pr.primitive && pr.primitive.boundingSphere) || null;
+        if (!bs) continue;
+        how = "구(부푼다)";
+        var c0 = C.Cartesian3.clone(bs.center, new C.Cartesian3()), r0 = bs.radius;
+        if (T) {
+          C.Matrix4.multiplyByPoint(T, c0, c0);
+          try { r0 *= (C.Matrix4.getScale(T, new C.Cartesian3()).x || 1); } catch (e) { }
+        }
+        lo = [Math.min(lo[0], c0.x - r0), Math.min(lo[1], c0.y - r0), Math.min(lo[2], c0.z - r0)];
+        hi = [Math.max(hi[0], c0.x + r0), Math.max(hi[1], c0.y + r0), Math.max(hi[2], c0.z + r0)];
       }
-      if (lo[0] > 1e8) continue;
-      rows.push({ 이름: names[i], 점: nV,
+      if (lo[0] > 1e8) { rows.push({ 이름: names[i], 잰법: "⚠ 못 잼" }); continue; }
+      rows.push({ 이름: names[i], 잰법: how,
         Xmin: +lo[0].toFixed(3), Xmax: +hi[0].toFixed(3),
         Ymin: +lo[1].toFixed(3), Ymax: +hi[1].toFixed(3),
         Zmin: +lo[2].toFixed(3), Zmax: +hi[2].toFixed(3) });
     }
-    rows.sort(function (a, b) { return a.Ymin - b.Ymin; });
-    console.log("%c[EG] 잰 노드 " + rows.length + "개 — ⚠ 점 −1 은 정점을 못 읽어 구로 물러난 것",
-      "color:#c9a84c");
+    rows.sort(function (a, b) { return (a.Ymin == null ? 9e9 : a.Ymin) - (b.Ymin == null ? 9e9 : b.Ymin); });
+    console.log("%c[EG] 잰 노드 " + rows.length + "개 — ⭐ 잰법이 「상자」면 정확하다", "color:#c9a84c");
     try { console.table(rows); } catch (e) { console.log(rows); }
     try { window.EG_NODES = rows; } catch (e) { }
     return rows;
