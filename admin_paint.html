@@ -7,8 +7,8 @@
 <title>EG 관리자 — 도장실</title>
 <!--
   ══════════════════════════════════════════════════════════════════════
-  EG 도장실 — admin_paint.html · v0824d
-  2026.08.24 소로 × 파이스 · 146회차 · 0824b 좌우 거울 · 0824d 좌우 두 판 · 도장 대상
+  EG 도장실 — admin_paint.html · v0824e
+  2026.08.24 소로 × 파이스 · 146회차 · 0824b 좌우 거울 · 0824d 좌우 두 판 · 0824e 두 면 저장
 
   ⭐⭐ 왜 이 방이 생겼나 (소로 0824 — 「콘솔에 편집기 달아주면 같이 토론하며」)
     동체 도장은 좌표를 손으로 적고 화면에서 확인하는 왕복이 수십 번이다.
@@ -329,7 +329,7 @@ button.wide{padding:8px 18px}
       <button id="bPng" class="wide">PNG 내려받기</button>
       <button id="bSave">Storage 에 저장</button>
       <button id="bOpen">불러오기</button>
-      <div class="note" id="fnote">도장은 <b>paint/lin_paint.png</b> · 설정은 <b>paint/lin_paint.json</b> 으로 삽니다</div>
+      <div class="note" id="fnote">도장은 <b>paint/lin_paint_L.png · _R.png</b> · 설정은 <b>paint/lin_paint.json</b> 으로 삽니다</div>
     </div>
   </div>
 </div>
@@ -1368,24 +1368,51 @@ $('#vTop').onclick  = ()=> look(180, -85, 2.3);
 $('#vFit').onclick  = viewFit;
 
 /* ══ 내보내기 · 저장 ═══════════════════════════════════════════════ */
-$('#bPng').onclick = ()=>{
-  cvP.toBlob(b => {
+/* ══ 내보내기 · 저장 (0824d — 두 장이 됐다) ═══════════════════════
+   ⚠⚠ 「지금 씌우기」는 저장이 아니다. 3D 화면에만 닿는다.
+     ⭐ 남기는 것은 「Storage 에 저장」 하나뿐이다. */
+function sideBlob(side){
+  /* ⚠ 화면 캔버스에는 지금 면만 서 있다. 반대 면은 딴 캔버스에 구워야 한다 */
+  if(side === S.side) return new Promise(r => cvP.toBlob(r, 'image/png'));
+  const c = bakeCanvas();
+  paintTo(c.getContext('2d'), side);
+  return new Promise(r => c.toBlob(r, 'image/png'));
+}
+$('#bPng').onclick = async ()=>{
+  for(const side of ['L','R']){
+    const b = await sideBlob(side);
     const a = document.createElement('a');
     a.href = URL.createObjectURL(b);
-    a.download = 'lin_paint.png';
+    a.download = 'lin_paint_' + side + '.png';
     a.click();
-    setTimeout(()=> URL.revokeObjectURL(a.href), 4000);
-  }, 'image/png');
+    await new Promise(r => setTimeout(r, 500));   /* ⚠ 두 장을 한 번에 쏘면 하나만 내려온다 */
+    URL.revokeObjectURL(a.href);
+  }
+  say('두 면을 다 내려받았습니다 — lin_paint_L.png · lin_paint_R.png', 'ok');
 };
 $('#bSave').onclick = async ()=>{
-  const png = await new Promise(r => cvP.toBlob(r, 'image/png'));
-  const e1 = (await supa.storage.from(BUCKET)
-    .upload(PDIR + 'lin_paint.png', png, { upsert:true, contentType:'image/png', cacheControl:'60' })).error;
-  const cfg = new Blob([JSON.stringify(S, null, 1)], { type:'application/json' });
-  const e2 = (await supa.storage.from(BUCKET)
-    .upload(PDIR + 'lin_paint.json', cfg, { upsert:true, contentType:'application/json', cacheControl:'60' })).error;
-  if(e1 || e2) say('못 저장했습니다 — ' + ((e1||e2).message), 'bad');
-  else say('도장과 설정을 Storage 에 앉혔습니다 (' + Math.round(png.size/1024) + 'KB)', 'ok');
+  const btn = $('#bSave'); btn.disabled = true; btn.textContent = '저장 중…';
+  try{
+    let kb = 0;
+    for(const side of ['L','R']){
+      const png = await sideBlob(side);
+      const e = (await supa.storage.from(BUCKET)
+        .upload(PDIR + 'lin_paint_' + side + '.png', png,
+                { upsert:true, contentType:'image/png', cacheControl:'60' })).error;
+      if(e) throw e;
+      kb += Math.round(png.size/1024);
+    }
+    const cfg = new Blob([JSON.stringify(S, null, 1)], { type:'application/json' });
+    const e2 = (await supa.storage.from(BUCKET)
+      .upload(PDIR + 'lin_paint.json', cfg,
+              { upsert:true, contentType:'application/json', cacheControl:'60' })).error;
+    if(e2) throw e2;
+    say('두 면과 설정을 Storage 에 앉혔습니다 (' + kb + 'KB)', 'ok');
+  }catch(err){
+    say('⚠ 못 저장했습니다 — ' + (err.message || err), 'bad');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Storage 에 저장';
+  }
 };
 $('#bOpen').onclick = ()=> openSettings(false);
 async function openSettings(quiet){
