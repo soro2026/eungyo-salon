@@ -167,7 +167,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0823g";
+  var VERSION = "0823h";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -471,6 +471,13 @@
        ⚠ 25호(체감 일정)와 안 부딪힌다 — 그 조항이 막은 것은 고도가 출렁일 때 속도가
          널뛰는 것인데, 이 노선은 고도가 아예 안 출렁인다. 지킬 것이 없는 곳이다. */
     kmh: 845,
+    /* ⭐⭐ 0823g 순항 요동 — 소로 0823 「로봇 같음. 생명을 불어 넣어 주소」.
+       ⚠ 이 노선은 각속도가 파리의 1/100 이라 선회 뱅크가 구조적으로 0 이다.
+       ⭐ 1.6° — 창밖 지평선이 그만큼 기운다. 0819 판정(10° 넘으면 몸이 먼저 안다)의
+         6분의 1 이라 열세 시간을 앉아 계셔도 멀미가 안 온다.
+       ⚠ 밖에서 보는 기체는 bankBody 로 따로 자른다 — 같은 값이 두 크기로 보인다. */
+    sway: 1.6,
+    bankBody: 20,
     /* ⭐⭐ 장거리 5호 — 평면이 되는 것이 **목적이다.** 문제가 아니다.
        11km 순항면에서는 톈산·파미르(7,000m대)도 3,000m 아래라 지구가 그냥 지도가 된다.
        ⚠ floor 그물은 남기되 한 번도 안 걸린다. 33호(고도의 규율 셋)도 일을 안 한다.
@@ -1074,6 +1081,9 @@
        ⭐ flown 은 PAUSED 일 때 안 는다. 아래 루프가 멈춤이면 dt 를 더하기 전에 물러나므로
          **따로 재지 않아도 「순수 비행만」이 된다**(0820 소로 요청). */
     var roll = 0, tp = performance.now(), gT = 0, errN = 0, SPDLOG = 0;
+    /* ⭐ 0823g — 보이는 뱅크. roll(좇는 값) + sway(요동)다. 카메라·기체가 이것을 읽는다.
+       ⚠ roll 을 그대로 두는 까닭은 아래 순항 요동 주석에 있다 — 더하면 요동이 죽는다. */
+    var sway = 0, rollView = 0;
     var dist = Math.max(0, +opt.startDist || 0);      /* ⭐ 0823c — 이어받는다 */
     var flown = Math.max(0, opt.startFlown | 0);
     /* ⭐ 0822f — 곡선의 접선이 직전 프레임에 가리키던 방위. 뱅크의 잣대다.
@@ -1195,7 +1205,7 @@
       /* ⭐ 0822g — 기체는 **눈이 정한 상한**으로 자른다. 안 적으면 기체 상한 그대로다.
          ⚠ 카메라(aimCam)는 SPEC.roll 로 자른다 — 그쪽은 몸이 정한 값이라 안 건드린다. */
       var rb = route.bankBody || ROLL_MAX;
-      var bank = Math.max(-rb, Math.min(rb, roll));
+      var bank = Math.max(-rb, Math.min(rb, rollView));   /* ⭐ 0823g — 요동을 얹은 값 */
       /* ⭐⭐ 0822h — 기수각(소로 「고도 오르고 내릴 때도 변화가 없었음」).
          pitch 슬롯이 **0 으로 못 박혀** 있었다. 분당 400m 로 올라도 기체는 늘 수평이었다.
          ⚠ 승강률에서 낸다. vs 는 m/분 — 400(㉡ 상한)에서 8°, 파리의 181 에서 3.6°.
@@ -1297,7 +1307,7 @@
         /* ⚠ 0822g — 여기서 자른다. roll 은 이제 상한 없이 오므로, 0819 소로가 taxi 로
            잡으신 그 값(SPEC.roll)을 쓰는 곳이 바로 이 한 곳이다. 멀미의 잣대다. */
         orientation: { heading: look, pitch: Cesium.Math.toRadians(pit),
-                       roll: Cesium.Math.toRadians(Math.max(-ROLL_MAX, Math.min(ROLL_MAX, roll))) }
+                       roll: Cesium.Math.toRadians(Math.max(-ROLL_MAX, Math.min(ROLL_MAX, rollView))) }
       });
     }
 
@@ -1501,6 +1511,27 @@
         roll += (wantRoll - roll) * Math.min(dt * ease, 1);
         /* ⚠ 잘리지 않은 값이 끝없이 자라지 않게 넉넉한 그물 하나만 둔다 */
         roll = Math.max(-45, Math.min(45, roll));
+        /* ══ ⭐⭐ 0823g 순항 요동 — 소로 0823 「좌우 선회에 동체가 꼼짝도 안 해. 로봇 같음」 ══
+           ⚠⚠ 게인 문제가 아니었다. **구조다.** 네 노선의 실제 각속도를 다 쟀다 —
+             파리 0.945 °/s · 안데스 0.214 · 알프스 0.061 · ⚠ 인천–파리 **0.0095**.
+             파리의 1/100 이다. 길목이 173km 씩 떨어져 있어 대권이 그냥 직선이다.
+           ⚠ 게인으로는 못 고친다 — 파리 수준(5°)을 내려면 550 이 필요한데,
+             그러면 마지막 4분 착륙 선회(0.375 °/s)에서 **206°** 가 나와 기체가 뒤집힌다.
+             ⭐ 한 게인으로 순항과 선회를 다 맞출 수 없다. 그러니 갈래를 하나 더 판다.
+           ⭐⭐ 소로가 원하신 것은 정확한 선회가 아니라 **가만있지 않는 것**이다.
+             실물 여객기도 순항 중 자로 잰 듯 수평이 아니다 — 자동조종이 계속 미세하게
+             고쳐서 날개가 아주 느리게 굽이친다. 그 요동은 **방위와 아무 상관이 없다.**
+           ⚠ 주기 둘을 서로 안 나누어떨어지게 둔다(5.7 · 13.1초). 나누어떨어지면
+             같은 무늬가 되풀이되고, 되풀이는 몇 분이면 눈에 잡힌다.
+           ⚠⚠ **실시간을 본다. 배속을 안 탄다.** 대기 요동은 기체가 얼마나 빨리 가든
+             제 빠르기로 일어난다. flown 에 물리면 ×60 에서 날개가 미친 듯이 떤다.
+           ⭐ roll 에 **더하지 않는다.** roll 은 좇는 값이라 더하면 다음 프레임이
+             그 값을 want 로 끌어당겨 요동이 저절로 죽는다. 따로 두었다 마지막에 합친다.
+           ⚠ sway 를 안 적은 노선은 0 이다 — 관광 셋은 한 톨도 안 바뀐다. */
+        var swayA = route.sway || 0;
+        sway = swayA ? swayA * (0.62 * Math.sin(now / 5700) + 0.38 * Math.sin(now / 13100 + 1.7)) : 0;
+        /* ⭐ 보이는 뱅크 = 좇는 뱅크 + 요동. 자르는 일은 쓰는 두 곳이 여전히 제각기 한다 */
+        rollView = roll + sway;
 
         /* ⚠ 0819f — 옛 3단 고도 블록이 여기 있었다. 진범이라 원인째 걷었다.
            고도는 위(㉠㉡㉢)에서 이미 alt 로 섰다. */
@@ -1513,7 +1544,7 @@
         /* ⚠ 계기판 한 줄이 죽어도 Cesium 렌더가 통째로 멈추지 않게 감싼다(0817) */
         if (opt.onTick) {
           /* ⭐ 0823f — loop·warp·arrived 셋을 함께 낸다. 받는 손이 route 를 다시 안 뒤진다 */
-          try { opt.onTick({ lat: lat, lon: lon, hd: hd, kmh: kmh, rel: rel, alt: alt, vs: vs, ground: groundH, dist: dist, flown: flown, leg: P(seg)[2], next: P(seg + 1)[2], roll: roll,
+          try { opt.onTick({ lat: lat, lon: lon, hd: hd, kmh: kmh, rel: rel, alt: alt, vs: vs, ground: groundH, dist: dist, flown: flown, leg: P(seg)[2], next: P(seg + 1)[2], roll: rollView,
                              seg: seg, legN: N, loop: LOOP, warp: WARP, arrived: ARRIVED }); }
           catch (err) {
             if (!window.__egRTickWarned) { window.__egRTickWarned = true; console.error("[EG] 계기판 오류 — 비행은 계속합니다:", err); }
