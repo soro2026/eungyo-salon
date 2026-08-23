@@ -7,8 +7,8 @@
 <title>EG 관리자 — 도장실</title>
 <!--
   ══════════════════════════════════════════════════════════════════════
-  EG 도장실 — admin_paint.html · v0824c
-  2026.08.24 소로 × 파이스 · 146회차 · 0824b 좌우 거울 · 0824c 단색 갈아끼우기
+  EG 도장실 — admin_paint.html · v0824d
+  2026.08.24 소로 × 파이스 · 146회차 · 0824b 좌우 거울 · 0824d 좌우 두 판 · 도장 대상
 
   ⭐⭐ 왜 이 방이 생겼나 (소로 0824 — 「콘솔에 편집기 달아주면 같이 토론하며」)
     동체 도장은 좌표를 손으로 적고 화면에서 확인하는 왕복이 수십 번이다.
@@ -206,6 +206,14 @@ button.wide{padding:8px 18px}
       <!-- ══ 왼쪽 — 도장 판 ══════════════════════════════════════════ -->
       <div class="panel">
         <h3>도장 판 · 2048 × 2048</h3>
+        <div class="row" style="margin:0 0 9px">
+          <label>지금 면</label>
+          <button id="sideL" class="on">왼쪽</button>
+          <button id="sideR">오른쪽</button>
+          <button id="bCopySide">반대편으로 복사</button>
+          <span style="font-size:11.5px;color:rgba(240,235,224,.35)">
+            ⭐ 바탕·곡선·띠는 공통 · 자산만 면마다 따로</span>
+        </div>
         <div class="board" id="board">
           <canvas id="cvPaint" width="2048" height="2048"></canvas>
           <canvas id="cvOver"  width="2048" height="2048"></canvas>
@@ -286,10 +294,11 @@ button.wide{padding:8px 18px}
             <button id="bPush">지금 씌우기</button>
           </div>
           <div class="row">
-            <label>좌우 거울</label>
-            <button id="bMirror">꺼짐</button>
+            <label>좌우 짝</label>
+            <button id="bSideSign">3D 좌우 바꾸기</button>
+            <button id="bMirSide">공통 뒤집는 면 · R</button>
             <span style="font-size:11.5px;color:rgba(240,235,224,.35)">
-              ⚠ 787 은 좌우가 같은 칸을 봅니다 — 켜면 한쪽만 뒤집어 읽습니다</span>
+              ⚠ 어느 쪽이 어느 판인지는 화면이 답합니다</span>
           </div>
         </div>
 
@@ -306,9 +315,9 @@ button.wide{padding:8px 18px}
 
         <h3>단색 부품 — 날개 · 엔진 · 꼬리</h3>
         <div style="font-size:11.5px;color:rgba(240,235,224,.38);line-height:1.8;margin-bottom:8px">
-          UV 가 손톱만 한 귀퉁이에 뭉친 부품은 그림을 못 얹습니다 — <b style="color:var(--gold)">단색만</b> 됩니다.<br>
-          ⚠ 가르는 잣대가 <b style="color:var(--gold)">원래 색</b>이라, 같은 색을 쓰는 재질은 함께 바뀝니다.<br>
-          ⚠ 여섯 벌까지입니다.
+<b style="color:var(--gold)">도장</b> — 이 부품이 도장 판을 받습니다. 동체와 꼬리만 켜면 엔진에 딱지가 안 붙습니다.<br>
+          <b style="color:var(--gold)">단색</b> — 날개·엔진처럼 그림을 못 얹는 부품을 한 색으로 칠합니다.<br>
+          ⚠ 가르는 잣대가 <b style="color:var(--gold)">원래 색</b>이라, 같은 색을 쓰는 재질은 함께 바뀝니다.
         </div>
         <div id="swaps" style="font-size:12px;color:rgba(240,235,224,.3);padding:14px 0;text-align:center">
           기체를 부르면 여기에 섭니다
@@ -355,17 +364,33 @@ const ASLOTS = [
   { key:'tail',  label:'꼬리',   note:'금색 EG' }
 ];
 
-/* ══ 상태 ══════════════════════════════════════════════════════════ */
+/* ══ 상태 ══════════════════════════════════════════════════════════
+   ⚠⚠ 0824d — 판이 **두 장**이 됐다 (소로 0824 — 「한쪽씩 따로 할 수 있게」)
+     787 은 좌우 옆구리가 같은 UV 칸을 본다. 한 장으로는 한쪽이 반드시 거울상이 된다.
+     ⭐ 그래서 좌우에 **다른 판**을 씌운다. 글자와 배지를 면마다 따로 놓는다.
+   ⭐ 다만 바탕·곡선·띠는 **공통**이다 — 실물 도장은 좌우가 거울 대칭이므로
+     한쪽 판에서는 그 공통 요소를 좌우로 뒤집어 굽는다(mirSide).
+   ⚠ 자산만 면마다 따로 산다. 곡선을 두 번 끄시게 하면 안 된다. */
 const S = {
   base:'#ffffff', baseOn:true,
   navy:'#12295c', gold:'#d8b45a',
   band:26, from:0, to:N, fade:160, flip:false,
-  mirror:0,                        /* ⭐ 0824b 좌우 거울 — 0 끔 · +1 오른쪽 · −1 왼쪽 */
-  swaps:{},                        /* ⭐ 0824c 원래색(hex) → 새 색(hex) · 여섯 벌까지 */
+  side:'L',                        /* 지금 손대는 면 */
+  mirSide:'R',                     /* ⭐ 공통 요소를 뒤집어 굽는 면 */
+  sideSign:1,                      /* ⚠ 3D 의 어느 쪽이 R 인가 — 화면이 답한다 */
+  swaps:{},                        /* ⭐ 단색 갈아끼우기 · 원래색 → 새 색 · 여섯 벌 */
+  paintOn:[],                      /* ⭐⭐ 도장을 **받을** 원래색 목록 · 넉 벌
+                                        ⚠ 비어 있으면 전부 받는다(처음 화면) */
   pts:[ {x:0,y:1180}, {x:512,y:1120}, {x:1024,y:1010}, {x:1536,y:840}, {x:2048,y:610} ],
-  assets:{}                        /* key → {x,y,scale,rot,flipX} */
+  assetsL:{}, assetsR:{}           /* key → {x,y,scale,rot,flipX} · 면마다 따로 */
 };
-ASLOTS.forEach(a => S.assets[a.key] = { x:N*0.5, y:N*0.42, scale:0.40, rot:0, flipX:false });
+ASLOTS.forEach(a => {
+  S.assetsL[a.key] = { x:N*0.5, y:N*0.42, scale:0.40, rot:0, flipX:false };
+  S.assetsR[a.key] = { x:N*0.5, y:N*0.42, scale:0.40, rot:0, flipX:false };
+});
+/* ⭐ 지금 면의 자산 — 한 곳에서만 읽는다. 두 곳이 되면 어긋난다 */
+function AS(key){ return (S.side === 'R' ? S.assetsR : S.assetsL)[key]; }
+const NPAINT = 4;
 
 const IMG   = {};                  /* key → Image (실린 자산) */
 let SEL     = null;                /* 고른 자산 열쇠 */
@@ -634,24 +659,33 @@ async function loadBody(src, label){
    ══════════════════════════════════════════════════════════════════ */
 const FRAG = [
   'void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material){',
-  '  vec2 uv = fsInput.attributes.texCoord_0;',
-  '  if(u_mirror != 0.0 && fsInput.attributes.positionMC.x * u_mirror > 0.0){',
-  '    uv.x = 1.0 - uv.x;',
-  '  }',
-  /* ⭐⭐ 0824c — 단색 갈아끼우기.
-       날개·엔진은 UV 가 한 귀퉁이에 뭉쳐 있어 그림을 못 얹는다(v189). 단색만 된다.
-     ⚠⚠ 가르는 잣대가 **원래 재질 색**이다 — 부품 이름이 아니다.
-       Cesium 은 화소에게 「너는 어느 부품이냐」를 안 알려 준다.
-       ⚠ 그래서 **같은 색을 쓰는 재질은 함께 바뀐다.** 화면에서 드러난다. */
   '  vec3 d = material.diffuse;',
+  /* ① 단색 갈아끼우기 — 날개·엔진처럼 그림을 못 얹는 부품용 */
   '  if(u_o0 > 0.5 && distance(d, u_f0) < 0.05) d = u_t0;',
   '  if(u_o1 > 0.5 && distance(d, u_f1) < 0.05) d = u_t1;',
   '  if(u_o2 > 0.5 && distance(d, u_f2) < 0.05) d = u_t2;',
   '  if(u_o3 > 0.5 && distance(d, u_f3) < 0.05) d = u_t3;',
   '  if(u_o4 > 0.5 && distance(d, u_f4) < 0.05) d = u_t4;',
   '  if(u_o5 > 0.5 && distance(d, u_f5) < 0.05) d = u_t5;',
-  '  vec4 p = texture(u_paint, uv);',
-  '  material.diffuse = mix(d, p.rgb, p.a);',   /* ⭐ 도장이 단색 위에 온다 */
+  /* ⭐⭐ ② 도장을 **받을 부품인가** — 0824d 의 알맹이.
+       ⚠⚠ 787 은 모든 부품이 U[0,1] V[0,1] 을 쓴다(0824 실측).
+         그래서 한 장을 다 씌우면 엔진에 동체 그림이 딱지로 붙는다.
+       ⚠ 그리고 그 불투명한 딱지가 ① 을 통째로 덮어 「색이 안 먹힌다」가 된다.
+       ⭐ 가르는 잣대는 여기서도 **원래 색**이다. 셰이더가 아는 것이 그것뿐이다.
+       ⭐ u_pn 이 0 이면 전부 받는다 — 아무것도 안 고른 첫 화면에서 뭔가 보여야 한다. */
+  '  float take = (u_pn < 0.5) ? 1.0 : 0.0;',
+  '  if(u_pn > 0.5 && distance(material.diffuse, u_pf0) < 0.05) take = 1.0;',
+  '  if(u_pn > 1.5 && distance(material.diffuse, u_pf1) < 0.05) take = 1.0;',
+  '  if(u_pn > 2.5 && distance(material.diffuse, u_pf2) < 0.05) take = 1.0;',
+  '  if(u_pn > 3.5 && distance(material.diffuse, u_pf3) < 0.05) take = 1.0;',
+  /* ⭐⭐ ③ 좌우 두 판 — 면마다 제 판을 본다. 거울이 필요 없어졌다 */
+  '  if(take > 0.5){',
+  '    vec2 uv = fsInput.attributes.texCoord_0;',
+  '    vec4 p = (fsInput.attributes.positionMC.x * u_sideSign > 0.0)',
+  '           ? texture(u_paintR, uv) : texture(u_paintL, uv);',
+  '    d = mix(d, p.rgb, p.a);',
+  '  }',
+  '  material.diffuse = d;',
   '}'
 ].join('\n');
 
@@ -682,21 +716,34 @@ function swapUniforms(){
                    value: s ? hexV3(s.to, true)    : new Cesium.Cartesian3(0,0,0) };
     u['u_o'+i] = { type:Cesium.UniformType.FLOAT, value: s ? 1 : 0 };
   }
+  const P = S.paintOn.slice(0, NPAINT);
+  for(let i=0;i<NPAINT;i++){
+    u['u_pf'+i] = { type:Cesium.UniformType.VEC3,
+                    value: P[i] ? hexV3(P[i], false) : new Cesium.Cartesian3(-1,-1,-1) };
+  }
+  u['u_pn'] = { type:Cesium.UniformType.FLOAT, value: P.length };
+  u['u_sideSign'] = { type:Cesium.UniformType.FLOAT, value: S.sideSign };
   return u;
 }
 function pushSwaps(){
   if(!shader) return;
   const u = swapUniforms();
   try{ Object.keys(u).forEach(k => shader.setUniform(k, u[k].value)); }
-  catch(e){ if(model){ shader = makeShader(paintURL()); model.customShader = shader; } }
+  catch(e){ rebuildShader(); }
+}
+function rebuildShader(){
+  if(!model) return;
+  shader = makeShader();
+  model.customShader = shader;
 }
 
-function makeShader(url){
+function makeShader(){
   return new Cesium.CustomShader({
     uniforms: Object.assign({
-      u_paint:{ type: Cesium.UniformType.SAMPLER_2D,
-                value: new Cesium.TextureUniform({ url:url }) },
-      u_mirror:{ type: Cesium.UniformType.FLOAT, value: S.mirror }
+      u_paintL:{ type: Cesium.UniformType.SAMPLER_2D,
+                 value: new Cesium.TextureUniform({ url: paintURL('L') }) },
+      u_paintR:{ type: Cesium.UniformType.SAMPLER_2D,
+                 value: new Cesium.TextureUniform({ url: paintURL('R') }) }
     }, swapUniforms()),
     fragmentShaderText: FRAG
   });
@@ -735,7 +782,7 @@ async function standUp(url){
     if(cc) cc.style.display = 'none';
   }
   if(model){ viewer.scene.primitives.remove(model); model = null; }
-  shader = makeShader(paintURL());
+  shader = makeShader();
   try{
     model = await Cesium.Model.fromGltfAsync({
       url,
@@ -802,12 +849,20 @@ function drawTest(ctx){
   ctx.strokeRect(5,5,N-10,N-10);
 }
 
-function paint(){
-  const ctx = ctxP;
+/* ══════════════════════════════════════════════════════════════════
+   ⭐⭐ 0824d — 굽는 손이 **면을 받는다.**
+     화면 캔버스는 지금 면(S.side)을 그리고, 3D 로 넘길 때는 두 면을 다 굽는다.
+   ⚠ 바탕·곡선·띠는 공통이고, **한 면에서는 좌우로 뒤집어** 굽는다(mirSide).
+     실물 도장이 좌우 거울 대칭이기 때문이다 — 곡선을 두 번 끌게 하면 안 된다.
+   ⚠ 자산은 뒤집지 않는다. 글자가 뒤집히면 안 되니까 — 그것이 이 개편의 까닭이다.
+   ══════════════════════════════════════════════════════════════════ */
+function paintTo(ctx, side){
   ctx.clearRect(0,0,N,N);
-  ctx.save();
+  if(TEST){ drawTest(ctx); return; }
 
-  if(TEST){ drawTest(ctx); ctx.restore(); paintOverlay(); schedulePush(); return; }
+  const mir = (side === S.mirSide);
+  ctx.save();
+  if(mir){ ctx.translate(N,0); ctx.scale(-1,1); }
 
   /* ① 바탕 */
   if(S.baseOn){ ctx.fillStyle = S.base; ctx.fillRect(0,0,N,N); }
@@ -842,33 +897,37 @@ function paint(){
     /* 좌우 흐리기 */
     const gx = o.createLinearGradient(0,0,N,0);
     const f = Math.max(1, S.fade);
-    const a = Math.max(0, Math.min(1, S.from / N)), b = Math.max(0, Math.min(1, S.to / N));
+    const a2 = Math.max(0, Math.min(1, S.from / N)), b2 = Math.max(0, Math.min(1, S.to / N));
     const fa = Math.min(0.49, f / N);
     gx.addColorStop(0, 'rgba(0,0,0,0)');
-    gx.addColorStop(Math.max(0, a), 'rgba(0,0,0,0)');
-    gx.addColorStop(Math.min(1, a + fa), 'rgba(0,0,0,1)');
-    gx.addColorStop(Math.max(0, b - fa), 'rgba(0,0,0,1)');
-    gx.addColorStop(Math.min(1, b), 'rgba(0,0,0,0)');
+    gx.addColorStop(Math.max(0, a2), 'rgba(0,0,0,0)');
+    gx.addColorStop(Math.min(1, a2 + fa), 'rgba(0,0,0,1)');
+    gx.addColorStop(Math.max(0, b2 - fa), 'rgba(0,0,0,1)');
+    gx.addColorStop(Math.min(1, b2), 'rgba(0,0,0,0)');
     gx.addColorStop(1, 'rgba(0,0,0,0)');
     o.globalCompositeOperation = 'destination-in';
     o.fillStyle = gx; o.fillRect(0,0,N,N);
     ctx.drawImage(off, 0, 0);
   }
+  ctx.restore();
 
-  /* ④ 자산 */
+  /* ④ 자산 — ⚠ 변환 **밖**이다. 뒤집으면 글자가 뒤집힌다 */
+  const AA = (side === 'R') ? S.assetsR : S.assetsL;
   ASLOTS.forEach(a => {
     const im = IMG[a.key]; if(!im) return;
-    const st = S.assets[a.key];
+    const st = AA[a.key];
     const w = N * st.scale, h = w * (im.naturalHeight / im.naturalWidth);
     ctx.save();
     ctx.translate(st.x, st.y);
     ctx.rotate(st.rot * Math.PI / 180);
-    if(st.flipX) ctx.scale(-1, 1);      /* ⭐ 0824b — 자산 하나만 뒤집는 손 */
+    if(st.flipX) ctx.scale(-1, 1);
     ctx.drawImage(im, -w/2, -h/2, w, h);
     ctx.restore();
   });
+}
 
-  ctx.restore();
+function paint(){
+  paintTo(ctxP, S.side);
   paintOverlay();
   schedulePush();
 }
@@ -912,7 +971,7 @@ function paintOverlay(){
 
   /* 고른 자산 테두리 */
   if(SEL && IMG[SEL]){
-    const im = IMG[SEL], st = S.assets[SEL];
+    const im = IMG[SEL], st = AS(SEL);
     const w = N * st.scale, h = w * (im.naturalHeight / im.naturalWidth);
     ctx.save();
     ctx.translate(st.x, st.y); ctx.rotate(st.rot * Math.PI/180);
@@ -922,15 +981,29 @@ function paintOverlay(){
   }
 }
 
-/* ══ 3D 로 넘기기 ══════════════════════════════════════════════════ */
-function paintURL(){ return cvP.toDataURL('image/png'); }
+/* ══ 3D 로 넘기기 ══════════════════════════════════════════════════
+   ⚠⚠ 화면 캔버스에는 **지금 면 하나만** 서 있다. 반대 면은 딴 캔버스에 구워야 한다.
+     한 캔버스를 돌려 쓰면 굽는 사이에 화면이 깜빡이고, 겹침 판까지 섞여 들어간다.
+   ⭐ 그 딴 캔버스는 한 번 지어 놓고 계속 쓴다. 2048 짜리를 매번 새로 만들지 않는다. */
+let cvBake = null;
+function bakeCanvas(){
+  if(!cvBake){ cvBake = document.createElement('canvas'); cvBake.width = N; cvBake.height = N; }
+  return cvBake;
+}
+function paintURL(side){
+  if(side === S.side) return cvP.toDataURL('image/png');
+  const c = bakeCanvas();
+  paintTo(c.getContext('2d'), side);
+  return c.toDataURL('image/png');
+}
 function pushPaint(){
   if(!shader) return;
   try{
-    shader.setUniform('u_paint', new Cesium.TextureUniform({ url: paintURL() }));
+    shader.setUniform('u_paintL', new Cesium.TextureUniform({ url: paintURL('L') }));
+    shader.setUniform('u_paintR', new Cesium.TextureUniform({ url: paintURL('R') }));
   }catch(e){
     /* ⚠ setUniform 이 안 통하면 셰이더를 새로 만든다 — 다시 엮느라 느리다 */
-    if(model){ shader = makeShader(paintURL()); model.customShader = shader; }
+    rebuildShader();
   }
 }
 function schedulePush(){
@@ -953,7 +1026,7 @@ $('#board').addEventListener('pointerdown', ev => {
   }
   for(let k=ASLOTS.length-1;k>=0;k--){
     const key = ASLOTS[k].key, im = IMG[key]; if(!im) continue;
-    const st = S.assets[key];
+    const st = AS(key);
     const w = N*st.scale, h = w*(im.naturalHeight/im.naturalWidth);
     const dx = p.x - st.x, dy = p.y - st.y, a = -st.rot*Math.PI/180;
     const lx = dx*Math.cos(a) - dy*Math.sin(a), ly = dx*Math.sin(a) + dy*Math.cos(a);
@@ -975,8 +1048,8 @@ $('#board').addEventListener('pointermove', ev => {
       S.pts[drag.i].x = Math.max(lo, Math.min(hi, p.x));
     }
   }else{
-    S.assets[drag.key].x = p.x - drag.ox;
-    S.assets[drag.key].y = p.y - drag.oy;
+    AS(drag.key).x = p.x - drag.ox;
+    AS(drag.key).y = p.y - drag.oy;
   }
   paint();
 });
@@ -986,7 +1059,7 @@ $('#board').addEventListener('pointercancel', endDrag);
 $('#board').addEventListener('wheel', ev => {
   if(!SEL || TEST) return;
   ev.preventDefault();
-  const st = S.assets[SEL];
+  const st = AS(SEL);
   st.scale = Math.max(0.02, Math.min(2, st.scale * (ev.deltaY < 0 ? 1.06 : 0.94)));
   syncAssetRows(); paint();
 }, { passive:false });
@@ -1033,7 +1106,7 @@ function selectAsset(key){
   syncAssetRows(); paintOverlay();
 }
 function syncAssetRows(){
-  const st = SEL ? S.assets[SEL] : null;
+  const st = SEL ? AS(SEL) : null;
   $('#rScale').disabled = !st; $('#rRot').disabled = !st;
   if(!st) return;
   $('#rScale').value = Math.round(st.scale*100); $('#vScale').textContent = Math.round(st.scale*100)+'%';
@@ -1087,7 +1160,8 @@ function drawSwaps(){
   const n = Object.keys(S.swaps).length;
   let h = '<div style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow:auto">';
   gs.forEach((g, i) => {
-    const on = S.swaps[g.color] !== undefined;
+    const on  = S.swaps[g.color] !== undefined;
+    const pon = S.paintOn.indexOf(g.color) >= 0;
     h += '<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:9px;'
        + 'border:1px solid rgba(240,235,224,' + (on ? '.3' : '.09') + ');'
        + 'background:rgba(255,255,255,' + (on ? '.05' : '.02') + ')">'
@@ -1098,14 +1172,18 @@ function drawSwaps(){
        + (g.names.length-1) + '벌</span>' : '') + '</span>'
        + '<span style="font-size:11px;color:rgba(240,235,224,.3);font-variant-numeric:tabular-nums">'
        + Math.round(g.tri).toLocaleString() + '</span>'
+       + '<button data-c="' + g.color + '" class="pnb' + (pon ? ' on' : '')
+       + '" style="padding:4px 9px;font-size:11px" title="이 부품이 도장 판을 받습니다">도장</button>'
        + '<input type="color" data-c="' + g.color + '" class="swc" value="'
        + (on ? S.swaps[g.color] : S.navy) + '" style="width:34px;height:24px;padding:0;'
        + 'border:1px solid rgba(240,235,224,.16);border-radius:6px;background:transparent;cursor:pointer">'
        + '<button data-c="' + g.color + '" class="swb" style="padding:4px 9px;font-size:11px">'
-       + (on ? '끄기' : '칠하기') + '</button></div>';
+       + (on ? '끄기' : '단색') + '</button></div>';
   });
   host.innerHTML = h + '</div>'
-    + '<div style="font-size:11px;color:rgba(240,235,224,.32);margin-top:7px">지정 ' + n + ' / ' + NSWAP + '벌</div>';
+    + '<div style="font-size:11px;color:rgba(240,235,224,.32);margin-top:7px">단색 ' + n + '/' + NSWAP
+    + '벌 · 도장 ' + S.paintOn.length + '/' + NPAINT + '벌'
+    + (S.paintOn.length ? '' : ' <b style="color:var(--warn)">— 아무것도 안 고르면 전부 도장을 받습니다</b>') + '</div>';
 
   host.querySelectorAll('.swb').forEach(b => {
     b.onclick = ()=>{
@@ -1117,6 +1195,21 @@ function drawSwaps(){
         }
         const inp = host.querySelector('.swc[data-c="' + c + '"]');
         S.swaps[c] = inp ? inp.value : S.navy;
+      }
+      drawSwaps(); pushSwaps();
+    };
+  });
+  /* ⭐⭐ 도장 받기 — 0824d 의 알맹이.
+     ⚠ 아무것도 안 고르면 **전부** 받는다(지금까지의 동작). 하나라도 고르면 그것만 받는다. */
+  host.querySelectorAll('.pnb').forEach(b => {
+    b.onclick = ()=>{
+      const c = b.dataset.c, i = S.paintOn.indexOf(c);
+      if(i >= 0) S.paintOn.splice(i, 1);
+      else{
+        if(S.paintOn.length >= NPAINT){
+          say('도장은 넉 벌까지입니다 — 하나를 끄고 다시 해 주십시오', 'bad'); return;
+        }
+        S.paintOn.push(c);
       }
       drawSwaps(); pushSwaps();
     };
@@ -1204,14 +1297,14 @@ $('#bReset').onclick = ()=>{
 };
 $('#rScale').oninput = e => {
   if(!SEL) return;
-  S.assets[SEL].scale = +e.target.value/100;
+  AS(SEL).scale = +e.target.value/100;
   $('#vScale').textContent = e.target.value + '%';
   paint();
 };
 $('#rScale').onchange = pushPaint;
 $('#rRot').oninput = e => {
   if(!SEL) return;
-  S.assets[SEL].rot = +e.target.value;
+  AS(SEL).rot = +e.target.value;
   $('#vRot').textContent = e.target.value + '°';
   paint();
 };
@@ -1233,24 +1326,40 @@ $('#fGlb').addEventListener('change', ev => {
 $('#vSide').onclick = ()=> look(180, 0, 2.1);
 $('#vSide2').onclick = ()=> look(0, 0, 2.1);
 
-/* ⭐⭐ 0824b 좌우 거울 — 세 곳을 돈다. 어느 쪽을 뒤집을지는 기체마다 다르므로
-   눌러 보고 화면이 답하게 한다. 셈으로 미리 정하지 않는다. */
-const MIRNAME = { '0':'꺼짐', '1':'오른쪽 뒤집기', '-1':'왼쪽 뒤집기' };
-function setMirror(v){
-  S.mirror = v;
-  const b = $('#bMirror');
-  b.textContent = MIRNAME[String(v)];
-  b.classList.toggle('on', v !== 0);
-  if(shader){
-    try{ shader.setUniform('u_mirror', v); }
-    catch(e){ if(model){ shader = makeShader(paintURL()); model.customShader = shader; } }
-  }
+/* ══ 면 전환 (0824d) ═══════════════════════════════════════════════
+   ⚠ 어느 쪽이 왼쪽 판인지 셈으로 미리 안 정한다. 눌러 보고 화면이 답하게 한다.
+     0823 에 여덟 번 배운 그것이다 — 셈은 값을 내지만 맞는지는 화면이 안다. */
+function setSide(v){
+  S.side = v;
+  $('#sideL').classList.toggle('on', v === 'L');
+  $('#sideR').classList.toggle('on', v === 'R');
+  syncAssetRows();
+  paint();
 }
-$('#bMirror').onclick = ()=> setMirror(S.mirror === 0 ? 1 : (S.mirror === 1 ? -1 : 0));
+$('#sideL').onclick = ()=> setSide('L');
+$('#sideR').onclick = ()=> setSide('R');
+
+$('#bSideSign').onclick = ()=>{
+  S.sideSign = -S.sideSign;
+  pushSwaps();                       /* ⚠ u_sideSign 이 여기 실려 있다 */
+  say('3D 의 좌우를 맞바꿨습니다');
+};
+$('#bMirSide').onclick = ()=>{
+  S.mirSide = (S.mirSide === 'R') ? 'L' : 'R';
+  $('#bMirSide').textContent = '공통 뒤집는 면 · ' + S.mirSide;
+  paint(); pushPaint();
+};
+$('#bCopySide').onclick = ()=>{
+  const from = (S.side === 'R') ? S.assetsR : S.assetsL;
+  const to   = (S.side === 'R') ? S.assetsL : S.assetsR;
+  ASLOTS.forEach(a => Object.assign(to[a.key], JSON.parse(JSON.stringify(from[a.key]))));
+  paint(); pushPaint();
+  say('자산 배치를 반대편에 복사했습니다 — 글자는 뒤집지 않았습니다', 'ok');
+};
 
 $('#bAsFlip').onclick = ()=>{
   if(!SEL){ say('자산을 먼저 고르십시오', 'bad'); return; }
-  S.assets[SEL].flipX = !S.assets[SEL].flipX;
+  AS(SEL).flipX = !AS(SEL).flipX;
   paint(); pushPaint();
 };
 $('#vTail').onclick = ()=> look(270, -6, 2.1);
@@ -1285,13 +1394,21 @@ async function openSettings(quiet){
     if(!r.ok) throw new Error('없습니다');
     const j = await r.json();
     Object.keys(S).forEach(k => {
-      if(k === 'assets') return;                  /* ⚠ 아래에서 따로 섞는다 */
+      if(k === 'assets' || k === 'assetsL' || k === 'assetsR') return;  /* ⚠ 아래에서 따로 */
       if(j[k] !== undefined) S[k] = j[k];
     });
     /* ⚠⚠ 자산 칸을 **통째로 갈아치우지 않는다.** 칸이 늘어난 날
        옛 설정을 그대로 얹으면 새 칸이 통째로 사라진다(0823k 와 같은 갈래). */
-    if(j.assets) ASLOTS.forEach(a => {
-      if(j.assets[a.key]) Object.assign(S.assets[a.key], j.assets[a.key]);
+    /* ⚠ 0824c 까지의 설정은 자산이 **한 벌**이었다. 그것도 받아 준다 —
+       옛 판이 남긴 설정을 못 읽으면 소로가 한 일이 사라진다. */
+    const oneSet = j.assets && !j.assetsL;
+    ASLOTS.forEach(a => {
+      if(oneSet && j.assets[a.key]){
+        Object.assign(S.assetsL[a.key], j.assets[a.key]);
+        Object.assign(S.assetsR[a.key], j.assets[a.key]);
+      }
+      if(j.assetsL && j.assetsL[a.key]) Object.assign(S.assetsL[a.key], j.assetsL[a.key]);
+      if(j.assetsR && j.assetsR[a.key]) Object.assign(S.assetsR[a.key], j.assetsR[a.key]);
     });
     $('#pBase').value = S.base; $('#pNavy').value = S.navy; $('#pGold').value = S.gold;
     $('#rBand').value = S.band; $('#vBand').textContent = S.band;
@@ -1300,7 +1417,8 @@ async function openSettings(quiet){
     $('#rFade').value = S.fade; $('#vFade').textContent = S.fade;
     $('#bBase').classList.toggle('on', S.baseOn);
     $('#bBase').textContent = S.baseOn ? '켜짐' : '꺼짐';
-    setMirror(S.mirror || 0);        /* ⚠ 값만 싣고 단추를 안 맞추면 화면이 거짓말한다 */
+    setSide(S.side || 'L');          /* ⚠ 값만 싣고 단추를 안 맞추면 화면이 거짓말한다 */
+    $('#bMirSide').textContent = '공통 뒤집는 면 · ' + S.mirSide;
     drawSwaps(); pushSwaps();
     syncAssetRows();
     paint(); pushPaint();
