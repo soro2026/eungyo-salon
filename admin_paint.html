@@ -7,8 +7,8 @@
 <title>EG 관리자 — 도장실</title>
 <!--
   ══════════════════════════════════════════════════════════════════════
-  EG 도장실 — admin_paint.html · v0824f
-  2026.08.24 소로 × 파이스 · 146회차 · 0824b 좌우 거울 · 0824d 좌우 두 판 · 0824e 두 면 저장 · 0824f 단계 · 비추기
+  EG 도장실 — admin_paint.html · v0824g
+  2026.08.24 소로 × 파이스 · 146회차 · 0824b 좌우 거울 · 0824d 좌우 두 판 · 0824e 두 면 저장 · 0824f 단계 · 비추기 · 0824g 금속성 자 교정
 
   ⭐⭐ 왜 이 방이 생겼나 (소로 0824 — 「콘솔에 편집기 달아주면 같이 토론하며」)
     동체 도장은 좌표를 손으로 적고 화면에서 확인하는 왕복이 수십 번이다.
@@ -567,12 +567,19 @@ function chewGLB(buf){
       const name = (mat && mat.name) || ('재질 ' + mIdx);
       const rec = byMat[name] || (byMat[name] = {
         name, tri:0, uvMin:[9,9], uvMax:[-9,-9], wn:[1e9,1e9,1e9], wx:[-1e9,-1e9,-1e9],
-        color:null, tris:[], hasUV:false
+        color:null, metal:null, tris:[], hasUV:false
       });
-      if(!rec.color && mat && mat.pbrMetallicRoughness && mat.pbrMetallicRoughness.baseColorFactor){
-        const c = mat.pbrMetallicRoughness.baseColorFactor;
-        const h = v => ('0' + Math.round(Math.min(1,Math.max(0,v))*255).toString(16)).slice(-2);
-        rec.color = '#' + h(c[0]) + h(c[1]) + h(c[2]);
+      if(mat && mat.pbrMetallicRoughness){
+        const pm = mat.pbrMetallicRoughness;
+        if(!rec.color && pm.baseColorFactor){
+          const c = pm.baseColorFactor;
+          const h = v => ('0' + Math.round(Math.min(1,Math.max(0,v))*255).toString(16)).slice(-2);
+          rec.color = '#' + h(c[0]) + h(c[1]) + h(c[2]);
+        }
+        /* ⚠⚠ 0824g — 금속성. glTF 는 **안 적으면 1.0** 이다.
+           Cesium 은 금속성 재질의 색을 변환해서 셰이더에 준다 —
+           변환 전 색과 비교하면 영원히 안 맞는다. 오늘 「미동도 없음」의 유력 진범이다. */
+        if(rec.metal == null) rec.metal = (pm.metallicFactor !== undefined) ? pm.metallicFactor : 1;
       }
 
       /* 월드 상자 — accessor min/max 여덟 꼭짓점만(공짜) */
@@ -684,15 +691,26 @@ async function loadBody(src, label){
    ⚠ 가르는 곳은 X=0 — 등과 배 한가운데다. 거기가 단색이면 이음매가 안 보인다.
    ══════════════════════════════════════════════════════════════════ */
 const FRAG = [
+  /* ⭐⭐ 0824g — 색 대조 자를 고쳤다.
+       Cesium 은 금속성에 따라 원래 색을 diffuse 또는 specular 로 보낸다:
+         금속성 0  →  diffuse 가 원래 색
+         금속성 1  →  specular 가 원래 색 (diffuse 는 검정에 가깝다)
+       ⚠ 여태 diffuse 하고만 비교했다. 금속 재질은 영원히 안 맞았다 —
+         「단색이 미동도 없다」「부품이 안 빨개진다」의 진범이다.
+       ⭐ 그래서 **양쪽에 다 대 본다.** 어느 쪽이든 맞으면 그 재질이다. */
+  'bool egNear(vec3 dif, vec3 spec, vec3 c){',
+  '  return distance(dif, c) < 0.06 || distance(spec, c) < 0.06;',
+  '}',
   'void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material){',
   '  vec3 d = material.diffuse;',
   /* ① 단색 갈아끼우기 — 날개·엔진처럼 그림을 못 얹는 부품용 */
-  '  if(u_o0 > 0.5 && distance(d, u_f0) < 0.05) d = u_t0;',
-  '  if(u_o1 > 0.5 && distance(d, u_f1) < 0.05) d = u_t1;',
-  '  if(u_o2 > 0.5 && distance(d, u_f2) < 0.05) d = u_t2;',
-  '  if(u_o3 > 0.5 && distance(d, u_f3) < 0.05) d = u_t3;',
-  '  if(u_o4 > 0.5 && distance(d, u_f4) < 0.05) d = u_t4;',
-  '  if(u_o5 > 0.5 && distance(d, u_f5) < 0.05) d = u_t5;',
+  '  vec3 sp = material.specular;',
+  '  if(u_o0 > 0.5 && egNear(d, sp, u_f0)) d = u_t0;',
+  '  if(u_o1 > 0.5 && egNear(d, sp, u_f1)) d = u_t1;',
+  '  if(u_o2 > 0.5 && egNear(d, sp, u_f2)) d = u_t2;',
+  '  if(u_o3 > 0.5 && egNear(d, sp, u_f3)) d = u_t3;',
+  '  if(u_o4 > 0.5 && egNear(d, sp, u_f4)) d = u_t4;',
+  '  if(u_o5 > 0.5 && egNear(d, sp, u_f5)) d = u_t5;',
   /* ⭐⭐ ② 도장을 **받을 부품인가** — 0824d 의 알맹이.
        ⚠⚠ 787 은 모든 부품이 U[0,1] V[0,1] 을 쓴다(0824 실측).
          그래서 한 장을 다 씌우면 엔진에 동체 그림이 딱지로 붙는다.
@@ -705,27 +723,31 @@ const FRAG = [
      ⭐ 이제 고른 것만 받는다. 안 고르면 아무것도 안 받는다.
      ⭐ 그리고 u_stage 가 3 보다 작으면 도장을 아예 안 씌운다(1·2단계). */
   '  float take = 0.0;',
-  '  if(u_pn > 0.5 && distance(material.diffuse, u_pf0) < 0.05) take = 1.0;',
-  '  if(u_pn > 1.5 && distance(material.diffuse, u_pf1) < 0.05) take = 1.0;',
-  '  if(u_pn > 2.5 && distance(material.diffuse, u_pf2) < 0.05) take = 1.0;',
-  '  if(u_pn > 3.5 && distance(material.diffuse, u_pf3) < 0.05) take = 1.0;',
+  '  if(u_pn > 0.5 && egNear(material.diffuse, sp, u_pf0)) take = 1.0;',
+  '  if(u_pn > 1.5 && egNear(material.diffuse, sp, u_pf1)) take = 1.0;',
+  '  if(u_pn > 2.5 && egNear(material.diffuse, sp, u_pf2)) take = 1.0;',
+  '  if(u_pn > 3.5 && egNear(material.diffuse, sp, u_pf3)) take = 1.0;',
   /* ⭐⭐ ③ 좌우 두 판 — 면마다 제 판을 본다. 거울이 필요 없어졌다 */
   '  if(u_stage < 2.5) take = 0.0;',
+  '  if(d != material.diffuse){ material.specular = vec3(0.04); }',
   '  vec2 uv = fsInput.attributes.texCoord_0;',
   '  if(take > 0.5){',
   '    vec4 p = (fsInput.attributes.positionMC.x * u_sideSign > 0.0)',
   '           ? texture(u_paintR, uv) : texture(u_paintL, uv);',
   '    d = mix(d, p.rgb, p.a);',
+  /* ⭐ 도장 받은 곳도 번쩍임을 눕힌다 — 금속 재질 위에 칠하면
+       specular 에 남은 원래 색이 흰 번들거림으로 그림을 덮는다 */
+  '    material.specular = mix(material.specular, vec3(0.04), p.a);',
   '  }',
   /* ⭐⭐ 비추기 ㉠ — 부품 하나를 빨갛게. 「어느 것이 동체인가」가 3D 에서 보인다 */
-  '  if(u_hiOn > 0.5 && distance(material.diffuse, u_hi) < 0.05){',
+  '  if(u_hiOn > 0.5 && egNear(material.diffuse, sp, u_hi)){',
   '    d = mix(d, vec3(1.0, 0.15, 0.15), 0.75);',
   '  }',
   /* ⭐⭐⭐ 비추기 ㉡ — 판 위의 손끝이 3D 에 점으로 따라간다.
        ⚠ 이것이 오늘 빠져 있던 되먹임 고리다. 판의 어디가 기체의 어디인지
          알 방법이 없어서 소로가 눈을 가린 채 화살을 쏘고 계셨다. */
   '  if(u_aimOn > 0.5){',
-  '    float dd = distance(uv, u_aim);',
+  '    float dd = distance(uv, vec2(u_aimU, u_aimV));',
   '    if(dd < u_aimR) d = mix(vec3(1.0, 0.9, 0.2), d, dd / u_aimR);',
   '  }',
   '  material.diffuse = d;',
@@ -771,8 +793,8 @@ function swapUniforms(){
   u['u_hi']   = { type:Cesium.UniformType.VEC3,
                   value: HI ? hexV3(HI, false) : new Cesium.Cartesian3(-1,-1,-1) };
   u['u_aimOn']= { type:Cesium.UniformType.FLOAT, value: AIM ? 1 : 0 };
-  u['u_aim']  = { type:Cesium.UniformType.VEC2,
-                  value: new Cesium.Cartesian2(AIM ? AIM.u : -9, AIM ? AIM.v : -9) };
+  u['u_aimU'] = { type:Cesium.UniformType.FLOAT, value: AIM ? AIM.u : -9 };
+  u['u_aimV'] = { type:Cesium.UniformType.FLOAT, value: AIM ? AIM.v : -9 };
   u['u_aimR'] = { type:Cesium.UniformType.FLOAT, value: AIMR };
   return u;
 }
@@ -780,10 +802,22 @@ function pushSwaps(){
   if(!shader) return;
   const u = swapUniforms();
   try{ Object.keys(u).forEach(k => shader.setUniform(k, u[k].value)); }
-  catch(e){ rebuildShader(); }
+  catch(e){ rebuildShader(e.message); }
 }
-function rebuildShader(){
+let rebuildAt = 0;
+function rebuildShader(why){
+  /* ⚠⚠ 0824g — 이 길이 오늘 메모리를 터뜨렸다.
+       값 넣기가 실패할 때마다 셰이더를 통째로 다시 엮으며 텍스처가 쌓였다.
+     ⭐ 빗장 — 5초에 한 번만. 그리고 **왜** 탔는지 화면이 말한다.
+       조용한 뒷길은 뒷길이 아니라 함정이다. */
+  const now = Date.now();
+  if(now - rebuildAt < 5000){
+    say('⚠ 셰이더가 5초 안에 또 실패했습니다 — 멈춥니다: ' + (why || ''), 'bad');
+    return;
+  }
+  rebuildAt = now;
   if(!model) return;
+  say('⚠ 값을 못 넣어 셰이더를 다시 엮습니다 — ' + (why || ''), 'bad');
   shader = makeShader();
   model.customShader = shader;
 }
@@ -831,6 +865,15 @@ async function standUp(url){
     });
     const cc = viewer.cesiumWidget && viewer.cesiumWidget.creditContainer;
     if(cc) cc.style.display = 'none';
+    /* ⭐ 0824g — 그리다 멈추면 그 까닭을 이 화면에 적는다.
+       ⚠ 오늘 소로가 「An error occurred while rendering」 상자만 보셨다.
+         See more 를 누르지 않아도 첫 줄이 stat 에 뜨게 한다. */
+    viewer.scene.renderError.addEventListener((sc, err)=>{
+      const msg = (err && err.message) ? err.message : String(err);
+      $('#vhint').style.display = 'block';
+      $('#vhint').textContent = '⚠ 그리다 멈췄습니다 —\n' + msg;
+      stat('<i>그리다 멈춤 — ' + msg.slice(0, 120) + '</i>');
+    });
   }
   if(model){ viewer.scene.primitives.remove(model); model = null; }
   shader = makeShader();
@@ -1053,8 +1096,7 @@ function pushPaint(){
     shader.setUniform('u_paintL', new Cesium.TextureUniform({ url: paintURL('L') }));
     shader.setUniform('u_paintR', new Cesium.TextureUniform({ url: paintURL('R') }));
   }catch(e){
-    /* ⚠ setUniform 이 안 통하면 셰이더를 새로 만든다 — 다시 엮느라 느리다 */
-    rebuildShader();
+    rebuildShader(e.message);
   }
 }
 function schedulePush(){
@@ -1302,7 +1344,8 @@ function drawParts(){
     const sz = [p.wx[0]-p.wn[0], p.wx[1]-p.wn[1], p.wx[2]-p.wn[2]].map(v=> v>1e8||v< -1e8 ? 0 : v);
     h += '<tr data-i="' + i + '"' + (i===SELPART?' class="sel"':'') + '>'
       +  '<td><span class="sw" style="background:' + (p.color||'#666') + '"></span>' + p.name + '</td>'
-      +  '<td style="font-size:10.5px;color:rgba(240,235,224,.4)">' + (p.color || '—') + '</td>'
+      +  '<td style="font-size:10.5px;color:rgba(240,235,224,.4)">' + (p.color || '—')
+      +  (p.metal != null ? ' <span style="color:rgba(255,176,96,.7)">m' + p.metal + '</span>' : '') + '</td>'
       +  '<td>' + Math.round(p.tri).toLocaleString() + '</td>'
       +  '<td>' + sz.map(v=>v.toFixed(1)).join(' · ') + '</td></tr>';
   });
@@ -1445,7 +1488,7 @@ function setHi(color){
     try{
       shader.setUniform('u_hiOn', color ? 1 : 0);
       shader.setUniform('u_hi', color ? hexV3(color, false) : new Cesium.Cartesian3(-1,-1,-1));
-    }catch(e){ rebuildShader(); }
+    }catch(e){ rebuildShader(e.message); }
   }
 }
 let aimT = null;
@@ -1457,7 +1500,8 @@ function setAim(u, v){
   aimT = setTimeout(()=>{
     try{
       shader.setUniform('u_aimOn', AIM ? 1 : 0);
-      shader.setUniform('u_aim', new Cesium.Cartesian2(AIM ? AIM.u : -9, AIM ? AIM.v : -9));
+      shader.setUniform('u_aimU', AIM ? AIM.u : -9);
+      shader.setUniform('u_aimV', AIM ? AIM.v : -9);
     }catch(e){ /* ⚠ 여기서 셰이더를 다시 엮으면 마우스마다 멈춘다 — 조용히 넘긴다 */ }
   }, 30);
 }
