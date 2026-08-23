@@ -7,8 +7,8 @@
 <title>EG 관리자 — 도장실</title>
 <!--
   ══════════════════════════════════════════════════════════════════════
-  EG 도장실 — admin_paint.html · v0824e
-  2026.08.24 소로 × 파이스 · 146회차 · 0824b 좌우 거울 · 0824d 좌우 두 판 · 0824e 두 면 저장
+  EG 도장실 — admin_paint.html · v0824f
+  2026.08.24 소로 × 파이스 · 146회차 · 0824b 좌우 거울 · 0824d 좌우 두 판 · 0824e 두 면 저장 · 0824f 단계 · 비추기
 
   ⭐⭐ 왜 이 방이 생겼나 (소로 0824 — 「콘솔에 편집기 달아주면 같이 토론하며」)
     동체 도장은 좌표를 손으로 적고 화면에서 확인하는 왕복이 수십 번이다.
@@ -168,6 +168,22 @@ button.wide{padding:8px 18px}
   background:rgba(255,255,255,.035);border:1px solid rgba(201,168,76,.18);
   border-radius:14px;padding:12px 16px}
 .foot .note{font-size:11.5px;color:rgba(240,235,224,.38);margin-left:auto}
+
+/* ══ 단계 띠 (0824f) ═══════════════════════════════════════════════
+   ⭐ 이전 단계 손잡이가 화면에서 사라지면 엉킬 수가 없다(소로 0824) */
+.steps{display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+  background:rgba(255,255,255,.035);border:1px solid rgba(201,168,76,.18);
+  border-radius:14px;padding:11px 14px;margin-bottom:14px}
+.steps button{padding:7px 14px}
+.steps .stepmsg{flex-basis:100%;font-size:12px;color:rgba(240,235,224,.5);
+  line-height:1.8;padding-top:4px}
+.steps .stepmsg b{color:var(--gold);font-weight:700}
+.steps .stepmsg i{color:var(--warn);font-style:normal;font-weight:700}
+
+/* ⭐⭐ 손끝 비추기 — 판 위의 마우스가 3D 에 점으로 따라간다 */
+.board.aim{cursor:none}
+#dot{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;
+  border:2px solid #ff5a5a;background:rgba(255,90,90,.35);pointer-events:none;display:none;z-index:5}
 </style>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Widgets/widgets.css" rel="stylesheet">
 </head>
@@ -202,24 +218,32 @@ button.wide{padding:8px 18px}
       <div class="stat" id="stat">기체를 아직 안 불렀습니다</div>
     </div>
 
-    <div class="cols">
+    <div class="steps" id="steps">
+      <button data-go="1" class="on">1 · 부품 색</button>
+      <button data-go="2">2 · 동체 고르기</button>
+      <button data-go="3">3 · 바탕 · 곡선</button>
+      <button data-go="4">4 · 왼쪽 면</button>
+      <button data-go="5">5 · 오른쪽 면</button>
+      <div class="stepmsg" id="stepmsg"></div>
+    </div>
+
+    <div class="cols" id="cols">
       <!-- ══ 왼쪽 — 도장 판 ══════════════════════════════════════════ -->
-      <div class="panel">
-        <h3>도장 판 · 2048 × 2048</h3>
-        <div class="row" style="margin:0 0 9px">
+      <div class="panel" data-step="3,4,5" id="panelPaint">
+        <h3 id="boardTitle">도장 판 · 2048 × 2048</h3>
+        <div class="row" style="margin:0 0 9px" data-step="4,5">
           <label>지금 면</label>
           <button id="sideL" class="on">왼쪽</button>
           <button id="sideR">오른쪽</button>
           <button id="bCopySide">반대편으로 복사</button>
-          <span style="font-size:11.5px;color:rgba(240,235,224,.35)">
-            ⭐ 바탕·곡선·띠는 공통 · 자산만 면마다 따로</span>
         </div>
         <div class="board" id="board">
           <canvas id="cvPaint" width="2048" height="2048"></canvas>
           <canvas id="cvOver"  width="2048" height="2048"></canvas>
+          <div id="dot"></div>
         </div>
 
-        <div class="rows">
+        <div class="rows" data-step="3">
           <div class="row">
             <label>바탕</label>
             <input type="color" id="pBase" value="#ffffff">
@@ -252,11 +276,11 @@ button.wide{padding:8px 18px}
           </div>
         </div>
 
-        <div class="sep"></div>
+        <div class="sep" data-step="4,5"></div>
 
-        <h3>자산</h3>
-        <div class="assets" id="assets"></div>
-        <div class="rows">
+        <h3 data-step="4,5">자산</h3>
+        <div class="assets" id="assets" data-step="4,5"></div>
+        <div class="rows" data-step="4,5">
           <div class="row">
             <label>크기</label>
             <input type="range" id="rScale" min="2" max="200" value="40">
@@ -293,7 +317,7 @@ button.wide{padding:8px 18px}
             <button id="vFit">전체</button>
             <button id="bPush">지금 씌우기</button>
           </div>
-          <div class="row">
+          <div class="row" data-step="4,5">
             <label>좌우 짝</label>
             <button id="bSideSign">3D 좌우 바꾸기</button>
             <button id="bMirSide">공통 뒤집는 면 · R</button>
@@ -302,24 +326,21 @@ button.wide{padding:8px 18px}
           </div>
         </div>
 
-        <div class="sep"></div>
+        <div class="sep" data-step="1,2"></div>
 
-        <h3>부품 — 어느 칸을 보는가</h3>
-        <div class="parts" id="parts">
+        <h3 data-step="1,2">부품 — 눌러서 3D 에 비춰 봅니다</h3>
+        <div class="parts" id="parts" data-step="1,2">
           <div style="padding:22px;text-align:center;font-size:12px;color:rgba(240,235,224,.3)">
             기체를 부르면 여기에 섭니다
           </div>
         </div>
 
-        <div class="sep"></div>
+        <div class="sep" data-step="1,2"></div>
 
-        <h3>단색 부품 — 날개 · 엔진 · 꼬리</h3>
-        <div style="font-size:11.5px;color:rgba(240,235,224,.38);line-height:1.8;margin-bottom:8px">
-<b style="color:var(--gold)">도장</b> — 이 부품이 도장 판을 받습니다. 동체와 꼬리만 켜면 엔진에 딱지가 안 붙습니다.<br>
-          <b style="color:var(--gold)">단색</b> — 날개·엔진처럼 그림을 못 얹는 부품을 한 색으로 칠합니다.<br>
-          ⚠ 가르는 잣대가 <b style="color:var(--gold)">원래 색</b>이라, 같은 색을 쓰는 재질은 함께 바뀝니다.
-        </div>
-        <div id="swaps" style="font-size:12px;color:rgba(240,235,224,.3);padding:14px 0;text-align:center">
+        <h3 data-step="1,2" id="swapTitle">부품 칠하기</h3>
+        <div style="font-size:11.5px;color:rgba(240,235,224,.38);line-height:1.8;margin-bottom:8px"
+             data-step="1,2" id="swapTip"></div>
+        <div id="swaps" data-step="1,2" style="font-size:12px;color:rgba(240,235,224,.3);padding:14px 0;text-align:center">
           기체를 부르면 여기에 섭니다
         </div>
       </div>
@@ -375,6 +396,7 @@ const S = {
   base:'#ffffff', baseOn:true,
   navy:'#12295c', gold:'#d8b45a',
   band:26, from:0, to:N, fade:160, flip:false,
+  step:1,                          /* ⭐ 0824f 단계 — 1 부품색 · 2 동체고르기 · 3 바탕 · 4 왼쪽 · 5 오른쪽 */
   side:'L',                        /* 지금 손대는 면 */
   mirSide:'R',                     /* ⭐ 공통 요소를 뒤집어 굽는 면 */
   sideSign:1,                      /* ⚠ 3D 의 어느 쪽이 R 인가 — 화면이 답한다 */
@@ -400,6 +422,9 @@ let SELPART = -1;
 let GLBBUF  = null, GLBURL = null;
 let viewer  = null, model = null, shader = null;
 let drag    = null, sayT = null, pushT = null;
+let HI      = null;      /* ⭐ 비추는 부품의 원래 색 */
+let AIM     = null;      /* ⭐ 판 위 손끝 (u,v) */
+let AIMR    = 0.035;     /* 비추는 동그라미 반지름 (UV 단위) */
 
 const cvP = $('#cvPaint'), ctxP = cvP.getContext('2d', { willReadFrequently:false });
 const cvO = $('#cvOver'),  ctxO = cvO.getContext('2d');
@@ -423,6 +448,7 @@ async function init(){
   $('#gate').style.display = 'none';
   $('#app').style.display  = 'block';
   drawAssetSlots();
+  setStep(1);              /* ⭐ 언제나 1단계에서 시작한다 — 색부터, 도장은 나중에 */
   paint();
   loadAssetsFromStorage();
   openSettings(true);
@@ -673,17 +699,34 @@ const FRAG = [
        ⚠ 그리고 그 불투명한 딱지가 ① 을 통째로 덮어 「색이 안 먹힌다」가 된다.
        ⭐ 가르는 잣대는 여기서도 **원래 색**이다. 셰이더가 아는 것이 그것뿐이다.
        ⭐ u_pn 이 0 이면 전부 받는다 — 아무것도 안 고른 첫 화면에서 뭔가 보여야 한다. */
-  '  float take = (u_pn < 0.5) ? 1.0 : 0.0;',
+  /* ⚠⚠ 0824f — 「안 고르면 전부 받는다」를 **무른다.**
+       첫 화면에서 뭔가 보이게 하려던 배려가 소로를 함정에 빠뜨렸다 —
+       색만 만지시는 동안 도장 판이 바퀴까지 덮고 있었다.
+     ⭐ 이제 고른 것만 받는다. 안 고르면 아무것도 안 받는다.
+     ⭐ 그리고 u_stage 가 3 보다 작으면 도장을 아예 안 씌운다(1·2단계). */
+  '  float take = 0.0;',
   '  if(u_pn > 0.5 && distance(material.diffuse, u_pf0) < 0.05) take = 1.0;',
   '  if(u_pn > 1.5 && distance(material.diffuse, u_pf1) < 0.05) take = 1.0;',
   '  if(u_pn > 2.5 && distance(material.diffuse, u_pf2) < 0.05) take = 1.0;',
   '  if(u_pn > 3.5 && distance(material.diffuse, u_pf3) < 0.05) take = 1.0;',
   /* ⭐⭐ ③ 좌우 두 판 — 면마다 제 판을 본다. 거울이 필요 없어졌다 */
+  '  if(u_stage < 2.5) take = 0.0;',
+  '  vec2 uv = fsInput.attributes.texCoord_0;',
   '  if(take > 0.5){',
-  '    vec2 uv = fsInput.attributes.texCoord_0;',
   '    vec4 p = (fsInput.attributes.positionMC.x * u_sideSign > 0.0)',
   '           ? texture(u_paintR, uv) : texture(u_paintL, uv);',
   '    d = mix(d, p.rgb, p.a);',
+  '  }',
+  /* ⭐⭐ 비추기 ㉠ — 부품 하나를 빨갛게. 「어느 것이 동체인가」가 3D 에서 보인다 */
+  '  if(u_hiOn > 0.5 && distance(material.diffuse, u_hi) < 0.05){',
+  '    d = mix(d, vec3(1.0, 0.15, 0.15), 0.75);',
+  '  }',
+  /* ⭐⭐⭐ 비추기 ㉡ — 판 위의 손끝이 3D 에 점으로 따라간다.
+       ⚠ 이것이 오늘 빠져 있던 되먹임 고리다. 판의 어디가 기체의 어디인지
+         알 방법이 없어서 소로가 눈을 가린 채 화살을 쏘고 계셨다. */
+  '  if(u_aimOn > 0.5){',
+  '    float dd = distance(uv, u_aim);',
+  '    if(dd < u_aimR) d = mix(vec3(1.0, 0.9, 0.2), d, dd / u_aimR);',
   '  }',
   '  material.diffuse = d;',
   '}'
@@ -723,6 +766,14 @@ function swapUniforms(){
   }
   u['u_pn'] = { type:Cesium.UniformType.FLOAT, value: P.length };
   u['u_sideSign'] = { type:Cesium.UniformType.FLOAT, value: S.sideSign };
+  u['u_stage'] = { type:Cesium.UniformType.FLOAT, value: S.step };
+  u['u_hiOn'] = { type:Cesium.UniformType.FLOAT, value: HI ? 1 : 0 };
+  u['u_hi']   = { type:Cesium.UniformType.VEC3,
+                  value: HI ? hexV3(HI, false) : new Cesium.Cartesian3(-1,-1,-1) };
+  u['u_aimOn']= { type:Cesium.UniformType.FLOAT, value: AIM ? 1 : 0 };
+  u['u_aim']  = { type:Cesium.UniformType.VEC2,
+                  value: new Cesium.Cartesian2(AIM ? AIM.u : -9, AIM ? AIM.v : -9) };
+  u['u_aimR'] = { type:Cesium.UniformType.FLOAT, value: AIMR };
   return u;
 }
 function pushSwaps(){
@@ -1038,6 +1089,21 @@ $('#board').addEventListener('pointerdown', ev => {
     }
   }
 });
+/* ⭐⭐ 손끝이 3D 를 비춘다 — 끌지 않아도 따라간다 */
+$('#board').addEventListener('pointermove', ev => {
+  const q = toBoard(ev);
+  const r = $('#board').getBoundingClientRect();
+  const dt = $('#dot');
+  dt.style.display = 'block';
+  dt.style.left = (ev.clientX - r.left) + 'px';
+  dt.style.top  = (ev.clientY - r.top)  + 'px';
+  setAim(q.x / N, q.y / N);
+});
+$('#board').addEventListener('pointerleave', ()=>{
+  $('#dot').style.display = 'none';
+  AIMR = 0.035;
+  setAim(null);
+});
 $('#board').addEventListener('pointermove', ev => {
   if(!drag) return;
   const p = toBoard(ev);
@@ -1101,6 +1167,9 @@ async function putAsset(key, url, file){
 }
 function selectAsset(key){
   SEL = key;
+  /* ⭐ 고른 자산의 한가운데를 3D 에 비춘다 — 「이게 어디 붙는가」가 곧장 보인다 */
+  const st = (S.side === 'R' ? S.assetsR : S.assetsL)[key];
+  if(st){ AIMR = Math.max(0.03, st.scale * 0.5); setAim(st.x / N, st.y / N); }
   document.querySelectorAll('.aslot').forEach(e => e.classList.remove('sel'));
   const el = $('#as_' + key); if(el) el.classList.add('sel');
   syncAssetRows(); paintOverlay();
@@ -1228,14 +1297,13 @@ function drawSwaps(){
 function drawParts(){
   const host = $('#parts');
   if(!PARTS.length){ host.innerHTML = '<div style="padding:22px;text-align:center;font-size:12px;color:rgba(240,235,224,.3)">부품이 없습니다</div>'; return; }
-  let h = '<table><thead><tr><th>재질</th><th>삼각형</th><th>U</th><th>V</th><th>크기 m</th></tr></thead><tbody>';
+  let h = '<table><thead><tr><th>재질</th><th>색</th><th>삼각형</th><th>크기 m</th></tr></thead><tbody>';
   PARTS.forEach((p,i)=>{
     const sz = [p.wx[0]-p.wn[0], p.wx[1]-p.wn[1], p.wx[2]-p.wn[2]].map(v=> v>1e8||v< -1e8 ? 0 : v);
     h += '<tr data-i="' + i + '"' + (i===SELPART?' class="sel"':'') + '>'
       +  '<td><span class="sw" style="background:' + (p.color||'#666') + '"></span>' + p.name + '</td>'
+      +  '<td style="font-size:10.5px;color:rgba(240,235,224,.4)">' + (p.color || '—') + '</td>'
       +  '<td>' + Math.round(p.tri).toLocaleString() + '</td>'
-      +  '<td>' + (p.hasUV ? p.uvMin[0].toFixed(2)+'~'+p.uvMax[0].toFixed(2) : '—') + '</td>'
-      +  '<td>' + (p.hasUV ? p.uvMin[1].toFixed(2)+'~'+p.uvMax[1].toFixed(2) : '—') + '</td>'
       +  '<td>' + sz.map(v=>v.toFixed(1)).join(' · ') + '</td></tr>';
   });
   host.innerHTML = h + '</tbody></table>';
@@ -1244,6 +1312,9 @@ function drawParts(){
       const i = +tr.dataset.i;
       SELPART = (SELPART === i) ? -1 : i;
       drawParts(); paintOverlay();
+      /* ⭐⭐ 3D 에서 그 부품이 빨갛게 빛난다 — 「어느 것이 동체인가」의 답 */
+      setHi(SELPART >= 0 ? (PARTS[SELPART].color || null) : null);
+      if(SELPART >= 0) say(PARTS[SELPART].name + ' — 3D 에서 빨갛게 비춥니다', 'ok');
     };
   });
 }
@@ -1325,6 +1396,71 @@ $('#fGlb').addEventListener('change', ev => {
 });
 $('#vSide').onclick = ()=> look(180, 0, 2.1);
 $('#vSide2').onclick = ()=> look(0, 0, 2.1);
+
+/* ══ 단계 (0824f) ══════════════════════════════════════════════════
+   ⭐ 굽지 않는다. 단계만 가린다 — 언제든 되돌아갈 수 있다.
+   ⚠ 소로 0824 — 「다 한 번에 엉켜서 뒤죽박죽」. 손잡이가 사라지면 엉킬 수가 없다. */
+const STEPMSG = {
+  1:'<b>부품마다 색을 줍니다.</b> 이 단계에서는 도장 판이 <i>아예 안 씌워집니다</i> — 딱지가 생길 수 없습니다.<br>'
+   + '부품 줄을 누르면 3D 에서 그 부품이 <b>빨갛게 빛납니다.</b> 어느 것이 동체인지 그렇게 찾으십시오.',
+  2:'<b>도장 판을 받을 부품</b>을 고릅니다. 보통 동체 하나, 꼬리 하나입니다.<br>'
+   + '<i>⚠ 고른 것만 받습니다.</i> 엔진·날개·바퀴를 안 고르면 그쪽에는 한 톨도 안 묻습니다.',
+  3:'<b>바탕 · 곡선 · 금색 띠.</b> 좌우 공통이라 한 번만 잡으시면 됩니다.<br>'
+   + '⭐ 판 위에 손을 올리면 3D 에 <b>노란 점</b>이 따라다닙니다. 어디가 옆구리인지 손끝으로 보입니다.',
+  4:'<b>진행방향 왼쪽 면</b>에 글자와 배지를 앉힙니다. 곡선은 이 단계에서 안 건드립니다.<br>'
+   + '⭐ 자산을 고르면 3D 에서 그 자산 자리가 빛납니다.',
+  5:'<b>오른쪽 면</b>입니다. <b>반대편으로 복사</b>를 먼저 누르고 자리만 다듬으면 빠릅니다.'
+};
+function setStep(n){
+  S.step = n;
+  document.querySelectorAll('#steps button[data-go]').forEach(b =>
+    b.classList.toggle('on', +b.dataset.go === n));
+  document.querySelectorAll('[data-step]').forEach(el => {
+    el.style.display = el.dataset.step.split(',').indexOf(String(n)) >= 0 ? '' : 'none';
+  });
+  $('#stepmsg').innerHTML = STEPMSG[n] || '';
+  $('#cols').style.gridTemplateColumns = (n <= 2) ? '1fr' : '';
+  $('#boardTitle').textContent = (n === 3) ? '도장 판 — 바탕 · 곡선 · 띠'
+                               : (n === 4) ? '도장 판 — 왼쪽 면'
+                               : (n === 5) ? '도장 판 — 오른쪽 면' : '도장 판';
+  $('#swapTitle').textContent = (n === 1) ? '부품 색 — 날개 · 엔진 · 꼬리' : '도장 받을 부품 고르기';
+  $('#swapTip').innerHTML = (n === 1)
+    ? '<b style="color:var(--gold)">단색</b> 을 눌러 그 부품을 한 색으로 칠합니다.<br>⚠ 가르는 잣대가 <b style="color:var(--gold)">원래 색</b>이라, 같은 색을 쓰는 재질은 함께 바뀝니다.'
+    : '<b style="color:var(--gold)">도장</b> 을 눌러 도장 판을 받을 부품을 고릅니다. 넉 벌까지입니다.';
+  if(n === 4) setSide('L');
+  else if(n === 5) setSide('R');
+  else { drawSwaps(); pushSwaps(); paint(); }
+}
+document.querySelectorAll('#steps button[data-go]').forEach(b => {
+  b.onclick = ()=> setStep(+b.dataset.go);
+});
+
+/* ══ 비추기 (0824f) ════════════════════════════════════════════════
+   ⚠⚠ 오늘 빠져 있던 것은 손잡이가 아니라 **되먹임 고리**였다.
+     판의 어디가 기체의 어디인지 알 방법이 없어서, 소로가 눈을 가린 채
+     화살을 쏘고 맞았는지만 뒤늦게 보고 계셨다. */
+function setHi(color){
+  HI = color;
+  if(shader){
+    try{
+      shader.setUniform('u_hiOn', color ? 1 : 0);
+      shader.setUniform('u_hi', color ? hexV3(color, false) : new Cesium.Cartesian3(-1,-1,-1));
+    }catch(e){ rebuildShader(); }
+  }
+}
+let aimT = null;
+function setAim(u, v){
+  AIM = (u == null) ? null : { u, v };
+  if(!shader) return;
+  /* ⚠ 마우스는 초당 수십 번 움직인다. 셰이더 갱신은 프레임에 한 번이면 넉넉하다 */
+  clearTimeout(aimT);
+  aimT = setTimeout(()=>{
+    try{
+      shader.setUniform('u_aimOn', AIM ? 1 : 0);
+      shader.setUniform('u_aim', new Cesium.Cartesian2(AIM ? AIM.u : -9, AIM ? AIM.v : -9));
+    }catch(e){ /* ⚠ 여기서 셰이더를 다시 엮으면 마우스마다 멈춘다 — 조용히 넘긴다 */ }
+  }, 30);
+}
 
 /* ══ 면 전환 (0824d) ═══════════════════════════════════════════════
    ⚠ 어느 쪽이 왼쪽 판인지 셈으로 미리 안 정한다. 눌러 보고 화면이 답하게 한다.
@@ -1445,6 +1581,7 @@ async function openSettings(quiet){
     $('#bBase').classList.toggle('on', S.baseOn);
     $('#bBase').textContent = S.baseOn ? '켜짐' : '꺼짐';
     setSide(S.side || 'L');          /* ⚠ 값만 싣고 단추를 안 맞추면 화면이 거짓말한다 */
+    setStep(S.step || 1);
     $('#bMirSide').textContent = '공통 뒤집는 면 · ' + S.mirSide;
     drawSwaps(); pushSwaps();
     syncAssetRows();
