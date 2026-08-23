@@ -167,7 +167,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0823j";
+  var VERSION = "0823k";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -5788,58 +5788,75 @@ function paintBook() {
       return out;
     } catch (e) { console.warn("[EG] 노드를 못 읽었습니다:", e); return []; }
   }
-  /* ⭐⭐ 0823j 자 — 노드마다 **월드 상자**를 낸다. 이름이 아니라 좌표로 가른다.
-     ⚠⚠ 0823 오전 수칙 둘이 여기 함께 산다 —
-       「이름을 믿지 않는다」(787 은 노드·메시·재질 이름이 67개 전부 어긋났다)
-       「노드 변환을 안 태우고 재면 답이 뒤집힌다」(스케일이 0.14~2.05 다)
-     ⭐ 정점을 안 읽는다 — 995,000 삼각형이다(41호 ㉧). 프리미티브의 **경계구**를
-       변환에 태워 옮기기만 한다. 구는 상자보다 넉넉하지만 바퀴를 가려내는 데는 충분하다.
-     ⚠ Cesium 비공개 이름을 짚는다. 판이 바뀌면 깨질 수 있으므로 후보를 여럿 훑고,
-       첫 노드에서 **무엇이 있는지 먼저 찍는다** — 짐작 대신 관측 장치를 심는 그 문법이다.
-     ⭐ Y 가 낮은 차례로 낸다. 787 은 원점이 지면이라 **맨 위에 오는 것이 바퀴**다. */
-  function probeBody() {
+  /* ⭐⭐ 0823k 자 — **정점을 직접 읽는다.** 0823j 의 경계구가 반쯤 거짓말을 했다.
+     ⚠⚠ 구 반지름을 세 축에 똑같이 더하니 큰 노드일수록 상자가 부풀었다 —
+       Wing.001 이 폭·높이·길이 64.33 으로 똑같이 나왔고 minY 가 −26.51 이 됐다.
+       ⭐ 그때 중심(midX·midZ)만은 정직했다. 반지름과 무관한 값이라서다.
+       ⭐⭐ 얻은 수칙 — **경계구는 중심은 정직하고 테두리는 부풀린다.**
+     ⚠ 그런데 피벗(경첩이 어디인가)은 테두리라야 나온다. 그래서 정점으로 내려간다.
+     ⚠⚠ 995,000 삼각형을 다 훑으면 화면이 몇 초 선다(41호 ㉧).
+       ⭐ 그래서 **이름을 주면 그것만** 읽는다. 기어 열셋 · 스포일러 열여덟이면 공짜다.
+     ⭐ 노드 변환을 태운다(v184). 787 은 노드 스케일이 0.14~2.05 라 안 태우면 답이 뒤집힌다. */
+  function probeBody(pick) {
     var m = BODYENT && BODYENT._nodesByName;
     if (!m) { console.warn("[EG] 기체가 아직 안 섰습니다 — B 를 누르고 다시 부르십시오"); return []; }
-    var names = Object.keys(m), rows = [], said = false, C = Cesium;
+    var C = Cesium, names = pick && pick.length ? pick : Object.keys(m), rows = [];
     for (var i = 0; i < names.length; i++) {
-      var nd = m[names[i]];
-      var rn = nd._runtimeNode || nd.runtimeNode || null;
-      if (!said) {
-        said = true;
-        try { console.log("[EG] ModelNode 열쇠 —", Object.keys(nd).join(" ")); } catch (e) { }
-        try { if (rn) console.log("[EG] runtimeNode 열쇠 —", Object.keys(rn).join(" ")); } catch (e) { }
-      }
-      if (!rn) continue;
+      var nd = m[names[i]]; if (!nd) continue;
+      var rn = nd._runtimeNode || nd.runtimeNode; if (!rn) continue;
       var T = rn.computedTransform || rn.transformToRoot || rn.transform || null;
       var prims = rn.runtimePrimitives || (rn.node && rn.node.primitives) || [];
-      var lo = null, hi = null;
+      var lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9], nV = 0;
       for (var j = 0; j < prims.length; j++) {
-        var pr = prims[j];
-        var bs = (pr.primitive && pr.primitive.boundingSphere) || pr.boundingSphere
-              || (pr.primitive && pr.primitive.boundingSphere) || null;
-        if (!bs) continue;
-        var c = bs.center, r = bs.radius;
-        if (T) { try { c = C.Matrix4.multiplyByPoint(T, c, new C.Cartesian3()); } catch (e) { } }
-        var sc = 1;
-        if (T) { try { sc = C.Matrix4.getScale(T, new C.Cartesian3()).x || 1; } catch (e) { } }
-        var rr = r * sc;
-        var a1 = [c.x - rr, c.y - rr, c.z - rr], a2 = [c.x + rr, c.y + rr, c.z + rr];
-        if (!lo) { lo = a1.slice(); hi = a2.slice(); }
-        else for (var k = 0; k < 3; k++) { if (a1[k] < lo[k]) lo[k] = a1[k]; if (a2[k] > hi[k]) hi[k] = a2[k]; }
+        var pr = prims[j], sp = pr.primitive || pr;
+        var at = sp.attributes || (sp.node && sp.node.attributes) || [];
+        var pos = null;
+        for (var k = 0; k < at.length; k++)
+          if (at[k].semantic === "POSITION" || at[k].name === "POSITION") { pos = at[k]; break; }
+        if (!pos) continue;
+        /* ⭐ 정점 배열을 찾는다 — typedArray 가 살아 있으면 그것, 아니면 packedTypedArray */
+        var arr = pos.typedArray || pos.packedTypedArray || null;
+        if (!arr) {           /* ⚠ GPU 로 올라가고 CPU 사본이 버려진 경우 — 구로 물러난다 */
+          var bs = sp.boundingSphere; if (!bs) continue;
+          var c0 = bs.center, r0 = bs.radius;
+          if (T) c0 = C.Matrix4.multiplyByPoint(T, c0, new C.Cartesian3());
+          lo = [Math.min(lo[0], c0.x - r0), Math.min(lo[1], c0.y - r0), Math.min(lo[2], c0.z - r0)];
+          hi = [Math.max(hi[0], c0.x + r0), Math.max(hi[1], c0.y + r0), Math.max(hi[2], c0.z + r0)];
+          nV = -1; continue;
+        }
+        var v = new C.Cartesian3();
+        for (var q = 0; q + 2 < arr.length; q += 3) {
+          v.x = arr[q]; v.y = arr[q + 1]; v.z = arr[q + 2];
+          if (T) C.Matrix4.multiplyByPoint(T, v, v);
+          if (v.x < lo[0]) lo[0] = v.x; if (v.x > hi[0]) hi[0] = v.x;
+          if (v.y < lo[1]) lo[1] = v.y; if (v.y > hi[1]) hi[1] = v.y;
+          if (v.z < lo[2]) lo[2] = v.z; if (v.z > hi[2]) hi[2] = v.z;
+          nV++;
+        }
       }
-      if (!lo) continue;
-      rows.push({ 이름: names[i],
-        minY: +lo[1].toFixed(2), maxY: +hi[1].toFixed(2),
-        midX: +((lo[0] + hi[0]) / 2).toFixed(2), midZ: +((lo[2] + hi[2]) / 2).toFixed(2),
-        폭: +(hi[0] - lo[0]).toFixed(2), 높이: +(hi[1] - lo[1]).toFixed(2), 길이: +(hi[2] - lo[2]).toFixed(2) });
+      if (lo[0] > 1e8) continue;
+      rows.push({ 이름: names[i], 점: nV,
+        Xmin: +lo[0].toFixed(3), Xmax: +hi[0].toFixed(3),
+        Ymin: +lo[1].toFixed(3), Ymax: +hi[1].toFixed(3),
+        Zmin: +lo[2].toFixed(3), Zmax: +hi[2].toFixed(3) });
     }
-    rows.sort(function (a, b) { return a.minY - b.minY; });
-    console.log("%c[EG] 잰 노드 " + rows.length + "개 — ⭐ Y 낮은 차례. 맨 위가 바닥에 닿은 것이다",
+    rows.sort(function (a, b) { return a.Ymin - b.Ymin; });
+    console.log("%c[EG] 잰 노드 " + rows.length + "개 — ⚠ 점 −1 은 정점을 못 읽어 구로 물러난 것",
       "color:#c9a84c");
     try { console.table(rows); } catch (e) { console.log(rows); }
     try { window.EG_NODES = rows; } catch (e) { }
     return rows;
   }
+  /* ⭐ 오늘 필요한 것만 — 기어 열셋 · 스포일러 열여덟. 좌표로 골라낸 이름들이다 */
+  var GEAR13 = ["Cylinder.013",
+    "Cylinder.002", "Cube.011", "Cylinder.022", "Cube.016", "Cylinder.023", "Cylinder.024",
+    "Cylinder.019", "Cube.014", "Cylinder.001", "Cube.015", "Cylinder.011", "Cylinder.018"];
+  var SPOIL18 = ["Spoiler 1", "Spoiler 2", "Spoiler 3", "Spoiler 4", "Spoiler 5",
+    "Spoiler 6", "Spoiler 7", "Spoiler 8", "Spoiler 9",
+    "Spoiler 1.001", "Spoiler 2.001", "Spoiler 3.001", "Spoiler 4.001", "Spoiler 5.001",
+    "Spoiler 6.001", "Spoiler 7.001", "Spoiler 8.001", "Spoiler 9.001"];
+  function probeGear() { return probeBody(GEAR13); }
+  function probeSpoiler() { return probeBody(SPOIL18); }
   window.egReading = { enter: enter, leave: leave, routes: routes, version: VERSION,
-                       nodes: nodeList, probe: probeBody };
+                       nodes: nodeList, probe: probeBody, gear: probeGear, spoiler: probeSpoiler };
 })();
