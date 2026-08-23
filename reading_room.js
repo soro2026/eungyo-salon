@@ -167,7 +167,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0823t";
+  var VERSION = "0823u";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1145,6 +1145,7 @@
     var tdKm = 9e9;                       /* 접지까지 항적 km — 0823n. 착륙 손들이 읽는다 */
     var RWY_H = null;                     /* ⭐ 0823q 활주로 표고. 한 번만 재서 붙든다 */
     var RUN_H = null;                     /* ⭐ 0823s 활주 중 발밑. 매 프레임 좇는다 */
+    var TOUCH = 0;                        /* ⭐ 0823u 접지한 시각(ms). 앞바퀴가 이걸 본다 */
     var dist = Math.max(0, +opt.startDist || 0);      /* ⭐ 0823c — 이어받는다 */
     var flown = Math.max(0, opt.startFlown | 0);
     /* ⭐ 0822f — 곡선의 접선이 직전 프레임에 가리키던 방위. 뱅크의 잣대다.
@@ -1302,7 +1303,13 @@
            ⚠ 접지 뒤에는 도로 내린다. 앞바퀴가 내려앉는 그 장면이 착륙의 마침표다. */
       var FLARE = 0;
       if (route.arr && tdKm < 9e8) {
-        if (ARRIVED) FLARE = 0;                                    /* 굴러갈 때는 수평 */
+        /* ⭐⭐ 0823u 앞바퀴 내려앉기 (소로 0823 「뒷바퀴 뒤 10초쯤에 코가 내려와야」).
+           ⚠ 실물은 속도가 줄면서 코가 저절로 내려온다. 8초에 걸쳐 +6° → 0° 다.
+           ⭐ 이것이 착륙의 마침표다 — 앞바퀴가 닿는 그 순간에 비행이 끝난다. */
+        if (TOUCH) {
+          var el = (performance.now() - TOUCH) / 1000;
+          FLARE = 6 * Math.max(0, 1 - el / 8);
+        }
         else if (tdKm <= 3) FLARE = 6 * (1 - tdKm / 3) + 3 * (tdKm / 3);   /* 3km→+3° · 접지→+6° */
         else if (tdKm <= 60) FLARE = 3 * Math.min(1, (60 - tdKm) / 25);    /* 60km 부터 서서히 +3° */
       }
@@ -1495,6 +1502,14 @@
               }
             } catch (e) { }
           }
+          /* ⭐⭐ 0823u 잠수 처방 — 접지 **전에** 발밑을 미리 좇아 둔다.
+             ⚠⚠ 0823t 는 접지하는 그 프레임에 RUN_H 를 붙든 값(140m)으로 켰다.
+               그 값이 발밑과 몇 미터 다르면 1초 동안 그 차이만큼 기체가 잠긴다.
+             ⭐ 3km 전부터 데워 두면 접지 순간에는 이미 발밑에 붙어 있다. */
+          if (tdKm < 3 && tdKm > -3) {
+            if (RUN_H === null) RUN_H = groundH;
+            RUN_H += (groundH - RUN_H) * Math.min(dt / 0.6, 1);
+          }
           if (tdKm > 0) {
             LDG = tblAt(route.desc, tdKm);
             /* ⭐ 표가 준 것은 **활주로 위 높이**다. 표고를 얹어야 해발이 된다.
@@ -1517,8 +1532,11 @@
                  활주에서는 발밑이 옳다. **같은 값을 두 곳이 다르게 써야 하는 곳**이다.
                ⚠ groundH 는 프레임마다 조금씩 튄다 — 시정수 1초로 걸러야 계단이 안 보인다.
                ⭐ 787 은 원점이 지면이라(v187) 걸러낸 값을 그대로 주면 바퀴가 활주로에 붙는다. */
-            if (RUN_H === null) RUN_H = (RWY_H !== null) ? RWY_H : groundH;
-            RUN_H += (groundH - RUN_H) * Math.min(dt / 1.0, 1);
+            /* ⭐⭐ 0823u — **여기가 접지다.** 유도로에 닿는 곳이 아니다.
+               ⚠⚠ 0823t 까지 ARRIVED 가 마지막 길목(유도로)에서만 섰다. 그래서 접지 뒤
+                 1,621m 를 코를 들고 굴러가다가 멈추는 순간 툭 떨어졌다(소로 시승). */
+            if (!TOUCH) TOUCH = performance.now();
+            RUN_H += (groundH - RUN_H) * Math.min(dt / 0.35, 1);   /* ⭐ 빨리 붙는다 */
             LDG = [RUN_H, Math.max(30, 250 * (runKm / runAll))];
           }
         }
@@ -1753,7 +1771,7 @@
                   ⚠ 도착을 되돌린다. 안 되돌리면 「출발점으로」를 눌러도 선 채로 있는다. */
                seg = LOOP ? (((s2 | 0) % N + N) % N)
                           : Math.max(0, Math.min(SEGN - 1, s2 | 0));
-               u = +u2 || 0; savedSeg = seg; ARRIVED = false;
+               u = +u2 || 0; savedSeg = seg; ARRIVED = false; TOUCH = 0; RUN_H = null;
                dist = 0; flown = 0;
              },
              /* ⭐⭐ 0823f 배속 — 시험 장치. 값을 밖에 안 흘리고 손잡이만 낸다 */
