@@ -167,7 +167,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0823v";
+  var VERSION = "0823w";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -3149,7 +3149,15 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
        손잡이는 값만 옮기고, 그 값이 무엇을 막는지는 쓰는 쪽이 안다. */
   var WARP_STEPS = [1, 10, 60];
   function setWarp(dir) {
-    if (!ROOT || !flight || !flight.warp || !IS_ADMIN) return;
+    /* ⭐ 0823w 관측 장치 — 안 먹으면 **어디서 막혔는지** 말한다(소로 0823 「배속이 사라짐」).
+       ⚠ 짐작으로 고치지 않는다. 네 그물 중 어느 것에 걸리는지 화면이 알려 준다. */
+    if (!ROOT || !flight || !flight.warp || !IS_ADMIN) {
+      try {
+        console.warn("[EG] 배속이 안 섭니다 — 방 " + (!!ROOT) + " · 비행 " + (!!flight)
+          + " · 손 " + !!(flight && flight.warp) + " · 관리자 " + IS_ADMIN);
+      } catch (e) { }
+      return;
+    }
     var i = WARP_STEPS.indexOf(flight.warp());
     if (i < 0) i = 0;
     i = Math.max(0, Math.min(WARP_STEPS.length - 1, i + dir));
@@ -6236,6 +6244,18 @@ function paintBook() {
   function probeSpoiler() { return probeBody(SPOIL18); }
   window.egReading = { enter: enter, leave: leave, routes: routes, version: VERSION,
                        nodes: nodeList, probe: probeBody, gear: probeGear, spoiler: probeSpoiler,
+                       /* ⭐ 0823w — 콘솔에서 직접. 키가 안 먹는 환경에서도 배속이 선다.
+                          egReading.warp()     지금 값
+                          egReading.warp(60)   ×60 으로 */
+                       warp: function (v) {
+                         try {
+                           if (!flight || !flight.warp) { console.warn("[EG] 비행이 아직 안 섰습니다"); return null; }
+                           if (v != null) flight.warp(v);
+                           var w = flight.warp();
+                           console.log("[EG] 배속 ×" + w + (v != null && w !== v ? " ⚠ 안 바뀜" : ""));
+                           return w;
+                         } catch (e) { console.warn(e); return null; }
+                       },
                        /* ⭐ 0823p 시험 손 — 콘솔에서 노드 하나를 껐다 켠다.
                           ⚠ 짐작으로 목록에 넣지 않고, 눈으로 갈라 본 뒤에 넣는다. */
                        hide: function (nm, on) {
