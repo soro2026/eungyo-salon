@@ -7,8 +7,8 @@
 <title>EG 관리자 — 격납고</title>
 <!--
   ══════════════════════════════════════════════════════════════════════
-  EG 격납고 — admin_hangar.html · v0823a
-  2026.08.20 소로 × 파이스 · 0821 동체(GLB) 칸 신설 · 0823 여객기(lin) 입고
+  EG 격납고 — admin_hangar.html · v0823b
+  2026.08.20 소로 × 파이스 · 0821 동체(GLB) 칸 신설 · 0823 여객기(lin) 입고 · 0823b 자를 고침(노드 변환)
 
   ⭐⭐ 0821 — 기체에 **몸이 생겼다.** 칸이 두 줄이 됐다.
     윗줄  기내 원판 넉 벌  {code}_cabin_{m,d,e,n}.webp   ← 안에서 보는 것
@@ -214,6 +214,9 @@ const BODY_MAX  = 45;          /* MB — Supabase 한 파일 상한(50) 아래�
    ⚠ 이름이 안 맞는 기체는 조용히 「판정 못함」으로 물러난다. 틀린 답보다 낫다. */
 const RE_INSTR = /panel|compass|_alt|tach|oil|fuel|press|temp|controleur|instrument|gauge|yoke|pedal/i;
 const RE_SEAT  = /seat|siege/i;
+/* ⭐ 0823 — 여객기에는 계기·좌석 재질이 없다. 대신 **바퀴**가 기수를 말해 준다:
+   앞바퀴는 가운데 홀로 있고 주바퀴는 좌우로 갈라진다. 가운데 것이 있는 쪽이 기수다. */
+const RE_TIRE  = /tire|wheel|pneu|gear/i;
 
 /* ══ 격납고에 선 기체들 ═══════════════════════════════════════════
    ⭐ 기체가 늘면 **이 배열에만 한 벌 더한다.** 화면은 스스로 늘어난다.
@@ -408,6 +411,40 @@ async function bake(file){
      고르는 순간 화면이 몇 초 선다 — 41호 ㉧(값비싼 손을 몰아 쓰지 않는다).
    ⭐ 축은 이름으로 정하지 않고 **재서** 정한다. 가장 긴 축이 날개폭,
      가장 짧은 축이 높이, 남은 하나가 기수 축이다. 다음 기체에도 그대로 통한다. */
+/* ══ 0823b — 노드 변환 셈 ═══════════════════════════════════════════
+   ⚠⚠ 787 에서 드러났다. 노드 스케일이 0.14~2.05 로 제각각이라
+     accessor min/max 만 모으면 **날개폭 60.33m 가 50.24m 로 나온다.**
+     리어젯·복엽기는 스케일이 1 이라 우연히 맞아서 여태 안 드러났다.
+   ⭐ 그래도 정점은 안 읽는다 — bbox 의 **여덟 꼭짓점**만 옮긴다.
+     프리미티브당 8점이니 96개라도 768점, 공짜다(41호 ㉧ 그대로).
+   ⚠ 회전이 걸린 노드는 답이 조금 크게 난다. 안 태우는 것보다 늘 낫다. */
+function M_id(){ return [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]; }
+function M_mul(x,y){                      /* ⚠ glTF 는 열 우선이다 */
+  const o = new Array(16);
+  for(let c=0;c<4;c++) for(let r=0;r<4;r++){
+    let s=0; for(let k=0;k<4;k++) s += x[k*4+r] * y[c*4+k];
+    o[c*4+r] = s;
+  }
+  return o;
+}
+function M_of(nd){
+  if(nd.matrix) return nd.matrix.slice();
+  const t = nd.translation || [0,0,0], q = nd.rotation || [0,0,0,1], sc = nd.scale || [1,1,1];
+  const x=q[0], y=q[1], z=q[2], w=q[3];
+  const m = [1-2*(y*y+z*z), 2*(x*y+z*w),   2*(x*z-y*w),   0,
+             2*(x*y-z*w),   1-2*(x*x+z*z), 2*(y*z+x*w),   0,
+             2*(x*z+y*w),   2*(y*z-x*w),   1-2*(x*x+y*y), 0,
+             0,0,0,1];
+  for(let c=0;c<3;c++) for(let r=0;r<3;r++) m[c*4+r] *= sc[c];
+  m[12]=t[0]; m[13]=t[1]; m[14]=t[2];
+  return m;
+}
+function M_pt(m,p){
+  return [ m[0]*p[0]+m[4]*p[1]+m[8]*p[2]+m[12],
+           m[1]*p[0]+m[5]*p[1]+m[9]*p[2]+m[13],
+           m[2]*p[0]+m[6]*p[1]+m[10]*p[2]+m[14] ];
+}
+
 function probeGLB(buf){
   const dv = new DataView(buf), U8 = new Uint8Array(buf);
   const r = { ok:false, why:'', warn:[] };
@@ -444,21 +481,45 @@ function probeGLB(buf){
   r.images = (g.images || []).length;
   r.mats   = (g.materials || []).length;
 
-  /* 삼각형 · 바운딩박스 · 기수 축 — accessor 만 본다 */
+  /* 삼각형 · 바운딩박스 · 기수 축 — ⭐ 0823b 노드 변환을 태운다 */
   const AC = g.accessors || [];
   let tri = 0, mn = [1e9,1e9,1e9], mx = [-1e9,-1e9,-1e9];
-  const inX = [], seX = [];
-  (g.meshes || []).forEach(me => (me.primitives || []).forEach(pr => {
-    if(pr.indices != null && AC[pr.indices]) tri += AC[pr.indices].count / 3;
-    const pa = pr.attributes && pr.attributes.POSITION;
-    const a  = (pa != null) ? AC[pa] : null;
-    if(!a || !a.min || !a.max) return;
-    for(let i=0;i<3;i++){ if(a.min[i]<mn[i]) mn[i]=a.min[i]; if(a.max[i]>mx[i]) mx[i]=a.max[i]; }
-    const nm = (pr.material != null && g.materials[pr.material] && g.materials[pr.material].name) || '';
-    const cx = (a.min[0] + a.max[0]) / 2;          /* ⚠ 아래에서 축이 정해지면 다시 고른다 */
-    if(RE_INSTR.test(nm)) inX.push([a.min, a.max]);
-    else if(RE_SEAT.test(nm)) seX.push([a.min, a.max]);
-  }));
+  const inX = [], seX = [], tiX = [];
+
+  /* 메시 번호 → 그 메시를 쓰는 노드들의 월드 행렬 */
+  const meshM = {};
+  (function walk(list, P){
+    (list || []).forEach(i => {
+      const nd = (g.nodes || [])[i]; if(!nd) return;
+      const M = M_mul(P, M_of(nd));
+      if(nd.mesh != null){ (meshM[nd.mesh] = meshM[nd.mesh] || []).push(M); }
+      if(nd.children) walk(nd.children, M);
+    });
+  })((((g.scenes || [])[g.scene || 0]) || {}).nodes, M_id());
+
+  (g.meshes || []).forEach((me, mi) => {
+    const Ms = meshM[mi] || [M_id()];             /* ⚠ 씬에 안 걸린 메시는 그대로 둔다 */
+    (me.primitives || []).forEach(pr => {
+      if(pr.indices != null && AC[pr.indices]) tri += AC[pr.indices].count / 3;
+      const pa = pr.attributes && pr.attributes.POSITION;
+      const a  = (pa != null) ? AC[pa] : null;
+      if(!a || !a.min || !a.max) return;
+      const wn = [1e9,1e9,1e9], wx = [-1e9,-1e9,-1e9];
+      Ms.forEach(M => {
+        for(let b=0;b<8;b++){
+          const q = M_pt(M, [ (b&1)?a.max[0]:a.min[0],
+                              (b&2)?a.max[1]:a.min[1],
+                              (b&4)?a.max[2]:a.min[2] ]);
+          for(let i=0;i<3;i++){ if(q[i]<wn[i]) wn[i]=q[i]; if(q[i]>wx[i]) wx[i]=q[i]; }
+        }
+      });
+      for(let i=0;i<3;i++){ if(wn[i]<mn[i]) mn[i]=wn[i]; if(wx[i]>mx[i]) mx[i]=wx[i]; }
+      const nm = (pr.material != null && g.materials[pr.material] && g.materials[pr.material].name) || '';
+      if(RE_TIRE.test(nm))       tiX.push([wn, wx]);
+      else if(RE_INSTR.test(nm)) inX.push([wn, wx]);
+      else if(RE_SEAT.test(nm))  seX.push([wn, wx]);
+    });
+  });
   r.tri = Math.round(tri);
   if(mn[0] > 1e8){ r.why = '꼭짓점이 없습니다 — 빈 모델입니다'; return r; }
 
@@ -477,6 +538,20 @@ function probeGLB(buf){
     const ci = mid(inX), cs = mid(seX);
     r.nose = (ci < cs) ? (AX[nose] + '−') : (AX[nose] + '+');
     r.noseWhy = '계기 ' + ci.toFixed(2) + ' · 좌석 ' + cs.toFixed(2);
+  }
+  /* ⭐ 0823b — 여객기 갈래. 계기·좌석 재질이 없는 기체는 **바퀴**가 답한다.
+     ⚠ 앞바퀴가 가운데(날개폭 축 0 언저리) 홀로 서 있어야 성립한다.
+       그 조건이 안 맞으면 판정하지 않는다 — 틀린 답이 더 나쁘다. */
+  if(!r.nose && tiX.length >= 2){
+    const c = tiX.map(p => [ (p[0][span]+p[1][span])/2, (p[0][nose]+p[1][nose])/2 ]);
+    c.sort((u,v) => Math.abs(u[0]) - Math.abs(v[0]));
+    const front = c[0], rest = c.slice(1);
+    let s=0; rest.forEach(u => s += u[1]);
+    const rn = s / rest.length;
+    if(Math.abs(front[0]) < r.span*0.12 && Math.abs(front[1]-rn) > r.len*0.10){
+      r.nose = AX[nose] + (front[1] > rn ? '+' : '−');
+      r.noseWhy = '앞바퀴 ' + front[1].toFixed(1) + ' · 주바퀴 ' + rn.toFixed(1);
+    }
   }
 
   const ex = (g.asset && g.asset.extras) || null;
