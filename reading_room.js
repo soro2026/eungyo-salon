@@ -167,7 +167,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0823c";
+  var VERSION = "0823d";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -512,8 +512,30 @@
                 같은 병인지 아직 모른다. 소로가 알프스를 B 뷰로 타 보시면 갈린다. */
            body: { yaw: 180, swapPR: true, dist: 26, minD: 12, maxD: 120, pit: 12, glow: [1.2, 1.25, 1.4] },
            wins: [],
-           mon: { tl: [29.5, 61.1], tr: [69.2, 61.1], br: [69.2, 77.2], bl: [29.5, 77.2] } }
+           mon: { tl: [29.5, 61.1], tr: [69.2, 61.1], br: [69.2, 77.2], bl: [29.5, 77.2] } },
+    /* ⭐⭐ 0823d — 여객기(liner). 인천–파리 장거리 갈래. Boeing 787-8.
+       ⭐ 몸은 **잰 값이다.** 콘솔 v0823b 와 파이썬 실측이 소수점 셋째까지 같은 답을 냈다:
+         날개폭 60.332m(X) · 전장 56.409m(Z) · 전고 16.819m(Y) · 삼각형 65,058 · 그림 0
+       ⭐⭐ 기수 +Z · 위 +Y → yaw 270. **리어젯과 같은 glTF 표준 축**이다.
+         두 손이 다른 길로 같은 답에 닿았다 — 나는 앞기어 좌표로, 콘솔은 바퀴 재질로.
+       ⭐⭐⭐ 원점이 **지면에 앉아 있다**(바퀴 최저 Y = +0.002m). A300 은 활주로 위
+         4.20m, 737 은 2.23m 를 올려야 했는데 787 은 0 이다. 이·착륙 셈이 하나 사라졌다.
+       ⚠ dist·minD·maxD·pit 는 셈이 아니라 **어림이다.** 최장 60.33m 에 리어젯·복엽기의
+         비율(1.66~1.82배 · 바닥 0.46 · 천장 4.65)을 곱했다. 소로가 타 보고 정한다.
+         ⚠⚠ 리어젯의 dist 30 을 그대로 태우면 날개폭이 4.7배라 화면을 뚫고 나간다.
+       ⚠ swapPR 을 안 적었다 — 리어젯과 같은 축이라 같은 자리에 서 있다.
+         알프스에서 리어젯이 갈리는 날 이것도 함께 갈린다(v185 ②).
+       ⚠ 기내 원판이 아직 없다. wins·mon 은 아래에서 제트기 것을 **빌린다.** */
+    lin: { view: 90, seats: true, roll: 10, focus: null,
+           body: { yaw: 270, dist: 105, minD: 48, maxD: 480, pit: 10 },
+           wins: null, mon: null }
   };
+  /* ⚠⚠ 0823d — 여객기 기내 원판(lin_cabin_lit · lin_cabin_dim)이 아직 없다.
+     ⭐ 값을 두 곳에 적지 않는다(독서비행 22호). 빌리는 동안은 **여기 한 줄**이고,
+       원판이 나오면 이 두 줄을 지우고 lin 명세 안에 제 값을 적는다.
+     ⚠ 장거리 14호 — 원판은 lit·dim 둘뿐이다. 넷이 아니다. */
+  CRAFT_SPEC.lin.wins = CRAFT_SPEC.jet.wins;
+  CRAFT_SPEC.lin.mon  = CRAFT_SPEC.jet.mon;
   var SPEC = CRAFT_SPEC.jet;       /* 지금 탄 기체의 명세 — applyCraft 가 채운다 */
 
   /* ══ 0821f — 계기 바늘 · 호박 램프 · 붉은 불빛 ═══════════════════════
@@ -599,9 +621,22 @@
      ⭐ 처방 — 상수를 함수로. 부를 때 읽으면 순서 의존이 통째로 사라진다. */
   function hangarBase() { return SUPA_URL + "/storage/v1/object/public/tour-assets/hangar/"; }
   var CRAFT = "jet";               /* 지금 탄 기체 — enter() 가 applyCraft 로 채운다 */
+  var BODYCRAFT = "jet";           /* ⭐ 0823d — 밖에서 보는 몸. 보통은 CRAFT 와 같다 */
   function applyCraft(c) {
     CRAFT = CRAFT_SPEC[c] ? c : "jet";
     SPEC = CRAFT_SPEC[CRAFT];
+    /* ⭐⭐ 0823d 시승 손 — 콘솔에 window.EG_BODY = "lin" 을 놓고 방에 들어가면
+         **몸만** 그 기체로 바뀐다. 노선도 기내도 창도 안 건드린다.
+       ⚠ 새로고침하면 사라진다 — 설정이 아니라 시험 장치다(v185 EG_BANK 와 같은 갈래).
+       ⚠⚠ SPEC 은 CRAFT_SPEC 의 **원본을 가리킨다.** 여기에 대입하면 명세가 더럽혀져
+         다음 탑승까지 따라간다. 사본을 세워 그 위에만 얹는다(41호 ㉬). */
+    BODYCRAFT = CRAFT;
+    var eb = (typeof window !== "undefined") && window.EG_BODY;
+    if (eb && CRAFT_SPEC[eb] && eb !== CRAFT) {
+      SPEC = Object.assign({}, SPEC, { body: CRAFT_SPEC[eb].body });
+      BODYCRAFT = eb;
+      console.log("[EG] 몸만 갈아 끼웁니다 — " + CRAFT + " 기내 · " + eb + " 몸");
+    }
     WINS = SPEC.wins;
     /* ⚠ MON 은 편집기·layout 이 만지는 살아 있는 그릇이라 **사본**으로 채운다.
        명세 원본을 물려주면 편집 휠이 설계값을 긁는다(41호 ㉬ 의 사촌). */
@@ -2095,7 +2130,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   var ORB = { yaw: 40, pit: 12, dist: 26 };
   var ORB0 = { yaw: 40, pit: 12 }; /* 다음 탑승이 여기서 시작한다 */
   /* ⚠ ?v= 분 단위 — 격납고에서 갈아 끼우면 1분 안에 닿는다(기내 원판과 같은 문법) */
-  function bodyUrl() { return hangarBase() + CRAFT + "_body.glb?v=" + Math.floor(Date.now() / 60000); }
+  function bodyUrl() { return hangarBase() + BODYCRAFT + "_body.glb?v=" + Math.floor(Date.now() / 60000); }
   /* ⚠⚠⚠ 0821M 진범 — **Entity 로 세우면 기체가 한 프레임 뒤처진다.**
        Cesium 의 clock.onTick 에는 Viewer 가 저를 먼저 걸어 두었고(Viewer 가 만들어질 때),
        그 손이 dataSourceDisplay.update() 로 Entity 의 화면 자리를 정한다.
