@@ -167,7 +167,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0823u";
+  var VERSION = "0823v";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1506,16 +1506,28 @@
              ⚠⚠ 0823t 는 접지하는 그 프레임에 RUN_H 를 붙든 값(140m)으로 켰다.
                그 값이 발밑과 몇 미터 다르면 1초 동안 그 차이만큼 기체가 잠긴다.
              ⭐ 3km 전부터 데워 두면 접지 순간에는 이미 발밑에 붙어 있다. */
-          if (tdKm < 3 && tdKm > -3) {
+          if (tdKm < 5 && tdKm > -3) {
             if (RUN_H === null) RUN_H = groundH;
             RUN_H += (groundH - RUN_H) * Math.min(dt / 0.6, 1);
           }
           if (tdKm > 0) {
             LDG = tblAt(route.desc, tdKm);
-            /* ⭐ 표가 준 것은 **활주로 위 높이**다. 표고를 얹어야 해발이 된다.
-               ⚠ 아직 못 쟀으면 0 으로 둔다 — 118m 는 3,353m 에서 3.5% 라 안 보이고,
-                 낮아질수록 커진다. 낮아지기 전에 반드시 손에 들어온다(120km 부터 찌른다). */
-            if (LDG) LDG = [(RWY_H || 0) + LDG[0], LDG[1]];
+            /* ⭐ 표가 준 것은 **활주로 위 높이**다. 표고를 얹어야 해발이 된다. */
+            if (LDG) {
+              var wantH = (RWY_H || 0) + LDG[0];
+              /* ══ ⭐⭐ 0823v 접지 이음매 — **두 값을 섞는다** ═══════════════════════
+                 ⚠⚠ 0823u 는 접지 직전까지 표(붙든 RWY_H 140m 기준)를 쓰다가
+                   접지하는 그 프레임에 발밑(RUN_H)으로 **툭 갈아탔다.** 둘이 몇 미터
+                   다르면 그 순간 기체가 잠긴다(소로 시승 — 1초 잠수).
+                 ⭐ 데우기만 해서는 모자랐다. 데운 값을 **쓰지 않고 있었다.**
+                 ⭐⭐ 마지막 1km 에서 표 → 발밑으로 서서히 넘긴다. 접지할 때는 이미
+                   발밑 100% 라 갈아탈 것이 없다 — 이음매가 원인째 사라진다. */
+              if (tdKm < 1.0 && RUN_H !== null) {
+                var mix = 1 - tdKm;                        /* 1km 0 → 접지 1 */
+                wantH = wantH * (1 - mix) + (RUN_H + LDG[0]) * mix;
+              }
+              LDG = [wantH, LDG[1]];
+            }
           }
           else {
             /* ⭐⭐ 0823n 활주 — 접지를 지났다. 남은 활주로를 재서 250 → 30 으로 줄인다.
@@ -1535,7 +1547,7 @@
             /* ⭐⭐ 0823u — **여기가 접지다.** 유도로에 닿는 곳이 아니다.
                ⚠⚠ 0823t 까지 ARRIVED 가 마지막 길목(유도로)에서만 섰다. 그래서 접지 뒤
                  1,621m 를 코를 들고 굴러가다가 멈추는 순간 툭 떨어졌다(소로 시승). */
-            if (!TOUCH) TOUCH = performance.now();
+            if (!TOUCH) { TOUCH = performance.now(); try { screech(); } catch (e) { } }
             RUN_H += (groundH - RUN_H) * Math.min(dt / 0.35, 1);   /* ⭐ 빨리 붙는다 */
             LDG = [RUN_H, Math.max(30, 250 * (runKm / runAll))];
           }
@@ -1741,7 +1753,7 @@
         if (opt.onTick) {
           /* ⭐ 0823f — loop·warp·arrived 셋을 함께 낸다. 받는 손이 route 를 다시 안 뒤진다 */
           try { opt.onTick({ lat: lat, lon: lon, hd: hd, kmh: kmh, rel: rel, alt: alt, vs: vs, ground: groundH, dist: dist, flown: flown, leg: P(seg)[2], next: P(seg + 1)[2], roll: rollView,
-                             seg: seg, legN: N, loop: LOOP, warp: WARP, arrived: ARRIVED }); }
+                             seg: seg, legN: N, loop: LOOP, warp: WARP, arrived: ARRIVED, rolling: !!TOUCH }); }
           catch (err) {
             if (!window.__egRTickWarned) { window.__egRTickWarned = true; console.error("[EG] 계기판 오류 — 비행은 계속합니다:", err); }
           }
@@ -5536,6 +5548,40 @@ function paintBook() {
     } catch (e) { }
   }
   /* ⭐ 고도에 물린다 — 지면 가까이(굵은 웅—) 480Hz · 높이 오르면(먼 쉬—) 300Hz */
+  /* ══ ⭐⭐ 0823v 끼익 — 접지 순간 타이어 소리 (소로 0823) ═══════════════════════
+     ⭐ **새 파일이 필요 없다.** 잡음 한 줌에 띠통과 필터를 걸면 고무 미끄러지는 소리가 난다.
+       실물도 그렇다 — 정지한 바퀴가 276km/h 를 따라잡을 때까지 1초쯤 미끄러진다.
+     ⚠ 0.45초. 더 길면 브레이크 소리가 되고, 짧으면 「툭」이 된다.
+     ⚠ 소리가 꺼져 있으면(CH) 아무 일도 안 한다 — 남의 스위치를 안 건드린다.
+     ⭐ 제 시계를 스스로 잰다(0821S 수칙) — 남의 스코프를 안 빌린다. */
+  function screech() {
+    try {
+      if (!engGain) return;                 /* 소리가 안 켜졌으면 조용히 물러난다 */
+      var a = ensureAC(), dur = 0.45;
+      var n = a.createBufferSource(), len = Math.floor(a.sampleRate * dur);
+      var buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
+      for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1);
+      n.buffer = buf;
+      var bp = a.createBiquadFilter();
+      bp.type = "bandpass"; bp.Q.value = 5.5;
+      /* ⭐ 1,900 → 700Hz 로 떨어진다. 바퀴가 속도를 따라잡으며 소리가 낮아진다 */
+      bp.frequency.setValueAtTime(1900, a.currentTime);
+      bp.frequency.exponentialRampToValueAtTime(700, a.currentTime + dur);
+      var g = a.createGain();
+      g.gain.setValueAtTime(0.0001, a.currentTime);
+      g.gain.exponentialRampToValueAtTime(engBase * 1.5, a.currentTime + 0.04);   /* 촥 */
+      g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + dur);           /* 스르르 */
+      n.connect(bp); bp.connect(g); g.connect(a.destination);
+      n.start(); n.stop(a.currentTime + dur + 0.05);
+    } catch (e) { }
+  }
+  /* ⭐⭐ 0823v — 활주 중에는 엔진이 **속도**에 물린다.
+     ⚠ 여태 rel(지면 위 높이)만 봤다. 접지하면 rel 이 0 이라 소리가 통째로 잦아든다 —
+       그런데 실물은 굴러가는 동안 엔진이 가장 크다(역추진). 잣대가 바뀌는 곳이다. */
+  function engineRoll(kmh) {
+    if (!engLp) return;
+    try { engLp.frequency.value = 300 + Math.min(Math.max(kmh, 0), 300) / 300 * 420; } catch (e) { }
+  }
   function engineTune(rel) {
     if (!engLp) return;
     try { engLp.frequency.value = 480 - Math.min(Math.max(rel, 0), 4000) / 4000 * 180; } catch (e) { }
@@ -5919,7 +5965,8 @@ function paintBook() {
         var now = performance.now();
         if (now - hudT < 400) return; hudT = now;
         paintCabin(s.lon);
-        engineTune(s.rel);           /* 낮으면 굵게 · 높으면 멀게 */
+        /* ⭐ 0823v — 굴러가는 동안에는 속도가 엔진을 정한다(위 engineRoll 주석) */
+        if (s.rolling) engineRoll(s.kmh); else engineTune(s.rel);
         windTune(s.kmh);             /* ⭐ 0821g — 빠르면 거세게. 개방 조종석의 몫 */
         paintInfo(s, route);         /* ⭐ 모니터 비행정보 — 「남은 시간」은 없다(14호) */
         paintNeedles(s);             /* ⭐ 0821f — 계기 바늘. 값은 이미 여기 다 있다 */
