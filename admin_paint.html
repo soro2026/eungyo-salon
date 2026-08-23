@@ -7,8 +7,8 @@
 <title>EG 관리자 — 도장실</title>
 <!--
   ══════════════════════════════════════════════════════════════════════
-  EG 도장실 — admin_paint.html · v0824b
-  2026.08.24 소로 × 파이스 · 146회차 · 0824b 좌우 거울
+  EG 도장실 — admin_paint.html · v0824c
+  2026.08.24 소로 × 파이스 · 146회차 · 0824b 좌우 거울 · 0824c 단색 갈아끼우기
 
   ⭐⭐ 왜 이 방이 생겼나 (소로 0824 — 「콘솔에 편집기 달아주면 같이 토론하며」)
     동체 도장은 좌표를 손으로 적고 화면에서 확인하는 왕복이 수십 번이다.
@@ -301,6 +301,18 @@ button.wide{padding:8px 18px}
             기체를 부르면 여기에 섭니다
           </div>
         </div>
+
+        <div class="sep"></div>
+
+        <h3>단색 부품 — 날개 · 엔진 · 꼬리</h3>
+        <div style="font-size:11.5px;color:rgba(240,235,224,.38);line-height:1.8;margin-bottom:8px">
+          UV 가 손톱만 한 귀퉁이에 뭉친 부품은 그림을 못 얹습니다 — <b style="color:var(--gold)">단색만</b> 됩니다.<br>
+          ⚠ 가르는 잣대가 <b style="color:var(--gold)">원래 색</b>이라, 같은 색을 쓰는 재질은 함께 바뀝니다.<br>
+          ⚠ 여섯 벌까지입니다.
+        </div>
+        <div id="swaps" style="font-size:12px;color:rgba(240,235,224,.3);padding:14px 0;text-align:center">
+          기체를 부르면 여기에 섭니다
+        </div>
       </div>
     </div>
 
@@ -349,6 +361,7 @@ const S = {
   navy:'#12295c', gold:'#d8b45a',
   band:26, from:0, to:N, fade:160, flip:false,
   mirror:0,                        /* ⭐ 0824b 좌우 거울 — 0 끔 · +1 오른쪽 · −1 왼쪽 */
+  swaps:{},                        /* ⭐ 0824c 원래색(hex) → 새 색(hex) · 여섯 벌까지 */
   pts:[ {x:0,y:1180}, {x:512,y:1120}, {x:1024,y:1010}, {x:1536,y:840}, {x:2048,y:610} ],
   assets:{}                        /* key → {x,y,scale,rot,flipX} */
 };
@@ -584,6 +597,7 @@ async function loadBody(src, label){
     const got = chewGLB(buf);
     PARTS = got.list;
     drawParts();
+    drawSwaps();
     paintOverlay();
     stat('<b>' + label + '</b> · ' + (buf.byteLength/1048576).toFixed(1) + 'MB · 삼각형 '
        + Math.round(got.totTri).toLocaleString() + ' · 재질 ' + got.matCount
@@ -624,18 +638,66 @@ const FRAG = [
   '  if(u_mirror != 0.0 && fsInput.attributes.positionMC.x * u_mirror > 0.0){',
   '    uv.x = 1.0 - uv.x;',
   '  }',
+  /* ⭐⭐ 0824c — 단색 갈아끼우기.
+       날개·엔진은 UV 가 한 귀퉁이에 뭉쳐 있어 그림을 못 얹는다(v189). 단색만 된다.
+     ⚠⚠ 가르는 잣대가 **원래 재질 색**이다 — 부품 이름이 아니다.
+       Cesium 은 화소에게 「너는 어느 부품이냐」를 안 알려 준다.
+       ⚠ 그래서 **같은 색을 쓰는 재질은 함께 바뀐다.** 화면에서 드러난다. */
+  '  vec3 d = material.diffuse;',
+  '  if(u_o0 > 0.5 && distance(d, u_f0) < 0.05) d = u_t0;',
+  '  if(u_o1 > 0.5 && distance(d, u_f1) < 0.05) d = u_t1;',
+  '  if(u_o2 > 0.5 && distance(d, u_f2) < 0.05) d = u_t2;',
+  '  if(u_o3 > 0.5 && distance(d, u_f3) < 0.05) d = u_t3;',
+  '  if(u_o4 > 0.5 && distance(d, u_f4) < 0.05) d = u_t4;',
+  '  if(u_o5 > 0.5 && distance(d, u_f5) < 0.05) d = u_t5;',
   '  vec4 p = texture(u_paint, uv);',
-  '  material.diffuse = mix(material.diffuse, p.rgb, p.a);',
+  '  material.diffuse = mix(d, p.rgb, p.a);',   /* ⭐ 도장이 단색 위에 온다 */
   '}'
 ].join('\n');
 
+const NSWAP = 6;
+/* ⚠⚠ 색칸 둘이 서로 다른 뜻이다 — 헷갈리면 색이 안 맞는다
+   원래 색   glTF baseColorFactor 는 **선형**이다. 255 로 나눈 값을 그대로 쓴다
+   새 색     소로가 고른 것은 **sRGB** 다. 선형으로 바꿔야 판에 칠한 같은 색과 만난다
+   (도장 판은 sRGB 텍스처라 Cesium 이 저절로 바꿔 준다 — 그쪽에 맞춘다) */
+function hexV3(hex, srgb){
+  const n = parseInt(hex.slice(1), 16);
+  const f = v => {
+    const c = v / 255;
+    if(!srgb) return c;
+    return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  return new Cesium.Cartesian3(f((n>>16)&255), f((n>>8)&255), f(n&255));
+}
+function swapList(){
+  return Object.keys(S.swaps).slice(0, NSWAP).map(k => ({ from:k, to:S.swaps[k] }));
+}
+function swapUniforms(){
+  const u = {}, L = swapList();
+  for(let i=0;i<NSWAP;i++){
+    const s = L[i];
+    u['u_f'+i] = { type:Cesium.UniformType.VEC3,
+                   value: s ? hexV3(s.from, false) : new Cesium.Cartesian3(-1,-1,-1) };
+    u['u_t'+i] = { type:Cesium.UniformType.VEC3,
+                   value: s ? hexV3(s.to, true)    : new Cesium.Cartesian3(0,0,0) };
+    u['u_o'+i] = { type:Cesium.UniformType.FLOAT, value: s ? 1 : 0 };
+  }
+  return u;
+}
+function pushSwaps(){
+  if(!shader) return;
+  const u = swapUniforms();
+  try{ Object.keys(u).forEach(k => shader.setUniform(k, u[k].value)); }
+  catch(e){ if(model){ shader = makeShader(paintURL()); model.customShader = shader; } }
+}
+
 function makeShader(url){
   return new Cesium.CustomShader({
-    uniforms:{
+    uniforms: Object.assign({
       u_paint:{ type: Cesium.UniformType.SAMPLER_2D,
                 value: new Cesium.TextureUniform({ url:url }) },
       u_mirror:{ type: Cesium.UniformType.FLOAT, value: S.mirror }
-    },
+    }, swapUniforms()),
     fragmentShaderText: FRAG
   });
 }
@@ -1002,6 +1064,73 @@ $('#bAsDel').onclick = ()=>{
   SEL = null; drawAssetSlots(); syncAssetRows(); paint(); pushPaint();
 };
 
+/* ══ 단색 부품 (0824c) ═════════════════════════════════════════════
+   ⚠⚠ 재질 이름이 아니라 **원래 색**으로 묶는다. 셰이더가 가를 수 있는 것이 색뿐이다.
+     그래서 같은 색을 쓰는 재질이 몇 벌인지 화면에 적어 둔다 — 함께 바뀌기 때문이다. */
+function colorGroups(){
+  const g = {};
+  PARTS.forEach(p => {
+    const c = p.color || '#808080';
+    const r = g[c] || (g[c] = { color:c, tri:0, names:[] });
+    r.tri += p.tri; r.names.push(p.name);
+  });
+  return Object.values(g).sort((a,b)=> b.tri - a.tri);
+}
+function drawSwaps(){
+  const host = $('#swaps');
+  const gs = colorGroups();
+  if(!gs.length){
+    host.innerHTML = '<div style="padding:14px;text-align:center;font-size:12px;color:rgba(240,235,224,.3)">'
+      + (PARTS.length ? '색을 가진 부품이 없습니다' : '기체를 부르면 여기에 섭니다') + '</div>';
+    return;
+  }
+  const n = Object.keys(S.swaps).length;
+  let h = '<div style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow:auto">';
+  gs.forEach((g, i) => {
+    const on = S.swaps[g.color] !== undefined;
+    h += '<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:9px;'
+       + 'border:1px solid rgba(240,235,224,' + (on ? '.3' : '.09') + ');'
+       + 'background:rgba(255,255,255,' + (on ? '.05' : '.02') + ')">'
+       + '<span class="sw" style="width:16px;height:16px;background:' + g.color + '"></span>'
+       + '<span style="flex:1;min-width:0;font-size:11.5px;color:rgba(240,235,224,.55);'
+       + 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + g.names.join(' · ') + '">'
+       + g.names[0] + (g.names.length > 1 ? ' <span style="color:rgba(240,235,224,.32)">외 '
+       + (g.names.length-1) + '벌</span>' : '') + '</span>'
+       + '<span style="font-size:11px;color:rgba(240,235,224,.3);font-variant-numeric:tabular-nums">'
+       + Math.round(g.tri).toLocaleString() + '</span>'
+       + '<input type="color" data-c="' + g.color + '" class="swc" value="'
+       + (on ? S.swaps[g.color] : S.navy) + '" style="width:34px;height:24px;padding:0;'
+       + 'border:1px solid rgba(240,235,224,.16);border-radius:6px;background:transparent;cursor:pointer">'
+       + '<button data-c="' + g.color + '" class="swb" style="padding:4px 9px;font-size:11px">'
+       + (on ? '끄기' : '칠하기') + '</button></div>';
+  });
+  host.innerHTML = h + '</div>'
+    + '<div style="font-size:11px;color:rgba(240,235,224,.32);margin-top:7px">지정 ' + n + ' / ' + NSWAP + '벌</div>';
+
+  host.querySelectorAll('.swb').forEach(b => {
+    b.onclick = ()=>{
+      const c = b.dataset.c;
+      if(S.swaps[c] !== undefined){ delete S.swaps[c]; }
+      else{
+        if(Object.keys(S.swaps).length >= NSWAP){
+          say('여섯 벌까지입니다 — 하나를 끄고 다시 해 주십시오', 'bad'); return;
+        }
+        const inp = host.querySelector('.swc[data-c="' + c + '"]');
+        S.swaps[c] = inp ? inp.value : S.navy;
+      }
+      drawSwaps(); pushSwaps();
+    };
+  });
+  host.querySelectorAll('.swc').forEach(inp => {
+    inp.oninput = ()=>{
+      const c = inp.dataset.c;
+      if(S.swaps[c] === undefined) return;   /* ⚠ 안 켠 칸의 색을 만져도 아무 일 없다 */
+      S.swaps[c] = inp.value;
+      pushSwaps();
+    };
+  });
+}
+
 /* ══ 부품표 ════════════════════════════════════════════════════════ */
 function drawParts(){
   const host = $('#parts');
@@ -1172,6 +1301,7 @@ async function openSettings(quiet){
     $('#bBase').classList.toggle('on', S.baseOn);
     $('#bBase').textContent = S.baseOn ? '켜짐' : '꺼짐';
     setMirror(S.mirror || 0);        /* ⚠ 값만 싣고 단추를 안 맞추면 화면이 거짓말한다 */
+    drawSwaps(); pushSwaps();
     syncAssetRows();
     paint(); pushPaint();
     if(!quiet) say('지난 설정을 불러왔습니다', 'ok');
