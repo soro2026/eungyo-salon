@@ -167,7 +167,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0823f";
+  var VERSION = "0823g";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -671,6 +671,11 @@
      ⚠ 장거리 14호 — 원판은 lit·dim 둘뿐이다. 넷이 아니다. */
   CRAFT_SPEC.lin.wins = CRAFT_SPEC.jet.wins;
   CRAFT_SPEC.lin.mon  = CRAFT_SPEC.jet.mon;
+  /* ⚠⚠ 0823g — 창 좌표·모니터만 빌리고 **그림 이름을 안 빌렸다.** 0823f 시승에서
+     기내가 통째로 안 섰다(소로) — lin_cabin_*.webp 를 부르는데 그 원판이 없어서다.
+     ⭐ 0821d 가 정확히 일한 것이다(「없으면 그냥 없다」). 사고가 아니라 조항이었다.
+     ⚠ 셋을 한 줄씩 따로 빌리는 중이다. 원판이 나오면 이 세 줄을 함께 지운다. */
+  CRAFT_SPEC.lin.plate = "jet";
   var SPEC = CRAFT_SPEC.jet;       /* 지금 탄 기체의 명세 — applyCraft 가 채운다 */
 
   /* ══ 0821f — 계기 바늘 · 호박 램프 · 붉은 불빛 ═══════════════════════
@@ -873,15 +878,31 @@
       el.style.transform = "rotate(" + deg.toFixed(1) + "deg)";
     }
   }
+  /* ⭐⭐ 0823g — **원판을 빌릴 기체.** 명세에 `plate` 를 적은 기체는 남의 원판을 쓴다.
+     ⚠⚠ 0821d 조항(「남의 기체를 입히지 않는다」)과 안 부딪힌다. 그 조항이 막은 것은
+       코드에 **활자로 박힌** "jet_" 이었다 — 복엽기를 타도 제트기 기내가 서는데
+       그게 사고인지 폴백인지 화면으로 알 길이 없었다.
+     ⭐ 이것은 명세에 **적어 둔 빌림**이다. 안 적은 기체는 한 톨도 안 바뀌고,
+       빌리는 동안은 콘솔이 한 번 말한다. 원판이 나오면 그 한 줄을 지우면 끝이다.
+     ⚠ 값을 두 곳에 안 적는다(22호) — 빌리는 이름이 여기 한 곳이다. */
+  var PLATE_SAID = false;
+  function plateCraft() {
+    var p = (SPEC && SPEC.plate) || CRAFT;
+    if (p !== CRAFT && !PLATE_SAID) {
+      PLATE_SAID = true;
+      console.log("[EG] 기내 원판을 빌립니다 — " + CRAFT + " 기체 · " + p + " 원판");
+    }
+    return p;
+  }
   function cabinUrl(k) {
-    return hangarBase() + CRAFT + "_cabin_" + k + ".webp?v=" + Math.floor(Date.now() / 60000);
+    return hangarBase() + plateCraft() + "_cabin_" + k + ".webp?v=" + Math.floor(Date.now() / 60000);
   }
   /* ⭐⭐ 0821d 소로 — 남의 기체를 입히지 않는다. 폴백은 **제 기체의 저장소 판**이고,
        그것도 없으면 아무것도 안 세운다 — 창밖만 보인다.
      ⚠⚠ 0821c 까지는 여기가 활자로 "jet_" 이었다. 복엽기를 타도 제트기 기내가 섰고,
        그게 사고인지 폴백인지 화면으로는 알 길이 없었다(소로 0821 「복엽기 안 보임」).
      ⭐ 크레덴시알 30호와 같은 정신 — 없으면 그냥 없다. 딴것으로 때우지 않는다. */
-  function cabinFallback(k) { return CRAFT + "_cabin_" + k + ".webp"; }
+  function cabinFallback(k) { return plateCraft() + "_cabin_" + k + ".webp"; }
   /* ⚠ CABIN 은 이제 **주소가 아니라 갈래 글자**를 담는다. setTheme 이 이걸로 갈래를 되찾는다 */
   var CABIN = { m: "m", d: "d", e: "e", n: "n" };
 
@@ -5695,5 +5716,21 @@ function paintBook() {
     console.log("[EG] 독서비행 방을 걷었습니다 — 카메라를 terra 로 되돌렸습니다.");
   }
 
-  window.egReading = { enter: enter, leave: leave, routes: routes, version: VERSION };
+  /* ⭐⭐ 0823g 시험 손 — 선 기체의 노드 이름을 통째로 뽑는다.
+     ⚠ 0823 오전 수칙 「이름을 믿지 않는다」의 짝이다. 짐작으로 "Gear" 를 찾지 않고
+       실제로 무엇이 있는지 먼저 본다 — 787 은 노드·메시·재질 이름이 67개 전부 어긋나 있었다.
+     ⚠ _nodesByName 은 Cesium 비공개 이름이다. 1.123.0 에서 원전으로 확인했다(v186).
+       ⭐ 시험 손이라 깨져도 비행에 안 닿는다 — try 로 감싸고 조용히 물러난다. */
+  function nodeList() {
+    try {
+      var m = BODYENT && BODYENT._nodesByName;
+      if (!m) { console.warn("[EG] 기체가 아직 안 섰습니다 — B 를 누르고 다시 부르십시오"); return []; }
+      var out = Object.keys(m);
+      console.log("%c[EG] 노드 " + out.length + "개", "color:#c9a84c");
+      console.log(out.join("\n"));
+      return out;
+    } catch (e) { console.warn("[EG] 노드를 못 읽었습니다:", e); return []; }
+  }
+  window.egReading = { enter: enter, leave: leave, routes: routes, version: VERSION,
+                       nodes: nodeList };
 })();
