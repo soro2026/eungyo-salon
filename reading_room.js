@@ -167,7 +167,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0823e";
+  var VERSION = "0823f";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -440,6 +440,135 @@
       [46.51000, 10.54500, "스텔비오 · 오르틀러"],
       [46.61833, 12.30500, "트레 치메"],
       [46.53500, 12.13500, "코르티나 · 돌로미티"]
+    ]
+  }, {
+    /* ══ 0823f — 넷째 노선. ⭐⭐ **첫 liner 다** ══════════════════════════════
+       ⚠⚠ 앞의 셋과 갈래가 다르다. 고리가 아니라 **직선**이고 끝이 있다(장거리 1호).
+         까닭은 도착이 필요해서가 아니라 **되풀이가 없어야 해서**다 —
+         파리를 세 바퀴 돌면 에펠탑을 세 번 보지만, 직선은 지난 곳이 다시 안 온다.
+       ⭐⭐ 앞의 셋은 프롤로그이고 이것이 본편이다(소로 0822) —
+         「1-3노선은 볼거리가 너무 많아서 독서 집중 절대 못함」.
+         창밖이 텅 빈 열세 시간. 볼거리를 밖에서 안으로 옮긴다.
+       ⚠⚠⚠ **이 노선의 좌표는 전부 실측이다. 어림값이 한 톨도 없다.**
+         KAL901(2026-08-22) 항적 3,344점 + 소로 구글 어스 활주로 실측 넉 점.
+         고칠 때는 「장거리노선_좌표프로파일_정착문 v1.0」을 먼저 읽는다.
+         ⚠ 좌표를 다시 재지 말 것 — 0823 오전에 SkyVector 로 잰 값이 실측과 1.9km
+           어긋나 물러났다. 짐작으로 적은 값은 아무리 정성껏 적어도 짐작이다.
+       ⭐ 길목 63 · 10,749km · 길목당 14.5분(편차 0.9분) — 실제 IFE 지도와 같은 밀도다.
+         ⚠ 열둘이면 60분에 한 번 바뀌어 심심하고, 120이면 6분마다라 오히려 눈에 안 든다.
+       ⭐ 이름 열넷이 11km 지평선(374km) **안**에 있다 — 트라브존 7km · 하미 20 ·
+         레겐스부르크 22 · 빈 32 · 알마티 40 · 바쿠 50 · 히바 63 · 카라호토 71 · 탈라스 96.
+         ⭐⭐ 탈라스(751년 · 종이가 서쪽으로 넘어간 곳) · 히바 · 카라호토 —
+           **책 읽는 비행기가 종이가 간 길을 거꾸로 따라간다.** 짜 넣은 것이 아니다. */
+    code: "icn_cdg",
+    craft: "lin",
+    name: "인천 → 파리",
+    face: "EG AIR 101편 · 실크로드를 거슬러 열세 시간 · 보잉 787",
+    kind: "liner",
+    loop: false,                     /* ⭐⭐ 오늘 이 칸이 처음 읽힌다. 아홉 곳이 본다 */
+    /* ⭐⭐ 장거리 6호 — felt 를 안 적고 kmh 를 적는다. ⚠ 둘을 함께 적지 않는다(함정 ㉡).
+       845 는 실측 가운뎃값 456kt(대지속도)다. 결정문 6호의 875 가 여기서 물러났다.
+       ⚠ 25호(체감 일정)와 안 부딪힌다 — 그 조항이 막은 것은 고도가 출렁일 때 속도가
+         널뛰는 것인데, 이 노선은 고도가 아예 안 출렁인다. 지킬 것이 없는 곳이다. */
+    kmh: 845,
+    /* ⭐⭐ 장거리 5호 — 평면이 되는 것이 **목적이다.** 문제가 아니다.
+       11km 순항면에서는 톈산·파미르(7,000m대)도 3,000m 아래라 지구가 그냥 지도가 된다.
+       ⚠ floor 그물은 남기되 한 번도 안 걸린다. 33호(고도의 규율 셋)도 일을 안 한다.
+       ⚠ 실측 고도는 계단 넷이다(9,174 → 9,784 → 10,363 → 10,973m · 아래 steps).
+         ⭐ 지금은 한 값이다 — 계단을 넣으면 창밖은 안 바뀌고 계기판 숫자만 네 번 바뀐다.
+           단조로움이 목적이므로. 뒤집으실 때는 steps 가 이미 실려 있어 코드를 다시 안 연다. */
+    mode: "msl",
+    msl: 10973,
+    floor: 320,
+    /* ⭐ 활주로 — 소로 구글 어스 실측(0823). ⚠ 2타(장거리 9~12호)가 읽는다.
+       ⚠ 표고를 안 적는다 — 지면을 찔러 쓴다(sampleOne). 제네바 48m 사고의 원인이
+         지오이드 어긋남이었다(ICN +23m · CDG +44m). 문서 표고를 코드에 안 옮긴다. */
+    dep: { icao: "RKSI", rwy: "16L",
+           start: [37.47178, 126.41656],      /* 구르기 시작 */
+           up:    [37.45493, 126.43155],      /* 부양 · 활주 2,294m */
+           hdg:   144.78 },
+    arr: { icao: "LFPG", rwy: "09R",
+           td:    [49.02102, 2.52042],        /* 접지 */
+           stop:  [49.02317, 2.56039],        /* 유도로 입구 · 2,924m */
+           hdg:   85.30 },
+    /* ⭐ 고도 계단 — 실측. ⚠ 아직 아무도 안 읽는다(소로 판정 대기 · 정착문 제5부 ①) */
+    steps: [[0, 9174], [97, 9784], [312, 10363], [531, 10973]],   /* [이륙 후 분, 해발 m] */
+    /* ⭐⭐ 강하 — 실측(정착문 4호). 결정문 남은 물음 ②가 이 표로 닫혔다.
+       ⭐ 최종접근 3.0° 가 소수점 둘째까지 맞았다(3.00 · 2.97 · 3.05) —
+         맞은 까닭은 잘 셈해서가 아니라 전 세계가 같은 각도로 내려앉기 때문이다.
+       ⚠⚠ 60km~30km 가 3,353m 로 **평평하다.** 관제가 순서를 맞추는 구간이고,
+         그 높이가 장거리 13호의 3,000m 와 거의 같은 곳이다. 넣을지는 소로 판정. */
+    desc: [[300, 10973, 739], [200, 8595, 643], [100, 4839, 648],
+           [60, 3353, 546], [30, 3353, 515], [20, 1059, 396],
+           [10, 518, 344], [5, 267, 285], [3, 160, 276], [0, 0, 0]],
+           /* [접지까지 km, 해발 m, km/h] */
+    /* ⭐ 이륙 — 실측(정착문 5호) */
+    clmb: [[2, 38, 244], [5, 320, 369], [10, 899, 383],
+           [20, 1722, 428], [40, 3391, 593]],                     /* [활주로에서 km, 해발 m, km/h] */
+    legs: [
+      [37.47178, 126.41656, "인천 · 활주로 16L"],
+      [37.45493, 126.43155, "부양 · 영종 남단"],
+      [37.40000, 126.47000, "대부도"],
+      [37.32000, 126.40000, "화성 앞바다"],
+      [37.35000, 126.10000, "덕적도 앞바다"],
+      [37.39090, 124.88730, "황해"],
+      [36.96340, 122.80600, "웨이하이 앞바다"],
+      [37.75270, 120.55210, "발해 해협 · 펑라이"],
+      [38.53000, 118.22530, "보하이만"],
+      [39.95540, 117.16320, "베이징"],
+      [41.48850, 115.81840, "차하르 초원"],
+      [42.09340, 113.45410, "훈산다크 모래땅"],
+      [42.18470, 111.09820, "고비 · 쑤니터"],
+      [41.90410, 108.72440, "고비 · 우라트"],
+      [41.57110, 106.34870, "바단지린 사막"],
+      [41.01320, 104.19900, "고비 · 중몽 국경"],
+      [41.64250, 101.98120, "카라호토 · 검은 성"],
+      [41.88030, 99.68970, "고비 알타이 남면"],
+      [41.88640, 97.49760, "마쭝산"],
+      [41.86890, 95.21180, "신장 동단"],
+      [42.93160, 93.31440, "하미"],
+      [43.51670, 91.05350, "바리쿤 · 톈산 동단"],
+      [44.03900, 88.72880, "준가얼 분지"],
+      [43.60870, 86.58430, "스허쯔 · 톈산 북면"],
+      [43.40430, 84.27800, "쿠이툰 · 징허"],
+      [43.53090, 81.79600, "이닝 · 일리 계곡"],
+      [43.54770, 79.30790, "일리 강 · 카자흐 국경"],
+      [43.57070, 76.95270, "알마티"],
+      [43.49980, 74.47450, "비슈케크"],
+      [43.37910, 72.06170, "탈라스"],
+      [43.19360, 69.62820, "심켄트 · 시르다리야"],
+      [42.81310, 67.08590, "키질쿰 북단"],
+      [42.38630, 64.61740, "키질쿰 사막"],
+      [41.87790, 62.04500, "아무다리야"],
+      [41.33860, 59.61380, "히바 · 흙벽의 도시"],
+      [41.06800, 57.02470, "카라쿰 북면"],
+      [40.96890, 54.44710, "카라쿰 사막"],
+      [40.79610, 51.93210, "카스피해"],
+      [40.62140, 49.34400, "바쿠"],
+      [40.63070, 46.94860, "간자 · 아제르바이잔"],
+      [40.81040, 44.53130, "세반 호수 · 아르메니아"],
+      [40.91720, 42.14650, "카르스 · 아나톨리아 동부"],
+      [41.01520, 39.63860, "트라브존"],
+      [41.21100, 37.26880, "삼순 · 흑해 남안"],
+      [41.67510, 34.90250, "시노프 곶"],
+      [42.19980, 32.43720, "아마스라 앞바다"],
+      [42.76220, 30.02770, "흑해"],
+      [44.01150, 27.82960, "도나우 하류"],
+      [44.96710, 25.45450, "왈라키아 평원"],
+      [45.58410, 23.04720, "카르파티아 · 트란실바니아"],
+      [46.56000, 20.97170, "아라드 · 판노니아"],
+      [47.26950, 18.71060, "부다페스트"],
+      [47.92360, 16.36660, "빈"],
+      [48.47670, 14.08310, "린츠 · 도나우"],
+      [48.97480, 11.80480, "레겐스부르크"],
+      [49.41400, 9.47180, "로텐부르크 · 프랑켄"],
+      [49.65610, 7.04690, "자르 · 모젤"],
+      [49.58400, 4.78510, "아르덴"],
+      [49.18571, 2.58926, "파리 북면 · 상리스"],
+      [49.06322, 2.06820, "퐁투아즈 · 서쪽 끝"],
+      [48.97181, 2.11332, "아르장퇴유 · 남쪽 끝"],
+      [48.97099, 2.17602, "생드니 · 최종접근"],
+      [49.02102, 2.52042, "파리 · 활주로 09R"]
     ]
   }];
   function routes() { return ROUTES.map(function (r) { return { code: r.code, name: r.name, face: r.face }; }); }
@@ -831,19 +960,35 @@
   /* ⭐⭐ 곡선을 모듈 수준에 둔다 — 비행과 항로도가 **같은 곡선**을 봐야 한다.
      ⚠ cruise 안에만 두고 지도가 제 벌로 다시 셈하면, 언젠가 한쪽만 고쳐 놓고
        「지도와 실제가 다르다」를 며칠 헤매게 된다(22호의 사촌 — 같은 것을 두 곳에서 관리). */
+  /* ⭐⭐ 0823f — 여기가 순환 고리 아홉 곳의 진범이다(장거리 8호 · 함정 ㉠).
+     ⚠⚠ 감싸기(wrap)를 **자르기(clamp)**로 바꾸는 일이 덤을 하나 산다 —
+       옛 판에서 liner 의 첫 구간은 Catmull 제어점 p0 이 legAt(−1) = **마지막 길목**이었다.
+       인천 활주로를 놓으면 그 곡선이 **파리 쪽으로 휜다.** 0819 에 이미 겪은 병이다
+       (「첫 구간에 코르티나가 끼어들어 목표가 옆으로 틀어져 있었다」).
+     ⭐ 자르면 p0 = p1 = 인천 자신이 되어 곡선이 활주로에서 곧게 시작한다.
+       Catmull 끝점 처리의 정석이고, 고리 노선은 한 톨도 안 바뀐다. */
   function legAt(route, i2) {
-    var L = route.legs, N = L.length, k = ((i2 % N) + N) % N;
-    return L[k];
+    var L = route.legs, N = L.length;
+    if (route.loop === false) return L[Math.max(0, Math.min(N - 1, i2))];
+    return L[((i2 % N) + N) % N];
   }
   function curveOf(route, sg, uu) {
     return [catmull(legAt(route, sg - 1)[0], legAt(route, sg)[0], legAt(route, sg + 1)[0], legAt(route, sg + 2)[0], uu),
             catmull(legAt(route, sg - 1)[1], legAt(route, sg)[1], legAt(route, sg + 1)[1], legAt(route, sg + 2)[1], uu)];
   }
-  /* 고리 전체를 점으로 — 구간마다 per 점씩 */
+  /* 노선 전체를 점으로 — 구간마다 per 점씩. 지도 테두리를 재는 손이 쓴다
+     ⭐ 0823f — 구간 수가 갈린다. 고리는 N 개(마지막이 처음으로 돌아온다) ·
+       ⚠ liner 는 N−1 개다. 옛 판대로 두면 **파리에서 인천으로 가는 구간**까지
+         표본을 떠서 지도 테두리가 유라시아 밖으로 부푼다. */
+  function segCount(route) {
+    var N = route.legs.length;
+    return (route.loop === false) ? Math.max(1, N - 1) : N;
+  }
   function curvePoints(route, per) {
-    var out = [], N = route.legs.length, s, j;
-    for (s = 0; s < N; s++) for (j = 0; j < per; j++) out.push(curveOf(route, s, j / per));
-    out.push(curveOf(route, 0, 0));           /* 고리를 닫는다 */
+    var out = [], N = route.legs.length, sn = segCount(route), s, j;
+    for (s = 0; s < sn; s++) for (j = 0; j < per; j++) out.push(curveOf(route, s, j / per));
+    /* ⭐ 고리는 처음으로 닫고 · liner 는 마지막 길목에서 끝난다 */
+    out.push(route.loop === false ? curveOf(route, N - 1, 0) : curveOf(route, 0, 0));
     return out;
   }
 
@@ -855,11 +1000,29 @@
   function cruise(route, opt) {
     opt = opt || {};
     var L = route.legs, N = L.length;
+    /* ⭐⭐ 0823f — 갈래를 **한 곳에서만** 읽는다(장거리 8호).
+       ⚠ route.loop 를 여덟 곳에서 각자 보면 언젠가 한 곳을 빠뜨린다 — 오늘 아홉 곳을
+         전수했고, 그중 둘은 v187 목록에 없던 곳이다. 이름 하나로 묶어 둔다.
+       SEGN — 구간 수. 고리는 N · liner 는 N−1. 마지막 구간 번호는 SEGN−1 이다. */
+    var LOOP = (route.loop !== false), SEGN = LOOP ? N : Math.max(1, N - 1);
     /* ⭐ 0819T — 시작 지점을 밖에서 받는다. 안 주면 첫 길목(옛 판과 같다).
        ⚠ 11호(「읽는 중」 상태 칸을 안 짓는다)와 안 부딪힌다 —
          그 조항이 막은 것은 **진도**이지 「내가 있던 곳」이 아니다.
          고리에는 끝이 없으므로 진도가 될 수 없고, 남은 것도 셀 수 없다(14호). */
-    var seg = Math.max(0, (opt.startSeg | 0)) % N, u = Math.min(0.999, Math.max(0, +opt.startU || 0));
+    var seg = LOOP ? (Math.max(0, (opt.startSeg | 0)) % N)
+                   : Math.max(0, Math.min(SEGN - 1, opt.startSeg | 0));
+    var u = Math.min(0.999, Math.max(0, +opt.startU || 0));
+    /* ⭐⭐ 0823f — liner 는 끝이 있다(장거리 1호). 마지막 길목에 닿으면 여기가 선다.
+       ⚠ 2타(이·착륙)가 서기 전까지는 그 곳에 그대로 멈춘다 — 「내리기」는 아직 없다.
+       ⚠ 고리 노선에서는 영영 false 다. 13·14호가 한 톨도 안 바뀐다. */
+    var ARRIVED = false;
+    /* ⭐⭐ 0823f 배속 — **시험 장치다.** 13시간짜리는 끝을 볼 수가 없어서 세웠다.
+       ⚠⚠ Cesium 시계를 안 건드린다 — 우리 dt 에 곱한다. 그래서 태양 위치·지구 타일이
+         저절로 시간을 무시한다(0821N 이 이미 증인이다: viewer.clock 은 이 방에서 안 흐른다).
+       ⚠ 다만 solarHour 는 **경도**를 읽으므로 배속을 탄다. 인천→파리 124° = 8시간 16분이
+         ×60 이면 13분에 흐른다. 기내가 저물고 창밖은 그대로다 — 장거리 15호 그대로다.
+       ⚠ 새로고침하면 ×1 이다. 설정이 아니라 시험 장치다. */
+    var WARP = 1;
     /* ⭐ 0823a — 마지막으로 적어 둔 길목. 시작 길목으로 앉혀 둔다.
        ⚠ −1 로 두면 뜨자마자 한 발이 나간다 — 방금 읽어 온 값을 도로 적는 헛발이다. */
     var savedSeg = seg;
@@ -957,7 +1120,10 @@
       var kmAt = LOOK_KM[laIdx], sg2 = sg, uu2 = uu, sk = segKm0;
       uu2 += kmAt / sk;
       while (uu2 >= 1) {
-        uu2 -= 1; sg2 = (sg2 + 1) % N;
+        /* ⭐ 0823f — liner 는 마지막 구간 너머를 안 본다. 없는 앞을 찌르면
+           clamp 된 같은 점을 되풀이해 재게 된다(값은 멀쩡하고 셈만 헛돈다). */
+        if (!LOOP && sg2 >= SEGN - 1) { uu2 = 0.999; break; }
+        uu2 -= 1; sg2 = LOOP ? (sg2 + 1) % N : sg2 + 1;
         sk = Math.max(gcKm(P(sg2)[0], P(sg2)[1], P(sg2 + 1)[0], P(sg2 + 1)[1]), 0.001);
       }
       var k = groundAt(sg2, uu2);
@@ -1081,6 +1247,23 @@
                        pitch: Cesium.Math.toRadians(-ORB.pit), roll: 0 }
       });
     }
+    /* ⭐⭐ 0823f — 도착. liner 에만 있다(장거리 1호 — 되풀이가 없어야 해서다).
+       ⚠ 1타에서는 **서기만 한다.** 접지·감속·「내리기」·브릿지·도장은 2타(9~12·22~24호)다.
+         지금 여기에 임시 화면을 지어 두면 2타에서 그것을 다시 걷어내야 한다.
+       ⭐ 배속을 ×1 로 되돌린다 — 도착해 선 곳에서 ×60 이 켜져 있으면 뜻이 없다.
+       ⭐ 그리고 마지막 지점을 한 번 적는다. 배속 중이었어도 여기는 적는다 —
+         「어디까지 갔나」는 남아야 하고, 이 한 발은 길목마다가 아니라 한 번뿐이다. */
+    function onArrive() {
+      WARP = 1;
+      try { saveWhere(route.code, seg, u, Math.round(flown), dist); } catch (e) { }
+      try {
+        console.log("%c[EG] ✈ 도착 — " + P(seg + 1)[2] + " · "
+          + Math.floor(flown / 3600) + "시간 " + Math.floor((flown % 3600) / 60) + "분 · "
+          + Math.round(dist).toLocaleString() + "km", "color:#c9a84c");
+      } catch (e) { }
+      if (opt.onArrive) { try { opt.onArrive(); } catch (e) { } }
+    }
+
     function aimCam() {
       if (window.__egShut || !viewer) return;
       /* ⭐⭐ 0821L — 주인이 여기서 넘어간다. 겨누는 문은 여전히 이 함수 하나뿐이다 */
@@ -1111,6 +1294,18 @@
         /* ⭐ 0821j — 고갯짓은 멈춤 중에도 산다. dt 를 이미 쥔 자리라 새로 재는 게 없다 */
         lookTick(dt);
         if (PAUSED) { aimCam(); return; }
+        /* ══ ⭐⭐ 0823f 배속 — **여기 한 곳에서만** 곱한다 ═══════════════════════
+           ⚠⚠ viewer.clock.multiplier 를 안 쓴다. 우리 dt 는 performance.now() 라
+             그 손과 갈려 있고(0821N 이 증인 — 이 방에서 clock 은 안 흐른다),
+             태양 위치·지구 타일이 저절로 시간을 무시한다. 그것이 이 노선에 맞다(장거리 15호).
+           ⭐ dt 에 곱하므로 flown 도 함께 빨라진다 — 「13시간을 13분에」가 성립한다.
+             kmh 에만 곱하면 거리는 나는데 시계는 실시간이라 둘이 어긋난다.
+           ⚠⚠ 3,000m 아래에서는 저절로 ×1 이다. 타일이 못 따라오기 때문이다 —
+             순항 11km 는 낮은 해상도 판만 부르는데 활주로 언저리는 최고 해상도다.
+             ⭐ 장거리 13호의 그 숫자를 네 번째로 쓴다(강하 갈림 · 손 넷 잠금 · 창 덮개 · 여기).
+             ⚠ 손잡이를 되돌리지 않는다 — 낮은 동안만 재우고 올라가면 되살아난다. */
+        var WARP_NOW = (alt < 3000) ? 1 : WARP;
+        dt *= WARP_NOW;
 
         /* ── 지면 — 150ms 에 한 점씩 돌아가며(위 ㉠ 주석). 몰아 쏘지 않는다 */
         if (now - gT > 150) {
@@ -1166,7 +1361,15 @@
         /* ⭐ 0822d — 바닥을 **노선이 정한다.** 안 적으면 지금까지의 120 이다(알프스·안데스 그대로).
            ⭐ 0822e — 천장도 노선이 정한다. 안 적으면 지금까지의 900 이다. */
         var SPDCAP = route.maxKmh || 900;
-        var kmh = Math.max(route.minKmh || 120, Math.min(route.felt * (spdH / 1000), SPDCAP));
+        /* ⭐⭐ 0823f 장거리 6호 — `kmh` 를 적은 노선은 체감 셈을 아예 안 탄다.
+           ⚠ felt 는 「속도 ÷ 고도」다. 그 문법을 11km 에 걸면 속도가 터무니없이 커진다.
+           ⚠⚠ 둘을 함께 적지 않는다(함정 ㉡). 노선마다 하나만이다 — 여기가 그 약속이
+             실제로 지켜지는 곳이고, kmh 가 있으면 felt·minKmh·SPDCAP 이 통째로 물러난다.
+           ⭐ 도착하면 0 이다. 여기서 0 을 내야 아래 dist 가 안 는다 — 파리 상공에 세워 두고
+             거리계만 도는 일이 없다. */
+        var kmh = ARRIVED ? 0
+                : route.kmh ? route.kmh
+                : Math.max(route.minKmh || 120, Math.min(route.felt * (spdH / 1000), SPDCAP));
         /* ══ ⭐⭐ 0822e 관측 장치 — 「짐작으로 고치지 않는다」 ════════════════════
            0822d 시승에서 15~16분 지점에 900km/h 로 돌변했다(소로). 고도는 안 변했다니
            0821N 의 되먹임 고리(고도 상승 + 속도 감소)와는 **방향이 반대**다.
@@ -1199,8 +1402,16 @@
         /* ── ⭐ 곡선 위를 나아간다 — u 를 거리만큼 민다 */
         var segKm = Math.max(gcKm(P(seg)[0], P(seg)[1], P(seg + 1)[0], P(seg + 1)[1]), 0.001);
         u += km / segKm;
-        while (u >= 1) { u -= 1; seg = (seg + 1) % N;
-          segKm = Math.max(gcKm(P(seg)[0], P(seg)[1], P(seg + 1)[0], P(seg + 1)[1]), 0.001); }
+        while (u >= 1) {
+          /* ⭐⭐ 0823f — 여기가 「파리에서 인천으로 튀는 그곳」이다(v187·v188 목록).
+             liner 는 마지막 구간 끝에서 넘기지 않고 선다. */
+          if (!LOOP && seg >= SEGN - 1) {
+            u = 1; if (!ARRIVED) { ARRIVED = true; onArrive(); }
+            break;
+          }
+          u -= 1; seg = LOOP ? (seg + 1) % N : seg + 1;
+          segKm = Math.max(gcKm(P(seg)[0], P(seg)[1], P(seg + 1)[0], P(seg + 1)[1]), 0.001);
+        }
         /* ⭐⭐ 0823a (26호) — 길목을 넘길 때마다 있던 곳을 적는다.
            ⚠ 옛 판은 저장 시점이 둘뿐이라(멈춤·나가기) 새로고침·탭 닫기로 한 톨도 안 남았다.
              소로가 안데스 81분을 나신 날 표에 안데스 줄이 아예 없었다.
@@ -1210,7 +1421,10 @@
              지금 이 곳은 flight 가 아직 대입되기 전일 수 있다(첫 프레임). 값이 손안에 있다. */
         if (seg !== savedSeg) {
           savedSeg = seg;
-          saveWhere(route.code, seg, u, Math.round(flown), dist);
+          /* ⚠⚠ 0823f — 배속 중에는 안 적는다. ×60 이면 13분에 13시간이 서버에 남는다.
+             ⭐ 시험 장치가 소로 계정에 거짓 총계를 남기지 않게 하는 곳이 여기 한 줄이다.
+             ⚠ ×1 로 돌아오면 다음 길목부터 다시 적힌다 — 손을 끄는 것이 아니라 건너뛴다. */
+          if (WARP === 1) saveWhere(route.code, seg, u, Math.round(flown), dist);
         }
 
         var here = onCurve(seg, u);
@@ -1218,9 +1432,19 @@
 
         /* 방위 — 곡선의 접선. 조금 앞의 점을 본다 */
         var ua = u + 0.02, sg2 = seg;
-        if (ua >= 1) { ua -= 1; sg2 = (seg + 1) % N; }
+        if (ua >= 1) {
+          /* ⭐ 0823f — liner 의 마지막 구간에서는 넘길 앞이 없다. 구간 안에 머문다 */
+          if (LOOP) { ua -= 1; sg2 = (seg + 1) % N; }
+          else if (seg < SEGN - 1) { ua -= 1; sg2 = seg + 1; }
+          else ua = 1;
+        }
         var nx = onCurve(sg2, ua);
-        var want = bearing(lat, lon, nx[0], nx[1]);
+        /* ⚠⚠ 0823f 그물 — 앞의 점이 지금 점과 겹치면 방위가 튄다.
+           도착해 선 순간이 정확히 그 곳이다(같은 좌표 둘 사이의 방위는 뜻이 없다).
+           ⭐ 겹치면 **바꾸지 않는다.** 기수가 내려앉은 방향 그대로 선다.
+           ⚠ 고리 노선에도 그물이 된다 — 길목 둘이 50m 안에 들면 같은 병이다(v186 목록). */
+        var want = (Math.abs(nx[0] - lat) < 1e-6 && Math.abs(nx[1] - lon) < 1e-6)
+                 ? hd : bearing(lat, lon, nx[0], nx[1]);
         /* ⭐ 뱅크 — 방위가 도는 빠르기에서 나온다. 상한 10°(0819 소로 · taxi 실사용).
            ⚠⚠⚠ 0822f 진범 (소로 「선회할 때 롤링을 하나도 안 하네」) —
              옛 셈은 `angDiff(hd, want) / dt` 였다. 그런데 angDiff(hd, want) 는 **오차**지
@@ -1267,8 +1491,9 @@
 
         /* ⚠ 계기판 한 줄이 죽어도 Cesium 렌더가 통째로 멈추지 않게 감싼다(0817) */
         if (opt.onTick) {
+          /* ⭐ 0823f — loop·warp·arrived 셋을 함께 낸다. 받는 손이 route 를 다시 안 뒤진다 */
           try { opt.onTick({ lat: lat, lon: lon, hd: hd, kmh: kmh, rel: rel, alt: alt, vs: vs, ground: groundH, dist: dist, flown: flown, leg: P(seg)[2], next: P(seg + 1)[2], roll: roll,
-                             seg: seg, legN: N }); }
+                             seg: seg, legN: N, loop: LOOP, warp: WARP, arrived: ARRIVED }); }
           catch (err) {
             if (!window.__egRTickWarned) { window.__egRTickWarned = true; console.error("[EG] 계기판 오류 — 비행은 계속합니다:", err); }
           }
@@ -1294,9 +1519,16 @@
                   ⭐ 이 갈래가 총계를 통산이 아니게 지키는 곳이다 — 언제든 0 으로 돌아갈 문이 있다.
                 ⚠ 같은 줄을 사흘에 두 번 뒤집었다. 값이 아니라 **그 값이 뜻하는 것**이 바뀌었다. */
              goTo: function (s2, u2) {
-               seg = ((s2 | 0) % N + N) % N; u = +u2 || 0; savedSeg = seg;
+               /* ⭐ 0823f — liner 는 마지막 구간(SEGN−1)을 넘겨 앉히지 않는다.
+                  ⚠ 도착을 되돌린다. 안 되돌리면 「출발점으로」를 눌러도 선 채로 있는다. */
+               seg = LOOP ? (((s2 | 0) % N + N) % N)
+                          : Math.max(0, Math.min(SEGN - 1, s2 | 0));
+               u = +u2 || 0; savedSeg = seg; ARRIVED = false;
                dist = 0; flown = 0;
-             } };
+             },
+             /* ⭐⭐ 0823f 배속 — 시험 장치. 값을 밖에 안 흘리고 손잡이만 낸다 */
+             warp: function (v) { if (v != null) WARP = v; return WARP; },
+             arrived: function () { return ARRIVED; } };
   }
 
   /* ══ 겉옷 ══════════════════════════════════════════════════════ */
@@ -1382,6 +1614,12 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   padding:9px 13px;color:#8f9aa6;white-space:pre;letter-spacing:.02em;
   font:11px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 #readingRoom.fps #egrFps{display:block}
+/* ⭐ 0823f 배속 배지 — fps 계기 바로 아래. ⚠ 켜 두고 잊으시면 안 되니 눈에 든다.
+   ⚠ pointer-events 를 안 연다 — 누르는 물건이 아니라 알리는 물건이다(41호 ㉢ 갈래) */
+#egrWarp{position:fixed;left:18px;top:96px;z-index:27;pointer-events:none;
+  background:rgba(60,26,16,.92);border:1px solid #7a4526;border-radius:7px;
+  padding:5px 11px;color:#f0c07a;letter-spacing:.06em;
+  font:13px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 #egrFps b{color:#e6d9ae;font-weight:normal}
 #egrFps .w{color:#c9a84c}
 #egrFps .bad{color:#e0866a}
@@ -2490,6 +2728,37 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
        ⭐ 그물이 잊는 규칙이었다면 이 단추는 **손님이 스스로 처음으로 가는 문**이다. 남는다.
      ⚠ 「다시 시작」이 아니다. 고리에는 시작점이 없다 — 노선의 첫 길목으로 데려다 놓는 손이다.
      ⚠ 확인을 안 묻는다. 잃을 것이 없고 다시 눌러도 되는 일이라, 묻는 순간 그게 겁이 된다. */
+  /* ══ ⭐⭐ 0823f 배속 — **시험 장치다.** 13시간짜리는 끝을 볼 수가 없어서 세웠다 ══
+     ⚠ 관리자만. 손님에게는 , 와 . 가 아무 일도 안 한다(0820h 문법 그대로).
+     ⚠ 새로고침하면 ×1 이다. 설정이 아니다.
+     ⭐ 세 칸뿐이다 — ×60 이면 13시간이 13분이고, 그 사이가 필요하면 ×10 이 있다.
+       칸을 더 늘리면 손잡이가 다이얼이 된다. 시험 장치는 눈금이 적어야 손이 안 헛돈다.
+     ⚠⚠ 이 값이 서버에 안 닿게 하는 곳은 여기가 아니라 cruise 안의 저장 한 줄이다.
+       손잡이는 값만 옮기고, 그 값이 무엇을 막는지는 쓰는 쪽이 안다. */
+  var WARP_STEPS = [1, 10, 60];
+  function setWarp(dir) {
+    if (!ROOT || !flight || !flight.warp || !IS_ADMIN) return;
+    var i = WARP_STEPS.indexOf(flight.warp());
+    if (i < 0) i = 0;
+    i = Math.max(0, Math.min(WARP_STEPS.length - 1, i + dir));
+    flight.warp(WARP_STEPS[i]);
+    /* ⚠ 여기서 배지를 안 그린다. 그리는 손은 tick 하나뿐이다 —
+       ⭐ 값이 나오는 곳에서 그려야 배지가 거짓말을 안 한다. 3,000m 아래에서 저절로
+         ×1 이 되는 갈래도, 방을 새로 여는 갈래도, 여기서는 안 보인다. */
+  }
+  /* ⭐ 켜 두고 잊으시면 안 되니 화면에 남긴다. ⚠ ×1 이면 판이 통째로 사라진다 —
+     늘 떠 있는 배지는 며칠이면 눈에서 지워지고, 그때 「왜 빠르지」를 헤매게 된다. */
+  function paintWarp(v) {
+    var el = document.getElementById("egrWarp");
+    if (v === 1 || v == null) { if (el) el.remove(); return; }
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "egrWarp";
+      (ROOT || document.body).appendChild(el);
+    }
+    el.textContent = "\u00d7" + v;
+  }
+
   function toStart() {
     if (!ROOT || !flight || !flight.goTo || swapping) return;
     /* ⚠⚠ 0823c — 0820 에 「확인을 안 묻는다」로 정한 까닭은 **「잃을 것이 없고」** 였다.
@@ -3985,7 +4254,9 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     var hh2 = Math.floor(loc), mm = Math.floor((loc - hh2) * 60);
     var q = function (id) { return MONEL.querySelector(id); };
     q("#egrClock").textContent = (hh2 < 10 ? "0" : "") + hh2 + ":" + (mm < 10 ? "0" : "") + mm;
-    q("#egrLeg").textContent = s.leg + "  →  " + s.next;
+    /* ⭐ 0823f — liner 가 도착하면 다음 길목이 제 자신이다(legAt 이 자르므로).
+       ⚠ 「파리 → 파리」를 내지 않는다. 2타에서 「내리기」가 서면 이 줄이 그 손에 넘어간다. */
+    q("#egrLeg").textContent = s.arrived ? s.leg : (s.leg + "  →  " + s.next);
     q("#egrAlt").innerHTML = Math.round(s.alt).toLocaleString() + "<u>M</u>";
     q("#egrSpd").innerHTML = Math.round(s.kmh) + "<u>KM/H</u>";
     var v = Math.round(s.vs);
@@ -3994,6 +4265,9 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     var ft = q("#egrFt"), ds = q("#egrDist");
     if (ft) ft.textContent = hms(s.flown);
     if (ds) ds.innerHTML = kmTxt(s.dist) + "<u>KM</u>";
+    /* ⭐ 0823f — 배속 배지. ⚠ 손잡이 값이 아니라 **실제로 먹고 있는 값**을 그린다.
+       3,000m 아래에서 저절로 ×1 이 되면 배지도 저절로 사라진다 — 화면과 셈이 안 갈린다. */
+    paintWarp((s.alt < 3000) ? 1 : s.warp);
     paintMap(s, route);              /* ⭐ 항로도 — 확대 중이면 지도가 따라 흐른다 */
     paintWhere();                    /* ⭐ 기록판 아래줄 — 지금 나는 곳이 흐른다 */
   }
@@ -4653,7 +4927,12 @@ function paintBook() {
     /* 구간마다 따로 그린다 — 지금 나는 구간만 금빛으로 바꾸려면 조각이 나뉘어야 한다.
        ⭐ 확대할수록 표본을 늘린다. 안 늘리면 파고들었을 때 곡선이 각져 보인다 */
     var per = 14 + zi * 8;
-    for (s = 0; s < N; s++) {
+    /* ⚠⚠ 0823f — v187·v188 목록에 없던 곳이다. 옛 판은 구간을 N 개 그렸는데,
+       liner 에서 마지막 구간(마지막 길목 → 첫 길목)은 **파리에서 인천으로 가는 선**이다.
+       코드는 멀쩡히 도는데 손님 눈에만 유라시아를 가로지르는 64번째 선이 보인다.
+       ⭐ segCount() 한 곳에서 낸다 — 지도와 테두리가 같은 수를 봐야 한다(22호). */
+    var segN = segCount(route);
+    for (s = 0; s < segN; s++) {
       d = "";
       for (j = 0; j <= per; j++) {
         p = curveOf(route, s, j / per);
@@ -4716,7 +4995,10 @@ function paintBook() {
     for (var i = 0; i < old.length; i++) old[i].classList.remove("now");
     mapSeg = s.seg;
     var sg = box.querySelector("#egrSeg" + s.seg); if (sg) sg.classList.add("now");
-    var nx = (s.seg + 1) % s.legN;
+    /* ⚠⚠ 0823f — v187 이 「결정문에 없던 곳」으로 잡아낸 그곳이다.
+       옛 판은 마지막 구간에서 다음 길목이 0 으로 돌아 **파리 위를 날면서 지도가 인천을 밝혔다.**
+       ⭐ liner 는 마지막 길목에서 자른다 — 다음이 없으면 지금 곳을 두 번 밝힌다. */
+    var nx = (s.loop === false) ? Math.min(s.seg + 1, s.legN - 1) : (s.seg + 1) % s.legN;
     /* ⚠ 지금 구간의 두 이름은 겹침 판정에서 언제나 이긴다 — hide 를 걷는다 */
     ["#egrWp" + s.seg, "#egrWt" + s.seg, "#egrWp" + nx, "#egrWt" + nx].forEach(function (q) {
       var el = box.querySelector(q);
@@ -4983,6 +5265,8 @@ function paintBook() {
           paintLamp(); tuneSay(); saveTuneSoon();
         }
       }
+      else if (k === ",") setWarp(-1);         /* ⭐ 0823f — 배속. 관리자만 · 시험 장치 */
+      else if (k === ".") setWarp(+1);
       else if (k === "arrowleft") swapSeat(-1);
       else if (k === "arrowright") swapSeat(+1);
     });
@@ -5214,6 +5498,17 @@ function paintBook() {
     /* ⭐ 나갔던 곳에서 이어 탄다 — 없으면 첫 길목.
        ⚠ 0823b — 저장된 것이 있으면 enter() 가 이미 물었다. 여기서는 안 묻는다 */
     var rz = RESUME || { seg: 0, u: 0, flown: 0, dist: 0 };   /* ⭐ enter() 가 미리 받아 둔다 */
+    /* ⭐⭐ 0823f 순간이동 — **시험 장치다.** window.EG_LEG = 58 로 그 길목에서 시작한다.
+       ⚠ 13시간짜리는 배속만으로도 끝까지 13분이 걸린다. 착륙 한 곳만 보실 때 쓴다.
+       ⚠ EG_BODY 와 같은 갈래다 — 들어갈 때 한 번만 읽고, 새로고침하면 사라진다.
+       ⚠⚠ 이어 타기 값을 덮어쓴다. 그래서 총계도 0 에서 시작한다(goTo 와 같은 뜻이다) —
+         「58번 길목부터 13시간을 났다」는 거짓이 서버에 남지 않게. */
+    var jump = (window.EG_LEG != null) ? (window.EG_LEG | 0) : null;
+    if (jump != null) {
+      rz = { seg: jump, u: 0, flown: 0, dist: 0 };
+      try { console.log("%c[EG] ⚠ 시험 — 길목 " + jump + " 부터 시작합니다 ("
+        + (route.legs[jump] ? route.legs[jump][2] : "?") + ")", "color:#f0c07a"); } catch (e) { }
+    }
     flight = cruise(route, {
       sky: 6, startSeg: rz.seg, startU: rz.u,
       /* ⭐⭐ 0823c (소로 0822) — 총 비행시간·거리도 이어받는다.
