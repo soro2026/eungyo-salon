@@ -167,7 +167,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0823d";
+  var VERSION = "0823e";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -527,7 +527,13 @@
          알프스에서 리어젯이 갈리는 날 이것도 함께 갈린다(v185 ②).
        ⚠ 기내 원판이 아직 없다. wins·mon 은 아래에서 제트기 것을 **빌린다.** */
     lin: { view: 90, seats: true, roll: 10, focus: null,
-           body: { yaw: 270, dist: 105, minD: 48, maxD: 480, pit: 10 },
+           /* ⭐⭐ 0823e nose — 기수 거동. 세 숫자가 한 칸에 산다(값을 두 곳에 안 적는다).
+                max 4  실물 여객기 순항 기수각은 2.5° 다. 8° 는 56m 짜리에 너무 크다
+                per 110  승강률 400(㉡ 상한)에서 3.6° · 200 에서 1.8°
+                tau 5  ⭐ 5초에 걸쳐 따라간다. 여기가 「들먹임」을 죽이는 곳이다
+              ⚠ 셋 다 어림이다. 소로가 타 보고 정한다 — EG_BANK 에 기수·기수목표가 갈려 찍힌다 */
+           body: { yaw: 270, dist: 105, minD: 48, maxD: 480, pit: 10,
+                   nose: { max: 4, per: 110, tau: 5 } },
            wins: null, mon: null }
   };
   /* ⚠⚠ 0823d — 여객기 기내 원판(lin_cabin_lit · lin_cabin_dim)이 아직 없다.
@@ -993,6 +999,8 @@
        뒤처짐이 구조적으로 없다.
        ⚠ hd 에 SPEC.body.yaw 를 더한다 — 브레게는 기수가 X− 라 180 이다.
        ⚠ roll 은 cruise 가 낸 뱅크 그대로. 부호가 뒤집혀 보이면 여기 한 곳만 뒤집는다. */
+    /* ⭐ 0823e — 기수각의 기억과 시계. paintBody 만 만진다 */
+    var NOSE_S = 0, NOSE_T = 0;
     function paintBody() {
       if (!BODYENT) return;
       var B = SPEC.body || {};
@@ -1006,7 +1014,25 @@
          ⚠ 승강률에서 낸다. vs 는 m/분 — 400(㉡ 상한)에서 8°, 파리의 181 에서 3.6°.
            실제 상승각(asin(vs/v))은 70km/h 에서 20° 인데, 그건 항적의 각이지 기수의 각이 아니다.
            받음각 때문에 실물은 그보다 훨씬 덜 든다. 그래서 연출값이다. */
-      var nose = Math.max(-12, Math.min(12, vs / 50));
+      /* ⭐⭐ 0823e — 기수에 **관성**을 준다 (소로 0823 「큰 기체는 노즈를 들먹거려서 엄청 불편」).
+         ⚠⚠ 여태 vs 를 곧장 각도로 바꿔 넣고 있었다. 승강률이 바뀌면 기수가 그 프레임에
+           따라갔다. 작은 기체는 티가 안 났는데 787 에서 통째로 드러났다 —
+           같은 8° 가 기수 끝을 리어젯 1.26m · 787 3.92m 움직인다. **3.1배다.**
+         ⭐ 그리고 실물이 그렇다. 56m 짜리 여객기는 1초에 8° 를 못 든다. 관성이 크다.
+         ⚠ nose 를 안 적은 기체는 한 톨도 안 바뀐다 — 계수가 1 이라 곧장 따라간다.
+           리어젯·복엽기는 옛 동작 그대로다(0822g 문법 그대로).
+         ⭐ 제 시계를 쓴다. aimCam 은 멈춤에서도 불리는데 dt 를 안 들고 오므로,
+           인자를 늘리는 대신 여기서 잰다 — 손 하나가 제 안에서 닫힌다. */
+      var NS = B.nose || {};
+      var nMax = (NS.max != null) ? NS.max : 12;
+      var nPer = (NS.per != null) ? NS.per : 50;
+      var nTgt = Math.max(-nMax, Math.min(nMax, vs / nPer));
+      var _t = (typeof performance !== "undefined") ? performance.now() : Date.now();
+      /* ⚠ 탭이 잠들었다 깨면 큰 값이 온다 — 0.5초로 자른다. 안 자르면 기수가 튄다 */
+      var _d = NOSE_T ? Math.min((_t - NOSE_T) / 1000, 0.5) : 0;
+      NOSE_T = _t;
+      NOSE_S += (nTgt - NOSE_S) * (NS.tau ? Math.min(_d / NS.tau, 1) : 1);
+      var nose = NOSE_S;
       /* ⚠⚠⚠ 0822h 진범 — **GLB 의 pitch 축과 roll 축이 바뀌어 있다.**
          소로 실측: EG_BANK 가 기체 −20° 를 찍는데 화면에서는 날개가 아니라 기수가 오르내렸다.
          값이 안 닿은 게 아니라 **엉뚱한 축에 닿았다.** 리어젯 yaw 와 같은 갈래이고,
@@ -1022,7 +1048,8 @@
       /* ⭐⭐ 0822g 관측 장치 — 콘솔에 EG_BANK 라고 치면 지금 넣고 있는 값이 그대로 나온다.
          ⚠ 셈이 아니라 대입뿐이라 프레임에 얹히는 비용이 없다. */
       try {
-        window.EG_BANK = { 뱅크: +bank.toFixed(1), 기수: +nose.toFixed(1),
+        window.EG_BANK = { 뱅크: +bank.toFixed(1), 기수: +nose.toFixed(1), 기수목표: +nTgt.toFixed(1),
+                           관성초: NS.tau || 0, 기수상한: nMax,
                            슬롯바꿈: !!B.swapPR, 넣는pitch: +pv.toFixed(1), 넣는roll: +rv.toFixed(1),
                            날것: +roll.toFixed(1), 승강률: Math.round(vs),
                            카메라상한: ROLL_MAX, 기체상한: rb,
