@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>EG 관리자 — 도장실</title>
+<!--
+  ══════════════════════════════════════════════════════════════════════
+  EG 도장실 — admin_paint.html · v0824a
+  2026.08.24 소로 × 파이스 · 146회차
+
+  ⭐⭐ 왜 이 방이 생겼나 (소로 0824 — 「콘솔에 편집기 달아주면 같이 토론하며」)
+    동체 도장은 좌표를 손으로 적고 화면에서 확인하는 왕복이 수십 번이다.
+    소로가 직접 끄시면 3초에 끝나는 것을 파이스가 숫자로 주고받으면 3분이다.
+    ⭐ 그래서 **자산은 소로가 · 배치는 코드가 · 판정은 화면이** 한다.
+
+  ⭐⭐ 이 방의 알맹이 — 도장은 GLB 안에 안 들어간다
+    도장은 PNG 한 장으로 따로 살고, 코드가 그것을 동체에 씌운다.
+    블렌더도 30MB 재업로드도 없다.
+    ⚠ 지금 판은 Cesium CustomShader 로 **씌워 보기**만 한다.
+      GLB 에 텍스처를 박아 굽는 것은 도장이 확정된 뒤 다음 판이다.
+
+  ⚠⚠ 787 은 부품마다 **제 [0,1] 칸**을 쓴다 (FAIB 킷처럼 한 장에 모은 구조가 아니다)
+    그래서 한 장을 씌우면 **모든 부품이 같은 그림을 본다.**
+    ⭐ 이것이 병이 아니라 손잡이다 — 꼬리가 어느 칸을 보는지 알면
+      그 칸을 감청으로 채워 꼬리를 칠할 수 있다.
+    ⭐ 「어느 부품이 어느 칸을 보는가」를 답하는 것이 **눈금 무늬**다(아래 T 단추).
+
+  ⚠ 알파가 잣대다 — 투명한 곳은 원래 재질 색이 그대로 산다.
+    material.diffuse = mix(원래색, 도장색, 도장알파)
+    ⭐ 그래서 칠하고 싶은 곳만 칠하면 된다. 안 칠한 곳은 안 건드린다.
+
+  ⚠ 판형 2048 × 2048. 4096 은 소로 화면(fps 28.5)에 부담이다(v189).
+
+  ⚠⚠ 3D 갱신은 **손을 뗄 때** 한다. 끄는 동안 2048 PNG 를 매 프레임 구우면
+    브라우저가 선다. 「즉시」를 켜면 끄는 동안에도 따라온다 — 느리면 끈다.
+  ══════════════════════════════════════════════════════════════════════
+-->
+<style>
+:root{
+  --gold:#C9A84C; --gold-d:#B8881E; --chalk:#f0ebe0; --ink:#0a0e1a;
+  --ok:#7fe0a6; --warn:#ffb060; --bad:#ff8080;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{
+  min-height:100%;
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(201,168,76,.07) 0%, transparent 45%),
+    radial-gradient(ellipse at 80% 100%, rgba(80,90,160,.10) 0%, transparent 50%),
+    var(--ink);
+  color:var(--chalk);
+  font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;
+  line-height:1.7;
+}
+.wrap{max-width:1560px;margin:0 auto;padding:34px 18px 110px}
+.back{display:inline-block;margin-bottom:20px;font-size:13px;
+  color:rgba(240,235,224,.5);text-decoration:none}
+.back:hover{color:var(--gold)}
+.head{text-align:center;margin-bottom:24px}
+.head-eg{font-size:11px;letter-spacing:.3em;color:var(--gold);opacity:.7}
+.head-title{font-size:22px;font-weight:900;letter-spacing:.06em;margin-top:8px}
+.head-sub{font-size:13px;color:rgba(240,235,224,.5);margin-top:6px}
+.blocked{text-align:center;padding:120px 20px}
+.blocked-icon{font-size:40px;margin-bottom:18px;opacity:.5}
+.blocked-msg{font-size:16px;color:rgba(240,235,224,.6)}
+.loading{text-align:center;padding:80px 20px;color:rgba(240,235,224,.4)}
+
+.tip{font-size:12.5px;color:rgba(240,235,224,.42);line-height:1.9;
+  border-left:2px solid var(--gold-d);padding-left:12px;margin:0 0 20px}
+.tip b{color:var(--gold);font-weight:700}
+
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+  background:rgba(255,255,255,.035);border:1px solid rgba(201,168,76,.18);
+  border-radius:14px;padding:12px 16px;margin-bottom:16px}
+.bar .stat{font-size:12px;color:rgba(240,235,224,.5);margin-left:auto}
+.bar .stat b{color:var(--ok);font-weight:700}
+.bar .stat i{color:var(--warn);font-style:normal;font-weight:700}
+
+button,.btn{font-family:inherit;font-size:12.5px;font-weight:700;letter-spacing:.02em;
+  color:var(--chalk);background:rgba(255,255,255,.06);
+  border:1px solid rgba(201,168,76,.3);border-radius:9px;
+  padding:7px 13px;cursor:pointer;transition:border-color .15s,background .15s}
+button:hover,.btn:hover{border-color:var(--gold);background:rgba(201,168,76,.12)}
+button:disabled{opacity:.35;cursor:default}
+button.on{background:rgba(201,168,76,.24);border-color:var(--gold);color:#fff}
+button.wide{padding:8px 18px}
+
+.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media(max-width:1180px){ .cols{grid-template-columns:1fr} }
+
+.panel{background:rgba(255,255,255,.035);border:1px solid rgba(201,168,76,.18);
+  border-radius:14px;padding:14px 16px 18px}
+.panel h3{font-size:13px;font-weight:900;letter-spacing:.08em;color:var(--gold);
+  margin-bottom:10px;text-transform:uppercase}
+
+/* 도장 판 — 바둑판 바닥이라 투명이 눈에 보인다 */
+.board{position:relative;width:100%;aspect-ratio:1/1;border-radius:10px;overflow:hidden;
+  background-color:#161a24;
+  background-image:
+    linear-gradient(45deg,rgba(255,255,255,.045) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.045) 75%),
+    linear-gradient(45deg,rgba(255,255,255,.045) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.045) 75%);
+  background-size:24px 24px;background-position:0 0,12px 12px;
+  border:1px solid rgba(240,235,224,.12);touch-action:none;cursor:crosshair}
+.board canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+/* Cesium 자리 */
+.view{position:relative;width:100%;aspect-ratio:16/10;border-radius:10px;overflow:hidden;
+  border:1px solid rgba(240,235,224,.12);background:#080b14}
+.view .cz{position:absolute;inset:0}
+.view .hint{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);
+  text-align:center;font-size:12.5px;color:rgba(240,235,224,.35);white-space:pre-line}
+
+.rows{margin-top:12px;display:flex;flex-direction:column;gap:9px}
+.row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:12px;
+  color:rgba(240,235,224,.55)}
+.row label{min-width:70px;color:rgba(240,235,224,.45)}
+.row input[type=range]{flex:1;min-width:100px;accent-color:var(--gold)}
+.row input[type=number]{width:66px;font-family:inherit;font-size:12px;
+  background:rgba(0,0,0,.3);border:1px solid rgba(240,235,224,.16);
+  border-radius:7px;color:var(--chalk);padding:4px 7px}
+.row input[type=color]{width:38px;height:26px;padding:0;border:1px solid rgba(240,235,224,.16);
+  border-radius:7px;background:transparent;cursor:pointer}
+.row .val{min-width:52px;text-align:right;color:var(--chalk);font-weight:700;
+  font-variant-numeric:tabular-nums}
+
+.sep{height:1px;background:rgba(240,235,224,.09);margin:14px 0 12px}
+
+/* 자산 슬롯 */
+.assets{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:4px}
+.aslot{border:1px solid rgba(240,235,224,.14);border-radius:10px;overflow:hidden;
+  cursor:pointer;background:rgba(0,0,0,.25);transition:border-color .15s}
+.aslot:hover{border-color:var(--gold)}
+.aslot.sel{border-color:var(--gold);background:rgba(201,168,76,.1)}
+.aslot .ah{font-size:11px;font-weight:700;padding:6px 8px;background:rgba(255,255,255,.05);
+  display:flex;justify-content:space-between;gap:5px}
+.aslot .ah span{color:rgba(240,235,224,.35);font-weight:400}
+.aslot .ab{height:58px;display:flex;align-items:center;justify-content:center;
+  font-size:10.5px;color:rgba(240,235,224,.3);padding:5px;text-align:center}
+.aslot .ab img{max-width:100%;max-height:100%;object-fit:contain}
+
+/* 부품표 */
+.parts{margin-top:10px;max-height:270px;overflow:auto;
+  border:1px solid rgba(240,235,224,.09);border-radius:10px}
+.parts table{width:100%;border-collapse:collapse;font-size:11.5px}
+.parts th{position:sticky;top:0;background:#141824;color:rgba(240,235,224,.4);
+  font-weight:700;text-align:left;padding:6px 8px;white-space:nowrap;
+  border-bottom:1px solid rgba(240,235,224,.12)}
+.parts td{padding:5px 8px;border-bottom:1px solid rgba(240,235,224,.055);
+  color:rgba(240,235,224,.6);white-space:nowrap;font-variant-numeric:tabular-nums}
+.parts tr{cursor:pointer}
+.parts tr:hover td{background:rgba(201,168,76,.09);color:var(--chalk)}
+.parts tr.sel td{background:rgba(201,168,76,.16);color:#fff}
+.parts .sw{display:inline-block;width:11px;height:11px;border-radius:3px;
+  border:1px solid rgba(0,0,0,.5);vertical-align:-1px;margin-right:5px}
+
+.say{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
+  max-width:calc(100% - 40px);
+  background:rgba(10,14,26,.96);border:1px solid rgba(201,168,76,.4);
+  border-radius:12px;padding:12px 20px;font-size:13.5px;
+  opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;
+  box-shadow:0 8px 30px rgba(0,0,0,.5)}
+.say.on{opacity:1}
+.say.ok{border-color:rgba(127,224,166,.5)}
+.say.bad{border-color:rgba(255,128,128,.5)}
+
+.foot{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:16px;
+  background:rgba(255,255,255,.035);border:1px solid rgba(201,168,76,.18);
+  border-radius:14px;padding:12px 16px}
+.foot .note{font-size:11.5px;color:rgba(240,235,224,.38);margin-left:auto}
+</style>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Widgets/widgets.css" rel="stylesheet">
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="admin_hangar.html">← 격납고로</a>
+
+  <div id="gate" class="loading">⬤ 확인 중...</div>
+
+  <div id="app" style="display:none">
+    <div class="head">
+      <div class="head-eg">E G &middot; P A I N T &nbsp;S H O P</div>
+      <div class="head-title">도장실 — EG Universe Air</div>
+      <div class="head-sub">동체 한 장을 그려 그 자리에서 씌워 봅니다</div>
+    </div>
+
+    <div class="tip">
+      <b>①</b> 기체를 부르면 부품마다 <b>어느 UV 칸</b>을 쓰는지 표로 섭니다.<br>
+      <b>②</b> <b>눈금 무늬(T)</b>를 켜면 그 칸이 3D 에 글자로 뜹니다 — 「어디가 옆구리인지」가 화면에 나옵니다.<br>
+      <b>③</b> 판 위의 <b>동그란 점</b>을 끌면 흰·감청 경계가 휩니다. 금색 띠는 그 곡선을 따라갑니다.<br>
+      <b>④</b> 자산은 칸을 눌러 넣고 <b>판 위에서 끌어</b> 옮깁니다. 고른 자산은 아래 손잡이로 키우고 돌립니다.<br>
+      ⚠ 투명한 곳은 <b>원래 재질 색이 그대로 삽니다.</b> 칠하고 싶은 곳만 칠하면 됩니다.
+    </div>
+
+    <div class="bar">
+      <button id="bLoad" class="wide">격납고에서 787 부르기</button>
+      <button id="bDrop">GLB 골라 넣기</button>
+      <button id="bTest">T &middot; 눈금 무늬</button>
+      <label style="font-size:12px;color:rgba(240,235,224,.5);display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="cLive" style="accent-color:var(--gold)"> 즉시 갱신
+      </label>
+      <div class="stat" id="stat">기체를 아직 안 불렀습니다</div>
+    </div>
+
+    <div class="cols">
+      <!-- ══ 왼쪽 — 도장 판 ══════════════════════════════════════════ -->
+      <div class="panel">
+        <h3>도장 판 · 2048 × 2048</h3>
+        <div class="board" id="board">
+          <canvas id="cvPaint" width="2048" height="2048"></canvas>
+          <canvas id="cvOver"  width="2048" height="2048"></canvas>
+        </div>
+
+        <div class="rows">
+          <div class="row">
+            <label>바탕</label>
+            <input type="color" id="pBase" value="#ffffff">
+            <button id="bBase" class="on">켜짐</button>
+            <label style="min-width:auto">감청</label>
+            <input type="color" id="pNavy" value="#12295c">
+            <button id="bFlip">감청 위/아래</button>
+          </div>
+          <div class="row">
+            <label>금색 띠</label>
+            <input type="color" id="pGold" value="#d8b45a">
+            <input type="range" id="rBand" min="0" max="120" value="26">
+            <span class="val" id="vBand">26</span>
+          </div>
+          <div class="row">
+            <label>띠 시작</label>
+            <input type="range" id="rFrom" min="0" max="2048" value="0">
+            <span class="val" id="vFrom">0</span>
+            <label style="min-width:auto">끝</label>
+            <input type="range" id="rTo" min="0" max="2048" value="2048">
+            <span class="val" id="vTo">2048</span>
+          </div>
+          <div class="row">
+            <label>끝 흐리기</label>
+            <input type="range" id="rFade" min="0" max="600" value="160">
+            <span class="val" id="vFade">160</span>
+            <button id="bPt">점 늘리기</button>
+            <button id="bPtDel">점 줄이기</button>
+            <button id="bReset">곡선 되돌리기</button>
+          </div>
+        </div>
+
+        <div class="sep"></div>
+
+        <h3>자산</h3>
+        <div class="assets" id="assets"></div>
+        <div class="rows">
+          <div class="row">
+            <label>크기</label>
+            <input type="range" id="rScale" min="2" max="200" value="40">
+            <span class="val" id="vScale">40%</span>
+          </div>
+          <div class="row">
+            <label>돌리기</label>
+            <input type="range" id="rRot" min="-180" max="180" value="0">
+            <span class="val" id="vRot">0°</span>
+            <button id="bAsUp">자산 저장</button>
+            <button id="bAsDel">빼기</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ 오른쪽 — 미리보기 + 부품표 ═════════════════════════════ -->
+      <div class="panel">
+        <h3>씌워 보기</h3>
+        <div class="view" id="view">
+          <div class="cz" id="cz"></div>
+          <div class="hint" id="vhint">기체를 부르면 여기에 섭니다.
+
+⚠ Cesium 은 처음 한 번 내려받는 데 잠시 걸립니다</div>
+        </div>
+        <div class="rows">
+          <div class="row">
+            <label>보기</label>
+            <button id="vSide">옆</button>
+            <button id="vTail">꼬리</button>
+            <button id="vNose">기수</button>
+            <button id="vTop">위</button>
+            <button id="vFit">전체</button>
+            <button id="bPush">지금 씌우기</button>
+          </div>
+        </div>
+
+        <div class="sep"></div>
+
+        <h3>부품 — 어느 칸을 보는가</h3>
+        <div class="parts" id="parts">
+          <div style="padding:22px;text-align:center;font-size:12px;color:rgba(240,235,224,.3)">
+            기체를 부르면 여기에 섭니다
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="foot">
+      <button id="bPng" class="wide">PNG 내려받기</button>
+      <button id="bSave">Storage 에 저장</button>
+      <button id="bOpen">불러오기</button>
+      <div class="note" id="fnote">도장은 <b>paint/lin_paint.png</b> · 설정은 <b>paint/lin_paint.json</b> 으로 삽니다</div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fGlb"  accept=".glb,model/gltf-binary" style="display:none">
+<input type="file" id="fImg"  accept="image/*" style="display:none">
+<div class="say" id="say"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  window.CESIUM_BASE_URL = "https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/";
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
+<script>
+/* ══ 상수 ══════════════════════════════════════════════════════════ */
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY, { auth:{ storageKey:'eungyo-auth' } });
+
+const BUCKET  = 'tour-assets';
+const BODYURL = SUPA_URL + '/storage/v1/object/public/' + BUCKET + '/hangar/lin_body.glb';
+const PDIR    = 'paint/';
+const PUB     = SUPA_URL + '/storage/v1/object/public/' + BUCKET + '/' + PDIR;
+
+const N = 2048;                    /* ⚠ 판형. 4096 은 소로 화면에 부담(v189) */
+const $ = s => document.querySelector(s);
+
+/* ⭐ 자산 세 칸 — 이름이 곧 Storage 열쇠다 */
+const ASLOTS = [
+  { key:'word',  label:'글자',   note:'EG Universe Air' },
+  { key:'badge', label:'배지',   note:'동체 · 감청 원' },
+  { key:'tail',  label:'꼬리',   note:'금색 EG' }
+];
+
+/* ══ 상태 ══════════════════════════════════════════════════════════ */
+const S = {
+  base:'#ffffff', baseOn:true,
+  navy:'#12295c', gold:'#d8b45a',
+  band:26, from:0, to:N, fade:160, flip:false,
+  pts:[ {x:0,y:1180}, {x:512,y:1120}, {x:1024,y:1010}, {x:1536,y:840}, {x:2048,y:610} ],
+  assets:{}                        /* key → {x,y,scale,rot} */
+};
+ASLOTS.forEach(a => S.assets[a.key] = { x:N*0.5, y:N*0.42, scale:0.40, rot:0 });
+
+const IMG   = {};                  /* key → Image (실린 자산) */
+let SEL     = null;                /* 고른 자산 열쇠 */
+let TEST    = false;               /* 눈금 무늬 */
+let PARTS   = [];                  /* 부품표 */
+let SELPART = -1;
+let GLBBUF  = null, GLBURL = null;
+let viewer  = null, model = null, shader = null;
+let drag    = null, sayT = null, pushT = null;
+
+const cvP = $('#cvPaint'), ctxP = cvP.getContext('2d', { willReadFrequently:false });
+const cvO = $('#cvOver'),  ctxO = cvO.getContext('2d');
+
+/* ══ 잔소리 ════════════════════════════════════════════════════════ */
+function say(msg, kind){
+  const el = $('#say');
+  el.textContent = msg;
+  el.className = 'say on' + (kind ? ' ' + kind : '');
+  clearTimeout(sayT);
+  sayT = setTimeout(()=>{ el.className = 'say'; }, kind === 'bad' ? 7000 : 3600);
+}
+function stat(html){ $('#stat').innerHTML = html; }
+
+/* ══ 문지기 ════════════════════════════════════════════════════════ */
+async function init(){
+  const { data:{ user } } = await supa.auth.getUser();
+  if(!user){ blocked('로그인이 필요합니다.'); return; }
+  const { data:me } = await supa.from('users').select('is_admin').eq('id', user.id).maybeSingle();
+  if(!me || !me.is_admin){ blocked('관리자 권한이 없습니다.'); return; }
+  $('#gate').style.display = 'none';
+  $('#app').style.display  = 'block';
+  drawAssetSlots();
+  paint();
+  loadAssetsFromStorage();
+  openSettings(true);
+}
+function blocked(msg){
+  $('#gate').innerHTML =
+    '<div class="blocked"><div class="blocked-icon">🔒</div><div class="blocked-msg">'+msg+'</div></div>';
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   GLB — 뜯어서 UV 를 읽는다
+   ⚠⚠ 격납고(probeGLB)는 accessor 의 min/max 만 봤다. 여기는 **정점을 읽는다** —
+     UV 삼각형을 그려야 하기 때문이다. 그래서 솎아 낸다(아래 STRIDE).
+   ══════════════════════════════════════════════════════════════════ */
+const CSIZE = { 5120:1, 5121:1, 5122:2, 5123:2, 5125:4, 5126:4 };
+const NCOMP = { SCALAR:1, VEC2:2, VEC3:3, VEC4:4, MAT4:16 };
+
+function M_id(){ return [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]; }
+function M_mul(x,y){                       /* ⚠ glTF 는 열 우선이다 */
+  const o = new Array(16);
+  for(let c=0;c<4;c++) for(let r=0;r<4;r++){
+    let s=0; for(let k=0;k<4;k++) s += x[k*4+r] * y[c*4+k];
+    o[c*4+r] = s;
+  }
+  return o;
+}
+function M_of(nd){
+  if(nd.matrix) return nd.matrix.slice();
+  const t = nd.translation || [0,0,0], r = nd.rotation || [0,0,0,1], s = nd.scale || [1,1,1];
+  const [x,y,z,w] = r;
+  const m = [
+    1-2*(y*y+z*z), 2*(x*y+z*w),   2*(x*z-y*w),   0,
+    2*(x*y-z*w),   1-2*(x*x+z*z), 2*(y*z+x*w),   0,
+    2*(x*z+y*w),   2*(y*z-x*w),   1-2*(x*x+y*y), 0,
+    0,0,0,1
+  ];
+  for(let c=0;c<3;c++) for(let r2=0;r2<3;r2++) m[c*4+r2] *= s[c];
+  m[12]=t[0]; m[13]=t[1]; m[14]=t[2];
+  return m;
+}
+function M_pt(m,p){
+  return [ m[0]*p[0]+m[4]*p[1]+m[8] *p[2]+m[12],
+           m[1]*p[0]+m[5]*p[1]+m[9] *p[2]+m[13],
+           m[2]*p[0]+m[6]*p[1]+m[10]*p[2]+m[14] ];
+}
+
+function readAcc(g, bin, idx){
+  const a = g.accessors[idx]; if(!a) return null;
+  const nc = NCOMP[a.type] || 1, cs = CSIZE[a.componentType] || 4;
+  const out = new Float32Array(a.count * nc);
+  if(a.bufferView == null) return out;         /* ⚠ 희소는 안 쓴다 — 0 으로 둔다 */
+  const bv = g.bufferViews[a.bufferView];
+  const base = (bv.byteOffset || 0) + (a.byteOffset || 0);
+  const stride = bv.byteStride || nc * cs;
+  const dv = new DataView(bin);
+  const norm = !!a.normalized;
+  for(let i=0;i<a.count;i++){
+    const o = base + i * stride;
+    for(let c=0;c<nc;c++){
+      const p = o + c * cs; let v;
+      switch(a.componentType){
+        case 5126: v = dv.getFloat32(p, true); break;
+        case 5125: v = dv.getUint32(p, true);  break;
+        case 5123: v = dv.getUint16(p, true); if(norm) v /= 65535; break;
+        case 5121: v = dv.getUint8(p);        if(norm) v /= 255;   break;
+        case 5122: v = dv.getInt16(p, true);  if(norm) v = Math.max(v/32767,-1); break;
+        case 5120: v = dv.getInt8(p);         if(norm) v = Math.max(v/127,-1);   break;
+        default:   v = 0;
+      }
+      out[i*nc+c] = v;
+    }
+  }
+  return out;
+}
+
+const MAXTRI = 30000;              /* ⭐ 재단선에 그릴 삼각형 상한 — 넘으면 솎는다 */
+
+function chewGLB(buf){
+  const dv = new DataView(buf), U8 = new Uint8Array(buf);
+  if(buf.byteLength < 20 || dv.getUint32(0,true) !== 0x46546C67) throw new Error('glTF 가 아닙니다');
+  if(dv.getUint32(4,true) !== 2) throw new Error('glTF 2 판만 받습니다');
+  let off = 12, jsonTxt = null, bin = null;
+  while(off + 8 <= buf.byteLength){
+    const ln = dv.getUint32(off,true), ty = dv.getUint32(off+4,true);
+    if(off + 8 + ln > buf.byteLength) throw new Error('잘린 파일입니다');
+    if(ty === 0x4E4F534A) jsonTxt = new TextDecoder().decode(U8.subarray(off+8, off+8+ln));
+    else if(ty === 0x004E4942) bin = buf.slice(off+8, off+8+ln);
+    off += 8 + ln;
+  }
+  if(!jsonTxt) throw new Error('JSON 덩이가 없습니다');
+  const g = JSON.parse(jsonTxt);
+  if(!bin) bin = new ArrayBuffer(0);
+
+  /* 메시 → 그 메시를 쓰는 노드의 월드 행렬 */
+  const meshM = {};
+  (function walk(list, P){
+    (list || []).forEach(i => {
+      const nd = (g.nodes || [])[i]; if(!nd) return;
+      const M = M_mul(P, M_of(nd));
+      if(nd.mesh != null) (meshM[nd.mesh] = meshM[nd.mesh] || []).push(M);
+      if(nd.children) walk(nd.children, M);
+    });
+  })((((g.scenes || [])[g.scene || 0]) || {}).nodes, M_id());
+
+  /* ⭐ 재질로 묶는다 — 도장은 재질 단위로 걸리므로 이 알갱이가 맞다 */
+  const byMat = {};
+  let totTri = 0, noUV = 0;
+
+  (g.meshes || []).forEach((me, mi) => {
+    const Ms = meshM[mi] || [M_id()];
+    (me.primitives || []).forEach(pr => {
+      const at = pr.attributes || {};
+      if(at.POSITION == null) return;
+      const mIdx = (pr.material != null) ? pr.material : -1;
+      const mat  = (mIdx >= 0 && g.materials && g.materials[mIdx]) ? g.materials[mIdx] : null;
+      const name = (mat && mat.name) || ('재질 ' + mIdx);
+      const rec = byMat[name] || (byMat[name] = {
+        name, tri:0, uvMin:[9,9], uvMax:[-9,-9], wn:[1e9,1e9,1e9], wx:[-1e9,-1e9,-1e9],
+        color:null, tris:[], hasUV:false
+      });
+      if(!rec.color && mat && mat.pbrMetallicRoughness && mat.pbrMetallicRoughness.baseColorFactor){
+        const c = mat.pbrMetallicRoughness.baseColorFactor;
+        const h = v => ('0' + Math.round(Math.min(1,Math.max(0,v))*255).toString(16)).slice(-2);
+        rec.color = '#' + h(c[0]) + h(c[1]) + h(c[2]);
+      }
+
+      /* 월드 상자 — accessor min/max 여덟 꼭짓점만(공짜) */
+      const pa = g.accessors[at.POSITION];
+      if(pa && pa.min && pa.max){
+        Ms.forEach(M => {
+          for(let b=0;b<8;b++){
+            const q = M_pt(M, [ (b&1)?pa.max[0]:pa.min[0],
+                                (b&2)?pa.max[1]:pa.min[1],
+                                (b&4)?pa.max[2]:pa.min[2] ]);
+            for(let i=0;i<3;i++){ if(q[i]<rec.wn[i]) rec.wn[i]=q[i]; if(q[i]>rec.wx[i]) rec.wx[i]=q[i]; }
+          }
+        });
+      }
+
+      const nTri = pr.indices != null ? (g.accessors[pr.indices].count/3)
+                                      : (pa ? pa.count/3 : 0);
+      rec.tri += nTri; totTri += nTri;
+
+      if(at.TEXCOORD_0 == null){ noUV += nTri; return; }
+      rec.hasUV = true;
+      const uv = readAcc(g, bin, at.TEXCOORD_0);
+      for(let i=0;i<uv.length;i+=2){
+        if(uv[i]  < rec.uvMin[0]) rec.uvMin[0] = uv[i];
+        if(uv[i]  > rec.uvMax[0]) rec.uvMax[0] = uv[i];
+        if(uv[i+1]< rec.uvMin[1]) rec.uvMin[1] = uv[i+1];
+        if(uv[i+1]> rec.uvMax[1]) rec.uvMax[1] = uv[i+1];
+      }
+      /* 재단선용 삼각형 — 솎아 담는다 */
+      let idxArr = null;
+      if(pr.indices != null) idxArr = readAcc(g, bin, pr.indices);
+      const cnt = idxArr ? idxArr.length/3 : uv.length/6;
+      const step = Math.max(1, Math.ceil(cnt / 4000));
+      for(let t=0;t<cnt;t+=step){
+        const a0 = idxArr ? idxArr[t*3]   : t*3;
+        const a1 = idxArr ? idxArr[t*3+1] : t*3+1;
+        const a2 = idxArr ? idxArr[t*3+2] : t*3+2;
+        rec.tris.push(uv[a0*2],uv[a0*2+1], uv[a1*2],uv[a1*2+1], uv[a2*2],uv[a2*2+1]);
+      }
+    });
+  });
+
+  const list = Object.values(byMat).sort((a,b)=> b.tri - a.tri);
+  /* 전체 상한을 지킨다 — 큰 부품부터 솎는다 */
+  let drawn = list.reduce((s,r)=> s + r.tris.length/6, 0);
+  if(drawn > MAXTRI){
+    const k = MAXTRI / drawn;
+    list.forEach(r => {
+      const keep = Math.max(60, Math.floor(r.tris.length/6 * k));
+      const st = Math.max(1, Math.floor((r.tris.length/6) / keep));
+      const out = [];
+      for(let t=0;t<r.tris.length/6;t+=st) out.push(...r.tris.slice(t*6, t*6+6));
+      r.tris = out;
+    });
+  }
+  return { list, totTri, noUV, matCount:(g.materials||[]).length };
+}
+
+/* ══ 기체 부르기 ═══════════════════════════════════════════════════ */
+async function loadBody(src, label){
+  stat('<i>내려받는 중…</i>');
+  try{
+    let buf;
+    if(src instanceof File){ buf = await src.arrayBuffer(); }
+    else {
+      const r = await fetch(src, { cache:'force-cache' });
+      if(!r.ok) throw new Error('받지 못했습니다 (' + r.status + ')');
+      buf = await r.arrayBuffer();
+    }
+    GLBBUF = buf;
+    stat('<i>뜯어 재는 중…</i>');
+    await new Promise(r => setTimeout(r, 16));
+    const got = chewGLB(buf);
+    PARTS = got.list;
+    drawParts();
+    paintOverlay();
+    stat('<b>' + label + '</b> · ' + (buf.byteLength/1048576).toFixed(1) + 'MB · 삼각형 '
+       + Math.round(got.totTri).toLocaleString() + ' · 재질 ' + got.matCount
+       + (got.noUV ? ' · <i>UV 없는 삼각형 ' + Math.round(got.noUV).toLocaleString() + '</i>' : ''));
+    if(GLBURL) URL.revokeObjectURL(GLBURL);
+    GLBURL = URL.createObjectURL(new Blob([buf], { type:'model/gltf-binary' }));
+    await standUp(GLBURL);
+    say(label + ' 을(를) 세웠습니다. 부품 ' + PARTS.length + '벌', 'ok');
+  }catch(e){
+    stat('<i>' + e.message + '</i>');
+    say('기체를 못 세웠습니다 — ' + e.message, 'bad');
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   Cesium — 씌워 보기
+   ⚠ 지구를 안 깐다. 기체 하나만 띄우고 헤드라이트를 카메라에 묶는다.
+   ⚠ 도장은 CustomShader 의 sampler 로 들어간다. 알파로 섞으므로
+     안 칠한 곳은 원래 재질 색이 그대로 산다.
+   ══════════════════════════════════════════════════════════════════ */
+const FRAG = [
+  'void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material){',
+  '  vec2 uv = fsInput.attributes.texCoord_0;',
+  '  vec4 p = texture(u_paint, uv);',
+  '  material.diffuse = mix(material.diffuse, p.rgb, p.a);',
+  '}'
+].join('\n');
+
+function makeShader(url){
+  return new Cesium.CustomShader({
+    uniforms:{
+      u_paint:{ type: Cesium.UniformType.SAMPLER_2D,
+                value: new Cesium.TextureUniform({ url:url }) }
+    },
+    fragmentShaderText: FRAG
+  });
+}
+
+async function standUp(url){
+  $('#vhint').textContent = 'Cesium 을 세우는 중…';
+  if(!viewer){
+    try{
+      viewer = new Cesium.Viewer('cz', {
+        baseLayer:false, baseLayerPicker:false, geocoder:false, homeButton:false,
+        sceneModePicker:false, navigationHelpButton:false, animation:false,
+        timeline:false, fullscreenButton:false, infoBox:false,
+        selectionIndicator:false, shouldAnimate:false, requestRenderMode:false
+      });
+    }catch(e){
+      $('#vhint').textContent = 'Cesium 을 못 세웠습니다 — ' + e.message;
+      return;
+    }
+    viewer.scene.globe.show = false;
+    viewer.scene.skyBox.show = false;
+    viewer.scene.skyAtmosphere.show = false;
+    viewer.scene.sun.show = false;
+    viewer.scene.moon.show = false;
+    viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#0a0e1a');
+    viewer.scene.screenSpaceCameraController.enableCollisionDetection = false;
+    /* ⭐ 헤드라이트 — 해가 반대편이면 기체가 새까맣게 선다 */
+    viewer.scene.light = new Cesium.DirectionalLight({
+      direction: Cesium.Cartesian3.clone(viewer.scene.camera.directionWC)
+    });
+    viewer.scene.preRender.addEventListener(()=>{
+      viewer.scene.light.direction = Cesium.Cartesian3.clone(
+        viewer.scene.camera.directionWC, viewer.scene.light.direction);
+    });
+    const cc = viewer.cesiumWidget && viewer.cesiumWidget.creditContainer;
+    if(cc) cc.style.display = 'none';
+  }
+  if(model){ viewer.scene.primitives.remove(model); model = null; }
+  shader = makeShader(paintURL());
+  try{
+    model = await Cesium.Model.fromGltfAsync({
+      url,
+      modelMatrix: Cesium.Transforms.eastNorthUpToFixedFrame(
+        Cesium.Cartesian3.fromDegrees(2.0, 49.0, 0)),
+      customShader: shader,
+      incrementallyLoadTextures:false
+    });
+    viewer.scene.primitives.add(model);
+    model.readyEvent.addEventListener(()=>{
+      $('#vhint').style.display = 'none';
+      viewFit();
+    });
+    model.errorEvent.addEventListener(e => {
+      $('#vhint').style.display = 'block';
+      $('#vhint').textContent = '기체를 못 실었습니다 — ' + (e && e.message ? e.message : e);
+    });
+  }catch(e){
+    $('#vhint').style.display = 'block';
+    $('#vhint').textContent = '기체를 못 실었습니다 — ' + e.message;
+  }
+}
+
+/* ⚠ 787 은 기수 +Z · 위 +Y 다(v187). 카메라 방향을 그 축으로 짠다 */
+function look(head, pitch, mul){
+  if(!model || !model.boundingSphere) return;
+  const bs = model.boundingSphere;
+  viewer.camera.flyToBoundingSphere(bs, {
+    duration:0.35,
+    offset:new Cesium.HeadingPitchRange(
+      Cesium.Math.toRadians(head), Cesium.Math.toRadians(pitch), bs.radius * (mul||2.2))
+  });
+}
+function viewFit(){ look(215, -18, 2.4); }
+
+/* ══ 도장 판 그리기 ════════════════════════════════════════════════ */
+function catmull(ctx, pts){
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for(let i=0;i<pts.length-1;i++){
+    const p0 = pts[i-1] || pts[i], p1 = pts[i], p2 = pts[i+1], p3 = pts[i+2] || pts[i+1];
+    ctx.bezierCurveTo(
+      p1.x + (p2.x-p0.x)/6, p1.y + (p2.y-p0.y)/6,
+      p2.x - (p3.x-p1.x)/6, p2.y - (p3.y-p1.y)/6,
+      p2.x, p2.y);
+  }
+}
+
+function drawTest(ctx){
+  /* ⭐ 눈금 무늬 — 「어느 부품이 어느 칸을 보는가」를 3D 에 글자로 띄운다 */
+  const C = 8, s = N / C;
+  const AZ = 'ABCDEFGH';
+  for(let r=0;r<C;r++) for(let c=0;c<C;c++){
+    ctx.fillStyle = ((r+c)%2) ? '#1d2740' : '#e8e4d8';
+    ctx.fillRect(c*s, r*s, s, s);
+    ctx.fillStyle = ((r+c)%2) ? '#f0d98a' : '#243050';
+    ctx.font = '700 ' + Math.round(s*0.30) + 'px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(AZ[c] + (r+1), c*s + s/2, r*s + s*0.40);
+    ctx.font = '400 ' + Math.round(s*0.13) + 'px sans-serif';
+    ctx.fillText('u' + (c/C).toFixed(2) + ' v' + (r/C).toFixed(2), c*s + s/2, r*s + s*0.72);
+  }
+  /* 가장자리 — 판이 어디서 끝나는지 */
+  ctx.strokeStyle = '#ff4d4d'; ctx.lineWidth = 10;
+  ctx.strokeRect(5,5,N-10,N-10);
+}
+
+function paint(){
+  const ctx = ctxP;
+  ctx.clearRect(0,0,N,N);
+  ctx.save();
+
+  if(TEST){ drawTest(ctx); ctx.restore(); paintOverlay(); schedulePush(); return; }
+
+  /* ① 바탕 */
+  if(S.baseOn){ ctx.fillStyle = S.base; ctx.fillRect(0,0,N,N); }
+
+  /* ② 감청 — 곡선 아래(또는 위) */
+  ctx.beginPath();
+  catmull(ctx, S.pts);
+  const endY = S.flip ? 0 : N;
+  ctx.lineTo(S.pts[S.pts.length-1].x, endY);
+  ctx.lineTo(S.pts[0].x, endY);
+  ctx.closePath();
+  ctx.fillStyle = S.navy;
+  ctx.fill();
+
+  /* ③ 금색 띠 — 따로 구워 좌우를 흐린 뒤 얹는다 */
+  if(S.band > 0 && S.to > S.from){
+    const off = document.createElement('canvas');
+    off.width = N; off.height = N;
+    const o = off.getContext('2d');
+    o.beginPath(); catmull(o, S.pts);
+    o.lineCap = 'butt'; o.lineJoin = 'round';
+    o.strokeStyle = S.gold; o.lineWidth = S.band; o.stroke();
+    /* 윗결 한 줄 — 금속처럼 보이게 하는 값싼 손
+       ⚠⚠ 변환을 **먼저** 건다. Canvas 는 길을 담을 때 변환을 태우므로
+         길을 다 지은 뒤에 translate 하면 한 톨도 안 움직인다. */
+    o.translate(0, -S.band * 0.26);
+    o.beginPath(); catmull(o, S.pts);
+    o.strokeStyle = 'rgba(255,255,255,.42)';
+    o.lineWidth = Math.max(2, S.band * 0.22);
+    o.stroke();
+    o.setTransform(1,0,0,1,0,0);
+    /* 좌우 흐리기 */
+    const gx = o.createLinearGradient(0,0,N,0);
+    const f = Math.max(1, S.fade);
+    const a = Math.max(0, Math.min(1, S.from / N)), b = Math.max(0, Math.min(1, S.to / N));
+    const fa = Math.min(0.49, f / N);
+    gx.addColorStop(0, 'rgba(0,0,0,0)');
+    gx.addColorStop(Math.max(0, a), 'rgba(0,0,0,0)');
+    gx.addColorStop(Math.min(1, a + fa), 'rgba(0,0,0,1)');
+    gx.addColorStop(Math.max(0, b - fa), 'rgba(0,0,0,1)');
+    gx.addColorStop(Math.min(1, b), 'rgba(0,0,0,0)');
+    gx.addColorStop(1, 'rgba(0,0,0,0)');
+    o.globalCompositeOperation = 'destination-in';
+    o.fillStyle = gx; o.fillRect(0,0,N,N);
+    ctx.drawImage(off, 0, 0);
+  }
+
+  /* ④ 자산 */
+  ASLOTS.forEach(a => {
+    const im = IMG[a.key]; if(!im) return;
+    const st = S.assets[a.key];
+    const w = N * st.scale, h = w * (im.naturalHeight / im.naturalWidth);
+    ctx.save();
+    ctx.translate(st.x, st.y);
+    ctx.rotate(st.rot * Math.PI / 180);
+    ctx.drawImage(im, -w/2, -h/2, w, h);
+    ctx.restore();
+  });
+
+  ctx.restore();
+  paintOverlay();
+  schedulePush();
+}
+
+/* 겹침 판 — 손잡이와 재단선. ⚠ 이 판은 굽지 않는다 */
+function paintOverlay(){
+  const ctx = ctxO;
+  ctx.clearRect(0,0,N,N);
+
+  /* 재단선 — 고른 부품만 */
+  if(SELPART >= 0 && PARTS[SELPART] && PARTS[SELPART].tris.length){
+    const t = PARTS[SELPART].tris;
+    ctx.strokeStyle = 'rgba(255,90,90,.55)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    for(let i=0;i<t.length;i+=6){
+      ctx.moveTo(t[i]*N,   t[i+1]*N);
+      ctx.lineTo(t[i+2]*N, t[i+3]*N);
+      ctx.lineTo(t[i+4]*N, t[i+5]*N);
+      ctx.closePath();
+    }
+    ctx.stroke();
+    const p = PARTS[SELPART];
+    ctx.strokeStyle = 'rgba(255,220,80,.9)'; ctx.lineWidth = 5;
+    ctx.setLineDash([22,14]);
+    ctx.strokeRect(p.uvMin[0]*N, p.uvMin[1]*N,
+                  (p.uvMax[0]-p.uvMin[0])*N, (p.uvMax[1]-p.uvMin[1])*N);
+    ctx.setLineDash([]);
+  }
+
+  if(TEST) return;
+
+  /* 곡선 손잡이 */
+  ctx.strokeStyle = 'rgba(120,220,255,.85)'; ctx.lineWidth = 3;
+  ctx.beginPath(); catmull(ctx, S.pts); ctx.stroke();
+  S.pts.forEach((p,i)=>{
+    ctx.beginPath(); ctx.arc(p.x, p.y, 22, 0, 7);
+    ctx.fillStyle = 'rgba(10,14,26,.85)'; ctx.fill();
+    ctx.strokeStyle = '#78dcff'; ctx.lineWidth = 5; ctx.stroke();
+  });
+
+  /* 고른 자산 테두리 */
+  if(SEL && IMG[SEL]){
+    const im = IMG[SEL], st = S.assets[SEL];
+    const w = N * st.scale, h = w * (im.naturalHeight / im.naturalWidth);
+    ctx.save();
+    ctx.translate(st.x, st.y); ctx.rotate(st.rot * Math.PI/180);
+    ctx.strokeStyle = 'rgba(201,168,76,.95)'; ctx.lineWidth = 5;
+    ctx.setLineDash([18,12]); ctx.strokeRect(-w/2,-h/2,w,h); ctx.setLineDash([]);
+    ctx.restore();
+  }
+}
+
+/* ══ 3D 로 넘기기 ══════════════════════════════════════════════════ */
+function paintURL(){ return cvP.toDataURL('image/png'); }
+function pushPaint(){
+  if(!shader) return;
+  try{
+    shader.setUniform('u_paint', new Cesium.TextureUniform({ url: paintURL() }));
+  }catch(e){
+    /* ⚠ setUniform 이 안 통하면 셰이더를 새로 만든다 — 다시 엮느라 느리다 */
+    if(model){ shader = makeShader(paintURL()); model.customShader = shader; }
+  }
+}
+function schedulePush(){
+  if(!$('#cLive').checked) return;
+  clearTimeout(pushT);
+  pushT = setTimeout(pushPaint, 260);
+}
+
+/* ══ 판 위의 손 ════════════════════════════════════════════════════ */
+function toBoard(ev){
+  const r = $('#board').getBoundingClientRect();
+  return { x:(ev.clientX - r.left) / r.width * N, y:(ev.clientY - r.top) / r.height * N };
+}
+$('#board').addEventListener('pointerdown', ev => {
+  if(TEST) return;
+  const p = toBoard(ev);
+  for(let i=0;i<S.pts.length;i++){
+    const d = Math.hypot(S.pts[i].x - p.x, S.pts[i].y - p.y);
+    if(d < 46){ drag = { kind:'pt', i }; $('#board').setPointerCapture(ev.pointerId); return; }
+  }
+  for(let k=ASLOTS.length-1;k>=0;k--){
+    const key = ASLOTS[k].key, im = IMG[key]; if(!im) continue;
+    const st = S.assets[key];
+    const w = N*st.scale, h = w*(im.naturalHeight/im.naturalWidth);
+    const dx = p.x - st.x, dy = p.y - st.y, a = -st.rot*Math.PI/180;
+    const lx = dx*Math.cos(a) - dy*Math.sin(a), ly = dx*Math.sin(a) + dy*Math.cos(a);
+    if(Math.abs(lx) < w/2 && Math.abs(ly) < h/2){
+      selectAsset(key);
+      drag = { kind:'as', key, ox:dx, oy:dy };
+      $('#board').setPointerCapture(ev.pointerId);
+      return;
+    }
+  }
+});
+$('#board').addEventListener('pointermove', ev => {
+  if(!drag) return;
+  const p = toBoard(ev);
+  if(drag.kind === 'pt'){
+    S.pts[drag.i].y = Math.max(0, Math.min(N, p.y));
+    if(drag.i > 0 && drag.i < S.pts.length-1){
+      const lo = S.pts[drag.i-1].x + 40, hi = S.pts[drag.i+1].x - 40;
+      S.pts[drag.i].x = Math.max(lo, Math.min(hi, p.x));
+    }
+  }else{
+    S.assets[drag.key].x = p.x - drag.ox;
+    S.assets[drag.key].y = p.y - drag.oy;
+  }
+  paint();
+});
+function endDrag(){ if(drag){ drag = null; pushPaint(); } }
+$('#board').addEventListener('pointerup', endDrag);
+$('#board').addEventListener('pointercancel', endDrag);
+$('#board').addEventListener('wheel', ev => {
+  if(!SEL || TEST) return;
+  ev.preventDefault();
+  const st = S.assets[SEL];
+  st.scale = Math.max(0.02, Math.min(2, st.scale * (ev.deltaY < 0 ? 1.06 : 0.94)));
+  syncAssetRows(); paint();
+}, { passive:false });
+
+/* ══ 자산 ══════════════════════════════════════════════════════════ */
+function drawAssetSlots(){
+  const host = $('#assets'); host.innerHTML = '';
+  ASLOTS.forEach(a => {
+    const d = document.createElement('div');
+    d.className = 'aslot' + (SEL === a.key ? ' sel' : '');
+    d.id = 'as_' + a.key;
+    d.innerHTML = '<div class="ah">' + a.label + '<span>' + a.note + '</span></div>' +
+                  '<div class="ab" id="ab_' + a.key + '">비어 있음</div>';
+    d.onclick = ()=>{
+      if(IMG[a.key]) selectAsset(a.key);
+      else pickImage(a.key);
+    };
+    d.ondblclick = ()=> pickImage(a.key);
+    host.appendChild(d);
+  });
+}
+let PICKFOR = null;
+function pickImage(key){ PICKFOR = key; $('#fImg').value = ''; $('#fImg').click(); }
+$('#fImg').addEventListener('change', async ev => {
+  const f = ev.target.files && ev.target.files[0];
+  if(!f || !PICKFOR) return;
+  await putAsset(PICKFOR, URL.createObjectURL(f), f);
+});
+async function putAsset(key, url, file){
+  const im = new Image();
+  im.crossOrigin = 'anonymous';
+  await new Promise((res, rej)=>{ im.onload = res; im.onerror = rej; im.src = url; });
+  IMG[key] = im;
+  if(file) IMG[key]._file = file;
+  const ab = $('#ab_' + key);
+  if(ab){ ab.innerHTML = ''; const t = im.cloneNode(); ab.appendChild(t); }
+  selectAsset(key);
+  paint(); pushPaint();
+}
+function selectAsset(key){
+  SEL = key;
+  document.querySelectorAll('.aslot').forEach(e => e.classList.remove('sel'));
+  const el = $('#as_' + key); if(el) el.classList.add('sel');
+  syncAssetRows(); paintOverlay();
+}
+function syncAssetRows(){
+  const st = SEL ? S.assets[SEL] : null;
+  $('#rScale').disabled = !st; $('#rRot').disabled = !st;
+  if(!st) return;
+  $('#rScale').value = Math.round(st.scale*100); $('#vScale').textContent = Math.round(st.scale*100)+'%';
+  $('#rRot').value   = Math.round(st.rot);       $('#vRot').textContent   = Math.round(st.rot)+'°';
+}
+
+/* Storage 에 사는 자산 — 다음에 열면 저절로 실린다 */
+async function loadAssetsFromStorage(){
+  for(const a of ASLOTS){
+    const url = PUB + 'asset_' + a.key + '.png?v=' + Math.floor(Date.now()/60000);
+    try{
+      const r = await fetch(url, { method:'HEAD' });
+      if(r.ok) await putAsset(a.key, url, null);
+    }catch(e){ /* 없으면 없는 것이다 */ }
+  }
+}
+$('#bAsUp').onclick = async ()=>{
+  if(!SEL || !IMG[SEL] || !IMG[SEL]._file){ say('올릴 자산이 없습니다 — 칸을 눌러 그림부터 넣어 주십시오', 'bad'); return; }
+  const { error } = await supa.storage.from(BUCKET)
+    .upload(PDIR + 'asset_' + SEL + '.png', IMG[SEL]._file,
+            { upsert:true, contentType:'image/png', cacheControl:'60' });
+  say(error ? ('못 올렸습니다 — ' + error.message) : '자산을 Storage 에 앉혔습니다', error ? 'bad' : 'ok');
+};
+$('#bAsDel').onclick = ()=>{
+  if(!SEL) return;
+  delete IMG[SEL];
+  const ab = $('#ab_' + SEL); if(ab) ab.textContent = '비어 있음';
+  SEL = null; drawAssetSlots(); syncAssetRows(); paint(); pushPaint();
+};
+
+/* ══ 부품표 ════════════════════════════════════════════════════════ */
+function drawParts(){
+  const host = $('#parts');
+  if(!PARTS.length){ host.innerHTML = '<div style="padding:22px;text-align:center;font-size:12px;color:rgba(240,235,224,.3)">부품이 없습니다</div>'; return; }
+  let h = '<table><thead><tr><th>재질</th><th>삼각형</th><th>U</th><th>V</th><th>크기 m</th></tr></thead><tbody>';
+  PARTS.forEach((p,i)=>{
+    const sz = [p.wx[0]-p.wn[0], p.wx[1]-p.wn[1], p.wx[2]-p.wn[2]].map(v=> v>1e8||v< -1e8 ? 0 : v);
+    h += '<tr data-i="' + i + '"' + (i===SELPART?' class="sel"':'') + '>'
+      +  '<td><span class="sw" style="background:' + (p.color||'#666') + '"></span>' + p.name + '</td>'
+      +  '<td>' + Math.round(p.tri).toLocaleString() + '</td>'
+      +  '<td>' + (p.hasUV ? p.uvMin[0].toFixed(2)+'~'+p.uvMax[0].toFixed(2) : '—') + '</td>'
+      +  '<td>' + (p.hasUV ? p.uvMin[1].toFixed(2)+'~'+p.uvMax[1].toFixed(2) : '—') + '</td>'
+      +  '<td>' + sz.map(v=>v.toFixed(1)).join(' · ') + '</td></tr>';
+  });
+  host.innerHTML = h + '</tbody></table>';
+  host.querySelectorAll('tr[data-i]').forEach(tr => {
+    tr.onclick = ()=>{
+      const i = +tr.dataset.i;
+      SELPART = (SELPART === i) ? -1 : i;
+      drawParts(); paintOverlay();
+    };
+  });
+}
+
+/* ══ 손잡이 배선 ═══════════════════════════════════════════════════ */
+function bindRange(id, vid, key, fmt, after){
+  const r = $(id);
+  r.addEventListener('input', ()=>{
+    S[key] = +r.value;
+    $(vid).textContent = fmt ? fmt(+r.value) : r.value;
+    paint();
+  });
+  r.addEventListener('change', ()=>{ pushPaint(); if(after) after(); });
+}
+bindRange('#rBand','#vBand','band');
+bindRange('#rFrom','#vFrom','from');
+bindRange('#rTo',  '#vTo',  'to');
+bindRange('#rFade','#vFade','fade');
+
+$('#pBase').oninput = e => { S.base = e.target.value; paint(); };
+$('#pBase').onchange = pushPaint;
+$('#pNavy').oninput = e => { S.navy = e.target.value; paint(); };
+$('#pNavy').onchange = pushPaint;
+$('#pGold').oninput = e => { S.gold = e.target.value; paint(); };
+$('#pGold').onchange = pushPaint;
+$('#bBase').onclick = e => {
+  S.baseOn = !S.baseOn;
+  e.target.classList.toggle('on', S.baseOn);
+  e.target.textContent = S.baseOn ? '켜짐' : '꺼짐';
+  paint(); pushPaint();
+};
+$('#bFlip').onclick = ()=>{ S.flip = !S.flip; paint(); pushPaint(); };
+$('#bPt').onclick = ()=>{
+  if(S.pts.length >= 9){ say('점은 아홉까지입니다', 'bad'); return; }
+  let bi = 0, bd = -1;
+  for(let i=0;i<S.pts.length-1;i++){
+    const d = S.pts[i+1].x - S.pts[i].x;
+    if(d > bd){ bd = d; bi = i; }
+  }
+  S.pts.splice(bi+1, 0, { x:(S.pts[bi].x+S.pts[bi+1].x)/2, y:(S.pts[bi].y+S.pts[bi+1].y)/2 });
+  paint(); pushPaint();
+};
+$('#bPtDel').onclick = ()=>{
+  if(S.pts.length <= 3){ say('점은 셋까지 줄일 수 있습니다', 'bad'); return; }
+  S.pts.splice(Math.floor(S.pts.length/2), 1);
+  paint(); pushPaint();
+};
+$('#bReset').onclick = ()=>{
+  S.pts = [ {x:0,y:1180}, {x:512,y:1120}, {x:1024,y:1010}, {x:1536,y:840}, {x:2048,y:610} ];
+  paint(); pushPaint();
+};
+$('#rScale').oninput = e => {
+  if(!SEL) return;
+  S.assets[SEL].scale = +e.target.value/100;
+  $('#vScale').textContent = e.target.value + '%';
+  paint();
+};
+$('#rScale').onchange = pushPaint;
+$('#rRot').oninput = e => {
+  if(!SEL) return;
+  S.assets[SEL].rot = +e.target.value;
+  $('#vRot').textContent = e.target.value + '°';
+  paint();
+};
+$('#rRot').onchange = pushPaint;
+
+$('#bTest').onclick = e => {
+  TEST = !TEST;
+  e.target.classList.toggle('on', TEST);
+  paint(); pushPaint();
+  if(TEST) say('눈금 무늬를 씌웠습니다 — 3D 에서 어느 칸이 어디로 가는지 보십시오', 'ok');
+};
+$('#bPush').onclick = ()=>{ pushPaint(); say('지금 판을 씌웠습니다'); };
+$('#bLoad').onclick = ()=> loadBody(BODYURL, '여객기 787');
+$('#bDrop').onclick = ()=>{ $('#fGlb').value=''; $('#fGlb').click(); };
+$('#fGlb').addEventListener('change', ev => {
+  const f = ev.target.files && ev.target.files[0];
+  if(f) loadBody(f, f.name);
+});
+$('#vSide').onclick = ()=> look(180, 0, 2.1);
+$('#vTail').onclick = ()=> look(270, -6, 2.1);
+$('#vNose').onclick = ()=> look(90, -6, 2.1);
+$('#vTop').onclick  = ()=> look(180, -85, 2.3);
+$('#vFit').onclick  = viewFit;
+
+/* ══ 내보내기 · 저장 ═══════════════════════════════════════════════ */
+$('#bPng').onclick = ()=>{
+  cvP.toBlob(b => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = 'lin_paint.png';
+    a.click();
+    setTimeout(()=> URL.revokeObjectURL(a.href), 4000);
+  }, 'image/png');
+};
+$('#bSave').onclick = async ()=>{
+  const png = await new Promise(r => cvP.toBlob(r, 'image/png'));
+  const e1 = (await supa.storage.from(BUCKET)
+    .upload(PDIR + 'lin_paint.png', png, { upsert:true, contentType:'image/png', cacheControl:'60' })).error;
+  const cfg = new Blob([JSON.stringify(S, null, 1)], { type:'application/json' });
+  const e2 = (await supa.storage.from(BUCKET)
+    .upload(PDIR + 'lin_paint.json', cfg, { upsert:true, contentType:'application/json', cacheControl:'60' })).error;
+  if(e1 || e2) say('못 저장했습니다 — ' + ((e1||e2).message), 'bad');
+  else say('도장과 설정을 Storage 에 앉혔습니다 (' + Math.round(png.size/1024) + 'KB)', 'ok');
+};
+$('#bOpen').onclick = ()=> openSettings(false);
+async function openSettings(quiet){
+  try{
+    const r = await fetch(PUB + 'lin_paint.json?v=' + Date.now());
+    if(!r.ok) throw new Error('없습니다');
+    const j = await r.json();
+    Object.keys(S).forEach(k => {
+      if(k === 'assets') return;                  /* ⚠ 아래에서 따로 섞는다 */
+      if(j[k] !== undefined) S[k] = j[k];
+    });
+    /* ⚠⚠ 자산 칸을 **통째로 갈아치우지 않는다.** 칸이 늘어난 날
+       옛 설정을 그대로 얹으면 새 칸이 통째로 사라진다(0823k 와 같은 갈래). */
+    if(j.assets) ASLOTS.forEach(a => {
+      if(j.assets[a.key]) Object.assign(S.assets[a.key], j.assets[a.key]);
+    });
+    $('#pBase').value = S.base; $('#pNavy').value = S.navy; $('#pGold').value = S.gold;
+    $('#rBand').value = S.band; $('#vBand').textContent = S.band;
+    $('#rFrom').value = S.from; $('#vFrom').textContent = S.from;
+    $('#rTo').value   = S.to;   $('#vTo').textContent   = S.to;
+    $('#rFade').value = S.fade; $('#vFade').textContent = S.fade;
+    $('#bBase').classList.toggle('on', S.baseOn);
+    $('#bBase').textContent = S.baseOn ? '켜짐' : '꺼짐';
+    syncAssetRows();
+    paint(); pushPaint();
+    if(!quiet) say('지난 설정을 불러왔습니다', 'ok');
+  }catch(e){
+    if(!quiet) say('저장된 설정이 없습니다', 'bad');
+  }
+}
+
+/* ⚠ 색 손잡이 초기값이 코드와 어긋나면 첫 화면부터 거짓말이 된다 */
+$('#pGold').value = S.gold;
+syncAssetRows();
+init();
+</script>
+</body>
+</html>
