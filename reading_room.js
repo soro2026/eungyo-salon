@@ -167,7 +167,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0823m";
+  var VERSION = "0823n";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -514,7 +514,10 @@
          그 높이가 장거리 13호의 3,000m 와 거의 같은 곳이다. 넣을지는 소로 판정. */
     desc: [[300, 10973, 739], [200, 8595, 643], [100, 4839, 648],
            [60, 3353, 546], [30, 3353, 515], [20, 1059, 396],
-           [10, 518, 344], [5, 267, 285], [3, 160, 276], [0, 0, 0]],
+           [10, 518, 344], [5, 267, 285], [3, 160, 276], [0, 0, 250]],
+           /* ⚠⚠ 0823n — 마지막 줄이 [0,0,0] 이었다. 접지 속도까지 0 으로 보간되어
+              **3km/h 로 기어서 내려앉았다**(시뮬). 실물은 250km/h 로 접지하고
+              활주로에서 감속한다. ⭐ 감속은 접지 뒤 갈래가 맡는다(아래 roll). */
            /* [접지까지 km, 해발 m, km/h] */
     /* ⭐ 이륙 — 실측(정착문 5호) */
     clmb: [[2, 38, 244], [5, 320, 369], [10, 899, 383],
@@ -582,7 +585,10 @@
       [49.06322, 2.06820, "퐁투아즈 · 서쪽 끝"],
       [48.97181, 2.11332, "아르장퇴유 · 남쪽 끝"],
       [48.97099, 2.17602, "생드니 · 최종접근"],
-      [49.02102, 2.52042, "파리 · 활주로 09R"]
+      [49.02102, 2.52042, "파리 · 활주로 09R"],
+      /* ⭐⭐ 0823n — 접지점 뒤에 한 점 더. 실측 유도로 입구다(소로 구글 어스 · 2,924m).
+         ⚠ 접지가 곧 도착이면 스포일러가 서는 순간 화면이 멈춘다. 굴러야 그림이 산다. */
+      [49.02317, 2.56039, "파리 · 유도로"]
     ]
   }];
   function routes() { return ROUTES.map(function (r) { return { code: r.code, name: r.name, face: r.face }; }); }
@@ -1091,6 +1097,7 @@
     /* ⭐ 0823g — 보이는 뱅크. roll(좇는 값) + sway(요동)다. 카메라·기체가 이것을 읽는다.
        ⚠ roll 을 그대로 두는 까닭은 아래 순항 요동 주석에 있다 — 더하면 요동이 죽는다. */
     var sway = 0, rollView = 0, trS = 0;   /* trS — 잔잔해진 각속도(0823h) */
+    var tdKm = 9e9;                       /* 접지점까지 직선 km — 0823n. 착륙 손들이 읽는다 */
     var dist = Math.max(0, +opt.startDist || 0);      /* ⭐ 0823c — 이어받는다 */
     var flown = Math.max(0, opt.startFlown | 0);
     /* ⭐ 0822f — 곡선의 접선이 직전 프레임에 가리키던 방위. 뱅크의 잣대다.
@@ -1211,6 +1218,14 @@
       var c = Cesium.Cartesian3.fromDegrees(lon, lat, alt);
       /* ⭐ 0822g — 기체는 **눈이 정한 상한**으로 자른다. 안 적으면 기체 상한 그대로다.
          ⚠ 카메라(aimCam)는 SPEC.roll 로 자른다 — 그쪽은 몸이 정한 값이라 안 건드린다. */
+      /* ══ ⭐⭐ 0823n 착륙 채비 — 기체를 그리는 이 한 곳에서만 몰아준다 ═════════
+         ⭐ B 를 안 눌렀으면 paintBody 가 안 불리므로 셈이 통째로 안 돈다. 공짜다.
+         ⚠ tdKm 은 접지점까지 **직선** km 다(9e9 이면 아직 안 쟀거나 고리 노선이다). */
+      if (route.arr && tdKm < 9e8) {
+        gearShow(tdKm <= 30 || ARRIVED);        /* ⭐ 30km — 실측 3,353m 평평 구간의 끝 */
+        /* ⭐⭐ 접지하면 60° 로 확 선다. 그 전에는 누워 있다 */
+        spoilSet(ARRIVED ? 60 : (tdKm <= 0.3 ? 60 : 0));
+      } else if (GEAR_ON === false) gearShow(true);   /* ⚠ 다른 노선은 늘 보인다 */
       var rb = route.bankBody || ROLL_MAX;
       var bank = Math.max(-rb, Math.min(rb, rollView));   /* ⭐ 0823g — 요동을 얹은 값 */
       /* ⭐⭐ 0822h — 기수각(소로 「고도 오르고 내릴 때도 변화가 없었음」).
@@ -1378,15 +1393,47 @@
         /* ── ⭐⭐ 고도 (0819f) — 목표는 셈이 내고, 걸음은 ㉡이 낸다 ──
            msl  순항 해발고도로 평평하게. 앞 지면이 넘보면 floor 만큼 위로 밀린다
            agl  앞 지면 최고값 기준으로 aglWant — 계곡·해안용 */
-        var wantAlt = (route.mode === "msl")
+        /* ══ ⭐⭐ 0823n liner 착륙 — 실측 표가 고도와 속도를 함께 정한다 ═══════════
+           ⚠⚠ 표를 **직선거리**로 조회한다(tblAt 주석). 곡선거리로 재면
+             서쪽으로 도는 마지막 4분에 강하각이 12.9° 로 곤두박질친다.
+           ⭐ 300km 에서 10,973m — 순항고도와 같아 이음매가 저절로 맞는다.
+           ⚠ 그리고 여기서 **floor 그물이 함께 물러난다.** 앞 지면과 320m 를 띄우는
+             손이 서 있으면 접지가 구조적으로 불가능하다. 지운 것이 아니라 갈래를 냈다. */
+        var LDG = null;
+        if (!LOOP && route.desc && route.arr && route.arr.td) {
+          /* ⚠⚠ 0823n — 처음에 **직선거리**로 조회했다가 시뮬에서 무너졌다.
+             서쪽으로 돌아 들어오는 항로는 접지점에서 한 번 **멀어졌다** 온다 —
+             상리스 18km → 퐁투아즈 35km → 생드니 30km → 접지.
+             직선거리로 읽으면 852m 까지 내려온 기체가 3,192m 로 **되올라간다**
+             (승강률 −5,975 m/분). 정착문 4호의 경고는 표를 **만들 때**의 것이었고,
+             ⭐ 쓸 때의 잣대는 **항적 남은 거리**다. 기체가 그 길을 실제로 날기 때문이다.
+             ⭐ 덤 — 선회 때문에 항적이 직선보다 길어 강하가 오히려 부드러워진다. */
+          var cum = cumKm(route);
+          var segKm0 = Math.max(gcKm(P(seg)[0], P(seg)[1], P(seg + 1)[0], P(seg + 1)[1]), 0.001);
+          tdKm = cum[N - 2] - (cum[seg] + u * segKm0);
+          if (tdKm > 0) LDG = tblAt(route.desc, tdKm);
+          else {
+            /* ⭐⭐ 0823n 활주 — 접지를 지났다. 남은 활주로를 재서 250 → 30 으로 줄인다.
+               ⚠ 고도는 표가 아니라 **지면**이다. 787 은 원점이 지면에 앉아 있어(v187)
+                 groundH 를 그대로 주면 바퀴가 활주로에 닿는다.
+               ⭐ 스포일러가 선 채로 2,924m 를 굴러간다 — 그 그림을 위해 길목을 하나 더 놓았다. */
+            var runKm = Math.max(0, cum[N - 1] - (cum[seg] + u * segKm0));
+            var runAll = Math.max(0.1, cum[N - 1] - cum[N - 2]);
+            LDG = [groundH, Math.max(30, 250 * (runKm / runAll))];
+          }
+        }
+        var wantAlt = LDG ? LDG[0]
+          : (route.mode === "msl")
           ? Math.max(route.msl || 3600, gAhead + (route.floor || 250))
           : gAhead + aglWant(gAhead);
         var dA = wantAlt - alt;
         var step = CLIMB * dt;                       /* ㉡ 분당 400m 의 걸음 */
         /* ⚠ 그물 — 발밑 지면+120m 를 뚫기 직전이면 걸음을 3배로. 멀미보다 추락이 나쁘다 */
         if (alt < groundH + 120 && dA > 0) step *= 3;
-        alt += Math.max(-step, Math.min(step, dA));
-        if (alt < groundH + 80) alt = groundH + 80;  /* 최후의 바닥 */
+        if (LDG) alt = wantAlt;                      /* ⭐ 표 값을 바로 앉힌다 */
+        else alt += Math.max(-step, Math.min(step, dA));
+        /* ⚠⚠ 0823n — 착륙 중에는 마지막 바닥도 푼다. 접지가 목적이므로 */
+        if (!LDG && alt < groundH + 80) alt = groundH + 80;   /* 최후의 바닥 */
         rel = alt - groundH;                         /* 계기판·지평선 각이 쓰는 지면 위 높이 */
 
         /* ── ⭐ 속도는 셈이 낸다 (25호) — 다만 ㉣ 고도 출렁임은 안 받는다.
@@ -1406,6 +1453,7 @@
            ⭐ 도착하면 0 이다. 여기서 0 을 내야 아래 dist 가 안 는다 — 파리 상공에 세워 두고
              거리계만 도는 일이 없다. */
         var kmh = ARRIVED ? 0
+                : LDG ? LDG[1]                       /* ⭐ 0823n — 강하 중에는 표가 속도도 낸다 */
                 : route.kmh ? route.kmh
                 : Math.max(route.minKmh || 120, Math.min(route.felt * (spdH / 1000), SPDCAP));
         /* ══ ⭐⭐ 0822e 관측 장치 — 「짐작으로 고치지 않는다」 ════════════════════
@@ -1415,7 +1463,11 @@
            ⚠ 두 그물 — ㉮ 속도가 노선의 천장에 닿음  ㉯ 지면이 해수면 아래(세 노선 다 없는 일)
            ⚠ 세 번만 적는다. 매 프레임 적으면 콘솔이 넘쳐 소로가 못 읽으신다.
            ⭐ window.EG_SPDLOG 에도 쌓는다 — 개발자 도구를 늦게 여셔도 남아 있다. */
-        if (SPDLOG < 3 && ((route.maxKmh && kmh >= SPDCAP - 0.5) || groundH < 0)) {
+        /* ⚠⚠ 0823n — groundH < 0 을 −50 으로 낮췄다. 0822e 에 「세 노선 다 없는 일」이라
+           적어 두었는데 **바다를 건너는 노선이 오늘 생겼다.** 서해에서 −5m 가 나와
+           거짓 경보가 세 번 울렸다(소로 0823). 오늘 세 번째다 —
+           ⭐ 조항이 딛고 선 사실이 바뀌면 조항도 안 선다. */
+        if (SPDLOG < 3 && ((route.maxKmh && kmh >= SPDCAP - 0.5) || groundH < -50)) {
           SPDLOG++;
           var snap = {
             때: Math.floor(flown / 60) + "분 " + Math.round(flown % 60) + "초",
@@ -2376,6 +2428,122 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     HOLD.on = false; HOLD.t = 0; HOLD.ph = 0; HOLD.tp = 0;
     HOLD.next = performance.now() + (40 + Math.random() * 60) * 1000;
     ARMF = ARMB = WAIST = null; ND_TR = {};
+  }
+  /* ⭐⭐ 0823n — 실측 표에서 값을 뽑는다. desc/clmb 가 [기준거리, 고도, 속도] 꼴이다.
+     ⚠⚠ desc 의 「접지까지 km」는 **직선거리**다. 항적거리가 아니다.
+       정착문 4호 — 「마지막 30km 는 선회다. 직선거리로 재면 강하각이 부풀어 보인다」.
+       ⭐ 그래서 부르는 쪽이 gcKm 으로 **접지점까지 직선**을 재서 넘긴다.
+         서쪽으로 도는 4분 동안 직선거리가 잘 안 줄고, 그래서 고도도 잘 안 내려간다 —
+         실측이 그랬으니 저절로 맞는다. 곡선거리로 재면 여기서 12.9° 로 곤두박질친다. */
+  /* ⭐⭐ 0823n — 첫 길목부터 각 길목까지의 누적 거리. 부팅 때 한 번만 잰다.
+     ⚠ 「접지까지 남은 거리」를 매 프레임 62개 합으로 셈하면 비싸다(41호 ㉧).
+       누적표 하나면 뺄셈 한 번이다. */
+  function cumKm(route) {
+    if (route.__cum) return route.__cum;
+    var L = route.legs, N = L.length, c = [0], i;
+    for (i = 0; i < N - 1; i++) c.push(c[i] + gcKm(L[i][0], L[i][1], L[i + 1][0], L[i + 1][1]));
+    route.__cum = c; return c;
+  }
+  function tblAt(tbl, x) {
+    var n = tbl.length, i;
+    var down = tbl[0][0] > tbl[n - 1][0];            /* desc 는 내림차순 · clmb 는 오름차순 */
+    if (down) { if (x >= tbl[0][0]) return null; if (x <= tbl[n - 1][0]) return [tbl[n - 1][1], tbl[n - 1][2]]; }
+    else      { if (x <= tbl[0][0]) return [tbl[0][1], tbl[0][2]]; if (x >= tbl[n - 1][0]) return null; }
+    for (i = 1; i < n; i++) {
+      var a0 = tbl[i - 1], b0 = tbl[i];
+      var lo = Math.min(a0[0], b0[0]), hi = Math.max(a0[0], b0[0]);
+      if (x >= lo && x <= hi) {
+        var t = (x - a0[0]) / ((b0[0] - a0[0]) || 1);
+        return [a0[1] + (b0[1] - a0[1]) * t, a0[2] + (b0[2] - a0[2]) * t];
+      }
+    }
+    return null;
+  }
+  /* ⭐⭐ 0823n — 노드의 **로컬** 상자. accessor min/max 를 변환에 **안 태우고** 읽는다.
+     ⚠ 피벗은 로컬이라야 쓸 수 있다 — n.matrix 가 로컬 변환을 대체하기 때문이다.
+       월드 값(0823m 으로 잰 것)은 사람이 읽는 값이고, 코드가 쓰는 값은 이것이다.
+     ⭐ 사람이 다시 잴 일이 없다. 부팅 때 코드가 스스로 경첩을 찾는다. */
+  function localBox(nm) {
+    try {
+      var nd = BODYENT._nodesByName[nm]; if (!nd) return null;
+      var rn = nd._runtimeNode || nd.runtimeNode; if (!rn) return null;
+      var prims = rn.runtimePrimitives || (rn.node && rn.node.primitives) || [];
+      var lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9], j, k;
+      for (j = 0; j < prims.length; j++) {
+        var sp = prims[j].primitive || prims[j], at = sp.attributes || [], pos = null;
+        for (k = 0; k < at.length; k++) if (at[k] && at[k].semantic === "POSITION") { pos = at[k]; break; }
+        if (!pos || !pos.min || !pos.max) continue;
+        lo = [Math.min(lo[0], pos.min.x), Math.min(lo[1], pos.min.y), Math.min(lo[2], pos.min.z)];
+        hi = [Math.max(hi[0], pos.max.x), Math.max(hi[1], pos.max.y), Math.max(hi[2], pos.max.z)];
+      }
+      return (lo[0] > 1e8) ? null : { lo: lo, hi: hi };
+    } catch (e) { return null; }
+  }
+  /* ⭐⭐ 0823n 피벗 회전 — T(p)·R·T(−p) 를 원래 변환 뒤에 곱한다.
+     ⚠ setNode 는 원점 회전이라 못 쓴다. v186 이 A300 기어에서 이미 걸린 곳이다. */
+  var PIVOT = {};                      /* 노드마다 {p:[x,y,z], base:Matrix4} — 한 번만 잰다 */
+  function pivotRot(nm, p, deg) {
+    try {
+      var n = BODYENT.getNode(nm); if (!n) return;
+      var C = Cesium, key = PIVOT[nm];
+      if (!key) {
+        key = PIVOT[nm] = { base: C.Matrix4.clone(n.originalMatrix || n.matrix || C.Matrix4.IDENTITY,
+                                                  new C.Matrix4()) };
+      }
+      var R = C.Matrix4.fromRotationTranslation(
+        C.Matrix3.fromRotationX(C.Math.toRadians(deg)), C.Cartesian3.ZERO, new C.Matrix4());
+      var Tp = C.Matrix4.fromTranslation(new C.Cartesian3(p[0], p[1], p[2]), new C.Matrix4());
+      var Tm = C.Matrix4.fromTranslation(new C.Cartesian3(-p[0], -p[1], -p[2]), new C.Matrix4());
+      var M = C.Matrix4.multiply(Tp, R, new C.Matrix4());
+      C.Matrix4.multiply(M, Tm, M);
+      n.matrix = C.Matrix4.multiply(key.base, M, new C.Matrix4());
+    } catch (e) { }
+  }
+  /* ⭐⭐ 0823n 787 기어·스포일러 — **좌표로 골라낸 이름들이다**(0823m 실측).
+     ⚠ 이름을 한 번도 안 믿었다. 「Gear」도 「Wheel」도 없는 기체였다.
+       기어는 Y 가 바닥(0.015)에 닿고 Z 로 갈렸다 — 앞바퀴는 X 가운데 홀로, 주기어는 좌우 대칭.
+     ⭐ 열셋 = 앞기어 1 + 좌 6 + 우 6. 바퀴와 다리와 버팀대가 다 갈려 있다. */
+  var GEAR_ND = ["Cylinder.013",
+    "Cylinder.002", "Cube.011", "Cylinder.022", "Cube.016", "Cylinder.023", "Cylinder.024",
+    "Cylinder.019", "Cube.014", "Cylinder.001", "Cube.015", "Cylinder.011", "Cylinder.018"];
+  /* ⭐⭐ 스포일러 열여덟. 안쪽(9)부터 날개 끝(1)까지 X 가 서로 맞물린다 —
+     실측에서 5.590 → 5.588 로 틈이 없었다. 짐작이 한 톨도 없는 곳이다.
+     ⭐ 안쪽부터 차례로 세우면 파도처럼 번진다. 실물이 그렇게 선다. */
+  var SPOIL_ND = ["Spoiler 9", "Spoiler 8", "Spoiler 7", "Spoiler 6", "Spoiler 5",
+    "Spoiler 4", "Spoiler 3", "Spoiler 2", "Spoiler 1"];
+  var GEAR_ON = null, SPOIL_P = null, SPOIL_DEG = -1;
+  /* ⭐ 기어 — 787 은 내려온 채로 구워져 있다(A300 과 정반대다).
+     ⚠ 접는 애니메이션은 다음이다. 지금은 **감췄다 보인다** — 회전이 없으니 짐작도 없다. */
+  function gearShow(on) {
+    if (!BODYENT || !BODYENT.ready || GEAR_ON === on) return;
+    GEAR_ON = on;
+    for (var i = 0; i < GEAR_ND.length; i++) {
+      try { var n = BODYENT.getNode(GEAR_ND[i]); if (n) n.show = on; } catch (e) { }
+    }
+  }
+  /* ⭐⭐ 스포일러 — 경첩은 **앞 모서리**(로컬 Zmax)다. 기수가 +Z 이므로 그쪽이 앞이고,
+     뒤가 들린다. 부호는 오른손 규칙이 정한다 — X 축 양의 회전에서 −Z 가 +Y 로 간다.
+     ⭐ 피벗을 코드가 스스로 잰다(localBox). 사람이 다시 잴 일이 없다. */
+  function spoilSet(deg) {
+    if (!BODYENT || !BODYENT.ready) return;
+    if (Math.abs(deg - SPOIL_DEG) < 0.3) return;
+    SPOIL_DEG = deg;
+    if (!SPOIL_P) {
+      SPOIL_P = {};
+      for (var k = 0; k < SPOIL_ND.length; k++) {
+        var b0 = localBox(SPOIL_ND[k]);
+        if (b0) SPOIL_P[SPOIL_ND[k]] = [0, (b0.lo[1] + b0.hi[1]) / 2, b0.hi[2]];
+      }
+      try { console.log("[EG] 스포일러 경첩 " + Object.keys(SPOIL_P).length + "곳을 쟀습니다"); } catch (e) { }
+    }
+    for (var i = 0; i < SPOIL_ND.length; i++) {
+      var p = SPOIL_P[SPOIL_ND[i]]; if (!p) continue;
+      /* ⭐ 안쪽부터 차례로 — 한 장씩 6% 씩 늦게 선다. 파도가 날개 끝으로 번진다 */
+      var lag = Math.max(0, Math.min(1, (deg / 60) * 1.6 - i * 0.06));
+      var d = 60 * lag;
+      pivotRot(SPOIL_ND[i], p, d);
+      pivotRot(SPOIL_ND[i] + ".001", p, d);
+    }
   }
   function grabNode(nm) {
     try {
