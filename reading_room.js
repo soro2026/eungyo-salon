@@ -167,7 +167,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0823i";
+  var VERSION = "0823j";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -5788,6 +5788,58 @@ function paintBook() {
       return out;
     } catch (e) { console.warn("[EG] 노드를 못 읽었습니다:", e); return []; }
   }
+  /* ⭐⭐ 0823j 자 — 노드마다 **월드 상자**를 낸다. 이름이 아니라 좌표로 가른다.
+     ⚠⚠ 0823 오전 수칙 둘이 여기 함께 산다 —
+       「이름을 믿지 않는다」(787 은 노드·메시·재질 이름이 67개 전부 어긋났다)
+       「노드 변환을 안 태우고 재면 답이 뒤집힌다」(스케일이 0.14~2.05 다)
+     ⭐ 정점을 안 읽는다 — 995,000 삼각형이다(41호 ㉧). 프리미티브의 **경계구**를
+       변환에 태워 옮기기만 한다. 구는 상자보다 넉넉하지만 바퀴를 가려내는 데는 충분하다.
+     ⚠ Cesium 비공개 이름을 짚는다. 판이 바뀌면 깨질 수 있으므로 후보를 여럿 훑고,
+       첫 노드에서 **무엇이 있는지 먼저 찍는다** — 짐작 대신 관측 장치를 심는 그 문법이다.
+     ⭐ Y 가 낮은 차례로 낸다. 787 은 원점이 지면이라 **맨 위에 오는 것이 바퀴**다. */
+  function probeBody() {
+    var m = BODYENT && BODYENT._nodesByName;
+    if (!m) { console.warn("[EG] 기체가 아직 안 섰습니다 — B 를 누르고 다시 부르십시오"); return []; }
+    var names = Object.keys(m), rows = [], said = false, C = Cesium;
+    for (var i = 0; i < names.length; i++) {
+      var nd = m[names[i]];
+      var rn = nd._runtimeNode || nd.runtimeNode || null;
+      if (!said) {
+        said = true;
+        try { console.log("[EG] ModelNode 열쇠 —", Object.keys(nd).join(" ")); } catch (e) { }
+        try { if (rn) console.log("[EG] runtimeNode 열쇠 —", Object.keys(rn).join(" ")); } catch (e) { }
+      }
+      if (!rn) continue;
+      var T = rn.computedTransform || rn.transformToRoot || rn.transform || null;
+      var prims = rn.runtimePrimitives || (rn.node && rn.node.primitives) || [];
+      var lo = null, hi = null;
+      for (var j = 0; j < prims.length; j++) {
+        var pr = prims[j];
+        var bs = (pr.primitive && pr.primitive.boundingSphere) || pr.boundingSphere
+              || (pr.primitive && pr.primitive.boundingSphere) || null;
+        if (!bs) continue;
+        var c = bs.center, r = bs.radius;
+        if (T) { try { c = C.Matrix4.multiplyByPoint(T, c, new C.Cartesian3()); } catch (e) { } }
+        var sc = 1;
+        if (T) { try { sc = C.Matrix4.getScale(T, new C.Cartesian3()).x || 1; } catch (e) { } }
+        var rr = r * sc;
+        var a1 = [c.x - rr, c.y - rr, c.z - rr], a2 = [c.x + rr, c.y + rr, c.z + rr];
+        if (!lo) { lo = a1.slice(); hi = a2.slice(); }
+        else for (var k = 0; k < 3; k++) { if (a1[k] < lo[k]) lo[k] = a1[k]; if (a2[k] > hi[k]) hi[k] = a2[k]; }
+      }
+      if (!lo) continue;
+      rows.push({ 이름: names[i],
+        minY: +lo[1].toFixed(2), maxY: +hi[1].toFixed(2),
+        midX: +((lo[0] + hi[0]) / 2).toFixed(2), midZ: +((lo[2] + hi[2]) / 2).toFixed(2),
+        폭: +(hi[0] - lo[0]).toFixed(2), 높이: +(hi[1] - lo[1]).toFixed(2), 길이: +(hi[2] - lo[2]).toFixed(2) });
+    }
+    rows.sort(function (a, b) { return a.minY - b.minY; });
+    console.log("%c[EG] 잰 노드 " + rows.length + "개 — ⭐ Y 낮은 차례. 맨 위가 바닥에 닿은 것이다",
+      "color:#c9a84c");
+    try { console.table(rows); } catch (e) { console.log(rows); }
+    try { window.EG_NODES = rows; } catch (e) { }
+    return rows;
+  }
   window.egReading = { enter: enter, leave: leave, routes: routes, version: VERSION,
-                       nodes: nodeList };
+                       nodes: nodeList, probe: probeBody };
 })();
