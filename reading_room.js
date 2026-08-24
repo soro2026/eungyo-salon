@@ -167,7 +167,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0823w";
+  var VERSION = "0824a";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1394,7 +1394,7 @@
     function aimCam() {
       if (window.__egShut || !viewer) return;
       /* ⭐⭐ 0821L — 주인이 여기서 넘어간다. 겨누는 문은 여전히 이 함수 하나뿐이다 */
-      if (BODY) { paintBody(); spinProp(); holdTick(); orbitCam(); return; }
+      if (BODY) { paintBody(); spinProp(); spinFan(); holdTick(); orbitCam(); return; }
       var look = Cesium.Math.toRadians(clampAng(hd + side * SPEC.view + LOOK.y) + 360);
       var pit = horizonDeg(Math.max(rel, 80)) + (opt.sky || 6) + LOOK.p;
       pit = Math.max(-88, Math.min(88, pit));
@@ -2804,6 +2804,37 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     PROPND.matrix = Cesium.Matrix4.fromRotationTranslation(
       Cesium.Matrix3.fromRotationX(th), PROP_TR, new Cesium.Matrix4());
   }
+  /* ══ ⭐⭐ 0824a 787 엔진 팬 ═══════════════════════════════════════════
+     ⭐ 실측 — Fans.001 · Fans.003 두 노드의 **로컬 원점이 팬 축 위에 앉아 있다**
+       (로컬 중심 X 0.000 · Y 0.000). 그래서 피벗 회전이 필요 없다. 축은 로컬 Z.
+     ⚠⚠ 그런데 두 노드에 **scale 0.1444** 가 걸려 있다. spinProp 처럼 행렬을 통째로
+       덮어쓰면 팬이 7배로 부풀어 나셀을 뚫는다. 원래 행렬을 붙들었다 **뒤에** 곱한다.
+     ⚠ 속도는 셈이 아니라 눈이다 — 실물 N1 3,300rpm(55rps)은 날이 스무 장이라
+       어느 fps 에서도 스트로보가 진다. 낮게 두고 소로가 egReading.fan() 으로 정한다. */
+  var FAN_RPS = 3.2;
+  var FANS = null, FANTRY = 0, FAN_M0 = null;
+  function spinFan() {
+    if (!BODYENT || BODYCRAFT !== "lin") return;
+    if (!FANS) {
+      if (FANTRY > 20 || !BODYENT.ready) { FANTRY++; return; }
+      try {
+        var a = BODYENT.getNode("Fans.001"), b = BODYENT.getNode("Fans.003");
+        if (a && b) {
+          FANS = [a, b];
+          FAN_M0 = [Cesium.Matrix4.clone(a.matrix, new Cesium.Matrix4()),
+                    Cesium.Matrix4.clone(b.matrix, new Cesium.Matrix4())];
+          console.log("[EG] 엔진 팬을 잡았습니다 — 초당 " + FAN_RPS + "바퀴");
+        }
+      } catch (e) { }
+      FANTRY++;
+      if (!FANS) return;
+    }
+    var th = (performance.now() / 1000) * FAN_RPS * 2 * Math.PI;
+    var R = Cesium.Matrix4.fromRotationTranslation(
+      Cesium.Matrix3.fromRotationZ(th), Cesium.Cartesian3.ZERO, new Cesium.Matrix4());
+    for (var i = 0; i < 2; i++)
+      FANS[i].matrix = Cesium.Matrix4.multiply(FAN_M0[i], R, new Cesium.Matrix4());
+  }
   var ORB = { yaw: 40, pit: 12, dist: 26 };
   var ORB0 = { yaw: 40, pit: 12 }; /* 다음 탑승이 여기서 시작한다 */
   /* ⚠ ?v= 분 단위 — 격납고에서 갈아 끼우면 1분 안에 닿는다(기내 원판과 같은 문법) */
@@ -2898,6 +2929,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     if (BODYENT && viewer) { try { viewer.scene.primitives.remove(BODYENT); } catch (e) { } }
     BODYENT = null; BODYWAIT = false;
     PROPND = null; PROPTRY = 0; PROP_TR = null;
+    FANS = null; FANTRY = 0; FAN_M0 = null;   /* ⭐ 0824a 팬도 함께 놓는다 */
     holdReset();                     /* ⭐ 팔·허리도 기체와 함께 놓는다 */   /* ⭐ 기체와 함께 놓는다 — 다음 판이 다시 잡는다 */
   }
   function toggleBody() {
@@ -6247,6 +6279,13 @@ function paintBook() {
                        /* ⭐ 0823w — 콘솔에서 직접. 키가 안 먹는 환경에서도 배속이 선다.
                           egReading.warp()     지금 값
                           egReading.warp(60)   ×60 으로 */
+                       /* ⭐ 0824a — 엔진 팬 회전수. egReading.fan() 지금값 · fan(8) 로 바꿈 */
+                       fan: function (v) {
+                         if (v != null) { FAN_RPS = Math.max(0, +v || 0); }
+                         console.log("[EG] 엔진 팬 초당 " + FAN_RPS + "바퀴"
+                                     + (FANS ? "" : " ⚠ 아직 안 잡혔습니다"));
+                         return FAN_RPS;
+                       },
                        warp: function (v) {
                          try {
                            if (!flight || !flight.warp) { console.warn("[EG] 비행이 아직 안 섰습니다"); return null; }
