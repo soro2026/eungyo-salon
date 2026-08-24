@@ -167,7 +167,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0824a";
+  var VERSION = "0824b";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -2811,7 +2811,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
        덮어쓰면 팬이 7배로 부풀어 나셀을 뚫는다. 원래 행렬을 붙들었다 **뒤에** 곱한다.
      ⚠ 속도는 셈이 아니라 눈이다 — 실물 N1 3,300rpm(55rps)은 날이 스무 장이라
        어느 fps 에서도 스트로보가 진다. 낮게 두고 소로가 egReading.fan() 으로 정한다. */
-  var FAN_RPS = 3.2;
+  var FAN_RPS = 3.0;   /* ⭐ 0824b 소로 판정 — 3바퀴가 가장 활발. 60fps 에서 프레임당 18° = 날 대칭각이라 날이 가라앉고 잔상만 돈다 */
   var FANS = null, FANTRY = 0, FAN_M0 = null;
   function spinFan() {
     if (!BODYENT || BODYCRAFT !== "lin") return;
