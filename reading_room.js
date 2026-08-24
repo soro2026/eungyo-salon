@@ -191,7 +191,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0825a";
+  var VERSION = "0825c";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -636,7 +636,24 @@
       [37.10343, 126.26076, ""],                        /* 54.18km · 3536m · 624km/h */
       [37.10293, 126.20716, ""],                        /* 58.93km · 3673m · 661km/h */
       [37.10297, 126.13938, ""],                        /* 64.94km · 3947m · 680km/h */
-      [37.05571, 124.73789, "황해"],
+      /* ══ ⚠⚠⚠ 0825c — 소로 0825 「63km 에서 갑자기 한 번 튀었다」의 진범 ═══════════
+         ⭐⭐ 튄 것이 아니라 **기체가 거기서 뒤로 갔다.**
+           구간18(6.01km)을 u 0→1 로 밀면 곡선 길이가 **16.25km** 였다. 실측:
+             u 0.00 → 126.20716   (서쪽으로 출발)
+             u 0.60 → ⚠⚠ 126.26320  **경도가 늘었다. 동쪽으로 5.6km 되돌아갔다**
+             u 0.90 → 126.20024   (다시 서쪽으로 · 한 걸음이 55배 빨라진다)
+         ⚠⚠ 진범 — **길목 사이가 20.7배로 벌어져 있었다**(6.01km → 124.44km).
+           Catmull 은 길목 간격이 고르다고 치고 접선을 잡는다. 길목19 의 접선은
+           (길목20 − 길목18)/2 = **65km** 인데 그 접선을 6km 짜리 구간에 쓰면
+           곡선이 구간 밖으로 튀어나갔다 되돌아온다. 값은 다 맞고 **간격이 틀렸다.**
+         ⭐ 그래서 대권 위에 넷을 끼워 간격을 계단으로 눕혔다 — 6 → 13 → 28 → 55 → 90.
+           ⚠ 좌표는 짐작이 아니다. 순항 중 여객기는 대권을 난다.
+         ⭐⭐ 그리고 이것이 **어제 제가 만든 병이다** — 옛 판은 이 곳이 4.0배였다.
+           출발 길목을 촘촘히 놓으면서 그 다음이 그대로 124km 로 남아 있었다. */
+      [37.09880, 125.99289, ""],
+      [37.08922, 125.67743, ""],
+      [37.06797, 125.05802, "황해"],
+      [37.02624, 124.04527, ""],
       [36.96340, 122.80600, "웨이하이 앞바다"],
       [37.75270, 120.55210, "발해 해협 · 펑라이"],
       [38.53000, 118.22530, "보하이만"],
@@ -689,6 +706,15 @@
       [49.41400, 9.47180, "로텐부르크 · 프랑켄"],
       [49.65610, 7.04690, "자르 · 모젤"],
       [49.58400, 4.78510, "아르덴"],
+      /* ══ ⚠⚠ 0825c — 같은 병이 **강하 들머리에도 있었다.** 0823 부터 숨어 있었다 ═══
+         길목73 이 173.65km → 19.59km 로 8.9배였다. 구간73(파리 북면 → 발두아즈)의
+         걸음비가 **47.5배** — 뒤로 가지는 않았지만 한 번 크게 늘어졌다 줄어든다.
+         ⭐ 소로가 착륙을 95점이라 하신 그 비행에 이것이 들어 있었다. 11km 상공의
+           선회라 눈에 덜 띄었을 뿐이다.
+         ⭐⭐ 새 노선이 검사기이듯 **새 병도 검사기다.** 63km 를 파다가 이것이 나왔다. */
+      [49.38434, 3.60631, ""],
+      [49.27282, 2.98072, ""],
+      [49.21213, 2.64913, ""],
       /* ══ ⭐⭐⭐ 0823q — 최종접근을 통째로 다시 놓았다. **실측 항적 그 자체다** ═══════
          ⚠⚠ 0823n 까지 다섯 점이었는데, 그 다섯이 **두 활주로에서 섞여 있었다** —
            경로는 KAL901 이 내린 활주로에서 뽑고 접지점만 다른 활주로로 바꿔 놓아,
@@ -1206,6 +1232,7 @@
          표류가 구조적으로 없다. 앞으로 가는 것이 보장된다. */
     function P(i2) { return legAt(route, i2); }
     function onCurve(sg, uu) { return curveOf(route, sg, uu); }
+    gapCheck(route);
     var pos = onCurve(seg, u);
     var lat = pos[0], lon = pos[1];
     var ahead = onCurve(0, 0.02);
@@ -1264,6 +1291,30 @@
        ⭐ 여기로 끌어올린다. tick 안에서는 대입만 한다 — 두 곳에 var 를 두지 않는다. */
     var rel = 120;
     var CLIMB = 400 / 60;            /* ㉡ 승강률 상한 m/s — 실제 여객기 순항 승강률의 상단 */
+    /* ══ ⭐⭐⭐ 0825b — 소로 0825 「상승 속도가 너무 느린 거 아닌가?」 ═══════════════
+       ⭐ 첫 65km 는 **KAL901 실측 그대로다** — 40km 에서 소로 화면 2,756m,
+         실측 39.45km 에서 2,659m. 시각도 실측보다 10초 안쪽이다. 거기는 안 느렸다.
+       ⚠⚠ 느린 곳은 **표가 끝난 위**였다. 둘이 겹쳐 있었다.
+         ㉠ 승강률을 분당 400 **고정**으로 뒀다. 실측 끝이 531 인데 거기서 툭 떨어진다.
+         ㉡ ⭐⭐ 목표가 10,973m 였다. **그런데 KE901 은 거기로 안 올라갔다** —
+            steps 표가 「0분 9,174m」라 적고 있다. 여객기는 연료를 태우며 계단으로 오른다.
+            10,973m 를 처음부터 겨누면 26분, 9,174m 면 **20.8분**이다. 뒤엣것이 실물이다.
+       ⭐ 그래서 steps 를 살린다. 이 표는 0823 에 실려만 있고 아무도 안 읽던 것이다.
+       ⚠ 강하 표 첫 줄이 10,973m 인데, steps 가 531분(8.9시간)에 거기 닿는다.
+         비행이 13시간이라 강하가 시작될 때는 이미 그 높이다 — 이음매가 저절로 맞는다. */
+    function cruiseH() {
+      var st = route.steps;
+      if (!st || !st.length) return route.msl || 3600;
+      var m = flown / 60, v = st[0][1], i;
+      for (i = 0; i < st.length; i++) if (m >= st[i][0]) v = st[i][1];
+      return v;
+    }
+    /* ⭐ 승강률이 고도를 탄다 — 제트기는 높이 오를수록 굼떠진다.
+       ⚠ clmb 표가 있는 노선만이다. 관광 셋은 한 톨도 안 바뀐다(33호 ㉡ 그대로). */
+    function climbCap(h) {
+      if (!route.clmb) return CLIMB;
+      return (h < 6000 ? 520 : h < 8000 ? 420 : h < 10000 ? 330 : 230) / 60;
+    }
     /* ⚠⚠ 0819 소로 — 「고도가 바뀔 때 1초마다 딸꾹」.
        지면은 1초에 한 번 재는데 카메라는 매 프레임 그 값을 쓴다. 그래서 잰 순간마다
        절대고도가 계단처럼 툭 뛰었다(200km/h 면 1초에 60m — 산비탈이면 수십 m 차이).
@@ -1369,19 +1420,20 @@
          ⭐ B 를 안 눌렀으면 paintBody 가 안 불리므로 셈이 통째로 안 돈다. 공짜다.
          ⚠ tdKm 은 접지점까지 **직선** km 다(9e9 이면 아직 안 쟀거나 고리 노선이다). */
       if (route.arr && tdKm < 9e8) {
-        /* ══ ⭐⭐⭐ 0825a 기어 — 소로 0824 「5초 정도 천천히」 ═══════════════════════
-           ⭐ 이륙 — 부양 1초 뒤부터 GEAR_S 초에 걸쳐 올라가고, 다 올라가면 감춘다.
-           ⭐ 착륙 — 30km 에서 보이기 시작해 GEAR_S 초에 걸쳐 내려온다.
-           ⚠ 시간으로 잰다. 거리로 재면 배속에서 순식간에 접힌다 — 앞바퀴(TOUCH)와 같은 문법. */
-        if (TAKEOFF && LIFT) {
-          var gu = Math.max(0, Math.min(1, ((performance.now() - LIFT) / 1000 - 1) / GEAR_S));
-          gearLift(gu * GEAR_M);
-          gearShow(gu < 1);
+        /* ══ ⭐⭐⭐ 0825c 기어 — 소로 0825 「이륙 후 30초쯤 경과한 후에 사르르」 ═══════
+           ⭐ 이륙 — 스탠바이·활주·초기상승 내내 **내려와 있다.** 부양 30초 뒤에 걷힌다.
+             ⚠⚠ 0825a 는 부양 전까지 아래 else 로 떨어져 **활주로에서 바퀴가 없었다**
+               (소로 「첫 출발점에 바퀴가 보이지 않음」 · 「떨어질 때 짠 나타남」).
+               ⭐ 갈래를 LIFT 로 갈랐던 것이 화근이다. 이제 TAKEOFF 하나로 가른다.
+           ⭐ 착륙 — 30km 에서 1.2초에 걸쳐 차례로 내려온다.
+           ⚠ 시간으로 잰다. 거리로 재면 배속에서 순식간에 걷힌다(앞바퀴와 같은 문법). */
+        if (TAKEOFF && roKm < 9e8) {
+          gearWave(!LIFT ? 0
+            : ((performance.now() - LIFT) / 1000 - GEAR_T) / GEAR_W);
         } else if (tdKm <= 30 || ARRIVED) {
           if (!GEARDN) GEARDN = performance.now();
-          gearShow(true);
-          gearLift(GEAR_M * (1 - Math.max(0, Math.min(1, (performance.now() - GEARDN) / 1000 / GEAR_S))));
-        } else { gearShow(false); gearLift(GEAR_M); }
+          gearWave(1 - (performance.now() - GEARDN) / 1000 / GEAR_W);
+        } else gearWave(1);
         /* ⭐⭐ 접지하면 60° 로 확 선다. 그 전에는 누워 있다 */
         spoilSet(ARRIVED ? 60 : (tdKm <= 0.3 ? 60 : 0));
         /* ⚠⚠ 0825a — 플랩 손을 잠갔다(FLAP_ON). 경첩이 점 하나라 판이 비틀린다.
@@ -1578,7 +1630,7 @@
               /* ⭐⭐ 0825a — 이륙은 **발밑에 앉힌다.** 순항고도로 앉히면 활주로 위 11km 다 */
               alt = TAKEOFF ? groundRaw
                 : (route.mode === "msl")
-                ? Math.max(route.msl || 3600, gAhead + (route.floor || 250))
+                ? Math.max(cruiseH(), gAhead + (route.floor || 250))
                 : groundRaw + aglWant(gAhead);
               /* ⭐⭐ 0822e 소로 시승 — 「출발 시점에 시속 200km 라 놀랐음. 차차 제 속도 찾아감」.
                  ㉣ spdH 의 초기값이 1200 이었다. 파리의 실제 rel 은 190 인데 20초 시정수로
@@ -1657,7 +1709,7 @@
                고도는 기존 승강률 상한(분당 400m)이 받고, 속도만 이어 준다.
                ⭐ 고도에 비례해 680 → 845. 같은 마하로 오르면 대지속도가 는다 — 물리다. */
             else if (CLB_END && DEP_H !== null) {
-              var hEnd = DEP_H + CLB_END[1], hCr = route.msl || hEnd;
+              var hEnd = DEP_H + CLB_END[1], hCr = cruiseH();
               if (alt < hCr - 5 && hCr > hEnd) {
                 var fq = Math.min(1, Math.max(0, (alt - hEnd) / (hCr - hEnd)));
                 clbSpd = CLB_END[2] + ((route.kmh || CLB_END[2]) - CLB_END[2]) * fq;
@@ -1735,10 +1787,11 @@
         var wantAlt = LDG ? LDG[0]
           : CLB ? CLB[0]                             /* ⭐ 0825a — 이륙 표가 낸다 */
           : (route.mode === "msl")
-          ? Math.max(route.msl || 3600, gAhead + (route.floor || 250))
+          ? Math.max(cruiseH(), gAhead + (route.floor || 250))
           : gAhead + aglWant(gAhead);
         var dA = wantAlt - alt;
-        var step = CLIMB * dt;                       /* ㉡ 분당 400m 의 걸음 */
+        /* ⭐ 0825b — 오를 때만 고도별 걸음. **내려올 때는 400 그대로**다(33호 ㉡ 은 멀미의 그물이다) */
+        var step = (dA > 0 ? climbCap(alt) : CLIMB) * dt;
         /* ⚠ 그물 — 발밑 지면+120m 를 뚫기 직전이면 걸음을 3배로. 멀미보다 추락이 나쁘다 */
         if (alt < groundH + 120 && dA > 0) step *= 3;
         if (LDG || CLB) alt = wantAlt;               /* ⭐ 표 값을 바로 앉힌다 */
@@ -1976,7 +2029,7 @@
                TAKEOFF = (!LOOP && !!route.clmb && seg === 0 && u < 0.001);
                if (TAKEOFF) {
                  HOLD_T = 0; ROLLING = false; LIFT = 0; LIFT_KM = 0;
-                 DEP_H = null; GEARDN = 0; GEAR_Y = -1; settled = false;
+                 DEP_H = null; GEARDN = 0; GEAR_H = -1; settled = false;
                }
              },
              /* ⭐⭐ 0823f 배속 — 시험 장치. 값을 밖에 안 흘리고 손잡이만 낸다 */
@@ -2762,6 +2815,28 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   /* ⭐⭐ 0823n — 첫 길목부터 각 길목까지의 누적 거리. 부팅 때 한 번만 잰다.
      ⚠ 「접지까지 남은 거리」를 매 프레임 62개 합으로 셈하면 비싸다(41호 ㉧).
        누적표 하나면 뺄셈 한 번이다. */
+  /* ══ ⭐⭐⭐ 0825c 붙박이 검사기 — **이 병이 다시는 못 숨게 한다** ═══════════════
+     ⚠ 63km 튐은 값이 틀려서가 아니라 **길목 간격이 벌어져서** 났다. 좌표를 아무리
+       정성껏 재도 간격은 안 드러난다 — 눈으로도 표로도 안 보인다. 코드가 재게 한다.
+     ⭐ 노선을 태울 때 한 번만 돈다. 3배 넘는 곳을 콘솔에 적는다.
+     ⚠ 막지는 않는다. 알리기만 한다 — 실패는 화면이 말하게 한다(0824 수칙 3). */
+  function gapCheck(route) {
+    if (route.__gap) return; route.__gap = true;
+    try {
+      var L = route.legs, N = L.length, bad = [], i;
+      var lim = (route.loop === false) ? N - 2 : N - 1;
+      for (i = 1; i <= lim; i++) {
+        var a = gcKm(L[i - 1][0], L[i - 1][1], L[i][0], L[i][1]);
+        var b = gcKm(L[i][0], L[i][1], L[(i + 1) % N][0], L[(i + 1) % N][1]);
+        var r = Math.max(a, b) / Math.max(Math.min(a, b), 1e-9);
+        if (r > 3) bad.push("길목" + i + " " + a.toFixed(1) + "→" + b.toFixed(1) + "km ("
+          + r.toFixed(1) + "배) 「" + (L[i][2] || "·") + "」");
+      }
+      if (bad.length) console.warn("[EG] ⚠⚠ 길목 간격이 3배 넘는 곳 " + bad.length
+        + "곳 — 여기서 곡선이 튑니다\n   " + bad.join("\n   "));
+      else console.log("[EG] ⭐ 길목 간격 고름 — 튈 곳 없습니다 (" + (lim) + "곳 대조)");
+    } catch (e) { }
+  }
   function cumKm(route) {
     if (route.__cum) return route.__cum;
     var L = route.legs, N = L.length, c = [0], i;
@@ -2889,13 +2964,18 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   }
   /* ⭐ 기어 — 787 은 내려온 채로 구워져 있다(A300 과 정반대다).
      ⚠ 접는 애니메이션은 다음이다. 지금은 **감췄다 보인다** — 회전이 없으니 짐작도 없다. */
-  function gearShow(on) {
-    if (!BODYENT || !BODYENT.ready || GEAR_ON === on) return;
-    GEAR_ON = on;
-    for (var i = 0; i < GEAR_ND.length; i++) {
-      try { var n = BODYENT.getNode(GEAR_ND[i]); if (n) n.show = on; } catch (e) { }
-    }
-  }
+  /* ══ ⚠⚠⚠ 0825b — 0825a 의 「올려서 넣는다」를 **통째로 무른다** ═════════════════
+     소로 0825 시승 — *「날개를 뚫고 허공으로 바퀴와 부속이 다 떠버린 후 5초 뒤 사라짐」*
+     ⚠⚠ 진범 — `n.matrix = base × T(0,+4.5,0)` 에서 그 **+Y 가 기체의 위가 아니었다.**
+       T 가 base **앞에** 곱해지므로 base 의 회전을 그대로 탄다. 그런데 기어 스물하나가
+       노드마다 다른 회전을 이고 있어서, 같은 「위로」가 노드마다 **다른 방향**이 됐다.
+       그래서 한 덩이로 올라가지 않고 사방으로 흩어졌다.
+     ⭐⭐ 오늘 아침에 플랩을 두고 「피벗이 없으니 비틀릴 길이 구조적으로 없다」고 적었다.
+       맞는 말이었는데 **틀린 위안이었다** — 비틀리진 않고 통째로 날아갔다.
+       ⭐ 이동에도 좌표계가 있다. 회전만 좌표계를 타는 것이 아니다.
+     ⭐⭐⭐ 소로 판정 — *「그냥 이륙 후 30초쯤 경과한 후에 사르르, 안되면 팍」*.
+       n.show 만 쓴다. 어디로도 못 날아간다. 스물하나가 1.2초에 걸쳐 차례로 걷힌다. */
+  function gearShow(on) { gearWave(on ? 0 : 1); }
   /* ══ ⭐⭐⭐ 0825a 기어 여닫이 — 소로 0824 「접는 건지 사라지는 건지?」 ══════════════
      ⚠⚠ **사라졌습니다.** gearShow 는 n.show 를 껐다 켠 것이 전부였다. 접는 셈이 없었다.
      ⭐ 소로 — 「너무 급하게 하지 말고 5초 정도 천천히」.
@@ -2908,23 +2988,20 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
        ⚠ 실물 기구학(안쪽으로 스윙)은 아니다. 다듬기목록 ㉡ 그곳에 그대로 남는다 —
          밖에서 보면 「들어갔다」가 8할이다(0821 소로 판정과 같은 갈래).
      ⭐ 문짝 여덟도 함께 올라간다. 실물도 기어가 들어간 뒤 닫힌다 — 순서가 맞는다. */
-  var GEAR_TR = {}, GEAR_Y = -1;
-  var GEAR_M = 4.5;                 /* 다 올라간 높이(m) — egReading.gear(초, m) */
-  var GEAR_S = 5;                   /* 여닫는 데 걸리는 초 — 소로 0824 판정 */
-  function gearLift(m) {
+  var GEAR_H = -1;
+  var GEAR_T = 30;                  /* ⭐ 부양 뒤 몇 초에 걷히나 — 소로 0825 판정 */
+  var GEAR_W = 1.2;                 /* 걷히는 데 걸리는 초 — 「사르르」 */
+  /* ⭐⭐ 걷히는 물결 — 앞기어·주기어가 먼저 들어가고 **문짝 여덟이 마지막에 닫힌다.**
+     ⚠ GEAR_ND 의 순서가 이미 그렇게 놓여 있다(바퀴·다리 열셋 → 문짝 여덟). 다시 안 짠다.
+     ⭐ 스포일러 물결과 같은 문법이고, n.show 뿐이라 어디로도 날아갈 수 없다. */
+  function gearWave(hid) {
     if (!BODYENT || !BODYENT.ready) return;
-    if (GEAR_Y >= 0 && Math.abs(m - GEAR_Y) < 0.02) return;
-    GEAR_Y = m;
+    hid = Math.max(0, Math.min(1, hid));
+    if (GEAR_H >= 0 && Math.abs(hid - GEAR_H) < 0.02) return;
+    GEAR_H = hid;
+    var k = Math.round(hid * GEAR_ND.length);
     for (var i = 0; i < GEAR_ND.length; i++) {
-      var nm = GEAR_ND[i];
-      try {
-        var n = BODYENT.getNode(nm); if (!n) continue;
-        if (!GEAR_TR[nm]) GEAR_TR[nm] = Cesium.Matrix4.clone(
-          n.originalMatrix || n.matrix || Cesium.Matrix4.IDENTITY, new Cesium.Matrix4());
-        /* ⚠ 787 은 위가 +Y 다(v187). 로컬 이동이라 base 뒤에 곱한다 — pivotRot 과 같은 문법 */
-        var T = Cesium.Matrix4.fromTranslation(new Cesium.Cartesian3(0, m, 0), new Cesium.Matrix4());
-        n.matrix = Cesium.Matrix4.multiply(GEAR_TR[nm], T, new Cesium.Matrix4());
-      } catch (e) { }
+      try { var n = BODYENT.getNode(GEAR_ND[i]); if (n) n.show = (i >= k); } catch (e) { }
     }
   }
   /* ⭐⭐ 스포일러 — 경첩은 **앞 모서리**(로컬 Zmax)다. 기수가 +Z 이므로 그쪽이 앞이고,
@@ -6524,7 +6601,7 @@ function paintBook() {
                           egReading.hold(40)    ⭐ 40초로. 기내 방송이 길어지면 여기다
                           egReading.hold(null)  노선값(15초)으로 되돌린다
                           egReading.rot(12)     회전 기수각. 지금 8° + 승강률 몫 4° = 12°
-                          egReading.gearSet(5,4.5) 기어 여닫는 초 · 올라가는 높이 m
+                          egReading.gearSet(30,1.2) 기어 — 부양 뒤 몇 초에 · 몇 초 걸려 걷히나
                           ⚠ egReading.gear() 는 옛 손 그대로다(기어 노드 상자 재기)
                           egReading.flapOn(true) ⚠ 플랩 손을 연다(아직 비틀립니다) */
                        hold: function (v) {
@@ -6539,11 +6616,13 @@ function paintBook() {
                          console.log("[EG] 회전 기수각 " + ((ROT_OVR != null) ? ROT_OVR : 8) + "°");
                          return (ROT_OVR != null) ? ROT_OVR : 8;
                        },
-                       gearSet: function (sec, m) {
-                         if (sec != null) GEAR_S = Math.max(0.2, +sec || 5);
-                         if (m != null) { GEAR_M = Math.max(0, +m || 0); GEAR_Y = -1; }
-                         console.log("[EG] 기어 " + GEAR_S + "초에 걸쳐 " + GEAR_M + "m 올라갑니다");
-                         return [GEAR_S, GEAR_M];
+                       gearSet: function (sec, wid) {
+                         if (sec != null) GEAR_T = Math.max(0, +sec || 30);
+                         if (wid != null) GEAR_W = Math.max(0.1, +wid || 1.2);
+                         GEAR_H = -1;
+                         console.log("[EG] 기어 — 부양 " + GEAR_T + "초 뒤에 "
+                                     + GEAR_W + "초에 걸쳐 걷힙니다");
+                         return [GEAR_T, GEAR_W];
                        },
                        flapOn: function (v) {
                          FLAP_ON = (v === true);
