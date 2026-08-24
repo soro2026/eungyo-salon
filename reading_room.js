@@ -191,7 +191,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0825c";
+  var VERSION = "0825d";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -2396,9 +2396,15 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   background:repeating-linear-gradient(0deg,transparent 0 46px,var(--grid,rgba(70,35,15,.14)) 46px 47px),
              repeating-linear-gradient(90deg,transparent 0 46px,var(--grid,rgba(70,35,15,.14)) 46px 47px)}
 #egrMap svg{position:absolute;inset:0;width:100%;height:100%;display:block}
-#egrMap .ne-lake{fill:var(--mapDot,#7a4a26);opacity:.28;stroke:var(--mapSub,#5c3418);stroke-width:.8}
-#egrMap .ne-border{fill:none;stroke:var(--mapSub,#5c3418);stroke-width:.9;opacity:.42;stroke-dasharray:4 4}
-#egrMap .ne-river{fill:none;stroke:var(--mapSub,#5c3418);stroke-width:.9;opacity:.3}
+/* ══ ⭐⭐ 0825d 종이 지도 (소로 0825 「밝은 종이지도 괜찮아」) ════════════════════
+   ⭐ 상자 배경이 **바다**이고 뭍을 그 위에 얹는다. 해안선은 뭍의 테두리다 —
+     따로 자료를 안 받는다(22호 · 같은 뜻의 값을 두 벌 두지 않는다). */
+#egrMap .ne-land{fill:var(--mapLand,#f6f0e0);stroke:var(--mapCoast,#9c7b56);
+  stroke-width:.9;stroke-linejoin:round}
+#egrMap .ne-lake{fill:var(--mapSea,#cfe0ea);opacity:.9;stroke:var(--mapCoast,#9c7b56);stroke-width:.7}
+#egrMap .ne-border{fill:none;stroke:var(--mapSub,#5c3418);stroke-width:.9;opacity:.34;stroke-dasharray:4 4}
+#egrMap .ne-river{fill:none;stroke:var(--mapSea,#cfe0ea);stroke-width:1.1;opacity:.95;
+  stroke-linecap:round;stroke-linejoin:round}
 #egrMap .seg{fill:none;stroke:var(--mapDash,#6d4020);stroke-width:1.8;
   stroke-dasharray:2.5 7;stroke-linecap:round}
 #egrMap .seg.now{stroke:var(--mapInk,#331b0a);stroke-width:3.4;stroke-dasharray:none}
@@ -4575,10 +4581,12 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       panel: "linear-gradient(180deg,#161c23,#10151b)",
       bookBg: "linear-gradient(135deg,rgba(143,176,201,.12),rgba(143,176,201,.02))",
       pocket: "linear-gradient(180deg,#333f4a,#1a2129)",
-      map: "linear-gradient(180deg,#aebfca,#8ea3b1 60%,#7e93a1)",
-      grid: "rgba(30,45,60,.12)", mapInk: "#16242f", mapSub: "#33475a",
-      mapDash: "#31465a", mapDot: "#3d5468", planeRing: "#e8f2fa",
-      tripBg: "rgba(226,236,243,.62)"
+      /* ⭐ 0825d 종이 — 새벽 안개가 걷힌 해도. 바다가 은청, 뭍이 찬 미색 */
+      map: "linear-gradient(180deg,#c9dae4,#b7ccd9 60%,#a9c1d0)",
+      mapSea: "#b2c8d6", mapLand: "#eef1ea", mapCoast: "#6d879a",
+      grid: "rgba(30,45,60,.10)", mapInk: "#1b2a35", mapSub: "#41596b",
+      mapDash: "#3d5568", mapDot: "#466073", planeRing: "#ffffff",
+      tripBg: "rgba(238,244,248,.66)"
     },
     d: {   /* B · 한낮 — 맑은 하늘, 아이보리·스카이 */
       screen: "#f4f2ec", ink: "#33322c", muted: "#8a8676", accent: "#3d6e8f",
@@ -4588,10 +4596,12 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       panel: "linear-gradient(180deg,#fbf9f3,#efece2)",
       bookBg: "linear-gradient(135deg,rgba(61,110,143,.1),rgba(61,110,143,.02))",
       pocket: "linear-gradient(180deg,#d6d1c0,#b9b4a2)",
-      map: "linear-gradient(180deg,#cfe3ef,#b1cfe0 60%,#9fc2d6)",
-      grid: "rgba(40,80,110,.1)", mapInk: "#1d3a4d", mapSub: "#3d6079",
+      /* ⭐ 0825d 종이 — 한낮. 가장 밝은 벌이다 */
+      map: "linear-gradient(180deg,#cfe3ef,#bcd8e6 60%,#aecee0)",
+      mapSea: "#bcd8e6", mapLand: "#f7f3e6", mapCoast: "#5d87a3",
+      grid: "rgba(40,80,110,.09)", mapInk: "#1d3a4d", mapSub: "#3d6079",
       mapDash: "#4d7690", mapDot: "#5a86a0", planeRing: "#ffffff",
-      tripBg: "rgba(244,250,254,.66)"
+      tripBg: "rgba(248,252,254,.68)"
     },
     e: {   /* C · 저녁 노을 — 황동·앰버 (비너스 「현재 확정안」) */
       screen: "#14110c", ink: "#efe4cd", muted: "#9a8f77", accent: "#c9a961",
@@ -4601,10 +4611,12 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       panel: "linear-gradient(180deg,#1c1710,#151109)",
       bookBg: "linear-gradient(135deg,rgba(201,169,97,.1),rgba(201,169,97,.02))",
       pocket: "linear-gradient(180deg,#3a3226,#241d12)",
-      map: "linear-gradient(180deg,#c98d5f,#a86e46 60%,#8f5a38)",
-      grid: "rgba(70,35,15,.14)", mapInk: "#331b0a", mapSub: "#5c3418",
-      mapDash: "#6d4020", mapDot: "#7a4a26", planeRing: "#ffe4c4",
-      tripBg: "rgba(243,219,192,.58)"
+      /* ⭐ 0825d 종이 — 저녁. 옛 항해도. 바다가 짙은 미색, 뭍이 상아 */
+      map: "linear-gradient(180deg,#e0cbaa,#d3bb98 60%,#c6ab86)",
+      mapSea: "#d3bb98", mapLand: "#f8f1de", mapCoast: "#9c7b56",
+      grid: "rgba(90,55,20,.11)", mapInk: "#3d2410", mapSub: "#6d4a24",
+      mapDash: "#7d5a30", mapDot: "#8a6636", planeRing: "#fffaf0",
+      tripBg: "rgba(248,241,222,.66)"
     },
     n: {   /* D · 한밤 — 심야 네이비, 달빛 */
       screen: "#0c0f16", ink: "#dbe2ee", muted: "#6d7686", accent: "#7ea3c2",
@@ -4614,12 +4626,17 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       panel: "linear-gradient(180deg,#12161f,#0d1119)",
       bookBg: "linear-gradient(135deg,rgba(126,163,194,.1),rgba(126,163,194,.02))",
       pocket: "linear-gradient(180deg,#28303f,#141924)",
-      map: "linear-gradient(180deg,#2b3a52,#1f2c40 60%,#182335)",
-      grid: "rgba(160,190,230,.07)", mapInk: "#c4d6ea", mapSub: "#6d84a0",
-      mapDash: "#44587a", mapDot: "#4d648a", planeRing: "#0c0f16",
-      /* ⚠⚠ 한밤만 정반대다 — 지도가 어둡고 mapInk 가 밝다(#c4d6ea).
-         넷을 한 색으로 두면 이 벌에서 글씨가 배경에 먹힌다. 여기만 어두운 판이다. */
-      tripBg: "rgba(9,13,20,.55)"
+      /* ⭐⭐ 0825d 종이 — 한밤. ⚠ 종이로 바꾸되 **밝기를 낮춘다.**
+         소로가 「밝은 종이지도」라 하셨지만, 한밤에 흰 판을 켜면 눈이 부시고
+         창밖 별이 안 보인다. 낮 판(#f7f3e6)보다 22% 어두운 미색이다.
+         ⚠⚠ 그리고 **0819 이래의 뒤집힘이 여기서 풀린다** — 옛 판은 이 벌만
+           지도가 어둡고 mapInk 가 밝았다(#c4d6ea). 넷이 다 종이가 되었으니
+           글자도 넷 다 어둡다. 「여기만 반대다」라고 적어 둔 예외가 사라졌다. */
+      map: "linear-gradient(180deg,#9fb0bd,#8ea1b0 60%,#8093a4)",
+      mapSea: "#8ea1b0", mapLand: "#cfcec1", mapCoast: "#4e5c69",
+      grid: "rgba(20,32,44,.11)", mapInk: "#1a2530", mapSub: "#3a4a58",
+      mapDash: "#44566a", mapDot: "#4d6070", planeRing: "#eef3f7",
+      tripBg: "rgba(214,224,232,.62)"
     }
   };
   /* ⭐⭐ 기록판 팔레트 (0820a) — EG 전속 디자이너 비너스 시안 넉 벌. 값은 시안 소스 그대로.
@@ -5615,8 +5632,12 @@ function paintBook() {
   var MAPBOX = { w: 812, h: 318, pad: 26 };
   var MAPF = null;                 /* 좌표 → 화면 변환 */
   var MAPBASE = null;              /* 전체보기일 때의 변환 (배율의 기준) */
-  var ZOOM = [1, 2, 4, 8, 16];
-  var ZLABEL = ["전체", "+1", "+2", "+3", "+4"];
+  /* ⭐⭐ 0825d — 소로 0825 「장거리는 +7 정도로 더 확대하게」.
+     ⚠ 인천–파리는 10,775km 라 전체보기에서 1px 이 13.3km 다 — 서해도 톈산도 손톱만 하다.
+       색을 아무리 칠해도 안 보이는 곳이었다. **색보다 배율이 먼저다.**
+     ⭐ +7(128배)이면 1px 이 104m · 판 폭이 84km — 이·착륙에서 활주로가 보인다. */
+  var ZOOM = [1, 2, 4, 8, 16, 32, 64, 128];
+  var ZLABEL = ["전체", "+1", "+2", "+3", "+4", "+5", "+6", "+7"];
   var zi = 0;                      /* 지금 단계 */
   var mapSeg = -1;
   /* ⭐⭐ 비행기 (0819Y) — **비너스 시안의 그 아이콘**이다. 동체·주날개·꼬리날개가
@@ -5628,7 +5649,7 @@ function paintBook() {
      크기는 같은데 **주변이 커지니 상대적으로 작아 보이는** 것이다 — 맞는 관찰이다.
      ⭐ 배율마다 키운다. 화면 배율 0.587 을 곱한 실크기를 셈해 두었다.
        전체 19px · +1 23px · +2 26px · +3 30px · +4 33px  (원판 기준 33~57) */
-  var SHIP_SCALE = [1.5, 1.75, 2.0, 2.3, 2.6];
+  var SHIP_SCALE = [1.5, 1.75, 2.0, 2.3, 2.6, 2.8, 3.0, 3.2];
 
   function mapFit(route) {
     var pts = curvePoints(route, 12);
@@ -5687,6 +5708,10 @@ function paintBook() {
     var ne = (window.EGMapNE && EGMapNE.get) ? EGMapNE.get(route.code) : null;
     if (ne) {
       out.push('<g clip-path="url(#egrClip)">');
+      /* ⭐⭐⭐ 0825d — **뭍이 맨 아래에 깔린다.** 0825 이전에는 이 한 겹이 없어서
+         바다와 땅이 한 색이었고, 그래서 판에 글자밖에 안 보였다(소로 「너무 텍스트 중심」).
+         ⚠ 상자 배경이 곧 바다다 — 뭍을 그 위에 얹으면 해안선이 저절로 생긴다. */
+      out.push(neLayer(ne.land, "ne-land", true));
       out.push(neLayer(ne.river, "ne-river", false));
       out.push(neLayer(ne.border, "ne-border", false));
       out.push(neLayer(ne.lake, "ne-lake", true));       /* 호수가 맨 위 — 강이 물고 들어온다 */
@@ -5701,7 +5726,17 @@ function paintBook() {
        코드는 멀쩡히 도는데 손님 눈에만 유라시아를 가로지르는 64번째 선이 보인다.
        ⭐ segCount() 한 곳에서 낸다 — 지도와 테두리가 같은 수를 봐야 한다(22호). */
     var segN = segCount(route);
+    /* ⭐⭐ 0825d — 화면 밖 조각은 안 그린다. ⚠ +7 에서는 구간 아흔둘 중 두어 개만 보인다.
+       안 걸러 내면 380ms 마다 6,400점을 문자열로 잇는다 — 배율을 늘린 값이 여기서 나간다.
+       ⚠ 넉넉히 400px 를 두고 자른다. 딱 맞춰 자르면 화면 가장자리에서 선이 끊긴다. */
+    function outside(sg) {
+      var a = curveOf(route, sg, 0), b = curveOf(route, sg, 1);
+      var ax = MAPF.x(a[1]), ay = MAPF.y(a[0]), bx = MAPF.x(b[1]), by = MAPF.y(b[0]);
+      return (Math.min(ax, bx) > MAPBOX.w + 400) || (Math.max(ax, bx) < -400)
+          || (Math.min(ay, by) > MAPBOX.h + 400) || (Math.max(ay, by) < -400);
+    }
     for (s = 0; s < segN; s++) {
+      if (zi >= 4 && outside(s)) continue;
       d = "";
       for (j = 0; j <= per; j++) {
         p = curveOf(route, s, j / per);
@@ -5716,6 +5751,8 @@ function paintBook() {
     for (s = 0; s < N; s++) {
       p = route.legs[s];
       var px = MAPF.x(p[1]), py = MAPF.y(p[0]);
+      /* ⭐ 0825d — 길목 이름도 화면 밖이면 안 만든다(위와 같은 까닭) */
+      if (zi >= 4 && (px < -200 || px > MAPBOX.w + 200 || py < -200 || py > MAPBOX.h + 200)) continue;
       var up = (s % 2 === 0);
       var ty = py + (up ? -7 : 13);
       var half = String(p[2]).length * 4.6;             /* 글자 폭 어림 (8.5px 한글) */
