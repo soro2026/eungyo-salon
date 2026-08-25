@@ -219,7 +219,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0825g";
+  var VERSION = "0825h";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1290,6 +1290,7 @@
     var roKm = 9e9;                       /* 활주로에서 나아간 항적 km. tdKm 과 한 줄에서 난다 */
     var DEP_H = null;                     /* 부양하는 순간 붙드는 표고 (RWY_H 의 거울) */
     var HOLD_T = 0;                       /* 스탠바이를 시작한 시각(ms). ⚠ 발밑이 잡힌 뒤에 센다 */
+    var PA_CLEAR = 0;                     /* ⭐ 0825h 방송이 다 끝난 시각 — 침묵 한 박자를 잰다 */
     var ROLLING = false;                  /* 문이 열렸나 */
     var LIFT = 0, LIFT_KM = 0;            /* 부양한 시각(ms) · 그때의 roKm */
     var GEARDN = 0;                       /* 착륙 기어를 내리기 시작한 시각(ms) */
@@ -1711,11 +1712,20 @@
                ⭐ 그리고 발밑이 잡히기 전에는 세지 않는다 — 재는 시간을 벌려고 서 있는 것이다. */
             if (!ROLLING) {
               if (!HOLD_T && LA[0] != null) HOLD_T = now;
-              if (HOLD_T && (now - HOLD_T) / 1000 >= holdSec(route)) {
-                ROLLING = true;
-                try { console.log("[EG] ✈ 브레이크 해제 — 스탠바이 "
-                  + holdSec(route) + "초 · 활주로 표고 " + Math.round(groundH) + "m"); } catch (e) { }
-              }
+              /* ⭐⭐⭐ 0825h — 여기가 그 「안쪽 한 줄」이다(0825a 가 열어 둔 문).
+                 ⚠ 방송이 남았으면 안 나간다. 사무장이 「승무원은 이륙 준비 바랍니다」를
+                   말하기 전에 기체가 구르면, 그 방송은 거짓말이 된다.
+                 ⭐ 그리고 침묵 한 박자 — 말이 끝나자마자 엔진이 터지면 그것도 급하다. */
+              if (HOLD_T && (now - HOLD_T) / 1000 >= holdSec(route) && !paHoldsRoll()) {
+                if (!PA_CLEAR) PA_CLEAR = now;
+                if (now - PA_CLEAR >= 1500) {
+                  ROLLING = true;
+                  try { console.log("[EG] ✈ 브레이크 해제 — 스탠바이 "
+                    + Math.round((now - HOLD_T) / 1000) + "초"
+                    + (PA_LIST.length ? " (방송 뒤)" : "")
+                    + " · 활주로 표고 " + Math.round(groundH) + "m"); } catch (e) { }
+                }
+              } else PA_CLEAR = 0;
             }
             CLB = tblAt(route.clmb, roKm);
             if (CLB) {
@@ -2079,7 +2089,7 @@
                   ⭐ settled 를 풀어 지면을 다시 재게 한다. 그 한 줄이 고도를 앉힌다. */
                TAKEOFF = (!LOOP && !!route.clmb && seg === 0 && u < 0.001);
                if (TAKEOFF) {
-                 HOLD_T = 0; ROLLING = false; LIFT = 0; LIFT_KM = 0;
+                 HOLD_T = 0; PA_CLEAR = 0; ROLLING = false; LIFT = 0; LIFT_KM = 0;
                  DEP_H = null; GEARDN = 0; GEAR_H = -1; settled = false;
                }
              },
@@ -3341,6 +3351,11 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
         var e = PA_LIST[i];
         if (PA_DONE[e.ref]) continue;
         if (!paReady(e, ctx)) continue;
+        /* ⭐⭐ 0825h — 출발 전 방송은 **차례가 목숨**이다(소로 0825).
+           환영 → 안전 브리핑 → 이륙 대기. 앞의 것이 끝나야 다음이 나간다.
+           ⚠⚠ 큐에 몰아넣으면 안 된다 — 상한이 둘이라 셋 중 하나가 조용히 버려진다.
+             ⭐ PA_DONE 을 찍기 **전에** 물러나므로 다음 초에 다시 후보가 된다. */
+        if ((e.cue || {}).before_roll && (PA_NOW || PA_Q.length)) continue;
         PA_DONE[e.ref] = true;
         /* ⚠ 둘까지만 쌓는다. 셋째는 버린다 — 늦게 나가는 방송은 거짓말이 된다 */
         if (PA_NOW || PA_Q.length) { if (PA_Q.length < 2) PA_Q.push(e); }
@@ -3578,6 +3593,37 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       for (i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2.6);
     }
     PA_IR = buf; return PA_IR;
+  }
+
+  /* ══ ⭐⭐⭐ 0825h 출발 문 — 소로 0825 ═══════════════════════════════════════════
+     > 「사무장의 이륙 안내 방송이 나온 후에 이륙해야 할텐데… 실제 동체 움직임과 연동 되어 있어?」
+
+     ⚠⚠ 안 되어 있었다. 문은 **15초만** 보고 있었다.
+       그리고 그보다 나쁜 것 — 표의 phase 가 board·safety 인데 cruise 가 내는 국면에
+       그 둘이 없어서, **탑승 환영과 안전 브리핑이 영영 안 나갔다.**
+     ⭐ 0825a 가 이 자리에 쪽지를 남겨 두었다 — 「기내 방송이 들어오는 날 이 안쪽
+       한 줄만 바뀐다」. 오늘 그 한 줄을 바꾼다.
+
+     ⭐⭐ 「몇 초 지났나」가 아니라 **「나가도 되나」**를 묻는다. 답하는 것 셋 —
+       ㉠ 아직 싣는 중인가        ⚠ 서버 왕복이 15초보다 빠르다는 보장이 없다
+       ㉡ 지금 트는 중인가
+       ㉢ 출발 전 방송이 남았나   ⭐ 표의 before_roll 이 정한다. 이름을 코드에 안 박는다
+     ⚠ 그물 — 싣기가 8초를 넘으면 포기하고 그냥 간다. 서버가 죽었는데 활주로에
+       영영 서 있는 것이 방송을 놓치는 것보다 나쁘다.
+     ⚠ 방송이 안 구워졌으면 PA_LIST 에 없으니 물을 것이 없다 — 15초 그대로 간다. */
+  var PA_LOAD_T = 0;                /* 싣기 시작한 시각 — 0 이면 안 부른 것 */
+  function paHoldsRoll() {
+    if (PA_LOAD_T && !PA_LIST.length) {
+      /* 아직 안 실렸다 — 8초까지만 기다린다 */
+      return (performance.now() - PA_LOAD_T) < 8000;
+    }
+    if (!PA_LIST.length) return false;
+    if (PA_NOW || PA_Q.length) return true;
+    for (var i = 0; i < PA_LIST.length; i++) {
+      var e = PA_LIST[i];
+      if ((e.cue || {}).before_roll && !PA_DONE[e.ref]) return true;
+    }
+    return false;
   }
 
   function grabNode(nm) {
@@ -6907,6 +6953,7 @@ function paintBook() {
        ⚠ 못 받아도 방은 그냥 선다 — 방송 없는 비행이 될 뿐이고, 그것이 못 뜨는 것보다 낫다.
        ⭐ 이어 타기(rz.flown > 0)면 지나간 방송을 되짚는다 — 소리는 안 내고 결과만 물려받고,
          다시 앉으신 손님께 한마디 드린다. ⚠ 처음 타시면 되짚기를 아예 안 부른다. */
+    PA_LOAD_T = performance.now();       /* ⭐ 0825h — 문이 이 값을 본다 */
     paLoad(route.code || "").then(function () {
       if (!ROOT) return;                        /* ⚠ 그 사이 나가셨으면 물러난다(41호 ㉤) */
       if (rz.flown > 0) {
@@ -7236,6 +7283,18 @@ function paintBook() {
                          if (arguments.length) PA_FADE = Math.max(0, Math.min(3, +v || 0));
                          console.log("[EG] 꼬리 " + PA_FADE.toFixed(2) + "초 · 머리 " + PA_RISE + "초");
                          return PA_FADE;
+                       },
+                       /* ⭐ 0825h 시승 장치 — ⚠ 출발 전 방송 셋이 2분 24초다.
+                          egReading.paSkip()   ⭐ 남은 출발 방송을 건너뛰고 곧장 구른다 */
+                       paSkip: function () {
+                         var n = 0;
+                         for (var i = 0; i < PA_LIST.length; i++) {
+                           var e = PA_LIST[i];
+                           if ((e.cue || {}).before_roll && !PA_DONE[e.ref]) { PA_DONE[e.ref] = true; n++; }
+                         }
+                         paHush();
+                         console.log("[EG] 출발 방송 " + n + "편을 건너뜁니다 — 곧 구릅니다");
+                         return n;
                        },
                        paVerb: function (v) {
                          if (arguments.length) {
