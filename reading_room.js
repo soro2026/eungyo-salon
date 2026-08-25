@@ -45,6 +45,20 @@
      ⚠ 방 전용이다 — 나갈 때 primitives.remove. terra 하늘에 안 남긴다.
      ⚠ 조절판(G)은 관리자만. 저장하는 것은 **배율 넷뿐**이고 범위표는 코드가 쥔다(41호 ㉬).
 
+   ⚠⚠ 0825p — **모니터를 화면 밖으로 밀면 되찾을 수 없었다** (소로 0825).
+     ⚠ 옛 그물은 「60px 은 남긴다」였는데, **잡는 곳이 왼쪽 위(제목줄)**이고
+       **되돌리는 단추가 오른쪽 아래**라 오른쪽으로 밀면 둘 다 나갔다.
+       ⭐ 남긴 60px 이 하필 **잡을 데가 없는 쪽**이었다.
+     ⭐⭐ 처방 넷 —
+       ㉠ 왼쪽 위 모서리를 화면 안에 못 박는다(x 0~vw−180 · y 0~vh−76). 제목줄이 늘 잡힌다
+       ㉡ RESET 단추를 **제목줄 곁으로** 옮긴다 — 되돌릴 손과 잡을 손이 한 곳에 있어야 한다
+       ㉢ 자른 값을 MONOUT 에 **되쓴다** — 창을 줄였다 늘릴 때 먼 값이 되살아나지 않게
+       ㉣ 구조 손 둘 — egReading.monHome() · ⭐ **Shift+H**
+         ⚠ 콘솔을 못 여는 곳(폰)에서도 되찾아야 한다. 키가 유일한 길인 때가 있다
+     ⚠ 그리고 창 **밖에서** 손을 떼면 pointerup 이 판에 안 와 드래그가 안 끝났다 —
+       ⭐ window 에도 끝내는 줄을 걸었다(끄는 길을 둘로 · 0821k 수칙).
+     ⚠⚠ 검산이 하나 더 잡았다 — 왼쪽으로 끝까지 밀면 여전히 못 잡았다. 0 에서 멈춘다.
+
    ⚠⚠ 0825o — 계기 뒤집기가 안 먹었다 (소로 0825 「작동 안 해요」).
      진범: **#egrTrip 이 pointer-events:none** 이었다. 지도를 안 가리려고 판 전체를
      통과시켜 두어서, 배지에 클릭을 붙여도 **손이 닿지 않았다.**
@@ -316,7 +330,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0825o";
+  var VERSION = "0825p";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -2527,7 +2541,9 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 #monGrip:hover::before{opacity:1}
 #readingRoom.out #monGrip{display:block}
 /* ⭐ 되돌리는 손 — 화면 밖으로 밀어 놓고 못 찾는 일이 없게 */
-#monHome{display:none;position:absolute;right:30px;bottom:2px;z-index:9;
+/* ⚠ 0825p — 오른쪽 아래에 두었더니 모니터를 밀면 단추가 함께 나갔다.
+   ⭐ **잡는 곳(제목줄) 곁으로 옮긴다** — 되돌릴 손과 잡을 손이 한 곳에 있어야 한다. */
+#monHome{display:none;position:absolute;left:8px;bottom:6px;z-index:9;
   font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.06em;
   color:var(--dim,#8a7f6a);background:none;border:0;cursor:pointer;padding:4px 6px}
 #monHome:hover{color:var(--accent,#c9a961)}
@@ -5606,10 +5622,21 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
         var mw = MON_W * sc, mh = MON_H * sc;
         var mx0, my0;
         if (MONOUT.set) {
-          /* ⚠ 화면 밖으로 못 나간다 — 한 번 놓치면 되찾을 길이 없다.
-             ⭐ 60px 은 남긴다. 모서리만 걸쳐 있어도 다시 잡을 수 있게. */
-          mx0 = Math.max(60 - mw, Math.min(vw - 60, MONOUT.x));
-          my0 = Math.max(0, Math.min(vh - 60, MONOUT.y));
+          /* ══ ⚠⚠ 0825p — **그물이 헐거웠다** (소로 0825 「너무 구석으로 밀었나봐.
+                 저거 다시 옮기는게 안되는데?」) ═══════════════════════════════════
+             ⚠ 옛 그물은 「60px 은 남긴다」였다. 그런데 **잡는 곳이 왼쪽 위(제목줄)**이고
+               **되돌리는 단추가 오른쪽 아래**라, 오른쪽으로 밀면 둘 다 화면 밖으로 나간다.
+               ⭐ 남긴 60px 이 하필 잡을 데가 없는 쪽이었다.
+             ⭐⭐ 이제 **왼쪽 위 모서리를 화면 안에 못 박는다.** 제목줄이 늘 잡힌다.
+               ⚠ 오른쪽으로는 폭의 절반까지만 — 그 이상 밀 까닭이 없다.
+             ⭐ 그리고 자른 값을 **MONOUT 에 되쓴다.** 안 그러면 창을 줄였다 늘릴 때
+               원래의 먼 값이 되살아난다. */
+          /* ⚠ 검산이 하나 더 잡았다 — 왼쪽으로는 **0 에서 멈춘다.**
+             제목줄이 왼쪽 위에 있으니 왼쪽으로 나가면 그것부터 사라진다.
+             ⭐ 그리고 왼쪽으로 더 밀 까닭이 애초에 없다. */
+          mx0 = Math.max(0, Math.min(vw - 180, MONOUT.x));
+          my0 = Math.max(0, Math.min(vh - 76, MONOUT.y));
+          MONOUT.x = mx0; MONOUT.y = my0;
         } else {
           mx0 = 26; my0 = vh - mh - 26;
         }
@@ -6128,18 +6155,20 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
         drag = null; monOutSave();
         try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (x) { }
       }
+      /* ⚠⚠ 0825p — 창 **밖에서** 손을 떼면 pointerup 이 판에 안 온다. 그러면 드래그가
+         안 끝나고, 다음에 그 위를 지나기만 해도 판이 따라붙는다(소로 「키도 안 먹힘」의
+         유력한 갈래다). ⭐ window 에도 끝내는 줄을 함께 건다 — **끄는 길을 둘로.** */
       if (head) {
         EGR_on(head, "pointerdown", function (e) { begin(e, "move"); });
         EGR_on(head, "pointermove", move);
-        EGR_on(head, "pointerup", end);
-        EGR_on(head, "pointercancel", end);
       }
       if (grip) {
         EGR_on(grip, "pointerdown", function (e) { begin(e, "size"); });
         EGR_on(grip, "pointermove", move);
-        EGR_on(grip, "pointerup", end);
-        EGR_on(grip, "pointercancel", end);
       }
+      EGR_on(window, "pointerup", end);
+      EGR_on(window, "pointercancel", end);
+      EGR_on(window, "blur", function () { if (drag) { drag = null; monOutSave(); } });
       if (home) EGR_on(home, "click", function (e) { e.stopPropagation(); monOutReset(); });
 
       /* ⭐⭐ 0825m — 두 계기를 눌러 뒤집는다. 라벨이 함께 바뀌므로 무엇을 보는지 늘 분명하다 */
@@ -7288,6 +7317,9 @@ function paintBook() {
       else if (k === "s") toggleShade();
       else if (k === "e") setEdit(!editing);
       else if (k === "f") toggleFps();        /* ⭐ 0820i — 관리자만 */
+      /* ⭐⭐ 0825p 구조 — Shift+H. ⚠ 콘솔을 못 여는 곳(폰·태블릿)에서도 되찾아야 한다.
+         모니터를 화면 밖으로 밀어 놓으면 잡을 데가 없어지는데, 그때 이 키가 유일한 길이다. */
+      else if (k === "h" && e.shiftKey) { monOutReset(); say("모니터를 제자리로"); }
       else if (k === "g") toggleCloudPanel();  /* ⭐ 0820j — 관리자만 */
       /* ⭐⭐ 0825m 소리 조절판 — ⚠ 손님도 연다. 볼륨은 귀가 정하는 것이고
          소로 것과 손님 것이 다를 까닭이 없다(구름 조절판과 갈래가 다르다). */
@@ -7911,6 +7943,13 @@ function paintBook() {
                          if (arguments.length) { PA_SUB = !!v; if (!PA_SUB) paSayOff(); }
                          console.log("[EG] 방송 자막 " + (PA_SUB ? "켬" : "끔"));
                          return PA_SUB;
+                       },
+                       /* ⭐⭐ 0825p 구조 — 모니터를 화면 밖으로 밀어 놓으셨을 때.
+                          egReading.monHome()   모니터를 제자리로 (저장값도 지운다) */
+                       monHome: function () {
+                         monOutReset();
+                         console.log("[EG] 모니터를 제자리로 돌렸습니다");
+                         return true;
                        },
                        /* ⭐ 0825L — 감상 카메라가 지면에서 얼마나 떠 있나(m) */
                        orbFloor: function (v) {
