@@ -219,7 +219,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0825h";
+  var VERSION = "0825i";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1882,6 +1882,8 @@
                   : (route.arr && tdKm < 9e8 && tdKm <= 300 && !TOUCH) ? "desc"
                   : "cruise";
           paTick(now, { phase: _ph, min: flown / 60, seg: seg, alt: rel,
+                        /* ⭐ 0825i — 이륙 노선이 아직 안 굴렀으면 false. 다른 노선은 이미 날고 있다 */
+                        rolling: TAKEOFF ? !!ROLLING : true,
                         sun: sunAltDeg(lat, lon) });
         }
         /* ══ ⭐⭐ 0822e 관측 장치 — 「짐작으로 고치지 않는다」 ════════════════════
@@ -3259,6 +3261,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   var PA_SEEN = {};                 /* 무작위 방송이 이미 주사위를 굴렸나 */
   var paAudio = null, paSrc = null, paGain = null, paLp = null, paHp = null;
   var paVerb = null, paWet = null;   /* ⭐ 0825g 잔향 — ⚠ paHush 에서 함께 놓는다 */
+  var paPk = null, paSh = null, paHiss = null, paHissG = null;   /* ⭐ 0825i 스피커 · 잡음 */
 
   /* ⭐⭐ 태양 고도 — **Cesium 에 안 기댄다.** 순수 천문 셈이라 컨테이너에서 검산했다.
      실측 대조(0825): 서울 하지 정오 74.1°(실제 75.9) · 동지 28.6°(29.0) ·
@@ -3314,6 +3317,14 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⚠ 조건이 **하나라도 안 맞으면 false.** 「거의 맞으면 튼다」가 없다. */
   function paReady(e, ctx) {
     var c = e.cue || {};
+    /* ══ ⭐⭐⭐ 0825i — 소로 0825 시승: 「착륙 방송이 갑자기」 「순항 상승 중이 갑자기」 ══
+       ⚠⚠ 진범 하나가 둘을 낳았다 — **구르기 전에도 모든 방송이 후보였다.**
+         ㉠ land3k: 첫 프레임에 고도가 순항값(11,000)이었다가 발밑이 잡히며 활주로로
+            떨어진다(0825a 가 적어 둔 그 병). 그 낙하가 「3,000m 를 아래로 통과」로 읽혔다
+         ㉡ climb_after(min 3): 출발 방송이 2분 24초라 **아직 안 굴렀는데** 3분이 지났다
+       ⭐ 둘 다 한 줄로 막힌다 — 구르기 전에는 before_roll 만 나간다.
+         ⚠ 「아직 안 굴렀는데 상승 중이라고 말하는 것」이 애초에 말이 안 된다. */
+    if (ctx.rolling === false && !c.before_roll) return false;
     if (c.phase && c.phase !== ctx.phase) return false;
     if (c.min != null && ctx.min < c.min) return false;
     if (c.leg != null && ctx.seg < c.leg) return false;
@@ -3346,6 +3357,9 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   function paTick(now, ctx) {
     if (now - PA_T < 1000) return;
     PA_T = now;
+    /* ⚠ 첫 판정에서는 고도를 **재기만** 한다. 지난 값이 없으면 통과를 잴 수 없고,
+       0 을 지난 값으로 쓰면 「방금 올라왔다」가 된다(0825i 의 land3k 병과 같은 뿌리). */
+    if (PA_ALT === 0) { PA_ALT = ctx.alt; PA_SUN = ctx.sun; return; }
     if (PA_LIST.length) {
       for (var i = 0; i < PA_LIST.length; i++) {
         var e = PA_LIST[i];
@@ -3398,16 +3412,17 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     paSay(e);
     var done = function () {
       PA_NOW = null;
+      /* ⚠ 0821k 수칙 — 켜는 줄을 지었으면 끄는 줄도 짝으로. 잡음은 제 손으로 멈춘다 */
+      try { if (paHiss) { paHiss.stop(); paHiss = null; } } catch (x) { }
       /* ⭐ 0825g — 엔진음·음악이 **반 박자 뒤에** 돌아온다. 말이 끝나자마자 소리가
          밀려 올라오면 그것도 「툭」이다. 실물 기내도 잠깐 조용하다 음악이 든다. */
       EGR_later(function () { paDuck(false); }, 600);
       EGR_later(paSayOff, 1400);           /* ⭐ 소리가 끝나도 글자는 조금 더 남는다 */
       if (PA_Q.length) EGR_later(function () { var n = PA_Q.shift(); if (n) paPlay(n); }, 2200);
     };
-    if (!sndOn || CH === 2) {              /* ⚠ 소리를 끄셨으면 글자만. 그래도 지나간다 */
-      EGR_later(done, Math.max(4000, e.ko.length * 90));
-      return;
-    }
+    /* ⚠ 소리를 끄셨으면 그냥 지나간다. 자막을 끈 뒤로는 보여 드릴 것이 없다 —
+       ⭐ 그래도 PA_DONE 은 찍혔으므로 되풀이되지 않는다(17호: 놓치면 그만이다). */
+    if (!sndOn || CH === 2) { EGR_later(done, 1200); return; }
     paChime(function () {
       if (PA_NOW !== e) return;            /* ⚠ 그 사이에 방을 나가셨으면 물러난다(41호 ㉤) */
       paDuck(true);
@@ -3422,15 +3437,59 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
         paGain = a.createGain();
         paGain.gain.value = 0.0001;        /* ⭐ 0 에서 시작해 머리를 든다 */
         var head = paSrc;
-        if (e.role === "captain") {
-          /* ⭐ 무전 — 300~3,400Hz 만 남긴다. 전화선 대역이고 기내 방송이 실제로 그렇다 */
-          paHp = a.createBiquadFilter(); paHp.type = "highpass"; paHp.frequency.value = 300;
-          paLp = a.createBiquadFilter(); paLp.type = "lowpass";  paLp.frequency.value = 3400;
-          head.connect(paHp).connect(paLp); head = paLp;
-        } else { paHp = paLp = null; }
+        /* ══ ⭐⭐⭐ 0825i 기내 스피커 — 소로 0825 ═══════════════════════════════════
+           > 「방송이 기내 방송 같지 않게 너무 깨끗한데 ㅠㅠ 좀 지직거리고 약간 음질 나쁘고
+           >   해야 하는데.. 너무 또렷하고 맑아」
+
+           ⚠ 0825g 는 **기장에게만** 무전을 걸었다. 사무장 방송은 스튜디오 그대로였다.
+           ⭐ 실물 기내 스피커가 소리를 버리는 길은 셋이고, 셋을 다 흉내 낸다 —
+             ㉠ 대역   천장에 박힌 작은 콘 스피커라 저음이 안 나오고 고음이 안 뻗는다
+             ㉡ 왜곡   앰프가 값싸고 작게 눌러 담아 살짝 뭉갠다(soft clip)
+             ㉢ 잡음   배선이 길다. 방송이 켜지는 동안 아주 옅은 쉬익이 함께 온다
+           ⭐ 셋 다 콘솔에서 끌 수 있게 둔다 — 과하면 말이 안 들린다. 귀가 정한다. */
+        if (PA_TONE > 0.001) {
+          paHp = a.createBiquadFilter(); paHp.type = "highpass";
+          paHp.frequency.value = (e.role === "captain") ? 420 : 300;
+          paHp.Q.value = 0.9;
+          paLp = a.createBiquadFilter(); paLp.type = "lowpass";
+          paLp.frequency.value = (e.role === "captain") ? 2900 : 3800;
+          paLp.Q.value = 0.9;
+          /* ⭐ 가운데를 살짝 밀어 올린다 — 작은 스피커의 「깡통」 소리가 여기서 난다 */
+          paPk = a.createBiquadFilter(); paPk.type = "peaking";
+          paPk.frequency.value = 2000; paPk.Q.value = 1.1;
+          paPk.gain.value = 5 * PA_TONE;
+          head.connect(paHp).connect(paLp).connect(paPk); head = paPk;
+          /* ㉡ 왜곡 — tanh 로 부드럽게 뭉갠다. ⚠ 하드 클립은 찢어진다 */
+          try {
+            paSh = a.createWaveShaper();
+            var n = 1024, cv = new Float32Array(n), k = 1 + 6 * PA_TONE, i2;
+            for (i2 = 0; i2 < n; i2++) {
+              var x = (i2 / (n - 1)) * 2 - 1;
+              cv[i2] = Math.tanh(k * x) / Math.tanh(k);
+            }
+            paSh.curve = cv; paSh.oversample = "2x";
+            head.connect(paSh); head = paSh;
+          } catch (x) { paSh = null; }
+        } else { paHp = paLp = paPk = paSh = null; }
         /* ⭐⭐ 잔향은 **볼륨 단추 앞**에 단다 — 꼬리를 눕힐 때 잔향도 함께 눕는다.
            ⚠ 뒤에 달면 소리는 껐는데 잔향만 남아 허공에서 울린다. */
         head.connect(paGain);
+        /* ㉢ 잡음 — ⭐ 방송이 켜져 있는 동안만 아주 옅게 흐른다. 배선이 긴 스피커의 티다.
+           ⚠ paGain **앞**에 문다 — 꼬리를 눕힐 때 잡음도 함께 사라져야 한다.
+             뒤에 물면 말이 끝나고 쉬익만 남는다. */
+        if (PA_HISS > 0.0001) {
+          try {
+            var nb = a.createBuffer(1, Math.floor(a.sampleRate * 2), a.sampleRate);
+            var nd2 = nb.getChannelData(0), j2;
+            for (j2 = 0; j2 < nd2.length; j2++) nd2[j2] = Math.random() * 2 - 1;
+            paHiss = a.createBufferSource(); paHiss.buffer = nb; paHiss.loop = true;
+            var hbp = a.createBiquadFilter(); hbp.type = "bandpass";
+            hbp.frequency.value = 2400; hbp.Q.value = 0.7;
+            paHissG = a.createGain(); paHissG.gain.value = PA_HISS;
+            paHiss.connect(hbp).connect(paHissG).connect(paGain);
+            paHiss.start();
+          } catch (x) { paHiss = null; paHissG = null; }
+        } else { paHiss = null; paHissG = null; }
         if (PA_WET > 0.001) {
           try {
             paVerb = a.createConvolver(); paVerb.buffer = paIR(a);
@@ -3471,7 +3530,17 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
         paAudio.addEventListener("error", done);
         paAudio.play().catch(function () { done(); });
         /* ⚠ 그물 — 끝났다는 말이 안 오면 다섯 자에 1초로 어림해 넘긴다 */
-        EGR_later(function () { if (PA_NOW === e) done(); }, Math.max(8000, e.ko.length * 220));
+        /* ⚠⚠ 0825i 진범 — 그물이 **글자 수 어림**이었다. standby 71자 × 220 = 15.6초인데
+           한국어+영어를 이어 구운 실물은 20초가 넘는다. 그물이 먼저 터져 done() 이 불렸고,
+           **방송이 끝나기 전에 문이 열려 기체가 굴렀다**(소로 「마치기 전에 슬슬 출발」).
+           ⭐ 파일이 제 길이를 안다. 받는 즉시 그물을 그 길이로 다시 건다. */
+        var netT = EGR_later(function () { if (PA_NOW === e) done(); }, 30000);
+        paAudio.addEventListener("loadedmetadata", function () {
+          var d = paAudio.duration;
+          if (!isFinite(d) || d <= 0) return;
+          try { clearTimeout(netT); } catch (x) { }
+          EGR_later(function () { if (PA_NOW === e) done(); }, d * 1000 + 2500);
+        });
       } catch (x) { console.warn("[EG] 방송을 못 틀었습니다:", x && x.message); done(); }
     });
   }
@@ -3485,7 +3554,13 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     } catch (e) { }
   }
 
+  /* ══ ⚠ 0825i 자막 — 소로 0825 「방송 자막은 삭제 바람. 지금 팝업으로 뜨고 있음」 ══
+     ⭐ 껐다. 방송은 **소리로만** 온다 — 그것이 기내다.
+     ⚠ 판과 CSS 는 남긴다. 지우면 되살릴 때 다시 지어야 하고, 꺼진 판은 값이 0 이다.
+       ⭐ 소리를 끄신 손님께 글자를 드리는 날이 오면 egReading.paSub(true) 한 줄이다. */
+  var PA_SUB = false;
   function paSay(e) {
+    if (!PA_SUB) return;
     if (!ROOT) return;
     var el = ROOT.querySelector("#egrPA"); if (!el) return;
     el.querySelector("b").textContent = (e.role === "captain") ? "기장 안내" : "기내 안내";
@@ -3498,7 +3573,9 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   }
   function paHush() {
     try { if (paAudio) { paAudio.pause(); paAudio = null; } } catch (e) { }
+    try { if (paHiss) { paHiss.stop(); } } catch (e) { }
     paSrc = null; paGain = null; paLp = null; paHp = null; paVerb = null; paWet = null;
+    paPk = null; paSh = null; paHiss = null; paHissG = null;
     PA_NOW = null; PA_Q = [];
     paSayOff();
   }
@@ -3575,6 +3652,8 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   var PA_FADE = 0.45;               /* 꼬리를 눕히는 시간(초). egReading.paFade(s) */
   var PA_RISE = 0.12;               /* 머리를 드는 시간(초) */
   var PA_WET  = 0.20;               /* ⭐ 잔향 섞는 양. egReading.paVerb(v) */
+  var PA_TONE = 0.75;               /* ⭐ 0825i 스피커 티 — 0 이면 스튜디오. egReading.paTone(v) */
+  var PA_HISS = 0.012;              /* ⭐ 0825i 배선 잡음 — 아주 옅게. egReading.paHiss(v) */
   var PA_IR   = null;               /* 임펄스 — 한 번만 짓는다 */
 
   /* ⭐⭐ 0825g 잔향 — **페이드만으로는 「여운」이 안 된다.**
@@ -7286,6 +7365,29 @@ function paintBook() {
                        },
                        /* ⭐ 0825h 시승 장치 — ⚠ 출발 전 방송 셋이 2분 24초다.
                           egReading.paSkip()   ⭐ 남은 출발 방송을 건너뛰고 곧장 구른다 */
+                       /* ══ ⭐ 0825i 스피커 티 — ⚠ 다음 방송부터 듣습니다 ══════════
+                          egReading.paTone(1)    ⭐ 더 지직 · 0 이면 스튜디오 (지금 0.75)
+                          egReading.paHiss(0.02) ⭐ 배선 잡음 더 · 0 이면 없음 (지금 0.012)
+                          egReading.paSub(true)  ⚠ 자막을 되살립니다 (기본 꺼짐) */
+                       paTone: function (v) {
+                         if (arguments.length) PA_TONE = Math.max(0, Math.min(1.5, +v || 0));
+                         console.log("[EG] 스피커 티 " + PA_TONE.toFixed(2)
+                           + (PA_TONE < 0.01 ? " (없음 — 스튜디오 소리)" : "") + " · ⚠ 다음 방송부터");
+                         return PA_TONE;
+                       },
+                       paHiss: function (v) {
+                         if (arguments.length) {
+                           PA_HISS = Math.max(0, Math.min(0.08, +v || 0));
+                           try { if (paHissG) paHissG.gain.value = PA_HISS; } catch (e) { }
+                         }
+                         console.log("[EG] 배선 잡음 " + PA_HISS.toFixed(3));
+                         return PA_HISS;
+                       },
+                       paSub: function (v) {
+                         if (arguments.length) { PA_SUB = !!v; if (!PA_SUB) paSayOff(); }
+                         console.log("[EG] 방송 자막 " + (PA_SUB ? "켬" : "끔"));
+                         return PA_SUB;
+                       },
                        paSkip: function () {
                          var n = 0;
                          for (var i = 0; i < PA_LIST.length; i++) {
