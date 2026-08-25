@@ -45,7 +45,35 @@
      ⚠ 방 전용이다 — 나갈 때 primitives.remove. terra 하늘에 안 남긴다.
      ⚠ 조절판(G)은 관리자만. 저장하는 것은 **배율 넷뿐**이고 범위표는 코드가 쥔다(41호 ㉬).
 
-   ⭐⭐⭐ 0825a — 인천 이륙. **착륙의 거울이다.** 소로 실측 활주로 두 점 + KAL901 항적.
+   ⭐⭐⭐ 0825e — 세대 도장 · 바퀴 회전. 소로 0825 「B 눌러서 밖으로 나가니 바퀴가 튀어나옴」
+     ⚠⚠ 진범 — B 를 껐다 켜면 Model 이 **통째로 새것**이 된다. 787 은 기어가 내려온 채로
+       구워져 있으니 새 기체는 바퀴가 다 나와 있다. 그런데 GEAR_H(「얼마나 감췄나」)는
+       1 그대로 남아, 다음 프레임의 gearWave(1) 이 「이미 1이네」로 물러난다.
+       ⭐ **기체는 갈렸는데 기억이 안 갈렸다.** 소로 관찰이 정확했다 — 「처음으로 되돌아가는 듯」.
+     ⭐⭐ 처방을 「지우기」가 아니라 **세대 도장**으로 했다. bodyOff 에 GEAR_H=-1 한 줄이면
+       오늘은 낫지만, 노드를 만지는 손이 늘 때마다 저쪽 함수까지 가서 한 줄을 더해야 한다.
+       그 한 줄을 오늘 이미 빠뜨렸고, 0821k(「× 로 내려도 바람이 안 멈춘다」)도 같은 병이었다.
+       ⭐ 기억에 **어느 기체 것인지**를 함께 적으면, 새 기체가 설 때 빗장이 저절로 열린다.
+         새 손은 제 함수 안에서 한 줄만 적으면 된다 — 잊는 것은 늘 「멀리 가서 적는 쪽」이다.
+       ⭐ 넷이 함께 걸렸다: 기어 · 스포일러 · **플랩(아직 잠긴 것까지 미리)** · 바퀴
+     ⭐⭐⭐ 바퀴 회전 (소로 0825 「이륙할 때 바퀴가 빙글빙글… 왠지 가능하지 않을까 예감」)
+       ⭐ 예감이 맞았고, 플랩·기어보다 **쉬웠다.** 까닭이 정확히 하나다 —
+         플랩 경첩은 후퇴각을 따라 누운 선이라 점 하나로 잡으면 판이 비틀렸고(0825a),
+         기어 다리 피벗의 X 는 상자로 아예 안 나온다(다듬기목록 ㉡).
+         ⭐⭐ **바퀴는 회전축이 상자 한가운데를 지난다.** 원기둥이니 중심이 곧 굴대다.
+           localBox 로 잰 값이 여기서는 짐작이 아니라 정답이다.
+       ⭐ 코드가 스스로 고른다 — 세 폭 중 **두 축이 둥글고(≥0.8) 나머지가 얇고**
+         그 지름이 0.5~1.8m 면 바퀴다. 다리·버팀대는 한 축이 길쭉해서 안 걸린다.
+         ⚠ 짐작이 두 번 빗나간 갈래라(v190) 콘솔에 **왜 골랐는지 표로 적고**,
+           소로가 뒤집을 손 넷을 함께 둔다 — wheels() · spin(rps) · wheelDir(±1) · wheelSet()
+       ⚠⚠ 시뮬이 하나 잡았다 — 처음에 「안 닿았으면 0」으로 적었더니 **유도로에 선 기체의
+         바퀴가 초당 2.3바퀴로 계속 돌았다.** 0 은 「땅에서 멈춤」과 「공중」을 못 가른다.
+         ⭐ 음수로 갈랐다. 붙는 시간이 셋이다 — 접지 0.6초(미끄러짐) · 지면 0.2초(물려 있음)
+           · 공중 3초(브레이크). ⭐ 접지 0.6초가 타이어 스모크와 **같은 순간·같은 값**이다.
+       ⚠ 무늬가 없으면 아무리 빨리 돌아도 안 도는 것과 구분이 안 간다. **화면이 답한다** —
+         egReading.spin(1) 로 초당 한 바퀴만 돌려 보시면 그 자리에서 갈린다.
+
+
      ⭐⭐ 소로 활주로(3,757.4m · 축 144.749°)가 항적을 붙들었다 — 지상점이 출발점에서
        **4.8m** · 첫 공중점이 축에서 **0.1m**. 기체가 중심선 연장선을 그대로 타고 올랐다.
        ⭐ 덤 — 축 위 2,317m 가 옛 부양점과 소수점 다섯째까지 같았다. 두 손이 또 만났다.
@@ -191,7 +219,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0825d";
+  var VERSION = "0825e";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1575,7 +1603,7 @@
     function aimCam() {
       if (window.__egShut || !viewer) return;
       /* ⭐⭐ 0821L — 주인이 여기서 넘어간다. 겨누는 문은 여전히 이 함수 하나뿐이다 */
-      if (BODY) { paintBody(); spinProp(); spinFan(); holdTick(); orbitCam(); return; }
+      if (BODY) { paintBody(); spinProp(); spinFan(); spinWheel(); holdTick(); orbitCam(); return; }
       var look = Cesium.Math.toRadians(clampAng(hd + side * SPEC.view + LOOK.y) + 360);
       var pit = horizonDeg(Math.max(rel, 80)) + (opt.sky || 6) + LOOK.p;
       pit = Math.max(-88, Math.min(88, pit));
@@ -1823,6 +1851,16 @@
                 : clbSpd != null ? clbSpd            /* ⭐ 0825a — 표 밖 · 고도가 속도를 넘긴다 */
                 : route.kmh ? route.kmh
                 : Math.max(route.minKmh || 120, Math.min(route.felt * (spdH / 1000), SPDCAP));
+        /* ══ ⭐⭐ 0825e 바퀴 — **닿아 있으면 속도, 떠 있으면 −1.** 이 한 줄이 전부다 ═══
+           ⚠⚠ 시뮬이 잡은 것 — 처음에 「안 닿았으면 0」으로 적었더니 유도로에 선 기체의
+             바퀴가 초당 2.3바퀴로 계속 돌았다. 0 은 **「땅에서 멈춤」과 「공중」을 못 가른다.**
+             ⭐ 음수로 가른다. 땅에서 서면 바퀴가 1초 안에 멎고(지면에 물려 있으니까),
+               공중에서는 3초에 걸쳐 스르르 멎는다(브레이크가 천천히 잡는다).
+           ⚠ 접지(TOUCH)하면 그 프레임에 274km/h 가 들어와 0.6초 스핀업이 시작된다 —
+             타이어가 미끄러지며 튀어 오르는 그 시간이고, 흰 연기가 나는 까닭이 그것이다.
+           ⭐ paintBody 는 이 값을 못 본다(onTick 지역 변수라 스코프 밖 — 0821S 의 그 병).
+             그래서 **모듈 변수에 적어 두고** spinWheel 이 읽는다. */
+        WHEEL_V = ((TAKEOFF && !LIFT) || TOUCH) ? kmh : -1;
         /* ══ ⭐⭐ 0822e 관측 장치 — 「짐작으로 고치지 않는다」 ════════════════════
            0822d 시승에서 15~16분 지점에 900km/h 로 돌변했다(소로). 고도는 안 변했다니
            0821N 의 되먹임 고리(고도 상승 + 속도 감소)와는 **방향이 반대**다.
@@ -2936,6 +2974,20 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⭐ 부호 — 스포일러는 뒤가 위로(+), 플랩은 뒤가 아래로(−). 같은 X 축 회전이다. */
   var FLAP_ND = ["Flaps", "Flaps 2", "Flaps.001"];
   var GEAR_ON = null, SPOIL_P = null, SPOIL_DEG = -1, FLAP_P = null, FLAP_DEG = -1;
+  /* ══ ⭐⭐⭐ 0825e 세대 도장 — 소로 0825 「B 눌러서 밖으로 나가니 바퀴가 튀어나옴」 ══════
+     ⚠⚠ 진범 — B 를 껐다 켜면 Model 이 **통째로 새것**이 된다(격납고에서 다시 받는다).
+       787 은 기어가 **내려온 채로** 구워져 있으므로 새 기체는 바퀴가 다 나와 있다.
+       그런데 GEAR_H 는 1(감춤) 그대로 남아, 다음 프레임의 gearWave(1) 이
+       「이미 1이네」로 물러난다. **기체는 갈렸는데 기억이 안 갈렸다.**
+     ⚠ 소로 관찰이 정확했다 — 「아마 처음으로 되돌아가는 듯」. 정말로 그렇다.
+     ⭐ 지우는 손(bodyOff 에 GEAR_H=-1 한 줄)으로도 낫는다. 다만 **노드를 만지는 손이
+       하나 늘 때마다 저쪽 함수에 한 줄씩 더해야 한다** — 그 한 줄을 오늘 이미 빠뜨렸고,
+       0821k(바람이 안 멈춘다)도 정확히 같은 병이었다. 이름은 「끄는 길 누락」이다.
+     ⭐⭐ 그래서 기억에 **어느 기체 것인지**를 함께 적는다. 기체가 새로 서면 번호가
+       달라지므로 빗장이 **저절로** 열린다. 새 손은 제 함수 안에서 한 줄만 적으면 되고
+       멀리 있는 bodyOff 까지 갈 일이 없다 — 잊는 것은 늘 후자다. */
+  var BODYGEN = 0;                  /* 기체가 설 때마다 +1 */
+  var GEAR_GEN = -1, SPOIL_GEN = -1, FLAP_GEN = -1, WHEEL_GEN = -1;
   /* ══ ⭐⭐ 0825a 이륙 손잡이 — 콘솔이 넣은 값. null 이면 노선값이 이긴다 ══════════
      ⚠ 22호(값을 두 곳에 안 적는다)와 안 부딪힌다 — 그 조항이 막은 것은 **같은 뜻**의
        값이 두 벌 있는 것이지, 「설계값」과 「손이 넣은 값」처럼 **다른 뜻**이 둘인 것이
@@ -2953,8 +3005,10 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   }
   function flapSet(deg) {
     if (!BODYENT || !BODYENT.ready) return;
-    if (Math.abs(deg - FLAP_DEG) < 0.3) return;
-    FLAP_DEG = deg;
+    /* ⭐ 0825e — 지금은 FLAP_ON=false 라 안 드러나지만, 켜는 날 같은 병이 함께 온다.
+       셋이 한 병이므로 셋을 한꺼번에 막는다. */
+    if (FLAP_GEN === BODYGEN && Math.abs(deg - FLAP_DEG) < 0.3) return;
+    FLAP_DEG = deg; FLAP_GEN = BODYGEN;
     if (!FLAP_P) {
       FLAP_P = {};
       for (var k = 0; k < FLAP_ND.length; k++) {
@@ -3003,8 +3057,9 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   function gearWave(hid) {
     if (!BODYENT || !BODYENT.ready) return;
     hid = Math.max(0, Math.min(1, hid));
-    if (GEAR_H >= 0 && Math.abs(hid - GEAR_H) < 0.02) return;
-    GEAR_H = hid;
+    /* ⭐ 0825e — 「같은 기체이고 값도 같을 때만」 건너뛴다 */
+    if (GEAR_GEN === BODYGEN && GEAR_H >= 0 && Math.abs(hid - GEAR_H) < 0.02) return;
+    GEAR_H = hid; GEAR_GEN = BODYGEN;
     var k = Math.round(hid * GEAR_ND.length);
     for (var i = 0; i < GEAR_ND.length; i++) {
       try { var n = BODYENT.getNode(GEAR_ND[i]); if (n) n.show = (i >= k); } catch (e) { }
@@ -3015,8 +3070,12 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⭐ 피벗을 코드가 스스로 잰다(localBox). 사람이 다시 잴 일이 없다. */
   function spoilSet(deg) {
     if (!BODYENT || !BODYENT.ready) return;
-    if (Math.abs(deg - SPOIL_DEG) < 0.3) return;
-    SPOIL_DEG = deg;
+    /* ⭐ 0825e — 접지 뒤(60°)에 B 를 두 번 누르면 스포일러가 누운 채 서고
+       코드는 「60° 다」라고 믿는다. 기어와 방향만 반대인 같은 병이다. */
+    if (SPOIL_GEN === BODYGEN && Math.abs(deg - SPOIL_DEG) < 0.3) return;
+    SPOIL_DEG = deg; SPOIL_GEN = BODYGEN;
+    /* ⚠ SPOIL_P(경첩 좌표)는 세대를 안 탄다 — localBox 는 같은 GLB 면 같은 값이다.
+       ⭐ 세대가 지켜야 하는 것은 **「지금 어떤 모양인가」**이지 「어디가 경첩인가」가 아니다. */
     if (!SPOIL_P) {
       SPOIL_P = {};
       for (var k = 0; k < SPOIL_ND.length; k++) {
@@ -3034,6 +3093,98 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       pivotRot(SPOIL_ND[i] + ".001", p, d);
     }
   }
+  /* ══ ⭐⭐⭐ 0825e 바퀴 회전 — 소로 0825 「이륙할 때 바퀴가 빙글빙글」 ══════════════
+     ⭐⭐ **플랩·기어가 실패한 그 까닭이 여기서는 성공의 까닭이다.**
+       플랩 경첩은 후퇴각을 따라 **누운 선**이라 점 하나로 잡으면 판이 비틀렸고(0825a),
+       기어 다리 피벗의 X 는 상자로 아예 안 나온다(다듬기목록 ㉡).
+       ⭐ 그런데 바퀴는 **회전축이 상자 한가운데를 지난다.** 원기둥이니까.
+         localBox 로 잰 중심이 바퀴에서는 짐작이 아니라 정답이다.
+     ⭐ 축은 X(좌우). 787 은 기수 +Z · 위 +Y · 좌우 X 라 pivotRot 을 그대로 쓴다.
+     ⚠⚠ 「짐작이 두 번 빗나가 관측 장치를 심었다」(v190)를 여기서도 지킨다 —
+       코드가 고르되 **왜 골랐는지 콘솔에 적고**, 소로가 화면으로 뒤집을 손을 함께 둔다. */
+  var WHEEL_ND = null;              /* 바퀴 노드 이름들 — 코드가 고른다 */
+  var WHEEL_P  = {};                /* 노드마다 굴대 좌표 — ⭐ 고를 때 한 번만 잰다 */
+  var WHEEL_R  = 0.62;              /* 반지름 m — 코드가 잰다(787 주바퀴 지름 약 1.24m) */
+  var WHEEL_A  = 0;                 /* 지금까지 굴러간 각도(도) */
+  var WHEEL_RPS = 0;                /* 지금 초당 회전수 — 목표를 향해 스르르 간다 */
+  var WHEEL_TP = 0;                 /* ⚠ 제 시간을 스스로 잰다. 남의 스코프를 안 빌린다(0821S) */
+  var WHEEL_DIR = -1;               /* 부호 — ⚠ 셈이 아니라 화면이 정한다. wheelDir(±1) */
+  var WHEEL_V  = -1;                /* ⭐ 지면 속도 km/h · ⚠ **음수면 공중이다.** cruise 가 적는다 */
+  var WHEEL_OVR = null;             /* 콘솔이 넣은 회전수 — null 이면 속도가 정한다 */
+
+  /* ⭐ 바퀴 골라내기 — GEAR_ND 의 **앞 열셋**(바퀴·다리·버팀대)만 훑는다.
+     ⚠ 문짝 여덟은 애초에 안 본다. 굴러갈 물건이 아니다.
+     잣대 — 로컬 상자의 세 폭 가운데 **두 축이 비슷하고(원 단면) 나머지 하나가 얇다**.
+       그 원 단면의 지름이 0.5~1.8m 면 바퀴다. 다리·버팀대는 한 축이 길쭉해서 안 걸린다. */
+  function wheelPick() {
+    WHEEL_ND = []; WHEEL_P = {}; WHEEL_GEN = BODYGEN;
+    var rows = [], big = 0;
+    for (var i = 0; i < 13 && i < GEAR_ND.length; i++) {
+      var nm = GEAR_ND[i], b = localBox(nm);
+      if (!b) { rows.push([nm, "상자 없음", "", ""]); continue; }
+      var w = [b.hi[0] - b.lo[0], b.hi[1] - b.lo[1], b.hi[2] - b.lo[2]];
+      /* 가장 얇은 축이 굴대 축이어야 한다 — 그 나머지 둘이 원 단면이다 */
+      var ax = (w[0] <= w[1] && w[0] <= w[2]) ? 0 : (w[1] <= w[2]) ? 1 : 2;
+      var d1 = w[(ax + 1) % 3], d2 = w[(ax + 2) % 3];
+      var round = Math.min(d1, d2) / (Math.max(d1, d2) || 1);      /* 1 이면 완전한 원 */
+      var dia = (d1 + d2) / 2;
+      var ok = (ax === 0) && round > 0.8 && dia > 0.5 && dia < 1.8;
+      rows.push([nm, ok ? "⭐ 바퀴" : "—",
+        "폭 " + w[0].toFixed(2) + " × " + w[1].toFixed(2) + " × " + w[2].toFixed(2),
+        "둥글기 " + round.toFixed(2) + " · 지름 " + dia.toFixed(2) + "m"]);
+      if (ok) {
+        WHEEL_ND.push(nm);
+        /* ⭐ 굴대는 상자 한가운데다. **여기서 한 번만 잰다** — 매 프레임 재면
+           localBox 를 열세 번씩 부르게 된다(41호 ㉧: 값비싼 손을 한 프레임에 몰아 쏘지 않는다).
+           ⚠ X 는 0 이다 — 회전축이 X 라 그 축의 위치는 회전에 아무 몫도 없다. */
+        WHEEL_P[nm] = [0, (b.lo[1] + b.hi[1]) / 2, (b.lo[2] + b.hi[2]) / 2];
+        big = Math.max(big, dia / 2);
+      }
+    }
+    if (big > 0) WHEEL_R = big;
+    try {
+      console.log("%c[EG] 바퀴 " + WHEEL_ND.length + "개를 골랐습니다 — 반지름 "
+        + WHEEL_R.toFixed(2) + "m · 세대 " + BODYGEN, "color:#c9a84c");
+      rows.forEach(function (r) { console.log("   " + r.join("  |  ")); });
+      if (!WHEEL_ND.length) console.warn("[EG] ⚠ 바퀴로 볼 만한 노드가 없습니다 — egReading.wheelSet(\"이름,이름\") 으로 직접 넣으실 수 있습니다");
+    } catch (e) { }
+  }
+
+  /* ⭐ 굴리기 — 지면에 닿아 있으면 속도가 회전수를 정하고, 뜨면 스르르 멎는다.
+     ⚠⚠ 「멈춘다」를 따로 안 짓는다. 지면에 안 닿으면 굴릴 까닭이 없으니 WHEEL_V 가 0 이고,
+       0 을 향해 가는 것이 곧 멎는 것이다. **한 값이 두 사건을 다 맡는다.**
+     ⭐ 붙는 시간이 다르다 — 접지는 0.6초(타이어가 미끄러지며 튀어 오른다),
+       부양은 3초(브레이크가 천천히 잡는다). 실물이 그렇고, 접지 때 흰 연기가 나는
+       까닭이 정확히 그 0.6초다(다듬기목록 ㉥ 타이어 스모크와 **같은 순간·같은 값**). */
+  function spinWheel() {
+    if (!BODYENT || !BODYENT.ready) return;
+    var now = performance.now();
+    var dt = WHEEL_TP ? Math.min((now - WHEEL_TP) / 1000, 0.25) : 0;
+    WHEEL_TP = now;
+    if (!WHEEL_ND || WHEEL_GEN !== BODYGEN) wheelPick();
+    if (!WHEEL_ND.length) return;
+
+    /* ⭐ 붙는 시간이 셋으로 갈린다 — 셋 다 실물의 까닭이 있다.
+       스핀업 0.6초  접지 순간. ⚠ 타이어가 미끄러지며 지면 속도를 따라잡는 시간이고,
+                     흰 연기가 나는 까닭이 정확히 그것이다(다듬기목록 ㉥과 같은 순간)
+       지면 0.2초    ⭐ 바퀴가 지면에 **물려 있다.** 속도가 줄면 바퀴도 곧바로 준다.
+                     기체가 서면 바퀴도 선다 — 시뮬이 잡아낸 그곳이다
+       공중 3초      ⚠ 물려 있는 것이 없다. 브레이크가 천천히 잡는다 */
+    var air = (WHEEL_V < 0);
+    var want = (WHEEL_OVR != null) ? WHEEL_OVR
+             : air ? 0 : (WHEEL_V / 3.6) / (2 * Math.PI * WHEEL_R);
+    var tau = air ? 3.0 : (want > WHEEL_RPS ? 0.6 : 0.2);
+    WHEEL_RPS += (want - WHEEL_RPS) * Math.min(dt / tau, 1);
+    /* ⚠ 멎었으면 손을 놓는다 — 매 프레임 열셋을 헛되이 만지지 않는다(41호 ㉧) */
+    if (WHEEL_RPS < 0.01 && want === 0) { WHEEL_RPS = 0; return; }
+
+    WHEEL_A = (WHEEL_A + WHEEL_DIR * WHEEL_RPS * 360 * dt) % 360;
+    for (var i = 0; i < WHEEL_ND.length; i++) {
+      var p = WHEEL_P[WHEEL_ND[i]]; if (!p) continue;
+      pivotRot(WHEEL_ND[i], p, WHEEL_A);
+    }
+  }
+
   function grabNode(nm) {
     try {
       var n = BODYENT.getNode(nm);
@@ -3203,9 +3354,14 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
                광택은 직사 태양광이 내고, 이 손은 **형태를 세우는 채움광**이다.
              ⚠ 0.42 는 셈이 아니라 어림이다. 소로가 타 보고 정한다. */
           BODYENT = viewer.scene.primitives.add(m);
+          /* ⭐⭐⭐ 0825e — **여기가 세대가 오르는 단 한 곳이다.**
+             ⚠ bodyOff 가 아니라 bodyOn 에서 올린다. 끄는 쪽에 적으면 「끄는 길 누락」이
+               되풀이된다 — 새 기체가 서는 사건은 하나뿐이지만 끄는 길은 여럿이다
+               (나가기·기체 갈아타기·늦게 온 응답을 버리기…). */
+          BODYGEN++;
           applySkin();                   /* ⭐ 빛도 거칠기도 여기 한 손에서 나간다(22호) */
           PROPND = null; PROPTRY = 0;
-          console.log("[EG] 기체가 섰습니다 — " + bodyUrl());
+          try { console.log("[EG] 기체가 섰습니다 — 세대 " + BODYGEN + " · " + bodyUrl()); } catch (e) { }
         })
         .catch(function (e) { BODYWAIT = false; console.warn("[EG] 기체를 못 세웠습니다:", e); });
     } catch (e) { BODYWAIT = false; console.warn("[EG] 기체를 못 세웠습니다:", e); }
@@ -3253,6 +3409,9 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     BODYENT = null; BODYWAIT = false;
     PROPND = null; PROPTRY = 0; PROP_TR = null;
     FANS = null; FANTRY = 0; FAN_M0 = null;   /* ⭐ 0824a 팬도 함께 놓는다 */
+    /* ⭐ 0825e — 바퀴 시계를 놓는다. ⚠ 세대 도장이 이미 기억을 무르므로 값은 안 지운다.
+       여기서 놓는 것은 **시계**뿐이다 — 안 놓으면 다음에 설 때 dt 가 몇 분치로 부푼다. */
+    WHEEL_TP = 0; WHEEL_RPS = 0;
     holdReset();                     /* ⭐ 팔·허리도 기체와 함께 놓는다 */   /* ⭐ 기체와 함께 놓는다 — 다음 판이 다시 잡는다 */
   }
   function toggleBody() {
@@ -6640,7 +6799,45 @@ function paintBook() {
                           egReading.rot(12)     회전 기수각. 지금 8° + 승강률 몫 4° = 12°
                           egReading.gearSet(30,1.2) 기어 — 부양 뒤 몇 초에 · 몇 초 걸려 걷히나
                           ⚠ egReading.gear() 는 옛 손 그대로다(기어 노드 상자 재기)
-                          egReading.flapOn(true) ⚠ 플랩 손을 연다(아직 비틀립니다) */
+                          egReading.flapOn(true) ⚠ 플랩 손을 연다(아직 비틀립니다)
+                          ══ ⭐⭐ 0825e 바퀴 손 넷 ══════════════════════════════
+                          egReading.wheels()        지금 무엇을 바퀴로 골랐나 (표를 다시 찍는다)
+                          egReading.spin(1)         ⭐ 초당 한 바퀴로 천천히 돌려 본다
+                                                      — 무늬가 있으면 이 속도에서 보입니다
+                          egReading.spin(null)      속도가 정하게 되돌린다
+                          egReading.wheelDir(1)     ⚠ 거꾸로 돌면 부호를 뒤집는다
+                          egReading.wheelSet("Cylinder.002,Cylinder.019")
+                                                    ⚠ 코드가 잘못 골랐으면 직접 넣는다 */
+                       wheels: function () {
+                         if (!BODYENT) { console.warn("[EG] 먼저 B 로 기체를 세워 주십시오."); return null; }
+                         wheelPick();
+                         return WHEEL_ND.slice();
+                       },
+                       spin: function (v) {
+                         if (arguments.length) WHEEL_OVR = (v == null) ? null : Math.max(0, +v || 0);
+                         console.log("[EG] 바퀴 " + (WHEEL_OVR == null
+                           ? "— 속도가 정합니다 (지금 " + WHEEL_RPS.toFixed(2) + "바퀴/초 · 지면 " + Math.round(WHEEL_V) + "km/h)"
+                           : WHEEL_OVR + "바퀴/초 (콘솔값)"));
+                         return WHEEL_OVR;
+                       },
+                       wheelDir: function (v) {
+                         if (arguments.length) WHEEL_DIR = (+v < 0) ? -1 : 1;
+                         console.log("[EG] 바퀴 회전 방향 " + WHEEL_DIR);
+                         return WHEEL_DIR;
+                       },
+                       wheelSet: function (s) {
+                         if (!BODYENT) { console.warn("[EG] 먼저 B 로 기체를 세워 주십시오."); return null; }
+                         WHEEL_ND = String(s || "").split(",").map(function (x) { return x.trim(); })
+                                                   .filter(Boolean);
+                         WHEEL_P = {}; WHEEL_GEN = BODYGEN;
+                         for (var i = 0; i < WHEEL_ND.length; i++) {
+                           var b = localBox(WHEEL_ND[i]);
+                           if (b) WHEEL_P[WHEEL_ND[i]] = [0, (b.lo[1] + b.hi[1]) / 2, (b.lo[2] + b.hi[2]) / 2];
+                           else console.warn("[EG] ⚠ 못 찾은 노드 — " + WHEEL_ND[i]);
+                         }
+                         console.log("[EG] 바퀴 " + Object.keys(WHEEL_P).length + "개를 손으로 앉혔습니다");
+                         return WHEEL_ND.slice();
+                       },
                        hold: function (v) {
                          if (arguments.length) HOLD_OVR = (v == null) ? null : Math.max(0, +v || 0);
                          var w = holdSec(flight && flight.route ? flight.route : null);
