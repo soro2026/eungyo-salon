@@ -45,6 +45,21 @@
      ⚠ 방 전용이다 — 나갈 때 primitives.remove. terra 하늘에 안 남긴다.
      ⚠ 조절판(G)은 관리자만. 저장하는 것은 **배율 넷뿐**이고 범위표는 코드가 쥔다(41호 ㉬).
 
+   ⭐⭐⭐ 0825L — 소로 시승이 셋을 잡았다.
+     ⚠⚠⚠ ㉠ **이륙이 영원히 멈췄다.** 0825h 에서 문을 방송에 물리면서 **상한을 안 두었다.**
+       방송 하나가 어떤 까닭으로든 안 끝나면 기체가 활주로에 영영 서 있는다.
+       ⭐ 싣는 쪽에는 8초 그물을 두었는데 **트는 쪽에는 안 두었다** — 같은 병의 두 얼굴이다.
+       ⭐⭐ 여섯 분 상한. 그 뒤에도 안 끝났다면 그건 방송이 아니라 고장이고,
+         **고장이 비행을 막아서는 안 된다**(17호 「놓치면 그만이다」).
+     ⚠⚠ ㉡ done() 이 **두 번 불릴 수 있었다** — ended·error·그물 셋이 같은 문을 두드린다.
+       두 번째가 이미 다음 방송이 된 PA_NOW 를 null 로 지워 그 방송을 죽인다.
+       ⭐ fired 빗장 하나. 소로가 겪으신 「3번 방송이 뜨지 않음」의 유력한 진범이다.
+     ⚠ ㉢ 감상 카메라가 **지하에 섰다.** 활주로에서는 기체 중심이 지상 5m 남짓이라
+       궤도 거리 26m 에 내려보는 각이 조금만 붙어도 묻힌다. 공중에서는 안 드러난다.
+       ⭐ **거리를 줄이지 않고 각을 든다**(ORB_MINH 18m) — 거리를 줄이면 기체가 갑자기
+         커져 놀라고, 각을 들면 궤도가 위로 옮겨갈 뿐이라 보는 것은 그대로다.
+     ⭐ 그리고 안전 브리핑(2분 29초)을 물렸다 — 소로 판정. ⚠ 지운 게 아니다(active=false).
+
    ⭐⭐ 0825k — 끝 챠임 (소로 0825 「마치고 딩동」). ⭐ 음을 뒤집는다 —
      시작 도→솔(내려감) · 끝 솔→도(올라감). 같은 두 음인데 차례만 바꾸면
      하나는 「알립니다」가 되고 하나는 「마쳤습니다」가 된다.
@@ -261,7 +276,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0825k";
+  var VERSION = "0825L";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1629,6 +1644,18 @@
       var enu = Cesium.Transforms.eastNorthUpToFixedFrame(c);
       var ay = hd + ORB.yaw;
       var cy = Cesium.Math.toRadians(ay), cp = Cesium.Math.toRadians(ORB.pit), d = ORB.dist;
+      /* ══ ⭐⭐ 0825L — 지면 아래로 안 내려간다 (소로 0825 「지하에 카메라가」) ══════
+         ⚠⚠ 까닭 — 활주로에 서 있으면 **기체 중심이 지상 5m 남짓**이다. 궤도 거리 26m 에
+           내려보는 각이 조금만 붙어도 카메라가 그 아래로 내려가고, 지형 타일이 울퉁불퉁하면
+           그대로 묻힌다. 공중에서는 안 드러난다 — 발밑이 11km 아래니까.
+         ⭐ **거리를 줄이지 않고 각을 든다.** 거리를 줄이면 기체가 갑자기 커져 놀라고,
+           각을 들면 궤도가 위로 옮겨갈 뿐이라 보는 것은 그대로다.
+         ⚠ orientation 도 든 각을 따라야 한다 — 안 그러면 카메라는 위에 있는데
+           눈은 아래를 봐서 기체가 화면에서 벗어난다. */
+      var floor = groundH + ORB_MINH;
+      if (alt + d * Math.sin(cp) < floor) {
+        cp = Math.asin(Math.max(-1, Math.min(1, (floor - alt) / d)));
+      }
       var off = new Cesium.Cartesian3(
         d * Math.cos(cp) * Math.sin(cy),
         d * Math.cos(cp) * Math.cos(cy),
@@ -1637,7 +1664,7 @@
       viewer.camera.setView({
         destination: pos,
         orientation: { heading: Cesium.Math.toRadians(ay + 180),
-                       pitch: Cesium.Math.toRadians(-ORB.pit), roll: 0 }
+                       pitch: -cp, roll: 0 }
       });
     }
     /* ⭐⭐ 0823f — 도착. liner 에만 있다(장거리 1호 — 되풀이가 없어야 해서다).
@@ -1772,7 +1799,22 @@
                  ⚠ 방송이 남았으면 안 나간다. 사무장이 「승무원은 이륙 준비 바랍니다」를
                    말하기 전에 기체가 구르면, 그 방송은 거짓말이 된다.
                  ⭐ 그리고 침묵 한 박자 — 말이 끝나자마자 엔진이 터지면 그것도 급하다. */
-              if (HOLD_T && (now - HOLD_T) / 1000 >= holdSec(route) && !paHoldsRoll()) {
+              /* ══ ⭐⭐⭐ 0825L 문 상한 — 소로 0825 「이륙이 영원히 멈춰있는 오류」 ══════
+                 ⚠⚠ 0825h 에서 문을 방송에 물리면서 **상한을 안 두었다.** 방송 하나가
+                   어떤 까닭으로든 안 끝나면 기체가 활주로에 영영 서 있는다.
+                 ⭐ 8초 그물(싣기)은 두었는데 **트는 쪽에는 안 두었다** — 같은 병의 두 얼굴이다.
+                 ⭐⭐ 여섯 분이면 출발 방송 셋이 아무리 길어도 다 끝난다(실측 3분 55초).
+                   그 뒤에도 안 끝났다면 그건 방송이 아니라 고장이고, **고장이 비행을
+                   막아서는 안 된다.** 놓치면 그만이다(17호). */
+              var held = (now - HOLD_T) / 1000;
+              if (HOLD_T && held >= 360 && paHoldsRoll()) {
+                try { console.warn("[EG] ⚠ 방송이 6분을 넘겨 붙들고 있습니다 — 그냥 구릅니다"); } catch (e) { }
+                paHush();
+                for (var pi = 0; pi < PA_LIST.length; pi++) {
+                  if ((PA_LIST[pi].cue || {}).before_roll) PA_DONE[PA_LIST[pi].ref] = true;
+                }
+              }
+              if (HOLD_T && held >= holdSec(route) && !paHoldsRoll()) {
                 if (!PA_CLEAR) PA_CLEAR = now;
                 if (now - PA_CLEAR >= 1500) {
                   ROLLING = true;
@@ -3472,7 +3514,12 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     PA_NOW = e;
     paApply((e.cue || {}).sets);          /* ⭐ 조명은 방송과 함께 바뀐다 — 실물이 그렇다 */
     paSay(e);
+    var fired = false;
     var done = function () {
+      /* ⚠ 0825L — **한 번만 불린다.** ended·error·그물 셋이 같은 문을 두드리는데,
+         두 번 불리면 이미 다음 방송이 된 PA_NOW 를 null 로 지워 그 방송을 죽인다. */
+      if (fired) return;
+      fired = true;
       PA_NOW = null;
       /* ⚠ 0821k 수칙 — 켜는 줄을 지었으면 끄는 줄도 짝으로. 잡음은 제 손으로 멈춘다 */
       try { if (paHiss) { paHiss.stop(); paHiss = null; } } catch (x) { }
@@ -3926,6 +3973,8 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       FANS[i].matrix = Cesium.Matrix4.multiply(FAN_M0[i], R, new Cesium.Matrix4());
   }
   var ORB = { yaw: 40, pit: 12, dist: 26 };
+  var ORB_MINH = 18;                /* ⭐ 0825L 지상 최소 높이(m) — 소로 「15-20미터」.
+                                       egReading.orbFloor(v) 로 조절한다 */
   var ORB0 = { yaw: 40, pit: 12 }; /* 다음 탑승이 여기서 시작한다 */
   /* ⚠ ?v= 분 단위 — 격납고에서 갈아 끼우면 1분 안에 닿는다(기내 원판과 같은 문법) */
   function bodyUrl() { return hangarBase() + BODYCRAFT + "_body.glb?v=" + Math.floor(Date.now() / 60000); }
@@ -7485,6 +7534,12 @@ function paintBook() {
                          if (arguments.length) { PA_SUB = !!v; if (!PA_SUB) paSayOff(); }
                          console.log("[EG] 방송 자막 " + (PA_SUB ? "켬" : "끔"));
                          return PA_SUB;
+                       },
+                       /* ⭐ 0825L — 감상 카메라가 지면에서 얼마나 떠 있나(m) */
+                       orbFloor: function (v) {
+                         if (arguments.length) ORB_MINH = Math.max(0, Math.min(200, +v || 0));
+                         console.log("[EG] 감상 카메라 최소 높이 " + ORB_MINH + "m (지상)");
+                         return ORB_MINH;
                        },
                        paEndChime: function (v) {
                          if (arguments.length) PA_END_CHIME = !!v;
