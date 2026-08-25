@@ -4,6 +4,30 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>EG Voice — 낭독실</title>
+<!--
+  ══════════════════════════════════════════════════════════════════════
+  EG 낭독실 — admin_voice.html · v0825a
+  0807 네 갈래(place·art·song·marker) → ⭐ 0825 다섯째 갈래 pa 를 연다
+
+  ⭐⭐ 0825a — ✈ 기내 방송. 소로 0825: 「일레븐랩스 녹음을 콘솔에서 일괄로」
+    ⚠⚠ 파이스가 오늘 아침에 **격납고에 mp3 던지는 칸**을 지으려 했다.
+      파일명 규약까지 세워 놓고 있었는데, 소로 한마디에 그 설계가 통째로 물러났다 —
+      「미술관 음악관 녹음이 그런 식으로 구성되어 있음」.
+      ⭐ 이 집에 이미 배관이 있었다. 던질 파일이 애초에 없다. 여기서 굽는다.
+      ⚠ 「아는 길을 잊고 새 길을 판다」 — 0823 인수인계노트에 적어 둔 그 병이다.
+
+    새로 지은 것 여섯뿐이다. 나머지(지갑·굽기·미리듣기·낡음·손으로 올리기)는 그대로다.
+      ① narrationOfPA   ⚠ Edge Function 의 같은 이름 함수와 한 글자도 달라선 안 된다
+      ② load 에 pa 한 덩이 — eg_flight_pa 에서 곧장. 조인이 없다
+      ③ PA_GROUP · PA_GROUPS — kind 하나가 무리 하나. 맨 앞에 세운다
+      ④ ⭐⭐ 목소리 칸이 **둘** — 소로가 EG Air_101 captain · female 을 세워 두셨다
+         ⚠ 다른 갈래는 예전처럼 위 칸 하나로 굽는다. 백마흔다섯 곳은 한 톨도 안 바뀐다
+      ⑤ vidFor(e) — 행의 voice_role 이 제 목소리를 고른다
+      ⑥ 문지기를 「목소리를 골랐나」에서 **「이 목록이 목소리를 다 얻나」**로
+
+    ⚠ sfx(챠임·벨트 사인)는 표에 아예 안 넣었다. 코드가 만드는 소리라 낭독할 것이 없다.
+  ══════════════════════════════════════════════════════════════════════
+-->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -69,6 +93,12 @@ section{padding:22px 26px 60px;overflow:auto}
 .vbar select{width:100%;background:var(--bench-2);border:1px solid var(--line);color:var(--text);
   border-radius:5px;padding:7px 9px;font-size:12.5px}
 .vbar select:focus{border-color:var(--gold);outline:none}
+/* ⭐ 0825a — 기장 칸. 기내 방송 갈래를 고를 때만 선다 */
+.vrow{display:flex;align-items:center;gap:8px;margin-top:7px}
+.vrow[hidden]{display:none}
+.vlab{flex:none;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--gold);
+  letter-spacing:.08em;width:26px}
+.vrow select{flex:1;min-width:0}
 #purse{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dim);margin-top:7px;line-height:1.65}
 #purse b{color:var(--text)}
 #purse .w{color:var(--warn)}
@@ -169,6 +199,13 @@ input.line{background:var(--bench);border:1px solid var(--line);color:var(--text
     <div id="list"></div>
     <div class="vbar">
       <select id="voiceSel"><option value="">목소리 불러오는 중…</option></select>
+      <!-- ⭐⭐ 0825a — 기내 방송은 행마다 목소리가 정해져 있다(voice_role).
+           ⚠ 다른 갈래(장소·미술·곡·마커)는 위 칸 하나만 쓴다. 이 칸은 pa 에서만 일한다.
+           ⭐ 첫 화면에서 이름으로 저절로 짝이 맞는다 — 소로가 「captain」이라 지어 두셨다. -->
+      <div class="vrow" id="vrowC" hidden>
+        <span class="vlab">기장</span>
+        <select id="voiceSelC"><option value="">— 기장 목소리 —</option></select>
+      </div>
       <div id="purse"></div>
     </div>
   </aside>
@@ -186,7 +223,17 @@ input.line{background:var(--bench);border:1px solid var(--line);color:var(--text
 
 <script>
 
-console.log('[EG] admin_voice v7 0807 — 곡 4겹 추가');
+console.log('[EG] admin_voice v8 0825a — ✈ 기내 방송(scope pa) · 목소리 둘');
+
+/* ══ ✈ 기내 방송 무리 (0825a) ═════════════════════════════════════════
+   ⭐ kind 하나가 무리 하나다. 표에 kind 를 하나 더하면 여기 한 줄이면 된다.
+   ⚠ sfx 는 없다 — 챠임·벨트 사인은 코드가 만드는 소리라 낭독실에 설 까닭이 없다. */
+const PA_GROUP = {
+  fixed : '✈ 방송 · 정규',
+  point : '✈ 방송 · 지점',
+  random: '✈ 방송 · 무작위'
+};
+const PA_GROUPS = ['✈ 방송 · 정규', '✈ 방송 · 지점', '✈ 방송 · 무작위'];
 
 const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
 const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
@@ -276,6 +323,17 @@ function narrationOfMarker(library, body){
     .filter(Boolean).join('\n\n');
 }
 
+/* ⭐⭐ 0825a 기내 방송 — 한국어 뒤에 영어가 잇따른다. 국제선이 실제로 그렇다.
+   ⚠⚠ 두 벌로 가르지 않는 까닭 — 파일이 두 배가 되고 트는 쪽에 갈래가 하나 는다.
+     한 파일 안에서 잇는 편이 실물과도 같고 코드도 안 는다.
+   ⚠ 빈 줄 둘로 잇는다. 일레븐랩스가 그 사이에서 한 박자 쉰다.
+   ⚠ note 는 파이스 메모다 — 절대 안 읽는다. LAYER_ORDER 가 _todo 를 막은 것과 같은 갈래.
+   ⚠⚠ voice_bake(Edge Function)의 같은 이름 함수와 한 글자도 달라선 안 된다. */
+function narrationOfPA(r){
+  return [String(r?.text_ko ?? '').trim(), String(r?.text_en ?? '').trim()]
+    .filter(Boolean).join('\n\n');
+}
+
 async function sha256(text){
   const buf = new TextEncoder().encode(text);
   const d = await crypto.subtle.digest('SHA-256', buf);
@@ -286,7 +344,7 @@ async function sha256(text){
    ⚠ 손으로 올린 것과 구운 것이 다른 곳에 앉으면 같은 곳에 파일이 둘이 된다. */
 const keyOf = e => e.scope === 'place'
   ? `voice/place/${e.ref.replace('/','_')}`
-  : `voice/${e.scope}/${e.ref}`;      /* art · song */
+  : `voice/${e.scope}/${e.ref}`;      /* art · song · marker · ⭐ pa(0825a) */
 
 /* ── 문지기 ────────────────────────────────────────────────────────
    ⚠ 0806밤 — 두 번 막혔다. 첫판은 로그인 칸을 새로 세워서, 둘째 판은 관리자
@@ -419,11 +477,33 @@ async function load(){
       sort:m.id, text, hash: await sha256(text) });
   }
 
+  /* ✈ 기내 방송 — eg_flight_pa (0825a 신설).
+     ⭐ 표 하나에서 곧장 나온다. 조인이 없다 — 원고가 그 표에 살기 때문이다.
+     ⚠ sfx(챠임·벨트 사인)는 표에 아예 안 넣었다. 코드가 만드는 소리라 낭독할 것이 없다.
+     ⭐ 무리를 kind 로 가른다 — 정규·지점·무작위가 성격이 다르고, 굽는 차례도 다르다.
+       정규를 먼저 굽고 나면 비행이 처음부터 끝까지 서므로, 나머지는 언제 구워도 된다. */
+  const { data:pa, error:pErr } = await sb.from('eg_flight_pa')
+    .select('*').eq('active', true).order('seq');
+  if (pErr) toast('기내 방송을 읽지 못했습니다 — ' + pErr.message, 'bad');
+  for (const r of (pa||[])){
+    const text = narrationOfPA(r);
+    if(!text) continue;
+    next.push({ scope:'pa', ref:r.ref, group:PA_GROUP[r.kind] || '✈ 기내 방송',
+      name:(r.essential ? '● ' : '') + r.title,
+      sub:(r.voice_role === 'captain' ? '기장' : '사무장'),
+      sort:r.seq, role:r.voice_role,
+      text, hash: await sha256(text) });
+  }
+
   items = next;
 
   const { data:tk } = await sb.from('voice_takes').select('*');
   takes = {};
   (tk||[]).forEach(t => { takes[t.scope + ':' + t.ref] = t; });
+
+  /* ⭐ 기장 칸은 방송이 있을 때만 선다 — 없는 칸을 보여 주면 무엇에 쓰는지 묻게 된다 */
+  const vrc = $('#vrowC');
+  if(vrc) vrc.hidden = !items.some(e => e.scope === 'pa' && e.role === 'captain');
 
   paintList(); paintCount();
   if (cur) select(items.find(e => e.scope===cur.scope && e.ref===cur.ref) || null);
@@ -472,7 +552,9 @@ function paintList(){
   items.forEach(e => { if(e.scope==='marker') mCount[e.group] = (mCount[e.group]||0)+1; });
   const MARKER_GROUPS = Object.keys(mCount)
     .sort((a,b) => (mCount[b]-mCount[a]) || a.localeCompare(b,'ko'));
-  const GROUPS = FAMILY.map(f=>f.ko).concat(['미술 4겹','음악 4겹'], MARKER_GROUPS);
+  /* ⭐ 0825a — 방송 셋을 **맨 앞**에 세운다. 지금 굽는 것이 그것이라서다.
+     ⚠ 다 구우면 접어 두시면 된다(무리 이름을 누르면 접힌다). */
+  const GROUPS = PA_GROUPS.concat(FAMILY.map(f=>f.ko), ['미술 4겹','음악 4겹'], MARKER_GROUPS);
   const bySort = (a,b) => (a.sort > b.sort ? 1 : a.sort < b.sort ? -1 : 0);
   flat = [];
   let html = '';
@@ -505,7 +587,7 @@ function paintList(){
   $('#list').innerHTML = html || `<p class="nohit">${
       q            ? '찾는 곳이 없습니다.'
     : flt==='stale'? '낡은 음성이 없습니다. 원고와 소리가 다 맞습니다.'
-    :                '남은 곳이 없습니다. 서른 곳이 다 소리를 냅니다. 🎙'}</p>`;
+    :                '남은 곳이 없습니다. 다 소리를 냅니다. 🎙'}</p>`;
 
   $('#list').querySelectorAll('.row').forEach(b => b.onclick = () =>
     select(items.find(e => (e.scope+':'+e.ref) === b.dataset.key)));
@@ -540,7 +622,9 @@ function wireFind(){
     paintList();
   });
 
-  $('#voiceSel').onchange = () => { voiceId = $('#voiceSel').value; };
+  $('#voiceSel').onchange  = () => { voiceId  = $('#voiceSel').value; };
+  const selC = $('#voiceSelC');
+  if(selC) selC.onchange = () => { voiceIdC = selC.value; };
 
   document.addEventListener('keydown', e => {
     const inBox  = e.target === box;
@@ -579,7 +663,8 @@ function select(p){
 
   $('#pane').innerHTML = `
     <h2>${esc(p.name)}${tag}</h2>
-    <div class="meta">${esc(p.scope + ' · ' + p.ref)} · ${p.text.length}자 · 예상 ${Math.round(p.text.length/5.3)}초</div>
+    <div class="meta">${esc(p.scope + ' · ' + p.ref)} · ${p.text.length}자 · 예상 ${Math.round(p.text.length/5.3)}초${
+      p.scope === 'pa' ? ' · <b style="color:var(--gold)">' + esc(p.sub) + ' 목소리</b>' : ''}</div>
 
     <div class="card">
       <h3>낭독 원문</h3>
@@ -694,7 +779,7 @@ async function put(p, f){
     try{ dur = await durationOf(f); }catch(_){}
 
     const row = {
-      scope:p.scope, ref:p.ref, title:p.name, url,
+      scope:p.scope, ref:p.ref, title:p.name.replace(/^● /,''), url,
       src_hash:p.hash, chars:p.text.length,
       voice:($('#voice')?.value || '').trim() || null,
       origin:'hand', mime:f.type || null, bytes:f.size, dur_sec:dur,
@@ -730,12 +815,28 @@ function durationOf(f){
    ⚠ 함수는 **한 곳만** 굽는다. 쉰세 곳을 한 발화에 담으면 시간에 걸린다.
      여기서 차례로 부르고, 중간에 끊겨도 구운 것은 남는다.
    ⚠ 첫 실패에서 멈춘다. 같은 실패를 쉰세 번 반복하면 시간만 태운다. */
-let voices = [], voiceId = '', purse = null, baking = false;
+let voices = [], voiceId = '', voiceIdC = '', purse = null, baking = false;
 
-const voiceName = () => {
-  const v = voices.find(x => x.voice_id === voiceId);
+const nameOfVid = vid => {
+  const v = voices.find(x => x.voice_id === vid);
   return v ? v.name + ' (ElevenLabs)' : null;
 };
+const voiceName = () => nameOfVid(voiceId);
+
+/* ⭐⭐ 0825a — 행이 제 목소리를 고른다.
+   ⚠ 기내 방송만 둘로 간다. 다른 갈래는 예전처럼 위 칸 하나로 굽는다 —
+     그쪽 백마흔다섯 곳은 오늘 한 톨도 안 바뀐다.
+   ⚠ 기장 칸이 비어 있으면 사무장 목소리로 떨어진다. 막지 않고 굽되,
+     bake 가 시작 전에 한 번 묻는다(조용히 딴 목소리로 굽는 것이 더 나쁘다). */
+const vidFor = e => (e.scope === 'pa' && e.role === 'captain' && voiceIdC) ? voiceIdC : voiceId;
+
+/* ⭐ 이름으로 짝을 찾는다 — 소로가 「EG Air_101 captain」·「EG Air_101 female」로 지어 두셨다.
+   ⚠ 못 찾으면 아무것도 안 고른다. 엉뚱한 목소리를 골라 두는 것보다 비워 두는 편이 낫다. */
+function guessVoices(){
+  const find = re => (voices.find(v => re.test(v.name || '')) || {}).voice_id || '';
+  if(!voiceIdC) voiceIdC = find(/captain|기장|pilot/i);
+  if(!voiceId)  voiceId  = find(/female|crew|purser|사무장|cabin/i);
+}
 
 /* Edge Function이 2xx가 아니면 supabase-js는 속내용을 context에 숨긴다.
    그것을 꺼내지 않으면 화면에 「non-2xx status code」만 뜬다(함정 AF). */
@@ -756,13 +857,21 @@ async function loadVoices(){
     voices = data.voices || [];
     purse  = data.purse  || null;
 
-    sel.innerHTML = '<option value="">— 목소리를 고르십시오 —</option>'
-      + voices.map(v => `<option value="${esc(v.voice_id)}">${esc(v.name)}</option>`).join('');
+    const opts = v => voices.map(x =>
+      `<option value="${esc(x.voice_id)}">${esc(x.name)}</option>`).join('');
+    sel.innerHTML = '<option value="">— 목소리를 고르십시오 —</option>' + opts();
 
     /* 이미 구운 곳에 적힌 목소리 이름이 있으면 그것으로 맞춰 둔다 */
     const last = lastVoice();
     const m = last && voices.find(v => last.includes(v.name));
-    if(m){ sel.value = m.voice_id; voiceId = m.voice_id; }
+    if(m){ voiceId = m.voice_id; }
+
+    /* ⭐ 0825a — 기장 칸. 이름으로 짝을 찾아 앉힌다 */
+    const selC = $('#voiceSelC');
+    if(selC) selC.innerHTML = '<option value="">— 기장 목소리 —</option>' + opts();
+    guessVoices();
+    sel.value = voiceId || '';
+    if(selC) selC.value = voiceIdC || '';
 
     paintPurse();
   }catch(e){
@@ -791,8 +900,19 @@ async function refreshPurse(){
 
 async function bake(list){
   if(baking){ toast('이미 굽는 중입니다.'); return; }
-  if(!voiceId){ toast('왼쪽 아래에서 목소리를 먼저 고르십시오.', 'bad'); return; }
   if(!list.length){ toast('구울 것이 없습니다.', 'ok'); return; }
+  /* ⚠ 0825a — 「목소리를 골랐나」가 아니라 **「이 목록이 목소리를 다 얻나」**를 묻는다.
+     기장 방송만 구우실 때는 위 칸이 비어 있어도 된다 — 아래 칸이 답을 내니까. */
+  if(list.some(e => !vidFor(e))){
+    toast('왼쪽 아래에서 목소리를 먼저 고르십시오.', 'bad'); return;
+  }
+
+  /* ⚠⚠ 0825a — 기장 방송이 섞였는데 기장 목소리를 안 고르셨으면 **먼저 묻는다.**
+     조용히 사무장 목소리로 구우면, 열넷을 다 굽고 나서야 딴사람인 것을 알게 된다. */
+  const capt = list.filter(e => e.scope==='pa' && e.role==='captain');
+  if(capt.length && !voiceIdC && !confirm(
+      `기장 방송이 ${capt.length}편 섞여 있는데 기장 목소리를 안 고르셨습니다.\n`
+    + `이대로 구우면 사무장 목소리로 나갑니다.\n\n계속할까요?`)) return;
 
   const chars = list.reduce((s,e) => s + e.text.length, 0);
   if(list.length > 1 && !confirm(
@@ -804,8 +924,9 @@ async function bake(list){
   for (const e of list){
     toast(`굽는 중 ${done + 1}/${list.length} — ${e.name}`);
     try{
+      const vid = vidFor(e);                       /* ⭐ 0825a — 행이 고른다 */
       const { data, error } = await sb.functions.invoke('voice_bake', {
-        body:{ mode:'bake', scope:e.scope, ref:e.ref, voice_id:voiceId, voice:voiceName() }
+        body:{ mode:'bake', scope:e.scope, ref:e.ref, voice_id:vid, voice:nameOfVid(vid) }
       });
       if(error) throw await eat(error);
       if(data?.error) throw new Error(data.error);
