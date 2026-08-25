@@ -45,6 +45,17 @@
      ⚠ 방 전용이다 — 나갈 때 primitives.remove. terra 하늘에 안 남긴다.
      ⚠ 조절판(G)은 관리자만. 저장하는 것은 **배율 넷뿐**이고 범위표는 코드가 쥔다(41호 ㉬).
 
+   ⚠⚠ 0825o — 계기 뒤집기가 안 먹었다 (소로 0825 「작동 안 해요」).
+     진범: **#egrTrip 이 pointer-events:none** 이었다. 지도를 안 가리려고 판 전체를
+     통과시켜 두어서, 배지에 클릭을 붙여도 **손이 닿지 않았다.**
+     ⭐ 판을 열면 지도가 다시 막힌다 — **배지 둘만** 열었다(.b.flip → auto).
+     ⚠⚠ 이 병은 **조용히 실패한다.** 콘솔에 한 줄도 안 뜨고 눌러 봐야만 안다.
+       그리고 v189 노트에도 같은 경고가 있었으니 **두 번째**다.
+       ⭐⭐ 그래서 EGR_on 이 스스로 재게 했다 — click·pointerdown 을 붙일 때
+         조상을 거슬러 올라가 막힌 곳을 찾는다. ⚠ 관리자에게만 알린다.
+       ⭐ 검사기 셋(--check · scope · tdz)이 못 보는 갈래다. **CSS 와 DOM 이 만나는 곳**은
+         정적으로 못 잡는다 — 그래서 런타임에 잰다.
+
    ⭐ 0825n — 소리 배합을 **전체 기본값**으로 (소로 0825 「이 기기만 하면 안되지..
      전체 맞추기로 저장. 지금 디폴트 값 수정하는 것임」).
      ⭐⭐ tune 배관(eg_settings.reading_tune)에 태웠다 — 편집기·구름과 **같은 곳**이다.
@@ -305,7 +316,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0825n";
+  var VERSION = "0825o";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -336,6 +347,31 @@
   function EGR_clearTimers() { TIMERS.forEach(function (t) { clearTimeout(t); }); TIMERS.length = 0; }
   function EGR_on(el, type, fn, opt) {
     el.addEventListener(type, fn, opt); LISTENERS.push([el, type, fn, opt]);
+    /* ══ ⭐⭐ 0825o 자가 검사 — 「배선은 붙었는데 손이 안 닿는다」 ═══════════════════
+       ⚠⚠ 오늘 이 병으로 계기 뒤집기가 통째로 안 먹었다. #egrTrip 이
+         pointer-events:none 이라(지도를 안 가리려고) 클릭이 배지에 닿지 않았다.
+       ⚠ **조용히 실패한다.** 콘솔에 한 줄도 안 뜨고, 눌러 봐야만 안다.
+         v189 노트에도 같은 경고가 있었으니 **두 번째**다.
+       ⭐ 그래서 붙일 때 스스로 재게 한다 — 조상을 거슬러 올라가며 막힌 곳을 찾는다.
+       ⚠ 관리자에게만 알린다. 손님 콘솔에 경고를 뿌릴 까닭이 없다.
+       ⚠ 다음 프레임에 잰다 — 붙는 시점에는 아직 DOM 에 안 들어갔을 수 있다. */
+    if (!el || !el.nodeType || (type !== "click" && type !== "pointerdown")) return;
+    if (!IS_ADMIN) return;
+    EGR_later(function () {
+      try {
+        if (!document.body.contains(el)) return;
+        for (var n = el; n && n.nodeType === 1; n = n.parentElement) {
+          var pe = getComputedStyle(n).pointerEvents;
+          if (pe === "auto") return;                 /* 여기서 열렸다 — 손이 닿는다 */
+          if (pe === "none") {
+            console.warn("[EG] ⚠ 손이 안 닿는 배선 — " + (el.id || el.className || el.tagName)
+              + " 의 조상 " + (n.id ? "#" + n.id : n.className || n.tagName)
+              + " 이 pointer-events:none 입니다");
+            return;
+          }
+        }
+      } catch (e) { }
+    }, 1200);
   }
   function EGR_off() {
     LISTENERS.forEach(function (a) { try { a[0].removeEventListener(a[1], a[2], a[3]); } catch (e) { } });
@@ -2517,11 +2553,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   border:1px solid rgba(201,169,97,.32);background:rgba(63,53,36,.6);color:#cfc4ae;
   border-radius:5px;cursor:pointer}
 #egrSnd2 .row button:hover{border-color:var(--accent,#c9a961);color:#efe4cd}
-/* ⭐ 0825m — 뒤집히는 계기 둘. 누를 수 있다는 것이 보여야 한다 */
-.b.flip{cursor:pointer;border-radius:6px;transition:background .18s ease}
-.b.flip:hover{background:rgba(201,169,97,.10)}
-.b.flip i{transition:color .18s ease}
-.b.flip:hover i{color:var(--accent,#c9a961)}
+
    창밖을 보러 나가도 계기판은 곁에 있어야 한다 — 실제 기내 IFE 도 꺼지지 않는다.
    ⚠ 다만 좌석 사다리꼴에 앉는 사영변환은 밖에서 풀어야 한다. 기내 판이 없으면
      허공에 기울어진 채 뜬다. layout() 이 OUT 이면 똑바로 세워 왼쪽 아래에 앉힌다. */
@@ -2685,6 +2717,14 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   background:var(--tripBg,rgba(243,219,192,.58));
   backdrop-filter:blur(1.5px);-webkit-backdrop-filter:blur(1.5px);
   transition:background 3s linear}
+/* ⚠⚠ 0825o 진범 — #egrTrip 이 pointer-events:none 이다(지도를 안 가리려고).
+   그래서 배지에 클릭 배선을 붙여도 **손이 닿지 않았다**(소로 0825 「작동 안 해요」).
+   ⭐ 판 전체를 열면 지도가 다시 막힌다. **배지 둘만** 연다 —
+     0819 의 그 수칙이 여기서도 그대로다: 「손이 닿을 판은 반드시 auto」. */
+#egrTrip .b.flip{pointer-events:auto;cursor:pointer;
+  transition:background .18s ease,transform .18s ease}
+#egrTrip .b.flip:hover{background:var(--tripBg,rgba(243,219,192,.82));transform:translateY(-1px)}
+#egrTrip .b.flip:active{transform:translateY(0)}
 #egrTrip i{font:700 14px/1 Tahoma,sans-serif;font-style:normal;letter-spacing:.18em;
   color:var(--mapSub,#5c3418);transition:color 3s linear}
 #egrTrip b{font:700 26px/1 Tahoma,sans-serif;letter-spacing:.02em;
