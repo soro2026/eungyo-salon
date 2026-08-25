@@ -45,6 +45,35 @@
      ⚠ 방 전용이다 — 나갈 때 primitives.remove. terra 하늘에 안 남긴다.
      ⚠ 조절판(G)은 관리자만. 저장하는 것은 **배율 넷뿐**이고 범위표는 코드가 쥔다(41호 ㉬).
 
+   ⭐ 0825n — 소리 배합을 **전체 기본값**으로 (소로 0825 「이 기기만 하면 안되지..
+     전체 맞추기로 저장. 지금 디폴트 값 수정하는 것임」).
+     ⭐⭐ tune 배관(eg_settings.reading_tune)에 태웠다 — 편집기·구름과 **같은 곳**이다.
+       그쪽이 이미 「브라우저 먼저 · 서버가 덮는다」를 쥐고 있어 새로 지을 것이 없었다.
+       ⚠ 새 표도, 새 저장 손도 안 지었다. localStorage 전용 손 둘을 오히려 걷어냈다.
+     ⚠ eg_settings 는 is_admin 만 쓴다 — 손님이 밀면 화면은 바뀌되 서버에 안 적힌다.
+       ⭐ 판이 그것을 스스로 말한다: 관리자에게는 「전체 기본값으로 저장됩니다」,
+         손님에게는 「이번 비행에만 적용됩니다」. **무엇을 하고 있는지 화면이 알려준다.**
+     ⚠ 손님별 저장은 그다음 물음이다(소로 판정).
+
+   ⭐⭐⭐ 0825m — 시승 둘째 판 (소로 0825).
+     ⭐ 소리 — 「엔진 소리가 모기 소리만 해. 이 대비가 너무 커서 탑승 기분이 안 남」
+       방송 0.74→0.37 · 엔진 0.07→0.105. 사이가 10.6배 → 3.5배로 좁아진다.
+       ⭐⭐ 그리고 **소리 조절판(M)** 을 놓았다 — 값을 코드에 굳히지 않는다.
+         기기마다 스피커가 다르고 무엇보다 귀가 정본이다. ⚠ 샘플 방송 단추를 함께 둔다 —
+         열두 시간을 기다리며 맞출 수는 없다. ⚠ 저장은 이 기기에만.
+     ⭐⭐ 창밖 모니터를 **손님이 옮기고 키운다** — 「창 밖에서 경치를 가리니까」.
+       ⚠ 편집기(E)와 다른 물건이다. 그쪽은 좌석 사다리꼴에 맞추는 관리자 손,
+         이쪽은 경치를 안 가리게 밀어 두는 손님 손. ⭐ 값도 따로 산다(이 기기에만).
+       ⚠ 화면 밖으로 못 나간다 — 60px 은 남긴다. 한 번 놓치면 되찾을 길이 없다.
+     ⭐⭐ 계기 둘이 눌러서 뒤집힌다 — FLIGHT TIME ↔ TIME TO GO · DISTANCE ↔ TO GO.
+       ⚠⚠ 독서비행 14·35호가 「남은 시간」을 걷어냈으나 **소로 0825 판정** —
+         「실제 비행기 네비게이션이 이 기능을 보여줌. 남은 비행시간을 알아야
+          독서 즐거움과 기대감 상승」.
+       ⭐ **들이미는 게 아니라 열어 보는 것**이라 14호의 정신은 그대로다 —
+         기본값은 여전히 「얼마나 왔나」고, 뒤집은 것은 저장도 안 한다.
+       ⚠ 남은 시간은 **순항속도로 나눈다.** 지금 속도로 나누면 상승 중에 한 시간이
+         더 붙고, 숫자가 흔들리면 손님이 그것을 안 믿게 된다.
+
    ⭐⭐⭐ 0825L — 소로 시승이 셋을 잡았다.
      ⚠⚠⚠ ㉠ **이륙이 영원히 멈췄다.** 0825h 에서 문을 방송에 물리면서 **상한을 안 두었다.**
        방송 하나가 어떤 까닭으로든 안 끝나면 기체가 활주로에 영영 서 있는다.
@@ -276,7 +305,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0825L";
+  var VERSION = "0825n";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -2447,7 +2476,52 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   background:var(--screen,#14110c);color:var(--ink,#efe4cd);overflow:hidden;border-radius:10px;
   font-family:'Noto Sans KR',Georgia,serif;
   transition:background 3s linear,color 3s linear}
-/* ⭐ 0820b — .out 에서 모니터를 감추던 줄을 걷었다(소로).
+/* ══ ⭐⭐ 0825m 창밖 모니터 손잡이 — 소로 0825 「경치를 가리니까」 ═══════════════
+   ⭐ 제목줄(인천 → 파리)을 잡아 끈다. 오른쪽 아래 모서리로 키운다.
+   ⚠ 창밖(.out)에서만 선다 — 좌석에서는 모니터가 사다리꼴에 박혀 있어 옮길 물건이 아니다.
+   ⚠ scale 안에 사는 판이라 손잡이 크기도 배율만큼 커진다. 그래서 CSS 로 되돌린다. */
+#readingRoom.out #egrMon .hd{cursor:move}
+#readingRoom.out #egrMon .hd::after{content:"⠿";margin-left:8px;opacity:.34;font-size:13px;
+  letter-spacing:-2px;vertical-align:2px}
+#monGrip{display:none;position:absolute;right:0;bottom:0;width:26px;height:26px;z-index:9;
+  cursor:nwse-resize;pointer-events:auto}
+#monGrip::before{content:"";position:absolute;right:5px;bottom:5px;width:11px;height:11px;
+  border-right:2px solid var(--accent,#c9a961);border-bottom:2px solid var(--accent,#c9a961);
+  opacity:.5;border-radius:0 0 3px 0}
+#monGrip:hover::before{opacity:1}
+#readingRoom.out #monGrip{display:block}
+/* ⭐ 되돌리는 손 — 화면 밖으로 밀어 놓고 못 찾는 일이 없게 */
+#monHome{display:none;position:absolute;right:30px;bottom:2px;z-index:9;
+  font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.06em;
+  color:var(--dim,#8a7f6a);background:none;border:0;cursor:pointer;padding:4px 6px}
+#monHome:hover{color:var(--accent,#c9a961)}
+#readingRoom.out #monHome{display:block}
+/* ⭐ 0825m 소리 조절판 — 구름 조절판(G)과 같은 문법, 다른 곳에 선다 */
+#egrSnd2{position:fixed;right:18px;bottom:104px;z-index:27;display:none;width:224px;
+  pointer-events:auto;background:rgba(18,15,10,.94);border:1px solid rgba(201,169,97,.3);
+  border-radius:10px;padding:11px 13px 12px;box-shadow:0 10px 34px rgba(0,0,0,.55);
+  font-family:'IBM Plex Mono',monospace}
+#readingRoom.sndedit #egrSnd2{display:block}
+#egrSnd2 .hd{font-size:11px;letter-spacing:.14em;color:var(--accent,#c9a961);margin-bottom:9px}
+#egrSnd2 .hd i{opacity:.5;font-style:normal;margin-left:4px}
+#egrSnd2 label{display:flex;align-items:center;gap:7px;margin:5px 0;font-size:11px;
+  color:#cfc4ae}
+#egrSnd2 label span{width:30px;flex:none}
+#egrSnd2 input[type=range]{flex:1;min-width:0;accent-color:var(--accent,#c9a961)}
+#egrSnd2 label b{width:38px;text-align:right;flex:none;color:var(--accent,#c9a961);
+  font-size:10.5px;font-weight:500}
+#egrSnd2 .st{font-size:10px;color:#8a7f6a;margin:8px 0 7px;line-height:1.6}
+#egrSnd2 .st .ad{color:var(--accent,#c9a961);font-weight:500}
+#egrSnd2 .row{display:flex;gap:5px}
+#egrSnd2 .row button{flex:1;font:500 10.5px 'IBM Plex Mono',monospace;padding:6px 0;
+  border:1px solid rgba(201,169,97,.32);background:rgba(63,53,36,.6);color:#cfc4ae;
+  border-radius:5px;cursor:pointer}
+#egrSnd2 .row button:hover{border-color:var(--accent,#c9a961);color:#efe4cd}
+/* ⭐ 0825m — 뒤집히는 계기 둘. 누를 수 있다는 것이 보여야 한다 */
+.b.flip{cursor:pointer;border-radius:6px;transition:background .18s ease}
+.b.flip:hover{background:rgba(201,169,97,.10)}
+.b.flip i{transition:color .18s ease}
+.b.flip:hover i{color:var(--accent,#c9a961)}
    창밖을 보러 나가도 계기판은 곁에 있어야 한다 — 실제 기내 IFE 도 꺼지지 않는다.
    ⚠ 다만 좌석 사다리꼴에 앉는 사영변환은 밖에서 풀어야 한다. 기내 판이 없으면
      허공에 기울어진 채 뜬다. layout() 이 OUT 이면 똑바로 세워 왼쪽 아래에 앉힌다. */
@@ -3763,7 +3837,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⭐ 꼬리는 timeupdate 로 남은 시간을 보고 눕힌다. 버퍼링이나 멈춤에 안 흔들린다 —
        duration 을 미리 받아 시각을 못 박으면 그 둘에서 어긋난다.
      ⚠ 머리도 든다. 0.12초 — 첫 숨이 「퍽」 하고 붙는 것도 같은 갈래다. */
-  var PA_VOL  = 0.74;               /* ⭐ 소로 0825 — 예전 녹음이 크다. egReading.paVol(v) */
+  var PA_VOL  = 0.37;               /* ⭐ 0825m 소로 — 「방송 볼륨 50% 줄이고」. paVol(v) */
   var PA_FADE = 0.45;               /* 꼬리를 눕히는 시간(초). egReading.paFade(s) */
   var PA_RISE = 0.12;               /* 머리를 드는 시간(초) */
   var PA_WET  = 0.20;               /* ⭐ 잔향 섞는 양. egReading.paVerb(v) */
@@ -3975,6 +4049,46 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   var ORB = { yaw: 40, pit: 12, dist: 26 };
   var ORB_MINH = 18;                /* ⭐ 0825L 지상 최소 높이(m) — 소로 「15-20미터」.
                                        egReading.orbFloor(v) 로 조절한다 */
+
+  /* ══ ⭐⭐ 0825m 창밖 모니터 배치 — **이 기기에만 산다** ═══════════════════════
+     ⚠ 서버에 안 적는다. 화면 크기가 기기마다 다른데 폰에서 민 곳을 데스크톱이
+       물려받으면 화면 밖에 가 있다. 편집기(E)의 좌석 배치와는 다른 물건이다. */
+  var MONOUT = { x: 0, y: 0, z: 1, set: false, px: 0, py: 0, pw: 0, ph: 0 };
+  /* ⭐ 0825m — 두 계기가 뒤집혀 있나. ⚠ 저장 안 한다. 다음에 타면 다시 「얼마나 왔나」로 —
+     남은 시간이 기본이 되면 그것이 곧 들이미는 것이다(14호의 정신은 그대로 지킨다). */
+  var MON_FLIP = { ft: false, ds: false };
+  /* ⭐ 노선 총 항적(km) — 한 번 재고 쥔다. ⚠ 노선마다 다르니 코드에 안 박는다 */
+  var ROUTE_KM = {};
+  function routeKm(rt) {
+    if (!rt || !rt.legs) return 0;
+    if (ROUTE_KM[rt.code] != null) return ROUTE_KM[rt.code];
+    var t = 0, L = rt.legs;
+    for (var i = 0; i < L.length - 1; i++) t += gcKm(L[i][0], L[i][1], L[i + 1][0], L[i + 1][1]);
+    ROUTE_KM[rt.code] = t;
+    return t;
+  }
+  var MONOUT_KEY = "eg_mon_out_v1";
+  function monOutLoad() {
+    try {
+      var j = JSON.parse(localStorage.getItem(MONOUT_KEY) || "null");
+      if (j && isFinite(j.x) && isFinite(j.y)) {
+        MONOUT.x = j.x; MONOUT.y = j.y;
+        MONOUT.z = Math.max(0.5, Math.min(2.2, +j.z || 1));
+        MONOUT.set = true;
+      }
+    } catch (e) { }
+  }
+  function monOutSave() {
+    try {
+      localStorage.setItem(MONOUT_KEY, JSON.stringify(
+        { x: MONOUT.x, y: MONOUT.y, z: MONOUT.z }));
+    } catch (e) { }
+  }
+  function monOutReset() {
+    MONOUT.set = false; MONOUT.z = 1;
+    try { localStorage.removeItem(MONOUT_KEY); } catch (e) { }
+    layout();
+  }
   var ORB0 = { yaw: 40, pit: 12 }; /* 다음 탑승이 여기서 시작한다 */
   /* ⚠ ?v= 분 단위 — 격납고에서 갈아 끼우면 1분 안에 닿는다(기내 원판과 같은 문법) */
   function bodyUrl() { return hangarBase() + BODYCRAFT + "_body.glb?v=" + Math.floor(Date.now() / 60000); }
@@ -4907,6 +5021,108 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       if (el) el.textContent = CLD[b[0]].toFixed(2);
     });
   }
+  /* ══ ⭐⭐⭐ 0825m 소리 조절판 — 소로 0825 ═══════════════════════════════════════
+     > 「방송 볼륨 50% 줄이고 엔진 볼륨 50% 올려줘요.. 아님.. 편집기를 줘서 내가 조절 하게」
+
+     ⭐ 둘 다 했다. 값은 이미 옮겼고(방송 0.74→0.37 · 엔진 0.07→0.105),
+       그 위에 **귀로 미는 판**을 놓는다. 파이스가 숫자로 정할 수 있는 것이 아니다 —
+       기기마다 스피커가 다르고, 무엇보다 소로 귀가 정본이다.
+     ⚠ 구름 조절판(G)과 같은 문법이다. ⭐ 다만 저장은 이 기기에만 —
+       헤드폰과 노트북 스피커에서 맞는 값이 다르다.
+     ⭐ 샘플 방송 단추를 함께 둔다 — 열두 시간을 기다리며 맞출 수는 없다. */
+  var SNDEL = null;
+  var SND_BARS = [
+    ["pa",  "방송",   0, 1,    0.01],
+    ["eng", "엔진",   0, 0.35, 0.005],
+    ["mus", "음악",   0, 0.35, 0.005],
+    ["hiss", "잡음",  0, 0.05, 0.002],
+    ["verb", "잔향",  0, 0.6,  0.02]
+  ];
+  /* ⚠ 0825n — SND_KEY(이 기기 저장)를 걷었다. 소로 0825: 「이 기기만 하면 안되지..
+     전체 맞추기로 저장하게 해 줘요. 지금 디폴트 값 수정하는 것임」.
+     ⭐ tune 배관(eg_settings.reading_tune)에 태운다 — 편집기·구름과 같은 곳이다.
+       그쪽이 이미 「브라우저 먼저 · 서버가 덮는다」를 쥐고 있어 새로 지을 것이 없다.
+     ⚠ eg_settings 는 is_admin 만 쓴다. 손님이 밀면 화면은 바뀌되 서버에 안 적힌다 —
+       그게 맞다. 손님별 저장은 그다음 물음이다(소로 0825). */
+  function sndGet(k) {
+    return k === "pa" ? PA_VOL : k === "eng" ? engBase
+         : k === "mus" ? MUSIC_VOL : k === "hiss" ? PA_HISS : PA_WET;
+  }
+  function sndSet(k, v) {
+    if (k === "pa") PA_VOL = v;
+    else if (k === "eng") {
+      engBase = v;
+      try { if (engGain) engGain.gain.linearRampToValueAtTime(
+        engBase * (PA_NOW ? PA_DUCK : 1), ensureAC().currentTime + 0.25); } catch (e) { }
+    } else if (k === "mus") {
+      MUSIC_VOL = v;
+      try { if (musGain) musGain.gain.linearRampToValueAtTime(
+        MUSIC_VOL * (PA_NOW ? PA_DUCK : 1), ensureAC().currentTime + 0.25); } catch (e) { }
+    } else if (k === "hiss") {
+      PA_HISS = v;
+      try { if (paHissG) paHissG.gain.value = PA_HISS; } catch (e) { }
+    } else {
+      PA_WET = v;
+      try { if (paWet) paWet.gain.value = PA_WET; } catch (e) { }
+    }
+  }
+  /* ⭐ 손잡이 위치를 값에 맞춘다 — 서버 값이 늦게 와서 덮을 때 판이 안 어긋나게 */
+  function sndBars() {
+    if (!SNDEL) return;
+    SND_BARS.forEach(function (b) {
+      var el = SNDEL.querySelector('[data-sk="' + b[0] + '"]');
+      if (el) el.value = sndGet(b[0]);
+    });
+    sndSay();
+  }
+  function sndSay() {
+    if (!SNDEL) return;
+    SND_BARS.forEach(function (b) {
+      var el = SNDEL.querySelector('[data-sv="' + b[0] + '"]');
+      if (el) el.textContent = sndGet(b[0]).toFixed(b[0] === "eng" || b[0] === "mus" ? 3 : 2);
+    });
+  }
+  function mountSoundPanel() {
+    if (!ROOT || SNDEL) return;
+    SNDEL = document.createElement("div");
+    SNDEL.id = "egrSnd2";
+    SNDEL.innerHTML = '<div class="hd">소리 <i>M</i></div>'
+      + SND_BARS.map(function (b) {
+          return '<label><span>' + b[1] + '</span>'
+            + '<input type="range" data-sk="' + b[0] + '" min="' + b[2] + '" max="' + b[3]
+            + '" step="' + b[4] + '" value="' + sndGet(b[0]) + '"><b data-sv="' + b[0] + '">'
+            + sndGet(b[0]).toFixed(2) + '</b></label>';
+        }).join("")
+      /* ⚠ 무엇이 저장되는지 판이 스스로 말한다 — 관리자와 손님이 다른 것을 하고 있다 */
+      + '<div class="st">' + (IS_ADMIN
+          ? '⭐ 샘플을 틀어 놓고 미십시오<br><b class="ad">전체 기본값으로 저장됩니다</b>'
+          : '⭐ 샘플을 틀어 놓고 미십시오<br>이번 비행에만 적용됩니다') + '</div>'
+      + '<div class="row"><button data-sa="test">샘플 방송</button>'
+      + '<button data-sa="stop">멈춤</button>'
+      + '<button data-sa="off">닫기</button></div>';
+    ROOT.appendChild(SNDEL);
+    EGR_on(SNDEL, "input", function (e) {
+      var k = e.target && e.target.getAttribute("data-sk"); if (!k) return;
+      sndSet(k, +e.target.value); sndSay();
+      /* ⭐ 0825n — tune 배관이 저장을 맡는다(편집기·구름과 같은 곳).
+         ⚠ 손님이 밀면 화면만 바뀐다 — eg_settings 는 is_admin 만 쓴다. */
+      saveTuneSoon();
+    });
+    EGR_on(SNDEL, "click", function (e) {
+      var a = e.target && e.target.getAttribute("data-sa"); if (!a) return;
+      if (a === "off") { ROOT.classList.remove("sndedit"); return; }
+      if (a === "stop") { paHush(); return; }
+      /* ⭐ 샘플 — 사무장과 기장을 번갈아 튼다. 둘의 소리가 다르므로 둘 다 들어야 한다 */
+      var pick = null, want = SNDEL.__capt ? "captain" : "purser";
+      for (var i = 0; i < PA_LIST.length; i++) if (PA_LIST[i].role === want) { pick = PA_LIST[i]; break; }
+      if (!pick && PA_LIST.length) pick = PA_LIST[0];
+      SNDEL.__capt = !SNDEL.__capt;
+      if (pick) { paHush(); paPlay(pick); }
+      else say("아직 실린 방송이 없습니다");   /* ⚠ 0825m — toast 는 이 방에 없는 이름이다. scope.js 가 잡았다 */
+    });
+    sndSay();
+  }
+
   function mountCloudPanel() {
     if (!ROOT || CLDEL) return;
     CLDEL = document.createElement("div");
@@ -5128,7 +5344,10 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
              IC: TUNE_C,                     /* ⭐ 기체별 칸 */
              MON: { tl: MON.tl, tr: MON.tr, br: MON.br, bl: MON.bl },
              /* ⭐ 0820j — 구름 손잡이 넷. ⚠ 배율만 적는다. 갈래 범위표는 코드가 쥔다 */
-             CLD: { den: CLD.den, siz: CLD.siz, hgt: CLD.hgt, brt: CLD.brt } };
+             CLD: { den: CLD.den, siz: CLD.siz, hgt: CLD.hgt, brt: CLD.brt },
+             /* ⭐⭐ 0825n 소리 배합 — 소로 0825 「전체 맞추기로 저장. 지금 디폴트 값 수정하는 것」.
+                ⚠ 이 기기가 아니라 **모든 손님의 기본값**이다. eg_settings 는 is_admin 만 쓴다. */
+             SND: { pa: PA_VOL, eng: engBase, mus: MUSIC_VOL, hiss: PA_HISS, verb: PA_WET } };
   }
   function applyTune(v) {
     if (!v) return;
@@ -5151,6 +5370,13 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     if (v.IC) { var ck; for (ck in v.IC) if (CRAFT_SPEC[ck] && v.IC[ck]) TUNE_C[ck] = v.IC[ck]; }
     else if (v.MON && v.MON.tl) TUNE_C.jet = { M: { tl: v.MON.tl, tr: v.MON.tr, br: v.MON.br, bl: v.MON.bl } };
     applyCraftTune();
+    /* ⭐⭐ 0825n 소리 배합 — ⚠ 범위 안일 때만 읽는다(구름과 같은 문법).
+       ⚠⚠ 헌 값이 새 설계를 덮지 않게, 코드가 쥔 범위표(SND_BARS)로 자른다. */
+    if (v.SND) SND_BARS.forEach(function (b) {
+      var x = v.SND[b[0]];
+      if (typeof x === "number" && isFinite(x) && x >= b[2] && x <= b[3]) sndSet(b[0], x);
+    });
+    if (SNDEL) sndBars();
     /* ⭐ 0820j — 넷 다 수(數)이고 범위 안일 때만 읽는다. 모양이 다르면 안 읽는다 */
     if (v.CLD) CL_BARS.forEach(function (b) {
       var x = v.CLD[b[0]];
@@ -5327,13 +5553,28 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
          TL↔TR · BL↔BR 을 안 바꾸면 변환이 안팎으로 뒤집혀 글이 거울이 된다 */
     if (MONEL) {
       if (OUT) {
-        /* ⭐⭐ 0820b — 밖에서는 좌석이 없다. 사영변환을 풀고 화면에 똑바로 앉힌다.
-           ⚠ 원판 880×580 을 그대로 놓으면 화면을 반쯤 먹는다 — 화면 높이의 34%로 줄인다.
-             기내에서 실크기가 517×362 이니 밖에서도 그만한 크기로 보이는 셈이다.
-           ⚠ 기록판이 가운데에 뜨므로 계기판은 왼쪽 아래에 둔다. 서로 안 겹친다. */
-        var sc = Math.max(0.42, Math.min(0.72, vh * 0.34 / MON_H));
-        var mx0 = 26, my0 = vh - MON_H * sc - 26;
+        /* ══ ⭐⭐⭐ 0825m 창밖 모니터 — 손님이 옮기고 키운다 (소로 0825) ══════════════
+           > 「사용자가 창 밖에서 모니터 정보를 볼 때 경치를 가리니까.
+           >   위치 이동, 크기 조절이 늘 실시간으로 가능하게」
+           ⚠ 편집기(E)와 다른 물건이다. 그쪽은 **좌석 사다리꼴에 맞추는** 관리자 손이고,
+             이쪽은 **창밖에서 경치를 안 가리게 밀어 두는** 손님 손이다.
+           ⭐ 그래서 값도 따로 산다 — 편집기는 서버에, 이쪽은 이 기기에만(MONOUT).
+             기기마다 화면이 다르니 오히려 그게 맞다.
+           ⭐ 손님이 안 옮겼으면 예전 그 곳(왼쪽 아래)에 그대로 앉는다. */
+        var sc0 = Math.max(0.42, Math.min(0.72, vh * 0.34 / MON_H));
+        var sc = sc0 * MONOUT.z;
+        var mw = MON_W * sc, mh = MON_H * sc;
+        var mx0, my0;
+        if (MONOUT.set) {
+          /* ⚠ 화면 밖으로 못 나간다 — 한 번 놓치면 되찾을 길이 없다.
+             ⭐ 60px 은 남긴다. 모서리만 걸쳐 있어도 다시 잡을 수 있게. */
+          mx0 = Math.max(60 - mw, Math.min(vw - 60, MONOUT.x));
+          my0 = Math.max(0, Math.min(vh - 60, MONOUT.y));
+        } else {
+          mx0 = 26; my0 = vh - mh - 26;
+        }
         MONEL.style.transform = "translate(" + mx0 + "px," + my0 + "px) scale(" + sc + ")";
+        MONOUT.px = mx0; MONOUT.py = my0; MONOUT.pw = mw; MONOUT.ph = mh;
       } else {
         var px = function (c) {
           return [cx + w * (flip ? (100 - c[0]) : c[0]) / 100, top + h * c[1] / 100]; };
@@ -5760,7 +6001,10 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     checkMonFit();
     MONEL.style.width = MON_W + "px"; MONEL.style.height = MON_H + "px";
     MONEL.innerHTML =
-      '<div id="egrHead"><div class="t"><b>' + esc(route.name) + '</b>'
+      /* ⭐ 0825m — 창밖에서 끌고 키우는 손잡이 둘. .out 에서만 선다(CSS) */
+      '<div id="monGrip" title="끌어서 크기 조절"></div>'
+      + '<button id="monHome" type="button" title="제자리로">RESET</button>'
+      + '<div id="egrHead"><div class="t"><b>' + esc(route.name) + '</b>'
       + '<small id="egrLeg">&nbsp;</small></div>'
       + '<div id="egrCtl">'
       + '<button id="egrZout" type="button" title="넓게 보기" disabled>&#8722;</button>'
@@ -5778,8 +6022,13 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       + '<div id="egrMap"></div>'
       /* ⭐ 0820y — 지도 위 두 배지. **지도 밖 형제**다(위 CSS 주석의 까닭) */
       + '<div id="egrTrip">'
-      + '<div class="b"><i>FLIGHT TIME</i><b id="egrFt">0:00</b></div>'
-      + '<div class="b"><i>DISTANCE</i><b id="egrDist">0<u>KM</u></b></div>'
+      /* ⭐⭐ 0825m — 눌러서 뒤집는다(소로 0825). 라벨도 함께 바뀐다.
+         ⚠ 독서비행 14·35호가 「남은 시간」을 걷어냈으나 소로 0825 판정 —
+           「실제 비행기 네비게이션이 이 기능을 보여줌. 남은 비행시간을 알아야
+            독서 즐거움과 기대감 상승」. ⭐ **들이미는 게 아니라 열어 보는 것**이라
+           기본값은 여전히 「얼마나 왔나」다. 보고 싶은 사람만 본다. */
+      + '<div class="b flip" id="egrFtBox" title="눌러서 남은 시간"><i id="egrFtL">FLIGHT TIME</i><b id="egrFt">0:00</b></div>'
+      + '<div class="b flip" id="egrDsBox" title="눌러서 남은 거리"><i id="egrDsL">DISTANCE</i><b id="egrDist">0<u>KM</u></b></div>'
       + '</div>'
       + '<div id="egrLow">'
       + '<div id="egrGauge">'
@@ -5801,6 +6050,73 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     EGR_on(MONEL.querySelector("#egrZout"), "click", function () { setZoom(zi - 1, route); });
     /* ⭐ 0819U 소로 — 「모니터에 음악 켜기 버튼」. 손이 한 곳에 모인다 */
     EGR_on(MONEL.querySelector("#egrSnd"), "click", function () { setChannel(CH + 1); });
+    /* ══ ⭐⭐ 0825m 창밖 모니터를 옮기고 키운다 (소로 0825) ═══════════════════════
+       ⚠ 창밖(.out)에서만 듣는다 — 좌석에서는 사다리꼴에 박혀 있어 옮길 물건이 아니다.
+       ⚠ 포인터를 잡아 둔다(setPointerCapture) — 빠르게 끌면 손이 판을 벗어나는데
+         그때 놓치면 판이 손을 따라오다 멎는다.
+       ⭐ 미는 값은 **배율로 나눈다.** 판이 scale 안에 살아서, 안 나누면
+         작게 줄여 놓았을 때 손보다 판이 덜 움직인다. */
+    (function () {
+      var head = MONEL.querySelector("#egrHead .t");
+      var grip = MONEL.querySelector("#monGrip");
+      var home = MONEL.querySelector("#monHome");
+      var drag = null;
+
+      function begin(e, mode) {
+        if (!OUT) return;
+        e.preventDefault(); e.stopPropagation();
+        drag = { mode: mode, sx: e.clientX, sy: e.clientY,
+                 x0: MONOUT.px, y0: MONOUT.py, z0: MONOUT.z, w0: MONOUT.pw };
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch (x) { }
+      }
+      function move(e) {
+        if (!drag) return;
+        e.preventDefault();
+        var dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+        if (drag.mode === "move") {
+          MONOUT.x = drag.x0 + dx; MONOUT.y = drag.y0 + dy; MONOUT.set = true;
+        } else {
+          /* ⭐ 가로로 민 만큼 넓어진다. 세로는 따라온다 — 판 비율은 안 깨진다 */
+          var w = Math.max(180, drag.w0 + dx);
+          MONOUT.z = Math.max(0.5, Math.min(2.2, drag.z0 * (w / Math.max(1, drag.w0))));
+          MONOUT.set = true;
+        }
+        layout();
+      }
+      function end(e) {
+        if (!drag) return;
+        drag = null; monOutSave();
+        try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (x) { }
+      }
+      if (head) {
+        EGR_on(head, "pointerdown", function (e) { begin(e, "move"); });
+        EGR_on(head, "pointermove", move);
+        EGR_on(head, "pointerup", end);
+        EGR_on(head, "pointercancel", end);
+      }
+      if (grip) {
+        EGR_on(grip, "pointerdown", function (e) { begin(e, "size"); });
+        EGR_on(grip, "pointermove", move);
+        EGR_on(grip, "pointerup", end);
+        EGR_on(grip, "pointercancel", end);
+      }
+      if (home) EGR_on(home, "click", function (e) { e.stopPropagation(); monOutReset(); });
+
+      /* ⭐⭐ 0825m — 두 계기를 눌러 뒤집는다. 라벨이 함께 바뀌므로 무엇을 보는지 늘 분명하다 */
+      var fb = MONEL.querySelector("#egrFtBox"), db = MONEL.querySelector("#egrDsBox");
+      if (fb) EGR_on(fb, "click", function () {
+        MON_FLIP.ft = !MON_FLIP.ft;
+        var l = MONEL.querySelector("#egrFtL");
+        if (l) l.textContent = MON_FLIP.ft ? "TIME TO GO" : "FLIGHT TIME";
+        fb.title = MON_FLIP.ft ? "눌러서 지나온 시간" : "눌러서 남은 시간";
+      });
+      if (db) EGR_on(db, "click", function () {
+        MON_FLIP.ds = !MON_FLIP.ds;
+        var l = MONEL.querySelector("#egrDsL");
+        if (l) l.textContent = MON_FLIP.ds ? "TO GO" : "DISTANCE";
+        db.title = MON_FLIP.ds ? "눌러서 지나온 거리" : "눌러서 남은 거리";
+      });
+    })();
     EGR_on(MONEL.querySelector("#egrPz"), "click", togglePause);
     /* ⚠ 0820g — 여기를 빠뜨렸다가 검산에 걸렸다. 단추를 굽고 배선을 안 건 것 —
        0819 ㉮(만들어 놓고 값을 안 정한다)의 사촌이다. 이름 등장 횟수로 잡았다 */
@@ -5873,8 +6189,17 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     q("#egrVs").innerHTML = (v > 0 ? "+" : "") + v + "<u>M/MIN</u>";
     /* ⭐ 0820y — 지도 위 두 배지. ⚠ 없을 수도 있으니 반드시 확인하고 만진다 */
     var ft = q("#egrFt"), ds = q("#egrDist");
-    if (ft) ft.textContent = hms(s.flown);
-    if (ds) ds.innerHTML = kmTxt(s.dist) + "<u>KM</u>";
+    /* ⭐⭐ 0825m — 뒤집힌 칸은 「남은 것」을 그린다.
+       ⚠ 남은 시간은 **남은 거리 ÷ 순항속도**로 낸다. 지금 속도로 나누면 상승 중에
+         과대 추정이 나오고(715km/h 로 나누면 한 시간이 붙는다), 셈이 흔들리면
+         손님이 그 숫자를 안 믿게 된다.
+       ⚠ 총 항적을 route 가 아는 값으로 잡는다 — 노선이 바뀌면 함께 바뀐다. */
+    var totKm = routeKm(route);
+    var leftKm = Math.max(0, totKm - s.dist);
+    if (ft) ft.textContent = MON_FLIP.ft
+      ? hms(Math.round(leftKm / ((route.kmh || 845) / 3600)))
+      : hms(s.flown);
+    if (ds) ds.innerHTML = (MON_FLIP.ds ? kmTxt(leftKm) : kmTxt(s.dist)) + "<u>KM</u>";
     /* ⭐ 0823f — 배속 배지. ⚠ 손잡이 값이 아니라 **실제로 먹고 있는 값**을 그린다.
        3,000m 아래에서 저절로 ×1 이 되면 배지도 저절로 사라진다 — 화면과 셈이 안 갈린다. */
     paintWarp((s.alt < 3000) ? 1 : s.warp);
@@ -6662,7 +6987,11 @@ function paintBook() {
   var AC = window.AudioContext || window.webkitAudioContext;
   var ac = null, engGain = null, engLp = null, annAudio = null;
   var windGain = null, windBp = null;   /* ⭐ 0821g — 바람. 엔진과 같은 소음원의 둘째 갈래 */
-  var sndOn = true, announced = false, engBase = 0.07;   /* 0817 소로: 크다 → 절반 */
+  var sndOn = true, announced = false, engBase = 0.105;
+  /* ⚠ 0817 소로 「크다 → 절반」 0.14→0.07 · ⭐⭐ 0825m 소로 「엔진 소리가 모기 소리만 해.
+     이 대비가 너무 커서 비행기 탑승 기분이 안 남」 → 0.07→0.105(1.5배).
+     ⭐ 그리고 방송을 절반으로(0.74→0.37). 두 값의 사이가 10.6배 → 3.5배로 좁아진다.
+     ⚠ 값을 코드에 굳히지 않는다 — 조절판에서 귀로 미신다(egrSkin). */
 
   /* ══ 기내 오디오 갈래 셋 (0819R) ═══════════════════════════════════
      ⚠ 소로 0819: 「이 엄청난 광경을 비행기 소음과 듣는데 좀 짜증이 나더라.
@@ -6920,6 +7249,13 @@ function paintBook() {
       else if (k === "e") setEdit(!editing);
       else if (k === "f") toggleFps();        /* ⭐ 0820i — 관리자만 */
       else if (k === "g") toggleCloudPanel();  /* ⭐ 0820j — 관리자만 */
+      /* ⭐⭐ 0825m 소리 조절판 — ⚠ 손님도 연다. 볼륨은 귀가 정하는 것이고
+         소로 것과 손님 것이 다를 까닭이 없다(구름 조절판과 갈래가 다르다). */
+      else if (k === "m") {
+        mountSoundPanel();
+        ROOT.classList.toggle("sndedit");
+        if (ROOT.classList.contains("sndedit")) sndSay();
+      }
       else if (k === "l") {                   /* ⭐ 0821f — 램프를 언제 켤지. 편집 중에만 */
         /* ⭐ 다섯이 한 계기판의 조명이다 — 함께 돈다. 따로 돌 이유가 없다 */
         if (editing && LAMPS.length) {
@@ -7147,6 +7483,7 @@ function paintBook() {
     paintCabin(route.legs[0][1]);
     moveCredits(true);               /* ⭐ 39호 — 저작자 표시를 기내 나무 판 위로 */
     tuneTiles(true);                 /* ⭐ 저고도 순항용 타일 설정 — 나갈 때 되돌린다 */
+    monOutLoad();                    /* ⭐ 0825m — 창밖에서 옮겨 두신 곳 */
     mountMonitor(route);             /* ⭐ 좌석 모니터 — layout 이 사다리꼴에 앉힌다 */
     loadRecent();                    /* ⑥ 마지막으로 기록한 책 표지를 데려온다 */
     layout();
