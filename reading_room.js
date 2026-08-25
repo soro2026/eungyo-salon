@@ -45,6 +45,48 @@
      ⚠ 방 전용이다 — 나갈 때 primitives.remove. terra 하늘에 안 남긴다.
      ⚠ 조절판(G)은 관리자만. 저장하는 것은 **배율 넷뿐**이고 범위표는 코드가 쥔다(41호 ㉬).
 
+   ⭐⭐ 0825k — 끝 챠임 (소로 0825 「마치고 딩동」). ⭐ 음을 뒤집는다 —
+     시작 도→솔(내려감) · 끝 솔→도(올라감). 같은 두 음인데 차례만 바꾸면
+     하나는 「알립니다」가 되고 하나는 「마쳤습니다」가 된다.
+     ⚠⚠ 소로 판정 — **출발 방송 셋(before_roll)에는 안 울린다.** 연달아 나가는데
+       끝 챠임과 다음 시작 챠임이 붙으면 딩동딩동딩동이 된다. 정확한 판정이었다.
+     ⚠ 덕킹 복원과 다음 방송도 챠임만큼 늦춘다 — 챠임 위로 음악이 들면 겹친다.
+
+   ⭐⭐⭐ 0825j — **첫 비행이 활주로에서 안 섰다** (소로 0825).
+     ⚠⚠⚠ 진범이 **두 줄 차례**였다 —
+       `var TAKEOFF = (… && dist < 0.05)` 가 `var dist = …` 보다 두 줄 **위**에 있었다.
+       var 는 이름만 끌어올려지고 값은 undefined 인데 `undefined < 0.05` 는 false 다.
+       ⭐ 그래서 **TAKEOFF 가 언제나 false** 였다. 「출발점으로」 쪽은 그 조건이 없어
+         true 가 났고, 그래서 리셋을 누르면 활주로가 섰다 — 증상이 갈린 까닭이 이것이다.
+     ⚠⚠ node --check 도 scope.js 도 못 잡는다. **선언이 없는 게 아니라 값이 아직 없다** —
+       딱지_0817(문법검사는 선언 누락을 못 잡는다)의 사촌이다.
+       ⭐ 그래서 검사기를 하나 더 지었다 — `node tdz.js`(선언보다 먼저 읽는 var).
+         ⚠ 판을 낼 때 **셋을 함께** 돌린다: node --check · scope.js · tdz.js
+     ⭐ 그 김에 이어 타기 고도도 되짚게 했다(altResume). 옛 판은 순항고도를 못 박아
+       상승 중이던 기체를 11km 에 툭 올려놓았다 — 실측 5,300m 지점이 11,000m 로 떴다.
+       ⚠ 이건 소로가 겪으신 것과 **다른 병**이다. 둘이 같은 화면을 만들고 있었다.
+
+   ⭐⭐⭐ 0825f~i — 기내 방송(PA) 마흔셋. 표(eg_flight_pa) + 낭독실이 구운 소리를 싣고
+     열두 시간에 걸쳐 저 혼자 흐른다. ⭐ 결정문 17호가 헌법이다 —
+     「손님이 아무것도 안 해도 지나간다 · 알림은 없다 · 놓치면 그만이다」.
+     ⭐⭐ 창밖과 기내를 **다른 것이 정한다**(소로 0825 물음이 연 곳) —
+       cabin 은 승무원(시간표) · sun 은 해(태양 고도). 한 이름에 두 뜻을 담으면
+       대낮에 별 이야기가 나간다. 오늘 그럴 뻔했다.
+     ⭐⭐ 태양 고도는 Cesium 에 안 기댄다 — 순수 천문 셈이라 컨테이너에서 검산했다
+       (서울 하지 74.1° · 동지 28.6° · 파리 7월 21시 6.2°. 오차 1~2°).
+       ⚠ themeKey(「5시 전·20시 후면 밤」)를 안 쓴다 — 딱지_0821 이 막은 그 자다.
+     ⭐⭐⭐ 이어 타기 되짚기 (소로 0825 「통으로 타는 사람은 드물어」) — 지나간 것은
+       지나간 것으로 찍되 **결과(sets)는 물려받는다.** ⚠ 처음 타실 때는 안 부른다.
+     ⭐⭐⭐ 출발 문 (0825h) — 0825a 가 쪽지를 남겨 둔 그 한 줄. 「나가도 되나」를 묻는다:
+       싣는 중인가 · 트는 중인가 · **before_roll 이 남았나**(표가 정한다) + 침묵 1.5초.
+       ⚠ 그 전에는 phase 가 board·safety 인데 cruise 가 그 국면을 안 내서
+         **탑승 환영과 안전 브리핑이 영영 안 나갔다.**
+     ⚠⚠ 0825i — 구르기 전에는 before_roll 만 나간다. 그 그물이 없어서 착륙 방송과
+       「상승 중」이 활주로에서 튀어나왔다(소로 시승). 그리고 그물 시간이 **글자 수 어림**이라
+       방송이 끝나기 전에 문이 열렸다 — ⭐ 파일이 제 길이를 안다.
+     ⭐ 소리 — 스피커 세 겹(대역·왜곡·잡음) · 잔향 0.32초 · 꼬리 페이드 · 볼륨 0.74.
+       ⚠ 자막은 껐다(소로 0825). 판과 CSS 는 남겼다 — 꺼진 판은 값이 0 이다.
+
    ⭐⭐⭐ 0825e — 세대 도장 · 바퀴 회전. 소로 0825 「B 눌러서 밖으로 나가니 바퀴가 튀어나옴」
      ⚠⚠ 진범 — B 를 껐다 켜면 Model 이 **통째로 새것**이 된다. 787 은 기어가 내려온 채로
        구워져 있으니 새 기체는 바퀴가 다 나와 있다. 그런데 GEAR_H(「얼마나 감췄나」)는
@@ -219,7 +261,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0825i";
+  var VERSION = "0825k";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1294,11 +1336,21 @@
     var ROLLING = false;                  /* 문이 열렸나 */
     var LIFT = 0, LIFT_KM = 0;            /* 부양한 시각(ms) · 그때의 roKm */
     var GEARDN = 0;                       /* 착륙 기어를 내리기 시작한 시각(ms) */
+    /* ⚠⚠⚠ 0825j 진범 — **이 두 줄의 차례가 뒤바뀌어 있었다.**
+       소로 0825: 「인천-파리를 고르면 첫 진입이 고도 1만 미터. 리셋을 눌러야 활주로로」
+       ⭐ `dist` 가 TAKEOFF 아래에서 선언되어 있었다. var 는 이름만 끌어올려지고 값은
+         `undefined` 인데, `undefined < 0.05` 는 **false** 다.
+         → ⭐⭐⭐ **TAKEOFF 가 언제나 false 였다.** 첫 비행이든 이어 타기든.
+       ⭐ 「출발점으로」 쪽(아래 restart)은 그 조건이 없어서 true 가 났다 —
+         그래서 리셋을 누르면 활주로가 섰다. 증상이 정확히 갈린 까닭이다.
+       ⚠⚠ `node --check` 도 `node scope.js` 도 못 잡는다. **선언이 없는 게 아니라
+         아직 값이 없는 것**이라, 딱지_0817(문법검사는 선언 누락을 못 잡는다)의 사촌이다.
+       ⭐ 그래서 값을 쓰는 줄보다 **위**에 놓는다. 순서가 곧 계약이다. */
+    var dist = Math.max(0, +opt.startDist || 0);      /* ⭐ 0823c — 이어받는다 */
     /* ⭐⭐ 이륙은 **처음부터 탈 때만** 선다. 이어 타기면 이미 하늘에 있다.
        ⚠ 여기 한 곳에서만 가른다 — 갈래를 여덟 곳이 각자 보면 언젠가 한 곳을 빠뜨린다. */
     var TAKEOFF = (!LOOP && !!route.clmb && seg === 0 && u < 0.001 && dist < 0.05);
     var CLB_END = route.clmb ? route.clmb[route.clmb.length - 1] : null;   /* [km, m, km/h] */
-    var dist = Math.max(0, +opt.startDist || 0);      /* ⭐ 0823c — 이어받는다 */
     var flown = Math.max(0, opt.startFlown | 0);
     /* ⭐ 0822f — 곡선의 접선이 직전 프레임에 가리키던 방위. 뱅크의 잣대다.
        ⚠ 첫 프레임은 hd 와 같게 두어 turnRate 가 0 에서 시작하게 한다 — 들어서자마자
@@ -1312,7 +1364,11 @@
     /* ⚠⚠ 0825a — 이륙이면 순항고도로 시작할 수 없다. 옛 판으로 활주로에 들어가면
        기체가 **인천 상공 10,973m 에 나타난다.** 낮게 두고 첫 지면 측정이 앉힌다.
        ⭐ 60 은 어림이다 — 한 프레임 뒤에 settled 가 지면으로 바로잡는다(땅속을 안 지난다). */
-    var alt = TAKEOFF ? 60 : (route.mode === "msl") ? (route.msl || 3600) : 1600, settled = false;
+    /* ⭐⭐ 0825j — 이어 타기면 **되짚은 고도**로 시작한다. 옛 판은 순항고도를 못 박아
+       상승 중이던 기체를 11km 에 툭 올려놓았다(소로 「예전 이륙 공사 전 화면」). */
+    var alt = TAKEOFF ? 60
+            : (opt.startAlt != null) ? opt.startAlt
+            : (route.mode === "msl") ? (route.msl || 3600) : 1600, settled = false;
     var spdH = 1200;                 /* ㉣ 속도가 보는 고도(지면 위) — 시정수 20초의 딴 값 */
     var prevAlt = alt, vs = 0;       /* 승강률 m/분 — 계기판이 쓴다 */
     /* ⚠⚠ 0821j — rel(지면 위 높이)이 원래 tick 안의 var 였다. 멈춤(PAUSED) 중에도
@@ -3383,12 +3439,18 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      보잉 챠임은 순음이라 갈래가 다르다. ⭐ 그래도 「됩니다」라고 안 적는다 — 들어 보십시오.
      ⚠ 파일이 낫다 싶으면 PA_CHIME 를 주소로 바꾸는 것으로 끝난다. */
   var PA_CHIME = null;              /* 주소를 넣으면 파일이 이긴다 */
-  function paChime(after) {
-    if (!sndOn || CH === 2) { after(); return; }
+  /* ══ ⭐⭐ 0825k 끝 챠임 — 소로 0825 ═══════════════════════════════════════════
+     > 「보통 항공사들은 기내 방송을 마치고 나서도 차임벨을 울리는 거 같은데..
+     >   딩동 하고 멘트 시작 .. 마치고 딩동」
+     ⭐ **음을 뒤집는다** — 시작은 도→솔(내려감), 끝은 솔→도(올라감).
+       같은 두 음인데 차례만 바꾸면 하나는 「알립니다」가 되고 하나는 「마쳤습니다」가 된다.
+     ⚠⚠ 소로 판정 — **출발 방송 셋(before_roll)에는 안 울린다.** 셋이 연달아 나가는데
+       끝 챠임과 다음 시작 챠임이 붙으면 딩동딩동딩동이 된다. 정확한 판정이다. */
+  function paChime(after, closing) {
+    if (!sndOn || CH === 2) { if (after) after(); return; }
     try {
-      var a = ensureAC(), t0 = a.currentTime, g = a.createGain();
-      g.gain.value = 0; g.connect(a.destination);
-      [[1046.5, 0], [784.0, 0.34]].forEach(function (p) {       /* 도 → 솔 */
+      var a = ensureAC(), t0 = a.currentTime, hi = 1046.5, lo = 784.0;
+      (closing ? [[lo, 0], [hi, 0.34]] : [[hi, 0], [lo, 0.34]]).forEach(function (p) {
         var o = a.createOscillator(), gg = a.createGain();
         o.type = "sine"; o.frequency.value = p[0];
         gg.gain.setValueAtTime(0.0001, t0 + p[1]);
@@ -3397,8 +3459,8 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
         o.connect(gg).connect(a.destination);
         o.start(t0 + p[1]); o.stop(t0 + p[1] + 0.7);
       });
-      EGR_later(after, 900);
-    } catch (e) { after(); }
+      if (after) EGR_later(after, 900);
+    } catch (e) { if (after) after(); }
   }
 
   /* ⭐⭐ 틀기 — 챠임 → 방송 → 자막이 함께 뜬다.
@@ -3414,11 +3476,17 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       PA_NOW = null;
       /* ⚠ 0821k 수칙 — 켜는 줄을 지었으면 끄는 줄도 짝으로. 잡음은 제 손으로 멈춘다 */
       try { if (paHiss) { paHiss.stop(); paHiss = null; } } catch (x) { }
+      /* ⭐⭐ 0825k 끝 챠임 — ⚠ 출발 방송 셋은 뺀다(소로 판정). 말이 끝나고 0.45초 뒤 */
+      var closing = PA_END_CHIME && !(e.cue || {}).before_roll;
+      if (closing) EGR_later(function () { paChime(null, true); }, 450);
       /* ⭐ 0825g — 엔진음·음악이 **반 박자 뒤에** 돌아온다. 말이 끝나자마자 소리가
-         밀려 올라오면 그것도 「툭」이다. 실물 기내도 잠깐 조용하다 음악이 든다. */
-      EGR_later(function () { paDuck(false); }, 600);
+         밀려 올라오면 그것도 「툭」이다. 실물 기내도 잠깐 조용하다 음악이 든다.
+         ⚠ 0825k — 끝 챠임이 울리면 그것이 끝난 뒤에 돌아온다. 챠임 위로 음악이 들면 겹친다. */
+      EGR_later(function () { paDuck(false); }, closing ? 1700 : 600);
       EGR_later(paSayOff, 1400);           /* ⭐ 소리가 끝나도 글자는 조금 더 남는다 */
-      if (PA_Q.length) EGR_later(function () { var n = PA_Q.shift(); if (n) paPlay(n); }, 2200);
+      /* ⚠ 다음 방송은 끝 챠임이 다 울린 뒤에 — 안 그러면 끝 딩동과 시작 딩동이 붙는다 */
+      if (PA_Q.length) EGR_later(function () { var n = PA_Q.shift(); if (n) paPlay(n); },
+                                 closing ? 3400 : 2200);
     };
     /* ⚠ 소리를 끄셨으면 그냥 지나간다. 자막을 끈 뒤로는 보여 드릴 것이 없다 —
        ⭐ 그래도 PA_DONE 은 찍혔으므로 되풀이되지 않는다(17호: 놓치면 그만이다). */
@@ -3654,6 +3722,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   var PA_WET  = 0.20;               /* ⭐ 잔향 섞는 양. egReading.paVerb(v) */
   var PA_TONE = 0.75;               /* ⭐ 0825i 스피커 티 — 0 이면 스튜디오. egReading.paTone(v) */
   var PA_HISS = 0.012;              /* ⭐ 0825i 배선 잡음 — 아주 옅게. egReading.paHiss(v) */
+  var PA_END_CHIME = true;          /* ⭐ 0825k 끝 챠임. egReading.paEndChime(false) 로 끈다 */
   var PA_IR   = null;               /* 임펄스 — 한 번만 짓는다 */
 
   /* ⭐⭐ 0825g 잔향 — **페이드만으로는 「여운」이 안 된다.**
@@ -3703,6 +3772,33 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       if ((e.cue || {}).before_roll && !PA_DONE[e.ref]) return true;
     }
     return false;
+  }
+
+  /* ══ ⭐⭐⭐ 0825j 이어 타기 고도 — 소로 0825 ═══════════════════════════════════
+     > 「인천-파리 선택하면 첫 진입화면이 고도 1만 미터.. 예전 이륙 공사 전 화면이 떠요」
+
+     ⚠⚠ **진범 — 이어 타기가 고도를 복원하지 않았다.** seg·u·flown·dist 넷은 되찾는데
+       고도만 `route.msl`(11,000m)로 **못 박고** 시작했다. 이륙이 없던 시절의 줄이
+       그대로 남아 있었던 것이다 — 소로가 「예전 이륙 공사 전 화면」이라 하신 것이 정확하다.
+     ⭐ 실측: 소로 기록 dist 105.84km 의 실제 고도는 약 5,300m 였다. **5.7km 를 뛰어올랐다.**
+
+     ⭐⭐ 되짚는 길은 이미 표에 있다 —
+       ㉠ 상승 표(clmb) 안이면 표가 낸다. 어림이 한 톨도 없다
+       ㉡ 표 밖이면 표 끝에서 승강률(분당 400m)로 이어 셈한다 — ⭐ 코드가 오를 때 쓰는 그 값이다
+       ㉢ 순항고도를 넘지 않게 자른다
+     ⚠ 활주로 표고(33m)는 안 더한다 — 발밑을 재는 손이 곧 맞춘다. 여기서 더하면 두 번 더한다.
+     ⭐ 그리고 되짚기만 하면 끝이다. 그 뒤로는 기존 순항 로직이 승강률 상한으로 마저 올린다. */
+  function altResume(route, distKm) {
+    if (!route || !route.clmb || !route.clmb.length) return null;
+    var last = route.clmb[route.clmb.length - 1];      /* [64.94km, 3947m, 680km/h] */
+    var cruise = route.msl || 11000;
+    if (distKm <= last[0]) {
+      var c = tblAt(route.clmb, distKm);
+      return c ? Math.min(c[0], cruise) : null;        /* ⚠ tblAt 은 [고도, 속도] 를 낸다 */
+    }
+    var kmPerMin = (last[2] || 680) / 60;
+    var climbed = last[1] + ((distKm - last[0]) / kmPerMin) * 400;
+    return Math.min(climbed, cruise);
   }
 
   function grabNode(nm) {
@@ -7048,6 +7144,8 @@ function paintBook() {
       /* ⭐⭐ 0823c (소로 0822) — 총 비행시간·거리도 이어받는다.
          「저장했다」고 해 놓고 총계가 0 으로 돌아오면 리셋된 기분이 든다 — 실제 겪으신 것이다 */
       startFlown: rz.flown, startDist: rz.dist,
+      /* ⭐ 0825j — 이어 타기면 그 지점의 고도를 되짚어 넘긴다. 처음부터면 null 이라 안 쓴다 */
+      startAlt: (rz.flown > 0) ? altResume(route, rz.dist) : null,
       onTick: function (s) {
         SINFO = s;                   /* 기록 저장이 좌표를 읽는다 */
         var now = performance.now();
@@ -7387,6 +7485,12 @@ function paintBook() {
                          if (arguments.length) { PA_SUB = !!v; if (!PA_SUB) paSayOff(); }
                          console.log("[EG] 방송 자막 " + (PA_SUB ? "켬" : "끔"));
                          return PA_SUB;
+                       },
+                       paEndChime: function (v) {
+                         if (arguments.length) PA_END_CHIME = !!v;
+                         console.log("[EG] 끝 챠임 " + (PA_END_CHIME ? "켬" : "끔")
+                           + " · ⚠ 출발 방송 셋에는 원래 안 울립니다");
+                         return PA_END_CHIME;
                        },
                        paSkip: function () {
                          var n = 0;
