@@ -219,7 +219,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0825f";
+  var VERSION = "0825g";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -3248,6 +3248,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   var PA_SUN = 0;                   /* 지난 판정 때의 태양 고도 — 뜨는 중인지 재려면 둘이 필요하다 */
   var PA_SEEN = {};                 /* 무작위 방송이 이미 주사위를 굴렸나 */
   var paAudio = null, paSrc = null, paGain = null, paLp = null, paHp = null;
+  var paVerb = null, paWet = null;   /* ⭐ 0825g 잔향 — ⚠ paHush 에서 함께 놓는다 */
 
   /* ⭐⭐ 태양 고도 — **Cesium 에 안 기댄다.** 순수 천문 셈이라 컨테이너에서 검산했다.
      실측 대조(0825): 서울 하지 정오 74.1°(실제 75.9) · 동지 28.6°(29.0) ·
@@ -3362,7 +3363,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
         var o = a.createOscillator(), gg = a.createGain();
         o.type = "sine"; o.frequency.value = p[0];
         gg.gain.setValueAtTime(0.0001, t0 + p[1]);
-        gg.gain.exponentialRampToValueAtTime(0.16, t0 + p[1] + 0.012);   /* 딩 */
+        gg.gain.exponentialRampToValueAtTime(0.16 * PA_VOL, t0 + p[1] + 0.012);   /* 딩 — ⭐ 방송 볼륨을 따른다 */
         gg.gain.exponentialRampToValueAtTime(0.0001, t0 + p[1] + 0.62);  /* 스르르 */
         o.connect(gg).connect(a.destination);
         o.start(t0 + p[1]); o.stop(t0 + p[1] + 0.7);
@@ -3382,7 +3383,9 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     paSay(e);
     var done = function () {
       PA_NOW = null;
-      paDuck(false);
+      /* ⭐ 0825g — 엔진음·음악이 **반 박자 뒤에** 돌아온다. 말이 끝나자마자 소리가
+         밀려 올라오면 그것도 「툭」이다. 실물 기내도 잠깐 조용하다 음악이 든다. */
+      EGR_later(function () { paDuck(false); }, 600);
       EGR_later(paSayOff, 1400);           /* ⭐ 소리가 끝나도 글자는 조금 더 남는다 */
       if (PA_Q.length) EGR_later(function () { var n = PA_Q.shift(); if (n) paPlay(n); }, 2200);
     };
@@ -3401,16 +3404,54 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
         paAudio.src = e.url;
         var a = ensureAC();
         paSrc = a.createMediaElementSource(paAudio);
-        paGain = a.createGain(); paGain.gain.value = 1.0;
+        paGain = a.createGain();
+        paGain.gain.value = 0.0001;        /* ⭐ 0 에서 시작해 머리를 든다 */
+        var head = paSrc;
         if (e.role === "captain") {
           /* ⭐ 무전 — 300~3,400Hz 만 남긴다. 전화선 대역이고 기내 방송이 실제로 그렇다 */
           paHp = a.createBiquadFilter(); paHp.type = "highpass"; paHp.frequency.value = 300;
           paLp = a.createBiquadFilter(); paLp.type = "lowpass";  paLp.frequency.value = 3400;
-          paSrc.connect(paHp).connect(paLp).connect(paGain).connect(a.destination);
-        } else {
-          paHp = paLp = null;
-          paSrc.connect(paGain).connect(a.destination);
-        }
+          head.connect(paHp).connect(paLp); head = paLp;
+        } else { paHp = paLp = null; }
+        /* ⭐⭐ 잔향은 **볼륨 단추 앞**에 단다 — 꼬리를 눕힐 때 잔향도 함께 눕는다.
+           ⚠ 뒤에 달면 소리는 껐는데 잔향만 남아 허공에서 울린다. */
+        head.connect(paGain);
+        if (PA_WET > 0.001) {
+          try {
+            paVerb = a.createConvolver(); paVerb.buffer = paIR(a);
+            paWet = a.createGain(); paWet.gain.value = PA_WET;
+            head.connect(paVerb).connect(paWet).connect(paGain);
+          } catch (x) { paVerb = paWet = null; }
+        } else { paVerb = paWet = null; }
+        paGain.connect(a.destination);
+        /* ⭐ 머리 — 소리가 실제로 나기 시작하는 그 순간에 든다.
+           ⚠ play() 는 약속이라 그때 시각을 못 박으면 버퍼링만큼 어긋난다. */
+        var risen = false, faded = false;
+        paAudio.addEventListener("playing", function () {
+          if (risen || !paGain) return; risen = true;
+          try {
+            var t = ensureAC().currentTime;
+            paGain.gain.cancelScheduledValues(t);
+            paGain.gain.setValueAtTime(0.0001, t);
+            paGain.gain.linearRampToValueAtTime(PA_VOL, t + PA_RISE);
+          } catch (x) { }
+        });
+        /* ⭐⭐ 꼬리 — 남은 시간을 보고 눕힌다. ⚠ 250ms 마다 오므로 0.45초를 놓칠 일이 없다 */
+        paAudio.addEventListener("timeupdate", function () {
+          if (faded || !paGain) return;
+          var d = paAudio.duration;
+          if (!isFinite(d) || d <= 0) return;
+          var left = d - paAudio.currentTime;
+          if (left > PA_FADE) return;
+          faded = true;
+          try {
+            var t = ensureAC().currentTime;
+            paGain.gain.cancelScheduledValues(t);
+            paGain.gain.setValueAtTime(paGain.gain.value, t);
+            /* ⚠ 남은 만큼만 눕힌다 — 남은 시간이 페이드보다 짧으면 그 안에 끝내야 한다 */
+            paGain.gain.linearRampToValueAtTime(0.0001, t + Math.max(0.1, Math.min(PA_FADE, left)));
+          } catch (x) { }
+        });
         paAudio.addEventListener("ended", done);
         paAudio.addEventListener("error", done);
         paAudio.play().catch(function () { done(); });
@@ -3442,7 +3483,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   }
   function paHush() {
     try { if (paAudio) { paAudio.pause(); paAudio = null; } } catch (e) { }
-    paSrc = null; paGain = null; paLp = null; paHp = null;
+    paSrc = null; paGain = null; paLp = null; paHp = null; paVerb = null; paWet = null;
     PA_NOW = null; PA_Q = [];
     paSayOff();
   }
@@ -3502,6 +3543,41 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       PA_DONE[resume.ref] = true;
       EGR_later(function () { if (ROOT && !PA_NOW) paPlay(resume); }, 2500);
     }
+  }
+
+  /* ══ ⭐⭐ 0825g 소리 다듬기 — 소로 0825 ═══════════════════════════════════════
+     > 「말을 마친 후에 아주 급하게 휙 끊어서… 툭 하고 꺼지는 소리가 여운이 안 좋거든」
+     > 「녹음 파일 볼륨이 대체로 너무 커서 조금 볼륨 다운 필요」
+
+     ⚠⚠ 일레븐랩스는 **마지막 음절에서 파일을 끊는다.** 잔향도 꼬리 침묵도 없다.
+       실제 기내 스피커는 말이 끝나도 0.3초쯤 공기가 남는다. 그 없음이 「툭」으로 들린다.
+     ⭐ 파일을 다시 굽지 않는다 — 그러면 마흔셋을 다시 구워야 하고 예전 백마흔다섯 곳은
+       그대로 남는다. **트는 쪽에서 잡으면 이미 구운 것까지 전부 좋아진다.**
+     ⭐ 꼬리는 timeupdate 로 남은 시간을 보고 눕힌다. 버퍼링이나 멈춤에 안 흔들린다 —
+       duration 을 미리 받아 시각을 못 박으면 그 둘에서 어긋난다.
+     ⚠ 머리도 든다. 0.12초 — 첫 숨이 「퍽」 하고 붙는 것도 같은 갈래다. */
+  var PA_VOL  = 0.74;               /* ⭐ 소로 0825 — 예전 녹음이 크다. egReading.paVol(v) */
+  var PA_FADE = 0.45;               /* 꼬리를 눕히는 시간(초). egReading.paFade(s) */
+  var PA_RISE = 0.12;               /* 머리를 드는 시간(초) */
+  var PA_WET  = 0.20;               /* ⭐ 잔향 섞는 양. egReading.paVerb(v) */
+  var PA_IR   = null;               /* 임펄스 — 한 번만 짓는다 */
+
+  /* ⭐⭐ 0825g 잔향 — **페이드만으로는 「여운」이 안 된다.**
+     ⚠ timeupdate 가 250ms 마다 오므로 실제 눕히는 시간은 0.25초쯤이다.
+       그건 「조금 덜 급한 툭」이지 여운이 아니다.
+     ⭐ 실물 기내 방송에 여운이 있는 까닭은 페이드가 아니라 **공기**다 —
+       천장 스피커에서 나온 소리가 벽과 좌석에 부딪혀 0.3초쯤 남는다.
+     ⭐ 그래서 짧은 잔향을 짓는다. 잡음을 지수로 눕힌 임펄스 0.32초 —
+       방이 아주 크면 안 되고(성당이 된다) 아주 작아도 안 된다(헤드폰이 된다).
+     ⚠ 한 번만 짓고 쥐고 있는다. 방송마다 새로 지으면 매번 몇 밀리초를 태운다. */
+  function paIR(a) {
+    if (PA_IR) return PA_IR;
+    var n = Math.floor(a.sampleRate * 0.32), buf = a.createBuffer(2, n, a.sampleRate), c, i, d;
+    for (c = 0; c < 2; c++) {
+      d = buf.getChannelData(c);
+      for (i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2.6);
+    }
+    PA_IR = buf; return PA_IR;
   }
 
   function grabNode(nm) {
@@ -7144,6 +7220,48 @@ function paintBook() {
                           egReading.wheelDir(1)     ⚠ 거꾸로 돌면 부호를 뒤집는다
                           egReading.wheelSet("Cylinder.002,Cylinder.019")
                                                     ⚠ 코드가 잘못 골랐으면 직접 넣는다 */
+                       /* ══ ⭐⭐ 0825g 방송 소리 손 셋 — 화면(귀)이 정합니다 ═══════
+                          egReading.paVol()      지금 볼륨
+                          egReading.paVol(0.6)   ⭐ 더 낮게. 0~1
+                          egReading.paFade(0.8)  ⭐ 꼬리를 더 길게 눕힌다(초)
+                          egReading.paVerb(0.3)  ⭐ 잔향 더 · 0 이면 마른 소리
+                          egReading.paTest("dim")  ⭐ 그 방송을 지금 한 번 틀어 본다
+                                                    ⚠ 이름을 안 주면 목록을 찍습니다 */
+                       paVol: function (v) {
+                         if (arguments.length) PA_VOL = Math.max(0, Math.min(1, +v || 0));
+                         console.log("[EG] 방송 볼륨 " + PA_VOL.toFixed(2));
+                         return PA_VOL;
+                       },
+                       paFade: function (v) {
+                         if (arguments.length) PA_FADE = Math.max(0, Math.min(3, +v || 0));
+                         console.log("[EG] 꼬리 " + PA_FADE.toFixed(2) + "초 · 머리 " + PA_RISE + "초");
+                         return PA_FADE;
+                       },
+                       paVerb: function (v) {
+                         if (arguments.length) {
+                           PA_WET = Math.max(0, Math.min(0.6, +v || 0));
+                           try { if (paWet) paWet.gain.value = PA_WET; } catch (e) { }
+                         }
+                         console.log("[EG] 잔향 " + PA_WET.toFixed(2)
+                           + (PA_WET < 0.01 ? " (없음 — 마른 소리)" : ""));
+                         return PA_WET;
+                       },
+                       paTest: function (ref) {
+                         if (!PA_LIST.length) { console.warn("[EG] 방송이 안 실렸습니다."); return null; }
+                         if (!ref) {
+                           console.log("%c[EG] 실린 방송 " + PA_LIST.length + "편", "color:#c9a84c");
+                           PA_LIST.forEach(function (e) {
+                             console.log("   " + (e.ref + "            ").slice(0, 14)
+                               + (e.role === "captain" ? "기장  " : "사무장 ") + e.title);
+                           });
+                           return PA_LIST.map(function (e) { return e.ref; });
+                         }
+                         var f = null;
+                         for (var i = 0; i < PA_LIST.length; i++) if (PA_LIST[i].ref === ref) f = PA_LIST[i];
+                         if (!f) { console.warn("[EG] 그런 방송이 없습니다 — " + ref); return null; }
+                         paHush(); paPlay(f);
+                         return f.ref;
+                       },
                        wheels: function () {
                          if (!BODYENT) { console.warn("[EG] 먼저 B 로 기체를 세워 주십시오."); return null; }
                          wheelPick();

@@ -6,7 +6,7 @@
 <title>EG Voice — 낭독실</title>
 <!--
   ══════════════════════════════════════════════════════════════════════
-  EG 낭독실 — admin_voice.html · v0825a
+  EG 낭독실 — admin_voice.html · v0825b
   0807 네 갈래(place·art·song·marker) → ⭐ 0825 다섯째 갈래 pa 를 연다
 
   ⭐⭐ 0825a — ✈ 기내 방송. 소로 0825: 「일레븐랩스 녹음을 콘솔에서 일괄로」
@@ -223,7 +223,7 @@ input.line{background:var(--bench);border:1px solid var(--line);color:var(--text
 
 <script>
 
-console.log('[EG] admin_voice v8 0825a — ✈ 기내 방송(scope pa) · 목소리 둘');
+console.log('[EG] admin_voice v8 0825b — ✈ 기내 방송 · 목소리 둘 · 미리듣기 볼륨·페이드');
 
 /* ══ ✈ 기내 방송 무리 (0825a) ═════════════════════════════════════════
    ⭐ kind 하나가 무리 하나다. 표에 kind 를 하나 더하면 여기 한 줄이면 된다.
@@ -719,6 +719,28 @@ function lastVoice(){
 }
 
 function wirePane(p){
+  /* ══ ⭐⭐ 0825b 소리 다듬기 — 소로 0825 ═════════════════════════════════════
+     > 「녹음 파일 볼륨이 대체로 너무 커서 (예전 녹음분) 조금 볼륨 다운 필요」
+     > 「말을 마친 후에 아주 급하게 휙 끊어서… 툭 하고 꺼지는 소리가 여운이 안 좋거든」
+     ⭐ 파일을 안 건드린다 — **트는 쪽**에서 잡으면 이미 구운 백마흔다섯 곳까지 좋아진다.
+     ⚠ 여기는 <audio> 태그라 WebAudio 를 안 쓴다. volume 프로퍼티만으로 한다 —
+       미리듣기에 오디오 그래프를 세우면 이 창이 무거워지고, 얻는 것은 같다. */
+  const au = $('#pane audio');
+  if(au){
+    au.volume = 0.62;                        /* ⭐ 예전 녹음이 크다 */
+    let faded = false;
+    au.addEventListener('play', () => { faded = false; au.volume = 0.62; });
+    au.addEventListener('timeupdate', () => {
+      const d = au.duration;
+      if(!isFinite(d) || d <= 0) return;
+      const left = d - au.currentTime;
+      if(left > 0.5){ if(faded){ faded = false; au.volume = 0.62; } return; }
+      faded = true;
+      /* ⭐ 남은 만큼 비례해서 눕힌다 — 250ms 마다 오므로 두어 걸음이면 0 이 된다 */
+      au.volume = Math.max(0, 0.62 * (left / 0.5));
+    });
+  }
+
   $('#copy').onclick = async () => {
     try{ await navigator.clipboard.writeText(p.text); toast('원문을 복사했습니다.', 'ok'); }
     catch(_){ $('#src').select(); toast('직접 복사해 주십시오 (Ctrl+C).'); }
