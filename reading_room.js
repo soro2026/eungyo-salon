@@ -219,7 +219,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0825e";
+  var VERSION = "0825f";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1861,6 +1861,19 @@
            ⭐ paintBody 는 이 값을 못 본다(onTick 지역 변수라 스코프 밖 — 0821S 의 그 병).
              그래서 **모듈 변수에 적어 두고** spinWheel 이 읽는다. */
         WHEEL_V = ((TAKEOFF && !LIFT) || TOUCH) ? kmh : -1;
+        /* ══ ⭐⭐⭐ 0825f 기내 방송 — 상태 한 줌을 넘기고 나머지는 그쪽이 판정한다 ══════
+           ⭐ 국면을 **여기 한 곳에서** 낸다. 방송 쪽이 깃발 넷을 따로 읽으면
+             언젠가 한쪽만 고치게 된다(22호). 이름은 하나여야 한다.
+           ⚠ 셈이 값싸다 — 나눗셈 몇 번과 태양 고도 한 번뿐이고, 그것도 1초에 한 번이다.
+             paTick 이 스스로 시간을 재서 나머지 초에는 즉시 물러난다(41호 ㉧). */
+        if (PA_LIST.length) {
+          var _ph = ARRIVED ? "arrived"
+                  : (TAKEOFF && !ROLLING) ? "standby"
+                  : (route.arr && tdKm < 9e8 && tdKm <= 300 && !TOUCH) ? "desc"
+                  : "cruise";
+          paTick(now, { phase: _ph, min: flown / 60, seg: seg, alt: rel,
+                        sun: sunAltDeg(lat, lon) });
+        }
         /* ══ ⭐⭐ 0822e 관측 장치 — 「짐작으로 고치지 않는다」 ════════════════════
            0822d 시승에서 15~16분 지점에 900km/h 로 돌변했다(소로). 고도는 안 변했다니
            0821N 의 되먹임 고리(고도 상승 + 속도 감소)와는 **방향이 반대**다.
@@ -2404,6 +2417,25 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   color:#c9a961;font:600 16px 'Noto Sans KR',sans-serif;opacity:0;pointer-events:none;
   transition:opacity .45s ease}
 #egrSaved.on{opacity:1}
+/* ══ ⭐⭐ 0825f 기내 방송 자막 ═══════════════════════════════════════════
+   ⭐ 아래쪽에 둔다 — 창밖과 계기판을 안 가린다. 방송은 곁에서 흐르는 것이지
+     화면을 뺏는 것이 아니다(결정문 17호: 알림을 안 띄운다).
+   ⚠ pointer-events:none — 손이 닿을 판이 아니다. 뒤의 것을 안 가로챈다.
+   ⭐ 소리를 끄신 손님(CH=2)에게는 이 글자가 방송 그 자체다. */
+#egrPA{position:absolute;left:50%;bottom:52px;transform:translateX(-50%) translateY(10px);
+  z-index:20;max-width:min(760px,84vw);padding:13px 24px 15px;border-radius:11px;
+  background:rgba(14,12,8,.86);border:1px solid rgba(201,169,97,.34);
+  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+  opacity:0;pointer-events:none;transition:opacity .5s ease,transform .5s ease;
+  text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+#egrPA.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#egrPA b{display:block;font:600 12px 'Noto Sans KR',sans-serif;letter-spacing:.16em;
+  color:#c9a961;opacity:.86;margin-bottom:6px}
+#egrPA i{display:block;font:400 17px/1.62 'Noto Serif KR',serif;color:#efe4cd;font-style:normal;
+  white-space:pre-line}
+/* ⭐ 밖(C)·감상(B)에서도 선다 — 어디에 계시든 방송은 들린다 */
+#readingRoom.out #egrPA,#readingRoom.bare #egrPA,#readingRoom.bodyview #egrPA{
+  position:fixed;bottom:34px}
 /* 조작판 — 확대 · 소리 · 멈춤이 한 줄에 모인다(0819U 소로) */
 #egrCtl{display:flex;align-items:center;gap:1px;border:1px solid var(--ring,#59492f);
   border-radius:9px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.5);flex:none}
@@ -2721,7 +2753,10 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       + '<div id="egrAsk"><div class="card">'
       + '<div class="q"></div><div class="w"></div><div class="row"></div>'
       + '</div></div>'
-      + '<div id="egrSaved">여기까지 비행을 저장했습니다</div>';
+      + '<div id="egrSaved">여기까지 비행을 저장했습니다</div>'
+      /* ⭐⭐ 0825f 기내 방송 자막 — ⚠ 방 안이라 KEEP 을 안 늘린다(41호 ㉢).
+         ⭐ .out(창밖만)·.bodyview(기체 감상) 에서도 선다 — 방송은 어디서든 들리니까. */
+      + '<div id="egrPA"><b></b><i></i></div>';
     document.body.appendChild(ROOT);
     EXIT = document.createElement("button");
     EXIT.id = "readingExit"; EXIT.type = "button";
@@ -3182,6 +3217,290 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     for (var i = 0; i < WHEEL_ND.length; i++) {
       var p = WHEEL_P[WHEEL_ND[i]]; if (!p) continue;
       pivotRot(WHEEL_ND[i], p, WHEEL_A);
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     ⭐⭐⭐ 0825f 기내 방송 (PA) — 마흔둘이 열두 시간에 걸쳐 저 혼자 흐른다
+
+     ⭐ 결정문 17호가 이 손의 헌법이다 —
+       「손님이 아무것도 안 해도 지나간다 · 알림은 없다 · 놓치면 그만이다」
+       그래서 무엇도 멈추지 않고, 무엇도 묻지 않고, 확인 단추가 없다.
+
+     ⚠⚠ 소리가 없는 방송은 **조용히 건너뛴다**(30호). 자막만 띄우지 않는다 —
+       글자만 뜨면 손님이 「왜 소리가 안 나지」를 생각하게 된다. 없으면 없는 게 정직하다.
+
+     ⭐⭐ 창밖과 기내는 **다른 것이 정한다** (장거리 14·15호 · 소로 0825 물음이 연 곳)
+       cabin  기내 소등 — ⭐ 승무원이 정한다. 그래서 **방송이 조명을 정한다**
+       sun    창밖의 해 — ⭐ 해가 정한다. 태양 고도를 잰다
+       ⚠ 한 이름에 두 뜻을 담으면 대낮에 별 이야기가 나간다. 오늘 그럴 뻔했다.
+
+     ⚠ 판정은 **1초에 한 번**이다. 매 프레임 마흔둘을 훑지 않는다(41호 ㉧).
+       걸리는 일이 없는 초에는 숫자 몇 개만 본다.
+     ══════════════════════════════════════════════════════════════════════ */
+  var PA_LIST = [];                 /* 소리가 있는 방송만 — 없는 것은 애초에 안 싣는다 */
+  var PA_DONE = {};                 /* 이 비행에서 이미 튼 것. ref → true */
+  var PA_Q = [];                    /* 대기열 — ⚠ 둘까지만. 셋째는 버린다(놓치면 그만이다) */
+  var PA_NOW = null;                /* 지금 트는 중인 방송 */
+  var PA_T = 0;                     /* 마지막 판정 시각 */
+  var PA_DIM = false;               /* ⭐ 기내가 지금 소등인가 — **방송이 정한다** */
+  var PA_ALT = 0;                   /* 지난 판정 때의 고도 — 통과(alt)를 재려면 둘이 필요하다 */
+  var PA_SUN = 0;                   /* 지난 판정 때의 태양 고도 — 뜨는 중인지 재려면 둘이 필요하다 */
+  var PA_SEEN = {};                 /* 무작위 방송이 이미 주사위를 굴렸나 */
+  var paAudio = null, paSrc = null, paGain = null, paLp = null, paHp = null;
+
+  /* ⭐⭐ 태양 고도 — **Cesium 에 안 기댄다.** 순수 천문 셈이라 컨테이너에서 검산했다.
+     실측 대조(0825): 서울 하지 정오 74.1°(실제 75.9) · 동지 28.6°(29.0) ·
+     파리 7월 21시 6.2° · 북극 하지 24.4°(백야). ⚠ 오차 1~2° — 별을 가르는 데는 충분하다.
+     ⭐⭐ 그리고 이것이 딱지_0821(「시각으로 밤낮을 가르면 계절이 어긋난다」)의 처방이다.
+       themeKey() 는 「5시 전·20시 후면 밤」으로 자르는데, 겨울 파리는 오후 다섯 시에
+       해가 지고 여름 시베리아는 밤 열한 시에도 밝다. 방송은 그 자를 안 쓴다.
+     ⚠ 기내 조명(14호)은 여전히 시간표다 — 장거리 15호가 면제한 것은 **그쪽뿐**이다. */
+  function sunAltDeg(lat, lon, when) {
+    var d = (when || new Date()).getTime() / 86400000 + 2440587.5 - 2451545.0;
+    var R = Math.PI / 180;
+    var L = (280.460 + 0.9856474 * d) % 360;
+    var g = ((357.528 + 0.9856003 * d) % 360) * R;
+    var lam = (L + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) * R;
+    var eps = (23.439 - 0.0000004 * d) * R;
+    var ra = Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam));
+    var dec = Math.asin(Math.sin(eps) * Math.sin(lam));
+    var gmst = (18.697374558 + 24.06570982441908 * d) % 24;
+    var H = (((gmst + lon / 15 + 24) % 24) * 15 * R) - ra;
+    var phi = lat * R;
+    return Math.asin(Math.sin(phi) * Math.sin(dec)
+                   + Math.cos(phi) * Math.cos(dec) * Math.cos(H)) / R;
+  }
+
+  /* ⭐ 싣기 — 두 표를 한 번씩 읽어 합친다. 방에 들어올 때 한 번뿐이다.
+     ⚠ 못 받아도 방은 그냥 선다. 방송이 없는 비행이 될 뿐이고, 그것이 못 뜨는 것보다 낫다. */
+  function paLoad(code) {
+    PA_LIST = []; PA_DONE = {}; PA_Q = []; PA_SEEN = {}; PA_NOW = null; PA_DIM = false;
+    var q1 = "/rest/v1/eg_flight_pa?select=ref,kind,voice_role,title,text_ko,cue"
+           + "&active=eq.true&route=eq." + encodeURIComponent(code) + "&order=seq";
+    var q2 = "/rest/v1/voice_takes?select=ref,url&scope=eq.pa&active=eq.true";
+    return Promise.all([egr_fetch(q1), egr_fetch(q2)]).then(function (r) {
+      var rows = r[0] || [], takes = r[1] || [], byRef = {}, i;
+      for (i = 0; i < takes.length; i++) byRef[takes[i].ref] = takes[i].url;
+      for (i = 0; i < rows.length; i++) {
+        var e = rows[i];
+        if (!byRef[e.ref]) continue;              /* ⚠ 소리가 없으면 안 싣는다 */
+        PA_LIST.push({ ref: e.ref, kind: e.kind, role: e.voice_role,
+                       title: e.title, ko: e.text_ko || "", cue: e.cue || {},
+                       url: byRef[e.ref] });
+      }
+      try {
+        console.log("%c[EG] 기내 방송 " + PA_LIST.length + "편을 실었습니다"
+          + (rows.length > PA_LIST.length ? " (아직 안 구운 것 " + (rows.length - PA_LIST.length) + "편은 건너뜁니다)" : ""),
+          "color:#c9a84c");
+      } catch (x) { }
+    }).catch(function (e) {
+      console.warn("[EG] 기내 방송을 못 실었습니다 — 방송 없이 갑니다:", e && e.message);
+    });
+  }
+
+  /* ⭐ 판정 — ctx 는 지금의 비행 상태 한 줌이다.
+     ⚠ 조건이 **하나라도 안 맞으면 false.** 「거의 맞으면 튼다」가 없다. */
+  function paReady(e, ctx) {
+    var c = e.cue || {};
+    if (c.phase && c.phase !== ctx.phase) return false;
+    if (c.min != null && ctx.min < c.min) return false;
+    if (c.leg != null && ctx.seg < c.leg) return false;
+    if (c.alt != null) {
+      /* ⭐ 통과다 — 지금 값 하나로는 못 잰다. 지난 판정과 견준다 */
+      var up = (c.dir !== "down");
+      if (up ? !(PA_ALT < c.alt && ctx.alt >= c.alt)
+             : !(PA_ALT > c.alt && ctx.alt <= c.alt)) return false;
+    }
+    if (c.cabin === "dim" && !PA_DIM) return false;
+    if (c.cabin === "lit" && PA_DIM) return false;
+    if (c.sun) {
+      if (c.sun.below != null && !(ctx.sun < c.sun.below)) return false;
+      if (c.sun.above != null && !(ctx.sun > c.sun.above)) return false;
+      /* ⭐ 뜨는 중 — 고도가 −3~+4° 이고 **오르고 있다.** 지는 해와 갈리는 곳이 이 한 줄이다 */
+      if (c.sun.rise && !(ctx.sun > -3 && ctx.sun < 4 && ctx.sun > PA_SUN)) return false;
+    }
+    if (c.prob != null) {
+      if (c.after != null && ctx.min < c.after) return false;
+      if (c.before != null && ctx.min > c.before) return false;
+      /* ⚠ 주사위는 **한 번만** 굴린다. 매 초 굴리면 확률 0.3 이 사실상 1 이 된다 */
+      if (PA_SEEN[e.ref]) return false;
+      PA_SEEN[e.ref] = true;
+      if (Math.random() > c.prob) return false;
+    }
+    return true;
+  }
+
+  /* ⭐ 1초에 한 번. 걸리는 것이 없으면 숫자 몇 개만 보고 나간다 */
+  function paTick(now, ctx) {
+    if (now - PA_T < 1000) return;
+    PA_T = now;
+    if (PA_LIST.length) {
+      for (var i = 0; i < PA_LIST.length; i++) {
+        var e = PA_LIST[i];
+        if (PA_DONE[e.ref]) continue;
+        if (!paReady(e, ctx)) continue;
+        PA_DONE[e.ref] = true;
+        /* ⚠ 둘까지만 쌓는다. 셋째는 버린다 — 늦게 나가는 방송은 거짓말이 된다 */
+        if (PA_NOW || PA_Q.length) { if (PA_Q.length < 2) PA_Q.push(e); }
+        else paPlay(e);
+      }
+    }
+    PA_ALT = ctx.alt; PA_SUN = ctx.sun;
+  }
+
+  /* ⭐ 챠임 — 사인파 두 음. ⚠ 0823 끼익은 잡음 스펙트럼이라 합성이 두 번 다 틀렸는데,
+     보잉 챠임은 순음이라 갈래가 다르다. ⭐ 그래도 「됩니다」라고 안 적는다 — 들어 보십시오.
+     ⚠ 파일이 낫다 싶으면 PA_CHIME 를 주소로 바꾸는 것으로 끝난다. */
+  var PA_CHIME = null;              /* 주소를 넣으면 파일이 이긴다 */
+  function paChime(after) {
+    if (!sndOn || CH === 2) { after(); return; }
+    try {
+      var a = ensureAC(), t0 = a.currentTime, g = a.createGain();
+      g.gain.value = 0; g.connect(a.destination);
+      [[1046.5, 0], [784.0, 0.34]].forEach(function (p) {       /* 도 → 솔 */
+        var o = a.createOscillator(), gg = a.createGain();
+        o.type = "sine"; o.frequency.value = p[0];
+        gg.gain.setValueAtTime(0.0001, t0 + p[1]);
+        gg.gain.exponentialRampToValueAtTime(0.16, t0 + p[1] + 0.012);   /* 딩 */
+        gg.gain.exponentialRampToValueAtTime(0.0001, t0 + p[1] + 0.62);  /* 스르르 */
+        o.connect(gg).connect(a.destination);
+        o.start(t0 + p[1]); o.stop(t0 + p[1] + 0.7);
+      });
+      EGR_later(after, 900);
+    } catch (e) { after(); }
+  }
+
+  /* ⭐⭐ 틀기 — 챠임 → 방송 → 자막이 함께 뜬다.
+     ⭐ 기장이면 무전 필터를 코드가 건다(소로 0825 「나중에 기내방송 효과를 파이스가」).
+       ⚠ 녹음에 구워 넣지 않는 까닭 — 되돌릴 수 있고, 세기를 화면에서 정할 수 있다.
+     ⚠ 엔진음·음악을 40% 로 눕힌다(덕킹). 실물 기내가 그렇다 — 방송이 오면 음악이 준다. */
+  var PA_DUCK = 0.4;
+  function paPlay(e) {
+    PA_NOW = e;
+    paApply((e.cue || {}).sets);          /* ⭐ 조명은 방송과 함께 바뀐다 — 실물이 그렇다 */
+    paSay(e);
+    var done = function () {
+      PA_NOW = null;
+      paDuck(false);
+      EGR_later(paSayOff, 1400);           /* ⭐ 소리가 끝나도 글자는 조금 더 남는다 */
+      if (PA_Q.length) EGR_later(function () { var n = PA_Q.shift(); if (n) paPlay(n); }, 2200);
+    };
+    if (!sndOn || CH === 2) {              /* ⚠ 소리를 끄셨으면 글자만. 그래도 지나간다 */
+      EGR_later(done, Math.max(4000, e.ko.length * 90));
+      return;
+    }
+    paChime(function () {
+      if (PA_NOW !== e) return;            /* ⚠ 그 사이에 방을 나가셨으면 물러난다(41호 ㉤) */
+      paDuck(true);
+      try {
+        if (paAudio) { try { paAudio.pause(); } catch (x) { } }
+        paAudio = new Audio();
+        paAudio.crossOrigin = "anonymous";
+        paAudio.preload = "auto";
+        paAudio.src = e.url;
+        var a = ensureAC();
+        paSrc = a.createMediaElementSource(paAudio);
+        paGain = a.createGain(); paGain.gain.value = 1.0;
+        if (e.role === "captain") {
+          /* ⭐ 무전 — 300~3,400Hz 만 남긴다. 전화선 대역이고 기내 방송이 실제로 그렇다 */
+          paHp = a.createBiquadFilter(); paHp.type = "highpass"; paHp.frequency.value = 300;
+          paLp = a.createBiquadFilter(); paLp.type = "lowpass";  paLp.frequency.value = 3400;
+          paSrc.connect(paHp).connect(paLp).connect(paGain).connect(a.destination);
+        } else {
+          paHp = paLp = null;
+          paSrc.connect(paGain).connect(a.destination);
+        }
+        paAudio.addEventListener("ended", done);
+        paAudio.addEventListener("error", done);
+        paAudio.play().catch(function () { done(); });
+        /* ⚠ 그물 — 끝났다는 말이 안 오면 다섯 자에 1초로 어림해 넘긴다 */
+        EGR_later(function () { if (PA_NOW === e) done(); }, Math.max(8000, e.ko.length * 220));
+      } catch (x) { console.warn("[EG] 방송을 못 틀었습니다:", x && x.message); done(); }
+    });
+  }
+
+  /* ⚠ 엔진음·음악을 눕힌다. **되돌리는 줄을 짝으로 짓는다** — 0821k 의 그 수칙 */
+  function paDuck(on) {
+    try {
+      var a = ensureAC(), t = a.currentTime;
+      if (engGain) engGain.gain.linearRampToValueAtTime(engBase * (on ? PA_DUCK : 1), t + 0.5);
+      if (musGain) musGain.gain.linearRampToValueAtTime(MUSIC_VOL * (on ? PA_DUCK : 1), t + 0.5);
+    } catch (e) { }
+  }
+
+  function paSay(e) {
+    if (!ROOT) return;
+    var el = ROOT.querySelector("#egrPA"); if (!el) return;
+    el.querySelector("b").textContent = (e.role === "captain") ? "기장 안내" : "기내 안내";
+    el.querySelector("i").textContent = e.ko;
+    el.classList.add("on");
+  }
+  function paSayOff() {
+    if (!ROOT) return;
+    var el = ROOT.querySelector("#egrPA"); if (el) el.classList.remove("on");
+  }
+  function paHush() {
+    try { if (paAudio) { paAudio.pause(); paAudio = null; } } catch (e) { }
+    paSrc = null; paGain = null; paLp = null; paHp = null;
+    PA_NOW = null; PA_Q = [];
+    paSayOff();
+  }
+
+  /* ⭐ 방송이 바꿔 놓는 것 — 지금은 조명 하나뿐이다.
+     ⚠ 숫자를 코드에 안 박는다. 표의 sets 가 시킨다 — 소로가 소등 시각을 옮기시면
+       조명도 따라 옮겨간다(22호: 같은 값을 두 곳에 안 적는다). */
+  function paApply(s) {
+    if (!s) return;
+    if (s.cabin === "dim") PA_DIM = true;
+    else if (s.cabin === "lit") PA_DIM = false;
+  }
+
+  /* ══ ⭐⭐⭐ 0825f 이어 타기 되짚기 — 소로 0825 ═══════════════════════════════════
+     > 「한꺼번에 통으로 타는 사람은 드물어. 저장했다가 다음날 낮에 또 탈 수 있어」
+
+     ⚠⚠ 이 한마디가 방금 지은 손을 세 곳에서 무너뜨렸다. 여섯 시간 지점에서 다시 타면 —
+       ㉠ PA_DONE 이 비어 있어 앞선 열한 편이 한 초에 다 조건을 만족한다.
+          큐가 둘이라 **「환영합니다」와 안전 브리핑**이 여섯 시간 지점에서 나간다
+       ㉡ PA_ALT 가 0 이라 0→11,000 통과로 읽혀 「벨트 표시등이 꺼졌습니다」가 나간다
+       ㉢ PA_DIM 이 false 라 소등 구간인데 lit 로 쳐서 별 방송이 영영 안 걸린다
+
+     ⭐ 처방은 17호가 이미 적어 둔 그대로다 — **「놓치면 그만이다.」**
+       내렸다 타신 사이의 방송은 못 듣는 것이 맞다. 지나간 것은 지나간 것으로 찍는다.
+     ⭐⭐ 다만 **결과는 물려받는다.** 소리는 안 내고 sets 만 적용한다 —
+       여섯 시간 뒤에 좌석으로 돌아오면 조명은 이미 낮아져 있다. 실물이 그렇다.
+     ⭐ 따로 저장할 것이 없다. flown 과 seg 가 이미 「어디까지 왔나」를 말한다.
+
+     ⚠⚠ **처음 타실 때는 이 함수를 아예 안 부른다.** 그래서 min 0 짜리(탑승·안전·대기)를
+       「지나감」으로 재도 안전하다 — 이어 타기는 min 이 0 보다 크기 때문이다. */
+  function paCatchUp(ctx) {
+    var i, e, c, past, resume = null, n = 0;
+    for (i = 0; i < PA_LIST.length; i++) {
+      e = PA_LIST[i]; c = e.cue || {};
+      if (c.phase === "resume") { resume = e; continue; }
+      past = (c.min != null && ctx.min >= c.min) || (c.leg != null && ctx.seg >= c.leg);
+      /* ⚠⚠ 시뮬이 잡은 곳 — 고도 통과(climb3k)는 min 도 leg 도 없어서 위 두 자에 안 걸린다.
+         PA_ALT 를 지금 고도로 채우므로 실제로 나가지는 않지만, **후보로 영영 남는다.**
+         ⭐ 이미 그 고도 위에 있으면 지나간 것이다. 숫자는 표가 쥔다(c.alt).
+         ⚠ 내려가는 것(land3k · dir:down)은 아직 안 왔으므로 안 찍힌다 — 부호가 가른다. */
+      if (!past && c.alt != null) {
+        past = (c.dir !== "down") ? (ctx.alt >= c.alt) : (ctx.alt < c.alt);
+      }
+      if (!past) continue;
+      PA_DONE[e.ref] = true; n++;
+      paApply(c.sets);                    /* ⭐ 소리는 안 내고 결과만 */
+    }
+    /* ⚠ ㉡ 의 처방 — 고도를 지금 값으로 채운다. 통과(alt)는 지난 값과 견주므로
+       0 으로 두면 첫 판정에서 「방금 올라왔다」가 된다. */
+    PA_ALT = ctx.alt; PA_SUN = ctx.sun;
+    try {
+      console.log("[EG] 이어 타기 — 지나간 방송 " + n + "편은 건너뜁니다 · 기내 "
+        + (PA_DIM ? "소등" : "점등"));
+    } catch (x) { }
+    /* ⭐ 그리고 다시 앉으신 손님께 한마디. ⚠ 2.5초 뒤 — 방이 서는 소리와 안 겹치게 */
+    if (resume) {
+      PA_DONE[resume.ref] = true;
+      EGR_later(function () { if (ROOT && !PA_NOW) paPlay(resume); }, 2500);
     }
   }
 
@@ -6508,6 +6827,20 @@ function paintBook() {
       try { console.log("%c[EG] ⚠ 시험 — 길목 " + jump + " 부터 시작합니다 ("
         + (route.legs[jump] ? route.legs[jump][2] : "?") + ")", "color:#f0c07a"); } catch (e) { }
     }
+    /* ══ ⭐⭐⭐ 0825f 기내 방송을 싣는다 ═══════════════════════════════════════════
+       ⚠ 못 받아도 방은 그냥 선다 — 방송 없는 비행이 될 뿐이고, 그것이 못 뜨는 것보다 낫다.
+       ⭐ 이어 타기(rz.flown > 0)면 지나간 방송을 되짚는다 — 소리는 안 내고 결과만 물려받고,
+         다시 앉으신 손님께 한마디 드린다. ⚠ 처음 타시면 되짚기를 아예 안 부른다. */
+    paLoad(route.code || "").then(function () {
+      if (!ROOT) return;                        /* ⚠ 그 사이 나가셨으면 물러난다(41호 ㉤) */
+      if (rz.flown > 0) {
+        var p0 = curveOf(route, rz.seg, rz.u);
+        paCatchUp({ min: rz.flown / 60, seg: rz.seg,
+                    alt: (route.msl || 11000),
+                    sun: sunAltDeg(p0[0], p0[1]) });
+      }
+    });
+
     flight = cruise(route, {
       sky: 6, startSeg: rz.seg, startU: rz.u,
       /* ⭐⭐ 0823c (소로 0822) — 총 비행시간·거리도 이어받는다.
@@ -6626,6 +6959,9 @@ function paintBook() {
        안 누른 것은 손해가 아니므로 나무라지 않고 아무 말도 안 띄운다(3호). */
     try { if (window.EGStamp && EGStamp.withdraw) EGStamp.withdraw(); } catch (e) { }
     try { hush(); } catch (e) { }   /* ⚠ 제 소리는 제 손으로 끈다 — __egHush 는 베스페르 것 */
+    /* ⭐ 0825f — 방송도 함께 재운다. ⚠⚠ 0821k 의 수칙 — **소리 가지를 새로 달면
+       끄는 줄부터 짝으로 단다.** 안 그러면 방은 걷혔는데 기장 목소리만 terra 위에 남는다. */
+    try { paHush(); } catch (e) { }
     /* ⭐ 있던 곳을 적어 둔다 — flight 를 세우기 **전**이어야 값이 살아 있다
        ⚠⚠ 0823b — 「그냥 나가기」(opt.discard)면 적는 대신 **지운다.**
          길목 자동 저장(26호)이 이미 적어 둔 것이 있으므로, 안 적기만 해서는 부족하다.
