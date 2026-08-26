@@ -330,7 +330,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0826u";
+  var VERSION = "0826v";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1045,8 +1045,18 @@
            /* ⭐ 접힌 트레이 잠금쇠 — 실측(홈 l 69.93 w 14.98 · 손잡이 가운데 78.6).
               ⚠ 지금은 곳만 잡아 둔다. 누르는 손은 내려온 판이 나온 뒤에 잇는다 —
                 지어 두면 눌렀을 때 아무 일도 안 일어나고, 그것이 고장으로 읽힌다. */
-           latch: { x: 77.42, y: 48.86, w: 14.98, h: 2.15 } }
+           latch: { x: 77.42, y: 48.86, w: 14.98, h: 2.15 },
+           /* ⭐⭐ 0826v 얹는층이 눕는 네 귀 — **트레이 상판 실측**(941×1672 판의 %).
+              ⚠ near-right 가 101.17 로 판 밖이다. 그것이 맞다 — 소로 0826:
+                「지금 원근법에 맞게 제대로 구현되어 있어. 오른쪽이 살짝 잘리는 게 정확」.
+              ⭐ 소로가 편집기에서 끌면 이 값을 덮고 서버에 적힌다(TUNE_C.lin.DH). */
+           dish: { tl: [53.24, 64.89], tr: [96.39, 64.71],
+                   br: [101.17, 74.22], bl: [48.56, 74.22] } }
   };
+  /* ⭐ 얹는층 캔버스 — **설계값이다. 편집값이 아니다.** 격납고가 굽는 판형과 같다.
+     ⚠⚠ 이 둘을 dish 객체 안에 두면 0819V 의 그 사고가 또 난다(41호 ㉬) —
+       헌 편집값이 판형을 덮어 그림이 반토막 난다. 여기는 아무도 안 덮는다. */
+  var DISH_W = 1500, DISH_H = 1000;
   var SPEC = CRAFT_SPEC.jet;       /* 지금 탄 기체의 명세 — applyCraft 가 채운다 */
 
   /* ══ 0821f — 계기 바늘 · 호박 램프 · 붉은 불빛 ═══════════════════════
@@ -1187,6 +1197,13 @@
       MON.tl = t.M.tl.slice(); MON.tr = t.M.tr.slice();
       MON.br = t.M.br.slice(); MON.bl = t.M.bl.slice();
     }
+    /* ⭐ 0826v 얹는층 네 귀 — ⚠ 모양이 맞을 때만 읽는다.
+       헌 값이 새 설계를 덮는 그 갈래를 여기서도 막는다(41호 ㉬ · 네 번째다). */
+    if (t.DH && t.DH.tl && t.DH.tl.length === 2 && CRAFT_SPEC[CRAFT] && CRAFT_SPEC[CRAFT].dish) {
+      var dq1 = CRAFT_SPEC[CRAFT].dish;
+      dq1.tl = t.DH.tl.slice(); dq1.tr = t.DH.tr.slice();
+      dq1.br = t.DH.br.slice(); dq1.bl = t.DH.bl.slice();
+    }
     /* ⭐ 0822c — 질감 셋. ⚠ 수(數)이고 범위 안일 때만 읽는다(구름 손잡이와 같은 그물) */
     SKIN_BARS.forEach(function (b) {
       var x = t.S && t.S[b[0]];
@@ -1194,7 +1211,43 @@
                    ? x : SKIN_DEF[b[0]];
     });
     applySkin();
-    if (ROOT) { mountInstr(); layout(); }
+    if (ROOT) { mountDish(); mountInstr(); layout(); }
+  }
+  /* ⭐⭐ 0826v 얹는층 겹 — 한 번만 짓는다. 그림은 배경으로 갈아 끼운다.
+     ⚠ 낱장을 DOM 으로 스물한 개 만들지 않는다(41호 ㉧ · 먼지와 같은 수칙). */
+  function mountDish() {
+    if (!ROOT || DISH_EL) return;
+    DISH_EL = document.createElement("div"); DISH_EL.id = "egrDish";
+    ROOT.appendChild(DISH_EL);
+    DISH_H4 = [];
+    ["tl", "tr", "br", "bl"].forEach(function (k, i) {
+      var hEl = document.createElement("div");
+      hEl.className = "egrDishH"; hEl.dataset.k = k;
+      hEl.addEventListener("pointerdown", function (e) {
+        if (!editing) return;
+        e.preventDefault(); e.stopPropagation();
+        hEl.setPointerCapture(e.pointerId);
+        dgrab = { i: i, x: e.clientX, y: e.clientY };
+      });
+      hEl.addEventListener("pointermove", function (e) {
+        if (!dgrab || dgrab.i !== i) return;
+        var q = dishQuad(); if (!q) return;
+        /* ⭐ 화면 px 를 판 % 로 되돌린다 — layout 이 쓰는 그 자와 같은 자다 */
+        var R = PLATE_W / PLATE_H, vw = window.innerWidth, vh = window.innerHeight;
+        var w2 = (vw / vh < R) ? Math.max(vh * R, vw) : vw, h2 = w2 / R;
+        var flip2 = (side > 0);
+        var dx = (e.clientX - dgrab.x) / w2 * 100 * (flip2 ? -1 : 1);
+        var dy = (e.clientY - dgrab.y) / h2 * 100;
+        var kk = (flip2 ? ["tr", "tl", "bl", "br"] : ["tl", "tr", "br", "bl"])[i];
+        q[kk][0] += dx; q[kk][1] += dy;
+        dgrab.x = e.clientX; dgrab.y = e.clientY;
+        layout();
+      });
+      hEl.addEventListener("pointerup", function () {
+        if (!dgrab) return; dgrab = null; saveTuneSoon(); dishSay();
+      });
+      ROOT.appendChild(hEl); DISH_H4.push(hEl);
+    });
   }
   /* ⭐ DOM 은 개수가 바뀔 때만 다시 짓는다 — 기체가 갈리면 계기 수가 달라진다 */
   function mountInstr() {
@@ -2291,6 +2344,11 @@
     return { stop: off, routeCode: route.code,
              /* ⭐ 0823c — 총계 둘을 함께 낸다. 적는 손이 이 하나만 보면 된다 */
              where: function () { return { seg: seg, u: u, flown: Math.round(flown), dist: dist }; },
+             /* ⭐⭐ 0826v — FLIGHT TIME 을 손으로 옮긴다. **시승 전용이다.**
+                ⚠ 곳(seg·u)은 한 톨도 안 건드린다 — 시간표(cue.min)만 flown 을 본다.
+                  곳까지 옮기면 창밖이 함께 뛰어 「내가 어디 있나」가 흔들린다.
+                ⚠⚠ 부르는 쪽(egReading.min)이 TRIAL 을 세워 저장을 잠근다(소로 판정 ㉠). */
+             setFlown: function (sec) { flown = Math.max(0, +sec || 0); return flown; },
              /* ⭐ 0820g — 「출발점으로」가 부른다. 곡선 위 어디로든 옮겨 앉힌다.
                 ⚠⚠ 0820y — 여기 있던 `dist = 0` 을 **걷었다.** 「출발점으로」는 곳을
                   옮기는 손이지 탑승을 새로 하는 손이 아니다(위 주석에 그렇게 적혀 있다).
@@ -2448,6 +2506,22 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 #readingRoom.edit #egrLampH{display:block;pointer-events:auto}
 #egrLampH::after{content:"독서등";position:absolute;left:50%;top:-19px;transform:translateX(-50%);
   font:600 11px 'Noto Sans KR',sans-serif;color:rgba(255,226,160,.85);white-space:nowrap}
+/* ══ ⭐⭐ 0826v 얹는층 — 쟁반 그림이 트레이 위에 눕는 곳 ══════════════════
+   ⚠⚠ **새로 짓는 것이 하나도 없다.** 모니터가 이미 네 점 사영변환으로 앉아 있고
+     (0819h · homography), 이것은 그 손을 판형만 바꿔 한 번 더 부르는 것이다.
+   ⭐ 그래서 캔버스 한 벌을 눕히면 그 안의 스물한 장이 함께 눕는다 —
+     장마다 맞추지 않는다(소로 0826 저녁 「내가 1번만 맞추면」).
+   ⚠ 독서등(z 8) **아래**다. 음식에도 빛이 드리워야 한다. */
+#egrDish{position:fixed;left:0;top:0;width:1500px;height:1000px;transform-origin:0 0;
+  z-index:7;pointer-events:none;background-size:100% 100%;background-repeat:no-repeat;
+  opacity:0;transition:opacity .9s ease}
+#egrDish.on{opacity:1}
+#readingRoom.out #egrDish{display:none}
+/* ⭐ 네 귀 손잡이 — 편집 중에만 선다. 평소엔 손을 아예 안 받는다(잠금쇠와 같은 문법) */
+.egrDishH{position:fixed;z-index:13;width:22px;height:22px;margin:-11px 0 0 -11px;
+  border-radius:50%;display:none;cursor:move;
+  border:2px solid rgba(255,0,255,.9);background:rgba(255,0,255,.18)}
+#readingRoom.edit .egrDishH{display:block;pointer-events:auto}
 #readingRoom.out #egrLampH{display:none}
 #readingGrip{position:fixed;z-index:11;pointer-events:auto;cursor:pointer;border-radius:99px;
   background:transparent;transition:background .2s,box-shadow .2s}
@@ -4596,6 +4670,10 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   var SAVE_LAST = Promise.resolve();
   function saveWhere(code, seg, u, flown, dist) {
     if (!code) return SAVE_LAST;
+    /* ⭐⭐ 0826v 시승 잠금 (소로 판정 ㉠ · 0826 저녁) — min() 으로 시각을 손으로
+       옮긴 뒤에는 한 줄도 안 적는다. ⚠ 시승이 기록을 건드리면 시승을 망설이게 된다.
+       ⚠ 얹는층 편집값은 eg_settings 로 나가므로 이 잠금과 무관하다 — 따로 산다. */
+    if (TRIAL) return SAVE_LAST;
     /* ⭐ 0823c — 총계 둘을 함께 실어 보낸다. ⚠ 안 주면 서버가 옛 값을 지킨다(coalesce) */
     SAVE_LAST = rpc("save_my_flight_resume", { p_route: code, p_seg: seg, p_u: u,
                                                p_flown: flown | 0, p_dist: +dist || 0 })
@@ -5628,6 +5706,14 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       TUNE_C[CRAFT].LP = CRAFT_SPEC[CRAFT].lamp;
       TUNE_C[CRAFT].BM = [BEAM_A, BEAM_W];
     }
+    /* ⭐⭐ 0826v — 얹는층 네 귀도 함께 적힌다. **기체마다 한 벌**이고
+       스물한 장이 그 한 벌을 쓴다. ⚠ 장마다 안 적는다(소로 0826 저녁). */
+    if (CRAFT_SPEC[CRAFT] && CRAFT_SPEC[CRAFT].dish) {
+      var dq0 = CRAFT_SPEC[CRAFT].dish;
+      TUNE_C[CRAFT] = TUNE_C[CRAFT] || {};
+      TUNE_C[CRAFT].DH = { tl: dq0.tl.slice(), tr: dq0.tr.slice(),
+                           br: dq0.br.slice(), bl: dq0.bl.slice() };
+    }
     return { GL: GRIP_L, GR: GRIP_R, EL: ENG_L, ER: ENG_R,
              IC: TUNE_C,                     /* ⭐ 기체별 칸 */
              MON: { tl: MON.tl, tr: MON.tr, br: MON.br, bl: MON.bl },
@@ -5710,6 +5796,93 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       });
   }
   function saveTuneSoon() { clearTimeout(tuneT); tuneT = setTimeout(pushTune, 600); }
+
+
+  /* ══ ⭐⭐⭐ 0826v 얹는층 (dish) ═══════════════════════════════════════
+     소로 0826 저녁 — 「배경을 통으로 다 그리는 게 아니고 트레이 윗부분만」.
+     ⭐ 17호가 애초에 적어 둔 얼개다 — 바닥층 둘 · 얹는층은 오려낸 그림.
+       0826 낮에 통짜로 간 것은 벌이 넷일 때 이야기였고, 스물이 되니 곱셈이 돌아왔다.
+     ⚠⚠ 시간표는 아직 이 겹을 안 부른다. 오늘은 **손으로 세우고 손으로 넘긴다.**
+       안 뜨는 그림을 시간표가 부르면 그것이 「고장」으로 읽힌다. */
+  var DISH_EL = null, DISH_H4 = [], DISH_NOW = null, DISH_I = -1, dgrab = null;
+  /* ⭐ 굽는 순서가 곧 이 차례다. 격납고 무리와 한 글자도 안 다르게 적는다 */
+  var DISH_LIST = ["grid",
+    "towel_1", "towel_2", "towel_3",
+    "meal1_1", "meal1_2", "meal1_3", "meal1_4", "meal1_5",
+    "snack_1", "snack_2", "snack_3", "snack_4",
+    "water_1", "water_2", "water_3",
+    "meal2_1", "meal2_2", "meal2_3", "meal2_4", "meal2_5"];
+  /* ⚠ 없는 것은 조용히 건너뛴다(0821d). 다만 **관리자에게는 한 줄 말한다** —
+     0826에 그 침묵으로 두 시간을 더듬었다. */
+  var DISH_SEEN = {};
+  function dishUrl(k) {
+    if (!k || !SPEC || !CRAFT) return "";
+    return hangarBase() + CRAFT + "_dish_" + k + ".webp";
+  }
+  function dishQuad() {
+    return (SPEC && SPEC.dish) ? SPEC.dish : null;
+  }
+  /* ⭐ 네 귀를 한꺼번에 미는 손들 — 값은 여전히 네 점 하나뿐이다(22호) */
+  function dishNudge(dx, dy) {
+    var q = dishQuad(); if (!q) return;
+    ["tl", "tr", "br", "bl"].forEach(function (k) { q[k][0] += dx; q[k][1] += dy; });
+    layout(); saveTuneSoon();
+  }
+  function dishCenter() {
+    var q = dishQuad(); if (!q) return [0, 0];
+    return [(q.tl[0] + q.tr[0] + q.br[0] + q.bl[0]) / 4,
+            (q.tl[1] + q.tr[1] + q.br[1] + q.bl[1]) / 4];
+  }
+  function dishMap(fn) {
+    var q = dishQuad(); if (!q) return;
+    var c = dishCenter();
+    ["tl", "tr", "br", "bl"].forEach(function (k) {
+      var p = fn(q[k][0] - c[0], q[k][1] - c[1]);
+      q[k][0] = c[0] + p[0]; q[k][1] = c[1] + p[1];
+    });
+    layout(); saveTuneSoon();
+  }
+  function dishShow(k) {
+    if (!DISH_EL) return null;
+    if (k === null || k === false) {
+      DISH_NOW = null; DISH_I = -1;
+      DISH_EL.classList.remove("on");
+      return null;
+    }
+    if (DISH_LIST.indexOf(k) < 0) { console.warn("[EG] 그런 얹는층이 없습니다 — " + k); return DISH_NOW; }
+    DISH_NOW = k; DISH_I = DISH_LIST.indexOf(k);
+    DISH_EL.style.backgroundImage = "url(" + dishUrl(k) + ")";
+    DISH_EL.classList.add("on");
+    /* ⭐ 있는지 재서 알려 준다 — 두 시간을 더듬지 않게 */
+    if (DISH_SEEN[k] === undefined) {
+      var im = new Image();
+      im.onload = function () { DISH_SEEN[k] = 1; };
+      im.onerror = function () {
+        DISH_SEEN[k] = 0;
+        console.warn("[EG] 얹는층 " + CRAFT + "_dish_" + k + ".webp 가 격납고에 없습니다");
+      };
+      im.src = dishUrl(k);
+    }
+    layout();
+    return k;
+  }
+  function dishStep(d) {
+    var i = DISH_I < 0 ? (d > 0 ? -1 : 0) : DISH_I;
+    i = (i + d + DISH_LIST.length) % DISH_LIST.length;
+    dishShow(DISH_LIST[i]);
+    dishSay();
+  }
+  function dishSay() {
+    var q = dishQuad(); if (!q) return;
+    console.log("%c[EG] 얹는층 " + (DISH_NOW || "—") + "  ("
+      + (DISH_I + 1) + "/" + DISH_LIST.length + ")  기내 "
+      + (PA_DIM ? "소등" : "점등"), "color:#c9a84c");
+    console.table({ tl: q.tl, tr: q.tr, br: q.br, bl: q.bl });
+  }
+  /* ⭐⭐ 시승 잠금 (소로 판정 ㉠) — 시각을 손으로 옮기면 저장이 잠긴다.
+     ⚠ 시승이 기록을 건드리면 소로가 시승을 망설이게 된다. 그게 더 큰 값이다.
+     ⚠ 얹는층 편집값(dishSave)은 다른 표로 나가므로 이 잠금과 무관하다. */
+  var TRIAL = false;
 
   function layout() {
     if (!ROOT) return;
@@ -5945,6 +6118,26 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
           ? [px(MON.tr), px(MON.tl), px(MON.bl), px(MON.br)]
           : [px(MON.tl), px(MON.tr), px(MON.br), px(MON.bl)];
         MONEL.style.transform = homography(MON_W, MON_H, pts);
+      }
+    }
+
+    /* ⭐⭐ 0826v 얹는층 — 모니터와 **똑같은 손**이다. 판형만 1500×1000 이다.
+       ⚠ 거울(오른창)이면 TL↔TR · BL↔BR 을 바꾼다. 안 바꾸면 쟁반이 뒤집힌다. */
+    var dq = dishQuad();
+    if (DISH_EL && dq) {
+      var dpx = function (c) {
+        return [cx + w * (flip ? (100 - c[0]) : c[0]) / 100, top + h * c[1] / 100]; };
+      var dpts = flip
+        ? [dpx(dq.tr), dpx(dq.tl), dpx(dq.bl), dpx(dq.br)]
+        : [dpx(dq.tl), dpx(dq.tr), dpx(dq.br), dpx(dq.bl)];
+      DISH_EL.style.transform = homography(DISH_W, DISH_H, dpts);
+      /* 네 귀 손잡이 — 편집 중에만 보이지만 곳은 늘 갱신해 둔다 */
+      if (DISH_H4.length === 4) {
+        var order = flip ? ["tr", "tl", "bl", "br"] : ["tl", "tr", "br", "bl"];
+        DISH_H4.forEach(function (hEl, i) {
+          var p = dpx(dq[order[i]]);
+          hEl.style.left = p[0] + "px"; hEl.style.top = p[1] + "px";
+        });
       }
     }
   }
@@ -7770,6 +7963,18 @@ function paintBook() {
       else if (k === "r") toStart();          /* ⭐ 0820g — 출발점으로 */
       else if (k === "s") toggleShade();
       else if (k === "e") setEdit(!editing);
+      /* ══ ⭐⭐ 0826v 얹는층 넘기기 — 시간표를 안 기다린다 (소로 0826 저녁)
+         > 「이게 시간 축과 맞물려서 테스트가 엄청 힘들거 같아」
+         ⭐ [ 와 ] 로 스물한 장을 넘긴다. ⚠ 편집 중에만 — 손님에게는 없는 손이다. */
+      else if (editing && (k === "[" || k === "]")) {
+        if (!TRAY) { TRAY = "tray"; }        /* ⭐ 트레이가 접혀 있으면 저절로 편다 */
+        dishStep(k === "]" ? 1 : -1);
+      }
+      /* ⭐ L — 밝은 벌 ↔ 어두운 벌. 간식 넷은 어두운 기내에서 봐야 한다 */
+      else if (editing && k === "l") {
+        PA_DIM = !PA_DIM; setTheme && setTheme();
+        layout(); say("기내 " + (PA_DIM ? "소등" : "점등"));
+      }
       else if (k === "f") toggleFps();        /* ⭐ 0820i — 관리자만 */
       /* ⭐⭐ 0825p 구조 — Shift+H. ⚠ 콘솔을 못 여는 곳(폰·태블릿)에서도 되찾아야 한다.
          모니터를 화면 밖으로 밀어 놓으면 잡을 데가 없어지는데, 그때 이 키가 유일한 길이다. */
@@ -8534,6 +8739,77 @@ function paintBook() {
                          return [TRAY_FADE, TRAY_GLIDE];
                        },
                        trayOpen: function () { trayToggle(); return TRAY; },
+                       /* ══ ⭐⭐⭐ 0826v 얹는층 손 (소로 0826 저녁) ══════════════
+                          egReading.dish()            지금 얹힌 장 · 목록
+                          egReading.dish("towel_1")   ⭐ 그 장을 지금 얹는다
+                          egReading.dish(null)        걷는다
+                          egReading.dishFit()         네 귀를 표로 찍는다
+                          egReading.dishX(1)          ⭐ 오른쪽으로 1% (음수면 왼쪽)
+                          egReading.dishY(1)          아래로 1%
+                          egReading.dishW(1.02)       ⭐ 가운데를 두고 키운다
+                          egReading.dishRot(0.5)      ⭐ 도
+                          egReading.dishSkew(0.5)     ⭐ 도 — 좌우 기울이기
+                          egReading.dishSave()        ⭐⭐ 서버에 한 벌
+                          egReading.dishReset()       실측 시작값으로
+                          egReading.min(270)          ⭐⭐ FLIGHT TIME 을 그 분으로
+                                                        ⚠ 이때부터 저장이 잠긴다 */
+                       dish: function (k) {
+                         if (!arguments.length) { dishSay(); return DISH_LIST.slice(); }
+                         if (!TRAY && k) TRAY = "tray";
+                         var r = dishShow(k); layout(); return r;
+                       },
+                       dishFit: function () { dishSay(); return dishQuad(); },
+                       dishX: function (v) { dishNudge(+v || 0, 0); return dishQuad(); },
+                       dishY: function (v) { dishNudge(0, +v || 0); return dishQuad(); },
+                       dishW: function (v) {
+                         var m = +v || 1;
+                         dishMap(function (x, y) { return [x * m, y * m]; });
+                         return dishQuad();
+                       },
+                       dishRot: function (v) {
+                         var a = (+v || 0) * Math.PI / 180, c = Math.cos(a), s2 = Math.sin(a);
+                         /* ⚠ 판이 세로로 길다 — 각도를 %로 그냥 돌리면 찌그러진다.
+                            ⭐ 판 비(941/1672)로 되돌려 돌리고 다시 넣는다 */
+                         var k2 = PLATE_W / PLATE_H;
+                         dishMap(function (x, y) {
+                           var yy = y * k2;
+                           return [x * c - yy * s2, (x * s2 + yy * c) / k2];
+                         });
+                         return dishQuad();
+                       },
+                       dishSkew: function (v) {
+                         var t2 = Math.tan((+v || 0) * Math.PI / 180), k3 = PLATE_W / PLATE_H;
+                         dishMap(function (x, y) { return [x + y * k3 * t2, y]; });
+                         return dishQuad();
+                       },
+                       dishSave: function () {
+                         pushTune();
+                         console.log("%c[EG] 얹는층 네 귀를 서버에 적었습니다 — 스물한 장이 이 한 벌을 씁니다",
+                                     "color:#7ac47a");
+                         return dishQuad();
+                       },
+                       dishReset: function () {
+                         var d0 = { tl: [53.24, 64.89], tr: [96.39, 64.71],
+                                    br: [101.17, 74.22], bl: [48.56, 74.22] };
+                         var q = dishQuad(); if (!q) return null;
+                         q.tl = d0.tl; q.tr = d0.tr; q.br = d0.br; q.bl = d0.bl;
+                         layout(); saveTuneSoon(); dishSay(); return q;
+                       },
+                       /* ⭐⭐ 시각을 손으로 옮긴다 — 270분을 안 기다린다.
+                          ⚠ 이때부터 TRIAL 이 서서 비행 저장이 잠긴다(소로 판정 ㉠). */
+                       min: function (m) {
+                         if (!arguments.length) return flight && flight.where ? flight.where().flown / 60 : null;
+                         TRIAL = true;
+                         if (flight && flight.setFlown) flight.setFlown((+m || 0) * 60);
+                         console.log("%c[EG] FLIGHT TIME " + (+m || 0) + "분 · ⚠ 시승 중이라 비행 저장이 잠겼습니다",
+                                     "color:#d4a24c");
+                         return +m || 0;
+                       },
+                       trial: function (on) {
+                         TRIAL = (on === undefined) ? true : !!on;
+                         console.log("[EG] 시승 잠금 " + (TRIAL ? "켜짐 — 저장 안 함" : "풀림"));
+                         return TRIAL;
+                       },
                        /* ⭐⭐ 0826m — 소등을 손으로 켠다. 이륙 60분을 안 기다린다.
                           ⚠ 방송이 정한 것을 덮어쓰는 것이라 **저장 안 한다** — 다음 방송이 이긴다. */
                        dim: function (v) {
