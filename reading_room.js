@@ -330,7 +330,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0826p";
+  var VERSION = "0826u";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1160,8 +1160,22 @@
     applyCraftTune();              /* ⭐ 0821f — 이 기체의 계기·램프·불빛·모니터를 싣는다 */
   }
   /* ⭐ 저장된 값이 있으면 그것, 없으면 명세의 어림값. 모양이 다르면 안 읽는다(41호 ㉬) */
+  /* ⭐ 0826u — 서버에서 온 독서등 값을 되읽는다.
+     ⚠ 모양이 다르면 안 읽는다 — 0819W(헌 값이 새 설계를 덮는다) 수칙 그대로. */
+  function lampTuneRead(v) {
+    if (!v) return;
+    var L = v.LP;
+    if (L && typeof L.x === "number" && typeof L.y === "number"
+          && typeof L.rx === "number" && typeof L.ry === "number") {
+      CRAFT_SPEC[CRAFT].lamp = { x: L.x, y: L.y, rx: L.rx, ry: L.ry };
+    }
+    if (v.BM && typeof v.BM[0] === "number" && typeof v.BM[1] === "number") {
+      BEAM_A = v.BM[0]; BEAM_W = v.BM[1]; beamPaint();
+    }
+  }
   function applyCraftTune() {
     var t = TUNE_C[CRAFT] || {};
+    lampTuneRead(t);                  /* ⭐ 0826u — 독서등도 기체별 칸에서 온다 */
     var okI = t.I && t.I.length && typeof t.I[0].x === "number" && typeof t.I[0].z === "number";
     INSTR = cpyArr(okI ? t.I : (INSTR_DEF[CRAFT] || []));
     /* ⚠ 0821h — 램프가 하나(객체)에서 다섯(배열)로 바뀌었다. 옛 값은 모양이 달라 안 읽는다(41호 ㉬) */
@@ -2343,8 +2357,13 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   pointer-events:none;z-index:6;background-size:100% 100%;background-repeat:no-repeat}
 /* ⭐ 윗겹 — 조명이 바뀔 때만 3초에 걸쳐 드러난다. 평소엔 투명하게 겹쳐만 있다 */
 #readingRoom #plateB{z-index:7;opacity:0}
+/* ⭐⭐ 0826q — 덮개가 **조명을 따라간다**(소로 0826 걱정 그대로).
+   ⚠ 굳은 베이지 한 벌이라, 밤에 닫으면 어두운 기내에 흰 판 넷이 떠 있었다.
+     787 은 덮개가 없고 전자 조광창이라 실물은 **짙은 남빛으로 물드는 것**이다.
+   ⭐ setTheme 이 이미 --dk-* 를 뿌리고 있으므로 새 셈을 안 짓는다 —
+     조명 갈래 하나에 덮개 색 두 벌만 얹는다. 밤이면 저절로 어두워진다. */
 #readingRoom .shade{position:fixed;z-index:5;
-  background:linear-gradient(#d8cfc0,#cdc3b2 62%,#c0b6a4);
+  background:linear-gradient(var(--sh1,#d8cfc0),var(--sh2,#cdc3b2) 62%,var(--sh3,#c0b6a4));
   box-shadow:0 4px 12px rgba(0,0,0,.28) inset;
   transform:translateY(-101%);transition:transform .75s cubic-bezier(.35,.9,.3,1)}
 #readingRoom.shut .shade{transform:translateY(0)}
@@ -2374,9 +2393,28 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
    ⭐⭐ 그리고 모양을 **원뿔**로 — 천장 등에서 무릎으로 퍼져 내려오는 빛이다.
      ⚠ 타원 하나로는 「바닥에 놓인 조명」처럼 보인다. 위가 좁고 아래가 넓어야 위에서 온다.
      ⭐ clip-path 사다리꼴 안에 타원 그러데이션 — 두 겹이 아니라 한 판이다. */
+/* ⚠⚠ 0826q — 원뿔을 걷었다(소로 0826). 시작점이 창가 언저리라 **빛이 창에서 나왔다.**
+     천장에서 내려오게 하려면 판 꼭대기부터 그려야 하는데, 그러면 창을 가로지른다.
+   ⭐⭐ 그래서 **닿는 곳만 그린다** — 빛줄기를 안 그리고 트레이 위 둥근 웅덩이 하나.
+     실물도 그렇다. 기내에서 독서등을 켜면 보이는 것은 줄기가 아니라 무릎 위 동그라미다.
+     ⚠ 테두리를 선으로 안 자른다 — clip-path 를 안 쓰고 그러데이션이 스스로 0 이 된다. */
 #egrRlite{position:fixed;z-index:8;pointer-events:none;opacity:0;
-  transition:opacity 1.1s ease;
-  clip-path:polygon(38% 0%,62% 0%,100% 78%,86% 100%,14% 100%,0% 78%)}
+  transition:opacity 1.1s ease}
+/* ⭐⭐ 0826s 줄기 — 꼭대기에서 웅덩이까지 내려오는 원뿔.
+   ⚠⚠ 꼭짓점을 **오른쪽 위**에 둔다. 가운데 위에 두면 창을 가로질러 「창에서 나온 빛」이 된다.
+     소로 그림에서 원뿔이 창 밖(등받이 쪽)에서 시작하는 것이 그 까닭이다.
+   ⚠ 아래끝을 자르지 않는다 — 웅덩이가 그 아래를 덮어 이음선을 지운다. */
+#egrBeam{position:absolute;left:0;right:0;top:0;height:76%;
+  clip-path:polygon(52% 0%,63% 0%,100% 100%,4% 100%);
+  background:linear-gradient(180deg,
+    rgba(255,240,206,.30) 0%,rgba(255,236,196,.20) 42%,
+    rgba(255,230,184,.10) 76%,rgba(255,228,178,0) 100%)}
+/* ⭐ 웅덩이 — 줄기가 닿는 곳. 테두리를 선으로 안 자른다(그러데이션이 0 이 된다) */
+#egrPool{position:absolute;left:0;right:0;bottom:0;height:62%;
+  background:radial-gradient(ellipse 46% 50% at 46% 56%,
+    rgba(255,242,212,.44) 0%,rgba(255,236,196,.32) 26%,
+    rgba(255,230,182,.17) 50%,rgba(255,226,172,.05) 76%,
+    rgba(255,224,168,0) 100%)}
 #readingRoom.rlite #egrRlite{opacity:1}
 /* ⭐⭐ 0826m 먼지 (소로 0826) — 빛줄기 안에서만 보인다. ⚠ 이것이 이 손의 알맹이다:
    기내 공기에 먼지가 없는 게 아니라, **빛이 있어야 보인다.** 그래서 독서등 겹의 자식이다.
@@ -2404,6 +2442,13 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 #egrLatch{position:fixed;z-index:11;pointer-events:auto;cursor:pointer;border-radius:8px}
 #readingRoom.out #egrLatch{display:none}
 #readingRoom.edit #egrLatch{outline:1px dashed rgba(201,168,106,.55)}
+/* ⭐ 0826u 독서등 손잡이 — 편집 중에만 선다. ⚠ 평소엔 손을 아예 안 받는다 */
+#egrLampH{position:fixed;z-index:12;pointer-events:none;display:none;cursor:move;
+  outline:1px dashed rgba(255,226,160,.7);border-radius:50%}
+#readingRoom.edit #egrLampH{display:block;pointer-events:auto}
+#egrLampH::after{content:"독서등";position:absolute;left:50%;top:-19px;transform:translateX(-50%);
+  font:600 11px 'Noto Sans KR',sans-serif;color:rgba(255,226,160,.85);white-space:nowrap}
+#readingRoom.out #egrLampH{display:none}
 #readingGrip{position:fixed;z-index:11;pointer-events:auto;cursor:pointer;border-radius:99px;
   background:transparent;transition:background .2s,box-shadow .2s}
 #readingGrip:hover{background:rgba(255,244,214,.13);
@@ -3132,10 +3177,20 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
        ⚠ 아무 표시도 안 붙인다(17호) — 반짝이거나 테두리가 돌면 손님이 「뭐가 할 일이
          생겼나」를 생각하게 된다. 있는 줄 모르고 지나가셔도 기내식은 온다. */
     /* ⭐ 0826i 독서등 빛 — 어두움판 위에 얹는 타원 하나. ⚠ 손은 안 받는다(CSS) */
+    /* ⭐⭐ 0826s — 소로 그림대로 **둘을 겹친다**: 줄기(원뿔)와 웅덩이(원).
+       ⚠ 겹을 둘로 안 늘린다 — 한 그릇 안에 형제 둘이다. 켜고 끄는 손도 먼지도 하나로 산다.
+       ⭐ 겹치는 데가 저절로 더 밝아진다. 실물도 줄기와 바닥이 만나는 곳이 가장 밝다. */
     var rl = document.createElement("div");
     rl.id = "egrRlite";
-    rl.innerHTML = '<div id="egrDust"></div>';   /* ⭐ 0826m — 빛 안에서만 보이는 먼지 */
+    rl.innerHTML = '<div id="egrBeam"></div><div id="egrPool"></div><div id="egrDust"></div>';
     ROOT.appendChild(rl);
+    beamPaint();                      /* ⭐ 0826u — 첫 붓 */
+    /* ⭐⭐ 0826u — 독서등 편집 손잡이. ⚠ 빛(#egrRlite)에 손을 붙이지 않는다 —
+       꺼져 있으면 opacity 0 이라 못 잡고, 켜 두면 판이 손을 가로챈다.
+       ⭐ 편집 중에만 서는 **따로 판**을 둔다. 잠금쇠와 같은 문법이다. */
+    var lh = document.createElement("div");
+    lh.id = "egrLampH"; lh.title = "독서등";
+    ROOT.appendChild(lh);
     var lt = document.createElement("div");
     lt.id = "egrLatch"; lt.title = "트레이";
     ROOT.appendChild(lt);
@@ -3943,10 +3998,22 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⭐ 장거리 16호 — 「승무원이 소등해도 독서등은 내 것이다.」 시간이 정하지 않는다.
      ⚠ 저장 안 한다. 다음에 타면 꺼진 채로 시작한다 — 승무원이 좌석을 정리하는 것과 같다.
      ⚠ 단추 글자만 밝아진다. 알림도 소리도 없다(17호). */
+  /* ⭐ 0826u — 줄기 꼭짓점 가로%. ⚠ clip-path 문자열을 두 곳에 안 적는다 — 그리는 손이 하나다 */
+  var BEAM_A = 57.5, BEAM_W = 96;
+  function beamPaint() {
+    var b = ROOT && ROOT.querySelector("#egrBeam"); if (!b) return;
+    b.style.clipPath = "polygon(" + (BEAM_A - 5).toFixed(1) + "% 0%," + (BEAM_A + 5).toFixed(1)
+      + "% 0%," + (BEAM_A + BEAM_W / 2).toFixed(1) + "% 100%," + (BEAM_A - BEAM_W / 2).toFixed(1) + "% 100%)";
+  }
   var RLITE = false;
+  /* ⚠⚠ 0826q 진범 — **켜지는데 안 꺼졌다**(소로 0826).
+     lampToggle(on) 의 on 에 **click 사건 뭉치**가 들어온다. `on === undefined` 가 거짓이라
+     `!!on` = true 가 되어 **누를 때마다 켜기**만 했다. 끄는 길이 아예 없었다.
+     ⭐ 0821k 수칙의 사촌이다 — 끄는 길을 짝으로 두었어도 **그 길로 못 들어가면 없는 것과 같다.**
+     ⭐ 참·거짓일 때만 시키는 대로 하고, 나머지는 뒤집는다. */
   function lampToggle(on) {
     if (!ROOT) return;
-    RLITE = (on === undefined) ? !RLITE : !!on;
+    RLITE = (on === true || on === false) ? on : !RLITE;
     ROOT.classList.toggle("rlite", RLITE);
     var b = MONEL && MONEL.querySelector("#egrRead");
     if (b) { b.classList.toggle("on", RLITE); b.title = RLITE ? "독서등 끄기" : "독서등"; }
@@ -5475,6 +5542,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
   function tuneTarget(el) {
     if (!el || !el.closest) return null;
     if (el.closest(".egrCorner")) return "corner";   /* ⭐ 모서리가 먼저 — 모니터 위에 얹혀 있다 */
+    if (el.closest("#egrLampH")) return "lamp2";     /* ⭐ 0826u 독서등 */
     if (el.closest("#readingGrip")) return "grip";
     if (el.closest("#egrEng")) return "eng";              /* ⭐ 0820c — 벽 각인 */
     if (el.closest(".egrNeedle")) return "needle";   /* ⭐ 0821f */
@@ -5521,6 +5589,10 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       + '⭐ <b>벽 각인</b>을 끌어 옮기고 &mdash; 휠 = 크기 · Shift+휠 = 회전 · Alt+휠 = 눕히기<br>'
       + '&nbsp;&nbsp;기울기 <b>10.8°</b> 는 창 위선 실측값입니다 &mdash; 벽과 나란합니다<br>'
       + '&nbsp;&nbsp;<b>&larr; &rarr;</b> 로 좌석을 바꾸면 <b>반대쪽 벽</b>을 따로 맞춥니다<br>'
+      + '⭐ <b>독서등</b> — 점선 동그라미를 끌어 옮기고<br>'
+      + '&nbsp;&nbsp;휠 = 넓이 · <b>Shift+휠</b> = 높이 · <b>Alt+휠</b> = 줄기 기울기<br>'
+      + '&nbsp;&nbsp;⚠ 줄기 꼭짓점은 <b>창 오른쪽</b>이어야 합니다 — 가운데면 창에서 빛이 나옵니다<br>'
+      + '&nbsp;&nbsp;⭐ 모니터 윗줄 💡 로 켜 두고 미십시오. <b>T</b> 로 밤판을 부르면 잘 보입니다<br>'
       + '⭐ <b>창 닫기 단추</b> — 끌기 · 휠 = 크기<br>'
       + '&nbsp;&nbsp;<b>Shift+휠</b> 또는 <b>Shift+좌우로 끌기</b> = <b>회전</b> (±45°)<br>'
       + '&nbsp;&nbsp;⚠ 787 창은 뒤로 갈수록 누워집니다 — 네모를 그 각도로 누이십시오<br>'
@@ -5530,8 +5602,12 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       + '⭐ <b>호박 램프 다섯</b> — 끌기 · 휠 = 크기 · Shift+휠 = 밝기 · <b>L</b> = 언제 켤지<br>'
       + '⭐ <b>붉은 불빛 둘</b> — 끌기 · 휠 = 크기 · Shift+휠 = 빠르기<br>'
       + '&nbsp;&nbsp;⚠ 둘의 주기를 어긋나게 두십시오. 맞으면 장식이 됩니다<br>'
+      /* ⭐ 0826q — 787 은 벌 목록을 돈다(lit → dim → tray → tray_dim).
+         ⚠ THEME_KO 는 m·d·e·n 만 알아서 787 에서는 이름이 안 떴다 — 판 이름을 그대로 낸다. */
       + '<b>T</b> — 조명 미리보기 · 지금 '
-      + (PREVIEW ? '<span class="sv">' + THEME_KO[PREVIEW] + '</span>' : '진짜 시각')
+      + (PREVIEW ? '<span class="sv">' + (THEME_KO[PREVIEW] || PREVIEW) + '</span>' : '진짜 시각')
+      + (SPEC.plates ? '<br>&nbsp;&nbsp;⭐ 이 기체는 <b>' + SPEC.plates.join(" → ") + '</b> 로 돕니다' : '')
+      + '<br>⭐ <b>독서등</b> — 모니터 윗줄 💡 · 편집 중에도 켜집니다'
       + '<br><span class="sv">'
       + MON_KEYS.map(function (k) {
           return MON_KO[k] + ' ' + MON[k][0].toFixed(2) + ',' + MON[k][1].toFixed(2);
@@ -5546,6 +5622,12 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     TUNE_C[CRAFT] = { I: cpyArr(INSTR), L: cpyArr(LAMPS), B: cpyArr(BLINK),
                       S: { rough: SKIN.rough, glow: SKIN.glow, tilt: SKIN.tilt },
                       M: { tl: MON.tl.slice(), tr: MON.tr.slice(), br: MON.br.slice(), bl: MON.bl.slice() } };
+    /* ⭐ 0826u — 독서등도 함께 적힌다. ⚠ 기체별 칸(IC)에 넣는다 — 복엽기와 안 섞인다 */
+    if (CRAFT_SPEC[CRAFT] && CRAFT_SPEC[CRAFT].lamp) {
+      TUNE_C[CRAFT] = TUNE_C[CRAFT] || {};
+      TUNE_C[CRAFT].LP = CRAFT_SPEC[CRAFT].lamp;
+      TUNE_C[CRAFT].BM = [BEAM_A, BEAM_W];
+    }
     return { GL: GRIP_L, GR: GRIP_R, EL: ENG_L, ER: ENG_R,
              IC: TUNE_C,                     /* ⭐ 기체별 칸 */
              MON: { tl: MON.tl, tr: MON.tr, br: MON.br, bl: MON.bl },
@@ -5714,7 +5796,10 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
        ⚠ 좌석이 없는 기체(개방 조종석)에는 안 세운다. */
     var rl2 = ROOT.querySelector("#egrRlite");
     if (rl2) {
-      var LM = SPEC.seats ? (SPEC.lamp || { x: 44, y: 76, rx: 40, ry: 26 }) : null;
+      /* ⭐ 0826q — 트레이 한가운데. 트레이가 접혀 있어도 무릎 앞이라 같은 곳이다 */
+      /* ⭐ 0826s — 그릇이 **천장부터 무릎까지**다. 줄기가 위쪽, 웅덩이가 아래쪽에 산다.
+         ⚠ y·ry 는 이제 그릇 한가운데와 반높이다 — 웅덩이만 재던 값이 아니다. */
+      var LM = SPEC.seats ? (SPEC.lamp || { x: 46, y: 56, rx: 30, ry: 40 }) : null;
       rl2.style.display = LM ? "" : "none";
       if (LM) {
         rl2.style.left = (cx + mx(LM.x - LM.rx, LM.rx * 2) / 100 * w) + "px";
@@ -5723,9 +5808,20 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
         rl2.style.height = (LM.ry * 2 / 100 * h) + "px";
         /* ⭐ 0826m — 위가 밝고 아래로 퍼지며 옅어진다. clip-path 사다리꼴과 짝이다.
            ⚠ screen 을 걷었으니 알파만으로 얹힌다 — 세기를 조금 올렸다. */
-        rl2.style.background = "radial-gradient(ellipse 62% 96% at 50% 2%,"
-          + "rgba(255,238,200,.42) 0%,rgba(255,230,182,.26) 38%,"
-          + "rgba(255,224,170,.11) 68%,rgba(255,222,166,0) 100%)";
+        /* ⭐ 0826s — 그림은 자식 둘(줄기·웅덩이)이 갖는다. 그릇은 곳과 크기만 정한다.
+           ⚠ 여기에 배경을 또 깔면 셋이 겹쳐 한복판이 하얗게 탄다. */
+      }
+    }
+    /* ⭐ 0826u — 손잡이는 빛 그릇과 **같은 네모**에 선다. 값을 두 곳에 안 적는다 */
+    var lh2 = ROOT.querySelector("#egrLampH");
+    if (lh2) {
+      var LH = SPEC.seats ? (SPEC.lamp || { x: 46, y: 56, rx: 30, ry: 40 }) : null;
+      lh2.style.display = LH ? "" : "none";
+      if (LH) {
+        lh2.style.left = (cx + mx(LH.x - LH.rx, LH.rx * 2) / 100 * w) + "px";
+        lh2.style.top = (top + (LH.y - LH.ry) / 100 * h) + "px";
+        lh2.style.width = (LH.rx * 2 / 100 * w) + "px";
+        lh2.style.height = (LH.ry * 2 / 100 * h) + "px";
       }
     }
     /* ⭐ 0826d 잠금쇠 — 명세에 latch 가 없는 기체는 조용히 물러난다 */
@@ -6162,6 +6258,12 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     /* ⭐ 벽 각인도 같은 조명을 받는다 — 밤이면 흰 글씨가 된다(0820 소로) */
     var en = ENG_THEME[k] || ENG_THEME.e;
     for (v in en) ROOT.style.setProperty("--eng-" + v, en[v]);
+    /* ⭐ 0826q — 창 덮개도 같은 조명을 받는다. ⚠ 넉 벌을 안 짓는다 —
+       밤이냐 아니냐 하나로 갈린다. 값을 늘리면 넉 벌을 다 손보게 된다. */
+    var sh = (k === "n") ? ["#2b3346", "#242b3b", "#1c2231"] : ["#d8cfc0", "#cdc3b2", "#c0b6a4"];
+    ROOT.style.setProperty("--sh1", sh[0]);
+    ROOT.style.setProperty("--sh2", sh[1]);
+    ROOT.style.setProperty("--sh3", sh[2]);
     paintLamp();                                          /* ⭐ 0821f — 램프도 같은 조명에 물린다 */
   }
   /* ⭐⭐ 조명 넉 벌 갈아끼우기 (0819Q) — 실제 일출은 삼십 분에 걸쳐 오는데
@@ -6542,7 +6644,9 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
        ⭐ 이름 등장 횟수로 검산한다 — egrSave 는 굽는 곳 · 거는 곳 둘이어야 한다 */
     /* ⚠ 0826i — egrSave 가 이 줄에서 빠졌다. 저장은 #readingSave 가 맡는다.
        ⭐ saveNow 를 안 지우고 **거는 곳만** 옮겼다 — 손을 지우면 다시 지어야 한다. */
-    EGR_on(MONEL.querySelector("#egrRead"), "click", lampToggle);
+    /* ⚠ 0826q — 사건 뭉치를 그대로 넘기지 않는다. 위 lampToggle 주석을 보라 */
+    EGR_on(MONEL.querySelector("#egrRead"), "click", function () { lampToggle(); });
+    if (RLITE) { var rb = MONEL.querySelector("#egrRead"); if (rb) rb.classList.add("on"); }
     paintBook();
   }
 
@@ -7729,7 +7833,12 @@ function paintBook() {
       egrab.x = e.clientX; egrab.y = e.clientY;
       /* ⚠ 거울일 때는 화면상 오른쪽이 판에서는 왼쪽이다 — 부호를 뒤집는다 */
       var px = (egrab.flip ? -dx : dx) / egrab.w * 100, py2 = dy / egrab.h * 100;
-      if (egrab.t === "grip") {
+      /* ⭐ 0826u — 독서등 그릇을 끈다. ⚠ 거울이면 부호가 뒤집힌다(잠금쇠와 같다) */
+      if (egrab.t === "lamp2") {
+        var LP2 = SPEC.lamp || (SPEC.lamp = { x: 46, y: 56, rx: 30, ry: 40 });
+        LP2.x += px; LP2.y += py2;
+      }
+      else if (egrab.t === "grip") {
         var GP = GRIP();
         /* ⭐⭐ 0826c — **Shift 를 누른 채 좌우로 끌면 돌아간다.**
            휠은 브라우저·마우스·OS 셋이 모두 거듭니다. 끌기는 하나다.
@@ -7866,6 +7975,22 @@ function paintBook() {
       if (!t) return;
       e.preventDefault(); e.stopPropagation();
       var d = e.deltaY > 0 ? -1 : 1;
+      /* ⭐⭐ 0826u 독서등 — 휠 = 넓이 · Shift+휠 = 높이 · Alt+휠 = 줄기 기울기
+         ⚠ Shift+휠은 deltaY 가 0 으로 온다(0826c 진범). 둘 중 살아 있는 것을 쓴다. */
+      if (t === "lamp2") {
+        var dd2 = e.deltaY || e.deltaX || 0, d2 = dd2 > 0 ? -1 : 1;
+        var LW = SPEC.lamp || (SPEC.lamp = { x: 46, y: 56, rx: 30, ry: 40 });
+        if (e.altKey) {
+          var bm = ROOT.querySelector("#egrBeam");
+          if (bm) {
+            BEAM_A = Math.max(0, Math.min(100, BEAM_A + d2 * 1.5 * (side > 0 ? -1 : 1)));
+            beamPaint();
+          }
+        }
+        else if (e.shiftKey) LW.ry = Math.max(6, Math.min(60, LW.ry + d2 * 1.2));
+        else LW.rx = Math.max(5, Math.min(60, LW.rx + d2 * 1.2));
+        layout(); tuneSay(); return;
+      }
       if (t === "grip") {
         var GP = GRIP();
         /* ⭐ 0826b — Shift+휠 = 회전. 바늘(needle)의 「Shift = 다른 값」 문법 그대로다.
@@ -8418,9 +8543,17 @@ function paintBook() {
                          return PA_DIM;
                        },
                        lamp: function (v) { lampToggle(v); console.log("[EG] 독서등 " + (RLITE ? "켬" : "끔")); return RLITE; },
+                       /* ⭐ 0826s — 줄기 기울기까지 민다. beam(꼭짓점 가로%, 아래 폭%) */
+                       lampBeam: function (apex, wide) {
+                         if (arguments.length > 0) BEAM_A = Math.max(0, Math.min(100, +apex));
+                         if (arguments.length > 1) BEAM_W = Math.max(10, Math.min(140, +wide));
+                         beamPaint();
+                         console.log("[EG] 줄기 꼭짓점 " + BEAM_A + "% · 아래 폭 " + BEAM_W + "%");
+                         return [BEAM_A, BEAM_W];
+                       },
                        lampSet: function (o) {
                          if (!SPEC.seats) return null;
-                         SPEC.lamp = SPEC.lamp || { x: 44, y: 76, rx: 40, ry: 26 };
+                         SPEC.lamp = SPEC.lamp || { x: 46, y: 56, rx: 30, ry: 40 };
                          if (o) { for (var k in o) if (typeof o[k] === "number") SPEC.lamp[k] = o[k]; }
                          layout();
                          console.log("[EG] 독서등 x" + SPEC.lamp.x + " y" + SPEC.lamp.y
