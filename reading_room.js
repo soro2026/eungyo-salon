@@ -330,7 +330,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0826h";
+  var VERSION = "0826i";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -354,7 +354,8 @@
      stamp_press.js?v=0820a 는 도크·플래시를 document.body 직계로 붙이므로 마스크에 정통으로 걸린다. */
   /* ⚠⚠ 방 밖(body 직계)에 두는 물건은 **여기에만** 더한다. 손으로 선택자를 이어붙이면
      반드시 하나를 빠뜨린다 — 0818 하루에 두 번 빠뜨렸다(31호 ㉢). 0820b 에 #readingHide 추가. */
-  var KEEP = ["#cesiumContainer", "#readingRoom", "#readingExit", "#readingHide",
+  var SAVEB = null;                /* ⭐ 0826i — × 밑 쌍둥이 저장 단추 */
+  var KEEP = ["#cesiumContainer", "#readingRoom", "#readingExit", "#readingSave", "#readingHide",
               "#egStampDock", "#egStampFlash"];
 
   function EGR_later(fn, ms) { var t = setTimeout(fn, ms); TIMERS.push(t); return t; }
@@ -2345,6 +2346,24 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   border:1px solid #43371f;color:#c9b586;
   box-shadow:inset 0 2px 5px rgba(0,0,0,.6),0 1px 0 rgba(255,244,210,.35)}
 #readingExit:hover{border-color:#d9bd7e;color:#f0dfb4}
+/* ⭐ 0826i — × 의 쌍둥이. 같은 크기·같은 모양이 바로 밑에 선다 */
+#readingSave{position:fixed;right:18px;top:64px;z-index:14;width:38px;height:38px;
+  border-radius:50%;cursor:pointer;pointer-events:auto;line-height:1;
+  font:700 15px 'Noto Serif KR',serif;
+  background:radial-gradient(circle at 35% 30%,#3f3524,#241d12);
+  border:1px solid #43371f;color:#c9b586;
+  box-shadow:inset 0 2px 5px rgba(0,0,0,.6),0 1px 0 rgba(255,244,210,.35)}
+#readingSave:hover{border-color:#d9bd7e;color:#f0dfb4}
+/* ⭐ 0826i — 켜지면 단추 글자만 밝아진다. ⚠ 테두리를 돌리거나 반짝이지 않는다(17호) */
+#egrHead #egrRead.on{color:#ffe6a8;text-shadow:0 0 9px rgba(255,214,128,.75)}
+/* ⭐⭐ 0826i 독서등 — 장거리 16호: 「원판을 안 늘린다. 어두움판 위에 좌석 둘레만
+   밝히는 빛 하나.」 ⚠ 전구를 안 그린다 — 787 독서등은 내 머리 바로 위 천장에 있어
+   창가 시점에서는 화면 밖이다. **보이는 것은 전구가 아니라 빛이다.**
+   ⚠ 판 겹(z 6·7) 위 · 모니터(11) 아래. 손은 안 받는다 */
+#egrRlite{position:fixed;z-index:8;pointer-events:none;opacity:0;
+  transition:opacity 1.1s ease;mix-blend-mode:screen}
+#readingRoom.rlite #egrRlite{opacity:1}
+#readingRoom.out #egrRlite{display:none}
 /* ⭐ 창 덮개 손잡이 (0819P) — 그림 속 그것 위에 얹는 투명 판.
    따로 그리지 않는다. 손을 올리면 살짝 빛나고, 누르면 덮개가 내려온다(24호 문법). */
 /* ⭐ 0826d 잠금쇠 — 보이지 않고 손만 받는다. ⚠ 손님에게 표시를 안 낸다(17호) */
@@ -3032,6 +3051,15 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     document.body.appendChild(EXIT);
     /* ⚠ 0823b — 바로 안 나간다. 「여기까지 비행을 저장하시겠습니까?」를 먼저 묻는다 */
     EGR_on(EXIT, "click", function () { askLeave(); });
+    /* ⭐⭐ 0826i 저장 — × 밑에 쌍둥이로 선다(소로 0826).
+       ⚠ 방 밖(body 직계) 물건이라 KEEP 에 반드시 더한다 — 0818 에 두 번 빠뜨린 그것.
+       ⚠⚠ **S 키를 안 건다.** S 는 이미 창 덮개다(7534행). 글자만 빌린다 —
+         글자가 같다고 키까지 같아야 할 까닭은 없고, 같게 두면 덮개가 내려온다. */
+    SAVEB = document.createElement("button");
+    SAVEB.id = "readingSave"; SAVEB.type = "button";
+    SAVEB.textContent = "S"; SAVEB.title = "여기까지 비행을 저장";
+    document.body.appendChild(SAVEB);
+    EGR_on(SAVEB, "click", saveNow);
     /* ⭐ 감추기 (0820 소로) — 「밖에서 창밖만 보고 싶을 때」.
        ⚠ 방 밖(body 직계) 물건이라 KEEP 에 반드시 더한다 — 0818 에 두 번 빠뜨린 그것(31호 ㉢) */
     HIDE = document.createElement("button");
@@ -3069,6 +3097,10 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
          ⚠ 가로는 그대로 둔다. 넓히면 모니터·주머니와 겹친다.
        ⚠ 아무 표시도 안 붙인다(17호) — 반짝이거나 테두리가 돌면 손님이 「뭐가 할 일이
          생겼나」를 생각하게 된다. 있는 줄 모르고 지나가셔도 기내식은 온다. */
+    /* ⭐ 0826i 독서등 빛 — 어두움판 위에 얹는 타원 하나. ⚠ 손은 안 받는다(CSS) */
+    var rl = document.createElement("div");
+    rl.id = "egrRlite";
+    ROOT.appendChild(rl);
     var lt = document.createElement("div");
     lt.id = "egrLatch"; lt.title = "트레이";
     ROOT.appendChild(lt);
@@ -3872,6 +3904,18 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⚠ 판이 안 구워져 있으면 아무 일도 안 난다 — plateUrl 이 첫 벌로 물러난다.
      ⭐ 음식이 얹혀 있으면 손이 잠긴다(19호와 같은 갈래) — 잔이 사라지면 안 된다.
        ⚠ 지금은 음식 판이 없어 이 길이 안 쓰인다. 먼저 적어 둔다. */
+  /* ══ ⭐⭐ 0826i 독서등 ═══════════════════════════════════════════════════
+     ⭐ 장거리 16호 — 「승무원이 소등해도 독서등은 내 것이다.」 시간이 정하지 않는다.
+     ⚠ 저장 안 한다. 다음에 타면 꺼진 채로 시작한다 — 승무원이 좌석을 정리하는 것과 같다.
+     ⚠ 단추 글자만 밝아진다. 알림도 소리도 없다(17호). */
+  var RLITE = false;
+  function lampToggle(on) {
+    if (!ROOT) return;
+    RLITE = (on === undefined) ? !RLITE : !!on;
+    ROOT.classList.toggle("rlite", RLITE);
+    var b = MONEL && MONEL.querySelector("#egrRead");
+    if (b) { b.classList.toggle("on", RLITE); b.title = RLITE ? "독서등 끄기" : "독서등"; }
+  }
   function trayToggle() {
     if (!SPEC.plates || SPEC.plates.indexOf("tray") < 0) return;
     if (TRAY && TRAY !== "tray") return;          /* ⚠ 음식이 얹혀 있다 — 승무원이 치운다 */
@@ -5630,6 +5674,23 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       var gr = (typeof GP.rot === "number" && isFinite(GP.rot)) ? GP.rot : 0;
       gb.style.transform = gr ? ("rotate(" + (flip ? -gr : gr).toFixed(1) + "deg)") : "";
     }
+    /* ⭐⭐ 0826i 독서등 빛 — 판을 따라간다(무릎·트레이를 비추므로).
+       ⚠ 창과 천장은 안 밝힌다 — 실물이 그렇고, 창을 밝히면 창밖 지구가 뿌예진다.
+       ⚠ 좌석이 없는 기체(개방 조종석)에는 안 세운다. */
+    var rl2 = ROOT.querySelector("#egrRlite");
+    if (rl2) {
+      var LM = SPEC.seats ? (SPEC.lamp || { x: 44, y: 76, rx: 40, ry: 26 }) : null;
+      rl2.style.display = LM ? "" : "none";
+      if (LM) {
+        rl2.style.left = (cx + mx(LM.x - LM.rx, LM.rx * 2) / 100 * w) + "px";
+        rl2.style.top = (top + (LM.y - LM.ry) / 100 * h) + "px";
+        rl2.style.width = (LM.rx * 2 / 100 * w) + "px";
+        rl2.style.height = (LM.ry * 2 / 100 * h) + "px";
+        rl2.style.background = "radial-gradient(ellipse at 50% 34%,"
+          + "rgba(255,236,196,.50) 0%,rgba(255,228,178,.30) 34%,"
+          + "rgba(255,222,168,.13) 62%,rgba(255,220,165,0) 100%)";
+      }
+    }
     /* ⭐ 0826d 잠금쇠 — 명세에 latch 가 없는 기체는 조용히 물러난다 */
     var lb = ROOT.querySelector("#egrLatch");
     if (lb) {
@@ -6296,11 +6357,12 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       + '<button id="egrZin" type="button" title="가까이 보기">&#43;</button>'
       + '<button id="egrSnd" class="ico" type="button">&#128266;</button>'
       + '<button id="egrPz" class="ico" type="button" title="잠깐 멈춤 (Space)">&#10073;&#10073;</button>'
-      /* ⭐ 0823b 소로 — 「저장하기 버튼이 있어서 그걸 누르고(심리적 안정감)」.
-         ⚠ 나가지 않고도 누를 수 있어야 한다. 그게 이 단추가 있는 까닭이다.
-         ⚠ 그림글자(💾)를 안 쓴다 — 1930년대 복엽기 조종석에 플로피디스크가 뜬다.
-           글자 두 자가 가장 정직하다. 확대판(.lv)과 같은 어법으로 앉혔다. */
-      + '<button id="egrSave" class="txt" type="button" title="여기까지 비행을 저장">저장</button>'
+      /* ⭐⭐ 0826i — 저장을 이 줄에서 걷고 **독서등**을 그 자리에 앉혔다(소로 0826).
+         ⚠ 저장은 사라지지 않는다 — 화면 오른쪽 위 × 밑에 쌍둥이로 선다.
+         ⭐ 독서등이 여기 있는 까닭 — **손이 이미 와 있는 곳**이다. 책이 모니터에 있으니
+           등을 켜려고 발밑까지 내려갔다 올라오면 그 사이에 읽던 곳을 놓친다.
+         ⚠ 팔걸이를 재 보았다 — 판 86.8~99.8% 로 **화면 띠(20~76%) 밖**이었다. */
+      + '<button id="egrRead" class="ico" type="button" title="독서등">&#128161;</button>'
       + '<button id="egrRst" class="ico" type="button" title="출발점으로 (R)">&#8634;</button>'
       + '</div></div>'
       + '<div id="egrMap"></div>'
@@ -6409,7 +6471,9 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     EGR_on(MONEL.querySelector("#egrRst"), "click", toStart);
     /* ⚠ 0823b — 위 0820g 주석 그대로. 단추를 굽고 배선을 안 걸면 아무 일도 안 난다.
        ⭐ 이름 등장 횟수로 검산한다 — egrSave 는 굽는 곳 · 거는 곳 둘이어야 한다 */
-    EGR_on(MONEL.querySelector("#egrSave"), "click", saveNow);
+    /* ⚠ 0826i — egrSave 가 이 줄에서 빠졌다. 저장은 #readingSave 가 맡는다.
+       ⭐ saveNow 를 안 지우고 **거는 곳만** 옮겼다 — 손을 지우면 다시 지어야 한다. */
+    EGR_on(MONEL.querySelector("#egrRead"), "click", lampToggle);
     paintBook();
   }
 
@@ -8014,6 +8078,7 @@ function paintBook() {
     SHUT = false; editing = false; egrab = null; IS_ADMIN = false; cvW = 0; cvH = 0; PAUSED = false;
     PREVIEW = null; themeNow = ""; themeMon = ""; RESUME = null;   /* ⚠ 다음 탑승은 진짜 시각으로 */
     TRAY = null; PLATE_NOW = null;                                /* ⭐ 0826d — 내리면 식탁은 접힌다 */
+    RLITE = false; if (ROOT) ROOT.classList.remove("rlite");      /* ⭐ 0826i — 독서등도 끈다 */
     /* ⚠ 0826f — 도는 손과 기다리는 손을 함께 잠재운다. 0821k 수칙 — 끄는 길을 짝으로 */
     if (focusRAF) { cancelAnimationFrame(focusRAF); focusRAF = 0; }
     clearTimeout(trayT); FOCUS_NOW = null;
