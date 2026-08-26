@@ -330,7 +330,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0825p";
+  var VERSION = "0826a";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1003,19 +1003,28 @@
               ⚠ 셋 다 어림이다. 소로가 타 보고 정한다 — EG_BANK 에 기수·기수목표가 갈려 찍힌다 */
            body: { yaw: 270, dist: 105, minD: 48, maxD: 480, pit: 10,
                    nose: { max: 4, per: 110, tau: 5 } },
-           wins: null, mon: null }
+           /* ⭐⭐ 0826a — 빌린 옷 셋을 벗었다. 이 값들은 소로가 구우신 판을 재서 넣은 것이다.
+                lin_cabin_lit.webp · 941×1672 · 알파 구멍 6.025% · 덩이 넷
+              ⚠⚠ 마젠타를 **뚫은 뒤에** 재다. 뚫기 전 좌표를 넣으면 사방 2px 씩 좁아
+                창 덮개 둘레로 창밖이 샸다. 덮개와 구멍은 같은 값이어야 한다. */
+           wins: [ { l:  0.319, t: 19.797, w: 17.216, h: 32.536 },
+                   { l: 29.224, t: 25.837, w:  7.970, h: 20.574 },
+                   { l: 42.402, t: 28.349, w:  4.251, h: 14.593 },
+                   { l: 49.416, t: 30.203, w:  2.763, h: 10.526 } ],
+           /* ⚠ tr 이 97.66% 라 판 오른쪽 끝에서 2% 밖에 안 남는다. 0.5% 들이는 손이
+                있으나 시승에서 잘려 보이면 들이는 값을 키운다. ⭐ 소로가 E 로 밀면 그것이 이긴다 */
+           mon: { tl: [59.30, 30.86], tr: [97.66, 30.92],
+                  br: [96.39, 46.47], bl: [58.77, 46.35] },
+           /* ⭐⭐ 벌 목록 — 이 기체가 기내 원판을 몇 벌 갖고, 무엇이 그것을 정하는가.
+                ⚠ 이 칸이 없는 기체는 넷(m·d·e·n)이고 해가 정한다 — 옛 문법 그대로다.
+                ⭐ plateBy "cabin" = **승무원이 정한다**(장거리 14·15호). PA_DIM 이 쥐다.
+                ⚠ 숫자도 이름도 코드에 안 박는다 — 표가 쥐는 곳이 여기 한 곳이다. */
+           plates: ["lit", "dim"], plateBy: "cabin",
+           /* ⭐ 접힌 트레이 잠금쇠 — 실측(홈 l 69.93 w 14.98 · 손잡이 가운데 78.6).
+              ⚠ 지금은 곳만 잡아 둔다. 누르는 손은 내려온 판이 나온 뒤에 잇는다 —
+                지어 두면 눌렀을 때 아무 일도 안 일어나고, 그것이 고장으로 읽힌다. */
+           latch: { x: 77.42, y: 48.86, w: 14.98, h: 2.15 } }
   };
-  /* ⚠⚠ 0823d — 여객기 기내 원판(lin_cabin_lit · lin_cabin_dim)이 아직 없다.
-     ⭐ 값을 두 곳에 적지 않는다(독서비행 22호). 빌리는 동안은 **여기 한 줄**이고,
-       원판이 나오면 이 두 줄을 지우고 lin 명세 안에 제 값을 적는다.
-     ⚠ 장거리 14호 — 원판은 lit·dim 둘뿐이다. 넷이 아니다. */
-  CRAFT_SPEC.lin.wins = CRAFT_SPEC.jet.wins;
-  CRAFT_SPEC.lin.mon  = CRAFT_SPEC.jet.mon;
-  /* ⚠⚠ 0823g — 창 좌표·모니터만 빌리고 **그림 이름을 안 빌렸다.** 0823f 시승에서
-     기내가 통째로 안 섰다(소로) — lin_cabin_*.webp 를 부르는데 그 원판이 없어서다.
-     ⭐ 0821d 가 정확히 일한 것이다(「없으면 그냥 없다」). 사고가 아니라 조항이었다.
-     ⚠ 셋을 한 줄씩 따로 빌리는 중이다. 원판이 나오면 이 세 줄을 함께 지운다. */
-  CRAFT_SPEC.lin.plate = "jet";
   var SPEC = CRAFT_SPEC.jet;       /* 지금 탄 기체의 명세 — applyCraft 가 채운다 */
 
   /* ══ 0821f — 계기 바늘 · 호박 램프 · 붉은 불빛 ═══════════════════════
@@ -1062,7 +1071,9 @@
   /* ⭐ 기체별 편집값 그릇 — 복엽기에서 민 값이 제트기 것을 안 건드린다.
      ⚠ 0821e 까지 편집값이 한 벌뿐이라 applyTune 에 「제트기에만」 임시 가드를 걸어 두었다.
        그 임시 처방을 여기서 제대로 연다. */
-  var TUNE_C = { jet: {}, bre: {} };
+  /* ⭐ 0826a — 787 칸을 늘렸다. 그릇이 없으면 E 로 밀어도 들어갈 곳이 없다 —
+     applyTune 은 서버 값을 읽는데 미는 쪽이 칸을 안 만들어 조용히 엇갈린다(41호 ㈸). */
+  var TUNE_C = { jet: {}, bre: {}, lin: {} };
   /* ══ ⭐⭐ 0822c — 동체 질감 (B 감상 중 E 로 민다) ═══════════════════════
      ⚠⚠ metallic 은 여기 없다. czm_modelMaterial 에 metallic 필드가 **없기 때문**이다
        (modelMaterial.glsl — baseColor·diffuse·specular·roughness·normalEC·occlusion·
@@ -5823,8 +5834,10 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
   var THEME_KO = { m: "이른 아침", d: "한낮", e: "저녁 노을", n: "한밤" };
   function cyclePreview() {
     if (!editing) return;            /* ⚠ 편집기 밖에서는 아무 일도 안 한다 */
-    var i = PREVIEW ? (THEME_ORDER.indexOf(PREVIEW) + 1) % 4 : 0;
-    PREVIEW = THEME_ORDER[i];
+    /* ⭐ 0826a — 벌 목록을 따른다. 787 에서 m·d·e·n 을 돌리면 없는 판을 부른다 */
+    var ord = SPEC.plates || THEME_ORDER;
+    var i = PREVIEW ? (ord.indexOf(PREVIEW) + 1) % ord.length : 0;
+    PREVIEW = ord[i];
     paintCabin(SINFO ? SINFO.lon : 0);
     tuneSay();
   }
@@ -5837,6 +5850,21 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
        원판이 격납고로 가면서 주소가 길어져, 이름으로 글자를 되찾는 손이 더는 성립하지 않는다.
      ⭐ 애초에 되짚을 일이 아니었다 — 부르는 쪽이 이미 글자를 쥐고 있었다.
        0820z 의 진범(같은 갈래인데 안 실림)도 이 되짚기 옆에서 났다. */
+  /* ══ ⭐⭐ 0826a — 원판 이름과 조명 색을 **갈랐다** ══════════════════
+     ⚠⚠ 787 은 판이 lit·dim 둘인데 setTheme 은 m·d·e·n 넷을 안다. 판 이름을 그대로
+       넘기면 THEME["lit"] 이 없어 THEME.e(저녁)로 물러난다 — 열두 시간 내내
+       모니터와 기록판이 저녁색으로 선다. ⚠ **조용히 실패하는 갈래다** — 콘솔에
+       한 줄도 안 뜼고 화면으로만 안다. 0825o 의 pointer-events 와 같은 갈래다.
+     ⭐ 그래서 판 이름은 새로 나누고, 조명 색은 **이미 있는 넷 중 둘을 빌린다.**
+       밝음 = 한낮 · 소등 = 한밤. 새 색표를 한 벌도 안 짓는다.
+     ⚠ 구름(cloudRekind)은 그대로 themeKey 를 쓴다 — 구름은 창밖이니 해가 정한다.
+       장거리 15호가 면제해 준 것은 기내 조명뿐이다(0825 수칙). */
+  function plateKey(local) {
+    if (PREVIEW) return PREVIEW;
+    if (SPEC.plateBy === "cabin") return PA_DIM ? "dim" : "lit";
+    return themeKey(local);
+  }
+  function themeOf(k) { return (k === "lit") ? "d" : (k === "dim") ? "n" : k; }
   function setTheme(k) {
     if (!ROOT) return;
     /* ⚠ 갈래가 같아도, 모니터에 아직 안 실렸으면 물러나지 않는다 */
@@ -5895,7 +5923,18 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     }
     /* ⭐ 0821d — 묻는 중에는 **아무것도 안 세운다.** 창밖만 보인다.
        ⚠ 옛 판은 여기서 남의 기체를 세웠고, 그 위장이 오늘 두 시간을 먹었다. */
-    return (PLATE_OK[id] === false) ? cabinFallback(k) : "";
+    /* ⚠⚠ 0826a — **아직 안 구운 벌**이 있다(787 의 dim). 그것을 부르면 격납고도
+         저장소도 없어 배경 그림이 깨지고 **기내가 통째로 사라진다.**
+         이륙 60분 뒤 소등 방송이 나가는 순간 화면이 빈다 — 시승에서야 알 일이다.
+       ⭐ 그럴 때는 **제 기체의 첫 벌**로 선다. 0821d 를 안 어긴다 —
+         그것이 막은 것은 남의 기체를 입히는 일이고, 이건 같은 기체의 다른 조명이다.
+       ⚠ dim 을 구우시면 이 길이 저절로 안 쓰인다. 코드를 다시 안 열어도 된다. */
+    if (PLATE_OK[id] === false) {
+      var ps = SPEC.plates;
+      if (ps && ps.length && k !== ps[0]) return plateUrl(ps[0]);
+      return cabinFallback(k);
+    }
+    return "";
   }
 
   var fadeT = null;
@@ -5905,8 +5944,8 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     if (!plate) return;
     var local = solarHour(lon);                             /* ⭐ 0820z — 셈은 한 곳에서만 */
     /* ⭐ 편집기 미리보기가 켜져 있으면 그것이 이긴다 — 편집 중에만 값이 든다 */
-    var f = PREVIEW || themeKey(local);                     /* ⭐ 0820B — 갈래 글자 하나다 */
-    setTheme(f);
+    var f = plateKey(local);                                /* ⭐ 0826a — 판 이름 */
+    setTheme(themeOf(f));                                   /* ⭐ 0826a — 조명 색은 넷 중 하나 */
     cloudRekind();                                          /* ⭐ 0820j — 갈래도 한 값으로 */
     /* ⭐⭐ 0821d — 두드림을 시작시키는 손이라 **조기 반환보다 먼저** 부른다.
        ⚠ 옛 판은 plate.__f 만 보고 물러나서, 격납고 응답이 와도 읽어 줄 손이 없었다.
