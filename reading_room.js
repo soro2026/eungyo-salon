@@ -330,7 +330,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0826b";
+  var VERSION = "0826c";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -5390,6 +5390,9 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       + '⭐ <b>벽 각인</b>을 끌어 옮기고 &mdash; 휠 = 크기 · Shift+휠 = 회전 · Alt+휠 = 눕히기<br>'
       + '&nbsp;&nbsp;기울기 <b>10.8°</b> 는 창 위선 실측값입니다 &mdash; 벽과 나란합니다<br>'
       + '&nbsp;&nbsp;<b>&larr; &rarr;</b> 로 좌석을 바꾸면 <b>반대쪽 벽</b>을 따로 맞춥니다<br>'
+      + '⭐ <b>창 닫기 단추</b> — 끌기 · 휠 = 크기<br>'
+      + '&nbsp;&nbsp;<b>Shift+휠</b> 또는 <b>Shift+좌우로 끌기</b> = <b>회전</b> (±45°)<br>'
+      + '&nbsp;&nbsp;⚠ 787 창은 뒤로 갈수록 누워집니다 — 네모를 그 각도로 누이십시오<br>'
       + '⭐ <b>계기 바늘 다섯</b> — 끌어 옮기고 · 휠 = 길이<br>'
       + '&nbsp;&nbsp;<b>Shift+휠</b> = 0점 방향 · <b>Alt+휠</b> = 눈금 한 바퀴 각도<br>'
       + '&nbsp;&nbsp;⚠ 지금 좌표는 눈대중한 어림입니다 — 밀어서 정하십시오<br>'
@@ -7435,7 +7438,16 @@ function paintBook() {
       egrab.x = e.clientX; egrab.y = e.clientY;
       /* ⚠ 거울일 때는 화면상 오른쪽이 판에서는 왼쪽이다 — 부호를 뒤집는다 */
       var px = (egrab.flip ? -dx : dx) / egrab.w * 100, py2 = dy / egrab.h * 100;
-      if (egrab.t === "grip") { var GP = GRIP(); GP.x += px; GP.y += py2; }
+      if (egrab.t === "grip") {
+        var GP = GRIP();
+        /* ⭐⭐ 0826c — **Shift 를 누른 채 좌우로 끌면 돌아간다.**
+           휠은 브라우저·마우스·OS 셋이 모두 거듭니다. 끌기는 하나다.
+           ⚠ 끌는 손을 둘로 두는 것은 0821k 수칙과 같은 갈래다 — 물러나는 길을 둘로. */
+        if (e.shiftKey) {
+          var g3 = (typeof GP.rot === "number" && isFinite(GP.rot)) ? GP.rot : 0;
+          GP.rot = Math.max(-45, Math.min(45, g3 + dx * 0.15 * (egrab.flip ? -1 : 1)));
+        } else { GP.x += px; GP.y += py2; }
+      }
       /* ⚠ 각인은 좌·우 벌이 따로라 거울 부호를 **안 쓴다.** dx 를 그대로 쓴다 */
       else if (egrab.t === "eng") {
         /* ⚠ 각인은 좌·우 벌이 따로라 거울 부호를 **안 쓴다.** dx 를 그대로 쓴다 */
@@ -7568,8 +7580,16 @@ function paintBook() {
         /* ⭐ 0826b — Shift+휠 = 회전. 바늘(needle)의 「Shift = 다른 값」 문법 그대로다.
            ⚠ 거울에서는 손짓과 화면이 맞게 부호를 뒤집는다 — 모서리 휠과 같다. */
         if (e.shiftKey) {
+          /* ⚠⚠ 0826c 진범 — **Shift+휠은 deltaY 가 0 이고 deltaX 로 온다.**
+             브라우저가 Shift+휠을 「가로 스크롤」로 알아듣기 때문이다.
+             d = (deltaY > 0 ? -1 : 1) 는 0 을 받아 항상 1 이 된다 — 한 쪽으로만 돌거나
+             아예 안 돈다. ⭐ 둘 중 살아 있는 것을 쓴다.
+             ⚠ 같은 병이 모서리·바늘·램프의 Shift+휠에도 있을 수 있다 — 그쪽은
+               소로가 써 보신 뒤에 고친다. 직접 갉지 않은 곳을 미리 안 고친다. */
+          var dd = e.deltaY || e.deltaX || 0;
+          var dr = dd > 0 ? -1 : 1;
           var gv = (typeof GP.rot === "number" && isFinite(GP.rot)) ? GP.rot : 0;
-          GP.rot = Math.max(-45, Math.min(45, gv + d * 0.5 * (side > 0 ? -1 : 1)));
+          GP.rot = Math.max(-45, Math.min(45, gv + dr * 0.5 * (side > 0 ? -1 : 1)));
         }
         else { GP.w = Math.max(2, GP.w + d * 0.4); GP.h = Math.max(0.5, GP.h + d * 0.1); }
       } else if (t === "corner") {
