@@ -330,7 +330,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0826i";
+  var VERSION = "0826j";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -6176,7 +6176,11 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     /* ⭐ 편집기 미리보기가 켜져 있으면 그것이 이긴다 — 편집 중에만 값이 든다 */
     var f = plateKey(local);                                /* ⭐ 0826a — 판 이름 */
     PLATE_NOW = f;                                          /* ⭐ 0826d — 초점이 이것을 본다 */
-    setTheme(themeOf(f));                                   /* ⭐ 0826a — 조명 색은 넷 중 하나 */
+    /* ⭐⭐ 0826j — 모니터는 **판이 다 넘어간 뒤에** 갈린다.
+       ⚠ CSS 변수는 한 프레임에 바뀌는데 판은 3초에 걸쳐 녹는다. 그대로 두면
+         기내가 아직 밝은데 모니터만 밤이 되어 **3초 동안 어긋난 채로** 선다.
+       ⭐ 첫 붓과 트레이는 곧장 칠한다 — 기다릴 앞 그림이 없거나 조명이 안 바뀐다. */
+    var wantTheme = themeOf(f);
     cloudRekind();                                          /* ⭐ 0820j — 갈래도 한 값으로 */
     /* ⭐⭐ 0821d — 두드림을 시작시키는 손이라 **조기 반환보다 먼저** 부른다.
        ⚠ 옛 판은 plate.__f 만 보고 물러나서, 격납고 응답이 와도 읽어 줄 손이 없었다.
@@ -6188,7 +6192,9 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       plate.style.backgroundImage = "none";
       return;
     }
+    if (themeNow !== wantTheme && (plate.__f === f || !plate.__f)) setTheme(wantTheme);
     if (!plate.__f || !plate.__u || !pb) {                  /* 첫 그림 — 그냥 앉힌다 */
+      setTheme(wantTheme);
       plate.__f = f; plate.__u = url; plate.style.backgroundImage = "url(" + url + ")";
       return;
     }
@@ -6216,6 +6222,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       if (!ROOT || !document.body.contains(ROOT)) return;
       plate.__f = pb.__f; plate.__u = pb.__u;
       plate.style.backgroundImage = pb.style.backgroundImage;
+      setTheme(themeOf(plate.__f));   /* ⭐ 0826j — 판이 다 넘어온 지금 모니터가 갈린다 */
       pb.style.transition = "none";
       pb.style.opacity = "0";
       pb.__f = null;
@@ -6388,8 +6395,16 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       + '<div id="egrPick"></div>';
     ROOT.appendChild(MONEL);
     /* ⭐ 0820z — 첫 붓을 **진짜 태양시**로. 옛 판은 정오 고정이라, 밤에 타면
-       한낮으로 한 번 칠했다가 3초에 걸쳐 밤으로 넘어갔다(잠깐 낮이 번쩍했다) */
-    setTheme(themeKey(solarHour(route.legs[0][1])));
+       한낮으로 한 번 칠했다가 3초에 걸쳐 밤으로 넘어갔다(잠깐 낮이 번쩍했다)
+     ⚠⚠ 0826j 진범 — **여기가 태양시를 두 번째로 읽는 곳이었다.** paintCabin 은
+       themeOf 로 787을 밝음/어두움 두 벌로 갈라 두었는데, 탑승할 때 이 한 줄이
+       그 위를 태양시로 덮어썼다. 소로 0826 — 「지금은 시간대 맞게 바뀌는 거 같던데」.
+       ⭐ 0820z 가 갈림값을 한 곳으로 모았는데, **그것을 읽는 손은 둘로 남아 있었다.**
+         값을 한 곳에 두는 것과 읽는 손을 한 곳에 두는 것은 다른 일이다.
+       ⭐ 처방 — 첫 붓도 **판이 정하는 대로** 칠한다. themeOf 하나만 남는다.
+         ⚠ 「첫 붓을 진짜 시각으로」라는 뜻은 그대로 산다 — 해가 정하는 기체는
+           plateKey 가 themeKey 를 타므로 결과가 같다. */
+    setTheme(themeOf(plateKey(solarHour(route.legs[0][1]))));
     MONEL.querySelector("#egrMap").innerHTML = buildMap(route);
     mountDesk();                      /* ⭐ 독서일지 판 — 모니터 밖 별도 판 */
     EGR_on(MONEL.querySelector("#egrZin"), "click", function () { setZoom(zi + 1, route); });
