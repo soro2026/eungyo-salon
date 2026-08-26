@@ -330,7 +330,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0826c";
+  var VERSION = "0826e";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1021,7 +1021,16 @@
                 ⚠ 이 칸이 없는 기체는 넷(m·d·e·n)이고 해가 정한다 — 옛 문법 그대로다.
                 ⭐ plateBy "cabin" = **승무원이 정한다**(장거리 14·15호). PA_DIM 이 쥐다.
                 ⚠ 숫자도 이름도 코드에 안 박는다 — 표가 쥐는 곳이 여기 한 곳이다. */
-           plates: ["lit", "dim"], plateBy: "cabin",
+           /* ⭐⭐ 0826d — 벌이 셋이 됐다. ⚠ **조명과 트레이는 다른 축이 아니다** —
+                한 장에 둘이 함께 굽혀 있어 한 축으로 준다. 곱셈을 덧셈으로(17호).
+                ⚠ dim 은 안 굽는다 — 개써로 눈힌다. 그래서 이 목록에 안 적혀 있다.
+                ⚠ 음식 여섯(towel·meal1·snack·cups·water·meal2)은 판이 나오면 이 줄에 더한다.
+                  그때 코드를 다시 안 열어도 된다. */
+           plates: ["lit", "tray"], plateBy: "cabin",
+           /* ⭐ 판별 초점 — 트레이가 내려오면 고개도 함께 숙인다.
+              ⚠ 안 숙이면 노트북 띠(20~52%) 밖에 식탁이 놓여 화면에 안 든다.
+              ⚠ 적은 벌만 바뀐다 — 없는 벌은 wins[0] 이 정하는 옛 길을 그대로 태다. */
+           focusOf: { tray: 0.50 },
            /* ⭐ 접힌 트레이 잠금쇠 — 실측(홈 l 69.93 w 14.98 · 손잡이 가운데 78.6).
               ⚠ 지금은 곳만 잡아 둔다. 누르는 손은 내려온 판이 나온 뒤에 잇는다 —
                 지어 두면 눌렀을 때 아무 일도 안 일어나고, 그것이 고장으로 읽힌다. */
@@ -2336,6 +2345,10 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 #readingExit:hover{border-color:#d9bd7e;color:#f0dfb4}
 /* ⭐ 창 덮개 손잡이 (0819P) — 그림 속 그것 위에 얹는 투명 판.
    따로 그리지 않는다. 손을 올리면 살짝 빛나고, 누르면 덮개가 내려온다(24호 문법). */
+/* ⭐ 0826d 잠금쇠 — 보이지 않고 손만 받는다. ⚠ 손님에게 표시를 안 낸다(17호) */
+#egrLatch{position:fixed;z-index:11;pointer-events:auto;cursor:pointer;border-radius:8px}
+#readingRoom.out #egrLatch{display:none}
+#readingRoom.edit #egrLatch{outline:1px dashed rgba(201,168,106,.55)}
 #readingGrip{position:fixed;z-index:11;pointer-events:auto;cursor:pointer;border-radius:99px;
   background:transparent;transition:background .2s,box-shadow .2s}
 #readingGrip:hover{background:rgba(255,244,214,.13);
@@ -3048,6 +3061,16 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     gp.id = "readingGrip"; gp.setAttribute("data-tip", "창 닫기"); gp.title = "창 덮개 (S)";
     ROOT.appendChild(gp);
     EGR_on(gp, "click", function () { if (!editing) toggleShade(); });
+    /* ══ ⭐⭐ 0826d 잠금쇠 — 누르면 트레이가 내려온다 ═══════════════
+       ⚠ 보이는 것은 원판에 구워져 있다. 여기 서는 것은 **투명한 손만 받는 판**이다.
+       ⭐ 홈이 판에서 216×55px 라 손가락에 좀 얄다 — 세로만 2배로 벌린다.
+         ⚠ 가로는 그대로 둔다. 넓히면 모니터·주머니와 겹친다.
+       ⚠ 아무 표시도 안 붙인다(17호) — 반짝이거나 테두리가 돌면 손님이 「뭐가 할 일이
+         생겼나」를 생각하게 된다. 있는 줄 모르고 지나가셔도 기내식은 온다. */
+    var lt = document.createElement("div");
+    lt.id = "egrLatch"; lt.title = "트레이";
+    ROOT.appendChild(lt);
+    EGR_on(lt, "click", function () { if (!editing) trayToggle(); });
     var tn = document.createElement("div");
     tn.id = "readingTune";
     ROOT.appendChild(tn);
@@ -3841,10 +3864,26 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   /* ⭐ 방송이 바꿔 놓는 것 — 지금은 조명 하나뿐이다.
      ⚠ 숫자를 코드에 안 박는다. 표의 sets 가 시킨다 — 소로가 소등 시각을 옮기시면
        조명도 따라 옮겨간다(22호: 같은 값을 두 곳에 안 적는다). */
+  /* ══ ⭐⭐ 0826d 트레이 여닫기 ═══════════════════════════════
+     ⚠ 애니메이션을 안 짓는다(소로 0826) — 두 그림을 0.5초에 겹쳐 녹인다.
+       도는 중간은 사영변환 원근이 어긋나서 오히려 거짓말이 된다.
+     ⚠ 판이 안 구워져 있으면 아무 일도 안 난다 — plateUrl 이 첫 벌로 물러난다.
+     ⭐ 음식이 얹혀 있으면 손이 잠긴다(19호와 같은 갈래) — 잔이 사라지면 안 된다.
+       ⚠ 지금은 음식 판이 없어 이 길이 안 쓰인다. 먼저 적어 둔다. */
+  function trayToggle() {
+    if (!SPEC.plates || SPEC.plates.indexOf("tray") < 0) return;
+    if (TRAY && TRAY !== "tray") return;          /* ⚠ 음식이 얹혀 있다 — 승무원이 치운다 */
+    TRAY = TRAY ? null : "tray";
+    paintCabin(SINFO ? SINFO.lon : 0);
+    layout();
+  }
   function paApply(s) {
     if (!s) return;
     if (s.cabin === "dim") PA_DIM = true;
     else if (s.cabin === "lit") PA_DIM = false;
+    /* ⭐ 0826d — 표의 sets 가 트레이도 정한다. ⚠ 숫자도 이름도 코드에 안 박는다.
+       ⚠ 이어 타기에서도 결과만 물려받는다 — 여섯 시간 뒤에 돌아오면 식탁이 이미 내려져 있다. */
+    if (typeof s.tray === "string") TRAY = (s.tray === "up") ? null : s.tray;
   }
 
   /* ══ ⭐⭐⭐ 0825f 이어 타기 되짚기 — 소로 0825 ═══════════════════════════════════
@@ -5508,7 +5547,12 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     /* 첫 창의 세로 한가운데가 화면 한가운데에 오도록 판을 세운다 */
     /* ⭐ 0821b — 「판 구도」와 「어디부터 보여줄지」는 다른 물음이다(0820 딱지 ③).
        명세가 focus 를 주면 그것, 없으면 첫 창의 세로 한가운데. */
-    var focus = (SPEC.focus != null) ? SPEC.focus : (WINS[0].t + WINS[0].h / 2) / 100;
+    /* ⭐ 0826d — 판이 정한 초점이 있으면 그것이 이긴다(트레이가 내려오면 고개를 숙인다).
+       ⚠ 순서가 중요하다 — 판 > 명세 > 첫 창. 좌에서 우로 갈수록 널리 쓰는 값이다. */
+    var fo = SPEC.focusOf && PLATE_NOW ? SPEC.focusOf[PLATE_NOW] : null;
+    var focus = (fo != null) ? fo
+              : (SPEC.focus != null) ? SPEC.focus
+              : (WINS[0].t + WINS[0].h / 2) / 100;
     var py = vh * 0.5 - h * focus;
 
     panMin = -(h + py - vh);          /* 더 내릴 수 없는 한계 (판 아래끝이 화면 바닥) */
@@ -5570,6 +5614,18 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
          (mx 가 x 를 뒤집는 것과 같은 갈래). ⚠ 모서리 휠(side>0 부호 뒤집기)과 같다. */
       var gr = (typeof GP.rot === "number" && isFinite(GP.rot)) ? GP.rot : 0;
       gb.style.transform = gr ? ("rotate(" + (flip ? -gr : gr).toFixed(1) + "deg)") : "";
+    }
+    /* ⭐ 0826d 잠금쇠 — 명세에 latch 가 없는 기체는 조용히 물러난다 */
+    var lb = ROOT.querySelector("#egrLatch");
+    if (lb) {
+      var LP = SPEC.latch;
+      lb.style.display = LP ? "" : "none";
+      if (LP) {
+        lb.style.left = (cx + mx(LP.x - LP.w / 2, LP.w) / 100 * w) + "px";
+        lb.style.top = (top + (LP.y - LP.h) / 100 * h) + "px";
+        lb.style.width = (LP.w / 100 * w) + "px";
+        lb.style.height = (LP.h * 2 / 100 * h) + "px";
+      }
     }
     /* 모서리 손잡이 넷 — 모니터 네 점 위에 (편집 중에만 보인다) */
     var cs = ROOT.querySelectorAll(".egrCorner");
@@ -5879,12 +5935,25 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
        밝음 = 한낮 · 소등 = 한밤. 새 색표를 한 벌도 안 짓는다.
      ⚠ 구름(cloudRekind)은 그대로 themeKey 를 쓴다 — 구름은 창밖이니 해가 정한다.
        장거리 15호가 면제해 준 것은 기내 조명뿐이다(0825 수칙). */
+  /* ⭐⭐ 0826d — 트레이가 내려와 있으면 그 판이 선다.
+     ⚠ 음식 판이 들어오면 TRAY 가 「지금 무엇이 올려있나」를 담게 된다 —
+       그때도 여기 한 줄이고, 이름은 표가 쥐는다(plates 목록). */
+  var TRAY = null;                  /* null 이면 접혀 있다 · "tray" 면 빈 식탁 */
+  var PLATE_NOW = null;             /* ⭐ 지금 선 판 이름 — layout 이 초점을 고를 때 본다 */
   function plateKey(local) {
     if (PREVIEW) return PREVIEW;
-    if (SPEC.plateBy === "cabin") return PA_DIM ? "dim" : "lit";
+    if (SPEC.plateBy === "cabin") {
+      if (TRAY && SPEC.plates && SPEC.plates.indexOf(TRAY) >= 0) return TRAY;
+      return PA_DIM ? "dim" : "lit";
+    }
     return themeKey(local);
   }
-  function themeOf(k) { return (k === "lit") ? "d" : (k === "dim") ? "n" : k; }
+  /* ⚠ 트레이·음식 판은 조명 글자가 아니다 — PA_DIM 이 조명을 정한다 */
+  function themeOf(k) {
+    if (k === "lit" || k === "tray") return PA_DIM ? "n" : "d";
+    if (k === "dim") return "n";
+    return k;
+  }
   function setTheme(k) {
     if (!ROOT) return;
     /* ⚠ 갈래가 같아도, 모니터에 아직 안 실렸으면 물러나지 않는다 */
@@ -5965,6 +6034,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     var local = solarHour(lon);                             /* ⭐ 0820z — 셈은 한 곳에서만 */
     /* ⭐ 편집기 미리보기가 켜져 있으면 그것이 이긴다 — 편집 중에만 값이 든다 */
     var f = plateKey(local);                                /* ⭐ 0826a — 판 이름 */
+    PLATE_NOW = f;                                          /* ⭐ 0826d — 초점이 이것을 본다 */
     setTheme(themeOf(f));                                   /* ⭐ 0826a — 조명 색은 넷 중 하나 */
     cloudRekind();                                          /* ⭐ 0820j — 갈래도 한 값으로 */
     /* ⭐⭐ 0821d — 두드림을 시작시키는 손이라 **조기 반환보다 먼저** 부른다.
@@ -5982,6 +6052,9 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       return;
     }
     if (pb.__f === f && pb.__u === url) return;             /* 이미 그 겹으로 넘어가는 중 */
+    /* ⚠ 한쪽이라도 트레이 벌이면 짧게 — 내리는 것도 걷는 것도 같은 사건이다 */
+    var trayMove = (f !== "lit" && f !== "dim") || (plate.__f !== "lit" && plate.__f !== "dim");
+    var fadeMs = trayMove ? 500 : 3000;
     pb.__f = f; pb.__u = url;
     pb.style.backgroundImage = "url(" + url + ")";
     pb.style.transition = "none";
@@ -5989,7 +6062,10 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     /* ⚠ 다음 프레임에 켜야 전환이 걸린다 — 같은 프레임에 0→1 이면 브라우저가 건너뛴다 */
     requestAnimationFrame(function () {
       if (!ROOT || !document.body.contains(ROOT)) return;
-      pb.style.transition = "opacity 3s linear";
+      /* ⭐⭐ 0826d — 조명은 3초, 트레이는 0.5초. 손은 하나지만 시간은 따로 준다.
+         ⚠ 3초를 그대로 태우면 식탁이 유령처럼 반투명하게 떠 있다 — 고장으로 보인다.
+         ⭐ 일출이 서서히 오는 것과 승무원이 트레이를 내리는 것은 다른 빠르기다. */
+      pb.style.transition = "opacity " + (fadeMs / 1000) + "s linear";
       pb.style.opacity = "1";
     });
     clearTimeout(fadeT);
@@ -6000,7 +6076,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       pb.style.transition = "none";
       pb.style.opacity = "0";
       pb.__f = null;
-    }, 3100);
+    }, fadeMs + 100);
   }
 
   /* ══ 카메라 되돌리기 ══════════════════════════════════════════════ */
@@ -7854,6 +7930,7 @@ function paintBook() {
     INSEL = null; LAMPEL = null; BLKEL = null;   /* ⚠ 0821f — 방과 함께 걷힌다. 다음 탑승이 다시 세운다 */
     SHUT = false; editing = false; egrab = null; IS_ADMIN = false; cvW = 0; cvH = 0; PAUSED = false;
     PREVIEW = null; themeNow = ""; themeMon = ""; RESUME = null;   /* ⚠ 다음 탑승은 진짜 시각으로 */
+    TRAY = null; PLATE_NOW = null;                                /* ⭐ 0826d — 내리면 식탁은 접힌다 */
     try { clearTimeout(tuneT); clearTimeout(fadeT); } catch (e) { }
     FPSEL = null; FPSM = null;                 /* ⭐ 0820i */
     /* ⚠ 0822c — 판은 ROOT 와 함께 걷히지만 **참조는 남는다.** 다음 탑승 때
