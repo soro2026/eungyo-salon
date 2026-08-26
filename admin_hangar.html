@@ -7,7 +7,7 @@
 <title>EG 관리자 — 격납고</title>
 <!--
   ══════════════════════════════════════════════════════════════════════
-  EG 격납고 — admin_hangar.html · v0826c
+  EG 격납고 — admin_hangar.html · v0826v
   2026.08.20 소로 × 파이스 · 0821 동체(GLB) 칸 신설 · 0823 여객기(lin) 입고 · 0823b 자를 고침(노드 변환)
 
   ⭐⭐ 0821 — 기체에 **몸이 생겼다.** 칸이 두 줄이 됐다.
@@ -198,6 +198,25 @@ const TOL    = 4;              /* 허용 오차 px — 생성기가 1픽셀씩 �
 const MAXLONG = 1800;          /* ⚠ 로더 자산은 1600 이다. 기내는 규격을 지켜야 해 더 크다 */
 const MAXKB   = 500;           /* ⚠ 로더 자산은 300. 기내는 디테일이 많아 뭉개진다 */
 
+/* ══ ⭐⭐ 0826v — 자가 두 벌이 됐다 ═══════════════════════════════════
+   바닥판(cabin)은 기내를 통째로 그린 941×1672 이고,
+   얹는층(dish)은 쟁반 하나만 그린 3:2 다. **아무 상관이 없는 두 그림**이다.
+   ⚠ 자를 하나만 두면 쟁반 그림이 문 앞에서 「규격이 다릅니다」로 막힌다.
+   ⚠⚠ 그리고 읽는 손이 셋이었다 — 미리보기·bake·투명% . 셋 다 이 표를 본다. */
+const KIND = {
+  cabin: { w:941,  h:1672, tol:4,    maxkb:500, tag:'_cabin_', name:'바닥판',
+           clearMin:3,  clearWhy:'창을 안 뚫은 판이 아닌지 보십시오' },
+  dish:  { w:1500, h:1000, ratio:1.5, rtol:0.03, maxkb:400, tag:'_dish_', name:'얹는층',
+           clearMin:35, clearWhy:'배경이 안 지워진 것이 아닌지 보십시오' }
+};
+/* ⭐ 얹는층은 비를 **막지 않고 일러만 준다** — 상한은 막는 값이 아니라 일러 주는 값이다.
+   ⚠ 다만 비가 어긋난 그림은 다른 장과 크기가 안 맞는다. 그 말을 해 준다. */
+function fits(kind, w, h){
+  const S = KIND[kind] || KIND.cabin;
+  if(S.ratio) return Math.abs(w/h - S.ratio) <= S.rtol;
+  return Math.abs(w-S.w) <= S.tol && Math.abs(h-S.h) <= S.tol;
+}
+
 const BUCKET = 'tour-assets';
 const DIR    = 'hangar/';
 const PUB    = SUPA_URL + '/storage/v1/object/public/' + BUCKET + '/' + DIR;
@@ -252,13 +271,32 @@ const CRAFTS = [
                 트레이는 밝은 구간(towel·meal1·meal2)과 어두운 구간(snack·water)에 **둘 다** 선다.
                 ⚠ 어두운 기내에 밝은 식탁이 혼자 떠 있으면 그게 더 어색하다.
                   독서등이 그 밝음을 설명해 준다고 적었으나, 독서등은 손님이 끌 수 있다. */
-             { k:'tray_dim', label:'빈 트레이 · 소등' },
-             { k:'towel', label:'물수건 · 음료' },
-             { k:'meal1', label:'첫 기내식' },
-             { k:'snack', label:'간식 · 커피' },
-             { k:'cups',  label:'빈 잔 · 껍데기' },
-             { k:'water', label:'물 한 잔' },
-             { k:'meal2', label:'아침식' } ] }
+             { k:'tray_dim', label:'빈 트레이 · 소등' } ],
+    /* ══ ⭐⭐ 0826v 얹는층 — 쟁반 하나만 그린 그림 ════════════════════
+       ⚠⚠ 음식 여섯 칸을 여기로 옮겼다. 그 여섯은 **한 장씩**이었는데,
+         소로 0826 저녁 — 「5분 간격으로 좀 줄어드는 걸 플레이해 주는 게 어때」.
+         한 장이 서너 장이 되어 스물이 됐다. ⭐ 17호가 적어 둔 그 문장이다 —
+         「잔이 놓이고, 옆 테이블이 바뀌고, **커피가 식는 것**이 곁에서 흘러간다」.
+       ⭐ 이름은 무리 + 단계다. 단계를 늘려도 코드를 다시 안 연다.
+       ⚠ snack 넷은 270분과 480분에 **다시 쓴다** — 두 번 굽지 않는다.
+       ⭐ dim 은 굽는 밝기를 일러 주는 딱지일 뿐, 칸을 늘리지 않는다. */
+    dishes:[
+      { g:'맞추기 자',            note:'파이스가 구웠다 · 한 번만 쓴다',
+        items:[ ['grid','격자'] ] },
+      { g:'물수건 · 음료',        note:'20 → 50분 · 10분마다',
+        items:[ ['towel_1','차림'], ['towel_2','반 잔'], ['towel_3','빈 잔 · 쓴 물수건'] ] },
+      { g:'첫 기내식',            note:'60 → 110분 · 10분마다',
+        items:[ ['meal1_1','차림'], ['meal1_2','손댐'], ['meal1_3','반'],
+                ['meal1_4','거의 빔'], ['meal1_5','빈 그릇'] ] },
+      { g:'간식 · 커피', dim:true, note:'270 · 480분 · 6분마다 · ⭐ 두 번 쓴다',
+        items:[ ['snack_1','커피 · 스낵'], ['snack_2','반 잔'],
+                ['snack_3','껍데기'], ['snack_4','빈 잔'] ] },
+      { g:'물 한 잔',    dim:true, note:'360분 · 5분마다 · ⚠ 쟁반 없이',
+        items:[ ['water_1','가득'], ['water_2','반'], ['water_3','빈 잔'] ] },
+      { g:'아침식',               note:'590 → 640분 · 10분마다',
+        items:[ ['meal2_1','차림'], ['meal2_2','손댐'], ['meal2_3','반'],
+                ['meal2_4','거의 빔'], ['meal2_5','빈 그릇'] ] }
+    ] }
 ];
 const PHASES = [
   { k:'m', label:'이른 아침' },
@@ -298,6 +336,40 @@ async function init(){
   drawAll();
 }
 
+/* ══ ⭐ 0826v — 칸 한 개를 세우는 손. 바닥판·얹는층이 같은 손을 쓴다 ═════
+   ⚠⚠ 여기서 오늘 하나 나왔다 — **filled 를 1 로 적는 손이 어디에도 없었다.**
+     그래서 「덮어쓸까요?」가 한 번도 안 떴고, 찬 칸에 던져도 조용히 덮였다.
+     ⭐ 0826의 그 갈래 그대로다 — 길을 짝으로 두어도 그 길로 못 들어가면 없는 것과 같다. */
+function addSlot(g, kind, key, label, kk, who){
+  const S  = KIND[kind];
+  const el = document.createElement('div');
+  el.className = 'slot'; el.dataset.key = key; el.dataset.filled = '0';
+  el.innerHTML =
+    '<div class="slot-label">'+label+'<span class="slot-key">'+kk+'</span></div>'
+    + '<div class="slot-thumb">불러오는 중…</div>'
+    + '<div class="slot-info">&nbsp;</div>';
+  const th = el.querySelector('.slot-thumb');
+  const nf = el.querySelector('.slot-info');
+  const im = new Image();
+  im.onload = ()=>{
+    el.dataset.filled = '1';           /* ⭐ 0826v — 이 한 줄이 없었다 */
+    th.textContent = ''; th.appendChild(im);
+    /* ⚠ 올라간 뒤에도 규격을 다시 잰다 — 되읽어 확인한다. 「잘 됐겠지」 금지 */
+    const ok = fits(kind, im.naturalWidth, im.naturalHeight);
+    nf.innerHTML = im.naturalWidth+'×'+im.naturalHeight
+      + (ok ? ' <b>규격 맞음</b>' : ' <i>⚠ 규격 어긋남</i>');
+  };
+  im.onerror = ()=>{
+    el.dataset.filled = '0';           /* ⭐ 0826 — 빈 칸은 안 묻는다 */
+    th.textContent = '비어 있음\n눌러서 올리기';
+    th.style.whiteSpace = 'pre-line';
+    nf.innerHTML = '&nbsp;';
+  };
+  im.src = PUB + key + '.webp?v=' + Date.now();
+  el.onclick = ()=>{ TARGET = { key:key, kind:kind, label:who+' · '+label }; $('#aFile').click(); };
+  g.appendChild(el);
+}
+
 function drawAll(){
   const host = $('#crafts');
   host.innerHTML = '';
@@ -306,39 +378,32 @@ function drawAll(){
     box.className = 'craft';
     box.innerHTML =
       '<div class="craft-top"><span class="craft-name">'+c.name+'</span>'
-      + '<span class="craft-code">'+c.code+'_cabin_*</span></div>'
+      + '<span class="craft-code">'+c.code+(c.dishes?'_cabin_* · '+c.code+'_dish_*':'_cabin_*')+'</span></div>'
       + '<div class="craft-note">'+c.note+'</div>'
       + '<div class="craft-spec">'+c.spec+'</div>'
       + '<div class="grid"></div>';
     const g = box.querySelector('.grid');
     (c.phases || PHASES).forEach(p=>{
-      const key = c.code + '_cabin_' + p.k;
-      const el = document.createElement('div');
-      el.className = 'slot'; el.dataset.key = key;
-      el.innerHTML =
-        '<div class="slot-label">'+p.label+'<span class="slot-key">'+p.k+'</span></div>'
-        + '<div class="slot-thumb">불러오는 중…</div>'
-        + '<div class="slot-info">&nbsp;</div>';
-      const th = el.querySelector('.slot-thumb');
-      const nf = el.querySelector('.slot-info');
-      const im = new Image();
-      im.onload = ()=>{
-        th.textContent = ''; th.appendChild(im);
-        /* ⚠ 올라간 뒤에도 규격을 다시 잰다 — 되읽어 확인한다. 「잘 됐겠지」 금지 */
-        const ok = Math.abs(im.naturalWidth-SPEC_W)<=TOL && Math.abs(im.naturalHeight-SPEC_H)<=TOL;
-        nf.innerHTML = im.naturalWidth+'×'+im.naturalHeight
-          + (ok ? ' <b>규격 맞음</b>' : ' <i>⚠ 규격 어긋남</i>');
-      };
-      im.onerror = ()=>{
-        el.dataset.filled = '0';        /* ⭐ 0826 — 빈 칸은 안 묻는다 */
-        th.textContent = '비어 있음\n눌러서 올리기';
-        th.style.whiteSpace = 'pre-line';
-        nf.innerHTML = '&nbsp;';
-      };
-      im.src = PUB + key + '.webp?v=' + Date.now();
-      el.onclick = ()=>{ TARGET = { key:key, label:c.name+' · '+p.label }; $('#aFile').click(); };
-      g.appendChild(el);
+      addSlot(g, 'cabin', c.code + KIND.cabin.tag + p.k, p.label, p.k, c.name);
     });
+
+    /* ── ⭐⭐ 0826v 얹는층 줄 — 무리마다 머리글 한 줄 ────────────────
+       ⚠ 스물한 칸을 한 뭉치로 늘어놓으면 어느 것이 어느 끼니인지 안 보인다.
+         ⭐ 무리가 곧 이벤트 하나다 — 굽는 순서도 이 무리 단위다. */
+    if(c.dishes){
+      c.dishes.forEach(grp=>{
+        const hd = document.createElement('div');
+        hd.style.cssText = 'grid-column:1/-1;margin:14px 0 -2px;padding-top:10px;'
+          + 'border-top:1px solid rgba(255,255,255,.10);font-size:13px;letter-spacing:.02em';
+        hd.innerHTML = '<b>' + grp.g + '</b>'
+          + (grp.dim ? ' <span style="opacity:.75">· 어둡게 굽기</span>' : '')
+          + '<span style="float:right;opacity:.6;font-size:12px">' + (grp.note||'') + '</span>';
+        g.appendChild(hd);
+        grp.items.forEach(it=>{
+          addSlot(g, 'dish', c.code + KIND.dish.tag + it[0], it[1], it[0], c.name);
+        });
+      });
+    }
 
     /* ── ⭐ 동체 한 칸 (0821) — 한 줄을 통째로 쓴다 ───────────────────── */
     const bkey = c.code + '_body';
@@ -394,41 +459,132 @@ async function readBitmap(file){
 function canvasBlob(cv,q){
   return new Promise(res=>{ cv.toBlob ? cv.toBlob(b=>res(b),'image/webp',q) : res(null); });
 }
-async function bake(file){
+/* ══ ⭐⭐ 0826v 배경 걷어내기 — 던지면 알아서 ═══════════════════════════
+   소로 0826 저녁 — 「아무 파일이름으로나 구우면, 던져 넣으면 투명 처리 및
+   파일 이름 세팅까지 자동으로」. 이름은 칸이 이미 짓고 있었다. 남은 것이 투명이다.
+   ⭐ 길 둘 — 마젠타면 한 번에, 아니면 **가장자리에서 물을 대어** 이어진 배경만 지운다.
+   ⚠ 안쪽으로만 번지므로 쟁반 위 그릇 속 하얀 곳은 절대 안 지워진다. */
+function clamp8(v){ return v < 0 ? 0 : v > 255 ? 255 : Math.round(v); }
+
+function cutMagenta(d){
+  const LO = 35, HI = 105;                 /* ⭐ 사이값 그대로 쓴다 — 0826의 자 */
+  for(let i=0;i<d.length;i+=4){
+    const m = Math.min(d[i], d[i+2]) - d[i+1];
+    if(m <= LO) continue;
+    let a = 1 - (m - LO)/(HI - LO);
+    if(a < 0) a = 0; else if(a > 1) a = 1;
+    if(a <= 0.004){ d[i+3] = 0; continue; }
+    const inv = 1 - a;                     /* ⭐ 번짐 빼기 — 잔 테두리에 밴 마젠타를 되뺀다 */
+    d[i]   = clamp8((d[i]   - 255*inv)/a);
+    d[i+1] = clamp8( d[i+1]            /a);
+    d[i+2] = clamp8((d[i+2] - 255*inv)/a);
+    d[i+3] = Math.round(255*a);
+  }
+}
+
+function cutFlood(d, W, H){
+  const N = W*H, seen = new Uint8Array(N), mark = new Uint8Array(N);
+  const st = new Int32Array(N); let sp = 0;
+  const put = p => { if(!seen[p]){ seen[p] = 1; st[sp++] = p; } };
+  let sr=0, sg=0, sb=0;                    /* 씨앗 — 네 모서리 */
+  [0, W-1, (H-1)*W, N-1].forEach(q=>{ sr+=d[q*4]; sg+=d[q*4+1]; sb+=d[q*4+2]; });
+  sr/=4; sg/=4; sb/=4;
+  const LOCAL = 20*20*3, FAR = 105*105*3;
+  const nearSeed = q => { const i=q*4, a=d[i]-sr, b=d[i+1]-sg, c=d[i+2]-sb;
+                          return a*a+b*b+c*c <= FAR; };
+  const nearTo = (p,q) => { const i=p*4, j=q*4, a=d[i]-d[j], b=d[i+1]-d[j+1], c=d[i+2]-d[j+2];
+                            return a*a+b*b+c*c <= LOCAL; };
+  for(let x=0;x<W;x++){ put(x); put((H-1)*W+x); }
+  for(let y=0;y<H;y++){ put(y*W); put(y*W+W-1); }
+  while(sp > 0){
+    const p = st[--sp];
+    if(!nearSeed(p)) continue;
+    mark[p] = 1;
+    const x = p % W, y = (p / W) | 0;
+    if(x > 0   && nearTo(p, p-1)) put(p-1);
+    if(x < W-1 && nearTo(p, p+1)) put(p+1);
+    if(y > 0   && nearTo(p, p-W)) put(p-W);
+    if(y < H-1 && nearTo(p, p+W)) put(p+W);
+  }
+  for(let p=0;p<N;p++) if(mark[p]) d[p*4+3] = 0;
+  /* ⭐ 가장자리 한 겹만 부드럽게 — 자르지 않고 떠받친다(0826 수칙) */
+  const al = new Uint8Array(N);
+  for(let p=0;p<N;p++) al[p] = d[p*4+3];
+  for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+    const p = y*W+x;
+    const v = (al[p-W-1]+al[p-W]+al[p-W+1]+al[p-1]+al[p]+al[p+1]
+              +al[p+W-1]+al[p+W]+al[p+W+1])/9;
+    d[p*4+3] = Math.round(v);
+  }
+  for(let p=0;p<N;p++){                    /* 번짐 빼기 — 씨앗 색을 되뺀다 */
+    const a = d[p*4+3]/255;
+    if(a <= 0.02 || a >= 0.98) continue;
+    const i = p*4, inv = 1-a;
+    d[i]   = clamp8((d[i]   - sr*inv)/a);
+    d[i+1] = clamp8((d[i+1] - sg*inv)/a);
+    d[i+2] = clamp8((d[i+2] - sb*inv)/a);
+  }
+}
+
+function cutBG(cx, W, H){
+  const img = cx.getImageData(0,0,W,H), d = img.data, N = W*H;
+  let mag = 0;
+  for(let i=0;i<d.length;i+=4) if(Math.min(d[i], d[i+2]) - d[i+1] > 60) mag++;
+  const way = (mag/N > 0.12) ? 'magenta' : 'flood';
+  if(way === 'magenta') cutMagenta(d); else cutFlood(d, W, H);
+  cx.putImageData(img, 0, 0);
+  return way;
+}
+
+async function bake(file, kind){
+  const K = kind || 'cabin', S = KIND[K];
   const bmp = await readBitmap(file);
   const sw = bmp.width, sh = bmp.height;
+  let warn = '';
 
-  /* ⚠⚠ 규격 검사 — **올리기 전에** 막는다.
+  /* ⚠⚠ 바닥판은 규격을 **올리기 전에** 막는다.
      올려 놓고 화면에서 발견하면 어디가 틀렸는지 못 찾는다.
-     ⭐ 다만 세로가 1~4px 흘린 것은 그 자리에서 늘려 준다(생성기가 자주 그런다). */
-  const dw = Math.abs(sw - SPEC_W), dh = Math.abs(sh - SPEC_H);
-  if(dw > TOL || dh > TOL){
+     ⭐ 얹는층은 안 막는다 — 담아 앉히고 일러만 준다. 쟁반은 화면 한가운데라
+       비가 조금 달라도 자가 잡아 준다. */
+  if(K === 'cabin' && !fits('cabin', sw, sh)){
     if(bmp.close) bmp.close();
     throw new Error('규격이 다릅니다 — ' + sw + '×' + sh
-      + ' (있어야 할 크기 ' + SPEC_W + '×' + SPEC_H + ')');
+      + ' (있어야 할 크기 ' + S.w + '×' + S.h + ')');
+  }
+  if(K === 'dish' && !fits('dish', sw, sh)){
+    warn = ' ⚠ 가로세로비 ' + (sw/sh).toFixed(2) + ' — 다른 장과 크기가 어긋날 수 있습니다';
   }
 
-  /* 규격 안이면 정확히 941×1672 로 앉힌다 — 오차를 여기서 지운다 */
   const cv = document.createElement('canvas');
-  cv.width = SPEC_W; cv.height = SPEC_H;
-  const cx = cv.getContext('2d');
+  cv.width = S.w; cv.height = S.h;
+  const cx = cv.getContext('2d', { willReadFrequently:true });
   cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
-  cx.clearRect(0,0,SPEC_W,SPEC_H);          /* ⭐ 알파를 지킨다 — 채우지 않는다 */
-  cx.drawImage(bmp, 0, 0, SPEC_W, SPEC_H);
-
-  /* ⭐ 투명이 살아 있는지 그 자리에서 잰다 — 마젠타를 안 뚫고 올리는 사고를 막는다 */
-  let clear = 0;
-  try{
-    const d = cx.getImageData(0,0,SPEC_W,SPEC_H).data;
-    for(let i=3;i<d.length;i+=4) if(d[i] < 16) clear++;
-  }catch(e){ clear = -1; }
-
+  cx.clearRect(0,0,S.w,S.h);               /* ⭐ 알파를 지킨다 — 채우지 않는다 */
+  if(K === 'cabin'){
+    cx.drawImage(bmp, 0, 0, S.w, S.h);     /* 규격 안이면 오차를 여기서 지운다 */
+  }else{
+    const r = Math.min(S.w/sw, S.h/sh);    /* ⭐ 담아 앉히기 — 비를 안 늘린다 */
+    const dw = sw*r, dh = sh*r;
+    cx.drawImage(bmp, (S.w-dw)/2, (S.h-dh)/2, dw, dh);
+  }
   if(bmp.close) bmp.close();
 
+  const way = (K === 'dish') ? cutBG(cx, S.w, S.h) : null;
+
+  /* ⭐ 투명이 살아 있는지, 그리고 판 끝에 닿았는지 그 자리에서 잰다 */
+  let clear = 0, edge = false;
+  try{
+    const d = cx.getImageData(0,0,S.w,S.h).data;
+    for(let i=3;i<d.length;i+=4) if(d[i] < 16) clear++;
+    const at = (x,y)=> d[(y*S.w+x)*4+3] > 40;
+    for(let x=0;x<S.w && !edge;x++) if(at(x,0) || at(x,S.h-1)) edge = true;
+    for(let y=0;y<S.h && !edge;y++) if(at(0,y) || at(S.w-1,y)) edge = true;
+  }catch(e){ clear = -1; }
+
   let q = 0.92, blob = await canvasBlob(cv,q);
-  while(blob && blob.size > MAXKB*1024 && q > 0.60){ q -= 0.06; blob = await canvasBlob(cv,q); }
-  if(!blob || blob.type !== 'image/webp') return { blob:file, raw:true, clear:clear };
-  return { blob:blob, raw:false, clear:clear, q:q };
+  while(blob && blob.size > S.maxkb*1024 && q > 0.60){ q -= 0.06; blob = await canvasBlob(cv,q); }
+  if(!blob || blob.type !== 'image/webp') return { blob:file, raw:true, clear:clear, total:S.w*S.h, way:way, edge:edge, warn:warn };
+  return { blob:blob, raw:false, clear:clear, total:S.w*S.h, way:way, edge:edge, warn:warn, q:q };
 }
 
 /* ══ 동체 뜯어보기 (0821) — 굽지 않는다. 재기만 한다 ═══════════════════
@@ -619,7 +775,7 @@ $('#aFile').addEventListener('change', async e=>{
   if(el) el.classList.add('busy');
 
   let baked;
-  try{ baked = await bake(f); }
+  try{ baked = await bake(f, TARGET.kind); }
   catch(err){ if(el) el.classList.remove('busy'); say(TARGET.label + ' — ' + err.message, 'bad'); return; }
 
   /* ⚠⚠ 0826 — 소로가 787 판을 자가용 제트기 노을 칸에 올리셨다. 칸이 열둘로
@@ -638,14 +794,22 @@ $('#aFile').addEventListener('change', async e=>{
   if(el) el.classList.remove('busy');
   if(error){ say('올리지 못했습니다 — ' + error.message, 'bad'); return; }
 
-  const pct = baked.clear < 0 ? null : (baked.clear/(SPEC_W*SPEC_H)*100);
+  const S   = KIND[TARGET.kind || 'cabin'];
+  const pct = baked.clear < 0 ? null : (baked.clear/baked.total*100);
   let msg = TARGET.label + ' — ' + Math.round(baked.blob.size/1024) + 'KB 로 구워 앉혔습니다';
   if(baked.raw) msg += ' (이 브라우저가 webp 를 못 구워 원본 그대로)';
+  if(baked.way) msg += ' · 배경을 ' + (baked.way === 'magenta' ? '마젠타로' : '가장자리에서') + ' 걷었습니다';
   if(pct !== null) msg += ' · 투명 ' + pct.toFixed(0) + '%';
-  say(msg, (pct !== null && pct < 3) ? 'bad' : 'ok');
-  /* ⚠ 투명이 거의 없으면 창을 안 뚫은 판일 수 있다 — 조용히 넘기지 않는다 */
-  if(pct !== null && pct < 3){
-    setTimeout(()=>say('⚠ 투명한 곳이 ' + pct.toFixed(0) + '% 뿐입니다 — 창을 안 뚫은 판이 아닌지 보십시오','bad'), 3800);
+  if(baked.warn) msg += baked.warn;
+  const thin = (pct !== null && pct < S.clearMin);
+  say(msg, (thin || baked.warn) ? 'bad' : 'ok');
+  /* ⚠ 재고 나서 알려 준다 — 조용히 넘기지 않는다. 막지는 않는다 */
+  if(thin){
+    setTimeout(()=>say('⚠ 투명한 곳이 ' + pct.toFixed(0) + '% 뿐입니다 — ' + S.clearWhy, 'bad'), 3800);
+  }
+  /* ⚠⚠ 얹는층이 판 끝에 닿으면 모서리가 잘린 그림이다 — 0826 저녁에 한 번 밟았다 */
+  if(TARGET.kind === 'dish' && baked.edge){
+    setTimeout(()=>say('⚠ 그림이 판 끝에 닿습니다 — 쟁반이 잘렸을 수 있습니다. 여백을 두고 다시 구우십시오','bad'), 5600);
   }
   drawAll();                                 /* ⭐ 되읽기 — 미리보기가 곧 검산이다 */
 });
