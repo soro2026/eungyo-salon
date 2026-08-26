@@ -330,7 +330,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0826v";
+  var VERSION = "0826w";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -2518,10 +2518,20 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 #egrDish.on{opacity:1}
 #readingRoom.out #egrDish{display:none}
 /* ⭐ 네 귀 손잡이 — 편집 중에만 선다. 평소엔 손을 아예 안 받는다(잠금쇠와 같은 문법) */
-.egrDishH{position:fixed;z-index:13;width:22px;height:22px;margin:-11px 0 0 -11px;
+.egrDishH{position:fixed;z-index:13;width:26px;height:26px;margin:-13px 0 0 -13px;
   border-radius:50%;display:none;cursor:move;
   border:2px solid rgba(255,0,255,.9);background:rgba(255,0,255,.18)}
 #readingRoom.edit .egrDishH{display:block;pointer-events:auto}
+.egrDishH::after{content:attr(data-k);position:absolute;left:50%;top:-17px;
+  transform:translateX(-50%);font:600 10px 'Noto Sans KR',sans-serif;
+  color:rgba(255,140,255,.95);white-space:nowrap}
+/* ⚠⚠ 0826w — **화면 밖으로 나간 귀는 잡을 데가 없다**(소로 0826: 「분홍 점이 안 보여서」).
+   near-right 가 101.17% 라 판 밖이다. 0825p 에 모니터로 겪은 그 일인데 —
+   그때 얻은 수칙(「남긴 여백이 하필 잡을 데가 없는 쪽이었다」)을 여기 안 걸었다.
+   ⭐ 손잡이를 화면 안으로 끌어들인다. 끄는 값은 **차이**라서 셈은 한 톨도 안 흔들린다.
+   ⚠ 다만 곳이 거짓이 되므로 점선으로 바꿔 「나는 지금 화면 밖 귀를 대신 잡고 있다」고 말한다. */
+.egrDishH.oob{border-style:dashed;background:rgba(255,0,255,.05)}
+.egrDishH.oob::after{content:attr(data-k) " ↗";color:rgba(255,180,120,.95)}
 #readingRoom.out #egrLampH{display:none}
 #readingGrip{position:fixed;z-index:11;pointer-events:auto;cursor:pointer;border-radius:99px;
   background:transparent;transition:background .2s,box-shadow .2s}
@@ -6134,9 +6144,13 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       /* 네 귀 손잡이 — 편집 중에만 보이지만 곳은 늘 갱신해 둔다 */
       if (DISH_H4.length === 4) {
         var order = flip ? ["tr", "tl", "bl", "br"] : ["tl", "tr", "br", "bl"];
+        var mgn = 22;
         DISH_H4.forEach(function (hEl, i) {
           var p = dpx(dq[order[i]]);
-          hEl.style.left = p[0] + "px"; hEl.style.top = p[1] + "px";
+          var hx = Math.max(mgn, Math.min(window.innerWidth - mgn, p[0]));
+          var hy = Math.max(mgn, Math.min(window.innerHeight - mgn, p[1]));
+          hEl.style.left = hx + "px"; hEl.style.top = hy + "px";
+          hEl.classList.toggle("oob", hx !== p[0] || hy !== p[1]);
         });
       }
     }
@@ -8759,6 +8773,14 @@ function paintBook() {
                          var r = dishShow(k); layout(); return r;
                        },
                        dishFit: function () { dishSay(); return dishQuad(); },
+                       /* ⭐ 0826w — 귀 하나만 민다. 화면 밖 귀도 이 손으로는 닿는다.
+                          egReading.dishCorner("br", 0, 1)   ⚠ 판 % 단위 */
+                       dishCorner: function (k, dx, dy) {
+                         var q = dishQuad(); if (!q || !q[k]) {
+                           console.warn("[EG] tl · tr · br · bl 중 하나여야 합니다"); return null; }
+                         q[k][0] += (+dx || 0); q[k][1] += (+dy || 0);
+                         layout(); saveTuneSoon(); dishSay(); return q[k];
+                       },
                        dishX: function (v) { dishNudge(+v || 0, 0); return dishQuad(); },
                        dishY: function (v) { dishNudge(0, +v || 0); return dishQuad(); },
                        dishW: function (v) {
