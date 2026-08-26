@@ -330,7 +330,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0826e";
+  var VERSION = "0826g";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -3873,9 +3873,20 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   function trayToggle() {
     if (!SPEC.plates || SPEC.plates.indexOf("tray") < 0) return;
     if (TRAY && TRAY !== "tray") return;          /* ⚠ 음식이 얹혀 있다 — 승무원이 치운다 */
+    var open = !TRAY;
     TRAY = TRAY ? null : "tray";
-    paintCabin(SINFO ? SINFO.lon : 0);
-    layout();
+    /* ⭐⭐ 0826f — 소로 0826: 「다 펼쳐진 면이 나오면 그때 카메라가 스르르」.
+       ⚠ 지금까지는 둘이 한 번에 떠나서, 접힌 판을 보며 카메라만 가라앉았다.
+       ⭐ 펼칠 때   판 → 카메라   식탁이 놓이고 나서 고개를 숙인다
+       ⭐ 접을 때   카메라 → 판   고개를 들고 나서 식탁이 걷힌다
+       ⚠ 이 비대칭이 실물이다 — 19호(갈 때는 통로가 길고 올 때는 금방)과 같은 갈래다. */
+    if (open) {
+      paintCabin(SINFO ? SINFO.lon : 0);
+      clearTimeout(trayT);
+      trayT = setTimeout(function () { focusGlide(); }, TRAY_FADE);
+    } else {
+      focusGlide(function () { paintCabin(SINFO ? SINFO.lon : 0); });
+    }
   }
   function paApply(s) {
     if (!s) return;
@@ -5549,10 +5560,12 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
        명세가 focus 를 주면 그것, 없으면 첫 창의 세로 한가운데. */
     /* ⭐ 0826d — 판이 정한 초점이 있으면 그것이 이긴다(트레이가 내려오면 고개를 숙인다).
        ⚠ 순서가 중요하다 — 판 > 명세 > 첫 창. 좌에서 우로 갈수록 널리 쓰는 값이다. */
-    var fo = SPEC.focusOf && PLATE_NOW ? SPEC.focusOf[PLATE_NOW] : null;
-    var focus = (fo != null) ? fo
-              : (SPEC.focus != null) ? SPEC.focus
-              : (WINS[0].t + WINS[0].h / 2) / 100;
+    var focus = (FOCUS_NOW != null) ? FOCUS_NOW : focusWant();
+    /* ⚠⚠ 0826f — **카메라가 지금 어디 있는지를 아는 곳은 여기뿐이다.**
+       이것을 안 적어 두면 미끄러뜨리는 손이 「떠나는 곳」을 focusWant 에게 묻게 되는데,
+       그쪽은 이미 **닿을 곳**을 말하므로 둘이 같아져 한 칸도 안 움직인다.
+       ⭐ 시무가 잡았다 — 지난 번에 쓴 값을 적어 둔다. */
+    FOCUS_AT = focus;
     var py = vh * 0.5 - h * focus;
 
     panMin = -(h + py - vh);          /* 더 내릴 수 없는 한계 (판 아래끝이 화면 바닥) */
@@ -5938,6 +5951,17 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
   /* ⭐⭐ 0826d — 트레이가 내려와 있으면 그 판이 선다.
      ⚠ 음식 판이 들어오면 TRAY 가 「지금 무엇이 올려있나」를 담게 된다 —
        그때도 여기 한 줄이고, 이름은 표가 쥐는다(plates 목록). */
+  /* ══ ⚠⚠ 0826f 진범 — **첫 번째 누름은 미리 지고 들어간다** ══════════
+     plateUrl 은 모르는 판을 만나면 **두드려 놓고 빈 주소를 돌려준다.**
+     묻는 동안은 아무것도 안 세우는 것이 0821d 의 조항이다.
+     ⚠⚠ 그러니 잠금쇠를 **처음** 누를 때만 판이 안 바뀌고 카메라만 간다 —
+       답이 돌아오는 데 한 박자가 걸리고, 그 한 박자가 하필 첫 번이다.
+     ⭐ 방에 들어올 때 **벌 목록을 미리 다 두드린다.** 손님이 누를 때즐이면
+       이미 답이 와 있다. ⚠ 그림을 미리 받아 두는 것이기도 해서 녹이기도 매끄러워진다. */
+  function platePrefetch() {
+    if (!SPEC.plates) return;
+    for (var i = 0; i < SPEC.plates.length; i++) plateUrl(SPEC.plates[i]);
+  }
   var TRAY = null;                  /* null 이면 접혀 있다 · "tray" 면 빈 식탁 */
   var PLATE_NOW = null;             /* ⭐ 지금 선 판 이름 — layout 이 초점을 고를 때 본다 */
   function plateKey(local) {
@@ -5949,6 +5973,45 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     return themeKey(local);
   }
   /* ⚠ 트레이·음식 판은 조명 글자가 아니다 — PA_DIM 이 조명을 정한다 */
+  /* ══ ⭐⭐ 0826f 카메라 미끄러뜨리기 ═══════════════════════════
+     ⚠ layout 은 한 프레임에 끝나는 손이라 초점을 바꾸면 화면이 **톡** 뛰었다.
+     ⭐ 초점을 두 값으로 가른다 — 가고 싶은 곳(focusWant)과 지금 있는 곳(FOCUS_NOW).
+     ⚠ 값을 두 곳에 적는 것과 다르다 — 정본은 여전히 하나고, 다른 하나는 그리로 가는 중이다.
+     ⚠ 끝나면 FOCUS_NOW 를 null 로 되돌려 둔다 — 창 크기가 바뀔 때 새 값을 따르게. */
+  var TRAY_FADE = 2500, TRAY_GLIDE = 1400;
+  var FOCUS_NOW = null, FOCUS_AT = null, focusRAF = 0, trayT = null;
+  function focusWant() {
+    /* ⚠⚠ 0826f — **지금 선 판이 아니라 가야 할 판**을 본다.
+       접을 때는 카메라가 먼저 올라가는데, 그때 PLATE_NOW 는 아직 "tray" 다 —
+       그것을 읽으면 가고 싶은 곳과 지금 있는 곳이 같아져 **카메라가 안 움직이고**
+       끝난 뒤에 톡 뛰어오른다. 시무를 돌려 잡았다.
+       ⭐ plateKey 가 이미 「어느 판이 설 차례인가」를 쥐고 있다 — 그것을 그대로 묻는다.
+       ⚠ 값을 두 곳에 안 적는다(22호). 해가 정하는 기체는 예전대로 PLATE_NOW 를 쓴다. */
+    var pk = (SPEC.plateBy === "cabin") ? plateKey(0) : PLATE_NOW;
+    var fo = SPEC.focusOf && pk ? SPEC.focusOf[pk] : null;
+    if (fo != null) return fo;
+    if (SPEC.focus != null) return SPEC.focus;
+    return (WINS && WINS[0]) ? (WINS[0].t + WINS[0].h / 2) / 100 : 0.5;
+  }
+  function focusGlide(done) {
+    var from = (FOCUS_NOW != null) ? FOCUS_NOW
+             : (FOCUS_AT != null) ? FOCUS_AT : focusWant();
+    var t0 = 0;
+    if (focusRAF) { cancelAnimationFrame(focusRAF); focusRAF = 0; }
+    /* ⚠ 목표는 **매 프레임 다시 읽는다** — 미끄러지는 도중에 판이 또 바뀔 수 있다 */
+    function step(ts) {
+      if (!ROOT || !document.body.contains(ROOT)) { focusRAF = 0; FOCUS_NOW = null; return; }
+      if (!t0) t0 = ts;
+      var u = Math.min(1, (ts - t0) / TRAY_GLIDE);
+      var e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;   /* ⭐ 느리게→빨리→느리게 */
+      FOCUS_NOW = from + (focusWant() - from) * e;
+      layout();
+      if (u < 1) { focusRAF = requestAnimationFrame(step); return; }
+      focusRAF = 0; FOCUS_NOW = null; layout();
+      if (done) done();
+    }
+    focusRAF = requestAnimationFrame(step);
+  }
   function themeOf(k) {
     if (k === "lit" || k === "tray") return PA_DIM ? "n" : "d";
     if (k === "dim") return "n";
@@ -6053,8 +6116,10 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     }
     if (pb.__f === f && pb.__u === url) return;             /* 이미 그 겹으로 넘어가는 중 */
     /* ⚠ 한쪽이라도 트레이 벌이면 짧게 — 내리는 것도 걷는 것도 같은 사건이다 */
+    /* ⭐ 0826f — 소로 판정: 「2-3초 스르르 천천히」. 0.5초는 스위치였다.
+       ⚠ 한 곳에만 적는다 — 카메라를 내리는 손도 이 값을 읽는다(22호). */
     var trayMove = (f !== "lit" && f !== "dim") || (plate.__f !== "lit" && plate.__f !== "dim");
-    var fadeMs = trayMove ? 500 : 3000;
+    var fadeMs = trayMove ? TRAY_FADE : 3000;
     pb.__f = f; pb.__u = url;
     pb.style.backgroundImage = "url(" + url + ")";
     pb.style.transition = "none";
@@ -7710,6 +7775,7 @@ function paintBook() {
     }, { passive: false, capture: true });
     mountInstr();                    /* ⭐ 0821f — 계기·램프·불빛 DOM. loadTune 이 값을 덮는다 */
     loadTune();                      /* 저장된 편집값 — 브라우저 먼저, 서버가 덮는다 */
+    platePrefetch();                 /* ⭐ 0826f — 벌 목록을 미리 다 두드린다 */
     paintCabin(route.legs[0][1]);
     moveCredits(true);               /* ⭐ 39호 — 저작자 표시를 기내 나무 판 위로 */
     tuneTiles(true);                 /* ⭐ 저고도 순항용 타일 설정 — 나갈 때 되돌린다 */
@@ -7931,6 +7997,9 @@ function paintBook() {
     SHUT = false; editing = false; egrab = null; IS_ADMIN = false; cvW = 0; cvH = 0; PAUSED = false;
     PREVIEW = null; themeNow = ""; themeMon = ""; RESUME = null;   /* ⚠ 다음 탑승은 진짜 시각으로 */
     TRAY = null; PLATE_NOW = null;                                /* ⭐ 0826d — 내리면 식탁은 접힌다 */
+    /* ⚠ 0826f — 도는 손과 기다리는 손을 함께 잠재운다. 0821k 수칙 — 끄는 길을 짝으로 */
+    if (focusRAF) { cancelAnimationFrame(focusRAF); focusRAF = 0; }
+    clearTimeout(trayT); FOCUS_NOW = null;
     try { clearTimeout(tuneT); clearTimeout(fadeT); } catch (e) { }
     FPSEL = null; FPSM = null;                 /* ⭐ 0820i */
     /* ⚠ 0822c — 판은 ROOT 와 함께 걷히지만 **참조는 남는다.** 다음 탑승 때
