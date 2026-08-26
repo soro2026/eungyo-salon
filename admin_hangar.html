@@ -7,7 +7,7 @@
 <title>EG 관리자 — 격납고</title>
 <!--
   ══════════════════════════════════════════════════════════════════════
-  EG 격납고 — admin_hangar.html · v0823b
+  EG 격납고 — admin_hangar.html · v0826a
   2026.08.20 소로 × 파이스 · 0821 동체(GLB) 칸 신설 · 0823 여객기(lin) 입고 · 0823b 자를 고침(노드 변환)
 
   ⭐⭐ 0821 — 기체에 **몸이 생겼다.** 칸이 두 줄이 됐다.
@@ -233,7 +233,20 @@ const CRAFTS = [
      ⭐ 그래서 phases 를 기체가 들고 있게 열었다. 안 적은 기체는 예전처럼 넷이다. */
   { code:'lin', name:'여객기 787',     note:'인천–파리 장거리 — 좌석 창 · 조명 두 벌',
     spec:'exanori · CGTrader Royalty Free(구매 0823) · 65,058 삼각형 · 원점이 지면',
-    phases:[ { k:'lit', label:'밝음' }, { k:'dim', label:'어두움' } ] }
+    /* ⭐⭐ 0826 — 칸이 둘로는 모자란다(소로 0826). 장거리 18호 시간표가
+       트레이 위에 여덟 가지를 올렸다 놀는다 — 그 여덟이 전부 제 칸을 가져야 한다.
+     ⚠⚠ dim 을 **안 적었다.** 여기에 dim 을 두면 아래 여덟이 전부 두 벌이 되어
+       열여s 장이 된다. ⭐ 소등은 판을 굽는 일이 아니라 개씨로 눈히는 일로 갈렸다 —
+       잡 하나까지 함께 어두워지는 편이 손으로 맞추는 것보다 정직하다.
+     ⚠ 이 목록은 **그림 칸일 뿐** 이다. 언제 어느 판이 서는지는 reading_room 이 쥐다. */
+    phases:[ { k:'lit',   label:'비행 모드 · 접힌 트레이' },
+             { k:'tray',  label:'빈 트레이 · 펼침' },
+             { k:'towel', label:'물수건 · 음료' },
+             { k:'meal1', label:'첫 기내식' },
+             { k:'snack', label:'간식 · 커피' },
+             { k:'cups',  label:'빈 잔 · 껍데기' },
+             { k:'water', label:'물 한 잔' },
+             { k:'meal2', label:'아침식' } ] }
 ];
 const PHASES = [
   { k:'m', label:'이른 아침' },
@@ -305,6 +318,7 @@ function drawAll(){
           + (ok ? ' <b>규격 맞음</b>' : ' <i>⚠ 규격 어긋남</i>');
       };
       im.onerror = ()=>{
+        el.dataset.filled = '0';        /* ⭐ 0826 — 빈 칸은 안 묻는다 */
         th.textContent = '비어 있음\n눌러서 올리기';
         th.style.whiteSpace = 'pre-line';
         nf.innerHTML = '&nbsp;';
@@ -596,6 +610,16 @@ $('#aFile').addEventListener('change', async e=>{
   try{ baked = await bake(f); }
   catch(err){ if(el) el.classList.remove('busy'); say(TARGET.label + ' — ' + err.message, 'bad'); return; }
 
+  /* ⚠⚠ 0826 — 소로가 787 판을 자가용 제트기 노을 칸에 올리셨다. 칸이 열둘로
+     늘면 또 난다. ⭐ **이미 든 칸에 덮을 때만** 한 번 묻는다 — 빈 칸은 그냥 간다.
+     ⚠ 묻는 것이 공짜가 아니다. 빈 칸까지 물으면 열둘 올리실 때 열두 번 누르신다. */
+  if(el && el.dataset.filled === '1'){
+    if(!confirm('【' + TARGET.label + '】 칸에 이미 판이 서 있습니다.\n\n'
+              + TARGET.key + '.webp \n\n덮어쓸까요?')){
+      if(el) el.classList.remove('busy');
+      say('그대로 두었습니다'); return;
+    }
+  }
   const { error } = await supa.storage.from(BUCKET)
     .upload(DIR + TARGET.key + '.webp', baked.blob,
             { upsert:true, contentType:'image/webp', cacheControl:'60' });
