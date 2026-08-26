@@ -330,7 +330,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0826x";
+  var VERSION = "0826y";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -5855,7 +5855,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
   /* ⭐ 굽는 순서가 곧 이 차례다. 격납고 무리와 한 글자도 안 다르게 적는다 */
   var DISH_LIST = ["grid",
     "towel_1", "towel_2", "towel_3",
-    "meal1_1", "meal1_2", "meal1_3", "meal1_4", "meal1_5",
+    "meal1_1", "meal1_2", "meal1_3", "meal1_4", "meal1_5", "meal1_6",
     "snack_1", "snack_2", "snack_3", "snack_4",
     "water_1", "water_2", "water_3",
     "meal2_1", "meal2_2", "meal2_3", "meal2_4", "meal2_5"];
