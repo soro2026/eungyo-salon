@@ -330,7 +330,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0826n";
+  var VERSION = "0826p";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1030,7 +1030,12 @@
            /* ⭐ 0826k — dim 을 목록에 넣었다. 소로가 구우셨다.
               ⚠ 차례가 뜻을 갖는다 — **plates[0] 이 「못 찾으면 서는 판」**이다(0826a 그물).
                 lit 이 첫째여야 안 구운 벌을 만나도 밝은 기내가 선다. */
-           plates: ["lit", "dim", "tray"], plateBy: "cabin",
+           plates: ["lit", "dim", "tray", "tray_dim"], plateBy: "cabin",
+           /* ⭐⭐ 0826p — 소등 중에는 트레이도 어두운 벌이 선다.
+              ⚠ 표가 쥔다 — 「소등이면 이름 뒤에 _dim 을 붙인다」를 코드에 안 박는다.
+                음식 여섯도 언젠가 두 벌이 될 수 있으니 짝을 표로 적는다.
+              ⭐ 짝이 없는 이름은 그대로 선다 — snack·water 는 애초에 어둡게 굽는다. */
+           dimOf: { tray: "tray_dim" },
            /* ⭐ 판별 초점 — 트레이가 내려오면 고개도 함께 숙인다.
               ⚠ 안 숙이면 노트북 띠(20~52%) 밖에 식탁이 놓여 화면에 안 든다.
               ⚠ 적은 벌만 바뀐다 — 없는 벌은 wins[0] 이 정하는 옛 길을 그대로 태다. */
@@ -6083,7 +6088,12 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
   function plateKey(local) {
     if (PREVIEW) return PREVIEW;
     if (SPEC.plateBy === "cabin") {
-      if (TRAY && SPEC.plates && SPEC.plates.indexOf(TRAY) >= 0) return TRAY;
+      if (TRAY && SPEC.plates && SPEC.plates.indexOf(TRAY) >= 0) {
+        /* ⭐ 0826p — 소등이면 짝을 찾아본다. 없으면 밝은 벌이 그대로 선다 */
+        if (PA_DIM && SPEC.dimOf && SPEC.dimOf[TRAY]
+            && SPEC.plates.indexOf(SPEC.dimOf[TRAY]) >= 0) return SPEC.dimOf[TRAY];
+        return TRAY;
+      }
       return PA_DIM ? "dim" : "lit";
     }
     return themeKey(local);
@@ -6104,7 +6114,9 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
        ⭐ plateKey 가 이미 「어느 판이 설 차례인가」를 쥐고 있다 — 그것을 그대로 묻는다.
        ⚠ 값을 두 곳에 안 적는다(22호). 해가 정하는 기체는 예전대로 PLATE_NOW 를 쓴다. */
     var pk = (SPEC.plateBy === "cabin") ? plateKey(0) : PLATE_NOW;
-    var fo = SPEC.focusOf && pk ? SPEC.focusOf[pk] : null;
+    /* ⚠ 0826p — tray_dim 도 트레이다. 초점을 두 번 안 적는다 */
+    var fk = (pk === "tray_dim") ? "tray" : pk;
+    var fo = SPEC.focusOf && fk ? SPEC.focusOf[fk] : null;
     if (fo != null) return fo;
     if (SPEC.focus != null) return SPEC.focus;
     return (WINS && WINS[0]) ? (WINS[0].t + WINS[0].h / 2) / 100 : 0.5;
@@ -6129,8 +6141,10 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     focusRAF = requestAnimationFrame(step);
   }
   function themeOf(k) {
-    if (k === "lit" || k === "tray") return PA_DIM ? "n" : "d";
-    if (k === "dim") return "n";
+    /* ⚠ 0826p — 이름을 늘어놓지 않는다. **PA_DIM 하나가 정한다** —
+       판 이름이 몇이 되든 조명은 둘뿐이고, 그것을 아는 것은 방송이다(15호). */
+    if (k === "dim" || k === "tray_dim") return "n";
+    if (SPEC.plateBy === "cabin") return PA_DIM ? "n" : "d";
     return k;
   }
   function setTheme(k) {
@@ -6240,7 +6254,9 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     /* ⚠ 한쪽이라도 트레이 벌이면 짧게 — 내리는 것도 걷는 것도 같은 사건이다 */
     /* ⭐ 0826f — 소로 판정: 「2-3초 스르르 천천히」. 0.5초는 스위치였다.
        ⚠ 한 곳에만 적는다 — 카메라를 내리는 손도 이 값을 읽는다(22호). */
-    var trayMove = (f !== "lit" && f !== "dim") || (plate.__f !== "lit" && plate.__f !== "dim");
+    /* ⚠ 0826p — 「바닥판인가」로 가른다. 이름이 늘어도 이 줄은 안 바뀐다 */
+    function isBase(k) { return k === "lit" || k === "dim"; }
+    var trayMove = !isBase(f) || !isBase(plate.__f);
     var fadeMs = trayMove ? TRAY_FADE : 3000;
     pb.__f = f; pb.__u = url;
     pb.style.backgroundImage = "url(" + url + ")";
