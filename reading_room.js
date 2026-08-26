@@ -330,7 +330,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0826w";
+  var VERSION = "0826x";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1050,8 +1050,17 @@
               ⚠ near-right 가 101.17 로 판 밖이다. 그것이 맞다 — 소로 0826:
                 「지금 원근법에 맞게 제대로 구현되어 있어. 오른쪽이 살짝 잘리는 게 정확」.
               ⭐ 소로가 편집기에서 끌면 이 값을 덮고 서버에 적힌다(TUNE_C.lin.DH). */
-           dish: { tl: [53.24, 64.89], tr: [96.39, 64.71],
-                   br: [101.17, 74.22], bl: [48.56, 74.22] } }
+           /* ⚠⚠ 0826x — 첫 값(상판 실측)을 **버렸다.** 소로가 0826 저녁에 실물로 맞추신
+              값이 정본이다. 까닭은 셈으로 드러났다 —
+                상판의 소실점      (704, 365)     원근이 세다
+                맞추신 네모의 소실점 (733, −2539)   ⭐ 거의 평행사변형이다
+              ⭐⭐ **그림에 원근이 이미 구워져 있는데 캔버스에 또 씌우면 두 번 씌운다.**
+                쟁반 그림은 생성기가 이미 26°로 찍어 놓았다. 거기에 상판 사다리꼴을
+                그대로 씌우니 먼쪽이 두 번 눌렸다.
+              ⚠ 첫 격자가 평면 그림이라 그 틀림이 안 드러났다 — 쟁반이 서고 나서야 보였다.
+              ⭐ 그래서 얹는층은 **눕히는 것이 아니라 붙이는 것**이다. 곳·크기·약한 기울기뿐. */
+           dish: { tl: [53.53, 61.87], tr: [95.37, 62.26],
+                   br: [96.63, 77.80], bl: [51.82, 76.77] } }
   };
   /* ⭐ 얹는층 캔버스 — **설계값이다. 편집값이 아니다.** 격납고가 굽는 판형과 같다.
      ⚠⚠ 이 둘을 dish 객체 안에 두면 0819V 의 그 사고가 또 난다(41호 ㉬) —
@@ -1204,6 +1213,13 @@
       dq1.tl = t.DH.tl.slice(); dq1.tr = t.DH.tr.slice();
       dq1.br = t.DH.br.slice(); dq1.bl = t.DH.bl.slice();
     }
+    /* ⭐ 0826x 그림자 셋 — ⚠ 수(數)이고 범위 안일 때만 읽는다(구름·질감과 같은 그물) */
+    if (t.DS && t.DS.length === 3 && isFinite(t.DS[0])) {
+      DSH.a = Math.max(0, Math.min(1, +t.DS[0] || 0));
+      DSH.blur = Math.max(0, Math.min(40, +t.DS[1] || 0));
+      DSH.drop = Math.max(-30, Math.min(30, +t.DS[2] || 0));
+      dishShadowPaint();
+    }
     /* ⭐ 0822c — 질감 셋. ⚠ 수(數)이고 범위 안일 때만 읽는다(구름 손잡이와 같은 그물) */
     SKIN_BARS.forEach(function (b) {
       var x = t.S && t.S[b[0]];
@@ -1217,6 +1233,9 @@
      ⚠ 낱장을 DOM 으로 스물한 개 만들지 않는다(41호 ㉧ · 먼지와 같은 수칙). */
   function mountDish() {
     if (!ROOT || DISH_EL) return;
+    /* ⚠ 그림자를 **먼저** 붙인다 — 같은 z 라도 나중에 붙은 것이 위에 선다 */
+    DISH_SH = document.createElement("div"); DISH_SH.id = "egrDishS";
+    ROOT.appendChild(DISH_SH);
     DISH_EL = document.createElement("div"); DISH_EL.id = "egrDish";
     ROOT.appendChild(DISH_EL);
     DISH_H4 = [];
@@ -2512,10 +2531,16 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
    ⭐ 그래서 캔버스 한 벌을 눕히면 그 안의 스물한 장이 함께 눕는다 —
      장마다 맞추지 않는다(소로 0826 저녁 「내가 1번만 맞추면」).
    ⚠ 독서등(z 8) **아래**다. 음식에도 빛이 드리워야 한다. */
-#egrDish{position:fixed;left:0;top:0;width:1500px;height:1000px;transform-origin:0 0;
+#egrDish,#egrDishS{position:fixed;left:0;top:0;width:1500px;height:1000px;transform-origin:0 0;
   z-index:7;pointer-events:none;background-size:100% 100%;background-repeat:no-repeat;
   opacity:0;transition:opacity .9s ease}
 #egrDish.on{opacity:1}
+/* ⭐⭐ 0826x 그림자 — **같은 그림을 한 벌 더 깐다.** 굽는 값이 0 이다.
+   ⚠ 그림을 안 늘린다(먼지와 같은 문법). 알파 모양을 그대로 쓰니
+     쟁반 모서리 곡선까지 저절로 따라온다.
+   ⚠ brightness(0) 으로 통째로 검게 만들고 흐림을 건다 — 색은 한 톨도 안 쓴다. */
+#egrDishS{z-index:6}
+#egrDishS.on{opacity:1}
 #readingRoom.out #egrDish{display:none}
 /* ⭐ 네 귀 손잡이 — 편집 중에만 선다. 평소엔 손을 아예 안 받는다(잠금쇠와 같은 문법) */
 .egrDishH{position:fixed;z-index:13;width:26px;height:26px;margin:-13px 0 0 -13px;
@@ -5723,6 +5748,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       TUNE_C[CRAFT] = TUNE_C[CRAFT] || {};
       TUNE_C[CRAFT].DH = { tl: dq0.tl.slice(), tr: dq0.tr.slice(),
                            br: dq0.br.slice(), bl: dq0.bl.slice() };
+      TUNE_C[CRAFT].DS = [DSH.a, DSH.blur, DSH.drop];   /* ⭐ 0826x 그림자 셋 */
     }
     return { GL: GRIP_L, GR: GRIP_R, EL: ENG_L, ER: ENG_R,
              IC: TUNE_C,                     /* ⭐ 기체별 칸 */
@@ -5814,7 +5840,18 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
        0826 낮에 통짜로 간 것은 벌이 넷일 때 이야기였고, 스물이 되니 곱셈이 돌아왔다.
      ⚠⚠ 시간표는 아직 이 겹을 안 부른다. 오늘은 **손으로 세우고 손으로 넘긴다.**
        안 뜨는 그림을 시간표가 부르면 그것이 「고장」으로 읽힌다. */
-  var DISH_EL = null, DISH_H4 = [], DISH_NOW = null, DISH_I = -1, dgrab = null;
+  var DISH_EL = null, DISH_SH = null, DISH_H4 = [], DISH_NOW = null, DISH_I = -1, dgrab = null;
+  /* ⭐ 그림자 값 셋 — 진하기 · 흐림(px) · 내림(px). 소로가 콘솔로 정하신다.
+     ⚠ 0 이면 겹이 통째로 물러난다 — 끄는 길을 **처음부터 짝으로** 둔다(0826 수칙). */
+  var DSH = { a: 0.34, blur: 7, drop: 4 };
+  function dishShadowPaint() {
+    if (!DISH_SH) return;
+    var on = !!(DSH.a > 0.005 && DISH_NOW);
+    DISH_SH.classList.toggle("on", on);
+    if (!on) return;
+    DISH_SH.style.filter = "brightness(0) blur(" + DSH.blur + "px)";
+    DISH_SH.style.opacity = String(DSH.a);
+  }
   /* ⭐ 굽는 순서가 곧 이 차례다. 격납고 무리와 한 글자도 안 다르게 적는다 */
   var DISH_LIST = ["grid",
     "towel_1", "towel_2", "towel_3",
@@ -5857,12 +5894,15 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     if (k === null || k === false) {
       DISH_NOW = null; DISH_I = -1;
       DISH_EL.classList.remove("on");
+      if (DISH_SH) DISH_SH.classList.remove("on");
       return null;
     }
     if (DISH_LIST.indexOf(k) < 0) { console.warn("[EG] 그런 얹는층이 없습니다 — " + k); return DISH_NOW; }
     DISH_NOW = k; DISH_I = DISH_LIST.indexOf(k);
     DISH_EL.style.backgroundImage = "url(" + dishUrl(k) + ")";
     DISH_EL.classList.add("on");
+    if (DISH_SH) DISH_SH.style.backgroundImage = "url(" + dishUrl(k) + ")";
+    dishShadowPaint();
     /* ⭐ 있는지 재서 알려 준다 — 두 시간을 더듬지 않게 */
     if (DISH_SEEN[k] === undefined) {
       var im = new Image();
@@ -6140,7 +6180,11 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       var dpts = flip
         ? [dpx(dq.tr), dpx(dq.tl), dpx(dq.bl), dpx(dq.br)]
         : [dpx(dq.tl), dpx(dq.tr), dpx(dq.br), dpx(dq.bl)];
-      DISH_EL.style.transform = homography(DISH_W, DISH_H, dpts);
+      var dmx = homography(DISH_W, DISH_H, dpts);
+      DISH_EL.style.transform = dmx;
+      /* ⭐ 그림자는 같은 변환에 **내림만** 더한다. 판 안에서 미는 것이 아니라
+         화면에서 아래로 민다 — 닿은 흔적은 화면 아래쪽에 생긴다. */
+      if (DISH_SH) DISH_SH.style.transform = "translateY(" + DSH.drop + "px) " + dmx;
       /* 네 귀 손잡이 — 편집 중에만 보이지만 곳은 늘 갱신해 둔다 */
       if (DISH_H4.length === 4) {
         var order = flip ? ["tr", "tl", "bl", "br"] : ["tl", "tr", "br", "bl"];
@@ -8773,6 +8817,19 @@ function paintBook() {
                          var r = dishShow(k); layout(); return r;
                        },
                        dishFit: function () { dishSay(); return dishQuad(); },
+                       /* ⭐ 0826x 그림자 — egReading.dishShadow(진하기, 흐림, 내림)
+                          ⚠ dishShadow(0) 이면 아예 끈다. ⭐ 밝은 판에서 값을 정하십시오 */
+                       dishShadow: function (a, blur, drop) {
+                         if (arguments.length) {
+                           DSH.a = Math.max(0, Math.min(1, +a || 0));
+                           if (blur !== undefined) DSH.blur = Math.max(0, +blur || 0);
+                           if (drop !== undefined) DSH.drop = +drop || 0;
+                           dishShadowPaint(); layout(); saveTuneSoon();
+                         }
+                         console.log("[EG] 그림자 — 진하기 " + DSH.a + " · 흐림 " + DSH.blur
+                                     + "px · 내림 " + DSH.drop + "px");
+                         return { a: DSH.a, blur: DSH.blur, drop: DSH.drop };
+                       },
                        /* ⭐ 0826w — 귀 하나만 민다. 화면 밖 귀도 이 손으로는 닿는다.
                           egReading.dishCorner("br", 0, 1)   ⚠ 판 % 단위 */
                        dishCorner: function (k, dx, dy) {
@@ -8811,8 +8868,8 @@ function paintBook() {
                          return dishQuad();
                        },
                        dishReset: function () {
-                         var d0 = { tl: [53.24, 64.89], tr: [96.39, 64.71],
-                                    br: [101.17, 74.22], bl: [48.56, 74.22] };
+                         var d0 = { tl: [53.53, 61.87], tr: [95.37, 62.26],
+                                    br: [96.63, 77.80], bl: [51.82, 76.77] };
                          var q = dishQuad(); if (!q) return null;
                          q.tl = d0.tl; q.tr = d0.tr; q.br = d0.br; q.bl = d0.bl;
                          layout(); saveTuneSoon(); dishSay(); return q;
