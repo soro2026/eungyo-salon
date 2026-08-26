@@ -330,7 +330,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0826g";
+  var VERSION = "0826h";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1030,7 +1030,9 @@
            /* ⭐ 판별 초점 — 트레이가 내려오면 고개도 함께 숙인다.
               ⚠ 안 숙이면 노트북 띠(20~52%) 밖에 식탁이 놓여 화면에 안 든다.
               ⚠ 적은 벌만 바뀐다 — 없는 벌은 wins[0] 이 정하는 옛 길을 그대로 태다. */
-           focusOf: { tray: 0.50 },
+           focusOf: { tray: 0.60 },   /* ⭐ 0826h — 소로: 「좀더 아래로」. 0.50 → 0.60
+              ⚠ 더 내리면 모니터가 화면 밖으로 나간다 — 책을 잎어버리는 것과 같다.
+              ⭐ egReading.trayFocus(v) 로 방 안에서 정하실 수 있다 */
            /* ⭐ 접힌 트레이 잠금쇠 — 실측(홈 l 69.93 w 14.98 · 손잡이 가운데 78.6).
               ⚠ 지금은 곳만 잡아 둔다. 누르는 손은 내려온 판이 나온 뒤에 잇는다 —
                 지어 두면 눌렀을 때 아무 일도 안 일어나고, 그것이 고장으로 읽힌다. */
@@ -5961,6 +5963,21 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
   function platePrefetch() {
     if (!SPEC.plates) return;
     for (var i = 0; i < SPEC.plates.length; i++) plateUrl(SPEC.plates[i]);
+    /* ⭐⭐ 0826h — **무엇이 격납고에 있고 없는지를 스스로 말한다.**
+       ⚠ 지금까지는 없는 판을 만나면 조용히 첫 벌로 물러났다. 그것이 조항이긴 한데
+         (없으면 그냥 없다 · 0821d), **관리자에게까지 입을 닫을 까닭은 없다.**
+         이름을 하나 틀려 올리면 화면에서는 「그냥 안 바뀜」으로만 보인다.
+       ⚠ 두드린 답이 돌아오는 데 한 박자 걸리므로 1.2초 뒤에 적는다. */
+    if (!window.__egAdmin) return;
+    setTimeout(function () {
+      var has = [], no = [];
+      for (var j = 0; j < SPEC.plates.length; j++) {
+        var k = SPEC.plates[j];
+        (PLATE_OK[CRAFT + "_" + k] === true ? has : no).push(k);
+      }
+      console.log("[EG] 격납고 " + CRAFT + " — 있음: " + (has.join(" · ") || "없음")
+                + (no.length ? "   ⚠ 없음: " + no.join(" · ") : ""));
+    }, 1200);
   }
   var TRAY = null;                  /* null 이면 접혀 있다 · "tray" 면 빈 식탁 */
   var PLATE_NOW = null;             /* ⭐ 지금 선 판 이름 — layout 이 초점을 고를 때 본다 */
@@ -8238,6 +8255,26 @@ function paintBook() {
                            : WHEEL_OVR + "바퀴/초 (콘솔값)"));
                          return WHEEL_OVR;
                        },
+                       /* ⭐⭐ 0826h — 방 안에서 카메라 깊이와 빠르기를 정한다.
+                          ⚠ 저장 안 한다 — 숫자가 정해지면 파이스가 명세에 적는다.
+                            카메라 값은 어림이라 소로가 타 보고 정하시는 것이 맞다. */
+                       trayFocus: function (v) {
+                         if (arguments.length && SPEC.focusOf) {
+                           SPEC.focusOf.tray = Math.max(0.2, Math.min(0.9, +v));
+                           if (focusRAF) { cancelAnimationFrame(focusRAF); focusRAF = 0; }
+                           FOCUS_NOW = null; layout();
+                         }
+                         console.log("[EG] 트레이 초점 " + (SPEC.focusOf ? SPEC.focusOf.tray : "—")
+                                   + "  (클수록 아래를 봅니다)");
+                         return SPEC.focusOf ? SPEC.focusOf.tray : null;
+                       },
+                       trayTime: function (fade, glide) {
+                         if (arguments.length > 0 && +fade > 0) TRAY_FADE = Math.max(200, Math.min(8000, +fade));
+                         if (arguments.length > 1 && +glide > 0) TRAY_GLIDE = Math.max(200, Math.min(8000, +glide));
+                         console.log("[EG] 판 녹이기 " + TRAY_FADE + "ms · 카메라 " + TRAY_GLIDE + "ms");
+                         return [TRAY_FADE, TRAY_GLIDE];
+                       },
+                       trayOpen: function () { trayToggle(); return TRAY; },
                        wheelDir: function (v) {
                          if (arguments.length) WHEEL_DIR = (+v < 0) ? -1 : 1;
                          console.log("[EG] 바퀴 회전 방향 " + WHEEL_DIR);
