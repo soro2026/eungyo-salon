@@ -330,7 +330,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0826k";
+  var VERSION = "0826n";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -2363,9 +2363,35 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
    밝히는 빛 하나.」 ⚠ 전구를 안 그린다 — 787 독서등은 내 머리 바로 위 천장에 있어
    창가 시점에서는 화면 밖이다. **보이는 것은 전구가 아니라 빛이다.**
    ⚠ 판 겹(z 6·7) 위 · 모니터(11) 아래. 손은 안 받는다 */
+/* ⚠⚠ 0826m 진범 — mix-blend-mode:screen 이 **판 네모를 통째로** 화면에 섞었다.
+     그러데이션이 0 인 가장자리도 screen 은 「0 을 더한다」로 읽어 네모 테두리가 남는다.
+     ⭐ 걷었다. 겹치기 없이 그냥 얹으면 투명한 곳은 정말 투명하다.
+   ⭐⭐ 그리고 모양을 **원뿔**로 — 천장 등에서 무릎으로 퍼져 내려오는 빛이다.
+     ⚠ 타원 하나로는 「바닥에 놓인 조명」처럼 보인다. 위가 좁고 아래가 넓어야 위에서 온다.
+     ⭐ clip-path 사다리꼴 안에 타원 그러데이션 — 두 겹이 아니라 한 판이다. */
 #egrRlite{position:fixed;z-index:8;pointer-events:none;opacity:0;
-  transition:opacity 1.1s ease;mix-blend-mode:screen}
+  transition:opacity 1.1s ease;
+  clip-path:polygon(38% 0%,62% 0%,100% 78%,86% 100%,14% 100%,0% 78%)}
 #readingRoom.rlite #egrRlite{opacity:1}
+/* ⭐⭐ 0826m 먼지 (소로 0826) — 빛줄기 안에서만 보인다. ⚠ 이것이 이 손의 알맹이다:
+   기내 공기에 먼지가 없는 게 아니라, **빛이 있어야 보인다.** 그래서 독서등 겹의 자식이다.
+   ⚠ 낱알을 DOM 으로 스무 개 만들지 않는다 — 41호 ㉧(값비싼 손을 매 프레임에 안 쏜다).
+     배경 그림 세 겹이 서로 다른 빠르기로 흐른다. GPU 가 맡고 fps 를 안 먹는다. */
+#egrDust{position:absolute;inset:0;pointer-events:none;opacity:.55;
+  background-image:
+    radial-gradient(1.6px 1.6px at 18% 24%,rgba(255,244,222,.85),transparent 60%),
+    radial-gradient(1.2px 1.2px at 63% 12%,rgba(255,240,214,.7),transparent 60%),
+    radial-gradient(1.9px 1.9px at 41% 61%,rgba(255,248,232,.8),transparent 60%),
+    radial-gradient(1.3px 1.3px at 78% 44%,rgba(255,242,218,.6),transparent 60%),
+    radial-gradient(1.5px 1.5px at 29% 82%,rgba(255,246,226,.75),transparent 60%),
+    radial-gradient(1.1px 1.1px at 88% 71%,rgba(255,240,216,.55),transparent 60%),
+    radial-gradient(1.7px 1.7px at 52% 34%,rgba(255,248,230,.7),transparent 60%);
+  background-size:47% 39%,61% 52%,38% 44%,55% 47%,44% 58%,67% 41%,50% 36%;
+  animation:egrDrift 41s linear infinite}
+/* ⚠ 주기를 소수로 어긋나게 둔다 — 맞아떨어지면 낱알이 줄 맞춰 행진한다(램프 다섯과 같은 수칙) */
+@keyframes egrDrift{
+  0%  {background-position:0 0,0 0,0 0,0 0,0 0,0 0,0 0}
+  100%{background-position:9% -100%,-7% -100%,5% -100%,-11% -100%,7% -100%,-6% -100%,3% -100%}}
 #readingRoom.out #egrRlite{display:none}
 /* ⭐ 창 덮개 손잡이 (0819P) — 그림 속 그것 위에 얹는 투명 판.
    따로 그리지 않는다. 손을 올리면 살짝 빛나고, 누르면 덮개가 내려온다(24호 문법). */
@@ -3103,6 +3129,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     /* ⭐ 0826i 독서등 빛 — 어두움판 위에 얹는 타원 하나. ⚠ 손은 안 받는다(CSS) */
     var rl = document.createElement("div");
     rl.id = "egrRlite";
+    rl.innerHTML = '<div id="egrDust"></div>';   /* ⭐ 0826m — 빛 안에서만 보이는 먼지 */
     ROOT.appendChild(rl);
     var lt = document.createElement("div");
     lt.id = "egrLatch"; lt.title = "트레이";
@@ -5689,9 +5716,11 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
         rl2.style.top = (top + (LM.y - LM.ry) / 100 * h) + "px";
         rl2.style.width = (LM.rx * 2 / 100 * w) + "px";
         rl2.style.height = (LM.ry * 2 / 100 * h) + "px";
-        rl2.style.background = "radial-gradient(ellipse at 50% 34%,"
-          + "rgba(255,236,196,.50) 0%,rgba(255,228,178,.30) 34%,"
-          + "rgba(255,222,168,.13) 62%,rgba(255,220,165,0) 100%)";
+        /* ⭐ 0826m — 위가 밝고 아래로 퍼지며 옅어진다. clip-path 사다리꼴과 짝이다.
+           ⚠ screen 을 걷었으니 알파만으로 얹힌다 — 세기를 조금 올렸다. */
+        rl2.style.background = "radial-gradient(ellipse 62% 96% at 50% 2%,"
+          + "rgba(255,238,200,.42) 0%,rgba(255,230,182,.26) 38%,"
+          + "rgba(255,224,170,.11) 68%,rgba(255,222,166,0) 100%)";
       }
     }
     /* ⭐ 0826d 잠금쇠 — 명세에 latch 가 없는 기체는 조용히 물러난다 */
@@ -5987,6 +6016,12 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
   var PREVIEW = null;              /* 'm'|'d'|'e'|'n' — 편집 중에만 값이 든다 */
   var THEME_ORDER = ["m", "d", "e", "n"];
   var THEME_KO = { m: "이른 아침", d: "한낮", e: "저녁 노을", n: "한밤" };
+  /* ══ ⭐⭐ 0826m 소등 미리보기 — 소로 0826 「dim 모드는 어떻게 테스트?」 ══════════
+     ⚠ 이륙 60분을 기다리거나 배속으로 넘겨야만 볼 수 있었다. **굽고 나서 볼 길이 없었다.**
+     ⭐ T 미리보기가 이미 벌 목록을 돈다(0826a) — 787 에서는 lit → dim → tray 로 돈다.
+       그러니 새 손을 안 짓고 **그 목록에 실린 대로** 돌기만 하면 된다.
+     ⚠ 다만 미리보기는 편집기(E) 안에서만 산다. 시승 중에는 못 쓴다 —
+       그래서 콘솔 손을 하나 더 둔다. ⭐ 소로는 관리자이므로 둘 다 열린다. */
   function cyclePreview() {
     if (!editing) return;            /* ⚠ 편집기 밖에서는 아무 일도 안 한다 */
     /* ⭐ 0826a — 벌 목록을 따른다. 787 에서 m·d·e·n 을 돌리면 없는 판을 부른다 */
@@ -8358,6 +8393,30 @@ function paintBook() {
                          return [TRAY_FADE, TRAY_GLIDE];
                        },
                        trayOpen: function () { trayToggle(); return TRAY; },
+                       /* ⭐⭐ 0826m — 소등을 손으로 켠다. 이륙 60분을 안 기다린다.
+                          ⚠ 방송이 정한 것을 덮어쓰는 것이라 **저장 안 한다** — 다음 방송이 이긴다. */
+                       dim: function (v) {
+                         PA_DIM = (v === undefined) ? !PA_DIM : !!v;
+                         paintCabin(SINFO ? SINFO.lon : 0);
+                         console.log("[EG] 기내 " + (PA_DIM ? "소등" : "점등"));
+                         return PA_DIM;
+                       },
+                       lamp: function (v) { lampToggle(v); console.log("[EG] 독서등 " + (RLITE ? "켬" : "끔")); return RLITE; },
+                       lampSet: function (o) {
+                         if (!SPEC.seats) return null;
+                         SPEC.lamp = SPEC.lamp || { x: 44, y: 76, rx: 40, ry: 26 };
+                         if (o) { for (var k in o) if (typeof o[k] === "number") SPEC.lamp[k] = o[k]; }
+                         layout();
+                         console.log("[EG] 독서등 x" + SPEC.lamp.x + " y" + SPEC.lamp.y
+                                   + " rx" + SPEC.lamp.rx + " ry" + SPEC.lamp.ry);
+                         return SPEC.lamp;
+                       },
+                       dust: function (v) {
+                         var d = ROOT && ROOT.querySelector("#egrDust");
+                         if (d && arguments.length) d.style.opacity = Math.max(0, Math.min(1, +v));
+                         console.log("[EG] 먼지 " + (d ? (d.style.opacity || ".55") : "—"));
+                         return d ? d.style.opacity : null;
+                       },
                        wheelDir: function (v) {
                          if (arguments.length) WHEEL_DIR = (+v < 0) ? -1 : 1;
                          console.log("[EG] 바퀴 회전 방향 " + WHEEL_DIR);
