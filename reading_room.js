@@ -330,7 +330,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0826a";
+  var VERSION = "0826b";
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */
@@ -1007,10 +1007,12 @@
                 lin_cabin_lit.webp · 941×1672 · 알파 구멍 6.025% · 덩이 넷
               ⚠⚠ 마젠타를 **뚫은 뒤에** 재다. 뚫기 전 좌표를 넣으면 사방 2px 씩 좁아
                 창 덮개 둘레로 창밖이 샸다. 덮개와 구멍은 같은 값이어야 한다. */
-           wins: [ { l:  0.319, t: 19.797, w: 17.216, h: 32.536 },
-                   { l: 29.224, t: 25.837, w:  7.970, h: 20.574 },
-                   { l: 42.402, t: 28.349, w:  4.251, h: 14.593 },
-                   { l: 49.416, t: 30.203, w:  2.763, h: 10.526 } ],
+           /* ⭐ 0826b — 대패질을 다시 했다(소로 0826 「매끄럽지 않아 거슬림」).
+              딱 자르기 → 색분해. 테두리가 반투명 6,199화소로 부드러워졌고 좌표도 그만큼 바뀌었다. */
+           wins: [ { l:  0.531, t: 19.976, w: 16.791, h: 32.177 },
+                   { l: 29.437, t: 25.957, w:  7.545, h: 20.335 },
+                   { l: 42.614, t: 28.529, w:  3.826, h: 14.294 },
+                   { l: 49.734, t: 30.323, w:  2.232, h: 10.287 } ],
            /* ⚠ tr 이 97.66% 라 판 오른쪽 끝에서 2% 밖에 안 남는다. 0.5% 들이는 손이
                 있으나 시승에서 잘려 보이면 들이는 값을 키운다. ⭐ 소로가 E 로 밀면 그것이 이긴다 */
            mon: { tl: [59.30, 30.86], tr: [97.66, 30.92],
@@ -4582,8 +4584,11 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 
   /* ⭐ 덮개 손잡이 — 그림 속 그 곳 위에 얹는 투명 판. 좌·우 따로(거울이라 홈이 안 대칭).
      ⚠ 처음 값은 어림이다. 소로가 E 편집기로 맞춰 저장하시면 서버 값이 이깁니다. */
-  var GRIP_L = { x: 20.0, y: 27.0, w: 9.0, h: 1.8 };
-  var GRIP_R = { x: 20.0, y: 27.0, w: 9.0, h: 1.8 };
+  /* ⭐⭐ 0826b rot — 소로 0826: 「창 닫기 단추가 창 각도와 안 맞는다」.
+     787 창은 뒤로 물러나며 기울어지는데 단추는 수평이었다. 네모를 기울여 앚힌다.
+     ⚠ 각인(ENG_L)이 이미 rot 을 갖고 있다 — **새 문법을 안 지었다.** 같은 칸 이름을 쓴다. */
+  var GRIP_L = { x: 20.0, y: 27.0, w: 9.0, h: 1.8, rot: 0 };
+  var GRIP_R = { x: 20.0, y: 27.0, w: 9.0, h: 1.8, rot: 0 };
   function GRIP() { return side < 0 ? GRIP_L : GRIP_R; }
   var TUNE_KEY = "reading_tune";   /* eg_settings.key — 베스페르는 cruise_tune */
   /* ⭐ 저작자 표시가 앉을 곳 — 창 아래 호두나무 판 위 (판 좌표 %, 실측 0819)
@@ -5418,8 +5423,16 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
   }
   function applyTune(v) {
     if (!v) return;
-    if (v.GL) GRIP_L = v.GL;
-    if (v.GR) GRIP_R = v.GR;
+    /* ⚠⚠ 0826b — 서버에 **rot 이 없던 헌 값**이 남아 있다. 그것을 그대로 잎으면
+       rotate(NaNdeg) 가 되어 손잡이가 통째로 안 선다. ⭐ 없는 칸은 0 으로 메운다.
+       0819W(「헌 값이 새 설계를 덮는다」)와 같은 갈래다 — 세 번째다. */
+    function gripOk(o) {
+      if (!o || typeof o.x !== "number") return null;
+      if (typeof o.rot !== "number" || !isFinite(o.rot)) o.rot = 0;
+      return o;
+    }
+    if (gripOk(v.GL)) GRIP_L = v.GL;
+    if (gripOk(v.GR)) GRIP_R = v.GR;
     /* ⚠⚠ 서버에 0820d 의 네 점 모양이 남아 있다. 그것을 읽으면 x 가 undefined 라
        각인이 화면 밖으로 나간다. ⭐ x·rot 이 다 있을 때만 읽는다.
        모양이 바뀐 편집값은 안 읽는다 — 0819W 의 「헌 값이 새 설계를 덮는다」와 같은 갈래. */
@@ -5550,6 +5563,10 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       gb.style.top = (top + GP.y / 100 * h) + "px";
       gb.style.width = (GP.w / 100 * w) + "px";
       gb.style.height = (GP.h / 100 * h) + "px";
+      /* ⭐ 0826b — 값은 **판 좌표**다. 거울이면 화면에서 부호가 뒤집는다
+         (mx 가 x 를 뒤집는 것과 같은 갈래). ⚠ 모서리 휠(side>0 부호 뒤집기)과 같다. */
+      var gr = (typeof GP.rot === "number" && isFinite(GP.rot)) ? GP.rot : 0;
+      gb.style.transform = gr ? ("rotate(" + (flip ? -gr : gr).toFixed(1) + "deg)") : "";
     }
     /* 모서리 손잡이 넷 — 모니터 네 점 위에 (편집 중에만 보인다) */
     var cs = ROOT.querySelectorAll(".egrCorner");
@@ -7548,7 +7565,13 @@ function paintBook() {
       var d = e.deltaY > 0 ? -1 : 1;
       if (t === "grip") {
         var GP = GRIP();
-        GP.w = Math.max(2, GP.w + d * 0.4); GP.h = Math.max(0.5, GP.h + d * 0.1);
+        /* ⭐ 0826b — Shift+휠 = 회전. 바늘(needle)의 「Shift = 다른 값」 문법 그대로다.
+           ⚠ 거울에서는 손짓과 화면이 맞게 부호를 뒤집는다 — 모서리 휠과 같다. */
+        if (e.shiftKey) {
+          var gv = (typeof GP.rot === "number" && isFinite(GP.rot)) ? GP.rot : 0;
+          GP.rot = Math.max(-45, Math.min(45, gv + d * 0.5 * (side > 0 ? -1 : 1)));
+        }
+        else { GP.w = Math.max(2, GP.w + d * 0.4); GP.h = Math.max(0.5, GP.h + d * 0.1); }
       } else if (t === "corner") {
         /* ⭐ 모서리 위 휠 = 세로 미세 이동 0.05% · Shift+휠 = 가로.
            끌기로는 한 픽셀을 못 맞춘다 — 베젤 두께가 화면에서 2~3px 이다 */
