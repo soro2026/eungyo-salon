@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0827e";
+  var VERSION = "0827f";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -1588,7 +1588,7 @@
          **따로 재지 않아도 「순수 비행만」이 된다**(0820 소로 요청). */
     var roll = 0, tp = performance.now(), gT = 0, errN = 0, SPDLOG = 0;
     /* ⭐ 0827d — 이어지는 오류만 센다(errRun) · 말한 시각(errT) · 발밑 되보기(gSeen) */
-    var errRun = 0, errT = 0, gSeen = null, DEP_H0 = null;
+    var errRun = 0, errT = 0, gSeen = null, DEP_H0 = null, T0 = performance.now();
     /* ⭐ 0823g — 보이는 뱅크. roll(좇는 값) + sway(요동)다. 카메라·기체가 이것을 읽는다.
        ⚠ roll 을 그대로 두는 까닭은 아래 순항 요동 주석에 있다 — 더하면 요동이 죽는다. */
     var sway = 0, rollView = 0, trS = 0;   /* trS — 잔잔해진 각속도(0823h) */
@@ -1959,18 +1959,24 @@
        ⚠ 이 값은 **되보기의 증인**이지 정본이 아니다. 지형 제공자가 타원체뿐인 판에서는
          0 을 돌려주므로, 앉히는 것은 여전히 두 번 되본 발밑이다.
        ⚠ 없으면 그냥 없다(0821d) — 못 재도 아무 일도 안 일어난다. */
-    if (TAKEOFF) {
-      try {
-        if (Cesium.sampleTerrainMostDetailed && viewer.terrainProvider) {
-          Cesium.sampleTerrainMostDetailed(viewer.terrainProvider,
-            [Cesium.Cartographic.fromDegrees(P(0)[1], P(0)[0])]
-          ).then(function (a) {
-            var h = a && a[0] && a[0].height;
-            if (h != null && isFinite(h)) DEP_H0 = h;
-          }).catch(function () { });
-        }
-      } catch (e) { }
-    }
+    /* ⭐⭐ 0827f — **모든 노선**에서 묻는다. 이륙만의 일이 아니다 —
+       어느 노선이든 첫 프레임의 화면 깊이는 못 믿는다.
+       ⚠ 시작하는 그 곳을 묻는다(P(0) 이 아니라 onCurve(seg,u)) — 이어 타기도 함께 산다. */
+    try {
+      if (Cesium.sampleTerrainMostDetailed && viewer.terrainProvider) {
+        var _p0 = onCurve(seg, u);
+        Cesium.sampleTerrainMostDetailed(viewer.terrainProvider,
+          [Cesium.Cartographic.fromDegrees(_p0[1], _p0[0])]
+        ).then(function (a) {
+          var h = a && a[0] && a[0].height;
+          if (h != null && isFinite(h)) DEP_H0 = h;
+          else console.log("[EG] ⚠ 지형 자료가 높이를 안 냅니다 — 타일이 실리기를 기다립니다");
+        }).catch(function (er) {
+          console.log("[EG] ⚠ 지형 자료를 못 받았습니다 — 타일이 실리기를 기다립니다:",
+            er && er.message);
+        });
+      } else console.log("[EG] ⚠ sampleTerrainMostDetailed 가 없는 Cesium 판입니다");
+    } catch (e) { }
 
     var off = viewer.clock.onTick.addEventListener(function () {
       try {
@@ -2032,19 +2038,34 @@
                ⭐ 처방 — **두 번 연속 3m 안에서 맞을 때** 믿는다. 거친 타일은 촘촘해질 때
                  값이 크게 바뀌므로 두 번을 못 통과한다. 이미 자란 뒤에는 곧장 통과한다.
                ⭐ 되보기는 settled 전에만 쏜다. 앉고 나면 이 손이 하는 일이 0 이 된다. */
+            /* ══ ⭐⭐⭐ 0827f — 0827d 의 처방이 **틀렸다.** 소로 시승에 −262 가 그대로 나왔다.
+               ⚠⚠ 잘못이 둘이었다 —
+                 ㉠ LA[0](같은 프레임에 sampleOne 이 넣은 값)을 gSeen 과 견줬다.
+                    **같은 순간의 두 값**이라 늘 같다. 첫 프레임에 그냥 통과했다.
+                 ㉡ 설령 두 프레임을 견줬어도 못 잡는다 — ⭐⭐ **거친 타일은 틀린 채로
+                    가만히 있다.** 두 번 같다고 맞은 것이 아니다. 어제 쟁반에서 배운
+                    그 줄이다 — 「다수결로 가른다」가 통하는 곳과 안 통하는 곳이 있다.
+               ⭐⭐⭐ 진짜 자는 셋이고, 차례가 있다 —
+                 ㉮ **지형 자료를 직접 물어 온 값**(DEP_H0). 화면과 무관하다. 이것이 정본이다
+                 ㉯ 지구 타일이 다 실렸나(globe.tilesLoaded) — 그때의 화면은 믿을 만하다
+                 ㉰ 그래도 안 오면 4초 뒤에 있는 값으로 앉힌다. 영영 「—」로 둘 수는 없다 */
             if (!settled) {
               var g2 = groundAt(seg, u);
-              if (g2 !== null) {
-                if (gSeen !== null && Math.abs(g2 - gSeen) < 3) { LA[0] = g2; groundRaw = g2; }
-                gSeen = g2;
-              }
-            }
-            if (!settled && gSeen !== null && LA[0] != null && Math.abs(LA[0] - gSeen) < 3) {
+              var loaded = false;
+              try { loaded = !!(viewer.scene.globe && viewer.scene.globe.tilesLoaded); } catch (e3) { }
+              var waited = (now - T0) > 4000;
+              var trust = (DEP_H0 != null) ? DEP_H0
+                        : ((loaded || waited) && g2 !== null) ? g2 : null;
+              gSeen = g2;
+              if (trust !== null) {
               settled = true;
-              groundH = groundRaw;
+              groundRaw = trust; LA[0] = trust; groundH = trust;
               try {
-                console.log("[EG] 발밑 " + Math.round(groundH) + "m — 두 번 되보고 앉혔습니다"
-                  + (DEP_H0 != null ? " (지형 자료 " + Math.round(DEP_H0) + "m)" : ""));
+                console.log("[EG] 발밑 " + Math.round(groundH) + "m — "
+                  + (DEP_H0 != null ? "지형 자료에서 받았습니다"
+                     : loaded ? "타일이 다 실린 뒤에 쟀습니다"
+                     : "⚠ 4초를 기다려도 안 와서 그냥 앉혔습니다")
+                  + " (화면 깊이는 " + (g2 === null ? "없음" : Math.round(g2) + "m") + ")");
               } catch (e2) { }
               /* ⭐⭐ 0825a — 이륙은 **발밑에 앉힌다.** 순항고도로 앉히면 활주로 위 11km 다 */
               alt = TAKEOFF ? groundRaw
@@ -2058,6 +2079,7 @@
                    1200 은 **제트기 어림값**이었다. 12km 앞보기와 같은 갈래의 병이다.
                  ⭐ 고도를 앉히는 이 곳이 속도를 앉히기에도 맞는 곳이다 — 값이 여기 다 있다. */
               spdH = alt - groundH;
+              }
             }
           } catch (e) { }
         }
@@ -9176,6 +9198,40 @@ function paintBook() {
                          console.log("%c[EG] FLIGHT TIME " + (+m || 0) + "분 · ⚠ 시승 중이라 비행 저장이 잠겼습니다",
                                      "color:#d4a24c");
                          return +m || 0;
+                       },
+                       /* ══ ⭐⭐⭐ 0827f — 방송 표를 눈으로 본다 (소로 0827: 「2번 방송이 안나옴」)
+                          ⚠⚠ 짐작으로 안 고친다. 무엇이 실렸고 · 무엇이 나갔고 ·
+                            안 나간 것이 **어느 조건에서 걸렸는지**를 통째로 적는다.
+                          ⭐ egReading.pa()        전부
+                             egReading.pa("stand") ref 에 그 글자가 든 것만 */
+                       pa: function (q) {
+                         if (!PA_LIST.length) {
+                           console.log("[EG] 실린 방송이 없습니다"
+                             + (PA_LOAD_T ? " (싣는 중 " + Math.round((performance.now() - PA_LOAD_T) / 1000) + "초)" : ""));
+                           return null;
+                         }
+                         var rows = [], i;
+                         for (i = 0; i < PA_LIST.length; i++) {
+                           var e = PA_LIST[i], c = e.cue || {};
+                           if (q && String(e.ref).indexOf(q) < 0) continue;
+                           rows.push({
+                             ref: e.ref,
+                             역: e.role === "captain" ? "기장" : "사무장",
+                             나갔나: PA_DONE[e.ref] ? "✔" : (PA_NOW === e ? "▶ 나가는 중" : "—"),
+                             구르기전: c.before_roll ? "✔" : "",
+                             국면: c.phase || "",
+                             분: c.min != null ? c.min : "",
+                             기내: c.cabin || "",
+                             고도: c.alt != null ? c.alt : "",
+                             길목: c.leg != null ? c.leg : "",
+                             소리: e.url ? "✔" : "⚠ 없음"
+                           });
+                         }
+                         console.log("%c[EG] 방송 " + rows.length + "편 · 지금 국면 " + (PA_PH || "?")
+                           + " · " + PA_MIN.toFixed(1) + "분 · 기내 " + (PA_DIM ? "소등" : "점등")
+                           + "\n     문을 붙드는 것: " + paWhyHold(), "color:#c9a84c");
+                         try { console.table(rows); } catch (e2) { console.log(rows); }
+                         return rows;
                        },
                        trial: function (on) {
                          TRIAL = (on === undefined) ? true : !!on;
