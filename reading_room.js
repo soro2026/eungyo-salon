@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0827y";
+  var VERSION = "0827z";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -2012,8 +2012,17 @@
       if (window.__egShut || !viewer) return;
       /* ⭐⭐ 0821L — 주인이 여기서 넘어간다. 겨누는 문은 여전히 이 함수 하나뿐이다 */
       if (BODY) { paintBody(); spinProp(); spinFan(); spinWheel(); holdTick(); orbitCam(); return; }
-      var look = Cesium.Math.toRadians(clampAng(hd + side * SPEC.view + LOOK.y) + 360);
-      var pit = horizonDeg(Math.max(rel, 80)) + (opt.sky || 6) + LOOK.p;
+      /* ══ ⭐⭐⭐ 0827z 갤리 창 — 좌석 창과 **같은 문법**으로 겨눈다 ═══════════════
+         ⭐ 좌석은 side(왼창 −1 · 오른창 +1) × SPEC.view 로 방위를 잡는다.
+           갤리 큐빅은 좌석과 무관하게 면이 정하므로, 그 면의 표값을 그대로 쓴다 —
+             우측면 view +90  · 좌측면 view −90   (기수에서 잰 각)
+         ⚠ 새 겨눔 손을 안 짓는다. 겨누는 문은 여전히 이 함수 하나뿐이다(0821L).
+         ⚠ 고갯짓(LOOK)은 갤리에서도 산다 — 창밖 보러 나간 사람이다. */
+      var GW = (WALK === 2) ? galleyWin() : null;
+      var look = Cesium.Math.toRadians(clampAng(
+                   hd + (GW ? GW.view : side * SPEC.view) + LOOK.y) + 360);
+      var pit = horizonDeg(Math.max(rel, 80))
+              + (GW ? GW.sky : (opt.sky || 6)) + LOOK.p;
       pit = Math.max(-88, Math.min(88, pit));
       viewer.camera.setView({
         destination: Cesium.Cartesian3.fromDegrees(lon, lat, alt),
@@ -3181,6 +3190,14 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 #egrWalk{position:absolute;inset:0;z-index:14;pointer-events:none;overflow:hidden;
   opacity:0;transition:opacity .45s ease}
 #readingRoom.walk #egrWalk{opacity:1;pointer-events:auto}
+/* ══ ⚠⚠⚠ 0827z 진범 — **좌석 판을 안 걷었다** (소로 0827: 「창 밖이 기내야 ㅋㅋ」)
+     겹 차례가 이랬다 — Cesium(바닥) · #plate 6 · #plateB 7 · #egrWalk 14.
+     통로 판은 좌석 판을 **덮었을 뿐** 걷어내지 않았고, 갤리 창에 뚫린 구멍으로
+     그 아래 좌석 판(기내 그림)이 그대로 비쳤다.
+   ⚠ 「스크롤하면 창밖 기내가 움직인다」도 같은 뿌리다 — 갤리 판이 위아래로 가는데
+     그 아래 좌석 판은 안 가므로, 구멍 안의 그림이 상대적으로 미끄러져 보인 것이다.
+   ⭐ 걷고 나면 구멍 뒤에 Cesium 말고는 아무것도 없다. 진짜 하늘이 보인다. */
+#readingRoom.walk #plate,#readingRoom.walk #plateB{display:none!important}
 /* ⚠ 판 두 겹은 클릭을 안 먹는다 — 화살표·창·단추만 잡혀야 한다 */
 #egrWalk .pl{pointer-events:none}
 /* ══ ⭐⭐ 0827y 세로 보기 — 소로 시승: 「마우스로 상하 스크롤 막혀있음 풀어주기」
@@ -5658,6 +5675,13 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⚠⚠ 해(태양 고도)를 안 본다 — 0825 에 그랬다가 대낮에 별 이야기가 나갈 뻔했다.
        기내 조명은 승무원이 정하지 해가 정하지 않는다. 한 이름에 두 뜻을 안 담는다.
      ⭐ 이름표는 뒤에 _d 하나뿐이다(day). 밤 벌 파일 이름은 안 건드린다. */
+  /* ⭐ 0827z — 지금 서 있는 면에 창이 있으면 그 표를, 없으면 null.
+     ⚠ 정면·후면에서는 null 이다 — 그때는 좌석 창의 겨눔이 그대로 산다(어차피 안 보인다). */
+  function galleyWin() {
+    var A = aisleSpec();
+    if (!A || WALK !== 2) return null;
+    return A.wins[A.cube[CUBE_I]] || null;
+  }
   function walkNight() { return PA_DIM; }
   function walkSuf() { return PA_DIM ? "" : "_d"; }
   function walkKey(i) {
