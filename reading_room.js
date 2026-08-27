@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0827w";
+  var VERSION = "0827y";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -1096,7 +1096,10 @@
               ⭐ 3초씩 넷 = 12초. 겹쳐 녹이는 0.8초는 그 안에 든다.
               ⚠ 이 칸이 없는 기체는 통로가 없다 — 마크도 안 선다. 관광 기체는 그대로다. */
            aisle: {
-             sec: 3.0, fade: 0.8,                    /* 장당 초 · 겹치는 초 */
+             /* ⚠ 0827y — 소로 시승: 「3초가 너무 빠름」. 5초로 늘려 총 20초가 된다.
+                ⭐ 19호가 「10초쯤」이라 적었으나 그것은 셋일 때의 셈이었다.
+                  넷이 되었고, 한 장을 눈에 담는 데 3초는 모자랐다. */
+             sec: 5.0, fade: 0.8,                    /* 장당 초 · 겹치는 초 */
              legs: ["aisle1", "aisle2", "aisle3", "aisle4"],
              /* ⭐ 큐빅 네 면 — 오른쪽 화살표로 이 차례대로 돈다.
                 ⚠ 정면에서 시작한다. 커튼을 밀고 들어가면 갤리가 정면이다. */
@@ -3180,12 +3183,24 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 #readingRoom.walk #egrWalk{opacity:1;pointer-events:auto}
 /* ⚠ 판 두 겹은 클릭을 안 먹는다 — 화살표·창·단추만 잡혀야 한다 */
 #egrWalk .pl{pointer-events:none}
-#egrWalk .pl{position:absolute;inset:0;background-size:cover;background-position:center;
+/* ══ ⭐⭐ 0827y 세로 보기 — 소로 시승: 「마우스로 상하 스크롤 막혀있음 풀어주기」
+   ⚠⚠ 판은 941×1672 세로인데 화면은 가로다. cover 로 채우면 위아래가 잘린다 —
+     통로 첫 장의 천장과 발밑이 통째로 안 보였다.
+   ⭐ 끌어서 위아래로 옮긴다. --wy 한 값이 그 자리를 쥔다(0~100%).
+   ⚠ 좌우로는 안 움직인다 — 가로는 이미 다 보이고, 움직이면 소실점이 비뚤어진다. */
+#egrWalk .pl{position:absolute;inset:0;background-size:cover;
+  background-position:center var(--wy,50%);
   opacity:0;transition:opacity .8s ease}
+#readingRoom.walk #egrWalk{cursor:ns-resize}
 #egrWalk .pl.on{opacity:1}
-/* ⚠⚠ 밝기는 **여기 한 곳**에서만 든다(소로 0827 Ⓑ). 원판은 어두운 채로 격납고에 있다.
-   ⭐ 큐빅 넉 장은 갤리라 이미 밝다 — 통로 여덟 장에만 건다. */
-#egrWalk .pl.aisle{filter:brightness(var(--aiB,1.85)) contrast(var(--aiC,.86)) saturate(1.05)}
+/* ══ ⚠⚠ 0827y 정정 — 밝기를 통로 여덟 장 **전체**에 걸 뻔했다 ═══════════════════
+   ⭐ 저녁에 낮 벌 열두 장이 새로 구워지면서 셈이 바뀌었다. 밝기를 타는 것은
+     **밤 통로 여덟 장뿐**이다 —
+       밤 통로   중앙값 8~9   ⭐ 들어야 형체가 보인다(소로가 고른 A_약)
+       낮 통로   중앙값 105~146  ⚠ 들면 하얗게 날아간다(소로 0827: 「엄청 역효과」)
+       갤리 여덟  ⚠ 밤이든 낮이든 불 켜진 곳이다 — 원판 그대로가 낫다
+   ⚠ 격납고 미리보기도 같은 실수를 했고 같은 갈래로 고쳤다(admin_hangar v0827y). */
+#egrWalk .pl.night{filter:brightness(var(--aiB,1.85)) contrast(var(--aiC,.86)) saturate(1.05)}
 
 /* ⭐ 큐빅 좌우 화살표 — 갤리에서만 선다 */
 #egrWalk .arw{position:absolute;top:50%;transform:translateY(-50%);width:52px;height:78px;
@@ -3217,6 +3232,16 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   background:rgba(201,168,76,.10)}
 #readingRoom.edit #egrGo{outline:1px dashed rgba(201,168,106,.85);cursor:move;opacity:1}
 #readingRoom.edit #egrWalk .arw,#readingRoom.edit #egrBack{opacity:.25}
+/* ⚠⚠ 0827y — 소로 시승: 「갤리에서 구글 타일 맞추는 편집기 안보임」.
+     진범이 둘이었다 — ㉠ 창은 큐빅에서만 서는데 CSS 가 walk 갈래를 안 봤고,
+     ㉡ 편집 중에는 판이 화면을 덮어 테두리가 그 아래 깔렸다.
+   ⭐ 편집 중에는 창을 판보다 위로 올리고, 손잡이를 눈에 띄게 키운다. */
+#readingRoom.edit #egrWalk .cwin{z-index:6;outline-width:2px;
+  box-shadow:0 0 0 1px rgba(10,14,20,.6),0 0 14px rgba(201,168,76,.35)}
+#readingRoom.edit #egrWalk .cwin::after{content:'창';position:absolute;left:50%;top:-20px;
+  transform:translateX(-50%);font:600 11px/1 'Noto Sans KR',sans-serif;
+  color:rgba(240,220,170,.95);background:rgba(10,14,20,.78);
+  padding:3px 7px;border-radius:5px;white-space:nowrap}
 
 /* ══ ⭐ 등받이 갤리 마크 (소로 0827: 「약방의 감초처럼」) ═══════════════════
    ⚠ 알림이 아니다. 5분 켜졌다 꺼진다 — 「가야 한다」가 아니라 「가도 된다」다.
@@ -5627,9 +5652,21 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⚠ 값을 두 곳에서 셈하지 않는다. 창을 바꾸면 통로도 함께 바뀐다. */
   function aisleSide() { return (side > 0) ? "R" : "L"; }
 
+  /* ══ ⭐⭐⭐ 0827y 밤낮 — **승무원이 정한다** ═══════════════════════════════════
+     ⭐ 새 잣대를 안 만든다. 좌석 판이 이미 PA_DIM 을 보고 lit/dim 을 고르고 있다
+       (장거리 14호 · plateBy "cabin"). 통로도 그 한 값을 그대로 따른다.
+     ⚠⚠ 해(태양 고도)를 안 본다 — 0825 에 그랬다가 대낮에 별 이야기가 나갈 뻔했다.
+       기내 조명은 승무원이 정하지 해가 정하지 않는다. 한 이름에 두 뜻을 안 담는다.
+     ⭐ 이름표는 뒤에 _d 하나뿐이다(day). 밤 벌 파일 이름은 안 건드린다. */
+  function walkNight() { return PA_DIM; }
+  function walkSuf() { return PA_DIM ? "" : "_d"; }
   function walkKey(i) {
     var A = aisleSpec(); if (!A) return null;
-    return A.legs[i] + "_" + WK_SIDE;
+    return A.legs[i] + "_" + WK_SIDE + walkSuf();
+  }
+  function cubeKey(i) {
+    var A = aisleSpec(); if (!A) return null;
+    return A.cube[i] + walkSuf();
   }
   /* ⚠ 떠나기 전에 넉 장을 다 받는다. 하나라도 안 오면 안 떠난다 —
      걷다가 검은 화면을 만나는 것보다 아예 안 가는 편이 낫다. */
@@ -5637,7 +5674,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     var A = aisleSpec(); if (!A) { done(false); return; }
     var keys = [], i;
     for (i = 0; i < A.legs.length; i++) keys.push(walkKey(i));
-    for (i = 0; i < A.cube.length; i++) keys.push(A.cube[i]);
+    for (i = 0; i < A.cube.length; i++) keys.push(cubeKey(i));
     var left = keys.length, bad = 0;
     keys.forEach(function (k) {
       if (WK_PRE[k]) { if (!--left) done(bad === 0); return; }
@@ -5661,6 +5698,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       + '<div class="arw l">&#10094;</div><div class="arw r">&#10095;</div>'
       + '<div id="egrBack">&#128094; 좌석으로</div>';
     ROOT.appendChild(WK_EL);
+    walkDrag(WK_EL);
     EGR_on(WK_EL.querySelector(".arw.l"), "click", function (e) { e.stopPropagation(); cubeTurn(-1); });
     EGR_on(WK_EL.querySelector(".arw.r"), "click", function (e) { e.stopPropagation(); cubeTurn(+1); });
     EGR_on(WK_EL.querySelector("#egrBack"), "click", function (e) { e.stopPropagation(); walkEnd(); });
@@ -5675,12 +5713,14 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   }
 
   /* ⭐ 판 한 장을 세운다. 두 겹을 번갈아 쓰며 겹쳐 녹인다 */
-  function walkShow(key, isAisle) {
+  /* ⭐ 0827y — 둘째 인자는 「밝기를 들 판인가」다. **밤 통로 여덟 장만 참**이다.
+     ⚠ 이름을 isAisle 로 두면 낮 통로까지 참으로 읽힌다 — 그것이 오늘의 실수였다. */
+  function walkShow(key, lift) {
     if (!WK_EL) return;
     var a = WK_EL.querySelector(".pl.a"), b = WK_EL.querySelector(".pl.b");
     var on = a.classList.contains("on") ? a : b, off = (on === a) ? b : a;
     off.style.backgroundImage = 'url("' + (WK_PRE[key] || aisleUrl(key)) + '")';
-    off.classList.toggle("aisle", !!isAisle);
+    off.classList.toggle("night", !!lift);
     off.classList.add("on"); on.classList.remove("on");
   }
 
@@ -5695,7 +5735,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       ROOT.classList.add("walk");
       WK_EL.classList.remove("cube");
       lookReset();
-      walkShow(walkKey(0), true);
+      walkShow(walkKey(0), walkNight());
     });
   }
 
@@ -5706,18 +5746,18 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     var want = Math.floor((now - WK_T) / (A.sec * 1000));
     if (want === WK_I) return;
     WK_I = want;
-    if (WK_I < A.legs.length) { walkShow(walkKey(WK_I), true); return; }
+    if (WK_I < A.legs.length) { walkShow(walkKey(WK_I), walkNight()); return; }
     /* 도착 — 갤리 큐빅 */
     WALK = 2; CUBE_I = 0;
     WK_EL.classList.add("cube");
-    walkShow(A.cube[0], false);
+    walkShow(cubeKey(0), false);
     cubeWin();
   }
 
   function cubeTurn(d) {
     var A = aisleSpec(); if (WALK !== 2 || !A) return;
     CUBE_I = (CUBE_I + d + A.cube.length) % A.cube.length;
-    walkShow(A.cube[CUBE_I], false);
+    walkShow(cubeKey(CUBE_I), false);
     cubeWin();
   }
 
@@ -5731,6 +5771,8 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   }
   function cubeWin() {
     var A = aisleSpec(); if (!WK_EL || !A) return;
+    /* ⚠ wins 는 밤낮 공통이다 — 창 자리는 조명이 바뀌어도 같은 곳이다.
+       ⭐ 그래서 _d 를 벗긴 이름으로 찾는다. 표를 두 벌 두지 않는다. */
     var w = A.wins[A.cube[CUBE_I]], el = WK_EL.querySelector(".cwin");
     if (!w) { el.style.display = "none"; return; }
     el.style.display = "block";
@@ -5738,6 +5780,26 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     el.style.width = w.box[2] + "%"; el.style.height = w.box[3] + "%";
   }
 
+  /* ⭐ 0827y — 판을 위아래로 끈다. 편집기와 다투지 않는다(편집 중에는 안 잡는다).
+     ⚠ 4px 문턱은 고갯짓·궤도와 같은 값이다 — 없으면 단추 누르기를 통째로 뺏는다. */
+  var WY = 50, wgrab = null;
+  function walkDrag(el) {
+    EGR_on(el, "pointerdown", function (e) {
+      if (!WALK || editing) return;
+      if (e.target.closest(".arw,#egrBack,.cwin")) return;
+      wgrab = { y: e.clientY, y0: WY, moved: 0 };
+    });
+    EGR_on(window, "pointermove", function (e) {
+      if (!wgrab || !WK_EL) return;
+      var dy = e.clientY - wgrab.y;
+      wgrab.moved = Math.max(wgrab.moved, Math.abs(dy));
+      if (wgrab.moved < 4) return;
+      /* ⚠ 화면 높이의 절반을 끌면 판이 끝에서 끝으로 간다 — 손맛이 무겁지도 가볍지도 않다 */
+      WY = Math.max(0, Math.min(100, wgrab.y0 - dy / (window.innerHeight * 0.5) * 100));
+      WK_EL.style.setProperty("--wy", WY + "%");
+    }, true);
+    EGR_on(window, "pointerup", function () { wgrab = null; }, true);
+  }
   function walkEnd(quiet) {
     if (!WALK || !ROOT) return;
     WALK = 0;
