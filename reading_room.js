@@ -330,7 +330,33 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0826y";
+  var VERSION = "0827a";
+
+  /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
+     ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
+       ⭐ 없는 손을 찾는 것과 헌 판이 선 것은 **다른 병인데 증상이 같다.**
+     ⭐ 부른 판번호는 짐작할 것이 없다 — **제 src 의 ?v= 에 그대로 적혀 있다.**
+       window.EG_READ_V 를 먼저 안 본다. 헌 terra 는 그 값을 아예 안 내놓기 때문이다.
+     ⚠ 맞으면 한 줄도 안 찍는다. 콘솔은 어긋났을 때만 말한다(0821d 와 같은 갈래). */
+  var ASKED = (function () {
+    try {
+      var s = document.currentScript;
+      if (!s) {                                   /* ⚠ 늦게 읽히는 곳을 위한 그물 */
+        var all = document.querySelectorAll('script[src*="reading_room.js"]');
+        s = all.length ? all[all.length - 1] : null;
+      }
+      var m = s && /[?&]v=([^&]+)/.exec(s.src || "");
+      return m ? decodeURIComponent(m[1]) : (window.EG_READ_V || null);
+    } catch (e) { return null; }
+  })();
+  if (ASKED && ASKED !== VERSION) {
+    try {
+      console.log("%c[EG] ⚠⚠ 판번호가 어긋났습니다 — terra 가 부른 것 " + ASKED
+        + " · 실제로 선 것 " + VERSION
+        + "\n     Ctrl+Shift+R 로 새로 받으시고, reading_room.js 와 terra.html 은 늘 짝으로 올리십시오.",
+        "color:#ff7b6b;font-weight:700");
+    } catch (e) { }
+  }
 
   var ROOT = null;                 /* 방 뿌리 — 이 아래로만 산다 */
   var EXIT = null;                 /* 나가는 문 — 방 밖에 선다 */

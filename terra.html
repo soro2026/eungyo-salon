@@ -6041,7 +6041,23 @@ const SUNSET_URL  = "vesper.html";              /* ⚠ 액자 판 — 이제 안
    ⚠ 방 몸통은 EGGeo(육지 판정)와 EGStamp(인장)를 쓰는데 terra 는 그 둘을 안 싣는다.
      terra 를 무겁게 만들지 않으려고 **들어갈 때 함께 받는다** — 안 들어가는 손님은 안 받는다. */
 /* ⭐ 0821c — 방 판번호는 여기 하나뿐이다. 두 곳에 적으면 한쪽만 고치는 날이 온다(22호) */
-const EG_READ_V = "0826y";
+const EG_READ_V = "0827a";
+/* ⭐ 0827a — 방이 제 src 의 ?v= 를 못 읽는 자리를 위한 그물. const 는 window 에 안 붙는다 */
+window.EG_READ_V = EG_READ_V;
+/* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 · 타륜 쪽 ═════════════════════════════
+   ⚠⚠ 방 쪽 알림만으로는 **헌 판이 캐시에서 설 때**를 못 잡는다. 헌 reading_room 에는
+     그 알림이 애초에 없기 때문이다. ⭐ 그래서 부르는 쪽에서도 한 번 견준다.
+   ⭐ 맞으면 아무 말도 안 한다. */
+function egReadVerCheck(){
+  try{
+    var got = window.egReading && window.egReading.version;
+    if (got && got !== EG_READ_V)
+      console.log("%c[EG] ⚠⚠ 판번호가 어긋났습니다 — terra 가 부른 것 " + EG_READ_V
+        + " · 실제로 선 것 " + got
+        + "\n     Ctrl+Shift+R 로 새로 받으시고, reading_room.js 와 terra.html 은 늘 짝으로 올리십시오.",
+        "color:#ff7b6b;font-weight:700");
+  }catch(e){}
+}
 function loadScriptOnce(src){
   return new Promise(function(ok, no){
     var key = src.split("?")[0];
@@ -6198,7 +6214,8 @@ const READ_ROUTES = [{ code:"alps_traverse", name:"알프스 종단",
 (function preloadReadingRoutes(){
   var go = function(){
     loadScriptOnce("reading_room.js?v=" + EG_READ_V)
-      .then(function(){ try{ if (typeof refreshDock === "function") refreshDock(false); }catch(e){} })
+      .then(function(){ egReadVerCheck();                       /* ⭐ 0827a — 첫 화면에서 이미 알려 준다 */
+                        try{ if (typeof refreshDock === "function") refreshDock(false); }catch(e){} })
       .catch(function(){ console.warn("[EG] 노선 목록 미리 싣기 실패 — 폴백으로 섭니다"); });
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", go);
@@ -6218,6 +6235,7 @@ async function enterReadingRoom(code){
     await loadScriptOnce("eg_map_ne.js?v=0825b");     /* 항로도 밑그림 · Natural Earth */
     await loadScriptOnce("reading_room.js?v=" + EG_READ_V);
     if (!window.egReading) throw new Error("egReading 창구가 안 열렸습니다");
+    egReadVerCheck();                                  /* ⭐ 0827a — 미리 싣기가 실패했을 때를 위해 한 번 더 */
     window.egReading.enter(viewer, code || "alps_traverse");
   }catch(err){
     console.error("[EG] 독서비행을 못 열었습니다:", err);
