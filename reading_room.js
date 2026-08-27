@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0827h";
+  var VERSION = "0827i";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -1590,6 +1590,7 @@
     /* ⭐ 0827d — 이어지는 오류만 센다(errRun) · 말한 시각(errT) · 발밑 되보기(gSeen) */
     var errRun = 0, errT = 0, gSeen = null, DEP_H0 = null, T0 = performance.now();
     var SEAT_H = null, WHY2 = 0;      /* ⭐ 0827h — 앉힌 발밑 한 값 · 판 알림 시각 */
+    var gAgree = 0, gT2 = 0;          /* ⭐ 0827i — 같은 값이 몇 번 이어졌나 · 되보기 시각 */
     /* ⭐ 0823g — 보이는 뱅크. roll(좇는 값) + sway(요동)다. 카메라·기체가 이것을 읽는다.
        ⚠ roll 을 그대로 두는 까닭은 아래 순항 요동 주석에 있다 — 더하면 요동이 죽는다. */
     var sway = 0, rollView = 0, trS = 0;   /* trS — 잔잔해진 각속도(0823h) */
@@ -2051,24 +2052,36 @@
                  ㉯ 지구 타일이 다 실렸나(globe.tilesLoaded) — 그때의 화면은 믿을 만하다
                  ㉰ 그래도 안 오면 4초 뒤에 있는 값으로 앉힌다. 영영 「—」로 둘 수는 없다 */
             if (!settled) {
-              /* ══ ⭐⭐⭐ 0827h — 0827f 의 tilesLoaded 가 **또 틀렸다** ═══════════════════
-                 ⚠⚠ globe.tilesLoaded 는 「지금 카메라가 보는 화면의 타일이 다 왔나」다.
-                   방에 들어오는 순간 terra 는 이미 제 화면을 다 그려 놓았으므로
-                   **첫 프레임부터 true** 다. 그래서 못 믿을 −263 을 곧장 믿었다.
-                 ⭐ 믿을 것은 **지형 자료 하나**뿐이다. 그것이 올 때까지 기다리고,
-                   4초가 지나도 안 오면 그때는 있는 값으로 앉힌다(영영 못 앉을 수는 없다). */
-              var g2 = groundAt(seg, u);
-              var waited = (now - T0) > 4000;
-              var trust = (DEP_H0 != null) ? DEP_H0 : (waited && g2 !== null) ? g2 : null;
+              /* ══ ⭐⭐⭐ 0827i — **발밑은 자란다** ═══════════════════════════════════
+                 ⚠⚠ terra 는 지형(terrainProvider)을 아예 안 세운다. 지구는 매끈한
+                   타원체고, 인천의 그 21m 는 **3D 타일**이 낸 값이다.
+                   그래서 sampleTerrainMostDetailed 는 이 판에서 못 쓴다 —
+                   EllipsoidTerrainProvider 에는 availability 가 없어 던진다.
+                   ⭐ 알림판의 「⚠ 화면 깊이」 석 자가 그것을 말해 주었다.
+                 ⭐⭐⭐ 그러면 남은 길은 하나인데, 이 문제의 **물리**가 답을 준다 —
+                   **타일은 실릴수록 위로 올라온다.** 덜 실렸을 때 −263 이고,
+                   다 실리면 21 이다. 내려가는 쪽으로는 안 틀린다.
+                 ⭐ 그래서 셋을 함께 쓴다 —
+                   ㉮ 표에 적힌 활주로 표고(route.dep.h)가 있으면 그것이 이긴다
+                   ㉯ 0.4초 간격으로 재서 **연속 셋이 2m 안**에서 맞고 2초가 지나면 앉힌다
+                   ㉰ ⭐⭐ 앉은 뒤에도 12초 동안 되보다가 **25m 넘게 올라오면 다시 앉힌다.**
+                      내려가는 것은 안 믿는다 — 타일이 자라는 방향은 위뿐이다 */
+              var g2 = (route.dep && route.dep.h != null) ? +route.dep.h : groundAt(seg, u);
+              if (gSeen !== null && g2 !== null && Math.abs(g2 - gSeen) < 2) gAgree++;
+              else gAgree = 0;
               gSeen = g2;
+              var enough = (route.dep && route.dep.h != null)
+                        || (gAgree >= 2 && now - T0 > 2000) || (now - T0 > 8000);
+              var trust = (enough && g2 !== null) ? g2 : null;
               if (trust !== null) {
               settled = true; SEAT_H = trust;
               groundRaw = trust; LA[0] = trust; groundH = trust;
               try {
                 console.log("[EG] 발밑 " + Math.round(groundH) + "m — "
-                  + (DEP_H0 != null ? "지형 자료에서 받았습니다"
-                     : "⚠ 4초를 기다려도 안 와서 그냥 앉혔습니다")
-                  + " (화면 깊이는 " + (g2 === null ? "없음" : Math.round(g2) + "m") + ")");
+                  + ((route.dep && route.dep.h != null) ? "노선 표에 적힌 값입니다"
+                     : gAgree >= 2 ? "세 번 잰 값이 맞아 앉혔습니다"
+                     : "⚠ 8초를 기다려도 안 맞아 그냥 앉혔습니다")
+                  + " · " + Math.round((now - T0) / 100) / 10 + "초");
               } catch (e2) { }
               /* ⭐⭐ 0825a — 이륙은 **발밑에 앉힌다.** 순항고도로 앉히면 활주로 위 11km 다 */
               alt = TAKEOFF ? groundRaw
@@ -2104,15 +2117,22 @@
           if (holdG) groundH = SEAT_H;
           else groundH += (groundRaw - groundH) * Math.min(dt * 1.8, 1);
         }
-        /* ⭐⭐ 0827h — 지형 자료가 늦게 와도 앉힌 값을 고친다. 통째로 같은 만큼 옮긴다 —
-           고도·발밑·활주로가 따로 놀면 그 차이가 곧 기체가 잠기는 깊이다. */
-        if (DEP_H0 != null && SEAT_H != null && Math.abs(SEAT_H - DEP_H0) > 5) {
-          var dH = DEP_H0 - SEAT_H;
-          try { console.log("[EG] 발밑을 지형 자료로 고칩니다 " + Math.round(SEAT_H)
-            + "m → " + Math.round(DEP_H0) + "m"); } catch (e4) { }
-          SEAT_H = DEP_H0; groundH = DEP_H0; alt += dH;
-          if (RUN_H !== null) RUN_H += dH;
-          if (DEP_H !== null) DEP_H += dH;
+        /* ══ ⭐⭐ 0827i — 앉은 뒤에도 열두 초는 되본다 ═══════════════════════════
+           ⭐ **올라오는 쪽만 믿는다.** 타일이 자라는 방향은 위뿐이다.
+           ⚠ 통째로 같은 만큼 옮긴다 — 고도·발밑·활주로가 따로 놀면
+             그 차이가 곧 기체가 잠기는 깊이다. */
+        if (settled && SEAT_H != null && now - T0 < 12000 && !LIFT
+            && !(route.dep && route.dep.h != null) && now - gT2 > 400) {
+          gT2 = now;
+          var gUp = groundAt(seg, u);
+          if (gUp !== null && gUp > SEAT_H + 25) {
+            var dH = gUp - SEAT_H;
+            try { console.log("[EG] 발밑이 자랐습니다 " + Math.round(SEAT_H)
+              + "m → " + Math.round(gUp) + "m (타일이 더 실렸습니다)"); } catch (e4) { }
+            SEAT_H = gUp; groundH = gUp; alt += dH;
+            if (RUN_H !== null) RUN_H += dH;
+            if (DEP_H !== null) DEP_H += dH;
+          }
         }
 
         /* ── ⭐⭐ 고도 (0819f) — 목표는 셈이 내고, 걸음은 ㉡이 낸다 ──
@@ -4074,7 +4094,18 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       /* ⭐ 뜨는 중 — 고도가 −3~+4° 이고 **오르고 있다.** 지는 해와 갈리는 곳이 이 한 줄이다 */
       if (c.sun.rise && !(ctx.sun > -3 && ctx.sun < 4 && ctx.sun > PA_SUN)) return false;
     }
-    if (c.prob != null) {
+    /* ══ ⭐⭐⭐ 0827i — **출발 방송에는 주사위를 안 굴린다** ═══════════════════════
+       ⚠⚠ 알림판이 「standby(?)」를 냈다. 물음표는 **내가 검사한 조건 어디에도 안
+         걸렸다**는 뜻이고, 남은 것은 이 prob 하나뿐이다.
+       ⚠⚠⚠ 그래서 이렇게 됐다 —
+         ① standby 의 주사위가 굴러가고 떨어진다
+         ② PA_SEEN 이 찍혀 **영영 못 나간다**
+         ③ 그런데 PA_DONE 은 안 찍히므로 **이륙 문이 붙들린 채로 남는다**
+       ⭐⭐ 「환영합니다」와 「승무원은 이륙 준비 바랍니다」가 확률로 나오면
+         그것은 항공사가 아니다. **출발 방송은 반드시 나간다.**
+       ⚠ 표에 prob 가 실수로 들어가 있어도 코드가 지킨다 — 표를 안 고쳐도 산다.
+       ⭐ 곁을 흐르는 방송(순항 중 별·구름 이야기)은 여전히 주사위를 굴린다. 거기가 제자다. */
+    if (c.prob != null && !c.before_roll) {
       if (c.after != null && ctx.min < c.after) return false;
       if (c.before != null && ctx.min > c.before) return false;
       /* ⚠ 주사위는 **한 번만** 굴린다. 매 초 굴리면 확률 0.3 이 사실상 1 이 된다 */
@@ -4551,6 +4582,9 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       else if (c.leg != null) why = "leg " + c.leg;
       else if (c.alt != null) why = "고도 통과 " + c.alt + "m";
       else if (c.sun) why = "해 갈래";
+      else if (c.prob != null) why = PA_SEEN[e.ref]
+        ? "⚠ 주사위에서 떨어졌습니다 (prob " + c.prob + ")" : "주사위 prob " + c.prob;
+      else why = "⚠ 조건이 없는데 안 나갑니다 — 소리가 안 실렸을 수 있습니다";
       out.push(e.ref + "(" + why + ")");
     }
     return out.length ? out.join(" · ") : "붙드는 것이 없습니다 — ⚠ 다른 곳입니다";
