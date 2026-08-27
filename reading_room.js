@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0827j";
+  var VERSION = "0827k";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -4012,7 +4012,15 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   /* ⭐⭐ 0827e 진단용 — paWhyHold 가 읽는다. ⚠ 셈을 새로 하지 않는다.
      paTick 이 이미 손에 쥔 값을 그대로 적어 둘 뿐이다(값을 두 곳에서 셈하지 않는다). */
   var PA_PH = "", PA_MIN = 0, PA_MOVE = 0, PA_WHY = 0;
-  var PA_ALT = 0;                   /* 지난 판정 때의 고도 — 통과(alt)를 재려면 둘이 필요하다 */
+  /* ══ ⭐⭐⭐ 0827k — **0 을 「아직 안 쟀다」로 쓰면 활주로에서 죽는다** ═══════════════
+     ⚠⚠⚠ 어제 표고를 표에 못 박자(dep.h) 발밑이 첫 프레임에 앉았고, 그 순간부터
+       rel(지면 위 높이)이 **정직하게 0** 이 됐다. 그런데 아래 문지기가
+       「PA_ALT === 0 이면 첫 판정」이라 읽어 **매초 되돌아나갔다** —
+       paTick 이 한 번도 본론에 못 들어가 방송이 통째로 침묵했다(소로 0827 저녁).
+     ⚠ 옛 판에서 산 것은 우연이다 — 첫 프레임의 rel 이 60(어림값)이라 0 이 아니었을 뿐.
+       **고침 하나가 멀쩡하던 우연을 걷어내면, 밑에 있던 함정이 드러난다.**
+     ⭐ 「아직 안 쟀다」는 null 로 적는다. 0 은 값이다 — 활주로가 그 증인이다. */
+  var PA_ALT = null;                /* 지난 판정 때의 고도 — 통과(alt)를 재려면 둘이 필요하다 */
   var PA_SUN = 0;                   /* 지난 판정 때의 태양 고도 — 뜨는 중인지 재려면 둘이 필요하다 */
   var PA_SEEN = {};                 /* 무작위 방송이 이미 주사위를 굴렸나 */
   var paAudio = null, paSrc = null, paGain = null, paLp = null, paHp = null;
@@ -4047,6 +4055,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   function paLoad(code) {
     PA_LIST = []; PA_DONE = {}; PA_Q = []; PA_SEEN = {}; PA_NOW = null; PA_DIM = false;
     PA_MOVE = 0; PA_WHY = 0; PA_PH = ""; PA_MIN = 0;   /* ⭐ 0827e — 진단값도 함께 씻는다 */
+    PA_ALT = null;                                     /* ⭐ 0827k — 「아직 안 쟀다」로 되돌린다 */
     var q1 = "/rest/v1/eg_flight_pa?select=ref,kind,voice_role,title,text_ko,cue"
            + "&active=eq.true&route=eq." + encodeURIComponent(code) + "&order=seq";
     var q2 = "/rest/v1/voice_takes?select=ref,url&scope=eq.pa&active=eq.true";
@@ -4137,7 +4146,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     PA_T = now;
     /* ⚠ 첫 판정에서는 고도를 **재기만** 한다. 지난 값이 없으면 통과를 잴 수 없고,
        0 을 지난 값으로 쓰면 「방금 올라왔다」가 된다(0825i 의 land3k 병과 같은 뿌리). */
-    if (PA_ALT === 0) { PA_ALT = ctx.alt; PA_SUN = ctx.sun; return; }
+    if (PA_ALT === null) { PA_ALT = ctx.alt; PA_SUN = ctx.sun; return; }
     if (PA_LIST.length) {
       for (var i = 0; i < PA_LIST.length; i++) {
         var e = PA_LIST[i];
