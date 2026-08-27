@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0827f";
+  var VERSION = "0827g";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -2155,8 +2155,12 @@
                     + Math.round(idle) + "초) — 문을 붙드는 것: " + paWhyHold(), "color:#c9a84c");
                 } catch (e) { }
               }
-              if (HOLD_T && idle >= 90 && paHoldsRoll()) {
-                try { console.warn("[EG] ⚠ 방송이 90초째 아무 말이 없습니다 — 그냥 구릅니다."
+              /* ⭐⭐ 0827g — 차례를 기다리는 방송이 있으면 그 시각까지 기다린다.
+                 ⚠ 여유 45초 — 그 시각에 나가서 말을 마칠 시간이다. */
+              var _eta = paHoldEta();
+              var idleCap = (_eta != null) ? Math.max(90, (_eta - PA_MIN) * 60 + 45) : 90;
+              if (HOLD_T && idle >= idleCap && paHoldsRoll()) {
+                try { console.warn("[EG] ⚠ 방송이 " + Math.round(idleCap) + "초째 아무 말이 없습니다 — 그냥 구릅니다."
                   + "\n     붙들던 것: " + paWhyHold()); } catch (e) { }
                 paHush();
                 for (var pi = 0; pi < PA_LIST.length; pi++) {
@@ -4042,12 +4046,25 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       for (var i = 0; i < PA_LIST.length; i++) {
         var e = PA_LIST[i];
         if (PA_DONE[e.ref]) continue;
-        if (!paReady(e, ctx)) continue;
         /* ⭐⭐ 0825h — 출발 전 방송은 **차례가 목숨**이다(소로 0825).
            환영 → 안전 브리핑 → 이륙 대기. 앞의 것이 끝나야 다음이 나간다.
            ⚠⚠ 큐에 몰아넣으면 안 된다 — 상한이 둘이라 셋 중 하나가 조용히 버려진다.
-             ⭐ PA_DONE 을 찍기 **전에** 물러나므로 다음 초에 다시 후보가 된다. */
+             ⭐ PA_DONE 을 찍기 **전에** 물러나므로 다음 초에 다시 후보가 된다.
+           ══ ⭐⭐⭐ 0827g — 소로 0827 「1번이 늦어지면 2번이 자동으로 죽는 게 아닌가」 ══
+           ⚠⚠⚠ **소로 직감이 맞았다. 이 줄이 paReady 아래에 있었다.**
+             paReady 는 순수한 물음이 아니다 — 안에서 주사위를 굴리고(Math.random)
+             PA_SEEN 에 「굴렸다」를 찍는다. 그리고 그 찍힘은 **영영 안 지워진다.**
+             ⭐ 그래서 옛 차례는 이랬다 —
+               ① 방송 1 이 나간다 (PA_NOW = 1)
+               ② 같은 초에 방송 2 에게 **「나갈 수 있나」를 묻는다**
+                  → 방송 2 의 주사위가 **방송 1 의 시간에** 굴러간다
+                  → 떨어지면 PA_SEEN 이 찍혀 **영영 못 나간다**
+               ③ 그런데 PA_DONE 은 안 찍혔으므로 **이륙 문은 계속 붙들려 있다**
+             ⚠⚠ 이것이 「1번 뒤에 2번이 안 나오고 기체가 6분을 서 있던」 그 그림이다.
+           ⭐ 처방 — **묻기 전에 물러난다.** 앞엣것이 나가는 동안에는 뒤엣것에게
+             아예 안 묻는다. 물음에 부작용이 있으니 묻는 것 자체가 값이 든다. */
         if ((e.cue || {}).before_roll && (PA_NOW || PA_Q.length)) continue;
+        if (!paReady(e, ctx)) continue;
         PA_DONE[e.ref] = true;
         /* ⚠ 둘까지만 쌓는다. 셋째는 버린다 — 늦게 나가는 방송은 거짓말이 된다 */
         if (PA_NOW || PA_Q.length) { if (PA_Q.length < 2) PA_Q.push(e); }
@@ -4485,6 +4502,18 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       out.push(e.ref + "(" + why + ")");
     }
     return out.length ? out.join(" · ") : "붙드는 것이 없습니다 — ⚠ 다른 곳입니다";
+  }
+  /* ⭐⭐ 0827g — 문을 붙드는 것 가운데 **아직 때가 안 된 것**의 시각(분)을 낸다.
+     ⚠ 기다리는 것과 막힌 것은 다른 일이다. 방송 2 를 1분 5초로 옮기시면
+       그때까지는 「정체」가 아니라 「차례를 기다리는 중」이다. */
+  function paHoldEta() {
+    var eta = null, i;
+    for (i = 0; i < PA_LIST.length; i++) {
+      var e = PA_LIST[i], c = e.cue || {};
+      if (!c.before_roll || PA_DONE[e.ref]) continue;
+      if (c.min != null && PA_MIN < c.min) { if (eta === null || c.min > eta) eta = c.min; }
+    }
+    return eta;
   }
   function paHoldsRoll() {
     if (PA_LOAD_T && !PA_LIST.length) {
