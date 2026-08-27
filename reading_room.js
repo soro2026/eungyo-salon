@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0827i";
+  var VERSION = "0827j";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -757,6 +757,11 @@
          첫 공중점이 축에서 **0.1m**. 이름표가 무엇이든 콘크리트는 같다.
        ⭐ hold — 스탠바이 초. ⚠ 기내 방송이 들어오면 늘어난다(소로 0824). 노선이 정한다. */
     dep: { icao: "RKSI", rwy: "16L",
+           /* ⭐⭐ 0827j — 활주로 표고. 소로 시승 계기판 실측(21~23m 사이 · 타일 결에 따라 ±).
+              ⚠ 문서 표고(7m MSL)가 아니다 — **Cesium 3D 타일 표면에서 잰 값**이라
+                지오이드 사고(제네바 48m)의 갈래가 아니다.
+              ⭐ 이 칸이 있으면 발밑 셈이 통째로 안 돈다. 첫 프레임부터 이 값에 앉는다. */
+           h: 23,
            start: [37.47194722, 126.41640833],   /* ⭐ 스탠바이 지점 · 소로 실측 */
            end:   [37.44435,    126.44097222],   /* ⭐ 활주로 끝 · 소로 실측 · 3,757.4m */
            up:    [37.45493,    126.43156],      /* 부양 · 축 위 2,317m
@@ -2071,7 +2076,7 @@
               else gAgree = 0;
               gSeen = g2;
               var enough = (route.dep && route.dep.h != null)
-                        || (gAgree >= 2 && now - T0 > 2000) || (now - T0 > 8000);
+                        || (gAgree >= 3 && now - T0 > 3500) || (now - T0 > 8000);
               var trust = (enough && g2 !== null) ? g2 : null;
               if (trust !== null) {
               settled = true; SEAT_H = trust;
@@ -4059,6 +4064,14 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
         console.log("%c[EG] 기내 방송 " + PA_LIST.length + "편을 실었습니다"
           + (rows.length > PA_LIST.length ? " (아직 안 구운 것 " + (rows.length - PA_LIST.length) + "편은 건너뜁니다)" : ""),
           "color:#c9a84c");
+        /* ⭐⭐ 0827j — 출발 방송의 **날것**을 함께 찍는다. 이 몇 줄이 있었으면
+           standby 가 왜 안 나가는지를 사흘 전에 알았다. 실을 때 한 번뿐이라 값이 안 든다. */
+        for (i = 0; i < PA_LIST.length; i++) {
+          var br = PA_LIST[i];
+          if ((br.cue || {}).before_roll)
+            console.log("[EG]   출발 방송 · " + br.ref + " · cue=" + JSON.stringify(br.cue)
+              + " · 소리 " + (br.url ? "✔" : "⚠ 없음"));
+        }
       } catch (x) { }
     }).catch(function (e) {
       console.warn("[EG] 기내 방송을 못 실었습니다 — 방송 없이 갑니다:", e && e.message);
@@ -4324,6 +4337,10 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
         });
         /* ⭐⭐ 꼬리 — 남은 시간을 보고 눕힌다. ⚠ 250ms 마다 오므로 0.45초를 놓칠 일이 없다 */
         paAudio.addEventListener("timeupdate", function () {
+          /* ⭐ 0827j — 소리가 흐르고 있다 = 조용한 것이 아니다. 정체 셈이 여기서 계속 0 이 된다.
+             ⚠ 이게 없으면 긴 환영 방송(30초+)이 나가는 동안 「조용해진 지 36초」가 쌓여
+               강행 그물이 말하는 중간에 문을 열 뻔한다 — 0827 알림판이 그 셈을 보여 줬다. */
+          if (PA_NOW === e) PA_MOVE = performance.now();
           if (faded || !paGain) return;
           var d = paAudio.duration;
           if (!isFinite(d) || d <= 0) return;
@@ -4585,7 +4602,11 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       else if (c.prob != null) why = PA_SEEN[e.ref]
         ? "⚠ 주사위에서 떨어졌습니다 (prob " + c.prob + ")" : "주사위 prob " + c.prob;
       else why = "⚠ 조건이 없는데 안 나갑니다 — 소리가 안 실렸을 수 있습니다";
-      out.push(e.ref + "(" + why + ")");
+      /* ⭐⭐⭐ 0827j — 해석 옆에 **날것**을 붙인다. 0827h 의 「standby(?)」처럼
+         내 해석이 못 짚으면 물음표만 남는다 — 표의 그 줄을 그대로 보이면 끝난다. */
+      var raw = "";
+      try { raw = JSON.stringify(c); } catch (e9) { }
+      out.push(e.ref + "(" + why + ") cue=" + raw);
     }
     return out.length ? out.join(" · ") : "붙드는 것이 없습니다 — ⚠ 다른 곳입니다";
   }
