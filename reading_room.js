@@ -321,6 +321,20 @@
      ③ enter 가 바꾼 것을 leave 가 되돌린다. 리스너는 EGR_on 이 전부 적어 둔다
      ④ CSS 는 전량 #readingRoom 으로 스코프
 
+   ⭐⭐⭐ 0827d — 소로 시승이 잡은 병 둘. 둘 다 **조용히 죽는 길**이었다
+     ㉠ 「고도가 −263m 로 꺼졌다가 21m 로 솟구침」
+        ⚠⚠ sampleHeight 는 지형 자료가 아니라 **그려진 장면의 깊이**를 읽는다.
+          그런데 그 줄이 aimCam 보다 400행 위에 있어, 첫 프레임에는 지구 전체가
+          담긴 거친 타일을 재고 있었다. 옛 판은 **그 한 값으로 앉혔다.**
+        ⭐ 두 번 연속 3m 안에서 맞을 때만 믿는다 · 그 전에는 계기판이 「—」다
+     ㉡ 「방송 1번 이후 방송도 안 나오고 이륙도 안 함」 — ⚠⚠ 진범이 **둘**이다
+        ⓐ 오류 스무 번에 off() 로 비행을 영영 껐다. 60fps 면 **3분의 1초**다.
+          앞의 둘만 적고 입을 닫아 화면에 아무 말도 없었다 → 이제 안 끈다
+        ⓑ PA_NOW 는 paPlay 첫 줄에 서는데 그물은 900ms 뒤 챠임 콜백 **안**에만
+          걸렸다. 콜백이 한 번 안 오면 그물이 아예 없다 → 첫 줄로 올렸다
+        ⭐ 그리고 구경거리(구름·fps)를 비행과 **다른 try 로 갈랐다** —
+          구름이 던져도 지면·고도·전진·방송·이륙문이 안 멈춘다
+
    ⚠ 캐시 꼬리표 — 이 파일을 고치면 부르는 쪽(terra.html)의 ?v= 도 함께 올린다
 
    창구
@@ -330,7 +344,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0827c";
+  var VERSION = "0827d";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -1560,6 +1574,8 @@
        ⭐ flown 은 PAUSED 일 때 안 는다. 아래 루프가 멈춤이면 dt 를 더하기 전에 물러나므로
          **따로 재지 않아도 「순수 비행만」이 된다**(0820 소로 요청). */
     var roll = 0, tp = performance.now(), gT = 0, errN = 0, SPDLOG = 0;
+    /* ⭐ 0827d — 이어지는 오류만 센다(errRun) · 말한 시각(errT) · 발밑 되보기(gSeen) */
+    var errRun = 0, errT = 0, gSeen = null, DEP_H0 = null;
     /* ⭐ 0823g — 보이는 뱅크. roll(좇는 값) + sway(요동)다. 카메라·기체가 이것을 읽는다.
        ⚠ roll 을 그대로 두는 까닭은 아래 순항 요동 주석에 있다 — 더하면 요동이 죽는다. */
     var sway = 0, rollView = 0, trS = 0;   /* trS — 잔잔해진 각속도(0823h) */
@@ -1924,12 +1940,44 @@
       });
     }
 
+    /* ══ ⭐⭐ 0827d 출발 활주로 표고 — **착륙 RWY_H 의 거울인데 이쪽에만 없었다** ══════
+       ⭐ sampleHeight(그려진 화면의 깊이)가 아니라 지형 자료를 직접 묻는다.
+         활주로 한 점의 높이는 카메라가 어디를 보고 있든 같다 — 그려지기를 기다릴 까닭이 없다.
+       ⚠ 이 값은 **되보기의 증인**이지 정본이 아니다. 지형 제공자가 타원체뿐인 판에서는
+         0 을 돌려주므로, 앉히는 것은 여전히 두 번 되본 발밑이다.
+       ⚠ 없으면 그냥 없다(0821d) — 못 재도 아무 일도 안 일어난다. */
+    if (TAKEOFF) {
+      try {
+        if (Cesium.sampleTerrainMostDetailed && viewer.terrainProvider) {
+          Cesium.sampleTerrainMostDetailed(viewer.terrainProvider,
+            [Cesium.Cartographic.fromDegrees(P(0)[1], P(0)[0])]
+          ).then(function (a) {
+            var h = a && a[0] && a[0].height;
+            if (h != null && isFinite(h)) DEP_H0 = h;
+          }).catch(function () { });
+        }
+      } catch (e) { }
+    }
+
     var off = viewer.clock.onTick.addEventListener(function () {
       try {
         var now = performance.now(), rawMs = now - tp;
         var dt = Math.min(rawMs / 1000, 0.25); tp = now;
-        /* ⭐ 0820i — 재고 있는 값을 주워 담기만 한다. 새로 재지 않는다 */
-        fpsTick(rawMs); fpsPaint(now); cloudTick(now);
+        /* ══ ⭐⭐⭐ 0827d — 구경거리는 **제 try 안에서** 돈다 ═══════════════════════
+           ⚠⚠ 0827 소로 시승 — 「구름 밀도 손잡이를 만졌더니 방송 1번 뒤로 조용해지고
+             이륙도 안 함」. 이 세 줄이 비행과 **같은 try 안에** 있었다.
+             구름이 한 번 던지면 아래가 통째로 안 돈다 — 지면·고도·전진·방송·
+             이륙문·카메라가 전부 이 줄 아래에 있다. 화면은 멀쩡한데 시간만 멈춘다.
+           ⭐ **비행은 구경거리에 기대지 않는다.** 구름이 죽어도 기체는 난다.
+           ⚠ 한 번만 적는다 — 매 프레임 적으면 콘솔이 넘쳐 소로가 못 읽으신다.
+           ⭐ 0820i — 재고 있는 값을 주워 담기만 한다. 새로 재지 않는다 */
+        try { fpsTick(rawMs); fpsPaint(now); cloudTick(now); }
+        catch (ce) {
+          if (!window.__egCloudWarned) {
+            window.__egCloudWarned = true;
+            console.error("[EG] ⚠ 구름·계기가 던졌습니다 — 비행은 계속합니다:", ce);
+          }
+        }
         /* ⭐⭐ 0819T 일시정지 — 창밖이 그 지점에 선다.
            ⚠⚠ tp 를 **매 프레임 계속 밀어야 한다.** 멈춘 동안 tp 를 안 고치면
               재개하는 순간 dt 가 몇 분치로 부풀어 비행기가 순간이동한다.
@@ -1960,9 +2008,31 @@
             /* ⭐ 0819 소로 — 「초기에 계속 올라가는 느낌」.
                첫 발밑 측정 때 목표 고도에 한 번에 맞춰 앉힌다 — 순항 중 진입이므로
                (활주로 생략) 처음부터 순항 고도가 맞다. ㉡의 걸음은 그 다음부터다. */
-            if (!settled && LA[0] != null) {
+            /* ══ ⭐⭐⭐ 0827d 첫 측정을 안 믿는다 — 소로 0827 ═══════════════════════
+               > 「파리 노선 첫 진입하면 고도가 −263m 로 푹 꺼졌다가 21m 로 올라옴」
+               ⚠⚠ 진범 — 발밑을 **카메라가 아직 안 겨눠진 화면에서** 읽었다.
+                 sampleHeight 는 지형 자료가 아니라 **그려진 장면의 깊이**를 읽는다.
+                 그런데 aimCam 은 이 줄보다 400행 아래에 있다 — 첫 프레임에는 지구
+                 전체가 담긴 거친 타일이 그려져 있고, 그 타일 위의 인천은 −263m 다.
+               ⚠⚠ 옛 판은 **처음 돌아온 값 하나로** settled 를 세우고 alt 를 앉혔다.
+                 그 뒤 타일이 촘촘해지며 21m 로 올라오는 것이 소로가 보신 그 솟구침이다.
+               ⭐ 처방 — **두 번 연속 3m 안에서 맞을 때** 믿는다. 거친 타일은 촘촘해질 때
+                 값이 크게 바뀌므로 두 번을 못 통과한다. 이미 자란 뒤에는 곧장 통과한다.
+               ⭐ 되보기는 settled 전에만 쏜다. 앉고 나면 이 손이 하는 일이 0 이 된다. */
+            if (!settled) {
+              var g2 = groundAt(seg, u);
+              if (g2 !== null) {
+                if (gSeen !== null && Math.abs(g2 - gSeen) < 3) { LA[0] = g2; groundRaw = g2; }
+                gSeen = g2;
+              }
+            }
+            if (!settled && gSeen !== null && LA[0] != null && Math.abs(LA[0] - gSeen) < 3) {
               settled = true;
               groundH = groundRaw;
+              try {
+                console.log("[EG] 발밑 " + Math.round(groundH) + "m — 두 번 되보고 앉혔습니다"
+                  + (DEP_H0 != null ? " (지형 자료 " + Math.round(DEP_H0) + "m)" : ""));
+              } catch (e2) { }
               /* ⭐⭐ 0825a — 이륙은 **발밑에 앉힌다.** 순항고도로 앉히면 활주로 위 11km 다 */
               alt = TAKEOFF ? groundRaw
                 : (route.mode === "msl")
@@ -1981,7 +2051,9 @@
 
         /* ⭐ 지면을 매 프레임 부드럽게 좇는다 — 계기판·속도가 읽는 값이다.
            ⚠ 1.8 은 「1초에 약 83%를 따라잡는다」. */
-        groundH += (groundRaw - groundH) * Math.min(dt * 1.8, 1);
+        /* ⚠⚠ 0827d — **앉기 전에는 안 좇는다.** 옛 판은 못 믿을 groundRaw 를 그대로
+           좇았고, 그 값이 RUN_H → wantAlt 로 흘러 기체를 −263m 에 앉혔다. */
+        if (settled) groundH += (groundRaw - groundH) * Math.min(dt * 1.8, 1);
 
         /* ── ⭐⭐ 고도 (0819f) — 목표는 셈이 내고, 걸음은 ㉡이 낸다 ──
            msl  순항 해발고도로 평평하게. 앞 지면이 넘보면 floor 만큼 위로 밀린다
@@ -2149,6 +2221,10 @@
           : (route.mode === "msl")
           ? Math.max(cruiseH(), gAhead + (route.floor || 250))
           : gAhead + aglWant(gAhead);
+        /* ⭐⭐ 0827d — 발밑을 아직 못 믿으면 **고도를 한 톨도 안 움직인다.**
+           ⚠ 이 한 줄이 없으면 위의 표(clmb)가 groundH 0 을 기준으로 기체를 앉힌다.
+             길어야 서너 프레임이고, 그동안 계기판은 「—」다(아래 onTick 의 settled). */
+        if (!settled) wantAlt = alt;
         var dA = wantAlt - alt;
         /* ⭐ 0825b — 오를 때만 고도별 걸음. **내려올 때는 400 그대로**다(33호 ㉡ 은 멀미의 그물이다) */
         var step = (dA > 0 ? climbCap(alt) : CLIMB) * dt;
@@ -2367,6 +2443,7 @@
            고도는 위(㉠㉡㉢)에서 이미 alt 로 섰다. */
 
         aimCam();
+        errRun = 0;      /* ⭐ 0827d — 여기까지 왔으면 이 프레임은 성했다 */
 
         /* 승강률 — 항상 잰다. 계기판이 없어도 값은 흘러야 한다 */
         vs += ((alt - prevAlt) / Math.max(dt, 0.001) * 60 - vs) * Math.min(dt, 1); prevAlt = alt;
@@ -2375,15 +2452,34 @@
         if (opt.onTick) {
           /* ⭐ 0823f — loop·warp·arrived 셋을 함께 낸다. 받는 손이 route 를 다시 안 뒤진다 */
           try { opt.onTick({ lat: lat, lon: lon, hd: hd, kmh: kmh, rel: rel, alt: alt, vs: vs, ground: groundH, dist: dist, flown: flown, leg: P(seg)[2], next: P(seg + 1)[2], roll: rollView,
-                             seg: seg, legN: N, loop: LOOP, warp: WARP, arrived: ARRIVED, rolling: !!TOUCH }); }
+                             seg: seg, legN: N, loop: LOOP, warp: WARP, arrived: ARRIVED, rolling: !!TOUCH,
+                             /* ⭐ 0827d — 발밑을 믿기 전에는 고도를 안 찍는다(0821d) */
+                             settled: settled }); }
           catch (err) {
             if (!window.__egRTickWarned) { window.__egRTickWarned = true; console.error("[EG] 계기판 오류 — 비행은 계속합니다:", err); }
           }
         }
       } catch (fatal) {
-        errN++;
-        if (errN < 3) console.error("[EG] 독서비행 오류 " + errN + "회:", fatal);
-        if (errN === 20) { console.error("[EG] 오류가 잦아 비행을 멈춥니다"); off(); }
+        /* ══ ⭐⭐⭐ 0827d 그물 개정 — 소로 0827 「방송도 안 나오고 이륙도 안 함」 ══════
+           ⚠⚠⚠ 옛 판은 **스무 번째 오류에 off() 로 비행을 영영 껐다.**
+             60fps 면 스무 프레임은 **3분의 1초**다. 한 번 터지기 시작하면 눈 깜짝할
+             사이에 죽고, 그 뒤로는 되살아날 문이 없다 — 새로고침 말고는.
+           ⚠⚠ 게다가 앞의 둘만 적고 입을 닫았다. 붉은 줄 둘이 스쳐 지나간 뒤
+             기체가 활주로에 조용히 서 있었다 — **조용히 죽는 길**이 여기 있었다.
+           ⭐ 셋을 고친다 —
+             ㉠ **안 끈다.** 얼어붙은 비행보다 시끄러운 비행이 낫다
+             ㉡ 성한 프레임이 오면 셈이 0 으로 되돌아간다 — 이어지는 것만 센다
+             ㉢ 잦으면 5초에 한 번씩 계속 말한다. 소로가 화면을 열면 언제나 까닭이 있다 */
+        var tnow = performance.now();
+        errN++; errRun++;
+        if (errRun <= 2 || tnow - errT > 5000) {
+          errT = tnow;
+          console.error("[EG] ⚠ 독서비행 오류 (이어서 " + errRun + "회 · 누적 " + errN + "회):", fatal);
+        }
+        if (errRun === 30) {
+          console.error("%c[EG] ⚠⚠ 같은 오류가 서른 프레임 이어집니다. **비행은 안 멈춥니다** —"
+            + "\n     위 붉은 줄을 그대로 소로께 보여 드리십시오.", "color:#c98d5f");
+        }
       }
     });
     return { stop: off, routeCode: route.code,
@@ -3960,6 +4056,21 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       if (PA_Q.length) EGR_later(function () { var n = PA_Q.shift(); if (n) paPlay(n); },
                                  closing ? 3400 : 2200);
     };
+    /* ══ ⭐⭐⭐ 0827d 첫 그물 — 소로 0827 「방송 1번 이후 방송이 안 나오고 이륙도 안 함」
+       ⚠⚠ PA_NOW 는 이 함수 **첫 줄**에서 서는데, 그물(netT)은 챠임이 끝난 뒤
+         900ms 뒤 콜백 **안**에서만 걸렸다. 그 콜백이 한 번이라도 안 오면
+         (ensureAC 가 던지거나 · 프레임이 얼거나 · 탭이 잠들거나)
+         PA_NOW 가 영영 서 있고, 그러면 **둘이 함께 죽는다** —
+           ㉠ paTick 의 before_roll 줄이 「앞엣것이 아직 안 끝났다」로 읽어 다음 방송을 안 낸다
+           ㉡ paHoldsRoll() 이 true 라 이륙 문이 6분 동안 안 열린다
+         소로가 보신 그림이 정확히 이것이다 — 한 편 나가고, 그 뒤로 아무 일도 없음.
+       ⭐ 그래서 그물을 **여기 첫 줄에** 건다. 파일 길이를 알면 아래에서 더 촘촘히 다시 건다.
+       ⚠ 60초는 넉넉하다 — 실측 가장 긴 방송이 24초다. */
+    var netT = EGR_later(function () {
+      if (PA_NOW !== e) return;
+      console.warn("[EG] ⚠ 방송이 끝났다는 말이 안 옵니다 — 넘어갑니다: " + (e.ref || ""));
+      done();
+    }, 60000);
     /* ⚠ 소리를 끄셨으면 그냥 지나간다. 자막을 끈 뒤로는 보여 드릴 것이 없다 —
        ⭐ 그래도 PA_DONE 은 찍혔으므로 되풀이되지 않는다(17호: 놓치면 그만이다). */
     if (!sndOn || CH === 2) { EGR_later(done, 1200); return; }
@@ -4074,7 +4185,10 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
            한국어+영어를 이어 구운 실물은 20초가 넘는다. 그물이 먼저 터져 done() 이 불렸고,
            **방송이 끝나기 전에 문이 열려 기체가 굴렀다**(소로 「마치기 전에 슬슬 출발」).
            ⭐ 파일이 제 길이를 안다. 받는 즉시 그물을 그 길이로 다시 건다. */
-        var netT = EGR_later(function () { if (PA_NOW === e) done(); }, 30000);
+        /* ⭐ 0827d — **새로 선언하지 않는다.** 위에서 이미 60초 그물이 걸려 있고,
+           여기서는 그것을 30초로 조인다. 값을 두 곳에 안 적는 것과 같은 갈래다. */
+        try { clearTimeout(netT); } catch (x) { }
+        netT = EGR_later(function () { if (PA_NOW === e) done(); }, 30000);
         paAudio.addEventListener("loadedmetadata", function () {
           var d = paAudio.duration;
           if (!isFinite(d) || d <= 0) return;
@@ -5399,8 +5513,11 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
         + "\n     더 빽빽하게 하시려면 「덩이」 손잡이를 올리십시오. ⚠ 이번 뿌리기 "
         + buildMs.toFixed(0) + "ms.", "color:#c98d5f");
     }
+    /* ⭐ 0827d — 여기까지 왔으면 이 배합으로 구름이 무사히 섰다. 돌아갈 곳을 적어 둔다 */
+    CLD_OK = { den: CLD.den, siz: CLD.siz, hgt: CLD.hgt, brt: CLD.brt, cap: CLD.cap };
     cloudSay();
   }
+  var CLD_OK = null;                 /* ⭐ 0827d — 마지막으로 무사히 선 배합 */
   function cloudCount() { var n = 0, i; for (i = 0; i < CL.length; i++) n += CL[i].p.length; return n; }
   function cloudsOff() {
     if (CLOUDS && viewer) {
@@ -5441,6 +5558,15 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
                  ["hgt", "높이", .5, 1.8, .05, 2], ["brt", "밝기", .3, 1.6, .05, 2],
                  ["cap", "덩이", 500, 40000, 100, 0]];
   function clFix(b) { return (b[5] == null) ? 2 : b[5]; }
+  /* ⭐ 0827d — 손잡이 곳을 값에 맞춘다(소리 조절판의 sndBars 와 같은 문법).
+     ⚠ 되돌리기가 값만 고치고 손잡이를 그대로 두면 화면과 셈이 갈린다. */
+  function clBars() {
+    if (!CLDEL) return;
+    CL_BARS.forEach(function (b) {
+      var el = CLDEL.querySelector('input[data-k="' + b[0] + '"]');
+      if (el) el.value = CLD[b[0]];
+    });
+  }
   function cloudSay() {
     if (!CLDEL) return;
     var i = CLDEL.querySelector(".st");
@@ -5575,7 +5701,22 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       cloudSay();
       /* ⚠ 미는 동안 매번 다시 세우면 손이 무겁다 — 손을 뗀 뒤 250ms 에 한 번 */
       clearTimeout(CLDEL.__t);
-      CLDEL.__t = setTimeout(function () { cloudsBuild(); saveTuneSoon(); }, 250);
+      /* ══ ⭐⭐ 0827d — 넘어지면 **스스로 일어난다** ═══════════════════════════════
+         ⚠ 손잡이 위끝은 여전히 소로가 정하신다(0820m — 낭떠러지는 소로 화면이 정한다).
+           다만 넘어졌을 때 못 일어나면 손잡이가 아니라 함정이다.
+         ⭐ 덩이 40,000 은 레이마칭 구름 4만 장이다. 기기에 따라 여기서 던진다.
+         ⚠ 던진 배합은 서버에 안 적는다 — 다음에 타실 때 같은 곳에서 또 넘어진다. */
+      CLDEL.__t = setTimeout(function () {
+        try { cloudsBuild(); saveTuneSoon(); }
+        catch (ce) {
+          console.error("[EG] ⚠ 이 배합으로는 구름을 못 세웁니다 — 직전 값으로 되돌립니다:", ce);
+          if (CLD_OK) {
+            var kk; for (kk in CLD_OK) CLD[kk] = CLD_OK[kk];
+            clBars(); cloudSay();
+            try { cloudsBuild(); } catch (x) { cloudsOff(); }
+          } else cloudsOff();
+        }
+      }, 250);
     }
     EGR_on(CLDEL, "input", function (e) {
       var k = e.target && e.target.getAttribute("data-k"); if (!k) return;
@@ -7013,7 +7154,10 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     /* ⭐ 0823f — liner 가 도착하면 다음 길목이 제 자신이다(legAt 이 자르므로).
        ⚠ 「파리 → 파리」를 내지 않는다. 2타에서 「내리기」가 서면 이 줄이 그 손에 넘어간다. */
     q("#egrLeg").textContent = s.arrived ? s.leg : (s.leg + "  →  " + s.next);
-    q("#egrAlt").innerHTML = Math.round(s.alt).toLocaleString() + "<u>M</u>";
+    /* ⭐⭐ 0827d — 발밑을 두 번 되보기 전에는 **틀린 숫자 대신 대시**다(0821d).
+       ⚠ 서너 프레임이라 눈에 거의 안 띈다. −263 은 눈에 띄었다. */
+    q("#egrAlt").innerHTML = (s.settled === false) ? "—<u>M</u>"
+      : Math.round(s.alt).toLocaleString() + "<u>M</u>";
     q("#egrSpd").innerHTML = Math.round(s.kmh) + "<u>KM/H</u>";
     var v = Math.round(s.vs);
     q("#egrVs").innerHTML = (v > 0 ? "+" : "") + v + "<u>M/MIN</u>";
