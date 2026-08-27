@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0827g";
+  var VERSION = "0827h";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -1589,6 +1589,7 @@
     var roll = 0, tp = performance.now(), gT = 0, errN = 0, SPDLOG = 0;
     /* ⭐ 0827d — 이어지는 오류만 센다(errRun) · 말한 시각(errT) · 발밑 되보기(gSeen) */
     var errRun = 0, errT = 0, gSeen = null, DEP_H0 = null, T0 = performance.now();
+    var SEAT_H = null, WHY2 = 0;      /* ⭐ 0827h — 앉힌 발밑 한 값 · 판 알림 시각 */
     /* ⭐ 0823g — 보이는 뱅크. roll(좇는 값) + sway(요동)다. 카메라·기체가 이것을 읽는다.
        ⚠ roll 을 그대로 두는 까닭은 아래 순항 요동 주석에 있다 — 더하면 요동이 죽는다. */
     var sway = 0, rollView = 0, trS = 0;   /* trS — 잔잔해진 각속도(0823h) */
@@ -2050,20 +2051,22 @@
                  ㉯ 지구 타일이 다 실렸나(globe.tilesLoaded) — 그때의 화면은 믿을 만하다
                  ㉰ 그래도 안 오면 4초 뒤에 있는 값으로 앉힌다. 영영 「—」로 둘 수는 없다 */
             if (!settled) {
+              /* ══ ⭐⭐⭐ 0827h — 0827f 의 tilesLoaded 가 **또 틀렸다** ═══════════════════
+                 ⚠⚠ globe.tilesLoaded 는 「지금 카메라가 보는 화면의 타일이 다 왔나」다.
+                   방에 들어오는 순간 terra 는 이미 제 화면을 다 그려 놓았으므로
+                   **첫 프레임부터 true** 다. 그래서 못 믿을 −263 을 곧장 믿었다.
+                 ⭐ 믿을 것은 **지형 자료 하나**뿐이다. 그것이 올 때까지 기다리고,
+                   4초가 지나도 안 오면 그때는 있는 값으로 앉힌다(영영 못 앉을 수는 없다). */
               var g2 = groundAt(seg, u);
-              var loaded = false;
-              try { loaded = !!(viewer.scene.globe && viewer.scene.globe.tilesLoaded); } catch (e3) { }
               var waited = (now - T0) > 4000;
-              var trust = (DEP_H0 != null) ? DEP_H0
-                        : ((loaded || waited) && g2 !== null) ? g2 : null;
+              var trust = (DEP_H0 != null) ? DEP_H0 : (waited && g2 !== null) ? g2 : null;
               gSeen = g2;
               if (trust !== null) {
-              settled = true;
+              settled = true; SEAT_H = trust;
               groundRaw = trust; LA[0] = trust; groundH = trust;
               try {
                 console.log("[EG] 발밑 " + Math.round(groundH) + "m — "
                   + (DEP_H0 != null ? "지형 자료에서 받았습니다"
-                     : loaded ? "타일이 다 실린 뒤에 쟀습니다"
                      : "⚠ 4초를 기다려도 안 와서 그냥 앉혔습니다")
                   + " (화면 깊이는 " + (g2 === null ? "없음" : Math.round(g2) + "m") + ")");
               } catch (e2) { }
@@ -2086,9 +2089,31 @@
 
         /* ⭐ 지면을 매 프레임 부드럽게 좇는다 — 계기판·속도가 읽는 값이다.
            ⚠ 1.8 은 「1초에 약 83%를 따라잡는다」. */
-        /* ⚠⚠ 0827d — **앉기 전에는 안 좇는다.** 옛 판은 못 믿을 groundRaw 를 그대로
-           좇았고, 그 값이 RUN_H → wantAlt 로 흘러 기체를 −263m 에 앉혔다. */
-        if (settled) groundH += (groundRaw - groundH) * Math.min(dt * 1.8, 1);
+        /* ══ ⭐⭐⭐ 0827h — **진짜 −263 은 여기였다** ══════════════════════════════
+           ⚠⚠ 0827d~g 는 **앉히는 한 번**만 지켰다. 그런데 sampleOne 은 150ms 마다
+             계속 돌고, 그 값(groundRaw)이 아직 −263 이다. 앉히고 나면 이 줄이
+             groundH 를 −263 으로 끌고 내려가고, RUN_H → wantAlt 가 따라 내려간다.
+             **소로가 보신 3~4초가 정확히 이 좇음의 시간이다.**
+           ⚠⚠ 그래서 계기판이 −262 를 찍고 창밖이 새카맸다 — 카메라가 땅속이었다.
+           ⭐⭐ 처방 — **활주로는 평평하다.** 이륙하는 동안 발밑은 한 값이다.
+             착륙 쪽은 0823q 가 이미 그렇게 하고 있었다(RWY_H 를 한 번 재서 붙든다).
+             ⚠ 이륙 쪽에만 그 거울이 없었다. 오늘 세 번째로 만나는 「한쪽에만 없다」다.
+           ⭐ 부양하고 6초가 지나면 놓아 준다 — 그때는 타일이 이미 촘촘하다. */
+        if (settled) {
+          var holdG = (TAKEOFF && SEAT_H != null && (!LIFT || now - LIFT < 6000));
+          if (holdG) groundH = SEAT_H;
+          else groundH += (groundRaw - groundH) * Math.min(dt * 1.8, 1);
+        }
+        /* ⭐⭐ 0827h — 지형 자료가 늦게 와도 앉힌 값을 고친다. 통째로 같은 만큼 옮긴다 —
+           고도·발밑·활주로가 따로 놀면 그 차이가 곧 기체가 잠기는 깊이다. */
+        if (DEP_H0 != null && SEAT_H != null && Math.abs(SEAT_H - DEP_H0) > 5) {
+          var dH = DEP_H0 - SEAT_H;
+          try { console.log("[EG] 발밑을 지형 자료로 고칩니다 " + Math.round(SEAT_H)
+            + "m → " + Math.round(DEP_H0) + "m"); } catch (e4) { }
+          SEAT_H = DEP_H0; groundH = DEP_H0; alt += dH;
+          if (RUN_H !== null) RUN_H += dH;
+          if (DEP_H !== null) DEP_H += dH;
+        }
 
         /* ── ⭐⭐ 고도 (0819f) — 목표는 셈이 내고, 걸음은 ㉡이 낸다 ──
            msl  순항 해발고도로 평평하게. 앞 지면이 넘보면 floor 만큼 위로 밀린다
@@ -2148,6 +2173,33 @@
                  ⭐ 그리고 30초마다 **왜 안 열리는지**를 콘솔이 말한다(0822e 관측 장치 문법). */
               var held = (now - HOLD_T) / 1000;
               var idle = (now - (PA_MOVE || HOLD_T)) / 1000;
+              /* ⭐⭐ 0827g — 차례를 기다리는 방송이 있으면 그 시각까지 기다린다.
+                 ⚠ 여유 45초 — 그 시각에 나가서 말을 마칠 시간이다. */
+              var _eta = paHoldEta();
+              var idleCap = (_eta != null) ? Math.max(90, (_eta - PA_MIN) * 60 + 45) : 90;
+              /* ══ ⭐⭐⭐ 0827h 스탠바이 알림판 — **관리자에게만** ═══════════════════
+                 ⚠⚠ 콘솔에 적어 두었는데 소로가 콘솔을 안 여시면 없는 것과 같다.
+                   오늘 「무엇이 문을 붙드나」를 세 번 물었고 세 번 다 못 받았다.
+                 ⭐ 화면 왼쪽 아래에 판번호와 붙드는 것을 적는다. 구르면 사라진다.
+                 ⚠ 손님에게는 없는 물건이다(49호). 방(ROOT) 안이라 KEEP 을 안 늘린다. */
+              if (IS_ADMIN && HOLD_T && ROOT && now - WHY2 > 1000) {
+                WHY2 = now;
+                var hb = ROOT.querySelector("#egrHold");
+                if (!hb) {
+                  hb = document.createElement("div"); hb.id = "egrHold";
+                  hb.style.cssText = "position:fixed;left:14px;bottom:14px;z-index:40;"
+                    + "max-width:52vw;padding:9px 13px;border-radius:9px;"
+                    + "background:rgba(16,20,28,.86);color:#e8dcc0;pointer-events:none;"
+                    + "font:600 12px/1.55 'Noto Sans KR',sans-serif;white-space:pre-wrap;"
+                    + "border:1px solid rgba(201,168,76,.35)";
+                  ROOT.appendChild(hb);
+                }
+                hb.textContent = "EG " + VERSION + " · 스탠바이 " + Math.round(held) + "초"
+                  + "  (조용해진 지 " + Math.round(idle) + "초 / " + Math.round(idleCap) + ")"
+                  + "\n발밑 " + (SEAT_H == null ? "재는 중" : Math.round(SEAT_H) + "m"
+                      + (DEP_H0 != null ? " · 지형 자료" : " · ⚠ 화면 깊이"))
+                  + "\n문을 붙드는 것: " + paWhyHold();
+              }
               if (HOLD_T && paHoldsRoll() && now - PA_WHY > 30000) {
                 PA_WHY = now;
                 try {
@@ -2155,10 +2207,6 @@
                     + Math.round(idle) + "초) — 문을 붙드는 것: " + paWhyHold(), "color:#c9a84c");
                 } catch (e) { }
               }
-              /* ⭐⭐ 0827g — 차례를 기다리는 방송이 있으면 그 시각까지 기다린다.
-                 ⚠ 여유 45초 — 그 시각에 나가서 말을 마칠 시간이다. */
-              var _eta = paHoldEta();
-              var idleCap = (_eta != null) ? Math.max(90, (_eta - PA_MIN) * 60 + 45) : 90;
               if (HOLD_T && idle >= idleCap && paHoldsRoll()) {
                 try { console.warn("[EG] ⚠ 방송이 " + Math.round(idleCap) + "초째 아무 말이 없습니다 — 그냥 구릅니다."
                   + "\n     붙들던 것: " + paWhyHold()); } catch (e) { }
@@ -2171,6 +2219,8 @@
                 if (!PA_CLEAR) PA_CLEAR = now;
                 if (now - PA_CLEAR >= 1500) {
                   ROLLING = true;
+                  try { var hb0 = ROOT && ROOT.querySelector("#egrHold"); if (hb0) hb0.remove(); }
+                  catch (e5) { }
                   try { console.log("[EG] ✈ 브레이크 해제 — 스탠바이 "
                     + Math.round((now - HOLD_T) / 1000) + "초"
                     + (PA_LIST.length ? " (방송 뒤)" : "")
@@ -2183,8 +2233,10 @@
               /* ⭐⭐ 표고 이음매 — 착륙의 거울이다.
                  활주는 발밑(RUN_H) · 공중은 붙든 값(DEP_H) · **부양 뒤 첫 1km 에서 섞는다.**
                  ⚠ 착륙이 마지막 1km 에서 섞은 그 손이고, 방향만 반대다. */
+              /* ⭐ 0827h — 발밑이 이미 한 값이므로 좇을 것이 없다. 곧장 앉힌다 */
               if (RUN_H === null) RUN_H = groundH;
-              RUN_H += (groundH - RUN_H) * Math.min(dt / 0.35, 1);
+              if (SEAT_H != null && !LIFT) RUN_H = groundH;
+              else RUN_H += (groundH - RUN_H) * Math.min(dt / 0.35, 1);
               if (!LIFT && CLB[0] > 0.5) { LIFT = now; LIFT_KM = roKm; DEP_H = RUN_H; }
               var baseH = RUN_H;
               if (DEP_H !== null) {
