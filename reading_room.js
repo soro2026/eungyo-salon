@@ -330,7 +330,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0827b";
+  var VERSION = "0827c";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -5218,7 +5218,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
   var CL = [];                   /* 떨기 장부 */
   var CLON = true, clIdx = 0, clT = 0, clKind = "", clRnd = null;   /* ⭐⭐ 0820v 점등 — 소로 「완전 진짜 구름이야, 불 켜줘요」 */
   /* ⭐ 손잡이 넷 — 이것만 저장한다. 범위표는 코드가 쥔다(41호 ㉬ — 편집값에 설계값 금지) */
-  var CLD = { den: 4.0, siz: 1.75, hgt: 0.80, brt: 1.60 };   /* ⭐ 0820v — 소로 배합 */
+  var CLD = { den: 4.0, siz: 1.75, hgt: 0.80, brt: 1.60, cap: 2000 };   /* ⭐ 0820v — 소로 배합 · ⭐ 0827c cap 신설 */
 
   /* 씨앗 — 노선 + 그날 + 세 시간 띠. 하루에 여덟 하늘이 된다 */
   function clSeed(code, hour) {
@@ -5337,8 +5337,14 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     /* ⚠⚠ 0820m — CAP 480 을 걷었다(소로 「예단하지 말고 극대치에서 빼자」).
        0819 fps 도 새똥도 전부 타 보고 나온 것이다 — 낭떠러지가 어디인지는
        셈이 아니라 소로 화면이 정한다. 계기(F)가 곁에 있으니 눈 감고 가는 게 아니다.
-       ⚠ 다만 스스로 어는 것 하나만 막는다: 2000덩이 위는 뿌리기 자체가 몇 초를 먹는다 */
-    var CAP = 2000, made = 0;
+       ⚠ 다만 스스로 어는 것 하나만 막는다: 2000덩이 위는 뿌리기 자체가 몇 초를 먹는다
+       ══ ⭐⭐ 0827c — 그 2000 을 손잡이로 낸다 ══
+       ⚠⚠ 이 값이 den 보다 먼저 문다. den 을 100 으로 밀어도 여기서 잘리면 아무 일도 없다.
+       ⭐ 그래서 자른 뒤에는 **잘렸다고 말한다.** 0826 수칙 그대로다 —
+         없는 것을 조용히 견디면 그 조항이 있다는 사실까지 감춘다.
+       ⚠ 뿌리는 데 걸린 밀리초도 함께 찍는다. 몇 초가 먹히면 그것이 낭떠러지다. */
+    var CAP = Math.max(500, Math.round(CLD.cap || 2000)), made = 0;
+    var clCut = 0;
     var baseH = rng(r, K.base) * CLD.hgt;
     for (var i = 0; i < nGrp; i++) {
       var g = { r: mkRand((clSeed(RCODE, hour) + i * 2654435761) >>> 0),
@@ -5347,7 +5353,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       g.hCap = Math.max(180, CL_TOP - g.base);   /* ⭐ 이 떨기가 자랄 수 있는 키 */
       g.br0 = rng(r, K.br);                      /* ⭐ 0820t — 갈래 밝기. 그늘은 clPlace 몫 */
       var np = rint(g.r, K.puff);
-      if (made + np > CAP) break;
+      if (made + np > CAP) { clCut = nGrp - i; break; }
       made += np;
       for (var j = 0; j < np; j++) {
         /* ⭐ 0820p — 색을 안 준다(흰색) · slice 를 안 준다(자동).
@@ -5385,6 +5391,14 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       + K.ko + " · 씨앗 " + clSeed(RCODE, hour)
       + (near ? " · 최근접 " + nd.toFixed(1) + "km · 밑면 " + near.base.toFixed(0)
               + "m (기체 " + Math.round((s0.alt || 0)) + "m)" : ""));
+    /* ⭐⭐ 0827c — 상한이 물었으면 말한다. 안 말하면 손잡이를 더 밀어도 화면이 안 바뀌고,
+       소로는 손잡이가 고장 났다고 여기게 된다(0826 「없는 것을 조용히 견디는 조항」). */
+    if (clCut) {
+      console.log("%c[EG] ⚠ 덩이 상한(" + CAP + ")이 물었습니다 — 빽빽함 " + CLD.den.toFixed(2)
+        + " 이 부르는 " + nGrp + "떨기 중 " + CL.length + "떨기만 섰습니다(" + clCut + "떨기 잘림)."
+        + "\n     더 빽빽하게 하시려면 「덩이」 손잡이를 올리십시오. ⚠ 이번 뿌리기 "
+        + buildMs.toFixed(0) + "ms.", "color:#c98d5f");
+    }
     cloudSay();
   }
   function cloudCount() { var n = 0, i; for (i = 0; i < CL.length; i++) n += CL[i].p.length; return n; }
@@ -5415,9 +5429,18 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
   /* ── 조절판 (G) — ⚠ 관리자만. 재면서 밀 수 있어야 소로가 정하신다 ── */
   var CLDEL = null;
   /* ⭐ 0820m — 빽빽함 위끝을 4.0 으로 연다. 한낮 32떨기 × 4.0 = 128떨기 ≈ 1000덩이.
-     내리는 손이 편하도록 극대치에서 시작해 빼며 내려온다(소로) */
-  var CL_BARS = [["den", "빽빽함", .2, 4.0, .05], ["siz", "크기", .4, 2.2, .05],
-                 ["hgt", "높이", .5, 1.8, .05], ["brt", "밝기", .3, 1.6, .05]];
+     내리는 손이 편하도록 극대치에서 시작해 빼며 내려온다(소로)
+     ══ ⭐⭐⭐ 0827c — 위끝을 100 으로 연다 (소로 0827: 「구름 빽빽하기를 최대 100으로」) ══
+     ⚠⚠ 그런데 손잡이만 열면 **아무 일도 안 일어난다.** 진짜 벽은 아래 CAP 이었다 —
+       한낮 5떨기 × 115덩이 = 575, 여기에 den 을 곱하므로 **den 3.5 언저리에서 이미
+       CAP 2000 에 닿는다.** 4.00 이라 적힌 손잡이가 실은 3.5 에서 멈춰 있었다.
+     ⭐ 그래서 덩이 상한도 손잡이로 낸다. 숫자를 내가 고르지 않는다 —
+       0820m 그대로다: **낭떠러지가 어디인지는 셈이 아니라 소로 화면이 정한다.**
+     ⚠ 다섯째 칸은 소수점을 안 찍는다(2000.00 은 읽기 나쁘다) — b[5] 가 자릿수다. */
+  var CL_BARS = [["den", "빽빽함", .2, 100, .05, 2], ["siz", "크기", .4, 2.2, .05, 2],
+                 ["hgt", "높이", .5, 1.8, .05, 2], ["brt", "밝기", .3, 1.6, .05, 2],
+                 ["cap", "덩이", 500, 40000, 100, 0]];
+  function clFix(b) { return (b[5] == null) ? 2 : b[5]; }
   function cloudSay() {
     if (!CLDEL) return;
     var i = CLDEL.querySelector(".st");
@@ -5427,7 +5450,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       : "꺼짐";
     CL_BARS.forEach(function (b) {
       var el = CLDEL.querySelector('[data-v="' + b[0] + '"]');
-      if (el) el.textContent = CLD[b[0]].toFixed(2);
+      if (el) el.textContent = CLD[b[0]].toFixed(clFix(b));
     });
   }
   /* ══ ⭐⭐⭐ 0825m 소리 조절판 — 소로 0825 ═══════════════════════════════════════
@@ -5541,7 +5564,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
           return '<label><span>' + b[1] + '</span>'
             + '<input type="range" data-k="' + b[0] + '" min="' + b[2] + '" max="' + b[3]
             + '" step="' + b[4] + '" value="' + CLD[b[0]] + '"><b data-v="' + b[0] + '">'
-            + CLD[b[0]].toFixed(2) + '</b></label>';
+            + CLD[b[0]].toFixed(clFix(b)) + '</b></label>';
         }).join("")
       + '<div class="st"></div>'
       + '<div class="row"><button data-a="re">다시 뿌리기</button>'
@@ -5780,7 +5803,7 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
              IC: TUNE_C,                     /* ⭐ 기체별 칸 */
              MON: { tl: MON.tl, tr: MON.tr, br: MON.br, bl: MON.bl },
              /* ⭐ 0820j — 구름 손잡이 넷. ⚠ 배율만 적는다. 갈래 범위표는 코드가 쥔다 */
-             CLD: { den: CLD.den, siz: CLD.siz, hgt: CLD.hgt, brt: CLD.brt },
+             CLD: { den: CLD.den, siz: CLD.siz, hgt: CLD.hgt, brt: CLD.brt, cap: CLD.cap },
              /* ⭐⭐ 0825n 소리 배합 — 소로 0825 「전체 맞추기로 저장. 지금 디폴트 값 수정하는 것」.
                 ⚠ 이 기기가 아니라 **모든 손님의 기본값**이다. eg_settings 는 is_admin 만 쓴다. */
              SND: { pa: PA_VOL, eng: engBase, mus: MUSIC_VOL, hiss: PA_HISS, verb: PA_WET } };
