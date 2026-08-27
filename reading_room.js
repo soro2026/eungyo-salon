@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0827m";
+  var VERSION = "0827u";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -1089,6 +1089,35 @@
               ⚠ 차례가 뜻을 갖는다 — **plates[0] 이 「못 찾으면 서는 판」**이다(0826a 그물).
                 lit 이 첫째여야 안 구운 벌을 만나도 밝은 기내가 선다. */
            plates: ["lit", "dim", "tray", "tray_dim"], plateBy: "cabin",
+           /* ══ ⭐⭐⭐ 0827t 통로·갤리 — **표가 쥔다** (결정문 19~21호) ═══════════════
+              ⭐ 안무는 몸이 도는 반 바퀴다(소로 0827) —
+                0° 일어서서 조종석 쪽 → +90° 오른쪽으로 틈 → +180° 돌아섬 → 커튼 코앞
+              ⚠ 좌석이 왼쪽 창가냐 오른쪽 창가냐로 넉 장이 갈린다(_L / _R).
+              ⭐ 3초씩 넷 = 12초. 겹쳐 녹이는 0.8초는 그 안에 든다.
+              ⚠ 이 칸이 없는 기체는 통로가 없다 — 마크도 안 선다. 관광 기체는 그대로다. */
+           aisle: {
+             sec: 3.0, fade: 0.8,                    /* 장당 초 · 겹치는 초 */
+             legs: ["aisle1", "aisle2", "aisle3", "aisle4"],
+             /* ⭐ 큐빅 네 면 — 오른쪽 화살표로 이 차례대로 돈다.
+                ⚠ 정면에서 시작한다. 커튼을 밀고 들어가면 갤리가 정면이다. */
+             cube: ["galley_f", "galley_r", "galley_b", "galley_l"],
+             /* ⭐⭐ 창이 뚫린 면과 그 겨눔 — 좌석 창(wins)과 같은 문법이다.
+                ⚠ 값을 코드에 안 박는다. 소로가 콘솔로 밀면 그것이 이긴다.
+                  view = 기수에서 잰 방위(도) · sky = 수평에서 든 각(도)
+                  box  = 판 위 구멍 자리(%) — 판을 다시 구우면 이 넉 줄만 고친다 */
+             wins: {
+               galley_r: { view:  90, sky: -8, box: [44.4, 27.6, 10.8, 6.9] },
+               galley_l: { view: -90, sky: -8, box: [44.8, 27.6, 10.8, 6.9] }
+             },
+             /* ⭐ 마크 리듬 — 5분 켜지고 5분 꺼진다(소로 0827: 「약방의 감초처럼」)
+                ⚠ 방송이 나가는 중이거나 쟁반이 올라와 있으면 안 켜진다.
+                ⭐ 꺼져 있어도 눌리다 — 켜짐은 초대일 뿐 문이 아니다. */
+             /* ⚠⚠ 0827u 정정 — at 을 코드가 안 쥔다. **소로가 편집기로 끈다.**
+                ⭐ 자리는 트레이 **본체 가운데**다(소로 0827: 손잡이는 펼치기, 본체는 화장실).
+                  두 곳이 갈리므로 부딪치지 않는다.
+                ⚠ 아래 값은 첫 자리일 뿐이고, E 로 끌면 서버에 적혀 그것이 이긴다. */
+             mark: { on: 5, off: 5, at: [50.0, 72.0], size: 40 }
+           },
            /* ⭐⭐ 0826p — 소등 중에는 트레이도 어두운 벌이 선다.
               ⚠ 표가 쥔다 — 「소등이면 이름 뒤에 _dim 을 붙인다」를 코드에 안 박는다.
                 음식 여섯도 언젠가 두 벌이 될 수 있으니 짝을 표로 적는다.
@@ -1250,9 +1279,35 @@
       BEAM_A = v.BM[0]; BEAM_W = v.BM[1]; beamPaint();
     }
   }
+  /* ⭐⭐ 0827u — 통로 마크와 갤리 창을 되읽는다. ⚠ 모양이 다르면 안 읽는다(41호 ㉬).
+     ⚠⚠ 헌 값이 새 설계를 덮는 사고가 이 집에서 세 번 났다(0819W · 0826b · 0827k).
+       그래서 **숫자인지 · 범위 안인지**를 칸마다 본다. 하나라도 어긋나면 그 칸을 통째로 버린다. */
+  function aisleTuneRead(v) {
+    var A = CRAFT_SPEC[CRAFT] && CRAFT_SPEC[CRAFT].aisle;
+    if (!A || !v) return;
+    var m = v.AM;
+    if (m && m.at && typeof m.at[0] === "number" && typeof m.at[1] === "number"
+          && isFinite(m.at[0]) && isFinite(m.at[1])) {
+      A.mark.at = [m.at[0], m.at[1]];
+      if (typeof m.size === "number" && m.size >= 18 && m.size <= 96) A.mark.size = m.size;
+    }
+    var w = v.AW, k;
+    if (w) for (k in A.wins) {
+      var q = w[k];
+      if (!q || !q.box || q.box.length !== 4) continue;
+      var bad = false, i;
+      for (i = 0; i < 4; i++) if (typeof q.box[i] !== "number" || !isFinite(q.box[i])) bad = true;
+      if (bad) continue;
+      A.wins[k].box = q.box.slice();
+      if (typeof q.view === "number" && isFinite(q.view)) A.wins[k].view = q.view;
+      if (typeof q.sky === "number" && isFinite(q.sky)) A.wins[k].sky = q.sky;
+    }
+    goPlace(); cubeWin();
+  }
   function applyCraftTune() {
     var t = TUNE_C[CRAFT] || {};
     lampTuneRead(t);                  /* ⭐ 0826u — 독서등도 기체별 칸에서 온다 */
+    aisleTuneRead(t);                 /* ⭐ 0827u — 통로 마크·갤리 창 */
     var okI = t.I && t.I.length && typeof t.I[0].x === "number" && typeof t.I[0].z === "number";
     INSTR = cpyArr(okI ? t.I : (INSTR_DEF[CRAFT] || []));
     /* ⚠ 0821h — 램프가 하나(객체)에서 다섯(배열)로 바뀌었다. 옛 값은 모양이 달라 안 읽는다(41호 ㉬) */
@@ -1413,6 +1468,12 @@
   }
   function cabinUrl(k) {
     return hangarBase() + plateCraft() + "_cabin_" + k + ".webp?v=" + Math.floor(Date.now() / 60000);
+  }
+  /* ⭐⭐ 0827t — 통로·갤리 판은 이름표가 다르다({code}_aisle1_L · {code}_galley_f).
+     ⚠ _cabin_ 을 활자로 박아 둔 곳이 위 한 줄이라, 갈래를 여기서 연다.
+     ⭐ 격납고도 같은 이름으로 칸을 냈다(admin_hangar v0827r) — 두 곳이 같은 이름을 부른다. */
+  function aisleUrl(k) {
+    return hangarBase() + plateCraft() + "_" + k + ".webp?v=" + Math.floor(Date.now() / 60000);
   }
   /* ⭐⭐ 0821d 소로 — 남의 기체를 입히지 않는다. 폴백은 **제 기체의 저장소 판**이고,
        그것도 없으면 아무것도 안 세운다 — 창밖만 보인다.
@@ -2413,7 +2474,10 @@
                   : (TAKEOFF && !ROLLING) ? "standby"
                   : (route.arr && tdKm < 9e8 && tdKm <= 300 && !TOUCH) ? "desc"
                   : "cruise";
-          paTick(now, { phase: _ph, min: flown / 60, seg: seg, alt: rel,
+          /* ⭐ 0827t — 걷는 시계와 마크 리듬. ⚠ 비행이 안 멈추므로 12초 동안도 세상은 흐른다 */
+        walkTick(now);
+        goTick(flown / 60);
+        paTick(now, { phase: _ph, min: flown / 60, seg: seg, alt: rel,
                         /* ⭐ 0825i — 이륙 노선이 아직 안 굴렀으면 false. 다른 노선은 이미 날고 있다 */
                         rolling: TAKEOFF ? !!ROLLING : true,
                         sun: sunAltDeg(lat, lon) });
@@ -3100,6 +3164,71 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 #readingHide:hover{border-color:rgba(255,255,255,.5);color:#fff}
 #readingRoom.bare #egrMon,#readingRoom.bare #egrDesk,
 #readingRoom.bare .readingSeat{display:none}
+
+/* ══ ⭐⭐⭐ 0827t 통로·갤리 (결정문 19~21호 · 소로 0827) ═══════════════════════
+   ⭐ 좌석 세간을 **한 줄로 통째로** 걷는다. bare 가 셋을 걷는 그 문법의 확장이다.
+   ⚠ 되돌리는 단추(#egrBack)만 남는다 — 다 걷으면 돌아올 문이 없다(0820 그 수칙). */
+#readingRoom.walk #egrMon,#readingRoom.walk #egrDesk,#readingRoom.walk .readingSeat,
+#readingRoom.walk #egrInstr,#readingRoom.walk #egrLamps,#readingRoom.walk #egrBlink,
+#readingRoom.walk #egrEng,#readingRoom.walk #egrPA,#readingRoom.walk #egrRead,
+#readingRoom.walk #egrDish,#readingRoom.walk #egrDishSh,#readingRoom.walk #egrFps,
+#readingRoom.walk .egr-hood,#readingRoom.walk #egrGrip{display:none!important}
+
+/* ⭐ 통로 판 — 방 전체를 덮는다. 좌석 판과 같은 곳에 같은 크기로 선다 */
+#egrWalk{position:absolute;inset:0;z-index:14;pointer-events:none;overflow:hidden;
+  opacity:0;transition:opacity .45s ease}
+#readingRoom.walk #egrWalk{opacity:1;pointer-events:auto}
+#egrWalk .pl{position:absolute;inset:0;background-size:cover;background-position:center;
+  opacity:0;transition:opacity .8s ease}
+#egrWalk .pl.on{opacity:1}
+/* ⚠⚠ 밝기는 **여기 한 곳**에서만 든다(소로 0827 Ⓑ). 원판은 어두운 채로 격납고에 있다.
+   ⭐ 큐빅 넉 장은 갤리라 이미 밝다 — 통로 여덟 장에만 건다. */
+#egrWalk .pl.aisle{filter:brightness(var(--aiB,1.85)) contrast(var(--aiC,.86)) saturate(1.05)}
+
+/* ⭐ 큐빅 좌우 화살표 — 갤리에서만 선다 */
+#egrWalk .arw{position:absolute;top:50%;transform:translateY(-50%);width:52px;height:78px;
+  display:none;align-items:center;justify-content:center;cursor:pointer;z-index:3;
+  border-radius:12px;border:1px solid rgba(255,255,255,.16);
+  background:rgba(10,14,20,.34);backdrop-filter:blur(3px);
+  color:rgba(255,255,255,.72);font:400 26px/1 Tahoma,sans-serif;
+  transition:background .18s,border-color .18s,opacity .3s}
+#egrWalk.cube .arw{display:flex}
+#egrWalk .arw:hover{background:rgba(10,14,20,.58);border-color:rgba(255,255,255,.42);color:#fff}
+#egrWalk .arw.l{left:16px} #egrWalk .arw.r{right:16px}
+
+/* ⭐ 되돌아가는 단추 — 갤리에서만. 걷는 12초 동안은 없다(19호: 그 사이 할 일이 없다) */
+#egrBack{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);z-index:4;
+  display:none;padding:10px 22px;border-radius:10px;cursor:pointer;
+  border:1px solid rgba(201,168,76,.42);background:rgba(14,18,26,.62);
+  backdrop-filter:blur(4px);color:rgba(240,235,224,.88);
+  font:600 14px/1 'Noto Sans KR',sans-serif;letter-spacing:.02em;
+  transition:background .18s,border-color .18s}
+#egrWalk.cube #egrBack{display:block}
+#egrBack:hover{background:rgba(14,18,26,.86);border-color:rgba(201,168,76,.8)}
+
+/* ⭐⭐ 갤리 큐빅의 진짜 창 — 판에 알파로 뚫려 있는 그 구멍 뒤로 Cesium 이 보인다.
+   ⚠ 판이 z-index 로 위에 있고, 뚫린 곳으로 아래가 비친다. 따로 오려낼 것이 없다. */
+#egrWalk .cwin{position:absolute;z-index:2;cursor:pointer;border-radius:14px}
+/* ⭐ 편집 중에만 테두리가 보인다 — 뚫린 구멍은 눈에 안 보이므로 맞출 길이 없다(0827u) */
+#readingRoom.edit #egrWalk .cwin{outline:1px dashed rgba(201,168,106,.85);cursor:move;
+  background:rgba(201,168,76,.10)}
+#readingRoom.edit #egrGo{outline:1px dashed rgba(201,168,106,.85);cursor:move;opacity:1}
+#readingRoom.edit #egrWalk .arw,#readingRoom.edit #egrBack{opacity:.25}
+
+/* ══ ⭐ 등받이 갤리 마크 (소로 0827: 「약방의 감초처럼」) ═══════════════════
+   ⚠ 알림이 아니다. 5분 켜졌다 꺼진다 — 「가야 한다」가 아니라 「가도 된다」다.
+   ⭐ 꺼져 있어도 눌리다. 실물 기내도 화장실은 언제나 갈 수 있다. */
+#egrGo{position:absolute;z-index:12;width:40px;height:40px;border-radius:11px;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  border:1px solid rgba(255,255,255,.10);background:rgba(10,14,20,.24);
+  color:rgba(255,255,255,.20);font:400 19px/1 Tahoma,sans-serif;
+  transition:opacity .9s ease,color .9s ease,border-color .9s ease,background .18s;
+  opacity:.30}
+#egrGo.lit{opacity:1;color:rgba(240,220,170,.92);border-color:rgba(201,168,76,.46);
+  background:rgba(28,22,12,.42);box-shadow:0 0 14px rgba(201,168,76,.16)}
+#egrGo:hover{background:rgba(28,22,12,.72);color:#f0dfb4}
+#readingRoom.out #egrGo,#readingRoom.bare #egrGo,#readingRoom.bodyview #egrGo,
+#readingRoom.walk #egrGo{display:none}
 #egrMon .btn{border:1px solid var(--ring,#59492f);background:var(--btn,#3f3524);
   color:var(--glow,#f0dfb4);border-radius:6px;padding:9px 16px;cursor:pointer;
   font:600 17px 'Noto Sans KR',serif;letter-spacing:.02em;
@@ -3530,6 +3659,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     ENGEL.id = "egrEng";
     ROOT.appendChild(ENGEL);
     loadEngrave();
+    goBuild();          /* ⭐ 0827t — 등받이 갤리 마크. 통로 표가 없는 기체는 안 선다 */
     /* ⭐ 창 덮개 손잡이 — 그림 속 그것 위. 방(ROOT) 안이라 KEEP 을 안 늘린다 */
     var gp = document.createElement("div");
     gp.id = "readingGrip"; gp.setAttribute("data-tip", "창 닫기"); gp.title = "창 덮개 (S)";
@@ -5456,6 +5586,181 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       }, 120);
     }, 300);
   }
+  /* ══════════════════════════════════════════════════════════════════════════
+     ⭐⭐⭐ 통로 이동 · 갤리 (0827t · 결정문 19~21호 · 소로 0827 낮·저녁)
+     ──────────────────────────────────────────────────────────────────────────
+     ⭐ 안무 — 등받이 마크를 누르면 몸이 반 바퀴 돈다.
+       0° 일어섬 → +90° 오른쪽으로 틈 → +180° 돌아섬 → 커튼 코앞 → 갤리 큐빅
+     ⭐ 12초 동안 손님이 할 일이 하나도 없다(19호). 단추도 화살표도 그 사이엔 없다.
+     ⚠⚠ 판이 없으면 아무 일도 안 일어난다 — 반쯤 걷다 멈추지 않는다(0826k 그 수칙).
+       그래서 **떠나기 전에 넉 장을 다 받아 둔다.**
+     ⭐ 밝기는 CSS 한 곳에서만 든다(--aiB/--aiC). 원판은 어두운 채로 격납고에 있다.
+     ══════════════════════════════════════════════════════════════════════════ */
+  var WALK = 0;          /* 0 좌석 · 1 걷는 중 · 2 갤리 큐빅 */
+  var WK_EL = null, WK_I = 0, WK_T = 0, WK_SIDE = "L", CUBE_I = 0, GO_EL = null;
+  var WK_PRE = {};       /* 미리 받아 둔 판 */
+
+  function aisleSpec() { return (SPEC && SPEC.aisle) || null; }
+  /* ⭐ 좌석이 어느 창인가 — 좌석 판의 side 를 그대로 쓴다(−1 왼창 · +1 오른창).
+     ⚠ 값을 두 곳에서 셈하지 않는다. 창을 바꾸면 통로도 함께 바뀐다. */
+  function aisleSide() { return (side > 0) ? "R" : "L"; }
+
+  function walkKey(i) {
+    var A = aisleSpec(); if (!A) return null;
+    return A.legs[i] + "_" + WK_SIDE;
+  }
+  /* ⚠ 떠나기 전에 넉 장을 다 받는다. 하나라도 안 오면 안 떠난다 —
+     걷다가 검은 화면을 만나는 것보다 아예 안 가는 편이 낫다. */
+  function walkPreload(done) {
+    var A = aisleSpec(); if (!A) { done(false); return; }
+    var keys = [], i;
+    for (i = 0; i < A.legs.length; i++) keys.push(walkKey(i));
+    for (i = 0; i < A.cube.length; i++) keys.push(A.cube[i]);
+    var left = keys.length, bad = 0;
+    keys.forEach(function (k) {
+      if (WK_PRE[k]) { if (!--left) done(bad === 0); return; }
+      var im = new Image();
+      im.onload = function () { WK_PRE[k] = im.src; if (!--left) done(bad === 0); };
+      im.onerror = function () {
+        bad++; console.warn("[EG] ⚠ 통로 판을 못 받았습니다: " + k);
+        if (!--left) done(bad === 0);
+      };
+      im.src = aisleUrl(k);
+    });
+  }
+
+  function walkBuild() {
+    if (WK_EL || !ROOT) return;
+    WK_EL = document.createElement("div"); WK_EL.id = "egrWalk";
+    var A = aisleSpec();
+    /* 판 두 겹 — 겹쳐 녹인다. 좌석 판의 plate/plateB 와 같은 문법 */
+    WK_EL.innerHTML = '<div class="pl a"></div><div class="pl b"></div>'
+      + '<div class="cwin" data-w="0"></div>'
+      + '<div class="arw l">&#10094;</div><div class="arw r">&#10095;</div>'
+      + '<div id="egrBack">&#128094; 좌석으로</div>';
+    ROOT.appendChild(WK_EL);
+    EGR_on(WK_EL.querySelector(".arw.l"), "click", function (e) { e.stopPropagation(); cubeTurn(-1); });
+    EGR_on(WK_EL.querySelector(".arw.r"), "click", function (e) { e.stopPropagation(); cubeTurn(+1); });
+    EGR_on(WK_EL.querySelector("#egrBack"), "click", function (e) { e.stopPropagation(); walkEnd(); });
+    /* ⭐⭐ 소로 0827 — 「저 마젠타 창을 클릭하면 C모드로 창밖 환하게」.
+       ⚠ 동전 두 개로 정한 그 작음이 여기서 밑밥이 된다 — 아쉬우니 누르게 된다. */
+    EGR_on(WK_EL.querySelector(".cwin"), "click", function (e) {
+      e.stopPropagation(); if (editing) return;
+      walkEnd(true);
+      EGR_later(function () { if (!OUT) toggleOut(); }, 380);
+    });
+    if (A) { /* 밝기 값은 표가 아니라 CSS 변수로 — 콘솔에서 밀 수 있게 */ }
+  }
+
+  /* ⭐ 판 한 장을 세운다. 두 겹을 번갈아 쓰며 겹쳐 녹인다 */
+  function walkShow(key, isAisle) {
+    if (!WK_EL) return;
+    var a = WK_EL.querySelector(".pl.a"), b = WK_EL.querySelector(".pl.b");
+    var on = a.classList.contains("on") ? a : b, off = (on === a) ? b : a;
+    off.style.backgroundImage = 'url("' + (WK_PRE[key] || aisleUrl(key)) + '")';
+    off.classList.toggle("aisle", !!isAisle);
+    off.classList.add("on"); on.classList.remove("on");
+  }
+
+  function walkStart() {
+    var A = aisleSpec();
+    if (!A || WALK || OUT || BODY || !ROOT) return;
+    WK_SIDE = aisleSide();
+    walkBuild();
+    walkPreload(function (ok) {
+      if (!ok) { console.warn("[EG] ⚠ 통로 판이 모자라 안 갑니다"); return; }
+      WALK = 1; WK_I = 0; WK_T = performance.now();
+      ROOT.classList.add("walk");
+      WK_EL.classList.remove("cube");
+      lookReset();
+      walkShow(walkKey(0), true);
+    });
+  }
+
+  /* ⚠ 걷는 동안은 손님이 아무것도 안 한다. 이 손은 시계가 부른다 */
+  function walkTick(now) {
+    if (WALK !== 1) return;
+    var A = aisleSpec(); if (!A) return;
+    var want = Math.floor((now - WK_T) / (A.sec * 1000));
+    if (want === WK_I) return;
+    WK_I = want;
+    if (WK_I < A.legs.length) { walkShow(walkKey(WK_I), true); return; }
+    /* 도착 — 갤리 큐빅 */
+    WALK = 2; CUBE_I = 0;
+    WK_EL.classList.add("cube");
+    walkShow(A.cube[0], false);
+    cubeWin();
+  }
+
+  function cubeTurn(d) {
+    var A = aisleSpec(); if (WALK !== 2 || !A) return;
+    CUBE_I = (CUBE_I + d + A.cube.length) % A.cube.length;
+    walkShow(A.cube[CUBE_I], false);
+    cubeWin();
+  }
+
+  /* ⭐⭐ 뚫린 창 — 판에 알파로 구멍이 나 있으므로 오려낼 것이 없다.
+     여기서는 **누를 수 있는 곳**만 그 자리에 놓는다. */
+  /* ⭐ 0827u — 지금 서 있는 면의 창 상자. 없으면 null 이다(정면·후면). */
+  function cwinBox() {
+    var A = aisleSpec(); if (!A || WALK !== 2) return null;
+    var w = A.wins[A.cube[CUBE_I]];
+    return w ? w.box : null;
+  }
+  function cubeWin() {
+    var A = aisleSpec(); if (!WK_EL || !A) return;
+    var w = A.wins[A.cube[CUBE_I]], el = WK_EL.querySelector(".cwin");
+    if (!w) { el.style.display = "none"; return; }
+    el.style.display = "block";
+    el.style.left = w.box[0] + "%"; el.style.top = w.box[1] + "%";
+    el.style.width = w.box[2] + "%"; el.style.height = w.box[3] + "%";
+  }
+
+  function walkEnd(quiet) {
+    if (!WALK || !ROOT) return;
+    WALK = 0;
+    ROOT.classList.remove("walk");
+    if (WK_EL) WK_EL.classList.remove("cube");
+    if (!quiet) lookReset();
+    layout();
+  }
+
+  /* ══ ⭐ 등받이 갤리 마크 — 5분 켜지고 5분 꺼진다 ═══════════════════════════
+     ⚠ 알림이 아니다(17호). 배지도 소리도 없다. 켜짐은 초대일 뿐 문이 아니다 —
+       꺼져 있어도 눌리다. 실물 기내도 화장실은 언제나 갈 수 있다.
+     ⚠ 방송이 나가는 중이거나 쟁반이 올라와 있으면 안 켜진다 — 감초는 사이사이다. */
+  function goBuild() {
+    var A = aisleSpec();
+    if (GO_EL || !ROOT || !A) return;
+    GO_EL = document.createElement("div");
+    GO_EL.id = "egrGo"; GO_EL.innerHTML = "&#128694;";
+    GO_EL.title = "잠깐 일어서기";
+    ROOT.appendChild(GO_EL);
+    goPlace();
+    /* ⚠ 편집 중에는 안 떠난다 — 끌려다 눌리면 통로로 튀어 나간다 */
+    EGR_on(GO_EL, "click", function (e) { e.stopPropagation(); if (!editing) walkStart(); });
+  }
+  /* ⭐ 0827u — 표의 자리 배열을 그대로 내준다. 편집기가 이 배열을 민다 */
+  function goAt() { var A = aisleSpec(); return A ? A.mark.at : null; }
+  function goPlace() {
+    var A = aisleSpec();
+    if (!GO_EL || !A) return;
+    var z = A.mark.size || 40;
+    GO_EL.style.width = z + "px"; GO_EL.style.height = z + "px";
+    GO_EL.style.fontSize = Math.round(z * 0.47) + "px";
+    GO_EL.style.left = A.mark.at[0] + "%";
+    GO_EL.style.top = A.mark.at[1] + "%";
+    GO_EL.style.marginLeft = (-z / 2) + "px";
+    GO_EL.style.marginTop = (-z / 2) + "px";
+  }
+  function goTick(min) {
+    var A = aisleSpec();
+    if (!GO_EL || !A) return;
+    var cyc = A.mark.on + A.mark.off;
+    var lit = (min % cyc) < A.mark.on && !PA_NOW && !TRAY;
+    GO_EL.classList.toggle("lit", !!lit);
+  }
+
   function toggleOut() {
     if (!ROOT) return;
     OUT = !OUT;
@@ -6104,6 +6409,10 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
   }
   function tuneTarget(el) {
     if (!el || !el.closest) return null;
+    /* ⭐⭐ 0827u — 갤리 창이 맨 먼저다(소로 0827: 「편집기 달아주면 마우스로 끌어다 맞출게」).
+       ⚠ 큐빅이 화면을 통째로 덮고 있어, 이 줄이 아래에 있으면 딴 것이 먼저 잡힌다. */
+    if (el.closest(".cwin")) return "cwin";
+    if (el.closest("#egrGo")) return "go";     /* ⭐ 0827u — 등받이 갤리 마크 */
     if (el.closest(".egrCorner")) return "corner";   /* ⭐ 모서리가 먼저 — 모니터 위에 얹혀 있다 */
     if (el.closest("#egrLampH")) return "lamp2";     /* ⭐ 0826u 독서등 */
     if (el.closest("#readingGrip")) return "grip";
@@ -6190,6 +6499,15 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
       TUNE_C[CRAFT] = TUNE_C[CRAFT] || {};
       TUNE_C[CRAFT].LP = CRAFT_SPEC[CRAFT].lamp;
       TUNE_C[CRAFT].BM = [BEAM_A, BEAM_W];
+    }
+    /* ⭐⭐ 0827u — 통로 마크 자리와 갤리 창 자리도 함께 적힌다.
+       ⚠ 기체마다 한 벌이다 — 787 에만 있고 관광 기체에는 이 칸이 없다.
+       ⭐ 창은 면마다 다르므로 wins 를 통째로 적는다(면 둘뿐이라 값이 안 든다). */
+    if (CRAFT_SPEC[CRAFT] && CRAFT_SPEC[CRAFT].aisle) {
+      var AQ = CRAFT_SPEC[CRAFT].aisle;
+      TUNE_C[CRAFT] = TUNE_C[CRAFT] || {};
+      TUNE_C[CRAFT].AM = { at: AQ.mark.at.slice(), size: AQ.mark.size || 40 };
+      TUNE_C[CRAFT].AW = JSON.parse(JSON.stringify(AQ.wins));
     }
     /* ⭐⭐ 0826v — 얹는층 네 귀도 함께 적힌다. **기체마다 한 벌**이고
        스물한 장이 그 한 벌을 쓴다. ⚠ 장마다 안 적는다(소로 0826 저녁). */
@@ -8594,6 +8912,19 @@ function paintBook() {
       else if (egrab.t === "needle") { var IO = instrOf(egrab.k); if (IO) { IO.x += dx / egrab.w * 100; IO.y += py2; } }
       else if (egrab.t === "blink") { var BO = blinkOf(egrab.k); if (BO) { BO.x += dx / egrab.w * 100; BO.y += py2; } }
       else if (egrab.t === "lamp") { var LO = lampOf(egrab.k); if (LO) { LO.x += dx / egrab.w * 100; LO.y += py2; } }
+      /* ⭐⭐ 0827u 갤리 창 — 끌면 옮기고, 휠로 크기를 바꾼다. 표(wins.box)를 그 자리에서 민다.
+         ⚠ 거울 부호를 안 쓴다 — 통로 판은 좌석 판과 달리 flip 이 안 걸린다.
+           좌우 두 벌을 따로 구웠으므로 화면이 뒤집힌 적이 없다. */
+      /* ⭐⭐ 0827u 갤리 마크 — 트레이 본체 가운데에 앉힌다. 좌석 판 위라 **거울 부호를 쓴다** —
+         왼창·오른창이 뒤집히면(flip) 화면도 뒤집히므로 손도 함께 뒤집혀야 한다. */
+      else if (egrab.t === "go") {
+        var GA = goAt();
+        if (GA) { GA[0] += dx / egrab.w * 100 * (side > 0 ? -1 : 1); GA[1] += py2; goPlace(); }
+      }
+      else if (egrab.t === "cwin") {
+        var CW = cwinBox();
+        if (CW) { CW[0] += dx / egrab.w * 100; CW[1] += py2; cubeWin(); }
+      }
       else if (egrab.t === "corner") monMove(px, py2, egrab.k);   /* ⭐ 그 점만 */
       else monMove(px, py2);
       layout(); tuneSay();
@@ -8744,6 +9075,19 @@ function paintBook() {
           GP.rot = Math.max(-45, Math.min(45, gv + dr * 0.5 * (side > 0 ? -1 : 1)));
         }
         else { GP.w = Math.max(2, GP.w + d * 0.4); GP.h = Math.max(0.5, GP.h + d * 0.1); }
+      } else if (t === "go") {
+        var A9 = aisleSpec();
+        if (A9) { A9.mark.size = Math.max(18, Math.min(96, (A9.mark.size || 40) + d * 2)); goPlace(); }
+      } else if (t === "cwin") {
+        /* ⭐ 휠 = 가로세로 함께 · Shift+휠 = 가로만 · Alt+휠 = 세로만.
+           ⚠ 창은 세로가 조금 긴 둥근 네모라 비를 지키는 편이 낫다 — 기본이 함께다 */
+        var CW2 = cwinBox();
+        if (CW2) {
+          if (e.shiftKey) CW2[2] = Math.max(1, CW2[2] + d * 0.15);
+          else if (e.altKey) CW2[3] = Math.max(0.6, CW2[3] + d * 0.15);
+          else { CW2[2] = Math.max(1, CW2[2] + d * 0.15); CW2[3] = Math.max(0.6, CW2[3] + d * 0.096); }
+          cubeWin();
+        }
       } else if (t === "corner") {
         /* ⭐ 모서리 위 휠 = 세로 미세 이동 0.05% · Shift+휠 = 가로.
            끌기로는 한 픽셀을 못 맞춘다 — 베젤 두께가 화면에서 2~3px 이다 */
@@ -9002,6 +9346,8 @@ function paintBook() {
     bodyOff();
     viewer = null;
     OUT = false; BARE = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
+    /* ⭐ 0827t — 통로도 함께 씻는다. ⚠ 걷다 나가면 다음 탑승이 통로에서 시작된다 */
+    WALK = 0; WK_EL = null; WK_I = 0; WK_T = 0; CUBE_I = 0; GO_EL = null; WK_PRE = {};
     BODY = false; BODYWAS = false;   /* ⭐ 0821L — 다음 탑승은 조종석에서 시작한다 */
     ORB.yaw = ORB0.yaw; ORB.pit = ORB0.pit;
     INSEL = null; LAMPEL = null; BLKEL = null;   /* ⚠ 0821f — 방과 함께 걷힌다. 다음 탑승이 다시 세운다 */
@@ -9362,6 +9708,32 @@ function paintBook() {
                             안 나간 것이 **어느 조건에서 걸렸는지**를 통째로 적는다.
                           ⭐ egReading.pa()        전부
                              egReading.pa("stand") ref 에 그 글자가 든 것만 */
+                       /* ⭐⭐ 0827t — 통로 판 밝기를 눈으로 민다(소로 0827 Ⓑ).
+                          ⚠ 값을 코드에 안 박는다 — 여기서 정한 뒤 CSS 기본값으로 굳힌다.
+                          ⭐ egReading.aisleLight()        지금 값
+                             egReading.aisleLight(1.85,.86) 밝기 · 대비 */
+                       aisleLight: function (b, c) {
+                         if (!ROOT) return null;
+                         if (b != null) ROOT.style.setProperty("--aiB", b);
+                         if (c != null) ROOT.style.setProperty("--aiC", c);
+                         var cs = getComputedStyle(ROOT);
+                         var v = { 밝기: cs.getPropertyValue("--aiB").trim() || "1.85",
+                                   대비: cs.getPropertyValue("--aiC").trim() || ".86" };
+                         console.log("[EG] 통로 판 밝기", v);
+                         return v;
+                       },
+                       /* ⭐ 마크를 안 기다리고 곧장 통로로. ⚠ 시승용이다 */
+                       aisle: function () { walkStart(); return null; },
+                       /* ⭐ 갤리 창 겨눔을 눈으로 맞춘다 — 표의 wins 를 그 자리에서 민다 */
+                       galleyAim: function (view, sky) {
+                         var A = aisleSpec(); if (!A) return null;
+                         var k = A.cube[CUBE_I], w = A.wins[k];
+                         if (!w) { console.log("[EG] 이 면에는 창이 없습니다: " + k); return null; }
+                         if (view != null) w.view = view;
+                         if (sky != null) w.sky = sky;
+                         console.log("[EG] " + k + " 겨눔 — 방위 " + w.view + "° · 기울기 " + w.sky + "°");
+                         return w;
+                       },
                        pa: function (q) {
                          if (!PA_LIST.length) {
                            console.log("[EG] 실린 방송이 없습니다"
