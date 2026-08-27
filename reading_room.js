@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0827u";
+  var VERSION = "0827w";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -3178,6 +3178,8 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 #egrWalk{position:absolute;inset:0;z-index:14;pointer-events:none;overflow:hidden;
   opacity:0;transition:opacity .45s ease}
 #readingRoom.walk #egrWalk{opacity:1;pointer-events:auto}
+/* ⚠ 판 두 겹은 클릭을 안 먹는다 — 화살표·창·단추만 잡혀야 한다 */
+#egrWalk .pl{pointer-events:none}
 #egrWalk .pl{position:absolute;inset:0;background-size:cover;background-position:center;
   opacity:0;transition:opacity .8s ease}
 #egrWalk .pl.on{opacity:1}
@@ -3188,6 +3190,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 /* ⭐ 큐빅 좌우 화살표 — 갤리에서만 선다 */
 #egrWalk .arw{position:absolute;top:50%;transform:translateY(-50%);width:52px;height:78px;
   display:none;align-items:center;justify-content:center;cursor:pointer;z-index:3;
+  pointer-events:auto;
   border-radius:12px;border:1px solid rgba(255,255,255,.16);
   background:rgba(10,14,20,.34);backdrop-filter:blur(3px);
   color:rgba(255,255,255,.72);font:400 26px/1 Tahoma,sans-serif;
@@ -3198,7 +3201,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 
 /* ⭐ 되돌아가는 단추 — 갤리에서만. 걷는 12초 동안은 없다(19호: 그 사이 할 일이 없다) */
 #egrBack{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);z-index:4;
-  display:none;padding:10px 22px;border-radius:10px;cursor:pointer;
+  display:none;pointer-events:auto;padding:10px 22px;border-radius:10px;cursor:pointer;
   border:1px solid rgba(201,168,76,.42);background:rgba(14,18,26,.62);
   backdrop-filter:blur(4px);color:rgba(240,235,224,.88);
   font:600 14px/1 'Noto Sans KR',sans-serif;letter-spacing:.02em;
@@ -3208,7 +3211,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 
 /* ⭐⭐ 갤리 큐빅의 진짜 창 — 판에 알파로 뚫려 있는 그 구멍 뒤로 Cesium 이 보인다.
    ⚠ 판이 z-index 로 위에 있고, 뚫린 곳으로 아래가 비친다. 따로 오려낼 것이 없다. */
-#egrWalk .cwin{position:absolute;z-index:2;cursor:pointer;border-radius:14px}
+#egrWalk .cwin{position:absolute;z-index:2;pointer-events:auto;cursor:pointer;border-radius:14px}
 /* ⭐ 편집 중에만 테두리가 보인다 — 뚫린 구멍은 눈에 안 보이므로 맞출 길이 없다(0827u) */
 #readingRoom.edit #egrWalk .cwin{outline:1px dashed rgba(201,168,106,.85);cursor:move;
   background:rgba(201,168,76,.10)}
@@ -3218,15 +3221,34 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 /* ══ ⭐ 등받이 갤리 마크 (소로 0827: 「약방의 감초처럼」) ═══════════════════
    ⚠ 알림이 아니다. 5분 켜졌다 꺼진다 — 「가야 한다」가 아니라 「가도 된다」다.
    ⭐ 꺼져 있어도 눌리다. 실물 기내도 화장실은 언제나 갈 수 있다. */
-#egrGo{position:absolute;z-index:12;width:40px;height:40px;border-radius:11px;
+/* ⚠⚠ 0827v 진범 — **#readingRoom 이 pointer-events:none 이다**(2737행). 방은 클릭을
+   통과시키고, 세간마다 auto 로 되살린다. 이 한 줄을 안 적어 마크가 손에 안 잡혔다.
+   ⭐ 0819 의 그 딱지와 같은 자다 — 「pointer-events:none 인 겹은 애초에 안 나온다」.
+     elementsFromPoint 조차 못 찾는다. 새 세간을 달 때는 이 줄부터 짝으로 단다. */
+#egrGo{position:absolute;z-index:12;pointer-events:auto;width:40px;height:40px;border-radius:11px;
   display:flex;align-items:center;justify-content:center;cursor:pointer;
   border:1px solid rgba(255,255,255,.10);background:rgba(10,14,20,.24);
   color:rgba(255,255,255,.20);font:400 19px/1 Tahoma,sans-serif;
   transition:opacity .9s ease,color .9s ease,border-color .9s ease,background .18s;
   opacity:.30}
-#egrGo.lit{opacity:1;color:rgba(240,220,170,.92);border-color:rgba(201,168,76,.46);
-  background:rgba(28,22,12,.42);box-shadow:0 0 14px rgba(201,168,76,.16)}
-#egrGo:hover{background:rgba(28,22,12,.72);color:#f0dfb4}
+#egrGo{border:0;background:none}
+#egrGo svg{display:block;width:100%;height:100%;overflow:visible}
+/* ⭐ 꺼짐 — 있는지 없는지 모를 만큼. 켜짐 — 호박 원반이 조용히 뜬다 */
+#egrGo .dsk{fill:rgba(200,196,186,.20);transition:fill .9s ease}
+#egrGo .arr{stroke:rgba(255,255,255,.34);transition:stroke .9s ease}
+#egrGo.lit .dsk{fill:#f3c518}
+#egrGo.lit .arr{stroke:#fff}
+#egrGo.lit{filter:drop-shadow(0 0 9px rgba(243,197,24,.34))}
+#egrGo:hover .dsk{fill:#ffd227}
+#egrGo:hover .arr{stroke:#fff}
+#egrGo:hover{filter:drop-shadow(0 0 12px rgba(255,210,39,.52))}
+/* ⭐ 말풍선 — 창 덮개 손잡이(#readingGrip)와 같은 문법이다. 새 얼개를 안 짓는다 */
+#egrGo::after{content:attr(data-tip);position:absolute;left:50%;top:116%;
+  transform:translateX(-50%);white-space:nowrap;pointer-events:none;
+  font:600 11.5px/1 'Noto Sans KR',sans-serif;letter-spacing:.02em;
+  color:rgba(232,228,216,0);transition:color .2s;
+  padding:5px 9px;border-radius:7px;background:rgba(10,14,20,0)}
+#egrGo:hover::after{color:rgba(240,235,224,.92);background:rgba(10,14,20,.72)}
 #readingRoom.out #egrGo,#readingRoom.bare #egrGo,#readingRoom.bodyview #egrGo,
 #readingRoom.walk #egrGo{display:none}
 #egrMon .btn{border:1px solid var(--ring,#59492f);background:var(--btn,#3f3524);
@@ -5733,8 +5755,17 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     var A = aisleSpec();
     if (GO_EL || !ROOT || !A) return;
     GO_EL = document.createElement("div");
-    GO_EL.id = "egrGo"; GO_EL.innerHTML = "&#128694;";
-    GO_EL.title = "잠깐 일어서기";
+    GO_EL.id = "egrGo";
+    /* ══ ⭐⭐ 0827w — 소로 0827: 「트레이에 화장실 마크라니 ㅋㅋ 근사한 화살표로」
+       ⚠ 픽토그램이 뜻을 다 말해 버리면 눌러 볼 까닭이 없다. 화살표는 방향만 말한다.
+       ⭐ 원판을 안 굽는다 — SVG 라 확대해도 안 뭉개지고, 켜짐/꺼짐이 색 한 줄로 갈린다.
+         용량이 0 이고 격납고 칸도 안 는다(22호 — 같은 것을 두 곳에 안 만든다). */
+    GO_EL.innerHTML =
+      '<svg viewBox="0 0 100 100" width="100%" height="100%" aria-hidden="true">'
+      + '<circle cx="50" cy="50" r="46" class="dsk"/>'
+      + '<path class="arr" d="M26 50h38M54 36l16 14-16 14" fill="none"'
+      + ' stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    GO_EL.setAttribute("data-tip", "통로 및 갤리로 이동하기");
     ROOT.appendChild(GO_EL);
     goPlace();
     /* ⚠ 편집 중에는 안 떠난다 — 끌려다 눌리면 통로로 튀어 나간다 */
@@ -5747,7 +5778,6 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     if (!GO_EL || !A) return;
     var z = A.mark.size || 40;
     GO_EL.style.width = z + "px"; GO_EL.style.height = z + "px";
-    GO_EL.style.fontSize = Math.round(z * 0.47) + "px";
     GO_EL.style.left = A.mark.at[0] + "%";
     GO_EL.style.top = A.mark.at[1] + "%";
     GO_EL.style.marginLeft = (-z / 2) + "px";
