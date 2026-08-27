@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0827k";
+  var VERSION = "0827m";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -8418,6 +8418,19 @@ function paintBook() {
   function engineSet(on) { setChannel(on ? 0 : 2); }   /* 옛 이름 — 부르는 곳이 남아 있을 때 */
   function playAnnounce() {
     if (announced) return; announced = true;
+    /* ══ ⭐⭐⭐ 0827k — **방송이 둘이었다** (소로 0827: 「예전 기장 방송이 깔려 있어」) ══
+       ⚠⚠ 이것은 0819 시절의 옛 탑승 방송이다(cabin_announce_v1.mp3 · 베스페르와
+         같은 파일). 0825 에 방송 마흔셋(eg_flight_pa)이 들어온 뒤에도 아무도 이
+         손을 안 걷어서, **787 에서는 두 방송 체계가 함께 틀리고 있었다.**
+         새 방송이 살아 있을 때는 밑에 깔려 잘 안 들렸고, 어제 새 방송이 통째로
+         죽자 이 옛 목소리만 남아 정체가 드러났다 — 소로 Ⓐ 판정이 자른 그곳이다.
+       ⭐ 갈래는 기체가 정한다 — plateBy "cabin"(승무원이 정하는 기체 = 방송표가
+         있는 기체)이면 옛 방송을 안 튼다. 표가 하나 늘어도 코드를 다시 안 연다.
+       ⚠ 관광 기체(제트기·복엽기)는 한 톨도 안 바뀐다 — 거기는 이것이 유일한 방송이다. */
+    if (SPEC.plateBy === "cabin") {
+      if (CH === 0) engineStart(); else if (CH === 1) musicStart();
+      return;
+    }
     annAudio = new Audio(ANNOUNCE_SRC);
     annAudio.volume = 0.9;
     var started = false;
