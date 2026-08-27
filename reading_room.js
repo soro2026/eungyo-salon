@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0827z";
+  var VERSION = "0827z2";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -5756,6 +5756,9 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     walkPreload(function (ok) {
       if (!ok) { console.warn("[EG] ⚠ 통로 판이 모자라 안 갑니다"); return; }
       WALK = 1; WK_I = 0; WK_T = performance.now();
+      /* ⭐ 0827z2 — 처음 눈을 40% 에 둔다. 판의 창·팻말이 33% 언저리라
+         가운데(50%)로 시작하면 절반쯤 잘린다(소로 0827). */
+      WY = 40; if (WK_EL) WK_EL.style.setProperty("--wy", "40%");
       ROOT.classList.add("walk");
       WK_EL.classList.remove("cube");
       lookReset();
@@ -5823,6 +5826,17 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       WK_EL.style.setProperty("--wy", WY + "%");
     }, true);
     EGR_on(window, "pointerup", function () { wgrab = null; }, true);
+    /* ══ ⭐⭐ 0827z2 — **휠이 빠져 있었다** (소로 0827: 「상하 스크롤 안먹혀」)
+       ⚠ 「마우스로 상하 스크롤」은 끌기가 아니라 **휠**이다. 나는 끌기만 지었고
+         휠은 아무 데도 안 물려 있었다 — 굴려 봐야 아무 일도 없었다.
+       ⭐ 한 눈금에 4% — 열두어 번이면 끝에서 끝. 끌기와 같은 WY 를 민다.
+       ⚠ 편집 중에는 물러난다 — 그때 휠은 창 크기의 손이다. */
+    EGR_on(el, "wheel", function (e) {
+      if (!WALK || editing || !WK_EL) return;
+      e.preventDefault();
+      WY = Math.max(0, Math.min(100, WY + (e.deltaY > 0 ? 4 : -4)));
+      WK_EL.style.setProperty("--wy", WY + "%");
+    });
   }
   function walkEnd(quiet) {
     if (!WALK || !ROOT) return;
