@@ -335,6 +335,19 @@
         ⭐ 그리고 구경거리(구름·fps)를 비행과 **다른 try 로 갈랐다** —
           구름이 던져도 지면·고도·전진·방송·이륙문이 안 멈춘다
 
+   ⭐⭐⭐ 0827e — 소로 시승 둘째. 「7분까지 멈춰있더니 스르르 굴러감 · F·G 둘 다 안 먹음」
+     ⚠⚠ **그 7분이 코드에 적힌 360초다.** 0825L 이 「고장이 비행을 막아서는 안 된다」로
+       놓은 상한인데, 소로가 활주로에서 6분을 앉아 계셨다. 그리고 그동안 콘솔이 한 마디도
+       안 했다 — paHoldsRoll() 은 참·거짓만 낼 뿐 「누가」와 「왜」를 안 낸다.
+     ⭐⭐ 잣대를 바꿨다 — 「스탠바이가 길었나」가 아니라 **「조용해진 지 얼마나 됐나」**다.
+       방송이 차례로 흐르면 4분이 걸려도 기다리고, 말도 끝남도 없이 90초면 그냥 구른다.
+     ⭐ paWhyHold() 신설 — 30초마다 「무엇이 문을 붙드는가」를 ref 와 조건 이름으로 적는다
+     ⚠⚠ 그리고 F·G — **관리자 열쇠가 벽 각인에 묶여 있었다.** 한 응답이 둘을 나르는데
+       각인이 없으면 둘 다 버렸고, 787 에서는 각인이 애초에 화면에 안 선다(display:none).
+       그러니 조용히 물러나도 아무 신호가 없고, 유일한 티가 「F·G 가 안 먹는다」였다.
+       ⭐ 열쇠를 먼저 앉히고 · 못 받으면 말하고 · 눌렸는데 없으면 다시 받는다
+     ⭐⭐⭐ 오늘 같은 병을 **다섯 번** 만났다 — 조용히 죽는 길이 그만큼 있었다는 뜻이다
+
    ⚠ 캐시 꼬리표 — 이 파일을 고치면 부르는 쪽(terra.html)의 ?v= 도 함께 올린다
 
    창구
@@ -344,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0827d";
+  var VERSION = "0827e";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -2102,9 +2115,27 @@
                  ⭐⭐ 여섯 분이면 출발 방송 셋이 아무리 길어도 다 끝난다(실측 3분 55초).
                    그 뒤에도 안 끝났다면 그건 방송이 아니라 고장이고, **고장이 비행을
                    막아서는 안 된다.** 놓치면 그만이다(17호). */
+              /* ══ ⭐⭐⭐ 0827e 문 상한 개정 — 소로 0827 「7분까지 멈춰있더니」 ══════════
+                 ⚠⚠ 그 7분이 **여기 적힌 360초**다. 소로가 활주로에서 6분을 앉아 계셨다.
+                 ⚠⚠ 그리고 더 나쁜 것 — 6분 동안 **화면에도 콘솔에도 한 줄이 없었다.**
+                   무엇이 문을 붙들고 있는지 아무도 안 말했다. 오늘 세 번째 같은 병이다.
+                 ⭐⭐ 잣대를 바꾼다 — 「스탠바이가 얼마나 길었나」가 아니라
+                   **「아무 일도 안 일어난 채 얼마나 지났나」**다.
+                   방송이 차례로 흐르는 동안은 몇 분이 걸려도 기다린다(실측 3분 55초).
+                   말도 없고 끝남도 없이 90초가 지나면 그건 방송이 아니라 고장이다.
+                 ⭐ 그리고 30초마다 **왜 안 열리는지**를 콘솔이 말한다(0822e 관측 장치 문법). */
               var held = (now - HOLD_T) / 1000;
-              if (HOLD_T && held >= 360 && paHoldsRoll()) {
-                try { console.warn("[EG] ⚠ 방송이 6분을 넘겨 붙들고 있습니다 — 그냥 구릅니다"); } catch (e) { }
+              var idle = (now - (PA_MOVE || HOLD_T)) / 1000;
+              if (HOLD_T && paHoldsRoll() && now - PA_WHY > 30000) {
+                PA_WHY = now;
+                try {
+                  console.log("%c[EG] 스탠바이 " + Math.round(held) + "초 (조용해진 지 "
+                    + Math.round(idle) + "초) — 문을 붙드는 것: " + paWhyHold(), "color:#c9a84c");
+                } catch (e) { }
+              }
+              if (HOLD_T && idle >= 90 && paHoldsRoll()) {
+                try { console.warn("[EG] ⚠ 방송이 90초째 아무 말이 없습니다 — 그냥 구릅니다."
+                  + "\n     붙들던 것: " + paWhyHold()); } catch (e) { }
                 paHush();
                 for (var pi = 0; pi < PA_LIST.length; pi++) {
                   if ((PA_LIST[pi].cue || {}).before_roll) PA_DONE[PA_LIST[pi].ref] = true;
@@ -3875,6 +3906,9 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   var PA_NOW = null;                /* 지금 트는 중인 방송 */
   var PA_T = 0;                     /* 마지막 판정 시각 */
   var PA_DIM = false;               /* ⭐ 기내가 지금 소등인가 — **방송이 정한다** */
+  /* ⭐⭐ 0827e 진단용 — paWhyHold 가 읽는다. ⚠ 셈을 새로 하지 않는다.
+     paTick 이 이미 손에 쥔 값을 그대로 적어 둘 뿐이다(값을 두 곳에서 셈하지 않는다). */
+  var PA_PH = "", PA_MIN = 0, PA_MOVE = 0, PA_WHY = 0;
   var PA_ALT = 0;                   /* 지난 판정 때의 고도 — 통과(alt)를 재려면 둘이 필요하다 */
   var PA_SUN = 0;                   /* 지난 판정 때의 태양 고도 — 뜨는 중인지 재려면 둘이 필요하다 */
   var PA_SEEN = {};                 /* 무작위 방송이 이미 주사위를 굴렸나 */
@@ -3909,6 +3943,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⚠ 못 받아도 방은 그냥 선다. 방송이 없는 비행이 될 뿐이고, 그것이 못 뜨는 것보다 낫다. */
   function paLoad(code) {
     PA_LIST = []; PA_DONE = {}; PA_Q = []; PA_SEEN = {}; PA_NOW = null; PA_DIM = false;
+    PA_MOVE = 0; PA_WHY = 0; PA_PH = ""; PA_MIN = 0;   /* ⭐ 0827e — 진단값도 함께 씻는다 */
     var q1 = "/rest/v1/eg_flight_pa?select=ref,kind,voice_role,title,text_ko,cue"
            + "&active=eq.true&route=eq." + encodeURIComponent(code) + "&order=seq";
     var q2 = "/rest/v1/voice_takes?select=ref,url&scope=eq.pa&active=eq.true";
@@ -3974,6 +4009,8 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 
   /* ⭐ 1초에 한 번. 걸리는 것이 없으면 숫자 몇 개만 보고 나간다 */
   function paTick(now, ctx) {
+    /* ⭐ 0827e — 진단이 읽을 값. ⚠ 시간 그물보다 **위**다 — 나머지 초에도 최신이어야 한다 */
+    PA_PH = ctx.phase; PA_MIN = ctx.min;
     if (now - PA_T < 1000) return;
     PA_T = now;
     /* ⚠ 첫 판정에서는 고도를 **재기만** 한다. 지난 값이 없으면 통과를 잴 수 없고,
@@ -4033,6 +4070,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   var PA_DUCK = 0.4;
   function paPlay(e) {
     PA_NOW = e;
+    PA_MOVE = performance.now();      /* ⭐ 0827e — 무슨 일이 일어났다. 정체 셈이 여기서 0 이 된다 */
     paApply((e.cue || {}).sets);          /* ⭐ 조명은 방송과 함께 바뀐다 — 실물이 그렇다 */
     paSay(e);
     var fired = false;
@@ -4042,6 +4080,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       if (fired) return;
       fired = true;
       PA_NOW = null;
+      PA_MOVE = performance.now();    /* ⭐ 0827e — 끝난 것도 「일어난 일」이다 */
       /* ⚠ 0821k 수칙 — 켜는 줄을 지었으면 끄는 줄도 짝으로. 잡음은 제 손으로 멈춘다 */
       try { if (paHiss) { paHiss.stop(); paHiss = null; } } catch (x) { }
       /* ⭐⭐ 0825k 끝 챠임 — ⚠ 출발 방송 셋은 뺀다(소로 판정). 말이 끝나고 0.45초 뒤 */
@@ -4397,6 +4436,34 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
        영영 서 있는 것이 방송을 놓치는 것보다 나쁘다.
      ⚠ 방송이 안 구워졌으면 PA_LIST 에 없으니 물을 것이 없다 — 15초 그대로 간다. */
   var PA_LOAD_T = 0;                /* 싣기 시작한 시각 — 0 이면 안 부른 것 */
+  /* ══ ⭐⭐⭐ 0827e — **왜 문이 안 열리는가**를 한 줄로 답한다 ═══════════════════
+     ⚠⚠ 0827 소로 시승에서 6분을 서 있었는데 콘솔이 한 마디도 안 했다.
+       paHoldsRoll() 은 참·거짓만 낸다 — 「누가」와 「왜」를 안 낸다.
+     ⭐ 0822e 관측 장치와 같은 문법이다 — 짐작으로 고치지 않고, 그 순간의 셈을 적게 한다.
+     ⚠ 값싸다. 30초에 한 번, 그리고 상한이 물 때만 부른다. */
+  function paWhyHold() {
+    if (PA_LOAD_T && !PA_LIST.length) return "방송을 아직 못 실었습니다 (8초까지 기다립니다)";
+    if (!PA_LIST.length) return "실린 방송이 없습니다";
+    if (PA_NOW) return "지금 나가는 중: " + (PA_NOW.ref || "?")
+      + " — ⚠ 끝났다는 말이 안 오면 그물이 넘깁니다";
+    if (PA_Q.length) return "차례를 기다리는 것 " + PA_Q.length + "편";
+    var out = [];
+    for (var i = 0; i < PA_LIST.length; i++) {
+      var e = PA_LIST[i], c = e.cue || {};
+      if (!c.before_roll || PA_DONE[e.ref]) continue;
+      /* ⭐ 첫 번째로 걸리는 조건을 이름으로 낸다 — 표를 고칠 곳이 곧 이 이름이다 */
+      var why = "?";
+      if (c.phase && c.phase !== PA_PH) why = "phase " + c.phase + " ≠ " + PA_PH;
+      else if (c.min != null && PA_MIN < c.min) why = "min " + c.min + "분 (지금 " + PA_MIN.toFixed(1) + "분)";
+      else if (c.cabin === "dim" && !PA_DIM) why = "cabin dim 인데 지금 점등";
+      else if (c.cabin === "lit" && PA_DIM) why = "cabin lit 인데 지금 소등";
+      else if (c.leg != null) why = "leg " + c.leg;
+      else if (c.alt != null) why = "고도 통과 " + c.alt + "m";
+      else if (c.sun) why = "해 갈래";
+      out.push(e.ref + "(" + why + ")");
+    }
+    return out.length ? out.join(" · ") : "붙드는 것이 없습니다 — ⚠ 다른 곳입니다";
+  }
   function paHoldsRoll() {
     if (PA_LOAD_T && !PA_LIST.length) {
       /* 아직 안 실렸다 — 8초까지만 기다린다 */
@@ -5169,21 +5236,38 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     ENGEL.style.display = t ? "" : "none";
     if (ROOT) layout();
   }
+  /* ══ ⭐⭐⭐ 0827e — **열쇠를 각인에서 떼어낸다** (소로 0827: 「f키나 g키 둘 다 안먹어서」)
+     ⚠⚠ 옛 판은 한 응답이 둘을 날랐는데(닉네임·is_admin), **각인이 없으면 둘 다 버렸다.**
+       그리고 787 에서는 각인이 애초에 화면에 안 선다(display:none · CRAFT!=="jet").
+       그러니 이 손이 조용히 물러나도 **아무 신호가 없다** — 유일한 티가
+       「F·G 가 안 먹는다」였고, 소로가 그것을 보셨다.
+     ⚠⚠ 그리고 실패하는 길 셋 중 둘이 입을 닫고 있었다 —
+       ㉠ 슈파베이스 손이 아직 없다   ㉡ 로그인 정보가 없다   ㉢ 물음이 던졌다(이것만 말했다)
+     ⭐ 셋을 고친다 — ㉮ 열쇠를 먼저 앉힌다 ㉯ 못 받으면 말한다 ㉰ 다시 받을 문을 연다 */
+  var ENG_TRY = 0;
   function loadEngrave() {
-    var sb = egr_sb(); if (!sb || !sb.auth) return;
+    var sb = egr_sb();
+    if (!sb || !sb.auth) { console.log("[EG] 슈파베이스 손이 아직 없습니다 — 관리자 열쇠는 나중에"); return; }
+    ENG_TRY++;
     sb.auth.getUser().then(function (r) {
-      var u = r && r.data && r.data.user; if (!u) return null;
+      var u = r && r.data && r.data.user;
+      if (!u) { console.log("[EG] 로그인 정보가 없습니다 — 관리자 열쇠 없이 갑니다"); return null; }
       /* ⭐ is_admin 을 여기서 함께 받는다 — 요청이 안 는다 */
       return sb.from("users").select("nickname,created_at,is_admin").eq("id", u.id).maybeSingle()
         .then(function (x) { return x.data || null; });
     }).then(function (row) {
-      if (!ENGEL || !ROOT || !document.body.contains(ROOT)) return;   /* 늦게 온 응답 */
       if (!row) return;
+      /* ⭐⭐ 열쇠가 **먼저**다. 방이 걷혔든 각인이 없든 이 한 줄은 선다.
+         ⚠ 늦게 온 응답으로 방을 만지는 것과 열쇠를 쥐는 것은 다른 일이다. */
+      IS_ADMIN = !!row.is_admin;
+      if (IS_ADMIN) console.log("[EG] 관리자 열쇠 — F(계기) · G(구름) · E(편집기)가 열렸습니다");
+      if (!ENGEL || !ROOT || !document.body.contains(ROOT)) return;   /* 늦게 온 응답 */
       ENG_NICK = row.nickname || "";
       ENG_SINCE = row.created_at || "";
-      IS_ADMIN = !!row.is_admin;    /* ⭐ 0820h — 편집기 열쇠 */
       paintEngrave();
-    }).catch(function (e) { console.warn("[EG] 각인을 못 새겼습니다:", e); });
+    }).catch(function (e) {
+      console.warn("[EG] ⚠ 관리자 열쇠를 못 받았습니다:", e && e.message);
+    });
   }
 
   /* ⭐ 좌석 전환 — cruise 가 매 프레임 side 를 다시 읽으므로 비행은 안 끊긴다.
@@ -5286,6 +5370,15 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
               ? '\uad6c\ub984 ' + CL.length + '\ub5a8\uae30 \u00b7 ' + cloudCount() + '\ub369\uc774'
               : '\uad6c\ub984 \uaebc\uc9d0')
             + ' \u00b7 \ub204\ub974\uba74 \ub2e4\uc2dc \uc7ac\uae30</span>');
+  }
+  /* ══ ⭐⭐ 0827e — 열쇠가 없는데 눌렸으면 **한 번 더 받아 본다** ══════════════════
+     ⚠ 손님 화면에는 여전히 아무 일도 안 일어난다(49호). 콘솔에만 한 줄이다.
+     ⭐ 손님과 「열쇠를 아직 못 받은 관리자」는 화면에서 갈리지 않는다 —
+       그래서 갈라 주는 유일한 길이 이 한 줄이다. 두 번까지만 다시 받는다. */
+  function adminKey() {
+    if (IS_ADMIN || ENG_TRY >= 3) return;
+    console.log("[EG] 관리자 열쇠가 아직 없습니다 — 다시 받아 봅니다 (" + ENG_TRY + "번째)");
+    loadEngrave();
   }
   function toggleFps() {
     /* ⚠ 손님에게는 아무 일도 안 일어난다 — 49호 문법 그대로다 */
@@ -8233,11 +8326,11 @@ function paintBook() {
         PA_DIM = !PA_DIM; setTheme && setTheme();
         layout(); say("기내 " + (PA_DIM ? "소등" : "점등"));
       }
-      else if (k === "f") toggleFps();        /* ⭐ 0820i — 관리자만 */
+      else if (k === "f") { adminKey(); toggleFps(); }        /* ⭐ 0820i — 관리자만 */
       /* ⭐⭐ 0825p 구조 — Shift+H. ⚠ 콘솔을 못 여는 곳(폰·태블릿)에서도 되찾아야 한다.
          모니터를 화면 밖으로 밀어 놓으면 잡을 데가 없어지는데, 그때 이 키가 유일한 길이다. */
       else if (k === "h" && e.shiftKey) { monOutReset(); say("모니터를 제자리로"); }
-      else if (k === "g") toggleCloudPanel();  /* ⭐ 0820j — 관리자만 */
+      else if (k === "g") { adminKey(); toggleCloudPanel(); }  /* ⭐ 0820j — 관리자만 */
       /* ⭐⭐ 0825m 소리 조절판 — ⚠ 손님도 연다. 볼륨은 귀가 정하는 것이고
          소로 것과 손님 것이 다를 까닭이 없다(구름 조절판과 갈래가 다르다). */
       else if (k === "m") {
