@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0827z2";
+  var VERSION = "0828a";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -2018,11 +2018,15 @@
              우측면 view +90  · 좌측면 view −90   (기수에서 잰 각)
          ⚠ 새 겨눔 손을 안 짓는다. 겨누는 문은 여전히 이 함수 하나뿐이다(0821L).
          ⚠ 고갯짓(LOOK)은 갤리에서도 산다 — 창밖 보러 나간 사람이다. */
-      var GW = (WALK === 2) ? galleyWin() : null;
+      /* ⭐ 0828a — 갈래가 셋이 됐다. ⚠ 그래도 겨누는 문은 이 함수 하나뿐이다.
+           ① 갤리에 서 있다        그 면의 표값
+           ② 갤리 창으로 나와 있다  물려받은 방위(OUT_AIM) — 좌우만, 기울기는 골라 쓴다
+           ③ 그 밖                 좌석 창 */
+      var GW = (WALK === 2) ? galleyWin() : (OUT ? OUT_AIM : null);
       var look = Cesium.Math.toRadians(clampAng(
                    hd + (GW ? GW.view : side * SPEC.view) + LOOK.y) + 360);
       var pit = horizonDeg(Math.max(rel, 80))
-              + (GW ? GW.sky : (opt.sky || 6)) + LOOK.p;
+              + ((GW && (WALK === 2 || OUT_SKY)) ? GW.sky : (opt.sky || 6)) + LOOK.p;
       pit = Math.max(-88, Math.min(88, pit));
       viewer.camera.setView({
         destination: Cesium.Cartesian3.fromDegrees(lon, lat, alt),
@@ -2771,11 +2775,23 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      787 은 덮개가 없고 전자 조광창이라 실물은 **짙은 남빛으로 물드는 것**이다.
    ⭐ setTheme 이 이미 --dk-* 를 뿌리고 있으므로 새 셈을 안 짓는다 —
      조명 갈래 하나에 덮개 색 두 벌만 얹는다. 밤이면 저절로 어두워진다. */
-#readingRoom .shade{position:fixed;z-index:5;
+/* ══ ⚠⚠⚠ 0828a 진범 — **열린 덮개가 창 위에 그대로 서 있었다** (소로 0828) ══════
+     translateY(−101%) 는 덮개를 **제 높이만큼 위로** 올릴 뿐 화면 밖으로 안 보낸다.
+     창이 화면 한복판이니 덮개 넷은 창 바로 위에 늘 떠 있었고,
+     그것을 가려 주던 것은 오직 좌석 판(#plate z6) 한 장이었다.
+   ⚠ 그래서 판이 걷히거나 아직 안 실린 순간마다 넷이 드러났다 —
+     ① 첫 진입(판 그림이 오기 전 몇 백 밀리초) ② 통로·갤리(.walk 가 판을 걷는다)
+   ⭐ 처방 — **닫혀 있는 동안에만 존재한다.** 열린 덮개는 감출 물건이 아니라 없는 물건이다.
+     ⚠ visibility 를 transition 에 함께 실어 여닫는 0.75초를 살린다 —
+       닫을 때는 곧바로 보이고(0s), 열 때는 다 올라간 뒤에 사라진다(delay .75s).
+     ⭐ 판 뒤에 숨기는 것에 기대지 않으므로 판이 없는 곳에서도 안 샌다. */
+#readingRoom .shade{position:fixed;z-index:5;visibility:hidden;
   background:linear-gradient(var(--sh1,#d8cfc0),var(--sh2,#cdc3b2) 62%,var(--sh3,#c0b6a4));
   box-shadow:0 4px 12px rgba(0,0,0,.28) inset;
-  transform:translateY(-101%);transition:transform .75s cubic-bezier(.35,.9,.3,1)}
-#readingRoom.shut .shade{transform:translateY(0)}
+  transform:translateY(-101%);
+  transition:transform .75s cubic-bezier(.35,.9,.3,1),visibility 0s linear .75s}
+#readingRoom.shut .shade{transform:translateY(0);visibility:visible;
+  transition:transform .75s cubic-bezier(.35,.9,.3,1),visibility 0s linear 0s}
 #readingExit{position:fixed;right:18px;top:18px;z-index:14;width:38px;height:38px;
   border-radius:50%;cursor:pointer;pointer-events:auto;font-size:17px;line-height:1;
   background:radial-gradient(circle at 35% 30%,#3f3524,#241d12);
@@ -2989,7 +3005,10 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 #readingRoom .cesium-viewer-bottom.eg-plaque:hover .cesium-widget-credits{opacity:.95}
 /* 0819g — 좌석 전환·외부 보기·소리 */
 #readingRoom.flip #plate,#readingRoom.flip #plateB{transform:scaleX(-1)}   /* 그림만 거울 — 글은 안 뒤집는다 */
-#readingRoom.out #plate,#readingRoom.out #plateB,#readingRoom.out .shade{visibility:hidden}
+/* ⭐ 0828a — 손잡이도 덮개와 짝으로 걷는다. 덮개가 없는 곳에서 여닫는 손만 살아 있으면
+   눌러도 아무 일이 안 일어나는 유령이 된다(0817 딱지 · 통로 쪽과 같은 갈래로 고친다). */
+#readingRoom.out #plate,#readingRoom.out #plateB,#readingRoom.out .shade,
+#readingRoom.out #readingGrip{visibility:hidden}
 /* ══ 0821g — 기체 덜컹 (소로) ═══════════════════════════════════
    ⭐⭐ 판이 아니라 **방(ROOT) 통째**를 흔든다. 바늘·램프·계기판이 판 좌표에
      따로 서 있어서, 판만 흔들면 바늘이 계기에서 떠 붙박이로 남는다.
@@ -3184,7 +3203,12 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 #readingRoom.walk #egrInstr,#readingRoom.walk #egrLamps,#readingRoom.walk #egrBlink,
 #readingRoom.walk #egrEng,#readingRoom.walk #egrPA,#readingRoom.walk #egrRead,
 #readingRoom.walk #egrDish,#readingRoom.walk #egrDishSh,#readingRoom.walk #egrFps,
-#readingRoom.walk .egr-hood,#readingRoom.walk #egrGrip{display:none!important}
+#readingRoom.walk .egr-hood,#readingRoom.walk #egrGrip,
+/* ⭐ 0828a — 덮개와 그 손잡이도 좌석 세간이다. 통로에 서서 좌석 창을 여닫을 일이 없다.
+   ⚠ 손잡이(#readingGrip)는 투명 판이라 안 보이지만 손을 붙든다 — 0817 딱지 그것이다.
+   ⚠ 위 .shade 규칙이 이미 열린 덮개를 없애지만, **닫아 둔 채로 통로에 나간 판**은
+     이 줄이 잡는다. 그물 둘이 서로 다른 곳을 막는다. */
+#readingRoom.walk .shade,#readingRoom.walk #readingGrip{display:none!important}
 
 /* ⭐ 통로 판 — 방 전체를 덮는다. 좌석 판과 같은 곳에 같은 크기로 선다 */
 #egrWalk{position:absolute;inset:0;z-index:14;pointer-events:none;overflow:hidden;
@@ -5663,6 +5687,17 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   var WALK = 0;          /* 0 좌석 · 1 걷는 중 · 2 갤리 큐빅 */
   var WK_EL = null, WK_I = 0, WK_T = 0, WK_SIDE = "L", CUBE_I = 0, GO_EL = null;
   var WK_PRE = {};       /* 미리 받아 둔 판 */
+  /* ══ ⭐⭐ 0828a 갤리 창으로 나간 밖 보기 — **방향이 이어진다** (소로 0828) ═══════
+     ⚠ 지금까지는 창을 누르면 좌석으로 돌아간 뒤 밖으로 나갔으므로,
+       오른쪽 면 창을 보다 나가도 **좌석 창 방위**(왼창이면 왼쪽)로 홱 돌아갔다.
+       보던 하늘이 아닌 반대편이 열리니 「같은 창을 키운 것」으로 안 읽힌다.
+     ⭐ 눌린 그 면의 표값을 그릇에 담아 두고, 밖에 있는 동안 aimCam 이 그것을 쓴다.
+       ⚠ 겨누는 문은 여전히 aimCam 한 곳이다 — 새 겨눔 손을 안 짓는다(0821L).
+     ⚠ 기내로 돌아오면 씻는다. 안 씻으면 다음에 C 를 눌렀을 때 갤리 방위가 되살아난다.
+     ⭐ SKY 는 기본으로 **안 잇는다** — 갤리 창은 발밑을 보라고 아래로 기울인 값이라
+       (장거리 20호) 그대로 밖에 걸면 열두 시간 만에 나간 하늘이 땅이 된다.
+       ⚠ 판정은 화면이 한다 — egReading.outAim(true) 로 기운 판을 갈아 볼 수 있다. */
+  var OUT_AIM = null, OUT_SKY = false;
 
   function aisleSpec() { return (SPEC && SPEC.aisle) || null; }
   /* ⭐ 좌석이 어느 창인가 — 좌석 판의 side 를 그대로 쓴다(−1 왼창 · +1 오른창).
@@ -5730,6 +5765,10 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
        ⚠ 동전 두 개로 정한 그 작음이 여기서 밑밥이 된다 — 아쉬우니 누르게 된다. */
     EGR_on(WK_EL.querySelector(".cwin"), "click", function (e) {
       e.stopPropagation(); if (editing) return;
+      /* ⭐ 0828a — 걷기를 끝내기 **전에** 담는다. walkEnd 가 WALK 을 0 으로 내리면
+         galleyWin() 이 곧바로 null 이 되어 어느 면이었는지 물을 곳이 없어진다. */
+      var gw = galleyWin();
+      OUT_AIM = gw ? { view: gw.view, sky: gw.sky } : null;
       walkEnd(true);
       EGR_later(function () { if (!OUT) toggleOut(); }, 380);
     });
@@ -5895,6 +5934,9 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     if (!ROOT) return;
     OUT = !OUT;
     ROOT.classList.toggle("out", OUT);
+    /* ⚠ 0828a — 기내로 돌아오면 물려받은 방위를 씻는다. 안 씻으면 다음에 C 를 눌렀을 때
+       가 본 적도 없는 갤리 쪽 하늘이 열린다. 빌린 값은 돌려주고 나온다. */
+    if (!OUT) OUT_AIM = null;
     /* ⭐ 0821j — 밖은 제 시점을 갖는다. 고개를 돌린 채 나가면 밖도 비뚤어져 보인다.
        ⚠ 그리고 밖에서는 모니터가 왼쪽 아래 제 자리로 서므로 --peek 을 반드시 1 로 푼다 */
     lookReset();
@@ -9478,6 +9520,7 @@ function paintBook() {
     OUT = false; BARE = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
     /* ⭐ 0827t — 통로도 함께 씻는다. ⚠ 걷다 나가면 다음 탑승이 통로에서 시작된다 */
     WALK = 0; WK_EL = null; WK_I = 0; WK_T = 0; CUBE_I = 0; GO_EL = null; WK_PRE = {};
+    OUT_AIM = null;                  /* ⭐ 0828a — 빌린 방위도 함께 씻는다 */
     BODY = false; BODYWAS = false;   /* ⭐ 0821L — 다음 탑승은 조종석에서 시작한다 */
     ORB.yaw = ORB0.yaw; ORB.pit = ORB0.pit;
     INSEL = null; LAMPEL = null; BLKEL = null;   /* ⚠ 0821f — 방과 함께 걷힌다. 다음 탑승이 다시 세운다 */
@@ -9863,6 +9906,19 @@ function paintBook() {
                          if (sky != null) w.sky = sky;
                          console.log("[EG] " + k + " 겨눔 — 방위 " + w.view + "° · 기울기 " + w.sky + "°");
                          return w;
+                       },
+                       /* ⭐⭐ 0828a — 갤리 창으로 나간 밖 보기가 기울기까지 물려받을지.
+                          ⚠ 좌우 방위는 늘 물려받는다(그게 「같은 창을 키운 것」의 알맹이다).
+                            여기서 갈리는 것은 **아래로 기울인 각**뿐이다.
+                          ⭐ egReading.outAim()      지금 판
+                             egReading.outAim(true)  갤리처럼 발밑까지
+                             egReading.outAim(false) 하늘 눈높이(기본) */
+                       outAim: function (on) {
+                         if (arguments.length) OUT_SKY = !!on;
+                         console.log("[EG] 밖 보기 기울기 — "
+                           + (OUT_SKY ? "갤리 창 그대로(발밑)" : "좌석 밖 보기(하늘 눈높이)")
+                           + (OUT_AIM ? " · 물려받은 방위 " + OUT_AIM.view + "°" : " · 물려받은 방위 없음"));
+                         return OUT_SKY;
                        },
                        pa: function (q) {
                          if (!PA_LIST.length) {
