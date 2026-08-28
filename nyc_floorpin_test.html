@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>EG · 뉴욕 층 핀 시험판 — Empire State Building</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Widgets/widgets.css" rel="stylesheet" />
+
+<style>
+  html,body{ margin:0; padding:0; height:100%; background:#05070f; overflow:hidden;
+             font-family:'Helvetica Neue',Arial,'Apple SD Gothic Neo','Malgun Gothic',sans-serif; }
+  #cesiumContainer{ position:absolute; inset:0; }
+  .cesium-viewer-bottom, .cesium-widget-credits{ display:none !important; }
+
+  /* ── 조종간 ── terra 톤 승계: 남색 바탕 + 금박 실선 ── */
+  #panel{
+    position:absolute; left:16px; top:16px; z-index:20; width:246px;
+    background:rgba(10,14,26,.88); border:1px solid #c9a227; border-radius:12px;
+    padding:14px 14px 12px; color:#e8e6df; backdrop-filter:blur(6px);
+    box-shadow:0 8px 26px rgba(0,0,0,.5);
+  }
+  #panel h1{ margin:0 0 2px; font-size:13px; letter-spacing:.02em; font-weight:700; color:#f2e9cf; }
+  #panel .sub{ font-size:11px; color:#8d94a8; margin-bottom:12px; line-height:1.45; }
+  .grp{ margin-bottom:11px; }
+  .grp > .lab{ font-size:10px; color:#8d94a8; letter-spacing:.09em; margin-bottom:5px; text-transform:uppercase; }
+  .row{ display:flex; gap:5px; }
+  .row button{
+    flex:1; padding:6px 0; font-size:11px; font-weight:600; cursor:pointer;
+    background:rgba(255,255,255,.05); color:#c2c7d4;
+    border:1px solid rgba(201,162,39,.32); border-radius:7px; transition:.14s;
+    font-family:inherit;
+  }
+  .row button:hover{ background:rgba(201,162,39,.16); color:#f2e9cf; }
+  .row button.on{ background:#c9a227; color:#161006; border-color:#c9a227; }
+  .row button:focus-visible{ outline:2px solid #fff; outline-offset:1px; }
+  #readout{
+    margin-top:11px; padding-top:10px; border-top:1px solid rgba(201,162,39,.25);
+    font-size:10.5px; color:#8d94a8; line-height:1.62; white-space:pre-line;
+  }
+  #readout b{ color:#e8e6df; font-weight:600; }
+  #reset{ width:100%; margin-top:9px; padding:6px 0; font-size:11px; cursor:pointer;
+          background:transparent; color:#8d94a8; border:1px solid rgba(255,255,255,.14);
+          border-radius:7px; font-family:inherit; }
+  #reset:hover{ color:#f2e9cf; border-color:rgba(201,162,39,.5); }
+
+  #loader{
+    position:absolute; inset:0; z-index:40; display:grid; place-items:center;
+    background:#05070f; color:#c9a227; font-size:13px; letter-spacing:.06em;
+    transition:opacity .6s;
+  }
+  #loader.gone{ opacity:0; pointer-events:none; }
+  @media (prefers-reduced-motion: reduce){ #loader{ transition:none; } }
+</style>
+</head>
+<body>
+
+<div id="cesiumContainer"></div>
+
+<div id="panel">
+  <h1>Empire State Building</h1>
+  <div class="sub">102층 · 지붕 380.2m · 첨탑 443.2m<br>40.748817, −73.985428</div>
+
+  <div class="grp">
+    <div class="lab">핀 개수</div>
+    <div class="row" id="rowCount">
+      <button data-n="sparse" class="on">7개</button>
+      <button data-n="mid">21개</button>
+      <button data-n="all">102개</button>
+    </div>
+  </div>
+
+  <div class="grp">
+    <div class="lab">핀 위치</div>
+    <div class="row" id="rowPos">
+      <button data-p="0" class="on">중심</button>
+      <button data-p="35">벽면 +35m</button>
+    </div>
+  </div>
+
+  <div class="grp">
+    <div class="lab">건물 뒤 핀</div>
+    <div class="row" id="rowDepth">
+      <button data-d="thru" class="on">관통</button>
+      <button data-d="hide">가림</button>
+    </div>
+  </div>
+
+  <div id="readout">측정 중…</div>
+  <button id="reset">시점 되돌리기</button>
+</div>
+
+<div id="loader">뉴욕으로 갑니다…</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   EG · 뉴욕 층 핀 시험판 — 0828 밤
+   terra.html 의 핀 문법을 그대로 쓰되 세 번째 값(고도)만 얹었다.
+   묻는 것 셋:
+     ① 층마다 핀을 꽂으면 실제로 읽히는가
+     ② 중심에 꽂으면 벽에 묻히는가 · 밀어내면 간판이 되는가
+     ③ 관통(항상 보임)과 가림(뒤는 숨김) 중 어느 쪽이 도시다운가
+   ══════════════════════════════════════════════════════════════ */
+
+const GOOGLE_API_KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A";
+
+/* ⭐ 좌표는 Wikipedia/Wikidata 기준 6자리. 4자리는 미검증 어림값으로 의심한다(0625 수칙). */
+const ESB = { lat: 40.748817, lng: -73.985428 };
+const FLOORS   = 102;
+const ROOF_M   = 380.2;   // 지붕
+const TIP_M    = 443.2;   // 첨탑 끝
+const FLOOR_H  = ROOF_M / FLOORS;   // 3.727m — ⚠ 실제 층고는 균일하지 않다(로비가 높다). 시험판은 균일 가정.
+
+/* 이름이 붙은 층 — 실물 앵커. 값이 붙으면 층이 그냥 숫자가 아니게 된다. */
+const NAMED = { 1:"로비", 86:"86층 전망대", 102:"102층 전망대" };
+
+/* 카메라 — 남동쪽에서 북서쪽을 본다(5번가 쪽 얼굴이 보이는 각) */
+const CAM = { lng:-73.98150, lat:40.74450, alt:420, heading:325, pitch:-21 };
+
+let viewer, tileset, groundH = null;
+let state = { count:"sparse", offset:0, depth:"thru" };
+
+/* ── 좌표 밀어내기: 방위각 + 거리(m) → 새 위경도 ── */
+function offsetLL(lat, lng, bearingDeg, dist){
+  const R = 6378137, br = bearingDeg * Math.PI/180;
+  const dLat = (dist * Math.cos(br)) / R * 180/Math.PI;
+  const dLng = (dist * Math.sin(br)) / (R * Math.cos(lat*Math.PI/180)) * 180/Math.PI;
+  return { lat: lat + dLat, lng: lng + dLng };
+}
+
+/* ── 어느 층을 꽂나 ── */
+function floorList(mode){
+  if (mode === "sparse") return [1, 20, 40, 60, 80, 86, 102];
+  if (mode === "mid"){ const a=[1]; for(let f=5; f<=100; f+=5) a.push(f); a.push(102); return a; }
+  return Array.from({length:FLOORS}, (_,i)=> i+1);
+}
+
+async function init(){
+  viewer = new Cesium.Viewer("cesiumContainer", {
+    baseLayer:false, baseLayerPicker:false, geocoder:false, homeButton:false,
+    sceneModePicker:false, navigationHelpButton:false, animation:false,
+    timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false,
+    requestRenderMode:false
+  });
+
+  const s = viewer.scene;
+  s.globe.show = true;
+  s.globe.baseColor = Cesium.Color.fromCssColorString("#0a1326");
+  s.skyAtmosphere.show = true;
+  viewer.clock.clockStep = Cesium.ClockStep.SYSTEM_CLOCK;
+  viewer.clock.shouldAnimate = true;
+
+  /* 구글 3D 타일 — terra 0818 함정 승계: 문자열 인자 먼저, 객체는 뒷받침 */
+  try { tileset = await Cesium.createGooglePhotorealistic3DTileset(GOOGLE_API_KEY); }
+  catch(e){ tileset = await Cesium.createGooglePhotorealistic3DTileset({ key: GOOGLE_API_KEY }); }
+  s.primitives.add(tileset);
+
+  /* terra 0819 손 넷 — LOD 번쩍임 억제 */
+  try{
+    tileset.skipLevelOfDetail = false;
+    tileset.dynamicScreenSpaceError = true;
+    tileset.dynamicScreenSpaceErrorDensity = 0.00278;
+    tileset.cacheBytes = 1024*1024*1024;
+    tileset.preloadWhenHidden = true;
+  }catch(e){ console.warn("타일셋 옵션 일부 미적용:", e); }
+
+  flyHome(true);
+
+  /* ⭐ 바닥 높이는 짐작하지 않고 잰다.
+     건물 중심에 광선을 쏘면 지붕(380m)을 맞으므로, 둘레 90m 고리에서 재고
+     그중 가장 낮은 값을 길바닥으로 본다. 화면이 셈보다 앞선다. */
+  await measureGround();
+  drawPins();
+  document.getElementById("loader").classList.add("gone");
+}
+
+async function measureGround(){
+  const pts = [];
+  for (let b = 0; b < 360; b += 30){
+    const o = offsetLL(ESB.lat, ESB.lng, b, 90);
+    pts.push(Cesium.Cartesian3.fromDegrees(o.lng, o.lat));
+  }
+  try{
+    const hit = await viewer.scene.clampToHeightMostDetailed(pts);
+    const hs = hit.filter(Boolean)
+                  .map(c => Cesium.Cartographic.fromCartesian(c).height)
+                  .filter(h => Number.isFinite(h));
+    if (hs.length) groundH = Math.min(...hs);
+  }catch(e){ console.warn("바닥 측정 실패 — 0m로 둡니다:", e); }
+  if (groundH == null) groundH = 0;
+}
+
+function drawPins(){
+  viewer.entities.removeAll();
+
+  const thru  = state.depth === "thru";
+  const depth = thru ? Number.POSITIVE_INFINITY : 0;
+  const list  = floorList(state.count);
+  const dense = list.length > 30;
+
+  /* 밀어내기 방향 = 카메라 쪽(남동, 145°). 벽을 뚫고 나와 간판처럼 걸린다. */
+  const pos = state.offset > 0 ? offsetLL(ESB.lat, ESB.lng, 145, state.offset) : ESB;
+
+  for (const f of list){
+    const h    = groundH + f * FLOOR_H;
+    const name = NAMED[f];
+    const bg   = name ? "#c9a227" : "#1d2740";
+
+    viewer.entities.add({
+      id: "fl-" + f,
+      position: Cesium.Cartesian3.fromDegrees(pos.lng, pos.lat, h),
+      point: {
+        pixelSize: name ? 11 : (dense ? 5 : 8),
+        color: Cesium.Color.fromCssColorString(name ? "#f2e9cf" : "#7f8db0"),
+        outlineColor: Cesium.Color.fromCssColorString("#05070f"),
+        outlineWidth: 2,
+        disableDepthTestDistance: depth
+      },
+      label: {
+        /* 102개 판에서는 10층마다만 글씨를 준다 — 그래도 겹치는지가 이 시험의 답이다 */
+        text: (dense && !name && f % 10 !== 0) ? " "
+              : (name ? `${f}F · ${name}` : `${f}F`),
+        font: (name ? "bold 14px " : "bold 12px ") + "'Helvetica Neue',Arial,sans-serif",
+        fillColor: Cesium.Color.fromCssColorString(name ? "#161006" : "#ffffff"),
+        outlineColor: Cesium.Color.fromCssColorString("#0a0e1a"),
+        outlineWidth: name ? 0 : 3,
+        style: name ? Cesium.LabelStyle.FILL : Cesium.LabelStyle.FILL_AND_OUTLINE,
+        showBackground: true,
+        backgroundColor: Cesium.Color.fromCssColorString(bg).withAlpha(.95),
+        backgroundPadding: new Cesium.Cartesian2(9,5),
+        pixelOffset: new Cesium.Cartesian2(0,-11),
+        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+        disableDepthTestDistance: depth
+      }
+    });
+  }
+
+  /* 첨탑 끝 — 값의 상한을 눈으로 확인하는 표시 */
+  viewer.entities.add({
+    id: "tip",
+    position: Cesium.Cartesian3.fromDegrees(pos.lng, pos.lat, groundH + TIP_M),
+    point:{ pixelSize:7, color:Cesium.Color.fromCssColorString("#c9a227"),
+            outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
+            disableDepthTestDistance: depth }
+  });
+
+  report(list.length);
+}
+
+function report(n){
+  document.getElementById("readout").innerHTML =
+    `잰 바닥 <b>${groundH.toFixed(1)}m</b> · 층고 <b>${FLOOR_H.toFixed(2)}m</b>\n` +
+    `꽂힌 핀 <b>${n}개</b> (+ 첨탑 1)\n` +
+    `102층 = 바닥 + <b>${ROOF_M.toFixed(1)}m</b>\n` +
+    `1 Cell = 9슬롯 → 102층 ≈ <b>11 Cell · 300,300원</b>`;
+}
+
+function flyHome(instant){
+  const opt = {
+    destination: Cesium.Cartesian3.fromDegrees(CAM.lng, CAM.lat, CAM.alt),
+    orientation: {
+      heading: Cesium.Math.toRadians(CAM.heading),
+      pitch:   Cesium.Math.toRadians(CAM.pitch),
+      roll: 0
+    }
+  };
+  if (instant) viewer.camera.setView(opt); else viewer.camera.flyTo({ ...opt, duration:1.6 });
+}
+
+/* ── 조종간 ── */
+function wire(rowId, key, attr){
+  document.getElementById(rowId).addEventListener("click", e=>{
+    const b = e.target.closest("button"); if (!b) return;
+    [...e.currentTarget.children].forEach(x=> x.classList.remove("on"));
+    b.classList.add("on");
+    const v = b.dataset[attr];
+    state[key] = (key === "offset") ? Number(v) : v;
+    drawPins();
+  });
+}
+wire("rowCount","count","n");
+wire("rowPos","offset","p");
+wire("rowDepth","depth","d");
+document.getElementById("reset").addEventListener("click", ()=> flyHome(false));
+
+init().catch(e=>{
+  console.error("[EG] 시험판이 끝까지 가지 못했습니다:", e);
+  document.getElementById("loader").textContent = "지구를 못 띄웠습니다. 콘솔을 보세요.";
+});
+</script>
+</body>
+</html>
