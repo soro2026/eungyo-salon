@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0828a";
+  var VERSION = "0828d";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -406,9 +406,11 @@
      0818 하루에 같은 병을 두 번 겪었다(#vesperExit 낮 · 인장 둘 밤).
      stamp_press.js?v=0820a 는 도크·플래시를 document.body 직계로 붙이므로 마스크에 정통으로 걸린다. */
   /* ⚠⚠ 방 밖(body 직계)에 두는 물건은 **여기에만** 더한다. 손으로 선택자를 이어붙이면
-     반드시 하나를 빠뜨린다 — 0818 하루에 두 번 빠뜨렸다(31호 ㉢). 0820b 에 #readingHide 추가. */
-  var SAVEB = null;                /* ⭐ 0826i — × 밑 쌍둥이 저장 단추 */
-  var KEEP = ["#cesiumContainer", "#readingRoom", "#readingExit", "#readingSave", "#readingHide",
+     반드시 하나를 빠뜨린다 — 0818 하루에 두 번 빠뜨렸다(31호 ㉢).
+     ⚠ 0828d — #readingHide 를 걷으며 이 배열에서도 함께 뺐다. 넣을 때만 여기가 아니라 뺄 때도 여기다. */
+  /* ⭐ 0828b — 메뉴 판(#readingMenu)은 방 밖(body 직계)이라 여기에 더한다.
+     ⚠ 방(ROOT) 안에 두면 .out·.walk 가 세간을 걷을 때 함께 걷힌다 — 메뉴는 어디서든 열려야 한다. */
+  var KEEP = ["#cesiumContainer", "#readingRoom", "#readingExit", "#readingMenu",
               "#egStampDock", "#egStampFlash"];
 
   function EGR_later(fn, ms) { var t = setTimeout(fn, ms); TIMERS.push(t); return t; }
@@ -2018,15 +2020,14 @@
              우측면 view +90  · 좌측면 view −90   (기수에서 잰 각)
          ⚠ 새 겨눔 손을 안 짓는다. 겨누는 문은 여전히 이 함수 하나뿐이다(0821L).
          ⚠ 고갯짓(LOOK)은 갤리에서도 산다 — 창밖 보러 나간 사람이다. */
-      /* ⭐ 0828a — 갈래가 셋이 됐다. ⚠ 그래도 겨누는 문은 이 함수 하나뿐이다.
-           ① 갤리에 서 있다        그 면의 표값
-           ② 갤리 창으로 나와 있다  물려받은 방위(OUT_AIM) — 좌우만, 기울기는 골라 쓴다
-           ③ 그 밖                 좌석 창 */
-      var GW = (WALK === 2) ? galleyWin() : (OUT ? OUT_AIM : null);
+      /* ⭐⭐ 0828c — 갈래는 다시 둘이다. **갤리에 서 있는가**만 묻는다.
+         ⚠ 밖(C)으로 나가도 WALK 은 2 로 남으므로 이 한 줄이 밖에서도 그 면을 겨눈다 —
+           창밖이 넓어질 뿐 보던 방향은 그대로다. 다시 C 를 누르면 갤리로 돌아온다. */
+      var GW = (WALK === 2) ? galleyWin() : null;
       var look = Cesium.Math.toRadians(clampAng(
                    hd + (GW ? GW.view : side * SPEC.view) + LOOK.y) + 360);
       var pit = horizonDeg(Math.max(rel, 80))
-              + ((GW && (WALK === 2 || OUT_SKY)) ? GW.sky : (opt.sky || 6)) + LOOK.p;
+              + (GW ? GW.sky : (opt.sky || 6)) + LOOK.p;
       pit = Math.max(-88, Math.min(88, pit));
       viewer.camera.setView({
         destination: Cesium.Cartesian3.fromDegrees(lon, lat, alt),
@@ -2794,18 +2795,66 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   transition:transform .75s cubic-bezier(.35,.9,.3,1),visibility 0s linear 0s}
 #readingExit{position:fixed;right:18px;top:18px;z-index:14;width:38px;height:38px;
   border-radius:50%;cursor:pointer;pointer-events:auto;font-size:17px;line-height:1;
+  display:flex;align-items:center;justify-content:center;
   background:radial-gradient(circle at 35% 30%,#3f3524,#241d12);
   border:1px solid #43371f;color:#c9b586;
   box-shadow:inset 0 2px 5px rgba(0,0,0,.6),0 1px 0 rgba(255,244,210,.35)}
 #readingExit:hover{border-color:#d9bd7e;color:#f0dfb4}
-/* ⭐ 0826i — × 의 쌍둥이. 같은 크기·같은 모양이 바로 밑에 선다 */
-#readingSave{position:fixed;right:18px;top:64px;z-index:14;width:38px;height:38px;
-  border-radius:50%;cursor:pointer;pointer-events:auto;line-height:1;
-  font:700 15px 'Noto Serif KR',serif;
+#readingExit svg{display:block;fill:currentColor}
+/* ⭐ 열려 있는 동안 단추가 켜져 있다 — 무엇이 열렸는지 화면이 말한다 */
+#readingExit.on{border-color:#d9bd7e;color:#ffe6a8}
+/* ══ ⭐⭐ 0828b 메뉴 판 — 점 세 개 바로 아래로 아이콘 넷 ═══════════════════════
+   ⚠ 방 밖(body 직계)이라 pointer-events 를 스스로 켠다(#readingRoom 이 none 인 것과 무관).
+   ⭐ 닫힘은 없는 물건이다 — visibility 로 걷어 안 보이는 손이 안 남게 한다(0817 딱지). */
+#readingMenu{position:fixed;right:18px;top:62px;z-index:15;
+  display:flex;flex-direction:column;gap:8px;
+  opacity:0;visibility:hidden;transform:translateY(-6px);pointer-events:none;
+  transition:opacity .18s ease,transform .18s ease,visibility 0s linear .18s}
+#readingMenu.on{opacity:1;visibility:visible;transform:translateY(0);pointer-events:auto;
+  transition:opacity .18s ease,transform .18s ease,visibility 0s}
+#readingMenu .mi{position:relative;width:38px;height:38px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
   background:radial-gradient(circle at 35% 30%,#3f3524,#241d12);
   border:1px solid #43371f;color:#c9b586;
   box-shadow:inset 0 2px 5px rgba(0,0,0,.6),0 1px 0 rgba(255,244,210,.35)}
-#readingSave:hover{border-color:#d9bd7e;color:#f0dfb4}
+#readingMenu .mi:hover{border-color:#d9bd7e;color:#f0dfb4}
+#readingMenu .mi svg{display:block;width:19px;height:19px;fill:currentColor;overflow:visible}
+#readingMenu .mi svg .ln{fill:none;stroke:currentColor;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round}
+#readingMenu .mi svg .dsk{fill:rgba(243,197,24,.22)}
+#readingMenu .mi svg .arr{fill:none;stroke:currentColor;stroke-width:1.9;
+  stroke-linecap:round;stroke-linejoin:round}
+#readingMenu .mi:hover svg .dsk{fill:#f3c518}
+/* ⭐ 말풍선 — #egrGo 와 같은 문법. 왼쪽으로 뻗는다(오른 가장자리에 붙어 있으므로) */
+#readingMenu .mi::after{content:attr(data-tip);position:absolute;right:46px;top:50%;
+  transform:translateY(-50%);white-space:nowrap;pointer-events:none;
+  font:600 11.5px/1 'Noto Sans KR',sans-serif;letter-spacing:.02em;
+  color:rgba(232,228,216,0);transition:color .2s;
+  padding:6px 10px;border-radius:7px;background:rgba(10,14,20,0)}
+#readingMenu .mi:hover::after{color:rgba(240,235,224,.92);background:rgba(10,14,20,.72)}
+/* ══ ⭐ 안내판 — 읽는 판이다. 묻지 않는다 ═══════════════════════════════════ */
+#egrGuide{position:absolute;inset:0;z-index:22;display:none;
+  align-items:center;justify-content:center;background:rgba(6,9,14,.52);pointer-events:auto}
+#egrGuide.on{display:flex}
+#egrGuide .card{max-width:min(440px,86vw);padding:26px 30px 20px;border-radius:14px;
+  background:linear-gradient(#221b12,#191309);border:1px solid #4a3d24;
+  box-shadow:0 18px 44px rgba(0,0,0,.6);color:#e8dcc2}
+#egrGuide .card b{display:block;font:700 19px 'Noto Serif KR',serif;color:#f0dfb4;
+  margin-bottom:14px;letter-spacing:.01em}
+#egrGuide .bd{font:400 14.5px/1.85 'Noto Sans KR',sans-serif;color:#d6cab0}
+#egrGuide .bd p{margin:0}
+#egrGuide .kt{display:flex;flex-direction:column;gap:9px}
+#egrGuide .kt>div{display:flex;align-items:center;gap:13px}
+#egrGuide .kt kbd{flex:0 0 auto;min-width:30px;text-align:center;padding:5px 8px;
+  border-radius:6px;background:#2e2617;border:1px solid #55462a;
+  box-shadow:0 2px 0 #17110a;color:#f0dfb4;
+  font:600 13px/1 'Noto Sans KR',sans-serif}
+#egrGuide .cl{display:block;margin:20px 0 0 auto;padding:8px 18px;border-radius:8px;
+  cursor:pointer;background:#3f3524;border:1px solid #59492f;color:#f0dfb4;
+  font:600 13.5px 'Noto Sans KR',sans-serif}
+#egrGuide .cl:hover{border-color:#c9a961}
+/* ⚠ 0828b — 저장 단추(#readingSave) 규칙을 걷었다. 안 만드는 물건의 옷을 남기면
+   다음 사람이 그 물건을 찾아다닌다. 저장은 메뉴 첫 칸이다. */
 /* ⭐ 0826i — 켜지면 단추 글자만 밝아진다. ⚠ 테두리를 돌리거나 반짝이지 않는다(17호) */
 #egrHead #egrRead.on{color:#ffe6a8;text-shadow:0 0 9px rgba(255,214,128,.75)}
 /* ⭐⭐ 0826i 독서등 — 장거리 16호: 「원판을 안 늘린다. 어두움판 위에 좌석 둘레만
@@ -3183,16 +3232,22 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
    ⚠ 걷는 것이지 잃는 것이 아니다 — B 를 다시 누르면 그 자리에 그대로 있다.
    ⚠ 계기판·지도판은 안 걷는다(47호 — 밖에서도 곁에 있다). 가리면 V 로 걷는다. */
 #readingRoom.bodyview #egrDesk{display:none}
+/* ⚠ 0828d — 기체 감상(B)에서 좌·우 좌석 화살표를 걷는다 (소로 0828 · 화면 실측).
+   ⭐ 밖에서 기체를 보는 중인데 「왼쪽 창 · 오른쪽 창」이 떠 있으면 눌러도 화면이 안 바뀐다 —
+     안 바뀌는 것이 아니라 **지금 보고 있는 것과 상관이 없다.**
+   ⚠ .out(C · 창밖 전체 보기)에는 안 건다 — 거기서는 좌석을 바꾸면 반대편 하늘이 열린다.
+     같은 화살표라도 한쪽에서는 일을 하고 한쪽에서는 안 한다. 상태로 가른다. */
+#readingRoom.bodyview .readingSeat{display:none}
 #readingRoom.edit #egrEng{pointer-events:auto;cursor:move;
   outline:1px dashed rgba(255,255,255,.4);outline-offset:6px}
 /* ⭐ 감추기 — 밖에서만 나타난다. 누르면 판 둘이 함께 걷히고 창밖만 남는다(0820 소로) */
-#readingHide{position:fixed;right:22px;top:74px;z-index:26;display:none;
-  width:38px;height:38px;border-radius:10px;cursor:pointer;line-height:1;
-  border:1px solid rgba(255,255,255,.22);background:rgba(12,16,24,.5);
-  color:rgba(255,255,255,.82);font:400 17px/1 Tahoma,sans-serif;
-  backdrop-filter:blur(4px);align-items:center;justify-content:center}
-#readingRoom.out ~ #readingHide,#readingHide.on{display:flex}
-#readingHide:hover{border-color:rgba(255,255,255,.5);color:#fff}
+/* ══ ⚠⚠ 0828d — 눈 단추(#readingHide)를 걷었다 (소로 0828 · 화면 실측) ═══════════
+     > 「S 마크 아래에 V 를 마우스로 찍을 수 있는(모니터 가림) 아이콘이 있어. 없애줘요」
+   ⚠ 저장 단추(top 64)와 눈 단추(top 74)가 **10px 차이로 포개져** 있었다.
+     어제 저장을 메뉴로 들이면서 겹침은 풀렸지만, 남은 하나도 중복이었다 —
+     V 는 이미 키에 있고, 그 키는 이제 메뉴의 단축키 안내가 말해 준다.
+   ⭐ 되돌릴 문이 사라지는가? 아니다. 둘이 남는다 — V 키, 그리고 메뉴(판을 감춰도
+     #readingExit 는 body 직계라 안 걷힌다). ⚠ 문이 하나도 없을 때만 단추가 필요하다. */
 #readingRoom.bare #egrMon,#readingRoom.bare #egrDesk,
 #readingRoom.bare .readingSeat{display:none}
 
@@ -3210,10 +3265,33 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      이 줄이 잡는다. 그물 둘이 서로 다른 곳을 막는다. */
 #readingRoom.walk .shade,#readingRoom.walk #readingGrip{display:none!important}
 
-/* ⭐ 통로 판 — 방 전체를 덮는다. 좌석 판과 같은 곳에 같은 크기로 선다 */
+/* ══ ⭐⭐⭐ 0828c 배경 비침 (소로 0828 시승 ②) ═══════════════════════════════
+     > 「통로 이동 중 화면 전환 시 배경에 구글 타일 비행 중인 모습 계속 비침」
+   ⚠⚠ 진범은 **투명한 판 둘이 겹쳐 녹는 동안 합쳐도 불투명이 안 된다**는 것이었다.
+     ㉠ 들어갈 때  .walk 이 좌석 판을 그 자리에서 걷는데(display:none) 통로 판은
+        0.45초에 걸쳐 떠오른다 — 그 사이 아래에 Cesium 말고는 아무것도 없다
+     ㉡ 면을 돌 때  두 겹이 0.8초 크로스페이드 — 한쪽 0.5 · 다른 쪽 0.5 는
+        겹쳐도 1 이 아니다. 그 틈으로 지구가 비친다
+   ⭐ 처방은 **바닥 한 장**이다. 판 뒤에 불투명 검정을 깔면 둘 다 사라진다 —
+     녹는 것은 그림이고, 바닥은 안 녹는다.
+   ⭐ 그리고 떠오르는 시간을 .45 → .18 로 줄였다. 바닥이 생긴 뒤로는 길 까닭이 없다.
+     ⚠ 0 으로 안 만든다 — 좌석에서 일어서는 순간이 툭 튀면 그것도 전환이 아니다. */
 #egrWalk{position:absolute;inset:0;z-index:14;pointer-events:none;overflow:hidden;
-  opacity:0;transition:opacity .45s ease}
+  background:#0a0d12;
+  opacity:0;transition:opacity .18s ease}
 #readingRoom.walk #egrWalk{opacity:1;pointer-events:auto}
+/* ══ ⭐⭐ 0828c 갤리에서 C — **갤리 판만 걷힌다** (소로 0828 시승 ③) ═══════════
+     > 「창 밖으로 나갔다가 다시 갤리로 돌아갈 방법이 없어서」
+   ⭐ 좌석에서 C 를 누르면 기내 판이 걷히고 창밖이 열린다. 갤리도 **같은 문법**이다 —
+     WALK 은 2 로 남고 판만 걷힌다. 다시 C 를 누르면 갤리가 돌아온다.
+   ⚠ 새 상태를 안 만든다. 「갤리에서 밖을 보는 상태」라는 것을 따로 두면
+     돌아오는 길도 따로 지어야 한다. out 과 walk 이 겹쳐 서면 그만이다. */
+   ⭐ 그리고 **B 도 저절로 함께 산다**(소로 0828 물음). toggleBody 가 켜질 때 OUT 을
+     강제로 켜고 끌 때 원래대로 되돌리므로, 갤리에서 B → 기체 감상 → B → 갤리다.
+     ⚠ 「갤리에서는 B 를 막는다」는 갈래를 안 골랐다 — 막으면 여기서만 안 듣는 키가
+       하나 생기고, 그 예외를 아는 사람은 지은 사람뿐이다.
+     ⭐ 손이 하나면 왕복이 저절로 성립한다. 오늘 창 클릭을 걷으며 얻은 그 줄이 여기도 선다. */
+#readingRoom.out #egrWalk{opacity:0;pointer-events:none}
 /* ══ ⚠⚠⚠ 0827z 진범 — **좌석 판을 안 걷었다** (소로 0827: 「창 밖이 기내야 ㅋㅋ」)
      겹 차례가 이랬다 — Cesium(바닥) · #plate 6 · #plateB 7 · #egrWalk 14.
      통로 판은 좌석 판을 **덮었을 뿐** 걷어내지 않았고, 갤리 창에 뚫린 구멍으로
@@ -3267,9 +3345,12 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 
 /* ⭐⭐ 갤리 큐빅의 진짜 창 — 판에 알파로 뚫려 있는 그 구멍 뒤로 Cesium 이 보인다.
    ⚠ 판이 z-index 로 위에 있고, 뚫린 곳으로 아래가 비친다. 따로 오려낼 것이 없다. */
-#egrWalk .cwin{position:absolute;z-index:2;pointer-events:auto;cursor:pointer;border-radius:14px}
+/* ⚠ 0828c — 창은 **편집기 전용**이다. 손도 안 받고 손가락 모양도 안 바뀐다.
+   ⭐ 누를 수 있어 보이는데 아무 일도 안 나는 것이 가장 나쁘다 — 아예 없는 것보다 나쁘다. */
+#egrWalk .cwin{position:absolute;z-index:2;pointer-events:none;border-radius:14px}
 /* ⭐ 편집 중에만 테두리가 보인다 — 뚫린 구멍은 눈에 안 보이므로 맞출 길이 없다(0827u) */
 #readingRoom.edit #egrWalk .cwin{outline:1px dashed rgba(201,168,106,.85);cursor:move;
+  pointer-events:auto;   /* ⭐ 0828c — 손님에겐 없는 손이지만 편집기는 끌어야 한다 */
   background:rgba(201,168,76,.10)}
 #readingRoom.edit #egrGo{outline:1px dashed rgba(201,168,106,.85);cursor:move;opacity:1}
 #readingRoom.edit #egrWalk .arw,#readingRoom.edit #egrBack{opacity:.25}
@@ -3708,26 +3789,24 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     document.body.appendChild(ROOT);
     EXIT = document.createElement("button");
     EXIT.id = "readingExit"; EXIT.type = "button";
-    EXIT.textContent = "×"; EXIT.title = "내리기";
+    /* ══ ⭐⭐⭐ 0828b 메뉴 — × 를 점 세 개로 (소로 0828) ═══════════════════════════
+       ⚠⚠ **id 를 안 바꾼다.** #readingExit 는 KEEP 배열·끌기 예외 두 곳(9124·9169)·
+         CSS 에 박혀 있다. 이름을 바꾸면 그 셋을 손으로 이어야 하고 반드시 하나를 빠뜨린다
+         (31호 ㉢ · 0818 에 두 번 겪은 그 병). ⭐ **바뀐 것은 겉모습과 손이지 그 자리가 아니다.**
+       ⭐ 그리고 × 가 하던 일(내리기)은 사라지지 않았다 — 메뉴 둘째 칸으로 들어갔다.
+       ⚠ 원판을 안 굽는다(0827w 문법) — SVG 라 용량 0 이고 격납고 칸도 안 는다. */
+    EXIT.innerHTML =
+      '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">'
+      + '<circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>';
+    EXIT.title = "메뉴";
     document.body.appendChild(EXIT);
-    /* ⚠ 0823b — 바로 안 나간다. 「여기까지 비행을 저장하시겠습니까?」를 먼저 묻는다 */
-    EGR_on(EXIT, "click", function () { askLeave(); });
-    /* ⭐⭐ 0826i 저장 — × 밑에 쌍둥이로 선다(소로 0826).
-       ⚠ 방 밖(body 직계) 물건이라 KEEP 에 반드시 더한다 — 0818 에 두 번 빠뜨린 그것.
-       ⚠⚠ **S 키를 안 건다.** S 는 이미 창 덮개다(7534행). 글자만 빌린다 —
-         글자가 같다고 키까지 같아야 할 까닭은 없고, 같게 두면 덮개가 내려온다. */
-    SAVEB = document.createElement("button");
-    SAVEB.id = "readingSave"; SAVEB.type = "button";
-    SAVEB.textContent = "S"; SAVEB.title = "여기까지 비행을 저장";
-    document.body.appendChild(SAVEB);
-    EGR_on(SAVEB, "click", saveNow);
-    /* ⭐ 감추기 (0820 소로) — 「밖에서 창밖만 보고 싶을 때」.
-       ⚠ 방 밖(body 직계) 물건이라 KEEP 에 반드시 더한다 — 0818 에 두 번 빠뜨린 그것(31호 ㉢) */
-    HIDE = document.createElement("button");
-    HIDE.id = "readingHide"; HIDE.type = "button";
-    HIDE.innerHTML = "&#128065;"; HIDE.title = "판 감추기 (V)";
-    document.body.appendChild(HIDE);
-    EGR_on(HIDE, "click", function () { toggleBare(); });
+    EGR_on(EXIT, "click", function (e) { e.stopPropagation(); menuToggle(); });
+    menuBuild();
+    /* ⚠⚠ 0828b — 저장 단추(#readingSave)를 걷었다. **메뉴 첫 칸으로 들어갔다.**
+       ⭐ 같은 손을 두 곳에 두지 않는다 — 화면 가장자리에 단추 둘이 세로로 서 있던 것이
+         점 세 개 하나로 준다. 저장하는 손(saveNow)은 그대로다.
+       ⚠ KEEP 에서도 함께 뺐다 — 안 만드는 물건을 남길 곳에 적어 두면 다음 사람이 찾는다. */
+    /* ⚠ 0828d — 감추기 단추를 걷었다. 감추는 손(toggleBare)은 그대로다 — V 키가 부른다 */
     /* 0819g — 좌·우 창 화살표. 방 밖 물건이 아니라 방(ROOT) 안이다 — KEEP 을 안 늘린다 */
     var sL = document.createElement("button");
     sL.id = "readingSeatL"; sL.className = "readingSeat"; sL.type = "button";
@@ -3796,7 +3875,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   var panY = 0, panMin = 0, panMax = 0;
   var cvW = 0, cvH = 0;            /* 캔버스 마지막 크기 — 같으면 resize 를 안 부른다 */
   var OUT = false;                 /* 0819g — 외부 보기. 왕복 하나, 별도 갈래가 아니다(0호) */
-  var BARE = false, HIDE = null;   /* 0820b — 밖에서 판 둘을 함께 걷는다 */
+  var BARE = false;                /* 0820b — 밖에서 판 둘을 함께 걷는다 (V) */
   var SHUT = false;                /* 0819P — 창 덮개. 24호 · 손님이 여닫는다 */
   var PAUSED = false;              /* 0819T — 일시정지. cruise 루프가 이 값을 본다 */
 
@@ -5658,6 +5737,99 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   /* ⭐ 좌석 전환 — cruise 가 매 프레임 side 를 다시 읽으므로 비행은 안 끊긴다.
      ⚠ 짧은 암전으로 덮는다. 창밖 방위가 180° 도는 순간을 맨눈에 보이면 어지럽다. */
   var swapping = false;
+  /* ══ ⭐⭐⭐ 0828b 메뉴 (소로 0828) ═══════════════════════════════════════════
+     ⭐ 점 세 개 아래로 아이콘 넷이 선다. 글자를 안 적는다 — 손을 올리면 이름이 온다.
+       ⚠ 말풍선은 #egrGo·#readingGrip 과 **같은 문법**이다(data-tip + ::after). 새 얼개를 안 짓는다.
+     ⚠ 아이콘 고르기 — 뜻이 곧바로 읽히는 물건 하나씩.
+       ㉠ 저장   책갈피   ⭐ 「여기까지」가 그대로 그림이다. 읽던 곳에 끼우는 물건
+       ㉡ 종료   문      ⚠ × 가 아니다. 내리는 것이지 닫는 것이 아니다
+       ㉢ 단축키 키캡
+       ㉣ 통로   원반+화살표  ⭐ 화면의 그 마크와 **같은 그림**이라 「저것」이 바로 읽힌다
+     ⚠ 메뉴가 열려 있는 동안 바깥을 누르면 닫힌다 — 닫는 문을 안 만들면 갇힌다. */
+  var MENU = null, MENU_ON = false;
+
+  function menuBuild() {
+    if (MENU) return;
+    MENU = document.createElement("div");
+    MENU.id = "readingMenu";
+    MENU.innerHTML =
+      '<button type="button" class="mi" data-go="save" data-tip="현재 비행 저장하기">'
+      + '<svg viewBox="0 0 24 24" aria-hidden="true">'
+      + '<path d="M7 3h10a1 1 0 0 1 1 1v17l-6-4-6 4V4a1 1 0 0 1 1-1z"/></svg></button>'
+      + '<button type="button" class="mi" data-go="exit" data-tip="비행 종료">'
+      + '<svg viewBox="0 0 24 24" aria-hidden="true">'
+      + '<path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h8" class="ln"/>'
+      + '<path d="M11 12h10M17.5 8l4 4-4 4" class="ln"/></svg></button>'
+      + '<button type="button" class="mi" data-go="keys" data-tip="단축키 안내">'
+      + '<svg viewBox="0 0 24 24" aria-hidden="true">'
+      + '<rect x="2.5" y="6" width="19" height="12" rx="2.5" class="ln"/>'
+      + '<path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M8 14h8" class="ln"/></svg></button>'
+      + '<button type="button" class="mi" data-go="aisle" data-tip="통로 나가기 안내">'
+      + '<svg viewBox="0 0 24 24" aria-hidden="true">'
+      + '<circle cx="12" cy="12" r="10" class="dsk"/>'
+      + '<path d="M7 12h8M12.5 8.5 16 12l-3.5 3.5" class="arr"/></svg></button>';
+    document.body.appendChild(MENU);
+    EGR_on(MENU, "click", function (e) {
+      var b = e.target.closest(".mi"); if (!b) return;
+      e.stopPropagation();
+      var go = b.getAttribute("data-go");
+      menuToggle(false);
+      if (go === "save") saveNow();
+      else if (go === "exit") askLeave();
+      else if (go === "keys") guideKeys();
+      else if (go === "aisle") guideAisle();
+    });
+    /* ⚠ 바깥을 누르면 닫힌다. ⭐ 메뉴 단추 자신은 제 손(menuToggle)이 이미 있으므로 뺀다 */
+    EGR_on(document, "click", function (e) {
+      if (!MENU_ON) return;
+      if (e.target.closest("#readingMenu,#readingExit")) return;
+      menuToggle(false);
+    });
+  }
+  function menuToggle(on) {
+    if (!MENU) return;
+    MENU_ON = (arguments.length && on !== undefined) ? !!on : !MENU_ON;
+    MENU.classList.toggle("on", MENU_ON);
+    if (EXIT) EXIT.classList.toggle("on", MENU_ON);
+  }
+
+  /* ══ ⭐ 안내 두 장 — 물음판(ask)을 안 쓴다 ═══════════════════════════════════
+     ⚠ ask 는 「묻고 고르는」 판이라 단추 행이 딸려 온다. 안내는 묻는 것이 아니라 **읽는 것**이다.
+     ⭐ 닫는 손 하나만 둔다. 아무것도 안 고르고 나가는 것이 기본이다. */
+  function guideShow(title, html) {
+    if (!ROOT) return;
+    var g = ROOT.querySelector("#egrGuide");
+    if (!g) {
+      g = document.createElement("div"); g.id = "egrGuide";
+      g.innerHTML = '<div class="card"><b></b><div class="bd"></div>'
+        + '<button type="button" class="cl">닫기</button></div>';
+      ROOT.appendChild(g);
+      g.addEventListener("click", function (e) {
+        if (e.target.closest(".cl") || e.target === g) g.classList.remove("on");
+      });
+    }
+    g.querySelector("b").textContent = title;
+    g.querySelector(".bd").innerHTML = html;
+    g.classList.add("on");
+  }
+  function guideKeys() {
+    guideShow("단축키 안내",
+      '<div class="kt">'
+      + '<div><kbd>S</kbd><span>창 열고 닫기</span></div>'
+      + '<div><kbd>V</kbd><span>동체 밖에서 모니터 켜기, 끄기</span></div>'
+      + '<div><kbd>B</kbd><span>동체 밖에서 비행 감상</span></div>'
+      + '<div><kbd>C</kbd><span>창밖 풍경 전체 보기</span></div>'
+      + '<div><kbd>&#8594;</kbd><span>오른쪽 창가 좌석으로 이동</span></div>'
+      + '<div><kbd>&#8592;</kbd><span>왼쪽 창가 좌석으로 이동</span></div>'
+      + '</div>');
+  }
+  function guideAisle() {
+    guideShow("통로 나가기 안내",
+      '<p>이륙 후, 화면 아래쪽에 연한 노랑 화살표가 보이면 클릭!<br>'
+      + '20초 동안 통로를 지나, 갤리에 도착합니다.<br>'
+      + '체조하고 몸을 풀어보세요.</p>');
+  }
+
   function swapSeat(next) {
     if (!SPEC.seats) return;       /* ⭐ 0821b — 정면 기체는 좌석이 하나다. ←→ 가 조용히 물러난다 */
     if (!ROOT || swapping || side === next) return;
@@ -5687,17 +5859,10 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   var WALK = 0;          /* 0 좌석 · 1 걷는 중 · 2 갤리 큐빅 */
   var WK_EL = null, WK_I = 0, WK_T = 0, WK_SIDE = "L", CUBE_I = 0, GO_EL = null;
   var WK_PRE = {};       /* 미리 받아 둔 판 */
-  /* ══ ⭐⭐ 0828a 갤리 창으로 나간 밖 보기 — **방향이 이어진다** (소로 0828) ═══════
-     ⚠ 지금까지는 창을 누르면 좌석으로 돌아간 뒤 밖으로 나갔으므로,
-       오른쪽 면 창을 보다 나가도 **좌석 창 방위**(왼창이면 왼쪽)로 홱 돌아갔다.
-       보던 하늘이 아닌 반대편이 열리니 「같은 창을 키운 것」으로 안 읽힌다.
-     ⭐ 눌린 그 면의 표값을 그릇에 담아 두고, 밖에 있는 동안 aimCam 이 그것을 쓴다.
-       ⚠ 겨누는 문은 여전히 aimCam 한 곳이다 — 새 겨눔 손을 안 짓는다(0821L).
-     ⚠ 기내로 돌아오면 씻는다. 안 씻으면 다음에 C 를 눌렀을 때 갤리 방위가 되살아난다.
-     ⭐ SKY 는 기본으로 **안 잇는다** — 갤리 창은 발밑을 보라고 아래로 기울인 값이라
-       (장거리 20호) 그대로 밖에 걸면 열두 시간 만에 나간 하늘이 땅이 된다.
-       ⚠ 판정은 화면이 한다 — egReading.outAim(true) 로 기운 판을 갈아 볼 수 있다. */
-  var OUT_AIM = null, OUT_SKY = false;
+  /* ⚠⚠ 0828c — 0828a 에 지은 방위 그릇(OUT_AIM·OUT_SKY)을 통째로 걷었다.
+     창 클릭이 사라지자 **물려줄 일 자체가 없어졌다** — 갤리에 선 채로 나가므로
+     WALK 이 2 로 남고, galleyWin() 이 그대로 답한다. 그릇도 콘솔 손도 필요 없다.
+   ⭐ 손 하나를 걷었더니 어제 지은 부품 셋이 함께 걷혔다. 되돌린 것이 아니라 줄어든 것이다. */
 
   function aisleSpec() { return (SPEC && SPEC.aisle) || null; }
   /* ⭐ 좌석이 어느 창인가 — 좌석 판의 side 를 그대로 쓴다(−1 왼창 · +1 오른창).
@@ -5761,17 +5926,16 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     EGR_on(WK_EL.querySelector(".arw.l"), "click", function (e) { e.stopPropagation(); cubeTurn(-1); });
     EGR_on(WK_EL.querySelector(".arw.r"), "click", function (e) { e.stopPropagation(); cubeTurn(+1); });
     EGR_on(WK_EL.querySelector("#egrBack"), "click", function (e) { e.stopPropagation(); walkEnd(); });
-    /* ⭐⭐ 소로 0827 — 「저 마젠타 창을 클릭하면 C모드로 창밖 환하게」.
-       ⚠ 동전 두 개로 정한 그 작음이 여기서 밑밥이 된다 — 아쉬우니 누르게 된다. */
-    EGR_on(WK_EL.querySelector(".cwin"), "click", function (e) {
-      e.stopPropagation(); if (editing) return;
-      /* ⭐ 0828a — 걷기를 끝내기 **전에** 담는다. walkEnd 가 WALK 을 0 으로 내리면
-         galleyWin() 이 곧바로 null 이 되어 어느 면이었는지 물을 곳이 없어진다. */
-      var gw = galleyWin();
-      OUT_AIM = gw ? { view: gw.view, sky: gw.sky } : null;
-      walkEnd(true);
-      EGR_later(function () { if (!OUT) toggleOut(); }, 380);
-    });
+    /* ══ ⚠⚠ 0828c 소로 판정 — **창 클릭을 걷는다** ═══════════════════════════════
+       > 「어차피 C 나 B 로 나가는 거 다 아는 마당에 중복 메뉴」
+       ⭐ 0827 에 「저 마젠타 창을 누르면 C모드로」라 지었고, 0828a 에 방위까지 물려주도록
+         키웠다. 그런데 손 하나가 이미 그 일을 하고 있었다 — **C 다.**
+       ⚠ 창을 눌러 나가는 길과 C 로 나가는 길이 갈라져 있으면, 돌아오는 길도 둘로 갈린다.
+         소로가 밖에서 갤리로 못 돌아온 것이 그 값이다(0828 시승 ③).
+       ⭐ 지금은 갤리에 **선 채로** C 를 누른다. WALK 이 2 로 남아 있으므로
+         밖에서도 그 면을 겨누고(aimCam), 다시 C 를 누르면 갤리로 돌아온다.
+         ⚠ 손이 하나면 왕복이 저절로 성립한다. 둘이면 반드시 한쪽이 편도가 된다.
+       ⚠ .cwin 은 지운 것이 아니라 **편집기 전용**으로 남는다 — 창 자리를 미는 데 쓴다. */
     if (A) { /* 밝기 값은 표가 아니라 CSS 변수로 — 콘솔에서 밀 수 있게 */ }
   }
 
@@ -5934,15 +6098,11 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     if (!ROOT) return;
     OUT = !OUT;
     ROOT.classList.toggle("out", OUT);
-    /* ⚠ 0828a — 기내로 돌아오면 물려받은 방위를 씻는다. 안 씻으면 다음에 C 를 눌렀을 때
-       가 본 적도 없는 갤리 쪽 하늘이 열린다. 빌린 값은 돌려주고 나온다. */
-    if (!OUT) OUT_AIM = null;
     /* ⭐ 0821j — 밖은 제 시점을 갖는다. 고개를 돌린 채 나가면 밖도 비뚤어져 보인다.
        ⚠ 그리고 밖에서는 모니터가 왼쪽 아래 제 자리로 서므로 --peek 을 반드시 1 로 푼다 */
     lookReset();
     /* ⚠ 기내로 돌아오면 감추기를 푼다 — 좌석에 앉았는데 계기판이 없으면 사고로 보인다 */
     if (!OUT && BARE) toggleBare();
-    if (HIDE) HIDE.classList.toggle("on", OUT);
     layout();
   }
   /* ⭐ 감추기 (0820 소로) — 계기판과 기록판이 함께 걷히고 창밖만 남는다.
@@ -5951,10 +6111,6 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     if (!ROOT) return;
     BARE = !BARE;
     ROOT.classList.toggle("bare", BARE);
-    if (HIDE) {
-      HIDE.innerHTML = BARE ? "&#128373;" : "&#128065;";
-      HIDE.title = BARE ? "판 다시 보기 (V)" : "판 감추기 (V)";
-    }
   }
 
   /* ══ 창 덮개 (0819P) — 24호 · 손님이 여닫는다 ═══════════════════════
@@ -7840,8 +7996,9 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     EGR_on(MONEL.querySelector("#egrRst"), "click", toStart);
     /* ⚠ 0823b — 위 0820g 주석 그대로. 단추를 굽고 배선을 안 걸면 아무 일도 안 난다.
        ⭐ 이름 등장 횟수로 검산한다 — egrSave 는 굽는 곳 · 거는 곳 둘이어야 한다 */
-    /* ⚠ 0826i — egrSave 가 이 줄에서 빠졌다. 저장은 #readingSave 가 맡는다.
-       ⭐ saveNow 를 안 지우고 **거는 곳만** 옮겼다 — 손을 지우면 다시 지어야 한다. */
+    /* ⚠ 0826i — egrSave 가 이 줄에서 빠졌다. ⭐ 0828b — 저장의 거처가 또 옮겨졌다:
+       모니터 → #readingSave → **메뉴 첫 칸**. 세 번 옮기는 동안 saveNow 는 한 번도 안 다시 지었다.
+       ⭐ 손을 지우지 않고 거는 곳만 옮기면, 자리는 몇 번이든 바뀔 수 있다. */
     /* ⚠ 0826q — 사건 뭉치를 그대로 넘기지 않는다. 위 lampToggle 주석을 보라 */
     EGR_on(MONEL.querySelector("#egrRead"), "click", function () { lampToggle(); });
     if (RLITE) { var rb = MONEL.querySelector("#egrRead"); if (rb) rb.classList.add("on"); }
@@ -9121,7 +9278,7 @@ function paintBook() {
            #egrSkin 이 뺀다(판 자체도 pointerdown 을 끊는다 — 그물 두 겹, 0821h). */
       if (!BODY || !ROOT) return false;
       if (!t || !t.closest) return true;
-      return !t.closest("#egrSkin,#egrMon,#egrDesk,#readingExit,#readingHide,.readingSeat,button,input,textarea,select,a");
+      return !t.closest("#egrSkin,#egrMon,#egrDesk,#readingExit,#readingMenu,.readingSeat,button,input,textarea,select,a");
     }
     EGR_on(window, "pointerdown", function (e) {
       if (e.pointerType === "mouse" && e.button !== 0) return;
@@ -9166,7 +9323,7 @@ function paintBook() {
          기내는 개방 조종석(freelook 기체)만 — 제트기는 창틀이 시야를 정한다(8호) */
       if (!OUT && !SPEC.freelook) return false;
       if (!t || !t.closest) return true;
-      return !t.closest("#egrMon,#egrDesk,#readingExit,#readingHide,.readingSeat,button,input,textarea,select,a");
+      return !t.closest("#egrMon,#egrDesk,#readingExit,#readingMenu,.readingSeat,button,input,textarea,select,a");
     }
     EGR_on(window, "pointerdown", function (e) {
       if (e.pointerType === "mouse" && e.button !== 0) return;
@@ -9498,7 +9655,9 @@ function paintBook() {
     moveCredits(false);              /* ⚠ 크레딧을 제자리로 — 방보다 먼저 돌려놓는다 */
     restoreCam(v);
     if (EXIT) { try { EXIT.remove(); } catch (e) { } EXIT = null; }
-    if (HIDE) { try { HIDE.remove(); } catch (e) { } HIDE = null; }
+    /* ⭐ 0828b — 메뉴도 방 밖 물건이다. 문 옆에 두고 나가면 다음 탑승에 둘이 선다 */
+    if (MENU) { try { MENU.remove(); } catch (e) { } MENU = null; }
+    MENU_ON = false;
     /* ⭐ 0821j — ROOT 가 아직 살아 있을 때 되돌린다. body 꼬리표(reading-look)는
        방 밖 물건이라 여기서 안 떼면 나가서도 글자가 안 잡히는 채로 남는다(31호 ㉢ 갈래) */
     lookReset();
@@ -9520,7 +9679,6 @@ function paintBook() {
     OUT = false; BARE = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
     /* ⭐ 0827t — 통로도 함께 씻는다. ⚠ 걷다 나가면 다음 탑승이 통로에서 시작된다 */
     WALK = 0; WK_EL = null; WK_I = 0; WK_T = 0; CUBE_I = 0; GO_EL = null; WK_PRE = {};
-    OUT_AIM = null;                  /* ⭐ 0828a — 빌린 방위도 함께 씻는다 */
     BODY = false; BODYWAS = false;   /* ⭐ 0821L — 다음 탑승은 조종석에서 시작한다 */
     ORB.yaw = ORB0.yaw; ORB.pit = ORB0.pit;
     INSEL = null; LAMPEL = null; BLKEL = null;   /* ⚠ 0821f — 방과 함께 걷힌다. 다음 탑승이 다시 세운다 */
@@ -9906,19 +10064,6 @@ function paintBook() {
                          if (sky != null) w.sky = sky;
                          console.log("[EG] " + k + " 겨눔 — 방위 " + w.view + "° · 기울기 " + w.sky + "°");
                          return w;
-                       },
-                       /* ⭐⭐ 0828a — 갤리 창으로 나간 밖 보기가 기울기까지 물려받을지.
-                          ⚠ 좌우 방위는 늘 물려받는다(그게 「같은 창을 키운 것」의 알맹이다).
-                            여기서 갈리는 것은 **아래로 기울인 각**뿐이다.
-                          ⭐ egReading.outAim()      지금 판
-                             egReading.outAim(true)  갤리처럼 발밑까지
-                             egReading.outAim(false) 하늘 눈높이(기본) */
-                       outAim: function (on) {
-                         if (arguments.length) OUT_SKY = !!on;
-                         console.log("[EG] 밖 보기 기울기 — "
-                           + (OUT_SKY ? "갤리 창 그대로(발밑)" : "좌석 밖 보기(하늘 눈높이)")
-                           + (OUT_AIM ? " · 물려받은 방위 " + OUT_AIM.view + "°" : " · 물려받은 방위 없음"));
-                         return OUT_SKY;
                        },
                        pa: function (q) {
                          if (!PA_LIST.length) {
