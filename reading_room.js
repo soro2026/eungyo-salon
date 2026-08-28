@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0828d";
+  var VERSION = "0828f";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -1127,6 +1127,28 @@
               ⚠ 표가 쥔다 — 「소등이면 이름 뒤에 _dim 을 붙인다」를 코드에 안 박는다.
                 음식 여섯도 언젠가 두 벌이 될 수 있으니 짝을 표로 적는다.
               ⭐ 짝이 없는 이름은 그대로 선다 — snack·water 는 애초에 어둡게 굽는다. */
+           /* ══ ⭐⭐⭐ 0828e 얹는층 시간표 (결정문 18호 · 소로 0828) ═══════════════════
+              ⭐ 판 스물다섯 장이 격납고에 다 있는데 **넘기는 손이 편집기뿐이었다.**
+                여기 여섯 줄이 그것을 시각에 물린다.
+              ⚠⚠ 줄을 스물다섯 개 안 적는다 — 무리 하나에 「언제 오나·몇 분마다 바뀌나·
+                언제 치우나」 셋만 적고 **장수는 판 목록이 센다**(towel 셋 · meal1 여섯 …).
+                판을 한 장 더 구우면 이 표를 안 고쳐도 그 장이 저절로 낀다.
+              ⚠ 방송 표(sets)에 트레이를 안 적는다. 한 값을 두 곳에서 관리하지 않는다
+                (독서비행 22호). ⭐ 방송은 방송대로, 쟁반은 쟁반대로 제 시각을 본다 —
+                60·110·270·480·590 에서 둘이 만나는 것은 **두 표가 같은 시각을 적었기 때문**이지
+                한쪽이 다른 쪽을 부르기 때문이 아니다.
+              ⭐ 20분(물수건)과 360분(물 한 잔)에는 방송이 없다 — 18호가 「아무 일도 아닌
+                이벤트」라 적은 그 줄이라, 소리 없이 놓였다 소리 없이 걷힌다.
+              ⚠ 이어 타기에 아무것도 안 적는다. 「지금 몇 분인가」 하나가 쟁반을 정하므로
+                여섯 시간 뒤에 돌아오면 그 시각의 판이 그냥 서 있다. */
+           meals: [
+             { key: "towel",  at:  20, every: 10, off:  50 },
+             { key: "meal1",  at:  60, every:  8, off: 110 },
+             { key: "snack1", at: 270, every:  3, off: 282 },
+             { key: "water",  at: 360, every:  3, off: 370 },
+             { key: "snack2", at: 480, every:  3, off: 492 },
+             { key: "meal2",  at: 590, every:  8, off: 640 }
+           ],
            dimOf: { tray: "tray_dim" },
            /* ⭐ 판별 초점 — 트레이가 내려오면 고개도 함께 숙인다.
               ⚠ 안 숙이면 노트북 띠(20~52%) 밖에 식탁이 놓여 화면에 안 든다.
@@ -2494,6 +2516,7 @@
           /* ⭐ 0827t — 걷는 시계와 마크 리듬. ⚠ 비행이 안 멈추므로 12초 동안도 세상은 흐른다 */
         walkTick(now);
         goTick(flown / 60);
+        mealTick(flown / 60);      /* ⭐ 0828e — 시각이 쟁반을 정한다(18호) */
         paTick(now, { phase: _ph, min: flown / 60, seg: seg, alt: rel,
                         /* ⭐ 0825i — 이륙 노선이 아직 안 굴렀으면 false. 다른 노선은 이미 날고 있다 */
                         rolling: TAKEOFF ? !!ROLLING : true,
@@ -3276,9 +3299,20 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      녹는 것은 그림이고, 바닥은 안 녹는다.
    ⭐ 그리고 떠오르는 시간을 .45 → .18 로 줄였다. 바닥이 생긴 뒤로는 길 까닭이 없다.
      ⚠ 0 으로 안 만든다 — 좌석에서 일어서는 순간이 툭 튀면 그것도 전환이 아니다. */
+/* ══ ⚠⚠⚠ 0828f — 0828c 의 검정 바닥이 **갤리 창 구멍까지 막았다** (소로 0828) ═════
+     > 「갤리에서 창밖이 깜깜하고 (구글 타일 안보임)」
+   ⚠⚠ 0827z 에 「걷고 나면 구멍 뒤에 Cesium 말고는 아무것도 없다」고 적어 놓고,
+     하루 만에 내 손으로 그 구멍 뒤에 벽을 세웠다. #egrWalk 의 background 는
+     통로 넉 장 뒤만 막는 것이 아니라 **갤리 판의 알파 구멍 뒤도** 막는다.
+   ⭐ 처방 — 바닥을 그릇에서 떼어 **판 뒤의 층 하나**로 내리고, 큐빅에 닿으면 걷는다.
+     통로 20초(구멍 없음)에는 바닥이 비침을 막고, 갤리에 서면 바닥이 녹아 사라져
+     구멍으로 진짜 하늘이 든다. ⚠ 잣대는 이미 있다 — walkTick 이 큐빅 도착 때
+     .cube 를 붙인다. 새 깃발을 안 만든다. */
 #egrWalk{position:absolute;inset:0;z-index:14;pointer-events:none;overflow:hidden;
-  background:#0a0d12;
   opacity:0;transition:opacity .18s ease}
+#egrWalk .flr{position:absolute;inset:0;background:#0a0d12;
+  opacity:1;transition:opacity .8s ease}
+#egrWalk.cube .flr{opacity:0}
 #readingRoom.walk #egrWalk{opacity:1;pointer-events:auto}
 /* ══ ⭐⭐ 0828c 갤리에서 C — **갤리 판만 걷힌다** (소로 0828 시승 ③) ═══════════
      > 「창 밖으로 나갔다가 다시 갤리로 돌아갈 방법이 없어서」
@@ -4754,6 +4788,9 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   function trayToggle() {
     if (!SPEC.plates || SPEC.plates.indexOf("tray") < 0) return;
     if (TRAY && TRAY !== "tray") return;          /* ⚠ 음식이 얹혀 있다 — 승무원이 치운다 */
+    /* ⚠ 0828e — 얹는층이 올라와 있으면 접는 손이 물러난다. 실물이 그렇다 —
+       식사 중에 트레이를 접으면 접시가 무릎에 쏟아진다. 치우는 것은 승무원 몫이다(21호). */
+    if (MEAL_NOW) return;
     var open = !TRAY;
     TRAY = TRAY ? null : "tray";
     /* ⭐⭐ 0826f — 소로 0826: 「다 펼쳐진 면이 나오면 그때 카메라가 스르르」.
@@ -5242,7 +5279,10 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   }
   function toggleBody() {
     if (!ROOT) return;
-    if (!SPEC.body) return;        /* ⚠ 몸이 없는 기체 — 조용히 물러난다(30호) */
+    if (!SPEC.body) {              /* ⚠ 몸이 없는 기체 — 물러나되 관리자에게는 말한다(0826 침묵 수칙) */
+      try { console.warn("[EG] ⚠ 이 기체에는 body 칸이 없어 B 가 물러납니다"); } catch (x) { }
+      return;
+    }
     BODY = !BODY;
     if (BODY) {
       ORB.yaw = ORB0.yaw; ORB.pit = ORB0.pit;   /* ⭐ 늘 같은 각도에서 만난다 */
@@ -5917,7 +5957,9 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     WK_EL = document.createElement("div"); WK_EL.id = "egrWalk";
     var A = aisleSpec();
     /* 판 두 겹 — 겹쳐 녹인다. 좌석 판의 plate/plateB 와 같은 문법 */
-    WK_EL.innerHTML = '<div class="pl a"></div><div class="pl b"></div>'
+    /* ⭐ 0828f — 바닥(.flr)이 맨 아래 형제로 선다. 통로에서 비침을 막고 큐빅에서 걷힌다 */
+    WK_EL.innerHTML = '<div class="flr"></div>'
+      + '<div class="pl a"></div><div class="pl b"></div>'
       + '<div class="cwin" data-w="0"></div>'
       + '<div class="arw l">&#10094;</div><div class="arw r">&#10095;</div>'
       + '<div id="egrBack">&#128094; 좌석으로</div>';
@@ -7019,6 +7061,68 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     layout();
     return k;
   }
+  /* ══ ⭐⭐⭐ 0828e 얹는층 시간표 굴리기 (결정문 17·18호) ═══════════════════════════
+     ⭐ 손님이 아무것도 안 해도 지나간다. 놓치면 그만이고, 알림도 없다(17호).
+     ⚠⚠ **상태를 안 쌓는다.** 「지금 몇 분인가」 하나만 보고 그 시각의 판을 세운다 —
+       이어 타기도, 배속도, 되감기도 저절로 맞다. 저장할 것이 없다.
+     ⚠ 매 프레임 도는 손이지만 값이 안 바뀌면 첫 줄에서 물러난다(41호 ㉧). */
+  var MEAL_NOW = null;                 /* 지금 얹혀 있는 판 이름 · null 이면 빈 식탁이거나 접힘 */
+
+  /* ⭐ 장수는 판 목록이 센다 — 표에 안 적는다. 한 장 더 구우면 저절로 낀다 */
+  function mealSteps(key) {
+    var n = 0;
+    while (DISH_LIST.indexOf(key + "_" + (n + 1)) >= 0) n++;
+    return n;
+  }
+  /* ⭐ 그 시각에 무엇이 얹혀 있어야 하나 — 없으면 null */
+  function mealWant(min) {
+    var M = (SPEC && SPEC.meals) || null;
+    if (!M) return null;
+    for (var i = 0; i < M.length; i++) {
+      var m = M[i];
+      if (min < m.at || min >= m.off) continue;
+      var n = mealSteps(m.key);
+      if (!n) continue;                /* ⚠ 판이 아직 안 구워진 무리는 조용히 건너뛴다(0821d) */
+      var j = Math.min(n - 1, Math.floor((min - m.at) / (m.every || 1)));
+      return m.key + "_" + (j + 1);
+    }
+    return null;
+  }
+  function mealTick(min) {
+    if (!DISH_EL || !SPEC || !SPEC.meals) return;
+    var want = mealWant(min);
+    if (want === MEAL_NOW) return;     /* ⭐ 안 바뀌면 아무 일도 안 한다 */
+    var was = MEAL_NOW;
+    MEAL_NOW = want;
+
+    if (want) {
+      dishShow(want);
+      /* ⭐ 접혀 있으면 승무원이 펴 준다. ⚠ 안 펴면 접어 둔 손님은 열두 시간을 빈손으로 간다.
+         ⚠⚠ trayToggle 을 안 부른다 — 그 손은 토글이라, 이미 펴져 있으면 도로 접는다.
+           ⭐ 펴는 일과 뒤집는 일은 다른 일이다. */
+      if (!TRAY) {
+        TRAY = "tray";
+        paintCabin(SINFO ? SINFO.lon : 0);
+        clearTimeout(trayT);
+        /* ⭐ 0826f 비대칭 그대로 — 식탁이 놓이고 **나서** 고개를 숙인다 */
+        trayT = setTimeout(function () { focusGlide(); }, TRAY_FADE);
+      }
+    } else {
+      /* ⭐ 치운다 — 얹는층을 걷고, 식탁도 접고, 고개를 든다.
+         ⚠ 고개가 먼저다(0826f) — 들고 나서 식탁이 걷힌다 */
+      dishShow(null);
+      if (TRAY === "tray") {
+        TRAY = null;
+        clearTimeout(trayT);
+        focusGlide(function () { paintCabin(SINFO ? SINFO.lon : 0); });
+      }
+    }
+    try {
+      console.log("%c[EG] 🍽 " + Math.floor(min) + "분 — "
+        + (want ? want : "치웠습니다") + (was ? " (앞: " + was + ")" : ""), "color:#c9a84c");
+    } catch (e) { }
+  }
+
   function dishStep(d) {
     var i = DISH_I < 0 ? (d > 0 ? -1 : 0) : DISH_I;
     i = (i + d + DISH_LIST.length) % DISH_LIST.length;
@@ -9135,8 +9239,18 @@ function paintBook() {
       if (k === "t") cyclePreview();   /* ⭐ 편집기 안에서만 — 조명 넉 벌 미리보기 */
       else if (k === " " || e.code === "Space") { e.preventDefault(); togglePause(); }
       /* ⭐ 0821L — B 로 기체를 밖에서 본다. C 는 그대로 「기내를 감춘다」 */
-      else if (k === "b") toggleBody();
-      else if (k === "c") { if (BODY) toggleBody(); else toggleOut(); }
+      /* ⚠⚠ 0828f 임시 관측 장치 — 소로 0828: 「C키나 B키가 먹히지 않음」.
+         짐작이 네 번 빗나갔다(딱지 0823 갈래). 키가 **왔는지 · 어느 상태에서 왔는지**를
+         찍는다. ⭐ 원인이 잡히면 이 두 console 줄은 걷는다. */
+      else if (k === "b") {
+        try { console.log("[EG] ⌨ B — WALK " + WALK + " · OUT " + OUT + " · BODY " + BODY
+          + " · body칸 " + !!(SPEC && SPEC.body)); } catch (x) { }
+        toggleBody();
+      }
+      else if (k === "c") {
+        try { console.log("[EG] ⌨ C — WALK " + WALK + " · OUT " + OUT + " · BODY " + BODY); } catch (x) { }
+        if (BODY) toggleBody(); else toggleOut();
+      }
       else if (k === "v") { if (OUT) toggleBare(); }   /* 0820b — 밖에서만 */
       else if (k === "r") toStart();          /* ⭐ 0820g — 출발점으로 */
       else if (k === "s") toggleShade();
@@ -9684,7 +9798,7 @@ function paintBook() {
     INSEL = null; LAMPEL = null; BLKEL = null;   /* ⚠ 0821f — 방과 함께 걷힌다. 다음 탑승이 다시 세운다 */
     SHUT = false; editing = false; egrab = null; IS_ADMIN = false; cvW = 0; cvH = 0; PAUSED = false;
     PREVIEW = null; themeNow = ""; themeMon = ""; RESUME = null;   /* ⚠ 다음 탑승은 진짜 시각으로 */
-    TRAY = null; PLATE_NOW = null;                                /* ⭐ 0826d — 내리면 식탁은 접힌다 */
+    TRAY = null; PLATE_NOW = null; MEAL_NOW = null;                                /* ⭐ 0826d — 내리면 식탁은 접힌다 */
     RLITE = false; if (ROOT) ROOT.classList.remove("rlite");      /* ⭐ 0826i — 독서등도 끈다 */
     /* ⚠ 0826f — 도는 손과 기다리는 손을 함께 잠재운다. 0821k 수칙 — 끄는 길을 짝으로 */
     if (focusRAF) { cancelAnimationFrame(focusRAF); focusRAF = 0; }
@@ -9945,6 +10059,33 @@ function paintBook() {
                          if (arguments.length > 1 && +glide > 0) TRAY_GLIDE = Math.max(200, Math.min(8000, +glide));
                          console.log("[EG] 판 녹이기 " + TRAY_FADE + "ms · 카메라 " + TRAY_GLIDE + "ms");
                          return [TRAY_FADE, TRAY_GLIDE];
+                       },
+                       /* ══ ⭐⭐ 0828e 얹는층 시간표를 눈으로 본다 ═══════════════════
+                          ⚠ 열두 시간을 기다려 확인하지 않는다. 표와 실물을 한 화면에 놓는다.
+                          ⭐ egReading.meals()      여섯 무리가 언제 오고 몇 장인지
+                             egReading.meals(275)  그 시각에 무엇이 얹혀 있나 (안 옮긴다)
+                          ⚠ 시각을 옮기시려면 egReading.min(275) — 그쪽은 저장이 잠긴다 */
+                       meals: function (at) {
+                         var M = (SPEC && SPEC.meals) || null;
+                         if (!M) { console.log("[EG] 이 노선에는 얹는층 시간표가 없습니다"); return null; }
+                         if (arguments.length) {
+                           var w = mealWant(+at || 0);
+                           console.log("[EG] " + (+at || 0) + "분 — " + (w || "빈 식탁"));
+                           return w;
+                         }
+                         var rows = M.map(function (m) {
+                           var n = mealSteps(m.key);
+                           return {
+                             무리: m.key, 장수: n,
+                             놓임: m.at + "분", 간격: m.every + "분",
+                             마지막장: (m.at + (n - 1) * m.every) + "분",
+                             치움: m.off + "분",
+                             굽혔나: n ? "✔" : "⚠ 판 없음"
+                           };
+                         });
+                         console.table(rows);
+                         console.log("[EG] 지금 얹혀 있는 것 — " + (MEAL_NOW || "없음"));
+                         return rows;
                        },
                        trayOpen: function () { trayToggle(); return TRAY; },
                        /* ══ ⭐⭐⭐ 0826v 얹는층 손 (소로 0826 저녁) ══════════════
