@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0828j";
+  var VERSION = "0828k";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -4206,8 +4206,16 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   /* ⭐⭐ 걷히는 물결 — 앞기어·주기어가 먼저 들어가고 **문짝 여덟이 마지막에 닫힌다.**
      ⚠ GEAR_ND 의 순서가 이미 그렇게 놓여 있다(바퀴·다리 열셋 → 문짝 여덟). 다시 안 짠다.
      ⭐ 스포일러 물결과 같은 문법이고, n.show 뿐이라 어디로도 날아갈 수 없다. */
+  /* ⭐⭐ 0828k 시험 장치 — **순항 중에 기어를 꺼내 본다** (소로 0828) ═══════════
+     ⚠⚠ 손이 아예 없었다. 콘솔로 gearWave(0) 를 불러도 **다음 프레임에 비행이
+       「지금 순항이니 접어라」로 되돌린다** — 매 프레임 부르는 손을 한 번 불러 이길 수 없다.
+     ⭐ 그래서 값을 가로챈다. 잠가 두면 비행이 무엇을 시키든 이 값이 이긴다.
+     ⚠ 배속(0823f)과 같은 갈래다 — 시험 장치이지 설정이 아니다. 새로고침하면 풀린다.
+     ⚠ 저장에 안 닿는다 — 노드의 show 만 만지므로 기록에 아무 자국도 안 남는다. */
+  var GEAR_LOCK = null;
   function gearWave(hid) {
     if (!BODYENT || !BODYENT.ready) return;
+    if (GEAR_LOCK != null) hid = GEAR_LOCK;
     hid = Math.max(0, Math.min(1, hid));
     /* ⭐ 0825e — 「같은 기체이고 값도 같을 때만」 건너뛴다 */
     if (GEAR_GEN === BODYGEN && GEAR_H >= 0 && Math.abs(hid - GEAR_H) < 0.02) return;
@@ -9847,7 +9855,7 @@ function paintBook() {
     BODY = false; BODYWAS = false;   /* ⭐ 0821L — 다음 탑승은 조종석에서 시작한다 */
     ORB.yaw = ORB0.yaw; ORB.pit = ORB0.pit;
     INSEL = null; LAMPEL = null; BLKEL = null;   /* ⚠ 0821f — 방과 함께 걷힌다. 다음 탑승이 다시 세운다 */
-    SHUT = []; editing = false; egrab = null; IS_ADMIN = false; cvW = 0; cvH = 0; PAUSED = false;
+    SHUT = []; GEAR_LOCK = null; editing = false; egrab = null; IS_ADMIN = false; cvW = 0; cvH = 0; PAUSED = false;
     PREVIEW = null; themeNow = ""; themeMon = ""; RESUME = null;   /* ⚠ 다음 탑승은 진짜 시각으로 */
     TRAY = null; PLATE_NOW = null; MEAL_NOW = null;                                /* ⭐ 0826d — 내리면 식탁은 접힌다 */
     RLITE = false; if (ROOT) ROOT.classList.remove("rlite");      /* ⭐ 0826i — 독서등도 끈다 */
@@ -10079,6 +10087,20 @@ function paintBook() {
                          if (!f) { console.warn("[EG] 그런 방송이 없습니다 — " + ref); return null; }
                          paHush(); paPlay(f);
                          return f.ref;
+                       },
+                       /* ⭐ 0828k — 순항 중에 바퀴를 꺼내 보는 손.
+                          ⚠ B 로 기체를 세워 두고 부르십시오.
+                          ⭐ egReading.gearShow(true)   내린다 (비행이 못 접는다)
+                             egReading.gearShow(false)  접는다
+                             egReading.gearShow()       잠금을 푼다 — 비행에 되돌려 준다 */
+                       gearShow: function (on) {
+                         if (!BODYENT) { console.warn("[EG] 먼저 B 로 기체를 세워 주십시오."); return null; }
+                         GEAR_LOCK = arguments.length ? (on ? 0 : 1) : null;
+                         GEAR_H = -1;                 /* ⚠ 「같은 값이면 건너뛴다」 그물을 푼다 */
+                         if (GEAR_LOCK != null) gearWave(GEAR_LOCK);
+                         console.log("[EG] 기어 — " + (GEAR_LOCK == null ? "비행이 정합니다"
+                           : GEAR_LOCK === 0 ? "내렸습니다 (잠금)" : "접었습니다 (잠금)"));
+                         return GEAR_LOCK;
                        },
                        wheels: function () {
                          if (!BODYENT) { console.warn("[EG] 먼저 B 로 기체를 세워 주십시오."); return null; }
