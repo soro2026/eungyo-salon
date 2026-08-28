@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0828m";
+  var VERSION = "0828n";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -1163,7 +1163,9 @@
              legs: ["arr1_walk", "arr2_bridge", "arr3_immig", "arr4_exit"],
              hold: 2,        /* ⭐ 여기서 선다(0부터 셈) — 입국심사대 */
              wait: 15,       /* 도장이 안 놓였으면 이만큼 뒤 저절로 넘어간다 (소로 0828) */
-             night: false,   /* ⚠ 밤 벌이 아직 없다. 켜면 이름 뒤에 _n 이 붙는다 */
+             /* ⚠⚠ 0828n — `night` 칸을 걷었다. 밤낮은 손으로 적는 값이 아니라
+                **도착지의 해가 정하는 값**이다(소로 0828). 적어 두면 언젠가 한쪽만 고친다.
+              ⭐ 판이 안 구워졌으면 저절로 낮 벌로 물러난다 — debPreload 가 재고 판정한다. */
              say: "파리 도착"
            },
            /* ⭐⭐ 0826p — 소등 중에는 트레이도 어두운 벌이 선다.
@@ -6016,6 +6018,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
        열어 두고 오늘까지 아무도 안 받던 창구다. 새 창구를 안 냈다. */
   var LANDED = false;    /* ⭐ 닿아 섰나 — 방이 아는 값 */
   var DEB_I = -1;        /* 지금 몇 째 장 (0부터) */
+  var DEB_NT = false;    /* ⭐ 이 회차에 선 벌 — 한 번 정하면 넷이 다 그것이다 */
   var DEB_T = 0;         /* 이 장을 세운 시각 */
   var DEB_HOLD = false;  /* 손님을 기다리는 중인가 (도장 · 마지막 단추) */
   var DEB_EL = null;     /* 마지막 한 손 (#egrDeb) */
@@ -6230,27 +6233,63 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
        ⭐ 없는 것을 기다리다 손님을 가두지 않는다. */
 
   function debSpec() { return (SPEC && SPEC.deboard) || null; }
-  function debKey(i) {
+  /* ⭐ 도착 쪽 노선 칸 — 도장도 좌표도 여기 한 곳에서 나온다.
+     ⚠ `route` 는 cruise() 안의 이름이라 여기서는 없다(오늘 두 번 밟은 그 병). */
+  function debArr() {
+    try { return (routeBy(flight.routeCode) || {}).arr || null; } catch (e) { return null; }
+  }
+  /* ══ ⭐⭐ 0828n 밤낮 — **도착지의 해**가 정한다 (소로 0828) ═══════════════════
+     > 「현지 도착 시간을 기준으로 해서 현지 밤 낮을 보고 결정해 줘요」
+     ⚠⚠ 여기서 0821 딱지가 되살아난다 — 「시각으로 밤낮을 가르면 계절이 어긋난다」.
+       장거리 15호가 **기내**에서는 그 딱지를 면제했다(소등은 승무원이 정한다).
+       ⭐ 그런데 공항은 창밖과 같은 하늘이다. 면제가 여기서 끝난다.
+       ⚠ 파리는 여름 저녁 열 시까지 밝고 겨울엔 다섯 시에 어둡다. 시각으로는 못 가른다.
+     ⭐ 그래서 활주로 좌표에 해를 세워 고도를 잰다. sunAltDeg 가 이미 있다 —
+       새 셈을 안 지었다. ⚠ 시각은 **지금**이다. 손님이 실제로 내리는 그 순간이고,
+       비행이 배속이었어도 도착한 시각은 지금이다.
+     ⚠ 콘솔이 밀어 둔 값이 있으면 그것이 이긴다 — 시승 장치이지 설정이 아니다(0828k 갈래). */
+  var DEB_NIGHT = null;   /* null 이면 해가 정한다 · 참·거짓이면 손이 밀어 둔 것 */
+  function debIsNight() {
+    if (DEB_NIGHT !== null) return DEB_NIGHT;
+    var a = debArr(), p = a && (a.td || a.thr);
+    if (!p) return false;                      /* 좌표가 없으면 낮으로 둔다 */
+    return sunAltDeg(p[0], p[1]) < 0;
+  }
+  function debKey(i, night) {
     var D = debSpec(); if (!D) return null;
-    return D.legs[i] + (D.night ? "_n" : "");
+    return D.legs[i] + (night ? "_n" : "");
   }
   /* ⚠ 셋째 장에 도장이 있으므로 넷을 다 미리 받아 둔다 — 심사대에서 기다리는
      동안 넷째 장이 오지 않으면, 도장을 누른 그 순간 화면이 검게 빈다. */
+  /* ⭐⭐ 받아 보고 판정한다 — 「밤 벌이 있나」를 표에 적어 두지 않는다.
+     ⚠ 적어 두면 소로가 굽는 날 코드도 함께 고쳐야 하고, 언젠가 한쪽만 고친다.
+     ⭐ 밤 판이 하나라도 모자라면 **낮 벌로 물러난다.** 같은 장면의 다른 벌이므로
+       0821d 「남의 기체를 입히지 않는다」에 안 걸린다 — 딴것으로 때우는 것이 아니다.
+     ⚠ 낮 벌마저 모자라면 그때는 안 간다. 없는 것을 흉내 내지 않는다. */
   function debPreload(cb) {
-    var D = debSpec(); if (!D) { cb(false); return; }
-    var keys = [], i;
-    for (i = 0; i < D.legs.length; i++) keys.push(debKey(i));
-    var left = keys.length, bad = 0;
-    keys.forEach(function (k) {
-      if (WK_PRE[k]) { if (!--left) cb(bad === 0); return; }
-      var im = new Image();
-      im.onload = function () { WK_PRE[k] = im.src; if (!--left) cb(bad === 0); };
-      im.onerror = function () {
-        bad++; console.warn("[EG] ⚠ 하선 판을 못 받았습니다: " + k);
-        if (!--left) cb(bad === 0);
-      };
-      im.src = aisleUrl(k);
+    var D = debSpec(); if (!D) { cb(false, false); return; }
+    var night = debIsNight();
+    tryVer(night, function (ok) {
+      if (ok || !night) { cb(ok, night && ok); return; }
+      console.log("[EG] 하선 밤 벌이 아직 없어 낮 벌로 갑니다");
+      tryVer(false, function (ok2) { cb(ok2, false); });
     });
+    function tryVer(nt, done) {
+      var keys = [], i;
+      for (i = 0; i < D.legs.length; i++) keys.push(debKey(i, nt));
+      var left = keys.length, bad = 0;
+      keys.forEach(function (k) {
+        if (WK_PRE[k]) { if (!--left) done(bad === 0); return; }
+        var im = new Image();
+        im.onload = function () { WK_PRE[k] = im.src; if (!--left) done(bad === 0); };
+        im.onerror = function () {
+          bad++;
+          if (!nt) console.warn("[EG] ⚠ 하선 판을 못 받았습니다: " + k);
+          if (!--left) done(bad === 0);
+        };
+        im.src = aisleUrl(k);
+      });
+    }
   }
 
   /* ⭐ 도착 방송을 지켜본다 — onTick 이 1초에 한 번 부른다.
@@ -6284,7 +6323,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     if (OUT) toggleOut();
     if (BODY) toggleBody();
     walkBuild();                            /* ⭐ 판 두 겹을 통로에게 빌린다 */
-    debPreload(function (ok) {
+    debPreload(function (ok, night) {
       if (!ok) {
         /* ⚠ 판이 모자라면 안 간다. 다만 손님을 활주로에 가두지도 않는다 —
            나가는 문은 메뉴에 늘 있고, 여기서는 조용히 물러나 다시 물음판을 연다. */
@@ -6292,13 +6331,19 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
         DEB_ASK = false; DEB_Q = 0;
         return;
       }
-      WALK = 3; DEB_I = -1; DEB_HOLD = false;
+      WALK = 3; DEB_I = -1; DEB_HOLD = false; DEB_NT = !!night;
       ROOT.classList.add("walk");
       WK_EL.classList.remove("cube");
       WK_EL.classList.add("deb");
       debBuild();
       lookReset();
       WY = 40; WK_EL.style.setProperty("--wy", "40%");
+      try {
+        var a0 = debArr(), p0 = a0 && (a0.td || a0.thr);
+        console.log("%c[EG] 🛬 하선 — " + (DEB_NT ? "밤" : "낮") + " 벌"
+          + (p0 ? " · 도착지 해 " + sunAltDeg(p0[0], p0[1]).toFixed(1) + "°" : ""),
+          "color:#c9a84c");
+      } catch (e) { }
       debShow(0, performance.now());
     });
   }
@@ -6316,7 +6361,9 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     var D = debSpec(); if (!D || !WK_EL) return;
     DEB_I = i; DEB_T = now; DEB_HOLD = false;
     if (DEB_EL) DEB_EL.classList.remove("on");
-    walkShow(debKey(i), false);             /* ⚠ 밝기를 안 든다 — 공항은 이미 밝다 */
+    /* ⚠ 밝기를 안 든다 — 공항은 밤에도 불이 켜진 곳이다. 통로 여덟과 다르다.
+       ⭐ 밤은 창밖과 문 너머에만 온다. 그것은 판에 구워져 오는 것이지 CSS 가 들 것이 아니다. */
+    walkShow(debKey(i, DEB_NT), false);
     /* ⭐ 셋째 장 — 심사대. 시계를 멈추고 도장을 놓는다 */
     if (i === D.hold) { DEB_HOLD = true; debStamp(); }
     /* ⭐ 넷째 장 — 마지막 한 손. 저절로 안 넘어간다(22호) */
@@ -10123,7 +10170,7 @@ function paintBook() {
     /* ⭐ 0828m — 하선도 함께 씻는다. ⚠ 안 씻으면 다음 탑승이 입국심사대에서 시작된다.
        0827t 에 통로를 안 씻어 「걷다 나가면 다음 탑승이 통로에서」 겪은 그 갈래다. */
     LANDED = false;
-    DEB_I = -1; DEB_T = 0; DEB_HOLD = false; DEB_EL = null;
+    DEB_I = -1; DEB_T = 0; DEB_HOLD = false; DEB_EL = null; DEB_NT = false;
     DEB_ASK = false; DEB_SAW = false; DEB_Q = 0;
     BODY = false; BODYWAS = false;   /* ⭐ 0821L — 다음 탑승은 조종석에서 시작한다 */
     ORB.yaw = ORB0.yaw; ORB.pit = ORB0.pit;
@@ -10446,14 +10493,14 @@ function paintBook() {
                             시승이 기록을 건드리게 된다(0826v 시승 잠금의 그 까닭). */
                        deb: function () { debStart(); return "하선 — 5초마다 넘어갑니다"; },
                        debNext: function () { debNext(); return DEB_I; },
+                       /* ⭐ 0828n — 해가 정한 것을 손으로 민다. ⚠ 인자 없이 부르면 해에게 돌려준다 */
                        debNight: function (on) {
-                         if (arguments.length) {
-                           var D = SPEC && SPEC.deboard;
-                           if (D) { D.night = !!on; WK_PRE = {}; }   /* ⚠ 받아 둔 판을 버린다 */
-                         }
-                         var D2 = SPEC && SPEC.deboard;
-                         console.log("[EG] 하선 판 — " + (D2 && D2.night ? "밤 벌(_n)" : "낮 벌"));
-                         return !!(D2 && D2.night);
+                         DEB_NIGHT = arguments.length ? !!on : null;
+                         var a = debArr(), p = a && (a.td || a.thr);
+                         console.log("[EG] 하선 벌 — " + (debIsNight() ? "밤(_n)" : "낮")
+                           + (DEB_NIGHT === null ? " · 해가 정합니다" : " · 손이 밀어 둠")
+                           + (p ? " · 도착지 해 " + sunAltDeg(p[0], p[1]).toFixed(1) + "°" : ""));
+                         return debIsNight();
                        },
                        seatView: function (deg) {
                          if (arguments.length && isFinite(+deg)) {
