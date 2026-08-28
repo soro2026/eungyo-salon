@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0828n";
+  var VERSION = "0828p";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -1162,7 +1162,14 @@
              sec: 5.0, fade: 0.8,
              legs: ["arr1_walk", "arr2_bridge", "arr3_immig", "arr4_exit"],
              hold: 2,        /* ⭐ 여기서 선다(0부터 셈) — 입국심사대 */
-             wait: 15,       /* 도장이 안 놓였으면 이만큼 뒤 저절로 넘어간다 (소로 0828) */
+             /* ══ ⭐⭐ 0828p 심사대의 시간 (소로 0828 시승) ═══════════════════════
+                > 「찍히면서 빠져나감. 좀 급하다는 느낌」
+                ⚠⚠ 찾았다 — 도장 연출(egVeil)이 **1.65초**인데 누른 즉시 넘어갔다.
+                  종이가 내려앉고 도장이 닿는 그 장면이 끝나기도 전에 판이 바뀌었다.
+                  ⭐ 화면이 셈보다 앞선다 — 「눌렀으니 됐다」가 아니라 **다 보이고 나서** 넘긴다. */
+             press: 2.4,     /* 심사대에 서서 여권을 내미는 시간 — 그 뒤 심사관이 찍는다 */
+             after: 4.0,     /* 찍힌 뒤 머무는 시간 (연출 1.65 + 여운 2.35) */
+             wait: 12,       /* ⚠ 심사관이 끝내 안 나오면(로그인 없음·판 없음) 이만큼 뒤 통과 */
              /* ⚠⚠ 0828n — `night` 칸을 걷었다. 밤낮은 손으로 적는 값이 아니라
                 **도착지의 해가 정하는 값**이다(소로 0828). 적어 두면 언젠가 한쪽만 고친다.
               ⭐ 판이 안 구워졌으면 저절로 낮 벌로 물러난다 — debPreload 가 재고 판정한다. */
@@ -4663,7 +4670,13 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       PA_NOW = null;
       PA_MOVE = performance.now();    /* ⭐ 0827e — 끝난 것도 「일어난 일」이다 */
       /* ⚠ 0821k 수칙 — 켜는 줄을 지었으면 끄는 줄도 짝으로. 잡음은 제 손으로 멈춘다 */
-      try { if (paHiss) { paHiss.stop(); paHiss = null; } } catch (x) { }
+      try { if (paHiss) { paHiss.stop(); } } catch (x) { }
+      /* ⭐⭐ 0828p — 이 방송이 쓴 노드를 **전량 끊는다.** 열하나가 매번 남던 자리다.
+         ⚠ 그릇을 여기서 비우므로, 푸는 손에는 지금 값을 통째로 넘겨 둔다. */
+      paFree([paSrc, paHp, paLp, paPk, paSh, paVerb, paWet, paHiss, paHissG, paGain], paAudio);
+      paSrc = null; paGain = null; paHp = null; paLp = null; paPk = null;
+      paSh = null; paVerb = null; paWet = null; paHiss = null; paHissG = null;
+      paAudio = null;
       /* ⭐⭐ 0825k 끝 챠임 — ⚠ 출발 방송 셋은 뺀다(소로 판정). 말이 끝나고 0.45초 뒤 */
       var closing = PA_END_CHIME && !(e.cue || {}).before_roll;
       if (closing) EGR_later(function () { paChime(null, true); }, 450);
@@ -4698,13 +4711,19 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       if (PA_NOW !== e) return;            /* ⚠ 그 사이에 방을 나가셨으면 물러난다(41호 ㉤) */
       paDuck(true);
       try {
-        if (paAudio) { try { paAudio.pause(); } catch (x) { } }
+        /* ⚠ 0828p — 예전엔 pause 만 했다. 앞 방송이 안 끝난 채 다음이 오면
+           그 노드가 통째로 남는다. done() 을 안 거친 길이므로 여기서도 푼다. */
+        if (paAudio) {
+          try { paAudio.pause(); } catch (x) { }
+          paFree([paSrc, paHp, paLp, paPk, paSh, paVerb, paWet, paHiss, paHissG, paGain], paAudio);
+        }
         paAudio = new Audio();
         paAudio.crossOrigin = "anonymous";
         paAudio.preload = "auto";
         paAudio.src = e.url;
         var a = ensureAC();
         paSrc = a.createMediaElementSource(paAudio);
+        PA_MADE++;   /* ⭐ 0828p 잣대 — 만든 수와 푼 수를 견준다 */
         paGain = a.createGain();
         paGain.gain.value = 0.0001;        /* ⭐ 0 에서 시작해 머리를 든다 */
         var head = paSrc;
@@ -4849,9 +4868,45 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     if (!ROOT) return;
     var el = ROOT.querySelector("#egrPA"); if (el) el.classList.remove("on");
   }
+  /* ══ ⭐⭐⭐ 0828p 방송 노드를 푼다 — 소로 0828 시승 ═══════════════════════════
+     > 「9시간 넘으면서부터는 비행할 때 방송 녹음이 잡음이 엄청 심해져서 거의 식별 불가능.
+     >   저장하고 로그아웃하고 브라우저 끄고 다시 켜서 들어오니 잡음 사라졌음」
+
+     ⚠⚠ 진범 — 방송이 끝날 때 **paHiss 만 멈추고 나머지를 하나도 안 풀었다.**
+       paHush 도 그릇을 null 로 비울 뿐이었다. 이름표를 버린 것이지 끊은 것이 아니다.
+       ⭐ 노드는 paGain → destination 으로 **계속 붙어 있었다.** 게인이 0.0001 로
+         눕혀졌을 뿐 소리길에서 안 빠졌다.
+
+     ⭐⭐ 방송 한 편이 남기는 것 — 소스1 · 필터3 · 웨이브셰이퍼1 · **컨볼버1** ·
+       게인3 · 버퍼소스1 · 밴드패스1 = 열하나.
+       ⚠ 그중 컨볼버가 무겁다. 0.32초 스테레오 임펄스 컨볼루션을 매 프레임 돈다.
+       인천-파리에 방송이 스물여섯이면 **컨볼버 스물여섯이 동시에 돈다.**
+       오디오 스레드가 실시간 마감을 못 지키면 버퍼가 빈다 — 그것이 지직거림이다.
+       ⭐ 소로가 「9시간 넘으면서」라 하신 것과 맞는다. 그쯤 스무 편이 쌓인다.
+       ⭐ 껐다 켜니 사라진 것도 맞는다 — AudioContext 가 새로 서기 때문이다.
+
+     ⚠ 1.2초 뒤에 푼다. 잔향 꼬리(0.32초)와 끝 챠임이 다 지나간 뒤라야 한다.
+       ⭐ 다음 방송은 2.2초 뒤에 오므로 그 전에 끝난다.
+     ⚠ Audio 요소도 놓아준다 — src 를 비우고 load() 를 불러야 버퍼가 풀린다.
+       createMediaElementSource 로 묶인 요소는 노드를 안 끊으면 GC 가 못 가져간다. */
+  var PA_MADE = 0, PA_FREED = 0;
+  function paFree(bag, au) {
+    EGR_later(function () {
+      for (var i = 0; i < bag.length; i++) {
+        try { if (bag[i]) { bag[i].disconnect(); PA_FREED++; } } catch (x) { }
+      }
+      try { if (au) { au.pause(); au.removeAttribute("src"); au.load(); } } catch (x) { }
+    }, 1200);
+  }
   function paHush() {
-    try { if (paAudio) { paAudio.pause(); paAudio = null; } } catch (e) { }
     try { if (paHiss) { paHiss.stop(); } } catch (e) { }
+    /* ⚠ 여기서는 곧장 푼다 — 방을 나가는 길이라 잔향을 기다릴 까닭이 없다 */
+    var bag = [paSrc, paHp, paLp, paPk, paSh, paVerb, paWet, paHiss, paHissG, paGain], i;
+    for (i = 0; i < bag.length; i++) {
+      try { if (bag[i]) { bag[i].disconnect(); PA_FREED++; } } catch (e) { }
+    }
+    try { if (paAudio) { paAudio.pause(); paAudio.removeAttribute("src"); paAudio.load(); } } catch (e) { }
+    paAudio = null;
     paSrc = null; paGain = null; paLp = null; paHp = null; paVerb = null; paWet = null;
     paPk = null; paSh = null; paHiss = null; paHissG = null;
     PA_NOW = null; PA_Q = [];
@@ -6380,29 +6435,45 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
        그 시각에 도장이 서 있으면 안 넘긴다(소로 0828: 「12시간 넘게 비행했는데」).
      ⚠ 늦게 온 도장도 안 뺏긴다. 그물이 15초에 한 번 보고 물러나면 그만이다. */
   function debStamp() {
-    var D = debSpec();
-    /* ⚠⚠ 0828m 자백 — 여기 첫 판에 `route` 를 그냥 적었다. 그것은 cruise() **안**의
-       매개변수라 이 밖에서는 없는 이름이다. ARRIVED 를 잡아 놓고 바로 옆줄에서
-       같은 병을 밟았고, **방금 세운 잣대(scope.js)가 그 두 곳을 잡았다.**
-       ⭐ 밖에서 노선을 얻는 문은 이미 있다 — askLeave 가 쓰던 그 두 줄이다. */
-    var rt = null;
-    try { rt = (routeBy(flight.routeCode) || {}).arr || null; } catch (e) { }
+    var D = debSpec(), rt = debArr();
     var kind = rt && rt.stamp;
-    var wait = ((D && D.wait) || 15) * 1000;
+    var pressed = false;
     if (kind && window.EGStamp) {
       try {
         EGStamp.offer({ supa: egr_sb(), area: "limen", kind: kind,
                         inscription: rt.mark || null,
                         bottom: 52,
-                        onPressed: function () { debNext(); } });
+                        onPressed: function () {
+                          pressed = true;
+                          /* ⭐ 다 보이고 나서 넘긴다 — 연출 1.65초가 끝나고도 여운이 남는다 */
+                          EGR_later(function () {
+                            if (WALK === 3 && DEB_I === D.hold) debNext();
+                          }, (D.after || 4) * 1000);
+                        } });
       } catch (e) { console.warn("[EG] 입국 도장을 못 놓았습니다:", e); }
     }
-    EGR_later(function () {
-      if (WALK !== 3 || DEB_I !== D.hold) return;   /* 이미 넘어갔다 */
+    /* ══ ⭐⭐⭐ 0828p 심사관이 찍는다 (소로 0828 판정) ═══════════════════════════
+       > 「저 도장찍기는 내 손으로 누르기 보다 그 입국 심사 모자쓴 양반이
+       >   자동으로 쾅 찍어주는 게 더 자연스러울 거 같아」
+       ⚠⚠ 크레덴시알 3호는 「도장은 손님이 누른다」이다. 여기서 그 조항을 **무른다** —
+         실물 여권 도장은 내가 찍는 것이 아니다. 국경이 찍는다.
+         ⭐ 3호의 뜻은 「받는 일을 자동으로 처리하지 말라」였고, 그 정신은 여기서도 산다 —
+           손님은 심사대 앞에 서 있고, 찍히는 것을 본다. 건너뛰지 않는다.
+       ⭐⭐ 공용 부품(stamp_press.js)을 한 줄도 안 고쳤다. 손님 손 대신 **여기서 누른다** —
+         btn.click() 하나다. 도장이 하는 일(기록·연출·깃발·수첩)은 전부 그대로다.
+       ⚠ 도장이 언제 설지 모른다(offer 는 표를 물으러 간다). 그래서 **지켜본다** —
+         서면 그때 누르고, 끝내 안 서면 심사관이 자리를 비운 것으로 치고 통과시킨다. */
+    var t0 = performance.now();
+    (function watch() {
+      if (WALK !== 3 || DEB_I !== D.hold || pressed) return;   /* 이미 지났다 */
       var dock = document.getElementById("egStampDock");
-      if (dock && dock.classList.contains("on")) return;   /* ⭐ 도장이 서 있다 — 기다린다 */
-      debNext();                                    /* 심사관이 자리를 비웠다 */
-    }, wait);
+      var btn = document.getElementById("egStampBtn");
+      var up = dock && dock.classList.contains("on") && btn && !btn.disabled;
+      var el = performance.now() - t0;
+      if (up && el >= (D.press || 2.4) * 1000) { try { btn.click(); } catch (e) { } return; }
+      if (el >= (D.wait || 12) * 1000) { debNext(); return; }
+      EGR_later(watch, 250);
+    })();
   }
 
   function debNext() {
@@ -10492,6 +10563,15 @@ function paintBook() {
                             도착까지 함께 흉내 내면 그 순간 저장 줄이 도착으로 적히고,
                             시승이 기록을 건드리게 된다(0826v 시승 잠금의 그 까닭). */
                        deb: function () { debStart(); return "하선 — 5초마다 넘어갑니다"; },
+                       /* ⭐ 0828p 잣대 — 방송 노드를 만든 수와 푼 수.
+                          ⚠ 푼 수는 노드 낱개라 만든 수(방송 편수)의 열 배쯤이 정상이다.
+                            보아야 할 것은 **비율이 아니라 흐름** — 만든 수만 늘고 푼 수가
+                            멈춰 있으면 그때가 다시 새는 것이다. */
+                       paNodes: function () {
+                         console.log("[EG] 방송 " + PA_MADE + "편 · 푼 노드 " + PA_FREED
+                           + " · 지금 " + (PA_NOW ? "재생 중" : "조용") + " · 대기 " + PA_Q.length);
+                         return { 편: PA_MADE, 푼노드: PA_FREED };
+                       },
                        debNext: function () { debNext(); return DEB_I; },
                        /* ⭐ 0828n — 해가 정한 것을 손으로 민다. ⚠ 인자 없이 부르면 해에게 돌려준다 */
                        debNight: function (on) {
