@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>EG · 뉴욕 영업 캡처판 — Midtown Spires</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Widgets/widgets.css" rel="stylesheet" />
+
+<style>
+  html,body{ margin:0; padding:0; height:100%; background:#05070f; overflow:hidden;
+             font-family:'Helvetica Neue',Arial,'Apple SD Gothic Neo','Malgun Gothic',sans-serif; }
+  #cesiumContainer{ position:absolute; inset:0; }
+  .cesium-viewer-bottom, .cesium-widget-credits{ display:none !important; }
+
+  #panel{
+    position:absolute; left:16px; top:16px; z-index:20; width:238px;
+    background:rgba(10,14,26,.88); border:1px solid #c9a227; border-radius:12px;
+    padding:14px 14px 12px; color:#e8e6df; backdrop-filter:blur(6px);
+    box-shadow:0 8px 26px rgba(0,0,0,.5);
+  }
+  #panel h1{ margin:0 0 2px; font-size:13px; font-weight:700; color:#f2e9cf; letter-spacing:.02em; }
+  #panel .sub{ font-size:11px; color:#8d94a8; margin-bottom:12px; line-height:1.45; }
+  .grp{ margin-bottom:11px; }
+  .grp > .lab{ font-size:10px; color:#8d94a8; letter-spacing:.09em; margin-bottom:5px; text-transform:uppercase; }
+  .row{ display:flex; gap:5px; flex-wrap:wrap; }
+  .row button{
+    flex:1 1 46%; padding:6px 0; font-size:11px; font-weight:600; cursor:pointer;
+    background:rgba(255,255,255,.05); color:#c2c7d4;
+    border:1px solid rgba(201,162,39,.32); border-radius:7px; transition:.14s; font-family:inherit;
+  }
+  .row button:hover{ background:rgba(201,162,39,.16); color:#f2e9cf; }
+  .row button.on{ background:#c9a227; color:#161006; border-color:#c9a227; }
+  .row button:focus-visible{ outline:2px solid #fff; outline-offset:1px; }
+
+  #legend{ margin-top:11px; padding-top:10px; border-top:1px solid rgba(201,162,39,.25); }
+  .lg{ display:flex; align-items:center; gap:7px; font-size:11px; margin-bottom:5px; color:#c2c7d4; }
+  .lg i{ width:9px; height:9px; border-radius:50%; flex:none; box-shadow:0 0 0 1.5px #05070f; }
+  .lg em{ font-style:normal; color:#8d94a8; margin-left:auto; font-size:10px; }
+
+  #readout{ margin-top:10px; padding-top:9px; border-top:1px solid rgba(201,162,39,.25);
+            font-size:10.5px; color:#8d94a8; line-height:1.6; white-space:pre-line; }
+  #readout b{ color:#e8e6df; font-weight:600; }
+
+  #loader{ position:absolute; inset:0; z-index:40; display:grid; place-items:center;
+           background:#05070f; color:#c9a227; font-size:13px; letter-spacing:.06em; transition:opacity .6s; }
+  #loader.gone{ opacity:0; pointer-events:none; }
+  @media (prefers-reduced-motion: reduce){ #loader{ transition:none; } }
+</style>
+</head>
+<body>
+
+<div id="cesiumContainer"></div>
+
+<div id="panel">
+  <h1>Midtown Spires</h1>
+  <div class="sub">한 채 = 3 Cell · 27슬롯<br>Territory 8채 = 24 Cell · 655,200원</div>
+
+  <div class="grp">
+    <div class="lab">시점</div>
+    <div class="row" id="rowCam">
+      <button data-c="wide" class="on">세 채</button>
+      <button data-c="esb">엠파이어</button>
+      <button data-c="chr">크라이슬러</button>
+      <button data-c="col">콜레주</button>
+    </div>
+  </div>
+
+  <div class="grp">
+    <div class="lab">건물 뒤 핀</div>
+    <div class="row" id="rowDepth">
+      <button data-d="hide" class="on">가림</button>
+      <button data-d="thru">관통</button>
+    </div>
+  </div>
+
+  <div class="grp">
+    <div class="lab">명패</div>
+    <div class="row" id="rowLab">
+      <button data-l="on" class="on">이름</button>
+      <button data-l="off">점만</button>
+    </div>
+  </div>
+
+  <div id="legend"></div>
+  <div id="readout">…</div>
+</div>
+
+<div id="loader">미드타운으로 갑니다…</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   EG · 뉴욕 영업 캡처판 — 0828 밤
+   층 번호가 아니라 사람 이름이 선다. 파리 캡처의 문법을 세로로 세운 것.
+   한 채 = 3 Cell = 27슬롯 · 60층 위 · 4면
+   ══════════════════════════════════════════════════════════════ */
+
+const GOOGLE_API_KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A";
+
+/* ⭐ 좌표는 Wikipedia/Wikidata 기준 6자리 (0625 수칙) */
+const BUILDINGS = [
+  { key:"esb", name:"Empire State Building", lat:40.748817, lng:-73.985428, floors:102, roof:380.2, from:61 },
+  { key:"chr", name:"Chrysler Building",     lat:40.751652, lng:-73.975311, floors:77,  roof:282.0, from:61 },
+  { key:"van", name:"One Vanderbilt",        lat:40.752971, lng:-73.978322, floors:93,  roof:427.0, from:61 }
+];
+
+/* ⭐ 뉴욕 직영 — 콜레주가 통째로 쓰는 작은 한 채. 안 판다.
+   마천루를 파는 도시에서 EG만 낮고 근사한 집에 산다 (파리 5구 팡테옹과 같은 문법). */
+const COLLEGE = {
+  key:"col", name:"Collège de Compostella · EG",
+  lat:40.741061, lng:-73.989699, floors:22, roof:86.9,
+  rooms:["Bibliothèque","Salle 273","Réfectoire","Atelier","Le Toit"]
+};
+
+/* 파트너 넷 — 색이 곧 지문 */
+const ORGS = [
+  { code:"minumsa", name:"민음사",   color:"#7b4fb5" },
+  { code:"munhak",  name:"문학동네", color:"#1f7a5a" },
+  { code:"changbi", name:"창비",     color:"#b5432f" },
+  { code:"ildang",  name:"일당백",   color:"#2f6fb5" }
+];
+const EG_GOLD = "#c9a227";
+
+/* 가상 콩파뇽 27명 × 3채. 파리 명패(lonelywalden·Puffin)의 결 그대로 —
+   실명이 아니라 각자 고른 이름이 선다. */
+const NAMES = [
+ "lonelywalden","Puffin","marie","pascal","Hyun","bartleby","gregor","zorba",
+ "meursault","godot","Sylvia","Adrienne","noctua","inkwell","quietriver","olive",
+ "Juno","salinger","mistral","tumbleweed","perec","ariadne","kestrel","lantern",
+ "Sonya","almond","seolhwa","driftwood","vireo","copperplate","monsieur","nightjar",
+ "clover","ptarmigan","Beatrice","fennel","halcyon","ISHMAEL","pomelo","zelkova",
+ "wren","aubade","citron","molloy","Rilke","tanager","kolibri","samovar",
+ "verdigris","ptolemy","linden","moonwort","auk","cassia","dovetail","estragon",
+ "figment","gannet","hazel","indigo","jackdaw","kelp","lichen","murmur",
+ "nocturne","orrery","plover","quince","rookery","sorrel","thistle","umber",
+ "vesper","willow","xenia","yarrow","zephyr","alder","bramble","cinder",
+ "dunlin","ember","fallow","gorse"
+];
+
+/* 카메라 — 남동에서 북서를 본다 */
+const CAMS = {
+  wide:{ lng:-73.97620, lat:40.74280, alt:640, heading:333, pitch:-17 },
+  esb: { lng:-73.98150, lat:40.74450, alt:430, heading:325, pitch:-19 },
+  chr: { lng:-73.97180, lat:40.74830, alt:360, heading:328, pitch:-17 },
+  col: { lng:-73.98730, lat:40.73830, alt:230, heading:330, pitch:-16 }
+};
+
+let viewer, tileset, groundH = 0;
+let state = { depth:"hide", label:"on" };
+
+function offsetLL(lat, lng, bearingDeg, dist){
+  const R = 6378137, br = bearingDeg * Math.PI/180;
+  return {
+    lat: lat + (dist*Math.cos(br))/R * 180/Math.PI,
+    lng: lng + (dist*Math.sin(br))/(R*Math.cos(lat*Math.PI/180)) * 180/Math.PI
+  };
+}
+
+/* ── 한 채 27슬롯 배치 ──
+   60층 위를 4면에 나눠 담는다. 면마다 7·7·7·6 → 27.
+   면은 방위이자 뉴욕 사람이 쓰는 주소다. */
+const FACES = [
+  { b:  90, ko:"East",  sub:"Fifth Ave" },
+  { b: 180, ko:"South", sub:"Downtown"  },
+  { b: 270, ko:"West",  sub:"34th"      },
+  { b:   0, ko:"North", sub:"Uptown"    }
+];
+const PER_FACE = [7,7,7,6];   // 합 27
+
+function slotsFor(b, nameSeed){
+  const fh   = b.roof / b.floors;
+  const span = b.floors - b.from + 1;
+  const out  = [];
+  let n = nameSeed;
+  FACES.forEach((f, fi)=>{
+    const cnt = PER_FACE[fi];
+    for (let i = 0; i < cnt; i++){
+      /* 면 안에서 층을 고르게 편다 */
+      const fl = Math.round(b.from + span * ((i + 0.5) / cnt));
+      out.push({
+        floor: Math.min(fl, b.floors),
+        h: groundH + fl * fh,
+        face: f,
+        name: NAMES[n % NAMES.length],
+        org:  ORGS[n % ORGS.length]
+      });
+      n++;
+    }
+  });
+  return out;
+}
+
+async function init(){
+  viewer = new Cesium.Viewer("cesiumContainer", {
+    baseLayer:false, baseLayerPicker:false, geocoder:false, homeButton:false,
+    sceneModePicker:false, navigationHelpButton:false, animation:false,
+    timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false,
+    requestRenderMode:false
+  });
+  const s = viewer.scene;
+  s.globe.show = true;
+  s.globe.baseColor = Cesium.Color.fromCssColorString("#0a1326");
+  s.skyAtmosphere.show = true;
+  viewer.clock.clockStep = Cesium.ClockStep.SYSTEM_CLOCK;
+  viewer.clock.shouldAnimate = true;
+
+  try { tileset = await Cesium.createGooglePhotorealistic3DTileset(GOOGLE_API_KEY); }
+  catch(e){ tileset = await Cesium.createGooglePhotorealistic3DTileset({ key: GOOGLE_API_KEY }); }
+  s.primitives.add(tileset);
+  try{
+    tileset.skipLevelOfDetail = false;
+    tileset.dynamicScreenSpaceError = true;
+    tileset.dynamicScreenSpaceErrorDensity = 0.00278;
+    tileset.cacheBytes = 1024*1024*1024;
+    tileset.preloadWhenHidden = true;
+  }catch(e){ console.warn("타일셋 옵션 일부 미적용:", e); }
+
+  flyTo("wide", true);
+  await measureGround();
+  draw();
+  drawLegend();
+  document.getElementById("loader").classList.add("gone");
+}
+
+/* 바닥은 짐작하지 않고 잰다 — 둘레 90m 고리의 최저값을 길로 본다 */
+async function measureGround(){
+  const pts = [];
+  for (let b = 0; b < 360; b += 30){
+    const o = offsetLL(BUILDINGS[0].lat, BUILDINGS[0].lng, b, 90);
+    pts.push(Cesium.Cartesian3.fromDegrees(o.lng, o.lat));
+  }
+  try{
+    const hit = await viewer.scene.clampToHeightMostDetailed(pts);
+    const hs = hit.filter(Boolean).map(c=>Cesium.Cartographic.fromCartesian(c).height)
+                  .filter(h=>Number.isFinite(h));
+    if (hs.length) groundH = Math.min(...hs);
+  }catch(e){ console.warn("바닥 측정 실패 — 0m:", e); }
+}
+
+function plate(text, bg, fg, size, depth, big){
+  return {
+    text, font:(big?"bold 13px ":"bold 11.5px ")+"'Helvetica Neue',Arial,sans-serif",
+    fillColor: Cesium.Color.fromCssColorString(fg),
+    outlineColor: Cesium.Color.fromCssColorString("#0a0e1a"),
+    outlineWidth: 3, style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+    showBackground:true,
+    backgroundColor: Cesium.Color.fromCssColorString(bg).withAlpha(.95),
+    backgroundPadding: new Cesium.Cartesian2(big?10:8, big?6:4),
+    pixelOffset: new Cesium.Cartesian2(0,-10),
+    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+    disableDepthTestDistance: depth
+  };
+}
+
+function draw(){
+  viewer.entities.removeAll();
+  const depth = state.depth === "thru" ? Number.POSITIVE_INFINITY : 0;
+  const showName = state.label === "on";
+  let seed = 0, total = 0;
+
+  for (const b of BUILDINGS){
+    const slots = slotsFor(b, seed); seed += 27; total += 27;
+
+    /* 빌딩 머리 명패 — 지붕 위 30m. 「무엇을 파는가」가 여기서 읽힌다 */
+    viewer.entities.add({
+      id:"cap-"+b.key,
+      position: Cesium.Cartesian3.fromDegrees(b.lng, b.lat, groundH + b.roof + 30),
+      point:{ pixelSize:8, color:Cesium.Color.fromCssColorString(EG_GOLD),
+              outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
+              disableDepthTestDistance:Number.POSITIVE_INFINITY },
+      label: plate(b.name+"  ·  3 Cell · 27", EG_GOLD, "#161006", 13,
+                   Number.POSITIVE_INFINITY, true)
+    });
+
+    for (const s of slots){
+      /* 면 바깥으로 밀어낸다 — 벽에 걸린 간판이 된다 */
+      const p = offsetLL(b.lat, b.lng, s.face.b, 34);
+      viewer.entities.add({
+        id:"slot-"+b.key+"-"+s.floor+"-"+s.face.ko+"-"+s.name,
+        position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, s.h),
+        point:{ pixelSize:7, color:Cesium.Color.fromCssColorString(s.org.color),
+                outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
+                disableDepthTestDistance: depth },
+        label: showName
+          ? plate(s.name+"  "+s.floor+"F "+s.face.ko, s.org.color, "#ffffff", 11.5, depth, false)
+          : undefined
+      });
+    }
+  }
+
+  /* ── 콜레주 — 직영 한 채. 슬롯이 아니라 방 이름이 선다 ── */
+  const c = COLLEGE, cfh = c.roof / c.floors;
+  viewer.entities.add({
+    id:"cap-col",
+    position: Cesium.Cartesian3.fromDegrees(c.lng, c.lat, groundH + c.roof + 26),
+    point:{ pixelSize:9, color:Cesium.Color.fromCssColorString("#f2e9cf"),
+            outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
+            disableDepthTestDistance:Number.POSITIVE_INFINITY },
+    label: plate(c.name, "#8f1d2b", "#f7efe0", 13, Number.POSITIVE_INFINITY, true)
+  });
+  c.rooms.forEach((r,i)=>{
+    const fl = Math.round(4 + (c.floors-6) * (i/(c.rooms.length-1)));
+    const p  = offsetLL(c.lat, c.lng, 120, 22);
+    viewer.entities.add({
+      id:"col-"+i,
+      position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, groundH + fl*cfh),
+      point:{ pixelSize:7, color:Cesium.Color.fromCssColorString("#f2e9cf"),
+              outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
+              disableDepthTestDistance: depth },
+      label: showName ? plate(r+"  "+fl+"F", "#8f1d2b", "#f7efe0", 11.5, depth, false) : undefined
+    });
+  });
+
+  document.getElementById("readout").innerHTML =
+    `잰 바닥 <b>${groundH.toFixed(1)}m</b> · 60층 위 · 4면\n` +
+    `분양 <b>3채 · ${total}명</b>  ·  직영 <b>콜레주 1채</b>\n` +
+    `3채 = <b>9 Cell · 245,700원</b>\n` +
+    `Territory(8채) = <b>24 Cell · 655,200원</b>`;
+}
+
+function drawLegend(){
+  const L = document.getElementById("legend");
+  L.innerHTML = ORGS.map(o=>
+    `<div class="lg"><i style="background:${o.color}"></i>${o.name}<em>파트너</em></div>`
+  ).join("") +
+  `<div class="lg"><i style="background:#8f1d2b"></i>콜레주<em>직영</em></div>`;
+}
+
+function flyTo(key, instant){
+  const c = CAMS[key];
+  const opt = {
+    destination: Cesium.Cartesian3.fromDegrees(c.lng, c.lat, c.alt),
+    orientation:{ heading:Cesium.Math.toRadians(c.heading),
+                  pitch:Cesium.Math.toRadians(c.pitch), roll:0 }
+  };
+  if (instant) viewer.camera.setView(opt); else viewer.camera.flyTo({ ...opt, duration:1.8 });
+}
+
+function wire(id, fn){
+  document.getElementById(id).addEventListener("click", e=>{
+    const b = e.target.closest("button"); if(!b) return;
+    [...e.currentTarget.children].forEach(x=>x.classList.remove("on"));
+    b.classList.add("on"); fn(b.dataset);
+  });
+}
+wire("rowCam",   d=> flyTo(d.c, false));
+wire("rowDepth", d=>{ state.depth = d.d; draw(); });
+wire("rowLab",   d=>{ state.label = d.l; draw(); });
+
+init().catch(e=>{
+  console.error("[EG] 캡처판이 끝까지 가지 못했습니다:", e);
+  document.getElementById("loader").textContent = "지구를 못 띄웠습니다. 콘솔을 보세요.";
+});
+</script>
+</body>
+</html>
