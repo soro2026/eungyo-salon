@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0828i";
+  var VERSION = "0828j";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -2826,7 +2826,13 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   box-shadow:0 4px 12px rgba(0,0,0,.28) inset;
   transform:translateY(-101%);
   transition:transform .75s cubic-bezier(.35,.9,.3,1),visibility 0s linear .75s}
-#readingRoom.shut .shade{transform:translateY(0);visibility:visible;
+/* ══ ⭐⭐ 0828j — 넷이 한 몸이던 것을 **넷으로 가른다** (소로 0828) ═══════════════
+     ⚠⚠ 여태 .shut 은 **방(#readingRoom)** 에 걸렸다. 그래서 S 한 번이 창 넷을 한꺼번에
+       여닫았다 — 앞자리 승객 셋의 덮개까지 내 손이 내리고 있었던 것이다(8호: 기내에 없는 일).
+     ⭐ 이제 덮개가 저마다 제 상태를 쥔다. 손님이 만지는 것은 **자기 창 하나**뿐이고,
+       나머지 셋은 소등 안내 때 「다들 함께」 내려간다.
+     ⚠ 값을 두 곳에 안 둔다 — 배열 SHUT 하나가 정본이고 DOM 은 그것을 비출 뿐이다. */
+#readingRoom .shade.shut{transform:translateY(0);visibility:visible;
   transition:transform .75s cubic-bezier(.35,.9,.3,1),visibility 0s linear 0s}
 #readingExit{position:fixed;right:18px;top:18px;z-index:14;width:38px;height:38px;
   border-radius:50%;cursor:pointer;pointer-events:auto;font-size:17px;line-height:1;
@@ -3924,7 +3930,8 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   var cvW = 0, cvH = 0;            /* 캔버스 마지막 크기 — 같으면 resize 를 안 부른다 */
   var OUT = false;                 /* 0819g — 외부 보기. 왕복 하나, 별도 갈래가 아니다(0호) */
   var BARE = false;                /* 0820b — 밖에서 판 둘을 함께 걷는다 (V) */
-  var SHUT = false;                /* 0819P — 창 덮개. 24호 · 손님이 여닫는다 */
+  /* ⭐ 0828j — 창마다 하나씩. 0 번이 **자기 창**이다(가장 크고 가장 가까운 창 · 손잡이가 그 밑) */
+  var SHUT = [];                   /* 0819P — 창 덮개. 24호 · 손님이 여닫는다 */
   var PAUSED = false;              /* 0819T — 일시정지. cruise 루프가 이 값을 본다 */
 
   /* ══ 고갯짓 — 자유시점 (0821j) ═══════════════════════════════════════
@@ -4822,8 +4829,10 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   }
   function paApply(s) {
     if (!s) return;
-    if (s.cabin === "dim") PA_DIM = true;
-    else if (s.cabin === "lit") PA_DIM = false;
+    /* ⭐ 0828j — 조명이 바뀌면 덮개도 함께 움직인다. ⚠ 새 표 칸을 안 만든다 —
+       「소등」이라 적힌 그 한 줄이 이미 이 순간을 가리키고 있다(22호). */
+    if (s.cabin === "dim") { PA_DIM = true; shadeAll(true); }
+    else if (s.cabin === "lit") { PA_DIM = false; shadeAll(false); }
     /* ⭐ 0826d — 표의 sets 가 트레이도 정한다. ⚠ 숫자도 이름도 코드에 안 박는다.
        ⚠ 이어 타기에서도 결과만 물려받는다 — 여섯 시간 뒤에 돌아오면 식탁이 이미 내려져 있다. */
     if (typeof s.tray === "string") TRAY = (s.tray === "up") ? null : s.tray;
@@ -6191,10 +6200,27 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
        실제 여객기는 이착륙 때 덮개를 **여는데**, 그건 규정이고 여기는 취향이다. */
   function toggleShade() {
     if (!ROOT) return;
-    SHUT = !SHUT;
-    ROOT.classList.toggle("shut", SHUT);
+    shadeSet(0, !SHUT[0]);       /* ⭐ 0828j — 자기 창 하나만. 남의 창은 남이 내린다 */
+  }
+  /* ⭐ 배열을 덮개에 비추는 손 — 그리는 곳이 여기 하나다(22호) */
+  function shadePaint() {
+    if (!ROOT) return;
+    var sh = ROOT.querySelectorAll(".shade");
+    for (var i = 0; i < sh.length; i++) sh[i].classList.toggle("shut", !!SHUT[i]);
     var g = ROOT.querySelector("#readingGrip");
-    if (g) g.setAttribute("data-tip", SHUT ? "창 열기" : "창 닫기");
+    if (g) g.setAttribute("data-tip", SHUT[0] ? "창 열기" : "창 닫기");
+  }
+  function shadeSet(i, on) { SHUT[i] = !!on; shadePaint(); }
+  /* ⭐⭐ 0828j 소등 안내와 함께 다 내려간다 (소로 0828) — 「저절로 2시간 타이밍에」.
+     ⚠ 승무원이 내려 주는 것이 아니다. **다들 함께 내리는 것**이다 —
+       그래서 넷이 다 닫히고, 다시 여는 것은 자기 것 하나뿐이다.
+     ⚠ 시각을 코드에 안 박는다. 표의 sets 가 「소등」이라 말하는 그 순간이 곧 이 순간이다. */
+  function shadeAll(on) {
+    for (var i = 0; i < (WINS ? WINS.length : 0); i++) SHUT[i] = !!on;
+    shadePaint();
+    /* ⚠ 0828j — 여기서 손잡이를 또 안 만진다. shadePaint 가 이미 한다.
+       ⭐ 옛 줄이 `SHUT ? …` 였는데 이제 SHUT 은 배열이라 **빈 배열도 참**이다.
+         두 곳에서 같은 것을 그리면, 나중 것이 앞의 것을 조용히 뒤집는다(22호). */
   }
 
   /* ══ fps 계기 (0820i) ══════════════════════════════════════════════
@@ -9821,7 +9847,7 @@ function paintBook() {
     BODY = false; BODYWAS = false;   /* ⭐ 0821L — 다음 탑승은 조종석에서 시작한다 */
     ORB.yaw = ORB0.yaw; ORB.pit = ORB0.pit;
     INSEL = null; LAMPEL = null; BLKEL = null;   /* ⚠ 0821f — 방과 함께 걷힌다. 다음 탑승이 다시 세운다 */
-    SHUT = false; editing = false; egrab = null; IS_ADMIN = false; cvW = 0; cvH = 0; PAUSED = false;
+    SHUT = []; editing = false; egrab = null; IS_ADMIN = false; cvW = 0; cvH = 0; PAUSED = false;
     PREVIEW = null; themeNow = ""; themeMon = ""; RESUME = null;   /* ⚠ 다음 탑승은 진짜 시각으로 */
     TRAY = null; PLATE_NOW = null; MEAL_NOW = null;                                /* ⭐ 0826d — 내리면 식탁은 접힌다 */
     RLITE = false; if (ROOT) ROOT.classList.remove("rlite");      /* ⭐ 0826i — 독서등도 끈다 */
@@ -10125,6 +10151,16 @@ function paintBook() {
                            + (SPEC.view ? (12 - SPEC.view / 30) : 12).toFixed(1) + "시 · 오른창 "
                            + (SPEC.view / 30).toFixed(1) + "시 방향  (0 정면 · 90 정옆)");
                          return SPEC.view;
+                       },
+                       /* ⭐ 0828j 덮개 넷의 지금 — 0 번이 자기 창이다 */
+                       shade: function (i, on) {
+                         if (arguments.length >= 2) shadeSet(+i, !!on);
+                         else if (arguments.length === 1) shadeAll(!!i);
+                         var w = (WINS || []).length, out = [];
+                         for (var n = 0; n < w; n++) out.push((n === 0 ? "자기창" : "창" + (n + 1))
+                           + " " + (SHUT[n] ? "닫힘" : "열림"));
+                         console.log("[EG] 창 덮개 — " + (out.join(" · ") || "이 기체엔 덮개가 없습니다"));
+                         return SHUT.slice(0, w);
                        },
                        trayOpen: function () { trayToggle(); return TRAY; },
                        /* ══ ⭐⭐⭐ 0826v 얹는층 손 (소로 0826 저녁) ══════════════
