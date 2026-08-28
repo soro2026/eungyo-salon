@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0828L";
+  var VERSION = "0828m";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -775,6 +775,18 @@
            td:    [48.99338, 2.57416],        /* ⭐ 0823s 접지대 · 문턱에서 300m 안쪽 */
            stop:  [48.99455, 2.59631],        /* ⭐ 유도로 입구 · 접지에서 1,922m */
            end:   [48.99479, 2.60072],        /* 활주로 동쪽 끝 · 접지에서 2,245m */
+           /* ══ ⭐⭐ 0828m 입국 도장 (장거리 24호 개정 · 소로 0828 판정) ═══════════
+              ⚠⚠ 결정문 24호는 도장 하나(read_arrival)에 각인만 ICN-CDG 로 갈아
+                끼우는 안이었다. 무른다 — 소로가 **샤를 드골 공항으로** 다섯 시안을
+                구우시므로, 그림이 공항 것이면 주인도 공항이어야 한다.
+              ⭐ 그래서 이 칸이 기체(SPEC)가 아니라 **노선의 도착 쪽**에 산다.
+                언젠가 CDG→ICN 을 놓는 날 lim_icn 한 줄이면 끝난다. 코드를 다시 안 연다.
+              ⚠ 벽감을 volatus 에 안 둔다 — vol_lectio 가 daily_per_area 라 벽감 전체를
+                보고 막는다. 파리에 닿은 날 독서 도장이 안 찍히게 된다. limen 으로 갈랐다.
+              ⭐ 각인은 편명이다. 날짜는 도장이 스스로 새기므로(12호), 이 칸에는
+                **이 세계에만 있는 것**이 들어가야 특별해진다(소로 0828 판정 ㉡). */
+           stamp: "lim_cdg",
+           mark:  "EG AIR 101",
            hdg:   85.33 },                    /* ⭐ 소로 두 점으로 잰 값. 공시 85.30° 와 0.03° */
     /* ⭐ 고도 계단 — 실측. ⚠ 아직 아무도 안 읽는다(소로 판정 대기 · 정착문 제5부 ①) */
     steps: [[0, 9174], [97, 9784], [312, 10363], [531, 10973]],   /* [이륙 후 분, 해발 m] */
@@ -1134,6 +1146,25 @@
                   두 곳이 갈리므로 부딪치지 않는다.
                 ⚠ 아래 값은 첫 자리일 뿐이고, E 로 끌면 서버에 적혀 그것이 이긴다. */
              mark: { on: 5, off: 5, at: [50.0, 72.0], size: 40 }
+           },
+           /* ══ ⭐⭐⭐ 0828m 하선 넷 (장거리 22~24호 · 소로 0828 설계) ═══════════════
+              > 소로 — 「비행기에서 내려 브릿지 통과, 입국심사 및 짐찾기, 공항출구」
+              ⭐ 통로(aisle)와 **같은 부품·다른 규칙**이다. 판 두 겹·겹쳐 녹이기·
+                판 URL 짓는 손을 그대로 물려 쓰고, 여기서는 화살표도 「좌석으로」도 없다.
+              ⚠⚠ 통로는 왕복이고 이것은 편도다. 되돌아올 문을 안 만든다 —
+                열두 시간을 날아왔으니 내리는 일에는 무르기가 없다.
+              ⭐ 셋째 장에서 손님을 **기다린다.** 도장은 손님이 누른다(크레덴시알 3호).
+              ⚠ wait 는 「도장이 안 놓였을 때만」 쓰는 그물이다. 도장이 서 있으면
+                안 넘긴다 — 12시간 날아온 사람 눈앞에서 도장을 뺏는 일이 된다.
+              ⭐ night 를 아직 안 켠다. 밤 벌(_n)을 구우면 그날 이 한 칸만 참으로 바꾼다.
+                콘솔: egReading.debNight(true) */
+           deboard: {
+             sec: 5.0, fade: 0.8,
+             legs: ["arr1_walk", "arr2_bridge", "arr3_immig", "arr4_exit"],
+             hold: 2,        /* ⭐ 여기서 선다(0부터 셈) — 입국심사대 */
+             wait: 15,       /* 도장이 안 놓였으면 이만큼 뒤 저절로 넘어간다 (소로 0828) */
+             night: false,   /* ⚠ 밤 벌이 아직 없다. 켜면 이름 뒤에 _n 이 붙는다 */
+             say: "파리 도착"
            },
            /* ⭐⭐ 0826p — 소등 중에는 트레이도 어두운 벌이 선다.
               ⚠ 표가 쥔다 — 「소등이면 이름 뒤에 _dim 을 붙인다」를 코드에 안 박는다.
@@ -2527,6 +2558,10 @@
                   : "cruise";
           /* ⭐ 0827t — 걷는 시계와 마크 리듬. ⚠ 비행이 안 멈추므로 12초 동안도 세상은 흐른다 */
         walkTick(now);
+        /* ⭐ 0828m 하선 — 도착 방송을 지켜보고, 열리면 판 넷을 넘긴다.
+           ⚠ 둘 다 값싸다. 도착 전에는 debWatch 첫 줄에서 곧장 물러난다. */
+        debWatch(now);
+        debTick(now);
         goTick(flown / 60, rel);   /* ⭐ 0828h — 방송이 쓰는 그 고도(rel)를 그대로 쓴다 */
         mealTick(flown / 60);      /* ⭐ 0828e — 시각이 쟁반을 정한다(18호) */
         paTick(now, { phase: _ph, min: flown / 60, seg: seg, alt: rel,
@@ -3411,6 +3446,29 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   transition:background .18s,border-color .18s}
 #egrWalk.cube #egrBack{display:block}
 #egrBack:hover{background:rgba(14,18,26,.86);border-color:rgba(201,168,76,.8)}
+
+/* ══ ⭐⭐⭐ 0828m 하선 — 판은 통로 것을 그대로 쓰고 세간만 걷는다 ═══════════════
+   ⭐ #egrWalk 두 겹과 겹쳐 녹이기·비침 막는 바닥(.flr)이 이미 다 있다.
+     22호 — 같은 것을 두 곳에 안 만든다. 새 겹을 안 짓고 꼬리표 하나를 건다.
+   ⚠⚠ 화살표·「좌석으로」·창을 전량 걷는다. 하선은 편도라 돌아갈 곳이 없고,
+     ⭐ **닫힌 문을 흐리게 그려 두면 그것이 거짓말이다**(0828h 그 수칙).
+       그래서 흐리게 두지 않고 아예 없앤다.
+   ⚠ .cube 를 안 건다 — 걸면 화살표가 서고 바닥이 걷힌다. 하선은 큐빅이 아니다. */
+#egrWalk.deb .arw,#egrWalk.deb #egrBack,#egrWalk.deb .cwin{display:none!important}
+
+/* ⭐ 마지막 한 손 — 넷째 장에서만 선다(22호: 마지막 한 손도 손님이 놓는다).
+   ⚠ 셋째 장에서는 이 자리에 도장이 선다. 둘이 같은 곳에 겹치지 않게
+     도장은 stamp_press 가 bottom 을 받아 제 높이를 잡는다. */
+#egrDeb{position:absolute;left:50%;bottom:52px;transform:translateX(-50%);z-index:6;
+  display:none;pointer-events:auto;padding:14px 34px;border-radius:11px;cursor:pointer;
+  border:1px solid rgba(201,168,76,.52);background:rgba(14,18,26,.72);
+  backdrop-filter:blur(5px);color:#f0e4c8;
+  font:600 16px/1 'Noto Sans KR',sans-serif;letter-spacing:.03em;
+  box-shadow:0 8px 26px rgba(0,0,0,.42);
+  transition:background .2s,border-color .2s,transform .2s}
+#egrDeb.on{display:block}
+#egrDeb:hover{background:rgba(20,26,36,.92);border-color:rgba(201,168,76,.92);
+  transform:translateX(-50%) translateY(-2px)}
 
 /* ⭐⭐ 갤리 큐빅의 진짜 창 — 판에 알파로 뚫려 있는 그 구멍 뒤로 Cesium 이 보인다.
    ⚠ 판이 z-index 로 위에 있고, 뚫린 곳으로 아래가 비친다. 따로 오려낼 것이 없다. */
@@ -5944,9 +6002,26 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
        그래서 **떠나기 전에 넉 장을 다 받아 둔다.**
      ⭐ 밝기는 CSS 한 곳에서만 든다(--aiB/--aiC). 원판은 어두운 채로 격납고에 있다.
      ══════════════════════════════════════════════════════════════════════════ */
-  var WALK = 0;          /* 0 좌석 · 1 걷는 중 · 2 갤리 큐빅 */
+  var WALK = 0;          /* 0 좌석 · 1 걷는 중 · 2 갤리 큐빅 · ⭐ 3 하선(0828m) */
   var WK_EL = null, WK_I = 0, WK_T = 0, WK_SIDE = "L", CUBE_I = 0, GO_EL = null;
   var WK_PRE = {};       /* 미리 받아 둔 판 */
+  /* ══ ⭐⭐ 0828m 하선 그릇 ═══════════════════════════════════════════════
+     ⚠ WALK 을 3 으로 두는 것만으로 통로 손들이 전부 저절로 물러난다 —
+       walkTick 은 !==1 에서, cubeTurn 은 !==2 에서 돌아선다. 갈래를 안 더했다.
+     ⚠ DEB_HOLD 는 「손님을 기다리는 중」이다. 참이면 시계가 판을 안 넘긴다. */
+  /* ⚠⚠ 0821S 의 그 병을 여기서 또 만났다 — ARRIVED 는 cruise() **안**의 지역 변수라
+       키 핸들러도 debWatch 도 그것을 못 본다. 짐작으로 쓰면 조용히 늘 거짓이다.
+     ⭐ 처방도 그때와 같다 — **모듈 변수에 적어 두고** 밖에서 읽는다(WHEEL_V 갈래).
+     ⭐⭐ 그리고 적을 문이 이미 뚫려 있었다 — cruise 의 opt.onArrive 는 0823f 에
+       열어 두고 오늘까지 아무도 안 받던 창구다. 새 창구를 안 냈다. */
+  var LANDED = false;    /* ⭐ 닿아 섰나 — 방이 아는 값 */
+  var DEB_I = -1;        /* 지금 몇 째 장 (0부터) */
+  var DEB_T = 0;         /* 이 장을 세운 시각 */
+  var DEB_HOLD = false;  /* 손님을 기다리는 중인가 (도장 · 마지막 단추) */
+  var DEB_EL = null;     /* 마지막 한 손 (#egrDeb) */
+  var DEB_ASK = false;   /* 「내리기」 물음판을 이미 냈나 */
+  var DEB_SAW = false;   /* 도착 뒤 방송이 한 번이라도 나갔나 */
+  var DEB_Q = 0;         /* 방송이 조용해진 시각 — 침묵 한 박자를 잰다 */
   /* ⚠⚠ 0828c — 0828a 에 지은 방위 그릇(OUT_AIM·OUT_SKY)을 통째로 걷었다.
      창 클릭이 사라지자 **물려줄 일 자체가 없어졌다** — 갤리에 선 채로 나가므로
      WALK 이 2 로 남고, galleyWin() 이 그대로 답한다. 그릇도 콘솔 손도 필요 없다.
@@ -6138,6 +6213,173 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     if (WK_EL) WK_EL.classList.remove("cube");
     if (!quiet) lookReset();
     layout();
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     ⭐⭐⭐ 0828m 하선 — 장거리 22~24호 · 소로 0828 설계
+     ══════════════════════════════════════════════════════════════════════════
+     > 소로 — 「착륙 마치고 사무장의 기내 방송 마치면 … 팝업으로 비행기에서 내리기
+     >   버튼 누르면 5초 단위로 장면 전환 시작」
+     >   「3에서는 도장을 유저가 찍어야 4로 전환 · 4에서는 팝업 버튼 클릭하면 종료」
+
+     ⭐ 도착 방송은 **이미 구워져 있었다.** phase "arrived" 로 걸리는 60초짜리
+       사무장 방송이 0825 부터 표에 서 있다. 여기서 새로 만든 것은 그 방송이
+       **끝났다는 것을 아는 손** 하나뿐이다.
+     ⚠⚠ 그리고 그 손이 그물을 함께 가진다 — 방송이 안 구워진 기체·노선에서는
+       영영 안 끝난다. 조용한 채로 스무 초가 지나면 그냥 연다.
+       ⭐ 없는 것을 기다리다 손님을 가두지 않는다. */
+
+  function debSpec() { return (SPEC && SPEC.deboard) || null; }
+  function debKey(i) {
+    var D = debSpec(); if (!D) return null;
+    return D.legs[i] + (D.night ? "_n" : "");
+  }
+  /* ⚠ 셋째 장에 도장이 있으므로 넷을 다 미리 받아 둔다 — 심사대에서 기다리는
+     동안 넷째 장이 오지 않으면, 도장을 누른 그 순간 화면이 검게 빈다. */
+  function debPreload(cb) {
+    var D = debSpec(); if (!D) { cb(false); return; }
+    var keys = [], i;
+    for (i = 0; i < D.legs.length; i++) keys.push(debKey(i));
+    var left = keys.length, bad = 0;
+    keys.forEach(function (k) {
+      if (WK_PRE[k]) { if (!--left) cb(bad === 0); return; }
+      var im = new Image();
+      im.onload = function () { WK_PRE[k] = im.src; if (!--left) cb(bad === 0); };
+      im.onerror = function () {
+        bad++; console.warn("[EG] ⚠ 하선 판을 못 받았습니다: " + k);
+        if (!--left) cb(bad === 0);
+      };
+      im.src = aisleUrl(k);
+    });
+  }
+
+  /* ⭐ 도착 방송을 지켜본다 — onTick 이 1초에 한 번 부른다.
+     ⚠ 여기서 아무 상태도 안 쌓는다. 「방송이 있나 · 조용해진 지 얼마인가」만 본다. */
+  function debWatch(now) {
+    if (!LANDED || DEB_ASK || WALK === 3 || !ROOT) return;
+    if (!debSpec()) return;                 /* 하선 판이 없는 기체 — 그냥 안 연다 */
+    if (PA_NOW || PA_Q.length) { DEB_SAW = true; DEB_Q = 0; return; }
+    if (!DEB_Q) DEB_Q = now;
+    /* ⭐ 방송을 들었으면 침묵 1.5초 뒤(12호 「여기서 침묵이 한 박자 온다」).
+       ⚠ 한 번도 안 들렸으면 스무 초까지만 기다린다 — 그물이지 규칙이 아니다. */
+    var ready = DEB_SAW ? (now - DEB_Q >= 1500) : (now - DEB_Q >= 20000);
+    if (!ready) return;
+    DEB_ASK = true;
+    ask("파리에 도착했습니다.", "샤를 드골 공항 · " + fmtHMS(flownOf()),
+        [{ label: "비행기에서 내리기", go: debStart }]);
+  }
+  /* ⚠ 물음판이 값을 스스로 재게 두지 않는다 — 비행이 쥔 값을 그대로 빌린다 */
+  function flownOf() { try { return flight ? flight.where().flown : 0; } catch (e) { return 0; } }
+  function fmtHMS(s) {
+    s = s | 0;
+    return Math.floor(s / 3600) + "시간 " + Math.floor((s % 3600) / 60) + "분";
+  }
+
+  function debStart() {
+    var D = debSpec();
+    if (!D || WALK === 3 || !ROOT) return;
+    /* ⭐ 갤리에 선 채로 닿았으면 좌석으로 되돌린다 — 「모두 기내 실내에」(소로 0828).
+       ⚠ 판을 갈아 끼우기 **전에** 한다. 뒤에 하면 갤리 판이 하선 판을 덮는다. */
+    if (WALK) walkEnd(true);
+    if (OUT) toggleOut();
+    if (BODY) toggleBody();
+    walkBuild();                            /* ⭐ 판 두 겹을 통로에게 빌린다 */
+    debPreload(function (ok) {
+      if (!ok) {
+        /* ⚠ 판이 모자라면 안 간다. 다만 손님을 활주로에 가두지도 않는다 —
+           나가는 문은 메뉴에 늘 있고, 여기서는 조용히 물러나 다시 물음판을 연다. */
+        console.warn("[EG] ⚠ 하선 판이 모자라 안 갑니다");
+        DEB_ASK = false; DEB_Q = 0;
+        return;
+      }
+      WALK = 3; DEB_I = -1; DEB_HOLD = false;
+      ROOT.classList.add("walk");
+      WK_EL.classList.remove("cube");
+      WK_EL.classList.add("deb");
+      debBuild();
+      lookReset();
+      WY = 40; WK_EL.style.setProperty("--wy", "40%");
+      debShow(0, performance.now());
+    });
+  }
+
+  function debBuild() {
+    if (DEB_EL || !WK_EL) return;
+    DEB_EL = document.createElement("button");
+    DEB_EL.id = "egrDeb"; DEB_EL.type = "button";
+    DEB_EL.textContent = (debSpec() || {}).say || "도착";
+    WK_EL.appendChild(DEB_EL);
+    EGR_on(DEB_EL, "click", function (e) { e.stopPropagation(); debDone(); });
+  }
+
+  function debShow(i, now) {
+    var D = debSpec(); if (!D || !WK_EL) return;
+    DEB_I = i; DEB_T = now; DEB_HOLD = false;
+    if (DEB_EL) DEB_EL.classList.remove("on");
+    walkShow(debKey(i), false);             /* ⚠ 밝기를 안 든다 — 공항은 이미 밝다 */
+    /* ⭐ 셋째 장 — 심사대. 시계를 멈추고 도장을 놓는다 */
+    if (i === D.hold) { DEB_HOLD = true; debStamp(); }
+    /* ⭐ 넷째 장 — 마지막 한 손. 저절로 안 넘어간다(22호) */
+    if (i >= D.legs.length - 1) {
+      DEB_HOLD = true;
+      if (DEB_EL) DEB_EL.classList.add("on");
+    }
+  }
+
+  /* ⭐ 도장 — 놓아두기만 하고 누르는 것은 손님이다(크레덴시알 3호).
+     ⚠⚠ 30호 「원판이 없으면 아무 일도 안 일어난다」가 여기서는 함정이 된다 —
+       안 서면 넘길 손이 없어 손님이 심사대에 갇힌다.
+     ⭐ 그래서 그물을 하나 건다. 다만 **터질 때 한 번만 판정한다** —
+       그 시각에 도장이 서 있으면 안 넘긴다(소로 0828: 「12시간 넘게 비행했는데」).
+     ⚠ 늦게 온 도장도 안 뺏긴다. 그물이 15초에 한 번 보고 물러나면 그만이다. */
+  function debStamp() {
+    var D = debSpec();
+    /* ⚠⚠ 0828m 자백 — 여기 첫 판에 `route` 를 그냥 적었다. 그것은 cruise() **안**의
+       매개변수라 이 밖에서는 없는 이름이다. ARRIVED 를 잡아 놓고 바로 옆줄에서
+       같은 병을 밟았고, **방금 세운 잣대(scope.js)가 그 두 곳을 잡았다.**
+       ⭐ 밖에서 노선을 얻는 문은 이미 있다 — askLeave 가 쓰던 그 두 줄이다. */
+    var rt = null;
+    try { rt = (routeBy(flight.routeCode) || {}).arr || null; } catch (e) { }
+    var kind = rt && rt.stamp;
+    var wait = ((D && D.wait) || 15) * 1000;
+    if (kind && window.EGStamp) {
+      try {
+        EGStamp.offer({ supa: egr_sb(), area: "limen", kind: kind,
+                        inscription: rt.mark || null,
+                        bottom: 52,
+                        onPressed: function () { debNext(); } });
+      } catch (e) { console.warn("[EG] 입국 도장을 못 놓았습니다:", e); }
+    }
+    EGR_later(function () {
+      if (WALK !== 3 || DEB_I !== D.hold) return;   /* 이미 넘어갔다 */
+      var dock = document.getElementById("egStampDock");
+      if (dock && dock.classList.contains("on")) return;   /* ⭐ 도장이 서 있다 — 기다린다 */
+      debNext();                                    /* 심사관이 자리를 비웠다 */
+    }, wait);
+  }
+
+  function debNext() {
+    var D = debSpec(); if (!D || WALK !== 3) return;
+    if (DEB_I >= D.legs.length - 1) return;
+    debShow(DEB_I + 1, performance.now());
+  }
+
+  /* ⚠ 걷는 동안 손님이 아무것도 안 한다. 이 손은 시계가 부른다(통로와 같은 문법) */
+  function debTick(now) {
+    if (WALK !== 3 || DEB_HOLD) return;
+    var D = debSpec(); if (!D) return;
+    if (now - DEB_T < D.sec * 1000) return;
+    debNext();
+  }
+
+  /* ⭐⭐ 끝 — 저장 줄을 지우고 타륜으로.
+     ⚠⚠ 파리에 닿아 내렸으면 그 비행은 끝났다. 안 지우면 다음에 들어올 때
+       「지난번 파리 · 유도로에서 멈추셨습니다」가 뜨고, 이어 타면 **이미 도착한
+       활주로에 서 있게 된다.** 열두 시간을 다시 날 수도 없는 곳이다.
+     ⭐ 지우는 손을 새로 안 짓는다 — 「그냥 나가기」가 쓰던 그 길(discard)이다. */
+  function debDone() {
+    if (DEB_EL) DEB_EL.classList.remove("on");
+    try { leave({ discard: true }); } catch (e) { console.error("[EG] 하선:", e); }
   }
 
   /* ══ ⭐ 등받이 갤리 마크 — 5분 켜지고 5분 꺼진다 ═══════════════════════════
@@ -9325,8 +9567,14 @@ function paintBook() {
          「안 먹힘」의 정체는 0828c 의 검정 벽이었다. C 로 갤리 판이 걷혀도 그 뒤가
          또 검정이라 화면에 아무 일도 안 보였던 것.
          ⭐ 눈은 상태가 아니라 **변화**를 본다 — 검정에서 검정으로는 아무리 바뀌어도 안 바뀐 것이다. */
-      else if (k === "b") toggleBody();
-      else if (k === "c") { if (BODY) toggleBody(); else toggleOut(); }
+      /* ══ ⭐⭐ 0828m 닿은 뒤에는 B·C 가 안 선다 (소로 0828) ═══════════════════
+         > 「마지막 기내방송 나올때는 모두 기내 실내에 있어야 함」
+         ⚠ 장거리 13호는 **3,000m 아래 전체**를 잠그라 했는데 오늘 그것까지는 안 켠다 —
+           소로가 어제 플레어(기울어진 접지)를 B 로 보고 판정하셨다. 그 눈을 잠그면
+           고친 것이 도는지 볼 길이 없어진다. ⭐ 정지한 뒤부터만 잠근다.
+         ⚠ 나가는 문은 안 잠근다 — 메뉴는 어디서든 열린다(0820 그 수칙). */
+      else if (k === "b") { if (!LANDED) toggleBody(); }
+      else if (k === "c") { if (LANDED) return; if (BODY) toggleBody(); else toggleOut(); }
       else if (k === "v") { if (OUT) toggleBare(); }   /* 0820b — 밖에서만 */
       else if (k === "r") toStart();          /* ⭐ 0820g — 출발점으로 */
       else if (k === "s") toggleShade();
@@ -9702,6 +9950,9 @@ function paintBook() {
       startFlown: rz.flown, startDist: rz.dist,
       /* ⭐ 0825j — 이어 타기면 그 지점의 고도를 되짚어 넘긴다. 처음부터면 null 이라 안 쓴다 */
       startAlt: (rz.flown > 0) ? altResume(route, rz.dist) : null,
+      /* ⭐⭐ 0828m — 닿았다는 것을 방이 여기서 안다. 0823f 에 열어 두고
+         오늘까지 비어 있던 창구다. ⚠ 한 번만 온다 — 그 뒤로는 debWatch 가 쥔다. */
+      onArrive: function () { LANDED = true; DEB_Q = 0; },
       onTick: function (s) {
         SINFO = s;                   /* 기록 저장이 좌표를 읽는다 */
         var now = performance.now();
@@ -9869,6 +10120,11 @@ function paintBook() {
     OUT = false; BARE = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
     /* ⭐ 0827t — 통로도 함께 씻는다. ⚠ 걷다 나가면 다음 탑승이 통로에서 시작된다 */
     WALK = 0; WK_EL = null; WK_I = 0; WK_T = 0; CUBE_I = 0; GO_EL = null; WK_PRE = {};
+    /* ⭐ 0828m — 하선도 함께 씻는다. ⚠ 안 씻으면 다음 탑승이 입국심사대에서 시작된다.
+       0827t 에 통로를 안 씻어 「걷다 나가면 다음 탑승이 통로에서」 겪은 그 갈래다. */
+    LANDED = false;
+    DEB_I = -1; DEB_T = 0; DEB_HOLD = false; DEB_EL = null;
+    DEB_ASK = false; DEB_SAW = false; DEB_Q = 0;
     BODY = false; BODYWAS = false;   /* ⭐ 0821L — 다음 탑승은 조종석에서 시작한다 */
     ORB.yaw = ORB0.yaw; ORB.pit = ORB0.pit;
     INSEL = null; LAMPEL = null; BLKEL = null;   /* ⚠ 0821f — 방과 함께 걷힌다. 다음 탑승이 다시 세운다 */
@@ -10182,6 +10438,23 @@ function paintBook() {
                           ⭐ egReading.seatView()    지금 값
                              egReading.seatView(45)  45도로 밀어 본다 (즉시 반영)
                           ⚠ 새로고침하면 표의 값으로 돌아간다. 정하시면 표에 적는다. */
+                       /* ══ ⭐⭐ 0828m 하선 시승 손 ═══════════════════════════════
+                          ⚠ 열두 시간을 다시 날 수 없으므로 손 없이는 못 본다.
+                            배속(0823f)·기어(0828k)와 같은 갈래 — 시험 장치이지 설정이 아니다.
+                          ⚠⚠ deb() 는 **비행을 도착시키지 않는다.** 하선 장면만 세운다.
+                            도착까지 함께 흉내 내면 그 순간 저장 줄이 도착으로 적히고,
+                            시승이 기록을 건드리게 된다(0826v 시승 잠금의 그 까닭). */
+                       deb: function () { debStart(); return "하선 — 5초마다 넘어갑니다"; },
+                       debNext: function () { debNext(); return DEB_I; },
+                       debNight: function (on) {
+                         if (arguments.length) {
+                           var D = SPEC && SPEC.deboard;
+                           if (D) { D.night = !!on; WK_PRE = {}; }   /* ⚠ 받아 둔 판을 버린다 */
+                         }
+                         var D2 = SPEC && SPEC.deboard;
+                         console.log("[EG] 하선 판 — " + (D2 && D2.night ? "밤 벌(_n)" : "낮 벌"));
+                         return !!(D2 && D2.night);
+                       },
                        seatView: function (deg) {
                          if (arguments.length && isFinite(+deg)) {
                            SPEC.view = Math.max(0, Math.min(90, +deg));
