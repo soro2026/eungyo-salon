@@ -100,6 +100,16 @@
   </div>
 
   <div class="grp">
+    <div class="lab">명패 방향</div>
+    <div class="row" id="rowSide">
+      <button data-s="auto" class="on">면 따라</button>
+      <button data-s="right">오른쪽</button>
+      <button data-s="left">왼쪽</button>
+      <button data-s="center">가운데</button>
+    </div>
+  </div>
+
+  <div class="grp">
     <div class="lab">명패</div>
     <div class="row" id="rowLab">
       <button data-l="nick" class="on">닉네임</button>
@@ -208,7 +218,7 @@ const CHANNEL = ["일당백"];
 const ROOMS   = ["Bibliothèque","Salle 273","Réfectoire","Atelier","Le Toit","Le Jardin","La Cave"];
 
 let viewer, tileset, groundH = 0, handler;
-let cur = "chr", face = "East", labMode = "nick", mode = "view";
+let cur = "chr", face = "East", labMode = "nick", mode = "view", labSide = "auto";
 let sel = null;                 // 선택된 핀
 const FIX = {};                 // 개별 좌표 덮어쓰기  key → {lng,lat,h}
 const HIST = [];                // 되돌리기
@@ -279,7 +289,17 @@ async function measureGround(){
   }catch(e){ console.warn("바닥 측정 실패 — 0m:", e); }
 }
 
-function plate(text, bg, fg, big, alwaysTop){
+/* ⚠⚠ 0828 소로 — 「가운데 맞춤이라 반이 건물에 묻혀버림」.
+   파리는 핀이 옆으로 퍼져 CENTER 가 맞았는데, 뉴욕은 세로 한 줄이라
+   명패 왼쪽 절반이 벽 속으로 들어간다. ⭐ 핀은 못, 글자는 밖으로 나부끼는 깃발.
+   side: "right" | "left" | "center" */
+function plate(text, bg, fg, big, alwaysTop, side){
+  const s = side || "center";
+  const ho = s==="right" ? Cesium.HorizontalOrigin.LEFT
+           : s==="left"  ? Cesium.HorizontalOrigin.RIGHT
+           : Cesium.HorizontalOrigin.CENTER;
+  const dx = s==="right" ? 12 : s==="left" ? -12 : 0;
+  const dy = s==="center" ? -10 : 0;      /* 옆으로 나가면 위로 안 올려도 된다 */
   return {
     text, font:(big?"bold 13px ":"bold 12px ")+"'Helvetica Neue',Arial,sans-serif",
     fillColor: Cesium.Color.fromCssColorString(fg),
@@ -288,12 +308,17 @@ function plate(text, bg, fg, big, alwaysTop){
     showBackground:true,
     backgroundColor: Cesium.Color.fromCssColorString(bg).withAlpha(.95),
     backgroundPadding: new Cesium.Cartesian2(big?10:8, big?6:4),
-    pixelOffset: new Cesium.Cartesian2(0,-10),
-    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+    pixelOffset: new Cesium.Cartesian2(dx, dy),
+    horizontalOrigin: ho,
+    verticalOrigin: s==="center" ? Cesium.VerticalOrigin.BOTTOM : Cesium.VerticalOrigin.CENTER,
     /* 가림 — 뒷면 핀은 건물이 가린다 */
     disableDepthTestDistance: alwaysTop ? Number.POSITIVE_INFINITY : 0
   };
 }
+
+/* ⭐ 면마다 나가는 쪽이 달라야 건물 바깥으로 간다 */
+const SIDE_BY_FACE = { East:"right", South:"right", West:"left", North:"left" };
+function sideNow(){ return labSide==="auto" ? (SIDE_BY_FACE[face]||"right") : labSide; }
 
 function draw(){
   viewer.entities.removeAll(); sel = null;
@@ -310,7 +335,7 @@ function draw(){
             outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
             disableDepthTestDistance:Number.POSITIVE_INFINITY },
     label: plate(b.direct ? b.name : b.name+"  ·  3 Cell · 27",
-                 b.direct?C.sanctum:C.gold, b.direct?"#f7efe0":"#161006", true, true)
+                 b.direct?C.sanctum:C.gold, b.direct?"#f7efe0":"#161006", true, true, "center")
   });
 
   for (let i=0; i<f.n; i++){
@@ -328,7 +353,7 @@ function draw(){
               outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
               disableDepthTestDistance:0 },
       label: labMode==="dot" ? undefined
-           : plate(labMode==="full" ? `${o.name}  ${fl}F` : o.name, o.color, o.fg, false, false)
+           : plate(labMode==="full" ? `${o.name}  ${fl}F` : o.name, o.color, o.fg, false, false, sideNow())
     });
     ent._slot = { key, color:o.color, name:o.name };
   }
@@ -495,6 +520,7 @@ wire("rowBld", async d=>{
   cur = d.b; flyTo(cur, false); await measureGround(); syncEditor(); draw(); });
 wire("rowFace", d=>{ face = d.f; draw(); hintFor(); });
 wire("rowLab",  d=>{ labMode = d.l; draw(); });
+wire("rowSide", d=>{ labSide = d.s; draw(); });
 wire("rowMode", d=>{
   mode = d.m; sel = null;
   $("cesiumContainer").classList.toggle("edit", mode !== "view");
