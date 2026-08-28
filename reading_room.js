@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0828f";
+  var VERSION = "0828i";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -1056,7 +1056,19 @@
        ⚠ swapPR 을 안 적었다 — 리어젯과 같은 축이라 같은 자리에 서 있다.
          알프스에서 리어젯이 갈리는 날 이것도 함께 갈린다(v185 ②).
        ⚠ 기내 원판이 아직 없다. wins·mon 은 아래에서 제트기 것을 **빌린다.** */
-    lin: { view: 90, seats: true, roll: 10, focus: null,
+    /* ══ ⭐⭐⭐ 0828i 창밖 방위 — 90 → 30 (소로 0828) ═══════════════════════════
+       > 「완전 90도로 꺾여서 옆으로 이동하니까 사실 너무 멀미나요」
+     ⚠⚠ 소로가 눈으로 잡은 것을 판이 셈으로 뒷받침한다. 창 넷의 폭은
+       16.79 → 7.54 → 3.83 → 2.23% 로 오른쪽으로 갈수록 작아지고, 폭이 0 이 되는
+       **소실점은 가로 58%** 다(모니터 왼쪽 끝 59.3% 언저리).
+     ⭐⭐ 즉 **판은 이미 「앞쪽을 비스듬히」 보는 그림인데 창밖만 정옆을 보고 있었다.**
+       그림과 밖이 60도 어긋난 채로 옆면이 홱홱 지나갔으니 멀미가 나는 것이 당연하다.
+     ⚠ 1007행 주석은 90 을 「옆면이 흘러가는 것을 보는 설계값」이라 적었다. 그 말이 틀렸다 —
+       흐르는 것을 보려던 값이 **너무 빨리 흐르게** 만들었다. 옆을 볼수록 흐름이 빠르다.
+     ⭐ 30 = 1시 방향(소로). 왼창은 11시, 오른창은 1시를 본다.
+       ⚠ 값을 여기 박아 두되 화면이 판정한다 — egReading.seatView(deg) 로 미신다.
+     ⚠ 리어젯(jet)은 안 건드렸다. 판이 다르므로 소실점도 다르다 — 타 보고 따로 잰다. */
+    lin: { view: 30, seats: true, roll: 10, focus: null,
            /* ⭐⭐ 0823e nose — 기수 거동. 세 숫자가 한 칸에 산다(값을 두 곳에 안 적는다).
                 max 4  실물 여객기 순항 기수각은 2.5° 다. 8° 는 56m 짜리에 너무 크다
                 per 110  승강률 400(㉡ 상한)에서 3.6° · 200 에서 1.8°
@@ -2515,7 +2527,7 @@
                   : "cruise";
           /* ⭐ 0827t — 걷는 시계와 마크 리듬. ⚠ 비행이 안 멈추므로 12초 동안도 세상은 흐른다 */
         walkTick(now);
-        goTick(flown / 60);
+        goTick(flown / 60, rel);   /* ⭐ 0828h — 방송이 쓰는 그 고도(rel)를 그대로 쓴다 */
         mealTick(flown / 60);      /* ⭐ 0828e — 시각이 쟁반을 정한다(18호) */
         paTick(now, { phase: _ph, min: flown / 60, seg: seg, alt: rel,
                         /* ⭐ 0825i — 이륙 노선이 아직 안 굴렀으면 false. 다른 노선은 이미 날고 있다 */
@@ -3430,6 +3442,8 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   color:rgba(232,228,216,0);transition:color .2s;
   padding:5px 9px;border-radius:7px;background:rgba(10,14,20,0)}
 #egrGo:hover::after{color:rgba(240,235,224,.92);background:rgba(10,14,20,.72)}
+/* ⚠ 0828h — 「못 나가는 때」는 흐리게가 아니라 **아예 없다**. 손도 함께 걷힌다 */
+#egrGo.off{display:none}
 #readingRoom.out #egrGo,#readingRoom.bare #egrGo,#readingRoom.bodyview #egrGo,
 #readingRoom.walk #egrGo{display:none}
 #egrMon .btn{border:1px solid var(--ring,#59492f);background:var(--btn,#3f3524);
@@ -6128,11 +6142,28 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     GO_EL.style.marginLeft = (-z / 2) + "px";
     GO_EL.style.marginTop = (-z / 2) + "px";
   }
-  function goTick(min) {
+  /* ══ ⭐⭐ 0828h 마크의 세 얼굴 (소로 0828) ═══════════════════════════════════════
+     > 「기내식 서빙 중에는 꺼져있는게 좋은데.. 이륙할 때 착륙할 때도 마찬가지」
+   ⚠⚠ 지금까지 얼굴이 둘뿐이었다 — **호박색(lit)** 과 **희미함(꺼짐)**.
+     0827 에 「꺼져 있어도 눌린다 — 켜짐은 초대일 뿐 문이 아니다」라 적었으므로
+     희미한 원반은 늘 서 있었다. ⭐ 그런데 **못 나가는 때**가 있다. 그때는 초대가 아니라
+     문이 닫힌 것이고, 닫힌 문을 흐리게 그려 두면 그것이 곧 거짓말이다(8호).
+   ⭐ 그래서 셋으로 가른다 —
+     ㉠ 아예 없다(off)  식탁이 내려와 있거나 · 3,000m 아래
+     ㉡ 희미하다        나갈 수 있지만 지금은 부르지 않는다
+     ㉢ 호박색(lit)     5분마다 한 번씩 건네는 초대
+   ⚠⚠ **3,000m 를 코드가 새로 정하지 않는다.** 장거리 13호의 그 숫자를 다섯 번째로 쓴다
+     (강하 갈림 · 손 넷 잠금 · 창 덮개 · 배속 재우기 · 여기). 실물의 잣대는 하나다 —
+     안전벨트 표시등이다. 그것이 켜져 있는 동안은 통로에 못 선다.
+   ⭐ 이륙과 착륙을 따로 안 적었는데 둘 다 걸린다 — 낮으면 낮은 것이지,
+     올라가는 중인지 내려가는 중인지는 물을 까닭이 없다. */
+  function goTick(min, alt) {
     var A = aisleSpec();
     if (!GO_EL || !A) return;
+    var off = !!TRAY || (alt != null && alt < 3000);
+    GO_EL.classList.toggle("off", off);
     var cyc = A.mark.on + A.mark.off;
-    var lit = (min % cyc) < A.mark.on && !PA_NOW && !TRAY;
+    var lit = !off && (min % cyc) < A.mark.on && !PA_NOW;
     GO_EL.classList.toggle("lit", !!lit);
   }
 
@@ -9239,18 +9270,12 @@ function paintBook() {
       if (k === "t") cyclePreview();   /* ⭐ 편집기 안에서만 — 조명 넉 벌 미리보기 */
       else if (k === " " || e.code === "Space") { e.preventDefault(); togglePause(); }
       /* ⭐ 0821L — B 로 기체를 밖에서 본다. C 는 그대로 「기내를 감춘다」 */
-      /* ⚠⚠ 0828f 임시 관측 장치 — 소로 0828: 「C키나 B키가 먹히지 않음」.
-         짐작이 네 번 빗나갔다(딱지 0823 갈래). 키가 **왔는지 · 어느 상태에서 왔는지**를
-         찍는다. ⭐ 원인이 잡히면 이 두 console 줄은 걷는다. */
-      else if (k === "b") {
-        try { console.log("[EG] ⌨ B — WALK " + WALK + " · OUT " + OUT + " · BODY " + BODY
-          + " · body칸 " + !!(SPEC && SPEC.body)); } catch (x) { }
-        toggleBody();
-      }
-      else if (k === "c") {
-        try { console.log("[EG] ⌨ C — WALK " + WALK + " · OUT " + OUT + " · BODY " + BODY); } catch (x) { }
-        if (BODY) toggleBody(); else toggleOut();
-      }
+      /* ⚠ 0828g — 0828f 관측 장치를 걷었다. 콘솔이 판정했다 — **키는 처음부터 먹고 있었다.**
+         「안 먹힘」의 정체는 0828c 의 검정 벽이었다. C 로 갤리 판이 걷혀도 그 뒤가
+         또 검정이라 화면에 아무 일도 안 보였던 것.
+         ⭐ 눈은 상태가 아니라 **변화**를 본다 — 검정에서 검정으로는 아무리 바뀌어도 안 바뀐 것이다. */
+      else if (k === "b") toggleBody();
+      else if (k === "c") { if (BODY) toggleBody(); else toggleOut(); }
       else if (k === "v") { if (OUT) toggleBare(); }   /* 0820b — 밖에서만 */
       else if (k === "r") toStart();          /* ⭐ 0820g — 출발점으로 */
       else if (k === "s") toggleShade();
@@ -10086,6 +10111,20 @@ function paintBook() {
                          console.table(rows);
                          console.log("[EG] 지금 얹혀 있는 것 — " + (MEAL_NOW || "없음"));
                          return rows;
+                       },
+                       /* ══ ⭐ 0828i 창밖 방위를 화면에서 정한다 ═══════════════════
+                          ⚠ 기수에서 잰 각이다 — 0 이면 정면 · 90 이면 정옆.
+                          ⭐ egReading.seatView()    지금 값
+                             egReading.seatView(45)  45도로 밀어 본다 (즉시 반영)
+                          ⚠ 새로고침하면 표의 값으로 돌아간다. 정하시면 표에 적는다. */
+                       seatView: function (deg) {
+                         if (arguments.length && isFinite(+deg)) {
+                           SPEC.view = Math.max(0, Math.min(90, +deg));
+                         }
+                         console.log("[EG] 창밖 방위 " + SPEC.view + "° — 왼창 "
+                           + (SPEC.view ? (12 - SPEC.view / 30) : 12).toFixed(1) + "시 · 오른창 "
+                           + (SPEC.view / 30).toFixed(1) + "시 방향  (0 정면 · 90 정옆)");
+                         return SPEC.view;
                        },
                        trayOpen: function () { trayToggle(); return TRAY; },
                        /* ══ ⭐⭐⭐ 0826v 얹는층 손 (소로 0826 저녁) ══════════════
