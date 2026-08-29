@@ -53,7 +53,8 @@
   #ceilBox{margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,210,63,.18)}
   #ceilBox label{font-size:11px;color:var(--cream-dim)}
   #ceilBox b{color:var(--gold);font-weight:400}
-  #ceilBox input{width:100%;margin-top:5px;accent-color:#ffd23f}
+  #ceilBox input{width:100%;margin-top:5px;margin-bottom:6px;accent-color:#ffd23f}
+  #ceilBox label{display:block}
 
   /* ── 오른쪽 시점 전환 ── */
   #who{position:absolute;right:14px;top:14px;z-index:20;width:min(46vw,204px);
@@ -125,7 +126,9 @@
   <div class="roof" id="roofLine">지붕 높이 측정 중…</div>
   <div id="ceilBox">
     <label for="ceilRange">간판 천장 <b id="ceilVal">–</b> m</label>
-    <input type="range" id="ceilRange" min="120" max="420" step="1">
+    <input type="range" id="ceilRange" min="60" max="460" step="1">
+    <label for="floorRange">간판 바닥 <b id="floorVal">–</b> m</label>
+    <input type="range" id="floorRange" min="30" max="440" step="1">
   </div>
 </div>
 
@@ -172,7 +175,9 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
    ⚠ 다시 잡으실 수 있게 편집 모드는 그대로 둔다. */
 /* ⭐ 0829 소로 지급 — 40°44'54.36"N 73°59'08.35"W (안테나 하단 기준으로 뽑으심) */
 let BLD = { key:"empire", name:"엠파이어 스테이트 EG",
-            lat:40.748433, lng:-73.985653, roof:null, ceil:270 };
+            lat:40.748433, lng:-73.985653, roof:null, ceil:270, floor:155 };
+/* ⭐ 바닥 155m — 엠파이어는 30층(약 111m) 아래로 벽이 넓어진다. 그 위에 세워
+   호메로스가 튀어나온 벽에 묻히지 않게 했다. 소로가 슬라이더로 다시 잡으실 수 있다. */
 /* ⚠ 지붕 H·천장은 이제 건물마다 제 칸(b.roof · b.ceil)에 산다 —
      건물이 둘 이상이 된 순간 전역 하나로는 못 담는다. 아래 둘은 열린 건물의 창구다. */
 
@@ -200,8 +205,15 @@ function allBlds(){ return [BLD].concat(OTHERS); }
    ⚠ 정확도는 필요 없다 — 어느 칸이 누구 것인지 아무도 대조하지 않는다. */
 const FACES = 4, FCOLS = 2, TIERS = 27;        // ⭐ 4면 × 2열 × 27단 = 216
 const SLOT_N = FACES * FCOLS * TIERS;
-const TOP_DROP = 62;             // 첨탑·전망대 아래부터
-const TIER_GAP = 7.4;            // 27단이 62+26×7.4 = 254m 를 덮는다 (본 타워 안)
+const TOP_DROP = 62;             // 천장 기본값 — 지붕에서 이만큼 내려온 곳
+const BOT_DROP = 254;            // 바닥 기본값 — 지붕에서 이만큼 내려온 곳
+/* ⚠⚠ 0829 소로 — 「호메로스가 맨 아래 깔렸다. 저 부분 벽이 튀어나와서」.
+     천장만 두고 간격을 상수(7.4m)로 고정했더니 격자 바닥이 어디에 닿는지
+     아무도 안 보고 있었다. 엠파이어는 30층 아래로 벽이 넓어지는데 거기까지 내려갔다.
+   ⭐ 간격을 상수에서 뺀다 — **천장과 바닥을 소로가 잡고, 간격은 그 사이에서 나온다.**
+     건물마다 「간판을 걸 수 있는 벽 구간」이 다르므로 이 둘이 그 건물의 값이다.
+     실판 buildings 표의 칸 둘(ceil · floor)이 그대로 여기서 나온다. */
+const tierGap = b => ((b.ceil!=null?b.ceil:0) - (b.floor!=null?b.floor:0)) / (TIERS-1);
 /* ⚠ 엠파이어 스테이트는 계단식이다. 30층(약 111m) 아래는 타워가 넓어져
      반경 34m 고리가 벽 안에 묻힌다. 맨 아랫단을 지붕에서 238m(약 43층)에
      두어 본 타워 안에 머물게 했다.
@@ -229,8 +241,10 @@ const GRID_AZ  = 29;            // 맨해튼 격자 기울기 (진북에서 동�
 const AZ_FACE  = f => (180 + GRID_AZ - 90*f + 360) % 360;   // 남209 · 동119 · 북29 · 서299
 const OUT_FACE = [23, 32, 23, 32];     // 벽 밖 — 남북 반폭 21.5 · 동서 반폭 30.5 (+1.5)
 const COL_OFF  = [15, 10.5, 15, 10.5]; // 한 면 두 열의 벌림
-const SIGN_HM  = 5;             // 간판 높이 5m — 27단이 겹치지 않는 키
-const SIGN_MAXW= 14;            // 간판 폭 상한 — 긴 닉네임은 글자가 맞춰 줄어든다
+/* ⭐ 간판 키는 상수가 아니라 **단 간격의 70%**다. 구간을 좁히면 간판도 함께 작아져
+     27단이 어떤 구간에서도 겹치지 않는다 — 손잡이를 늘리지 않고 겹침을 없앤다. */
+const signH = b => Math.min(5, Math.max(2.2, tierGap(b || OPEN || BLD) * 0.7));
+const SIGN_ASPECT = 2.8;        // 간판 폭 상한 = 키 × 2.8 (긴 닉네임은 글자가 맞춰 줄어든다)
 const D_SIGN   = 1500;          // 여기까지 간판 · ⭐ 그 너머는 내 것만 (소로 손짓)
 const SHOW_PER_FACE = 5;        // ⭐ 접속마다 각 면에서 다섯 장만 추첨해 건다 (내 것은 언제나)
 
@@ -307,6 +321,28 @@ const hintOff = () => $("hint").classList.remove("in");
   updateMineLine();
 })();
 
+/* ══ 지붕 높이 재기 — 첨탑은 피하되 너무 내려가지도 않는다 ══
+   ⚠⚠ 0829 두 번째 실패 — 중앙값을 쓰자 엠파이어·크라이슬러 둘 다 핀이
+      **첨탑 아래 넓은 지붕**으로 내려가 구조물에 파묻혔다. 중앙값은 고리 여덟 점이
+      전부 낮으면 그 낮은 값을 그대로 고른다 — 첨탑을 피한 게 아니라 첨탑을 버렸다.
+   ⭐ 고리를 8m로 좁혀 첨탑 어깨를 물게 하고, 중앙값 대신 **상위 25% 분위**를 쓴다.
+     가장 높은 한 점(첨탑 꼭짓점)은 여전히 밀려나지만 그 바로 아래 어깨는 살아남는다.
+   ⭐ 그리고 어떤 값이 나오든 핀은 6호에서 다시 한 번 띄운다 — 이중 안전장치. */
+async function roofRing(b){
+  const R = 8, pts = [Cesium.Cartesian3.fromDegrees(b.lng, b.lat)];
+  for (let i=0;i<8;i++){
+    const o = offsetDeg(b.lat, b.lng, i*45, R);
+    pts.push(Cesium.Cartesian3.fromDegrees(o.lng, o.lat));
+  }
+  const arr = await viewer.scene.clampToHeightMostDetailed(pts);
+  return (arr||[]).filter(Cesium.defined)
+                  .map(c=> Cesium.Cartographic.fromCartesian(c).height)
+                  .sort((x,y)=> x-y);
+}
+function pickRoof(hs){
+  return hs[Math.min(hs.length-1, Math.floor(hs.length*0.75))];   /* 상위 25% 분위 */
+}
+
 /* ── 다른 건물들 — 지붕 핀 하나뿐이다 ──
    ⭐ 호버(점→이름)와 명패 모양은 내 건물 지붕 핀과 완전히 같은 손이다.
      _roof 를 함께 달아 호버 배선을 한 글자도 안 고친다. _bld 가 현관을 가른다. */
@@ -318,22 +354,14 @@ async function drawOthers(){
     let h = 350;
     try{
       if (b.roof == null){                       /* 소로가 찍어 둔 값이 있으면 재지 않는다 */
-        const R = 14, pts = [Cesium.Cartesian3.fromDegrees(b.lng, b.lat)];
-        for (let i=0;i<8;i++){
-          const o = offsetDeg(b.lat, b.lng, i*45, R);
-          pts.push(Cesium.Cartesian3.fromDegrees(o.lng, o.lat));
-        }
-        const arr = await viewer.scene.clampToHeightMostDetailed(pts);
-        const hs = (arr||[]).filter(Cesium.defined)
-                            .map(c=> Cesium.Cartographic.fromCartesian(c).height)
-                            .sort((x,y)=> x-y);
-        if (hs.length) b.roof = hs[Math.floor(hs.length/2)];   /* 안테나 하단 */
+        const hs = await roofRing(b);
+        if (hs.length) b.roof = pickRoof(hs);
       }
     }catch(e){ console.warn("[EG] " + b.name + " 지붕 측정 실패:", e); }
     if (b.roof != null) h = b.roof;
     const ent = viewer.entities.add({
       id:"nyc-bld-" + b.key,
-      position: Cesium.Cartesian3.fromDegrees(b.lng, b.lat, h + 8),
+      position: Cesium.Cartesian3.fromDegrees(b.lng, b.lat, h + 26),
       point:{ pixelSize:11,
               color:Cesium.Color.fromCssColorString("#ffd23f"),
               outlineColor:Cesium.Color.fromCssColorString("#1a1407"), outlineWidth:2,
@@ -348,7 +376,7 @@ async function drawOthers(){
               pixelOffset:new Cesium.Cartesian2(0,-15),
               verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
               horizontalOrigin:Cesium.HorizontalOrigin.CENTER,
-              disableDepthTestDistance:0,
+              disableDepthTestDistance:Number.POSITIVE_INFINITY,
               distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0, D_ROOF) }
     });
     ent._roof = true;                    /* 호버 배선 공유 — 점만, 닿으면 이름 */
@@ -404,17 +432,9 @@ async function measureRoof(){
        ⭐ 파리 라탱에서 「둘레 90m 고리의 최저값」으로 길바닥을 찾던 손의 사촌이다.
          거기서는 최저를, 여기서는 중앙값을 본다. */
     const b = OPEN || BLD;
-    const R = 14, pts = [Cesium.Cartesian3.fromDegrees(b.lng, b.lat)];
-    for (let i=0;i<8;i++){
-      const o = offsetDeg(b.lat, b.lng, i*45, R);
-      pts.push(Cesium.Cartesian3.fromDegrees(o.lng, o.lat));
-    }
-    const arr = await viewer.scene.clampToHeightMostDetailed(pts);
-    const hs = (arr||[]).filter(Cesium.defined)
-                        .map(c=> Cesium.Cartographic.fromCartesian(c).height)
-                        .sort((x,y)=> x-y);
+    const hs = await roofRing(b);
     if (hs.length){
-      b.roof = hs[Math.floor(hs.length/2)];                 /* 중앙값 = 안테나 하단 */
+      b.roof = pickRoof(hs);
       printRoofLine();
       console.log("[EG] " + b.name + " 지붕 H =", b.roof.toFixed(1),
                   "m  (아홉 점 " + hs[0].toFixed(0) + "~" + hs[hs.length-1].toFixed(0) + ")");
@@ -424,13 +444,15 @@ async function measureRoof(){
   $("roofLine").textContent = "지붕을 못 맞혔습니다 — 조금 더 가까이서 다시";
 }
 function syncCeilUI(){
-  const rg = $("ceilRange"); if (!rg) return;
+  const rg = $("ceilRange"), rf = $("floorRange"); if (!rg || !rf) return;
   const b = OPEN || BLD;
   const roof = Math.round(b.roof != null ? b.roof : 420);
-  rg.max = roof;
-  if (b.ceil == null) b.ceil = roof - TOP_DROP;
-  rg.value = Math.round(b.ceil);
-  $("ceilVal").textContent = Math.round(b.ceil);
+  if (b.ceil  == null) b.ceil  = roof - TOP_DROP;
+  if (b.floor == null) b.floor = roof - BOT_DROP;
+  rg.max = roof;              rg.min = 40;
+  rf.max = Math.round(b.ceil) - 20;   rf.min = 20;    /* 바닥은 천장을 못 넘는다 */
+  rg.value = Math.round(b.ceil);   $("ceilVal").textContent  = Math.round(b.ceil);
+  rf.value = Math.round(b.floor);  $("floorVal").textContent = Math.round(b.floor);
 }
 function printRoofLine(){
   const b = OPEN || BLD;
@@ -476,7 +498,12 @@ function isMineNo(no){ const m = mineRow(); return !!(m && m.maison_no === no); 
 function drawRoof(){
   if (roofEnt){ viewer.entities.remove(roofEnt); roofEnt=null; }
   const b = OPEN || BLD;
-  const h = (b.roof!=null) ? b.roof + 8 : 420;
+  /* ⚠⚠ 0829 — 핀이 첨탑 구조물에 파묻혀 실종됐다(소로). 두 손을 함께 쓴다.
+     ⭐ ① 지붕에서 넉넉히 띄운다 — 8m 는 첨탑 어깨를 못 넘었다. 26m.
+     ⭐ ② 깊이 검사를 끈다 — 지붕 핀은 그 건물의 이름표다. 자기 건물에 가려질 까닭이
+        없다(내 집 명패에 이미 같은 판정을 내렸다). v200 이 경고한 관통은
+        「남의 명패가 내 건물을 뚫는 것」이지 이 경우가 아니다. */
+  const h = (b.roof!=null) ? b.roof + 26 : 420;
   roofEnt = viewer.entities.add({
     id:"nyc-roof",
     position: Cesium.Cartesian3.fromDegrees(b.lng, b.lat, h),
@@ -531,8 +558,9 @@ function slotTier(no){ return Math.floor((no-1) / (FACES*FCOLS)); }
 function slotH(no, b){
   b = b || OPEN || BLD;
   const roof = (b.roof != null) ? b.roof : 420;
-  const top  = (b.ceil != null) ? b.ceil : roof - TOP_DROP;
-  return top - (TIERS-1-slotTier(no))*TIER_GAP;
+  const top  = (b.ceil  != null) ? b.ceil  : roof - TOP_DROP;
+  const bot  = (b.floor != null) ? b.floor : roof - BOT_DROP;
+  return bot + slotTier(no) * ((top - bot) / (TIERS-1));
 }
 function slotAnchor(no, b){                         // 그 칸의 벽 밖 한 점 (간판·점이 함께 쓴다)
   b = b || OPEN || BLD;
@@ -645,7 +673,7 @@ const plateCache = new Map();      /* 천장을 끌어도 캔버스는 다시 �
 function plateCanvas(text){
   if (plateCache.has(text)) return plateCache.get(text);
   const H = 340, pad = 76;
-  const MAXW = Math.round(H * SIGN_MAXW / SIGN_HM);           // 폭 상한의 픽셀 옷 (952)
+  const MAXW = Math.round(H * SIGN_ASPECT);                   // 폭 상한의 픽셀 옷 (952)
   const FONT = fs => '700 ' + fs + 'px Georgia,"Nanum Myeongjo","Apple SD Gothic Neo",serif';
   const probe = document.createElement('canvas').getContext('2d');
   let fs = 200;
@@ -697,7 +725,8 @@ async function drawSigns(){
     const no = slotOf(r);
     const a  = slotAnchor(no);
     const cv = plateCanvas(r.nickname || ("메종 " + r.maison_no));
-    const widthM = SIGN_HM * (cv.width / cv.height);
+    const HM = signH(OPEN || BLD);
+    const widthM = HM * (cv.width / cv.height);
     /* 벽과 평행 · A(+90)→B(−90) 순서라야 밖에서 글이 바로 읽힌다
        (⚠ 좌우로 뒤집혀 보이면 A·B를 맞바꾼다 · 상하면 캔버스를 뒤집는다) */
     const A = offsetDeg(a.lat, a.lng, a.az + 90, widthM/2);
@@ -706,8 +735,8 @@ async function drawSigns(){
       id: "nyc-sign-" + no,
       wall:{
         positions: Cesium.Cartesian3.fromDegreesArray([A.lng, A.lat, B.lng, B.lat]),
-        minimumHeights:[a.h - SIGN_HM/2, a.h - SIGN_HM/2],
-        maximumHeights:[a.h + SIGN_HM/2, a.h + SIGN_HM/2],
+        minimumHeights:[a.h - HM/2, a.h - HM/2],
+        maximumHeights:[a.h + HM/2, a.h + HM/2],
         material: new Cesium.ImageMaterialProperty({ image: cv, transparent: true }),
         outline: false,
         distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, D_SIGN)
@@ -798,7 +827,7 @@ async function moveBuilding(lng, lat, clickH){
   if (MOVING) return; MOVING = true;
   try{
     const b = OPEN || BLD;
-    b.lat = lat; b.lng = lng; b.roof = null; b.ceil = null;
+    b.lat = lat; b.lng = lng; b.roof = null; b.ceil = null; b.floor = null;
     /* ⭐ 클릭한 그 점의 높이를 그대로 쓴다 — 안테나 하단을 찍으면 거기가 지붕이다.
        측정을 다시 돌리면 광선이 첨탑을 맞아 클릭이 무의미해진다. */
     if (clickH != null) b.roof = clickH;
@@ -818,7 +847,7 @@ async function moveBuilding(lng, lat, clickH){
 async function moveOther(b, lng, lat, clickH){
   if (MOVING) return; MOVING = true;
   try{
-    b.lat = lat; b.lng = lng; b.ceil = null;
+    b.lat = lat; b.lng = lng; b.ceil = null; b.floor = null;
     b.roof = (clickH != null ? clickH : null);
     await drawOthers();
     hint("✅ <b>" + b.name + " 이동</b> — <code>" + lat.toFixed(6) + ", " + lng.toFixed(6) + "</code>"
@@ -899,15 +928,29 @@ function bindUI(){
   });
   $("btnFar").addEventListener("click", flyFar);
   $("ceilRange").addEventListener("input", e=>{
-    (OPEN||BLD).ceil = +e.target.value;
-    $("ceilVal").textContent = e.target.value;
-    drawWindows();                                  /* 캔버스는 캐시 — 끄는 대로 따라온다 */
+    const b = OPEN||BLD;
+    b.ceil = +e.target.value;
+    if (b.floor >= b.ceil - 20) b.floor = b.ceil - 20;
+    syncCeilUI(); drawWindows();                    /* 캔버스는 캐시 — 끄는 대로 따라온다 */
+  });
+  $("floorRange").addEventListener("input", e=>{
+    const b = OPEN||BLD;
+    b.floor = +e.target.value;
+    $("floorVal").textContent = e.target.value;
+    drawWindows();
+  });
+  $("floorRange").addEventListener("change", ()=>{
+    const b = OPEN||BLD;
+    hint("⭐ " + b.name + " 간판 구간 <code>" + Math.round(b.floor) + " ~ "
+       + Math.round(b.ceil) + "m</code> · 단 간격 <code>" + tierGap(b).toFixed(1)
+       + "m</code> — 이 두 값을 파이스에게 건네주시면 상수로 박습니다");
+    setTimeout(hintOff, 5000);
   });
   $("ceilRange").addEventListener("change", ()=>{
     const b = OPEN||BLD;
-    hint("⭐ " + b.name + " 간판 천장 <code>" + Math.round(b.ceil) + "m</code>"
-       + " · 중심 <code>" + b.lat.toFixed(6) + ", " + b.lng.toFixed(6) + "</code>"
-       + " — 이 값을 파이스에게 건네주시면 상수로 박습니다");
+    hint("⭐ " + b.name + " 간판 구간 <code>" + Math.round(b.floor) + " ~ "
+       + Math.round(b.ceil) + "m</code> · 단 간격 <code>" + tierGap(b).toFixed(1)
+       + "m</code> — 이 두 값을 파이스에게 건네주시면 상수로 박습니다");
     setTimeout(hintOff, 5000);
   });
   $("btnEdit").addEventListener("click", ()=> setEdit(!EDIT_MODE));
