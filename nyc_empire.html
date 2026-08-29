@@ -88,6 +88,20 @@
     border-radius:8px;padding:9px 14px;color:var(--cream);font-size:12.5px;
     max-width:92vw;text-align:center;line-height:1.6}
   #hint.in{display:block}
+
+  /* ── 짚기 막대 (편집 모드에서만) ── */
+  #pickBar{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);z-index:22;
+    display:none;flex-direction:column;gap:6px;align-items:center;max-width:94vw}
+  #pickBar.in{display:flex}
+  #pickBar .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center;
+    background:rgba(10,14,26,.86);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:6px 11px}
+  #pickBar .cap{font-size:11px;color:var(--cream-dim);margin-right:2px;letter-spacing:.04em}
+  .pk{background:transparent;color:var(--cream);border:1px solid rgba(255,255,255,.2);
+    border-radius:999px;padding:5px 12px;font-family:var(--serif);font-size:12.5px;cursor:pointer}
+  .pk:hover{border-color:rgba(255,210,63,.5)}
+  .pk.on{background:var(--cyan);color:#05070f;border-color:var(--cyan)}
+  .pk.dump{border-color:rgba(255,210,63,.45);color:var(--gold);margin-left:6px}
   #hint b{color:var(--gold);font-weight:400}
   #hint code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;
     color:var(--gold);background:rgba(255,210,63,.12);padding:1px 5px;border-radius:4px}
@@ -140,6 +154,25 @@
 </div>
 
 <div id="hint"></div>
+
+<div id="pickBar">
+  <div class="row" id="pickRow">
+    <span class="cap">짚을 것</span>
+    <button class="pk" id="pick-roof">지붕</button>
+    <button class="pk" id="pick-ceil">천장</button>
+    <button class="pk" id="pick-floor">바닥</button>
+    <button class="pk" id="pick-wall">벽</button>
+    <button class="pk" id="pick-wide">폭</button>
+  </div>
+  <div class="row" id="faceRow">
+    <span class="cap">면</span>
+    <button class="pk" id="face-0">남</button>
+    <button class="pk" id="face-1">동</button>
+    <button class="pk" id="face-2">북</button>
+    <button class="pk" id="face-3">서</button>
+    <button class="pk dump" id="pick-dump">등록값 뽑기</button>
+  </div>
+</div>
 
 <div id="bar">
   <button class="btn" id="btnRoof">지붕 명패</button>
@@ -239,8 +272,14 @@ const D_WIN  = 1300;            // 이웃 53칸 — 가까이 가야 보인다
       멀면 시차가 안 읽히므로 빌보드가 다시 옳은 물건이 된다. */
 const GRID_AZ  = 29;            // 맨해튼 격자 기울기 (진북에서 동으로 29°)
 const AZ_FACE  = f => (180 + GRID_AZ - 90*f + 360) % 360;   // 남209 · 동119 · 북29 · 서299
-const OUT_FACE = [23, 32, 23, 32];     // 벽 밖 — 남북 반폭 21.5 · 동서 반폭 30.5 (+1.5)
-const COL_OFF  = [15, 10.5, 15, 10.5]; // 한 면 두 열의 벌림
+/* ⚠⚠ 0829 오후 — 면 값이 전역 상수였다. 그래서 엠파이어 치수가 크라이슬러에
+     그대로 씌워져 격자가 이웃 지붕까지 튀어 나갔다(소로 화면).
+   ⭐ 면 값은 **건물의 것**이다. b.out[면] = 벽 밖 거리 · b.wide[면] = 좌우 벌림.
+     아래 둘은 값이 없는 건물이 쓰는 기본값일 뿐이다. */
+const OUT_DEF  = [23, 32, 23, 32];     // 벽 밖 — 남북 반폭 21.5 · 동서 반폭 30.5 (+1.5)
+const WIDE_DEF = [15, 10.5, 15, 10.5]; // 한 면 두 열의 벌림
+const outOf  = (b,f) => (b.out  && b.out[f]  != null) ? b.out[f]  : OUT_DEF[f];
+const wideOf = (b,f) => (b.wide && b.wide[f] != null) ? b.wide[f] : WIDE_DEF[f];
 /* ⭐ 간판 키는 상수가 아니라 **단 간격의 70%**다. 구간을 좁히면 간판도 함께 작아져
      27단이 어떤 구간에서도 겹치지 않는다 — 손잡이를 늘리지 않고 겹침을 없앤다. */
 const signH = b => Math.min(5, Math.max(2.2, tierGap(b || OPEN || BLD) * 0.7));
@@ -565,8 +604,8 @@ function slotH(no, b){
 function slotAnchor(no, b){                         // 그 칸의 벽 밖 한 점 (간판·점이 함께 쓴다)
   b = b || OPEN || BLD;
   const f  = slotFace(no), az = AZ_FACE(f);
-  const c0 = offsetDeg(b.lat, b.lng, az, OUT_FACE[f]);
-  const c1 = offsetDeg(c0.lat, c0.lng, az + (slotCol(no)===0 ? 90 : -90), COL_OFF[f]);
+  const c0 = offsetDeg(b.lat, b.lng, az, outOf(b,f));
+  const c1 = offsetDeg(c0.lat, c0.lng, az + (slotCol(no)===0 ? 90 : -90), wideOf(b,f));
   return { lat:c1.lat, lng:c1.lng, h:slotH(no, b), az };
 }
 /* ⭐⭐ 0829 소로 정정 — 「같은 닉네임은 같은 위치 고정 · 보여줄지만 랜덤」.
@@ -658,6 +697,7 @@ function drawWindows(){
     ent._maison = m;
     ent._basePx = mine ? 12 : 9;
     ent.show = mine ? showMine : showNbr;
+    if (pickDimsOther() && slotFace(no) !== PFACE) ent.show = false;
     winEnts.push(ent);
   }
   drawSigns();                      /* ⭐ 입주자 전원의 간판 — 면마다 다섯 안팎 */
@@ -743,6 +783,8 @@ async function drawSigns(){
       }
     });
     e._maison = r;
+    /* ⭐ 벽·폭을 짚는 동안은 그 면만 밝다 — 무엇을 만지는지 눈에 보여야 한다 */
+    if (pickDimsOther() && slotFace(no) !== PFACE) e.show = false;
     signEnts.push(e);
   });
 }
@@ -753,7 +795,10 @@ function refreshMine(){ drawWindows(); }
 
 /* 단추는 표시만 건드린다 — 다시 그릴 까닭이 없다 */
 function applyShow(){
-  winEnts.forEach(e=>{ e.show = isMineNo(e._maison.maison_no) ? showMine : showNbr; });
+  winEnts.forEach(e=>{
+    e.show = isMineNo(e._maison.maison_no) ? showMine : showNbr;
+    if (pickDimsOther() && slotFace(e._maison.slot_no || 0) !== PFACE) e.show = false;
+  });
   /* 간판 열일곱은 상시 — 「각 면에 다섯」이 이 시험판의 볼거리다 */
 }
 function updateMineLine(){
@@ -816,12 +861,111 @@ function closeCard(){ $("card").classList.remove("in"); }
    ⚠ 저장할 표(buildings)가 아직 없다. 그래서 화면에 값을 찍는다 —
      소로가 건네주시면 상수로 박히고, 실판에서는 결정문 13호의 표로 간다.
      ⭐ 시험판이 DB 표를 먼저 파지 않는다. */
+/* ══════════════════ 짚기 편집기 (0829 오후) ══════════════════
+   ⚠⚠ 소로 — 「콕 짚는 것도 이번 편집기에선 어려웠다. 수직으로는 쉽지 않더라」.
+      원인: 파리 편집기를 그대로 옮겨 왔다. 파리에서 옮기는 것은 **평면 위의 한 점**이라
+      클릭 하나가 답을 다 준다. 뉴욕에서 옮기는 것은 **수직 구간과 면의 깊이**인데,
+      클릭은 위경도·높이를 한꺼번에 주고 나는 그중 무엇을 쓸지 안 정해 두었다.
+   ⭐ 그래서 **무엇을 짚는지 먼저 고르고, 클릭에서 한 축만 받는다.**
+        지붕   위경도 + 높이      천장·바닥   높이만 (위경도 무시)
+        벽     중심에서의 거리만   폭        중심선에서 옆으로 벗어난 만큼만
+   ⭐ 고른 것은 시안색으로 켠다 — 오전에 없던 신호다. */
+const PICKS = [
+  { key:"roof",  label:"지붕",   hint:"첨탑 <b>어깨</b>를 클릭하세요 — 그 자리가 건물 중심이자 지붕 높이가 됩니다" },
+  { key:"ceil",  label:"천장",   hint:"간판을 걸 <b>맨 윗줄</b> 높이를 클릭하세요 — 높이만 받습니다" },
+  { key:"floor", label:"바닥",   hint:"간판을 걸 <b>맨 아랫줄</b> 높이를 클릭하세요 — 높이만 받습니다" },
+  { key:"wall",  label:"벽",     hint:"이 면의 <b>벽</b>을 클릭하세요 — 중심에서의 거리를 받습니다" },
+  { key:"wide",  label:"폭",     hint:"이 면의 <b>좌우 끝</b>을 클릭하세요 — 두 열이 그 안에 앉습니다" }
+];
+const FACE_NAMES = ["남","동","북","서"];
+let PICK = null;        // 지금 짚는 항목 (PICKS[].key)
+let PFACE = 0;          // 벽·폭을 짚을 때의 면
+
 function setEdit(on){
   EDIT_MODE = on;
   $("btnEdit").classList.toggle("on", on);
-  if (on){
-    hint("📍 <b>편집 모드</b> — 엠파이어 스테이트 <b>지붕</b>을 클릭하면 그 자리가 건물 중심이 됩니다");
-  } else hintOff();
+  $("pickBar").classList.toggle("in", on);
+  if (!on){ PICK = null; hintOff(); paintPickBar(); drawWindows(); return; }
+  PICK = PICK || "roof";
+  paintPickBar(); showPickHint(); drawWindows();
+}
+function setPick(k){ PICK = k; paintPickBar(); showPickHint(); drawWindows(); }
+function setFace(f){ PFACE = f; paintPickBar(); showPickHint(); drawWindows(); }
+function paintPickBar(){
+  PICKS.forEach(p=> $("pick-"+p.key).classList.toggle("on", PICK === p.key));
+  FACE_NAMES.forEach((_,f)=> $("face-"+f).classList.toggle("on", PFACE === f));
+  const faceNeeded = (PICK === "wall" || PICK === "wide");
+  $("faceRow").style.opacity = faceNeeded ? "1" : ".32";
+}
+function showPickHint(){
+  const p = PICKS.find(x=> x.key === PICK); if (!p) return;
+  const b = OPEN || BLD;
+  const who = (PICK==="wall"||PICK==="wide") ? (" · <b>"+FACE_NAMES[PFACE]+"면</b>") : "";
+  hint("📍 <b>" + b.name + "</b> · " + p.label + " 짚기" + who + "<br>" + p.hint);
+}
+/* ⭐ 벽·폭을 짚는 동안은 그 면 격자만 살린다 — 나머지 세 면이 어두워야 무엇을 만지는지 보인다 */
+function pickDimsOther(){ return EDIT_MODE && (PICK === "wall" || PICK === "wide"); }
+
+/* 클릭 하나를 받아 한 축만 꺼낸다 */
+async function applyPick(lat, lng, h){
+  const b = OPEN || BLD;
+  if (PICK === "roof"){ await moveBuilding(lng, lat, h); return; }
+
+  if (PICK === "ceil" || PICK === "floor"){
+    /* ⭐ 위경도는 아예 안 본다 — 오전에 수직으로 안 맞던 것의 답이 여기다 */
+    if (PICK === "ceil"){
+      b.ceil = h;
+      if (b.floor != null && b.floor >= b.ceil - 20) b.floor = b.ceil - 20;
+    } else {
+      b.floor = h;
+      if (b.ceil != null && b.floor >= b.ceil - 20) b.floor = b.ceil - 20;
+    }
+    syncCeilUI(); drawWindows();
+    hint("✅ <b>" + (PICK==="ceil"?"천장":"바닥") + "</b> <code>" + h.toFixed(1) + "m</code>"
+       + " · 구간 <code>" + Math.round(b.floor) + " ~ " + Math.round(b.ceil) + "m</code>"
+       + " · 단 간격 <code>" + tierGap(b).toFixed(1) + "m</code>");
+    return;
+  }
+
+  /* 벽·폭 — 클릭점을 그 면의 방위 기준으로 분해한다 */
+  const az   = AZ_FACE(PFACE);
+  const dN   = (lat - b.lat) * 111320;                                   // 북쪽으로 몇 m
+  const dE   = (lng - b.lng) * 111320 * Math.cos(Cesium.Math.toRadians(b.lat));
+  const rad  = Cesium.Math.toRadians(az);
+  const along = dN*Math.cos(rad) + dE*Math.sin(rad);                     // 면 바깥 방향 성분
+  const cross = -dN*Math.sin(rad) + dE*Math.cos(rad);                    // 면을 따라 옆 성분
+
+  if (PICK === "wall"){
+    b.out = b.out || OUT_DEF.slice();
+    b.out[PFACE] = Math.max(4, along + 1.5);        /* 벽에서 1.5m 띄운다 */
+    drawWindows();
+    hint("✅ <b>" + FACE_NAMES[PFACE] + "면 벽 거리</b> <code>" + b.out[PFACE].toFixed(1) + "m</code>"
+       + " (중심에서 벽까지 " + along.toFixed(1) + "m)");
+    return;
+  }
+  if (PICK === "wide"){
+    b.wide = b.wide || WIDE_DEF.slice();
+    b.wide[PFACE] = Math.max(2, Math.abs(cross));   /* 중심선에서 옆으로 벗어난 만큼 */
+    drawWindows();
+    hint("✅ <b>" + FACE_NAMES[PFACE] + "면 폭</b> — 두 열이 중심선에서 <code>±"
+       + b.wide[PFACE].toFixed(1) + "m</code>에 앉습니다");
+    return;
+  }
+}
+
+/* ⭐ 값 회수 — 건물 한 채가 통째로 이 한 줄이 된다 (결정문 13호 buildings 표) */
+function dumpBld(){
+  const b = OPEN || BLD;
+  const line = "{ key:\"" + (b.key||"?") + "\", name:\"" + b.name + "\", lat:" + b.lat.toFixed(6)
+    + ", lng:" + b.lng.toFixed(6)
+    + ", roof:" + (b.roof!=null ? b.roof.toFixed(1) : "null")
+    + ", ceil:" + (b.ceil!=null ? Math.round(b.ceil) : "null")
+    + ", floor:" + (b.floor!=null ? Math.round(b.floor) : "null")
+    + ", out:[" + [0,1,2,3].map(f=> outOf(b,f).toFixed(1)).join(", ") + "]"
+    + ", wide:[" + [0,1,2,3].map(f=> wideOf(b,f).toFixed(1)).join(", ") + "] }";
+  console.log("[EG] " + b.name + " 등록값\n" + line);
+  hint("⭐ <b>" + b.name + "</b> 등록값 — 콘솔에도 찍었습니다<br><code style='font-size:10.5px'>"
+     + line.replace(/</g,"&lt;") + "</code><br>이 줄을 파이스에게 건네주시면 상수로 박습니다");
 }
 async function moveBuilding(lng, lat, clickH){
   if (MOVING) return; MOVING = true;
@@ -868,12 +1012,14 @@ function bindUI(){
       const carto = Cesium.Cartographic.fromCartesian(cart);
       const lat = Cesium.Math.toDegrees(carto.latitude), lng = Cesium.Math.toDegrees(carto.longitude);
       const hClick = carto.height;
-      /* ⭐ 건물이 여럿이 됐다 — 클릭점에서 가장 가까운 건물이 편집 대상이다 */
-      const d2 = (a)=> (a.lat-lat)*(a.lat-lat) + (a.lng-lng)*(a.lng-lng);
-      let target = null, best = Infinity;
-      allBlds().forEach(b=>{ const d = d2(b); if (d < best){ best = d; target = b; } });
-      if (target === (OPEN||BLD)) moveBuilding(lng, lat, hClick);
-      else moveOther(target, lng, lat, hClick);
+      /* ⭐ 지붕 짚기만 「가까운 건물」을 고른다 — 나머지는 열린 건물의 값을 만진다 */
+      if (PICK === "roof"){
+        const d2 = (a)=> (a.lat-lat)*(a.lat-lat) + (a.lng-lng)*(a.lng-lng);
+        let target = null, best = Infinity;
+        allBlds().forEach(b=>{ const d = d2(b); if (d < best){ best = d; target = b; } });
+        if (target !== (OPEN||BLD)){ moveOther(target, lng, lat, hClick); return; }
+      }
+      applyPick(lat, lng, hClick);
       return;
     }
     const picked = viewer.scene.pick(click.position);
@@ -954,6 +1100,9 @@ function bindUI(){
     setTimeout(hintOff, 5000);
   });
   $("btnEdit").addEventListener("click", ()=> setEdit(!EDIT_MODE));
+  PICKS.forEach(p=> $("pick-"+p.key).addEventListener("click", ()=> setPick(p.key)));
+  FACE_NAMES.forEach((_,f)=> $("face-"+f).addEventListener("click", ()=> setFace(f)));
+  $("pick-dump").addEventListener("click", dumpBld);
   $("cardX").addEventListener("click", closeCard);
   $("goMine").addEventListener("click", flyToMine);
   $("asWho").addEventListener("change", e=>{
