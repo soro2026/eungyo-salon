@@ -50,6 +50,10 @@
   #plate .sub{font-size:11.5px;color:var(--cream-dim);line-height:1.55}
   #plate .roof{margin-top:7px;font-size:11px;color:var(--gold);
     font-family:ui-monospace,Menlo,monospace;letter-spacing:.02em;word-break:break-all}
+  #ceilBox{margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,210,63,.18)}
+  #ceilBox label{font-size:11px;color:var(--cream-dim)}
+  #ceilBox b{color:var(--gold);font-weight:400}
+  #ceilBox input{width:100%;margin-top:5px;accent-color:#ffd23f}
 
   /* ── 오른쪽 시점 전환 ── */
   #who{position:absolute;right:14px;top:14px;z-index:20;width:min(46vw,204px);
@@ -117,8 +121,12 @@
 
 <div id="plate">
   <h1>엠파이어 스테이트 EG</h1>
-  <div class="sub">뉴욕 · 1 Territory = 24 Cell<br>메종 216 · 4면 × 27단 · 간판 무작위 배정</div>
+  <div class="sub">뉴욕 · 1 Territory = 24 Cell<br>메종 216 · 자리는 붙박이 · 노출만 추첨</div>
   <div class="roof" id="roofLine">지붕 높이 측정 중…</div>
+  <div id="ceilBox">
+    <label for="ceilRange">간판 천장 <b id="ceilVal">–</b> m</label>
+    <input type="range" id="ceilRange" min="120" max="420" step="1">
+  </div>
 </div>
 
 <div id="who">
@@ -202,6 +210,7 @@ const COL_OFF  = [15, 10.5, 15, 10.5]; // 한 면 두 열의 벌림
 const SIGN_HM  = 5;             // 간판 높이 5m — 27단이 겹치지 않는 키
 const SIGN_MAXW= 14;            // 간판 폭 상한 — 긴 닉네임은 글자가 맞춰 줄어든다
 const D_SIGN   = 1500;          // 여기까지 간판 · ⭐ 그 너머는 내 것만 (소로 손짓)
+const SHOW_PER_FACE = 5;        // ⭐ 접속마다 각 면에서 다섯 장만 추첨해 건다 (내 것은 언제나)
 
 /* ⭐ 0829 소로 — 지붕 명패는 점만 두고 호버에서 이름이 뜬다.
    ⚠ 그런데 터치에는 호버가 없다. 폰에서 명패를 숨기면 그 건물이 무엇인지
@@ -292,10 +301,19 @@ async function measureRoof(){
   }catch(e){ console.warn("지붕 높이 측정 실패:", e); }
   $("roofLine").textContent = "지붕을 못 맞혔습니다 — 조금 더 가까이서 다시";
 }
+function syncCeilUI(){
+  const rg = $("ceilRange"); if (!rg) return;
+  const roof = Math.round(ROOF_H != null ? ROOF_H : 420);
+  rg.max = roof;
+  if (CEIL == null) CEIL = roof - TOP_DROP;
+  rg.value = Math.round(CEIL);
+  $("ceilVal").textContent = Math.round(CEIL);
+}
 function printRoofLine(){
   $("roofLine").textContent =
     BLD.lat.toFixed(6) + ", " + BLD.lng.toFixed(6) +
     (ROOF_H!=null ? "  ·  지붕 H " + ROOF_H.toFixed(1) + "m" : "");
+  syncCeilUI();
 }
 
 /* ══════════════════ DB — 파리 샘플을 그대로 읽는다 ══════════════════
@@ -380,8 +398,14 @@ function drawRoof(){
 function slotFace(no){ return Math.floor(((no-1) % (FACES*FCOLS)) / FCOLS); }
 function slotCol(no){ return (no-1) % FCOLS; }
 function slotTier(no){ return Math.floor((no-1) / (FACES*FCOLS)); }
+/* ⭐ 소로 0829 — 「너무 높이 뜬 것만 끌어내리면 완벽. 내가 조절할 방법은?」
+   위쪽 단들이 첨탑·전망대 구간(벽이 갑자기 가늘어지는 곳)에 걸려 허공에 떴다.
+   맨 윗단(천장)을 소로가 직접 끈다 — 좌표편집기와 같은 흐름: 끌어서 맞추고,
+   값이 화면에 찍히고, 건네주시면 상수로 박는다. 격자 전체가 통째로 따라 내려온다. */
+let CEIL = null;                                   // 간판 천장 (m) · null = 지붕−TOP_DROP
 function slotH(no){
-  return (ROOF_H!=null ? ROOF_H : 420) - TOP_DROP - (TIERS-1-slotTier(no))*TIER_GAP;
+  const top = (CEIL != null) ? CEIL : (ROOF_H!=null ? ROOF_H : 420) - TOP_DROP;
+  return top - (TIERS-1-slotTier(no))*TIER_GAP;
 }
 function slotAnchor(no){                            // 그 칸의 벽 밖 한 점 (간판·점이 함께 쓴다)
   const f  = slotFace(no), az = AZ_FACE(f);
@@ -389,26 +413,30 @@ function slotAnchor(no){                            // 그 칸의 벽 밖 한 �
   const c1 = offsetDeg(c0.lat, c0.lng, az + (slotCol(no)===0 ? 90 : -90), COL_OFF[f]);
   return { lat:c1.lat, lng:c1.lng, h:slotH(no), az };
 }
-/* ⭐ 소로 0829 — 「각 면에 랜덤 5명씩」. 시험용 무작위 배정.
-   면을 남→동→북→서로 돌며(고루) 그 면의 빈 칸을 무작위로 뽑는다 — 17명이면 5·4·4·4.
-   ⚠ 한 번 뽑으면 이 접속 동안 붙박이 — 시점을 바꿀 때마다 간판이 이사 다니면 어지럽다.
-     실판에서는 0729 18호 배정 조항이 이 자리를 맡는다. */
+/* ⭐⭐ 0829 소로 정정 — 「같은 닉네임은 같은 위치 고정 · 보여줄지만 랜덤」.
+   첫 판은 배정 자체를 무작위로 두었는데 그건 주소가 아니었다. 주소는 주소다
+   (0729 16호 — 초대가 기록이 아니라 주소가 된다). 그래서 배정은 **결정식**이다:
+   면은 메종 번호가 고루 정하고(1남·2동·3북·4서·5남…), 단·열은 번호의 해시가
+   정한다 — 언제 누가 들어와도 lonelywalden 은 늘 그 칸이다.
+   실판에서는 DB 의 slot_no 가 이 식을 통째로 대체한다. */
 let slotMap = null;
 function assignSlots(){
   if (slotMap) return slotMap;
   slotMap = new Map(); const used = new Set();
-  const occ = rows.filter(r=>r.status==='occupied').slice();
-  for (let i=occ.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [occ[i],occ[j]]=[occ[j],occ[i]]; }
-  let f = 0;
-  occ.forEach(r=>{
-    let slot;
-    do{
-      slot = Math.floor(Math.random()*TIERS)*FACES*FCOLS + f*FCOLS
-           + Math.floor(Math.random()*FCOLS) + 1;
-    }while(used.has(slot));
-    used.add(slot); slotMap.set(r.maison_no, slot);
-    f = (f+1) % FACES;
-  });
+  rows.filter(r=> r.status==='occupied')
+      .sort((a,b)=> a.maison_no - b.maison_no)
+      .forEach(r=>{
+        const f = (r.maison_no - 1) % FACES;                 // 면 — 번호가 고루 정한다
+        const h = (r.maison_no * 2654435761) >>> 0;          // 단·열 — 번호의 해시 (고정)
+        let t = h % TIERS, col = (h >>> 8) % FCOLS, slot;
+        for(;;){
+          slot = t*FACES*FCOLS + f*FCOLS + col + 1;
+          if (!used.has(slot)) break;
+          col = (col + 1) % FCOLS;                           // 그 면 안에서 다음 칸
+          if (col === 0) t = (t + 1) % TIERS;
+        }
+        used.add(slot); slotMap.set(r.maison_no, slot);
+      });
   return slotMap;
 }
 function slotOf(m){ return (slotMap && slotMap.get(m.maison_no)) || m.maison_no; }
@@ -432,56 +460,39 @@ function drawWindows(){
 
   hoveredEnt = null;
   for (let no=1; no<=SLOT_N; no++){
-    const m = bySlot.get(no) || { maison_no:no, status:'vacant', nickname:null, intro:null };
+    const m = bySlot.get(no)
+           || { maison_no:null, slot_no:no, status:'vacant', nickname:null, intro:null };
     const occupied = (m.status === 'occupied');
-    const mine = isMineNo(no);
-    /* ⭐ 내 집: 가까이(0~1.5km)는 간판이 맡고, 명패는 그 너머부터 — 겹치지 않는다 */
-    const dd = new Cesium.DistanceDisplayCondition(mine ? D_SIGN : 0, mine ? D_MINE : D_WIN);
-    /* ⚠⚠ 0829 두 번째 정정 — 안 보인 진짜 원인의 절반이 여기였다.
-       lonelywalden 은 메종 1 = 북면인데 카메라가 남쪽에 있었다. 깊이 검사가 켜져
-       있으니 건물이 통째로 가렸다. 거리를 늘려도 뒷면이면 영영 안 뜬다.
-       ⭐ 내 창만 깊이 검사를 끈다 — 파리 메종이 쓰는 값 그대로(POSITIVE_INFINITY).
-          「파리와 완벽하게 동일하게」가 여기서도 답이었다.
-       ⭐ 이웃 53칸은 0 그대로 — 가까이 갔을 때 뒷면 명패가 비치면 어수선하다.
-          v200 이 경고한 관통은 「남의 명패가 내 건물을 뚫는 것」이었고,
-          내 집 하나가 자기 건물 앞으로 나오는 것은 그 경우가 아니다. */
-    const dep = mine ? Number.POSITIVE_INFINITY : 0;
+    /* ⚠⚠ 0829 버그 정정 (소로 발견) — 「내 집」을 슬롯 번호로 재고 있었다.
+       빈 슬롯 1번이 메종 1(lonelywalden)로 오판되어 멀리서 [메종 1]이 떴다.
+       내 집은 **메종 번호**로만 잰다. 빈 슬롯은 번호가 없다(null). */
+    const mine = occupied && isMineNo(m.maison_no);
+    if (occupied && !mine){
+      /* ⭐ 입주 이웃은 점을 안 찍는다 — 간판이 곧 표지인데 점을 겹치면
+         간판 한가운데를 덮는다(소로 발견). 카드는 간판 클릭이 연다. */
+      continue;
+    }
+    const dd  = new Cesium.DistanceDisplayCondition(mine ? D_SIGN : 0, mine ? D_MINE : D_WIN);
+    const dep = mine ? Number.POSITIVE_INFINITY : 0;   /* 내 명패만 관통 · 빈 점은 깊이 켬 */
 
     const ent = viewer.entities.add({
       id:"nyc-maison-"+no,
       position: slotPos(no, mine),
       point:{ pixelSize: mine ? 12 : 9,
-              color:Cesium.Color.fromCssColorString(occupied ? "#ffd23f" : "#0a0e1a"),
-              outlineColor:Cesium.Color.fromCssColorString(occupied ? "#1a1407" : "#ffd23f"),
-              outlineWidth: occupied ? 2 : 2.5,
+              color:Cesium.Color.fromCssColorString(mine ? "#ffd23f" : "#0a0e1a"),
+              outlineColor:Cesium.Color.fromCssColorString(mine ? "#1a1407" : "#ffd23f"),
+              outlineWidth: mine ? 2 : 2.5,
               disableDepthTestDistance:dep,
               distanceDisplayCondition:dd },
-      /* ⚠⚠ 이웃 53칸의 이름표를 걷는다. 결정문 9호가 이미
-           「3D는 켜진 창 하나만 맡고 이름은 명단이 맡는다」고 적었는데,
-           내가 쉰셋에 이름표를 달아 그 조항을 어겼다. 그것이 어지러움의 나머지 절반이다.
-         ⭐ 점만 남으면 밤의 마천루에 불이 박힌 것으로 읽힌다 — 8호의 「어두운 창」.
-         ⭐ 이름은 눌러서 카드로 본다. */
-      label: !mine ? undefined : occupied ? {
-              text: m.nickname || ("메종 "+no),
+      /* ⭐ 명패는 내 것 하나뿐 — 파리 입주 명패 그대로. 빈 점은 이름이 없다. */
+      label: !mine ? undefined : {
+              text: m.nickname || ("메종 "+m.maison_no),
               font:"13px Georgia,'Nanum Myeongjo','Apple SD Gothic Neo',serif",
               fillColor:Cesium.Color.fromCssColorString("#1a1407"),
               showBackground:true,
               backgroundColor:Cesium.Color.fromCssColorString("#ffd23f").withAlpha(.96),
               backgroundPadding:new Cesium.Cartesian2(9,5),
               pixelOffset:new Cesium.Cartesian2(0,-13),
-              verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
-              disableDepthTestDistance:dep,
-              distanceDisplayCondition:dd
-            } : {
-              text:"메종 "+no,
-              font:"12px Georgia,'Nanum Myeongjo','Apple SD Gothic Neo',serif",
-              fillColor:Cesium.Color.fromCssColorString("#ffd23f"),
-              outlineColor:Cesium.Color.fromCssColorString("#0a0e1a"), outlineWidth:3,
-              style:Cesium.LabelStyle.FILL_AND_OUTLINE,
-              showBackground:true,
-              backgroundColor:Cesium.Color.fromCssColorString("#0a0e1a").withAlpha(.82),
-              backgroundPadding:new Cesium.Cartesian2(8,4),
-              pixelOffset:new Cesium.Cartesian2(0,-12),
               verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
               disableDepthTestDistance:dep,
               distanceDisplayCondition:dd
@@ -501,7 +512,9 @@ function drawWindows(){
    ⚠ 렌더 부담은 벽 열일곱 + 작은 캔버스 열일곱 — 가볍다. 216이 다 차는 날의
      갈래(내 면만 전부 / 남은 점)는 그때 소로와 정한다.
    ⚠ 「면 판매 구조」의 부활이 아니다 — 면은 화면 배치일 뿐 DB 에 없다. */
+const plateCache = new Map();      /* 천장을 끌어도 캔버스는 다시 굽지 않는다 */
 function plateCanvas(text){
+  if (plateCache.has(text)) return plateCache.get(text);
   const H = 340, pad = 76;
   const MAXW = Math.round(H * SIGN_MAXW / SIGN_HM);           // 폭 상한의 픽셀 옷 (952)
   const FONT = fs => '700 ' + fs + 'px Georgia,"Nanum Myeongjo","Apple SD Gothic Neo",serif';
@@ -524,16 +537,34 @@ function plateCanvas(text){
   g.fillStyle = "#1a1407"; g.font = FONT(fs);                 // 파리의 검은 명조
   g.textAlign = "center"; g.textBaseline = "middle";
   g.fillText(text, W/2, H/2 + 8);
+  plateCache.set(text, cv);
   return cv;
+}
+
+/* ⭐ 노출 추첨 — 접속마다 각 면에서 다섯을 뽑는다. 자리는 고정, 걸릴지만 운.
+   한 접속 안에서는 붙박이(시점을 바꿔도 표본은 그대로 · 내 것만 얹힌다). */
+let sampleSet = null;
+function sampleSigns(){
+  if (sampleSet) return sampleSet;
+  sampleSet = new Set();
+  for (let f=0; f<FACES; f++){
+    const pool = rows.filter(r=> r.status==='occupied' && slotFace(slotOf(r)) === f);
+    for (let i=pool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
+    pool.slice(0, SHOW_PER_FACE).forEach(r=> sampleSet.add(r.maison_no));
+  }
+  return sampleSet;
 }
 
 async function drawSigns(){
   signEnts.forEach(e=> viewer.entities.remove(e)); signEnts = [];
   const occ = rows.filter(r=> r.status === 'occupied');
   if (!occ.length) return;
+  sampleSigns();
+  const meNo = (mineRow() || {}).maison_no;
   try{ await document.fonts.load('700 200px "Nanum Myeongjo"',
         occ.map(r=> r.nickname || '').join('')); }catch(e){}
   occ.forEach(r=>{
+    if (!sampleSet.has(r.maison_no) && r.maison_no !== meNo) return;   /* 이번 접속의 표본 + 나 */
     const no = slotOf(r);
     const a  = slotAnchor(no);
     const cv = plateCanvas(r.nickname || ("메종 " + r.maison_no));
@@ -607,8 +638,9 @@ function flyToMine(){
 
 /* ══════════════════ 카드 ══════════════════ */
 function openCard(m){
-  $("cDoor").textContent = "뉴욕 · 엠파이어 스테이트 · 메종 " + m.maison_no;
-  $("cNick").textContent = m.nickname || ("메종 " + m.maison_no);
+  $("cDoor").textContent = "뉴욕 · 엠파이어 스테이트 · "
+    + (m.maison_no ? ("메종 " + m.maison_no) : ("빈 슬롯 " + m.slot_no));
+  $("cNick").textContent = m.nickname || (m.maison_no ? ("메종 " + m.maison_no) : "빈 슬롯");
   $("cIntro").textContent = m.intro
     || (m.status==='occupied' ? "아직 소개글을 쓰지 않은 집입니다." : "빈집입니다. 아직 아무도 살지 않습니다.");
   $("cMeta").textContent = m.occupant_id ? ("uid " + m.occupant_id) : "occupant 없음";
@@ -633,7 +665,7 @@ async function moveBuilding(lng, lat){
   if (MOVING) return; MOVING = true;
   try{
     BLD.lat = lat; BLD.lng = lng;
-    ROOF_H = null;
+    ROOF_H = null; CEIL = null;
     await measureRoof();
     drawRoof();
     drawWindows();
@@ -704,6 +736,15 @@ function bindUI(){
     $("btnNbr").classList.toggle("on", showNbr);
   });
   $("btnFar").addEventListener("click", flyFar);
+  $("ceilRange").addEventListener("input", e=>{
+    CEIL = +e.target.value;
+    $("ceilVal").textContent = Math.round(CEIL);
+    drawWindows();                                  /* 캔버스는 캐시 — 끄는 대로 따라온다 */
+  });
+  $("ceilRange").addEventListener("change", ()=>{
+    hint("⭐ 간판 천장 <code>" + Math.round(CEIL) + "m</code> — 이 값을 파이스에게 건네주시면 상수로 박습니다");
+    setTimeout(hintOff, 5000);
+  });
   $("btnEdit").addEventListener("click", ()=> setEdit(!EDIT_MODE));
   $("cardX").addEventListener("click", closeCard);
   $("goMine").addEventListener("click", flyToMine);
