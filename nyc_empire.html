@@ -188,6 +188,20 @@ const D_ROOF = 30000;           // 건물 명패 30km
 const D_MINE = 30000;           // ⭐ 내 집 — 지붕 명패와 같다
 const D_WIN  = 1300;            // 이웃 53칸 — 가까이 가야 보인다
 
+/* ── 실물 간판 (0829 네 번째 정정) ──
+   ⚠⚠ 빌보드는 언제나 카메라를 마주보는 물건이라 어디에 두어도 벽 간판이 못 된다.
+      밖에 두면 허공에 뜨고(시차), 중심에 넣으면 건물만 돌고 명패는 제자리다 —
+      소로 진단 「안에서 빙글빙글」. 값이 아니라 물건이 틀렸던 것이다.
+   ⭐ 그래서 가까이서는 **실제 수직면(wall)에 명패를 바른다.** 벽과 함께 돌고,
+      뒤에서는 건물에 가려지고, 가까울수록 커진다 — 실물 간판의 세 성질 그대로.
+   ⭐ 멀리서는 기존 중심축 명패로 갈아탄다. 소로 — 「조금 멀리서 보면 근사한데」.
+      멀면 시차가 안 읽히므로 빌보드가 다시 옳은 물건이 된다. */
+const GRID_AZ  = 29;            // 맨해튼 격자 기울기 (진북에서 동으로 29°)
+const SIGN_AZ  = 180 + GRID_AZ; // 남벽 바깥 방향 (34번가 쪽)
+const SIGN_OUT = 23;            // 중심 → 남벽 밖 (본 타워 남북 반폭 21.5 + 1.5)
+const SIGN_HM  = 7;             // 간판 높이 7m — 층고 두 배, 옥외 간판 규모
+const D_SIGN   = 1500;          // 여기까지 간판 · 그 너머는 명패
+
 /* ⭐ 0829 소로 — 지붕 명패는 점만 두고 호버에서 이름이 뜬다.
    ⚠ 그런데 터치에는 호버가 없다. 폰에서 명패를 숨기면 그 건물이 무엇인지
      영영 읽을 길이 없어진다(탭은 이미 강하에 쓰이고 있다 — 한 손짓에 두 일을
@@ -197,7 +211,7 @@ const D_WIN  = 1300;            // 이웃 53칸 — 가까이 가야 보인다
      호버가 없다. 판정 하나에 두 가지 일을 맡기면 곧 어긋난다. */
 const CAN_HOVER = (window.matchMedia && window.matchMedia('(hover: hover)').matches);
 
-let viewer, tileset, roofEnt=null, winEnts=[], rows=[], hoveredEnt=null;
+let viewer, tileset, roofEnt=null, winEnts=[], rows=[], hoveredEnt=null, signEnt=null;
 let myUid=null, asNick=null;          // asNick: 시점 전환으로 고른 닉네임
 let showRoof=true, showMine=true, showNbr=false;   /* ⭐ 이웃 53칸은 처음엔 꺼 둔다 — 결정문 8호 */
 let EDIT_MODE=false, MOVING=false;
@@ -361,10 +375,18 @@ function drawRoof(){
    ⚠ 잃는 것은 「내 창」이라는 그림인데, 결정문 8호가 이미
      「어느 창이 내 창인지 아무도 안 보므로 정확도가 필요 없다」고 적었다.
      정확도가 필요 없으면 둘레도 필요 없다 — ⭐ 높이만 남긴다. 높이가 곧 주소다. */
-function slotPos(no, mine){
+function slotH(no){
   const tier = Math.floor((no-1)/COLS);            // 0 = 맨 아래단
+  return (ROOF_H!=null ? ROOF_H : 420) - TOP_DROP - (TIERS-1-tier)*TIER_GAP;
+}
+function offsetDeg(lat, lng, azDeg, dist){         // 방위각·거리 → 위경도
+  const az = Cesium.Math.toRadians(azDeg);
+  return { lat: lat + (dist*Math.cos(az))/111320,
+           lng: lng + (dist*Math.sin(az))/(111320*Math.cos(Cesium.Math.toRadians(lat))) };
+}
+function slotPos(no, mine){
   const col  = (no-1) % COLS;
-  const h    = (ROOF_H!=null ? ROOF_H : 420) - TOP_DROP - (TIERS-1-tier)*TIER_GAP;
+  const h    = slotH(no);
   if (mine) return Cesium.Cartesian3.fromDegrees(BLD.lng, BLD.lat, h);   /* ⭐ 중심축 */
   const az   = Cesium.Math.toRadians(col * (360/COLS));
   const dLat = (RING_R*Math.cos(az)) / 111320;
@@ -382,7 +404,8 @@ function drawWindows(){
     const m = byNo.get(no) || { maison_no:no, status:'vacant', nickname:null, intro:null };
     const occupied = (m.status === 'occupied');
     const mine = isMineNo(no);
-    const dd = new Cesium.DistanceDisplayCondition(0, mine ? D_MINE : D_WIN);
+    /* ⭐ 내 집: 가까이(0~1.5km)는 간판이 맡고, 명패는 그 너머부터 — 겹치지 않는다 */
+    const dd = new Cesium.DistanceDisplayCondition(mine ? D_SIGN : 0, mine ? D_MINE : D_WIN);
     /* ⚠⚠ 0829 두 번째 정정 — 안 보인 진짜 원인의 절반이 여기였다.
        lonelywalden 은 메종 1 = 북면인데 카메라가 남쪽에 있었다. 깊이 검사가 켜져
        있으니 건물이 통째로 가렸다. 거리를 늘려도 뒷면이면 영영 안 뜬다.
@@ -438,6 +461,56 @@ function drawWindows(){
     ent.show = mine ? showMine : showNbr;
     winEnts.push(ent);
   }
+  drawSign();                       /* 간판은 내 집을 따라다닌다 */
+}
+
+/* ══ 실물 간판 — 남벽에 바른 노란 명조 ══
+   ⚠ 이것은 「면(face) 판매 구조」의 부활이 아니다. 결정문이 폐기한 것은
+     4면 × 6~7명 배분이고, 이것은 간판 **한 장**이 걸리는 방향일 뿐이다.
+     실물 건물의 간판도 한 면에 걸린다. */
+async function drawSign(){
+  if (signEnt){ viewer.entities.remove(signEnt); signEnt = null; }
+  const m = mineRow(); if (!m) return;
+  const text = m.nickname || ("메종 " + m.maison_no);
+  try{ await document.fonts.load('700 200px "Nanum Myeongjo"', text); }catch(e){}
+
+  /* 명패를 그대로 확대한 캔버스 — 옐로 바탕 · 검은 명조 · 파리와 같은 색 */
+  const H = 340, pad = 76, FONT = '700 200px Georgia,"Nanum Myeongjo","Apple SD Gothic Neo",serif';
+  const mc = document.createElement('canvas').getContext('2d');
+  mc.font = FONT;
+  const W = Math.max(560, Math.ceil(mc.measureText(text).width) + pad*2);
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d');
+  const r = 44;
+  g.beginPath();
+  g.moveTo(r,0); g.arcTo(W,0,W,H,r); g.arcTo(W,H,0,H,r); g.arcTo(0,H,0,0,r); g.arcTo(0,0,W,0,r);
+  g.closePath();
+  g.fillStyle = "#ffd23f"; g.fill();
+  g.lineWidth = 10; g.strokeStyle = "#1a1407"; g.stroke();
+  g.fillStyle = "#1a1407"; g.font = FONT;
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText(text, W/2, H/2 + 8);
+
+  /* 벽과 평행한 수직면 — 서→동 순서라야 남쪽에서 글이 바로 읽힌다
+     (⚠ 글이 좌우로 뒤집혀 보이면 A·B를 맞바꾼다 · 상하면 캔버스를 뒤집는다) */
+  const h = slotH(m.maison_no);
+  const widthM = SIGN_HM * (W / H);
+  const C0 = offsetDeg(BLD.lat, BLD.lng, SIGN_AZ, SIGN_OUT);
+  const A = offsetDeg(C0.lat, C0.lng, SIGN_AZ + 90, widthM/2);   // 서쪽 끝
+  const B = offsetDeg(C0.lat, C0.lng, SIGN_AZ - 90, widthM/2);   // 동쪽 끝
+  signEnt = viewer.entities.add({
+    id:"nyc-sign",
+    wall:{
+      positions: Cesium.Cartesian3.fromDegreesArray([A.lng, A.lat, B.lng, B.lat]),
+      minimumHeights:[h - SIGN_HM/2, h - SIGN_HM/2],
+      maximumHeights:[h + SIGN_HM/2, h + SIGN_HM/2],
+      material: new Cesium.ImageMaterialProperty({ image: cv, transparent: true }),
+      outline: false,
+      distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, D_SIGN)
+    }
+  });
+  signEnt._maison = m;
+  signEnt.show = showMine;
 }
 /* ⚠ 시점이 바뀌면 **자리와 이름표가 함께** 바뀐다(내 것만 중심축·이름표를 가짐).
      속성만 손보면 옛 자리에 남으므로 다시 그린다. 쉰넷은 가볍다. */
@@ -446,6 +519,7 @@ function refreshMine(){ drawWindows(); }
 /* 단추는 표시만 건드린다 — 다시 그릴 까닭이 없다 */
 function applyShow(){
   winEnts.forEach(e=>{ e.show = isMineNo(e._maison.maison_no) ? showMine : showNbr; });
+  if (signEnt) signEnt.show = showMine;
 }
 function updateMineLine(){
   const m = mineRow();
