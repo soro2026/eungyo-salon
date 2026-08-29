@@ -170,16 +170,30 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
    ⭐ 0829 소로가 좌표편집기로 지붕을 클릭해 잡은 실측값. 위키 인포박스(초 단위
      반올림 ≈±15m)를 대신한다. 지붕 H는 그 자리에서 412.9m 로 나왔다.
    ⚠ 다시 잡으실 수 있게 편집 모드는 그대로 둔다. */
-let BLD = { name:"엠파이어 스테이트 EG", lat:40.748437, lng:-73.985683 };
-let ROOF_H = null;              // 지붕의 타일 높이 (측정 · ⭐ 0829 소로 실측 397.1m — 본체 지붕)
+/* ⭐ 0829 소로 지급 — 40°44'54.36"N 73°59'08.35"W (안테나 하단 기준으로 뽑으심) */
+let BLD = { key:"empire", name:"엠파이어 스테이트 EG",
+            lat:40.748433, lng:-73.985653, roof:null, ceil:270 };
+/* ⚠ 지붕 H·천장은 이제 건물마다 제 칸(b.roof · b.ceil)에 산다 —
+     건물이 둘 이상이 된 순간 전역 하나로는 못 담는다. 아래 둘은 열린 건물의 창구다. */
 
 /* ⭐ 0829 소로 — 「간판은 내가 입주한 건물만. 다른 건물은 노란 핀만, 클릭하면 현관」.
    시험판의 「다른 건물」로 크라이슬러를 세운다 — 핀 하나와 현관 팝업뿐, 간판·격자 없음.
    ⚠ 좌표는 위키 인포박스 초 단위 반올림(±15m) — 편집 모드에서 지붕을 클릭해 재잡는다.
    실판에서는 이 배열이 buildings 표 한 판이 된다 (결정문 13호). */
 const OTHERS = [
-  { key:"chrysler", name:"크라이슬러 EG", lat:40.751667, lng:-73.975278, roof:null }
+  /* ⚠ 0829 소로 실화면 정정 — 위키 초 단위 좌표(40.751667, −73.975278)가 첨탑 중앙에서
+     북동으로 ~20m 빗나가 옆 지붕에 앉았다. 위에서 본 판을 보고 남서로 되돌린다.
+     ⭐ 그래도 근사값이다 — 편집 모드에서 첨탑 꼭대기를 클릭해 확정한다. */
+  /* ⭐ 0829 소로 지급 — 40°45'05.86"N 73°58'31.31"W */
+  { key:"chrysler", name:"크라이슬러 EG", lat:40.751628, lng:-73.975364, roof:null, ceil:null }
 ];
+/* ⭐ 0829 소로 — 「크라이슬러 핀을 누르면 간판이 보이게」.
+   격자·간판이 이제 **열린 건물**을 따라간다. 핀을 누르면 그 건물이 열리고,
+   전에 열려 있던 건물은 핀만 남는다 — 언제나 한 채만 간판을 갖는다.
+   ⭐⭐ 이것이 실판의 그림이기도 하다: 콩파뇽에게 열려 있는 건물은 자기가 사는 곳 하나,
+      나머지 뉴욕 열아홉 채는 핀과 현관뿐 (결정문 8·9호). */
+let OPEN = null;                       // 지금 간판이 걸린 건물 (init에서 BLD로)
+function allBlds(){ return [BLD].concat(OTHERS); }
 
 /* ── 54칸 배분 — 값 셋뿐이다. 화면 손잡이를 만들지 않는다 ──
    ⭐ 높이를 층으로, 둘레를 면으로. 기계가 나눈다 (결정문 8호).
@@ -230,6 +244,8 @@ const SHOW_PER_FACE = 5;        // ⭐ 접속마다 각 면에서 다섯 장만 
 const CAN_HOVER = (window.matchMedia && window.matchMedia('(hover: hover)').matches);
 
 let viewer, tileset, roofEnt=null, winEnts=[], rows=[], hoveredEnt=null, signEnts=[];
+Object.defineProperty(window, 'ROOF_H', { get:()=> (OPEN||BLD).roof, set:v=>{ (OPEN||BLD).roof = v; } });
+Object.defineProperty(window, 'CEIL',   { get:()=> (OPEN||BLD).ceil, set:v=>{ (OPEN||BLD).ceil = v; } });
 let myUid=null, asNick=null;          // asNick: 시점 전환으로 고른 닉네임
 let showRoof=true, showMine=true, showNbr=false;   /* ⭐ 슬롯 점은 처음엔 꺼 둔다 */
 let EDIT_MODE=false, MOVING=false;
@@ -276,6 +292,7 @@ const hintOff = () => $("hint").classList.remove("in");
     console.warn("[EG] 타일 로드 실패 — 기본 지구로 표시합니다:", err);
   }
 
+  OPEN = BLD;                       /* 처음 열려 있는 건물 = 내가 사는 곳 */
   await flyToBuilding(1.2);
   bindUI();
 
@@ -296,16 +313,24 @@ const hintOff = () => $("hint").classList.remove("in");
 let otherEnts = [];
 async function drawOthers(){
   otherEnts.forEach(e=> viewer.entities.remove(e)); otherEnts = [];
-  for (const b of OTHERS){
+  for (const b of allBlds()){
+    if (b === (OPEN || BLD)) continue;          /* 열린 건물은 지붕 명패가 맡는다 */
     let h = 350;
     try{
-      const arr = await viewer.scene.clampToHeightMostDetailed(
-        [Cesium.Cartesian3.fromDegrees(b.lng, b.lat)]);
-      if (arr && Cesium.defined(arr[0])){
-        b.roof = Cesium.Cartographic.fromCartesian(arr[0]).height;
-        h = b.roof;
+      if (b.roof == null){                       /* 소로가 찍어 둔 값이 있으면 재지 않는다 */
+        const R = 14, pts = [Cesium.Cartesian3.fromDegrees(b.lng, b.lat)];
+        for (let i=0;i<8;i++){
+          const o = offsetDeg(b.lat, b.lng, i*45, R);
+          pts.push(Cesium.Cartesian3.fromDegrees(o.lng, o.lat));
+        }
+        const arr = await viewer.scene.clampToHeightMostDetailed(pts);
+        const hs = (arr||[]).filter(Cesium.defined)
+                            .map(c=> Cesium.Cartographic.fromCartesian(c).height)
+                            .sort((x,y)=> x-y);
+        if (hs.length) b.roof = hs[Math.floor(hs.length/2)];   /* 안테나 하단 */
       }
     }catch(e){ console.warn("[EG] " + b.name + " 지붕 측정 실패:", e); }
+    if (b.roof != null) h = b.roof;
     const ent = viewer.entities.add({
       id:"nyc-bld-" + b.key,
       position: Cesium.Cartesian3.fromDegrees(b.lng, b.lat, h + 8),
@@ -334,16 +359,32 @@ async function drawOthers(){
   }
 }
 
-/* 현관 팝업 — 결정문 9호 「슬라이드 · 입주민 명단」의 씨앗.
-   지금은 빈 건물이라 명단이 없다. 문이 열리면 여기 명단이 선다. */
+/* 현관 팝업 — 결정문 9호 「슬라이드 · 입주민 명단」의 씨앗 */
 function openBldCard(b){
-  $("cDoor").textContent = "뉴욕 · 1 Territory = 24 Cell";
+  $("cDoor").textContent = "뉴욕 · 1 Territory = 24 Cell · 216 슬롯";
   $("cNick").textContent = b.name;
-  $("cIntro").textContent = "아직 입주가 시작되지 않은 건물입니다. "
-    + "문이 열리면 이 현관에 입주민 명단이 뜹니다. (입주 0 / 216)";
+  $("cIntro").textContent = (b === OPEN)
+    ? "지금 열려 있는 건물입니다. 벽에 입주민 간판이 걸려 있습니다."
+    : "핀을 한 번 더 누르면 이 건물이 열리고 벽에 간판이 걸립니다.";
   $("cMeta").textContent = b.lat.toFixed(6) + ", " + b.lng.toFixed(6)
     + (b.roof!=null ? " · 지붕 H " + b.roof.toFixed(1) + "m" : "");
   $("card").classList.add("in");
+}
+
+/* ⭐⭐ 건물 열기 — 언제나 한 채만 간판을 갖는다.
+   ⚠ 열린 건물은 지붕 명패를 제 것으로 쓰고(roofEnt), 나머지는 OTHERS 핀으로 선다.
+     그래서 여는 순간 양쪽을 다시 그린다 — 옛 건물이 핀으로 돌아가야 하므로. */
+async function openBuilding(b){
+  if (OPEN === b) return;
+  OPEN = b;
+  closeCard();
+  sampleSet = null;                       /* 건물이 바뀌면 이번 노출도 다시 뽑는다 */
+  if (b.roof == null) await measureRoof();
+  printRoofLine();
+  drawRoof();
+  drawWindows();
+  await drawOthers();
+  await flyToBuilding(2.0, b);
 }
 
 /* ══════════════════ 지붕 높이 측정 ══════════════════
@@ -354,13 +395,29 @@ function openBldCard(b){
 async function measureRoof(){
   if (!viewer.scene.clampToHeightMostDetailed){ $("roofLine").textContent="측정 미지원 판입니다"; return; }
   try{
-    const arr = await viewer.scene.clampToHeightMostDetailed(
-      [Cesium.Cartesian3.fromDegrees(BLD.lng, BLD.lat)]);
-    const c = arr && arr[0];
-    if (Cesium.defined(c)){
-      ROOF_H = Cesium.Cartographic.fromCartesian(c).height;
+    /* ⚠⚠ 0829 소로 — 「안테나 꼭대기에 핀이 꽂히면 너무 높아 잘 안 보인다」.
+         중심 한 점에 광선을 쏘면 언제나 안테나·첨탑 끝을 맞는다. 뉴욕 마천루는
+         거의 다 중심축에 가느다란 것이 솟아 있어 20채 전부에서 같은 일이 난다.
+       ⭐ 그래서 **중심 + 반경 14m 고리 여덟 점**을 함께 재고 **중앙값**을 쓴다.
+         가느다란 첨탑은 한두 점만 맞으므로 중앙값에서 저절로 밀려나고, 남는 것은
+         그 둘레를 받치는 넓은 지붕 — 곧 소로가 찍으신 「안테나 하단」이다.
+       ⭐ 파리 라탱에서 「둘레 90m 고리의 최저값」으로 길바닥을 찾던 손의 사촌이다.
+         거기서는 최저를, 여기서는 중앙값을 본다. */
+    const b = OPEN || BLD;
+    const R = 14, pts = [Cesium.Cartesian3.fromDegrees(b.lng, b.lat)];
+    for (let i=0;i<8;i++){
+      const o = offsetDeg(b.lat, b.lng, i*45, R);
+      pts.push(Cesium.Cartesian3.fromDegrees(o.lng, o.lat));
+    }
+    const arr = await viewer.scene.clampToHeightMostDetailed(pts);
+    const hs = (arr||[]).filter(Cesium.defined)
+                        .map(c=> Cesium.Cartographic.fromCartesian(c).height)
+                        .sort((x,y)=> x-y);
+    if (hs.length){
+      b.roof = hs[Math.floor(hs.length/2)];                 /* 중앙값 = 안테나 하단 */
       printRoofLine();
-      console.log("[EG] 지붕 H =", ROOF_H.toFixed(1), "m");
+      console.log("[EG] " + b.name + " 지붕 H =", b.roof.toFixed(1),
+                  "m  (아홉 점 " + hs[0].toFixed(0) + "~" + hs[hs.length-1].toFixed(0) + ")");
       return;
     }
   }catch(e){ console.warn("지붕 높이 측정 실패:", e); }
@@ -368,16 +425,19 @@ async function measureRoof(){
 }
 function syncCeilUI(){
   const rg = $("ceilRange"); if (!rg) return;
-  const roof = Math.round(ROOF_H != null ? ROOF_H : 420);
+  const b = OPEN || BLD;
+  const roof = Math.round(b.roof != null ? b.roof : 420);
   rg.max = roof;
-  if (CEIL == null) CEIL = roof - TOP_DROP;
-  rg.value = Math.round(CEIL);
-  $("ceilVal").textContent = Math.round(CEIL);
+  if (b.ceil == null) b.ceil = roof - TOP_DROP;
+  rg.value = Math.round(b.ceil);
+  $("ceilVal").textContent = Math.round(b.ceil);
 }
 function printRoofLine(){
+  const b = OPEN || BLD;
+  $("plate").querySelector("h1").textContent = b.name;
   $("roofLine").textContent =
-    BLD.lat.toFixed(6) + ", " + BLD.lng.toFixed(6) +
-    (ROOF_H!=null ? "  ·  지붕 H " + ROOF_H.toFixed(1) + "m" : "");
+    b.lat.toFixed(6) + ", " + b.lng.toFixed(6) +
+    (b.roof!=null ? "  ·  지붕 H " + b.roof.toFixed(1) + "m" : "");
   syncCeilUI();
 }
 
@@ -415,16 +475,17 @@ function isMineNo(no){ const m = mineRow(); return !!(m && m.maison_no === no); 
    ⚠ disableDepthTestDistance 는 0 — 그 너머 건물을 뚫고 비치지 않게 (v200 3-㉠). */
 function drawRoof(){
   if (roofEnt){ viewer.entities.remove(roofEnt); roofEnt=null; }
-  const h = (ROOF_H!=null) ? ROOF_H + 8 : 420;
+  const b = OPEN || BLD;
+  const h = (b.roof!=null) ? b.roof + 8 : 420;
   roofEnt = viewer.entities.add({
     id:"nyc-roof",
-    position: Cesium.Cartesian3.fromDegrees(BLD.lng, BLD.lat, h),
+    position: Cesium.Cartesian3.fromDegrees(b.lng, b.lat, h),
     point:{ pixelSize:11,
             color:Cesium.Color.fromCssColorString("#ffd23f"),
             outlineColor:Cesium.Color.fromCssColorString("#1a1407"), outlineWidth:2,
             disableDepthTestDistance:0,
             distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0, D_ROOF) },
-    label:{ text: BLD.name,
+    label:{ text: b.name,
             font:"15px Georgia,'Nanum Myeongjo','Apple SD Gothic Neo',serif",
             fillColor:Cesium.Color.fromCssColorString("#1a1407"),
             showBackground:true,
@@ -467,16 +528,18 @@ function slotTier(no){ return Math.floor((no-1) / (FACES*FCOLS)); }
    위쪽 단들이 첨탑·전망대 구간(벽이 갑자기 가늘어지는 곳)에 걸려 허공에 떴다.
    맨 윗단(천장)을 소로가 직접 끈다 — 좌표편집기와 같은 흐름: 끌어서 맞추고,
    값이 화면에 찍히고, 건네주시면 상수로 박는다. 격자 전체가 통째로 따라 내려온다. */
-let CEIL = 270;                                    // ⭐ 간판 천장 — 0829 소로가 슬라이더로 잡은 값
-function slotH(no){
-  const top = (CEIL != null) ? CEIL : (ROOF_H!=null ? ROOF_H : 420) - TOP_DROP;
+function slotH(no, b){
+  b = b || OPEN || BLD;
+  const roof = (b.roof != null) ? b.roof : 420;
+  const top  = (b.ceil != null) ? b.ceil : roof - TOP_DROP;
   return top - (TIERS-1-slotTier(no))*TIER_GAP;
 }
-function slotAnchor(no){                            // 그 칸의 벽 밖 한 점 (간판·점이 함께 쓴다)
+function slotAnchor(no, b){                         // 그 칸의 벽 밖 한 점 (간판·점이 함께 쓴다)
+  b = b || OPEN || BLD;
   const f  = slotFace(no), az = AZ_FACE(f);
-  const c0 = offsetDeg(BLD.lat, BLD.lng, az, OUT_FACE[f]);
+  const c0 = offsetDeg(b.lat, b.lng, az, OUT_FACE[f]);
   const c1 = offsetDeg(c0.lat, c0.lng, az + (slotCol(no)===0 ? 90 : -90), COL_OFF[f]);
-  return { lat:c1.lat, lng:c1.lng, h:slotH(no), az };
+  return { lat:c1.lat, lng:c1.lng, h:slotH(no, b), az };
 }
 /* ⭐⭐ 0829 소로 정정 — 「같은 닉네임은 같은 위치 고정 · 보여줄지만 랜덤」.
    첫 판은 배정 자체를 무작위로 두었는데 그건 주소가 아니었다. 주소는 주소다
@@ -511,8 +574,9 @@ function offsetDeg(lat, lng, azDeg, dist){         // 방위각·거리 → 위�
            lng: lng + (dist*Math.sin(az))/(111320*Math.cos(Cesium.Math.toRadians(lat))) };
 }
 function slotPos(no, mine){
-  if (mine) return Cesium.Cartesian3.fromDegrees(BLD.lng, BLD.lat, slotH(no));  /* ⭐ 멀리서 명패는 중심축 */
-  const a = slotAnchor(no);
+  const b = OPEN || BLD;
+  if (mine) return Cesium.Cartesian3.fromDegrees(b.lng, b.lat, slotH(no, b));  /* ⭐ 멀리서 명패는 중심축 */
+  const a = slotAnchor(no, b);
   return Cesium.Cartesian3.fromDegrees(a.lng, a.lat, a.h);
 }
 
@@ -672,18 +736,20 @@ function updateMineLine(){
 }
 
 /* ══════════════════ 카메라 ══════════════════ */
-function flyToBuilding(dur){
+function flyToBuilding(dur, b){
+  b = b || OPEN || BLD;
   return new Promise(res=>{
     viewer.camera.flyTo({
-      destination: Cesium.Cartesian3.fromDegrees(BLD.lng, BLD.lat-0.0042, 430),
+      destination: Cesium.Cartesian3.fromDegrees(b.lng, b.lat-0.0042, (b.roof||400)+40),
       orientation:{ heading:Cesium.Math.toRadians(2), pitch:Cesium.Math.toRadians(6), roll:0 },
       duration: dur, complete:res, cancel:res
     });
   });
 }
 function flyFar(){
+  const b = OPEN || BLD;
   viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(BLD.lng, BLD.lat-0.019, 1500),
+    destination: Cesium.Cartesian3.fromDegrees(b.lng, b.lat-0.019, 1500),
     orientation:{ heading:Cesium.Math.toRadians(2), pitch:Cesium.Math.toRadians(-14), roll:0 },
     duration: 2.0
   });
@@ -702,7 +768,9 @@ function flyToMine(){
 }
 
 /* ══════════════════ 카드 ══════════════════ */
+let cardBld = null;
 function openCard(m){
+  cardBld = null;
   $("cDoor").textContent = "뉴욕 · 엠파이어 스테이트 · "
     + (m.maison_no ? ("메종 " + m.maison_no) : ("빈 슬롯 " + m.slot_no));
   $("cNick").textContent = m.nickname || (m.maison_no ? ("메종 " + m.maison_no) : "빈 슬롯");
@@ -726,15 +794,18 @@ function setEdit(on){
     hint("📍 <b>편집 모드</b> — 엠파이어 스테이트 <b>지붕</b>을 클릭하면 그 자리가 건물 중심이 됩니다");
   } else hintOff();
 }
-async function moveBuilding(lng, lat){
+async function moveBuilding(lng, lat, clickH){
   if (MOVING) return; MOVING = true;
   try{
-    BLD.lat = lat; BLD.lng = lng;
-    ROOF_H = null; CEIL = null;
-    await measureRoof();
+    const b = OPEN || BLD;
+    b.lat = lat; b.lng = lng; b.roof = null; b.ceil = null;
+    /* ⭐ 클릭한 그 점의 높이를 그대로 쓴다 — 안테나 하단을 찍으면 거기가 지붕이다.
+       측정을 다시 돌리면 광선이 첨탑을 맞아 클릭이 무의미해진다. */
+    if (clickH != null) b.roof = clickH;
+    else await measureRoof();
+    printRoofLine();
     drawRoof();
     drawWindows();
-    refreshMine();
     hint("✅ <b>건물 중심 이동</b> — <code>" + lat.toFixed(6) + ", " + lng.toFixed(6) + "</code>"
        + (ROOF_H!=null ? " · 지붕 H <code>" + ROOF_H.toFixed(1) + "m</code>" : "")
        + "<br>이 값을 파이스에게 건네주시면 상수로 박습니다");
@@ -744,10 +815,11 @@ async function moveBuilding(lng, lat){
     hint("⚠️ 이동 실패 — 콘솔을 확인하세요");
   }finally{ MOVING = false; }
 }
-async function moveOther(b, lng, lat){
+async function moveOther(b, lng, lat, clickH){
   if (MOVING) return; MOVING = true;
   try{
-    b.lat = lat; b.lng = lng; b.roof = null;
+    b.lat = lat; b.lng = lng; b.ceil = null;
+    b.roof = (clickH != null ? clickH : null);
     await drawOthers();
     hint("✅ <b>" + b.name + " 이동</b> — <code>" + lat.toFixed(6) + ", " + lng.toFixed(6) + "</code>"
        + (b.roof!=null ? " · 지붕 H <code>" + b.roof.toFixed(1) + "m</code>" : "")
@@ -766,17 +838,24 @@ function bindUI(){
       if (!Cesium.defined(cart)) return;
       const carto = Cesium.Cartographic.fromCartesian(cart);
       const lat = Cesium.Math.toDegrees(carto.latitude), lng = Cesium.Math.toDegrees(carto.longitude);
+      const hClick = carto.height;
       /* ⭐ 건물이 여럿이 됐다 — 클릭점에서 가장 가까운 건물이 편집 대상이다 */
       const d2 = (a)=> (a.lat-lat)*(a.lat-lat) + (a.lng-lng)*(a.lng-lng);
-      let target = BLD, best = d2(BLD);
-      OTHERS.forEach(b=>{ const d = d2(b); if (d < best){ best = d; target = b; } });
-      if (target === BLD) moveBuilding(lng, lat);
-      else moveOther(target, lng, lat);
+      let target = null, best = Infinity;
+      allBlds().forEach(b=>{ const d = d2(b); if (d < best){ best = d; target = b; } });
+      if (target === (OPEN||BLD)) moveBuilding(lng, lat, hClick);
+      else moveOther(target, lng, lat, hClick);
       return;
     }
     const picked = viewer.scene.pick(click.position);
     if (Cesium.defined(picked) && picked.id && picked.id._maison){ openCard(picked.id._maison); return; }
-    if (Cesium.defined(picked) && picked.id && picked.id._bld){ openBldCard(picked.id._bld); return; }
+    if (Cesium.defined(picked) && picked.id && picked.id._bld){
+      const b = picked.id._bld;
+      /* ⭐ 한 번째 = 현관, 두 번째 = 열기. 실수로 이사하지 않게 두 걸음을 둔다 */
+      if ($("card").classList.contains("in") && cardBld === b) openBuilding(b);
+      else { cardBld = b; openBldCard(b); }
+      return;
+    }
     if (Cesium.defined(picked) && picked.id && picked.id._roof){ flyToBuilding(1.6); return; }
     closeCard();
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
@@ -820,12 +899,15 @@ function bindUI(){
   });
   $("btnFar").addEventListener("click", flyFar);
   $("ceilRange").addEventListener("input", e=>{
-    CEIL = +e.target.value;
-    $("ceilVal").textContent = Math.round(CEIL);
+    (OPEN||BLD).ceil = +e.target.value;
+    $("ceilVal").textContent = e.target.value;
     drawWindows();                                  /* 캔버스는 캐시 — 끄는 대로 따라온다 */
   });
   $("ceilRange").addEventListener("change", ()=>{
-    hint("⭐ 간판 천장 <code>" + Math.round(CEIL) + "m</code> — 이 값을 파이스에게 건네주시면 상수로 박습니다");
+    const b = OPEN||BLD;
+    hint("⭐ " + b.name + " 간판 천장 <code>" + Math.round(b.ceil) + "m</code>"
+       + " · 중심 <code>" + b.lat.toFixed(6) + ", " + b.lng.toFixed(6) + "</code>"
+       + " — 이 값을 파이스에게 건네주시면 상수로 박습니다");
     setTimeout(hintOff, 5000);
   });
   $("btnEdit").addEventListener("click", ()=> setEdit(!EDIT_MODE));
