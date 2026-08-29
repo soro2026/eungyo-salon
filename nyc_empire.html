@@ -117,7 +117,7 @@
 
 <div id="plate">
   <h1>엠파이어 스테이트 EG</h1>
-  <div class="sub">뉴욕 · 1 Territory = 24 Cell<br>메종 1–54 · 멀리서는 내 집 하나</div>
+  <div class="sub">뉴욕 · 1 Territory = 24 Cell<br>메종 1–54 · 내 집은 건물 중심선에</div>
   <div class="roof" id="roofLine">지붕 높이 측정 중…</div>
 </div>
 
@@ -188,7 +188,16 @@ const D_ROOF = 30000;           // 건물 명패 30km
 const D_MINE = 30000;           // ⭐ 내 집 — 지붕 명패와 같다
 const D_WIN  = 1300;            // 이웃 53칸 — 가까이 가야 보인다
 
-let viewer, tileset, roofEnt=null, winEnts=[], rows=[];
+/* ⭐ 0829 소로 — 지붕 명패는 점만 두고 호버에서 이름이 뜬다.
+   ⚠ 그런데 터치에는 호버가 없다. 폰에서 명패를 숨기면 그 건물이 무엇인지
+     영영 읽을 길이 없어진다(탭은 이미 강하에 쓰이고 있다 — 한 손짓에 두 일을
+     맡기지 않는다). 그래서 **마우스가 있는 기기에서만** 숨긴다.
+   ⚠ eg_device.js 를 끌어오지 않는다. 그 부품은 「폰인가」를 재는 것이고
+     여기서 물어야 할 것은 「마우스가 있는가」다 — 아이패드는 폰이 아니지만
+     호버가 없다. 판정 하나에 두 가지 일을 맡기면 곧 어긋난다. */
+const CAN_HOVER = (window.matchMedia && window.matchMedia('(hover: hover)').matches);
+
+let viewer, tileset, roofEnt=null, winEnts=[], rows=[], hoveredEnt=null;
 let myUid=null, asNick=null;          // asNick: 시점 전환으로 고른 닉네임
 let showRoof=true, showMine=true, showNbr=false;   /* ⭐ 이웃 53칸은 처음엔 꺼 둔다 — 결정문 8호 */
 let EDIT_MODE=false, MOVING=false;
@@ -312,7 +321,7 @@ function drawRoof(){
   roofEnt = viewer.entities.add({
     id:"nyc-roof",
     position: Cesium.Cartesian3.fromDegrees(BLD.lng, BLD.lat, h),
-    point:{ pixelSize:10,
+    point:{ pixelSize:11,
             color:Cesium.Color.fromCssColorString("#ffd23f"),
             outlineColor:Cesium.Color.fromCssColorString("#1a1407"), outlineWidth:2,
             disableDepthTestDistance:0,
@@ -330,16 +339,33 @@ function drawRoof(){
             distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0, D_ROOF) }
   });
   roofEnt._roof = true;
+  roofEnt._basePx = 11;
+  roofEnt.label.show = !CAN_HOVER;   /* ⭐ 마우스가 있으면 점만 · 없으면 명패 그대로 */
   roofEnt.show = showRoof;
+  hoveredEnt = null;                 /* 다시 그렸으니 호버 기억을 버린다 */
 }
 
 /* ══════════════════ 메종 54칸 ══════════════════
    ⭐ 명패 글꼴·색·여백은 terra.html loadMaisons 에서 한 글자도 안 바꾸고 옮겼다.
       입주 = 옐로 바탕 · 검은 명조 13px  /  빈집 = 검은 바탕 · 옐로 명조 12px */
-function slotPos(no){
+/* ⚠⚠ 0829 세 번째 정정 — 소로 진단 셋(투과 · 붕 뜸 · 반대편 어지러움)의 원인이 하나다.
+     **명패를 벽에 매달려고 한 것.** 빌보드는 언제나 카메라를 마주보므로 애초에
+     벽에 눕지 못한다. 벽에 붙이면 묻히고, 밀어내면 옆에서 허공에 뜬다 —
+     결정문 1호가 어제 적어 둔 딜레마가 하나짜리로 축소되어 돌아온 것이다.
+
+   ⭐⭐ 오늘 아침 소로가 216을 푸신 방식을 한 번 더 쓴다 — 문제를 풀지 않고 없앤다.
+     **내 집은 건물 중심축에 세운다.** 지붕 명패와 한 수직선 위에 서고,
+     높이만 자기 층이다. 어느 각도에서 보아도 건물 한가운데이므로 뜰 곳이 없고,
+     반대편으로 돌아도 같은 자리다. ⭐ 파리 메종이 쓰는 문법 그대로다.
+
+   ⚠ 잃는 것은 「내 창」이라는 그림인데, 결정문 8호가 이미
+     「어느 창이 내 창인지 아무도 안 보므로 정확도가 필요 없다」고 적었다.
+     정확도가 필요 없으면 둘레도 필요 없다 — ⭐ 높이만 남긴다. 높이가 곧 주소다. */
+function slotPos(no, mine){
   const tier = Math.floor((no-1)/COLS);            // 0 = 맨 아래단
   const col  = (no-1) % COLS;
   const h    = (ROOF_H!=null ? ROOF_H : 420) - TOP_DROP - (TIERS-1-tier)*TIER_GAP;
+  if (mine) return Cesium.Cartesian3.fromDegrees(BLD.lng, BLD.lat, h);   /* ⭐ 중심축 */
   const az   = Cesium.Math.toRadians(col * (360/COLS));
   const dLat = (RING_R*Math.cos(az)) / 111320;
   const dLng = (RING_R*Math.sin(az)) / (111320*Math.cos(Cesium.Math.toRadians(BLD.lat)));
@@ -351,6 +377,7 @@ function drawWindows(){
   winEnts = [];
   const byNo = new Map(rows.map(r=>[r.maison_no, r]));
 
+  hoveredEnt = null;
   for (let no=1; no<=COLS*TIERS; no++){
     const m = byNo.get(no) || { maison_no:no, status:'vacant', nickname:null, intro:null };
     const occupied = (m.status === 'occupied');
@@ -368,14 +395,19 @@ function drawWindows(){
 
     const ent = viewer.entities.add({
       id:"nyc-maison-"+no,
-      position: slotPos(no),
+      position: slotPos(no, mine),
       point:{ pixelSize: mine ? 12 : 9,
               color:Cesium.Color.fromCssColorString(occupied ? "#ffd23f" : "#0a0e1a"),
               outlineColor:Cesium.Color.fromCssColorString(occupied ? "#1a1407" : "#ffd23f"),
               outlineWidth: occupied ? 2 : 2.5,
               disableDepthTestDistance:dep,
               distanceDisplayCondition:dd },
-      label: occupied ? {
+      /* ⚠⚠ 이웃 53칸의 이름표를 걷는다. 결정문 9호가 이미
+           「3D는 켜진 창 하나만 맡고 이름은 명단이 맡는다」고 적었는데,
+           내가 쉰셋에 이름표를 달아 그 조항을 어겼다. 그것이 어지러움의 나머지 절반이다.
+         ⭐ 점만 남으면 밤의 마천루에 불이 박힌 것으로 읽힌다 — 8호의 「어두운 창」.
+         ⭐ 이름은 눌러서 카드로 본다. */
+      label: !mine ? undefined : occupied ? {
               text: m.nickname || ("메종 "+no),
               font:"13px Georgia,'Nanum Myeongjo','Apple SD Gothic Neo',serif",
               fillColor:Cesium.Color.fromCssColorString("#1a1407"),
@@ -402,25 +434,18 @@ function drawWindows(){
             }
     });
     ent._maison = m;
+    ent._basePx = mine ? 12 : 9;
     ent.show = mine ? showMine : showNbr;
     winEnts.push(ent);
   }
 }
-/* 시점이 바뀌면 「내 것」이 옮겨간다 — 거리·깊이·크기·표시를 다시 매긴다 */
-function refreshMine(){
-  winEnts.forEach(e=>{
-    const no = e._maison.maison_no, mine = isMineNo(no);
-    const dd = new Cesium.DistanceDisplayCondition(0, mine ? D_MINE : D_WIN);
-    const dep = mine ? Number.POSITIVE_INFINITY : 0;
-    e.point.pixelSize = mine ? 12 : 9;
-    e.point.distanceDisplayCondition = dd;
-    e.point.disableDepthTestDistance = dep;
-    if (e.label){
-      e.label.distanceDisplayCondition = dd;
-      e.label.disableDepthTestDistance = dep;
-    }
-    e.show = mine ? showMine : showNbr;
-  });
+/* ⚠ 시점이 바뀌면 **자리와 이름표가 함께** 바뀐다(내 것만 중심축·이름표를 가짐).
+     속성만 손보면 옛 자리에 남으므로 다시 그린다. 쉰넷은 가볍다. */
+function refreshMine(){ drawWindows(); }
+
+/* 단추는 표시만 건드린다 — 다시 그릴 까닭이 없다 */
+function applyShow(){
+  winEnts.forEach(e=>{ e.show = isMineNo(e._maison.maison_no) ? showMine : showNbr; });
 }
 function updateMineLine(){
   const m = mineRow();
@@ -526,6 +551,25 @@ function bindUI(){
   /* ⭐ .on = 켜져 있음 (파리 layer-btn 문법 그대로). 뒤집지 않는다. */
   $("btnRoof").classList.add("on");
   $("btnMine").classList.add("on");
+  /* ── 호버 (terra 2398행 문법 그대로) ──
+     ⭐ 핀이 불쑥 커지고 커서가 손가락이 된다. 지붕은 여기서 이름까지 편다. */
+  h.setInputAction(mv=>{
+    const picked = viewer.scene.pick(mv.endPosition);
+    const ent = (Cesium.defined(picked) && picked.id
+                 && (picked.id._maison || picked.id._roof)) ? picked.id : null;
+    if (ent === hoveredEnt) return;
+    if (hoveredEnt){
+      if (hoveredEnt.point) hoveredEnt.point.pixelSize = (hoveredEnt._basePx != null ? hoveredEnt._basePx : 9);
+      if (hoveredEnt._roof && hoveredEnt.label && CAN_HOVER) hoveredEnt.label.show = false;
+    }
+    if (ent){
+      if (ent.point) ent.point.pixelSize = (ent._basePx != null ? ent._basePx : 9) + 9;
+      if (ent._roof && ent.label) ent.label.show = true;
+    }
+    hoveredEnt = ent;
+    viewer.canvas.style.cursor = ent ? 'pointer' : 'default';
+  }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
   $("btnRoof").addEventListener("click", ()=>{
     showRoof = !showRoof;
     if (roofEnt) roofEnt.show = showRoof;
@@ -533,12 +577,12 @@ function bindUI(){
   });
   $("btnMine").addEventListener("click", ()=>{
     showMine = !showMine;
-    refreshMine();
+    applyShow();
     $("btnMine").classList.toggle("on", showMine);
   });
   $("btnNbr").addEventListener("click", ()=>{
     showNbr = !showNbr;
-    refreshMine();
+    applyShow();
     $("btnNbr").classList.toggle("on", showNbr);
   });
   $("btnFar").addEventListener("click", flyFar);
