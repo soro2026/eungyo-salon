@@ -121,7 +121,7 @@
 
 <div id="plate">
   <h1>엠파이어 스테이트 EG</h1>
-  <div class="sub">뉴욕 · 1 Territory = 24 Cell<br>메종 216 · 자리는 붙박이 · 노출만 추첨</div>
+  <div class="sub">뉴욕 · 1 Territory = 24 Cell<br>간판은 내 건물만 · 다른 건물은 핀 + 현관</div>
   <div class="roof" id="roofLine">지붕 높이 측정 중…</div>
   <div id="ceilBox">
     <label for="ceilRange">간판 천장 <b id="ceilVal">–</b> m</label>
@@ -170,8 +170,16 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
    ⭐ 0829 소로가 좌표편집기로 지붕을 클릭해 잡은 실측값. 위키 인포박스(초 단위
      반올림 ≈±15m)를 대신한다. 지붕 H는 그 자리에서 412.9m 로 나왔다.
    ⚠ 다시 잡으실 수 있게 편집 모드는 그대로 둔다. */
-let BLD = { name:"엠파이어 스테이트 EG", lat:40.748443, lng:-73.985672 };
-let ROOF_H = null;              // 지붕의 타일 높이 (측정으로 구한다 · 실측 412.9m)
+let BLD = { name:"엠파이어 스테이트 EG", lat:40.748437, lng:-73.985683 };
+let ROOF_H = null;              // 지붕의 타일 높이 (측정 · ⭐ 0829 소로 실측 397.1m — 본체 지붕)
+
+/* ⭐ 0829 소로 — 「간판은 내가 입주한 건물만. 다른 건물은 노란 핀만, 클릭하면 현관」.
+   시험판의 「다른 건물」로 크라이슬러를 세운다 — 핀 하나와 현관 팝업뿐, 간판·격자 없음.
+   ⚠ 좌표는 위키 인포박스 초 단위 반올림(±15m) — 편집 모드에서 지붕을 클릭해 재잡는다.
+   실판에서는 이 배열이 buildings 표 한 판이 된다 (결정문 13호). */
+const OTHERS = [
+  { key:"chrysler", name:"크라이슬러 EG", lat:40.751667, lng:-73.975278, roof:null }
+];
 
 /* ── 54칸 배분 — 값 셋뿐이다. 화면 손잡이를 만들지 않는다 ──
    ⭐ 높이를 층으로, 둘레를 면으로. 기계가 나눈다 (결정문 8호).
@@ -278,8 +286,65 @@ const hintOff = () => $("hint").classList.remove("in");
   await measureRoof();
   drawRoof();
   drawWindows();
+  drawOthers();
   updateMineLine();
 })();
+
+/* ── 다른 건물들 — 지붕 핀 하나뿐이다 ──
+   ⭐ 호버(점→이름)와 명패 모양은 내 건물 지붕 핀과 완전히 같은 손이다.
+     _roof 를 함께 달아 호버 배선을 한 글자도 안 고친다. _bld 가 현관을 가른다. */
+let otherEnts = [];
+async function drawOthers(){
+  otherEnts.forEach(e=> viewer.entities.remove(e)); otherEnts = [];
+  for (const b of OTHERS){
+    let h = 350;
+    try{
+      const arr = await viewer.scene.clampToHeightMostDetailed(
+        [Cesium.Cartesian3.fromDegrees(b.lng, b.lat)]);
+      if (arr && Cesium.defined(arr[0])){
+        b.roof = Cesium.Cartographic.fromCartesian(arr[0]).height;
+        h = b.roof;
+      }
+    }catch(e){ console.warn("[EG] " + b.name + " 지붕 측정 실패:", e); }
+    const ent = viewer.entities.add({
+      id:"nyc-bld-" + b.key,
+      position: Cesium.Cartesian3.fromDegrees(b.lng, b.lat, h + 8),
+      point:{ pixelSize:11,
+              color:Cesium.Color.fromCssColorString("#ffd23f"),
+              outlineColor:Cesium.Color.fromCssColorString("#1a1407"), outlineWidth:2,
+              disableDepthTestDistance:0,
+              distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0, D_ROOF) },
+      label:{ text:b.name,
+              font:"15px Georgia,'Nanum Myeongjo','Apple SD Gothic Neo',serif",
+              fillColor:Cesium.Color.fromCssColorString("#1a1407"),
+              showBackground:true,
+              backgroundColor:Cesium.Color.fromCssColorString("#ffd23f").withAlpha(.96),
+              backgroundPadding:new Cesium.Cartesian2(11,6),
+              pixelOffset:new Cesium.Cartesian2(0,-15),
+              verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
+              horizontalOrigin:Cesium.HorizontalOrigin.CENTER,
+              disableDepthTestDistance:0,
+              distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0, D_ROOF) }
+    });
+    ent._roof = true;                    /* 호버 배선 공유 — 점만, 닿으면 이름 */
+    ent._bld  = b;                       /* 클릭 분기 — 현관으로 */
+    ent._basePx = 11;
+    ent.label.show = !CAN_HOVER;
+    otherEnts.push(ent);
+  }
+}
+
+/* 현관 팝업 — 결정문 9호 「슬라이드 · 입주민 명단」의 씨앗.
+   지금은 빈 건물이라 명단이 없다. 문이 열리면 여기 명단이 선다. */
+function openBldCard(b){
+  $("cDoor").textContent = "뉴욕 · 1 Territory = 24 Cell";
+  $("cNick").textContent = b.name;
+  $("cIntro").textContent = "아직 입주가 시작되지 않은 건물입니다. "
+    + "문이 열리면 이 현관에 입주민 명단이 뜹니다. (입주 0 / 216)";
+  $("cMeta").textContent = b.lat.toFixed(6) + ", " + b.lng.toFixed(6)
+    + (b.roof!=null ? " · 지붕 H " + b.roof.toFixed(1) + "m" : "");
+  $("card").classList.add("in");
+}
 
 /* ══════════════════ 지붕 높이 측정 ══════════════════
    ⭐ 건물 중심에 광선을 쏘면 지붕을 맞는다 — 뉴욕에서는 그게 정답이다.
@@ -402,7 +467,7 @@ function slotTier(no){ return Math.floor((no-1) / (FACES*FCOLS)); }
    위쪽 단들이 첨탑·전망대 구간(벽이 갑자기 가늘어지는 곳)에 걸려 허공에 떴다.
    맨 윗단(천장)을 소로가 직접 끈다 — 좌표편집기와 같은 흐름: 끌어서 맞추고,
    값이 화면에 찍히고, 건네주시면 상수로 박는다. 격자 전체가 통째로 따라 내려온다. */
-let CEIL = null;                                   // 간판 천장 (m) · null = 지붕−TOP_DROP
+let CEIL = 270;                                    // ⭐ 간판 천장 — 0829 소로가 슬라이더로 잡은 값
 function slotH(no){
   const top = (CEIL != null) ? CEIL : (ROOF_H!=null ? ROOF_H : 420) - TOP_DROP;
   return top - (TIERS-1-slotTier(no))*TIER_GAP;
@@ -679,6 +744,17 @@ async function moveBuilding(lng, lat){
     hint("⚠️ 이동 실패 — 콘솔을 확인하세요");
   }finally{ MOVING = false; }
 }
+async function moveOther(b, lng, lat){
+  if (MOVING) return; MOVING = true;
+  try{
+    b.lat = lat; b.lng = lng; b.roof = null;
+    await drawOthers();
+    hint("✅ <b>" + b.name + " 이동</b> — <code>" + lat.toFixed(6) + ", " + lng.toFixed(6) + "</code>"
+       + (b.roof!=null ? " · 지붕 H <code>" + b.roof.toFixed(1) + "m</code>" : "")
+       + "<br>이 값을 파이스에게 건네주시면 상수로 박습니다");
+  }catch(e){ console.warn("이동 실패:", e); }
+  finally{ MOVING = false; }
+}
 
 /* ══════════════════ 배선 ══════════════════ */
 function bindUI(){
@@ -689,11 +765,18 @@ function bindUI(){
       const cart = viewer.scene.pickPosition(click.position);
       if (!Cesium.defined(cart)) return;
       const carto = Cesium.Cartographic.fromCartesian(cart);
-      moveBuilding(Cesium.Math.toDegrees(carto.longitude), Cesium.Math.toDegrees(carto.latitude));
+      const lat = Cesium.Math.toDegrees(carto.latitude), lng = Cesium.Math.toDegrees(carto.longitude);
+      /* ⭐ 건물이 여럿이 됐다 — 클릭점에서 가장 가까운 건물이 편집 대상이다 */
+      const d2 = (a)=> (a.lat-lat)*(a.lat-lat) + (a.lng-lng)*(a.lng-lng);
+      let target = BLD, best = d2(BLD);
+      OTHERS.forEach(b=>{ const d = d2(b); if (d < best){ best = d; target = b; } });
+      if (target === BLD) moveBuilding(lng, lat);
+      else moveOther(target, lng, lat);
       return;
     }
     const picked = viewer.scene.pick(click.position);
     if (Cesium.defined(picked) && picked.id && picked.id._maison){ openCard(picked.id._maison); return; }
+    if (Cesium.defined(picked) && picked.id && picked.id._bld){ openBldCard(picked.id._bld); return; }
     if (Cesium.defined(picked) && picked.id && picked.id._roof){ flyToBuilding(1.6); return; }
     closeCard();
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
