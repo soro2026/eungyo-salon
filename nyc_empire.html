@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>EG · 엠파이어 스테이트 시험판</title>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     EG 뉴욕 · 엠파이어 스테이트 시험판  (0829 · Day 151)
+     ─────────────────────────────────────────────────────────────────
+     ⚠ 어제 판 두 장(nyc_floorpin_test · nyc_sales_demo)과 아무 혈연이 없다.
+        한 줄도 옮겨오지 않았다. 손잡이 여섯 개는 여기 없다.
+
+     ⭐ 소로 손짓 그대로 (0829 오전 2회차)
+       ① 엠파이어 스테이트 빌딩 한 채
+       ② 216 아님 — 메종 1~54
+       ③ 명패는 옐로 바탕 · 명조체 — 파리 라탱과 한 글자도 다르지 않다
+       ④ 파리 샘플 그대로 (lonelywalden · Puffin · 파이스 · jung …)
+       ⑤ 각 아이디로 로그인했을 때 어떻게 보이는지 — DB까지 불러서
+       ⑥ 지붕 명패 = [엠파이어 스테이트 EG]
+       ⑦ 좌표편집기는 파리에서 쓰던 것 그대로
+
+     ⚠ DB는 한 줄도 안 건드린다. get_maisons('paris')를 읽어
+        엠파이어 스테이트 벽에 얹을 뿐이다. eg_maison에 뉴욕 행을 만들지 않는다.
+        (buildings 표는 0829 결정문 13호에 이미 그려져 있고, 20채 목록이
+         정해질 때 그 표로 한 번에 판다. 시험판이 먼저 표를 파지 않는다.)
+     ══════════════════════════════════════════════════════════════════ -->
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Widgets/widgets.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&family=Nanum+Myeongjo:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --serif:Georgia,"Nanum Myeongjo","Apple SD Gothic Neo",serif;
+    --ink:#0a0e1a; --cream:#f4efe2; --cream-dim:rgba(244,239,226,.62);
+    --gold:#ffd23f; --gold-ink:#1a1407; --cyan:#7fb3d5;
+  }
+  html,body{margin:0;height:100%;background:var(--ink);overflow:hidden;
+    font-family:var(--serif);-webkit-text-size-adjust:100%}
+  #cesiumContainer{position:absolute;inset:0}
+  .cesium-viewer-bottom,.cesium-widget-credits{display:none !important}
+
+  /* ── 왼쪽 위 표찰 ── */
+  #plate{position:absolute;left:16px;top:14px;z-index:20;
+    background:rgba(10,14,26,.78);border:1px solid rgba(255,210,63,.28);
+    border-radius:10px;padding:11px 14px;color:var(--cream);max-width:min(78vw,330px)}
+  #plate h1{margin:0 0 4px;font-size:15px;font-weight:400;letter-spacing:.02em}
+  #plate .sub{font-size:11.5px;color:var(--cream-dim);line-height:1.55}
+  #plate .roof{margin-top:7px;font-size:11px;color:var(--gold);
+    font-family:ui-monospace,Menlo,monospace;letter-spacing:.02em;word-break:break-all}
+
+  /* ── 오른쪽 시점 전환 ── */
+  #who{position:absolute;right:14px;top:14px;z-index:20;width:min(46vw,204px);
+    background:rgba(10,14,26,.8);border:1px solid rgba(255,255,255,.13);
+    border-radius:10px;padding:9px 10px;color:var(--cream)}
+  #who .hd{font-size:11px;color:var(--cream-dim);margin:0 0 7px;letter-spacing:.03em}
+  #who select{width:100%;background:#141a2b;color:var(--cream);
+    border:1px solid rgba(255,255,255,.16);border-radius:6px;
+    padding:6px 7px;font-family:var(--serif);font-size:12.5px}
+  #who .mine{margin-top:8px;font-size:12px;line-height:1.5;color:var(--gold)}
+  #who .mine b{font-weight:400}
+  #who button{margin-top:8px;width:100%;background:var(--gold);color:var(--gold-ink);
+    border:0;border-radius:6px;padding:7px;font-family:var(--serif);
+    font-size:12.5px;cursor:pointer}
+  #who button:hover{background:#ffdf6b}
+  #who button:disabled{background:rgba(255,255,255,.1);color:var(--cream-dim);cursor:default}
+
+  /* ── 아래 단추 줄 ── */
+  #bar{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);z-index:21;
+    display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:94vw}
+  .btn{background:rgba(10,14,26,.82);color:var(--cream);
+    border:1px solid rgba(255,255,255,.18);border-radius:999px;
+    padding:8px 15px;font-family:var(--serif);font-size:12.5px;cursor:pointer;
+    white-space:nowrap}
+  .btn:hover{border-color:rgba(255,210,63,.55)}
+  .btn.on{background:var(--cyan);color:#05070f;border-color:var(--cyan)}
+
+  /* ── 편집 안내 (파리 #editHint 그대로) ── */
+  #hint{position:absolute;left:50%;top:64px;transform:translateX(-50%);z-index:22;
+    display:none;background:rgba(10,14,26,.9);border:1px solid var(--cyan);
+    border-radius:8px;padding:9px 14px;color:var(--cream);font-size:12.5px;
+    max-width:92vw;text-align:center;line-height:1.6}
+  #hint.in{display:block}
+  #hint b{color:var(--gold);font-weight:400}
+  #hint code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;
+    color:var(--gold);background:rgba(255,210,63,.12);padding:1px 5px;border-radius:4px}
+
+  /* ── 메종 카드 (파리 #maison 축약판 · 옐로 톤) ── */
+  #card{position:absolute;right:14px;bottom:76px;z-index:23;width:min(74vw,282px);
+    background:rgba(10,14,26,.94);border:1px solid rgba(255,210,63,.34);
+    border-radius:12px;padding:15px 16px;color:var(--cream);
+    transform:translateX(120%);transition:transform .32s cubic-bezier(.22,1,.36,1)}
+  #card.in{transform:none}
+  #card .x{position:absolute;right:9px;top:7px;background:none;border:0;
+    color:var(--cream-dim);font-size:19px;cursor:pointer;line-height:1}
+  #card .x:hover{color:var(--gold)}
+  #card .door{font-size:11px;color:var(--cream-dim);letter-spacing:.05em}
+  #card .nick{font-size:25px;line-height:1.15;margin:.18em 0 .3em}
+  #card .intro{font-size:13px;line-height:1.72;color:var(--cream-dim)}
+  #card .meta{margin-top:11px;font-size:10.5px;color:rgba(244,239,226,.4);
+    font-family:ui-monospace,Menlo,monospace;word-break:break-all}
+
+  @media (max-width:640px){
+    #plate{max-width:60vw;padding:9px 11px}
+    #plate h1{font-size:13.5px}
+    #who{width:min(42vw,168px);padding:8px}
+    #bar{bottom:14px;gap:6px}
+    .btn{padding:7px 12px;font-size:12px}
+  }
+</style>
+</head>
+<body>
+
+<div id="cesiumContainer"></div>
+
+<div id="plate">
+  <h1>엠파이어 스테이트 EG</h1>
+  <div class="sub">뉴욕 · 1 Territory = 24 Cell<br>메종 1–54 (시험판은 54칸)</div>
+  <div class="roof" id="roofLine">지붕 높이 측정 중…</div>
+</div>
+
+<div id="who">
+  <p class="hd">누구 눈으로 보나</p>
+  <select id="asWho"><option value="">불러오는 중…</option></select>
+  <div class="mine" id="mineLine">—</div>
+  <button id="goMine" disabled>내 집으로</button>
+</div>
+
+<div id="hint"></div>
+
+<div id="bar">
+  <button class="btn" id="btnRoof">지붕 명패</button>
+  <button class="btn" id="btnWin">메종 54칸</button>
+  <button class="btn" id="btnFar">멀리서 보기</button>
+  <button class="btn" id="btnEdit">📍 좌표 편집</button>
+</div>
+
+<aside id="card">
+  <button class="x" id="cardX" aria-label="닫기">×</button>
+  <div class="door" id="cDoor"></div>
+  <div class="nick" id="cNick"></div>
+  <div class="intro" id="cIntro"></div>
+  <div class="meta" id="cMeta"></div>
+</aside>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ══════════════════ 상수 — terra.html과 같은 값 ══════════════════ */
+const GOOGLE_API_KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A";
+const SUPA_URL = "https://cyhlotwdisjvoxvfkpnd.supabase.co";
+const SUPA_KEY = "sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR";
+
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
+});
+
+/* ── 엠파이어 스테이트 빌딩 ──
+   위키백과 인포박스 40°44′54″N 73°59′08″W → 초 단위 반올림값(≈±15m).
+   ⚠ 그래서 이 값은 **시작점일 뿐이다.** 지붕을 클릭해 정밀히 앉히는 것이
+     파리에서 쓰던 손이고, 그 손을 아래 편집 모드가 그대로 쓴다.
+   ⭐ 잡은 값은 화면에 찍힌다 — 소로가 건네주시면 실판 buildings 표로 간다. */
+let BLD = { name:"엠파이어 스테이트 EG", lat:40.748433, lng:-73.985556 };
+let ROOF_H = null;              // 지붕의 타일 높이 (측정으로 구한다)
+
+/* ── 54칸 배분 — 값 셋뿐이다. 화면 손잡이를 만들지 않는다 ──
+   ⭐ 높이를 층으로, 둘레를 면으로. 기계가 나눈다 (결정문 8호).
+   ⚠ 정확도는 필요 없다 — 어느 칸이 누구 것인지 아무도 대조하지 않는다. */
+const COLS = 6;                 // 둘레 6칸 (60° 간격)
+const TIERS = 9;                // 9단 → 6 × 9 = 54
+const RING_R = 34;              // 건물 중심에서 밀어낸 거리 (m)
+const TOP_DROP = 62;            // 지붕에서 이만큼 내려온 곳이 맨 윗단 (첨탑·전망대 아래)
+const TIER_GAP = 22;            // 단 간격 (m) → 아래로 62+8×22 = 238m
+/* ⚠ 엠파이어 스테이트는 계단식이다. 30층(약 111m) 아래는 타워가 넓어져
+     반경 34m 고리가 벽 안에 묻힌다. 맨 아랫단을 지붕에서 238m(약 43층)에
+     두어 본 타워 안에 머물게 했다.
+   ⭐ 화면을 보시고 「더 밖으로」·「더 위로」 하시면 이 두 값만 고친다.
+      화면에 손잡이를 만들지 않는다 — 어제 실패가 손잡이 여섯이었다. */
+
+/* 거리 조건 — 멀리서는 명패 하나, 가까이서 창 (결정문 10호) */
+const D_ROOF = 30000;           // 건물 명패 30km
+const D_WIN  = 1300;            // 이웃 메종 1.3km
+const D_MINE = 2200;            // 내 집 2.2km — 가장 먼저 맞이한다
+
+let viewer, tileset, roofEnt=null, winEnts=[], rows=[];
+let myUid=null, asNick=null;          // asNick: 시점 전환으로 고른 닉네임
+let showRoof=true, showWin=true;
+let EDIT_MODE=false, MOVING=false;
+
+const $ = id => document.getElementById(id);
+const hint = html => { const h=$("hint"); h.innerHTML=html; h.classList.add("in"); };
+const hintOff = () => $("hint").classList.remove("in");
+
+/* ══════════════════ 시작 ══════════════════ */
+(async function init(){
+  viewer = new Cesium.Viewer("cesiumContainer",{
+    baseLayer:false, baseLayerPicker:false, geocoder:false, homeButton:false,
+    sceneModePicker:false, navigationHelpButton:false, animation:false,
+    timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false,
+    requestRenderMode:false
+  });
+  window.viewer = viewer;
+  viewer.clock.clockStep = Cesium.ClockStep.SYSTEM_CLOCK;
+  viewer.clock.shouldAnimate = true;
+  viewer.scene.screenSpaceCameraController.minimumZoomDistance = 40;
+  viewer.screenSpaceEventHandler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+  viewer.trackedEntity = undefined;
+
+  /* 구글 실사 3D 타일 — terra.html 0819 안정화 값 넷을 그대로 옮긴다.
+     ⚠ 값을 안 정하면 멀리 있는 마천루가 번쩍인다. */
+  try{
+    try { tileset = await Cesium.createGooglePhotorealistic3DTileset(GOOGLE_API_KEY); }
+    catch(e){ tileset = await Cesium.createGooglePhotorealistic3DTileset({ key: GOOGLE_API_KEY }); }
+    viewer.scene.primitives.add(tileset);
+    try{
+      tileset.skipLevelOfDetail = false;
+      tileset.dynamicScreenSpaceError = true;
+      tileset.dynamicScreenSpaceErrorDensity = 0.00278;
+      tileset.dynamicScreenSpaceErrorFactor = 4.0;
+      tileset.preloadWhenHidden = true;
+      tileset.preferLeaves = false;
+      if ('cacheBytes' in tileset){
+        tileset.cacheBytes = 1073741824;
+        tileset.maximumCacheOverflowBytes = 536870912;
+      }
+    }catch(e){ console.warn("[EG] 타일 안정화 값이 안 박혔습니다:", e); }
+    console.log("[EG] 실사 3D 타일 켜짐");
+  }catch(err){
+    console.warn("[EG] 타일 로드 실패 — 기본 지구로 표시합니다:", err);
+  }
+
+  await flyToBuilding(1.2);
+  bindUI();
+
+  /* DB와 세션을 나란히 — 하나가 넘어져도 나머지가 선다 */
+  await Promise.allSettled([ loadRows(), readSession() ]);
+  fillWhoSelect();
+
+  await measureRoof();
+  drawRoof();
+  drawWindows();
+  updateMineLine();
+})();
+
+/* ══════════════════ 지붕 높이 측정 ══════════════════
+   ⭐ 건물 중심에 광선을 쏘면 지붕을 맞는다 — 뉴욕에서는 그게 정답이다.
+     (파리 라탱에서는 그게 문제여서 둘레 고리에서 최저값을 길로 봤다. 두 도시가 정반대다.)
+   ⭐⭐ 그리고 이 한 번의 측정이 절대고도 문제를 통째로 없앤다.
+      해발·지오이드를 몰라도 된다 — 지붕에서 아래로 세기만 하면 되므로. */
+async function measureRoof(){
+  if (!viewer.scene.clampToHeightMostDetailed){ $("roofLine").textContent="측정 미지원 판입니다"; return; }
+  try{
+    const arr = await viewer.scene.clampToHeightMostDetailed(
+      [Cesium.Cartesian3.fromDegrees(BLD.lng, BLD.lat)]);
+    const c = arr && arr[0];
+    if (Cesium.defined(c)){
+      ROOF_H = Cesium.Cartographic.fromCartesian(c).height;
+      printRoofLine();
+      console.log("[EG] 지붕 H =", ROOF_H.toFixed(1), "m");
+      return;
+    }
+  }catch(e){ console.warn("지붕 높이 측정 실패:", e); }
+  $("roofLine").textContent = "지붕을 못 맞혔습니다 — 조금 더 가까이서 다시";
+}
+function printRoofLine(){
+  $("roofLine").textContent =
+    BLD.lat.toFixed(6) + ", " + BLD.lng.toFixed(6) +
+    (ROOF_H!=null ? "  ·  지붕 H " + ROOF_H.toFixed(1) + "m" : "");
+}
+
+/* ══════════════════ DB — 파리 샘플을 그대로 읽는다 ══════════════════
+   ⚠ get_maisons 는 city 로 거른다. 뉴욕 행은 만들지 않았으므로 'paris'를 읽는다.
+     화면에서만 엠파이어 스테이트 벽에 얹는다 — DB 무변경. */
+async function loadRows(){
+  try{
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_maisons", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
+      body: JSON.stringify({ p_city:"paris" })
+    });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    rows = await res.json();
+    console.log("[EG] 메종", rows.length, "행 · 입주", rows.filter(r=>r.status==='occupied').length);
+  }catch(e){ console.warn("eg_maison 로드 실패:", e); rows = []; }
+}
+async function readSession(){
+  try{
+    const { data:{ session } } = await supa.auth.getSession();
+    myUid = session?.user?.id || null;
+  }catch(e){ console.warn("세션 읽기 실패:", e); myUid = null; }
+}
+/* 지금 「내 것」으로 볼 메종 — 시점 전환이 우선, 없으면 실제 로그인 */
+function mineRow(){
+  if (asNick) return rows.find(r => r.nickname === asNick) || null;
+  if (myUid)  return rows.find(r => r.occupant_id === myUid) || null;
+  return null;
+}
+function isMineNo(no){ const m = mineRow(); return !!(m && m.maison_no === no); }
+
+/* ══════════════════ 지붕 명패 ══════════════════
+   ⭐ 파리 메종과 같은 손이다 — 지붕에 얹는 일. 옆으로 밀 까닭이 없으므로 CENTER.
+   ⚠ disableDepthTestDistance 는 0 — 그 너머 건물을 뚫고 비치지 않게 (v200 3-㉠). */
+function drawRoof(){
+  if (roofEnt){ viewer.entities.remove(roofEnt); roofEnt=null; }
+  const h = (ROOF_H!=null) ? ROOF_H + 8 : 420;
+  roofEnt = viewer.entities.add({
+    id:"nyc-roof",
+    position: Cesium.Cartesian3.fromDegrees(BLD.lng, BLD.lat, h),
+    point:{ pixelSize:10,
+            color:Cesium.Color.fromCssColorString("#ffd23f"),
+            outlineColor:Cesium.Color.fromCssColorString("#1a1407"), outlineWidth:2,
+            disableDepthTestDistance:0,
+            distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0, D_ROOF) },
+    label:{ text: BLD.name,
+            font:"15px Georgia,'Nanum Myeongjo','Apple SD Gothic Neo',serif",
+            fillColor:Cesium.Color.fromCssColorString("#1a1407"),
+            showBackground:true,
+            backgroundColor:Cesium.Color.fromCssColorString("#ffd23f").withAlpha(.96),
+            backgroundPadding:new Cesium.Cartesian2(11,6),
+            pixelOffset:new Cesium.Cartesian2(0,-15),
+            verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
+            horizontalOrigin:Cesium.HorizontalOrigin.CENTER,
+            disableDepthTestDistance:0,
+            distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0, D_ROOF) }
+  });
+  roofEnt._roof = true;
+  roofEnt.show = showRoof;
+}
+
+/* ══════════════════ 메종 54칸 ══════════════════
+   ⭐ 명패 글꼴·색·여백은 terra.html loadMaisons 에서 한 글자도 안 바꾸고 옮겼다.
+      입주 = 옐로 바탕 · 검은 명조 13px  /  빈집 = 검은 바탕 · 옐로 명조 12px */
+function slotPos(no){
+  const tier = Math.floor((no-1)/COLS);            // 0 = 맨 아래단
+  const col  = (no-1) % COLS;
+  const h    = (ROOF_H!=null ? ROOF_H : 420) - TOP_DROP - (TIERS-1-tier)*TIER_GAP;
+  const az   = Cesium.Math.toRadians(col * (360/COLS));
+  const dLat = (RING_R*Math.cos(az)) / 111320;
+  const dLng = (RING_R*Math.sin(az)) / (111320*Math.cos(Cesium.Math.toRadians(BLD.lat)));
+  return Cesium.Cartesian3.fromDegrees(BLD.lng+dLng, BLD.lat+dLat, h);
+}
+
+function drawWindows(){
+  winEnts.forEach(e=> viewer.entities.remove(e));
+  winEnts = [];
+  const byNo = new Map(rows.map(r=>[r.maison_no, r]));
+
+  for (let no=1; no<=COLS*TIERS; no++){
+    const m = byNo.get(no) || { maison_no:no, status:'vacant', nickname:null, intro:null };
+    const occupied = (m.status === 'occupied');
+    const mine = isMineNo(no);
+    const dd = new Cesium.DistanceDisplayCondition(0, mine ? D_MINE : D_WIN);
+
+    const ent = viewer.entities.add({
+      id:"nyc-maison-"+no,
+      position: slotPos(no),
+      point:{ pixelSize: mine ? 12 : 9,
+              color:Cesium.Color.fromCssColorString(occupied ? "#ffd23f" : "#0a0e1a"),
+              outlineColor:Cesium.Color.fromCssColorString(occupied ? "#1a1407" : "#ffd23f"),
+              outlineWidth: occupied ? 2 : 2.5,
+              disableDepthTestDistance:0,
+              distanceDisplayCondition:dd },
+      label: occupied ? {
+              text: m.nickname || ("메종 "+no),
+              font:"13px Georgia,'Nanum Myeongjo','Apple SD Gothic Neo',serif",
+              fillColor:Cesium.Color.fromCssColorString("#1a1407"),
+              showBackground:true,
+              backgroundColor:Cesium.Color.fromCssColorString("#ffd23f").withAlpha(.96),
+              backgroundPadding:new Cesium.Cartesian2(9,5),
+              pixelOffset:new Cesium.Cartesian2(0,-13),
+              verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
+              disableDepthTestDistance:0,
+              distanceDisplayCondition:dd
+            } : {
+              text:"메종 "+no,
+              font:"12px Georgia,'Nanum Myeongjo','Apple SD Gothic Neo',serif",
+              fillColor:Cesium.Color.fromCssColorString("#ffd23f"),
+              outlineColor:Cesium.Color.fromCssColorString("#0a0e1a"), outlineWidth:3,
+              style:Cesium.LabelStyle.FILL_AND_OUTLINE,
+              showBackground:true,
+              backgroundColor:Cesium.Color.fromCssColorString("#0a0e1a").withAlpha(.82),
+              backgroundPadding:new Cesium.Cartesian2(8,4),
+              pixelOffset:new Cesium.Cartesian2(0,-12),
+              verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
+              disableDepthTestDistance:0,
+              distanceDisplayCondition:dd
+            }
+    });
+    ent._maison = m;
+    ent.show = showWin;
+    winEnts.push(ent);
+  }
+}
+/* 시점이 바뀌면 「내 것」이 옮겨간다 — 점 크기와 거리 조건만 다시 매긴다 */
+function refreshMine(){
+  winEnts.forEach(e=>{
+    const no = e._maison.maison_no, mine = isMineNo(no);
+    const dd = new Cesium.DistanceDisplayCondition(0, mine ? D_MINE : D_WIN);
+    e.point.pixelSize = mine ? 12 : 9;
+    e.point.distanceDisplayCondition = dd;
+    if (e.label) e.label.distanceDisplayCondition = dd;
+  });
+}
+function updateMineLine(){
+  const m = mineRow();
+  $("mineLine").innerHTML = m
+    ? "메종 " + m.maison_no + " · <b>" + (m.nickname||"—") + "</b>"
+    : (rows.length ? "이 사람에게는 아직 집이 없습니다" : "—");
+  $("goMine").disabled = !m;
+}
+
+/* ══════════════════ 카메라 ══════════════════ */
+function flyToBuilding(dur){
+  return new Promise(res=>{
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(BLD.lng, BLD.lat-0.0042, 430),
+      orientation:{ heading:Cesium.Math.toRadians(2), pitch:Cesium.Math.toRadians(6), roll:0 },
+      duration: dur, complete:res, cancel:res
+    });
+  });
+}
+function flyFar(){
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(BLD.lng, BLD.lat-0.019, 1500),
+    orientation:{ heading:Cesium.Math.toRadians(2), pitch:Cesium.Math.toRadians(-14), roll:0 },
+    duration: 2.0
+  });
+}
+function flyToMine(){
+  const m = mineRow(); if (!m) return;
+  const ent = winEnts.find(e=> e._maison.maison_no === m.maison_no);
+  if (!ent) return;
+  const p = ent.position.getValue(Cesium.JulianDate.now());
+  const c = Cesium.Cartographic.fromCartesian(p);
+  const lat = Cesium.Math.toDegrees(c.latitude), lng = Cesium.Math.toDegrees(c.longitude);
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat-0.00095, c.height+14),
+    orientation:{ heading:Cesium.Math.toRadians(2), pitch:Cesium.Math.toRadians(-4), roll:0 },
+    duration: 2.0
+  });
+  openCard(m);
+}
+
+/* ══════════════════ 카드 ══════════════════ */
+function openCard(m){
+  $("cDoor").textContent = "뉴욕 · 엠파이어 스테이트 · 메종 " + m.maison_no;
+  $("cNick").textContent = m.nickname || ("메종 " + m.maison_no);
+  $("cIntro").textContent = m.intro
+    || (m.status==='occupied' ? "아직 소개글을 쓰지 않은 집입니다." : "빈집입니다. 아직 아무도 살지 않습니다.");
+  $("cMeta").textContent = m.occupant_id ? ("uid " + m.occupant_id) : "occupant 없음";
+  $("card").classList.add("in");
+}
+function closeCard(){ $("card").classList.remove("in"); }
+
+/* ══════════════════ 좌표 편집 — 파리에서 쓰던 손 그대로 ══════════════════
+   파리:  메종 핀을 고르고 → 지붕을 클릭 → admin_set_maison_coords 로 저장
+   뉴욕:  건물 하나뿐이므로 고를 것이 없다 → ⭐ 지붕을 클릭하면 그 자리가 건물 중심
+   ⚠ 저장할 표(buildings)가 아직 없다. 그래서 화면에 값을 찍는다 —
+     소로가 건네주시면 상수로 박히고, 실판에서는 결정문 13호의 표로 간다.
+     ⭐ 시험판이 DB 표를 먼저 파지 않는다. */
+function setEdit(on){
+  EDIT_MODE = on;
+  $("btnEdit").classList.toggle("on", on);
+  if (on){
+    hint("📍 <b>편집 모드</b> — 엠파이어 스테이트 <b>지붕</b>을 클릭하면 그 자리가 건물 중심이 됩니다");
+  } else hintOff();
+}
+async function moveBuilding(lng, lat){
+  if (MOVING) return; MOVING = true;
+  try{
+    BLD.lat = lat; BLD.lng = lng;
+    ROOF_H = null;
+    await measureRoof();
+    drawRoof();
+    drawWindows();
+    refreshMine();
+    hint("✅ <b>건물 중심 이동</b> — <code>" + lat.toFixed(6) + ", " + lng.toFixed(6) + "</code>"
+       + (ROOF_H!=null ? " · 지붕 H <code>" + ROOF_H.toFixed(1) + "m</code>" : "")
+       + "<br>이 값을 파이스에게 건네주시면 상수로 박습니다");
+    console.log("[edit] 건물 중심 →", lat.toFixed(6), lng.toFixed(6), "H=", ROOF_H);
+  }catch(e){
+    console.warn("이동 실패:", e);
+    hint("⚠️ 이동 실패 — 콘솔을 확인하세요");
+  }finally{ MOVING = false; }
+}
+
+/* ══════════════════ 배선 ══════════════════ */
+function bindUI(){
+  const h = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+  h.setInputAction(click=>{
+    if (EDIT_MODE){
+      if (!viewer.scene.pickPositionSupported){ console.warn("pickPosition 미지원"); return; }
+      const cart = viewer.scene.pickPosition(click.position);
+      if (!Cesium.defined(cart)) return;
+      const carto = Cesium.Cartographic.fromCartesian(cart);
+      moveBuilding(Cesium.Math.toDegrees(carto.longitude), Cesium.Math.toDegrees(carto.latitude));
+      return;
+    }
+    const picked = viewer.scene.pick(click.position);
+    if (Cesium.defined(picked) && picked.id && picked.id._maison){ openCard(picked.id._maison); return; }
+    if (Cesium.defined(picked) && picked.id && picked.id._roof){ flyToBuilding(1.6); return; }
+    closeCard();
+  }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+  /* ⭐ .on = 켜져 있음 (파리 layer-btn 문법 그대로). 뒤집지 않는다. */
+  $("btnRoof").classList.add("on");
+  $("btnWin").classList.add("on");
+  $("btnRoof").addEventListener("click", ()=>{
+    showRoof = !showRoof;
+    if (roofEnt) roofEnt.show = showRoof;
+    $("btnRoof").classList.toggle("on", showRoof);
+  });
+  $("btnWin").addEventListener("click", ()=>{
+    showWin = !showWin;
+    winEnts.forEach(e=> e.show = showWin);
+    $("btnWin").classList.toggle("on", showWin);
+  });
+  $("btnFar").addEventListener("click", flyFar);
+  $("btnEdit").addEventListener("click", ()=> setEdit(!EDIT_MODE));
+  $("cardX").addEventListener("click", closeCard);
+  $("goMine").addEventListener("click", flyToMine);
+  $("asWho").addEventListener("change", e=>{
+    asNick = e.target.value || null;
+    refreshMine(); updateMineLine(); closeCard();
+  });
+}
+
+/* 시점 전환 목록 — 입주자 전원 + 실제 로그인 + 손님 */
+function fillWhoSelect(){
+  const sel = $("asWho");
+  sel.innerHTML = "";
+  const me = myUid ? rows.find(r=> r.occupant_id === myUid) : null;
+  const o0 = document.createElement("option");
+  o0.value = "";
+  o0.textContent = me ? ("로그인 그대로 · " + (me.nickname||"?")) : "손님 (로그인 없음)";
+  sel.appendChild(o0);
+  rows.filter(r=> r.status==='occupied' && r.nickname)
+      .sort((a,b)=> a.maison_no - b.maison_no)
+      .forEach(r=>{
+        const o = document.createElement("option");
+        o.value = r.nickname;
+        o.textContent = r.nickname + " · 메종 " + r.maison_no;
+        sel.appendChild(o);
+      });
+}
+</script>
+</body>
+</html>
