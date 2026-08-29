@@ -117,7 +117,7 @@
 
 <div id="plate">
   <h1>엠파이어 스테이트 EG</h1>
-  <div class="sub">뉴욕 · 1 Territory = 24 Cell<br>메종 1–54 (시험판은 54칸)</div>
+  <div class="sub">뉴욕 · 1 Territory = 24 Cell<br>메종 1–54 · 멀리서는 내 집 하나</div>
   <div class="roof" id="roofLine">지붕 높이 측정 중…</div>
 </div>
 
@@ -132,7 +132,8 @@
 
 <div id="bar">
   <button class="btn" id="btnRoof">지붕 명패</button>
-  <button class="btn" id="btnWin">메종 54칸</button>
+  <button class="btn" id="btnMine">내 집</button>
+  <button class="btn" id="btnNbr">이웃 53칸</button>
   <button class="btn" id="btnFar">멀리서 보기</button>
   <button class="btn" id="btnEdit">📍 좌표 편집</button>
 </div>
@@ -158,12 +159,11 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
 });
 
 /* ── 엠파이어 스테이트 빌딩 ──
-   위키백과 인포박스 40°44′54″N 73°59′08″W → 초 단위 반올림값(≈±15m).
-   ⚠ 그래서 이 값은 **시작점일 뿐이다.** 지붕을 클릭해 정밀히 앉히는 것이
-     파리에서 쓰던 손이고, 그 손을 아래 편집 모드가 그대로 쓴다.
-   ⭐ 잡은 값은 화면에 찍힌다 — 소로가 건네주시면 실판 buildings 표로 간다. */
-let BLD = { name:"엠파이어 스테이트 EG", lat:40.748433, lng:-73.985556 };
-let ROOF_H = null;              // 지붕의 타일 높이 (측정으로 구한다)
+   ⭐ 0829 소로가 좌표편집기로 지붕을 클릭해 잡은 실측값. 위키 인포박스(초 단위
+     반올림 ≈±15m)를 대신한다. 지붕 H는 그 자리에서 412.9m 로 나왔다.
+   ⚠ 다시 잡으실 수 있게 편집 모드는 그대로 둔다. */
+let BLD = { name:"엠파이어 스테이트 EG", lat:40.748443, lng:-73.985672 };
+let ROOF_H = null;              // 지붕의 타일 높이 (측정으로 구한다 · 실측 412.9m)
 
 /* ── 54칸 배분 — 값 셋뿐이다. 화면 손잡이를 만들지 않는다 ──
    ⭐ 높이를 층으로, 둘레를 면으로. 기계가 나눈다 (결정문 8호).
@@ -179,14 +179,18 @@ const TIER_GAP = 22;            // 단 간격 (m) → 아래로 62+8×22 = 238m
    ⭐ 화면을 보시고 「더 밖으로」·「더 위로」 하시면 이 두 값만 고친다.
       화면에 손잡이를 만들지 않는다 — 어제 실패가 손잡이 여섯이었다. */
 
-/* 거리 조건 — 멀리서는 명패 하나, 가까이서 창 (결정문 10호) */
+/* ── 거리 조건 (결정문 10호) ──
+   ⚠⚠ 0829 소로 정정 — 첫 판이 틀렸다. 내 창을 2.2km 로 두었더니 지붕 명패만
+      보이는 거리에서 정작 내 집이 사라졌다. 「멀리서 건물 명패 하나 + 내 창 하나」가
+      결정문 8호의 그림인데, 그 둘의 거리를 다르게 매긴 것이 어긋남이었다.
+   ⭐ 내 창은 지붕 명패와 **같은 거리**를 쓴다. 둘이 함께 뜨고 함께 진다. */
 const D_ROOF = 30000;           // 건물 명패 30km
-const D_WIN  = 1300;            // 이웃 메종 1.3km
-const D_MINE = 2200;            // 내 집 2.2km — 가장 먼저 맞이한다
+const D_MINE = 30000;           // ⭐ 내 집 — 지붕 명패와 같다
+const D_WIN  = 1300;            // 이웃 53칸 — 가까이 가야 보인다
 
 let viewer, tileset, roofEnt=null, winEnts=[], rows=[];
 let myUid=null, asNick=null;          // asNick: 시점 전환으로 고른 닉네임
-let showRoof=true, showWin=true;
+let showRoof=true, showMine=true, showNbr=false;   /* ⭐ 이웃 53칸은 처음엔 꺼 둔다 — 결정문 8호 */
 let EDIT_MODE=false, MOVING=false;
 
 const $ = id => document.getElementById(id);
@@ -352,6 +356,15 @@ function drawWindows(){
     const occupied = (m.status === 'occupied');
     const mine = isMineNo(no);
     const dd = new Cesium.DistanceDisplayCondition(0, mine ? D_MINE : D_WIN);
+    /* ⚠⚠ 0829 두 번째 정정 — 안 보인 진짜 원인의 절반이 여기였다.
+       lonelywalden 은 메종 1 = 북면인데 카메라가 남쪽에 있었다. 깊이 검사가 켜져
+       있으니 건물이 통째로 가렸다. 거리를 늘려도 뒷면이면 영영 안 뜬다.
+       ⭐ 내 창만 깊이 검사를 끈다 — 파리 메종이 쓰는 값 그대로(POSITIVE_INFINITY).
+          「파리와 완벽하게 동일하게」가 여기서도 답이었다.
+       ⭐ 이웃 53칸은 0 그대로 — 가까이 갔을 때 뒷면 명패가 비치면 어수선하다.
+          v200 이 경고한 관통은 「남의 명패가 내 건물을 뚫는 것」이었고,
+          내 집 하나가 자기 건물 앞으로 나오는 것은 그 경우가 아니다. */
+    const dep = mine ? Number.POSITIVE_INFINITY : 0;
 
     const ent = viewer.entities.add({
       id:"nyc-maison-"+no,
@@ -360,7 +373,7 @@ function drawWindows(){
               color:Cesium.Color.fromCssColorString(occupied ? "#ffd23f" : "#0a0e1a"),
               outlineColor:Cesium.Color.fromCssColorString(occupied ? "#1a1407" : "#ffd23f"),
               outlineWidth: occupied ? 2 : 2.5,
-              disableDepthTestDistance:0,
+              disableDepthTestDistance:dep,
               distanceDisplayCondition:dd },
       label: occupied ? {
               text: m.nickname || ("메종 "+no),
@@ -371,7 +384,7 @@ function drawWindows(){
               backgroundPadding:new Cesium.Cartesian2(9,5),
               pixelOffset:new Cesium.Cartesian2(0,-13),
               verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
-              disableDepthTestDistance:0,
+              disableDepthTestDistance:dep,
               distanceDisplayCondition:dd
             } : {
               text:"메종 "+no,
@@ -384,23 +397,29 @@ function drawWindows(){
               backgroundPadding:new Cesium.Cartesian2(8,4),
               pixelOffset:new Cesium.Cartesian2(0,-12),
               verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
-              disableDepthTestDistance:0,
+              disableDepthTestDistance:dep,
               distanceDisplayCondition:dd
             }
     });
     ent._maison = m;
-    ent.show = showWin;
+    ent.show = mine ? showMine : showNbr;
     winEnts.push(ent);
   }
 }
-/* 시점이 바뀌면 「내 것」이 옮겨간다 — 점 크기와 거리 조건만 다시 매긴다 */
+/* 시점이 바뀌면 「내 것」이 옮겨간다 — 거리·깊이·크기·표시를 다시 매긴다 */
 function refreshMine(){
   winEnts.forEach(e=>{
     const no = e._maison.maison_no, mine = isMineNo(no);
     const dd = new Cesium.DistanceDisplayCondition(0, mine ? D_MINE : D_WIN);
+    const dep = mine ? Number.POSITIVE_INFINITY : 0;
     e.point.pixelSize = mine ? 12 : 9;
     e.point.distanceDisplayCondition = dd;
-    if (e.label) e.label.distanceDisplayCondition = dd;
+    e.point.disableDepthTestDistance = dep;
+    if (e.label){
+      e.label.distanceDisplayCondition = dd;
+      e.label.disableDepthTestDistance = dep;
+    }
+    e.show = mine ? showMine : showNbr;
   });
 }
 function updateMineLine(){
@@ -506,16 +525,21 @@ function bindUI(){
 
   /* ⭐ .on = 켜져 있음 (파리 layer-btn 문법 그대로). 뒤집지 않는다. */
   $("btnRoof").classList.add("on");
-  $("btnWin").classList.add("on");
+  $("btnMine").classList.add("on");
   $("btnRoof").addEventListener("click", ()=>{
     showRoof = !showRoof;
     if (roofEnt) roofEnt.show = showRoof;
     $("btnRoof").classList.toggle("on", showRoof);
   });
-  $("btnWin").addEventListener("click", ()=>{
-    showWin = !showWin;
-    winEnts.forEach(e=> e.show = showWin);
-    $("btnWin").classList.toggle("on", showWin);
+  $("btnMine").addEventListener("click", ()=>{
+    showMine = !showMine;
+    refreshMine();
+    $("btnMine").classList.toggle("on", showMine);
+  });
+  $("btnNbr").addEventListener("click", ()=>{
+    showNbr = !showNbr;
+    refreshMine();
+    $("btnNbr").classList.toggle("on", showNbr);
   });
   $("btnFar").addEventListener("click", flyFar);
   $("btnEdit").addEventListener("click", ()=> setEdit(!EDIT_MODE));
