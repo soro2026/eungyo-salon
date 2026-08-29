@@ -117,7 +117,7 @@
 
 <div id="plate">
   <h1>엠파이어 스테이트 EG</h1>
-  <div class="sub">뉴욕 · 1 Territory = 24 Cell<br>메종 1–54 · 내 집은 건물 중심선에</div>
+  <div class="sub">뉴욕 · 1 Territory = 24 Cell<br>메종 216 · 4면 × 27단 · 간판 무작위 배정</div>
   <div class="roof" id="roofLine">지붕 높이 측정 중…</div>
 </div>
 
@@ -133,7 +133,7 @@
 <div id="bar">
   <button class="btn" id="btnRoof">지붕 명패</button>
   <button class="btn" id="btnMine">내 집</button>
-  <button class="btn" id="btnNbr">이웃 53칸</button>
+  <button class="btn" id="btnNbr">슬롯 점</button>
   <button class="btn" id="btnFar">멀리서 보기</button>
   <button class="btn" id="btnEdit">📍 좌표 편집</button>
 </div>
@@ -168,11 +168,10 @@ let ROOF_H = null;              // 지붕의 타일 높이 (측정으로 구한�
 /* ── 54칸 배분 — 값 셋뿐이다. 화면 손잡이를 만들지 않는다 ──
    ⭐ 높이를 층으로, 둘레를 면으로. 기계가 나눈다 (결정문 8호).
    ⚠ 정확도는 필요 없다 — 어느 칸이 누구 것인지 아무도 대조하지 않는다. */
-const COLS = 6;                 // 둘레 6칸 (60° 간격)
-const TIERS = 9;                // 9단 → 6 × 9 = 54
-const RING_R = 34;              // 건물 중심에서 밀어낸 거리 (m)
-const TOP_DROP = 62;            // 지붕에서 이만큼 내려온 곳이 맨 윗단 (첨탑·전망대 아래)
-const TIER_GAP = 22;            // 단 간격 (m) → 아래로 62+8×22 = 238m
+const FACES = 4, FCOLS = 2, TIERS = 27;        // ⭐ 4면 × 2열 × 27단 = 216
+const SLOT_N = FACES * FCOLS * TIERS;
+const TOP_DROP = 62;             // 첨탑·전망대 아래부터
+const TIER_GAP = 7.4;            // 27단이 62+26×7.4 = 254m 를 덮는다 (본 타워 안)
 /* ⚠ 엠파이어 스테이트는 계단식이다. 30층(약 111m) 아래는 타워가 넓어져
      반경 34m 고리가 벽 안에 묻힌다. 맨 아랫단을 지붕에서 238m(약 43층)에
      두어 본 타워 안에 머물게 했다.
@@ -197,10 +196,12 @@ const D_WIN  = 1300;            // 이웃 53칸 — 가까이 가야 보인다
    ⭐ 멀리서는 기존 중심축 명패로 갈아탄다. 소로 — 「조금 멀리서 보면 근사한데」.
       멀면 시차가 안 읽히므로 빌보드가 다시 옳은 물건이 된다. */
 const GRID_AZ  = 29;            // 맨해튼 격자 기울기 (진북에서 동으로 29°)
-const SIGN_AZ  = 180 + GRID_AZ; // 남벽 바깥 방향 (34번가 쪽)
-const SIGN_OUT = 23;            // 중심 → 남벽 밖 (본 타워 남북 반폭 21.5 + 1.5)
-const SIGN_HM  = 7;             // 간판 높이 7m — 층고 두 배, 옥외 간판 규모
-const D_SIGN   = 1500;          // 여기까지 간판 · 그 너머는 명패
+const AZ_FACE  = f => (180 + GRID_AZ - 90*f + 360) % 360;   // 남209 · 동119 · 북29 · 서299
+const OUT_FACE = [23, 32, 23, 32];     // 벽 밖 — 남북 반폭 21.5 · 동서 반폭 30.5 (+1.5)
+const COL_OFF  = [15, 10.5, 15, 10.5]; // 한 면 두 열의 벌림
+const SIGN_HM  = 5;             // 간판 높이 5m — 27단이 겹치지 않는 키
+const SIGN_MAXW= 14;            // 간판 폭 상한 — 긴 닉네임은 글자가 맞춰 줄어든다
+const D_SIGN   = 1500;          // 여기까지 간판 · ⭐ 그 너머는 내 것만 (소로 손짓)
 
 /* ⭐ 0829 소로 — 지붕 명패는 점만 두고 호버에서 이름이 뜬다.
    ⚠ 그런데 터치에는 호버가 없다. 폰에서 명패를 숨기면 그 건물이 무엇인지
@@ -211,9 +212,9 @@ const D_SIGN   = 1500;          // 여기까지 간판 · 그 너머는 명패
      호버가 없다. 판정 하나에 두 가지 일을 맡기면 곧 어긋난다. */
 const CAN_HOVER = (window.matchMedia && window.matchMedia('(hover: hover)').matches);
 
-let viewer, tileset, roofEnt=null, winEnts=[], rows=[], hoveredEnt=null, signEnt=null;
+let viewer, tileset, roofEnt=null, winEnts=[], rows=[], hoveredEnt=null, signEnts=[];
 let myUid=null, asNick=null;          // asNick: 시점 전환으로 고른 닉네임
-let showRoof=true, showMine=true, showNbr=false;   /* ⭐ 이웃 53칸은 처음엔 꺼 둔다 — 결정문 8호 */
+let showRoof=true, showMine=true, showNbr=false;   /* ⭐ 슬롯 점은 처음엔 꺼 둔다 */
 let EDIT_MODE=false, MOVING=false;
 
 const $ = id => document.getElementById(id);
@@ -375,33 +376,63 @@ function drawRoof(){
    ⚠ 잃는 것은 「내 창」이라는 그림인데, 결정문 8호가 이미
      「어느 창이 내 창인지 아무도 안 보므로 정확도가 필요 없다」고 적었다.
      정확도가 필요 없으면 둘레도 필요 없다 — ⭐ 높이만 남긴다. 높이가 곧 주소다. */
+/* slot_no 하나에서 면·열·단이 전부 나온다 — DB 에 face 칸이 필요 없는 근거 (결정문 13호) */
+function slotFace(no){ return Math.floor(((no-1) % (FACES*FCOLS)) / FCOLS); }
+function slotCol(no){ return (no-1) % FCOLS; }
+function slotTier(no){ return Math.floor((no-1) / (FACES*FCOLS)); }
 function slotH(no){
-  const tier = Math.floor((no-1)/COLS);            // 0 = 맨 아래단
-  return (ROOF_H!=null ? ROOF_H : 420) - TOP_DROP - (TIERS-1-tier)*TIER_GAP;
+  return (ROOF_H!=null ? ROOF_H : 420) - TOP_DROP - (TIERS-1-slotTier(no))*TIER_GAP;
 }
+function slotAnchor(no){                            // 그 칸의 벽 밖 한 점 (간판·점이 함께 쓴다)
+  const f  = slotFace(no), az = AZ_FACE(f);
+  const c0 = offsetDeg(BLD.lat, BLD.lng, az, OUT_FACE[f]);
+  const c1 = offsetDeg(c0.lat, c0.lng, az + (slotCol(no)===0 ? 90 : -90), COL_OFF[f]);
+  return { lat:c1.lat, lng:c1.lng, h:slotH(no), az };
+}
+/* ⭐ 소로 0829 — 「각 면에 랜덤 5명씩」. 시험용 무작위 배정.
+   면을 남→동→북→서로 돌며(고루) 그 면의 빈 칸을 무작위로 뽑는다 — 17명이면 5·4·4·4.
+   ⚠ 한 번 뽑으면 이 접속 동안 붙박이 — 시점을 바꿀 때마다 간판이 이사 다니면 어지럽다.
+     실판에서는 0729 18호 배정 조항이 이 자리를 맡는다. */
+let slotMap = null;
+function assignSlots(){
+  if (slotMap) return slotMap;
+  slotMap = new Map(); const used = new Set();
+  const occ = rows.filter(r=>r.status==='occupied').slice();
+  for (let i=occ.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [occ[i],occ[j]]=[occ[j],occ[i]]; }
+  let f = 0;
+  occ.forEach(r=>{
+    let slot;
+    do{
+      slot = Math.floor(Math.random()*TIERS)*FACES*FCOLS + f*FCOLS
+           + Math.floor(Math.random()*FCOLS) + 1;
+    }while(used.has(slot));
+    used.add(slot); slotMap.set(r.maison_no, slot);
+    f = (f+1) % FACES;
+  });
+  return slotMap;
+}
+function slotOf(m){ return (slotMap && slotMap.get(m.maison_no)) || m.maison_no; }
 function offsetDeg(lat, lng, azDeg, dist){         // 방위각·거리 → 위경도
   const az = Cesium.Math.toRadians(azDeg);
   return { lat: lat + (dist*Math.cos(az))/111320,
            lng: lng + (dist*Math.sin(az))/(111320*Math.cos(Cesium.Math.toRadians(lat))) };
 }
 function slotPos(no, mine){
-  const col  = (no-1) % COLS;
-  const h    = slotH(no);
-  if (mine) return Cesium.Cartesian3.fromDegrees(BLD.lng, BLD.lat, h);   /* ⭐ 중심축 */
-  const az   = Cesium.Math.toRadians(col * (360/COLS));
-  const dLat = (RING_R*Math.cos(az)) / 111320;
-  const dLng = (RING_R*Math.sin(az)) / (111320*Math.cos(Cesium.Math.toRadians(BLD.lat)));
-  return Cesium.Cartesian3.fromDegrees(BLD.lng+dLng, BLD.lat+dLat, h);
+  if (mine) return Cesium.Cartesian3.fromDegrees(BLD.lng, BLD.lat, slotH(no));  /* ⭐ 멀리서 명패는 중심축 */
+  const a = slotAnchor(no);
+  return Cesium.Cartesian3.fromDegrees(a.lng, a.lat, a.h);
 }
 
 function drawWindows(){
   winEnts.forEach(e=> viewer.entities.remove(e));
   winEnts = [];
-  const byNo = new Map(rows.map(r=>[r.maison_no, r]));
+  assignSlots();
+  const bySlot = new Map();
+  rows.filter(r=>r.status==='occupied').forEach(r=> bySlot.set(slotOf(r), r));
 
   hoveredEnt = null;
-  for (let no=1; no<=COLS*TIERS; no++){
-    const m = byNo.get(no) || { maison_no:no, status:'vacant', nickname:null, intro:null };
+  for (let no=1; no<=SLOT_N; no++){
+    const m = bySlot.get(no) || { maison_no:no, status:'vacant', nickname:null, intro:null };
     const occupied = (m.status === 'occupied');
     const mine = isMineNo(no);
     /* ⭐ 내 집: 가까이(0~1.5km)는 간판이 맡고, 명패는 그 너머부터 — 겹치지 않는다 */
@@ -461,57 +492,72 @@ function drawWindows(){
     ent.show = mine ? showMine : showNbr;
     winEnts.push(ent);
   }
-  drawSign();                       /* 간판은 내 집을 따라다닌다 */
+  drawSigns();                      /* ⭐ 입주자 전원의 간판 — 면마다 다섯 안팎 */
 }
 
-/* ══ 실물 간판 — 남벽에 바른 노란 명조 ══
-   ⚠ 이것은 「면(face) 판매 구조」의 부활이 아니다. 결정문이 폐기한 것은
-     4면 × 6~7명 배분이고, 이것은 간판 **한 장**이 걸리는 방향일 뿐이다.
-     실물 건물의 간판도 한 면에 걸린다. */
-async function drawSign(){
-  if (signEnt){ viewer.entities.remove(signEnt); signEnt = null; }
-  const m = mineRow(); if (!m) return;
-  const text = m.nickname || ("메종 " + m.maison_no);
-  try{ await document.fonts.load('700 200px "Nanum Myeongjo"', text); }catch(e){}
-
-  /* 명패를 그대로 확대한 캔버스 — 옐로 바탕 · 검은 명조 · 파리와 같은 색 */
-  const H = 340, pad = 76, FONT = '700 200px Georgia,"Nanum Myeongjo","Apple SD Gothic Neo",serif';
-  const mc = document.createElement('canvas').getContext('2d');
-  mc.font = FONT;
-  const W = Math.max(560, Math.ceil(mc.measureText(text).width) + pad*2);
+/* ══ 실물 간판 — 각 면에 다섯 장 안팎 ══
+   ⭐ 소로 0829 — 「각 면에 랜덤 5명씩 간판 보이게, 멀리서는 내 것만」.
+   입주자 전원(지금 17)의 간판을 배정 면·배정 높이에 바른다.
+   ⚠ 렌더 부담은 벽 열일곱 + 작은 캔버스 열일곱 — 가볍다. 216이 다 차는 날의
+     갈래(내 면만 전부 / 남은 점)는 그때 소로와 정한다.
+   ⚠ 「면 판매 구조」의 부활이 아니다 — 면은 화면 배치일 뿐 DB 에 없다. */
+function plateCanvas(text){
+  const H = 340, pad = 76;
+  const MAXW = Math.round(H * SIGN_MAXW / SIGN_HM);           // 폭 상한의 픽셀 옷 (952)
+  const FONT = fs => '700 ' + fs + 'px Georgia,"Nanum Myeongjo","Apple SD Gothic Neo",serif';
+  const probe = document.createElement('canvas').getContext('2d');
+  let fs = 200;
+  probe.font = FONT(fs);
+  let tw = probe.measureText(text).width;
+  if (tw > MAXW - pad*2){                                     // 긴 닉네임 — 글자가 맞춰 준다
+    fs = Math.max(80, Math.floor(fs * (MAXW - pad*2) / tw));
+    probe.font = FONT(fs); tw = probe.measureText(text).width;
+  }
+  const W = Math.max(430, Math.min(MAXW, Math.ceil(tw) + pad*2));
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-  const g = cv.getContext('2d');
-  const r = 44;
+  const g = cv.getContext('2d'); const r = 44;
   g.beginPath();
   g.moveTo(r,0); g.arcTo(W,0,W,H,r); g.arcTo(W,H,0,H,r); g.arcTo(0,H,0,0,r); g.arcTo(0,0,W,0,r);
   g.closePath();
-  g.fillStyle = "#ffd23f"; g.fill();
+  g.fillStyle = "#ffd23f"; g.fill();                          // 파리의 옐로
   g.lineWidth = 10; g.strokeStyle = "#1a1407"; g.stroke();
-  g.fillStyle = "#1a1407"; g.font = FONT;
+  g.fillStyle = "#1a1407"; g.font = FONT(fs);                 // 파리의 검은 명조
   g.textAlign = "center"; g.textBaseline = "middle";
   g.fillText(text, W/2, H/2 + 8);
-
-  /* 벽과 평행한 수직면 — 서→동 순서라야 남쪽에서 글이 바로 읽힌다
-     (⚠ 글이 좌우로 뒤집혀 보이면 A·B를 맞바꾼다 · 상하면 캔버스를 뒤집는다) */
-  const h = slotH(m.maison_no);
-  const widthM = SIGN_HM * (W / H);
-  const C0 = offsetDeg(BLD.lat, BLD.lng, SIGN_AZ, SIGN_OUT);
-  const A = offsetDeg(C0.lat, C0.lng, SIGN_AZ + 90, widthM/2);   // 서쪽 끝
-  const B = offsetDeg(C0.lat, C0.lng, SIGN_AZ - 90, widthM/2);   // 동쪽 끝
-  signEnt = viewer.entities.add({
-    id:"nyc-sign",
-    wall:{
-      positions: Cesium.Cartesian3.fromDegreesArray([A.lng, A.lat, B.lng, B.lat]),
-      minimumHeights:[h - SIGN_HM/2, h - SIGN_HM/2],
-      maximumHeights:[h + SIGN_HM/2, h + SIGN_HM/2],
-      material: new Cesium.ImageMaterialProperty({ image: cv, transparent: true }),
-      outline: false,
-      distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, D_SIGN)
-    }
-  });
-  signEnt._maison = m;
-  signEnt.show = showMine;
+  return cv;
 }
+
+async function drawSigns(){
+  signEnts.forEach(e=> viewer.entities.remove(e)); signEnts = [];
+  const occ = rows.filter(r=> r.status === 'occupied');
+  if (!occ.length) return;
+  try{ await document.fonts.load('700 200px "Nanum Myeongjo"',
+        occ.map(r=> r.nickname || '').join('')); }catch(e){}
+  occ.forEach(r=>{
+    const no = slotOf(r);
+    const a  = slotAnchor(no);
+    const cv = plateCanvas(r.nickname || ("메종 " + r.maison_no));
+    const widthM = SIGN_HM * (cv.width / cv.height);
+    /* 벽과 평행 · A(+90)→B(−90) 순서라야 밖에서 글이 바로 읽힌다
+       (⚠ 좌우로 뒤집혀 보이면 A·B를 맞바꾼다 · 상하면 캔버스를 뒤집는다) */
+    const A = offsetDeg(a.lat, a.lng, a.az + 90, widthM/2);
+    const B = offsetDeg(a.lat, a.lng, a.az - 90, widthM/2);
+    const e = viewer.entities.add({
+      id: "nyc-sign-" + no,
+      wall:{
+        positions: Cesium.Cartesian3.fromDegreesArray([A.lng, A.lat, B.lng, B.lat]),
+        minimumHeights:[a.h - SIGN_HM/2, a.h - SIGN_HM/2],
+        maximumHeights:[a.h + SIGN_HM/2, a.h + SIGN_HM/2],
+        material: new Cesium.ImageMaterialProperty({ image: cv, transparent: true }),
+        outline: false,
+        distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, D_SIGN)
+      }
+    });
+    e._maison = r;
+    signEnts.push(e);
+  });
+}
+
 /* ⚠ 시점이 바뀌면 **자리와 이름표가 함께** 바뀐다(내 것만 중심축·이름표를 가짐).
      속성만 손보면 옛 자리에 남으므로 다시 그린다. 쉰넷은 가볍다. */
 function refreshMine(){ drawWindows(); }
@@ -519,7 +565,7 @@ function refreshMine(){ drawWindows(); }
 /* 단추는 표시만 건드린다 — 다시 그릴 까닭이 없다 */
 function applyShow(){
   winEnts.forEach(e=>{ e.show = isMineNo(e._maison.maison_no) ? showMine : showNbr; });
-  if (signEnt) signEnt.show = showMine;
+  /* 간판 열일곱은 상시 — 「각 면에 다섯」이 이 시험판의 볼거리다 */
 }
 function updateMineLine(){
   const m = mineRow();
@@ -548,14 +594,12 @@ function flyFar(){
 }
 function flyToMine(){
   const m = mineRow(); if (!m) return;
-  const ent = winEnts.find(e=> e._maison.maison_no === m.maison_no);
-  if (!ent) return;
-  const p = ent.position.getValue(Cesium.JulianDate.now());
-  const c = Cesium.Cartographic.fromCartesian(p);
-  const lat = Cesium.Math.toDegrees(c.latitude), lng = Cesium.Math.toDegrees(c.longitude);
+  const no = slotOf(m), a = slotAnchor(no);
+  const back = offsetDeg(a.lat, a.lng, a.az, 140);   /* 그 면 법선 밖 140m */
   viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(lng, lat-0.00095, c.height+14),
-    orientation:{ heading:Cesium.Math.toRadians(2), pitch:Cesium.Math.toRadians(-4), roll:0 },
+    destination: Cesium.Cartesian3.fromDegrees(back.lng, back.lat, a.h + 6),
+    orientation:{ heading:Cesium.Math.toRadians((a.az + 180) % 360),
+                  pitch:Cesium.Math.toRadians(-2), roll:0 },
     duration: 2.0
   });
   openCard(m);
