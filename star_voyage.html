@@ -1054,7 +1054,7 @@ function openMaison(b){
   const res_ = residentsOf(b);
   const sold = (b.status === 'sold') || res_.length > 0;
   document.getElementById("mDoor").textContent =
-    "파리 라탱 · " + (b.units>1 ? b.units+"채 " : "") + b.slots + "슬롯";
+    ({paris:"파리 라탱", london:"런던 웨스트민스터", newyork:"뉴욕 맨해튼"}[b.city] || b.city) + " · " + (b.units>1 ? b.units+"유닛 " : "") + b.slots + "슬롯";
   document.getElementById("mNick").textContent = b.name || ("빈 건물 " + b.bno);
   const _mAv = document.getElementById("mAvatar");
   if (_mAv){ _mAv.removeAttribute("src"); _mAv.style.display = "none"; }
@@ -1369,10 +1369,47 @@ async function setupAdminEdit(){
         "📍 <b>편집 모드</b> — 옮길 핀을 누른 뒤, 그 지점 <b>지붕</b>을 클릭하세요"; }
   });
 }
+
+/* ══ 좌표 편집기 (0830 · 다섯 종류) ══════════════════════════════
+   ⭐ 꼬리표 하나가 표 하나에 대응한다. 새 종류를 얹을 때는
+      EDIT_KINDS 에 한 줄만 늘린다 — handleEditClick 은 안 건드린다.
+   ⚠ 순서가 곧 우선순위다. 한 엔티티에 꼬리표가 둘 붙는 일은 없지만,
+      먼저 걸린 것을 쓴다.                                        */
+const EDIT_KINDS = [
+  { tag:"_maison",
+    name: d => d.name || ("건물 " + d.bno),
+    save: (d,lat,lng) => supa.rpc('admin_set_building_coords',
+            { p_bno:d.bno, p_lat:lat, p_lng:lng, p_city:d.city || 'paris' }) },
+  { tag:"_spot",
+    name: d => d.title_ko || d.title || "장소",
+    save: (d,lat,lng) => supa.rpc('admin_set_place_coords',
+            { p_place_id:d.place_id, p_lat:lat, p_lng:lng }) },
+  { tag:"_terra",
+    name: d => d.name,
+    save: (d,lat,lng) => supa.rpc('admin_set_org_coords',
+            { p_kind:'terra', p_code:d.code, p_lat:lat, p_lng:lng }) },
+  { tag:"_popup",
+    name: d => d.name,
+    save: (d,lat,lng) => supa.rpc('admin_set_org_coords',
+            { p_kind:'popup', p_code:d.code, p_lat:lat, p_lng:lng }) },
+  { tag:"_palais",
+    name: d => d.name,
+    save: (d,lat,lng) => supa.rpc('admin_set_org_coords',
+            { p_kind:'palais', p_code:d.code, p_lat:lat, p_lng:lng }) }
+];
+
+/* 엔티티에서 편집 종류를 찾아낸다. 편집 대상이 아니면 null */
+function editKindOf(ent){
+  if (!ent) return null;
+  for (const k of EDIT_KINDS){ if (ent[k.tag]) return k; }
+  return null;
+}
+
 function clearSel(){
   if (selEnt && selEnt.point && selEnt._origColor){ selEnt.point.color = selEnt._origColor; }
   selEnt = null;
 }
+
 function selectForEdit(ent){
   clearSel();
   selEnt = ent;
@@ -1380,47 +1417,47 @@ function selectForEdit(ent){
     if (!ent._origColor) ent._origColor = ent.point.color;
     ent.point.color = Cesium.Color.fromCssColorString("#7fb3d5");   // 선택 = 시안
   }
-  let label = ent._spot ? (ent._spot.title_ko || ent._spot.title || "장소")
-            : ent._maison ? (ent._maison.name || ("건물 " + ent._maison.bno)) : "?";
+  const k = editKindOf(ent);
+  const label = k ? k.name(ent[k.tag]) : "?";
   document.getElementById("editHint").innerHTML =
-    "📍 <b>" + label + " 선택됨</b> — 이제 그 <b>지붕</b>을 클릭하면 옮겨집니다";
+    "📍 <b>" + label + " 선택됨</b> — 이제 옮길 <b>지점</b>을 클릭하세요";
 }
+/* ⚠ 옛 이름을 부르는 곳이 남아 있어도 깨지지 않게 별칭을 남긴다 */
+const selectMaisonForEdit = selectForEdit;
+
 async function moveSelected(ent, lng, lat){
   if (MOVING) return; MOVING = true;
-  let label = "?";
+  const k = editKindOf(ent);
+  if (!k){ MOVING = false; return; }
+  const d = ent[k.tag];
+  const label = k.name(d);
   try{
-    if (ent._spot){
-      const { error } = await supa.rpc('admin_set_place_coords',
-        { p_place_id: ent._spot.place_id, p_lat: lat, p_lng: lng });
-      if (error) throw error;
-      ent._spot.lat = lat; ent._spot.lng = lng;
-      label = (ent._spot.title_ko || ent._spot.title || "장소");
-    } else if (ent._maison){
-      const { error } = await supa.rpc('admin_set_building_coords',
-        { p_bno: ent._maison.bno, p_lat: lat, p_lng: lng, p_city: ent._maison.city || 'paris' });
-      if (error) throw error;
-      ent._maison.lat = lat; ent._maison.lng = lng;
-      label = ent._maison.name || ("건물 " + ent._maison.bno);
-    } else { MOVING=false; return; }
+    const { error } = await k.save(d, lat, lng);
+    if (error) throw error;
+    d.lat = lat; d.lng = lng;
     ent.position = Cesium.Cartesian3.fromDegrees(lng, lat);
-    const H = await clampPoint(lng, lat);   // 새 지점 지붕에 즉시 고정
+    const H = await clampPoint(lng, lat);          // 새 지점 지붕에 즉시 고정
     if (H != null) ent.position = Cesium.Cartesian3.fromDegrees(lng, lat, H);
     document.getElementById("editHint").innerHTML =
       "✅ <b>" + label + "</b> 이동·저장 완료 (지붕 H " + (H!=null?H.toFixed(1):"?") + "m) — 다른 핀을 고르세요";
-    console.log("[edit]", label, "→", lng.toFixed(5), lat.toFixed(5), "H=", H);
+    console.log("[edit]", k.tag, label, "→", lng.toFixed(6), lat.toFixed(6), "H=", H);
   }catch(e){
     console.warn("좌표 저장 실패:", e);
-    document.getElementById("editHint").innerHTML = "⚠️ 저장 실패 — 콘솔을 확인하세요";
+    document.getElementById("editHint").innerHTML =
+      "⚠️ <b>" + label + "</b> 저장 실패 — 콘솔을 확인하세요";
   }finally{ MOVING = false; clearSel(); }
 }
+const moveMaison = (ent, lng, lat) => moveSelected(ent, lng, lat);   /* 옛 이름 별칭 */
+
 function handleEditClick(click){
   const picked = viewer.scene.pick(click.position);
-  if (Cesium.defined(picked) && picked.id && (picked.id._spot || picked.id._maison)){
-    selectForEdit(picked.id);   // 핀 클릭 → 선택
+  if (Cesium.defined(picked) && picked.id && editKindOf(picked.id)){
+    selectForEdit(picked.id);            // 핀 클릭 → 선택
     return;
   }
   if (!selEnt){
-    document.getElementById("editHint").innerHTML = "먼저 옮길 <b>핀</b>을 눌러 선택하세요";
+    document.getElementById("editHint").innerHTML =
+      "먼저 옮길 <b>핀</b>을 눌러 선택하세요 — 건물 · 장소 · 콜레주 · 출판사 · 전당";
     return;
   }
   if (!viewer.scene.pickPositionSupported){ console.warn("pickPosition 미지원"); return; }
@@ -1429,6 +1466,11 @@ function handleEditClick(click){
   const carto = Cesium.Cartographic.fromCartesian(cart);
   moveSelected(selEnt, Cesium.Math.toDegrees(carto.longitude), Cesium.Math.toDegrees(carto.latitude));
 }
+
+
+
+
+
 
 // ── 한 좌표의 타일 표면 높이(H) 측정 — 궤도 중심을 핀과 같은 높이로 두기 위함 ──
 async function clampPoint(lng, lat){
