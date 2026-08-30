@@ -2335,8 +2335,8 @@ window.egSupa = supa;
   await Promise.allSettled([
     loadCityMarkers('paris'),   // 도시 핀(인물 장소)
     loadMaisons(null),       // EG메종 집 핀 (옐로 라벨)
-    loadPopups('paris'),        // 출판사 팝업 명패 핀
-    loadPalais('paris')         // 전당(지식채널) 청록 핀
+    loadPopups(null),        // 출판사 팝업 명패 핀
+    loadPalais(null)         // 전당(지식채널) 청록 핀
   ]);
   loadCityList();
   document.getElementById("cityBtn").addEventListener("click", ()=> { toggleStarList(false); toggleCityList(); });
@@ -2559,7 +2559,7 @@ async function loadCityMarkers(city){
     const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_voyage_markers", {
       method:"POST",
       headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
-      body: JSON.stringify({ p_city: city })
+      body: JSON.stringify({ p_city: city || null })   /* ⭐ 0830 — null = 전 도시 */
     });
     if (!res.ok) throw new Error("HTTP "+res.status);
     rows = await res.json();
@@ -2835,7 +2835,7 @@ async function loadMaisons(city){
     const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_buildings", {
       method:"POST",
       headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
-      body: JSON.stringify({ p_city: city })
+      body: JSON.stringify({ p_city: city || null })   /* ⭐ 0830 — null = 전 도시 */
     });
     if (!res.ok) throw new Error("HTTP "+res.status);
     rows = await res.json();
@@ -2948,7 +2948,7 @@ async function loadPopups(city){
     const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_popups", {
       method:"POST",
       headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
-      body: JSON.stringify({ p_city: city })
+      body: JSON.stringify({ p_city: city || null })   /* ⭐ 0830 — null = 전 도시 */
     });
     if (!res.ok) throw new Error("HTTP "+res.status);
     rows = await res.json();
@@ -2958,7 +2958,7 @@ async function loadPopups(city){
   for (const p of rows){
     const bg = popupColor(p);   // 출판사 고유색 (pin_color 지정값 → 없으면 코드 해시)
     const ent = viewer.entities.add({
-      id: "popup-"+city+"-"+p.code,
+      id: "popup-"+(p.city||city||"x")+"-"+p.code,
       position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),   // height 생략 → 표면 클램프 대상
       point:{ pixelSize:9, color:Cesium.Color.fromCssColorString(bg),
               outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
@@ -3044,8 +3044,9 @@ const PALAIS_COLOR = "#16a085";
 async function loadPalais(city){
   let rows = [];
   try{
-    const res = await fetch(SUPA_URL + "/rest/v1/palais_orgs?select=code,name,lat,lng,city&city=eq."
-                 + encodeURIComponent(city), {
+    /* ⭐ 0830 — city 를 안 주면 전 도시를 부른다 (뉴욕·런던 전당이 안 뜨던 뿌리) */
+    const res = await fetch(SUPA_URL + "/rest/v1/palais_orgs?select=code,name,lat,lng,city"
+                 + (city ? "&city=eq." + encodeURIComponent(city) : ""), {
       headers:{ "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY }
     });
     if (!res.ok) throw new Error("HTTP "+res.status);
@@ -3056,7 +3057,7 @@ async function loadPalais(city){
   for (const p of rows){
     if (p.lat == null || p.lng == null) continue;
     const ent = viewer.entities.add({
-      id: "palais-"+city+"-"+p.code,
+      id: "palais-"+(p.city||city||"x")+"-"+p.code,
       position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),
       point:{ pixelSize:9, color:Cesium.Color.fromCssColorString(PALAIS_COLOR),
               outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
@@ -3162,8 +3163,8 @@ async function jumpToCity(c){
   // 새 도시 마커를 먼저 로드 — 1호 핀 좌표를 잡고 표면 클램프(함수 내부)까지 끝낸 뒤 비행
   await loadCityMarkers(c.city);
   await loadMaisons(null);
-  await loadPopups(c.city);
-  await loadPalais(c.city);
+  await loadPopups(null);
+  await loadPalais(null);
 
   /* ── 0728 개정: 도시의 얼굴로 간다 ──
      전에는 "1호 핀(id 최소)"을 중심으로 삼았다. 파리는 우연히 라탱 근처가 1호라
@@ -3353,8 +3354,8 @@ async function jumpToStarPlace(starId, opts){
     viewer.entities.values.filter(e=>e._spot || e._maison || e._popup || e._palais).slice().forEach(e=> viewer.entities.remove(e));
     await loadCityMarkers(rep.city);
     await loadMaisons(null);
-    await loadPopups(rep.city);
-    await loadPalais(rep.city);
+    await loadPopups(null);
+    await loadPalais(null);
   }
 
   const lng = rep.lng, lat = rep.lat, r = rep.cam_range || 1000;
@@ -3780,9 +3781,16 @@ function openMaison(b){
   currentMaison = b;
   const res_ = residentsOf(b);
   const sold = (b.status === 'sold') || res_.length > 0;
+  /* ⭐ 0830 소로 — 「빈 건물 4」로는 안 팔린다. 이름 없는 매물은 표찰을 단다.
+       ① 주인이 지은 이름(11호)  ② 매물 표찰(wall.landmark)  ③ 번지수
+     ⚠ ②는 팔리는 순간 ①에 자리를 내준다 — 덮어쓰지 않고 뒤로 물러난다. */
+  const _wl = (b.wall && b.wall.landmark) || null;
   document.getElementById("mDoor").textContent =
-    ({paris:"파리 라탱", london:"런던 웨스트민스터", newyork:"뉴욕 맨해튼"}[b.city] || b.city) + " · " + (b.units>1 ? b.units+"유닛 " : "") + b.slots + "슬롯";
-  document.getElementById("mNick").textContent = b.name || ("빈 건물 " + b.bno);
+    ({paris:"파리 라탱", london:"런던 웨스트민스터", newyork:"뉴욕 맨해튼"}[b.city] || b.city)
+    + (b.name && _wl ? " · " + _wl : "")          /* 주인이 이름을 지었으면 표찰은 부제로 */
+    + " · " + (b.units>1 ? b.units+"유닛 " : "") + b.slots + "슬롯";
+  document.getElementById("mNick").textContent =
+    b.name || _wl || ("건물 " + b.bno);
   const _mAv = document.getElementById("mAvatar");
   if (_mAv){ _mAv.removeAttribute("src"); _mAv.style.display = "none"; }
   document.getElementById("mIntro").textContent = sold
@@ -4448,8 +4456,8 @@ async function goToMyHome(){
     viewer.entities.values.filter(e=>e._spot || e._maison || e._popup || e._palais).slice().forEach(e=> viewer.entities.remove(e));
     await loadCityMarkers('paris');
     await loadMaisons(null);
-    await loadPopups('paris');
-    await loadPalais('paris');
+    await loadPopups(null);
+    await loadPalais(null);
   }
   let ent = findMyBuilding(uid);
   if (!ent){
