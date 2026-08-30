@@ -4272,11 +4272,21 @@ function applyPick(lat, lng, h){
   const along = dN*Math.cos(rad) + dE*Math.sin(rad);
   const cross = -dN*Math.sin(rad) + dE*Math.cos(rad);
   if (PICK === "wall"){
+    /* ⚠⚠ 0830 소로 — 「크라이슬러 동면 슬롯이 통으로 안 보인다」. DB에 out[동]=4 였다.
+       4는 짚은 값이 아니라 **내 하한선**이다. 클릭이 그 면 바깥이 아닌 곳(지붕·반대편)에
+       닿아 along 이 음수로 나왔는데, 코드가 말없이 4로 뭉개 명패를 건물 속에 박았다.
+       ⭐ 빗나간 짚기는 뭉개지 말고 **그 자리에서 알린다.** 값은 손대지 않는다. */
+    if (along < 3){
+      document.getElementById("editHint").innerHTML =
+        "⚠️ <b>" + PICK_FACE_KO[PFACE] + "면 바깥</b>이 아닌 곳을 짚으셨습니다 "
+        + "(중심에서 <code>" + along.toFixed(1) + "m</code>) — 값은 그대로 둡니다."
+        + "<br>그 면이 <b>정면으로 보이도록</b> 시점을 옆으로 돌린 뒤 벽을 다시 클릭하세요";
+      return true;
+    }
     w.out = w.out || [23,23,23,23];
-    /* ⚠ 0830 소로 — 「명패와 벽 사이가 2m쯤 붕 뜬다」. 범인이 이 +1.5 였다.
-       목업에선 클릭이 벽면 텍스처에 닿아 여유가 필요했지만, 실판에서는 3D 타일
-       표면을 정확히 짚는다 — 짚은 그 자리가 곧 벽이다. 종잇장만 남긴다. */
-    w.out[PFACE] = Math.max(4, along + 0.3);
+    /* ⚠ 0830 소로 — 「명패와 벽 사이가 2m쯤 붕 뜬다」. 범인이 +1.5 였다.
+       실판에서는 3D 타일 표면을 정확히 짚는다 — 짚은 그 자리가 곧 벽이다. */
+    w.out[PFACE] = along + 0.3;
     PICK_DIRTY = true; pickBarPaint(); drawWallSigns();
     document.getElementById("editHint").innerHTML =
       "✅ <b>" + PICK_FACE_KO[PFACE] + "면 벽</b> <code>" + w.out[PFACE].toFixed(1) + "m</code> — [서버에 저장]";
