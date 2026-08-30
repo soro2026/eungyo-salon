@@ -341,6 +341,24 @@
   }
   #maison .m-nick{font-family:var(--serif);font-size:32px;line-height:1.1;margin:0 0 .35em;color:var(--cream)}
   #maison .m-intro{font-family:var(--serif);font-size:15px;line-height:1.82;color:var(--cream-dim);margin-bottom:28px;flex:1}
+  /* 입주자 명단 — 건물 하나에 여럿이 산다 (0830 집합주택) */
+  #maison .m-list{ flex:1; overflow-y:auto; margin:0 0 22px; min-height:0 }
+  #maison .m-list:empty{ display:none }
+  #maison .m-res{
+    display:flex; align-items:center; gap:10px; width:100%;
+    padding:9px 11px; margin-bottom:6px; cursor:pointer; text-align:left;
+    background:rgba(255,255,255,.035); border:1px solid rgba(255,210,63,.14);
+    border-radius:9px; color:var(--cream); font-size:14.5px;
+    font-family:'Helvetica Neue',Arial,sans-serif; transition:.16s;
+  }
+  #maison .m-res:hover{ background:rgba(255,210,63,.11); border-color:rgba(255,210,63,.4) }
+  #maison .m-res.mine{ background:rgba(255,210,63,.13); border-color:rgba(255,210,63,.5) }
+  #maison .m-res .av{ width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0;
+    background:rgba(255,210,63,.16) }
+  #maison .m-res .nm{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+  #maison .m-res .sl{ font-size:11.5px; color:var(--cream-dim); flex-shrink:0; letter-spacing:.04em }
+  #maison .m-empty{ font-family:var(--serif); font-size:14px; color:var(--cream-dim);
+    padding:14px 2px; line-height:1.7 }
   #maison .m-enter{
     font-family:var(--sans);font-size:14px;font-weight:bold;letter-spacing:.03em;
     color:#1a1407;background:#ffd23f;border:none;border-radius:11px;
@@ -600,6 +618,7 @@
   <img class="m-avatar" id="mAvatar" alt="" style="display:none">
   <h2 class="m-nick" id="mNick"></h2>
   <div class="m-intro" id="mIntro"></div>
+  <div class="m-list" id="mList"></div>
   <button class="m-enter" id="mEnter">대문 열고 들어가기 →</button>
 </aside>
 
@@ -796,7 +815,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
     document.getElementById("cesiumContainer").addEventListener("click", ()=> openPanel(false));
     window._openNavPanel = openPanel;
   })();
-  document.getElementById("mEnter").addEventListener("click", ()=> enterMaison(currentMaison));
+  /* mEnter 폐지 — 입주자 명단이 곧 문이다 (0830) */
   bindDoorEvents();
   viewer.canvas.addEventListener("pointerdown", stopOrbit);
 
@@ -942,64 +961,79 @@ async function loadCityMarkers(city){
   await clampSpotsToSurface();
 }
 
-// ─── EG메종 집 핀 (옐로 바탕·검은 글씨 = 사람이 사는 곳) ───
+// ─── EG 건물 핀 (0830 집합주택 개편) ───────────────────────────────
+//  한 채에 여럿이 산다. 좌표는 건물이 갖고, 사람은 그 안의 슬롯이 된다.
+//  ⭐ 명패는 내 건물에만 뜬다. 남의 건물·빈 건물은 점 하나로 서 있고,
+//     눌러야 누가 사는지 열린다 (0830 소로 — 비교하지 않는 지도).
+//  ⚠ 인물 장소·팝업·전당은 이 규칙 밖 — 그쪽은 전부 명패를 단다.
+// ──────────────────────────────────────────────────────────────────
+let myUidCache = null;
+
+function residentsOf(b){ return Array.isArray(b && b.residents) ? b.residents : []; }
+function findMyBuilding(uid){
+  return viewer.entities.values.find(e => e._maison &&
+    residentsOf(e._maison).some(r => r.uid === uid));
+}
+function findBuildingByNick(nick){
+  return viewer.entities.values.find(e => e._maison &&
+    residentsOf(e._maison).some(r => r.nickname === nick));
+}
+
 async function loadMaisons(city){
   let rows = [];
   try{
-    const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_maisons", {
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_buildings", {
       method:"POST",
       headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
       body: JSON.stringify({ p_city: city })
     });
     if (!res.ok) throw new Error("HTTP "+res.status);
     rows = await res.json();
-  }catch(e){ console.warn("eg_maison 로드 실패:", e); return; }
+  }catch(e){ console.warn("eg_buildings 로드 실패:", e); return; }
 
-  const near     = range(PIN_RANGE.maison);      // 이웃 콩파뇽 — 500m
-  const nearMine = range(PIN_RANGE.maisonMine);  // 강하 대상 분더카머 — 600m
+  const near     = range(PIN_RANGE.maison);      // 이웃 건물 — 500m
+  const nearMine = range(PIN_RANGE.maisonMine);  // 내 건물 — 600m (가장 먼저 맞이한다)
   const myUid = await getMyUid().catch(()=>null);
+  myUidCache = myUid;
   const wantU = new URLSearchParams(location.search).get('user');
-  rows.forEach((m)=>{
-    const occupied = (m.status === 'occupied');
-    // 강하 대상(내 집 또는 ?user=닉 상대)만 600m, 나머지 이웃은 500m
-    const isMine = (myUid && m.occupant_id === myUid) || (wantU && m.nickname === wantU);
-    const dd = isMine ? nearMine : near;
+
+  rows.forEach((b)=>{
+    b.city = city;
+    const res_  = residentsOf(b);
+    const lived = res_.length > 0;                       // 사람이 사는 건물
+    const mine  = (myUid && res_.some(r => r.uid === myUid))
+               || (wantU && res_.some(r => r.nickname === wantU));
+    const dd = mine ? nearMine : near;
+
+    // 점 — 세 모습. 내 건물(속 찬 금색·큼) / 이웃(속 찬 금색·작음) / 빈 건물(속 빈 것)
+    const point = {
+      pixelSize: mine ? 11 : (lived ? 9 : 9),
+      color: Cesium.Color.fromCssColorString(lived ? "#ffd23f" : "#0a0e1a"),
+      outlineColor: Cesium.Color.fromCssColorString(lived ? "#1a1407" : "#ffd23f"),
+      outlineWidth: lived ? (mine ? 3 : 2) : 2.5,
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      distanceDisplayCondition: dd
+    };
+
+    // ⭐ 명패는 내 건물에만. 나머지는 label을 아예 만들지 않는다.
     const ent = viewer.entities.add({
-      id:"maison-"+city+"-"+m.maison_no,
-      position: Cesium.Cartesian3.fromDegrees(m.lng, m.lat),
-      point:{ pixelSize: occupied ? 9 : 9,
-              color: Cesium.Color.fromCssColorString(occupied ? "#ffd23f" : "#0a0e1a"),  // 빈집은 속이 빈(어두운) 동그라미
-              outlineColor: Cesium.Color.fromCssColorString(occupied ? "#1a1407" : "#ffd23f"), // 빈집 테두리만 옐로
-              outlineWidth: occupied ? 2 : 2.5,
-              disableDepthTestDistance:Number.POSITIVE_INFINITY,
-              distanceDisplayCondition:dd },
-      label: occupied ? {
-              text: m.nickname || ("메종 "+m.maison_no),
-              font:"bold 13px 'Helvetica Neue',Arial,sans-serif",
-              fillColor:Cesium.Color.fromCssColorString("#1a1407"),                 // 검은 글씨
-              showBackground:true,
-              backgroundColor:Cesium.Color.fromCssColorString("#ffd23f").withAlpha(.96), // 옐로 바탕
-              backgroundPadding:new Cesium.Cartesian2(9,5),
-              pixelOffset:new Cesium.Cartesian2(0,-13),
-              verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
-              disableDepthTestDistance:Number.POSITIVE_INFINITY,
-              distanceDisplayCondition:dd
-            } : {
-              text:"메종 "+m.maison_no,
-              font:"bold 11.5px 'Helvetica Neue',Arial,sans-serif",
-              fillColor:Cesium.Color.fromCssColorString("#ffd23f"),                  // 옐로 글씨
-              outlineColor:Cesium.Color.fromCssColorString("#0a0e1a"), outlineWidth:3,
-              style:Cesium.LabelStyle.FILL_AND_OUTLINE,                              // 글씨에 검은 테두리 → 어디서나 또렷
-              showBackground:true,
-              backgroundColor:Cesium.Color.fromCssColorString("#0a0e1a").withAlpha(.82),
-              backgroundPadding:new Cesium.Cartesian2(8,4),
-              pixelOffset:new Cesium.Cartesian2(0,-12),
-              verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
-              disableDepthTestDistance:Number.POSITIVE_INFINITY,
-              distanceDisplayCondition:dd
-            }
+      id: "maison-" + city + "-" + b.bno,
+      position: Cesium.Cartesian3.fromDegrees(b.lng, b.lat),
+      point,
+      label: mine ? {
+        text: b.name || ("건물 " + b.bno),
+        font: "bold 13px 'Helvetica Neue',Arial,sans-serif",
+        fillColor: Cesium.Color.fromCssColorString("#1a1407"),
+        showBackground: true,
+        backgroundColor: Cesium.Color.fromCssColorString("#ffd23f").withAlpha(.96),
+        backgroundPadding: new Cesium.Cartesian2(9,5),
+        pixelOffset: new Cesium.Cartesian2(0,-15),
+        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        distanceDisplayCondition: dd
+      } : undefined
     });
-    ent._maison = m;  // 클릭 시 openMaison이 꺼내 씀 (nickname·door_no·intro·status)
+    ent._maison = b;   // 꼬리표 이름은 그대로 — 레이어 토글·클릭·좌표편집이 이걸 읽는다
   });
   await clampSpotsToSurface();
   applyLayerVisibility();   // 새로 띄운 마커에 현재 토글 상태 반영
@@ -1456,20 +1490,47 @@ function closeStory(){
   document.getElementById("story").classList.remove("in");
 }
 
-// EG메종 소개 팝업 — 콩파뇽이 쓴 소개글(없으면 디폴트), 입장하기 버튼
-function openMaison(m){
+// EG 건물 팝업 — 건물 이름 + 입주자 명단 (0830 집합주택)
+//  ⭐ 대문 화면을 거치지 않는다. 명단에서 이름을 누르면 그 사람의 분더카머로 곧장 간다.
+function openMaison(b){
   closeStory();
-  currentMaison = m;
-  document.getElementById("mDoor").textContent = "파리 · 메종 " + m.maison_no;
-  document.getElementById("mNick").textContent = m.nickname || ("메종 " + m.maison_no);
+  currentMaison = b;
+  const res_  = residentsOf(b);
+  const sold  = (b.status === 'sold') || res_.length > 0;
+
+  document.getElementById("mDoor").textContent =
+    "파리 라탱 · " + (b.units>1 ? b.units+"채 " : "") + b.slots + "슬롯";
+  document.getElementById("mNick").textContent = b.name || ("빈 건물 " + b.bno);
+
   const _mAv = document.getElementById("mAvatar");
-  if (m.avatar_url) { _mAv.src = m.avatar_url; _mAv.style.display = ""; }
-  else { _mAv.removeAttribute("src"); _mAv.style.display = "none"; }
-  const DEFAULT_INTRO = "아직 주인이 소개글을 남기지 않았습니다. 문 너머에는 이 콩파뇽이 모아온 것들이 조용히 빛나고 있습니다.";
-  document.getElementById("mIntro").textContent = m.intro || DEFAULT_INTRO;
-  // 빈집이면 입장 버튼을 감춤(들어갈 사람이 아직 없음)
-  document.getElementById("mEnter").style.display = m.occupant_id ? "" : "none";
-  if (!m.occupant_id) document.getElementById("mIntro").textContent = "아직 아무도 살지 않는 빈집입니다.";
+  _mAv.removeAttribute("src"); _mAv.style.display = "none";   // 건물에는 얼굴이 없다
+
+  document.getElementById("mIntro").textContent = sold
+    ? (res_.length + "명이 살고 있습니다. 남은 자리 " + (b.slots - res_.length) + "칸.")
+    : "아직 아무도 살지 않는 건물입니다. 이름은 건물주가 짓습니다.";
+
+  // ─ 입주자 명단 ─
+  const list = document.getElementById("mList");
+  list.innerHTML = "";
+  if (res_.length){
+    res_.forEach(r=>{
+      const btn = document.createElement("button");
+      btn.className = "m-res" + (r.uid && r.uid === myUidCache ? " mine" : "");
+      btn.innerHTML =
+        (r.avatar ? '<img class="av" src="'+r.avatar+'" alt="">' : '<span class="av"></span>')
+        + '<span class="nm"></span><span class="sl">'+ r.slot +'호</span>';
+      btn.querySelector('.nm').textContent = r.nickname || "이름 없는 콩파뇽";
+      btn.addEventListener("click", ()=> enterMaison(r));
+      list.appendChild(btn);
+    });
+  } else if (!sold) {
+    const d = document.createElement("div");
+    d.className = "m-empty";
+    d.textContent = "이 건물은 아직 비어 있습니다.";
+    list.appendChild(d);
+  }
+
+  document.getElementById("mEnter").style.display = "none";   // 명단이 곧 문이다
   document.getElementById("maison").classList.add("in");
 }
 function closeMaison(){
@@ -1485,20 +1546,22 @@ function applyDoorImage(m){
   document.querySelectorAll('.door-half').forEach(el => { el.style.backgroundImage = `url('${url}')`; });
 }
 
-function enterMaison(m){
-  if (!m || !m.occupant_id) return;
-  currentMaison = m;            // openDoor가 currentMaison을 읽으므로(팝업 건너뛴 enter=1 직행 대비)
+// 명단에서 이름을 누름 → ⭐ 대문을 거치지 않고 그 콩파뇽의 분더카머로 곧장 (0830)
+//  ⚠ 문짝 애니메이션은 남겨 둔다 — 빠른 길(enterMaisonLite)이 아직 쓴다.
+function enterMaison(r){
+  if (!r || !r.uid || !r.nickname) return;
+  currentMaison = r;                             // 고르기 세 줄이 이 사람을 읽는다
   closeMaison();
-  viewer.useDefaultRenderLoop = false;          // 지구 렌더 정지(세션은 살아 있음)
+  viewer.useDefaultRenderLoop = false;           // 지구 렌더 정지(세션은 살아 있음)
   const dw = document.getElementById("doorway");
-  document.getElementById("doorTitle").textContent = m.nickname || ("메종 " + m.maison_no);
-  { const _ex = document.getElementById("doorExit"); if (_ex) _ex.title = "분더카머 떠나기"; }   // 메종 문패로 원복
-  applyDoorImage(m);
-  refreshDoorPickBtn(m);
-  document.getElementById("doorFrame").src = "about:blank";
-  dw.classList.remove("open");
-  dw.classList.add("in");
-  doorState = 'closed';
+  document.getElementById("doorTitle").textContent = r.nickname;
+  { const _ex = document.getElementById("doorExit"); if (_ex) _ex.title = "분더카머 떠나기"; }
+  applyDoorImage(r);
+  refreshDoorPickBtn(r);
+  document.getElementById("doorFrame").src =
+    "wunderkammer_shell_v4_4.html?user=" + encodeURIComponent(r.nickname) + "&v=" + Date.now();
+  dw.classList.add("in","open");                 // ⭐ 열린 채로 뜬다 — 문짝을 누를 일이 없다
+  doorState = 'open';
 }
 
 // 대문 클릭 → 두 문짝이 좌우로 갈라지고 그 뒤 분더카머가 드러남
@@ -1594,7 +1657,7 @@ async function setupAdminEdit(){
     if (EDIT_MODE){ stopOrbit(); }   // 편집 중엔 회전 멈춤(클릭 정확)
     else { clearSel();
       document.getElementById("editHint").innerHTML =
-        "📍 <b>편집 모드</b> — 옮길 메종 핀을 누른 뒤, 그 집 <b>지붕</b>을 클릭하세요"; }
+        "📍 <b>편집 모드</b> — 옮길 건물 핀을 누른 뒤, 그 건물 <b>지붕</b>을 클릭하세요"; }
   });
 }
 
@@ -1610,17 +1673,18 @@ function selectMaisonForEdit(ent){
     if (!ent._origColor) ent._origColor = ent.point.color;
     ent.point.color = Cesium.Color.fromCssColorString("#7fb3d5");   // 선택 = 시안
   }
-  const no = ent._maison ? ent._maison.maison_no : "?";
+  const b = ent._maison;
+  const nm = b ? (b.name || ("건물 " + b.bno)) : "?";
   document.getElementById("editHint").innerHTML =
-    "📍 <b>메종 " + no + " 선택됨</b> — 이제 그 집 <b>지붕</b>을 클릭하면 옮겨집니다";
+    "📍 <b>" + nm + " 선택됨</b> — 이제 그 건물 <b>지붕</b>을 클릭하면 옮겨집니다";
 }
 
 async function moveMaison(ent, lng, lat){
   if (MOVING) return; MOVING = true;
   try{
-    const no = ent._maison.maison_no;
-    const { error } = await supa.rpc('admin_set_maison_coords',
-      { p_maison_no: no, p_lat: lat, p_lng: lng, p_city: ent._maison.city || 'paris' });
+    const no = ent._maison.bno;
+    const { error } = await supa.rpc('admin_set_building_coords',
+      { p_bno: no, p_lat: lat, p_lng: lng, p_city: ent._maison.city || 'paris' });
     if (error) throw error;
     ent._maison.lat = lat; ent._maison.lng = lng;
     ent.position = Cesium.Cartesian3.fromDegrees(lng, lat);
@@ -1685,13 +1749,13 @@ function flyToEntity(ent){
 async function goToMyHome(){
   const uid = await getMyUid();
   if (!uid){ flyToParisOverview(); return; }            // 로그인 전
-  let ent = viewer.entities.values.find(e => e._maison && e._maison.occupant_id === uid);
+  let ent = findMyBuilding(uid);
   if (!ent){
     const no = await assignMaison(uid);                  // 집 없으면 배정
     if (no){
       viewer.entities.values.filter(e=>e._maison).slice().forEach(e=> viewer.entities.remove(e));
       await loadMaisons('paris');                        // 새 배정 반영해 다시 로드
-      ent = viewer.entities.values.find(e => e._maison && e._maison.occupant_id === uid);
+      ent = findMyBuilding(uid);
     }
   }
   if (ent){ showMaisons = true; applyLayerVisibility(); flyToEntity(ent); }
@@ -1704,19 +1768,19 @@ async function enterByParams(wantUser, wantEnter){
   let ent = null;
   if (wantUser){
     // 남의 집 — 닉네임으로 찾기 (loadMaisons가 띄운 entity에서)
-    ent = viewer.entities.values.find(e => e._maison && e._maison.nickname === wantUser);
+    ent = findBuildingByNick(wantUser);
     if (!ent) console.warn("메종을 찾지 못함(닉):", wantUser);   // (향후: 다른 도시 거주 시 도시 조회·로드)
   } else {
     // 내 집 — getMyUid → 없으면 자동 배정 (goToMyHome과 같은 로직)
     const uid = await getMyUid();
     if (uid){
-      ent = viewer.entities.values.find(e => e._maison && e._maison.occupant_id === uid);
+      ent = findMyBuilding(uid);
       if (!ent){
         const no = await assignMaison(uid);
         if (no){
           viewer.entities.values.filter(e=>e._maison).slice().forEach(e=> viewer.entities.remove(e));
           await loadMaisons('paris');
-          ent = viewer.entities.values.find(e => e._maison && e._maison.occupant_id === uid);
+          ent = findMyBuilding(uid);
         }
       }
     }
@@ -1733,8 +1797,10 @@ async function enterByParams(wantUser, wantEnter){
 
   // 3) enter=1 → 도시 강하 생략하고 곧장 노커 대문
   if (wantEnter){
-    if (ent._maison && ent._maison.occupant_id){ enterMaison(ent._maison); }
-    else { flyToEntity(ent); }            // 빈집/예외 → 강하해서 보여주기
+    const who = residentsOf(ent._maison).find(r =>
+      wantUser ? r.nickname === wantUser : r.uid === myUidCache);
+    if (who){ enterMaison(who); }
+    else { flyToEntity(ent); }            // 빈 건물/예외 → 강하해서 보여주기
     return;
   }
 
