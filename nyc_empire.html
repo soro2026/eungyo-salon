@@ -264,6 +264,13 @@ const tierGap = b => ((b.ceil!=null?b.ceil:0) - (b.floor!=null?b.floor:0)) / (TI
       보이는 거리에서 정작 내 집이 사라졌다. 「멀리서 건물 명패 하나 + 내 창 하나」가
       결정문 8호의 그림인데, 그 둘의 거리를 다르게 매긴 것이 어긋남이었다.
    ⭐ 내 창은 지붕 명패와 **같은 거리**를 쓴다. 둘이 함께 뜨고 함께 진다. */
+/* ⚠⚠ 0830 소로 — 「파리·런던 기준으로 뉴욕을 보니 핀이 거의 인식 힘듦」.
+     30km 는 명패에는 넓지만 **점에는 좁았다.** 파리·런던은 건물이 낮아 도시 전체가
+     한 화면에 드는 고도가 10~20km 인데, 뉴욕은 마천루가 높아 더 멀리서 잡게 된다.
+   ⭐ 점과 명패의 거리를 가른다 — 점은 멀리까지, 명패는 지금 그대로.
+     ⚠ 우주까지 늘리지는 않는다. terra 0802 딱지가 「1,000km 상공에서도 이름표가
+       그려졌다」를 문제로 적어 두었다. 80km 는 뉴욕 전역이 한 화면에 드는 고도의 위다. */
+const D_PIN  = 80000;           // ⭐ 건물 점 80km — 멀리서 별자리처럼
 const D_ROOF = 30000;           // 건물 명패 30km
 const D_MINE = 30000;           // ⭐ 내 집 — 지붕 명패와 같다
 const D_WIN  = 1300;            // 이웃 53칸 — 가까이 가야 보인다
@@ -409,11 +416,11 @@ async function drawOthers(){
     const ent = viewer.entities.add({
       id:"nyc-bld-" + b.key,
       position: Cesium.Cartesian3.fromDegrees(b.lng, b.lat, h + 26),
-      point:{ pixelSize:11,
+      point:{ pixelSize:14,
               color:Cesium.Color.fromCssColorString("#ffd23f"),
               outlineColor:Cesium.Color.fromCssColorString("#1a1407"), outlineWidth:2,
-              disableDepthTestDistance:0,
-              distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0, D_ROOF) },
+              disableDepthTestDistance:Number.POSITIVE_INFINITY,
+              distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0, D_PIN) },
       label:{ text:b.name,
               font:"15px Georgia,'Nanum Myeongjo','Apple SD Gothic Neo',serif",
               fillColor:Cesium.Color.fromCssColorString("#1a1407"),
@@ -428,7 +435,7 @@ async function drawOthers(){
     });
     ent._roof = true;                    /* 호버 배선 공유 — 점만, 닿으면 이름 */
     ent._bld  = b;                       /* 클릭 분기 — 현관으로 */
-    ent._basePx = 11;
+    ent._basePx = 14;
     ent.label.show = !CAN_HOVER;
     otherEnts.push(ent);
   }
@@ -554,11 +561,15 @@ function drawRoof(){
   roofEnt = viewer.entities.add({
     id:"nyc-roof",
     position: Cesium.Cartesian3.fromDegrees(b.lng, b.lat, h),
-    point:{ pixelSize:11,
+    /* ⚠⚠ 0830 — 여기가 「인식 힘듦」의 진짜 원인이었다. 깊이 검사가 켜져 있어
+       뉴욕 마천루 숲에서 핀이 앞 건물에 통째로 가렸다. 파리·런던은 건물이 낮아
+       같은 값으로도 잘 보였고, 그래서 어제까지 드러나지 않았다.
+       ⭐ 건물 핀은 그 건물의 이름표다 — 무엇에도 가리지 않는다. */
+    point:{ pixelSize:14,
             color:Cesium.Color.fromCssColorString("#ffd23f"),
             outlineColor:Cesium.Color.fromCssColorString("#1a1407"), outlineWidth:2,
-            disableDepthTestDistance:0,
-            distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0, D_ROOF) },
+            disableDepthTestDistance:Number.POSITIVE_INFINITY,
+            distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0, D_PIN) },
     label:{ text: b.name,
             font:"15px Georgia,'Nanum Myeongjo','Apple SD Gothic Neo',serif",
             fillColor:Cesium.Color.fromCssColorString("#1a1407"),
@@ -568,11 +579,11 @@ function drawRoof(){
             pixelOffset:new Cesium.Cartesian2(0,-15),
             verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
             horizontalOrigin:Cesium.HorizontalOrigin.CENTER,
-            disableDepthTestDistance:0,
+            disableDepthTestDistance:Number.POSITIVE_INFINITY,
             distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0, D_ROOF) }
   });
   roofEnt._roof = true;
-  roofEnt._basePx = 11;
+  roofEnt._basePx = 14;
   roofEnt.label.show = !CAN_HOVER;   /* ⭐ 마우스가 있으면 점만 · 없으면 명패 그대로 */
   roofEnt.show = showRoof;
   hoveredEnt = null;                 /* 다시 그렸으니 호버 기억을 버린다 */
@@ -756,6 +767,9 @@ function sampleSigns(){
     const pool = rows.filter(r=> r.status==='occupied' && slotFace(slotOf(r)) === f);
     for (let i=pool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
     pool.slice(0, SHOW_PER_FACE).forEach(r=> sampleSet.add(r.maison_no));
+    console.log("[EG] " + FACE_NAMES[f] + "면 — 입주 " + pool.length
+              + "명 중 " + Math.min(pool.length, SHOW_PER_FACE) + "명 추첨"
+              + (pool.length <= SHOW_PER_FACE ? "  ⚠ 상한 미달 · 전원 통과" : ""));
   }
   return sampleSet;
 }
