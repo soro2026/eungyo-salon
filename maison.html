@@ -782,7 +782,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   viewer.trackedEntity = undefined;
   viewer.scene.screenSpaceCameraController.minimumZoomDistance = 60;   // 지표 60m 위까지만
   await loadCityMarkers('paris');   // 도시 핀(인물 장소)
-  await loadMaisons('paris');       // EG메종 집 핀 (옐로 라벨)
+  await loadMaisons(null);       // EG메종 집 핀 (옐로 라벨)
   await loadPopups('paris');        // 출판사 팝업 명패 핀
   await loadPalais('paris');        // 전당(지식채널) 청록 핀
   loadCityList();
@@ -1029,7 +1029,7 @@ async function loadMaisons(city){
   const wantU = new URLSearchParams(location.search).get('user');
 
   rows.forEach((b)=>{
-    b.city = city;
+    b.city = b.city || city || "paris";   /* 0830 — RPC가 준 도시가 먼저다 */
     const res_  = residentsOf(b);
     const lived = res_.length > 0;                       // 사람이 사는 건물
     const meRec = res_.find(r => (myUid && r.uid === myUid)
@@ -1329,7 +1329,7 @@ async function jumpToCity(c){
   viewer.entities.values.filter(e=>e._spot || e._maison || e._popup || e._palais).slice().forEach(e=> viewer.entities.remove(e));
   // 새 도시 마커를 먼저 로드 — 1호 핀 좌표를 잡고 표면 클램프(함수 내부)까지 끝낸 뒤 비행
   await loadCityMarkers(c.city);
-  await loadMaisons(c.city);
+  await loadMaisons(null);
   await loadPopups(c.city);
   await loadPalais(c.city);
 
@@ -1421,7 +1421,7 @@ async function jumpToStarPlace(starId){
     if (typeof renderStarList === 'function') renderStarList();
     viewer.entities.values.filter(e=>e._spot || e._maison || e._popup || e._palais).slice().forEach(e=> viewer.entities.remove(e));
     await loadCityMarkers(rep.city);
-    await loadMaisons(rep.city);
+    await loadMaisons(null);
     await loadPopups(rep.city);
     await loadPalais(rep.city);
   }
@@ -1839,7 +1839,7 @@ async function goToMyHome(){
     const no = await assignMaison(uid);                  // 집 없으면 배정
     if (no){
       viewer.entities.values.filter(e=>e._maison).slice().forEach(e=> viewer.entities.remove(e));
-      await loadMaisons('paris');                        // 새 배정 반영해 다시 로드
+      await loadMaisons(null);                        // 새 배정 반영해 다시 로드
       ent = findMyBuilding(uid);
     }
   }
@@ -1864,7 +1864,7 @@ async function enterByParams(wantUser, wantEnter){
         const no = await assignMaison(uid);
         if (no){
           viewer.entities.values.filter(e=>e._maison).slice().forEach(e=> viewer.entities.remove(e));
-          await loadMaisons('paris');
+          await loadMaisons(null);
           ent = findMyBuilding(uid);
         }
       }

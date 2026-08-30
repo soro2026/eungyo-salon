@@ -810,7 +810,7 @@ async function loadMaisons(city){
   const wantU = new URLSearchParams(location.search).get('user');
 
   rows.forEach((b)=>{
-    b.city = city;
+    b.city = b.city || city || "paris";   /* 0830 — RPC가 준 도시가 먼저다 */
     const res_  = residentsOf(b);
     const lived = res_.length > 0;
     const meRec = res_.find(r => (myUid && r.uid === myUid)
@@ -819,7 +819,7 @@ async function loadMaisons(city){
     const myName = meRec ? (meRec.nickname || "") : "";
     const dd = mine ? nearMine : near;
     const ent = viewer.entities.add({
-      id:"maison-"+city+"-"+b.bno,
+      id:"maison-"+b.city+"-"+b.bno,
       position: Cesium.Cartesian3.fromDegrees(b.lng, b.lat),
       point:{ pixelSize: mine ? 11 : 9,
               color: Cesium.Color.fromCssColorString(lived ? "#ffd23f" : "#0a0e1a"),
@@ -1525,7 +1525,7 @@ async function goToMyHome(){
     const no = await assignMaison(uid);                  // 집 없으면 배정
     if (no){
       viewer.entities.values.filter(e=>e._maison).slice().forEach(e=> viewer.entities.remove(e));
-      await loadMaisons('paris');                        // 새 배정 반영해 다시 로드
+      await loadMaisons(null);                        // 새 배정 반영해 다시 로드
       ent = findMyBuilding(uid);
     }
   }
