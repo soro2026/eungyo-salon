@@ -1802,7 +1802,10 @@ window.EGQ = (function(){
   <div class="who" id="pickWho">건물을 고르세요</div>
   <div class="row" id="pickRow"></div>
   <div class="row faceRow" id="faceRow"></div>
-  <div class="row"><button id="pickSave" class="save">⭐ 서버에 저장</button></div>
+  <div class="row">
+    <button id="pickAll">◻︎ 전체 슬롯</button>
+    <button id="pickSave" class="save">⭐ 서버에 저장</button>
+  </div>
 </div>
 <div id="editHint">📍 <b>편집 모드</b> — 옮길 건물 핀을 누른 뒤, 그 건물 <b>지붕</b>을 클릭하세요</div>
 
@@ -2716,6 +2719,40 @@ function sampleSigns(b){
   return set;
 }
 
+/* ⚠⚠ 0830 — 이 다섯은 **여기(블록 13)에 선언해야 한다.** 짚기 막대는 블록 14에 살지만
+     격자·간판을 그리는 손이 블록 13에 있고, 부팅이 블록 13에서 먼저 돈다.
+     블록 14에 두면 첫 그리기에서 「선언 전 참조」로 터진다(딱지 0817). */
+let PICK = "roof", PFACE = 0, PICK_BLD = null, PICK_DIRTY = false;
+let SHOW_ALL_SLOTS = false;          // ⭐ 0830 — 빈 칸까지 전부 보기
+/* ⭐ 벽·폭을 짚는 동안은 그 면만 남긴다 — 나머지 세 면이 사라져야 무엇을 만지는지 보인다. */
+function pickDimsOther(){ return (typeof EDIT_MODE !== "undefined") && EDIT_MODE
+                              && PICK_BLD && (PICK === "wall" || PICK === "wide"); }
+
+/* ⭐ 0830 소로 — 「전체 슬롯 띄우기를 버튼에」. 입주자가 없는 칸까지 다 그린다.
+   ⚠ 벽·폭을 짚을 때는 이게 있어야 한 면이 몇 칸인지 눈에 잡힌다.
+     평소엔 끈다 — 216개 점이 늘 떠 있으면 도시가 안 보인다. */
+let gridEnts = [];
+function drawSlotGrid(){
+  gridEnts.forEach(e=> viewer.entities.remove(e)); gridEnts = [];
+  const b = PICK_BLD;
+  if (!SHOW_ALL_SLOTS || !b || !b.wall || b.wall.ceil == null) return;
+  const taken = new Set(residentsOf(b).map(r=> r.slot));
+  for (let slot = 1; slot <= (b.slots || 216); slot++){
+    if (taken.has(slot)) continue;                       // 사는 칸은 간판이 표지다
+    const a = signAnchor(b, slot);
+    if (pickDimsOther() && a.face !== PFACE) continue;    // 짚는 면만
+    const e = viewer.entities.add({
+      id: "slotgrid-" + b.city + "-" + b.bno + "-" + slot,
+      position: Cesium.Cartesian3.fromDegrees(a.lng, a.lat, a.h),
+      point:{ pixelSize:7, color:Cesium.Color.fromCssColorString("#0a0e1a"),
+              outlineColor:Cesium.Color.fromCssColorString("#ffd23f"), outlineWidth:2,
+              distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0, SIGN_D) }
+    });
+    gridEnts.push(e);
+  }
+  console.log("[EG] 빈 칸 격자 " + gridEnts.length + "개");
+}
+
 async function drawWallSigns(){
   signEnts.forEach(e=> viewer.entities.remove(e)); signEnts = [];
   const blds = viewer.entities.values
@@ -2729,7 +2766,12 @@ async function drawWallSigns(){
   blds.forEach(b=>{
     const pick = sampleSigns(b);
     residentsOf(b).forEach(r=>{
-      if (!r.slot || !pick.has(r.slot)) return;
+      if (!r.slot) return;
+      /* ⭐ 전체 보기면 추첨을 건너뛴다 — 짚을 때는 다 보여야 한다 */
+      if (!SHOW_ALL_SLOTS && !pick.has(r.slot)) return;
+      /* ⭐ 짚는 면만 남긴다 (남 0 · 동 1 · 북 2 · 서 3) */
+      if (pickDimsOther() && PICK_BLD && b.bno === PICK_BLD.bno && b.city === PICK_BLD.city
+          && signAnchor(b, r.slot).face !== PFACE) return;
       const a  = signAnchor(b, r.slot);
       const cv = signPlate(r.nickname || ("슬롯 " + r.slot));
       const HM = signHM(b), widthM = HM * (cv.width / cv.height);
@@ -2751,6 +2793,7 @@ async function drawWallSigns(){
       signEnts.push(e);
     });
   });
+  drawSlotGrid();                       /* ⭐ 빈 칸 격자도 함께 */
   console.log("[EG] 벽 간판 " + signEnts.length + "장");
 }
 function findMyBuilding(uid){
@@ -4149,7 +4192,6 @@ const PICKS = [
   { key:"wide",  label:"폭",    hint:"이 면의 <b>좌우 끝</b>을 클릭하세요 — 두 열이 그 안에 앉습니다" }
 ];
 const PICK_FACE_KO = ["남","동","북","서"];
-let PICK = "roof", PFACE = 0, PICK_BLD = null, PICK_DIRTY = false;
 
 function pickBarPaint(){
   const row = document.getElementById("pickRow"), fr = document.getElementById("faceRow");
@@ -4157,20 +4199,26 @@ function pickBarPaint(){
     PICKS.forEach(p=>{
       const b = document.createElement("button");
       b.id = "pick-" + p.key; b.textContent = p.label;
-      b.onclick = ()=>{ PICK = p.key; pickBarPaint(); pickHint(); };
+      b.onclick = ()=>{ PICK = p.key; pickBarPaint(); pickHint(); drawWallSigns(); };
       row.appendChild(b);
     });
     PICK_FACE_KO.forEach((nm,f)=>{
       const b = document.createElement("button");
       b.id = "face-" + f; b.textContent = nm + "면";
-      b.onclick = ()=>{ PFACE = f; pickBarPaint(); pickHint(); };
+      b.onclick = ()=>{ PFACE = f; pickBarPaint(); pickHint(); drawWallSigns(); };
       fr.appendChild(b);
     });
     document.getElementById("pickSave").onclick = savePickedWall;
+    document.getElementById("pickAll").onclick = ()=>{
+      SHOW_ALL_SLOTS = !SHOW_ALL_SLOTS; pickBarPaint(); drawWallSigns();
+    };
   }
   PICKS.forEach(p=> document.getElementById("pick-"+p.key).classList.toggle("on", PICK === p.key));
   PICK_FACE_KO.forEach((_,f)=> document.getElementById("face-"+f).classList.toggle("on", PFACE === f));
   fr.style.opacity = (PICK === "wall" || PICK === "wide") ? "1" : ".32";
+  const ab = document.getElementById("pickAll");
+  ab.classList.toggle("on", SHOW_ALL_SLOTS);
+  ab.textContent = SHOW_ALL_SLOTS ? "◼︎ 전체 슬롯" : "◻︎ 전체 슬롯";
   document.getElementById("pickWho").innerHTML = PICK_BLD
     ? ((PICK_BLD.wall && PICK_BLD.wall.landmark ? PICK_BLD.wall.landmark : ("건물 " + PICK_BLD.bno))
        + " · " + PICK_BLD.city + (PICK_DIRTY ? "  ⚠ 저장 안 됨" : ""))
@@ -4189,7 +4237,8 @@ function pickBarOpen(b){
   pickBarPaint(); pickHint();
 }
 function pickBarClose(){
-  PICK_BLD = null;
+  PICK_BLD = null; SHOW_ALL_SLOTS = false;
+  gridEnts.forEach(e=> viewer.entities.remove(e)); gridEnts = [];
   document.getElementById("pickBar").classList.remove("in");
 }
 
