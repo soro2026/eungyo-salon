@@ -402,6 +402,7 @@ window.EGQ = (function(){
   /* ══════ 0717 나침반 통합 메뉴 (기획결정문 v1.0) ══════ */
   /* 기존 6버튼 중 5개는 나침반 패널로 이주 — HTML·핸들러는 재활용, 화면에서만 숨김 */
   #cityBtn,#starBtn,#layerSpots,#layerMaisons,#editToggle{ display:none !important; }
+  #pickBar{ bottom:118px }
 
   /* 0816 — 나침반이 타륜 왼편으로 왔다. 살롱지기에게만 뜬다(admin 판정에서 켠다).
      top 18 = 타륜(top 10 · 74px)과 세로 한가운데를 맞춘 값. right 116 = 타륜 그늘에서 12px 떨어진 곳. */
@@ -1111,6 +1112,20 @@ window.EGQ = (function(){
   @media (prefers-reduced-motion:reduce){
     #title,#card{transition:none}
   }
+  /* ── 짚기 막대 (0830 · 벽값 편집) — 편집 모드에서 건물을 고르면 뜬다 ── */
+#pickBar{ position:fixed; left:50%; transform:translateX(-50%); bottom:96px; z-index:60;
+  display:none; gap:6px; flex-direction:column; align-items:center;
+  background:rgba(8,11,20,.94); border:1px solid #2a3550; border-radius:14px;
+  padding:9px 12px; box-shadow:0 8px 28px rgba(0,0,0,.5); max-width:94vw }
+#pickBar.in{ display:flex }
+#pickBar .row{ display:flex; gap:6px; flex-wrap:wrap; justify-content:center }
+#pickBar .who{ font:600 11.5px/1.3 -apple-system,system-ui,sans-serif; color:#8fa3c8;
+  letter-spacing:.02em; margin-bottom:1px }
+#pickBar button{ font:600 12px/1 -apple-system,system-ui,sans-serif; color:#cfe0ff;
+  background:#141c2e; border:1px solid #2a3550; border-radius:9px; padding:7px 11px; cursor:pointer }
+#pickBar button.on{ background:#7fb3d5; color:#05070f; border-color:#7fb3d5 }
+#pickBar button.save{ background:#ffd23f; color:#1a1407; border-color:#ffd23f }
+#pickBar .faceRow{ opacity:.32; transition:opacity .15s }
   #editToggle.on{ background:#7fb3d5; color:#05070f; border-color:#7fb3d5 }
   #editHint{ position:absolute; left:50%; top:62px; transform:translateX(-50%); z-index:22;
     display:none; background:rgba(127,179,213,.18); border:1px solid #7fb3d5; color:#eaf4fb;
@@ -1782,6 +1797,13 @@ window.EGQ = (function(){
 <button id="layerSpots" class="layer-btn on">🏛 인물 장소</button>
 <button id="layerMaisons" class="layer-btn">🏠 콩파뇽 집</button>
 <button id="editToggle" class="layer-btn" style="display:none">📍 좌표 편집</button>
+<!-- 0830 — 짚기 막대. 편집 모드에서 wall 을 가진(또는 가질) 건물을 고르면 선다. -->
+<div id="pickBar">
+  <div class="who" id="pickWho">건물을 고르세요</div>
+  <div class="row" id="pickRow"></div>
+  <div class="row faceRow" id="faceRow"></div>
+  <div class="row"><button id="pickSave" class="save">⭐ 서버에 저장</button></div>
+</div>
 <div id="editHint">📍 <b>편집 모드</b> — 옮길 건물 핀을 누른 뒤, 그 건물 <b>지붕</b>을 클릭하세요</div>
 
 <div id="title">
@@ -3977,7 +3999,7 @@ async function setupAdminEdit(){
     btn.classList.toggle("on", EDIT_MODE);
     document.getElementById("editHint").classList.toggle("in", EDIT_MODE);
     if (EDIT_MODE){ stopOrbit(); }   // 편집 중엔 회전 멈춤(클릭 정확)
-    else { clearSel();
+    else { clearSel(); pickBarClose();   /* ⭐ 0830 — 편집을 끄면 짚기 막대도 닫는다 */
       document.getElementById("editHint").innerHTML =
         "📍 <b>편집 모드</b> — 옮길 건물 핀을 누른 뒤, 그 건물 <b>지붕</b>을 클릭하세요"; }
   });
@@ -4110,11 +4132,154 @@ async function moveSelected(ent, lng, lat){
 }
 const moveMaison = (ent, lng, lat) => moveSelected(ent, lng, lat);   /* 옛 이름 별칭 */
 
+/* ══════════════════ 짚기 편집기 (0830 · 목업에서 이식) ══════════════════
+   ⚠⚠ 0829 소로 — 「콕 짚는 것도 어려웠다. 수직으로는 쉽지 않더라」.
+      원인은 파리 편집기를 그대로 옮긴 것이었다. 파리에서 옮기는 것은 평면 위의
+      한 점이라 클릭 하나가 답을 다 준다. 뉴욕에서 옮기는 것은 수직 구간과 면의
+      깊이인데, 클릭은 위경도·높이를 한꺼번에 준다.
+   ⭐ 그래서 **무엇을 짚는지 먼저 고르고, 클릭에서 한 축만 받는다.**
+        지붕  위경도+높이     천장·바닥  높이만       벽  바깥 성분만    폭  옆 성분만
+   ⭐⭐ 목업과 다른 점 하나 — 목업은 값을 콘솔로 회수했지만 여기서는
+      admin_set_building_wall 로 **그 자리에서 서버에 앉힌다**(0830 소로). */
+const PICKS = [
+  { key:"roof",  label:"지붕",  hint:"건물 <b>꼭대기</b>를 클릭하세요 — 그 지점이 중심이자 지붕 높이가 됩니다" },
+  { key:"ceil",  label:"천장",  hint:"간판을 걸 <b>맨 윗줄</b> 높이를 클릭하세요 — 높이만 받습니다" },
+  { key:"floor", label:"바닥",  hint:"간판을 걸 <b>맨 아랫줄</b> 높이를 클릭하세요 — 높이만 받습니다" },
+  { key:"wall",  label:"벽",    hint:"이 면의 <b>벽</b>을 클릭하세요 — 중심에서의 거리를 받습니다" },
+  { key:"wide",  label:"폭",    hint:"이 면의 <b>좌우 끝</b>을 클릭하세요 — 두 열이 그 안에 앉습니다" }
+];
+const PICK_FACE_KO = ["남","동","북","서"];
+let PICK = "roof", PFACE = 0, PICK_BLD = null, PICK_DIRTY = false;
+
+function pickBarPaint(){
+  const row = document.getElementById("pickRow"), fr = document.getElementById("faceRow");
+  if (!row.children.length){
+    PICKS.forEach(p=>{
+      const b = document.createElement("button");
+      b.id = "pick-" + p.key; b.textContent = p.label;
+      b.onclick = ()=>{ PICK = p.key; pickBarPaint(); pickHint(); };
+      row.appendChild(b);
+    });
+    PICK_FACE_KO.forEach((nm,f)=>{
+      const b = document.createElement("button");
+      b.id = "face-" + f; b.textContent = nm + "면";
+      b.onclick = ()=>{ PFACE = f; pickBarPaint(); pickHint(); };
+      fr.appendChild(b);
+    });
+    document.getElementById("pickSave").onclick = savePickedWall;
+  }
+  PICKS.forEach(p=> document.getElementById("pick-"+p.key).classList.toggle("on", PICK === p.key));
+  PICK_FACE_KO.forEach((_,f)=> document.getElementById("face-"+f).classList.toggle("on", PFACE === f));
+  fr.style.opacity = (PICK === "wall" || PICK === "wide") ? "1" : ".32";
+  document.getElementById("pickWho").innerHTML = PICK_BLD
+    ? ((PICK_BLD.wall && PICK_BLD.wall.landmark ? PICK_BLD.wall.landmark : ("건물 " + PICK_BLD.bno))
+       + " · " + PICK_BLD.city + (PICK_DIRTY ? "  ⚠ 저장 안 됨" : ""))
+    : "건물 핀을 고르세요";
+}
+function pickHint(){
+  const p = PICKS.find(x=> x.key === PICK); if (!p || !PICK_BLD) return;
+  const who = (PICK==="wall"||PICK==="wide") ? (" · <b>"+PICK_FACE_KO[PFACE]+"면</b>") : "";
+  document.getElementById("editHint").innerHTML = "📍 " + p.label + " 짚기" + who + " — " + p.hint;
+}
+/* 건물을 편집 대상으로 고르면 짚기 막대가 선다 */
+function pickBarOpen(b){
+  PICK_BLD = b; PICK_DIRTY = false;
+  b.wall = b.wall || {};
+  document.getElementById("pickBar").classList.add("in");
+  pickBarPaint(); pickHint();
+}
+function pickBarClose(){
+  PICK_BLD = null;
+  document.getElementById("pickBar").classList.remove("in");
+}
+
+/* 클릭 하나에서 한 축만 꺼낸다 */
+function applyPick(lat, lng, h){
+  const b = PICK_BLD; if (!b) return false;
+  const w = b.wall;
+  if (PICK === "roof"){
+    b.lat = lat; b.lng = lng; w.roof = h;
+    supa.rpc('admin_set_building_coords', { p_bno:b.bno, p_lat:lat, p_lng:lng, p_city:b.city });
+    PICK_DIRTY = true; pickBarPaint();
+    document.getElementById("editHint").innerHTML =
+      "✅ <b>지붕</b> <code>" + h.toFixed(1) + "m</code> · 좌표는 바로 저장됨 — 벽값은 [서버에 저장]";
+    drawWallSigns(); return true;
+  }
+  if (PICK === "ceil" || PICK === "floor"){
+    if (PICK === "ceil"){ w.ceil = h; if (w.floor != null && w.floor >= h - 20) w.floor = h - 20; }
+    else               { w.floor = h; if (w.ceil  != null && h >= w.ceil - 20) w.floor = w.ceil - 20; }
+    PICK_DIRTY = true; pickBarPaint(); drawWallSigns();
+    document.getElementById("editHint").innerHTML =
+      "✅ <b>" + (PICK==="ceil"?"천장":"바닥") + "</b> <code>" + h.toFixed(1) + "m</code>"
+      + (w.ceil!=null && w.floor!=null ? " · 구간 <code>" + Math.round(w.floor) + "~" + Math.round(w.ceil) + "m</code>" : "")
+      + " — [서버에 저장] 누르세요";
+    return true;
+  }
+  /* 벽·폭 — 클릭점을 그 면의 방위로 분해한다 */
+  const az   = SIGN_AZ_FACE(PFACE);
+  const dN   = (lat - b.lat) * 111320;
+  const dE   = (lng - b.lng) * 111320 * Math.cos(Cesium.Math.toRadians(b.lat));
+  const rad  = Cesium.Math.toRadians(az);
+  const along = dN*Math.cos(rad) + dE*Math.sin(rad);
+  const cross = -dN*Math.sin(rad) + dE*Math.cos(rad);
+  if (PICK === "wall"){
+    w.out = w.out || [23,23,23,23];
+    w.out[PFACE] = Math.max(4, along + 1.5);          /* 벽에서 1.5m 띄운다 */
+    PICK_DIRTY = true; pickBarPaint(); drawWallSigns();
+    document.getElementById("editHint").innerHTML =
+      "✅ <b>" + PICK_FACE_KO[PFACE] + "면 벽</b> <code>" + w.out[PFACE].toFixed(1) + "m</code> — [서버에 저장]";
+    return true;
+  }
+  if (PICK === "wide"){
+    w.wide = w.wide || [12,12,12,12];
+    w.wide[PFACE] = Math.max(2, Math.abs(cross));
+    PICK_DIRTY = true; pickBarPaint(); drawWallSigns();
+    document.getElementById("editHint").innerHTML =
+      "✅ <b>" + PICK_FACE_KO[PFACE] + "면 폭</b> <code>±" + w.wide[PFACE].toFixed(1) + "m</code> — [서버에 저장]";
+    return true;
+  }
+  return false;
+}
+
+/* ⭐ 서버에 앉힌다 — 한 축씩 덧쓴다(patch). 짚지 않은 값은 그대로 남는다. */
+async function savePickedWall(){
+  const b = PICK_BLD; if (!b) return;
+  const w = b.wall || {}, patch = {};
+  ["roof","ceil","floor","out","wide"].forEach(k=>{ if (w[k] != null) patch[k] = w[k]; });
+  if (!Object.keys(patch).length){
+    document.getElementById("editHint").innerHTML = "⚠️ 저장할 값이 없습니다 — 먼저 짚으세요"; return;
+  }
+  try{
+    const { data, error } = await supa.rpc('admin_set_building_wall',
+      { p_city:b.city, p_bno:b.bno, p_patch:patch });
+    if (error) throw error;
+    b.wall = data; PICK_DIRTY = false; pickBarPaint(); drawWallSigns();
+    document.getElementById("editHint").innerHTML =
+      "⭐ <b>저장 완료</b> — 천장 <code>" + (data.ceil!=null?Math.round(data.ceil):"?")
+      + "</code> · 바닥 <code>" + (data.floor!=null?Math.round(data.floor):"?") + "</code>"
+      + " · 벽 [" + (data.out||[]).map(v=>v.toFixed(0)).join(",") + "]";
+    console.log("[EG] wall 저장", b.city, b.bno, data);
+  }catch(e){
+    console.warn("wall 저장 실패", e);
+    document.getElementById("editHint").innerHTML = "⚠️ 저장 실패 — 콘솔을 확인하세요";
+  }
+}
+
 function handleEditClick(click){
   const picked = viewer.scene.pick(click.position);
   if (Cesium.defined(picked) && picked.id && editKindOf(picked.id)){
     selectForEdit(picked.id);            // 핀 클릭 → 선택
+    /* ⭐ 0830 — 건물이면 짚기 막대도 함께 연다 (벽값을 짚을 수 있는 것은 건물뿐) */
+    if (picked.id._maison) pickBarOpen(picked.id._maison); else pickBarClose();
     return;
+  }
+  /* ⭐ 짚기 막대가 열려 있으면 클릭은 「한 축」으로 간다 — 지붕 말고는 옮기지 않는다 */
+  if (PICK_BLD && viewer.scene.pickPositionSupported){
+    const c = viewer.scene.pickPosition(click.position);
+    if (Cesium.defined(c)){
+      const g = Cesium.Cartographic.fromCartesian(c);
+      if (applyPick(Cesium.Math.toDegrees(g.latitude), Cesium.Math.toDegrees(g.longitude), g.height)) return;
+    }
   }
   if (!selEnt){
     document.getElementById("editHint").innerHTML =
