@@ -319,7 +319,7 @@
     transform:translateX(100%);
     transition:transform .55s cubic-bezier(.22,.61,.36,1);
     padding:60px 32px 36px;overflow-y:auto;
-    display:flex;flex-direction:column;
+    display:flex;flex-direction:column;justify-content:flex-start;
   }
   #maison.in{transform:none}
   #maison .close{
@@ -340,9 +340,10 @@
     margin-bottom:16px;display:block;
   }
   #maison .m-nick{font-family:var(--serif);font-size:32px;line-height:1.1;margin:0 0 .35em;color:var(--cream)}
-  #maison .m-intro{font-family:var(--serif);font-size:15px;line-height:1.82;color:var(--cream-dim);margin-bottom:28px;flex:1}
+  #maison .m-intro{font-family:var(--serif);font-size:15px;line-height:1.82;color:var(--cream-dim);margin-bottom:28px}
   /* 입주자 명단 — 건물 하나에 여럿이 산다 (0830 집합주택) */
-  #maison .m-list{ flex:1; overflow-y:auto; margin:0 0 22px; min-height:0 }
+  #maison .m-list{ overflow-y:auto; margin:0 0 22px; min-height:0;
+    align-self:stretch }   /* ⭐ 0830 — 위에서부터 쌓인다 */
   #maison .m-list:empty{ display:none }
   #maison .m-res{
     display:flex; align-items:center; gap:10px; width:100%;
@@ -835,6 +836,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   handler.setInputAction((mv)=>{
     const picked = viewer.scene.pick(mv.endPosition);
     const ent = (Cesium.defined(picked) && picked.id && (picked.id._maison || picked.id._spot || picked.id._popup || picked.id._palais)) ? picked.id : null;
+    bldHoverTip(ent, mv);                 // ⭐ 0830 — 건물 이름표(커서 추적)
     if (ent === hoveredEnt) return;
     if (hoveredEnt && hoveredEnt.point) hoveredEnt.point.pixelSize = hoveredEnt._basePx || 9;
     if (ent && ent.point){
@@ -901,6 +903,7 @@ function buildJourney(){
   handler.setInputAction((mv)=>{
     const picked = viewer.scene.pick(mv.endPosition);
     const ent = (Cesium.defined(picked) && picked.id && (picked.id._maison || picked.id._spot || picked.id._popup || picked.id._palais)) ? picked.id : null;
+    bldHoverTip(ent, mv);                 // ⭐ 0830 — 건물 이름표(커서 추적)
     if (ent === hoveredEnt) return;
     if (hoveredEnt && hoveredEnt.point) hoveredEnt.point.pixelSize = hoveredEnt._basePx || 9;
     if (ent && ent.point){
@@ -969,6 +972,34 @@ async function loadCityMarkers(city){
 // ──────────────────────────────────────────────────────────────────
 let myUidCache = null;
 
+/* ── 건물 호버 이름표 (0830) — 남의 건물·빈 건물도 이름은 보인다 ── */
+let _bldTipEl = null;
+function bldHoverTip(ent, mv){
+  if (!_bldTipEl){
+    _bldTipEl = document.createElement('div');
+    _bldTipEl.id = 'bldTip';
+    _bldTipEl.style.cssText =
+      'position:fixed;z-index:60;pointer-events:none;display:none;'
+    + 'padding:5px 10px;border-radius:7px;white-space:nowrap;'
+    + 'background:rgba(10,14,26,.93);border:1px solid rgba(255,210,63,.45);'
+    + 'color:#ffd23f;font-size:12.5px;letter-spacing:.02em;'
+    + 'font-family:Georgia,"Nanum Myeongjo","Apple SD Gothic Neo",serif;'
+    + 'transform:translate(-50%,-160%);box-shadow:0 4px 14px rgba(0,0,0,.4)';
+    document.body.appendChild(_bldTipEl);
+  }
+  const b = ent && ent._maison;
+  if (!b){ _bldTipEl.style.display = 'none'; return; }
+  const n = residentsOf(b).length;
+  _bldTipEl.textContent = (b.name || ("빈 건물 " + b.bno))
+    + (n ? "  ·  " + n + "명" : "  ·  비어 있음");
+  if (mv && mv.endPosition){
+    const r = viewer.canvas.getBoundingClientRect();
+    _bldTipEl.style.left = (r.left + mv.endPosition.x) + 'px';
+    _bldTipEl.style.top  = (r.top  + mv.endPosition.y) + 'px';
+  }
+  _bldTipEl.style.display = 'block';
+}
+
 function residentsOf(b){ return Array.isArray(b && b.residents) ? b.residents : []; }
 function findMyBuilding(uid){
   return viewer.entities.values.find(e => e._maison &&
@@ -1001,8 +1032,10 @@ async function loadMaisons(city){
     b.city = city;
     const res_  = residentsOf(b);
     const lived = res_.length > 0;                       // 사람이 사는 건물
-    const mine  = (myUid && res_.some(r => r.uid === myUid))
-               || (wantU && res_.some(r => r.nickname === wantU));
+    const meRec = res_.find(r => (myUid && r.uid === myUid)
+                              || (wantU && r.nickname === wantU));
+    const mine   = !!meRec;
+    const myName = meRec ? (meRec.nickname || "") : "";
     const dd = mine ? nearMine : near;
 
     // 점 — 세 모습. 내 건물(속 찬 금색·큼) / 이웃(속 찬 금색·작음) / 빈 건물(속 빈 것)
@@ -1021,12 +1054,13 @@ async function loadMaisons(city){
       position: Cesium.Cartesian3.fromDegrees(b.lng, b.lat),
       point,
       label: mine ? {
-        text: b.name || ("건물 " + b.bno),
+        text: (b.name || ("건물 " + b.bno))
+              + (myName ? "\n" + myName : ""),   // ⭐ 내 이름이 늘 함께 뜬다
         font: "bold 13px 'Helvetica Neue',Arial,sans-serif",
         fillColor: Cesium.Color.fromCssColorString("#1a1407"),
         showBackground: true,
         backgroundColor: Cesium.Color.fromCssColorString("#ffd23f").withAlpha(.96),
-        backgroundPadding: new Cesium.Cartesian2(9,5),
+        backgroundPadding: new Cesium.Cartesian2(9,6),
         pixelOffset: new Cesium.Cartesian2(0,-15),
         verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
