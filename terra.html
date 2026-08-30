@@ -2724,6 +2724,8 @@ function sampleSigns(b){
      블록 14에 두면 첫 그리기에서 「선언 전 참조」로 터진다(딱지 0817). */
 let PICK = "roof", PFACE = 0, PICK_BLD = null, PICK_DIRTY = false;
 let SHOW_ALL_SLOTS = false;          // ⭐ 0830 — 빈 칸까지 전부 보기
+/* ⭐ 이번에 실제로 짚은 면만 기억한다 — 저장이 안 짚은 면을 덮지 않게 */
+let PICK_TOUCHED = { out:new Set(), wide:new Set() };
 /* ⭐ 벽·폭을 짚는 동안은 그 면만 남긴다 — 나머지 세 면이 사라져야 무엇을 만지는지 보인다. */
 function pickDimsOther(){ return (typeof EDIT_MODE !== "undefined") && EDIT_MODE
                               && PICK_BLD && (PICK === "wall" || PICK === "wide"); }
@@ -4233,6 +4235,8 @@ function pickHint(){
 function pickBarOpen(b){
   PICK_BLD = b; PICK_DIRTY = false;
   b.wall = b.wall || {};
+  b.wallServer = JSON.parse(JSON.stringify(b.wall));   /* 서버가 준 원본을 따로 든다 */
+  PICK_TOUCHED = { out:new Set(), wide:new Set() };
   document.getElementById("pickBar").classList.add("in");
   pickBarPaint(); pickHint();
 }
@@ -4286,7 +4290,7 @@ function applyPick(lat, lng, h){
     w.out = w.out || [23,23,23,23];
     /* ⚠ 0830 소로 — 「명패와 벽 사이가 2m쯤 붕 뜬다」. 범인이 +1.5 였다.
        실판에서는 3D 타일 표면을 정확히 짚는다 — 짚은 그 자리가 곧 벽이다. */
-    w.out[PFACE] = along + 0.3;
+    w.out[PFACE] = along + 0.3; PICK_TOUCHED.out.add(PFACE);
     PICK_DIRTY = true; pickBarPaint(); drawWallSigns();
     document.getElementById("editHint").innerHTML =
       "✅ <b>" + PICK_FACE_KO[PFACE] + "면 벽</b> <code>" + w.out[PFACE].toFixed(1) + "m</code> — [서버에 저장]";
@@ -4294,7 +4298,7 @@ function applyPick(lat, lng, h){
   }
   if (PICK === "wide"){
     w.wide = w.wide || [12,12,12,12];
-    w.wide[PFACE] = Math.max(2, Math.abs(cross));
+    w.wide[PFACE] = Math.max(2, Math.abs(cross)); PICK_TOUCHED.wide.add(PFACE);
     PICK_DIRTY = true; pickBarPaint(); drawWallSigns();
     document.getElementById("editHint").innerHTML =
       "✅ <b>" + PICK_FACE_KO[PFACE] + "면 폭</b> <code>±" + w.wide[PFACE].toFixed(1) + "m</code> — [서버에 저장]";
@@ -4307,7 +4311,18 @@ function applyPick(lat, lng, h){
 async function savePickedWall(){
   const b = PICK_BLD; if (!b) return;
   const w = b.wall || {}, patch = {};
-  ["roof","ceil","floor","out","wide"].forEach(k=>{ if (w[k] != null) patch[k] = w[k]; });
+  ["roof","ceil","floor"].forEach(k=>{ if (w[k] != null) patch[k] = w[k]; });
+  /* ⚠⚠ 0830 소로 — 「동면 박힌 게 안 빠져나온다」. 서버 값을 화면이 덮어쓰고 있었다.
+     out·wide 는 네 칸짜리 배열이라 통째로 보내면 **안 짚은 면까지 화면의 옛 값**으로
+     덮인다. 다른 손이 서버에서 고친 면이 있으면 그게 사라진다.
+     ⭐ 이번에 실제로 짚은 면만 보낸다 — 서버가 나머지를 지킨다. */
+  ["out","wide"].forEach(k=>{
+    if (!w[k] || !PICK_TOUCHED[k] || !PICK_TOUCHED[k].size) return;
+    const cur = (b.wallServer && b.wallServer[k]) || w[k];      // 바탕은 서버 값
+    const arr = cur.slice();
+    PICK_TOUCHED[k].forEach(f=> arr[f] = w[k][f]);              // 짚은 면만 얹는다
+    patch[k] = arr;
+  });
   if (!Object.keys(patch).length){
     document.getElementById("editHint").innerHTML = "⚠️ 저장할 값이 없습니다 — 먼저 짚으세요"; return;
   }
@@ -4315,7 +4330,10 @@ async function savePickedWall(){
     const { data, error } = await supa.rpc('admin_set_building_wall',
       { p_city:b.city, p_bno:b.bno, p_patch:patch });
     if (error) throw error;
-    b.wall = data; PICK_DIRTY = false; pickBarPaint(); drawWallSigns();
+    b.wall = data;
+    b.wallServer = JSON.parse(JSON.stringify(data));
+    PICK_TOUCHED = { out:new Set(), wide:new Set() };
+    PICK_DIRTY = false; pickBarPaint(); drawWallSigns();
     document.getElementById("editHint").innerHTML =
       "⭐ <b>저장 완료</b> — 천장 <code>" + (data.ceil!=null?Math.round(data.ceil):"?")
       + "</code> · 바닥 <code>" + (data.floor!=null?Math.round(data.floor):"?") + "</code>"
