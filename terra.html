@@ -2644,19 +2644,22 @@ const FACE_KO = ["남","동","북","서"];
 let signEnts = [], signSample = null;
 
 function signTiers(b){ return Math.max(1, Math.round((b.slots || 216) / (SIGN_FACES*SIGN_FCOLS))); }
-function signGap(b){
-  const w = b.wall; if (!w) return 0;
+function signGap(b, prov){
+  const w = Object.assign({}, b.wall, prov || {});
+  if (w.ceil == null || w.floor == null) return 0;
   return (w.ceil - w.floor) / Math.max(1, signTiers(b) - 1);
 }
-function signHM(b){ return Math.min(5, Math.max(2.2, signGap(b) * 0.7)); }
+function signHM(b, prov){ return Math.min(5, Math.max(2.2, signGap(b, prov) * 0.7)); }
 function signOffset(lat, lng, azDeg, dist){
   const az = Cesium.Math.toRadians(azDeg);
   return { lat: lat + (dist*Math.cos(az))/111320,
            lng: lng + (dist*Math.sin(az))/(111320*Math.cos(Cesium.Math.toRadians(lat))) };
 }
 /* slot_no 하나에서 면·열·단이 전부 나온다 — DB 에 face 칸이 없는 근거 */
-function signAnchor(b, slot){
-  const w = b.wall, T = signTiers(b), unit = SIGN_FACES*SIGN_FCOLS;
+function signAnchor(b, slot, prov){
+  /* ⭐ prov — 아직 안 짚은 건물의 임시값(격자 세우기용). 실제 간판은 안 쓴다. */
+  const w = Object.assign({}, b.wall, prov || {});
+  const T = signTiers(b), unit = SIGN_FACES*SIGN_FCOLS;
   const f = Math.floor(((slot-1) % unit) / SIGN_FCOLS);
   const col = (slot-1) % SIGN_FCOLS;
   const tier = Math.min(T-1, Math.floor((slot-1) / unit));
@@ -2664,7 +2667,7 @@ function signAnchor(b, slot){
      마천루의 위엄은 꼭대기에 있다 — 배정이 1호부터 차오르므로
      건물이 위에서부터 산다. 세 명만 살아도 하늘에 명패가 뜬다.
      (terra 명단 정렬 slot asc 와 같은 정의 — 목록 맨 윗줄 = 맨 위 창) */
-  const h = w.ceil - tier * signGap(b);
+  const h = w.ceil - tier * signGap(b, prov);
   const az = SIGN_AZ_FACE(f);
   const out  = (w.out  && w.out[f]  != null) ? w.out[f]  : 23;
   const wide = (w.wide && w.wide[f] != null) ? w.wide[f] : 12;
@@ -2737,11 +2740,23 @@ let gridEnts = [];
 function drawSlotGrid(){
   gridEnts.forEach(e=> viewer.entities.remove(e)); gridEnts = [];
   const b = PICK_BLD;
-  if (!SHOW_ALL_SLOTS || !b || !b.wall || b.wall.ceil == null) return;
+  if (!SHOW_ALL_SLOTS || !b) return;
+  /* ⚠⚠ 0830 소로 — 「전체 슬롯이 안 보여서 공사 불가」. 내 빗장이 원인이었다.
+     천장이 없으면 격자를 안 그렸는데, 천장을 짚으려면 격자가 보여야 한다.
+     닭과 달걀을 코드로 만들어 놓은 셈이다.
+     ⭐ 값이 없으면 **임시 격자**를 세운다 — 지붕에서 어림잡아 걸쳐 두고,
+       짚는 대로 진짜 값으로 갈아탄다. 짚을 발판이 있어야 짚는다. */
+  b.wall = b.wall || {};
+  const w = b.wall, prov = {};
+  if (w.ceil == null || w.floor == null){
+    const roof = (w.roof != null) ? w.roof : 120;      // 지붕도 없으면 120m로 세운다
+    prov.ceil  = (w.ceil  != null) ? w.ceil  : roof * 0.72;
+    prov.floor = (w.floor != null) ? w.floor : roof * 0.28;
+  }
   const taken = new Set(residentsOf(b).map(r=> r.slot));
   for (let slot = 1; slot <= (b.slots || 216); slot++){
     if (taken.has(slot)) continue;                       // 사는 칸은 간판이 표지다
-    const a = signAnchor(b, slot);
+    const a = signAnchor(b, slot, prov);
     if (pickDimsOther() && a.face !== PFACE) continue;    // 짚는 면만
     const e = viewer.entities.add({
       id: "slotgrid-" + b.city + "-" + b.bno + "-" + slot,
@@ -2752,7 +2767,14 @@ function drawSlotGrid(){
     });
     gridEnts.push(e);
   }
-  console.log("[EG] 빈 칸 격자 " + gridEnts.length + "개");
+  if (Object.keys(prov).length && gridEnts.length){
+    document.getElementById("editHint").innerHTML =
+      "◼︎ <b>임시 격자</b> — 아직 안 짚은 건물이라 어림잡아 세웠습니다 "
+      + "(<code>" + Math.round(prov.floor != null ? prov.floor : (b.wall.floor||0)) + "~"
+      + Math.round(prov.ceil != null ? prov.ceil : (b.wall.ceil||0)) + "m</code>)"
+      + "<br>⭐ <b>천장 → 바닥</b> 순으로 짚으시면 격자가 제자리를 잡습니다";
+  }
+  console.log("[EG] 빈 칸 격자 " + gridEnts.length + "개" + (Object.keys(prov).length ? " (임시)" : ""));
 }
 
 async function drawWallSigns(){
