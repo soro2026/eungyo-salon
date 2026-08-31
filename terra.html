@@ -4433,10 +4433,24 @@ function applyPick(lat, lng, h){
   const w = b.wall;
   if (PICK === "roof"){
     b.lat = lat; b.lng = lng; w.roof = h;
-    supa.rpc('admin_set_building_coords', { p_bno:b.bno, p_lat:lat, p_lng:lng, p_city:b.city });
+    /* ⚠⚠ 0831 — 예전에는 여기서 rpc 를 던져 놓고 곧바로 「저장됨」을 띄웠다.
+       admin only 로 막혀 실패해도 화면은 성공이라 말했고, 게다가 ent.position 을
+       안 갱신해 점이 제자리에 서 있었다. 데이터만 바뀌고 화면도 DB도 안 바뀐 셈. */
+    const ent = viewer.entities.values.find(e => e._maison === b);
+    if (ent) ent.position = Cesium.Cartesian3.fromDegrees(lng, lat, h);
+    const hint = document.getElementById("editHint");
+    hint.innerHTML = "⏳ <b>지붕</b> <code>" + h.toFixed(1) + "m</code> · 좌표 저장 중…";
+    supa.rpc('admin_set_building_coords', { p_bno:b.bno, p_lat:lat, p_lng:lng, p_city:b.city })
+      .then(({ error }) => {
+        if (error) throw error;
+        hint.innerHTML =
+          "✅ <b>지붕</b> <code>" + h.toFixed(1) + "m</code> · 좌표 저장됨 — 벽값은 [서버에 저장]";
+      })
+      .catch(e => {
+        console.warn("건물 좌표 저장 실패:", e);
+        hint.innerHTML = "⚠️ <b>좌표 저장 실패</b> — " + (e && e.message ? e.message : "콘솔 확인");
+      });
     PICK_DIRTY = true; pickBarPaint();
-    document.getElementById("editHint").innerHTML =
-      "✅ <b>지붕</b> <code>" + h.toFixed(1) + "m</code> · 좌표는 바로 저장됨 — 벽값은 [서버에 저장]";
     drawWallSigns(); return true;
   }
   if (PICK === "ceil" || PICK === "floor"){
@@ -4530,8 +4544,14 @@ function handleEditClick(click){
   const picked = viewer.scene.pick(click.position);
   if (Cesium.defined(picked) && picked.id && editKindOf(picked.id)){
     selectForEdit(picked.id);            // 핀 클릭 → 선택
-    /* ⭐ 0830 — 건물이면 짚기 막대도 함께 연다 (벽값을 짚을 수 있는 것은 건물뿐) */
-    if (picked.id._maison) pickBarOpen(picked.id._maison); else pickBarClose();
+    /* ⭐ 0831 — 짚기 막대는 여러 유닛짜리 건물에만 선다.
+       1유닛(파리·런던 오스만형)은 옮길 것이 지붕 한 점뿐이라 벽·폭을 짚을 일이 없다.
+       ⚠⚠ 그리고 막대가 열려 있으면 아래 moveSelected 까지 클릭이 못 간다(applyPick 이
+          먼저 return 한다). 1유닛에 막대를 띄우면 건물이 영영 안 움직인다 — 0831 소로 발견.
+       ⭐ 도시가 아니라 유닛으로 가른다. 런던 중심가에 큰 건물이 서는 날
+          admin_add_building 의 도시 제약만 풀면 이 편집기가 그대로 따라붙는다. */
+    if (picked.id._maison && (picked.id._maison.units || 1) > 1) pickBarOpen(picked.id._maison);
+    else pickBarClose();
     return;
   }
   /* ⭐ 짚기 막대가 열려 있으면 클릭은 「한 축」으로 간다 — 지붕 말고는 옮기지 않는다 */
