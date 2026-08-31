@@ -2763,19 +2763,30 @@ function signPlate(text){
 }
 
 /* ⭐ 노출 추첨 — 자리는 붙박이(slot_no), 걸릴지만 접속마다 운 (0829 결정문 3호).
-   한 접속 안에서는 붙박이 — 시점이 바뀔 때마다 간판이 이사 다니면 어지럽다. */
+   한 접속 안에서는 붙박이 — 시점이 바뀔 때마다 간판이 이사 다니면 어지럽다.
+   ⭐⭐ 0831 — 자기 자신은 추첨에서 면제한다. 내가 내 건물을 보는데 벽에 내 이름이
+     없으면 까닭이 안 보인다(융이 남면 여섯 중 하나로 밀린 날 나온 조항).
+     남의 눈에는 여전히 추첨이고, 그 사람 화면에서는 그 사람이 면제다.
+   ⚠ 그래서 이 표는 로그인한 사람마다 다르다 — myUidCache 가 바뀌면 다시 뽑는다. */
 function sampleSigns(b){
-  const key = b.city + "-" + b.bno;
+  const key = b.city + "-" + b.bno + "-" + (myUidCache || "-");
   if (!signSample) signSample = new Map();
   if (signSample.has(key)) return signSample.get(key);
   const set = new Set();
+  /* 내가 이 건물에 살면 먼저 앉힌다 — 추첨 전에 자리를 하나 뺀다 */
+  const meRow = residentsOf(b).find(r => r.slot && myUidCache && r.uid === myUidCache);
+  if (meRow) set.add(meRow.slot);
   for (let f = 0; f < SIGN_FACES; f++){
-    const pool = residentsOf(b).filter(r => r.slot && signAnchor(b, r.slot).face === f);
+    const pool = residentsOf(b).filter(r => r.slot && signAnchor(b, r.slot).face === f
+                                         && !(meRow && r.slot === meRow.slot));
     for (let i=pool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
-    pool.slice(0, SHOW_PER_FACE).forEach(r=> set.add(r.slot));
+    /* 내 이름이 이 면에 이미 앉았으면 남은 자리는 하나 적다 */
+    const room = SHOW_PER_FACE - ((meRow && signAnchor(b, meRow.slot).face === f) ? 1 : 0);
+    pool.slice(0, room).forEach(r=> set.add(r.slot));
     if (pool.length) console.log("[EG] " + (b.name||("건물 "+b.bno)) + " " + FACE_KO[f]
-      + "면 — 입주 " + pool.length + "명 중 " + Math.min(pool.length, SHOW_PER_FACE) + "명"
-      + (pool.length <= SHOW_PER_FACE ? "  ⚠ 상한 미달 · 전원 통과" : "  ⭐ 추첨"));
+      + "면 — 입주 " + pool.length + "명 중 " + Math.min(pool.length, room) + "명"
+      + (pool.length <= room ? "  ⚠ 상한 미달 · 전원 통과" : "  ⭐ 추첨")
+      + ((meRow && signAnchor(b, meRow.slot).face === f) ? "  ⭐ + 내 자리 고정" : ""));
   }
   signSample.set(key, set);
   return set;
