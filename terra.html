@@ -941,8 +941,28 @@ window.EGQ = (function(){
     box-shadow:0 4px 18px rgba(0,0,0,.4);
     margin-bottom:16px;display:block;
   }
-  #maison .m-nick{font-family:var(--serif);font-size:32px;line-height:1.1;margin:0 0 .35em;color:var(--cream)}
+  #maison .m-nick{font-family:var(--serif);font-size:32px;line-height:1.1;margin:0 0 .18em;color:var(--cream)}
+  /* ⭐ 0831 — 원어는 늘 작고 흐리게. 큰 글자가 한글이라는 규칙이 눈으로 보이게. */
+  #maison .m-orig{font-family:var(--serif);font-size:13.5px;line-height:1.4;
+                  color:var(--cream-dim);opacity:.66;margin:0 0 .7em;letter-spacing:.01em}
+  #maison .m-orig:empty{display:none}
+  /* ⭐ 건물주는 입주자가 아니라 건물의 속성이라 명단이 아니라 머리에 선다. */
+  #maison .m-owner{font-family:var(--serif);font-size:14px;line-height:1.6;
+                   color:var(--cream);margin:0 0 .55em}
+  #maison .m-owner:empty{display:none}
+  #maison .m-owner b{color:#ffd23f;font-weight:400}
+  #maison .m-owner .sub{color:var(--cream-dim);font-size:12.5px;margin-left:8px}
   #maison .m-intro{font-family:var(--serif);font-size:15px;line-height:1.82;color:var(--cream-dim);margin-bottom:28px}
+  #maison .m-intro .note{display:block;margin-top:.55em;color:var(--cream);opacity:.8}
+  /* ⭐ 나는 명단 맨 위 한 줄에만 뜬다. 아래 목록에서는 빠진다 — 두 번 보이지 않게. */
+  #maison .m-me{ margin-bottom:10px; padding-bottom:12px;
+                 border-bottom:1px solid rgba(255,210,63,.28) }
+  #maison .m-res.me{ background:rgba(255,210,63,.17); border-color:rgba(255,210,63,.62) }
+  #maison .m-more{
+    display:inline-block; margin-top:6px; padding:9px 18px; border-radius:8px;
+    font-family:var(--serif); font-size:14px; cursor:pointer;
+    background:transparent; color:#ffd23f; border:1px solid rgba(255,210,63,.55) }
+  #maison .m-more:hover{ background:rgba(255,210,63,.12) }
     /* 입주자 명단 — 건물 하나에 여럿이 산다 (0830 집합주택) */
   #maison .m-list{ overflow-y:auto; margin:0 0 22px; min-height:0;
     align-self:stretch }   /* ⭐ 0830 — 위에서부터 쌓인다 */
@@ -2012,6 +2032,8 @@ window.EGQ = (function(){
   <div class="m-door" id="mDoor"></div>
   <img class="m-avatar" id="mAvatar" alt="" style="display:none">
   <h2 class="m-nick" id="mNick"></h2>
+  <div class="m-orig" id="mOrig"></div>
+  <div class="m-owner" id="mOwner"></div>
   <div class="m-intro" id="mIntro"></div>
   <div class="m-list" id="mList"></div>
   <button class="m-enter" id="mEnter">대문 열고 들어가기 →</button>
@@ -2604,6 +2626,17 @@ let myUidCache = null;
 function bldName(b){
   return (b && b.name) || (b && b.wall && b.wall.landmark) || ("건물 " + (b ? b.bno : "?"));
 }
+/* ⭐ 0831 — 큰 글자는 언제나 한글, 작은 글자는 언제나 원어. 세 도시가 한 규칙.
+   ⚠ 주인이 이름을 지은 건물은 큰 글자가 그 이름이 되고, 원어 자리에 주소가 온다. */
+function bldOrig(b){
+  const w = (b && b.wall) || {};
+  if (b && b.name) return w.landmark || w.landmark_orig || "";   // 이름 지은 집 → 주소가 밑줄
+  return w.landmark_orig || "";
+}
+function bldOwner(b){ return (b && b.owner) || ""; }
+let _ALL_BLD = [];   /* ⚠ 선언은 반드시 이 블록에 — 블록 14로 옮기면 첫 그리기가 터진다 */
+/* 매물 소개 한 줄 (레테 원고). 없으면 그 줄은 안 뜬다 — 빈 줄을 남기지 않는다. */
+function bldPitch(b){ return (b && b.wall && b.wall.pitch) || ""; }
 
 /* ── 건물 호버 이름표 (0830) — 남의 건물·빈 건물도 이름은 보인다 ── */
 let _bldTipEl = null;
@@ -2622,9 +2655,21 @@ function bldHoverTip(ent, mv){
   }
   const b = ent && ent._maison;
   if (!b){ _bldTipEl.style.display = 'none'; return; }
+  /* ⭐ 0831 — 한글(큰) + 원어(작은) 두 줄. 「비어 있음」은 폐기 —
+     매물에 「아무도 없다」를 붙이면 준비 안 된 표시로 읽힌다. */
   const n = residentsOf(b).length;
-  _bldTipEl.textContent = bldName(b)
-    + (n ? "  ·  " + n + "명" : "  ·  비어 있음");
+  const _o = bldOrig(b);
+  _bldTipEl.innerHTML = '';
+  const l1 = document.createElement('div');
+  l1.style.cssText = 'font-size:12.5px;line-height:1.25';
+  l1.textContent = bldName(b) + (n ? "  ·  " + n + "명" : "");
+  _bldTipEl.appendChild(l1);
+  if (_o){
+    const l2 = document.createElement('div');
+    l2.style.cssText = 'font-size:10.5px;opacity:.62;line-height:1.25;margin-top:1px';
+    l2.textContent = _o;
+    _bldTipEl.appendChild(l2);
+  }
   if (mv && mv.endPosition){
     const r = viewer.canvas.getBoundingClientRect();
     _bldTipEl.style.left = (r.left + mv.endPosition.x) + 'px';
@@ -2848,6 +2893,9 @@ async function loadMaisons(city){
     rows = await res.json();
   }catch(e){ console.warn("eg_buildings 로드 실패:", e); return; }
 
+  /* ⭐ 0831 — 건물주가 몇 채를 가졌는지는 전체를 봐야 안다. 팝업이 쓴다. */
+  _ALL_BLD = rows;
+
   const near     = range(PIN_RANGE.building);       /* 0830 — 8km */
   const nearMine = range(PIN_RANGE.buildingMine);   /* 0830 — 10km */
   const myUid = await getMyUid().catch(()=>null);
@@ -2873,7 +2921,7 @@ async function loadMaisons(city){
               disableDepthTestDistance:Number.POSITIVE_INFINITY,
               distanceDisplayCondition:dd },
       label: mine ? {
-              text: (b.name || ("건물 "+b.bno))
+              text: bldName(b)
                     + (myName ? "\n" + myName : ""),   // ⭐ 내 이름이 늘 함께 뜬다
               font:"13px Georgia,'Nanum Myeongjo','Apple SD Gothic Neo',serif",
               fillColor:Cesium.Color.fromCssColorString("#1a1407"),
@@ -3804,36 +3852,126 @@ function openMaison(b){
     + (b.name && _wl ? " · " + _wl : "")          /* 주인이 이름을 지었으면 표찰은 부제로 */
     + " · " + (b.units>1 ? b.units+"유닛 " : "") + b.slots + "슬롯";
   document.getElementById("mNick").textContent = bldName(b);
+  document.getElementById("mOrig").textContent = bldOrig(b);          /* ⭐ 원어 · 작게 */
   const _mAv = document.getElementById("mAvatar");
   if (_mAv){ _mAv.removeAttribute("src"); _mAv.style.display = "none"; }
-  document.getElementById("mIntro").textContent = sold
-    ? (res_.length + "명이 살고 있습니다. 남은 자리 " + (b.slots - res_.length) + "칸.")
-    : "아직 아무도 살지 않는 건물입니다. 이름은 건물주가 짓습니다.";
+
+  /* ⭐ 0831 — 건물주 한 줄. 여러 채를 가진 사람이면 몇 채인지 함께 적는다.
+     ⚠ 지도에는 안 깔린다 — 누른 사람만 본다 (헌장 9.2-2). */
+  const own = document.getElementById("mOwner");
+  if (own){
+    const o = bldOwner(b);
+    if (o){
+      const mine_ = (_ALL_BLD||[]).filter(x => x.owner === o);
+      const inCity = mine_.filter(x => x.city === b.city).length;
+      const total  = mine_.length;
+      own.innerHTML = '건물주 <b></b><span class="sub"></span>';
+      own.querySelector('b').textContent = o;
+      own.querySelector('.sub').textContent =
+        total > 1
+          ? (inCity > 1 ? "이 도시에 " + inCity + "채 · 모두 " + total + "채"
+                        : "모두 " + total + "채")
+          : "";
+    } else own.textContent = "";
+  }
+
+  /* ⭐ 팔린 건물은 사람 이야기, 매물은 물건 이야기. 섞지 않는다.
+     ⚠ 「아무도 살지 않는다」 폐기 — 매물 앞에 붙일 말이 아니다. */
+  const intro = document.getElementById("mIntro");
+  intro.innerHTML = "";
+  if (sold){
+    intro.textContent = res_.length + "명이 살고 있습니다. 남은 자리 "
+                      + (b.slots - res_.length) + "칸.";
+  } else {
+    const p = bldPitch(b);
+    intro.textContent = (p ? p + "\n" : "") + b.slots + "가구"
+                      + (b.units > 1 ? " · " + b.units + "유닛" : "");
+    intro.style.whiteSpace = "pre-line";
+    const note = document.createElement("span");
+    note.className = "note";
+    note.textContent = "이름은 건물주가 짓습니다.";
+    intro.appendChild(note);
+  }
+
   const list = document.getElementById("mList");
   if (list){
     list.innerHTML = "";
-    if (res_.length){
-      res_.forEach(r=>{
-        const btn = document.createElement("button");
-        btn.className = "m-res" + (r.uid && r.uid === myUidCache ? " mine" : "");
-        btn.innerHTML =
-          (r.avatar ? '<img class="av" src="'+r.avatar+'" alt="">' : '<span class="av"></span>')
-          + '<span class="nm"></span><span class="sl">'+ r.slot +'호</span>';
-        btn.querySelector('.nm').textContent = r.nickname || "이름 없는 콩파뇽";
-        btn.addEventListener("click", ()=> enterMaison(r));
-        list.appendChild(btn);
-      });
-    } else if (!sold) {
-      const d = document.createElement("div");
-      d.className = "m-empty";
-      d.textContent = "이 건물은 아직 비어 있습니다.";
-      list.appendChild(d);
+    /* ⭐ 나는 맨 위 한 줄에만 뜬다. 호수는 안 바뀌고 순서만 올라온다.
+       보는 사람마다 다른 명단을 보되, 호수는 모두에게 같다. */
+    const meRow = res_.find(r => r.uid && r.uid === myUidCache);
+    const rest  = meRow ? res_.filter(r => r !== meRow) : res_;
+    const row = (r, cls) => {
+      const btn = document.createElement("button");
+      btn.className = "m-res" + (cls || "");
+      btn.innerHTML =
+        (r.avatar ? '<img class="av" src="'+r.avatar+'" alt="">' : '<span class="av"></span>')
+        + '<span class="nm"></span><span class="sl">'+ r.slot +'호</span>';
+      btn.querySelector('.nm').textContent = r.nickname || "이름 없는 콩파뇽";
+      btn.addEventListener("click", ()=> enterMaison(r));
+      return btn;
+    };
+    if (meRow){
+      const wrap = document.createElement("div");
+      wrap.className = "m-me";
+      wrap.appendChild(row(meRow, " me"));
+      list.appendChild(wrap);
+    }
+    rest.forEach(r => list.appendChild(row(r)));
+    if (!sold){
+      const more = document.createElement("button");
+      more.className = "m-more";
+      more.type = "button";
+      more.textContent = "자세히 보기";
+      more.addEventListener("click", ()=> openBuildingDetail(b));
+      list.appendChild(more);
     }
   }
   const en = document.getElementById("mEnter");
   if (en) en.style.display = "none";
   document.getElementById("maison").classList.add("in");
 }
+/* ══════ 자세히 보기 (0831) ══════
+   ⭐ 값과 리워드는 첫 화면에 안 나온다. 한 번 더 누른 사람에게만 보인다.
+     매물 앞에서 값부터 외치면 소개가 아니라 호객이 된다.
+   ⚠ 값은 결제액(부가세 포함) — 0831 결제·과금 대전환 결정문 3절. */
+const BLD_PRICE = { 1:[90090,50], 3:[270270,150], 4:[360360,200], 8:[720720,400] };
+function openBuildingDetail(b){
+  const u = BLD_PRICE[b.units] ? b.units : 1;
+  const [won, vou] = BLD_PRICE[u];
+  const intro = document.getElementById("mIntro");
+  const list  = document.getElementById("mList");
+  const own   = document.getElementById("mOwner");
+  if (own) own.textContent = "";
+  intro.style.whiteSpace = "normal";
+  intro.textContent = b.slots + "가구" + (b.units > 1 ? " · " + b.units + "유닛" : "");
+  list.innerHTML = "";
+  const tbl = document.createElement("div");
+  tbl.className = "m-empty";
+  tbl.style.lineHeight = "2.05";
+  tbl.textContent = "";
+  [["건물값", won.toLocaleString() + "원"],
+   ["정회원권", "3개월"],
+   ["준회원 바우처", vou + "장"]].forEach(([k,v])=>{
+    const r = document.createElement("div");
+    r.style.cssText = "display:flex;justify-content:space-between;gap:16px";
+    const a = document.createElement("span"); a.textContent = k;
+    const c = document.createElement("span");
+    c.style.color = "var(--cream)"; c.textContent = v;
+    r.appendChild(a); r.appendChild(c); tbl.appendChild(r);
+  });
+  const foot = document.createElement("div");
+  foot.style.cssText = "margin-top:14px;font-size:13px;line-height:1.75;opacity:.78";
+  foot.textContent = "모든 시계는 정식 개통일에 함께 시작합니다.\n값은 EG 인구와 함께 조정됩니다.";
+  foot.style.whiteSpace = "pre-line";
+  tbl.appendChild(foot);
+  list.appendChild(tbl);
+  const back = document.createElement("button");
+  back.className = "m-more"; back.type = "button";
+  back.textContent = "← 돌아가기";
+  back.addEventListener("click", ()=> openMaison(b));
+  list.appendChild(back);
+}
+
 function closeMaison(){
   document.getElementById("maison").classList.remove("in");
 }
