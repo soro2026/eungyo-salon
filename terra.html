@@ -3235,6 +3235,52 @@ function applyLayerVisibility(){
   if (nm) nm.classList.toggle("on", showMaisons);
 }
 
+/* ── 0902 오후 — 촬영 · 핀 종족 켜고 끄기 (살롱지기만) ──
+   ⚠⚠ 이 함수는 setupAdminEdit(이 블록)가 부른다. 맨 아래 IIFE 블록에 두면 안 보여서
+     setupAdminEdit가 죽고, 그 다음 줄 goToMyHome()이 안 불려 유럽 상공에 멈춘다(0902 실제 사고).
+   팸플릿 도판을 찍을 때 「건물만」「전당만」 같은 화면을 만들기 위한 것이다.
+   ⚠ 저장하지 않는다 — 새로고침하면 전부 켜진다. 촬영 상태가 손님 화면에 새어 나가지 않게.
+   ⚠ 늦게 앉는 핀(도시 들어간 뒤 부르는 팝업·전당·terra)도 붙잡아야 하므로
+     collectionChanged 에서 한 번 더 편다. show만 바꾸므로 되먹임은 없다. */
+const SHOT_SWITCHES = [
+  ["city",        "🌐 도시 점"],
+  ["maison",      "🏠 건물"],
+  ["sign",        "🪧 벽 간판"],
+  ["spot",        "📍 인물 장소"],
+  ["popup",       "📕 출판사 팝업"],
+  ["palais",      "🎬 지식채널 전당"],
+  ["t_college",   "🎓 콜레주"],
+  ["t_concert",   "🎼 음악관"],
+  ["t_heritage",  "🖼 미술관"],
+  ["t_museum",    "📚 뮤세움"],
+  ["t_hansfoon",  "🥄 한스푼"],
+  ["t_stadium",   "⚾ 스타디움"],
+  ["t_constellatio","🔭 천문대"]
+];
+function buildShotSwitches(){
+  const box = document.getElementById("navShotList");
+  const head = document.getElementById("navShotFold");
+  if (!box || box.dataset.built) return;
+  box.dataset.built = "1";
+  head.addEventListener("click", ()=>{ const open = box.classList.toggle("on"); head.classList.toggle("open", open); });
+  const mk = (label, fn) => { const b = document.createElement("button"); b.className = "nav-item adm"; b.textContent = label; b.addEventListener("click", fn); return b; };
+  const rows = {};
+  const paint = () => { for (const k in rows) rows[k].textContent = (PIN_SHOW[k] ? "● " : "○ ") + rows[k].dataset.label; };
+  box.appendChild(mk("모두 켜기", ()=>{ for (const k in PIN_SHOW) PIN_SHOW[k] = true; applyLayerVisibility(); paint(); }));
+  box.appendChild(mk("모두 끄기", ()=>{ for (const k in PIN_SHOW) PIN_SHOW[k] = false; applyLayerVisibility(); paint(); }));
+  for (const [k, label] of SHOT_SWITCHES){
+    const b = mk("", ()=>{ PIN_SHOW[k] = !PIN_SHOW[k]; applyLayerVisibility(); paint(); });
+    b.dataset.label = label; rows[k] = b; box.appendChild(b);
+  }
+  paint();
+  let shotDirty = false;
+  viewer.entities.collectionChanged.addEventListener(()=>{
+    if (Object.values(PIN_SHOW).every(v=>v)) return;   /* 전부 켜져 있으면 손댈 것 없음 */
+    if (shotDirty) return; shotDirty = true;
+    setTimeout(()=>{ shotDirty = false; applyLayerVisibility(); }, 60);
+  });
+}
+
 // ─── 도시 목록(voyage_cities)을 DB에서 읽어 점프 리스트로 ───
 async function loadCityList(){
   try{
@@ -4274,7 +4320,7 @@ async function setupAdminEdit(){
     if (cb) cb.style.display = "block";
   }
   buildAdminLinks();                                             /* 0728: 대시보드 10종 */
-  buildShotSwitches();                                           /* 0902: 촬영 · 핀 종족 */
+  try{ buildShotSwitches(); }catch(e){ console.warn("촬영 스위치 실패:", e); }   /* 0902: 촬영 · 핀 종족 — ⚠ 여기서 죽어도 goToMyHome 은 가야 한다 */
   const btn = document.getElementById("navEdit");
   btn.addEventListener("click", ()=>{
     EDIT_MODE = !EDIT_MODE;
@@ -6268,50 +6314,6 @@ function buildAdminLinks(){
     b.addEventListener("click", ()=> enterRoomUrl(it.href, it.label));
     box.appendChild(b);
   }
-}
-
-/* ── 0902 오후 — 촬영 · 핀 종족 켜고 끄기 (살롱지기만) ──
-   팸플릿 도판을 찍을 때 「건물만」「전당만」 같은 화면을 만들기 위한 것이다.
-   ⚠ 저장하지 않는다 — 새로고침하면 전부 켜진다. 촬영 상태가 손님 화면에 새어 나가지 않게.
-   ⚠ 늦게 앉는 핀(도시 들어간 뒤 부르는 팝업·전당·terra)도 붙잡아야 하므로
-     collectionChanged 에서 한 번 더 편다. show만 바꾸므로 되먹임은 없다. */
-const SHOT_SWITCHES = [
-  ["city",        "🌐 도시 점"],
-  ["maison",      "🏠 건물"],
-  ["sign",        "🪧 벽 간판"],
-  ["spot",        "📍 인물 장소"],
-  ["popup",       "📕 출판사 팝업"],
-  ["palais",      "🎬 지식채널 전당"],
-  ["t_college",   "🎓 콜레주"],
-  ["t_concert",   "🎼 음악관"],
-  ["t_heritage",  "🖼 미술관"],
-  ["t_museum",    "📚 뮤세움"],
-  ["t_hansfoon",  "🥄 한스푼"],
-  ["t_stadium",   "⚾ 스타디움"],
-  ["t_constellatio","🔭 천문대"]
-];
-function buildShotSwitches(){
-  const box = document.getElementById("navShotList");
-  const head = document.getElementById("navShotFold");
-  if (!box || box.dataset.built) return;
-  box.dataset.built = "1";
-  head.addEventListener("click", ()=>{ const open = box.classList.toggle("on"); head.classList.toggle("open", open); });
-  const mk = (label, fn) => { const b = document.createElement("button"); b.className = "nav-item adm"; b.textContent = label; b.addEventListener("click", fn); return b; };
-  const rows = {};
-  const paint = () => { for (const k in rows) rows[k].textContent = (PIN_SHOW[k] ? "● " : "○ ") + rows[k].dataset.label; };
-  box.appendChild(mk("모두 켜기", ()=>{ for (const k in PIN_SHOW) PIN_SHOW[k] = true; applyLayerVisibility(); paint(); }));
-  box.appendChild(mk("모두 끄기", ()=>{ for (const k in PIN_SHOW) PIN_SHOW[k] = false; applyLayerVisibility(); paint(); }));
-  for (const [k, label] of SHOT_SWITCHES){
-    const b = mk("", ()=>{ PIN_SHOW[k] = !PIN_SHOW[k]; applyLayerVisibility(); paint(); });
-    b.dataset.label = label; rows[k] = b; box.appendChild(b);
-  }
-  paint();
-  let shotDirty = false;
-  viewer.entities.collectionChanged.addEventListener(()=>{
-    if (Object.values(PIN_SHOW).every(v=>v)) return;   /* 전부 켜져 있으면 손댈 것 없음 */
-    if (shotDirty) return; shotDirty = true;
-    setTimeout(()=>{ shotDirty = false; applyLayerVisibility(); }, 60);
-  });
 }
 
 /* moveTerraPin — 0830 폐기. 편집은 moveSelected 한 곳에서 한다 */
