@@ -1951,6 +1951,10 @@ window.EGQ = (function(){
       <div class="adm-fold" id="navObsList"></div>
       <button class="nav-item adm-head" id="navAdmFold">대시보드 11 <span class="chev" aria-hidden="true">›</span></button>
       <div class="adm-fold" id="navAdminLinks"></div>
+      <!-- 0902 오후 — 촬영. 팸플릿 도판을 찍을 때 핀 종족을 하나씩 켜고 끈다(살롱지기만).
+           손님 화면의 「보기」 칩(인물 장소·콩파뇽 집)과 겹치는 종족은 둘 다 켜져야 보인다. -->
+      <button class="nav-item adm-head" id="navShotFold">🎬 촬영 · 핀 <span class="chev" aria-hidden="true">›</span></button>
+      <div class="adm-fold" id="navShotList"></div>
     </div>
     <div class="nav-group">
       <button class="nav-item logout" id="navLogout">⎋ 로그아웃</button>
@@ -3206,11 +3210,20 @@ function openPalais(p){
 
 
 // 레이어 토글 — 인물 장소(_spot)와 콩파뇽 집(_maison)을 켜고 끔
+/* 0902 오후 — 촬영용 종족 스위치. 전부 true면 예전과 한 글자도 다르지 않다.
+   ⚠ 손님 칩(showSpots·showMaisons)과 곱한다 — 어느 쪽이든 끄면 안 보인다.
+   terra 핀은 _terra.kind 로 가른다(college·concert·heritage·museum·hansfoon·stadium·constellatio). */
+const PIN_SHOW = { city:true, spot:true, maison:true, sign:true, popup:true, palais:true,
+  t_college:true, t_concert:true, t_heritage:true, t_museum:true, t_hansfoon:true, t_stadium:true, t_constellatio:true };
 function applyLayerVisibility(){
   viewer.entities.values.forEach(e=>{
-    if (e._spot) e.show = showSpots;
-    else if (e._maison) e.show = showMaisons;
-    else if (e._sign) e.show = showMaisons;   /* ⭐ 0830 — 간판은 건물 레이어에 딸린다 */
+    if (e._spot) e.show = showSpots && PIN_SHOW.spot;
+    else if (e._maison) e.show = showMaisons && PIN_SHOW.maison;
+    else if (e._sign) e.show = showMaisons && PIN_SHOW.sign;   /* ⭐ 0830 — 간판은 건물 레이어에 딸린다 */
+    else if (e._popup) e.show = PIN_SHOW.popup;
+    else if (e._palais) e.show = PIN_SHOW.palais;
+    else if (e._terra) { const k = "t_" + (e._terra.kind || ""); if (k in PIN_SHOW) e.show = PIN_SHOW[k]; }
+    else if (typeof e.id === "string" && e.id.startsWith("pin-")) e.show = PIN_SHOW.city;
   });
   const ls = document.getElementById("layerSpots");
   const lm = document.getElementById("layerMaisons");
@@ -4261,6 +4274,7 @@ async function setupAdminEdit(){
     if (cb) cb.style.display = "block";
   }
   buildAdminLinks();                                             /* 0728: 대시보드 10종 */
+  buildShotSwitches();                                           /* 0902: 촬영 · 핀 종족 */
   const btn = document.getElementById("navEdit");
   btn.addEventListener("click", ()=>{
     EDIT_MODE = !EDIT_MODE;
@@ -6254,6 +6268,50 @@ function buildAdminLinks(){
     b.addEventListener("click", ()=> enterRoomUrl(it.href, it.label));
     box.appendChild(b);
   }
+}
+
+/* ── 0902 오후 — 촬영 · 핀 종족 켜고 끄기 (살롱지기만) ──
+   팸플릿 도판을 찍을 때 「건물만」「전당만」 같은 화면을 만들기 위한 것이다.
+   ⚠ 저장하지 않는다 — 새로고침하면 전부 켜진다. 촬영 상태가 손님 화면에 새어 나가지 않게.
+   ⚠ 늦게 앉는 핀(도시 들어간 뒤 부르는 팝업·전당·terra)도 붙잡아야 하므로
+     collectionChanged 에서 한 번 더 편다. show만 바꾸므로 되먹임은 없다. */
+const SHOT_SWITCHES = [
+  ["city",        "🌐 도시 점"],
+  ["maison",      "🏠 건물"],
+  ["sign",        "🪧 벽 간판"],
+  ["spot",        "📍 인물 장소"],
+  ["popup",       "📕 출판사 팝업"],
+  ["palais",      "🎬 지식채널 전당"],
+  ["t_college",   "🎓 콜레주"],
+  ["t_concert",   "🎼 음악관"],
+  ["t_heritage",  "🖼 미술관"],
+  ["t_museum",    "📚 뮤세움"],
+  ["t_hansfoon",  "🥄 한스푼"],
+  ["t_stadium",   "⚾ 스타디움"],
+  ["t_constellatio","🔭 천문대"]
+];
+function buildShotSwitches(){
+  const box = document.getElementById("navShotList");
+  const head = document.getElementById("navShotFold");
+  if (!box || box.dataset.built) return;
+  box.dataset.built = "1";
+  head.addEventListener("click", ()=>{ const open = box.classList.toggle("on"); head.classList.toggle("open", open); });
+  const mk = (label, fn) => { const b = document.createElement("button"); b.className = "nav-item adm"; b.textContent = label; b.addEventListener("click", fn); return b; };
+  const rows = {};
+  const paint = () => { for (const k in rows) rows[k].textContent = (PIN_SHOW[k] ? "● " : "○ ") + rows[k].dataset.label; };
+  box.appendChild(mk("모두 켜기", ()=>{ for (const k in PIN_SHOW) PIN_SHOW[k] = true; applyLayerVisibility(); paint(); }));
+  box.appendChild(mk("모두 끄기", ()=>{ for (const k in PIN_SHOW) PIN_SHOW[k] = false; applyLayerVisibility(); paint(); }));
+  for (const [k, label] of SHOT_SWITCHES){
+    const b = mk("", ()=>{ PIN_SHOW[k] = !PIN_SHOW[k]; applyLayerVisibility(); paint(); });
+    b.dataset.label = label; rows[k] = b; box.appendChild(b);
+  }
+  paint();
+  let shotDirty = false;
+  viewer.entities.collectionChanged.addEventListener(()=>{
+    if (Object.values(PIN_SHOW).every(v=>v)) return;   /* 전부 켜져 있으면 손댈 것 없음 */
+    if (shotDirty) return; shotDirty = true;
+    setTimeout(()=>{ shotDirty = false; applyLayerVisibility(); }, 60);
+  });
 }
 
 /* moveTerraPin — 0830 폐기. 편집은 moveSelected 한 곳에서 한다 */
