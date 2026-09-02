@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>EG Plates — 도판</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Noto+Serif+KR:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{ box-sizing:border-box; margin:0; padding:0; }
+:root{
+  --bg:#12100c; --panel:#1b1710; --panel2:#221c14;
+  --ink:#ece3d0; --dim:#9a8d72; --soft:#c8baa0;
+  --gold:#d8b860; --gold2:#c9a84c; --line:rgba(216,184,96,.22);
+  --ok:#7fb38a; --bad:#c46a5e;
+}
+body{ background:var(--bg); color:var(--ink); font-family:'Noto Serif KR',serif; min-height:100vh; }
+:focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
+@media (prefers-reduced-motion:reduce){ *{ transition:none !important; } }
+
+header{ display:flex; align-items:baseline; gap:14px; padding:18px 22px 14px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+h1{ font-family:'Cormorant Garamond',serif; font-size:25px; font-weight:600; letter-spacing:.5px; }
+h1 .g{ color:var(--gold); }
+.sub{ font-size:11.5px; color:var(--dim); letter-spacing:.14em; }
+.count{ margin-left:auto; font-size:12px; color:var(--soft); }
+.count b{ color:var(--gold); font-weight:500; }
+
+#gate{ max-width:340px; margin:14vh auto; padding:26px; background:var(--panel); border:1px solid var(--line); border-radius:12px; }
+#gate h2{ font-family:'Cormorant Garamond',serif; font-size:20px; margin-bottom:14px; color:var(--gold); }
+#gate p{ font-size:13px; color:var(--dim); line-height:1.8; }
+label{ display:block; font-size:11.5px; color:var(--dim); margin:8px 0 4px; }
+input, textarea{ width:100%; background:var(--panel2); color:var(--ink); border:1px solid var(--line);
+  border-radius:8px; padding:8px 10px; font-family:inherit; font-size:13px; }
+.b{ background:var(--panel2); color:var(--soft); border:1px solid var(--line); border-radius:8px;
+  padding:9px 14px; font-family:inherit; font-size:13px; cursor:pointer; }
+.b:hover{ color:var(--ink); border-color:var(--gold2); }
+.b.gold{ background:linear-gradient(135deg,var(--gold),var(--gold2)); color:#1a120c; border-color:var(--gold2); font-weight:500; }
+.b:disabled{ opacity:.4; cursor:not-allowed; }
+.b.wide{ width:100%; margin-top:10px; }
+
+main{ display:grid; grid-template-columns:232px 1fr; gap:18px; padding:18px 22px 70px; align-items:start; }
+@media(max-width:900px){ main{ grid-template-columns:1fr; } }
+
+/* 열 칸 */
+.tabs{ display:flex; flex-direction:column; gap:5px; }
+.tab{ display:flex; align-items:center; gap:8px; padding:9px 12px; border:1px solid transparent; border-radius:9px;
+  cursor:pointer; font-size:13.5px; color:var(--soft); background:none; font-family:inherit; text-align:left; width:100%; }
+.tab:hover{ border-color:var(--line); color:var(--ink); }
+.tab.on{ background:var(--panel2); border-color:var(--gold2); color:var(--ink); }
+.tab .n{ margin-left:auto; font-size:11.5px; color:var(--dim); }
+.tab.on .n{ color:var(--gold); }
+.tabs .gap{ height:8px; border-top:1px solid var(--line); margin:6px 4px 2px; }
+.tabs .hd{ font-family:'Cormorant Garamond',serif; font-size:12px; letter-spacing:1.6px; color:var(--dim); padding:4px 12px; }
+
+/* 투척함 */
+.drop{ border:1px dashed var(--line); border-radius:12px; padding:18px 16px; text-align:center;
+  color:var(--dim); font-size:12.5px; line-height:1.8; margin-bottom:14px; background:var(--panel); }
+.drop.over{ border-color:var(--gold); color:var(--ink); background:var(--panel2); }
+.drop b{ color:var(--gold); font-weight:500; }
+.drop input{ display:none; }
+.drop .pick{ color:var(--gold2); cursor:pointer; text-decoration:underline; }
+.busy{ font-size:12px; color:var(--soft); margin:-6px 0 12px; min-height:1.2em; }
+
+/* 판 그리드 */
+.grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(236px,1fr)); gap:12px; }
+.card{ background:var(--panel); border:1px solid var(--line); border-radius:11px; overflow:hidden; cursor:grab; }
+.card.dragging{ opacity:.35; }
+.card.over{ border-color:var(--gold); }
+.card.off{ opacity:.45; }
+.card .pic{ position:relative; background:#0c0a07; aspect-ratio:16/10; display:flex; align-items:center; justify-content:center; cursor:zoom-in; }
+.card .pic img{ max-width:100%; max-height:100%; object-fit:contain; display:block; }
+.card .no{ position:absolute; left:8px; top:6px; font-family:'Cormorant Garamond',serif; font-size:13px; color:var(--gold); letter-spacing:1px; }
+.card .dim{ position:absolute; right:8px; bottom:6px; font-size:10.5px; color:var(--dim); }
+.card .body{ padding:9px 10px 10px; }
+.card .cap{ font-size:12.5px; background:transparent; border:0; border-bottom:1px dashed var(--line); border-radius:0; padding:5px 2px; }
+.card .cap:focus{ border-bottom-color:var(--gold2); background:var(--panel2); }
+.card .row{ display:flex; gap:6px; align-items:center; margin-top:8px; }
+.mini{ background:none; border:1px solid var(--line); color:var(--dim); border-radius:6px; padding:4px 9px; font-size:11.5px; font-family:inherit; cursor:pointer; }
+.mini:hover{ color:var(--ink); border-color:var(--gold2); }
+.mini.on{ color:var(--ok); border-color:rgba(127,179,138,.5); }
+.mini.del{ margin-left:auto; } .mini.del:hover{ color:var(--bad); border-color:var(--bad); }
+.empty{ text-align:center; padding:60px 20px; color:var(--dim); font-size:13px; line-height:2; grid-column:1/-1; }
+
+/* 자르기 */
+.veil{ position:fixed; inset:0; background:rgba(8,6,3,.92); display:none; z-index:50; flex-direction:column; }
+.veil.show{ display:flex; }
+.veil .top{ display:flex; align-items:center; gap:12px; padding:12px 18px; border-bottom:1px solid var(--line); font-size:13px; color:var(--soft); flex-wrap:wrap; }
+.veil .top b{ color:var(--gold); font-weight:500; }
+.veil .top .r{ margin-left:auto; display:flex; gap:8px; }
+.stage{ flex:1; display:flex; align-items:center; justify-content:center; padding:16px; overflow:hidden; }
+.stage .box{ position:relative; user-select:none; touch-action:none; }
+.stage canvas{ display:block; max-width:100%; max-height:calc(100vh - 110px); }
+.stage .sel{ position:absolute; border:1.5px solid var(--gold); box-shadow:0 0 0 9999px rgba(0,0,0,.55); pointer-events:none; }
+.stage .sel .sz{ position:absolute; left:0; bottom:-20px; font-size:11px; color:var(--gold); white-space:nowrap; }
+
+/* 크게 보기 */
+.big{ position:fixed; inset:0; background:rgba(8,6,3,.95); display:none; align-items:center; justify-content:center; z-index:60; cursor:zoom-out; }
+.big.show{ display:flex; }
+.big img{ max-width:96vw; max-height:92vh; object-fit:contain; }
+.big .cap{ position:absolute; left:0; right:0; bottom:16px; text-align:center; font-size:13px; color:var(--soft); }
+
+.toast{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%); background:var(--gold); color:#1a120c;
+  font-size:13px; padding:10px 20px; border-radius:9px; opacity:0; pointer-events:none; transition:opacity .18s; z-index:99; }
+.toast.show{ opacity:1; } .toast.bad{ background:var(--bad); color:#fff; }
+</style>
+</head>
+<body>
+
+<div id="gate" hidden>
+  <h2>도판</h2>
+  <p>살롱지기로 들어와 주세요.</p>
+  <label>메일</label><input id="em" type="email" autocomplete="username">
+  <label>열쇠</label><input id="pw" type="password" autocomplete="current-password">
+  <button class="b gold wide" id="loginBtn">들어가기</button>
+</div>
+
+<div id="app" hidden>
+<header>
+  <h1>EG <span class="g">Plates</span></h1>
+  <span class="sub">팸플릿 도판 · 0902</span>
+  <span class="count" id="hcount"></span>
+</header>
+
+<main>
+  <nav class="tabs" id="tabs"></nav>
+
+  <section>
+    <div class="drop" id="drop">
+      캡처를 여기에 <b>끌어다 놓거나</b>, 이 화면 어디서든 <b>Ctrl+V</b>로 붙여 넣으세요.<br>
+      지금 켜진 칸 <b id="curName"></b>에 순서대로 앉습니다. <span class="pick" id="pickBtn">파일 고르기</span>
+      <input type="file" id="file" accept="image/*" multiple>
+    </div>
+    <div class="busy" id="busy"></div>
+    <div class="grid" id="grid"></div>
+  </section>
+</main>
+</div>
+
+<!-- 자르기 -->
+<div class="veil" id="crop">
+  <div class="top">
+    <span>붙여 넣은 그림 <b id="cropInfo"></b> — 남길 곳을 끌어 네모를 그리세요. 안 그리면 통째로 앉습니다.</span>
+    <span class="r">
+      <button class="b" id="cropSkip">통째로</button>
+      <button class="b gold" id="cropOk">이대로 앉히기</button>
+      <button class="b" id="cropCancel">버림</button>
+    </span>
+  </div>
+  <div class="stage"><div class="box" id="cropBox"><canvas id="cropCv"></canvas><div class="sel" id="cropSel" hidden><span class="sz" id="cropSz"></span></div></div></div>
+</div>
+
+<!-- 크게 보기 -->
+<div class="big" id="big"><img id="bigImg" alt=""><div class="cap" id="bigCap"></div></div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const sb = createClient(SUPA_URL, SUPA_KEY, { auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true } });
+const $ = s => document.querySelector(s);
+const BUCKET = 'plates';
+const PUB = p => `${SUPA_URL}/storage/v1/object/public/${BUCKET}/${p}`;
+
+/* 열 칸 — 표의 CHECK 와 같은 줄 */
+const CATS = [
+  ['text','텍스트'],['painting','회화'],['music','고전음악'],['nature','자연'],
+  ['travel','여행'],['star','별'],['dialogue','대화'],
+  null,
+  ['paris','파리'],['london','런던'],['newyork','뉴욕']
+];
+const NAME = Object.fromEntries(CATS.filter(Boolean));
+let CUR = 'text';
+let ROWS = [];                 /* 표 전량 */
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(m,bad){ const t=$('#toast'); t.textContent=m; t.classList.toggle('bad',!!bad); t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2000); }
+const kb = n => n>1024*1024 ? (n/1048576).toFixed(1)+'MB' : Math.round(n/1024)+'KB';
+
+/* ── 문지기 ── */
+async function boot(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if(!session){ $('#gate').hidden=false; return; }
+  const { data:isAdmin } = await sb.rpc('eg_is_admin');
+  if(!isAdmin){ $('#gate').hidden=false; $('#gate').innerHTML='<h2>도판</h2><p>이 문은 살롱지기에게만 열립니다.</p>'; return; }
+  $('#gate').hidden=true; $('#app').hidden=false;
+  await load();
+}
+$('#loginBtn').addEventListener('click', async ()=>{
+  const { error } = await sb.auth.signInWithPassword({ email:$('#em').value.trim(), password:$('#pw').value });
+  if(error){ toast('들어가지 못했습니다 — '+error.message, true); return; }
+  boot();
+});
+
+/* ── 목록 ── */
+async function load(){
+  const { data, error } = await sb.from('eg_plates').select('*').order('cat').order('sort').order('id');
+  if(error){ toast('불러오지 못했습니다 — '+error.message, true); return; }
+  ROWS = data||[]; paint();
+}
+function paint(){
+  const total = ROWS.length, on = ROWS.filter(r=>r.active).length;
+  $('#hcount').innerHTML = `판 <b>${total}</b> · 실을 것 <b>${on}</b>`;
+  $('#tabs').innerHTML = CATS.map(c=>{
+    if(!c) return '<div class="gap"></div><div class="hd">CITIES</div>';
+    const [k,n] = c; const cnt = ROWS.filter(r=>r.cat===k).length;
+    return `<button class="tab${k===CUR?' on':''}" data-cat="${k}">${n}<span class="n">${cnt}</span></button>`;
+  }).join('');
+  $('#tabs').innerHTML = '<div class="hd">MATERIALS</div>' + $('#tabs').innerHTML;
+  $('#curName').textContent = NAME[CUR];
+  const list = ROWS.filter(r=>r.cat===CUR);
+  const g = $('#grid');
+  if(!list.length){ g.innerHTML = `<div class="empty">「${NAME[CUR]}」 칸이 비어 있습니다.<br>캡처를 끌어다 놓거나 Ctrl+V.</div>`; return; }
+  g.innerHTML = list.map((r,i)=>`
+    <div class="card${r.active?'':' off'}" draggable="true" data-id="${r.id}">
+      <div class="pic" data-act="big">
+        <img src="${PUB(r.thumb||r.path)}" alt="" loading="lazy">
+        <span class="no">${String(i+1).padStart(3,'0')}</span>
+        <span class="dim">${r.w||'?'}×${r.h||'?'}${r.bytes?' · '+kb(r.bytes):''}</span>
+      </div>
+      <div class="body">
+        <input class="cap" data-act="cap" value="${esc(r.caption)}" placeholder="사실 한 줄 — 어디, 무엇">
+        <div class="row">
+          <button class="mini${r.active?' on':''}" data-act="on">${r.active?'실음':'안 실음'}</button>
+          <button class="mini" data-act="up" title="앞으로">↑</button>
+          <button class="mini" data-act="down" title="뒤로">↓</button>
+          <button class="mini del" data-act="del">지움</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+$('#tabs').addEventListener('click', e=>{
+  const b = e.target.closest('.tab'); if(!b) return;
+  CUR = b.dataset.cat; paint();
+});
+
+/* ── 카드 손질 ── */
+$('#grid').addEventListener('click', async e=>{
+  const el = e.target.closest('[data-act]'); if(!el) return;
+  const card = el.closest('.card'); const id = Number(card.dataset.id);
+  const r = ROWS.find(x=>x.id===id); if(!r) return;
+  const act = el.dataset.act;
+  if(act==='big'){ $('#bigImg').src = PUB(r.path); $('#bigCap').textContent = r.caption||''; $('#big').classList.add('show'); return; }
+  if(act==='on'){ await save(id, { active: !r.active }, r.active?'안 실음':'실음'); return; }
+  if(act==='up' || act==='down'){
+    const list = ROWS.filter(x=>x.cat===CUR); const i = list.indexOf(r);
+    const j = act==='up' ? i-1 : i+1; if(j<0 || j>=list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    await resort(list); return;
+  }
+  if(act==='del'){
+    if(!confirm('이 판을 지웁니다. 저장소의 원본도 함께 사라집니다.')) return;
+    const paths = [r.path, r.thumb].filter(Boolean);
+    const { error:e1 } = await sb.storage.from(BUCKET).remove(paths);
+    if(e1){ toast('저장소에서 못 지웠습니다 — '+e1.message, true); return; }
+    const { error:e2 } = await sb.from('eg_plates').delete().eq('id', id);
+    if(e2){ toast('표에서 못 지웠습니다 — '+e2.message, true); return; }
+    ROWS = ROWS.filter(x=>x.id!==id); paint(); toast('지웠습니다');
+  }
+});
+$('#grid').addEventListener('blur', async e=>{
+  if(e.target.dataset.act!=='cap') return;
+  const id = Number(e.target.closest('.card').dataset.id);
+  const r = ROWS.find(x=>x.id===id); const v = e.target.value.trim()||null;
+  if((r.caption||null)===v) return;
+  await save(id, { caption:v }, '캡션');
+}, true);
+$('#big').addEventListener('click', ()=> $('#big').classList.remove('show'));
+
+async function save(id, patch, what){
+  const { error } = await sb.from('eg_plates').update(patch).eq('id', id);
+  if(error){ toast(`${what} 저장 실패 — ${error.message}`, true); return; }
+  Object.assign(ROWS.find(x=>x.id===id), patch); paint(); toast(`${what} 저장`);
+}
+/* 한 칸의 순서를 통째로 다시 적는다 */
+async function resort(list){
+  const ups = list.map((r,i)=>{ r.sort=i+1; return sb.from('eg_plates').update({ sort:i+1 }).eq('id', r.id); });
+  const rs = await Promise.all(ups);
+  const bad = rs.find(x=>x.error);
+  if(bad){ toast('순서 저장 실패 — '+bad.error.message, true); await load(); return; }
+  paint();
+}
+
+/* 끌어서 순서 */
+let DRAG = null;
+$('#grid').addEventListener('dragstart', e=>{ const c=e.target.closest('.card'); if(!c) return; DRAG=Number(c.dataset.id); c.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; });
+$('#grid').addEventListener('dragend', e=>{ const c=e.target.closest('.card'); if(c) c.classList.remove('dragging'); document.querySelectorAll('.card.over').forEach(x=>x.classList.remove('over')); });
+$('#grid').addEventListener('dragover', e=>{ const c=e.target.closest('.card'); if(!c||Number(c.dataset.id)===DRAG) return; e.preventDefault(); document.querySelectorAll('.card.over').forEach(x=>x.classList.remove('over')); c.classList.add('over'); });
+$('#grid').addEventListener('drop', async e=>{
+  const c = e.target.closest('.card'); if(!c || DRAG==null) return; e.preventDefault(); e.stopPropagation();
+  const to = Number(c.dataset.id);
+  const list = ROWS.filter(x=>x.cat===CUR);
+  const a = list.findIndex(x=>x.id===DRAG), b = list.findIndex(x=>x.id===to);
+  if(a<0||b<0) return;
+  const [m] = list.splice(a,1); list.splice(b,0,m);
+  DRAG=null; await resort(list);
+});
+
+/* ── 들어오는 그림 — 던지기 · 고르기 · 붙여넣기 ── */
+const drop = $('#drop');
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev, e=>{ e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev, e=>{ e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e=>{ takeFiles([...e.dataTransfer.files]); });
+$('#pickBtn').addEventListener('click', ()=>$('#file').click());
+$('#file').addEventListener('change', e=>{ takeFiles([...e.target.files]); e.target.value=''; });
+document.addEventListener('paste', e=>{
+  if($('#app').hidden || $('#crop').classList.contains('show')) return;
+  if(e.target.matches('input,textarea')) return;          /* 캡션 칸에 글 붙여 넣는 것은 그대로 */
+  const items = [...(e.clipboardData?.items||[])].filter(i=>i.type.startsWith('image/'));
+  if(!items.length) return;
+  e.preventDefault();
+  takeFiles(items.map(i=>i.getAsFile()).filter(Boolean));
+});
+
+const QUEUE = []; let RUNNING = false;
+function takeFiles(files){
+  const imgs = files.filter(f=>f && f.type.startsWith('image/'));
+  if(!imgs.length){ toast('그림이 아닙니다', true); return; }
+  imgs.forEach(f=>QUEUE.push({ file:f, cat:CUR }));
+  runQueue();
+}
+async function runQueue(){
+  if(RUNNING) return; RUNNING = true;
+  while(QUEUE.length){
+    const job = QUEUE.shift();
+    try{
+      const cut = await askCrop(job.file);            /* null 이면 버림 */
+      if(!cut) continue;
+      await put(cut, job.cat);
+    }catch(err){ toast('앉히지 못했습니다 — '+(err.message||err), true); }
+  }
+  $('#busy').textContent=''; RUNNING=false;
+}
+
+/* ── 자르기 — 픽셀은 안 줄인다. 테두리만 걷어낸다 ── */
+function askCrop(file){
+  return new Promise(async res=>{
+    const bmp = await createImageBitmap(file);
+    const cv = $('#cropCv'); cv.width = bmp.width; cv.height = bmp.height;
+    cv.getContext('2d').drawImage(bmp,0,0);
+    $('#cropInfo').textContent = `${bmp.width}×${bmp.height} · ${kb(file.size)}`;
+    const sel = $('#cropSel'); sel.hidden = true; let rect = null;
+    const box = $('#cropBox');
+    const pos = e => { const r = cv.getBoundingClientRect(); const k = cv.width/r.width;
+      return { x: Math.max(0, Math.min(cv.width,  (e.clientX - r.left)*k)),
+               y: Math.max(0, Math.min(cv.height, (e.clientY - r.top)*k)), k }; };
+    let start = null;
+    const down = e => { start = pos(e); rect = null; sel.hidden = true; box.setPointerCapture(e.pointerId); };
+    const move = e => { if(!start) return; const p = pos(e);
+      rect = { x:Math.round(Math.min(start.x,p.x)), y:Math.round(Math.min(start.y,p.y)),
+               w:Math.round(Math.abs(p.x-start.x)), h:Math.round(Math.abs(p.y-start.y)) };
+      const r = cv.getBoundingClientRect(); const s = r.width/cv.width;
+      sel.hidden = false; sel.style.left = rect.x*s+'px'; sel.style.top = rect.y*s+'px';
+      sel.style.width = rect.w*s+'px'; sel.style.height = rect.h*s+'px';
+      $('#cropSz').textContent = `${rect.w}×${rect.h}`; };
+    const up = () => { start = null; if(rect && (rect.w<8||rect.h<8)){ rect=null; sel.hidden=true; } };
+    box.addEventListener('pointerdown', down); box.addEventListener('pointermove', move); box.addEventListener('pointerup', up);
+
+    const done = out => {
+      box.removeEventListener('pointerdown', down); box.removeEventListener('pointermove', move); box.removeEventListener('pointerup', up);
+      $('#crop').classList.remove('show'); bmp.close && bmp.close(); res(out);
+    };
+    $('#cropSkip').onclick = () => done({ blob:file, w:bmp.width, h:bmp.height, mime:file.type||'image/png' });
+    $('#cropCancel').onclick = () => done(null);
+    $('#cropOk').onclick = async () => {
+      if(!rect){ done({ blob:file, w:bmp.width, h:bmp.height, mime:file.type||'image/png' }); return; }
+      const c2 = document.createElement('canvas'); c2.width = rect.w; c2.height = rect.h;
+      c2.getContext('2d').drawImage(cv, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
+      /* ⭐ PNG 무손실 — 자른 뒤에도 안쪽 픽셀은 원본 그대로 */
+      const blob = await new Promise(r=>c2.toBlob(r,'image/png'));
+      done({ blob, w:rect.w, h:rect.h, mime:'image/png' });
+    };
+    $('#crop').classList.add('show');
+  });
+}
+
+/* ── 앉히기 — 원본은 그대로, 그리드용 작은 판만 따로 굽는다 ── */
+async function put(cut, cat){
+  $('#busy').textContent = `${NAME[cat]}에 앉히는 중… ${cut.w}×${cut.h} · ${kb(cut.blob.size)}`;
+  const ext = cut.mime==='image/jpeg' ? 'jpg' : cut.mime==='image/webp' ? 'webp' : 'png';
+  const stem = `${cat}/${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+  const path = `${stem}.${ext}`, thumb = `${stem}_t.webp`;
+
+  /* 작은 판 — 긴 변 640 · 그리드에서만 쓴다 */
+  let tb = null;
+  try{
+    const bmp = await createImageBitmap(cut.blob);
+    const s = Math.min(1, 640/Math.max(bmp.width,bmp.height));
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width*s); c.height = Math.round(bmp.height*s);
+    const cx = c.getContext('2d'); cx.imageSmoothingQuality='high'; cx.drawImage(bmp,0,0,c.width,c.height);
+    tb = await new Promise(r=>c.toBlob(r,'image/webp',.82)); bmp.close && bmp.close();
+  }catch(e){ tb = null; }
+
+  const { error:e1 } = await sb.storage.from(BUCKET).upload(path, cut.blob, { contentType:cut.mime, cacheControl:'3600', upsert:false });
+  if(e1) throw new Error('원본 올리기 — '+e1.message);
+  if(tb){ const { error:e2 } = await sb.storage.from(BUCKET).upload(thumb, tb, { contentType:'image/webp', cacheControl:'3600', upsert:false });
+    if(e2) tb = null; }
+
+  const sort = ROWS.filter(r=>r.cat===cat).reduce((m,r)=>Math.max(m,r.sort),0)+1;
+  const { data, error:e3 } = await sb.from('eg_plates').insert({
+    cat, path, thumb: tb?thumb:null, sort, w:cut.w, h:cut.h, bytes:cut.blob.size, mime:cut.mime }).select().single();
+  if(e3) throw new Error('표에 적기 — '+e3.message);
+  ROWS.push(data); if(cat!==CUR){ CUR=cat; } paint();
+  toast(`${NAME[cat]} ${String(sort).padStart(3,'0')} 앉았습니다`);
+}
+
+boot();
+</script>
+</body>
+</html>
