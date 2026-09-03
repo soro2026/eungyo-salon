@@ -1953,7 +1953,7 @@ window.EGQ = (function(){
       <div class="adm-fold" id="navAdminLinks"></div>
       <!-- 0902 오후 — 촬영. 팸플릿 도판을 찍을 때 핀 종족을 하나씩 켜고 끈다(살롱지기만).
            손님 화면의 「보기」 칩(인물 장소·콩파뇽 집)과 겹치는 종족은 둘 다 켜져야 보인다. -->
-      <button class="nav-item adm-head" id="navShotFold">🎬 촬영 · 핀 <span class="chev" aria-hidden="true">›</span></button>
+      <button class="nav-item adm-head" id="navShotFold">🎬 촬영 · 화면 <span class="chev" aria-hidden="true">›</span></button>
       <div class="adm-fold" id="navShotList"></div>
     </div>
     <div class="nav-group">
@@ -2091,7 +2091,7 @@ window.EGQ = (function(){
 </div>
 
 <!-- 분더카머 투어 — 우측 슬라이드 패널 (배경 흐림) -->
-<div style="position:fixed;left:8px;bottom:6px;z-index:70;font-size:9px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.5px;pointer-events:none">maison 0628e</div>
+<div id="verTag" style="position:fixed;left:8px;bottom:6px;z-index:70;font-size:9px;color:rgba(255,255,255,.3);font-family:monospace;letter-spacing:.5px;pointer-events:none">maison 0628e</div>
 
 <script>
 console.log('[EG] terra 0818b — 미니 타륜(카드·배낭 둘 다)은 카메라 워크 없이 곧바로(jump=1)');
@@ -3069,9 +3069,10 @@ async function loadPopups(city){
         text: p.name || p.code,
         font: "bold 14px 'Helvetica Neue',Arial,sans-serif",   // 메종(13px)보다 한 급 큼
         fillColor: Cesium.Color.WHITE,
-        outlineColor: Cesium.Color.fromCssColorString("#0a0e1a"),
-        outlineWidth: 3,
-        style: Cesium.LabelStyle.FILL_AND_OUTLINE,             // 흰 글씨 + 검은 테두리 = 어디서나 또렷
+        /* 0903 — 먹 테두리를 걷었다. 0801에 terra 핀에서 이미 걷어낸 것인데
+           7월에 지어진 이 핀은 그 손질에서 빠져 있었다.
+           소로: 「먹으로 글씨 둘러싸서 훨씬 가독성이 나빠짐」. 바탕이 이미 불투명하므로
+           테두리 없이도 어디서나 읽힌다. */
         showBackground: true,
         backgroundColor: Cesium.Color.fromCssColorString(bg).withAlpha(.95),   // 출판사 고유 컬러풀 바탕
         backgroundPadding: new Cesium.Cartesian2(11,6),
@@ -3175,9 +3176,7 @@ async function loadPalais(city){
         text: p.name || p.code,
         font: "bold 14px 'Helvetica Neue',Arial,sans-serif",
         fillColor: Cesium.Color.WHITE,
-        outlineColor: Cesium.Color.fromCssColorString("#0a0e1a"),
-        outlineWidth: 3,
-        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        /* 0903 — 먹 테두리를 걷었다 (팝업 핀과 같은 손). 흰 고딕 + 불투명 바탕만 남긴다. */
         showBackground: true,
         backgroundColor: Cesium.Color.fromCssColorString(PALAIS_COLOR).withAlpha(.95),
         backgroundPadding: new Cesium.Cartesian2(11,6),
@@ -3257,6 +3256,26 @@ const SHOT_SWITCHES = [
   ["t_stadium",   "⚾ 스타디움"],
   ["t_constellatio","🔭 천문대"]
 ];
+/* ── 0903 — 화면 장식 끄기 (도록 촬영용) ──
+   핀이 아니라 HTML 요소라 PIN_SHOW 와 섞지 않는다. 표를 따로 둔다.
+   ⚠⚠ 나침반(#compassBtn)을 끄면 **이 스위치가 든 패널을 다시 열 길이 없어진다.**
+      #navPanel 은 형제라 남아 있지만, 한 번 닫으면 여는 단추가 사라진 뒤다.
+      그래서 백슬래시(\) 한 번으로 셋을 되살리는 비상구를 따로 둔다. */
+const CHROME_SHOW = { compassBtn:true, helmBtn:true, verTag:true };
+const SHOT_CHROME = [
+  ["compassBtn", "🧭 나침반"],
+  ["helmBtn",    "☸ 타륜"],
+  ["verTag",     "🏷 판 표시"]
+];
+function applyChromeVisibility(){
+  for (const k in CHROME_SHOW){
+    const el = document.getElementById(k);
+    /* 빈 문자열로 되돌린다 — display 를 박아 넣으면 body.on-voyage #helmBtn{display:none}
+       같은 기존 규칙을 덮어써서 비행 중에 타륜이 되살아난다. */
+    if (el) el.style.display = CHROME_SHOW[k] ? "" : "none";
+  }
+}
+
 function buildShotSwitches(){
   const box = document.getElementById("navShotList");
   const head = document.getElementById("navShotFold");
@@ -3264,15 +3283,42 @@ function buildShotSwitches(){
   box.dataset.built = "1";
   head.addEventListener("click", ()=>{ const open = box.classList.toggle("on"); head.classList.toggle("open", open); });
   const mk = (label, fn) => { const b = document.createElement("button"); b.className = "nav-item adm"; b.textContent = label; b.addEventListener("click", fn); return b; };
-  const rows = {};
-  const paint = () => { for (const k in rows) rows[k].textContent = (PIN_SHOW[k] ? "● " : "○ ") + rows[k].dataset.label; };
-  box.appendChild(mk("모두 켜기", ()=>{ for (const k in PIN_SHOW) PIN_SHOW[k] = true; applyLayerVisibility(); paint(); }));
-  box.appendChild(mk("모두 끄기", ()=>{ for (const k in PIN_SHOW) PIN_SHOW[k] = false; applyLayerVisibility(); paint(); }));
+  const rows = {}, crows = {};
+  const paint  = () => { for (const k in rows)  rows[k].textContent  = (PIN_SHOW[k]    ? "● " : "○ ") + rows[k].dataset.label; };
+  const cpaint = () => { for (const k in crows) crows[k].textContent = (CHROME_SHOW[k] ? "● " : "○ ") + crows[k].dataset.label; };
+  const setAll = (v) => {
+    for (const k in PIN_SHOW)    PIN_SHOW[k]    = v;
+    for (const k in CHROME_SHOW) CHROME_SHOW[k] = v;
+    applyLayerVisibility(); applyChromeVisibility(); paint(); cpaint();
+  };
+  box.appendChild(mk("모두 켜기", ()=> setAll(true)));
+  box.appendChild(mk("모두 끄기", ()=> setAll(false)));
   for (const [k, label] of SHOT_SWITCHES){
     const b = mk("", ()=>{ PIN_SHOW[k] = !PIN_SHOW[k]; applyLayerVisibility(); paint(); });
     b.dataset.label = label; rows[k] = b; box.appendChild(b);
   }
-  paint();
+  /* 핀과 장식 사이 가는 선 */
+  const hr = document.createElement("div");
+  hr.style.cssText = "height:1px;margin:7px 10px;background:rgba(255,255,255,.14)";
+  box.appendChild(hr);
+  for (const [k, label] of SHOT_CHROME){
+    const b = mk("", ()=>{ CHROME_SHOW[k] = !CHROME_SHOW[k]; applyChromeVisibility(); cpaint(); });
+    b.dataset.label = label; crows[k] = b; box.appendChild(b);
+  }
+  paint(); cpaint();
+
+  /* ⭐ 비상구 — 백슬래시 한 번으로 장식 셋을 한꺼번에 껐다 켠다.
+     하나라도 켜져 있으면 전부 끄고, 다 꺼져 있으면 전부 켠다.
+     ⚠ 글 쓰는 칸에서는 안 먹는다 — 타벨라이 편지에 \ 를 칠 수 있어야 한다. */
+  document.addEventListener("keydown", (e)=>{
+    if (e.key !== "\\" || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+    const anyOn = Object.values(CHROME_SHOW).some(v=>v);
+    for (const k in CHROME_SHOW) CHROME_SHOW[k] = !anyOn;
+    applyChromeVisibility(); cpaint();
+  });
+
   let shotDirty = false;
   viewer.entities.collectionChanged.addEventListener(()=>{
     if (Object.values(PIN_SHOW).every(v=>v)) return;   /* 전부 켜져 있으면 손댈 것 없음 */
