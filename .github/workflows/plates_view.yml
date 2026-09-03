@@ -1,0 +1,96 @@
+name: plates_view
+
+# Supabase 공개 버킷 `plates`의 도판 원본을 받아 보는 용도의 작은 판(webp)으로 줄여
+# 저장소 plates_view/<cat>/ 에 넣는다. 원본은 Supabase에 그대로 남는다.
+# 실행: Actions 탭 → plates_view → Run workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_width:
+        description: "가로 최대 픽셀 (기본 1600)"
+        default: "1600"
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install requests pillow
+
+      - name: pull and shrink
+        env:
+          SUPA_URL: https://cyhlotwdisjvoxvfkpnd.supabase.co
+          SUPA_KEY: sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR
+          MAX_W: ${{ github.event.inputs.max_width }}
+        run: |
+          python - <<'PY'
+          import os, io, json, requests
+          from PIL import Image
+
+          URL  = os.environ["SUPA_URL"]
+          KEY  = os.environ["SUPA_KEY"]
+          MAXW = int(os.environ.get("MAX_W") or 1600)
+          H    = {"apikey": KEY, "Authorization": f"Bearer {KEY}"}
+          CATS = ["text","painting","music","nature","travel","star","dialogue","paris","london","newyork"]
+
+          def listing(prefix):
+              out, off = [], 0
+              while True:
+                  r = requests.post(f"{URL}/storage/v1/object/list/plates", headers=H,
+                                    json={"prefix": prefix, "limit": 1000, "offset": off,
+                                          "sortBy": {"column": "name", "order": "asc"}})
+                  r.raise_for_status()
+                  rows = r.json()
+                  out += rows
+                  if len(rows) < 1000: return out
+                  off += 1000
+
+          manifest = []
+          for cat in CATS:
+              os.makedirs(f"plates_view/{cat}", exist_ok=True)
+              for o in listing(cat):
+                  name = o["name"]
+                  if not name.lower().endswith(".png"):   # _t.webp 작은 판은 건너뜀
+                      continue
+                  dst = f"plates_view/{cat}/{name[:-4]}.webp"
+                  manifest.append({"cat": cat, "path": f"{cat}/{name}", "view": dst})
+                  if os.path.exists(dst):
+                      continue
+                  b = requests.get(f"{URL}/storage/v1/object/public/plates/{cat}/{name}").content
+                  im = Image.open(io.BytesIO(b)).convert("RGB")
+                  if im.width > MAXW:
+                      im = im.resize((MAXW, round(im.height * MAXW / im.width)), Image.LANCZOS)
+                  im.save(dst, "WEBP", quality=85)
+                  print("saved", dst, im.size)
+
+          # 저장소에는 있는데 버킷에서 사라진 판은 지운다
+          keep = {m["view"] for m in manifest}
+          for cat in CATS:
+              d = f"plates_view/{cat}"
+              for f in os.listdir(d) if os.path.isdir(d) else []:
+                  p = f"{d}/{f}"
+                  if p not in keep:
+                      os.remove(p); print("removed", p)
+
+          with open("plates_view/manifest.json", "w", encoding="utf-8") as f:
+              json.dump(manifest, f, ensure_ascii=False, indent=1)
+          print("total", len(manifest))
+          PY
+
+      - name: commit
+        run: |
+          git config user.name  "plates_view"
+          git config user.email "plates_view@users.noreply.github.com"
+          git add plates_view
+          git diff --cached --quiet && echo "nothing new" || git commit -m "plates_view: $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push
