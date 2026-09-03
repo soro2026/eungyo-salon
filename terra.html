@@ -3267,12 +3267,18 @@ const SHOT_CHROME = [
   ["helmBtn",    "☸ 타륜"],
   ["verTag",     "🏷 판 표시"]
 ];
+/* ⭐⭐ 0903 정정 — 「켠 상태」를 빈 문자열로 잡았다가 나침반만 안 돌아왔다.
+   #compassBtn 은 CSS 기본이 display:none 이고 살롱지기 판정에서 인라인 block 으로 켠다.
+   빈 문자열로 되돌리면 CSS 기본값(none)으로 떨어진다.
+   ⭐ 그래서 값을 손으로 적지 않고 **스위치를 지을 때 화면에 있던 값을 그대로 기억**한다.
+      buildShotSwitches 는 cb.style.display="block" 다음 줄에서 불리므로 그 값이 곧 정답이고,
+      나중에 장식이 늘어도 같은 사고가 나지 않는다. */
+const CHROME_KEEP = {};
 function applyChromeVisibility(){
   for (const k in CHROME_SHOW){
     const el = document.getElementById(k);
-    /* 빈 문자열로 되돌린다 — display 를 박아 넣으면 body.on-voyage #helmBtn{display:none}
-       같은 기존 규칙을 덮어써서 비행 중에 타륜이 되살아난다. */
-    if (el) el.style.display = CHROME_SHOW[k] ? "" : "none";
+    if (!el) continue;
+    el.style.display = CHROME_SHOW[k] ? (CHROME_KEEP[k] ?? "") : "none";
   }
 }
 
@@ -3301,6 +3307,11 @@ function buildShotSwitches(){
   const hr = document.createElement("div");
   hr.style.cssText = "height:1px;margin:7px 10px;background:rgba(255,255,255,.14)";
   box.appendChild(hr);
+  /* ⭐ 「켠 상태」를 지금 화면에서 읽어 둔다 — 이 줄이 나침반을 살린다 */
+  for (const [k] of SHOT_CHROME){
+    const el = document.getElementById(k);
+    if (el) CHROME_KEEP[k] = el.style.display;
+  }
   for (const [k, label] of SHOT_CHROME){
     const b = mk("", ()=>{ CHROME_SHOW[k] = !CHROME_SHOW[k]; applyChromeVisibility(); cpaint(); });
     b.dataset.label = label; crows[k] = b; box.appendChild(b);
