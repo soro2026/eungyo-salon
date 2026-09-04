@@ -6,7 +6,7 @@
 <title>EG Voice — 낭독실</title>
 <!--
   ══════════════════════════════════════════════════════════════════════
-  EG 낭독실 — admin_voice.html · v0825b
+  EG 낭독실 — admin_voice.html · v0904 (📖 도록 무리 신설)
   0807 네 갈래(place·art·song·marker) → ⭐ 0825 다섯째 갈래 pa 를 연다
 
   ⭐⭐ 0825a — ✈ 기내 방송. 소로 0825: 「일레븐랩스 녹음을 콘솔에서 일괄로」
@@ -223,7 +223,7 @@ input.line{background:var(--bench);border:1px solid var(--line);color:var(--text
 
 <script>
 
-console.log('[EG] admin_voice v8 0825b — ✈ 기내 방송 · 목소리 둘 · 미리듣기 볼륨·페이드');
+console.log('[EG] admin_voice v9 0904 — 📖 도록 무리(eg_catalogue_text · scope catalogue) 신설');
 
 /* ══ ✈ 기내 방송 무리 (0825a) ═════════════════════════════════════════
    ⭐ kind 하나가 무리 하나다. 표에 kind 를 하나 더하면 여기 한 줄이면 된다.
@@ -234,6 +234,8 @@ const PA_GROUP = {
   random: '✈ 방송 · 무작위'
 };
 const PA_GROUPS = ['✈ 방송 · 정규', '✈ 방송 · 지점', '✈ 방송 · 무작위'];
+/* 📖 0904 — 도록 무리 하나. 지금 굽는 것이라 맨 앞에 세운다. */
+const CAT_GROUP = '📖 도록 · 칸머리';
 
 const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
 const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
@@ -332,6 +334,13 @@ function narrationOfMarker(library, body){
 function narrationOfPA(r){
   return [String(r?.text_ko ?? '').trim(), String(r?.text_en ?? '').trim()]
     .filter(Boolean).join('\n\n');
+}
+
+/* ⭐ 0904 도록 — 표 하나에서 곧장 나온다. 제목(동사)은 안 읽는다 — 화보를 넘기는 동안
+   글만 들려주는 것이 도록의 뜻이다. 문단은 빈 줄 둘로 이어져 있고 그대로 둔다.
+   ⚠⚠ voice_bake(Edge Function)의 같은 이름 함수와 한 글자도 달라선 안 된다. */
+function narrationOfCatalogue(r){
+  return String(r?.body ?? '').split(/\n{2,}/).map(v => v.trim()).filter(Boolean).join('\n\n');
 }
 
 async function sha256(text){
@@ -477,6 +486,20 @@ async function load(){
       sort:m.id, text, hash: await sha256(text) });
   }
 
+  /* 📖 도록 — eg_catalogue_text (0904 신설). 표 하나에서 곧장. 조인이 없다.
+     ⚠ active=false 인 칸(ASLSP·잇는 일·초대)은 목록에 안 세운다 — 읽는 사람이 자기 속도로 읽는 칸.
+     ⭐ 소로 0904: 「낭독실에 콘솔을 만들어 주면 하나하나 체크하고 녹음 뜨다가 일괄 녹음」 — 그대로. */
+  const { data:ct, error:cErr } = await sb.from('eg_catalogue_text')
+    .select('cat,ord,chapter,title,body,active').eq('active', true).order('ord');
+  if (cErr) toast('도록 문안을 읽지 못했습니다 — ' + cErr.message, 'bad');
+  for (const r of (ct||[])){
+    const text = narrationOfCatalogue(r);
+    if(!text) continue;
+    next.push({ scope:'catalogue', ref:r.cat, group:CAT_GROUP,
+      name:r.chapter + ' — ' + r.title, sub:r.cat, sort:r.ord,
+      text, hash: await sha256(text) });
+  }
+
   /* ✈ 기내 방송 — eg_flight_pa (0825a 신설).
      ⭐ 표 하나에서 곧장 나온다. 조인이 없다 — 원고가 그 표에 살기 때문이다.
      ⚠ sfx(챠임·벨트 사인)는 표에 아예 안 넣었다. 코드가 만드는 소리라 낭독할 것이 없다.
@@ -554,7 +577,7 @@ function paintList(){
     .sort((a,b) => (mCount[b]-mCount[a]) || a.localeCompare(b,'ko'));
   /* ⭐ 0825a — 방송 셋을 **맨 앞**에 세운다. 지금 굽는 것이 그것이라서다.
      ⚠ 다 구우면 접어 두시면 된다(무리 이름을 누르면 접힌다). */
-  const GROUPS = PA_GROUPS.concat(FAMILY.map(f=>f.ko), ['미술 4겹','음악 4겹'], MARKER_GROUPS);
+  const GROUPS = [CAT_GROUP].concat(PA_GROUPS, FAMILY.map(f=>f.ko), ['미술 4겹','음악 4겹'], MARKER_GROUPS);
   const bySort = (a,b) => (a.sort > b.sort ? 1 : a.sort < b.sort ? -1 : 0);
   flat = [];
   let html = '';
