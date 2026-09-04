@@ -1,7 +1,9 @@
 name: plates_view
 
-# Supabase 공개 버킷 `plates`의 도판 원본을 받아 보는 용도의 작은 판(webp)으로 줄여
-# 저장소 plates_view/<cat>/ 에 넣는다. 원본은 Supabase에 그대로 남는다.
+# Supabase 공개 버킷 `plates`의 도판 원본을 받아 두 판(webp)으로 줄여 저장소 plates_view/<cat>/ 에 넣는다.
+#   <stem>.webp       가로 1600 · 품질 85   (폰 · 파이스 읽기용)
+#   <stem>_2400.webp  가로 2400 · 품질 90   (도록 catalogue.html 노트북용)
+# 원본은 Supabase에 그대로 남는다. 이미 구운 판은 건너뛴다.
 # 실행: Actions 탭 → plates_view → Run workflow
 
 on:
@@ -62,19 +64,24 @@ jobs:
                   name = o["name"]
                   if not name.lower().endswith(".png"):   # _t.webp 작은 판은 건너뜀
                       continue
-                  dst = f"plates_view/{cat}/{name[:-4]}.webp"
-                  manifest.append({"cat": cat, "path": f"{cat}/{name}", "view": dst})
-                  if os.path.exists(dst):
+                  stem = f"plates_view/{cat}/{name[:-4]}"
+                  dst, dst2 = f"{stem}.webp", f"{stem}_2400.webp"
+                  manifest.append({"cat": cat, "path": f"{cat}/{name}", "view": dst, "view2": dst2})
+                  if os.path.exists(dst) and os.path.exists(dst2):
                       continue
                   b = requests.get(f"{URL}/storage/v1/object/public/plates/{cat}/{name}").content
-                  im = Image.open(io.BytesIO(b)).convert("RGB")
-                  if im.width > MAXW:
-                      im = im.resize((MAXW, round(im.height * MAXW / im.width)), Image.LANCZOS)
-                  im.save(dst, "WEBP", quality=85)
-                  print("saved", dst, im.size)
+                  src = Image.open(io.BytesIO(b)).convert("RGB")
+                  for out, w, q in ((dst, MAXW, 85), (dst2, 2400, 90)):
+                      if os.path.exists(out):
+                          continue
+                      im = src
+                      if im.width > w:
+                          im = im.resize((w, round(im.height * w / im.width)), Image.LANCZOS)
+                      im.save(out, "WEBP", quality=q)
+                      print("saved", out, im.size)
 
           # 저장소에는 있는데 버킷에서 사라진 판은 지운다
-          keep = {m["view"] for m in manifest}
+          keep = {m["view"] for m in manifest} | {m["view2"] for m in manifest}
           for cat in CATS:
               d = f"plates_view/{cat}"
               for f in os.listdir(d) if os.path.isdir(d) else []:
