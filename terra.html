@@ -3418,15 +3418,30 @@ function buildShotSwitches(){
   const recBtn = cbtn("● 녹화 시작", ()=> rec ? recStop() : recStart());
   recBtn.style.color = "#f0c0b0";
   box.appendChild(recBtn);
-  function recStart(){
+  /* ⭐ 0905d — 두 가지 필름.
+       F9        캔버스만 (지구 · 핀 · 기체) — 기내 같은 HTML 층은 안 들어간다
+       Shift+F9  탭 전체 (기내 창밖 · 계기판 · 얹는층까지) — 크롬이 「이 탭」 공유 창을 한 번 띄운다 */
+  let recTab = false;
+  async function recStart(tab){
     if (!window.MediaRecorder || !viewer.canvas.captureStream){ camSay("이 브라우저는 녹화를 못 합니다 — 크롬으로"); return; }
-    const stream = viewer.canvas.captureStream(30);
+    let stream;
+    recTab = !!tab;
+    if (tab){
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia){ camSay("이 브라우저는 탭 녹화를 못 합니다"); return; }
+      try{
+        stream = await navigator.mediaDevices.getDisplayMedia({ video:{ frameRate:30, cursor:"never" }, audio:false, preferCurrentTab:true, selfBrowserSurface:"include", surfaceSwitching:"exclude" });
+      }catch(e){ camSay("탭 녹화를 취소했습니다"); return; }
+      stream.getVideoTracks()[0].addEventListener("ended", ()=> recStop());   /* 크롬 「공유 중지」를 누르면 저장 */
+    } else {
+      stream = viewer.canvas.captureStream(30);
+    }
     const mime = ["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm"].find(m=> MediaRecorder.isTypeSupported(m)) || "";
     try{ rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 16e6 }); }
     catch(e){ camSay("녹화를 못 열었습니다: " + e.message); rec = null; return; }
     recChunks = [];
     rec.ondataavailable = (e)=>{ if (e.data && e.data.size) recChunks.push(e.data); };
     rec.onstop = ()=>{
+      try{ if (recTab) stream.getTracks().forEach(t=> t.stop()); }catch(e){}
       const blob = new Blob(recChunks, { type: "video/webm" });
       recNo += 1;
       const a = document.createElement("a");
@@ -3462,8 +3477,14 @@ function buildShotSwitches(){
     + "background:rgba(0,0,0,.55);color:#ff6b6b;font:600 12px/1.4 system-ui,sans-serif;letter-spacing:.04em;pointer-events:none";
   document.body.appendChild(recDot);
   const _recStartCore = recStart, _recStopCore = recStop;
-  recStart = function(){ _recStartCore(); if (rec){ recDot.style.display = "block"; recDot.textContent = "● REC 0:00"; } };
-  recStop  = function(){ _recStopCore(); recDot.style.display = "none"; };
+  /* ⭐ 0905c 녹화 중에는 방의 관리자 알림판(#egrHold 스탠바이 · #egrWarp 배속)을 감춘다.
+     소로 신고 — 인천-파리 노선 왼쪽 아래 문구 때문에 촬영 불가. 방 코드는 안 건드리고
+     body 에 꼬리표 하나 달아 CSS 로 덮는다. 방이 매초 textContent 만 바꾸므로 display 는 살아남는다. */
+  const recCss = document.createElement("style");
+  recCss.textContent = "body.eg-rec #egrHold, body.eg-rec #egrWarp, body.eg-quiet #egrHold, body.eg-quiet #egrWarp { display:none !important }";
+  document.head.appendChild(recCss);
+  recStart = async function(tab){ await _recStartCore(tab); if (rec){ recDot.style.display = recTab ? "none" : "block"; recDot.textContent = "● REC 0:00"; document.body.classList.add("eg-rec"); } };   /* 탭 녹화 땐 표지도 찍히므로 안 띄운다 — 크롬 위쪽 「공유 중」 띠가 대신 알려 준다 */
+  recStop  = function(){ _recStopCore(); recDot.style.display = "none"; document.body.classList.remove("eg-rec"); };
   setInterval(()=>{ if (rec && recDot.style.display !== "none") recDot.textContent = "● REC " + recBtn.textContent.replace(/^.*· /,""); }, 500);
 
   /* ⭐ 0905b 단축키 — 타륜이 없는 화면(비행 등)에서도 찍는다.
@@ -3473,7 +3494,9 @@ function buildShotSwitches(){
      F키라 글 쓰는 칸에서 눌러도 글자가 안 들어간다. F5(새로고침)·F11(전체화면)·F12 는 건드리지 않는다. */
   document.addEventListener("keydown", (e)=>{
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.key === "F9"){ e.preventDefault(); rec ? recStop() : recStart(); return; }
+    if (e.key === "F9"){ e.preventDefault(); rec ? recStop() : recStart(e.shiftKey); return; }
+    /* F10 — 녹화와 무관하게 관리자 알림판을 껐다 켠다 (윈도우 화면 녹화로 찍을 때) */
+    if (e.key === "F10"){ e.preventDefault(); document.body.classList.toggle("eg-quiet"); return; }
     if (document.body.classList.contains("reading-on")) return;
     if (e.key === "F6"){ e.preventDefault(); camPick(); }
     else if (e.key === "F7"){ e.preventDefault(); camGo("close"); }
