@@ -3454,6 +3454,32 @@ function buildShotSwitches(){
     try{ rec.stop(); }catch(e){}
   }
 
+  /* ⭐ 0905b 녹화 표지 — 패널이 닫혀 있거나 방(비행) 안에 있을 때도 찍히는 중인지 보인다.
+     HTML 이라 영상에는 안 들어간다. */
+  const recDot = document.createElement("div");
+  recDot.id = "egRecDot";
+  recDot.style.cssText = "position:fixed;left:14px;bottom:14px;z-index:99999;display:none;padding:4px 10px;border-radius:14px;"
+    + "background:rgba(0,0,0,.55);color:#ff6b6b;font:600 12px/1.4 system-ui,sans-serif;letter-spacing:.04em;pointer-events:none";
+  document.body.appendChild(recDot);
+  const _recStartCore = recStart, _recStopCore = recStop;
+  recStart = function(){ _recStartCore(); if (rec){ recDot.style.display = "block"; recDot.textContent = "● REC 0:00"; } };
+  recStop  = function(){ _recStopCore(); recDot.style.display = "none"; };
+  setInterval(()=>{ if (rec && recDot.style.display !== "none") recDot.textContent = "● REC " + recBtn.textContent.replace(/^.*· /,""); }, 500);
+
+  /* ⭐ 0905b 단축키 — 타륜이 없는 화면(비행 등)에서도 찍는다.
+       F9  녹화 시작 / 멈춤        어디서든
+       F6  중심 잡기 · F7 회전 클로즈업 · F8 멈춤   ⚠ 방(reading-on) 안에서는 물러난다 —
+                                                    거기서는 카메라 주인이 cruise 하나다(0821 41호 ㉠).
+     F키라 글 쓰는 칸에서 눌러도 글자가 안 들어간다. F5(새로고침)·F11(전체화면)·F12 는 건드리지 않는다. */
+  document.addEventListener("keydown", (e)=>{
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === "F9"){ e.preventDefault(); rec ? recStop() : recStart(); return; }
+    if (document.body.classList.contains("reading-on")) return;
+    if (e.key === "F6"){ e.preventDefault(); camPick(); }
+    else if (e.key === "F7"){ e.preventDefault(); camGo("close"); }
+    else if (e.key === "F8"){ e.preventDefault(); camStop(); }
+  });
+
   /* ⭐ 비상구 — 백슬래시 한 번으로 장식 셋을 한꺼번에 껐다 켠다.
      하나라도 켜져 있으면 전부 끄고, 다 꺼져 있으면 전부 켠다.
      ⚠ 글 쓰는 칸에서는 안 먹는다 — 타벨라이 편지에 \ 를 칠 수 있어야 한다. */
