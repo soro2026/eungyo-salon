@@ -3329,6 +3329,131 @@ function buildShotSwitches(){
   }
   paint(); cpaint();
 
+  /* ── 0905 — 🎬 카메라 · 녹화 (90초 영상 촬영용 · 살롱지기만) ──
+     콘솔 없이 단추 넷으로 찍는다. ⚠ 기존 startOrbit 은 피치를 -28°로 못 박아
+     지금 보는 각도에서 튀므로 건드리지 않고, 「지금 각도 그대로」 도는 고리를 따로 둔다.
+     녹화는 Cesium 캔버스를 브라우저가 스스로 찍는다(captureStream) — 주소창·마우스·
+     이 패널은 애초에 캔버스가 아니라 안 들어간다. ⚠ HTML 팝업·명단도 안 찍힌다.
+     저장하지 않는다 · 새로고침하면 사라진다. */
+  const hr2 = document.createElement("div");
+  hr2.style.cssText = "height:1px;margin:7px 10px;background:rgba(255,255,255,.14)";
+  box.appendChild(hr2);
+  const camStat = document.createElement("div");
+  camStat.style.cssText = "font-size:11.5px;padding:2px 12px 4px;color:var(--cream-dim);opacity:.85";
+  camStat.textContent = "🎬 카메라 · 중심 없음";
+  box.appendChild(camStat);
+
+  let camCenter = null, camTick = null, camMode = null, camSpd = 2;
+  const SPD = { 1:{spin:.0006, zoom:.0025, move:.6}, 2:{spin:.0012, zoom:.005, move:1.6}, 3:{spin:.0024, zoom:.01, move:4} };
+  let camHeading = 0, camPitch = 0, camRange = 0, camTarget = null;
+
+  const camSay = (t) => { camStat.textContent = "🎬 " + t; };
+  const camStop = () => {
+    camMode = null; camTarget = null;
+    if (camTick){ camTick(); camTick = null; }
+    try{ viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY); }catch(e){}
+    camSay(camCenter ? "멈춤 · 중심 있음" : "멈춤 · 중심 없음");
+  };
+  const camLoop = () => {
+    if (camTick) return;
+    camTick = viewer.clock.onTick.addEventListener(()=>{
+      if (!camMode) return;
+      const p = SPD[camSpd];
+      if (camMode === "orbit" || camMode === "close"){
+        if (!camCenter) return;
+        camHeading += p.spin;
+        if (camTarget != null){
+          camRange += (camTarget - camRange) * p.zoom;
+          if (Math.abs(camRange - camTarget) < 1) camTarget = null;
+        }
+        viewer.camera.lookAt(camCenter, new Cesium.HeadingPitchRange(camHeading, camPitch, camRange));
+      } else if (camMode === "fwd"){ viewer.camera.moveForward(p.move); }
+      else if (camMode === "back"){ viewer.camera.moveBackward(p.move); }
+    });
+  };
+  const camPick = () => {
+    const sc = viewer.scene;
+    const c2 = new Cesium.Cartesian2(sc.canvas.clientWidth/2, sc.canvas.clientHeight/2);
+    let c = null;
+    try{ if (sc.pickPositionSupported) c = sc.pickPosition(c2); }catch(e){}
+    if (!c){ const ray = viewer.camera.getPickRay(c2); c = ray ? sc.globe.pick(ray, sc) : null; }
+    if (!c){ camSay("중심을 못 잡았습니다 — 땅이 보이게 조금 내려오세요"); return; }
+    camCenter = c;
+    camSay("중심 잡힘 · " + Math.round(Cesium.Cartesian3.distance(viewer.camera.positionWC, c)) + "m");
+  };
+  const camGo = (mode) => {
+    if ((mode === "orbit" || mode === "close") && !camCenter){ camSay("먼저 「중심 잡기」"); return; }
+    try{ stopOrbit(); }catch(e){}
+    try{ viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY); }catch(e){}   /* 앞 궤도의 사슬을 풀고 지금 각도를 읽는다 */
+    camMode = null;
+    if (mode === "orbit" || mode === "close"){
+      camHeading = viewer.camera.heading; camPitch = viewer.camera.pitch;
+      camRange = Cesium.Cartesian3.distance(viewer.camera.positionWC, camCenter);
+      camTarget = (mode === "close") ? Math.max(camRange * 0.35, 40) : null;
+    }
+    camMode = mode; camLoop();
+    camSay({orbit:"제자리 회전", close:"회전 클로즈업", fwd:"천천히 전진", back:"천천히 후진"}[mode] + " · 속도 " + camSpd);
+  };
+  const cbtn = (label, fn) => { const b = mk(label, fn); b.style.fontSize = "12px"; return b; };
+  box.appendChild(cbtn("🎯 중심 잡기 (화면 가운데)", camPick));
+  box.appendChild(cbtn("🔃 제자리 회전", ()=> camGo("orbit")));
+  box.appendChild(cbtn("🔄 회전 클로즈업", ()=> camGo("close")));
+  box.appendChild(cbtn("⬆ 천천히 전진", ()=> camGo("fwd")));
+  box.appendChild(cbtn("⬇ 천천히 후진", ()=> camGo("back")));
+  box.appendChild(cbtn("■ 멈춤", camStop));
+  const spdRow = document.createElement("div");
+  spdRow.style.cssText = "display:flex;gap:4px;padding:2px 10px 4px";
+  const spdBtns = {};
+  const spdPaint = () => { for (const k in spdBtns) spdBtns[k].style.opacity = (+k === camSpd) ? "1" : ".45"; };
+  for (const [k, label] of [[1,"느림"],[2,"보통"],[3,"빠름"]]){
+    const b = mk(label, ()=>{ camSpd = k; spdPaint(); if (camMode) camSay({orbit:"제자리 회전", close:"회전 클로즈업", fwd:"천천히 전진", back:"천천히 후진"}[camMode] + " · 속도 " + k); });
+    b.style.cssText = "flex:1;font-size:11.5px;padding:4px 0;text-align:center";
+    spdBtns[k] = b; spdRow.appendChild(b);
+  }
+  spdPaint(); box.appendChild(spdRow);
+  viewer.canvas.addEventListener("pointerdown", ()=>{ if (camMode) camStop(); });
+
+  /* 녹화 — 캔버스 → webm 파일. 파일명 eg_take_01.webm 부터 차례로. */
+  let rec = null, recChunks = [], recT0 = 0, recTimer = null, recNo = 0;
+  const recBtn = cbtn("● 녹화 시작", ()=> rec ? recStop() : recStart());
+  recBtn.style.color = "#f0c0b0";
+  box.appendChild(recBtn);
+  function recStart(){
+    if (!window.MediaRecorder || !viewer.canvas.captureStream){ camSay("이 브라우저는 녹화를 못 합니다 — 크롬으로"); return; }
+    const stream = viewer.canvas.captureStream(30);
+    const mime = ["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm"].find(m=> MediaRecorder.isTypeSupported(m)) || "";
+    try{ rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 16e6 }); }
+    catch(e){ camSay("녹화를 못 열었습니다: " + e.message); rec = null; return; }
+    recChunks = [];
+    rec.ondataavailable = (e)=>{ if (e.data && e.data.size) recChunks.push(e.data); };
+    rec.onstop = ()=>{
+      const blob = new Blob(recChunks, { type: "video/webm" });
+      recNo += 1;
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "eg_take_" + String(recNo).padStart(2,"0") + ".webm";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=> URL.revokeObjectURL(a.href), 4000);
+      camSay("저장 · " + a.download + " · " + (blob.size/1048576).toFixed(1) + "MB (다운로드 폴더)");
+      rec = null; recBtn.textContent = "● 녹화 시작"; recBtn.style.color = "#f0c0b0";
+    };
+    rec.start(500);
+    recT0 = Date.now();
+    recBtn.style.color = "#ff6b6b";
+    recTimer = setInterval(()=>{
+      const t = Math.floor((Date.now()-recT0)/1000);
+      recBtn.textContent = "■ 녹화 멈춤 · " + Math.floor(t/60) + ":" + String(t%60).padStart(2,"0");
+      if (t >= 300) recStop();   /* 5분 상한 — 잊고 두면 파일이 커진다 */
+    }, 500);
+    recBtn.textContent = "■ 녹화 멈춤 · 0:00";
+    camSay("녹화 중");
+  }
+  function recStop(){
+    if (!rec) return;
+    clearInterval(recTimer); recTimer = null;
+    try{ rec.stop(); }catch(e){}
+  }
+
   /* ⭐ 비상구 — 백슬래시 한 번으로 장식 셋을 한꺼번에 껐다 켠다.
      하나라도 켜져 있으면 전부 끄고, 다 꺼져 있으면 전부 켠다.
      ⚠ 글 쓰는 칸에서는 안 먹는다 — 타벨라이 편지에 \ 를 칠 수 있어야 한다. */
