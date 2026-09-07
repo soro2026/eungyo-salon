@@ -8,6 +8,10 @@
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://player.vimeo.com">
+<link rel="preconnect" href="https://f.vimeocdn.com" crossorigin>
+<link rel="preconnect" href="https://i.vimeocdn.com">
+<link rel="dns-prefetch" href="https://vod-adaptive-ak.vimeocdn.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@200;300;400;600&family=Gowun+Batang:wght@400;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&display=swap" rel="stylesheet">
 <style>
 /* ══════════════════════════════════════════════════════════════
@@ -102,11 +106,12 @@ p:last-child{margin-bottom:0}
      overflow:hidden;cursor:pointer;
      margin-left:calc(-1 * var(--pad));margin-right:calc(-1 * var(--pad))}
 .vid iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
-.vid .poster{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
-.vid::before{content:"";position:absolute;left:50%;top:50%;width:220px;height:220px;
+.vid iframe{z-index:0}
+.vid .poster{position:absolute;inset:0;z-index:1;width:100%;height:100%;object-fit:cover;display:block}
+.vid::before{content:"";position:absolute;z-index:2;left:50%;top:50%;width:220px;height:220px;
              margin:-110px 0 0 -110px;border-radius:50%;pointer-events:none;
              background:radial-gradient(circle,rgba(10,9,7,.42) 0%,rgba(10,9,7,.16) 46%,rgba(10,9,7,0) 70%)}
-.vid .play{position:absolute;left:50%;top:50%;width:74px;height:74px;margin:-37px 0 0 -37px;
+.vid .play{position:absolute;z-index:3;left:50%;top:50%;width:74px;height:74px;margin:-37px 0 0 -37px;
            padding:0;border:1px solid rgba(231,201,131,.78);border-radius:50%;
            background:rgba(14,13,11,.46);cursor:pointer;
            transition:background .35s ease,border-color .35s ease}
@@ -482,25 +487,47 @@ async function fillName(){
   }catch(e){}
 }
 
-/* ── 영상 — 누른 뒤에 플레이어를 만든다 (0907) ──────────────
-   ⭐ 포스터 한 장이 먼저 서고, 누르면 그 자리에 iframe 이 들어가 바로 재생된다.
-     비메오 조작 띠가 처음부터 보이면 값이 싸 보인다는 소로 지적.
+/* ── 영상 — 다가오면 데우고, 누르면 재생 (0907 밤) ──────────
    ⭐ allowfullscreen 속성 — 이것이 없으면 비메오가 전체 화면 단추를 감추고
      화면 속 화면(PiP) 아이콘만 남긴다. allow="fullscreen" 만으로는 안 뜬다.
-   ⚠ picture-in-picture 는 허용하지 않는다 — 그 아이콘이 전체 화면 자리를 차지하고 있었다. */
+   ⚠ picture-in-picture 는 허용하지 않는다 — 그 아이콘이 전체 화면 자리를 차지했다.
+   ⭐ 포스터만 두면 누른 순간부터 iframe·플레이어·영상이 차례로 시작해 열 몇 초가 든다.
+     그래서 손이 다가오는 순간(hover · 첫 touch) 플레이어를 포스터 뒤에 미리 세우고,
+     누르면 postMessage 로 재생만 시킨다. 조작 띠는 여전히 포스터에 가려 안 보인다. */
 document.querySelectorAll('.vid[data-vimeo]').forEach(box=>{
-  const go=()=>{
-    if(box.classList.contains('on')) return;
+  const mk=auto=>{
     const f=document.createElement('iframe');
     f.src='https://player.vimeo.com/video/'+box.dataset.vimeo
-         +'?title=0&byline=0&portrait=0&badge=0&autopause=0&autoplay=1&player_id=0&app_id=58479';
+         +'?title=0&byline=0&portrait=0&badge=0&autopause=0&player_id=0&app_id=58479'
+         +(auto?'&autoplay=1':'');
     f.setAttribute('allow','autoplay; fullscreen; clipboard-write; encrypted-media');
-    f.setAttribute('allowfullscreen','');          /* ⭐ 이 한 줄이 전체 화면 단추를 세운다 */
+    f.setAttribute('allowfullscreen','');
     f.setAttribute('referrerpolicy','strict-origin-when-cross-origin');
     f.title = box.dataset.title || 'EG유니버스';
-    box.appendChild(f);
-    box.classList.add('on');
+    return f;
   };
+  let frame=null, ready=false;
+  const warm=()=>{
+    if(frame) return;
+    frame=mk(0);
+    frame.addEventListener('load',()=>{ ready=true; }, {once:true});
+    box.insertBefore(frame, box.firstChild);      /* 포스터 뒤에 선다 */
+  };
+  const play=()=>{
+    try{ frame.contentWindow.postMessage(JSON.stringify({method:'play'}),'*'); }catch(e){}
+  };
+  const go=()=>{
+    if(box.classList.contains('on')) return;
+    if(frame){
+      box.classList.add('on');
+      ready ? play() : frame.addEventListener('load', play, {once:true});
+    }else{
+      box.appendChild(mk(1));
+      box.classList.add('on');
+    }
+  };
+  box.addEventListener('mouseenter', warm, {once:true});
+  box.addEventListener('touchstart', warm, {once:true, passive:true});
   box.addEventListener('click', go);
 });
 
