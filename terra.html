@@ -2371,14 +2371,12 @@ window.egSupa = supa;
      이제 로더는 이미 걷혔으므로 이 넷은 뒤에서 붙는다 — 그래도 나란히 보낸다.
      ⚠ Promise.all은 하나가 넘어지면 통째로 넘어진다. allSettled로 받아
        핀 한 종류가 실패해도 나머지 셋은 선다(폴백이 기본값 · 함정 AE). */
-  await Promise.allSettled([
-    loadCityMarkers(null),      /* ⭐ 0903 — 인물 장소도 전 도시. 아래 셋과 같은 손.
-                                    ⚠ 'paris' 로 못 박혀 있어 런던·뉴욕에서 검은 핀이 영영 안 떴다.
-                                    0830 에 팝업·전당을 null 로 열 때 이 한 줄만 빠졌다(소로 발견). */
-    loadMaisons(null),       // EG메종 집 핀 (옐로 라벨)
-    loadPopups(null),        // 출판사 팝업 명패 핀
-    loadPalais(null)         // 전당(지식채널) 청록 핀
-  ]);
+  /* ⭐ 0907 — 첫 화면에서 전 도시 핀을 선적하지 않는다(0830·0903 null 선적 폐기).
+     그 넷이 저마다 clampToHeightMostDetailed 를 불러 세 도시 최상세 타일을 다 받을 때까지
+     goToMyHome 이 출발하지 못했다 — 첫 화면 20초의 뿌리. 이제 핀은 카메라가 내려앉은
+     반경 안만 streamPinsNear 가 나르고, 카메라가 옮기면(moveEnd) 그 자리 것을 다시 받는다.
+     400개 도시라도 첫 화면은 「내 집 한 줄 + 비행」 이라 도시 수와 무관하다. */
+  attachPinStreaming();
   loadCityList();
   document.getElementById("cityBtn").addEventListener("click", ()=> { toggleStarList(false); toggleCityList(); });
   loadStarList();
@@ -2594,13 +2592,13 @@ function dropTwinMarker(placeId){
 // ─── voyage_markers 도시 핀을 DB(RPC)에서 읽어 지구에 띄움 ───
 //  좌표는 lat·lng만(height 없음) → 띄운 직후 clampSpotsToSurface로 타일 표면에 앉힘.
 //  반드시 마커를 모두 추가한 뒤에 clamp를 호출해야 시차 흔들림이 없다.
-async function loadCityMarkers(city){
+async function loadCityMarkers(city, nearQ){
   let rows = [];
   try{
     const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_voyage_markers", {
       method:"POST",
       headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
-      body: JSON.stringify({ p_city: city || null })   /* ⭐ 0830 — null = 전 도시 */
+      body: JSON.stringify(pinArgs(city, nearQ))   /* ⭐ 0907 — 반경 안만 (핀도 타일처럼) */
     });
     if (!res.ok) throw new Error("HTTP "+res.status);
     rows = await res.json();
@@ -2633,8 +2631,7 @@ async function loadCityMarkers(city){
     ent._spot = m;  // 클릭 시 openStory가 꺼내 씀 (title·subtitle·body·source·figures)
   });
 
-  // ★ 마커를 모두 띄운 직후 표면 클램프 — 비동기 로드 타이밍의 핵심.
-  await clampSpotsToSurface();
+  /* ⭐ 0907 — 앉히기(clamp)는 여기서 하지 않는다. streamPinsNear 가 넷을 다 띄운 뒤 한 번. */
 }
 
 // ─── EG메종 집 핀 (옐로 바탕·검은 글씨 = 사람이 사는 곳) ───
@@ -2905,6 +2902,79 @@ async function drawWallSigns(){
   drawSlotGrid();                       /* ⭐ 빈 칸 격자도 함께 */
   console.log("[EG] 벽 간판 " + signEnts.length + "장");
 }
+/* ══ 0907 핀 스트리밍 — 핀도 타일처럼 · 카메라가 있는 곳만 ══
+   PIN_STREAM.km  : 한 번에 나르는 반경(도심 하나가 다 든다)
+   PIN_STREAM.step: 카메라 지점이 마지막 중심에서 이만큼 벗어나면 다시 받는다
+   PIN_STREAM.ceil: 이보다 높이 떠 있으면(우주·대륙) 받지 않는다 — 어차피 핀은 안 보인다 */
+const PIN_STREAM = { km:12, step:6, ceil:250000, center:null, busy:null };
+function pinArgs(city, near){
+  const o = { p_city: city || null };
+  if (near && near.lat != null && near.lng != null){ o.p_lat = near.lat; o.p_lng = near.lng; o.p_km = near.km || PIN_STREAM.km; }
+  return o;
+}
+function kmBetween(lat1, lng1, lat2, lng2){
+  const R=6371, dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(a));
+}
+function inRadius(p, near){ return p.lat!=null && p.lng!=null && kmBetween(p.lat,p.lng,near.lat,near.lng) <= (near.km||PIN_STREAM.km); }
+async function fetchHome(q){
+  try{
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_home_building", {
+      method:"POST", headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
+      body: JSON.stringify({ p_uid: q.uid || null, p_nick: q.nick || null }) });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    const rows = await res.json();
+    return (Array.isArray(rows) && rows[0] && rows[0].lat != null) ? rows[0] : null;
+  }catch(e){ console.warn("집 한 줄 조회 실패:", e); return null; }
+}
+function clearPins(){
+  viewer.entities.values.filter(e=>e._spot || e._maison || e._popup || e._palais).slice().forEach(e=> viewer.entities.remove(e));
+}
+/* 카메라 좌표에서 도시 이름을 정한다 — 문자열 변수가 아니라 좌표가 정답 (jung 은 뉴욕에 살면서 이름표는 파리였다) */
+function setCityByCoord(lng, lat){
+  if (!Array.isArray(CITIES) || !CITIES.length) return;
+  let best=null, bd=Infinity;
+  CITIES.forEach(c=>{ if (c.center_lat==null||c.center_lng==null) return; const d=kmBetween(lat,lng,c.center_lat,c.center_lng); if (d<bd){ bd=d; best=c; } });
+  if (best && bd <= 60 && best.city !== currentCity){
+    currentCity = best.city;
+    if (typeof renderCityList === 'function') renderCityList();
+    if (typeof renderStarList === 'function') renderStarList();
+  }
+}
+async function streamPinsNear(lng, lat, opts){
+  const force = !!(opts && opts.force);
+  if (!force && PIN_STREAM.center && kmBetween(lat,lng,PIN_STREAM.center.lat,PIN_STREAM.center.lng) < PIN_STREAM.step) return;
+  if (PIN_STREAM.busy){ try{ await PIN_STREAM.busy; }catch(e){} }
+  const near = { lat, lng, km: PIN_STREAM.km };
+  PIN_STREAM.center = { lat, lng };
+  PIN_STREAM.busy = (async ()=>{
+    clearPins();
+    await Promise.allSettled([ loadCityMarkers(null, near), loadMaisons(null, near), loadPopups(null, near), loadPalais(null, near) ]);
+    setCityByCoord(lng, lat);
+    /* 앉히기는 여기서 한 번 — 카메라가 이 자리에 있으니 타일은 이미 와 있고, 비용은 거의 0 */
+    await clampSpotsToSurface();
+  })();
+  try{ await PIN_STREAM.busy; } finally { PIN_STREAM.busy = null; }
+}
+function attachPinStreaming(){
+  let t=null;
+  viewer.camera.moveEnd.addEventListener(()=>{
+    clearTimeout(t);
+    t=setTimeout(()=>{
+      try{
+        const cam = viewer.camera.positionCartographic;
+        if (!cam || cam.height > PIN_STREAM.ceil) return;
+        /* 화면 한가운데가 닿는 지표점 — 비스듬히 볼 때 카메라 발밑보다 정확하다 */
+        const c = new Cesium.Cartesian2(viewer.canvas.clientWidth/2, viewer.canvas.clientHeight/2);
+        let g = viewer.scene.pickPosition ? viewer.scene.pickPosition(c) : null;
+        if (!Cesium.defined(g)) g = viewer.camera.pickEllipsoid(c, viewer.scene.globe.ellipsoid);
+        const carto = Cesium.defined(g) ? Cesium.Cartographic.fromCartesian(g) : cam;
+        streamPinsNear(Cesium.Math.toDegrees(carto.longitude), Cesium.Math.toDegrees(carto.latitude));
+      }catch(e){}
+    }, 700);
+  });
+}
 function findMyBuilding(uid){
   return viewer.entities.values.find(e => e._maison && !e._maisonTag && residentsOf(e._maison).some(r => r.uid === uid));
 }
@@ -2912,7 +2982,7 @@ function findBuildingByNick(nick){
   return viewer.entities.values.find(e => e._maison && !e._maisonTag && residentsOf(e._maison).some(r => r.nickname === nick));
 }
 
-async function loadMaisons(city){
+async function loadMaisons(city, nearQ){
   // ⭐ 0830 집합주택 — 한 채에 여럿이 산다. 좌표는 건물이 갖고 사람은 그 안의 슬롯이 된다.
   //    명패는 내 건물에만 뜬다. 남의 건물·빈 건물은 점 하나로 서 있고 눌러야 열린다.
   let rows = [];
@@ -2920,7 +2990,7 @@ async function loadMaisons(city){
     const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_buildings", {
       method:"POST",
       headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
-      body: JSON.stringify({ p_city: city || null })   /* ⭐ 0830 — null = 전 도시 */
+      body: JSON.stringify(pinArgs(city, nearQ))   /* ⭐ 0907 — 반경 안만 */
     });
     if (!res.ok) throw new Error("HTTP "+res.status);
     rows = await res.json();
@@ -2993,7 +3063,6 @@ async function loadMaisons(city){
       tag._maisonTag = true;
     }
   });
-  await clampSpotsToSurface();
   applyLayerVisibility();   // 새로 띄운 마커에 현재 토글 상태 반영
   drawWallSigns();          // ⭐ 0830 — wall 값을 가진 건물에 벽 간판을 건다
 }
@@ -3054,13 +3123,13 @@ function makePopupPlate(bgColor, logoImg){
   return cv;
 }
 // ─── EG 팝업 핀을 DB(get_popups)에서 읽어 지구에 세움 ───
-async function loadPopups(city){
+async function loadPopups(city, nearQ){
   let rows = [];
   try{
     const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_popups", {
       method:"POST",
       headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
-      body: JSON.stringify({ p_city: city || null })   /* ⭐ 0830 — null = 전 도시 */
+      body: JSON.stringify(pinArgs(city, nearQ))   /* ⭐ 0907 — 반경 안만 */
     });
     if (!res.ok) throw new Error("HTTP "+res.status);
     rows = await res.json();
@@ -3095,7 +3164,6 @@ async function loadPopups(city){
     });
     ent._popup = p;   // 클릭 시 openPopup이 꺼내 씀
   }
-  await clampSpotsToSurface();
   applyLayerVisibility();
 }
 // 팝업 핀 클릭 → doorway에 셸을 iframe으로 직행(문짝 없음). 렌더 정지=과금 0.
@@ -3161,7 +3229,7 @@ const range = (m)=> new Cesium.DistanceDisplayCondition(0, m);
 //  · 진입: 핀 클릭 → doorway에 palais.html 직행 (셸 gate가 곧 대문)
 // ══════════════════════════════════════════════════════════════════
 const PALAIS_COLOR = "#16a085";
-async function loadPalais(city){
+async function loadPalais(city, nearQ){
   let rows = [];
   try{
     /* ⭐ 0830 — city 를 안 주면 전 도시를 부른다 (뉴욕·런던 전당이 안 뜨던 뿌리) */
@@ -3172,8 +3240,9 @@ async function loadPalais(city){
     if (!res.ok) throw new Error("HTTP "+res.status);
     rows = await res.json();
   }catch(e){ console.warn("전당 로드 실패:", e); return; }
+  if (nearQ) rows = rows.filter(p => inRadius(p, nearQ));   /* 0907 — 셋뿐이라 화면에서 거른다 */
 
-  const near = range(PIN_RANGE.palais);         // 지식채널 전당 — 600m
+  const near_ = range(PIN_RANGE.palais);        // 지식채널 전당 — 600m
   for (const p of rows){
     if (p.lat == null || p.lng == null) continue;
     const ent = viewer.entities.add({
@@ -3182,7 +3251,7 @@ async function loadPalais(city){
       point:{ pixelSize:9, color:Cesium.Color.fromCssColorString(PALAIS_COLOR),
               outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
               disableDepthTestDistance:Number.POSITIVE_INFINITY,
-              distanceDisplayCondition:near },
+              distanceDisplayCondition:near_ },
       label: {
         text: p.name || p.code,
         font: "bold 14px 'Helvetica Neue',Arial,sans-serif",
@@ -3199,7 +3268,6 @@ async function loadPalais(city){
     });
     ent._palais = p;
   }
-  await clampSpotsToSurface();
   applyLayerVisibility();
 }
 // 전당 핀 클릭 → doorway에 palais.html iframe 직행
@@ -3564,12 +3632,7 @@ async function jumpToCity(c){
   closeStory();
   closeMaison();
   // 이전 도시 마커 제거 (큐레이션 핀 + 메종 핀 둘 다, slice로 복제 후 제거)
-  viewer.entities.values.filter(e=>e._spot || e._maison || e._popup || e._palais).slice().forEach(e=> viewer.entities.remove(e));
-  // 새 도시 마커를 먼저 로드 — 1호 핀 좌표를 잡고 표면 클램프(함수 내부)까지 끝낸 뒤 비행
-  await loadCityMarkers(null);   /* 0903 — 도시별 갈아끼우기 폐기 · 아래 셋과 같다 */
-  await loadMaisons(null);
-  await loadPopups(null);
-  await loadPalais(null);
+  /* 0907 — 핀은 비행 중에 그 도시 반경 것만 받는다 (아래 lng·lat 확정 후 부름) */
 
   /* ── 0728 개정: 도시의 얼굴로 간다 ──
      전에는 "1호 핀(id 최소)"을 중심으로 삼았다. 파리는 우연히 라탱 근처가 1호라
@@ -3590,6 +3653,7 @@ async function jumpToCity(c){
     }
   }
   const r = c.range || 1000;
+  if (lng != null && lat != null) streamPinsNear(lng, lat, { force:true });   /* 0907 */
 
   /* 카메라는 라탱 첫 진입과 똑같은 몸짓으로 통일한다 (0728 소로 발주).
      정면(heading 0)에서 -38°로 비스듬히 내려앉은 뒤 그 곳을 중심으로 천천히 선회.
@@ -3756,14 +3820,9 @@ async function jumpToStarPlace(starId, opts){
     currentCity = rep.city;
     if (typeof renderCityList === 'function') renderCityList();
     if (typeof renderStarList === 'function') renderStarList();
-    viewer.entities.values.filter(e=>e._spot || e._maison || e._popup || e._palais).slice().forEach(e=> viewer.entities.remove(e));
-    await loadCityMarkers(null);   /* 0903 */
-    await loadMaisons(null);
-    await loadPopups(null);
-    await loadPalais(null);
   }
-
   const lng = rep.lng, lat = rep.lat, r = rep.cam_range || 1000;
+  streamPinsNear(lng, lat, { force:true });   /* 0907 — 대표지 반경 핀 · 비행과 나란히 */
   viewer.camera.flyTo({
     destination: Cesium.Cartesian3.fromDegrees(lng, lat, r * 1.6),
     orientation:{ heading:Cesium.Math.toRadians(20), pitch:Cesium.Math.toRadians(-35), roll:0 },
@@ -4205,16 +4264,21 @@ function openMaison(b){
   if (own){
     const o = bldOwner(b);
     if (o){
-      const mine_ = (_ALL_BLD||[]).filter(x => x.owner === o);
-      const inCity = mine_.filter(x => x.city === b.city).length;
-      const total  = mine_.length;
       own.innerHTML = '건물주 <b></b><span class="sub"></span>';
       own.querySelector('b').textContent = o;
-      own.querySelector('.sub').textContent =
-        total > 1
-          ? (inCity > 1 ? "이 도시에 " + inCity + "채 · 모두 " + total + "채"
-                        : "모두 " + total + "채")
+      /* ⭐ 0907 — 채 수는 DB에 묻는다. 화면의 핀(_ALL_BLD)은 이제 반경 안 것뿐이라 「모두 N채」가 틀린다. */
+      fetch(SUPA_URL + "/rest/v1/rpc/get_owner_buildings", {
+        method:"POST", headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
+        body: JSON.stringify({ p_nick: o }) })
+      .then(r => r.ok ? r.json() : [])
+      .then(mine_ => {
+        if (!Array.isArray(mine_)) return;
+        const inCity = mine_.filter(x => x.city === b.city).length, total = mine_.length;
+        const sub = own.querySelector('.sub'); if (!sub) return;
+        sub.textContent = total > 1
+          ? (inCity > 1 ? "이 도시에 " + inCity + "채 · 모두 " + total + "채" : "모두 " + total + "채")
           : "";
+      }).catch(()=>{});
     } else own.textContent = "";
   }
 
@@ -4963,64 +5027,53 @@ async function goToMyHome(){
   if (typeof endVoyage === "function") endVoyage();   /* 집에 왔으면 여정은 끝났다 (0814) */
   const uid = await getMyUid();
   if (!uid){ flyToParisOverview(); return; }            // 로그인 전
-  // 별 여정 등으로 다른 도시에 있었다면 — 파리 핀 세트(큐레이션·메종·팝업·전당) 통째 복원 (0720)
-  if (currentCity !== 'paris'){
-    currentCity = 'paris';
-    if (typeof renderCityList === 'function') renderCityList();
-    if (typeof renderStarList === 'function') renderStarList();
-    viewer.entities.values.filter(e=>e._spot || e._maison || e._popup || e._palais).slice().forEach(e=> viewer.entities.remove(e));
-    await loadCityMarkers(null);   /* 0903 */
-    await loadMaisons(null);
-    await loadPopups(null);
-    await loadPalais(null);
+  /* ⭐ 0907 — 내 집 한 줄(도시·좌표)만 먼저 받아 곧장 난다. 핀은 비행 중 그 반경 것만.
+     예전엔 전 도시 핀을 다 띄우고 그 안에서 내 집을 찾았다 — 도시가 셋인데 20초, 400개면 영영. */
+  let home = await fetchHome({ uid });
+  if (!home){
+    const no = await assignMaison(uid);                  // 집 없으면 배정 (⚠ 아직 파리 고정 — 가입 도시로 바꾸는 건 온보딩 가입 칸과 한 줄)
+    if (no) home = await fetchHome({ uid });
   }
-  let ent = findMyBuilding(uid);
-  if (!ent){
-    const no = await assignMaison(uid);                  // 집 없으면 배정
-    if (no){
-      viewer.entities.values.filter(e=>e._maison).slice().forEach(e=> viewer.entities.remove(e));
-      await loadMaisons(null);                        // 새 배정 반영해 다시 로드
-      ent = findMyBuilding(uid);
+  if (!home){ flyToParisOverview(); return; }            // 만석 등
+  arriveHome(home, ent => residentsOf(ent._maison).some(r => r.uid === uid), { noPanel:true });
+}
+
+/* 집 한 줄로 내려앉기 — 카메라 먼저, 핀은 나란히, 도착하면 그 핀을 찾아 궤도 */
+function arriveHome(home, matchFn, opts){
+  const lng = home.lng, lat = home.lat;
+  setCityByCoord(lng, lat);
+  const pins = streamPinsNear(lng, lat, { force:true });
+  stopOrbit();
+  if (window.logPush && !(opts && opts.nolog))
+    window.logPush("maison:"+(home.city||"")+":"+home.bno, ()=> arriveHome(home, matchFn, Object.assign({}, opts, { nolog:true })));
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, 700),
+    orientation:{ heading:Cesium.Math.toRadians(15), pitch:Cesium.Math.toRadians(-40), roll:0 },
+    duration: 3.0,
+    complete: async ()=>{
+      try{ await pins; }catch(e){}
+      const ent = viewer.entities.values.find(e => e._maison && !e._maisonTag && matchFn(e));
+      if (ent){ showMaisons = true; applyLayerVisibility(); if (!(opts && opts.noPanel)) openMaison(ent._maison); }
+      const H = await clampPoint(lng, lat);   // 도착 후 재clamp → 정확한 지붕 높이
+      console.log("[clamp] 메종 지붕 H =", H, "m ← 궤도 중심");
+      startOrbit(Cesium.Cartesian3.fromDegrees(lng, lat, (H!=null?H:0)), 600, 200, 0.010, 0.0032); // 내 집 전용 (0720 소로)
     }
-  }
-  /* 0728 — 도착해서 자기 집 소개 패널을 자동으로 펴지 않는다. 화면 한가운데서
-     자기 집이 돌고 있으니 그것으로 인사는 끝났고, 들어가고 싶으면 핀을 누르면 된다.
-     자동으로 뜨던 패널이 타륜을 가려 첫 화면의 메뉴를 덮고 있었다.
-     (결정문 10장 "자동 팝업 없음") */
-  if (ent){ showMaisons = true; applyLayerVisibility(); flyToEntity(ent, { noPanel:true }); }
-  else { flyToParisOverview(); }                         // 만석 등
+  });
 }
 
 // ?user / ?enter 진입 분기 — 분더카머 투어·별 명패 직통 (6/27)
 async function enterByParams(wantUser, wantEnter){
   // 1) 대상 메종 entity 찾기
-  let ent = null;
+  /* ⭐ 0907 — 남의 집도 DB 한 줄로 찾는다(다른 도시에 살아도 된다). 내 집은 goToMyHome 과 같은 길. */
   if (wantUser){
-    // 남의 집 — 닉네임으로 찾기 (loadMaisons가 띄운 entity에서)
-    ent = findBuildingByNick(wantUser);
-    if (!ent) console.warn("메종을 찾지 못함(닉):", wantUser);   // (향후: 다른 도시 거주 시 도시 조회·로드)
-  } else {
-    // 내 집 — getMyUid → 없으면 자동 배정 (goToMyHome과 같은 로직)
-    const uid = await getMyUid();
-    if (uid){
-      ent = findMyBuilding(uid);
-      if (!ent){
-        const no = await assignMaison(uid);
-        if (no){
-          viewer.entities.values.filter(e=>e._maison).slice().forEach(e=> viewer.entities.remove(e));
-          await loadMaisons(null);
-          ent = findMyBuilding(uid);
-        }
-      }
-    }
-  }
-
-  // 2) 못 찾으면 기존 동선으로 폴백
-  if (!ent){
-    if (wantUser) flyToParisOverview();   // 남의 집을 못 찾음
-    else goToMyHome();                    // 내 집을 못 찾음 → 기존 강하
+    const home = await fetchHome({ nick: wantUser });
+    if (!home){ console.warn("메종을 찾지 못함(닉):", wantUser); flyToParisOverview(); return; }
+    arriveHome(home, ent => residentsOf(ent._maison).some(r => r.nickname === wantUser), { noPanel:false });
     return;
   }
+  goToMyHome();
+  return;
+  let ent = null;   /* ⚠ 아래는 0907 이후 닿지 않는다 — 다음 대청소 때 걷는다 */
 
   showMaisons = true; applyLayerVisibility();
 
