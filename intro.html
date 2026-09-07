@@ -403,18 +403,28 @@ let sb=null, AUTHED=false;
 async function bootAdmin(){
   if(!ADMIN) return;
   document.body.classList.add('adm');
-  await new Promise(res=>{ const s=document.createElement('script');
-    s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js';
-    s.onload=res; s.onerror=res; document.head.appendChild(s); });
+  /* ⚠ 0907 사고 — 주소를 dist/umd/supabase.js 로 적어 404 가 났고, 그 기다림이
+       화면 그리기 앞에 서 있어 삽화도 콘솔도 통째로 안 떴다.
+     ⭐ 주소는 집안 것과 같게(signup·terra 와 한 줄) · 시한 3초 · 실패하면 말해 준다. */
+  const ok = await new Promise(res=>{
+    if(window.supabase) return res(true);
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+    const t=setTimeout(()=>res(false), 3000);
+    s.onload =()=>{ clearTimeout(t); res(true);  };
+    s.onerror=()=>{ clearTimeout(t); res(false); };
+    document.head.appendChild(s);
+  });
+  if(!ok || !window.supabase){ toast('편집 도구를 못 불러왔습니다 — 새로고침해 보세요'); return; }
   try{
-    sb=window.supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth',persistSession:true}});
+    sb=window.supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth',persistSession:true,autoRefreshToken:true}});
     const { data:{ session } }=await sb.auth.getSession();
-    if(session){
-      const { data }=await sb.from('users').select('is_admin').eq('id',session.user.id).single();
-      AUTHED=!!(data&&data.is_admin);
-    }
-  }catch(e){ console.warn('살롱지기 확인 실패:',e); }
-  if(!AUTHED) toast('로그인이 필요합니다 — 같은 브라우저에서 EG에 먼저 들어오세요');
+    if(!session){ toast('같은 브라우저에서 EG에 먼저 로그인해 주세요'); return; }
+    const { data, error }=await sb.from('users').select('is_admin').eq('id',session.user.id).single();
+    if(error){ toast('살롱지기 확인 실패 — 콘솔을 봐 주세요'); console.warn(error); return; }
+    AUTHED=!!(data&&data.is_admin);
+    if(!AUTHED) toast('이 계정은 살롱지기가 아닙니다');
+  }catch(e){ console.warn('살롱지기 확인 실패:',e); toast('살롱지기 확인 실패'); }
 }
 const need=()=>{ if(!AUTHED){ toast('살롱지기로 로그인해 주세요'); return false; } return true; };
 
@@ -516,7 +526,14 @@ document.addEventListener('click', async e=>{
   }
 });
 
-(async function(){ await bootAdmin(); await Promise.all([ fillName(), loadPlates() ]); })();
+/* ⭐ 0907 — 화면이 먼저다. 콘솔(bootAdmin)은 뒤에서 따라붙고, 붙으면 단추만 다시 그린다.
+   ⚠ 어떤 경우에도 삽화 그리기가 남의 스크립트를 기다리지 않는다. */
+(async function(){
+  if(ADMIN) document.body.classList.add('adm');   /* 단추 자리는 곧바로 */
+  fillName();
+  await loadPlates();
+  if(ADMIN){ await bootAdmin(); await loadPlates(); }
+})();
 </script>
 </body>
 </html>
