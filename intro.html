@@ -366,9 +366,33 @@ function observer(){
   },{ rootMargin:'900px 0px' });                          /* 한 화면 앞뒤로 미리 */
   return IO;
 }
+/* ⚠ 0907 실측 — 콘솔이 고른 것은 저장소의 **원본 PNG**(한 장 2~6.7MB)였다.
+     스물두 장이면 79MB — 0905 아이패드 사고를 그대로 재현하는 무게다.
+   ⭐ 깃허브 액션이 이미 구워 둔 판(plates_view/*.webp · 248장)이 있다. 같은 스물한 장이 4.9MB.
+     그러니 새로 굽지 않는다 — 매니페스트를 보고 webp 로 갈아 끼우기만 한다.
+     ⚠ 직접 올리신 그림(intro/*.webp)은 이미 구워져 있으므로 그대로 쓴다. */
+const PAGES='https://soro2026.github.io/eungyo-salon/';
+let VIEW={};
+async function manifest(){
+  for(const u of ['plates_view/manifest.json', PAGES+'plates_view/manifest.json']){
+    try{
+      const r=await fetch(u,{cache:'no-cache'});
+      if(r.ok){ const m=await r.json();
+        if(Array.isArray(m)&&m.length){
+          const base=u.startsWith('http')?PAGES:'';
+          m.forEach(x=>{ if(x&&x.path&&x.view) VIEW[x.path]=base+x.view; });
+          return;
+        } }
+    }catch(e){}
+  }
+  console.warn('구운 판 목록을 못 읽었습니다 — 원본으로 뜹니다(무겁습니다)');
+}
+const srcOf=p => VIEW[p] || PUB(p);      /* 구운 판이 있으면 그것, 없으면 원본 */
+
 let PLATES={};
 async function loadPlates(){
   let rows=[];
+  if(!Object.keys(VIEW).length) await manifest();
   try{
     const r=await fetch(SUPA_URL+"/rest/v1/eg_intro_plates?select=id,section,path,sort,caption&order=section.asc,sort.asc",{headers:H});
     if(r.ok) rows=await r.json();
@@ -380,7 +404,7 @@ async function loadPlates(){
     box.innerHTML='';
     list.forEach(x=>{
       const f=document.createElement('figure'); f.className='plate';
-      f.innerHTML=`<img data-src="${PUB(x.path)}" alt="">`
+      f.innerHTML=`<img data-src="${srcOf(x.path)}" alt="">`
         +(x.caption?`<figcaption>${esc(x.caption)}</figcaption>`:'')
         +`<div class="tools adm">
              <button data-up="${x.id}">▲</button><button data-dn="${x.id}">▼</button>
