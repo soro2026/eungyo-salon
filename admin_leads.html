@@ -17,6 +17,41 @@
   --ok:#7fb38a; --bad:#c46a5e; --warn:#d59b57;
 }
 body{ background:var(--bg); color:var(--ink); font-family:'Noto Serif KR',serif; min-height:100vh; }
+
+/* ══ 편지 판 (0908) ══ */
+#letterWrap{ position:fixed; inset:0; z-index:60; display:none;
+  background:rgba(8,7,5,.72); padding:24px; overflow:auto; }
+#letterWrap.on{ display:block; }
+#letterBox{ max-width:1020px; margin:0 auto; background:var(--panel);
+  border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+#letterBox .lh{ display:flex; align-items:center; gap:12px; padding:14px 18px;
+  border-bottom:1px solid var(--line); background:var(--panel2); }
+#letterBox .who b{ font-size:16px; color:var(--gold); font-weight:500; }
+#letterBox .dim{ font-size:12px; color:var(--dim); margin-left:8px; }
+#letterBox .pos{ margin-left:auto; font-size:12px; color:var(--soft); letter-spacing:.08em; }
+#letterBox .x{ background:none; border:0; color:var(--dim); font-size:17px; cursor:pointer; padding:2px 4px; }
+#letterBox .lb{ display:grid; grid-template-columns:1fr 264px; gap:0; }
+@media(max-width:900px){ #letterBox .lb{ grid-template-columns:1fr; } }
+#letterBox .lmain{ padding:16px 18px; }
+#letterBox .lside{ padding:16px 18px; border-left:1px solid var(--line); background:var(--panel2); }
+@media(max-width:900px){ #letterBox .lside{ border-left:0; border-top:1px solid var(--line); } }
+#letterBox .lab{ display:block; font-size:11px; color:var(--dim); letter-spacing:.14em; margin-bottom:6px; }
+#letterBox input#lSubj, #letterBox textarea#lBody{ width:100%; background:#151109;
+  border:1px solid var(--line); border-radius:8px; color:var(--ink);
+  font-family:'Noto Serif KR',serif; padding:11px 13px; }
+#letterBox input#lSubj{ font-size:14px; margin-bottom:14px; }
+#letterBox textarea#lBody{ font-size:14.5px; line-height:2.0; height:52vh; resize:vertical; }
+#letterBox dl{ font-size:12.5px; line-height:1.75; }
+#letterBox dt{ color:var(--dim); font-size:11px; letter-spacing:.1em; margin-top:9px; }
+#letterBox dd{ color:var(--soft); word-break:break-all; }
+#letterBox dd a{ color:var(--gold2); }
+#letterBox .key{ font-size:11px; color:var(--soft); word-break:break-all;
+  background:#151109; border:1px solid var(--line); border-radius:7px; padding:8px 9px; }
+#letterBox .note{ font-size:11.5px; color:var(--dim); line-height:1.8; margin-top:9px; }
+#letterBox .lf{ display:flex; align-items:center; gap:9px; padding:13px 18px;
+  border-top:1px solid var(--line); background:var(--panel2); flex-wrap:wrap; }
+#letterBox .lf .grow{ flex:1; }
+.b.sm{ padding:4px 9px; font-size:11.5px; }
 a{ color:var(--gold2); }
 :focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
 @media (prefers-reduced-motion:reduce){ *{ transition:none !important; } }
@@ -211,10 +246,44 @@ textarea{ resize:vertical; line-height:1.6; }
       <span class="n" id="selN">고른 것 없음</span>
       <button class="b" id="allBtn">보이는 것 모두 고르기</button>
       <button class="b" id="markBtn" disabled>보냄으로 표시</button>
-      <button class="b gold" id="sendBtn" disabled title="지메일 승인이 나면 열립니다">지메일로 보내기</button>
+      <button class="b gold" id="sendBtn" disabled title="고른 줄을 한 통씩 차례로 씁니다">편지 쓰기</button>
     </div>
   </section>
 </main>
+</div>
+
+<!-- ══ 편지 판 (0908) — 한 통씩 · 크롤링 값을 옆에 두고 ══ -->
+<div id="letterWrap">
+  <div id="letterBox">
+    <div class="lh">
+      <span class="who"><b id="lTo">—</b> <span id="lMail" class="dim"></span></span>
+      <span class="pos" id="lPos"></span>
+      <button class="x" id="lClose" title="닫기">✕</button>
+    </div>
+    <div class="lb">
+      <div class="lmain">
+        <label class="lab">제목</label>
+        <input id="lSubj">
+        <label class="lab">본문 — 고치실 수 있습니다</label>
+        <textarea id="lBody" spellcheck="false"></textarea>
+      </div>
+      <aside class="lside">
+        <div class="lab">참고 (크롤링)</div>
+        <dl id="lMeta"></dl>
+        <div class="lab" style="margin-top:14px">전용 링크</div>
+        <div class="key" id="lKey">보내실 때 만들어집니다</div>
+        <p class="note">이 주소는 이분 한 분의 것입니다. 누르시면 상세페이지에 성함이 채워지고, 명단이 <b>열람</b>으로 바뀝니다.</p>
+      </aside>
+    </div>
+    <div class="lf">
+      <button class="b gold" id="lGmail">지메일에서 열기</button>
+      <button class="b" id="lRich">서식 그대로 복사</button>
+      <button class="b" id="lPlain">본문 복사</button>
+      <span class="grow"></span>
+      <button class="b" id="lSkip">건너뛰기</button>
+      <button class="b gold" id="lSent">보냈습니다</button>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -230,7 +299,7 @@ const sb = createClient(SUPA_URL, SUPA_KEY, {
 const $ = s => document.querySelector(s);
 
 /* 표의 CHECK 제약과 같은 줄이어야 한다. 여기만 늘리면 저장에서 튕긴다. */
-const STATUS = ['미접촉','보냄','회신','대화중','계약','무응답','사양'];
+const STATUS = ['미접촉','보냄','열람','회신','대화중','계약','무응답','사양'];
 const WAYS   = ['메일','DM만','없음'];
 const KINDS  = ['메일리','스티비','브런치','유튜브','인스타','스레드','블로그','팟캐스트','기타'];
 const GOAL   = 300;                       /* I-12 눈금 */
@@ -367,6 +436,7 @@ function renderRows(){
     const wy = WAYS.map(w=>`<option${w===r.contact_way?' selected':''}>${w}</option>`).join('');
     const dates = [
       r.sent_at ? '보냄 '+shortDate(r.sent_at) : '',
+      r.opened_at ? '⭐열람 '+shortDate(r.opened_at) : '',
       r.replied_at ? '회신 '+shortDate(r.replied_at) : ''
     ].filter(Boolean).join(' · ');
     return `<div class="lead${SEL.has(r.id)?' sel':''}" data-id="${r.id}">
@@ -381,6 +451,7 @@ function renderRows(){
         </div>
         ${r.url?`<a class="url" href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.url)}</a>`:''}
         <div class="mailrow${r.email?'':' none'}">${r.email?esc(r.email):'메일 없음'}</div>
+        <input class="about" data-act="chan" value="${esc(r.channel_name)}" placeholder="채널 이름 — 「** 운영을 통해」 자리">
         <input class="about" data-act="about" value="${esc(r.about)}" placeholder="다루는 것 — 한 줄">
         <input class="memo" data-act="memo" value="${esc(r.memo)}" placeholder="메모">
       </div>
@@ -388,6 +459,7 @@ function renderRows(){
         <select data-act="status">${st}</select>
         <select data-act="way">${wy}</select>
         <div class="dates">${dates||'&nbsp;'}</div>
+        <button class="b sm" data-act="letter">편지</button>
         <button class="del" data-act="del">지움</button>
       </div>
     </div>`;
@@ -399,6 +471,7 @@ function updateFoot(){
   const n = SEL.size;
   $('#selN').textContent = n ? `고른 것 ${n}` : '고른 것 없음';
   $('#markBtn').disabled = !n;
+  $('#sendBtn').disabled = !n;   /* ⭐ 0908 — 지메일 승인을 기다리던 잠금을 푼다 */
 }
 
 /* ── 행 손질 ── */
@@ -426,12 +499,13 @@ $('#rows').addEventListener('change', async e=>{
 });
 $('#rows').addEventListener('blur', async e=>{
   const el = e.target, act = el.dataset && el.dataset.act;
-  if(act!=='about' && act!=='memo') return;
+  if(act!=='about' && act!=='memo' && act!=='chan') return;
   const id = Number(el.closest('.lead').dataset.id);
   const row = ROWS.find(r=>r.id===id); if(!row) return;
   const v = el.value.trim() || null;
-  if((row[act]||null) === v) return;
-  await save(id, { [act]: v }, act==='about' ? '다루는 것' : '메모');
+  const col = act==='chan' ? 'channel_name' : act;
+  if((row[col]||null) === v) return;
+  await save(id, { [col]: v }, act==='chan' ? '채널 이름' : act==='about' ? '다루는 것' : '메모');
 }, true);
 $('#rows').addEventListener('click', async e=>{
   if(e.target.dataset.act !== 'del') return;
@@ -479,6 +553,191 @@ $('#markBtn').addEventListener('click', async ()=>{
   await load(); toast(`${ids.length}줄을 보냄으로 표시했습니다`);
 });
 
+
+/* ══════════════════════════════════════════════════════════════════
+   편지 판 (0908)  —  첫 편지를 한 통씩, 한 땀 한 땀
+   ⭐ 문안은 소로 것이다. LETTER 를 고칠 일이 있으면 소로께 먼저.
+   ⚠ 발송은 소로 지메일에서 소로 손으로. 콘솔은 재료를 차리는 데까지.
+   ══════════════════════════════════════════════════════════════════ */
+const INTRO = 'https://app.egsalon.com/intro.html';
+const LETTER_SUBJ = '안녕하세요. 한국 인문고전 독서포럼 대표 조신영입니다.';
+
+function letterBody(name, channel, link){
+  const nm = name || '';
+  const ch = channel || '';
+  const today = new Date();
+  const 날짜 = `${today.getFullYear()}년 ${today.getMonth()+1}월 ${today.getDate()}일`;
+  return `${nm} 님.
+안녕하세요. 저는 한국 인문고전 독서포럼 대표 조신영입니다.
+
+${nm} 님께서 ${ch} 운영을 통해 이 시대 한국 사회에 꼭 필요한 등대 같은 역할을 하시는 구나, 생각했습니다. 귀한 분과 소통하게 되어 기쁩니다.
+
+저는 30년 이상을 저술, 출판, 고전독서, 인문학 대중화를 위한 일을 했습니다. 최근 2년 동안 모든 활동을 멈추고 앞으로 다가올 시대를 곰곰히 생각하며, 하나의 프로젝트를 완성했어요. 이 과정에서 ${nm} 님과의 협업이 중요함을 깨닫고 한 번 검토해 주시기를 바라며 편지드립니다.
+
+EG 유니버스
+영혼의 갈증과 허기를 달래려
+미지의 양식(unknown food)을 찾아 헤매는
+1.5% 미식가를 위한 영혼의 식탁.
+
+텍스트(책과 글쓰기), 고전음악, 회화, 자연, 여행, 별 그리고 대화라는 일곱가지 재료로 빚은 식탁입니다. 책과 강의가 아닌 경험과 스며들기 방식으로 흥미롭게 구성했어요. 교양과 지성 함양에 최적화 된 디지털 우주입니다.
+
+${nm} 님. 그간 애써서 한국 사회를 위해 헌신하신 노력이 EG유니버스와 콜라보를 통해 좀더 꽃피우실 수 있기를 기대합니다. 앞으로 펼쳐질 대 교양의 시대를 함께 열어보면 어떨까요?
+
+편지가 길어지면 실례가 될 듯하여, 자세한 내용과 제 프로필은 아래 담아두었습니다.
+
+이 땅의 1.5%
+10만 독서모임 리더와
+65만 문화 예술 덕후를 위해 마련한
+디지털 교양 우주, EG 유니버스
+--> 더 알아보기
+${link}
+
+궁금하신 점은 언제든 메일 주시면 답장 올리겠습니다.
+존경과 감사의 마음을 담아.
+
+${날짜}
+동녘 바닷가 작은 도시에서
+
+소로(soro, 小路) 올림
+-소로는 제 닉네임입니다.`;
+}
+
+/* ⭐ 서식 판 — 굵은 글씨와 링크가 살아 있는 판 (지메일에 붙이면 그대로 선다) */
+function letterHtml(name, channel, link){
+  const t = esc(letterBody(name, channel, link));
+  return t
+    .replace('EG 유니버스\n영혼의', '<b>EG 유니버스</b>\n영혼의')
+    .replace(`--> 더 알아보기\n${esc(link)}`,
+             `<a href="${esc(link)}">--&gt; 더 알아보기</a>`)
+    .split('\n').map(l=>l===''?'<br>':`<div>${l}</div>`).join('');
+}
+
+let LQ = [], LI = 0, LKEY = null;
+
+function openLetters(ids){
+  LQ = ids.slice(); LI = 0;
+  if(!LQ.length){ toast('고른 줄이 없습니다', true); return; }
+  showLetter();
+}
+async function showLetter(){
+  if(LI >= LQ.length){ closeLetter(); toast('명단 끝까지 오셨습니다'); return; }
+  const row = ROWS.find(r=>r.id===LQ[LI]);
+  if(!row){ LI++; return showLetter(); }
+  if(!row.email){ LI++; toast(`${row.name} — 메일 주소가 없어 건너뜁니다`, true); return showLetter(); }
+
+  LKEY = null;
+  $('#lTo').textContent   = row.name || '이름 없음';
+  $('#lMail').textContent = row.email;
+  $('#lPos').textContent  = `${LI+1} / ${LQ.length}`;
+  $('#lSubj').value       = LETTER_SUBJ;
+  $('#lBody').value       = letterBody(row.name, row.channel_name || '', '(보내실 때 링크가 여기 들어갑니다)');
+  $('#lKey').textContent  = '보내실 때 만들어집니다';
+
+  const meta = [
+    ['채널',   row.channel_name],
+    ['종류',   row.kind],
+    ['규모',   row.scale],
+    ['최근',   row.last_active],
+    ['다루는 것', row.about],
+    ['상태',   row.status],
+  ].filter(([,v])=>v);
+  $('#lMeta').innerHTML =
+    (row.url ? `<dt>주소</dt><dd><a href="${esc(row.url)}" target="_blank" rel="noopener">${esc(row.url)}</a></dd>` : '')
+    + meta.map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')
+    + (row.channel_name ? '' : '<dd style="color:var(--warn);margin-top:8px">⚠ 채널 이름이 비어 있습니다 — 본문에서 직접 채워 주세요</dd>');
+
+  $('#letterWrap').classList.add('on');
+  $('#lBody').scrollTop = 0;
+}
+function closeLetter(){ $('#letterWrap').classList.remove('on'); LQ=[]; LI=0; LKEY=null; }
+
+/* ⭐ 전용 링크 — 실제로 보내려는 순간 만든다.
+      안 보낼 분에게 미리 applications 줄이 서지 않게. */
+async function ensureKey(){
+  if(LKEY) return LKEY;
+  const row = ROWS.find(r=>r.id===LQ[LI]); if(!row) return null;
+
+  let appId = null;
+  const { data: found } = await sb.from('applications')
+    .select('id').ilike('email', row.email).limit(1);
+  if(found && found.length) appId = found[0].id;
+
+  if(!appId){
+    const { data, error } = await sb.from('applications')
+      .insert({ display_name: row.name, email: row.email.toLowerCase(), status:'applied' })
+      .select('id').single();
+    if(error){ toast('열쇠를 만들지 못했습니다 — '+error.message, true); return null; }
+    appId = data.id;
+  }
+  LKEY = `${INTRO}?k=${appId}`;
+  $('#lKey').textContent = LKEY;
+  /* 본문의 링크 자리를 실제 주소로 바꾼다 — 소로께서 고치신 글은 건드리지 않는다 */
+  $('#lBody').value = $('#lBody').value.replace('(보내실 때 링크가 여기 들어갑니다)', LKEY);
+  return LKEY;
+}
+
+$('#lGmail').onclick = async ()=>{
+  const link = await ensureKey(); if(!link) return;
+  const row = ROWS.find(r=>r.id===LQ[LI]);
+  const url = 'https://mail.google.com/mail/?view=cm&fs=1'
+    + '&to='  + encodeURIComponent(row.email)
+    + '&su='  + encodeURIComponent($('#lSubj').value)
+    + '&body='+ encodeURIComponent($('#lBody').value);
+  if(url.length > 8000) toast('편지가 길어 잘릴 수 있습니다 — 「본문 복사」를 쓰십시오', true);
+  window.open(url, '_blank', 'noopener');
+};
+$('#lPlain').onclick = async ()=>{
+  const link = await ensureKey(); if(!link) return;
+  await navigator.clipboard.writeText($('#lBody').value);
+  toast('본문을 담았습니다');
+};
+$('#lRich').onclick = async ()=>{
+  const link = await ensureKey(); if(!link) return;
+  const row = ROWS.find(r=>r.id===LQ[LI]);
+  const html = letterHtml(row.name, row.channel_name||'', link);
+  try{
+    await navigator.clipboard.write([ new ClipboardItem({
+      'text/html' : new Blob([html], {type:'text/html'}),
+      'text/plain': new Blob([$('#lBody').value], {type:'text/plain'}),
+    })]);
+    toast('서식째로 담았습니다 — 지메일 작성창에 붙여넣으십시오');
+  }catch(e){
+    await navigator.clipboard.writeText($('#lBody').value);
+    toast('이 브라우저가 서식 복사를 막아 민글로 담았습니다', true);
+  }
+};
+$('#lSkip').onclick = ()=>{ LI++; showLetter(); };
+$('#lClose').onclick = closeLetter;
+$('#letterWrap').addEventListener('click', e=>{ if(e.target.id==='letterWrap') closeLetter(); });
+
+/* ⭐ 보냈습니다 — 시스템이 모르는 유일한 칸. 여기서만 「보냄」이 된다.
+      ⚠ 보낸 본문을 통째로 남긴다 — 3주 뒤 답장이 왔을 때 「뭐라고 썼더라」의 자리. */
+$('#lSent').onclick = async ()=>{
+  const link = await ensureKey(); if(!link) return;
+  const id = LQ[LI], row = ROWS.find(r=>r.id===id);
+  const patch = {
+    status: (row.status==='미접촉'||row.status==='보냄') ? '보냄' : row.status,
+    sent_at: row.sent_at || new Date().toISOString(),
+    contact_way: '메일',
+    letter_sent: $('#lBody').value,
+  };
+  const ok = await save(id, patch, '보냄 표시');
+  if(!ok) return;
+  paint();
+  toast(`${row.name} — 보냄으로 남겼습니다`);
+  LI++; showLetter();
+};
+
+/* 표에서 한 줄 · 아래에서 여러 줄 */
+$('#rows').addEventListener('click', e=>{
+  if(e.target.dataset.act !== 'letter') return;
+  openLetters([ Number(e.target.closest('.lead').dataset.id) ]);
+});
+$('#sendBtn').addEventListener('click', ()=>{
+  const order = ROWS.filter(r=>SEL.has(r.id)).map(r=>r.id);
+  openLetters(order);
+});
+
 /* ── 담기 ── */
 function parsePaste(text){
   const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
@@ -486,13 +745,14 @@ function parsePaste(text){
   const sep = lines[0].includes('\t') ? '\t' : ',';
   let cells = lines.map(l => l.split(sep).map(c=>c.trim().replace(/^"|"$/g,'')));
 
-  let map = { name:0, url:1, email:2, kind:3, scale:4, about:5, last:-1 };
+  let map = { name:0, channel:-1, url:1, email:2, kind:3, scale:4, about:5, last:-1 };
   const head = cells[0].map(c=>c.toLowerCase());
   const looksHead = head.some(c=>/이름|채널|name|url|주소|링크|메일|mail|종류|매체|규모|구독|다루|소개/.test(c));
   if(looksHead){
-    map = { name:-1, url:-1, email:-1, kind:-1, scale:-1, about:-1, last:-1 };
+    map = { name:-1, channel:-1, url:-1, email:-1, kind:-1, scale:-1, about:-1, last:-1 };
     head.forEach((c,i)=>{
-      if(map.name<0  && /이름|채널|name|title/.test(c)) map.name = i;
+      if(map.channel<0 && /채널명|매체명|운영|channel/.test(c)) map.channel = i;
+      else if(map.name<0  && /이름|채널|name|title/.test(c)) map.name = i;
       else if(map.url<0   && /url|주소|링크|link/.test(c)) map.url = i;
       else if(map.email<0 && /메일|mail/.test(c)) map.email = i;
       else if(map.kind<0  && /종류|매체|kind|채널유형/.test(c)) map.kind = i;
@@ -514,7 +774,7 @@ function parsePaste(text){
     if(!name){ skipped++; continue; }
     const email = at(r, map.email);
     rows.push({
-      name, url, email,
+      name, url, email, channel_name: at(r, map.channel),
       kind: at(r, map.kind) || kindDefault,
       scale: at(r, map.scale),
       about: at(r, map.about),
