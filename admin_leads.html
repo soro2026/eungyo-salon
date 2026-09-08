@@ -270,13 +270,16 @@ textarea{ resize:vertical; line-height:1.6; }
       <aside class="lside">
         <div class="lab">참고 (크롤링)</div>
         <dl id="lMeta"></dl>
+        <div class="lab" style="margin-top:14px">보내는 이</div>
+        <div class="key">소로 &lt;salon@egsalon.com&gt;<br><span style="color:var(--dim)">답장은 lonelywalden@gmail.com 으로</span></div>
         <div class="lab" style="margin-top:14px">전용 링크</div>
         <div class="key" id="lKey">보내실 때 만들어집니다</div>
         <p class="note">이 주소는 이분 한 분의 것입니다. 누르시면 상세페이지에 성함이 채워지고, 명단이 <b>열람</b>으로 바뀝니다.</p>
       </aside>
     </div>
     <div class="lf">
-      <button class="b gold" id="lGmail">지메일에서 열기</button>
+      <button class="b gold" id="lSend">EG 주소로 보내기</button>
+      <button class="b" id="lGmail">지메일에서 열기</button>
       <button class="b" id="lRich">서식 그대로 복사</button>
       <button class="b" id="lPlain">본문 복사</button>
       <span class="grow"></span>
@@ -709,6 +712,38 @@ $('#lRich').onclick = async ()=>{
     toast('이 브라우저가 서식 복사를 막아 민글로 담았습니다', true);
   }
 };
+/* ⭐ 0908 — EG 주소로 바로 보낸다. salon@egsalon.com · 답장은 소로 지메일로.
+      ⚠ 되돌릴 수 없다. 한 번 묻고 간다. */
+$('#lSend').onclick = async ()=>{
+  const row = ROWS.find(r=>r.id===LQ[LI]); if(!row) return;
+  if(!confirm(`${row.name} 님께 지금 보냅니다.\n\n받는 곳  ${row.email}\n보내는 이  소로 <salon@egsalon.com>\n\n되돌릴 수 없습니다.`)) return;
+
+  const b = $('#lSend'); b.disabled = true; b.textContent = '보내는 중…';
+  try{
+    const link = await ensureKey(); if(!link) throw new Error('열쇠를 만들지 못했습니다');
+    const { data, error } = await sb.functions.invoke('application-mail', {
+      body: { type:'first_letter', to: row.email,
+              subject: $('#lSubj').value, text: $('#lBody').value }
+    });
+    if(error) throw error;
+    if(!data || data.ok !== true) throw new Error(data?.resend?.body || data?.error || '보내지 못했습니다');
+
+    const ok = await save(row.id, {
+      status: (row.status==='미접촉'||row.status==='보냄') ? '보냄' : row.status,
+      sent_at: row.sent_at || new Date().toISOString(),
+      contact_way: '메일',
+      letter_sent: $('#lBody').value,
+    }, '보냄 표시');
+    if(ok) paint();
+    toast(`${row.name} — 보냈습니다`);
+    LI++; showLetter();
+  }catch(e){
+    toast('보내지 못했습니다 — ' + (e.message || e), true);
+  }finally{
+    b.disabled = false; b.textContent = 'EG 주소로 보내기';
+  }
+};
+
 $('#lSkip').onclick = ()=>{ LI++; showLetter(); };
 $('#lClose').onclick = closeLetter;
 $('#letterWrap').addEventListener('click', e=>{ if(e.target.id==='letterWrap') closeLetter(); });
