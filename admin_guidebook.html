@@ -172,8 +172,8 @@ main{ display:grid; grid-template-columns:212px 1fr; gap:18px; padding:16px 22px
   <nav class="tabs" id="chapTabs"></nav>
   <section>
     <div class="drop" id="docDrop">
-      원고 <b>.md</b> 파일을 여기에 끌어다 놓으면, 부엌·되짚음·머리말·변경 이력을 걷어내고 칸마다 나눠 담습니다.<br>
-      여러 장을 한꺼번에 놓으셔도 됩니다. <span class="pick" id="docPick">파일 고르기</span>
+      원고 폴더를 <b>통째로</b> 끌어다 놓으세요. 구판과 딴 문서는 콘솔이 걷어내고 최종판만 읽습니다.<br>
+      부엌·되짚음·머리말·변경 이력을 털고, 표기를 고치고, 칸마다 나눠 담습니다. <span class="pick" id="docPick">파일 고르기</span>
       <input type="file" id="docFile" accept=".md,.markdown,.txt" multiple>
     </div>
     <div class="strip" id="buildStrip"></div>
@@ -440,6 +440,27 @@ $('#edSave').addEventListener('click', async ()=>{
    ④ 맞춘다   — 번호(Ⅳ-1)로, 없으면 제목으로. 못 맞춘 소제목은 앞 칸에 @sub 로 붙는다
    ⑤ 보여 준다 — 담기 전에 소로가 본다
    ────────────────────────────────────────────────────────── */
+/* ⭐ 어느 게 최종본인지 소로가 고르지 않는다. 폴더째 던지면 콘솔이 고른다.
+   이름의 v0_N 과 뒤 날짜로 판을 재고, 같은 칸을 두 파일이 물면 나중 판만 산다.
+   원고가 아닌 문서(결정문·발주서·작업일지…)는 아예 안 읽는다. */
+const IS_DOC  = /백서/;                 /* 백서 원고만 읽는다 — 설계도·헌장·회의록은 남의 집 */
+const NOT_DOC = /(결정문|발주서|발주표|작업일지|인수인계|배치표|삽화표|읽기판|디자인|딱지)/;
+                                        /* ⚠ 읽기판은 사람이 읽는 판. 마커가 붙은 조판용이 원본이다 */
+function rankFile(name){
+  const v = Number((name.match(/v0?_(\d+)/)||[])[1] || 0);
+  const d = Number((name.match(/_(\d{4})\.md$/i)||[])[1] || 0);
+  return d*100 + v;                       /* 날짜가 먼저, 그다음 판 */
+}
+function pickDocs(files){
+  const keep = [], drop = [];
+  for(const f of files){
+    if(!IS_DOC.test(f.name) || NOT_DOC.test(f.name)) { drop.push(f.name); continue; }
+    keep.push({ ...f, rank: rankFile(f.name) });
+  }
+  keep.sort((a,b)=>a.rank-b.rank);        /* 낡은 것부터 — 나중 판이 덮는다 */
+  return { keep, drop };
+}
+
 const TERMINAL = /[.。!?…」』）)"'\u201D\u2019]\s*$/;
 
 function stripKitchen(md){
@@ -501,6 +522,22 @@ function parseParts(md){
               .filter(p=>p.body || p.level<=2);
 }
 
+/* ⭐ 표기 정정 — 붓는 길목에서 끝낸다(0912 결정문 11호).
+   책·잡지 『 』 · 곡·그림 「 」 · 이미 낫표 안에 든 것은 걷는다.
+   ⚠ 새 곡·그림 이름이 원고에 들어오면 여기 한 줄 적는다. 손으로 고치지 않는다. */
+const SONG = { '전원':'bare' };   /* bare = 낫표를 아예 걷음(도장 문안이 이미 「 」 안이라 겹친다) */
+function fixBrackets(md){
+  const hits = [];
+  const out = md.replace(/〈([^〉\n]{1,40})〉/g, (m, inner)=>{
+    const k = inner.trim();
+    const rule = SONG[k];
+    const to = rule==='bare' ? k : rule==='song' ? `「${k}」` : `『${k}』`;
+    hits.push(`${m} → ${to}`);
+    return to;
+  });
+  return { text:out, hits };
+}
+
 function matchSlot(p, lastChapNum){
   if(p.num){
     const byNum = DOCS.find(d=>d.num && d.num===p.num);
@@ -522,10 +559,12 @@ function matchSlot(p, lastChapNum){
 }
 
 function planPour(files){
-  const plan = new Map();        /* slug → {row, chunks:[]} */
-  const orphans = [];
+  const plan = new Map();        /* slug → {row, chunks, rank} */
+  const orphans = [], fixes = [];
   for(const f of files){
-    const parts = parseParts(stripKitchen(f.text));
+    const cleaned = fixBrackets(stripKitchen(f.text));
+    fixes.push(...cleaned.hits);
+    const parts = parseParts(cleaned.text);
     let open = null, lastChapNum = null;
     for(const p of parts){
       if(!p.body && p.level<=2 && !p.num) continue;
@@ -533,7 +572,8 @@ function planPour(files){
       if(slot){
         if(slot.level==='chapter') lastChapNum = slot.num;
         open = slot;
-        if(!plan.has(slot.slug)) plan.set(slot.slug, { row:slot, chunks:[] });
+        const cur = plan.get(slot.slug);
+        if(!cur || cur.rank < f.rank) plan.set(slot.slug, { row:slot, chunks:[], rank:f.rank, from:f.name });
         if(p.body) plan.get(slot.slug).chunks.push(p.body);
       } else if(open && p.body){
         plan.get(open.slug).chunks.push(`@sub ${p.title}\n\n${p.body}`);   /* 소제목은 앞 칸 안으로 */
@@ -542,31 +582,35 @@ function planPour(files){
       }
     }
   }
-  return { plan, orphans };
+  return { plan, orphans, fixes };
 }
 
 let PLAN = null;
 function showPlan(files){
-  const { plan, orphans } = planPour(files);
+  const { plan, orphans, fixes } = planPour(files);
   if(!plan.size){ toast('담을 곳을 못 찾았습니다 — 제목이 칸 이름과 다릅니다', true); return; }
   PLAN = plan;
   const rows = [...plan.values()].map(v=>{
     const body = v.chunks.join('\n\n');
     const had = charsOf(v.row.body);
-    return { row:v.row, body, n:charsOf(body), had };
+    return { row:v.row, body, n:charsOf(body), had, from:v.from };
   }).sort((a,b)=>a.row.ord-b.row.ord);
   const totalNew = rows.reduce((n,r)=>n+r.n,0);
+  const uniq = [...new Set(fixes)];   /* 구판까지 훑으므로 같은 정정이 두 번 잡힌다 */
   const over = rows.filter(r=>r.had>0).length;
-  $('#pvSum').textContent = `${rows.length}칸 · ${totalNew.toLocaleString()}자` + (over?` · 이미 든 칸 ${over}개를 덮어씁니다`:'');
+  $('#pvSum').textContent = `${rows.length}칸 · ${totalNew.toLocaleString()}자`
+    + (over?` · 이미 든 칸 ${over}개를 덮어씁니다`:'')
+    + (uniq.length?` · 표기 ${uniq.length}곳 정정`:'');
   $('#pvTable').innerHTML = `<tr><th style="width:34px"></th><th style="width:56px">번호</th><th>칸</th><th>첫 줄</th><th style="width:74px" class="c">글자</th></tr>` +
     rows.map((r,i)=>`<tr class="${r.had?'has':''}">
       <td><input type="checkbox" data-i="${i}" checked></td>
       <td class="n">${esc(r.row.num||'·')}</td>
       <td class="t">${esc(r.row.title)}${r.had?` <span style="color:var(--dim);font-size:11px">← 지금 ${r.had.toLocaleString()}자</span>`:''}</td>
       <td class="frag">${esc(r.body.replace(/^@\w+.*$/gm,'').trim().slice(0,70))}…</td>
-      <td class="c">${r.n.toLocaleString()}</td>
+      <td class="c" title="${esc(r.from||'')}">${r.n.toLocaleString()}</td>
     </tr>`).join('') +
-    (orphans.length ? `<tr class="miss"><td></td><td colspan="4">담을 곳을 못 찾은 덩이 ${orphans.length} — ${esc(orphans.map(o=>o.title).slice(0,4).join(' · '))}</td></tr>` : '');
+    (orphans.length ? `<tr class="miss"><td></td><td colspan="4">담을 곳을 못 찾은 덩이 ${orphans.length} — ${esc(orphans.map(o=>o.title).slice(0,4).join(' · '))}</td></tr>` : '') +
+    (uniq.length ? `<tr><td></td><td colspan="4" style="color:var(--ok);font-size:11.5px;line-height:1.9">표기 정정 ${uniq.length}곳 — ${esc(uniq.join(' · '))}</td></tr>` : '');
   PLAN = rows;
   $('#pv').classList.add('show');
 }
@@ -599,8 +643,10 @@ async function takeDocs(files){
   if(!mds.length){ toast('원고 파일(.md)이 아닙니다', true); return; }
   $('#docBusy').textContent = `${mds.length}장 읽는 중…`;
   const read = await Promise.all(mds.map(async f=>({ name:f.name, text: await f.text() })));
-  $('#docBusy').textContent = '';
-  showPlan(read);
+  const { keep, drop } = pickDocs(read);
+  $('#docBusy').textContent = drop.length ? `원고가 아닌 문서 ${drop.length}장은 안 읽었습니다.` : '';
+  if(!keep.length){ toast('읽을 원고가 없습니다', true); return; }
+  showPlan(keep);
 }
 
 /* ── 삽화 앉히기 ── */
