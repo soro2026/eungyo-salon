@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>EG Guidebook — 가이드북 서고</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Noto+Serif+KR:wght@300;400;500&family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*{ box-sizing:border-box; margin:0; padding:0; }
+:root{
+  --bg:#12100c; --panel:#1b1710; --panel2:#221c14;
+  --ink:#ece3d0; --dim:#9a8d72; --soft:#c8baa0;
+  --gold:#d8b860; --gold2:#c9a84c; --line:rgba(216,184,96,.22);
+  --ok:#7fb38a; --bad:#c46a5e; --navy:#16243D;
+}
+body{ background:var(--bg); color:var(--ink); font-family:'Noto Serif KR',serif; min-height:100vh; }
+:focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
+@media (prefers-reduced-motion:reduce){ *{ transition:none !important; } }
+
+header{ display:flex; align-items:baseline; gap:14px; padding:18px 22px 12px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+h1{ font-family:'Cormorant Garamond',serif; font-size:25px; font-weight:600; letter-spacing:.5px; }
+h1 .g{ color:var(--gold); }
+.sub{ font-size:11.5px; color:var(--dim); letter-spacing:.14em; }
+.count{ margin-left:auto; font-size:12px; color:var(--soft); }
+.count b{ color:var(--gold); font-weight:500; }
+
+#gate{ max-width:340px; margin:14vh auto; padding:26px; background:var(--panel); border:1px solid var(--line); border-radius:12px; }
+#gate h2{ font-family:'Cormorant Garamond',serif; font-size:20px; margin-bottom:14px; color:var(--gold); }
+#gate p{ font-size:13px; color:var(--dim); line-height:1.8; }
+label{ display:block; font-size:11.5px; color:var(--dim); margin:8px 0 4px; }
+input, textarea, select{ width:100%; background:var(--panel2); color:var(--ink); border:1px solid var(--line);
+  border-radius:8px; padding:8px 10px; font-family:inherit; font-size:13px; }
+textarea{ resize:vertical; }
+.b{ background:var(--panel2); color:var(--soft); border:1px solid var(--line); border-radius:8px;
+  padding:9px 14px; font-family:inherit; font-size:13px; cursor:pointer; }
+.b:hover{ color:var(--ink); border-color:var(--gold2); }
+.b.gold{ background:linear-gradient(135deg,var(--gold),var(--gold2)); color:#1a120c; border-color:var(--gold2); font-weight:500; }
+.b:disabled{ opacity:.4; cursor:not-allowed; }
+.b.wide{ width:100%; margin-top:10px; }
+
+/* 두 서고 */
+.shelves{ display:flex; gap:6px; padding:12px 22px 0; }
+.shelf{ background:none; border:1px solid transparent; border-bottom:2px solid transparent; color:var(--dim);
+  font-family:'Cormorant Garamond',serif; font-size:16px; letter-spacing:1.2px; padding:6px 14px; cursor:pointer; }
+.shelf.on{ color:var(--gold); border-bottom-color:var(--gold2); }
+.shelf span{ font-family:'Noto Serif KR',serif; font-size:12.5px; letter-spacing:0; margin-left:7px; color:var(--soft); }
+
+main{ display:grid; grid-template-columns:212px 1fr; gap:18px; padding:16px 22px 70px; align-items:start; }
+@media(max-width:900px){ main{ grid-template-columns:1fr; } }
+
+.tabs{ display:flex; flex-direction:column; gap:5px; }
+.tab{ display:flex; align-items:center; gap:8px; padding:9px 12px; border:1px solid transparent; border-radius:9px;
+  cursor:pointer; font-size:13.5px; color:var(--soft); background:none; font-family:inherit; text-align:left; width:100%; }
+.tab:hover{ border-color:var(--line); color:var(--ink); }
+.tab.on{ background:var(--panel2); border-color:var(--gold2); color:var(--ink); }
+.tab .rn{ font-family:'Cormorant Garamond',serif; color:var(--gold); font-size:14px; min-width:22px; }
+.tab .n{ margin-left:auto; font-size:11.5px; color:var(--dim); }
+.tab.full .n{ color:var(--ok); }
+.tabs .hd{ font-family:'Cormorant Garamond',serif; font-size:12px; letter-spacing:1.6px; color:var(--dim); padding:4px 12px; }
+
+.drop{ border:1px dashed var(--line); border-radius:12px; padding:16px; text-align:center;
+  color:var(--dim); font-size:12.5px; line-height:1.8; margin-bottom:12px; background:var(--panel); }
+.drop.over{ border-color:var(--gold); color:var(--ink); background:var(--panel2); }
+.drop b{ color:var(--gold); font-weight:500; }
+.drop input{ display:none; }
+.drop .pick{ color:var(--gold2); cursor:pointer; text-decoration:underline; }
+.busy{ font-size:12px; color:var(--soft); margin:-4px 0 10px; min-height:1.2em; }
+
+.strip{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; background:var(--panel); border:1px solid var(--line);
+  border-radius:10px; padding:11px 14px; margin-bottom:12px; font-size:12.5px; color:var(--dim); line-height:1.7; }
+.strip b{ color:var(--gold); font-weight:500; }
+
+/* 원고 칸 */
+.rows{ display:flex; flex-direction:column; gap:8px; }
+.row{ display:grid; grid-template-columns:70px 1fr auto; gap:12px; align-items:center;
+  background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:11px 14px; }
+.row.chap{ background:linear-gradient(90deg,rgba(22,36,61,.55),var(--panel) 62%); border-color:rgba(216,184,96,.34); }
+.row.unit{ margin-left:26px; }
+.row .no{ font-family:'Cormorant Garamond',serif; font-size:14px; color:var(--gold); letter-spacing:.5px; }
+.row .ttl{ font-size:14px; }
+.row .meta{ font-size:11.5px; color:var(--dim); margin-top:3px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.row .meta .key{ color:var(--soft); border:1px solid var(--line); border-radius:5px; padding:1px 6px; font-size:10.5px; }
+.row .meta .swatch{ width:10px; height:10px; border-radius:2px; display:inline-block; vertical-align:-1px; }
+.row .right{ display:flex; gap:6px; align-items:center; }
+.mini{ background:none; border:1px solid var(--line); color:var(--dim); border-radius:6px; padding:4px 9px; font-size:11.5px; font-family:inherit; cursor:pointer; }
+.mini:hover{ color:var(--ink); border-color:var(--gold2); }
+.mini.on{ color:var(--ok); border-color:rgba(127,179,138,.5); }
+.chars{ font-family:'Cormorant Garamond',serif; font-size:13px; color:var(--soft); min-width:56px; text-align:right; }
+.chars.zero{ color:#6a5f4c; }
+
+/* 삽화 칸 */
+.grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(228px,1fr)); gap:12px; }
+.card{ background:var(--panel); border:1px solid var(--line); border-radius:11px; overflow:hidden; }
+.card.off{ opacity:.45; }
+.card .pic{ position:relative; background:#0c0a07; aspect-ratio:3/4; display:flex; align-items:center; justify-content:center; cursor:zoom-in; }
+.card.wide .pic{ aspect-ratio:16/9; }
+.card .pic img{ max-width:100%; max-height:100%; object-fit:contain; display:block; }
+.card .pic .none{ font-size:12px; color:var(--dim); line-height:1.9; text-align:center; padding:0 12px; }
+.card .code{ position:absolute; left:8px; top:6px; font-family:'Cormorant Garamond',serif; font-size:11.5px; color:var(--gold); letter-spacing:.4px; }
+.card .dim{ position:absolute; right:8px; bottom:6px; font-size:10.5px; color:var(--dim); }
+.card .body{ padding:9px 10px 10px; }
+.card .subj{ font-size:12.5px; background:transparent; border:0; border-bottom:1px dashed var(--line); border-radius:0; padding:5px 2px; }
+.card .subj:focus{ border-bottom-color:var(--gold2); background:var(--panel2); }
+.card .r2{ display:flex; gap:6px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+.pill{ font-size:10.5px; color:var(--soft); border:1px solid var(--line); border-radius:5px; padding:2px 7px; }
+.pill.sw{ display:inline-flex; align-items:center; gap:5px; }
+.pill.sw i{ width:9px; height:9px; border-radius:2px; display:inline-block; }
+.empty{ text-align:center; padding:54px 20px; color:var(--dim); font-size:13px; line-height:2; grid-column:1/-1; }
+
+/* 덮개 */
+.veil{ position:fixed; inset:0; background:rgba(8,6,3,.93); display:none; z-index:50; flex-direction:column; }
+.veil.show{ display:flex; }
+.veil .top{ display:flex; align-items:center; gap:12px; padding:12px 18px; border-bottom:1px solid var(--line); font-size:13px; color:var(--soft); flex-wrap:wrap; }
+.veil .top b{ color:var(--gold); font-weight:500; }
+.veil .top .r{ margin-left:auto; display:flex; gap:8px; }
+.veil .inner{ flex:1; overflow:auto; padding:16px 18px 26px; }
+.veil .wrap{ max-width:980px; margin:0 auto; }
+
+#ed textarea{ width:100%; min-height:56vh; font-family:'Gowun Batang',serif; font-size:15px; line-height:1.95;
+  background:#171309; border-color:rgba(216,184,96,.18); padding:16px 18px; }
+.hint{ font-size:11.5px; color:var(--dim); line-height:2; margin-top:10px; }
+.hint code{ color:var(--gold2); font-family:'Cormorant Garamond',serif; font-size:13px; letter-spacing:.3px; }
+
+/* 붓기 미리보기 */
+.pv{ width:100%; border-collapse:collapse; font-size:12.5px; }
+.pv th{ text-align:left; color:var(--dim); font-weight:400; font-size:11px; letter-spacing:.1em; padding:6px 8px; border-bottom:1px solid var(--line); }
+.pv td{ padding:7px 8px; border-bottom:1px solid rgba(216,184,96,.10); vertical-align:top; }
+.pv tr.miss td{ color:var(--bad); }
+.pv tr.has td{ color:var(--soft); }
+.pv .t{ color:var(--ink); }
+.pv .n{ font-family:'Cormorant Garamond',serif; color:var(--gold); }
+.pv .c{ font-family:'Cormorant Garamond',serif; text-align:right; }
+.pv input[type=checkbox]{ width:auto; }
+.pv .frag{ color:var(--dim); font-size:11px; line-height:1.7; max-width:420px; }
+
+.big{ position:fixed; inset:0; background:rgba(8,6,3,.95); display:none; align-items:center; justify-content:center; z-index:60; cursor:zoom-out; }
+.big.show{ display:flex; }
+.big img{ max-width:96vw; max-height:92vh; object-fit:contain; }
+
+.toast{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%); background:var(--gold); color:#1a120c;
+  font-size:13px; padding:10px 20px; border-radius:9px; opacity:0; pointer-events:none; transition:opacity .18s; z-index:99; }
+.toast.show{ opacity:1; } .toast.bad{ background:var(--bad); color:#fff; }
+</style>
+</head>
+<body>
+
+<div id="gate" hidden>
+  <h2>가이드북 서고</h2>
+  <p>살롱지기로 들어와 주세요.</p>
+  <label>메일</label><input id="em" type="email" autocomplete="username">
+  <label>열쇠</label><input id="pw" type="password" autocomplete="current-password">
+  <button class="b gold wide" id="loginBtn">들어가기</button>
+</div>
+
+<div id="app" hidden>
+<header>
+  <h1>EG <span class="g">Guidebook</span></h1>
+  <span class="sub">원고와 삽화가 사는 곳</span>
+  <span class="count" id="hcount"></span>
+</header>
+
+<div class="shelves">
+  <button class="shelf on" data-shelf="doc">MANUSCRIPT <span>원고</span></button>
+  <button class="shelf" data-shelf="plate">PLATES <span>삽화</span></button>
+</div>
+
+<!-- 원고 서고 -->
+<main id="docShelf">
+  <nav class="tabs" id="chapTabs"></nav>
+  <section>
+    <div class="drop" id="docDrop">
+      원고 <b>.md</b> 파일을 여기에 끌어다 놓으면, 부엌·되짚음·머리말·변경 이력을 걷어내고 칸마다 나눠 담습니다.<br>
+      여러 장을 한꺼번에 놓으셔도 됩니다. <span class="pick" id="docPick">파일 고르기</span>
+      <input type="file" id="docFile" accept=".md,.markdown,.txt" multiple>
+    </div>
+    <div class="strip" id="buildStrip"></div>
+    <div class="busy" id="docBusy"></div>
+    <div class="rows" id="rows"></div>
+  </section>
+</main>
+
+<!-- 삽화 서고 -->
+<main id="plateShelf" hidden>
+  <nav class="tabs" id="plateTabs"></nav>
+  <section>
+    <div class="drop" id="plDrop">
+      삽화를 끌어다 놓거나 <b>Ctrl+V</b>로 붙여 넣으세요. 파일 이름이 <b>wp_03_s1-1_glasshouse</b> 처럼 code와 같으면 그 칸에 앉습니다.<br>
+      PNG를 주시면 원본은 그대로 두고 조판용 WebP를 따로 굽습니다. <span class="pick" id="plPick">파일 고르기</span>
+      <input type="file" id="plFile" accept="image/*" multiple>
+    </div>
+    <div class="busy" id="plBusy"></div>
+    <div class="grid" id="plGrid"></div>
+  </section>
+</main>
+</div>
+
+<!-- 원고 고치기 -->
+<div class="veil" id="ed">
+  <div class="top">
+    <span><b id="edTitle"></b> <span id="edMeta" style="color:var(--dim);font-size:12px"></span></span>
+    <span class="r">
+      <button class="b" id="edCancel">닫기</button>
+      <button class="b gold" id="edSave">저장</button>
+    </span>
+  </div>
+  <div class="inner"><div class="wrap">
+    <textarea id="edBody" spellcheck="false"></textarea>
+    <div class="hint">
+      <code>@big</code> 큰 줄(본문 1.5배) · <code>@solo</code> 면 전체 한 덩이 · <code>@cry</code> 구호(나눔명조) ·
+      <code>@sub</code> 소제목 · <code>@plate wp_03_s1-1_glasshouse</code> 삽화가 서는 자리<br>
+      줄 맨 앞에 붙입니다. 문단은 빈 줄로 나눕니다. <code>@page</code>는 넣지 않습니다 — 면은 조판기가 실측으로 흘립니다.
+    </div>
+  </div></div>
+</div>
+
+<!-- 붓기 미리보기 -->
+<div class="veil" id="pv">
+  <div class="top">
+    <span>담을 곳을 확인해 주세요. <b id="pvSum"></b></span>
+    <span class="r">
+      <button class="b" id="pvCancel">버림</button>
+      <button class="b gold" id="pvOk">칸에 담기</button>
+    </span>
+  </div>
+  <div class="inner"><div class="wrap"><table class="pv" id="pvTable"></table></div></div>
+</div>
+
+<!-- 프롬프트 -->
+<div class="veil" id="pr">
+  <div class="top">
+    <span><b id="prTitle"></b> — 다시 구울 때 쓰는 프롬프트</span>
+    <span class="r">
+      <button class="b" id="prCancel">닫기</button>
+      <button class="b gold" id="prSave">저장</button>
+    </span>
+  </div>
+  <div class="inner"><div class="wrap">
+    <label>색 (그 화면의 주인)</label><input id="prColor" placeholder="#9C3B64">
+    <label>자리</label>
+    <select id="prFit">
+      <option value="full">전면 — 면 통째로 도련</option>
+      <option value="half">반면 — 7행, 본문 아래</option>
+      <option value="band">띠 — 4행, 면 전폭</option>
+      <option value="spread">펼침 — 좌우 두 면</option>
+    </select>
+    <label>자를 자리 (object-position)</label><input id="prCrop" placeholder="center 46%">
+    <label>프롬프트</label><textarea id="prBody" rows="14" spellcheck="false"></textarea>
+    <div class="hint">
+      한 덩이로 둡니다. 복사 한 번에 끝나야 합니다.<br>
+      ⚠ 안 쓰는 말 — <code>copperplate engraving</code> · <code>banknote intaglio</code> · <code>dense hatching build every tone</code>. 셋 다 종이를 까맣게 채우라는 명령입니다.
+    </div>
+  </div></div>
+</div>
+
+<div class="big" id="big"><img id="bigImg" alt=""></div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const sb = createClient(SUPA_URL, SUPA_KEY, { auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true } });
+const $ = s => document.querySelector(s);
+const BUCKET = 'guidebook-assets';
+const PUB = p => `${SUPA_URL}/storage/v1/object/public/${BUCKET}/${p}`;
+
+let DOCS = [], PLATES = [], CUR = 'ch0', SHELF = 'doc';
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const kb = n => n>1048576 ? (n/1048576).toFixed(1)+'MB' : Math.round(n/1024)+'KB';
+function toast(m,bad){ const t=$('#toast'); t.textContent=m; t.classList.toggle('bad',!!bad); t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
+
+/* 글자수 — 공백 포함, 마커 줄은 뺀다 (메모리 #28) */
+const charsOf = b => String(b||'').split('\n').filter(L=>!/^@[a-z]+\b/.test(L.trim())).join('\n').replace(/\n+/g,'\n').trim().length;
+
+/* 장 묶기 — 장 다음부터 다음 장 전까지가 그 장의 칸 */
+function chapterOf(row){
+  const ords = DOCS.filter(d=>d.level==='chapter').map(d=>d.ord).sort((a,b)=>a-b);
+  let c = ords[0];
+  for(const o of ords) if(row.ord >= o) c = o;
+  return DOCS.find(d=>d.level==='chapter' && d.ord===c);
+}
+
+/* ── 문지기 ── */
+async function boot(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if(!session){ $('#gate').hidden=false; return; }
+  const { data:isAdmin } = await sb.rpc('eg_is_admin');
+  if(!isAdmin){ $('#gate').hidden=false; $('#gate').innerHTML='<h2>가이드북 서고</h2><p>이 문은 살롱지기에게만 열립니다.</p>'; return; }
+  $('#gate').hidden=true; $('#app').hidden=false;
+  await load();
+}
+$('#loginBtn').addEventListener('click', async ()=>{
+  const { error } = await sb.auth.signInWithPassword({ email:$('#em').value.trim(), password:$('#pw').value });
+  if(error){ toast('들어가지 못했습니다 — '+error.message, true); return; }
+  boot();
+});
+
+async function load(){
+  const [a,b] = await Promise.all([
+    sb.from('eg_guidebook').select('*').order('ord'),
+    sb.from('eg_guidebook_plates').select('*').order('ord')
+  ]);
+  if(a.error){ toast('원고를 불러오지 못했습니다 — '+a.error.message, true); return; }
+  if(b.error){ toast('삽화를 불러오지 못했습니다 — '+b.error.message, true); return; }
+  DOCS = a.data||[]; PLATES = b.data||[];
+  paint();
+}
+
+/* ── 그리기 ── */
+function paint(){
+  const written = DOCS.filter(d=>charsOf(d.body)>0).length;
+  const total = DOCS.filter(d=>d.level!=='chapter' || d.title==='화살표' || d.title==='약속').length;
+  const sum = DOCS.reduce((n,d)=>n+charsOf(d.body),0);
+  const withPic = PLATES.filter(p=>p.path).length;
+  $('#hcount').innerHTML = `원고 <b>${written}</b>/${total}칸 · <b>${sum.toLocaleString()}</b>자 · 삽화 <b>${withPic}</b>/${PLATES.length}`;
+
+  const chaps = DOCS.filter(d=>d.level==='chapter');
+  const tabHTML = '<div class="hd">CHAPTERS</div>' + chaps.map(c=>{
+    const kids = kidsOf(c);
+    const done = kids.filter(k=>charsOf(k.body)>0).length;
+    return `<button class="tab${c.slug===CUR?' on':''}${done===kids.length?' full':''}" data-slug="${c.slug}">
+      <span class="rn">${esc(c.num)}</span>${esc(c.title)}<span class="n">${done}/${kids.length}</span></button>`;
+  }).join('');
+  $('#chapTabs').innerHTML = tabHTML;
+  $('#plateTabs').innerHTML = tabHTML;
+
+  paintBuildStrip();
+  paintRows();
+  paintPlates();
+}
+function kidsOf(chap){
+  const chaps = DOCS.filter(d=>d.level==='chapter').map(d=>d.ord).sort((a,b)=>a-b);
+  const next = chaps.find(o=>o>chap.ord) ?? Infinity;
+  const kids = DOCS.filter(d=>d.ord>chap.ord && d.ord<next);
+  return kids.length ? kids : [chap];   /* 0 화살표 · Ⅶ 약속은 장이 곧 본문 */
+}
+
+async function paintBuildStrip(){
+  const { data } = await sb.from('eg_guidebook_build').select('ver,faces,spreads,built_at').order('id',{ascending:false}).limit(1);
+  const b = data && data[0];
+  $('#buildStrip').innerHTML = b
+    ? `면 JSON <b>v${b.ver}</b> · ${b.faces}면 ${b.spreads}펼침 · ${new Date(b.built_at).toLocaleString('ko-KR')}<br>
+       ⚠ 원고를 고치셨으면 다시 잘라야 합니다. 그 뒤 면이 전부 밀립니다.`
+    : `면 JSON이 아직 없습니다. 비너스 조판기 규칙 여덟을 여기 심으면 <b>「다시 자르기」</b>가 이 자리에서 돕니다 — 다음 손.<br>
+       그때까지 원고와 삽화는 여기 안전히 삽니다.`;
+}
+
+function paintRows(){
+  const chap = DOCS.find(d=>d.slug===CUR); if(!chap) return;
+  const kids = kidsOf(chap);
+  const list = (kids[0]===chap) ? [chap] : [chap, ...kids];
+  $('#rows').innerHTML = list.map(d=>{
+    const n = charsOf(d.body);
+    const cls = d.level==='chapter' ? 'chap' : d.level==='unit' ? 'unit' : '';
+    const sw = d.color ? `<span class="swatch" style="background:${esc(d.color)}"></span> ${esc(d.color)}` : '';
+    const key = d.building ? `<span class="key">ⓘ ${esc(d.building)}</span>` : '';
+    const marks = (d.body.match(/@(big|solo|cry|plate|sub)\b/g)||[]).length;
+    return `<div class="row ${cls}" data-slug="${d.slug}">
+      <div class="no">${esc(d.num || (d.level==='unit'?'·':''))}</div>
+      <div>
+        <div class="ttl">${esc(d.title)}</div>
+        <div class="meta">${key}${sw}${marks?`<span>마커 ${marks}</span>`:''}${d.level==='chapter'?'<span>장 표지</span>':''}</div>
+      </div>
+      <div class="right">
+        <span class="chars${n?'':' zero'}">${n?n.toLocaleString():'—'}</span>
+        <button class="mini" data-act="edit">${n?'고치기':'담기'}</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function paintPlates(){
+  const chap = DOCS.find(d=>d.slug===CUR);
+  const slugs = new Set(kidsOf(chap).map(d=>d.slug).concat([chap.slug]));
+  const list = PLATES.filter(p=>slugs.has(p.slug));
+  const g = $('#plGrid');
+  if(!list.length){ g.innerHTML = `<div class="empty">「${esc(chap.title)}」 장에 배정된 삽화 칸이 없습니다.<br>그림을 놓으시면 파일 이름으로 칸을 새로 엽니다.</div>`; return; }
+  g.innerHTML = list.map(p=>`
+    <div class="card${p.active?'':' off'}${p.fit==='spread'||p.fit==='band'?' wide':''}" data-id="${p.id}">
+      <div class="pic" data-act="big">
+        ${p.path ? `<img src="${PUB(p.path)}" alt="" loading="lazy">`
+                 : `<div class="none">아직 그림이 없습니다.<br>여기에 놓으면 앉습니다.</div>`}
+        <span class="code">${esc(p.code)}</span>
+        ${p.w?`<span class="dim">${p.w}×${p.h}${p.bytes?' · '+kb(p.bytes):''}</span>`:''}
+      </div>
+      <div class="body">
+        <input class="subj" data-act="subj" value="${esc(p.subject)}" placeholder="장면 한 줄 — 무엇을 그리는가">
+        <div class="r2">
+          <span class="pill">${({full:'전면',half:'반면',band:'띠',spread:'펼침'})[p.fit]}</span>
+          ${p.color?`<span class="pill sw"><i style="background:${esc(p.color)}"></i>${esc(p.color)}</span>`:''}
+          ${p.src_path?`<span class="pill">원본 있음</span>`:''}
+          <button class="mini" data-act="prompt">프롬프트</button>
+          <button class="mini${p.active?' on':''}" data-act="on">${p.active?'실음':'뺌'}</button>
+        </div>
+        ${p.note?`<div class="meta" style="margin-top:7px;font-size:11px;color:var(--bad)">${esc(p.note)}</div>`:''}
+      </div>
+    </div>`).join('');
+}
+
+document.querySelectorAll('.shelf').forEach(b=>b.addEventListener('click',()=>{
+  SHELF = b.dataset.shelf;
+  document.querySelectorAll('.shelf').forEach(x=>x.classList.toggle('on', x===b));
+  $('#docShelf').hidden = SHELF!=='doc';
+  $('#plateShelf').hidden = SHELF!=='plate';
+}));
+[ '#chapTabs', '#plateTabs' ].forEach(sel=>$(sel).addEventListener('click', e=>{
+  const t = e.target.closest('.tab'); if(!t) return;
+  CUR = t.dataset.slug; paint();
+}));
+
+/* ── 원고 고치기 ── */
+let EDIT = null;
+$('#rows').addEventListener('click', e=>{
+  const btn = e.target.closest('[data-act="edit"]'); if(!btn) return;
+  const slug = btn.closest('.row').dataset.slug;
+  EDIT = DOCS.find(d=>d.slug===slug);
+  $('#edTitle').textContent = (EDIT.num? EDIT.num+' · ':'') + EDIT.title;
+  $('#edMeta').textContent = `${EDIT.slug}${EDIT.building? ' · ⓘ '+EDIT.building : ''}`;
+  $('#edBody').value = EDIT.body || '';
+  $('#ed').classList.add('show');
+  setTimeout(()=>$('#edBody').focus(), 40);
+});
+$('#edCancel').addEventListener('click', ()=> $('#ed').classList.remove('show'));
+$('#edSave').addEventListener('click', async ()=>{
+  const body = $('#edBody').value;
+  const { error } = await sb.from('eg_guidebook').update({ body }).eq('slug', EDIT.slug);
+  if(error){ toast('저장 실패 — '+error.message, true); return; }
+  EDIT.body = body; $('#ed').classList.remove('show'); paint();
+  toast(`${EDIT.title} — ${charsOf(body).toLocaleString()}자 저장`);
+});
+
+/* ── 원고 붓기 ──────────────────────────────────────────────
+   ① 걷어낸다 — 부엌에서(인용문) · 되짚음 · 변경 이력 · 머리말 · 서명
+   ② 나눈다   — @chapter/@section 마커가 있으면 그걸로, 없으면 #/##/### 헤딩으로
+   ③ 이어 붙인다 — @page 로 잘린 문단은 도로 한 문단으로(비너스 규칙 1)
+   ④ 맞춘다   — 번호(Ⅳ-1)로, 없으면 제목으로. 못 맞춘 소제목은 앞 칸에 @sub 로 붙는다
+   ⑤ 보여 준다 — 담기 전에 소로가 본다
+   ────────────────────────────────────────────────────────── */
+const TERMINAL = /[.。!?…」』）)"'\u201D\u2019]\s*$/;
+
+function stripKitchen(md){
+  const out = []; let skip = false;
+  for(const L of md.split(/\r?\n/)){
+    const h = L.match(/^\s*(#{1,6})\s+(.*)$/);
+    if(h){ skip = /되짚음|변경\s*이력/.test(h[2]); if(skip) continue; }
+    if(skip) continue;
+    if(/^\s*>/.test(L)) continue;                    /* 부엌에서 · 머리말 전부 인용문 */
+    if(/^\s*\*작성[:：]/.test(L)) continue;           /* 서명 */
+    if(/^\s*\|/.test(L)) continue;                   /* 표 */
+    if(/^\s*-{3,}\s*$/.test(L)){ out.push(''); continue; }
+    out.push(L);
+  }
+  return out.join('\n');
+}
+
+function numOf(t){
+  const m = String(t).match(/^\s*([0ⅠⅡⅢⅣⅤⅥⅦⅧ]+(?:-\d+)?)(?:\s*[·.]?\s+|\s*$)/);
+  return m ? m[1] : null;
+}
+function titleOf(t){
+  const n = numOf(t);
+  let s = n ? String(t).slice(String(t).indexOf(n)+n.length) : String(t);
+  return s.replace(/^\s*[·.]\s*/,'').trim();
+}
+
+function parseParts(md){
+  const atMode = /^@(chapter|section)\s/m.test(md);
+  const parts = []; let cur = null; let joinNext = false;
+  const push = (level, raw) => { cur = { level, raw, num:numOf(raw), title:titleOf(raw), lines:[] }; parts.push(cur); };
+  const add = L => {
+    if(!cur) return;
+    if(joinNext && L.trim()){
+      joinNext = false;
+      const arr = cur.lines;
+      let i = arr.length-1; while(i>=0 && !arr[i].trim()) i--;
+      if(i>=0 && !TERMINAL.test(arr[i]) && !/^@/.test(arr[i]) && !/^@/.test(L)){
+        arr.length = i+1; arr[i] = arr[i] + L.trim(); return;    /* 잘린 문단을 도로 잇는다 */
+      }
+    }
+    cur.lines.push(L);
+  };
+
+  for(const L of md.split(/\r?\n/)){
+    if(atMode){
+      const m = L.match(/^@(chapter|section|page)\s*(.*)$/);
+      if(m){
+        if(m[1]==='page'){ joinNext = true; continue; }
+        push(m[1]==='chapter' ? 1 : 2, m[2]); continue;
+      }
+      add(L); continue;
+    }
+    const h = L.match(/^\s*(#{1,6})\s+(.*)$/);
+    if(h){ push(h[1].length, h[2].trim()); continue; }
+    add(L);
+  }
+  return parts.map(p=>({ ...p, body:p.lines.join('\n').replace(/\n{3,}/g,'\n\n').trim() }))
+              .filter(p=>p.body || p.level<=2);
+}
+
+function matchSlot(p, lastChapNum){
+  if(p.num){
+    const byNum = DOCS.find(d=>d.num && d.num===p.num);
+    if(byNum) return byNum;
+  }
+  /* 원고 소제목은 「사람이 여는 식탁 — 살롱 데 콩파뇽」처럼 앞에 수식이 붙는다.
+     줄표 뒤가 칸 이름이면 그 칸이다. ⚠ 품기(포함)는 안 쓴다 — 「빈 서가」가 「서가」에 딸려 간다. */
+  const keys = [ p.title, ...String(p.title).split(/\s*[—–]\s*/).slice(1) ]
+                 .map(s=>s.replace(/\s+/g,'').trim()).filter(Boolean);
+  for(const k of keys){
+    const cands = DOCS.filter(d=>d.title.replace(/\s+/g,'')===k);
+    if(cands.length===1) return cands[0];
+    if(cands.length>1){
+      const inChap = lastChapNum && cands.find(d=>{ const c = chapterOf(d); return c && c.num===lastChapNum; });
+      return inChap || cands[0];
+    }
+  }
+  return null;
+}
+
+function planPour(files){
+  const plan = new Map();        /* slug → {row, chunks:[]} */
+  const orphans = [];
+  for(const f of files){
+    const parts = parseParts(stripKitchen(f.text));
+    let open = null, lastChapNum = null;
+    for(const p of parts){
+      if(!p.body && p.level<=2 && !p.num) continue;
+      const slot = matchSlot(p, lastChapNum);
+      if(slot){
+        if(slot.level==='chapter') lastChapNum = slot.num;
+        open = slot;
+        if(!plan.has(slot.slug)) plan.set(slot.slug, { row:slot, chunks:[] });
+        if(p.body) plan.get(slot.slug).chunks.push(p.body);
+      } else if(open && p.body){
+        plan.get(open.slug).chunks.push(`@sub ${p.title}\n\n${p.body}`);   /* 소제목은 앞 칸 안으로 */
+      } else if(p.body && p.body.length > 60){
+        orphans.push({ file:f.name, title:p.raw, chars:p.body.length });
+      }
+    }
+  }
+  return { plan, orphans };
+}
+
+let PLAN = null;
+function showPlan(files){
+  const { plan, orphans } = planPour(files);
+  if(!plan.size){ toast('담을 곳을 못 찾았습니다 — 제목이 칸 이름과 다릅니다', true); return; }
+  PLAN = plan;
+  const rows = [...plan.values()].map(v=>{
+    const body = v.chunks.join('\n\n');
+    const had = charsOf(v.row.body);
+    return { row:v.row, body, n:charsOf(body), had };
+  }).sort((a,b)=>a.row.ord-b.row.ord);
+  const totalNew = rows.reduce((n,r)=>n+r.n,0);
+  const over = rows.filter(r=>r.had>0).length;
+  $('#pvSum').textContent = `${rows.length}칸 · ${totalNew.toLocaleString()}자` + (over?` · 이미 든 칸 ${over}개를 덮어씁니다`:'');
+  $('#pvTable').innerHTML = `<tr><th style="width:34px"></th><th style="width:56px">번호</th><th>칸</th><th>첫 줄</th><th style="width:74px" class="c">글자</th></tr>` +
+    rows.map((r,i)=>`<tr class="${r.had?'has':''}">
+      <td><input type="checkbox" data-i="${i}" checked></td>
+      <td class="n">${esc(r.row.num||'·')}</td>
+      <td class="t">${esc(r.row.title)}${r.had?` <span style="color:var(--dim);font-size:11px">← 지금 ${r.had.toLocaleString()}자</span>`:''}</td>
+      <td class="frag">${esc(r.body.replace(/^@\w+.*$/gm,'').trim().slice(0,70))}…</td>
+      <td class="c">${r.n.toLocaleString()}</td>
+    </tr>`).join('') +
+    (orphans.length ? `<tr class="miss"><td></td><td colspan="4">담을 곳을 못 찾은 덩이 ${orphans.length} — ${esc(orphans.map(o=>o.title).slice(0,4).join(' · '))}</td></tr>` : '');
+  PLAN = rows;
+  $('#pv').classList.add('show');
+}
+$('#pvCancel').addEventListener('click', ()=> $('#pv').classList.remove('show'));
+$('#pvOk').addEventListener('click', async ()=>{
+  const picked = [...$('#pvTable').querySelectorAll('input[type=checkbox]')]
+    .filter(c=>c.checked).map(c=>PLAN[Number(c.dataset.i)]);
+  if(!picked.length){ toast('고른 칸이 없습니다', true); return; }
+  $('#pv').classList.remove('show');
+  $('#docBusy').textContent = `${picked.length}칸에 담는 중…`;
+  let ok = 0;
+  for(const p of picked){
+    const { error } = await sb.from('eg_guidebook').update({ body:p.body }).eq('slug', p.row.slug);
+    if(error){ toast(`${p.row.title} 실패 — ${error.message}`, true); continue; }
+    ok++;
+  }
+  $('#docBusy').textContent = '';
+  await load();
+  toast(`${ok}칸 담았습니다`);
+});
+
+const dd = $('#docDrop');
+['dragenter','dragover'].forEach(ev=>dd.addEventListener(ev, e=>{ e.preventDefault(); dd.classList.add('over'); }));
+['dragleave','drop'].forEach(ev=>dd.addEventListener(ev, e=>{ e.preventDefault(); dd.classList.remove('over'); }));
+dd.addEventListener('drop', e=> takeDocs([...e.dataTransfer.files]));
+$('#docPick').addEventListener('click', ()=>$('#docFile').click());
+$('#docFile').addEventListener('change', e=>{ takeDocs([...e.target.files]); e.target.value=''; });
+async function takeDocs(files){
+  const mds = files.filter(f=>/\.(md|markdown|txt)$/i.test(f.name));
+  if(!mds.length){ toast('원고 파일(.md)이 아닙니다', true); return; }
+  $('#docBusy').textContent = `${mds.length}장 읽는 중…`;
+  const read = await Promise.all(mds.map(async f=>({ name:f.name, text: await f.text() })));
+  $('#docBusy').textContent = '';
+  showPlan(read);
+}
+
+/* ── 삽화 앉히기 ── */
+const pd = $('#plDrop');
+['dragenter','dragover'].forEach(ev=>pd.addEventListener(ev, e=>{ e.preventDefault(); pd.classList.add('over'); }));
+['dragleave','drop'].forEach(ev=>pd.addEventListener(ev, e=>{ e.preventDefault(); pd.classList.remove('over'); }));
+pd.addEventListener('drop', e=> takePics([...e.dataTransfer.files]));
+$('#plPick').addEventListener('click', ()=>$('#plFile').click());
+$('#plFile').addEventListener('change', e=>{ takePics([...e.target.files]); e.target.value=''; });
+document.addEventListener('paste', e=>{
+  if($('#app').hidden || SHELF!=='plate') return;
+  if(e.target.matches('input,textarea')) return;
+  const items = [...(e.clipboardData?.items||[])].filter(i=>i.type.startsWith('image/'));
+  if(!items.length) return;
+  e.preventDefault(); takePics(items.map(i=>i.getAsFile()).filter(Boolean));
+});
+
+async function takePics(files){
+  const imgs = files.filter(f=>f && f.type.startsWith('image/'));
+  if(!imgs.length){ toast('그림이 아닙니다', true); return; }
+  for(const f of imgs){
+    try{ await putPic(f); }
+    catch(err){ toast('앉히지 못했습니다 — '+(err.message||err), true); }
+  }
+  $('#plBusy').textContent = '';
+  await load();
+}
+
+async function putPic(file){
+  const stem = file.name.replace(/\.[^.]+$/,'').trim();
+  let row = PLATES.find(p=>p.code===stem);
+  if(!row){
+    const code = prompt(`「${stem}」에 맞는 칸이 없습니다.\ncode를 적어 주시면 칸을 새로 엽니다 (예: wp_11_s2-1_ledger).\n비우면 이 그림은 버립니다.`, stem);
+    if(!code) return;
+    row = PLATES.find(p=>p.code===code.trim());
+    if(!row){
+      const ord = PLATES.reduce((m,p)=>Math.max(m,p.ord),0)+10;
+      const { data, error } = await sb.from('eg_guidebook_plates')
+        .insert({ code:code.trim(), slug:CUR, ord }).select().single();
+      if(error) throw new Error('칸 열기 — '+error.message);
+      row = data; PLATES.push(row);
+    }
+  }
+  $('#plBusy').textContent = `${row.code} 앉히는 중… ${kb(file.size)}`;
+
+  const bmp = await createImageBitmap(file);
+  const isWebp = /image\/webp/.test(file.type);
+  const patch = { w:bmp.width, h:bmp.height };
+
+  if(isWebp){
+    const path = `webp/${row.code}.webp`;
+    const { error } = await sb.storage.from(BUCKET).upload(path, file, { contentType:'image/webp', cacheControl:'3600', upsert:true });
+    if(error) throw new Error('조판용 올리기 — '+error.message);
+    patch.path = path; patch.bytes = file.size;
+  }else{
+    /* 원본은 그대로 둔다 — 인쇄본은 여기서 다시 굽는다 */
+    const ext = /jpeg|jpg/.test(file.type) ? 'jpg' : 'png';
+    const src = `src/${row.code}.${ext}`;
+    const { error:e1 } = await sb.storage.from(BUCKET).upload(src, file, { contentType:file.type, cacheControl:'3600', upsert:true });
+    if(e1) throw new Error('원본 올리기 — '+e1.message);
+    patch.src_path = src;
+
+    const long = 1600;
+    const s = Math.min(1, long/Math.max(bmp.width,bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width*s); c.height = Math.round(bmp.height*s);
+    const cx = c.getContext('2d'); cx.imageSmoothingQuality = 'high'; cx.drawImage(bmp,0,0,c.width,c.height);
+    const blob = await new Promise(r=>c.toBlob(r,'image/webp',.86));
+    const path = `webp/${row.code}.webp`;
+    const { error:e2 } = await sb.storage.from(BUCKET).upload(path, blob, { contentType:'image/webp', cacheControl:'3600', upsert:true });
+    if(e2) throw new Error('조판용 굽기 — '+e2.message);
+    patch.path = path; patch.bytes = blob.size;
+  }
+  bmp.close && bmp.close();
+
+  /* 펼침은 2032, 전면은 1600이 인쇄 기준. 못 미치면 표에 적어 둔다 */
+  const need = row.fit==='spread' ? 2032 : 1600;
+  patch.note = Math.max(patch.w,patch.h) < need
+    ? `⚠ 원본 ${patch.w}×${patch.h} — ${need}에 못 미침. 인쇄본은 다시 구워야 함` : null;
+
+  const { error } = await sb.from('eg_guidebook_plates').update(patch).eq('id', row.id);
+  if(error) throw new Error('표에 적기 — '+error.message);
+  toast(`${row.code} 앉았습니다`);
+}
+
+/* 삽화 카드 손질 */
+let PR = null;
+$('#plGrid').addEventListener('click', async e=>{
+  const el = e.target.closest('[data-act]'); if(!el) return;
+  const id = Number(el.closest('.card').dataset.id);
+  const p = PLATES.find(x=>x.id===id); if(!p) return;
+  const act = el.dataset.act;
+  if(act==='big'){ if(!p.path) return; $('#bigImg').src = PUB(p.path); $('#big').classList.add('show'); return; }
+  if(act==='on'){
+    const { error } = await sb.from('eg_guidebook_plates').update({ active:!p.active }).eq('id', id);
+    if(error){ toast('저장 실패 — '+error.message, true); return; }
+    p.active = !p.active; paintPlates(); return;
+  }
+  if(act==='prompt'){
+    PR = p;
+    $('#prTitle').textContent = p.code;
+    $('#prColor').value = p.color||''; $('#prFit').value = p.fit; $('#prCrop').value = p.crop||''; $('#prBody').value = p.prompt||'';
+    $('#pr').classList.add('show'); return;
+  }
+});
+$('#plGrid').addEventListener('blur', async e=>{
+  if(e.target.dataset.act!=='subj') return;
+  const id = Number(e.target.closest('.card').dataset.id);
+  const p = PLATES.find(x=>x.id===id); const v = e.target.value.trim()||null;
+  if((p.subject||null)===v) return;
+  const { error } = await sb.from('eg_guidebook_plates').update({ subject:v }).eq('id', id);
+  if(error){ toast('저장 실패 — '+error.message, true); return; }
+  p.subject = v; toast('장면 저장');
+}, true);
+$('#prCancel').addEventListener('click', ()=> $('#pr').classList.remove('show'));
+$('#prSave').addEventListener('click', async ()=>{
+  const patch = { color:$('#prColor').value.trim()||null, fit:$('#prFit').value,
+                  crop:$('#prCrop').value.trim()||null, prompt:$('#prBody').value.trim()||null };
+  const { error } = await sb.from('eg_guidebook_plates').update(patch).eq('id', PR.id);
+  if(error){ toast('저장 실패 — '+error.message, true); return; }
+  Object.assign(PR, patch); $('#pr').classList.remove('show'); paintPlates(); toast(`${PR.code} 저장`);
+});
+$('#big').addEventListener('click', ()=> $('#big').classList.remove('show'));
+document.addEventListener('keydown', e=>{
+  if(e.key!=='Escape') return;
+  ['#ed','#pv','#pr','#big'].forEach(s=>$(s).classList.remove('show'));
+});
+
+boot();
+</script>
+</body>
+</html>
