@@ -62,8 +62,27 @@ function paginate(STREAM, R) {
 
   /* 면지 — 순례길 표석의 노랑에 판화의 해칭 */
   push({ type: 'endpaper' }); push({ type: 'endpaper' });
-  const tocPage = { type: 'tocRight', toc: [] };
-  push({ type: 'tocLeft' }); push(tocPage);
+  /* 차례 — 몇 면이 될지 먼저 센다.
+     ⚠ 쪽번호가 차례 면 수에 달려 있으므로, 본문을 흘리기 전에 자리를 잡아 둬야 한다.
+     차례 항목은 STREAM 의 장·절 머리와 순서가 정확히 같다. */
+  const TOC_H = 451;                                   // top 140 ~ 판면 밑선 591
+  const eH = (e) => e.chapter ? 74 : (e.unit ? 32 : 38);
+  const entries = [];
+  STREAM.forEach(it => {
+    if (it.k === 'chapter') entries.push({ chapter: true, num: it.num, name: it.name });
+    else if (it.k === 'section') entries.push({ num: it.num, name: it.name, unit: !it.num });
+  });
+  const chunks = []; let bin = [], acc = 0;
+  entries.forEach(e => {
+    const h = eH(e);
+    if (acc + h > TOC_H && bin.length) { chunks.push(bin); bin = []; acc = 0; }
+    bin.push(e); acc += h;
+  });
+  if (bin.length) chunks.push(bin);
+
+  push({ type: 'tocLeft' });
+  chunks.forEach(list => push({ type: 'toc', toc: list }));
+  let ei = 0;
 
   /* 규칙6 — 전면·펼침 삽화는 글의 흐름을 자르지 않는다.
      걸린 면을 끝까지 채운 뒤 다음 면 경계에서 한 장으로 선다. */
@@ -106,8 +125,13 @@ function paginate(STREAM, R) {
     if (it.k === 'chapter') {
       flush(true); cur = null;
       hue = it.hue; chapLabel = it.num + ' · ' + it.name; sectLabel = '';
-      tocPage.toc.push({ chapter: true, num: it.num, name: it.name, ref: pages.length });
+      if (entries[ei]) entries[ei++].ref = pages.length;
+      /* 규칙5 + 인계서 ⑥ — 장 표지는 오른쪽 면에서 열리고,
+         맞은편(왼쪽)은 흰 종이로 비운다. 「면 1(왼) 흰 종이, 비움 ← 앞 장의 끝」.
+         ⚠ 목업은 0장·Ⅰ장만 겪어 우연히 짝이 맞았다. 장이 여덟이면 우연에 못 맡긴다 */
       toRight();
+      const facing = pages.length - 1;
+      if (facing >= 0 && pages[facing].type !== 'blank') { push({ type: 'blank' }); push({ type: 'blank' }); }
       push({ type: 'divider', num: it.num, name: it.name });
       push({ type: 'dividerBack' });
       markNext = true;
@@ -147,7 +171,7 @@ function paginate(STREAM, R) {
          면 아래에 「텍스트」가 아니라 「야구장」이 떠 있어야 한다. */
       const unit = !it.num;
       sectLabel = unit ? it.name : it.num + ' ' + it.name;
-      tocPage.toc.push({ num: it.num, name: it.name, unit, ref: pages.length });
+      if (entries[ei]) entries[ei++].ref = pages.length;
       markNext = true;
       openBody({
         head: { num: it.num, name: it.name, unit },
@@ -224,8 +248,8 @@ function paginate(STREAM, R) {
   pages.forEach((p, i) => { if (SHOW[p.type]) p.folio = i + 1; });
 
   /* 차례의 쪽 번호는 흘린 결과에서 되받는다 */
-  tocPage.toc.forEach(e => {
-    for (let i = e.ref; i < pages.length; i++) if (pages[i].folio) { e.folio = pages[i].folio; break; }
+  entries.forEach(e => {
+    for (let i = e.ref || 0; i < pages.length; i++) if (pages[i].folio) { e.folio = pages[i].folio; break; }
   });
 
   /* ④ 통독에서 볼 자리 — 짧은 면과 빈 면을 세어 둔다 */
@@ -234,7 +258,7 @@ function paginate(STREAM, R) {
       later.push(`짧은 면 ${String(p.folio).padStart(3, '0')} — 판면의 ${Math.round(p.used / p.cap * 100)}%만 참`);
   });
 
-  return { pages, toc: tocPage.toc, later };
+  return { pages, toc: entries, later };
 }
 
 if (typeof module !== 'undefined') module.exports = { paginate, makeRuler, breakPoints, PLATE_H, LH, HEAD_H, UNIT_H, SUB_H };
