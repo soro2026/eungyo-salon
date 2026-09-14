@@ -747,8 +747,34 @@ async function putPic(file, forceRow){
   $('#plBusy').textContent = `${row.code} 앉히는 중… ${kb(file.size)}`;
 
   const bmp = await createImageBitmap(file);
+
+  /* ⭐ 가장자리의 균일한 순백 테를 벗긴다 (0914).
+     생성기가 청한 비율을 못 만들면 넓은 캔버스에 그리고 위아래를 순백으로 채운다.
+     wp_14 젖은 길이 그 꼴로 들어와 띠 자리를 66.7px 넘겼고 본문 두 줄을 먹었다.
+     ⚠ 안쪽 그림은 한 픽셀도 안 건드린다. 5% 넘게 잘릴 것 같으면 그만둔다 */
+  const trim = (()=>{
+    const t = document.createElement('canvas');
+    t.width = bmp.width; t.height = bmp.height;
+    t.getContext('2d').drawImage(bmp,0,0);
+    let d; try{ d = t.getContext('2d').getImageData(0,0,t.width,t.height).data; }catch(e){ return null; }
+    const white = (x,y)=>{ const i=(y*t.width+x)*4; return d[i]>248 && d[i+1]>248 && d[i+2]>248; };
+    const rowWhite = y=>{ for(let x=0;x<t.width;x+=2) if(!white(x,y)) return false; return true; };
+    const colWhite = x=>{ for(let y=0;y<t.height;y+=2) if(!white(x,y)) return false; return true; };
+    let top=0,bot=t.height-1,left=0,right=t.width-1;
+    while(top<bot && rowWhite(top)) top++;
+    while(bot>top && rowWhite(bot)) bot--;
+    while(left<right && colWhite(left)) left++;
+    while(right>left && colWhite(right)) right--;
+    const w=right-left+1, h=bot-top+1;
+    if(w===t.width && h===t.height) return null;                 /* 벗길 것 없음 */
+    if(w < t.width*0.5 || h < t.height*0.5) return null;          /* 너무 많이 깎임 — 그만둔다 */
+    return { left, top, w, h, cut: t.width*t.height - w*h };
+  })();
+  const SW = trim ? trim.w : bmp.width, SH = trim ? trim.h : bmp.height;
+  const SX = trim ? trim.left : 0,      SY = trim ? trim.top  : 0;
+  if(trim) toast(`${row.code} — 흰 테를 벗겼습니다 ${bmp.width}×${bmp.height} → ${SW}×${SH}`);
   const isWebp = /image\/webp/.test(file.type);
-  const patch = { w:bmp.width, h:bmp.height };
+  let patch = { w:bmp.width, h:bmp.height };
 
   if(isWebp){
     const path = `webp/${row.code}.webp`;
@@ -764,17 +790,28 @@ async function putPic(file, forceRow){
     patch.src_path = src;
 
     const long = 1600;
-    const s = Math.min(1, long/Math.max(bmp.width,bmp.height));
+    const s = Math.min(1, long/Math.max(SW,SH));
     const c = document.createElement('canvas');
-    c.width = Math.round(bmp.width*s); c.height = Math.round(bmp.height*s);
-    const cx = c.getContext('2d'); cx.imageSmoothingQuality = 'high'; cx.drawImage(bmp,0,0,c.width,c.height);
+    c.width = Math.round(SW*s); c.height = Math.round(SH*s);
+    const cx = c.getContext('2d'); cx.imageSmoothingQuality = 'high';
+    cx.drawImage(bmp, SX, SY, SW, SH, 0, 0, c.width, c.height);
     const blob = await new Promise(r=>c.toBlob(r,'image/webp',.86));
     const path = `webp/${row.code}.webp`;
     const { error:e2 } = await sb.storage.from(BUCKET).upload(path, blob, { contentType:'image/webp', cacheControl:'3600', upsert:true });
     if(e2) throw new Error('조판용 굽기 — '+e2.message);
     patch.path = path; patch.bytes = blob.size;
   }
+  patch.w = SW; patch.h = SH;
   bmp.close && bmp.close();
+
+  /* ⭐ 자리 비율과 얼마나 어긋나는지 표에 적어 둔다 — 띠가 본문을 먹는 일이 다시 없게 */
+  const WANT = { full:497/718, half:363/231, band:497/132, spread:994/718 };
+  const want = WANT[row.fit];
+  if(want){
+    const got = SW/SH, off = Math.abs(got-want)/want;
+    if(off > 0.06) patch.note = (patch.note?patch.note+' · ':'') +
+      `⚠ 비율 ${got.toFixed(3)} — ${row.fit} 자리는 ${want.toFixed(3)}. ${(off*100).toFixed(0)}% 어긋남`;
+  }
 
   /* 펼침은 2032, 전면은 1600이 인쇄 기준. 못 미치면 표에 적어 둔다 */
   const need = row.fit==='spread' ? 2032 : 1600;

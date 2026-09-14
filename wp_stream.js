@@ -82,7 +82,9 @@ function buildStream(rows, plates) {
 
   /* 삽화 한 장 → STREAM 항목 */
   function plateItem(p) {
-    const src = p.path || (p.code + '.webp');
+    /* ⚠ 저장소 cacheControl 이 3600 이라 같은 경로로 덮어쓰면 한 시간은 옛 그림이 온다.
+       bytes 는 그림이 갈리면 따라 갈리므로 꼬리표로 쓴다 */
+    const src = (p.path || (p.code + '.webp')) + (p.bytes ? '?v=' + p.bytes : '');
     if (p.fit === 'full')   return { k: 'full',   src, focus: p.crop || 'center 46%' };
     if (p.fit === 'spread') return { k: 'spread', src };
     return {
