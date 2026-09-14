@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>EG백서</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Nanum+Myeongjo:wght@400;700;800&family=EB+Garamond:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{ --paper:#F8F4EB; --ink:#1A1916; --ash:#8B8478; --navy:#16243D; --gold:#D8A836; --endp:#C49B30; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; background:#0B0C10; overflow:hidden;
+             font-family:'Gowun Batang',serif; -webkit-font-smoothing:antialiased; }
+
+  #stage{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
+
+  /* 표지 널 — 실물 책은 표지가 책배보다 조금 더 나온다. 그 3mm가 「책이다」를 만든다 */
+  #nook{ position:relative; width:994px; height:718px; transform-origin:center center;
+         border-radius:20px; }
+  #nook::before{ content:''; position:absolute; left:-17px; right:-17px; top:-15px; bottom:-15px;
+    border-radius:20px; background:linear-gradient(176deg,#3A352D 0%,#2B271F 42%,#1E1B15 100%);
+    box-shadow:0 48px 84px -26px rgba(0,0,0,.72), 0 14px 30px -12px rgba(0,0,0,.58),
+               inset 0 1px 0 rgba(255,246,226,.10); }
+
+  #book{ position:absolute; inset:0; perspective:2400px; }
+  .pg{ position:absolute; top:0; width:497px; height:718px; overflow:hidden; }
+  #L{ left:0;   border-radius:14px 0 0 14px; }
+  #R{ left:497px; border-radius:0 14px 14px 0; }
+
+  /* 골 — 좌우 면을 맞붙이고 6px 그림자 한 줄로만 */
+  #gutter{ position:absolute; left:494px; top:0; width:6px; height:718px; pointer-events:none;
+    background:linear-gradient(to right,rgba(30,26,20,0) 0%,rgba(30,26,20,.34) 50%,rgba(30,26,20,0) 100%); }
+
+  /* 책배 — 진도율 막대를 안 쓰기로 한 이상, 어디까지 왔나는 두께가 알려 준다 */
+  .edge{ position:absolute; top:15px; bottom:15px; pointer-events:none; border-radius:4px;
+    background:repeating-linear-gradient(to right,rgba(248,244,235,.9) 0 1px,rgba(186,178,163,.75) 1px 2px);
+    box-shadow:inset 0 0 3px rgba(0,0,0,.10); opacity:.85;
+    -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 20px,#000 calc(100% - 20px),transparent 100%);
+            mask-image:linear-gradient(to bottom,transparent 0,#000 20px,#000 calc(100% - 20px),transparent 100%); }
+  #edgeL{ right:100%; } #edgeR{ left:100%; }
+
+  /* 넘김 — 제본선을 축으로 3D 회전 600ms */
+  #leaf{ position:absolute; top:0; width:497px; height:718px; transform-style:preserve-3d;
+         display:none; z-index:6; }
+  #leaf.on{ display:block; }
+  #leaf .face{ position:absolute; inset:0; overflow:hidden; backface-visibility:hidden; }
+  #leaf .shade{ position:absolute; inset:0; background:#1E1A14; opacity:0; pointer-events:none; z-index:3; }
+
+  /* 면 좌우 끝을 누르면 넘어간다 */
+  .hit{ position:absolute; top:0; bottom:0; width:118px; z-index:7; cursor:pointer; }
+  #hitL{ left:0; } #hitR{ right:0; }
+
+  /* 검산 — I 키로 여닫는다 */
+  #bar{ position:fixed; left:0; right:0; bottom:0; padding:11px 18px; display:none;
+    background:rgba(12,12,14,.93); color:#9A948A; font-size:12px; line-height:1.75;
+    letter-spacing:.01em; border-top:1px solid rgba(255,255,255,.07); max-height:42vh; overflow:auto; }
+  #bar.on{ display:block; }
+  #bar b{ color:#D8CFBE; font-weight:400; }
+  #bar .l{ color:#C08A2A; }
+
+  #boot{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    color:#6E675D; font-size:14px; letter-spacing:.14em; background:#0B0C10; z-index:20; }
+  #boot.off{ display:none; }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="nook">
+    <div id="book">
+      <div class="pg" id="L"></div>
+      <div class="pg" id="R"></div>
+      <div class="edge" id="edgeL"></div>
+      <div class="edge" id="edgeR"></div>
+      <div id="gutter"></div>
+      <div id="leaf">
+        <div class="face" id="leafFront"></div>
+        <div class="face" id="leafBack"></div>
+        <div class="shade" id="leafShade"></div>
+      </div>
+      <div class="hit" id="hitL"></div>
+      <div class="hit" id="hitR"></div>
+    </div>
+  </div>
+</div>
+<div id="bar"></div>
+<div id="boot">서고에서 원고를 받는 중입니다</div>
+
+<script src="wp_stream.js?v=0914"></script>
+<script src="wp_paginate.js?v=0914"></script>
+<script>
+/* ─────────────────────────────────────────────────────────────────────
+   whitepaper.html — EG백서를 책으로 읽는 한 장
+   2026.09.14 · 파이스
+
+   서고(eg_guidebook)에서 직접 읽어 와 흘린다. 고치는 곳은 콘솔 하나다.
+   원고를 고치시고 R 을 누르시면 그 자리에서 다시 잘린다.
+
+   그리는 값은 비너스 `WPPage.dc.html` 에서 그대로 옮겼다.
+   손본 곳 셋 — 건물 머리 3행 · 속머리 · 전면 삽화 crop.
+   ⚠ 고친 곳 하나 — 펼침 삽화 배경이 옛 판형(1016/-519)이라 994/-497 로.
+   ───────────────────────────────────────────────────────────────────── */
+
+const SUPA = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const KEY  = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const ASSET = SUPA + '/storage/v1/object/public/guidebook-assets/';
+
+/* ⭐ 넘김 소리 — 260면 내내 나는 소리라 낮게 둔다. 여기 한 줄만 고치면 된다.
+   ⚠ mp3 는 서비스워커에서 cache-first 라 ?v= 꼬리표가 있어야 갈린다 */
+const TURN_SOUND = 'page_turn.mp3?v=0914';
+const TURN_VOL   = 0.22;
+
+const PAPER='#F8F4EB', INK='#1A1916', DARK='#16243D', ENDP='#C49B30';
+const TOP=96, INNER=58, OUTER=76, W=363, H=495;
+
+/* ── 글자 손질 ─────────────────────────────────────────────── */
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
+  ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+
+/* **강조** → 700. 크기·색은 그대로 */
+function node(text){
+  const s = String(text);
+  if (s.indexOf('**') < 0) return esc(s);
+  return s.split('**').map((t,i) =>
+    i % 2 ? `<em style="font-style:normal;font-weight:700;">${esc(t)}</em>` : esc(t)).join('');
+}
+
+/* 확 키운 대사의 겹따옴표는 본문보다 한 치 크게 — 부호가 대사의 문을 연다 */
+function quoteNode(text){
+  const s = String(text);
+  const open = s.charAt(0)==='“', close = s.charAt(s.length-1)==='”';
+  if (!open && !close) return node(s);
+  const q = 'font-size:1.44em;vertical-align:-0.06em;letter-spacing:-0.02em;';
+  const mid = s.slice(open?1:0, close? s.length-1 : s.length);
+  return (open?`<span style="${q}">“</span>`:'') + node(mid) + (close?`<span style="${q}">”</span>`:'');
+}
+
+const arrow = (hue, dark) => {
+  const bw = dark ? 2 : 1, len = dark ? 112 : 92;
+  return `<div style="position:relative;width:${len}px;height:${bw}px;background:${hue};margin-top:22px;margin-left:auto;">`
+    + `<div style="position:absolute;right:0;top:${dark?-6:-5}px;width:13px;height:13px;`
+    + `border-top:${bw}px solid ${hue};border-right:${bw}px solid ${hue};transform:rotate(45deg);"></div></div>`;
+};
+
+/* ── 면 한 장 ──────────────────────────────────────────────── */
+
+function renderPage(p, side){
+  p = p || { type:'blank' };
+  const t = p.type || 'body';
+  /* 장 표지는 언제나 남색 + 노랑 — 조가비와 화살표.
+     장별 색조는 본문 쪽 표식에만 실린다 */
+  const hue = (t==='divider'||t==='dividerBack'||t==='endpaper') ? '#D8A836' : (p.hue || '#C08A2A');
+  const l = side==='left' ? OUTER : INNER;
+
+  let bg = PAPER, color = INK;
+  if (t==='divider'||t==='dividerBack'){ bg = DARK; color = '#F2EDE1'; }
+  if (t==='endpaper'){ bg = ENDP; color = '#3A2C08'; }
+
+  let out = '';
+
+  if (t==='endpaper'){
+    out += `<div style="position:absolute;inset:0;background:repeating-linear-gradient(52deg,rgba(90,66,14,0.22) 0 1px,rgba(90,66,14,0) 1px 8px);"></div>`
+        +  `<div style="position:absolute;inset:0;background:radial-gradient(120% 80% at 50% 0%,rgba(255,246,214,.22),rgba(0,0,0,0) 62%);"></div>`;
+    if (side==='right')
+      out += `<div style="position:absolute;left:0;right:0;top:330px;text-align:center;">`
+          +  `<div style="font-family:'EB Garamond',serif;font-size:14px;letter-spacing:0.62em;color:rgba(255,253,247,0.94);text-indent:0.62em;">EG UNIVERSE</div>`
+          +  `<div style="width:118px;height:1px;background:rgba(255,253,247,0.42);margin:22px auto 0;"></div></div>`;
+  }
+
+  if (t==='divider'){
+    out += `<div style="position:absolute;inset:0;background:repeating-linear-gradient(52deg,rgba(255,246,226,0.030) 0 1px,rgba(255,246,226,0) 1px 9px);"></div>`
+        +  `<div style="position:absolute;right:76px;top:96px;text-align:right;">`
+        +  `<div style="font-family:'EB Garamond',serif;font-size:20px;font-weight:500;letter-spacing:0.52em;color:${hue};line-height:1;text-indent:0.52em;">${esc(p.num)}</div>`
+        +  arrow(hue,true) + `</div>`
+        +  `<div style="position:absolute;right:70px;top:236px;height:400px;writing-mode:vertical-rl;font-family:'Nanum Myeongjo',serif;font-weight:800;font-size:46px;letter-spacing:0.22em;color:#F2EDE1;">${esc(p.name)}</div>`
+        +  `<div style="position:absolute;left:76px;bottom:104px;width:150px;height:2px;background:${hue};opacity:.62;"></div>`;
+  }
+
+  if (t==='dividerBack'){
+    out += `<div style="position:absolute;inset:0;background:repeating-linear-gradient(52deg,rgba(255,246,226,0.030) 0 1px,rgba(255,246,226,0) 1px 9px);"></div>`
+        +  `<div style="position:absolute;left:-26px;top:70px;height:900px;writing-mode:vertical-rl;font-family:'Nanum Myeongjo',serif;font-weight:800;font-size:186px;letter-spacing:0.04em;color:rgba(242,237,225,0.105);white-space:nowrap;">${esc(p.name)}</div>`
+        +  `<div style="position:absolute;right:58px;bottom:104px;width:112px;height:2px;background:${hue};opacity:.5;"></div>`
+        +  `<div style="position:absolute;right:58px;bottom:98px;width:13px;height:13px;border-top:2px solid ${hue};border-right:2px solid ${hue};transform:rotate(45deg);opacity:.5;"></div>`;
+  }
+
+  if (t==='tocLeft'){
+    out += `<div style="position:absolute;right:104px;top:150px;height:300px;writing-mode:vertical-rl;font-family:'Nanum Myeongjo',serif;font-weight:800;font-size:40px;letter-spacing:0.44em;color:${INK};">차례</div>`
+        +  `<div style="position:absolute;right:104px;top:96px;width:92px;height:1px;background:${hue};"></div>`
+        +  `<div style="position:absolute;right:104px;top:91px;width:11px;height:11px;border-top:1px solid ${hue};border-right:1px solid ${hue};transform:rotate(45deg);"></div>`;
+  }
+
+  if (t==='tocRight'){
+    const rows = (p.toc||[]).map((e) => {
+      /* ⭐ 건물은 절보다 한 급 작고 재색으로, 한 칸 더 들여쓴다 — 0914 소로 결정 */
+      const st = e.chapter
+        ? `display:flex;align-items:baseline;gap:14px;font-family:'Nanum Myeongjo',serif;font-weight:800;font-size:21px;line-height:52px;letter-spacing:0.06em;margin-top:22px;`
+        : e.unit
+        ? `display:flex;align-items:baseline;gap:14px;font-size:14px;line-height:32px;letter-spacing:0.01em;padding-left:52px;color:${'#8B8478'};`
+        : `display:flex;align-items:baseline;gap:14px;font-size:16px;line-height:38px;letter-spacing:0.01em;padding-left:26px;`;
+      const ns = e.chapter
+        ? `font-family:'EB Garamond',serif;font-size:15px;letter-spacing:0.3em;color:${hue};width:34px;flex:0 0 auto;`
+        : `font-family:'EB Garamond',serif;font-size:11px;letter-spacing:0.2em;color:#8B8478;width:${e.unit?0:34}px;flex:0 0 auto;`;
+      return `<div style="${st}"><span style="${ns}">${esc(e.num||'')}</span>`
+        + `<span style="flex:1 1 auto;">${esc(e.name)}</span>`
+        + `<span style="font-family:'EB Garamond',serif;font-size:12px;letter-spacing:0.1em;color:#8B8478;">${e.folio?String(e.folio).padStart(3,'0'):''}</span></div>`;
+    }).join('');
+    out += `<div style="position:absolute;top:140px;left:53px;width:380px;">${rows}</div>`;
+  }
+
+  if (t==='full'){
+    /* ③ 삽화가 제 crop 을 들고 온다. 종이색이 같아 테두리가 없다 */
+    out += `<div style="position:absolute;inset:0;overflow:hidden;">`
+        +  `<img src="${ASSET+p.src}" alt="" style="display:block;width:100%;height:100%;object-fit:cover;object-position:${p.focus||'center 46%'};">`
+        +  `</div>`;
+  }
+
+  if (t==='spread'){
+    /* ⚠ 994 = 497 + 497, 틈 없음. 목업은 1016/-519 (제본선 22 있던 시절) 이었다 */
+    out += `<div style="position:absolute;inset:0;background-image:url(${ASSET+p.src});`
+        +  `background-size:994px auto;background-position:${side==='left'?'0px':'-497px'} 62%;background-repeat:no-repeat;"></div>`;
+  }
+
+  if (t==='solo'){
+    const ds = p.display ? `font-family:'Nanum Myeongjo',serif;font-weight:800;` : `font-weight:400;`;
+    const lines = (p.lines||[]).map(x => `<div>${quoteNode(x)}</div>`).join('');
+    out += `<div style="position:absolute;top:${TOP}px;left:40px;right:40px;height:${H}px;display:flex;align-items:center;justify-content:center;">`
+        +  `<div style="font-size:${p.size||32}px;line-height:${p.lh||56}px;letter-spacing:${p.display?'0.02em':'-0.01em'};`
+        +  `text-align:center;word-break:keep-all;margin-top:-30px;${ds}">${lines}</div></div>`;
+  }
+
+  if (t==='body' || t==='blank'){
+    const fig = p.fig || null;
+    const figLines = fig ? (fig.lines||7) : 0;
+    let head = '';
+    if (p.head){
+      /* ① 건물이면 번호 줄을 뺀 3행. 아래 여백 18 은 절 머리와 같게 */
+      const unit = !!p.head.unit;
+      const hh = unit ? 99 : 132, pt = unit ? 47 : 52;
+      head = `<div style="height:${hh}px;padding-top:${pt}px;box-sizing:border-box;">`
+        + (unit ? '' : `<div style="font-family:'EB Garamond',serif;font-size:12px;letter-spacing:0.3em;color:${'#8B8478'};line-height:28px;">${esc(p.head.num||'')}</div>`)
+        + `<div style="font-family:'Nanum Myeongjo',serif;font-weight:700;font-size:24px;letter-spacing:0.08em;line-height:34px;">${esc(p.head.name)}</div></div>`;
+    }
+
+    const paras = (p.paras||[]).map((x) => {
+      const o = typeof x === 'string' ? { text:x } : x;
+      if (o.verse){
+        const ds = o.display ? `font-family:'Nanum Myeongjo',serif;font-weight:800;` : `font-weight:400;`;
+        return `<div style="margin:40px 0 34px;text-align:center;font-size:${o.size||26}px;line-height:${o.lh||54}px;letter-spacing:0.02em;word-break:keep-all;${ds}">`
+          + (o.lines||[]).map(v => `<div>${node(v)}</div>`).join('') + `</div>`;
+      }
+      /* ② 속머리 — 2행(위 한 행 비우고 이름 한 행). 절 이름보다 한 급 작다 */
+      if (o.sub)
+        return `<div style="height:66px;padding-top:33px;box-sizing:border-box;font-family:'Nanum Myeongjo',serif;`
+          + `font-weight:700;font-size:19px;line-height:33px;letter-spacing:0.04em;">${esc(o.text)}</div>`;
+      if (o.big)
+        return `<p style="margin:33px 0;font-size:25px;font-weight:400;line-height:49.5px;letter-spacing:-0.025em;word-break:keep-all;text-indent:-0.14em;">${quoteNode(o.text)}</p>`;
+      const ind = (o.ind === 0) ? 0 : 17;   /* 앞 면에서 이어지는 문단은 들여쓰기 없음 */
+      return `<p style="margin:0;font-size:17px;font-weight:400;line-height:33px;letter-spacing:-0.012em;word-break:keep-all;text-align:left;text-indent:${ind}px;">${node(o.text)}</p>`;
+    }).join('');
+
+    let figHtml = '';
+    if (fig && !fig.band)
+      figHtml = `<div style="flex:0 0 auto;height:${figLines*33}px;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;">`
+        + `<img src="${ASSET+fig.src}" alt="" style="display:block;width:100%;height:${figLines*33}px;object-fit:cover;object-position:${fig.focus||'center 50%'};"></div>`;
+    else if (fig && fig.band)
+      figHtml = `<div style="flex:0 0 auto;height:${figLines*33}px;"></div>`;
+
+    out += `<div style="position:absolute;top:${TOP}px;left:${l}px;width:${W}px;height:${H}px;overflow:hidden;">`
+        +  `<div style="height:100%;display:flex;flex-direction:column;">`
+        +  `<div style="flex:1 1 auto;min-height:0;overflow:hidden;">${head}${paras}</div>${figHtml}</div></div>`;
+
+    /* 띠 삽화는 판면을 벗어나 면을 가로로 다 쓴다 — 363에 가두면 통이 종잇조각이 된다 */
+    if (fig && fig.band)
+      out += `<div style="position:absolute;left:0;right:0;bottom:127px;overflow:hidden;">`
+          +  `<img src="${ASSET+fig.src}" alt="" style="display:block;width:100%;height:auto;"></div>`;
+  }
+
+  /* 절이 열리는 면의 바깥 여백에 서는 화살표 — 260면 내내 「여기서 길이 갈린다」 */
+  if (p.mark)
+    out += `<div style="position:absolute;top:52px;${side==='left'?'left:'+OUTER:'right:'+OUTER}px;width:74px;height:1px;opacity:.55;">`
+        +  `<div style="width:100%;height:1px;background:${hue};"></div>`
+        +  `<div style="position:absolute;right:0;top:-6px;width:13px;height:13px;border-top:1px solid ${hue};border-right:1px solid ${hue};transform:rotate(45deg);"></div></div>`;
+
+  /* 러닝 푸터 — 왼 면은 쪽번호가 바깥, 오른 면은 안쪽 */
+  if (t==='body' && p.folio)
+    out += `<div style="position:absolute;bottom:46px;left:${side==='left'?OUTER:INNER}px;right:${side==='left'?INNER:OUTER}px;`
+        +  `display:flex;align-items:baseline;${side==='left'?'flex-direction:row-reverse;':'flex-direction:row;'}justify-content:space-between;">`
+        +  `<span style="font-size:10.5px;letter-spacing:0.08em;color:${'#8B8478'};">${esc(p.footLabel||'')}</span>`
+        +  `<span style="font-family:'EB Garamond',serif;font-size:12.5px;letter-spacing:0.14em;color:${'#8B8478'};">${String(p.folio).padStart(3,'0')}</span></div>`;
+
+  /* 종이가 골로 말려 드는 그늘 */
+  out += side==='left'
+    ? `<div style="position:absolute;top:0;bottom:0;right:0;width:64px;pointer-events:none;background:linear-gradient(to right,rgba(0,0,0,0) 0%,rgba(0,0,0,0.03) 60%,rgba(0,0,0,0.15) 100%);"></div>`
+    : `<div style="position:absolute;top:0;bottom:0;left:0;width:64px;pointer-events:none;background:linear-gradient(to left,rgba(0,0,0,0) 0%,rgba(0,0,0,0.03) 60%,rgba(0,0,0,0.15) 100%);"></div>`;
+
+  return { html: out, bg, color };
+}
+
+function paint(el, p, side){
+  const r = renderPage(p, side);
+  el.style.background = r.bg; el.style.color = r.color;
+  el.innerHTML = r.html;
+}
+
+/* ── 넘김 소리 ─────────────────────────────────────────────── */
+
+let snd = null, muted = false;
+try { muted = localStorage.getItem('eg_wp_mute') === '1'; } catch(e){}
+function initSound(){
+  snd = new Audio(TURN_SOUND);
+  snd.preload = 'auto';
+  snd.volume = TURN_VOL;
+}
+function playTurn(){
+  if (!snd || muted) return;
+  /* 빨리 넘기면 앞 소리를 끊고 다시 낸다 — 겹치면 탁해진다 */
+  try { snd.currentTime = 0; snd.play().catch(function(){}); } catch(e){}
+}
+
+/* ── 책 ────────────────────────────────────────────────────── */
+
+let SPREADS = [], at = 0, turning = false, LATER = [], CHECK = '';
+const L = document.getElementById('L'), R = document.getElementById('R');
+const leaf = document.getElementById('leaf');
+const leafFront = document.getElementById('leafFront'), leafBack = document.getElementById('leafBack');
+const leafShade = document.getElementById('leafShade');
+
+function draw(){
+  const s = SPREADS[at] || [null,null];
+  paint(L, s[0], 'left'); paint(R, s[1], 'right');
+  const prog = SPREADS.length > 1 ? at/(SPREADS.length-1) : 0;
+  document.getElementById('edgeL').style.width = (1 + 3*prog) + 'px';
+  document.getElementById('edgeR').style.width = (4 - 3*prog) + 'px';
+  try { localStorage.setItem('eg_wp_spread', String(at)); } catch(e){}
+}
+
+function go(dir){
+  if (turning) return;
+  const n = at + dir;
+  if (n < 0 || n >= SPREADS.length) return;
+  turning = true;
+  playTurn();
+
+  const cur = SPREADS[at], tgt = SPREADS[n];
+  const fwd = dir > 0;
+  /* 앞으로면 오른쪽 장이 왼쪽으로 넘어가고, 뒤로면 왼쪽 장이 오른쪽으로 */
+  paint(leafFront, fwd ? cur[1] : cur[0], fwd ? 'right' : 'left');
+  paint(leafBack,  fwd ? tgt[0] : tgt[1], fwd ? 'left'  : 'right');
+  /* ⚠ 뒷면은 두 번 뒤집히므로 귀돌이를 반대쪽에 물린다 */
+  leafFront.style.borderRadius = fwd ? '0 14px 14px 0' : '14px 0 0 14px';
+  leafBack.style.borderRadius  = fwd ? '14px 0 0 14px' : '0 14px 14px 0';
+  leafBack.style.transform = 'rotateY(180deg)';
+
+  leaf.style.left = fwd ? '497px' : '0px';
+  leaf.style.transformOrigin = fwd ? 'left center' : 'right center';
+  leaf.style.transition = 'none';
+  leaf.style.transform = 'rotateY(0deg)';
+  leaf.classList.add('on');
+
+  /* 넘어가는 동안 장 뒷면에 그늘이 한 번 스쳤다 사라진다 */
+  leafShade.style.transition = 'none'; leafShade.style.opacity = '0';
+
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    leaf.style.transition = 'transform 600ms cubic-bezier(.42,.02,.32,1)';
+    leaf.style.transform = `rotateY(${fwd ? -180 : 180}deg)`;
+    leafShade.style.transition = 'opacity 300ms ease';
+    leafShade.style.opacity = '0.22';
+    setTimeout(() => { leafShade.style.opacity = '0'; }, 300);
+  }));
+
+  /* 반쯤 넘어갔을 때 밑장을 갈아 둔다 */
+  setTimeout(() => { paint(fwd ? R : L, fwd ? tgt[1] : tgt[0], fwd ? 'right' : 'left'); }, 300);
+  setTimeout(() => {
+    at = n; leaf.classList.remove('on'); turning = false; draw();
+  }, 600);
+}
+
+function fit(){
+  const pad = 54;
+  const s = Math.min((innerWidth - pad) / 1028, (innerHeight - pad) / 748, 1);
+  document.getElementById('nook').style.transform = `scale(${s})`;
+}
+
+/* ── 검산 바 ───────────────────────────────────────────────── */
+
+function bar(){
+  const el = document.getElementById('bar');
+  el.innerHTML = `<b>${esc(CHECK)}</b><br>면 ${SPREADS.length*2} · 펼침 ${SPREADS.length}`
+    + (LATER.length ? `<br><br><span class="l">④ 통독에서 볼 자리 ${LATER.length}</span><br>`
+        + LATER.map(x => '· ' + esc(x)).join('<br>') : '')
+    + `<br><br>← → · Space · PageUp/Down · 면 가장자리 클릭 &nbsp;|&nbsp; `
+    + `<b>I</b> 검산 &nbsp; <b>M</b> 소리 ${muted?'꺼짐':'켜짐'} &nbsp; <b>R</b> 다시 자르기`;
+}
+
+/* ── 서고에서 받아 흘린다 ──────────────────────────────────── */
+
+async function fetchTable(name, query){
+  const r = await fetch(`${SUPA}/rest/v1/${name}?${query}`, {
+    headers: { apikey: KEY, Authorization: 'Bearer ' + KEY }
+  });
+  if (!r.ok) throw new Error(`${name} ${r.status}`);
+  return r.json();
+}
+
+async function typeset(){
+  const boot = document.getElementById('boot');
+  boot.classList.remove('off'); boot.textContent = '서고에서 원고를 받는 중입니다';
+  try {
+    const [rows, plates] = await Promise.all([
+      fetchTable('eg_guidebook', 'select=slug,ord,level,num,title,body,building,color,active&order=ord'),
+      fetchTable('eg_guidebook_plates', 'select=code,slug,ord,fit,crop,path,active&order=ord'),
+    ]);
+
+    boot.textContent = '면을 나누는 중입니다';
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+
+    const built = buildStream(rows, plates);
+    const R2 = makeRuler();
+    const laid = paginate(built.stream, R2);
+    R2.done();
+
+    const pages = laid.pages;
+    SPREADS = [];
+    for (let i = 0; i < pages.length; i += 2) SPREADS.push([pages[i], pages[i+1] || null]);
+
+    CHECK = built.check;
+    LATER = built.later.concat(laid.later);
+
+    /* 읽던 자리로 — 진도율 표시는 없다 */
+    try {
+      const s = parseInt(localStorage.getItem('eg_wp_spread'), 10);
+      if (s >= 0 && s < SPREADS.length) at = s;
+    } catch(e){}
+    if (at >= SPREADS.length) at = 0;
+
+    draw(); bar(); fit();
+    boot.classList.add('off');
+    console.log('[EG백서] ' + CHECK);
+    console.log('[EG백서] 면 ' + pages.length + ' · 펼침 ' + SPREADS.length);
+    if (LATER.length) console.log('[EG백서] ④ 통독에서 볼 자리', LATER);
+  } catch (err) {
+    boot.textContent = '받지 못했습니다 — ' + err.message;
+    console.error(err);
+  }
+}
+
+/* ── 손 ────────────────────────────────────────────────────── */
+
+addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); go(1); }
+  else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(-1); }
+  else if (e.key === 'i' || e.key === 'I') document.getElementById('bar').classList.toggle('on');
+  else if (e.key === 'm' || e.key === 'M') {
+    muted = !muted;
+    try { localStorage.setItem('eg_wp_mute', muted ? '1' : '0'); } catch(x){}
+    bar();
+  }
+  else if (e.key === 'r' || e.key === 'R') typeset();
+});
+
+document.getElementById('hitR').onclick = () => go(1);
+document.getElementById('hitL').onclick = () => go(-1);
+
+let acc = 0;
+addEventListener('wheel', (e) => {
+  if (Math.abs(e.deltaX) < Math.abs(e.deltaY)) return;
+  acc += e.deltaX;
+  if (Math.abs(acc) > 120) { go(acc > 0 ? 1 : -1); acc = 0; }
+}, { passive: true });
+
+addEventListener('resize', fit);
+
+initSound();
+typeset();
+</script>
+</body>
+</html>
