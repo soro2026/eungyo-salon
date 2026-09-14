@@ -92,6 +92,9 @@ main{ display:grid; grid-template-columns:212px 1fr; gap:18px; padding:16px 22px
 .chars.zero{ color:#6a5f4c; }
 
 /* 삽화 칸 */
+.card.hot{ outline:2px solid var(--gold,#D8A836); outline-offset:2px;
+           box-shadow:0 0 0 6px rgba(216,168,54,.16); }
+.card.hot .none{ color:var(--gold,#D8A836); }
 .grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(228px,1fr)); gap:12px; }
 .card{ background:var(--panel); border:1px solid var(--line); border-radius:11px; overflow:hidden; }
 .card.off{ opacity:.45; }
@@ -187,8 +190,9 @@ main{ display:grid; grid-template-columns:212px 1fr; gap:18px; padding:16px 22px
   <nav class="tabs" id="plateTabs"></nav>
   <section>
     <div class="drop" id="plDrop">
-      삽화를 끌어다 놓거나 <b>Ctrl+V</b>로 붙여 넣으세요. 파일 이름이 <b>wp_03_s1-1_glasshouse</b> 처럼 code와 같으면 그 칸에 앉습니다.<br>
-      PNG를 주시면 원본은 그대로 두고 조판용 WebP를 따로 굽습니다. <span class="pick" id="plPick">파일 고르기</span>
+      <b>파일 이름은 고치지 않으셔도 됩니다.</b> 아래 칸 위에 그림을 놓으시면 그 칸에 앉고 이름은 code로 바뀝니다.<br>
+      여기 바탕에 여러 장을 한꺼번에 놓으시면 이 장의 <b>빈 칸을 차례로</b> 채웁니다. <b>Ctrl+V</b>도 같습니다.<br>
+      PNG를 주시면 원본은 <code>src/</code>에 그대로 두고 조판용 WebP를 따로 굽습니다. <span class="pick" id="plPick">파일 고르기</span>
       <input type="file" id="plFile" accept="image/*" multiple>
     </div>
     <div class="busy" id="plBusy"></div>
@@ -383,7 +387,7 @@ function paintPlates(){
     <div class="card${p.active?'':' off'}${p.fit==='spread'||p.fit==='band'?' wide':''}" data-id="${p.id}">
       <div class="pic" data-act="big">
         ${p.path ? `<img src="${PUB(p.path)}" alt="" loading="lazy">`
-                 : `<div class="none">아직 그림이 없습니다.<br>여기에 놓으면 앉습니다.</div>`}
+                 : `<div class="none" data-act="none">아직 그림이 없습니다.<br>여기에 놓거나 눌러 고르세요.</div>`}
         <span class="code">${esc(p.code)}</span>
         ${p.w?`<span class="dim">${p.w}×${p.h}${p.bytes?' · '+kb(p.bytes):''}</span>`:''}
       </div>
@@ -654,6 +658,36 @@ const pd = $('#plDrop');
 ['dragenter','dragover'].forEach(ev=>pd.addEventListener(ev, e=>{ e.preventDefault(); pd.classList.add('over'); }));
 ['dragleave','drop'].forEach(ev=>pd.addEventListener(ev, e=>{ e.preventDefault(); pd.classList.remove('over'); }));
 pd.addEventListener('drop', e=> takePics([...e.dataTransfer.files]));
+
+/* ⭐ 칸에 바로 놓기 — 파일 이름을 고치지 않으셔도 됩니다.
+   팝업스토어 규약 §5 「슬롯 칸에 드래그 · 파일명은 신경 쓰지 않는다」를 여기에도 들입니다.
+   칸은 다시 그려지므로 서가에 손을 하나만 답니다 */
+const pg = $('#plGrid');
+['dragenter','dragover'].forEach(ev=>pg.addEventListener(ev, e=>{
+  const c = e.target.closest('.card'); if(!c) return;
+  e.preventDefault(); e.stopPropagation();
+  pg.querySelectorAll('.card.hot').forEach(x=>x!==c&&x.classList.remove('hot'));
+  c.classList.add('hot');
+}));
+pg.addEventListener('dragleave', e=>{
+  const c = e.target.closest('.card'); if(c && !c.contains(e.relatedTarget)) c.classList.remove('hot');
+});
+pg.addEventListener('drop', e=>{
+  const c = e.target.closest('.card'); if(!c) return;
+  e.preventDefault(); e.stopPropagation(); c.classList.remove('hot');
+  const row = PLATES.find(p=>String(p.id)===c.dataset.id);
+  takePics([...(e.dataTransfer?.files||[])], row);
+});
+/* 칸을 눌러 고르셔도 됩니다 */
+pg.addEventListener('click', e=>{
+  if(!e.target.closest('[data-act="none"]')) return;
+  const c = e.target.closest('.card'); if(!c) return;
+  const row = PLATES.find(p=>String(p.id)===c.dataset.id);
+  const inp = document.createElement('input');
+  inp.type='file'; inp.accept='image/*';
+  inp.onchange = ()=> takePics([...inp.files], row);
+  inp.click();
+});
 $('#plPick').addEventListener('click', ()=>$('#plFile').click());
 $('#plFile').addEventListener('change', e=>{ takePics([...e.target.files]); e.target.value=''; });
 document.addEventListener('paste', e=>{
@@ -664,20 +698,40 @@ document.addEventListener('paste', e=>{
   e.preventDefault(); takePics(items.map(i=>i.getAsFile()).filter(Boolean));
 });
 
-async function takePics(files){
-  const imgs = files.filter(f=>f && f.type.startsWith('image/'));
+async function takePics(files, forceRow){
+  let imgs = files.filter(f=>f && f.type.startsWith('image/'));
   if(!imgs.length){ toast('그림이 아닙니다', true); return; }
+  if(forceRow) imgs = imgs.slice(0,1);          /* 칸 하나에는 한 장만 */
+
+  /* ⭐ 바탕에 놓으시면 지금 보시는 장의 빈 칸을 ord 차례로 채웁니다.
+     파일 이름이 code 와 같으면 그 칸이 먼저입니다 */
+  let queue = [];
+  if(!forceRow){
+    const chap = DOCS.find(d=>d.slug===CUR);
+    if(chap){
+      const slugs = new Set(kidsOf(chap).map(d=>d.slug).concat([chap.slug]));
+      queue = PLATES.filter(p=>slugs.has(p.slug) && p.active!==false && !p.path)
+                    .sort((a,b)=>(a.ord||0)-(b.ord||0));
+    }
+  }
+
   for(const f of imgs){
-    try{ await putPic(f); }
+    let row = forceRow || null;
+    if(!row){
+      const stem = f.name.replace(/\.[^.]+$/,'').trim();
+      row = PLATES.find(p=>p.code===stem) || queue.shift() || null;
+    }
+    try{ await putPic(f, row); }
     catch(err){ toast('앉히지 못했습니다 — '+(err.message||err), true); }
   }
   $('#plBusy').textContent = '';
   await load();
 }
 
-async function putPic(file){
+async function putPic(file, forceRow){
+  let row = forceRow || null;
   const stem = file.name.replace(/\.[^.]+$/,'').trim();
-  let row = PLATES.find(p=>p.code===stem);
+  if(!row) row = PLATES.find(p=>p.code===stem);
   if(!row){
     const code = prompt(`「${stem}」에 맞는 칸이 없습니다.\ncode를 적어 주시면 칸을 새로 엽니다 (예: wp_11_s2-1_ledger).\n비우면 이 그림은 버립니다.`, stem);
     if(!code) return;
