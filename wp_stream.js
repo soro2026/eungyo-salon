@@ -26,6 +26,11 @@ const HUE_FALLBACK = '#C2921F';
 
 /* 면 높이(HEAD_H·UNIT_H·SUB_H)는 조판기가 갖는다 — wp_paginate.js */
 
+/* ⭐ 일곱 차림 — 노랑 속표지가 서는 절.
+   Ⅳ장의 절 일곱이 곧 일곱 차림이다(여행·회화·음악·별·자연·텍스트·대화).
+   다른 장에도 두시려면 이 한 줄만 고치면 된다. 끄시려면 null. */
+const COURSE_CHAPTER = 'Ⅳ';
+
 /* 삽화 fit → 면 종류 */
 const FIT_LINES = { band: 4, half: 7 };
 
@@ -51,7 +56,7 @@ const toParas = (body) =>
 function buildStream(rows, plates) {
   const OUT = [];
   const tally = {
-    chapter: 0, section: 0, unit: 0, sub: 0, p: 0,
+    chapter: 0, course: 0, section: 0, unit: 0, sub: 0, p: 0,
     big: 0, solo: 0, verse: 0, full: 0, spread: 0, fig: 0,
   };
   const later = [];   /* ④ 통독에서 볼 자리 — 막는 것이 아니라 적어 두는 것 */
@@ -65,7 +70,7 @@ function buildStream(rows, plates) {
     .forEach((p) => { (bySlug[p.slug] = bySlug[p.slug] || []).push(p); });
 
   /* 장이 열린 직후 두 문단 동안 전면 삽화를 붙들었다가 내려놓는다 */
-  let held = [], sinceCh = -1;
+  let held = [], sinceCh = -1, chapNum = null;
   const drop = () => { while (held.length) emit(held.shift()); };
 
   function emit(it) {
@@ -153,8 +158,13 @@ function buildStream(rows, plates) {
           name: row.title,
           hue: row.color || HUE[row.num] || HUE_FALLBACK,
         });
+        chapNum = row.num;
       } else if (row.level === 'section') {
-        emit({ k: 'section', num: row.num, name: row.title });
+        /* ⭐ 차림이면 노랑 색지가 먼저 서고, 그 뒤 본문에는 절 머리를 다시 세우지 않는다.
+           이름이 두 번 나오면 색지가 무안해진다 */
+        const course = COURSE_CHAPTER && chapNum === COURSE_CHAPTER;
+        if (course) emit({ k: 'course', num: row.num, name: row.title });
+        emit({ k: 'section', num: row.num, name: row.title, cover: course });
       } else if (row.level === 'unit') {
         /* ⭐ 건물 — 번호를 뗀 절 머리. 0914 소로 결정
            번호 줄이 없으므로 paginate 가 3행으로 잡고,
@@ -184,7 +194,7 @@ function buildStream(rows, plates) {
   const 대사 = tally.big + tally.solo;
   const check =
     `칸 ${rows.length} · 문단 ${tally.p} · ` +
-    `머리 장 ${tally.chapter}/절 ${tally.section}/건물 ${tally.unit}/속 ${tally.sub} · ` +
+    `머리 장 ${tally.chapter}/차림 ${tally.course}/절 ${tally.section}/건물 ${tally.unit}/속 ${tally.sub} · ` +
     `큰 줄 ${대사 + tally.verse} = 대사 ${대사}(본문 ${tally.big}·면 ${tally.solo}) · 구호 ${tally.verse} · ` +
     `삽화 전면 ${tally.full}/펼침 ${tally.spread}/끼움 ${tally.fig}`;
 

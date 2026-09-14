@@ -70,7 +70,7 @@ function paginate(STREAM, R) {
   const entries = [];
   STREAM.forEach(it => {
     if (it.k === 'chapter') entries.push({ chapter: true, num: it.num, name: it.name });
-    else if (it.k === 'section') entries.push({ num: it.num, name: it.name, unit: !it.num });
+    else if (it.k === 'section') entries.push({ num: it.num, name: it.name, unit: !it.num, course: !!it.cover });
   });
   const chunks = []; let bin = [], acc = 0;
   entries.forEach(e => {
@@ -110,6 +110,17 @@ function paginate(STREAM, R) {
     pendingFig = null;
   };
 
+  /* ⭐ 색지는 오른쪽 면에서 열리고, 맞은편(왼쪽)은 흰 종이로 비운다.
+     인계서 ⑥ 「면 1(왼) 흰 종이, 비움 ← 앞 장의 끝」.
+     ⚠ 목업은 0장·Ⅰ장만 겪어 우연히 짝이 맞았다. 장 여덟 · 차림 일곱이면 우연에 못 맡긴다.
+     ⭐ 삽화가 몇 장 들어와 면이 밀려도 매번 여기서 다시 묻는다 — 면 번호를 어디에도 안 박아 둔 덕이다 */
+  const openOnRight = () => {
+    flush(true); cur = null;
+    toRight();
+    const facing = pages.length - 1;
+    if (facing >= 0 && pages[facing].type !== 'blank') { push({ type: 'blank' }); push({ type: 'blank' }); }
+  };
+
   const openBody = (init) => {
     flush();
     const base = { type: 'body', paras: [], used: 0, cap: PLATE_H, footLabel: '' };
@@ -123,18 +134,23 @@ function paginate(STREAM, R) {
   STREAM.forEach(it => {
 
     if (it.k === 'chapter') {
-      flush(true); cur = null;
       hue = it.hue; chapLabel = it.num + ' · ' + it.name; sectLabel = '';
-      if (entries[ei]) entries[ei++].ref = pages.length;
-      /* 규칙5 + 인계서 ⑥ — 장 표지는 오른쪽 면에서 열리고,
-         맞은편(왼쪽)은 흰 종이로 비운다. 「면 1(왼) 흰 종이, 비움 ← 앞 장의 끝」.
-         ⚠ 목업은 0장·Ⅰ장만 겪어 우연히 짝이 맞았다. 장이 여덟이면 우연에 못 맡긴다 */
-      toRight();
-      const facing = pages.length - 1;
-      if (facing >= 0 && pages[facing].type !== 'blank') { push({ type: 'blank' }); push({ type: 'blank' }); }
+      openOnRight();
+      if (entries[ei]) entries[ei++].ref = pages.length;   /* 장 표지 자리 */
       push({ type: 'divider', num: it.num, name: it.name });
-      push({ type: 'dividerBack' });
+      push({ type: 'dividerBack', num: it.num, name: it.name });
       markNext = true;
+      return;
+    }
+
+    /* ⭐ 차림 색지 — 노랑. 장은 남색, 차림은 노랑.
+       어두운 색지는 장, 밝은 색지는 차림. 넘기는 손이 먼저 안다 */
+    if (it.k === 'course') {
+      openOnRight();
+      /* 차례에서 차림을 누르면 본문이 아니라 색지로 간다 */
+      if (entries[ei] && entries[ei].ref == null) entries[ei].ref = pages.length;
+      push({ type: 'courseCover', num: it.num, name: it.name });
+      push({ type: 'courseBack',  num: it.num, name: it.name });
       return;
     }
 
@@ -171,12 +187,12 @@ function paginate(STREAM, R) {
          면 아래에 「텍스트」가 아니라 「야구장」이 떠 있어야 한다. */
       const unit = !it.num;
       sectLabel = unit ? it.name : it.num + ' ' + it.name;
-      if (entries[ei]) entries[ei++].ref = pages.length;
+      if (entries[ei]) { if (entries[ei].ref == null) entries[ei].ref = pages.length; ei++; }
       markNext = true;
-      openBody({
-        head: { num: it.num, name: it.name, unit },
-        cap: PLATE_H - (unit ? UNIT_H : HEAD_H),
-      });
+      /* ⭐ 색지가 이미 이름을 말했으면 절 머리를 다시 세우지 않는다 */
+      openBody(it.cover
+        ? { cap: PLATE_H }
+        : { head: { num: it.num, name: it.name, unit }, cap: PLATE_H - (unit ? UNIT_H : HEAD_H) });
       return;
     }
 

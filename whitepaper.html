@@ -59,6 +59,52 @@
   #bar b{ color:#D8CFBE; font-weight:400; }
   #bar .l{ color:#C08A2A; }
 
+  /* 리모컨 — 290쪽에서 앞으로 못 돌아가면 통독이 안 된다 */
+  #rTab{ position:fixed; left:0; top:50%; transform:translateY(-50%); z-index:14; cursor:pointer;
+    padding:16px 9px; background:rgba(22,36,61,.90); color:#D8A836; font-size:12px;
+    letter-spacing:.26em; writing-mode:vertical-rl; border-radius:0 8px 8px 0;
+    border:1px solid rgba(216,168,54,.28); border-left:none; user-select:none;
+    transition:background 200ms ease; }
+  #rTab:hover{ background:rgba(22,36,61,1); }
+
+  #remote{ position:fixed; left:0; top:0; bottom:0; width:332px; z-index:15;
+    background:rgba(11,12,16,.975); border-right:1px solid rgba(216,168,54,.20);
+    transform:translateX(-100%); transition:transform 280ms cubic-bezier(.4,0,.2,1);
+    display:flex; flex-direction:column; color:#C9C2B6; }
+  #remote.on{ transform:translateX(0); }
+
+  #rHead{ flex:0 0 auto; padding:17px 18px 12px; display:flex; justify-content:space-between;
+    align-items:baseline; border-bottom:1px solid rgba(255,255,255,.08); }
+  #rNow{ font-size:13px; letter-spacing:.04em; color:#D8A836; }
+  #rClose{ cursor:pointer; color:#6E675D; font-size:14px; }
+  #rClose:hover{ color:#C9C2B6; }
+
+  #rJump{ flex:0 0 auto; padding:12px 18px; display:flex; gap:6px; flex-wrap:wrap;
+    border-bottom:1px solid rgba(255,255,255,.08); }
+  #rPage{ width:58px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14);
+    color:#E8E2D6; padding:5px 8px; border-radius:5px; font-family:'EB Garamond',serif;
+    font-size:14px; text-align:center; outline:none; }
+  #rJump button{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14);
+    color:#C9C2B6; padding:5px 11px; border-radius:5px; cursor:pointer;
+    font-family:'Gowun Batang',serif; font-size:12px; }
+  #rJump button:hover{ background:rgba(216,168,54,.18); color:#E8E2D6; }
+
+  #rList{ flex:1 1 auto; overflow-y:auto; padding:10px 0 28px; }
+  #rList .e{ display:flex; align-items:baseline; gap:10px; padding:3px 18px; cursor:pointer;
+    font-size:13px; line-height:1.6; }
+  #rList .e:hover{ background:rgba(216,168,54,.12); }
+  #rList .e.here{ background:rgba(216,168,54,.20); }
+  #rList .e .n{ font-family:'EB Garamond',serif; font-size:10px; letter-spacing:.16em;
+    color:#8B8478; width:30px; flex:0 0 auto; }
+  #rList .e .t{ flex:1 1 auto; }
+  #rList .e .f{ font-family:'EB Garamond',serif; font-size:11px; color:#6E675D; }
+  #rList .ch{ margin-top:13px; font-family:'Nanum Myeongjo',serif; font-weight:800;
+    font-size:15px; color:#E8E2D6; }
+  #rList .ch .n{ color:#D8A836; font-size:12px; }
+  #rList .co{ padding-left:34px; color:#C9A24A; }
+  #rList .se{ padding-left:34px; }
+  #rList .un{ padding-left:52px; font-size:12px; color:#8B8478; }
+
   #boot{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
     color:#6E675D; font-size:14px; letter-spacing:.14em; background:#0B0C10; z-index:20; }
   #boot.off{ display:none; }
@@ -83,6 +129,20 @@
       <div class="hit" id="hitR"></div>
     </div>
   </div>
+</div>
+<div id="rTab">차례</div>
+<div id="remote">
+  <div id="rHead">
+    <span id="rNow">—</span>
+    <span id="rClose">✕</span>
+  </div>
+  <div id="rJump">
+    <input id="rPage" inputmode="numeric" placeholder="쪽">
+    <button id="rGo">가기</button>
+    <button id="rBack">방금 자리</button>
+    <button id="rTop">처음</button>
+  </div>
+  <div id="rList"></div>
 </div>
 <div id="bar"></div>
 <div id="boot">서고에서 원고를 받는 중입니다</div>
@@ -157,6 +217,7 @@ function renderPage(p, side){
   let bg = PAPER, color = INK;
   if (t==='divider'||t==='dividerBack'){ bg = DARK; color = '#F2EDE1'; }
   if (t==='endpaper'){ bg = ENDP; color = '#3A2C08'; }
+  if (t==='courseCover'||t==='courseBack'){ bg = ENDP; color = DARK; }
 
   let out = '';
 
@@ -179,10 +240,28 @@ function renderPage(p, side){
   }
 
   if (t==='dividerBack'){
+    /* ⚠ 186px 유령 장 이름을 걷어냈다 — undefined 가 흘러가던 자리다.
+       뒷면에 무엇을 세울지는 아직 안 정했다. 지금은 해칭과 작은 화살표만 */
     out += `<div style="position:absolute;inset:0;background:repeating-linear-gradient(52deg,rgba(255,246,226,0.030) 0 1px,rgba(255,246,226,0) 1px 9px);"></div>`
-        +  `<div style="position:absolute;left:-26px;top:70px;height:900px;writing-mode:vertical-rl;font-family:'Nanum Myeongjo',serif;font-weight:800;font-size:186px;letter-spacing:0.04em;color:rgba(242,237,225,0.105);white-space:nowrap;">${esc(p.name)}</div>`
         +  `<div style="position:absolute;right:58px;bottom:104px;width:112px;height:2px;background:${hue};opacity:.5;"></div>`
         +  `<div style="position:absolute;right:58px;bottom:98px;width:13px;height:13px;border-top:2px solid ${hue};border-right:2px solid ${hue};transform:rotate(45deg);opacity:.5;"></div>`;
+  }
+
+  /* ⭐ 차림 색지 — 면지와 같은 노랑 #C49B30, 글자는 남색.
+     어두운 색지는 장, 밝은 색지는 차림. 새 색을 만들지 않고 두 색의 자리만 바꿨다 */
+  if (t==='courseCover'){
+    out += `<div style="position:absolute;inset:0;background:repeating-linear-gradient(52deg,rgba(90,66,14,0.16) 0 1px,rgba(90,66,14,0) 1px 8px);"></div>`
+        +  `<div style="position:absolute;right:76px;top:96px;text-align:right;">`
+        +  `<div style="font-family:'EB Garamond',serif;font-size:16px;font-weight:500;letter-spacing:0.52em;color:${DARK};line-height:1;text-indent:0.52em;">${esc(p.num||'')}</div>`
+        +  `<div style="position:relative;width:92px;height:1.5px;background:${DARK};margin-top:20px;margin-left:auto;">`
+        +  `<div style="position:absolute;right:0;top:-6px;width:12px;height:12px;border-top:1.5px solid ${DARK};border-right:1.5px solid ${DARK};transform:rotate(45deg);"></div></div></div>`
+        +  `<div style="position:absolute;right:74px;top:250px;height:340px;writing-mode:vertical-rl;font-family:'Nanum Myeongjo',serif;font-weight:800;font-size:34px;letter-spacing:0.22em;color:${DARK};">${esc(p.name)}</div>`
+        +  `<div style="position:absolute;left:76px;bottom:104px;width:120px;height:1.5px;background:${DARK};opacity:.62;"></div>`;
+  }
+
+  /* 차림 색지 뒷면 — 비워 둔다 (0914 소로) */
+  if (t==='courseBack'){
+    out += `<div style="position:absolute;inset:0;background:repeating-linear-gradient(52deg,rgba(90,66,14,0.16) 0 1px,rgba(90,66,14,0) 1px 8px);"></div>`;
   }
 
   if (t==='tocLeft'){
@@ -323,7 +402,7 @@ function playTurn(){
 
 /* ── 책 ────────────────────────────────────────────────────── */
 
-let SPREADS = [], at = 0, turning = false, LATER = [], CHECK = '';
+let SPREADS = [], PAGES = [], TOC = [], at = 0, prevAt = null, turning = false, LATER = [], CHECK = '';
 const L = document.getElementById('L'), R = document.getElementById('R');
 const leaf = document.getElementById('leaf');
 const leafFront = document.getElementById('leafFront'), leafBack = document.getElementById('leafBack');
@@ -336,6 +415,7 @@ function draw(){
   document.getElementById('edgeL').style.width = (1 + 3*prog) + 'px';
   document.getElementById('edgeR').style.width = (4 - 3*prog) + 'px';
   try { localStorage.setItem('eg_wp_spread', String(at)); } catch(e){}
+  markHere();
 }
 
 function go(dir){
@@ -392,9 +472,90 @@ function bar(){
   el.innerHTML = `<b>${esc(CHECK)}</b><br>면 ${SPREADS.length*2} · 펼침 ${SPREADS.length}`
     + (LATER.length ? `<br><br><span class="l">④ 통독에서 볼 자리 ${LATER.length}</span><br>`
         + LATER.map(x => '· ' + esc(x)).join('<br>') : '')
-    + `<br><br>← → · Space · PageUp/Down · 면 가장자리 클릭 &nbsp;|&nbsp; `
+    + `<br><br>← → · Space · 면 가장자리 클릭 &nbsp;|&nbsp; <b>T</b> 리모컨 &nbsp; `
+    + `<b>Shift+←→</b> 장 건너뛰기 &nbsp; <b>B</b> 방금 자리 &nbsp; <b>Home</b> 처음 &nbsp;|&nbsp; `
     + `<b>I</b> 검산 &nbsp; <b>M</b> 소리 ${muted?'꺼짐':'켜짐'} &nbsp; <b>R</b> 다시 자르기`;
 }
+
+/* ── 리모컨 ────────────────────────────────────────────────────
+   290쪽까지 읽고 앞으로 못 돌아가면 통독이 안 된다.
+   면 번호를 어디에도 안 박아 두었으므로, 삽화가 들어와 면이 밀려도
+   차례는 다시 잘릴 때마다 새 쪽번호를 들고 온다. */
+
+const remote = document.getElementById('remote');
+const rList  = document.getElementById('rList');
+
+const spreadOf = (pageIndex) => Math.max(0, Math.min(SPREADS.length - 1, Math.floor(pageIndex / 2)));
+
+function jump(n, remember){
+  if (n == null || n < 0 || n >= SPREADS.length || n === at) return;
+  if (remember !== false) prevAt = at;
+  at = n; draw();
+}
+
+function jumpFolio(f){
+  f = parseInt(f, 10);
+  if (!(f > 0)) return;
+  const i = PAGES.findIndex(p => p.folio === f);
+  if (i >= 0) jump(spreadOf(i));
+}
+
+function buildRemote(){
+  rList.innerHTML = TOC.map((e, i) => {
+    const cls = e.chapter ? 'ch' : (e.course ? 'co' : (e.unit ? 'un' : 'se'));
+    return `<div class="e ${cls}" data-i="${i}">`
+      + `<span class="n">${esc(e.num || '')}</span>`
+      + `<span class="t">${esc(e.name)}</span>`
+      + `<span class="f">${e.folio ? String(e.folio).padStart(3,'0') : ''}</span></div>`;
+  }).join('');
+  rList.querySelectorAll('.e').forEach(el => {
+    el.onclick = () => { const e = TOC[+el.dataset.i]; jump(spreadOf(e.ref || 0)); };
+  });
+}
+
+const SPOT = { endpaper:'면지', tocLeft:'차례', toc:'차례', divider:'장 표지', dividerBack:'장 표지',
+               courseCover:'차림 표지', courseBack:'차림 표지', full:'삽화', spread:'삽화',
+               solo:'면 전체', blank:'빈 면' };
+
+function markHere(){
+  const s = SPREADS[at] || [];
+  const b = (s[1] && s[1].type === 'body' && s[1].folio) ? s[1]
+          : (s[0] && s[0].type === 'body' && s[0].folio) ? s[0] : null;
+  const now = document.getElementById('rNow');
+  if (b) now.textContent = (b.footLabel || '') + '   ' + String(b.folio).padStart(3, '0');
+  else   now.textContent = SPOT[(s[1] && s[1].type) || (s[0] && s[0].type)] || '—';
+
+  /* 지금 자리보다 앞선 항목 가운데 가장 마지막 것에 불을 켠다 */
+  let best = -1;
+  TOC.forEach((e, i) => { if (spreadOf(e.ref || 0) <= at) best = i; });
+  rList.querySelectorAll('.e').forEach((el, i) => el.classList.toggle('here', i === best));
+  const hit = rList.querySelector('.e.here');
+  if (hit && remote.classList.contains('on')) hit.scrollIntoView({ block:'nearest' });
+}
+
+/* 장 단위로 건너뛴다 — Shift + ← → */
+function jumpChapter(dir){
+  const chs = TOC.filter(e => e.chapter).map(e => spreadOf(e.ref || 0));
+  const here = chs.filter(n => n <= at).pop();
+  const n = dir > 0 ? chs.find(x => x > at)
+                    : (chs.filter(x => x < (here === at ? at : at + 1)).slice(-2)[0]);
+  jump(n != null ? n : (dir > 0 ? SPREADS.length - 1 : 0));
+}
+
+const toggleRemote = (on) => {
+  remote.classList.toggle('on', on == null ? !remote.classList.contains('on') : on);
+  if (remote.classList.contains('on')) markHere();
+};
+
+document.getElementById('rTab').onclick   = () => toggleRemote();
+document.getElementById('rClose').onclick = () => toggleRemote(false);
+document.getElementById('rGo').onclick    = () => jumpFolio(document.getElementById('rPage').value);
+document.getElementById('rPage').onkeydown = (e) => {
+  e.stopPropagation();
+  if (e.key === 'Enter') jumpFolio(e.target.value);
+};
+document.getElementById('rBack').onclick = () => { const p = prevAt; if (p != null) { prevAt = at; at = p; draw(); } };
+document.getElementById('rTop').onclick  = () => jump(0);
 
 /* ── 서고에서 받아 흘린다 ──────────────────────────────────── */
 
@@ -427,8 +588,10 @@ async function typeset(){
     SPREADS = [];
     for (let i = 0; i < pages.length; i += 2) SPREADS.push([pages[i], pages[i+1] || null]);
 
+    PAGES = pages; TOC = laid.toc;
     CHECK = built.check;
     LATER = built.later.concat(laid.later);
+    buildRemote();
 
     /* 읽던 자리로 — 진도율 표시는 없다 */
     try {
@@ -451,8 +614,13 @@ async function typeset(){
 /* ── 손 ────────────────────────────────────────────────────── */
 
 addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); go(1); }
+  if (e.shiftKey && e.key === 'ArrowRight') { e.preventDefault(); jumpChapter(1); }
+  else if (e.shiftKey && e.key === 'ArrowLeft') { e.preventDefault(); jumpChapter(-1); }
+  else if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); go(1); }
   else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(-1); }
+  else if (e.key === 't' || e.key === 'T' || e.key === 'Escape') { e.preventDefault(); toggleRemote(); }
+  else if (e.key === 'Home') { e.preventDefault(); jump(0); }
+  else if (e.key === 'b' || e.key === 'B') { const p = prevAt; if (p != null) { prevAt = at; at = p; draw(); } }
   else if (e.key === 'i' || e.key === 'I') document.getElementById('bar').classList.toggle('on');
   else if (e.key === 'm' || e.key === 'M') {
     muted = !muted;
