@@ -14,6 +14,13 @@
    ⭐ 목업에서 건져 온 것은 sinceCh 규칙 하나뿐이다.
       장이 열린 직후의 전면 삽화는 장 표지를 때우지 않고 본문 두 문단
       뒤에 선다. 이것은 이어 붙이기가 아니라 조판 규칙이라 그대로 온다.
+
+   ⭐ @plate — 0914 밤 신설
+      원고 안에 「@plate wp_31_s4-5_katahdin」 한 줄을 두면 그 삽화가
+      그 자리에 선다. 안 두면 지금까지처럼 칸 끝에 선다.
+      ⚠ 기존 서른 장은 한 장도 안 건드린다 — 표식이 없으면 옛 길로 간다.
+      까닭 — 야구장처럼 한 칸이 24면인 곳에서는 칸 끝이 24면째 끝이라,
+      본문과 멀찍이 떨어진 자리에 그림이 선다.
    ───────────────────────────────────────────────────────────────────── */
 
 /* 장 색 — 각 장 첫 삽화에서 뽑는다(비너스 장정체성체계 2호).
@@ -63,11 +70,13 @@ function buildStream(rows, plates) {
 
   /* 삽화를 서고 칸(slug)에 묶어 둔다 */
   const bySlug = {};
+  const byCode = {};                    /* @plate 가 이름으로 부른다 */
+  const placed = new Set();             /* 본문 안에 이미 세운 것 — 칸 끝에서 또 세우지 않는다 */
   (plates || [])
     .filter((p) => p.active !== false && p.code)
     .slice()
     .sort((a, b) => (a.ord || 0) - (b.ord || 0))
-    .forEach((p) => { (bySlug[p.slug] = bySlug[p.slug] || []).push(p); });
+    .forEach((p) => { (bySlug[p.slug] = bySlug[p.slug] || []).push(p); byCode[p.code] = p; });
 
   /* 장이 열린 직후 두 문단 동안 전면 삽화를 붙들었다가 내려놓는다 */
   let held = [], sinceCh = -1, chapNum = null;
@@ -134,6 +143,25 @@ function buildStream(rows, plates) {
         return;
       }
 
+      /* ⭐ @plate wp_31_s4-5_katahdin — 삽화를 이 자리에 세운다.
+         본문 흐름 한가운데라 held(장 직후 붙들기)를 거치지 않는다.
+         자리를 적어 둔 사람이 거기를 골랐으므로 그대로 존중한다. */
+      if ((m = para.match(/^@plate\s+(\S+)\s*$/))) {
+        const code = m[1];
+        const p = byCode[code];
+        if (!p) {
+          later.push(`서고에 없는 삽화 — ${row.num || row.title} 「${code}」`);
+          return;
+        }
+        if (placed.has(code)) {
+          later.push(`같은 삽화를 두 번 세웠다 — ${row.num || row.title} 「${code}」`);
+          return;
+        }
+        placed.add(code);
+        emit(plateItem(p));
+        return;
+      }
+
       if (/^@/.test(para)) {
         later.push(`모르는 마커 — ${row.num || row.title} 「${para.slice(0, 24)}…」`);
         return;
@@ -179,8 +207,9 @@ function buildStream(rows, plates) {
 
       pourBody(row);
 
-      /* 이 칸에 걸린 삽화 */
+      /* 이 칸에 걸린 삽화 — @plate 로 본문 안에 이미 선 것은 뺀다 */
       (bySlug[row.slug] || []).forEach((p) => {
+        if (placed.has(p.code)) return;
         const it = plateItem(p);
         /* 장이 막 열렸으면 붙들어 둔다 — 장 표지를 삽화로 때우지 않는다 */
         if (it.k === 'full' && sinceCh >= 0 && sinceCh < 2) held.push(it);
