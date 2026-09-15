@@ -1,6 +1,7 @@
 /* ─────────────────────────────────────────────────────────────────────
    wp_paginate.js — EG백서 조판기
    2026.09.14 · 비너스 목업 `EG백서 전자책.dc.html` 에서 이식 · 파이스
+   2026.09.15 오후 · 반면·띠 대기 자리를 줄로 — 잇달아 오면 앞 그림이 사라지던 것
 
    ⭐ 규칙 여덟은 비너스가 이미 돌아가는 코드로 구현해 두었다.
       새로 짜지 않고 그대로 옮긴다. 값도 안 건드린다.
@@ -101,13 +102,16 @@ function paginate(STREAM, R) {
     } while (force && pending.length);
   };
 
-  let pendingFig = null;
+  /* ⭐ 0915 오후 — 반면·띠의 대기 자리를 한 칸에서 줄로 바꾼다.
+     한 칸이던 때는 칸 끝에 반면·띠가 잇달아 오면 뒤 그림이 앞 그림을 덮어써서
+     책에서 소리 없이 사라졌다(야구장 · 학술원 · 서고). 검산의 「끼움」은 흘리기 전
+     수라 이 증발을 못 셌다. 한 면에 한 장 · 남은 것은 다음 면으로 차례대로 */
+  const pendingFigs = [];
   const applyFig = () => {
-    if (!pendingFig || !cur) return;
-    const it = pendingFig;
+    if (!pendingFigs.length || !cur || cur.fig) return;
+    const it = pendingFigs.shift();
     cur.fig = { src: it.src, lines: it.lines, band: it.band, focus: it.focus };
     cur.cap = cur.cap - it.lines * LH;
-    pendingFig = null;
   };
 
   /* ⭐ 색지는 오른쪽 면에서 열리고, 맞은편(왼쪽)은 흰 종이로 비운다.
@@ -209,7 +213,8 @@ function paginate(STREAM, R) {
 
     if (it.k === 'fig') {
       const need = it.lines * LH;
-      if (!cur || cur.used > cur.cap - need) { pendingFig = it; if (!cur) openBody(); return; }
+      /* 줄에 먼저 선 그림이 있거나 이 면에 이미 한 장이 앉았으면 줄 뒤에 선다 — 앞지르지도 덮어쓰지도 않는다 */
+      if (!cur || cur.fig || pendingFigs.length || cur.used > cur.cap - need) { pendingFigs.push(it); if (!cur) openBody(); return; }
       cur.fig = { src: it.src, lines: it.lines, band: it.band, focus: it.focus };
       cur.cap = cur.cap - need;
       return;
@@ -257,6 +262,7 @@ function paginate(STREAM, R) {
   });
 
   flush(true);
+  pendingFigs.forEach((it) => later.push(`못 세운 삽화 — 책 끝까지 줄에 남음 「${it.src}」`));
   if (pages.length % 2 === 1) push({ type: 'blank' });
 
   /* 쪽 번호 — 본문 면에만. 면지·차례·장 표지·삽화·면 전체·빈 면에는 없다 */
