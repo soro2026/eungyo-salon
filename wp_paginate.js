@@ -2,6 +2,7 @@
    wp_paginate.js — EG백서 조판기
    2026.09.14 · 비너스 목업 `EG백서 전자책.dc.html` 에서 이식 · 파이스
    2026.09.15 오후 · 반면·띠 대기 자리를 줄로 — 잇달아 오면 앞 그림이 사라지던 것
+   2026.09.15 오후 2 · 홀수 쪽은 오른쪽 · 오른쪽 빈 면 금지 · 장 경계의 빈 한 장 폐기
 
    ⭐ 규칙 여덟은 비너스가 이미 돌아가는 코드로 구현해 두었다.
       새로 짜지 않고 그대로 옮긴다. 값도 안 건드린다.
@@ -96,8 +97,16 @@ function paginate(STREAM, R) {
     cur = null;
     /* 규칙7 — 한 경계에 한 장만. 잇달아 서면 그림이 사건이 아니라 화보가 된다 */
     do {
+      /* ⭐ 0915 소로 — 오른쪽(홀수) 면은 비우지 않는다.
+         펼침 차례인데 지금이 오른쪽이면, 줄에서 전면 한 장을 앞으로 당겨 오른쪽을 채운다.
+         당길 전면이 없으면 펼침은 다음 왼쪽 경계까지 줄에서 기다린다 */
+      if (pending[0].k === 'spread' && pages.length % 2 === 1) {
+        const j = pending.findIndex((x) => x.k !== 'spread');
+        if (j < 0) break;
+        pending.unshift(pending.splice(j, 1)[0]);
+      }
       const it = pending.shift();
-      if (it.k === 'spread') { toLeft(); push({ type: 'spread', src: it.src }); push({ type: 'spread', src: it.src }); }
+      if (it.k === 'spread') { push({ type: 'spread', src: it.src }); push({ type: 'spread', src: it.src }); }
       else push({ type: 'full', src: it.src, focus: it.focus });   // ③ crop 을 들고 간다
     } while (force && pending.length);
   };
@@ -120,9 +129,11 @@ function paginate(STREAM, R) {
      ⭐ 삽화가 몇 장 들어와 면이 밀려도 매번 여기서 다시 묻는다 — 면 번호를 어디에도 안 박아 둔 덕이다 */
   const openOnRight = () => {
     flush(true); cur = null;
+    /* ⭐ 0915 소로 — 빈 면은 왼쪽(짝수)에만 둔다. 오른쪽(홀수) 빈 면은 오류다.
+       앞 장이 오른쪽에서 끝났으면 왼쪽 한 면만 비우고 연다.
+       앞 장이 왼쪽에서 끝났으면 비우지 않고 바로 맞은편 오른쪽에 선다.
+       ⚠ 0914 의 「맞은편이 글이면 흰 면 둘로 다음 펼침을 연다」는 한 장(앞뒤)을 통째로 버렸다 — 폐기 */
     toRight();
-    const facing = pages.length - 1;
-    if (facing >= 0 && pages[facing].type !== 'blank') { push({ type: 'blank' }); push({ type: 'blank' }); }
   };
 
   const openBody = (init) => {
@@ -179,8 +190,9 @@ function paginate(STREAM, R) {
     }
 
     if (it.k === 'spread') {
-      if (cur && cur.used > 0) { pending.push(it); return; }
-      flush(); cur = null; toLeft();
+      /* 오른쪽 면이면 빈 면을 끼우지 않고 줄에서 기다린다 (0915 소로) */
+      if ((cur && cur.used > 0) || pages.length % 2 === 1) { pending.push(it); return; }
+      flush(); cur = null;
       push({ type: 'spread', src: it.src }); push({ type: 'spread', src: it.src });
       return;
     }
@@ -263,11 +275,14 @@ function paginate(STREAM, R) {
 
   flush(true);
   pendingFigs.forEach((it) => later.push(`못 세운 삽화 — 책 끝까지 줄에 남음 「${it.src}」`));
-  if (pages.length % 2 === 1) push({ type: 'blank' });
+  pending.forEach((it) => later.push(`못 세운 펼침 — 책 끝까지 줄에 남음 「${it.src}」`));
+  if (pages.length % 2 === 1) { push({ type: 'blank' }); later.push('책 맨 끝 오른쪽 면이 비었다 — 소로 판정 자리'); }
 
   /* 쪽 번호 — 본문 면에만. 면지·차례·장 표지·삽화·면 전체·빈 면에는 없다 */
   const SHOW = { body: 1 };
-  pages.forEach((p, i) => { if (SHOW[p.type]) p.folio = i + 1; });
+  /* ⭐ 0915 소로 — 책은 홀수 쪽이 오른쪽이다. 첫 펼침 왼쪽(면지)이 0쪽, 오른쪽이 1쪽.
+     면을 옮기지 않고 번호만 한 칸 당긴다 — 장 표지가 오른쪽에 서는 규칙과 맞물린다 */
+  pages.forEach((p, i) => { if (SHOW[p.type]) p.folio = i; });
 
   /* 차례의 쪽 번호는 흘린 결과에서 되받는다 */
   entries.forEach(e => {
