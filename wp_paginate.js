@@ -3,6 +3,7 @@
    2026.09.14 · 비너스 목업 `EG백서 전자책.dc.html` 에서 이식 · 파이스
    2026.09.15 오후 · 반면·띠 대기 자리를 줄로 — 잇달아 오면 앞 그림이 사라지던 것
    2026.09.15 오후 2 · 홀수 쪽은 오른쪽 · 오른쪽 빈 면 금지 · 장 경계의 빈 한 장 폐기
+   2026.09.15 오후 3 · 큰 대사의 「 / 」 줄 나눔을 자가 잰다
 
    ⭐ 규칙 여덟은 비너스가 이미 돌아가는 코드로 구현해 두었다.
       새로 짜지 않고 그대로 옮긴다. 값도 안 건드린다.
@@ -37,8 +38,12 @@ function makeRuler() {
     d.style.fontSize = '25px'; d.style.lineHeight = '49.5px';
     d.style.letterSpacing = '-0.025em'; d.style.textIndent = '0px';
     d.style.fontWeight = '400';
-    d.textContent = String(text);
-    return d.offsetHeight;
+    /* ⭐ 0915 — 큰 대사도 「 / 」 에서 줄을 나눈다(면 전체 대사 · 구호와 같은 문법). 나눈 채로 잰다 */
+    d.style.whiteSpace = 'pre-line';
+    d.textContent = String(text).split(' / ').join('\n');
+    const h = d.offsetHeight;
+    d.style.whiteSpace = 'normal';
+    return h;
   };
   return { body, big, done: () => d.remove() };
 }
