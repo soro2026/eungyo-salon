@@ -12,6 +12,9 @@
   *{ box-sizing:border-box; }
   html,body{ margin:0; height:100%; background:#0B0C10; overflow:hidden;
              font-family:'Gowun Batang',serif; -webkit-font-smoothing:antialiased; }
+  /* ⭐ 0916 — 아이패드·아이폰 사파리는 글자가 작아 보이면 제멋대로 키운다(자동 확대).
+     자는 원래 크기로 재고 책은 키운 크기로 그리면 면 끝 줄이 넘쳐 잘린다 — 끈다 */
+  html{ -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 
   #stage{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
 
@@ -414,6 +417,7 @@ function playTurn(){
 /* ── 책 ────────────────────────────────────────────────────── */
 
 let SPREADS = [], PAGES = [], TOC = [], at = 0, prevAt = null, turning = false, LATER = [], CHECK = '';
+let LATE_RETYPE = false;   /* 0916 — 글꼴이 늦게 와서 다시 자르는 일은 한 번만 */
 const L = document.getElementById('L'), R = document.getElementById('R');
 const leaf = document.getElementById('leaf');
 const leafFront = document.getElementById('leafFront'), leafBack = document.getElementById('leafBack');
@@ -578,16 +582,25 @@ async function fetchTable(name, query){
   return r.json();
 }
 
-async function typeset(){
+async function typeset(opt){
+  const quiet = !!(opt && opt.quiet);   /* 조용히 — 읽는 중에 다시 자를 때는 막을 씌우지 않는다 */
   const boot = document.getElementById('boot');
-  boot.classList.remove('off'); boot.textContent = '서고에서 원고를 받는 중입니다';
+  if (!quiet) { boot.classList.remove('off'); boot.textContent = '서고에서 원고를 받는 중입니다'; }
+  /* 조용히 다시 자를 때는 쪽 번호가 아니라 읽던 글줄로 돌아온다 */
+  let anchor = null;
+  if (quiet && SPREADS[at]) {
+    for (const pg of SPREADS[at]) {
+      const t = pg && pg.paras && pg.paras.find((x) => x.text && x.text.replace(/\*\*/g, '').length > 12);
+      if (t) { anchor = t.text.replace(/\*\*/g, '').slice(0, 18); break; }
+    }
+  }
   try {
     const [rows, plates] = await Promise.all([
       fetchTable('eg_guidebook', 'select=slug,ord,level,num,title,body,building,color,active&order=ord'),
       fetchTable('eg_guidebook_plates', 'select=code,slug,ord,fit,crop,path,active&order=ord'),
     ]);
 
-    boot.textContent = '면을 나누는 중입니다';
+    if (!quiet) boot.textContent = '면을 나누는 중입니다';
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
     /* ⭐ 0916 — 자는 쓸 글꼴이 다 도착한 뒤에 잰다.
        document.fonts.ready 는 「지금 받는 중인 글꼴」만 기다린다. 아직 부르지 않은 굵은 고운바탕 ·
@@ -600,15 +613,23 @@ async function typeset(){
       const boldTx = (bodies.match(/\*\*[^*]+\*\*/g) || []).join('');
       const markTx = (bodies.match(/^@(big|solo|cry)\s+.*$/gm) || []).join('');
       const headTx = act.map((r) => r.title || '').join('') + (bodies.match(/^@sub\s+.*$/gm) || []).join('');
+      const allFonts = Promise.all([
+        document.fonts.load("400 17px 'Gowun Batang'", uniq(bodies)),
+        document.fonts.load("700 17px 'Gowun Batang'", uniq(boldTx)),
+        document.fonts.load("800 24px 'Nanum Myeongjo'", uniq(markTx)),
+        document.fonts.load("700 24px 'Nanum Myeongjo'", uniq(headTx)),
+      ]);
+      let timedOut = false;
       await Promise.race([
-        Promise.all([
-          document.fonts.load("400 17px 'Gowun Batang'", uniq(bodies)),
-          document.fonts.load("700 17px 'Gowun Batang'", uniq(boldTx)),
-          document.fonts.load("800 24px 'Nanum Myeongjo'", uniq(markTx)),
-          document.fonts.load("700 24px 'Nanum Myeongjo'", uniq(headTx)),
-        ]),
-        new Promise((res) => setTimeout(res, 6000)),
+        allFonts,
+        new Promise((res) => setTimeout(() => { timedOut = true; res(); }, 6000)),
       ]).catch(() => {});
+      /* ⭐ 0916 — 망이 느려 6초 안에 다 못 왔으면, 다 도착하는 대로 한 번만 조용히 다시 자른다.
+         (먼저 잰 면은 대체 글꼴 폭이라 진짜 글꼴로 그리면 면 끝 줄이 잘릴 수 있다 — R 키와 같은 일) */
+      if (timedOut && !LATE_RETYPE) {
+        LATE_RETYPE = true;
+        allFonts.then(() => typeset({ quiet: true })).catch(() => {});
+      }
     }
 
     const built = buildStream(rows, plates);
@@ -631,9 +652,15 @@ async function typeset(){
       if (s >= 0 && s < SPREADS.length) at = s;
     } catch(e){}
     if (at >= SPREADS.length) at = 0;
+    if (anchor) {
+      const k = SPREADS.findIndex((sp) => sp.some((pg) => pg && pg.paras &&
+        pg.paras.some((x) => x.text && x.text.replace(/\*\*/g, '').includes(anchor))));
+      if (k >= 0) at = k;
+    }
 
     draw(); bar(); fit();
     boot.classList.add('off');
+    if (quiet) console.log('[EG백서] 글꼴이 늦게 도착해 한 번 더 잘랐습니다');
     console.log('[EG백서] ' + CHECK);
     console.log('[EG백서] 면 ' + pages.length + ' · 펼침 ' + SPREADS.length);
     if (LATER.length) console.log('[EG백서] ④ 통독에서 볼 자리', LATER);
