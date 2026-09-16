@@ -4,6 +4,7 @@
    2026.09.15 오후 · 반면·띠 대기 자리를 줄로 — 잇달아 오면 앞 그림이 사라지던 것
    2026.09.15 오후 2 · 홀수 쪽은 오른쪽 · 오른쪽 빈 면 금지 · 장 경계의 빈 한 장 폐기
    2026.09.15 오후 3 · 큰 대사의 「 / 」 줄 나눔을 자가 잰다
+   2026.09.16 · 구호를 그리는 그대로 잰다 · 굵은 글씨를 굵게 잰다 · 면에서 갈린 굵은 글씨 짝 채우기
 
    ⭐ 규칙 여덟은 비너스가 이미 돌아가는 코드로 구현해 두었다.
       새로 짜지 않고 그대로 옮긴다. 값도 안 건드린다.
@@ -26,13 +27,38 @@ function makeRuler() {
     `width:${PLATE_W}px;word-break:keep-all;white-space:normal;text-align:left;` +
     "font-family:'Gowun Batang',serif;";
   document.body.appendChild(d);
+  /* ⭐ 0916 — 굵은 글씨(**)는 굵게 잰다. 책은 700 으로 그리는데 400 으로 재면 폭이 모자라
+     그리는 쪽에서 한 줄이 더 접히고, 꽉 찬 면 맨 아래 줄이 잘렸다 */
+  const fill = (el, text) => {
+    el.textContent = '';
+    String(text).split('**').forEach((t, i) => {
+      if (!t) return;
+      if (i % 2) { const b = document.createElement('b'); b.style.fontWeight = '700'; b.textContent = t; el.appendChild(b); }
+      else el.appendChild(document.createTextNode(t));
+    });
+  };
   const body = (text, ind) => {
     d.style.cssText = d.style.cssText.replace(/font-size[^;]*;|line-height[^;]*;|letter-spacing[^;]*;|text-indent[^;]*;/g, '');
     d.style.fontSize = '17px'; d.style.lineHeight = LH + 'px';
     d.style.letterSpacing = '-0.012em'; d.style.textIndent = (ind || 0) + 'px';
     d.style.fontWeight = '400';
-    d.textContent = String(text).replace(/\*\*/g, '');
+    fill(d, text);
     return d.offsetHeight;
+  };
+  /* ⭐ 0916 소로 — 구호가 한 줄에 안 들어가 두 줄로 접히는데 줄 수로만 셈해서
+     Ⅰ-4 「두 가지가 한꺼번에 왔기 때문입니다」 면 맨 아래 줄이 잘렸다. 책이 그리는 그대로 잰다 */
+  const verse = (lines, size, lh, display) => {
+    const keep = d.style.cssText;
+    d.style.textAlign = 'center'; d.style.textIndent = '0px';
+    d.style.fontSize = (size || 26) + 'px'; d.style.lineHeight = (lh || 54) + 'px';
+    d.style.letterSpacing = '0.02em';
+    d.style.fontFamily = display ? "'Nanum Myeongjo',serif" : "'Gowun Batang',serif";
+    d.style.fontWeight = display ? '800' : '400';
+    d.textContent = '';
+    (lines || []).forEach((v) => { const el = document.createElement('div'); fill(el, v); d.appendChild(el); });
+    const h = d.offsetHeight;
+    d.style.cssText = keep;
+    return h;
   };
   const big = (text) => {
     d.style.fontSize = '25px'; d.style.lineHeight = '49.5px';
@@ -45,7 +71,7 @@ function makeRuler() {
     d.style.whiteSpace = 'normal';
     return h;
   };
-  return { body, big, done: () => d.remove() };
+  return { body, big, verse, done: () => d.remove() };
 }
 
 /* 어절(공백) 경계 */
@@ -186,7 +212,7 @@ function paginate(STREAM, R) {
     }
 
     if (it.k === 'verse') {
-      const h = (it.lines || []).length * (it.lh || 54) + 74;
+      const h = (R.verse ? R.verse(it.lines, it.size, it.lh, it.display) : (it.lines || []).length * (it.lh || 54)) + 74;
       if (!cur) openBody();
       if (cur.used + h > cur.cap + 0.5) openBody();
       cur.paras.push({ verse: true, lines: it.lines, size: it.size, lh: it.lh, display: it.display });
@@ -270,9 +296,13 @@ function paginate(STREAM, R) {
         if (R.body(text.slice(0, pts[mid]), ind) <= lines * LH + 0.5) { best = mid; lo = mid + 1; } else hi = mid - 1;
       }
       if (best < 0) { openBody(); continue; }
-      cur.paras.push({ text: text.slice(0, pts[best]).replace(/\s+$/, ''), ind });
-      cur.used = cur.cap;
+      let headPart = text.slice(0, pts[best]).replace(/\s+$/, '');
       text = text.slice(pts[best]);
+      /* ⭐ 0916 — 굵은 글씨 한가운데서 면이 갈리면 짝(**)을 양쪽에 채운다.
+         안 채우면 다음 면 조각은 굵기가 뒤집혀 그려진다 */
+      if ((headPart.split('**').length - 1) % 2 === 1) { headPart += '**'; text = '**' + text; }
+      cur.paras.push({ text: headPart, ind });
+      cur.used = cur.cap;
       start = false;
       openBody();
     }

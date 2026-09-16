@@ -153,7 +153,7 @@
 <div id="boot">서고에서 원고를 받는 중입니다</div>
 
 <script src="wp_stream.js?v=0914"></script>
-<script src="wp_paginate.js?v=0915c"></script>
+<script src="wp_paginate.js?v=0916"></script>
 <script>
 /* ─────────────────────────────────────────────────────────────────────
    whitepaper.html — EG백서를 책으로 읽는 한 장
@@ -589,6 +589,27 @@ async function typeset(){
 
     boot.textContent = '면을 나누는 중입니다';
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    /* ⭐ 0916 — 자는 쓸 글꼴이 다 도착한 뒤에 잰다.
+       document.fonts.ready 는 「지금 받는 중인 글꼴」만 기다린다. 아직 부르지 않은 굵은 고운바탕 ·
+       나눔명조 800(구호) · 한글 조각(unicode-range)은 대체 글꼴 폭으로 재여 면 끝이 어긋날 수 있었다.
+       원고에 실제로 쓰인 글자만 굵기별로 불러 둔다 — 6초가 넘으면 더 기다리지 않는다 */
+    if (document.fonts && document.fonts.load) {
+      const uniq = (t) => Array.from(new Set(String(t).replace(/\s+/g, ''))).join('') || '가';
+      const act = rows.filter((r) => r.active !== false);
+      const bodies = act.map((r) => r.body || '').join('\n');
+      const boldTx = (bodies.match(/\*\*[^*]+\*\*/g) || []).join('');
+      const markTx = (bodies.match(/^@(big|solo|cry)\s+.*$/gm) || []).join('');
+      const headTx = act.map((r) => r.title || '').join('') + (bodies.match(/^@sub\s+.*$/gm) || []).join('');
+      await Promise.race([
+        Promise.all([
+          document.fonts.load("400 17px 'Gowun Batang'", uniq(bodies)),
+          document.fonts.load("700 17px 'Gowun Batang'", uniq(boldTx)),
+          document.fonts.load("800 24px 'Nanum Myeongjo'", uniq(markTx)),
+          document.fonts.load("700 24px 'Nanum Myeongjo'", uniq(headTx)),
+        ]),
+        new Promise((res) => setTimeout(res, 6000)),
+      ]).catch(() => {});
+    }
 
     const built = buildStream(rows, plates);
     const R2 = makeRuler();
