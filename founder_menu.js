@@ -110,19 +110,17 @@
     card.setAttribute('role', 'button');
     card.tabIndex = 0;
     card.innerHTML = '<div class="dock-main"><span>EG파운더 전용메뉴</span></div>';
-    /* ⭐ 0917 소로 — 크레덴시알 · 타벨라이처럼 원문 병기 「Founder only」 (terra 의 DOCK_LATIN.founder 한 곳) */
-    if (typeof window.applyDockLatin === 'function') window.applyDockLatin(card, 'founder');
-    if (typeof window.dockHelmSvg === 'function') {
-      const m = document.createElement('div');
-      m.className = 'dock-go';
-      m.setAttribute('aria-hidden', 'true');
-      m.style.pointerEvents = 'none';
-      m.innerHTML = window.dockHelmSvg(false);
-      card.appendChild(m);
-    }
+    /* ⭐ 0917 소로 — 크레덴시알 · 타벨라이처럼 원문 「Founder only」 + 오른쪽 무늬 타륜
+       ⚠ terra 의 applyDockLatin · dockHelmSvg 는 감싸인 스크립트 안이라 창에서 안 보인다 → terra 가 내어 준
+         window.egDockOrnament 한 손잡이로 붙인다. 아직 없으면 잠깐 기다렸다 다시 (최대 10초) */
+    const ornament = () => {
+      try { if (typeof window.egDockOrnament === 'function') { window.egDockOrnament(card, 'founder'); return true; } } catch (_) {}
+      return false;
+    };
     const guide = document.getElementById('dockGuide');
     if (guide && guide.parentNode === pera) guide.insertAdjacentElement('afterend', card);
     else pera.appendChild(card);
+    if (!ornament()) { let n = 0; const iv = setInterval(() => { if (ornament() || ++n >= 20) clearInterval(iv); }, 500); }
   }
 
   let checking = false;
