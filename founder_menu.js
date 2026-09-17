@@ -2,7 +2,7 @@
    founder_menu.js — 타륜 › EG파운더 전용메뉴 › 파운더 신청안내
    2026.09.17 · 파이스
 
-   ① 타륜의 배낭(PERA) 아래에 「EG파운더 전용메뉴」 칸을 낸다
+   ① 타륜 배낭(PERA) 목록의 가이드북 다음에 「EG파운더 전용메뉴」 카드를 세운다 (0917 소로 — 이름표 없이 · 무늬 타륜)
       ⭐ 보이는 조건 = eg_founder_guide 를 읽을 수 있는 계정 (RLS 가 정한다)
          지금은 살롱지기만 · 뒤에 제안서를 받은 분께 RLS 를 열면 그분들께도 저절로 선다
       ⭐ 데스크톱에서만 (소로 0916 — 파운더 메뉴는 웹 · 데스크톱)
@@ -97,24 +97,37 @@
     e.stopPropagation();
   }, true);
 
-  /* ── 타륜 칸 ── */
+  /* ── 타륜 칸 ──
+     ⭐ 0917 소로 — 위의 작은 이름표는 두지 않는다. 배낭 목록(가이드북 다음)에 카드 한 장으로 잇는다.
+        제목은 「EG파운더 전용메뉴」 + 원문 「Founder only」. 오른쪽 작은 타륜은 무늬 — 누르면 카드 본체가 받는다 */
   function inject() {
-    if (document.getElementById('dockFounder')) return;
+    if (document.getElementById('dockFounderGuide')) return;
     const pera = document.getElementById('dockPera');
     if (!pera) return;
-    const sec = document.createElement('div');
-    sec.id = 'dockFounder';
-    sec.innerHTML =
-      '<div class="dock-sec"><span class="dock-sec-ko">EG파운더 전용메뉴</span></div>' +
-      '<div class="dock-card nogo orn" id="dockFounderGuide" role="button" tabindex="0">' +
-        '<div class="dock-main"><span>파운더 신청안내</span></div>' +
-      '</div>';
-    pera.insertAdjacentElement('afterend', sec);
+    const card = document.createElement('div');
+    card.className = 'dock-card nogo orn';
+    card.id = 'dockFounderGuide';
+    card.setAttribute('role', 'button');
+    card.tabIndex = 0;
+    card.innerHTML = '<div class="dock-main"><span>EG파운더 전용메뉴</span></div>';
+    /* ⭐ 0917 소로 — 크레덴시알 · 타벨라이처럼 원문 병기 「Founder only」 (terra 의 DOCK_LATIN.founder 한 곳) */
+    if (typeof window.applyDockLatin === 'function') window.applyDockLatin(card, 'founder');
+    if (typeof window.dockHelmSvg === 'function') {
+      const m = document.createElement('div');
+      m.className = 'dock-go';
+      m.setAttribute('aria-hidden', 'true');
+      m.style.pointerEvents = 'none';
+      m.innerHTML = window.dockHelmSvg(false);
+      card.appendChild(m);
+    }
+    const guide = document.getElementById('dockGuide');
+    if (guide && guide.parentNode === pera) guide.insertAdjacentElement('afterend', card);
+    else pera.appendChild(card);
   }
 
   let checking = false;
   async function mayShow() {
-    if (checking || document.getElementById('dockFounder') || !desktop()) return;
+    if (checking || document.getElementById('dockFounderGuide') || !desktop()) return;
     const sb = window.egSupa;
     if (!sb) return;
     checking = true;
