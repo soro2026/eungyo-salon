@@ -20,7 +20,7 @@
   if (window.__egFounderMenu) return;
   window.__egFounderMenu = true;
 
-  const V = '0917';
+  const V = '0918';
   const PAGE = 'founder_guide.html?embed=1&v=' + V;
 
   const CSS = `

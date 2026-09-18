@@ -5370,6 +5370,45 @@ function stopOrbit(){
         그래서 「직전 곳」을 적으면 고도 -6373km 같은 헛것이 적힌다(0818 소로 콘솔).
    ⭐ stopOrbit 은 tick 을 떼고 lookAtTransform(IDENTITY) 까지 해 준다. 둘 다 필요하다. */
 window.stopOrbit = stopOrbit;
+
+/* ⭐⭐ 0918 — EG도시별현황(파운더 매물)에서 건물 카드를 누르면 지구가 그 건물 앞까지 난다(지구 임장).
+   ⚠ arriveHome 을 그대로 못 쓴다 — 그 손은 **주민 한 명을 찾아** 궤도를 건다.
+     빈 매물에는 주민이 없다. 그래서 도시 + 번지로 찾는다.
+   ⚠ 정의와 창구를 한자리에 둔다. 창(iframe)에서 부를 이름이 window 에 없으면 아무 일도 안 일어난다 —
+     v137~140이 네 판 내리 엎어진 자리가 정확히 이것이다(블록 B 7900행대 주석).
+   ⚠ terra 자신의 메종 팝업은 기본으로 열지 않는다. 임장에서는 오른쪽 파운더 패널이 설명을 갖는다.
+     터라 팝업까지 띄우려면 { panel:true }.
+   쓰기  await window.egFlyToBuilding({ city, bno, lat, lng })   → 도착하면 그 건물 entity(없으면 null) */
+function egFlyToBuilding(b, opts){
+  const o = opts || {};
+  return new Promise((done)=>{
+    if (!b || b.lat == null || b.lng == null){ console.warn("[EG] 날아갈 좌표가 없다:", b); done(null); return; }
+    const lng = Number(b.lng), lat = Number(b.lat);
+    setCityByCoord(lng, lat);
+    const pins = streamPinsNear(lng, lat, { force:true });   /* 핀은 비행과 나란히 — 도착했을 때 이미 와 있다 */
+    stopOrbit();
+    if (window.logPush && !o.nolog)
+      window.logPush("maison:"+(b.city||"")+":"+b.bno,
+        ()=> egFlyToBuilding(b, Object.assign({}, o, { nolog:true })));
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(lng, lat, 700),
+      orientation:{ heading:Cesium.Math.toRadians(15), pitch:Cesium.Math.toRadians(-40), roll:0 },
+      duration: (o.duration != null) ? o.duration : 3.0,
+      complete: async ()=>{
+        try{ await pins; }catch(e){}
+        showMaisons = true; applyLayerVisibility();
+        const ent = viewer.entities.values.find(e => e._maison && !e._maisonTag
+          && e._maison.city === b.city && String(e._maison.bno) === String(b.bno));
+        if (ent && o.panel) openMaison(ent._maison);
+        const H = await clampPoint(lng, lat);                /* 도착 후 재clamp → 지붕 높이가 궤도 중심 */
+        startOrbit(Cesium.Cartesian3.fromDegrees(lng, lat, (H!=null?H:0)), 600, 200, 0.010, 0.0032);
+        if (!ent) console.warn("[EG] 날아왔으나 핀을 못 찾음:", b.city, b.bno);
+        done(ent || null);
+      }
+    });
+  });
+}
+window.egFlyToBuilding = egFlyToBuilding;
 </script>
 
 <script>
@@ -7924,6 +7963,6 @@ window.closeTourLists = closeTourLists;
 </script>
 <script src="guide_cover.js?v=0915"></script>
 <!-- 0917 — 타륜 › EG파운더 전용메뉴 · 파운더 신청안내. 배선은 전부 founder_menu.js 에 산다 (읽을 수 있는 계정 · 데스크톱에만 칸이 선다) -->
-<script src="founder_menu.js?v=0917c"></script>
+<script src="founder_menu.js?v=0918"></script>
 </body>
 </html>

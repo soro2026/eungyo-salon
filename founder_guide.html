@@ -18,6 +18,9 @@
        @link 글자       ⑧ 끝 버튼
        @fig photo-arrow · photo-table · roles · strip14 · buildings · strip21 · bars12
        @fig flow9       바로 다음 문단(「→」로 이은 한 줄)을 흐름 9칸으로 짠다
+       @fees            ⑥ 참가비표 — DB eg_founder_fee_table() 로 그린다 (늘 다섯 칸 · 첫 칸이 이번 달)
+       @fee27 @vat27 @sum27   그 슬롯의 이번 달 참가비 · 부가세 · 합계 — ⭐ 숫자만 바꾼다.
+                        「원」과 조사는 원고가 갖는다 (표식이 조사를 먹으면 문장을 고칠 때 코드를 열게 된다)
        「…」 한 문단     인용 한 줄
        「…겠습니다.」 여러 줄  약속 세 줄
      ───────────────────────────────────────────────────────────────────── -->
@@ -208,7 +211,7 @@
 
 <script>
 (function () {
-  const V = '0917';
+  const V = '0918';
   const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
   const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
   const EMBED = document.documentElement.classList.contains('embed');
@@ -227,6 +230,48 @@
   /* ── 글자 ── */
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const inline = (s) => esc(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+  /* ── 참가비 (0918) ──
+     ⚠ 값을 이 파일에도, 원고에도 적지 않는다. 사는 곳은 DB eg_founder_fees 한 군데뿐이다.
+     ⭐ 표는 늘 다섯 칸이고 첫 칸이 이번 달이다. 달이 바뀌면 지난달 칸이 저절로 빠진다. */
+  let FEES = [];                                     /* eg_founder_fee_table() 가 준 줄들 */
+  const won = (n) => Number(n).toLocaleString('ko-KR');
+  const feeOf = (slots) => {
+    const r = FEES.find((x) => Number(x.slots) === Number(slots) && x.is_current);
+    return r ? Number(r.amount) : null;
+  };
+  /* 「2026년 10월」 — 앞 칸과 해가 다를 때만 연도를 적는다 */
+  const monthLabel = (ym, prev) => {
+    const y = String(ym).slice(0, 4), m = Number(String(ym).slice(5, 7));
+    return (!prev || String(prev).slice(0, 4) !== y) ? (Number(y) + '년 ' + m + '월') : (m + '월');
+  };
+  /* @fees 자리에 세울 표 — 기존 table() 이 그대로 받도록 같은 문법으로 짠다
+     (칸이 여섯이라 table() 이 스스로 wide · data-cross 를 켠다 — 값표의 십자 밝힘) */
+  function feeTable() {
+    const months = [], slots = [];
+    FEES.forEach((r) => {
+      if (!months.includes(r.ym)) months.push(r.ym);
+      if (!slots.includes(Number(r.slots))) slots.push(Number(r.slots));
+    });
+    if (!months.length || !slots.length) return '<p class="fg-wait">참가비표를 불러오지 못했습니다.</p>';
+    months.sort(); slots.sort((a, b) => a - b);
+    const head = '| 슬롯 |' + months.map((ym, i) => ' ' + monthLabel(ym, i ? months[i - 1] : null) + ' |').join('');
+    const sep  = '|' + '---|'.repeat(months.length + 1);
+    const body = slots.map((s) => '| ' + s + ' |' + months.map((ym) => {
+      const r = FEES.find((x) => Number(x.slots) === s && x.ym === ym);
+      return ' ' + (r ? won(r.amount) + '원' : '—') + ' |';
+    }).join(''));
+    return table([head, sep].concat(body).join('\n'));
+  }
+  /* @fee27 · @vat27 · @sum27 — 그 슬롯의 이번 달 값. 숫자만 갈아 끼운다 */
+  function feeTokens(s) {
+    return String(s).replace(/@(fee|vat|sum)(\d+)/g, (whole, kind, slots) => {
+      const fee = feeOf(slots);
+      if (fee == null) return whole;                 /* 못 읽었으면 표식을 그대로 둔다 — 조용히 틀린 값보다 낫다 */
+      const vat = Math.round(fee * 0.1);
+      return won(kind === 'fee' ? fee : (kind === 'vat' ? vat : fee + vat));
+    });
+  }
 
   /* ── 표 — 첫 칸은 왼쪽, 「원 · 장」으로 끝나는 칸만 오른쪽 ── */
   function table(block) {
@@ -343,7 +388,7 @@
 
   /* ── 문안 한 장 → HTML ── */
   function chapter(row, i) {
-    const blocks = String(row.body || '').replace(/\r/g, '').split(/\n{2,}/).map((b) => b.trim()).filter(Boolean);
+    const blocks = feeTokens(String(row.body || '').replace(/\r/g, '')).split(/\n{2,}/).map((b) => b.trim()).filter(Boolean);
     let h = '';
     for (let k = 0; k < blocks.length; k++) {
       const b = blocks[k];
@@ -356,6 +401,8 @@
       } else if (b.startsWith('@link')) {
         const t = b.replace(/^@link\s*/, '').replace(/\s*→\s*$/, '');
         h += '<div class="fg-end"><a class="fg-link" id="fgToCities" href="#" role="button"><span>' + esc(t) + '</span><span class="arr" aria-hidden="true">→</span></a></div>';
+      } else if (b === '@fees') {
+        h += feeTable();
       } else if (b.startsWith('@fig')) {
         const name = lines[0].replace(/^@fig\s*/, '').trim();
         if (name === 'flow9') { h += FIG.flow9(blocks[k + 1]); k++; }
@@ -430,9 +477,20 @@
     return data || [];
   }
 
+  /* 참가비표 — 문안과 나란히 받는다. 못 받아도 문안은 선다 (표 자리에만 한 줄이 뜬다) */
+  async function fees() {
+    try {
+      const sb = await client();
+      const { data, error } = await sb.rpc('eg_founder_fee_table');
+      if (error) throw error;
+      return data || [];
+    } catch (e) { console.warn('[founder_guide] 참가비표', e); return []; }
+  }
+
   (async function boot() {
     try {
-      const data = await rows();
+      const [data, fee] = await Promise.all([rows(), fees()]);
+      FEES = fee;
       if (!data.length) { $main.innerHTML = '<p class="fg-wait">안내를 열 수 없습니다.</p>'; return; }
       $main.innerHTML = data.map(chapter).join('');
       wireTables();
