@@ -40,7 +40,7 @@
   if (window.__egFounderMenu) return;
   window.__egFounderMenu = true;
 
-  const V = '0918h';
+  const V = '0918i';
   const GUIDE = 'founder_guide.html?embed=1&v=' + V;
   const CITY  = 'founder_city.html?embed=1&v=' + V;
   const CONT  = 'founder_contract.html?embed=1&v=' + V;
