@@ -8,7 +8,9 @@
      founder_city.html — 타륜 › EG파운더 전용메뉴 › EG 도시별 현황
      2026.09.18 · 파이스
 
-     ① 매물은 DB eg_buildings 한 표에서 읽는다 — ⚠ 이 파일에 건물을 적지 않는다
+     ① 매물은 DB eg_founder_market 한 장에서 읽는다 — ⚠ 이 파일에 건물을 적지 않는다
+        badge — open 매물 · held 예약 중 · soldout 팔린 지 2주 이내
+        ⭐ 「2주」라는 숫자는 뷰가 갖는다. 이 파일에 적지 않는다
         참가비는 eg_founder_fee_table() — ⚠ 값도 적지 않는다 (사는 곳은 DB 한 군데)
      ② 옷은 신청안내(founder_guide.html)와 같다 — 흰 서류 · 876 판
      ③ 창은 하나, 종이만 바뀐다. 신청안내 ⑧ 끝 버튼 → 이 종이 · 「← 신청안내」로 되돌아간다
@@ -115,6 +117,14 @@
   .fc-btn[disabled]:hover{ background:#FFFFFF; border-color:var(--line); color:var(--muted); }
 
   .fc-slots{ font:400 13px/1 var(--mono); color:var(--faint); }
+
+  /* ── 매물이 아닌 카드 — 예약 중 · SOLD OUT (0918 소로 「기록에 남아 있는 게 좋겠다」) ── */
+  .fc-card.off{ opacity:.55; }
+  .fc-card.off .fc-price b{ color:var(--muted); font-weight:400; }
+  .fc-price i{ display:block; font:400 13px/1.4 var(--mono); font-style:normal;
+    letter-spacing:.11em; color:var(--faint); }
+  .fc-mark{ padding:8px 15px; border:1px dashed var(--line); border-radius:3px;
+    background:transparent; color:var(--faint); font:400 13.5px/1 var(--serif); }
 
   /* ── 담은 것 — 판 아래 띠 ── */
   .fc-cart{ flex:0 0 auto; display:flex; align-items:center; gap:16px;
@@ -225,33 +235,45 @@
   const priceText = (slots) => { const f = feeOf(slots); return f == null ? '—' : won(f) + '원'; };
 
   /* ── 카드 ── */
+  /* 매물인가 — badge 가 없는 줄은 매물로 본다 */
+  const isOpen = (b) => (b.badge || 'open') === 'open';
+  const markOf = (b) => (b.badge === 'held' ? '예약 중' : 'SOLD OUT');
+
   function card(b) {
     const w = b.wall || {};
+    const open = isOpen(b);
     const inCart = CART.has(keyOf(b));
-    return '<div class="fc-card" data-key="' + esc(keyOf(b)) + '">' +
+    return '<div class="fc-card' + (open ? '' : ' off') + '" data-key="' + esc(keyOf(b)) + '">' +
       '<div class="fc-name">' + esc(w.landmark || ('건물 ' + b.bno)) +
         '<em>' + esc(cityKo(b.city)) + ' · ' + grade(b.city, b.slots) + '</em></div>' +
-      '<div class="fc-price"><b>' + priceText(b.slots) + '</b><span>부가세 별도</span></div>' +
+      '<div class="fc-price">' + (b.badge === 'soldout'
+        ? '<i>SOLD OUT</i>'
+        : '<b>' + priceText(b.slots) + '</b><span>부가세 별도</span>') + '</div>' +
       '<div class="fc-pitch">' + esc(w.pitch || '') + '</div>' +
       '<div class="fc-acts">' +
         '<span class="fc-slots">' + b.slots + '슬롯</span>' +
         '<span style="flex:1 1 auto"></span>' +
         '<button class="fc-btn" type="button" data-act="see">보기</button>' +
-        '<button class="fc-btn gold' + (inCart ? ' in' : '') + '" type="button" data-act="cart">' +
-          (inCart ? '담김 ✓' : '담기') + '</button>' +
+        (open
+          ? '<button class="fc-btn gold' + (inCart ? ' in' : '') + '" type="button" data-act="cart">' +
+              (inCart ? '담김 ✓' : '담기') + '</button>'
+          : (b.badge === 'held' ? '<span class="fc-mark">예약 중</span>' : '')) +
       '</div></div>';
   }
 
   function drawTabs() {
     $('fcTabs').innerHTML = CITY.filter((c) => BLD.some((b) => b.city === c.key)).map((c) => {
-      const n = BLD.filter((b) => b.city === c.key).length;
+      const n = BLD.filter((b) => b.city === c.key && isOpen(b)).length;   /* ⭐ 살 수 있는 것만 센다 */
       return '<button class="fc-tab' + (c.key === TAB ? ' on' : '') + '" type="button" data-city="' + c.key + '">' +
         '<b>' + c.ko + '</b><i>' + n + '</i></button>';
     }).join('');
   }
 
+  /* 매물이 위, 기록(예약 중 · SOLD OUT)이 아래 — sort 는 안정 정렬이라 그 안의 차례는 그대로 */
+  const RANK = { open: 0, held: 1, soldout: 2 };
   function drawList() {
-    const rows = BLD.filter((b) => b.city === TAB);
+    const rows = BLD.filter((b) => b.city === TAB)
+      .slice().sort((x, y) => (RANK[x.badge] || 0) - (RANK[y.badge] || 0));
     $('fcList').innerHTML = rows.length
       ? rows.map(card).join('')
       : '<p class="fc-wait">이 도시에는 지금 나와 있는 건물이 없습니다.</p>';
@@ -323,6 +345,7 @@
   });
 
   function toggleCart(b) {
+    if (!isOpen(b)) return;                         /* 매물이 아니면 담기지 않는다 */
     const k = keyOf(b);
     if (CART.has(k)) { CART.delete(k); }
     else {
@@ -348,14 +371,17 @@
       '<p class="where">' + esc(cityKo(b.city)) + ' · ' + grade(b.city, b.slots) + '</p>' +
       (w.pitch ? '<p class="pitch">' + esc(w.pitch) + '</p>' : '') +
       '<table class="fc-spec"><tbody>' +
+        (isOpen(b) ? '' : '<tr><th>상태</th><td><b>' + markOf(b) + '</b></td></tr>') +
         '<tr><th>크기</th><td><b>' + b.slots + '슬롯</b> — 정회원 ' + b.slots + '명의 자리</td></tr>' +
         '<tr><th>참가비</th><td><b>' + priceText(b.slots) + '</b> · 부가세 별도</td></tr>' +
         (f != null ? '<tr><th>합계</th><td>' + won(f + Math.round(f * 0.1)) + '원</td></tr>' : '') +
         '<tr><th>임시 주소</th><td>' + esc(w.landmark || '—') + '</td></tr>' +
       '</tbody></table>' +
       '<div class="fc-acts" style="margin:0">' +
-        '<button class="fc-btn gold' + (inCart ? ' in' : '') + '" type="button" data-act="cart" data-key="' +
-          esc(keyOf(b)) + '">' + (inCart ? '담김 ✓' : '담기') + '</button>' +
+        (isOpen(b)
+          ? '<button class="fc-btn gold' + (inCart ? ' in' : '') + '" type="button" data-act="cart" data-key="' +
+              esc(keyOf(b)) + '">' + (inCart ? '담김 ✓' : '담기') + '</button>'
+          : '<span class="fc-mark">' + markOf(b) + '</span>') +
       '</div>';
   }
 
@@ -421,8 +447,8 @@
     try {
       const sb = await client();
       const [bld, fee] = await Promise.all([
-        sb.from('eg_buildings').select('city,bno,slots,lat,lng,wall,status')
-          .eq('status', 'available').order('city').order('slots').order('bno'),
+        sb.from('eg_founder_market').select('city,bno,slots,lat,lng,wall,status,badge')
+          .order('city').order('slots').order('bno'),
         sb.rpc('eg_founder_fee_table'),
       ]);
       if (bld.error) throw bld.error;
