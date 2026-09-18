@@ -5418,6 +5418,23 @@ function egMarkBuilding(b, ent){
 }
 window.egClearFounderTag = egClearFounderTag;
 
+/* ⭐ 0918 — 명패를 핀이 선 바로 그 자리로 옮긴다.
+   ⚠⚠ 핀은 뜬 뒤 clampSpotsToSurface 가 **지붕 높이로 끌어올린다**(4569행).
+     그 손이 세는 목록은 _spot · _maison · _popup · _palais 넷뿐이다.
+     명패는 _maison 을 안 달았으므로(달면 clearPins 가 지운다) 해수면에 남아 화면에서 아래로 어긋난다.
+     — 소로 0918 「수플로가 화면 중심부에 있는데 핀에 매칭이 안되네요」
+   ⭐ 그래서 목록에 끼지 않고, 도착한 뒤 핀의 좌표를 그대로 베낀다. 지우는 손도 그대로 하나뿐이다. */
+function egTagFollow(ent){
+  if (!ent || !ent.position) return;
+  try{
+    const p = ent.position.getValue(Cesium.JulianDate.now());
+    if (!Cesium.defined(p)) return;
+    [EG_TAG_ID, EG_TAG_SUB].forEach(id=>{
+      const t = viewer.entities.getById(id); if (t) t.position = p;
+    });
+  }catch(e){ console.warn("명패 자리 맞추기 실패:", e); }
+}
+
 /* ⭐⭐ 0918 — EG도시별현황(파운더 매물)에서 건물 카드를 누르면 지구가 그 건물 앞까지 난다(지구 임장).
    ⚠ arriveHome 을 그대로 못 쓴다 — 그 손은 **주민 한 명을 찾아** 궤도를 건다.
      빈 매물에는 주민이 없다. 그래서 도시 + 번지로 찾는다.
@@ -5448,10 +5465,13 @@ function egFlyToBuilding(b, opts){
         const ent = viewer.entities.values.find(e => e._maison && !e._maisonTag
           && e._maison.city === b.city && String(e._maison.bno) === String(b.bno));
         if (ent && o.panel) openMaison(ent._maison);
-        /* ⭐ 명패는 뜨기 전에 이미 걸었다. 여기서 다시 짓지 않는다 — 도착하는 순간 깜빡인다.
-           ⚠ 명패에 _maison 을 달지 않는다. 달면 clearPins(핀 스트리밍)가 함께 지워서,
-             지구를 조금만 돌려도 명패가 사라진다. 걷는 손은 egClearFounderTag 하나뿐이다. */
+        egTagFollow(ent);                                    /* ⭐ 명패를 핀 자리로 — 핀은 지붕까지 올라가 있다 */
         const H = await clampPoint(lng, lat);                /* 도착 후 재clamp → 지붕 높이가 궤도 중심 */
+        egTagFollow(ent);                                    /* 그사이 표면 고정이 한 번 더 돌았을 수 있다 */
+        if (!ent && H != null){                              /* 핀을 못 찾았어도 명패는 지붕 높이에 선다 */
+          const p = Cesium.Cartesian3.fromDegrees(lng, lat, H);
+          [EG_TAG_ID, EG_TAG_SUB].forEach(id=>{ const t = viewer.entities.getById(id); if (t) t.position = p; });
+        }
         startOrbit(Cesium.Cartesian3.fromDegrees(lng, lat, (H!=null?H:0)), 600, 200, 0.010, 0.0032);
         if (!ent) console.warn("[EG] 날아왔으나 핀을 못 찾음:", b.city, b.bno);
         done(ent || null);
@@ -8014,6 +8034,6 @@ window.closeTourLists = closeTourLists;
 </script>
 <script src="guide_cover.js?v=0915"></script>
 <!-- 0917 — 타륜 › EG파운더 전용메뉴 · 파운더 신청안내. 배선은 전부 founder_menu.js 에 산다 (읽을 수 있는 계정 · 데스크톱에만 칸이 선다) -->
-<script src="founder_menu.js?v=0918d"></script>
+<script src="founder_menu.js?v=0918e"></script>
 </body>
 </html>
