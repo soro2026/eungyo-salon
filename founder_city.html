@@ -21,8 +21,10 @@
        보냄  fc-back                신청안내로 돌아간다
              fc-close               창을 닫는다
              fc-fly  {building}     접고 날아간다
+             fc-contract {res}      신청이 섰다 · 계약서 종이로 넘긴다
              fc-unfold              펴고 목록으로 돌아온다
        받음  fc-folded {on}         접혔다 / 펴졌다 — 이 종이가 옷을 갈아입는다
+             fc-reload              계약서에서 돌아왔다 — 목록을 다시 세운다
 
      ⑤ ⭐ 담은 목록 — 아래 띠를 누르면 담은 건물이 펼쳐진다 (0918 소로 — 「장바구니처럼 전체 목록」)
         한 채씩 ✕ 로 뺀다. [비우기]밖에 없으면 한 채 바꾸려고 처음부터 다시 담아야 한다.
@@ -118,13 +120,29 @@
 
   .fc-slots{ font:400 13px/1 var(--mono); color:var(--faint); }
 
-  /* ── 매물이 아닌 카드 — 예약 중 · SOLD OUT (0918 소로 「기록에 남아 있는 게 좋겠다」) ── */
+  /* ── 매물이 아닌 카드 — 신청 중 · SOLD OUT (0918 소로 「기록에 남아 있는 게 좋겠다」) ── */
   .fc-card.off{ opacity:.55; }
   .fc-card.off .fc-price b{ color:var(--muted); font-weight:400; }
   .fc-price i{ display:block; font:400 13px/1.4 var(--mono); font-style:normal;
     letter-spacing:.11em; color:var(--faint); }
   .fc-mark{ padding:8px 15px; border:1px dashed var(--line); border-radius:3px;
     background:transparent; color:var(--faint); font:400 13.5px/1 var(--serif); }
+
+  /* ── 신청 확인 판 ── */
+  #fcPanel{ position:relative; }
+  .fc-ask{ position:absolute; inset:0; z-index:9; display:flex; align-items:center;
+    justify-content:center; padding:22px; background:rgba(28,32,44,.28); }
+  .fc-ask[hidden]{ display:none; }
+  .fc-ask-box{ width:100%; max-width:432px; background:#FFFFFF; border:1px solid var(--line);
+    border-radius:4px; padding:26px 26px 20px; box-shadow:0 18px 44px rgba(28,32,44,.18); }
+  .fc-ask-box .sum{ margin:0; font:400 14px/1.9 var(--serif); color:var(--ink); word-break:keep-all; }
+  .fc-ask-box .sum b{ font-weight:500; color:var(--navy); }
+  .fc-ask-box .say{ margin:15px 0 0; padding-top:15px; border-top:1px solid var(--rule);
+    font:400 13.5px/1.9 var(--serif); color:var(--soft); word-break:keep-all; }
+  .fc-ask-box .err{ margin:12px 0 0; font:400 13px/1.75 var(--serif); color:var(--gold-ink);
+    word-break:keep-all; }
+  .fc-ask-box .err:empty{ display:none; }
+  .fc-ask-box .acts{ margin-top:20px; display:flex; gap:8px; justify-content:flex-end; }
 
   /* ── 담은 것 — 판 아래 띠 ── */
   .fc-cart{ flex:0 0 auto; display:flex; align-items:center; gap:16px;
@@ -190,6 +208,21 @@
     <div class="fc-bag" id="fcBag"></div>
     <div class="fc-cart" id="fcCart"></div>
     <p class="fc-note" id="fcNote"></p>
+
+    <!-- 신청 확인 — ⭐ 여기서 취소하셔도 아무것도 잠기지 않는다 (0918 소로) -->
+    <div class="fc-ask" id="fcAsk" hidden>
+      <div class="fc-ask-box" role="dialog" aria-modal="true" aria-labelledby="fcAskSum">
+        <p class="sum" id="fcAskSum"></p>
+        <p class="say">아래 계약서 작성 버튼을 누르시면, 해당 건에 대해 상세 계약 조건과 내용을
+          확인하실 수 있습니다. 서명 후 계약서에 표기된 계좌로 이체하시면
+          파운더 신청의 모든 절차를 마무리짓습니다.</p>
+        <p class="err" id="fcAskErr"></p>
+        <div class="acts">
+          <button class="fc-btn" type="button" id="fcAskNo">취소하기</button>
+          <button class="fc-btn gold" type="button" id="fcAskGo">계약서 작성하기</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -220,7 +253,8 @@
   const cityKo = (k) => (CITY.find((c) => c.key === k) || {}).ko || k;
   const keyOf  = (b) => b.city + ':' + b.bno;
 
-  let BLD = [], FEE = {}, TAB = null;
+  let BLD = [], FEE = {}, TAB = null, SB = null;
+  const SEL = 'id,city,bno,slots,lat,lng,wall,status,badge';
   const CART = new Map();                           /* key → 건물 */
   let FOLDED = false, SHOWN = null;                 /* 접혔는가 · 지금 보고 있는 건물 */
 
@@ -237,7 +271,7 @@
   /* ── 카드 ── */
   /* 매물인가 — badge 가 없는 줄은 매물로 본다 */
   const isOpen = (b) => (b.badge || 'open') === 'open';
-  const markOf = (b) => (b.badge === 'held' ? '예약 중' : 'SOLD OUT');
+  const markOf = (b) => (b.badge === 'held' ? '신청 중' : 'SOLD OUT');
 
   function card(b) {
     const w = b.wall || {};
@@ -257,7 +291,7 @@
         (open
           ? '<button class="fc-btn gold' + (inCart ? ' in' : '') + '" type="button" data-act="cart">' +
               (inCart ? '담김 ✓' : '담기') + '</button>'
-          : (b.badge === 'held' ? '<span class="fc-mark">예약 중</span>' : '')) +
+          : (b.badge === 'held' ? '<span class="fc-mark">' + markOf(b) + '</span>' : '')) +
       '</div></div>';
   }
 
@@ -315,8 +349,9 @@
     $('fcCart').className = 'fc-cart' + (n ? ' able' : '') + (BAG_OPEN ? ' open' : '');
     $('fcCart').innerHTML = body +
       (n ? '<button class="fc-btn" type="button" id="fcClear">비우기</button>' : '') +
-      '<button class="fc-btn gold" type="button" id="fcBook" disabled>예약</button>';
-    $('fcNote').textContent = n ? '예약은 곧 열립니다.' : '';
+      '<button class="fc-btn gold" type="button" id="fcBook"' + (n ? '' : ' disabled') +
+        '>파운더 신청하기</button>';
+    $('fcNote').textContent = '';
     drawBag();
   }
 
@@ -335,7 +370,7 @@
     const row = btn.closest('[data-key]');
     if (!row) return;
     CART.delete(row.dataset.key);
-    $('fcNote').textContent = CART.size ? '예약은 곧 열립니다.' : '';
+    $('fcNote').textContent = '';
     drawList(); drawCart(); if (FOLDED) drawDetail();
   });
   document.addEventListener('click', (e) => {
@@ -405,6 +440,54 @@
     }
   });
 
+  /* ── 파운더 신청 ── */
+  function askOpen() {
+    if (!CART.size) return;
+    const sum = cartSum(), vat = Math.round(sum * 0.1);
+    $('fcAskSum').innerHTML = '담으신 건물 <b>' + CART.size + '채</b> · 슬롯 합계 <b>' + cartSlots() + '</b><br>' +
+      '참가비 <b>' + won(sum) + '원</b> + 부가세 ' + won(vat) + '원 = <b>' + won(sum + vat) + '원</b>';
+    $('fcAskErr').textContent = '';
+    $('fcAskGo').disabled = false; $('fcAskGo').textContent = '계약서 작성하기';
+    $('fcAsk').hidden = false; $('fcAskGo').focus();
+  }
+  function askClose() { $('fcAsk').hidden = true; }
+
+  async function askGo() {
+    const go = $('fcAskGo');
+    go.disabled = true; go.textContent = '여는 중입니다';
+    $('fcAskErr').textContent = '';
+    try {
+      const ids = [...CART.values()].map((b) => b.id);
+      const { data, error } = await SB.rpc('eg_founder_reserve', { p_buildings: ids });
+      if (error) throw error;
+      CART.clear(); BAG_OPEN = false;
+      askClose(); say('fc-contract', { res: data });
+      reload();
+    } catch (e) {
+      $('fcAskErr').textContent = (e && (e.message || e.hint)) || '신청을 세우지 못했습니다. 잠시 뒤 다시 눌러 주십시오.';
+      go.disabled = false; go.textContent = '계약서 작성하기';
+      reload();
+    }
+  }
+
+  async function reload() {
+    if (!SB) return;
+    try {
+      const q = await SB.from('eg_founder_market').select(SEL).order('city').order('slots').order('bno');
+      if (q.error) return;
+      BLD = (q.data || []).filter((b) => b.lat != null && b.lng != null);
+      if (!BLD.some((b) => b.city === TAB)) TAB = (BLD[0] || {}).city || TAB;
+      drawTabs(); drawList(); drawCart();
+    } catch (_) {}
+  }
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest) return;
+    if (e.target.closest('#fcBook'))  { askOpen(); return; }
+    if (e.target.closest('#fcAskNo')) { askClose(); return; }
+    if (e.target.closest('#fcAskGo')) { askGo(); return; }
+  });
+
   $('fcTabs').addEventListener('click', (e) => {
     const t = e.target.closest('.fc-tab');
     if (!t) return;
@@ -419,12 +502,15 @@
 
   window.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    if (!$('fcAsk').hidden) { askClose(); return; }
     if (FOLDED) say('fc-unfold'); else say('fc-close');
   });
 
   /* 부모가 접었다 / 폈다고 알려 온다 */
   window.addEventListener('message', (e) => {
-    if (e.origin !== location.origin || !e.data || e.data.type !== 'fc-folded') return;
+    if (e.origin !== location.origin || !e.data) return;
+    if (e.data.type === 'fc-reload') { reload(); return; }   /* 계약서에서 돌아왔다 */
+    if (e.data.type !== 'fc-folded') return;
     FOLDED = !!e.data.on;
     document.documentElement.classList.toggle('fold', FOLDED);
     $('fcBackText').textContent = FOLDED ? '목록' : '신청안내';
@@ -445,9 +531,10 @@
 
   (async function boot() {
     try {
-      const sb = await client();
+      const sb = await client(); SB = sb;
+      try { await sb.rpc('eg_founder_sweep'); } catch (_) {}   /* ⭐ 화면이 열릴 때 시계가 돈다 */
       const [bld, fee] = await Promise.all([
-        sb.from('eg_founder_market').select('city,bno,slots,lat,lng,wall,status,badge')
+        sb.from('eg_founder_market').select(SEL)
           .order('city').order('slots').order('bno'),
         sb.rpc('eg_founder_fee_table'),
       ]);

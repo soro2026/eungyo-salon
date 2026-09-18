@@ -24,9 +24,11 @@
       비행은 terra 의 창구 window.egFlyToBuilding 하나로만 부른다 (terra.html 블록 A 끝)
 
    주고받는 말
-     받음  fg-close · fc-close        닫는다
+     받음  fg-close · fc-close · ct-close   닫는다
            fg-link                    신청안내 → 도시별현황
            fc-back                    도시별현황 → 신청안내
+           fc-contract                도시별현황 → 계약서  (신청이 섰다)
+           ct-back                    계약서 → 도시별현황  ⭐ 이름을 겹치지 않는다
            fc-fly {building}          접고 그 건물로 난다
            fc-unfold                  펴고 목록으로
      보냄  fc-folded {on}             도시별현황에게 접혔다 / 펴졌다
@@ -38,9 +40,10 @@
   if (window.__egFounderMenu) return;
   window.__egFounderMenu = true;
 
-  const V = '0918g';
+  const V = '0918h';
   const GUIDE = 'founder_guide.html?embed=1&v=' + V;
   const CITY  = 'founder_city.html?embed=1&v=' + V;
+  const CONT  = 'founder_contract.html?embed=1&v=' + V;
   const DOCK_W = 460;                                  /* 접었을 때 오른쪽 판의 너비 */
 
   const CSS = '' +
@@ -53,7 +56,7 @@
   '#fgRoot.dock{ background:transparent; -webkit-backdrop-filter:none; backdrop-filter:none; pointer-events:none; }' +
   '#fgRoot.dock iframe{ pointer-events:auto; left:auto; right:0; width:' + DOCK_W + 'px; }';
 
-  let root = null, fGuide = null, fCity = null, stoppedGlobe = false, docked = false;
+  let root = null, fGuide = null, fCity = null, fCont = null, stoppedGlobe = false, docked = false;
 
   const desktop = () => window.matchMedia('(min-width: 1100px) and (hover: hover) and (pointer: fine)').matches;
 
@@ -102,7 +105,15 @@
     root.appendChild(fCity);
     return fCity;
   }
-  const top = () => (fCity && !fCity.classList.contains('off')) ? fCity : fGuide;
+  function contFrame() {
+    if (fCont) return fCont;
+    fCont = frame(CONT, '파운더 계약서');
+    fCont.classList.add('off');
+    root.appendChild(fCont);
+    return fCont;
+  }
+  const seen = (f) => f && !f.classList.contains('off');
+  const top = () => seen(fCont) ? fCont : (seen(fCity) ? fCity : fGuide);
   function focusTop() { const f = top(); try { f.focus(); f.contentWindow.focus(); } catch (_) {} }
 
   function showCity() {
@@ -112,8 +123,26 @@
     focusTop();
   }
   function showGuide() {
+    if (fCont) fCont.classList.add('off');
     if (fCity) fCity.classList.add('off');
     if (fGuide) fGuide.classList.remove('off');
+    focusTop();
+  }
+  /* ⭐ 계약서는 늘 펴진 채로 뜬다 — 지구를 보고 계시다 신청하셨을 수 있다 */
+  function showContract() {
+    if (!root) build();
+    dock(false);
+    contFrame().classList.remove('off');
+    if (fCity)  fCity.classList.add('off');
+    if (fGuide) fGuide.classList.add('off');
+    focusTop();
+  }
+  /* 계약서에서 돌아오면 매물이 하나 잠겨 있다 — 목록을 다시 세운다 */
+  function backToCity() {
+    if (fCont) fCont.classList.add('off');
+    cityFrame().classList.remove('off');
+    if (fGuide) fGuide.classList.add('off');
+    tell(fCity, { type: 'fc-reload' });
     focusTop();
   }
 
@@ -160,9 +189,12 @@
     if (e.origin !== location.origin || !e.data || typeof e.data !== 'object') return;
     switch (e.data.type) {
       case 'fg-close':
-      case 'fc-close':  close();               break;
+      case 'fc-close':
+      case 'ct-close':  close();               break;
       case 'fg-link':   showCity();            break;
       case 'fc-back':   showGuide();           break;
+      case 'fc-contract': showContract();      break;
+      case 'ct-back':   backToCity();          break;
       case 'fc-fly':    fly(e.data.building);  break;
       case 'fc-unfold': dock(false);           break;
     }
