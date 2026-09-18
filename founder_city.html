@@ -22,6 +22,10 @@
              fc-unfold              펴고 목록으로 돌아온다
        받음  fc-folded {on}         접혔다 / 펴졌다 — 이 종이가 옷을 갈아입는다
 
+     ⑤ ⭐ 담은 목록 — 아래 띠를 누르면 담은 건물이 펼쳐진다 (0918 소로 — 「장바구니처럼 전체 목록」)
+        한 채씩 ✕ 로 뺀다. [비우기]밖에 없으면 한 채 바꾸려고 처음부터 다시 담아야 한다.
+        ⭐ 이 목록의 모양이 곧 계약서 「계약 대상」 칸이다 — 한 번 지어 두 번 쓴다.
+
      ⚠ [예약]은 아직 잠겨 있다 — 예약 표가 서면 푼다 (0918)
      ───────────────────────────────────────────────────────────────────── -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -115,11 +119,34 @@
   /* ── 담은 것 — 판 아래 띠 ── */
   .fc-cart{ flex:0 0 auto; display:flex; align-items:center; gap:16px;
     padding:15px 22px; border-top:1px solid var(--line2); background:#FCFCFD; }
+  .fc-cart.able{ cursor:pointer; }
   .fc-cart .sum{ flex:1 1 auto; font:400 13.5px/1.7 var(--serif); color:var(--muted); word-break:keep-all; }
   .fc-cart .sum b{ color:var(--navy); font-weight:500; }
   .fc-cart .sum u{ text-decoration:none; color:var(--faint); font:400 12px/1 var(--mono); margin-left:2px; }
+  .fc-cart .caret{ flex:0 0 auto; width:15px; font:400 11px/1 var(--mono); color:var(--faint);
+    transition:transform .18s ease; }
+  .fc-cart.open .caret{ transform:rotate(180deg); }
   .fc-cart .warn{ color:var(--gold-ink); }
   .fc-note{ margin:0; padding:0 22px 14px; font:400 12px/1.7 var(--serif); color:var(--faint); background:#FCFCFD; }
+
+  /* ── 담은 것 펼침 — 띠를 누르면 선다 (0918 소로 「장바구니처럼 전체 목록」) ── */
+  .fc-bag{ flex:0 0 auto; display:none; max-height:236px; overflow-y:auto; overscroll-behavior:contain;
+    padding:6px 22px 4px; border-top:1px solid var(--line2); background:#FCFCFD;
+    scrollbar-width:none; -ms-overflow-style:none; }
+  .fc-bag::-webkit-scrollbar{ display:none; width:0; height:0; }
+  .fc-bag.on{ display:block; }
+  .fc-bag-row{ display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--rule); }
+  .fc-bag-row:last-child{ border-bottom:0; }
+  .fc-bag-row .nm{ flex:1 1 auto; font:400 14px/1.5 var(--serif); color:var(--ink); word-break:keep-all; }
+  .fc-bag-row .nm em{ margin-left:8px; font:400 10.5px/1 var(--mono); font-style:normal;
+    letter-spacing:.09em; color:var(--faint); text-transform:uppercase; }
+  .fc-bag-row .sl{ flex:0 0 auto; font:400 12px/1 var(--mono); color:var(--faint); }
+  .fc-bag-row .pr{ flex:0 0 auto; min-width:86px; text-align:right;
+    font:400 14px/1.5 var(--serif); color:var(--navy); }
+  .fc-bag-row .rm{ flex:0 0 auto; width:24px; height:24px; padding:0; border:1px solid var(--line);
+    border-radius:3px; background:#FFFFFF; color:var(--faint); font:400 12px/1 var(--mono); cursor:pointer;
+    transition:background .14s, color .14s, border-color .14s; }
+  .fc-bag-row .rm:hover, .fc-bag-row .rm:focus-visible{ background:var(--navy); border-color:var(--navy); color:#FFFFFF; outline:none; }
 
   /* ── 접힌 뒤의 상세 ── */
   .fc-detail{ padding:22px; }
@@ -150,6 +177,7 @@
       <div class="fc-list fc-only-list" id="fcList"><p class="fc-wait">매물을 불러오는 중입니다.</p></div>
       <div class="fc-detail fc-only-detail" id="fcDetail"></div>
     </div>
+    <div class="fc-bag" id="fcBag"></div>
     <div class="fc-cart" id="fcCart"></div>
     <p class="fc-note" id="fcNote"></p>
   </div>
@@ -230,8 +258,29 @@
   }
 
   /* ── 담은 것 ── */
+  let BAG_OPEN = false;                               /* 띠를 눌러 펼쳐 둔 상태인가 */
   function cartSlots() { let s = 0; CART.forEach((b) => { s += Number(b.slots); }); return s; }
   function cartSum()   { let s = 0; CART.forEach((b) => { const f = feeOf(b.slots); if (f != null) s += f; }); return s; }
+
+  /* 담은 목록 — 한 채씩 뺄 수 있다. 나중에 계약서 「계약 대상」 칸이 이 모양 그대로다 */
+  function drawBag() {
+    const bag = $('fcBag');
+    if (!CART.size) { BAG_OPEN = false; bag.classList.remove('on'); bag.innerHTML = ''; return; }
+    bag.classList.toggle('on', BAG_OPEN);
+    if (!BAG_OPEN) return;
+    let h = '';
+    CART.forEach((b, k) => {
+      const w = b.wall || {};
+      h += '<div class="fc-bag-row" data-key="' + esc(k) + '">' +
+        '<div class="nm">' + esc(w.landmark || ('건물 ' + b.bno)) +
+          '<em>' + esc(cityKo(b.city)) + ' · ' + grade(b.city, b.slots) + '</em></div>' +
+        '<div class="sl">' + b.slots + '슬롯</div>' +
+        '<div class="pr">' + priceText(b.slots) + '</div>' +
+        '<button class="rm" type="button" data-act="drop" aria-label="빼기">✕</button>' +
+        '</div>';
+    });
+    bag.innerHTML = h;
+  }
 
   function drawCart() {
     const n = CART.size, slots = cartSlots(), sum = cartSum();
@@ -239,14 +288,39 @@
     const body = n === 0
       ? '<div class="sum">담은 건물이 없습니다. <u>한 번에 슬롯 합계 ' + CAP + '까지 담으실 수 있습니다</u></div>'
       : '<div class="sum">담은 건물 <b>' + n + '채</b> · 슬롯 <b>' + slots + '</b><u>/ ' + CAP + '</u> · ' +
-        '참가비 <b>' + won(sum) + '원</b> + 부가세 ' + won(vat) + '원 = <b>' + won(sum + vat) + '원</b></div>';
+        '참가비 <b>' + won(sum) + '원</b> + 부가세 ' + won(vat) + '원 = <b>' + won(sum + vat) + '원</b></div>' +
+        '<div class="caret" aria-hidden="true">▲</div>';
+    $('fcCart').className = 'fc-cart' + (n ? ' able' : '') + (BAG_OPEN ? ' open' : '');
     $('fcCart').innerHTML = body +
       (n ? '<button class="fc-btn" type="button" id="fcClear">비우기</button>' : '') +
       '<button class="fc-btn gold" type="button" id="fcBook" disabled>예약</button>';
     $('fcNote').textContent = n ? '예약은 곧 열립니다.' : '';
-    const c = $('fcClear');
-    if (c) c.addEventListener('click', () => { CART.clear(); drawList(); drawCart(); if (FOLDED) drawDetail(); });
+    drawBag();
   }
+
+  /* 띠를 누르면 펼쳐진다 — 단추 위를 누른 것은 빼고 */
+  $('fcCart').addEventListener('click', (e) => {
+    if (e.target.closest('button')) return;
+    if (!CART.size) return;
+    BAG_OPEN = !BAG_OPEN;
+    drawCart();
+  });
+
+  /* 담은 목록에서 한 채 빼기 · 비우기 */
+  $('fcBag').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-act="drop"]');
+    if (!btn) return;
+    const row = btn.closest('[data-key]');
+    if (!row) return;
+    CART.delete(row.dataset.key);
+    $('fcNote').textContent = CART.size ? '예약은 곧 열립니다.' : '';
+    drawList(); drawCart(); if (FOLDED) drawDetail();
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest || !e.target.closest('#fcClear')) return;
+    CART.clear(); BAG_OPEN = false;
+    drawList(); drawCart(); if (FOLDED) drawDetail();
+  });
 
   function toggleCart(b) {
     const k = keyOf(b);

@@ -38,7 +38,7 @@
   if (window.__egFounderMenu) return;
   window.__egFounderMenu = true;
 
-  const V = '0918e';
+  const V = '0918f';
   const GUIDE = 'founder_guide.html?embed=1&v=' + V;
   const CITY  = 'founder_city.html?embed=1&v=' + V;
   const DOCK_W = 460;                                  /* 접었을 때 오른쪽 판의 너비 */
