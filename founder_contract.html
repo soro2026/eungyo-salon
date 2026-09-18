@@ -441,6 +441,29 @@
     syncLock();
   }
 
+  /* ⚠⚠ 0918 오후 소로 — 인쇄본의 서명 시각이 16:58 인데 06:58 로 찍혔다.
+       글자를 slice 로 잘라 쓰는 바람에 타임존 꼬리(+00:00)를 버리고 UTC 를 그대로 올렸다.
+       계약서에 박히는 시각이다 — 날짜는 날짜로 다룬다. */
+  const KST = { timeZone: 'Asia/Seoul' };
+  function ymd(v) {
+    if (!v) return '';
+    const d = new Date(v); if (isNaN(d)) return '';
+    const p = new Intl.DateTimeFormat('ko-KR', Object.assign({
+      year: 'numeric', month: '2-digit', day: '2-digit' }, KST)).formatToParts(d);
+    const g = (t) => (p.find((x) => x.type === t) || {}).value || '';
+    return g('year') + '.' + g('month') + '.' + g('day');
+  }
+  function ymdhm(v) {
+    if (!v) return '';
+    const d = new Date(v); if (isNaN(d)) return '';
+    const p = new Intl.DateTimeFormat('ko-KR', Object.assign({
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false }, KST)).formatToParts(d);
+    const g = (t) => (p.find((x) => x.type === t) || {}).value || '';
+    return g('year') + '.' + g('month') + '.' + g('day') + ' ' +
+           ('0' + g('hour')).slice(-2) + ':' + g('minute');
+  }
+
   /* ── 위 띠 — 화면마다 갈 곳과 이름이 다르다 ── */
   function topbar(mode, title) {
     const back = $('fcBack'), t = document.querySelector('.fc-title'), pr = $('ctPrint');
@@ -468,7 +491,7 @@
     for (const c of HAVE) {
       const items = c.items || [];
       const t = items.map((b) => b.label).join(' · ');
-      const d = String(c.signed_at || '').slice(0, 10).replace(/-/g, '.');
+      const d = ymd(c.signed_at);
       const st = c.confirmed_at ? '<span class="st done">확정</span>'
                : (c.paid ? '<span class="st wait">입금 확인 중</span>'
                          : '<span class="st wait">이체 전</span>');
@@ -492,7 +515,7 @@
   function drawView(c, justSigned) {
     const p = c.party || {}, eg = p.eg || {}, fo = p.founder || {};
     const am = c.amounts || {}, items = c.items || [];
-    const when = String(c.signed_at || '').replace('T', ' ').slice(0, 16).replace(/-/g, '.');
+    const when = ymdhm(c.signed_at);
     const ym = String(am.fee_ym || '').slice(0, 7).replace('-', '년 ') + '월';
     const vat = Number(am.vat || 0), fee = Number(am.fee || 0);
 
@@ -540,7 +563,7 @@
 
     h += '<div class="ct-paid">' + (c.paid
       ? '파운더는 이 계약서에서 「위 계좌로 이체를 완료하였습니다」에 체크하였습니다. ' +
-        (c.paid_at ? '(' + esc(String(c.paid_at).replace('T', ' ').slice(0, 16).replace(/-/g, '.')) + ')' : '')
+        (c.paid_at ? '(' + esc(ymdhm(c.paid_at)) + ')' : '')
       : '이체 완료 진술이 아직 없습니다.') + '</div>';
 
     h += '<div class="ct-signs">' +
@@ -668,10 +691,7 @@
   }
   function tickNow() {
     const el = $('ctNow'); if (!el) return;
-    const d = new Date();
-    const z = (n) => String(n).padStart(2, '0');
-    el.textContent = d.getFullYear() + '.' + z(d.getMonth() + 1) + '.' + z(d.getDate()) +
-      ' ' + z(d.getHours()) + ':' + z(d.getMinutes());
+    el.textContent = ymdhm(new Date());   /* 0918 — 계약서의 시각은 한 곳에서만 찍는다 (KST) */
   }
 
   /* ── 정산 계좌가 제9조 ⑥ 으로 ── */
