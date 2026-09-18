@@ -426,6 +426,31 @@
       '<h2>' + esc(row.title || '') + '</h2></div><div class="fg-body">' + h + '</div></section>';
   }
 
+  /* ── 발자국 (0918 오후 소로) ────────────────────────────────────
+     어디까지 읽으셨는지 살롱지기가 안다. ⭐ 장 단위로만 — 초 단위는 과하다.
+     ⚠ 조용히 실패한다. 발자국 때문에 제안서가 안 열리는 일은 없어야 한다. */
+  function wireTrace() {
+    const step = async (what, page) => {
+      try { const sb = await client(); sb.rpc('eg_founder_step', { p_what: what, p_page: page == null ? null : page }); }
+      catch (_) {}
+    };
+    step('guide_open');
+
+    let top = 0, timer = null;
+    const io = new IntersectionObserver((es) => {
+      for (const e of es) {
+        if (!e.isIntersecting) continue;
+        const n = Number(String(e.target.id || '').replace('ch', ''));
+        if (n > top) top = n;
+      }
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { if (top) step('guide', top); }, 1200);   /* 스치는 장은 세지 않는다 */
+    }, { root: $panel, threshold: 0.35 });
+
+    document.querySelectorAll('.fg-ch').forEach((el) => io.observe(el));
+    window.addEventListener('pagehide', () => { if (top) step('guide', top); });
+  }
+
   /* ── 표 거동 — 줄 밝힘, 값표는 줄 + 칸, 만나는 칸은 금색 ── */
   function wireTables() {
     $main.querySelectorAll('.fg-table table').forEach((t) => {
@@ -495,6 +520,7 @@
       $main.innerHTML = data.map(chapter).join('');
       wireTables();
       wireLink();
+      wireTrace();
       $panel.focus({ preventScroll: true });
     } catch (e) {
       console.warn('[founder_guide]', e);

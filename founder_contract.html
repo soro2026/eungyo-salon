@@ -434,6 +434,7 @@
       '</div>' +
       '<p class="ct-err" id="ctErr"></p>';
 
+    watchRead();
     fitCanvas();
     tickNow();
     syncPayout();
@@ -612,6 +613,27 @@
       h += '</div>';
     }
     return h;
+  }
+
+  /* ⭐ 0918 오후 소로 — 계약서를 어디까지 읽으셨는지. 장 단위처럼 굵게만 본다 */
+  function watchRead() {
+    const step = (w) => { try { if (SB) SB.rpc('eg_founder_step', { p_what: w, p_page: null }); } catch (_) {} };
+    const box = $('fcScroll'); if (!box) return;
+    let endDone = false, signDone = false;
+    const look = () => {
+      if (!endDone) {
+        const last = document.querySelectorAll('.ct-art');
+        const el = last[last.length - 1];
+        if (el && el.getBoundingClientRect().bottom <= window.innerHeight + 40) { endDone = true; step('contract_end'); }
+      }
+      if (!signDone) {
+        const sg = document.querySelector('.ct-signs');
+        if (sg && sg.getBoundingClientRect().top <= window.innerHeight) { signDone = true; step('contract_sign'); }
+      }
+      if (endDone && signDone) box.removeEventListener('scroll', look);
+    };
+    box.addEventListener('scroll', look, { passive: true });
+    setTimeout(look, 300);
   }
 
   /* ── 서명 캔버스 ── */
@@ -827,6 +849,7 @@
     try {
       const sb = await client(); SB = sb;
       try { await sb.rpc('eg_founder_sweep'); } catch (_) {}
+      try { sb.rpc('eg_founder_step', { p_what: 'contract', p_page: null }); } catch (_) {}   /* 0918 발자국 */
 
       const { data: { user } = { user: null } } = await sb.auth.getUser();
       ME = user;
