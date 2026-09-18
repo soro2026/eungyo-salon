@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EG 도시별 현황 · EG유니버스</title>
+<!-- ─────────────────────────────────────────────────────────────────────
+     founder_city.html — 타륜 › EG파운더 전용메뉴 › EG 도시별 현황
+     2026.09.18 · 파이스
+
+     ① 매물은 DB eg_buildings 한 표에서 읽는다 — ⚠ 이 파일에 건물을 적지 않는다
+        참가비는 eg_founder_fee_table() — ⚠ 값도 적지 않는다 (사는 곳은 DB 한 군데)
+     ② 옷은 신청안내(founder_guide.html)와 같다 — 흰 서류 · 876 판
+     ③ 창은 하나, 종이만 바뀐다. 신청안내 ⑧ 끝 버튼 → 이 종이 · 「← 신청안내」로 되돌아간다
+     ④ ⭐ 지구 임장 — [보기]를 누르면 서류가 오른쪽으로 접히고 지구가 그 건물로 난다
+        접기·되살리기·비행은 전부 부모(founder_menu.js)가 한다. 이 종이는 말만 건넨다.
+
+     부모와 주고받는 말
+       보냄  fc-back                신청안내로 돌아간다
+             fc-close               창을 닫는다
+             fc-fly  {building}     접고 날아간다
+             fc-unfold              펴고 목록으로 돌아온다
+       받음  fc-folded {on}         접혔다 / 펴졌다 — 이 종이가 옷을 갈아입는다
+
+     ⚠ [예약]은 아직 잠겨 있다 — 예약 표가 서면 푼다 (0918)
+     ───────────────────────────────────────────────────────────────────── -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Serif+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<script>if (/[?&]embed=1/.test(location.search)) document.documentElement.classList.add('embed');</script>
+<style>
+  :root{
+    --ink:#1F232B; --navy:#16243D; --gold:#C2921F; --gold-ink:#8A6712; --yellow:#F2C518;
+    --muted:#5E6269; --soft:#6B7079; --faint:#8A9099; --rule:#EDEEF1; --line:#DCDFE4; --line2:#E4E6EA;
+    --serif:'Noto Serif KR', 'Noto Serif CJK KR', serif;
+    --batang:'Gowun Batang', 'Noto Serif KR', serif;
+    --mono:'IBM Plex Mono', 'Noto Serif KR', monospace;
+  }
+  html, body{ margin:0; height:100%; }
+  body{ background:#C9CDD4; color:var(--ink); font-family:var(--serif);
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
+  html.embed, html.embed body{ background:transparent; }
+  ::selection{ background:rgba(194,146,31,.18); }
+  button{ font-family:inherit; }
+
+  /* ── 판 — 신청안내와 같은 876 흰 서류 ── */
+  #fcStage{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
+  #fcPanel{ position:relative; display:flex; flex-direction:column;
+    width:876px; height:calc(100vh - 80px); max-height:calc(100vh - 80px);
+    background:#FFFFFF; border-radius:6px; box-shadow:0 26px 70px rgba(12,18,30,.34);
+    overflow:hidden; }
+  #fcPanel:focus{ outline:none; }
+
+  /* ── 접힘 — 오른쪽 패널. 뒤 지구가 살아난다 ── */
+  html.fold #fcStage{ justify-content:flex-end; align-items:stretch; }
+  html.fold #fcPanel{ width:100%; height:100%; max-height:none; border-radius:0;
+    box-shadow:-18px 0 50px rgba(12,18,30,.22); }
+  html.fold .fc-only-list{ display:none !important; }
+  html:not(.fold) .fc-only-detail{ display:none !important; }
+
+  /* ── 머리 ── */
+  .fc-top{ flex:0 0 auto; display:flex; align-items:center; gap:12px;
+    padding:16px 22px 14px; border-bottom:1px solid var(--rule); }
+  .fc-back{ display:inline-flex; align-items:center; gap:7px; padding:7px 12px;
+    border:1px solid var(--line); border-radius:3px; background:#FFFFFF; color:var(--muted);
+    font:400 13px/1 var(--serif); cursor:pointer; transition:background .14s, color .14s, border-color .14s; }
+  .fc-back:hover, .fc-back:focus-visible{ background:var(--navy); border-color:var(--navy); color:#FFFFFF; outline:none; }
+  .fc-title{ flex:1 1 auto; font:700 17px/1.4 var(--batang); color:var(--navy); letter-spacing:.01em; }
+  .fc-x{ width:34px; height:34px; display:flex; align-items:center; justify-content:center; padding:0;
+    border:1px solid var(--line); border-radius:3px; background:#FFFFFF; color:var(--muted);
+    font:400 15px/1 var(--mono); cursor:pointer; transition:background .14s, color .14s, border-color .14s; }
+  .fc-x:hover, .fc-x:focus-visible{ background:var(--navy); border-color:var(--navy); color:#FFFFFF; outline:none; }
+
+  /* ── 도시 탭 ── */
+  .fc-tabs{ flex:0 0 auto; display:flex; gap:26px; padding:0 22px; border-bottom:1px solid var(--rule); }
+  .fc-tab{ position:relative; padding:15px 2px 13px; border:0; background:none; cursor:pointer;
+    font:400 15px/1 var(--serif); color:var(--faint); transition:color .14s; }
+  .fc-tab b{ font-weight:400; }
+  .fc-tab i{ margin-left:6px; font:400 11.5px/1 var(--mono); font-style:normal; color:var(--faint); }
+  .fc-tab:hover{ color:var(--muted); }
+  .fc-tab.on{ color:var(--navy); }
+  .fc-tab.on::after{ content:''; position:absolute; left:0; right:0; bottom:-1px; height:2px; background:var(--gold); }
+  .fc-tab.on i{ color:var(--gold-ink); }
+
+  /* ── 목록 ── */
+  .fc-scroll{ flex:1 1 auto; overflow-y:auto; overscroll-behavior:contain;
+    scrollbar-width:none; -ms-overflow-style:none; }
+  .fc-scroll::-webkit-scrollbar{ display:none; width:0; height:0; }
+  .fc-list{ padding:8px 22px 22px; }
+
+  .fc-card{ display:grid; grid-template-columns:1fr auto; gap:4px 20px; align-items:start;
+    padding:20px 4px 19px; border-bottom:1px solid var(--rule); }
+  .fc-card:last-child{ border-bottom:0; }
+  .fc-name{ grid-column:1; font:500 17px/1.5 var(--serif); color:var(--ink); word-break:keep-all; }
+  .fc-name em{ margin-left:9px; font:400 11.5px/1 var(--mono); font-style:normal;
+    letter-spacing:.1em; color:var(--faint); text-transform:uppercase; }
+  .fc-price{ grid-column:2; grid-row:1 / span 2; align-self:center; text-align:right; white-space:nowrap; }
+  .fc-price b{ display:block; font:500 18px/1.4 var(--serif); color:var(--navy); }
+  .fc-price span{ display:block; margin-top:3px; font:400 11.5px/1.5 var(--serif); color:var(--faint); }
+  .fc-pitch{ grid-column:1; font:400 14px/1.75 var(--serif); color:var(--soft); word-break:keep-all; }
+  .fc-acts{ grid-column:1 / -1; margin-top:13px; display:flex; gap:8px; }
+
+  .fc-btn{ padding:8px 15px; border:1px solid var(--line); border-radius:3px; background:#FFFFFF;
+    color:var(--muted); font:400 13.5px/1 var(--serif); cursor:pointer;
+    transition:background .14s, color .14s, border-color .14s; }
+  .fc-btn:hover, .fc-btn:focus-visible{ background:var(--navy); border-color:var(--navy); color:#FFFFFF; outline:none; }
+  .fc-btn.gold{ border-color:#E3D4AE; color:var(--gold-ink); background:rgba(194,146,31,.07); }
+  .fc-btn.gold:hover, .fc-btn.gold:focus-visible{ background:var(--gold); border-color:var(--gold); color:#FFFFFF; }
+  .fc-btn.in{ background:var(--navy); border-color:var(--navy); color:#FFFFFF; }
+  .fc-btn[disabled]{ opacity:.42; cursor:default; }
+  .fc-btn[disabled]:hover{ background:#FFFFFF; border-color:var(--line); color:var(--muted); }
+
+  .fc-slots{ font:400 13px/1 var(--mono); color:var(--faint); }
+
+  /* ── 담은 것 — 판 아래 띠 ── */
+  .fc-cart{ flex:0 0 auto; display:flex; align-items:center; gap:16px;
+    padding:15px 22px; border-top:1px solid var(--line2); background:#FCFCFD; }
+  .fc-cart .sum{ flex:1 1 auto; font:400 13.5px/1.7 var(--serif); color:var(--muted); word-break:keep-all; }
+  .fc-cart .sum b{ color:var(--navy); font-weight:500; }
+  .fc-cart .sum u{ text-decoration:none; color:var(--faint); font:400 12px/1 var(--mono); margin-left:2px; }
+  .fc-cart .warn{ color:var(--gold-ink); }
+  .fc-note{ margin:0; padding:0 22px 14px; font:400 12px/1.7 var(--serif); color:var(--faint); background:#FCFCFD; }
+
+  /* ── 접힌 뒤의 상세 ── */
+  .fc-detail{ padding:22px; }
+  .fc-detail h3{ margin:0 0 4px; font:700 20px/1.5 var(--batang); color:var(--navy); word-break:keep-all; }
+  .fc-detail .where{ margin:0 0 20px; font:400 11.5px/1 var(--mono); letter-spacing:.1em;
+    color:var(--faint); text-transform:uppercase; }
+  .fc-detail .pitch{ margin:0 0 22px; font:400 15px/1.85 var(--serif); color:var(--muted); word-break:keep-all; }
+  .fc-spec{ width:100%; border-collapse:collapse; margin-bottom:22px; }
+  .fc-spec th, .fc-spec td{ padding:11px 2px; border-bottom:1px solid var(--rule);
+    font:400 14px/1.6 var(--serif); text-align:left; }
+  .fc-spec th{ width:88px; font-weight:400; color:var(--faint); }
+  .fc-spec td{ color:var(--ink); }
+  .fc-spec td b{ font-weight:500; color:var(--navy); }
+
+  .fc-wait{ padding:60px 22px; font:400 15px/1.8 var(--serif); color:var(--faint); }
+</style>
+</head>
+<body>
+<div id="fcStage">
+  <div id="fcPanel" tabindex="-1">
+    <div class="fc-top">
+      <button class="fc-back" id="fcBack" type="button"><span aria-hidden="true">←</span><span id="fcBackText">신청안내</span></button>
+      <div class="fc-title" id="fcTitle">EG 도시별 현황</div>
+      <button class="fc-x" id="fcClose" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="fc-tabs fc-only-list" id="fcTabs"></div>
+    <div class="fc-scroll" id="fcScroll">
+      <div class="fc-list fc-only-list" id="fcList"><p class="fc-wait">매물을 불러오는 중입니다.</p></div>
+      <div class="fc-detail fc-only-detail" id="fcDetail"></div>
+    </div>
+    <div class="fc-cart" id="fcCart"></div>
+    <p class="fc-note" id="fcNote"></p>
+  </div>
+</div>
+
+<script>
+(function () {
+  const V = '0918';
+  const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+  const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+  const EMBED = document.documentElement.classList.contains('embed');
+  const CAP = 216;                                  /* 한 번에 담는 슬롯 합계 상한 (0917저녁 9호) */
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const won = (n) => Number(n).toLocaleString('ko-KR');
+
+  /* 도시 이름 · 차례 — DB 의 city 값 그대로가 열쇠 */
+  const CITY = [
+    { key: 'paris',   ko: '파리'   },
+    { key: 'london',  ko: '런던'   },
+    { key: 'newyork', ko: '뉴욕'   },
+  ];
+  /* 격 — 0917저녁 14호. 이름의 뒷단어는 공식이 붙인다 */
+  function grade(city, slots) {
+    if (city === 'paris')  return 'MAISON';
+    if (city === 'london') return 'HOUSE';
+    return slots <= 81 ? 'LOFT' : 'TOWER';
+  }
+  const cityKo = (k) => (CITY.find((c) => c.key === k) || {}).ko || k;
+  const keyOf  = (b) => b.city + ':' + b.bno;
+
+  let BLD = [], FEE = {}, TAB = null;
+  const CART = new Map();                           /* key → 건물 */
+  let FOLDED = false, SHOWN = null;                 /* 접혔는가 · 지금 보고 있는 건물 */
+
+  /* ── 부모에게 말 걸기 ── */
+  function say(type, extra) {
+    if (!EMBED) return;
+    try { window.parent.postMessage(Object.assign({ type: type }, extra || {}), location.origin); } catch (_) {}
+  }
+
+  /* ── 값 ── */
+  const feeOf = (slots) => (FEE[slots] != null ? FEE[slots] : null);
+  const priceText = (slots) => { const f = feeOf(slots); return f == null ? '—' : won(f) + '원'; };
+
+  /* ── 카드 ── */
+  function card(b) {
+    const w = b.wall || {};
+    const inCart = CART.has(keyOf(b));
+    return '<div class="fc-card" data-key="' + esc(keyOf(b)) + '">' +
+      '<div class="fc-name">' + esc(w.landmark || ('건물 ' + b.bno)) +
+        '<em>' + esc(cityKo(b.city)) + ' · ' + grade(b.city, b.slots) + '</em></div>' +
+      '<div class="fc-price"><b>' + priceText(b.slots) + '</b><span>부가세 별도</span></div>' +
+      '<div class="fc-pitch">' + esc(w.pitch || '') + '</div>' +
+      '<div class="fc-acts">' +
+        '<span class="fc-slots">' + b.slots + '슬롯</span>' +
+        '<span style="flex:1 1 auto"></span>' +
+        '<button class="fc-btn" type="button" data-act="see">보기</button>' +
+        '<button class="fc-btn gold' + (inCart ? ' in' : '') + '" type="button" data-act="cart">' +
+          (inCart ? '담김 ✓' : '담기') + '</button>' +
+      '</div></div>';
+  }
+
+  function drawTabs() {
+    $('fcTabs').innerHTML = CITY.filter((c) => BLD.some((b) => b.city === c.key)).map((c) => {
+      const n = BLD.filter((b) => b.city === c.key).length;
+      return '<button class="fc-tab' + (c.key === TAB ? ' on' : '') + '" type="button" data-city="' + c.key + '">' +
+        '<b>' + c.ko + '</b><i>' + n + '</i></button>';
+    }).join('');
+  }
+
+  function drawList() {
+    const rows = BLD.filter((b) => b.city === TAB);
+    $('fcList').innerHTML = rows.length
+      ? rows.map(card).join('')
+      : '<p class="fc-wait">이 도시에는 지금 나와 있는 건물이 없습니다.</p>';
+  }
+
+  /* ── 담은 것 ── */
+  function cartSlots() { let s = 0; CART.forEach((b) => { s += Number(b.slots); }); return s; }
+  function cartSum()   { let s = 0; CART.forEach((b) => { const f = feeOf(b.slots); if (f != null) s += f; }); return s; }
+
+  function drawCart() {
+    const n = CART.size, slots = cartSlots(), sum = cartSum();
+    const vat = Math.round(sum * 0.1);
+    const body = n === 0
+      ? '<div class="sum">담은 건물이 없습니다. <u>한 번에 슬롯 합계 ' + CAP + '까지 담으실 수 있습니다</u></div>'
+      : '<div class="sum">담은 건물 <b>' + n + '채</b> · 슬롯 <b>' + slots + '</b><u>/ ' + CAP + '</u> · ' +
+        '참가비 <b>' + won(sum) + '원</b> + 부가세 ' + won(vat) + '원 = <b>' + won(sum + vat) + '원</b></div>';
+    $('fcCart').innerHTML = body +
+      (n ? '<button class="fc-btn" type="button" id="fcClear">비우기</button>' : '') +
+      '<button class="fc-btn gold" type="button" id="fcBook" disabled>예약</button>';
+    $('fcNote').textContent = n ? '예약은 곧 열립니다.' : '';
+    const c = $('fcClear');
+    if (c) c.addEventListener('click', () => { CART.clear(); drawList(); drawCart(); if (FOLDED) drawDetail(); });
+  }
+
+  function toggleCart(b) {
+    const k = keyOf(b);
+    if (CART.has(k)) { CART.delete(k); }
+    else {
+      if (cartSlots() + Number(b.slots) > CAP) {
+        $('fcNote').innerHTML = '<span class="warn">한 번에 담으실 수 있는 슬롯 합계는 ' + CAP +
+          '입니다. 지금 ' + cartSlots() + '슬롯을 담고 계십니다.</span>';
+        return;
+      }
+      CART.set(k, b);
+    }
+    drawList(); drawCart(); if (FOLDED) drawDetail();
+  }
+
+  /* ── 접힌 뒤의 상세 ── */
+  function drawDetail() {
+    const b = SHOWN;
+    if (!b) { $('fcDetail').innerHTML = '<p class="fc-wait">건물을 고르시면 여기에 뜹니다.</p>'; return; }
+    const w = b.wall || {};
+    const f = feeOf(b.slots);
+    const inCart = CART.has(keyOf(b));
+    $('fcDetail').innerHTML =
+      '<h3>' + esc(w.landmark || ('건물 ' + b.bno)) + '</h3>' +
+      '<p class="where">' + esc(cityKo(b.city)) + ' · ' + grade(b.city, b.slots) + '</p>' +
+      (w.pitch ? '<p class="pitch">' + esc(w.pitch) + '</p>' : '') +
+      '<table class="fc-spec"><tbody>' +
+        '<tr><th>크기</th><td><b>' + b.slots + '슬롯</b> — 정회원 ' + b.slots + '명의 자리</td></tr>' +
+        '<tr><th>참가비</th><td><b>' + priceText(b.slots) + '</b> · 부가세 별도</td></tr>' +
+        (f != null ? '<tr><th>합계</th><td>' + won(f + Math.round(f * 0.1)) + '원</td></tr>' : '') +
+        '<tr><th>임시 주소</th><td>' + esc(w.landmark || '—') + '</td></tr>' +
+      '</tbody></table>' +
+      '<div class="fc-acts" style="margin:0">' +
+        '<button class="fc-btn gold' + (inCart ? ' in' : '') + '" type="button" data-act="cart" data-key="' +
+          esc(keyOf(b)) + '">' + (inCart ? '담김 ✓' : '담기') + '</button>' +
+      '</div>';
+  }
+
+  /* ── 손 ── */
+  $('fcScroll').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    const holder = btn.closest('[data-key]');
+    const k = (holder && holder.dataset.key) || (btn.dataset.key || '');
+    const b = BLD.find((x) => keyOf(x) === k);
+    if (!b) return;
+    if (btn.dataset.act === 'cart') toggleCart(b);
+    else if (btn.dataset.act === 'see') {
+      SHOWN = b;
+      say('fc-fly', { building: { city: b.city, bno: b.bno, lat: b.lat, lng: b.lng } });
+    }
+  });
+
+  $('fcTabs').addEventListener('click', (e) => {
+    const t = e.target.closest('.fc-tab');
+    if (!t) return;
+    TAB = t.dataset.city; drawTabs(); drawList(); $('fcScroll').scrollTop = 0;
+  });
+
+  $('fcBack').addEventListener('click', () => {
+    if (FOLDED) say('fc-unfold');                   /* 접혀 있으면 먼저 편다 */
+    else say('fc-back');                            /* 펴져 있으면 신청안내로 */
+  });
+  $('fcClose').addEventListener('click', () => say('fc-close'));
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (FOLDED) say('fc-unfold'); else say('fc-close');
+  });
+
+  /* 부모가 접었다 / 폈다고 알려 온다 */
+  window.addEventListener('message', (e) => {
+    if (e.origin !== location.origin || !e.data || e.data.type !== 'fc-folded') return;
+    FOLDED = !!e.data.on;
+    document.documentElement.classList.toggle('fold', FOLDED);
+    $('fcBackText').textContent = FOLDED ? '목록' : '신청안내';
+    $('fcTitle').textContent = FOLDED ? '지구 임장' : 'EG 도시별 현황';
+    $('fcScroll').scrollTop = 0;
+    if (FOLDED) drawDetail();
+  });
+
+  /* ── 클라이언트 — 창 안이면 집주인 것 (0818 한 문서 · 한 클라이언트) ── */
+  function loadScript(src) {
+    return new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
+  }
+  async function client() {
+    try { if (window.parent !== window && window.parent.egSupa) return window.parent.egSupa; } catch (_) {}
+    if (!window.supabase) await loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
+    return window.supabase.createClient(SUPA_URL, SUPA_KEY, { auth: { storageKey: 'eungyo-auth', persistSession: true, autoRefreshToken: true } });
+  }
+
+  (async function boot() {
+    try {
+      const sb = await client();
+      const [bld, fee] = await Promise.all([
+        sb.from('eg_buildings').select('city,bno,slots,lat,lng,wall,status')
+          .eq('status', 'available').order('city').order('slots').order('bno'),
+        sb.rpc('eg_founder_fee_table'),
+      ]);
+      if (bld.error) throw bld.error;
+      BLD = (bld.data || []).filter((b) => b.lat != null && b.lng != null);
+      if (!fee.error) (fee.data || []).forEach((r) => { if (r.is_current) FEE[r.slots] = Number(r.amount); });
+
+      if (!BLD.length) { $('fcList').innerHTML = '<p class="fc-wait">지금 나와 있는 건물이 없습니다.</p>'; drawCart(); return; }
+      TAB = (CITY.find((c) => BLD.some((b) => b.city === c.key)) || {}).key;
+      drawTabs(); drawList(); drawCart();
+      $('fcPanel').focus({ preventScroll: true });
+    } catch (e) {
+      console.warn('[founder_city]', e);
+      $('fcList').innerHTML = '<p class="fc-wait">매물을 불러올 수 없습니다.</p>';
+    }
+  })();
+})();
+</script>
+</body>
+</html>
