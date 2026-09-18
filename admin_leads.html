@@ -224,6 +224,46 @@ textarea{ resize:vertical; line-height:1.6; }
     </div>
   </section>
 
+<style>
+/* ⭐ 0918 오후 — 파운더 영업 일감 띠 · 줄 안의 파운더 구간 (소로: 하루 20명이 와도 눈이 미끄러지지 않게) */
+.todo{ margin:0 0 12px; padding:12px 14px; border:1px solid #3a2f1c; border-radius:10px;
+  background:linear-gradient(180deg,#1c1710,#171310); }
+.todo .hd{ display:flex; align-items:center; gap:8px; margin-bottom:10px;
+  font:600 12px/1 system-ui,-apple-system,"Noto Sans KR",sans-serif; color:#8a7a52; letter-spacing:.08em; }
+.todo .hd i{ font-style:normal; color:#6b5f44; font-weight:400; letter-spacing:0; }
+.todo .cards{ display:flex; gap:8px; flex-wrap:wrap; }
+.todo button{ flex:1 1 150px; min-width:150px; text-align:left; padding:10px 12px; border-radius:8px;
+  border:1px solid #3a3020; background:#221c14; color:#e8dcc0; cursor:pointer;
+  font:400 12.5px/1.5 system-ui,-apple-system,"Noto Sans KR",sans-serif;
+  transition:border-color .13s, background .13s; }
+.todo button:hover{ border-color:#c2921f; background:#2a2218; }
+.todo button.on{ border-color:#c2921f; background:#2e2415; }
+.todo button.zero{ opacity:.4; cursor:default; }
+.todo button.zero:hover{ border-color:#3a3020; background:#221c14; }
+.todo .n{ display:block; font:700 20px/1.2 system-ui,sans-serif; color:#e9c766; }
+.todo button.zero .n{ color:#6b6154; }
+.todo .lb{ display:block; margin-top:2px; color:#cdbf9e; }
+.todo .sub{ display:block; margin-top:1px; font-size:11px; color:#8a7f66; }
+.todo .none{ padding:4px 2px; font:400 12.5px/1.6 system-ui,sans-serif; color:#7d7258; }
+
+.fd{ margin-top:9px; padding:10px 12px; border:1px solid #2e3a2e; border-radius:8px; background:#141a14; }
+.fd.warn{ border-color:#4a3a20; background:#1b1610; }
+.fd .step{ display:flex; align-items:center; gap:9px; padding:2px 0;
+  font:400 12.5px/1.8 system-ui,-apple-system,"Noto Sans KR",sans-serif; color:#b9c4b4; }
+.fd .step i{ font-style:normal; width:13px; text-align:center; color:#4f6a4a; }
+.fd .step.on i{ color:#7fd07a; }
+.fd .step.on{ color:#dfe9db; }
+.fd .step .d{ margin-left:auto; font-size:11.5px; color:#7d8a78; font-variant-numeric:tabular-nums; }
+.fd .acts{ display:flex; gap:7px; flex-wrap:wrap; margin-top:9px; }
+.fd .warnline{ margin-top:7px; font:400 12px/1.6 system-ui,sans-serif; color:#d8a55a; }
+.fd .nolink{ font:400 12.5px/1.7 system-ui,sans-serif; color:#8a9086; }
+.lead .next{ display:inline-block; margin-left:7px; padding:1px 8px; border-radius:3px;
+  font:400 11.5px/1.7 system-ui,sans-serif; }
+.lead .next.go{ background:#3a2f14; color:#e9c766; }
+.lead .next.wait{ background:#1e2630; color:#8fa6bd; }
+.lead .next.warn{ background:#3a2018; color:#e39a7a; }
+</style>
+
   <!-- ── 오른쪽 명단 ── -->
   <section>
     <div class="bar">
@@ -238,6 +278,11 @@ textarea{ resize:vertical; line-height:1.6; }
         <option value="status">상태순</option>
       </select>
       <label class="chk"><input type="checkbox" id="f-noabout"> 다루는 것 빈 줄만</label>
+    </div>
+
+    <div class="todo" id="todo">
+      <div class="hd">오늘 할 일 <i>파운더 영업</i></div>
+      <div class="cards" id="todoCards"></div>
     </div>
 
     <div class="rows" id="rows"><div class="empty">불러오는 중…</div></div>
@@ -368,6 +413,85 @@ function fillSelects(){
   $('#f-way').innerHTML    = '<option value="">우편함 전부</option>' + WAYS.map(w=>`<option>${w}</option>`).join('');
 }
 
+/* ── 파운더 구간 (0918 오후) ─────────────────────────────────────────
+   ⭐ 소로 — 「크롤링 → 메일 → EG 진입 → 이후로는 후보자별 추적」
+   리드 한 줄에 EG 계정을 묶으면(user_id) 그 아래로 가입·신청·서명·이체·확정이
+   저절로 따라 켜진다. 살롱지기의 [입금을 확인했습니다]가 그 줄 안에 선다.
+   ⚠ 표 넷을 화면이 따로 묻지 않는다 — eg_founder_track 한 손으로 묶어 받는다 */
+const TRACK = new Map();          /* lead.id → track 결과 */
+let TODO = '';                    /* 지금 고른 일감 칸 */
+
+async function loadTrack(){
+  const linked = ROWS.filter(r=>r.user_id);
+  if(!linked.length){ TRACK.clear(); return; }
+  const got = await Promise.all(linked.map(async r=>{
+    try{ const { data } = await sb.rpc('eg_founder_track', { p_user: r.user_id }); return [r.id, data]; }
+    catch(_){ return [r.id, null]; }
+  }));
+  TRACK.clear();
+  for(const [id, d] of got) if(d) TRACK.set(id, d);
+}
+
+const hrs = (v) => v ? (Date.now() - new Date(v).getTime()) / 36e5 : null;
+const days = (v) => v ? Math.floor((Date.now() - new Date(v).getTime()) / 864e5) : null;
+
+/* 그 줄의 다음 한 수 — 목록에서 펴지 않아도 보인다 */
+function nextMove(r){
+  const t = TRACK.get(r.id);
+  if(t && t.res){
+    const st = t.res.status, c = t.contract;
+    if(st === 'confirmed'){
+      if(!t.open_at){
+        const d = t.ready_until ? Math.ceil((new Date(t.ready_until) - Date.now())/864e5) : null;
+        return { key:'open', cls:(d!==null && d<=7)?'warn':'wait',
+                 txt:'개관 협의' + (d!==null ? ' · D-'+d : '') };
+      }
+      return null;
+    }
+    if(st === 'claimed'){
+      if(c && c.paid) return { key:'pay', cls:'go', txt:'입금을 확인할 차례' };
+      const over = hrs(t.res.expires_at) > 0;
+      return over ? { key:'late', cls:'warn', txt:'24시간 넘김' }
+                  : { key:'wait', cls:'wait', txt:'이체를 기다립니다' };
+    }
+    if(st === 'held'){
+      const over = hrs(t.res.expires_at) > 0;
+      return over ? { key:'late', cls:'warn', txt:'24시간 넘김' }
+                  : { key:'wait', cls:'wait', txt:'계약서 작성 중' };
+    }
+  }
+  if(r.user_id) return { key:'joined', cls:'wait', txt:'EG 가입 · 제안서 차례' };
+  if(r.status === '보냄' || r.status === '열람'){
+    const d = days(r.sent_at);
+    if(d !== null && d >= 7) return { key:'silent', cls:'warn', txt:'회신 없음 · '+d+'일' };
+    return { key:'wait', cls:'wait', txt:'회신을 기다립니다' };
+  }
+  if(r.status === '회신' || r.status === '대화중')
+    return { key:'link', cls:'go', txt:'EG 계정 연결할 차례' };
+  return null;
+}
+
+/* 일감 띠 — 목록에서 찾지 않고 할 일이 먼저 온다 */
+const TODOS = [
+  ['pay',   '입금 확인',   '이체했다고 체크한 분'],
+  ['late',  '시계 넘김',   '24시간이 지났습니다'],
+  ['open',  '개관 협의',   '준비 기한이 다가옵니다'],
+  ['silent','회신 없음',   '보낸 지 7일이 지났습니다'],
+  ['link',  'EG 계정 연결', '회신은 왔고 계정이 아직입니다'],
+];
+function drawTodo(){
+  const cnt = {};
+  for(const r of ROWS){ const m = nextMove(r); if(m) cnt[m.key] = (cnt[m.key]||0) + 1; }
+  const live = TODOS.filter(([k])=>cnt[k]);
+  $('#todoCards').innerHTML = live.length
+    ? TODOS.map(([k,lb,sub])=>{
+        const n = cnt[k] || 0;
+        return `<button data-todo="${k}" class="${n?'':'zero'}${TODO===k?' on':''}"${n?'':' disabled'}>
+          <span class="n">${n}</span><span class="lb">${lb}</span><span class="sub">${sub}</span></button>`;
+      }).join('')
+    : '<div class="none">오늘 처리할 일이 없습니다.</div>';
+}
+
 /* ── 명단 ── */
 async function load(){
   const { data, error } = await sb.from('eg_leads')
@@ -375,6 +499,8 @@ async function load(){
   if(error){ $('#rows').innerHTML = `<div class="empty">명단을 불러오지 못했습니다.<br>${esc(error.message)}</div>`; return; }
   ROWS = data || [];
   SEL.clear();
+  paint();
+  await loadTrack();        /* 묶인 줄만 — 없으면 한 번도 안 부른다 */
   paint();
 }
 
@@ -394,6 +520,8 @@ function paint(){
     [sent,'보냄'],[talking,'회신·대화중'],[deal,'계약']
   ].map(([v,l])=>`<div><b>${v}</b><span>${l}</span></div>`).join('');
 
+  drawTodo();
+
   $('#gauge').style.width = Math.min(100, n/GOAL*100).toFixed(1) + '%';
   $('#gaugeLbl').textContent = n >= GOAL
     ? `300 눈금을 넘었습니다 — ${n}`
@@ -408,6 +536,7 @@ function visible(){
   const st = $('#f-status').value, kd = $('#f-kind').value, wy = $('#f-way').value;
   const noAb = $('#f-noabout').checked;
   let list = ROWS.filter(r=>{
+    if(TODO){ const m = nextMove(r); if(!m || m.key !== TODO) return false; }
     if(st && r.status !== st) return false;
     if(kd && r.kind !== kd) return false;
     if(wy && r.contact_way !== wy) return false;
@@ -451,12 +580,14 @@ function renderRows(){
           ${r.scale?`<span class="meta">${esc(r.scale)}</span>`:''}
           ${r.last_active?`<span class="meta">최근 ${esc(r.last_active)}</span>`:''}
           <span class="meta">발굴 ${esc(r.found_at)}${r.found_by?' · '+esc(r.found_by):''}</span>
+          ${(()=>{ const m = nextMove(r); return m ? `<span class="next ${m.cls}">${esc(m.txt)}</span>` : ''; })()}
         </div>
         ${r.url?`<a class="url" href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.url)}</a>`:''}
         <div class="mailrow${r.email?'':' none'}">${r.email?esc(r.email):'메일 없음'}</div>
         <input class="about" data-act="chan" value="${esc(r.channel_name)}" placeholder="채널 이름 — 「** 운영을 통해」 자리">
         <input class="about" data-act="about" value="${esc(r.about)}" placeholder="다루는 것 — 한 줄">
         <input class="memo" data-act="memo" value="${esc(r.memo)}" placeholder="메모">
+        ${founderPanel(r)}
       </div>
       <div class="side">
         <select data-act="status">${st}</select>
@@ -468,6 +599,55 @@ function renderRows(){
     </div>`;
   }).join('');
   updateFoot();
+}
+
+/* 리드 한 줄 아래의 파운더 구간 — 세로 줄 하나로 읽힌다 (0918 소로) */
+function founderPanel(r){
+  if(!r.user_id)
+    return `<div class="fd"><div class="nolink">EG 계정이 아직 묶이지 않았습니다.
+      <button class="b sm" data-act="link" style="margin-left:6px">EG 계정 연결</button></div></div>`;
+
+  const t = TRACK.get(r.id);
+  if(!t) return `<div class="fd"><div class="nolink">파운더 현황을 불러오는 중…</div></div>`;
+  if(!t.linked) return `<div class="fd"><div class="nolink">묶인 계정을 찾지 못했습니다.
+      <button class="b sm" data-act="unlink" style="margin-left:6px">연결 풀기</button></div></div>`;
+
+  const u = t.user, res = t.res, c = t.contract;
+  const dt = v => v ? shortDate(v) : '';
+  const step = (on, label, when, extra) =>
+    `<div class="step${on?' on':''}"><i>${on?'●':'○'}</i>${label}${extra||''}<span class="d">${when||''}</span></div>`;
+
+  let h = '<div class="fd' + (res && res.status==='claimed' && c && c.paid ? ' warn' : '') + '">';
+  h += step(true, `EG 가입 · ${esc(u.nickname||'')}`, dt(u.joined_at));
+
+  if(!res){
+    h += step(false, '신청 없음');
+    h += `<div class="acts"><button class="b sm" data-act="unlink">연결 풀기</button></div></div>`;
+    return h;
+  }
+
+  const won2 = n => Number(n||0).toLocaleString('ko-KR');
+  const items = (t.items||[]).map(b=>esc(b.label)).join(' · ');
+  h += step(true, `신청 · ${(t.items||[]).length}채 · ${res.slots}슬롯 · ${won2(res.amount)}원`, dt(res.held_at));
+  if(items) h += `<div class="step" style="padding-left:22px;color:#8a9086">${items}</div>`;
+  h += step(!!c, c ? `서명 · ${esc(c.no)}` : '서명 전', c ? dt(c.signed_at) : '');
+  h += step(!!(c && c.paid), '이체 완료 진술', c && c.paid ? dt(c.paid_at) : '');
+  h += step(!!res.confirmed_at, '입금 확인 · 계약 확정', dt(res.confirmed_at));
+  h += step(!!t.open_at, t.open_at ? `개관 ${esc(t.open_at)}` : '개관 협의',
+            t.ready_until ? '기한 ' + esc(t.ready_until) : '');
+
+  const over = res.expires_at && (Date.now() > new Date(res.expires_at).getTime());
+  if(!res.confirmed_at && over)
+    h += `<div class="warnline">24시간이 지났습니다 — 기계가 끊지 않습니다. 살롱지기가 끝내야 합니다.</div>`;
+
+  h += '<div class="acts">';
+  if(!res.confirmed_at && c)
+    h += `<button class="b gold sm" data-act="confirm" data-res="${esc(res.id)}">입금을 확인했습니다</button>`;
+  if(res.confirmed_at)
+    h += `<button class="b sm" data-act="unconfirm" data-res="${esc(res.id)}">확정 취소</button>`;
+  h += `<button class="b sm" data-act="unlink">연결 풀기</button>`;
+  h += '</div></div>';
+  return h;
 }
 
 function updateFoot(){
@@ -521,6 +701,92 @@ $('#rows').addEventListener('click', async e=>{
   ROWS = ROWS.filter(r=>r.id!==id); SEL.delete(id);
   paint(); toast('지웠습니다');
 });
+
+/* ── 일감 띠 · 파운더 구간의 손 (0918 오후) ── */
+$('#todoCards').addEventListener('click', e=>{
+  const b = e.target.closest('button[data-todo]'); if(!b || b.disabled) return;
+  TODO = (TODO === b.dataset.todo) ? '' : b.dataset.todo;
+  paint();
+});
+
+$('#rows').addEventListener('click', async e=>{
+  const el = e.target.closest('button[data-act]'); if(!el) return;
+  const act = el.dataset.act;
+  if(!['link','unlink','confirm','unconfirm'].includes(act)) return;
+  const id = Number(el.closest('.lead').dataset.id);
+  const row = ROWS.find(r=>r.id===id); if(!row) return;
+
+  if(act === 'link')     return linkAccount(row);
+  if(act === 'unlink')   return unlinkAccount(row);
+  if(act === 'confirm')  return confirmPaid(row, el.dataset.res, el);
+  if(act === 'unconfirm')return unconfirmPaid(row, el.dataset.res, el);
+});
+
+/* EG 계정 연결 — ⚠ 메일로 자동으로 맞추지 않는다.
+   키호테처럼 lonelywalden+t0908@ 로 가입하시는 분이 있어 어긋난다 (0918 실측) */
+async function linkAccount(row){
+  const { data, error } = await sb.from('users')
+    .select('id,nickname,tier,created_at').order('created_at',{ascending:false}).limit(40);
+  if(error){ toast('회원 목록을 불러오지 못했습니다 — '+error.message, true); return; }
+  const list = (data||[]).map((u,i)=>`${i+1}. ${u.nickname||'(이름 없음)'} · ${shortDate(u.created_at)}`).join('\n');
+  const pick = prompt(`「${row.name}」에 묶을 EG 계정을 번호로 골라 주십시오.\n\n${list}`);
+  const n = Number(pick); if(!n || !data[n-1]) return;
+  const u = data[n-1];
+  const { error: e2 } = await sb.from('eg_leads').update({ user_id: u.id }).eq('id', row.id);
+  if(e2){ toast('묶지 못했습니다 — '+e2.message, true); return; }
+  row.user_id = u.id;
+  try{ const { data: t } = await sb.rpc('eg_founder_track', { p_user: u.id }); if(t) TRACK.set(row.id, t); }catch(_){}
+  paint(); toast(`${u.nickname} 계정을 묶었습니다`);
+}
+async function unlinkAccount(row){
+  if(!confirm(`「${row.name}」의 EG 계정 연결을 풉니다. 계약이나 건물은 그대로 남습니다.`)) return;
+  const { error } = await sb.from('eg_leads').update({ user_id: null }).eq('id', row.id);
+  if(error){ toast('풀지 못했습니다 — '+error.message, true); return; }
+  row.user_id = null; TRACK.delete(row.id);
+  paint(); toast('연결을 풀었습니다');
+}
+
+/* 입금 확인 — 돈이 오간 자리라 확인 판을 한 겹 둔다 (0918 소로) */
+async function confirmPaid(row, res, btn){
+  const t = TRACK.get(row.id); if(!t || !t.res) return;
+  const won2 = n => Number(n||0).toLocaleString('ko-KR');
+  const items = (t.items||[]).map(b=>'  · '+b.label+' ('+b.slots+'슬롯)').join('\n');
+  const ok = confirm(
+    `입금을 확인하고 계약을 확정합니다.\n\n` +
+    `${t.contract ? t.contract.no + '\n' : ''}${t.contract && t.contract.name ? t.contract.name + '\n' : ''}` +
+    `${won2(t.res.amount)}원 · ${(t.items||[]).length}채 · ${t.res.slots}슬롯\n${items}\n\n` +
+    `확정하면 건물이 그분의 것이 되고 준비 기간 6주가 시작됩니다.\n` +
+    `개관일은 뒤에 협의하여 따로 꽂습니다.`);
+  if(!ok) return;
+  btn.disabled = true; btn.textContent = '확인하는 중…';
+  try{
+    const { data, error } = await sb.rpc('eg_founder_confirm', { p_res: res, p_memo: null });
+    if(error) throw error;
+    toast(`확정했습니다 — ${data.no} · 건물 ${data.buildings}채 · 준비 기한 ${data.ready_until}`);
+    await refreshOne(row);
+  }catch(err){
+    toast('확정하지 못했습니다 — '+(err.message||err), true);
+    btn.disabled = false; btn.textContent = '입금을 확인했습니다';
+  }
+}
+async function unconfirmPaid(row, res, btn){
+  if(!confirm('확정을 되돌립니다.\n건물이 매물 잠금 상태로 돌아가고 장부 줄이 취소됩니다.\n이미 개관한 건물이 있으면 되돌릴 수 없습니다.')) return;
+  btn.disabled = true;
+  try{
+    const { error } = await sb.rpc('eg_founder_unconfirm', { p_res: res });
+    if(error) throw error;
+    toast('확정을 되돌렸습니다');
+    await refreshOne(row);
+  }catch(err){
+    toast('되돌리지 못했습니다 — '+(err.message||err), true);
+    btn.disabled = false;
+  }
+}
+async function refreshOne(row){
+  try{ const { data } = await sb.rpc('eg_founder_track', { p_user: row.user_id }); if(data) TRACK.set(row.id, data); }
+  catch(_){}
+  paint();
+}
 
 async function save(id, patch, what){
   const { error } = await sb.from('eg_leads').update(patch).eq('id', id);
