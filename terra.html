@@ -5371,6 +5371,53 @@ function stopOrbit(){
    ⭐ stopOrbit 은 tick 을 떼고 lookAtTransform(IDENTITY) 까지 해 준다. 둘 다 필요하다. */
 window.stopOrbit = stopOrbit;
 
+/* ⭐ 0918 — 임장 명패. 빈 매물에는 이름표가 없다(0831 — 명패는 내 집에만).
+   그래서 날아갈 건물 위에만 잠깐 명패를 건다. 소로 — 「어느 핀인지 좀 헷갈려서」
+   ⭐ 거는 때는 뜨기 **전**이다 — 3초 비행 내내 어디로 가는지 보여야 한다 (소로 0918)
+   ⚠ 두 장으로 나눈다 — 라벨 하나로는 배경을 두 겹으로 못 칠한다(0831과 같은 까닭).
+   ⚠ _maisonTag 만 달고 _maison 은 달지 않는다 —
+     _maisonTag 는 건물 찾기·편집 대상에서 빼 주고, _maison 을 안 다는 것은 clearPins(핀 스트리밍)가
+     명패까지 지우지 않게 한다. 지구를 조금 돌렸다고 명패가 사라지면 안 된다.
+     걷는 손은 egClearFounderTag 하나 — 다른 건물로 날아갈 때 · 서류를 펼 때 · 창을 닫을 때. */
+const EG_TAG_ID = "founderTag", EG_TAG_SUB = "founderTagSub";
+function egClearFounderTag(){
+  [EG_TAG_ID, EG_TAG_SUB].forEach(id=>{
+    try{ const t = viewer.entities.getById(id); if (t) viewer.entities.remove(t); }catch(e){}
+  });
+}
+function egMarkBuilding(b, ent){
+  egClearFounderTag();
+  const m = (ent && ent._maison) || {};
+  const w = m.wall || b.wall || {};
+  const top = b.label || m.name || w.landmark || ("건물 " + b.bno);
+  const sub = b.sub || ((m.slots || b.slots) ? ((m.slots || b.slots) + "슬롯") : "");
+  const dd  = new Cesium.DistanceDisplayCondition(0, 2000000);   /* 2000km — 다른 대륙에서 날아와도 내내 보인다 */
+  const plate = (id, text, size, back, dy)=>{
+    const t = viewer.entities.add({
+      id: id,
+      position: Cesium.Cartesian3.fromDegrees(Number(b.lng), Number(b.lat)),
+      label:{
+        text: text,
+        font: size + " 'Helvetica Neue','Apple SD Gothic Neo','Malgun Gothic',sans-serif",
+        fillColor: Cesium.Color.fromCssColorString("#1a1407"),
+        showBackground: true,
+        backgroundColor: Cesium.Color.fromCssColorString(back).withAlpha(.97),
+        backgroundPadding: new Cesium.Cartesian2(11, 6),
+        pixelOffset: new Cesium.Cartesian2(0, dy),
+        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        distanceDisplayCondition: dd
+      }
+    });
+    /* ⚠ _maison 을 달지 않는다 — clearPins 가 명패까지 지운다 (지구를 돌리면 사라진다) */
+    t._maisonTag = true;
+    return t;
+  };
+  if (sub) plate(EG_TAG_SUB, sub, "600 12px", "#ffe38a", -16);
+  plate(EG_TAG_ID, top, "bold 13px", "#f0b429", sub ? -37 : -16);
+}
+window.egClearFounderTag = egClearFounderTag;
+
 /* ⭐⭐ 0918 — EG도시별현황(파운더 매물)에서 건물 카드를 누르면 지구가 그 건물 앞까지 난다(지구 임장).
    ⚠ arriveHome 을 그대로 못 쓴다 — 그 손은 **주민 한 명을 찾아** 궤도를 건다.
      빈 매물에는 주민이 없다. 그래서 도시 + 번지로 찾는다.
@@ -5384,6 +5431,7 @@ function egFlyToBuilding(b, opts){
   return new Promise((done)=>{
     if (!b || b.lat == null || b.lng == null){ console.warn("[EG] 날아갈 좌표가 없다:", b); done(null); return; }
     const lng = Number(b.lng), lat = Number(b.lat);
+    egMarkBuilding(b, null);                                 /* ⭐ 뜨기 전에 먼저 건다 — 3초 내내 어디로 가는지 보인다 */
     setCityByCoord(lng, lat);
     const pins = streamPinsNear(lng, lat, { force:true });   /* 핀은 비행과 나란히 — 도착했을 때 이미 와 있다 */
     stopOrbit();
@@ -5400,6 +5448,9 @@ function egFlyToBuilding(b, opts){
         const ent = viewer.entities.values.find(e => e._maison && !e._maisonTag
           && e._maison.city === b.city && String(e._maison.bno) === String(b.bno));
         if (ent && o.panel) openMaison(ent._maison);
+        /* ⭐ 명패는 뜨기 전에 이미 걸었다. 여기서 다시 짓지 않는다 — 도착하는 순간 깜빡인다.
+           ⚠ 명패에 _maison 을 달지 않는다. 달면 clearPins(핀 스트리밍)가 함께 지워서,
+             지구를 조금만 돌려도 명패가 사라진다. 걷는 손은 egClearFounderTag 하나뿐이다. */
         const H = await clampPoint(lng, lat);                /* 도착 후 재clamp → 지붕 높이가 궤도 중심 */
         startOrbit(Cesium.Cartesian3.fromDegrees(lng, lat, (H!=null?H:0)), 600, 200, 0.010, 0.0032);
         if (!ent) console.warn("[EG] 날아왔으나 핀을 못 찾음:", b.city, b.bno);
@@ -7963,6 +8014,6 @@ window.closeTourLists = closeTourLists;
 </script>
 <script src="guide_cover.js?v=0915"></script>
 <!-- 0917 — 타륜 › EG파운더 전용메뉴 · 파운더 신청안내. 배선은 전부 founder_menu.js 에 산다 (읽을 수 있는 계정 · 데스크톱에만 칸이 선다) -->
-<script src="founder_menu.js?v=0918b"></script>
+<script src="founder_menu.js?v=0918d"></script>
 </body>
 </html>

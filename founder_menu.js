@@ -38,7 +38,7 @@
   if (window.__egFounderMenu) return;
   window.__egFounderMenu = true;
 
-  const V = '0918b';
+  const V = '0918d';
   const GUIDE = 'founder_guide.html?embed=1&v=' + V;
   const CITY  = 'founder_city.html?embed=1&v=' + V;
   const DOCK_W = 460;                                  /* 접었을 때 오른쪽 판의 너비 */
@@ -124,7 +124,11 @@
     if (!root || docked === !!on) return;
     docked = !!on;
     if (docked) { resumeGlobe(); root.classList.add('dock'); }
-    else { root.classList.remove('dock'); pauseGlobe(); }
+    else {
+      root.classList.remove('dock');
+      try { if (typeof window.egClearFounderTag === 'function') window.egClearFounderTag(); } catch (_) {}
+      pauseGlobe();                                    /* 명패를 먼저 걷고 나서 지구를 멈춘다 */
+    }
     tell(fCity, { type: 'fc-folded', on: docked });
   }
 
