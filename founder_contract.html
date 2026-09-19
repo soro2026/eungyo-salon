@@ -182,8 +182,14 @@
   .ct-sign .hint{ position:absolute; z-index:0; padding:0 18px; text-align:center;
     font:400 13px/1.7 var(--serif); color:var(--faint); pointer-events:none; word-break:keep-all; }
   .ct-sign .box.drawn .hint{ display:none; }
-  .ct-sign .redo{ position:absolute; z-index:2; right:8px; bottom:6px; }
-  .ct-sign .box:not(.drawn) .redo{ display:none; }
+  /* ⭐ 0919 소로 — 서명에 매듭을 둔다: [수정] [서명 완료] → 맨 아래 [계약서 제출하기] */
+  .ct-sign .acts{ position:absolute; z-index:2; right:8px; bottom:6px; display:flex; gap:6px; }
+  .ct-sign .box:not(.drawn) .acts{ display:none; }
+  .ct-sign .ok{ position:absolute; z-index:2; left:12px; bottom:9px; display:none;
+    font:400 12.5px/1 var(--serif); color:var(--gold-ink); pointer-events:none; }
+  .ct-sign .box.signed{ border-color:var(--gold-ink); cursor:default; }
+  .ct-sign .box.signed .ok{ display:block; }
+  .ct-sign .box.signed #ctDone{ display:none; }
 
   /* ── 제출 ── */
   .ct-go{ margin-top:30px; padding-top:22px; border-top:1px solid var(--rule);
@@ -294,7 +300,7 @@
   let SB = null, ME = null;
   let RES = null, ITEMS = [], BANK = null, TERMS = [], RATES = [], DUES = 0, PROF = null, DONE = null;
   let HAVE = [], BACKTO = 'city';        /* HAVE = 서명하신 계약서들 · BACKTO = ← 가 가는 곳 */
-  let strokes = [], cur = null, CV = null, CTX = null;
+  let strokes = [], cur = null, CV = null, CTX = null, signed = false;
 
   function say(type, extra) {
     if (!EMBED) return;
@@ -425,12 +431,14 @@
           '<p class="when" id="ctNow"></p></div>' +
           '<div class="box pad lock" id="ctBox"><span class="hint" id="ctHint">이체를 완료하신 뒤 위 칸에 체크해 주시면 서명하실 수 있습니다</span>' +
           '<canvas id="ctCanvas"></canvas>' +
-          '<button class="ct-btn tiny redo" id="ctClear" type="button">다시 쓰기</button></div></div>' +
+          '<span class="ok">✓ 서명을 마쳤습니다</span>' +
+          '<div class="acts"><button class="ct-btn tiny" id="ctClear" type="button">수정</button>' +
+          '<button class="ct-btn tiny gold" id="ctDone" type="button">서명 완료</button></div></div></div>' +
       '</div>' +
 
       '<div class="ct-go">' +
-        '<p class="say">제출하시면 서명 일시 · 계정 · 문서 해시값과 함께 보관됩니다 (제14조 ①).</p>' +
-        '<button class="ct-btn gold big" id="ctGo" type="button" disabled>서명하고 제출</button>' +
+        '<p class="say" id="ctSay"></p>' +
+        '<button class="ct-btn gold big" id="ctGo" type="button" disabled>계약서 제출하기</button>' +
       '</div>' +
       '<p class="ct-err" id="ctErr"></p>';
 
@@ -666,9 +674,14 @@
     CTX.clearRect(0, 0, CV.width, CV.height); CTX.restore();
     strokes.forEach(stroke);
     const box = $('ctBox');
-    if (box) box.classList.toggle('drawn', strokes.length > 0);
+    if (!strokes.length) signed = false;
+    if (box) { box.classList.toggle('drawn', strokes.length > 0); box.classList.toggle('signed', signed); }
     const go = $('ctGo');
-    if (go) go.disabled = strokes.length === 0 || !paidChecked();
+    if (go) go.disabled = !signed || !paidChecked();
+    const say = $('ctSay');
+    if (say) say.textContent = signed
+      ? '제출하시면 서명 일시 · 계정 · 문서 해시값과 함께 보관됩니다 (제14조 ①).'
+      : '서명 칸에서 [서명 완료]를 누르시면 제출하실 수 있습니다.';
   }
 
   /* ⭐ 0918 오후 소로 — 이체 체크 전에는 서명 칸이 잠긴다.
@@ -681,7 +694,7 @@
     if (hint) hint.textContent = on
       ? '이 칸에 서명해 주십시오'
       : '이체를 완료하신 뒤 위 칸에 체크해 주시면 서명하실 수 있습니다';
-    if (!on && strokes.length) { strokes = []; cur = null; }
+    if (!on && strokes.length) { strokes = []; cur = null; signed = false; }
     redraw();
   }
   /* 실명을 적으시는 대로 서명란 이름이 따라 선다 */
@@ -698,6 +711,7 @@
   function bindPad() {
     if (!CV) return;
     CV.addEventListener('pointerdown', (e) => {
+      if (signed) return;
       CV.setPointerCapture(e.pointerId); cur = [at(e)]; strokes.push(cur); redraw();
     });
     CV.addEventListener('pointermove', (e) => {
@@ -755,6 +769,7 @@
     if (!name)  { note('실명을 적어 주십시오.'); $('ctName').focus(); return; }
     if (!phone) { note('휴대전화를 적어 주십시오.'); $('ctPhone').focus(); return; }
     if (!strokes.length) { note('서명을 해 주십시오.'); return; }
+    if (!signed) { note('서명 칸의 [서명 완료]를 눌러 주십시오.'); return; }
     note(''); go.disabled = true; go.textContent = '보내는 중입니다';
     try {
       const { data, error } = await SB.rpc('eg_founder_sign', {
@@ -774,7 +789,7 @@
       else drawList();
     } catch (e) {
       note((e && (e.message || e.hint)) || '제출하지 못했습니다. 잠시 뒤 다시 눌러 주십시오.');
-      go.disabled = false; go.textContent = '서명하고 제출';
+      go.disabled = false; go.textContent = '계약서 제출하기';
     }
   }
   async function payLate() {
@@ -796,7 +811,8 @@
   /* ── 손 ── */
   document.addEventListener('click', (e) => {
     if (!e.target.closest) return;
-    if (e.target.closest('#ctClear'))    { strokes = []; cur = null; redraw(); return; }
+    if (e.target.closest('#ctClear'))    { strokes = []; cur = null; signed = false; redraw(); return; }
+    if (e.target.closest('#ctDone'))     { if (strokes.length) { signed = true; cur = null; tickNow(); redraw(); } return; }
     if (e.target.closest('#ctGo'))       { submit(); return; }
     if (e.target.closest('#ctFind'))     { findZip(); return; }
     if (e.target.closest('#ctCopy'))     { copyPay(); return; }
