@@ -20,10 +20,10 @@
         글자 규칙 · 금칙어 · 남의 이름 · 로마 숫자 · 격은 전부 DB 가 한다. 이 파일은 받아 적은 글자를 건넬 뿐이다
         개관 전까지 고칠 수 있다 — 고칠 수 있는가(can_rename)도 DB 가 말해 준다
 
-     ⑥ ⭐ 베타 시작일 — rpc eg_founder_beta_propose(날짜) · 승인은 살롱지기(admin_leads 일감 띠)
+     ⑥ ⭐ 베타 시작일 — rpc eg_founder_beta_set(날짜) · ⭐ 승인 절차 없음 (0919 소로) — 정하면 바로 확정, 소로께는 알림만
         달력이 여는 날(first_pick_on ~ last_start_on) · 권유 구간(recommend_*)은 전부 DB 가 준다
         ⭐ 잠그는 때는 「승인」이 아니라 「첫 초대권을 뽑은 때」(0919 소로) — tickets > 0 이면 버튼이 사라진다
-        제안하면 application-mail notify 로 소로께 알림 한 통 (실패해도 제안은 산다)
+        정하면 application-mail notify 로 소로께 알림 한 통 (실패해도 정한 날은 산다)
 
      부모와 주고받는 말
        보냄  cd-close     창을 닫는다
@@ -206,12 +206,12 @@
     }
     h += '</div><p class="fd-legend"><span></span>계약 뒤 2~4주 — 이 무렵을 권해 드립니다</p>';
     if (PICK) h += '<p class="fd-pick">베타 ' + md(PICK) + ' ~ ' + md(addDays(PICK, 20)) + ' · 개관 ' + md(addDays(PICK, 21)) + '</p>';
-    h += '<p class="fd-why">베타 시작일은 EG가 확인한 뒤에 확정됩니다. 확정된 날짜는 베타 초대권에 「○월 ○일부터 입장」으로 적혀 손님들께 전해집니다. ' +
+    h += '<p class="fd-why">정하신 날짜는 베타 초대권에 「○월 ○일부터 입장」으로 적혀 손님들께 전해집니다. ' +
       '이미 건네진 초대권의 날짜를 되돌릴 수는 없기에, 첫 초대권을 뽑으신 뒤에는 시작일을 바꾸실 수 없습니다. ' +
       '그 전까지는 다시 정하실 수 있으니, 달력을 보시며 편안히 정해 주십시오.</p>';
     if (CALERR) h += '<p class="fd-nmerr" style="margin:0 0 12px">' + esc(CALERR) + '</p>';
     h += '<div class="fd-calact"><button class="fd-nmbtn" type="button" id="fdPropose"' + (!PICK || CALBUSY ? ' disabled' : '') + '>' +
-      (CALBUSY ? '보내는 중입니다' : (PICK ? md(PICK) + '로 제안하기' : '날짜를 골라 주십시오')) + '</button>' +
+      (CALBUSY ? '저장하는 중입니다' : (PICK ? md(PICK) + '로 정하기' : '날짜를 골라 주십시오')) + '</button>' +
       '<button class="fd-nmbtn plain" type="button" id="fdCalClose"' + (CALBUSY ? ' disabled' : '') + '>닫기</button></div></div>';
     return h;
   }
@@ -247,16 +247,12 @@
         cls = ' done';
         st = md(beta.start_on) + ' ~ ' + md(beta.end_on);
         sub = '베타 기간이 정해졌습니다. 개관일은 ' + md(beta.open_on) + '입니다. ';
-        if (beta.pending) sub += md(beta.proposed_on) + '로 다시 제안하셨고, EG가 확인하는 중입니다. 확인 전까지는 ' + md(beta.start_on) + '이 그대로 유효합니다.';
-        else if (locked) sub += '초대권에 적혀 손님들께 전해진 날짜라 대시보드에서는 바꾸실 수 없습니다. 부득이한 사정이 생기면 타벨라이로 알려 주십시오.';
+        if (locked) sub += '초대권에 적혀 손님들께 전해진 날짜라 대시보드에서는 바꾸실 수 없습니다. 부득이한 사정이 생기면 타벨라이로 알려 주십시오.';
         else sub += '첫 초대권을 뽑으시기 전까지는 다시 정하실 수 있습니다.';
       } else if (beta.closed) {
         cls = ' wait';
         st = '기간이 지났습니다';
         sub = '베타를 시작할 수 있는 기간이 지나, 베타 없이 개관합니다.';
-      } else if (beta.proposed_on) {
-        st = md(beta.proposed_on) + ' · 확인 중';
-        sub = md(beta.proposed_on) + '로 제안하셨습니다. EG가 확인하는 중입니다.';
       } else {
         const left = daysBetween(D.today, beta.last_start_on);
         st = md(beta.last_start_on) + '까지' + (left >= 0 ? ' · ' + left + '일 남음' : '');
@@ -267,8 +263,8 @@
       h += '<div class="fd-step' + cls + '"><div class="no">' + (beta.start_on ? '✓' : '2') + '</div>' +
         '<div class="what"><b>베타 시작일 정하기</b><span>' + esc(sub) + '</span></div>' +
         '<div class="state">' + esc(st) + '</div>' +
-        (canPick && !CAL ? '<div class="act"><button class="fd-nmbtn' + (beta.start_on || beta.proposed_on ? ' plain' : '') +
-          '" type="button" id="fdCalOpen">' + (beta.start_on || beta.proposed_on ? '시작일 다시 정하기' : '베타 시작일 정하기') + '</button></div>' : '') +
+        (canPick && !CAL ? '<div class="act"><button class="fd-nmbtn' + (beta.start_on ? ' plain' : '') +
+          '" type="button" id="fdCalOpen">' + (beta.start_on ? '시작일 다시 정하기' : '베타 시작일 정하기') + '</button></div>' : '') +
         '</div>';
       if (canPick && CAL) h += calHtml(beta);
 
@@ -353,20 +349,20 @@
     if (!PICK || CALBUSY) return;
     CALBUSY = true; CALERR = ''; draw(DATA);
     try {
-      const { data, error } = await SB.rpc('eg_founder_beta_propose', { p_date: PICK });
+      const { data, error } = await SB.rpc('eg_founder_beta_set', { p_date: PICK });
       if (error) throw error;
-      /* 소로께 알림 한 통 — 실패해도 제안은 산다 */
+      /* 소로께 알림 한 통 — 실패해도 정한 날은 산다 */
       try {
         await SB.functions.invoke('application-mail', { body: { type: 'notify',
-          subject: '[EG] 베타 시작일 제안 — ' + ((data && data.name) || '') + ' 파운더님 ' + md(PICK),
+          subject: '[EG] 베타 시작일 — ' + ((data && data.name) || '') + ' 파운더님 ' + md(PICK),
           text: ((data && data.name) || '') + ' 파운더님(' + ((data && data.no) || '') + ')이 베타 시작일을 ' + md(PICK) + '로 ' +
-                (data && data.again ? '다시 ' : '') + '제안하셨습니다.\n\n' +
+                (data && data.again ? '다시 ' : '') + '정하셨습니다.\n\n' +
                 '베타 ' + md(PICK) + ' ~ ' + md(addDays(PICK, 20)) + ' · 개관 ' + md(addDays(PICK, 21)) + '\n\n' +
-                '살롱지기 화면(admin_leads) 일감 띠 「개관 협의」에서 승인해 주십시오.' } });
+                '건물 ' + ((data && data.buildings) || 0) + '채의 개관일이 함께 바뀌었습니다. 첫 초대권을 뽑으시기 전까지는 파운더님이 다시 정하실 수 있습니다.' } });
       } catch (_) {}
       CALBUSY = false; CAL = false; PICK = null; await reload();
     } catch (e) {
-      CALBUSY = false; CALERR = (e && e.message) || '제안하지 못했습니다. 잠시 뒤 다시 눌러 주십시오.'; draw(DATA);
+      CALBUSY = false; CALERR = (e && e.message) || '저장하지 못했습니다. 잠시 뒤 다시 눌러 주십시오.'; draw(DATA);
     }
   }
   function focusWord() { const i = $('fdWord'); if (i) { i.focus(); i.select(); } }
