@@ -6,7 +6,7 @@
 <title>파운더 대시보드 · EG유니버스</title>
 <!-- ─────────────────────────────────────────────────────────────────────
      founder_dash.html — 타륜 › EG파운더 전용메뉴 › 대시보드
-     2026.09.19 · 파이스 · 첫 조각 — 눈으로 보는 전체 판 (누르는 손은 아직 없다)
+     2026.09.19 · 파이스 · 둘째 조각 — 전체 판 + ① 메종 이름 짓기 (② ③ 은 아직 보이기만 한다)
 
      ① 읽는 곳은 rpc eg_founder_dash() 한 손 — ⚠ 이 파일이 표를 따로 묻지 않는다
         바우처 배수 · 6주 마지막 날 · 개관일은 전부 DB 가 셈해 준다. 이 파일에 숫자를 적지 않는다
@@ -15,6 +15,10 @@
            ① 메종 이름 짓기  ② 베타 시작일 정하기  ③ 베타 초대권 뽑아 건네기
         개관 뒤 — 띠가 걷히고 그 자리에 인원 · 요율 · 수수료가 선다 (다음 조각)
      ④ 베타 줄이 없는 분(2차 이후 계약만 남은 경우는 없다 — 첫 계약이 베타 줄을 만든다)
+
+     ⑤ ⭐ 이름 짓기 — rpc eg_founder_name_building(건물, 단어) 한 손
+        글자 규칙 · 금칙어 · 남의 이름 · 로마 숫자 · 격은 전부 DB 가 한다. 이 파일은 받아 적은 글자를 건넬 뿐이다
+        개관 전까지 고칠 수 있다 — 고칠 수 있는가(can_rename)도 DB 가 말해 준다
 
      부모와 주고받는 말
        보냄  cd-close     창을 닫는다
@@ -93,6 +97,21 @@
   .fd-bld .nm em{ display:block; font:400 12.5px/1.6 var(--serif); font-style:normal; color:var(--soft); }
   .fd-bld .mono{ font-family:var(--mono); font-size:13px; color:var(--muted); }
   .fd-bld .sub{ display:block; font:400 12px/1.6 var(--serif); color:var(--faint); }
+  .fd-nmbtn{ margin-top:7px; padding:5px 11px; border:1px solid #E3D4AE; border-radius:3px;
+    background:rgba(194,146,31,.07); color:var(--gold-ink); font:400 12.5px/1 var(--serif); cursor:pointer;
+    transition:background .14s, color .14s, border-color .14s; }
+  .fd-nmbtn:hover, .fd-nmbtn:focus-visible{ background:var(--gold); border-color:var(--gold); color:#FFFFFF; outline:none; }
+  .fd-nmbtn.plain{ border-color:var(--line); background:#FFFFFF; color:var(--muted); }
+  .fd-nmbtn.plain:hover, .fd-nmbtn.plain:focus-visible{ background:var(--navy); border-color:var(--navy); color:#FFFFFF; }
+  .fd-nmbtn[disabled]{ opacity:.45; cursor:default; }
+  .fd-nmform{ display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:4px; }
+  .fd-nmform input{ width:170px; padding:8px 10px; border:1px solid var(--line); border-radius:3px;
+    font:500 15px/1.2 var(--mono); letter-spacing:.06em; color:var(--navy); text-transform:uppercase; }
+  .fd-nmform input:focus{ outline:none; border-color:var(--gold); }
+  .fd-nmform .g{ font:700 15px/1 var(--serif); color:var(--navy); }
+  .fd-nmform .fd-nmbtn{ margin-top:0; }
+  .fd-nmhint{ margin:7px 0 0; font:400 12px/1.7 var(--serif); color:var(--faint); word-break:keep-all; }
+  .fd-nmerr{ margin:7px 0 0; font:400 12.5px/1.7 var(--serif); color:var(--gold-ink); word-break:keep-all; }
   .fd-sum{ margin:12px 8px 0; font:400 13px/1.8 var(--serif); color:var(--soft); text-align:right; }
 
   .fd-empty{ padding:70px 20px; text-align:center; font:400 14.5px/2 var(--serif); color:var(--soft); word-break:keep-all; }
@@ -117,6 +136,7 @@
   const EMBED = document.documentElement.classList.contains('embed');
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  let SB = null, DATA = null, EDIT = null, ERR = '', BUSY = false;   /* EDIT — 지금 이름을 적고 있는 건물 id */
   const num = (n) => Number(n || 0).toLocaleString('ko-KR');
 
   const CITY = { paris: '파리', london: '런던', newyork: '뉴욕' };
@@ -206,9 +226,22 @@
       let openSub = '';
       if (b.is_open) openSub = '개관했습니다';
       else if (beta && !beta.start_on && !beta.closed) openSub = '베타를 정하시면 바뀝니다';
-      h += '<tr><td class="nm">' +
-        (nm ? '<b>' + esc(nm) + ' ' + g + '</b>' : '<b class="none">이름을 기다리는 ' + g + '</b>') +
-        '<em>' + esc(cityKo(b.city)) + ' ' + esc(b.bno) + '번지 · ' + esc(b.addr) + '</em></td>' +
+      const where = '<em>' + esc(cityKo(b.city)) + ' ' + esc(b.bno) + '번지 · ' + esc(b.addr) + '</em>';
+      let cell;
+      if (EDIT === b.id) {
+        cell = where +
+          '<div class="fd-nmform"><input id="fdWord" type="text" maxlength="12" autocomplete="off" spellcheck="false"' +
+          ' value="' + esc(b.word || '') + '" placeholder="LUMEN" data-b="' + b.id + '">' +
+          '<span class="g">' + g + '</span>' +
+          '<button class="fd-nmbtn" type="button" data-save="' + b.id + '"' + (BUSY ? ' disabled' : '') + '>' + (BUSY ? '저장하는 중' : '저장') + '</button>' +
+          '<button class="fd-nmbtn plain" type="button" data-cancel="1"' + (BUSY ? ' disabled' : '') + '>취소</button></div>' +
+          (ERR ? '<p class="fd-nmerr">' + esc(ERR) + '</p>'
+               : '<p class="fd-nmhint">로마자 3~12자, 한 단어입니다. 같은 이름을 여러 채에 쓰시면 로마 숫자(I · II)가 저절로 붙습니다. 개관 전까지 고치실 수 있습니다.</p>');
+      } else {
+        cell = (nm ? '<b>' + esc(nm) + '</b>' : '<b class="none">이름을 기다리는 ' + g + '</b>') + where +
+          (b.can_rename ? '<button class="fd-nmbtn' + (nm ? ' plain' : '') + '" type="button" data-name="' + b.id + '">' + (nm ? '이름 고치기' : '이름 짓기') + '</button>' : '');
+      }
+      h += '<tr><td class="nm">' + cell + '</td>' +
         '<td class="r mono">' + num(b.slots) + '</td>' +
         '<td class="r mono">' + num(b.voucher_first) + '장</td>' +
         '<td class="r"><span class="mono">' + esc(md(b.open_at)) + '</span>' +
@@ -219,6 +252,7 @@
   }
 
   function draw(D) {
+    DATA = D;
     const body = $('fdBody');
     if (!D || !D.founder) {
       body.innerHTML = '<div class="fd-empty">대시보드는 계약이 확정된 뒤에 열립니다.</div>';
@@ -237,10 +271,39 @@
   }
 
   /* ── 손 ── */
+  async function reload() {
+    const { data, error } = await SB.rpc('eg_founder_dash');
+    if (error) throw error;
+    draw(data);
+  }
+  function focusWord() { const i = $('fdWord'); if (i) { i.focus(); i.select(); } }
+  async function saveName(id) {
+    const i = $('fdWord'); if (!i || BUSY) return;
+    const w = (i.value || '').trim().toUpperCase();
+    if (!/^[A-Z]{3,12}$/.test(w)) { ERR = '이름은 로마자 3~12자, 한 단어로 지어 주십시오.'; draw(DATA); focusWord(); $('fdWord').value = w; return; }
+    BUSY = true; ERR = ''; draw(DATA); if ($('fdWord')) $('fdWord').value = w;
+    try {
+      const { error } = await SB.rpc('eg_founder_name_building', { p_building: id, p_word: w });
+      if (error) throw error;
+      BUSY = false; EDIT = null; await reload();
+    } catch (e) {
+      BUSY = false; ERR = (e && e.message) || '저장하지 못했습니다. 잠시 뒤 다시 눌러 주십시오.';
+      draw(DATA); if ($('fdWord')) { $('fdWord').value = w; focusWord(); }
+    }
+  }
+
   document.addEventListener('click', (e) => {
-    if (e.target.closest('#fdClose')) { say('cd-close'); if (!EMBED) history.back(); }
+    if (e.target.closest('#fdClose')) { say('cd-close'); if (!EMBED) history.back(); return; }
+    const n = e.target.closest('[data-name]');
+    if (n) { EDIT = Number(n.getAttribute('data-name')); ERR = ''; draw(DATA); focusWord(); return; }
+    if (e.target.closest('[data-cancel]')) { if (BUSY) return; EDIT = null; ERR = ''; draw(DATA); return; }
+    const s = e.target.closest('[data-save]');
+    if (s) { saveName(Number(s.getAttribute('data-save'))); return; }
   });
-  window.addEventListener('keydown', (e) => { if (e.key === 'Escape') say('cd-close'); });
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target && e.target.id === 'fdWord') { e.preventDefault(); saveName(Number(e.target.getAttribute('data-b'))); return; }
+    if (e.key === 'Escape') { if (EDIT != null && !BUSY) { EDIT = null; ERR = ''; draw(DATA); } else say('cd-close'); }
+  });
 
   /* ── 클라이언트 — 창 안이면 집주인 것 (0818 한 문서 · 한 클라이언트) ── */
   function loadScript(src) {
@@ -254,10 +317,8 @@
 
   (async function boot() {
     try {
-      const sb = await client();
-      const { data, error } = await sb.rpc('eg_founder_dash');
-      if (error) throw error;
-      draw(data);
+      SB = await client();
+      await reload();
     } catch (e) {
       $('fdBody').innerHTML = '<div class="fd-empty">대시보드를 불러오지 못했습니다.<br>' + esc((e && e.message) || '') + '</div>';
     }
