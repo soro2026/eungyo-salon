@@ -6,7 +6,7 @@
 <title>파운더 대시보드 · EG유니버스</title>
 <!-- ─────────────────────────────────────────────────────────────────────
      founder_dash.html — 타륜 › EG파운더 전용메뉴 › 대시보드
-     2026.09.19 · 파이스 · 셋째 조각 — 전체 판 + ① 메종 이름 짓기 + ② 베타 시작일 달력 (③ 은 아직 보이기만 한다)
+     2026.09.19 · 파이스 · 넷째 조각 — 전체 판 + ① 이름 짓기 + ② 베타 시작일 달력 + ③ 베타 초대권 한 장씩 뽑기
 
      ① 읽는 곳은 rpc eg_founder_dash() 한 손 — ⚠ 이 파일이 표를 따로 묻지 않는다
         바우처 배수 · 6주 마지막 날 · 개관일은 전부 DB 가 셈해 준다. 이 파일에 숫자를 적지 않는다
@@ -24,6 +24,12 @@
         달력이 여는 날(first_pick_on ~ last_start_on) · 권유 구간(recommend_*)은 전부 DB 가 준다
         ⭐ 잠그는 때는 「승인」이 아니라 「첫 초대권을 뽑은 때」(0919 소로) — tickets > 0 이면 버튼이 사라진다
         정하면 application-mail notify 로 소로께 알림 한 통 (실패해도 정한 날은 산다)
+
+     ⑦ ⭐ 베타 초대권 — rpc eg_founder_ticket_issue(건물, 이름) · eg_founder_ticket_rename(표, 이름) · eg_founder_tickets()
+        번호는 DB 가 뽑는 난수 (EG-XXXX-XXXX) — 이 파일은 번호를 만들지 않는다
+        장수 제한 없음 (계약서 제6조 ③) · 입장 전이면 이름을 고칠 수 있다 · 번호는 바뀌지 않는다
+        첫 장을 뽑기 전에 한 번 알린다 — 뽑은 뒤에는 베타 시작일을 못 바꾼다
+        ⏳ 표 그림 내려받기 · 묶음(리더) · 엑셀 일괄 · 손님의 번호 입력 자리는 다음 조각
 
      부모와 주고받는 말
        보냄  cd-close     창을 닫는다
@@ -107,6 +113,23 @@
   .fd-why{ margin:10px 0 14px; max-width:620px; font:400 13px/1.9 var(--serif); color:var(--soft); word-break:keep-all; }
   .fd-calact{ display:flex; gap:8px; }
   .fd-calact .fd-nmbtn{ margin-top:0; padding:8px 14px; font-size:13px; }
+  .fd-tk{ padding:20px 20px 22px 74px; border-bottom:1px solid var(--rule); background:#FDFCF9; }
+  .fd-tkform{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+  .fd-tkform select, .fd-tkform input{ padding:8px 10px; border:1px solid var(--line); border-radius:3px; background:#FFFFFF;
+    font:400 14px/1.2 var(--serif); color:var(--ink); }
+  .fd-tkform input{ width:160px; }
+  .fd-tkform select:focus, .fd-tkform input:focus{ outline:none; border-color:var(--gold); }
+  .fd-tkform .fd-nmbtn{ margin-top:0; padding:9px 14px; font-size:13px; }
+  .fd-tkwarn{ margin:12px 0 0; font:400 13px/1.8 var(--serif); color:var(--gold-ink); word-break:keep-all; }
+  .fd-tklist{ width:100%; margin-top:18px; border-collapse:collapse; }
+  .fd-tklist th{ padding:0 6px 8px; border-bottom:1px solid var(--line); text-align:left; font:400 12px/1 var(--serif); color:var(--faint); }
+  .fd-tklist td{ padding:11px 6px 10px; border-bottom:1px solid var(--rule); font:400 13.5px/1.5 var(--serif); color:var(--ink); vertical-align:middle; }
+  .fd-tklist .code{ font:500 13px/1 var(--mono); letter-spacing:.04em; color:var(--navy); white-space:nowrap; }
+  .fd-tklist .st{ font:400 12.5px/1 var(--serif); color:var(--soft); white-space:nowrap; }
+  .fd-tklist .st.in{ color:var(--gold-ink); }
+  .fd-tklist .fd-nmbtn{ margin-top:0; padding:4px 9px; font-size:12px; }
+  .fd-tklist input{ width:120px; padding:5px 8px; border:1px solid var(--line); border-radius:3px; font:400 13.5px/1.2 var(--serif); }
+  .fd-tkempty{ margin:16px 0 0; font:400 13px/1.8 var(--serif); color:var(--faint); }
   .fd-note{ padding:13px 20px 13px 74px; background:#FBF8F0; font:400 13px/1.8 var(--serif);
     color:var(--gold-ink); word-break:keep-all; }
 
@@ -162,6 +185,7 @@
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   let SB = null, DATA = null, EDIT = null, ERR = '', BUSY = false;
+  let TK = null, TKOPEN = false, TKERR = '', TKBUSY = false, TKEDIT = null, TKLAST = null, TKB = null;   /* 초대권 */
   let CAL = false, PICK = null, CALERR = '', CALBUSY = false;          /* 달력 — 열렸는가 · 고른 날 */   /* EDIT — 지금 이름을 적고 있는 건물 id */
   const num = (n) => Number(n || 0).toLocaleString('ko-KR');
 
@@ -214,6 +238,42 @@
       (CALBUSY ? '저장하는 중입니다' : (PICK ? md(PICK) + '로 정하기' : '날짜를 골라 주십시오')) + '</button>' +
       '<button class="fd-nmbtn plain" type="button" id="fdCalClose"' + (CALBUSY ? ' disabled' : '') + '>닫기</button></div></div>';
     return h;
+  }
+
+  /* ── 초대권 판 ── */
+  function tkHtml(D, beta, ended) {
+    const named = (D.buildings || []).filter((b) => (b.name || '').trim());
+    const L = (TK && TK.list) || [];
+    let h = '<div class="fd-tk">';
+    if (ended) h += '<p class="fd-tkempty" style="margin:0">베타 기간이 끝나 초대권을 더 뽑으실 수 없습니다.</p>';
+    else if (!named.length) h += '<p class="fd-tkempty" style="margin:0">초대권에는 건물 이름이 적힙니다. 먼저 아래 「내 건물」에서 이름을 지어 주십시오.</p>';
+    else {
+      if (TKB == null || !named.some((b) => b.id === TKB)) TKB = named[0].id;
+      h += '<div class="fd-tkform"><select id="fdTkB">' +
+        named.map((b) => '<option value="' + b.id + '"' + (b.id === TKB ? ' selected' : '') + '>' + esc(b.name) + '</option>').join('') +
+        '</select><input id="fdTkName" type="text" maxlength="20" autocomplete="off" placeholder="받는 분 이름">' +
+        '<button class="fd-nmbtn" type="button" id="fdTkGo"' + (TKBUSY ? ' disabled' : '') + '>' + (TKBUSY ? '뽑는 중입니다' : '초대권 뽑기') + '</button>' +
+        '<button class="fd-nmbtn plain" type="button" id="fdTkClose"' + (TKBUSY ? ' disabled' : '') + '>닫기</button></div>';
+      if (!L.length && !(beta.tickets > 0))
+        h += '<p class="fd-tkwarn">초대권에 「' + md(beta.start_on) + '부터 입장」이 적힙니다. 첫 초대권을 뽑으신 뒤에는 베타 시작일을 바꾸실 수 없습니다.</p>';
+    }
+    if (TKERR) h += '<p class="fd-nmerr">' + esc(TKERR) + '</p>';
+    if (L.length) {
+      h += '<table class="fd-tklist"><thead><tr><th>번호</th><th>받는 분</th><th>건물</th><th>뽑은 날</th><th>상태</th><th></th></tr></thead><tbody>';
+      for (const t of L) {
+        const mine = TKEDIT === t.id;
+        h += '<tr' + (TKLAST === t.id ? ' style="background:#FBF8F0"' : '') + '><td class="code">' + esc(t.code) + '</td><td>' +
+          (mine ? '<input id="fdTkRe" type="text" maxlength="20" value="' + esc(t.guest_name) + '" data-t="' + t.id + '">' : esc(t.guest_name) + ' 님') + '</td>' +
+          '<td>' + esc(t.building || '') + '</td><td class="st">' + esc(md(t.issued_on)) + '</td>' +
+          '<td class="st' + (t.status === 'entered' ? ' in' : '') + '">' + (t.status === 'entered' ? md(t.entered_on) + ' 입장' : '입장 전') + '</td><td>' +
+          (t.status === 'entered' ? '' : (mine
+            ? '<button class="fd-nmbtn" type="button" data-tksave="' + t.id + '">저장</button> <button class="fd-nmbtn plain" type="button" data-tkcancel="1">취소</button>'
+            : '<button class="fd-nmbtn plain" type="button" data-tkedit="' + t.id + '">이름 고치기</button>')) + '</td></tr>';
+      }
+      h += '</tbody></table>';
+      if (TK.total > L.length) h += '<p class="fd-tkempty">최근 ' + L.length + '장만 보여 드립니다. 전체 ' + num(TK.total) + '장.</p>';
+    } else if (TK) h += '<p class="fd-tkempty">아직 뽑으신 초대권이 없습니다.</p>';
+    return h + '</div>';
   }
 
   function daysBetween(a, b) {               /* b - a (일) */
@@ -270,12 +330,17 @@
 
       /* ③ 초대권 */
       const open3 = !!beta.start_on;
-      h += '<div class="fd-step' + (open3 ? '' : ' wait') + '"><div class="no">3</div>' +
+      const tkN = (TK && TK.total) || beta.tickets || 0, tkE = (TK && TK.entered) || 0;
+      const ended = open3 && D.today > beta.end_on;
+      h += '<div class="fd-step' + (open3 ? (tkN ? ' done' : '') : ' wait') + '"><div class="no">' + (open3 && tkN ? '✓' : '3') + '</div>' +
         '<div class="what"><b>베타 초대권 뽑아 건네기</b><span>' +
         (open3
-          ? '초대권은 지금부터 미리 건네실 수 있고, 입장은 ' + md(beta.start_on) + '부터 열립니다. 초대 인원에는 제한이 없습니다.'
+          ? '초대권은 지금부터 미리 건네실 수 있고, 입장은 ' + md(beta.start_on) + '부터 ' + md(beta.end_on) + '까지 열립니다. 들어오신 분은 그날부터 3주를 온전히 머뭅니다. 초대 인원에는 제한이 없습니다.'
           : '베타 시작일이 정해지면 열립니다. 초대 인원에는 제한이 없습니다.') +
-        '</span></div><div class="state">' + (open3 ? '준비 중' : '시작일을 먼저') + '</div></div>';
+        '</span></div><div class="state">' + (open3 ? (tkN ? num(tkN) + '장 · 입장 ' + num(tkE) + '명' : '아직 0장') : '시작일을 먼저') + '</div>' +
+        (open3 && !TKOPEN ? '<div class="act"><button class="fd-nmbtn' + (tkN ? ' plain' : '') + '" type="button" id="fdTkOpen">' +
+          (tkN ? '초대권 보기 · 더 뽑기' : '초대권 뽑기') + '</button></div>' : '') + '</div>';
+      if (open3 && TKOPEN) h += tkHtml(D, beta, ended);
     }
 
     h += '<div class="fd-note">개관 7일 전에 준회원 바우처 ' + num(D.voucher_first_total) + '장이 들어옵니다. ' +
@@ -343,7 +408,37 @@
   async function reload() {
     const { data, error } = await SB.rpc('eg_founder_dash');
     if (error) throw error;
+    if (data && data.beta && data.beta.start_on) {
+      try { const r = await SB.rpc('eg_founder_tickets', { p_kind: 'beta' }); if (!r.error) TK = r.data; } catch (_) {}
+    }
     draw(data);
+  }
+  async function tkIssue() {
+    if (TKBUSY) return;
+    const nm = (($('fdTkName') || {}).value || '').trim();
+    const bid = Number((($('fdTkB') || {}).value) || TKB);
+    TKB = bid;
+    if (!nm) { TKERR = '받는 분의 이름을 적어 주십시오.'; draw(DATA); const i = $('fdTkName'); if (i) i.focus(); return; }
+    TKBUSY = true; TKERR = ''; draw(DATA); if ($('fdTkName')) $('fdTkName').value = nm;
+    try {
+      const { data, error } = await SB.rpc('eg_founder_ticket_issue', { p_building: bid, p_name: nm });
+      if (error) throw error;
+      TKBUSY = false; TKLAST = data && data.id; await reload();
+      const i = $('fdTkName'); if (i) i.focus();
+    } catch (e) {
+      TKBUSY = false; TKERR = (e && e.message) || '뽑지 못했습니다. 잠시 뒤 다시 눌러 주십시오.'; draw(DATA);
+      if ($('fdTkName')) $('fdTkName').value = nm;
+    }
+  }
+  async function tkRename(id) {
+    const i = $('fdTkRe'); if (!i) return;
+    const nm = (i.value || '').trim();
+    if (!nm) { TKERR = '받는 분의 이름을 적어 주십시오.'; draw(DATA); return; }
+    try {
+      const { error } = await SB.rpc('eg_founder_ticket_rename', { p_id: id, p_name: nm });
+      if (error) throw error;
+      TKEDIT = null; TKERR = ''; TKLAST = id; await reload();
+    } catch (e) { TKERR = (e && e.message) || '고치지 못했습니다.'; draw(DATA); }
   }
   async function propose() {
     if (!PICK || CALBUSY) return;
@@ -388,13 +483,24 @@
     const dy = e.target.closest('[data-day]');
     if (dy) { if (CALBUSY) return; PICK = dy.getAttribute('data-day'); CALERR = ''; draw(DATA); return; }
     if (e.target.closest('#fdPropose'))  { propose(); return; }
+    if (e.target.closest('#fdTkOpen'))  { TKOPEN = true; TKERR = ''; draw(DATA); const i = $('fdTkName'); if (i) i.focus(); return; }
+    if (e.target.closest('#fdTkClose')) { if (TKBUSY) return; TKOPEN = false; TKERR = ''; TKEDIT = null; draw(DATA); return; }
+    if (e.target.closest('#fdTkGo'))    { tkIssue(); return; }
+    const te = e.target.closest('[data-tkedit]');
+    if (te) { TKEDIT = te.getAttribute('data-tkedit'); TKERR = ''; draw(DATA); const i = $('fdTkRe'); if (i) { i.focus(); i.select(); } return; }
+    if (e.target.closest('[data-tkcancel]')) { TKEDIT = null; TKERR = ''; draw(DATA); return; }
+    const ts = e.target.closest('[data-tksave]');
+    if (ts) { tkRename(ts.getAttribute('data-tksave')); return; }
     const n = e.target.closest('[data-name]');
     if (n) { EDIT = Number(n.getAttribute('data-name')); ERR = ''; draw(DATA); focusWord(); return; }
     if (e.target.closest('[data-cancel]')) { if (BUSY) return; EDIT = null; ERR = ''; draw(DATA); return; }
     const s = e.target.closest('[data-save]');
     if (s) { saveName(Number(s.getAttribute('data-save'))); return; }
   });
+  document.addEventListener('change', (e) => { if (e.target && e.target.id === 'fdTkB') TKB = Number(e.target.value); });
   window.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target && e.target.id === 'fdTkName') { e.preventDefault(); tkIssue(); return; }
+    if (e.key === 'Enter' && e.target && e.target.id === 'fdTkRe')   { e.preventDefault(); tkRename(e.target.getAttribute('data-t')); return; }
     if (e.key === 'Enter' && e.target && e.target.id === 'fdWord') { e.preventDefault(); saveName(Number(e.target.getAttribute('data-b'))); return; }
     if (e.key === 'Escape') { if (CAL && !CALBUSY) { CAL = false; PICK = null; CALERR = ''; draw(DATA); } else if (EDIT != null && !BUSY) { EDIT = null; ERR = ''; draw(DATA); } else say('cd-close'); }
   });
