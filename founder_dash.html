@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>파운더 대시보드 · EG유니버스</title>
+<!-- ─────────────────────────────────────────────────────────────────────
+     founder_dash.html — 타륜 › EG파운더 전용메뉴 › 대시보드
+     2026.09.19 · 파이스 · 첫 조각 — 눈으로 보는 전체 판 (누르는 손은 아직 없다)
+
+     ① 읽는 곳은 rpc eg_founder_dash() 한 손 — ⚠ 이 파일이 표를 따로 묻지 않는다
+        바우처 배수 · 6주 마지막 날 · 개관일은 전부 DB 가 셈해 준다. 이 파일에 숫자를 적지 않는다
+     ② 옷은 신청안내 · 도시별 현황과 같다 — 흰 서류 · 876 판
+     ③ 개관 전 — 맨 위에 「개관까지 하실 일」 띠 (0919 소로)
+           ① 메종 이름 짓기  ② 베타 시작일 정하기  ③ 베타 초대권 뽑아 건네기
+        개관 뒤 — 띠가 걷히고 그 자리에 인원 · 요율 · 수수료가 선다 (다음 조각)
+     ④ 베타 줄이 없는 분(2차 이후 계약만 남은 경우는 없다 — 첫 계약이 베타 줄을 만든다)
+
+     부모와 주고받는 말
+       보냄  cd-close     창을 닫는다
+     ───────────────────────────────────────────────────────────────────── -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Serif+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<script>if (/[?&]embed=1/.test(location.search)) document.documentElement.classList.add('embed');</script>
+<style>
+  :root{
+    --ink:#1F232B; --navy:#16243D; --gold:#C2921F; --gold-ink:#8A6712; --yellow:#F2C518;
+    --muted:#5E6269; --soft:#6B7079; --faint:#8A9099; --rule:#EDEEF1; --line:#DCDFE4; --line2:#E4E6EA;
+    --serif:'Noto Serif KR', 'Noto Serif CJK KR', serif;
+    --batang:'Gowun Batang', 'Noto Serif KR', serif;
+    --mono:'IBM Plex Mono', 'Noto Serif KR', monospace;
+  }
+  html, body{ margin:0; height:100%; }
+  body{ background:#C9CDD4; color:var(--ink); font-family:var(--serif);
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
+  html.embed, html.embed body{ background:transparent; }
+  ::selection{ background:rgba(194,146,31,.18); }
+  button{ font-family:inherit; }
+
+  /* ── 판 — 876 흰 서류 ── */
+  #fdStage{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
+  #fdPanel{ position:relative; display:flex; flex-direction:column;
+    width:876px; height:calc(100vh - 80px); max-height:calc(100vh - 80px);
+    background:#FFFFFF; border-radius:6px; box-shadow:0 26px 70px rgba(12,18,30,.34); overflow:hidden; }
+
+  .fd-top{ flex:0 0 auto; display:flex; align-items:center; gap:12px;
+    padding:16px 22px 14px; border-bottom:1px solid var(--rule); }
+  .fd-title{ flex:1 1 auto; font:700 17px/1.4 var(--batang); color:var(--navy); letter-spacing:.01em; }
+  .fd-title small{ margin-left:10px; font:400 12.5px/1 var(--serif); color:var(--faint); letter-spacing:0; }
+  .fd-x{ width:34px; height:34px; display:flex; align-items:center; justify-content:center; padding:0;
+    border:1px solid var(--line); border-radius:3px; background:#FFFFFF; color:var(--muted);
+    font:400 15px/1 var(--mono); cursor:pointer; transition:background .14s, color .14s, border-color .14s; }
+  .fd-x:hover, .fd-x:focus-visible{ background:var(--navy); border-color:var(--navy); color:#FFFFFF; outline:none; }
+
+  .fd-scroll{ flex:1 1 auto; overflow-y:auto; overscroll-behavior:contain;
+    scrollbar-width:none; -ms-overflow-style:none; }
+  .fd-scroll::-webkit-scrollbar{ display:none; width:0; height:0; }
+  .fd-body{ padding:26px 34px 40px; }
+
+  .fd-hello{ margin:0 0 22px; font:400 15px/1.9 var(--serif); color:var(--muted); word-break:keep-all; }
+  .fd-hello b{ font-weight:700; color:var(--navy); }
+
+  .fd-h{ display:flex; align-items:baseline; gap:10px; margin:0 0 12px;
+    font:700 15px/1.4 var(--batang); color:var(--navy); }
+  .fd-h i{ font:400 12px/1 var(--mono); font-style:normal; color:var(--faint); }
+
+  /* ── 「개관까지 하실 일」 띠 ── */
+  .fd-todo{ margin:0 0 34px; border:1px solid var(--line2); border-radius:5px; overflow:hidden; }
+  .fd-step{ display:grid; grid-template-columns:40px 1fr auto; gap:0 14px; align-items:center;
+    padding:17px 20px 16px; border-bottom:1px solid var(--rule); }
+  .fd-step .no{ width:30px; height:30px; display:flex; align-items:center; justify-content:center;
+    border:1px solid var(--line); border-radius:50%; font:500 13px/1 var(--mono); color:var(--soft); }
+  .fd-step.done .no{ border-color:var(--gold); background:var(--gold); color:#FFFFFF; }
+  .fd-step.wait{ background:#FAFAF8; }
+  .fd-step.wait .no, .fd-step.wait .what b{ color:var(--faint); }
+  .fd-step .what b{ display:block; font:700 15px/1.5 var(--serif); color:var(--ink); }
+  .fd-step .what span{ display:block; margin-top:2px; font:400 13px/1.7 var(--serif); color:var(--soft); word-break:keep-all; }
+  .fd-step .state{ font:400 12.5px/1.5 var(--mono); color:var(--gold-ink); text-align:right; white-space:nowrap; }
+  .fd-step.wait .state{ color:var(--faint); }
+  .fd-note{ padding:13px 20px 13px 74px; background:#FBF8F0; font:400 13px/1.8 var(--serif);
+    color:var(--gold-ink); word-break:keep-all; }
+
+  /* ── 내 건물 ── */
+  .fd-bld{ width:100%; border-collapse:collapse; }
+  .fd-bld th{ padding:0 8px 9px; border-bottom:1px solid var(--line); text-align:left;
+    font:400 12px/1 var(--serif); color:var(--faint); }
+  .fd-bld td{ padding:15px 8px 14px; border-bottom:1px solid var(--rule); vertical-align:top;
+    font:400 14px/1.6 var(--serif); color:var(--ink); }
+  .fd-bld th.r, .fd-bld td.r{ text-align:right; }
+  .fd-bld .nm b{ display:block; font:700 15px/1.5 var(--serif); color:var(--navy); }
+  .fd-bld .nm b.none{ font-weight:400; color:var(--faint); }
+  .fd-bld .nm em{ display:block; font:400 12.5px/1.6 var(--serif); font-style:normal; color:var(--soft); }
+  .fd-bld .mono{ font-family:var(--mono); font-size:13px; color:var(--muted); }
+  .fd-bld .sub{ display:block; font:400 12px/1.6 var(--serif); color:var(--faint); }
+  .fd-sum{ margin:12px 8px 0; font:400 13px/1.8 var(--serif); color:var(--soft); text-align:right; }
+
+  .fd-empty{ padding:70px 20px; text-align:center; font:400 14.5px/2 var(--serif); color:var(--soft); word-break:keep-all; }
+</style>
+</head>
+<body>
+<div id="fdStage">
+  <div id="fdPanel" tabindex="-1" role="dialog" aria-label="파운더 대시보드">
+    <div class="fd-top">
+      <div class="fd-title">파운더 대시보드<small id="fdWho"></small></div>
+      <button class="fd-x" id="fdClose" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="fd-scroll"><div class="fd-body" id="fdBody"><div class="fd-empty">불러오는 중입니다…</div></div></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+  const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+  const EMBED = document.documentElement.classList.contains('embed');
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const num = (n) => Number(n || 0).toLocaleString('ko-KR');
+
+  const CITY = { paris: '파리', london: '런던', newyork: '뉴욕' };
+  const cityKo = (k) => CITY[k] || k;
+  /* 격 — 0917저녁 14호. 이름의 뒷단어는 공식이 붙인다 */
+  function grade(city, slots) {
+    if (city === 'paris')  return 'MAISON';
+    if (city === 'london') return 'HOUSE';
+    return slots <= 81 ? 'LOFT' : 'TOWER';
+  }
+  /* 날짜 — DB 가 준 'YYYY-MM-DD' (이미 서울 달력) 를 그대로 읽는다. 시각을 자르지 않는다 */
+  function md(d) {
+    if (!d) return '';
+    const p = String(d).split('-'); if (p.length < 3) return String(d);
+    return Number(p[1]) + '월 ' + Number(p[2]) + '일';
+  }
+  function daysBetween(a, b) {               /* b - a (일) */
+    const t = (s) => { const p = String(s).split('-'); return Date.UTC(+p[0], +p[1] - 1, +p[2]); };
+    return Math.round((t(b) - t(a)) / 86400000);
+  }
+
+  function say(type, extra) {
+    if (!EMBED) return;
+    try { window.parent.postMessage(Object.assign({ type: type }, extra || {}), location.origin); } catch (_) {}
+  }
+
+  /* ── 「개관까지 하실 일」 띠 ── */
+  function todoHtml(D) {
+    const beta = D.beta || null;
+    const named = D.named || 0, total = D.total || 0;
+    const allNamed = total > 0 && named >= total;
+
+    let h = '<div class="fd-h">개관까지 하실 일</div><div class="fd-todo">';
+
+    /* ① 이름 */
+    h += '<div class="fd-step' + (allNamed ? ' done' : '') + '"><div class="no">' + (allNamed ? '✓' : '1') + '</div>' +
+      '<div class="what"><b>메종 이름 짓기</b><span>건물마다 파운더님의 이름을 붙여 주십시오. 초대권과 바우처에 이 이름이 적힙니다.</span></div>' +
+      '<div class="state">' + total + '채 중 ' + named + '채</div></div>';
+
+    /* ② 베타 시작일 */
+    if (beta) {
+      let st = '', sub = '', cls = '';
+      if (beta.start_on) {
+        cls = ' done';
+        st = md(beta.start_on) + ' ~ ' + md(beta.end_on);
+        sub = '베타 기간이 정해졌습니다. 개관일은 ' + md(beta.open_on) + '입니다.';
+      } else if (beta.closed) {
+        cls = ' wait';
+        st = '기간이 지났습니다';
+        sub = '베타를 시작할 수 있는 기간이 지나, 베타 없이 개관합니다.';
+      } else if (beta.proposed_on) {
+        st = md(beta.proposed_on) + ' · 확인 중';
+        sub = md(beta.proposed_on) + '로 제안하셨습니다. EG가 확인하는 중입니다.';
+      } else {
+        const left = daysBetween(D.today, beta.last_start_on);
+        st = md(beta.last_start_on) + '까지' + (left >= 0 ? ' · ' + left + '일 남음' : '');
+        sub = '베타는 3주입니다. 계약 뒤 2~4주 안에 시작하시기를 권해 드리고, 늦어도 ' + md(beta.last_start_on) + '까지는 시작하셔야 합니다.';
+      }
+      h += '<div class="fd-step' + cls + '"><div class="no">' + (beta.start_on ? '✓' : '2') + '</div>' +
+        '<div class="what"><b>베타 시작일 정하기</b><span>' + esc(sub) + '</span></div>' +
+        '<div class="state">' + esc(st) + '</div></div>';
+
+      /* ③ 초대권 */
+      const open3 = !!beta.start_on;
+      h += '<div class="fd-step' + (open3 ? '' : ' wait') + '"><div class="no">3</div>' +
+        '<div class="what"><b>베타 초대권 뽑아 건네기</b><span>' +
+        (open3
+          ? '초대권은 지금부터 미리 건네실 수 있고, 입장은 ' + md(beta.start_on) + '부터 열립니다. 초대 인원에는 제한이 없습니다.'
+          : '베타 시작일이 정해지면 열립니다. 초대 인원에는 제한이 없습니다.') +
+        '</span></div><div class="state">' + (open3 ? '준비 중' : '시작일을 먼저') + '</div></div>';
+    }
+
+    h += '<div class="fd-note">개관 7일 전에 준회원 바우처 ' + num(D.voucher_first_total) + '장이 들어옵니다. ' +
+      '그 뒤로는 매달, 새 정회원 1명당 ' + num(D.voucher_per_member) + '장씩 드립니다.</div>';
+    return h + '</div>';
+  }
+
+  /* ── 내 건물 ── */
+  function bldHtml(D) {
+    const L = D.buildings || [];
+    const beta = D.beta || null;
+    let h = '<div class="fd-h">내 건물 <i>' + L.length + '채 · ' + num(D.slots_total) + '슬롯</i></div>' +
+      '<table class="fd-bld"><thead><tr><th>건물</th><th class="r">슬롯</th><th class="r">첫 바우처</th><th class="r">개관일</th></tr></thead><tbody>';
+    for (const b of L) {
+      const nm = (b.name || '').trim();
+      const g = grade(b.city, b.slots);
+      let openSub = '';
+      if (b.is_open) openSub = '개관했습니다';
+      else if (beta && !beta.start_on && !beta.closed) openSub = '베타를 정하시면 바뀝니다';
+      h += '<tr><td class="nm">' +
+        (nm ? '<b>' + esc(nm) + ' ' + g + '</b>' : '<b class="none">이름을 기다리는 ' + g + '</b>') +
+        '<em>' + esc(cityKo(b.city)) + ' ' + esc(b.bno) + '번지 · ' + esc(b.addr) + '</em></td>' +
+        '<td class="r mono">' + num(b.slots) + '</td>' +
+        '<td class="r mono">' + num(b.voucher_first) + '장</td>' +
+        '<td class="r"><span class="mono">' + esc(md(b.open_at)) + '</span>' +
+        (openSub ? '<span class="sub">' + esc(openSub) + '</span>' : '') + '</td></tr>';
+    }
+    h += '</tbody></table>';
+    return h;
+  }
+
+  function draw(D) {
+    const body = $('fdBody');
+    if (!D || !D.founder) {
+      body.innerHTML = '<div class="fd-empty">대시보드는 계약이 확정된 뒤에 열립니다.</div>';
+      return;
+    }
+    $('fdWho').textContent = (D.name || '') + ' 파운더님';
+    const anyClosed = (D.buildings || []).some((b) => !b.is_open);
+    let h = '';
+    if (anyClosed) {
+      h += '<p class="fd-hello"><b>' + esc(D.name || '') + ' 파운더님, 환영합니다.</b><br>' +
+        '개관까지 하실 일을 차례대로 모아 두었습니다. 개관한 뒤에는 이 자리에 이번 달 인원과 정산이 나타납니다.</p>';
+      h += todoHtml(D);
+    }
+    h += bldHtml(D);
+    body.innerHTML = h;
+  }
+
+  /* ── 손 ── */
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#fdClose')) { say('cd-close'); if (!EMBED) history.back(); }
+  });
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape') say('cd-close'); });
+
+  /* ── 클라이언트 — 창 안이면 집주인 것 (0818 한 문서 · 한 클라이언트) ── */
+  function loadScript(src) {
+    return new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
+  }
+  async function client() {
+    try { if (window.parent !== window && window.parent.egSupa) return window.parent.egSupa; } catch (_) {}
+    if (!window.supabase) await loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
+    return window.supabase.createClient(SUPA_URL, SUPA_KEY, { auth: { storageKey: 'eungyo-auth', persistSession: true, autoRefreshToken: true } });
+  }
+
+  (async function boot() {
+    try {
+      const sb = await client();
+      const { data, error } = await sb.rpc('eg_founder_dash');
+      if (error) throw error;
+      draw(data);
+    } catch (e) {
+      $('fdBody').innerHTML = '<div class="fd-empty">대시보드를 불러오지 못했습니다.<br>' + esc((e && e.message) || '') + '</div>';
+    }
+    try { $('fdPanel').focus(); } catch (_) {}
+  })();
+})();
+</script>
+</body>
+</html>
