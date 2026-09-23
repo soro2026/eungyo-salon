@@ -232,6 +232,37 @@
   .e-chip .st{ margin-right:calc(var(--u) * 0.28); }
   .e-sub{ font-size:calc(var(--u) * 0.8); color:var(--e-mute); margin-top:calc(var(--u) * 0.28); }
   .e-sub b{ color:var(--e-sub); font-weight:400; }
+  /* ⭐ 0923 — 머리 한 줄 곁 버튼. 베타 D-3 부터 둘, 그 밖엔 하나 (결정문 0923 10호) */
+  .e-plan-btns{ display:flex; gap:calc(var(--u) * 0.4); margin-top:calc(var(--u) * 0.5); flex-wrap:wrap; }
+  .e-plan-btns[hidden], .e-chip[hidden]{ display:none; }
+  .e-plan-btn{
+    font:inherit; font-size:calc(var(--u) * 0.76); cursor:pointer;
+    color:var(--e-acc); background:transparent;
+    border:1px solid color-mix(in srgb, var(--e-acc) 55%, transparent);
+    border-radius:999px; padding:calc(var(--u) * 0.22) calc(var(--u) * 0.8);
+  }
+  .e-plan-btn.main{ color:var(--e-ink); border-color:var(--e-acc); background:color-mix(in srgb, var(--e-acc) 16%, transparent); }
+  .e-plan-btn:hover{ border-color:var(--e-acc); }
+  .e-plan-btn:focus-visible{ outline:2px solid var(--e-acc); outline-offset:2px; }
+
+  /* ══ 구독 관리 시트 (0923) ══ */
+  .pl-sec{ padding:14px 0; border-bottom:1px solid var(--c-cbor); }
+  .pl-sec:last-child{ border-bottom:0; }
+  .pl-h{ font-family:'Gowun Batang',serif; font-size:13px; color:var(--c-sub); margin-bottom:8px; }
+  .pl-big{ font-family:'Gowun Batang',serif; font-size:19px; color:var(--c-ink); }
+  .pl-row{ display:flex; justify-content:space-between; gap:12px; font-size:13.5px; line-height:1.9; color:var(--c-ink); }
+  .pl-row span:first-child{ color:var(--c-sub); }
+  .pl-hist{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  .pl-hist td{ padding:6px 0; border-top:1px solid var(--c-cbor); color:var(--c-ink); }
+  .pl-hist td:last-child{ text-align:right; }
+  .pl-st-failed{ color:var(--c-accent); }
+  .pl-gift{ background:var(--c-cbg); border:1px solid var(--c-cbor); border-radius:12px; padding:14px 16px; }
+  .pl-gift ol{ margin:8px 0 0; padding-left:18px; font-size:13.5px; line-height:1.75; color:var(--c-ink); }
+  .pl-gift small{ display:block; color:var(--c-sub); font-size:12px; margin-top:2px; }
+  .pl-cta{ margin-top:12px; width:100%; font:inherit; font-size:14px; padding:11px; border-radius:10px;
+           border:1px solid var(--c-accent); background:var(--c-accent); color:#fff; cursor:pointer; }
+  .pl-cta[disabled]{ opacity:.55; cursor:default; }
+  .pl-note{ font-size:12px; color:var(--c-sub); margin-top:8px; line-height:1.6; }
 
   /* 가름선 — 벽에 그은 한 줄 */
   .e-rule{
@@ -1025,10 +1056,12 @@
     <div class="e-photo cut" id="p-avatar" onclick="document.getElementById('avatar-file').click()">L</div>
     <input type="file" id="avatar-file" accept="image/*" style="display:none" onchange="onAvatarPick(this.files)">
     <div class="e-who">
-      <div class="e-role cut">COMPAGNON</div>
+      <!-- ⭐ 0923 소로 — 글자로 박힌 「COMPAGNON」「파운더 37번」을 걷었다 -->
       <div class="e-nick cut" id="p-nick">lonelywalden</div>
-      <div class="e-chip cut"><span class="st">✦</span>파운더 37번 · <span id="p-league">루키리그</span></div>
-      <div class="e-sub cut">4개월 이용권 · <b id="p-dday">D-45</b> · 갱신 09. 29</div>
+      <div class="e-chip cut" id="p-chip" hidden><span class="st">✦</span><span id="p-league"></span></div>
+      <!-- ⭐ 0923 — 가짜 「4개월 이용권 · D-45 · 갱신 09. 29」를 걷었다. eg_my_membership() 한 우물에서 긷는다 -->
+      <div class="e-sub cut" id="p-plan">&nbsp;</div>
+      <div class="e-plan-btns" id="p-plan-btns" hidden></div>
     </div>
   </div>
 
@@ -1188,8 +1221,8 @@
 </div>
 <div class="sheet" id="sheet-plan" hidden>
   <div class="sheet-head"><b>구독 관리</b><span class="sheet-x" onclick="closeSheet()">×</span></div>
-  <div class="sheet-body">
-        <div class="hint">아직 배관 전입니다 — 결제 창이 서면 여기에 붙습니다.</div>
+  <div class="sheet-body" id="plan-body">
+        <div class="hint">불러오는 중입니다.</div>
   </div>
 </div>
 <div class="sheet" id="sheet-terms" hidden>
@@ -1207,7 +1240,7 @@
      같은 물건이 두 곳에 서면 고칠 곳도 둘이 된다. -->
 
 <script>
-console.log('[EG] persona 0819a — 열째 우물(독서비행) 이름표 추가 · 직행 페이드 · 미니 타륜');
+console.log('[EG] persona 0923a — 구독 관리 = 회비의 집 · 머리 한 줄 가짜 값 걷음 · eg_my_membership');
 /* ⚠ 판 이름을 실제 날짜로 되돌렸다(0818f → 0816g). 앞선 세 회차의 이름표가 이틀 앞서 있었다. */
 /* ══ 교양자화상 · 황금사과 월렛 — apple_log 실연동 (SSoT = SUM(amount)) ══ */
 const SUPABASE_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
@@ -1438,15 +1471,14 @@ async function loadPersona(){
     else { av.textContent = '🌿'; }
   }
   const lgKo = LEAGUE_KO[p.league] || p.league || '';
-  if(lgKo) setText('p-league', lgKo);
+  if(lgKo){ setText('p-league', lgKo); const ch = document.getElementById('p-chip'); if(ch) ch.hidden = false; }
 
   // ② 6스탯 + 월렛 잔액
   /* ⚠ 0814 — 여섯 칸 스탯은 포스터로 갈음됐다(결정문 10호).
      월렛 잔액만 남는다. 「씨앗을 품은 별」은 애초에 하드코딩이었다. */
   setText('wallet-bal', (Number(p.apple_balance) || 0).toFixed(2));
   /* 구독 관리 곁값 — 계정 단을 열지 않아도 남은 날이 읽히게 */
-  const dd = (document.getElementById('p-dday') || {}).textContent || '';
-  setText('r-plan-side', dd);
+  /* ⭐ 0923 — r-plan-side 는 loadPlan() 이 우물에서 채운다. 여기서 베끼지 않는다 */
 
   /* 리그 진척 막대는 걷었다 — 분모를 안 쓴다(9호). 리그는 머리의 배지로만 선다 */
 
@@ -1742,6 +1774,141 @@ window.addEventListener('message', (e) => {
 });
 
 /* 줄 오른쪽의 작은 값 — 열지 않아도 안부가 읽히게 (0814) */
+/* ══ 구독 관리 — 회비의 집 (0923 소로) ═══════════════════════════════
+   ⭐ 머리 한 줄 · 곁 버튼 · 곁값 · 구독 관리 시트가 전부 eg_my_membership() 하나에서 긷는다.
+     화면에 값을 박지 않는다 (0923 — 「4개월 이용권 · D-45」 가짜 값을 걷은 까닭).
+   ⭐ 버튼 (결정문 0923 10호) — 베타 D-3 부터 [준회원 바우처][정회원 신청] · 그 밖 [정회원 신청]
+   ⭐ 들머리는 혜택으로 말한다 (12호) — 내야 할 금액은 서명하는 자리에서.
+   ⚠ 「베타」를 화면에 쓰지 않는다 — 「체험 기간」으로 통일 (12호).
+   ══════════════════════════════════════════════════════════════════ */
+let MEM = null;
+const PL_BANK = { '002':'산업','003':'기업','004':'국민','007':'수협','011':'농협','012':'농협','020':'우리',
+  '023':'SC제일','027':'씨티','031':'아이엠','032':'부산','034':'광주','035':'제주','037':'전북','039':'경남',
+  '045':'새마을금고','048':'신협','050':'저축은행','071':'우체국','081':'하나','088':'신한','089':'케이뱅크',
+  '090':'카카오뱅크','092':'토스뱅크' };
+const PL_ST = { success:'결제 완료', requested:'출금 예정', pending:'출금 대기', failed:'미납', cancelled:'취소', refunded:'환불' };
+const won = n => (Number(n) || 0).toLocaleString('ko-KR') + '원';
+const md  = d => { if(!d) return ''; const [y,m,dd] = String(d).slice(0,10).split('-'); return `${m}. ${dd}`; };
+const ymd = d => { if(!d) return ''; const [y,m,dd] = String(d).slice(0,10).split('-'); return `${y}. ${m}. ${dd}`; };
+const plEsc = t => String(t ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function planLine(m){
+  const left = m.stay ? m.stay.days_left : null;
+  switch(m.state){
+    case 'member':    return m.next ? `정회원 · 다음 출금 <b>${md(m.next.pay_day)}</b>` : '정회원';
+    case 'founder':   return `파운더 정회원 · <b>${md(m.founder_until)}</b>까지`;
+    case 'beta':      return `체험 기간 · <b>D-${left}</b>`;
+    case 'associate': return `준회원 · <b>D-${left}</b>`;
+    default:          return '체험 기간이 끝났습니다';
+  }
+}
+function planSide(m){
+  const left = m.stay ? m.stay.days_left : null;
+  if(m.state === 'member')  return m.next ? `다음 ${md(m.next.pay_day)}` : '정회원';
+  if(m.state === 'founder') return `${md(m.founder_until)}까지`;
+  if(left !== null)         return `D-${left}`;
+  return '신청 가능';
+}
+
+async function loadPlan(){
+  if(!getUser()) return;
+  try{ MEM = await sbFetch('/rest/v1/rpc/eg_my_membership', { method:'POST', body:'{}' }); }
+  catch(e){ console.warn('[EG] 구독 우물', e); return; }
+  if(!MEM || !MEM.ok) return;
+
+  const line = document.getElementById('p-plan');
+  if(line) line.innerHTML = planLine(MEM);
+  setText('r-plan-side', planSide(MEM));
+
+  const box = document.getElementById('p-plan-btns');
+  if(box){
+    const b = MEM.buttons || [];
+    box.innerHTML =
+      (b.includes('voucher') ? '<button type="button" class="e-plan-btn" data-plan="voucher">준회원 바우처</button>' : '') +
+      (b.includes('apply')   ? '<button type="button" class="e-plan-btn main" data-plan="apply">정회원 신청</button>' : '');
+    box.hidden = !b.length;
+  }
+  drawPlan();
+}
+
+function drawPlan(focus){
+  const el = document.getElementById('plan-body');
+  if(!el || !MEM) return;
+  const m = MEM, out = [];
+
+  /* ① 지금 나 */
+  const now = [];
+  if(m.state === 'member' && m.current){
+    now.push(`<div class="pl-big">정회원</div>`);
+    now.push(`<div class="pl-row"><span>이번 회차</span><span>${ymd(m.current.from)} ~ ${ymd(m.current.to)}</span></div>`);
+    now.push(`<div class="pl-row"><span>이번 회비</span><span>${won(m.current.amount)} · ${PL_ST[m.current.status] || m.current.status}</span></div>`);
+    if(m.next){
+      now.push(`<div class="pl-row"><span>다음 출금</span><span>${ymd(m.next.pay_day)}</span></div>`);
+      now.push(`<div class="pl-row"><span>매월 회비</span><span>${won(m.next.amount)}</span></div>`);
+    }
+  }else if(m.state === 'founder'){
+    now.push(`<div class="pl-big">파운더 정회원</div>`);
+    now.push(`<div class="pl-row"><span>무상 기간</span><span>${ymd(m.founder_until)}까지</span></div>`);
+  }else if(m.stay){
+    now.push(`<div class="pl-big">${m.state === 'associate' ? '준회원' : '체험 기간'}</div>`);
+    now.push(`<div class="pl-row"><span>남은 날</span><span>D-${m.stay.days_left}</span></div>`);
+  }else{
+    now.push(`<div class="pl-big">체험 기간이 끝났습니다</div>`);
+  }
+  out.push(`<div class="pl-sec">${now.join('')}</div>`);
+
+  /* ② 결제 수단 */
+  if(m.method){
+    const kind = String(m.method.kind || '').toUpperCase().includes('CARD') ? '카드'
+               : (PL_BANK[m.method.bank] || '계좌');
+    out.push(`<div class="pl-sec"><div class="pl-h">결제 수단</div>
+      <div class="pl-row"><span>${plEsc(kind)}</span><span>${plEsc(m.method.number || '')}</span></div>
+      <div class="pl-note">결제 수단 변경은 곧 이 자리에서 하실 수 있습니다.</div></div>`);
+  }
+
+  /* ③ 내역 */
+  const h = (m.history || []).filter(r => r.amount !== null);
+  if(h.length){
+    out.push(`<div class="pl-sec"><div class="pl-h">회비 내역</div><table class="pl-hist">` +
+      h.map(r => `<tr><td>${ymd(r.from)} ~ ${md(r.to)}</td><td>${won(r.amount)}</td>
+        <td class="pl-st-${plEsc(r.status)}">${PL_ST[r.status] || plEsc(r.status)}</td></tr>`).join('') +
+      `</table></div>`);
+  }
+
+  /* ④ 신청 — 들머리는 혜택 (12호 · 13호) */
+  if((m.buttons || []).includes('apply')){
+    const ap = m.apply_preview || {};
+    const gift1 = ap.deduct > 0
+      ? `<li>남은 체험 기간에 해당하는 총 <b>${won(ap.deduct)}</b>을 첫 달 회비에서 공제해 드립니다.</li>` : '';
+    const gift2 = m.stay
+      ? `<li>체험 기간에 남기신 모든 기록이 그대로 이어져 정식 기록으로 보존됩니다.
+           <small>신청하지 않으시면 체험이 끝나는 날 정리됩니다.</small></li>` : '';
+    const head = (gift1 && gift2) ? '오늘 정회원을 신청하시면 드리는 두 가지'
+               : (gift1 || gift2) ? '오늘 정회원을 신청하시면' : '정회원 신청';
+    out.push(`<div class="pl-sec" id="pl-apply"><div class="pl-gift">
+      <div class="pl-h" style="margin:0">${head}</div>
+      ${(gift1 || gift2) ? `<ol>${gift1}${gift2}</ol>` : ''}
+      <button type="button" class="pl-cta" disabled>정회원 신청</button>
+      <div class="pl-note">신청 화면을 준비하고 있습니다. 곧 이 버튼으로 바로 신청하실 수 있습니다.</div>
+    </div></div>`);
+  }
+
+  /* 준회원 바우처 — 베타 D-3 부터 */
+  if((m.buttons || []).includes('voucher')){
+    out.push(`<div class="pl-sec" id="pl-voucher"><div class="pl-h">준회원 바우처</div>
+      <div class="pl-note" style="margin:0">받으신 바우처 번호를 넣는 자리를 준비하고 있습니다.</div></div>`);
+  }
+
+  el.innerHTML = out.join('');
+  if(focus){ document.getElementById('pl-' + focus)?.scrollIntoView({ block:'start' }); }
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-plan]'); if(!b) return;
+  openSheet('plan');
+  drawPlan(b.dataset.plan);
+});
+
 function paintRowSides(p){
   const set = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
   set('r-apple-side', (Number(p.apple_balance)||0).toFixed(2) + ' 알');
@@ -2074,7 +2241,7 @@ function doLogout(){
 console.log('%c[EG] persona · 쪽지함 액자 머리 종이빛', 'color:#8a6d1f');
 
 document.addEventListener('DOMContentLoaded', () => {
-  loadPersona(); initWalletScroll(); loadMailSummary(); loadPoster();
+  loadPersona(); initWalletScroll(); loadMailSummary(); loadPoster(); loadPlan();
   /* 글 편 수는 열지 않아도 읽히게 — 긷고 나서 곁값을 적는다.
      ⚠ loadWritings 가 스스로 paintWritingSide 를 부른다. 여기서 또 부르면
        센 곳이 둘이 된다. 그림이 없으면 조용히 지나간다(#wlist 가 아직 없다). */
