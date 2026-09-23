@@ -51,6 +51,28 @@ body{ background:var(--bg); color:var(--ink); font-family:'Noto Serif KR',serif;
 #letterBox .lf{ display:flex; align-items:center; gap:9px; padding:13px 18px;
   border-top:1px solid var(--line); background:var(--panel2); flex-wrap:wrap; }
 #letterBox .lf .grow{ flex:1; }
+
+/* ══ 제안서 타벨라이 판 (0923) — 편지 판과 같은 옷 ══ */
+#guideWrap{ position:fixed; inset:0; z-index:61; display:none;
+  background:rgba(8,7,5,.72); padding:24px; overflow:auto; }
+#guideWrap.on{ display:block; }
+#guideBox{ max-width:760px; margin:4vh auto 0; background:var(--panel);
+  border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+#guideBox .lh{ display:flex; align-items:center; gap:12px; padding:14px 18px;
+  border-bottom:1px solid var(--line); background:var(--panel2); }
+#guideBox .who{ font-size:13px; color:var(--soft); }
+#guideBox .who b{ font-size:16px; color:var(--gold); font-weight:500; margin-left:4px; }
+#guideBox .dim{ font-size:12px; color:var(--dim); margin-left:8px; }
+#guideBox .x{ margin-left:auto; background:none; border:0; color:var(--dim); font-size:17px; cursor:pointer; padding:2px 4px; }
+#guideBox .gm{ padding:16px 18px; }
+#guideBox .lab{ display:block; font-size:11px; color:var(--dim); letter-spacing:.14em; margin-bottom:6px; }
+#guideBox textarea{ width:100%; height:38vh; resize:vertical; background:#151109;
+  border:1px solid var(--line); border-radius:8px; color:var(--ink);
+  font-family:'Noto Serif KR',serif; font-size:14.5px; line-height:2.0; padding:11px 13px; }
+#guideBox .note{ font-size:11.5px; color:var(--dim); line-height:1.8; margin-top:10px; }
+#guideBox .lf{ display:flex; align-items:center; gap:9px; padding:13px 18px;
+  border-top:1px solid var(--line); background:var(--panel2); }
+#guideBox .lf .grow{ flex:1; }
 .b.sm{ padding:4px 9px; font-size:11.5px; }
 a{ color:var(--gold2); }
 :focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
@@ -297,6 +319,27 @@ textarea{ resize:vertical; line-height:1.6; }
 </main>
 </div>
 
+<!-- ══ 제안서 타벨라이 판 (0923) — 우표는 그날 발행 중인 것 가운데 하나 · 소인은 우체국이 고른다 ══ -->
+<div id="guideWrap">
+  <div id="guideBox" role="dialog" aria-label="제안서 타벨라이">
+    <div class="lh">
+      <span class="who">제안서 타벨라이 ·<b id="gTo">—</b><span id="gNick" class="dim"></span></span>
+      <button class="x" id="gClose" title="닫기">✕</button>
+    </div>
+    <div class="gm">
+      <label class="lab" for="gBody">본문 — 여기서 고친 글은 이 편지에만 적용됩니다 (초안은 그대로)</label>
+      <textarea id="gBody" spellcheck="false"></textarea>
+      <p class="note">받는 분의 타벨라이 우편함으로 갑니다. 우표는 그날 발행 중인 것 가운데 하나가, 소인은 우체국이 고릅니다.<br>
+      받는 분이 이 편지를 여는 순간 파운더 메뉴의 문이 열리고, 화면 왼쪽 위에 크라이슬러 빌딩이 섭니다.</p>
+    </div>
+    <div class="lf">
+      <span class="grow"></span>
+      <button class="b" id="gCancel">닫기</button>
+      <button class="b gold" id="gSend">타벨라이로 보내기</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ 편지 판 (0908) — 한 통씩 · 크롤링 값을 옆에 두고 ══ -->
 <div id="letterWrap">
   <div id="letterBox">
@@ -460,7 +503,14 @@ function nextMove(r){
                   : { key:'wait', cls:'wait', txt:'계약서 작성 중' };
     }
   }
-  if(r.user_id) return { key:'joined', cls:'wait', txt:'EG 가입 · 제안서 차례' };
+  if(r.user_id){
+    /* ⭐ 0923 — 제안서 타벨라이가 가는지 · 읽혔는지까지 딱지가 따라간다 */
+    if(!t) return { key:'joined', cls:'wait', txt:'EG 가입' };
+    const L = t.letter;
+    if(!L || !L.sent_at) return { key:'guide', cls:'go', txt:'제안서 보낼 차례' };
+    if(!L.read_at)       return { key:'wait', cls:'wait', txt:'제안서 읽기 전' };
+    return { key:'joined', cls:'wait', txt:'제안서 열람 · 신청 전' };
+  }
   if(r.status === '보냄' || r.status === '열람'){
     const d = days(r.sent_at);
     if(d !== null && d >= 7) return { key:'silent', cls:'warn', txt:'회신 없음 · '+d+'일' };
@@ -478,6 +528,7 @@ const TODOS = [
   ['open',  '개관 협의',   '준비 기한이 다가옵니다'],
   ['silent','회신 없음',   '보낸 지 7일이 지났습니다'],
   ['link',  'EG 계정 연결', '회신은 왔고 계정이 아직입니다'],
+  ['guide', '제안서 보내기', '계정은 묶였고 제안서가 아직입니다'],
 ];
 function drawTodo(){
   const cnt = {};
@@ -619,10 +670,14 @@ function founderPanel(r){
 
   let h = '<div class="fd' + (res && res.status==='claimed' && c && c.paid ? ' warn' : '') + '">';
   h += step(true, `EG 가입 · ${esc(u.nickname||'')}`, dt(u.joined_at));
+  /* ⭐ 0923 제안서 타벨라이 — 보낸 날 · 읽은 날 (읽는 순간 파운더 메뉴가 열린다) */
+  const L = t.letter, sentL = !!(L && L.sent_at);
+  h += step(sentL, sentL ? '제안서 타벨라이' : '제안서 타벨라이 전', dt(L && L.sent_at));
+  if(sentL) h += step(!!L.read_at, L.read_at ? '열람 · 파운더 메뉴 열림' : '아직 안 읽었습니다', dt(L.read_at));
 
   if(!res){
     h += step(false, '신청 없음');
-    h += `<div class="acts"><button class="b sm" data-act="unlink">연결 풀기</button></div></div>`;
+    h += `<div class="acts">${sentL ? '' : '<button class="b gold sm" data-act="guide">제안서 타벨라이</button>'}<button class="b sm" data-act="unlink">연결 풀기</button></div></div>`;
     return h;
   }
 
@@ -712,10 +767,11 @@ $('#todoCards').addEventListener('click', e=>{
 $('#rows').addEventListener('click', async e=>{
   const el = e.target.closest('button[data-act]'); if(!el) return;
   const act = el.dataset.act;
-  if(!['link','unlink','confirm','unconfirm'].includes(act)) return;
+  if(!['link','unlink','confirm','unconfirm','guide'].includes(act)) return;
   const id = Number(el.closest('.lead').dataset.id);
   const row = ROWS.find(r=>r.id===id); if(!row) return;
 
+  if(act === 'guide')    return openGuide(row);
   if(act === 'link')     return linkAccount(row);
   if(act === 'unlink')   return unlinkAccount(row);
   if(act === 'confirm')  return confirmPaid(row, el.dataset.res, el);
@@ -815,6 +871,56 @@ async function unconfirmPaid(row, res, btn){
     btn.disabled = false;
   }
 }
+/* ══ 제안서 타벨라이 (0923) ══
+   ⭐ 초안은 DB(eg_letter_drafts · founder_guide)에 산다 — 0918 에 결정문에만 두었다가 창과 함께 잃었다
+   ⭐ 우표 · 소인 · 제목 칸은 DB 의 eg_founder_send_guide 가 타벨라이 규칙대로 붙인다 — 여기서 고르지 않는다 */
+let GROW = null;
+async function openGuide(row){
+  const t = TRACK.get(row.id);
+  if(!row.user_id || !t || !t.linked){ toast('EG 계정을 먼저 묶어 주십시오', true); return; }
+  const { data, error } = await sb.from('eg_letter_drafts').select('body').eq('key','founder_guide').maybeSingle();
+  if(error || !data){ toast('제안서 초안을 불러오지 못했습니다' + (error ? ' — '+error.message : ''), true); return; }
+  GROW = row;
+  $('#gTo').textContent = row.name + ' 님께';
+  $('#gNick').textContent = t.user && t.user.nickname ? 'EG 계정 ' + t.user.nickname : '';
+  $('#gBody').value = data.body.split('{{이름}}').join(row.name);
+  const go = $('#gSend'); go.disabled = false; go.textContent = '타벨라이로 보내기';
+  $('#guideWrap').classList.add('on');
+  const ta = $('#gBody'); ta.focus(); ta.setSelectionRange(0, 0); ta.scrollTop = 0;
+}
+function closeGuide(){ $('#guideWrap').classList.remove('on'); GROW = null; }
+$('#gClose').addEventListener('click', closeGuide);
+$('#gCancel').addEventListener('click', closeGuide);
+$('#guideWrap').addEventListener('click', e=>{ if(e.target.id === 'guideWrap') closeGuide(); });
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape' && $('#guideWrap').classList.contains('on')) closeGuide();
+});
+$('#gSend').addEventListener('click', async ()=>{
+  const row = GROW; if(!row) return;
+  const body = $('#gBody').value.trim();
+  if(!body){ toast('편지 본문이 비어 있습니다', true); return; }
+  if(body.includes('{{')){ toast('채워지지 않은 자리({{ }})가 남아 있습니다', true); return; }
+  const t = TRACK.get(row.id);
+  const nick = t && t.user ? (t.user.nickname || '') : '';
+  /* ⚠ 비가역 — 받는 계정을 한 번 더 보여 드린다 */
+  if(!confirm(`「${row.name}」 님께 제안서 타벨라이를 보냅니다.\n받는 EG 계정 — ${nick}\n\n보낸 편지는 거둘 수 없습니다.`)) return;
+  const go = $('#gSend'); go.disabled = true; go.textContent = '보내는 중…';
+  try{
+    const { data, error } = await sb.rpc('eg_founder_send_guide',
+      { p_lead: row.id, p_subject: null, p_body: body, p_user: row.user_id });
+    if(error) throw error;
+    row.guide_msg_id = data.message_id;
+    row.guide_sent_at = new Date().toISOString();
+    if(['미접촉','보냄','열람'].includes(row.status)) row.status = '대화중';
+    closeGuide();
+    toast(`${row.name} 님께 제안서 타벨라이를 보냈습니다`);
+    await refreshOne(row);
+  }catch(err){
+    toast('보내지 못했습니다 — ' + (err.message || err), true);
+    go.disabled = false; go.textContent = '타벨라이로 보내기';
+  }
+});
+
 async function refreshOne(row){
   try{ const { data } = await sb.rpc('eg_founder_track', { p_user: row.user_id }); if(data) TRACK.set(row.id, data); }
   catch(_){}

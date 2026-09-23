@@ -10,6 +10,9 @@
       이웃 — 현지 시계(#obsClock)는 버튼 오른쪽으로 비켜서고(body.eg-fbtn · --eg-fb-clock),
              별 항해 중(body.on-voyage)에는 항해 표지가 그 자리를 쓰니 버튼이 숨는다.
              살롱지기 나침반이 켜진 화면에서는 나침반 옆으로 한 칸 비켜선다
+      ⭐⭐ 0923 — 타벨라이에서 제안서 편지를 읽는 순간(messages.html 이 부모에게 보내는 {eg:'mail-read'})
+         한 번 더 묻고, 문이 열렸으면 그 자리에서 빌딩이 선다. 편지 창이 덮고 있으면 기다렸다가
+         빌딩 자리가 드러나는 때 불을 켜며 솟아오른다(.arrive). 새로고침을 기다리지 않는다
       ⭐ 보이는 조건 = eg_founder_guide 를 읽을 수 있는 계정 (RLS 가 정한다)
          지금은 살롱지기만 · 뒤에 제안서를 받은 분께 RLS 를 열면 그분들께도 저절로 선다
       ⭐ 데스크톱에서만 (소로 0916 — 파운더 메뉴는 웹 · 데스크톱)
@@ -126,6 +129,11 @@
   '#egFounderBtn:hover .tip, #egFounderBtn.lit .tip{ opacity:1; transform:scale(1);' +
   '  transition:opacity .25s ease var(--d), transform .35s ease var(--d); }' +
   'body.on-voyage #egFounderBtn{ opacity:0; pointer-events:none; }' +
+  /* ⭐ 0923 도착 — 제안서 편지를 읽은 그 자리에서 「짠」 */
+  '#egFounderBtn.await{ opacity:0; }' +
+  '#egFounderBtn.arrive{ animation:egfbArrive 1.1s cubic-bezier(.2,.8,.2,1) both; }' +
+  '@keyframes egfbArrive{ 0%{ opacity:0; transform:translateY(12px) scale(.84); }' +
+  '  55%{ opacity:1; transform:translateY(-3px) scale(1.07); } 100%{ opacity:1; transform:none; } }' +
   'body.eg-fbtn #obsClock{ left:var(--eg-fb-clock, 66px); }';
 
   /* 60 × 90 판 — 창 12 · 아치 창 · 왕관 아치 둘 · 첨탑 별. 켜지는 차례는 --d (아래층부터) */
@@ -309,6 +317,7 @@
   /* 문서가 보내는 말 */
   window.addEventListener('message', (e) => {
     if (e.origin !== location.origin || !e.data || typeof e.data !== 'object') return;
+    if (e.data.eg === 'mail-read') { mayShow(true); return; }   /* ⭐ 0923 편지를 읽었다 — 문이 열렸는지 다시 묻는다 */
     switch (e.data.type) {
       case 'fg-close':
       case 'fc-close':
@@ -337,7 +346,7 @@
      누르면   닫혀 있을 때 → 연다 (첫 문 — 확정 뒤에는 대시보드)
              접혀 있을 때(에스테이트 투어) → 서류를 편다
              펴져 있을 때 → 닫는다 */
-  function inject() {
+  function inject(arrive) {
     if (document.getElementById('egFounderBtn')) return;
     if (!document.getElementById('egFounderBtnCss')) {
       const st = document.createElement('style');
@@ -352,9 +361,11 @@
     b.setAttribute('aria-label', 'EG파운더 전용메뉴');
     b.innerHTML = BTN_SVG;
     b.addEventListener('click', onBtn);
+    if (arrive) b.classList.add('await');
     document.body.appendChild(b);
     document.body.classList.add('eg-fbtn');
     place();
+    if (arrive) waitToArrive(b);
     /* 살롱지기 판정은 늦게 끝난다 — 나침반이 켜지는 순간 한 칸 비켜선다 */
     const cb = document.getElementById('compassBtn');
     if (cb && window.MutationObserver) new MutationObserver(place).observe(cb, { attributes: true, attributeFilter: ['style', 'class'] });
@@ -374,6 +385,24 @@
     });
   }
 
+  /* ⭐ 0923 「짠」 — 편지 창이 빌딩 자리를 덮고 있는 동안은 숨어 기다린다.
+     그 자리를 눌렀을 때 빌딩이 잡히면(= 위에 아무것도 없으면) 불을 켜며 솟아오르고, 잠시 뒤 불을 끈다.
+     ⚠ 투명해도(opacity 0) 누름은 잡힌다 — 그래서 덮였는지를 이렇게 알 수 있다 */
+  function waitToArrive(b) {
+    const iv = setInterval(() => {
+      if (!document.body.contains(b)) { clearInterval(iv); return; }
+      const r = b.getBoundingClientRect();
+      if (!r.width) return;
+      const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height * 0.72);
+      if (!el || !(el === b || b.contains(el))) return;          /* 아직 편지 창 아래 */
+      clearInterval(iv);
+      b.classList.remove('await');
+      b.classList.add('arrive', 'lit');
+      b.addEventListener('animationend', () => b.classList.remove('arrive'), { once: true });
+      setTimeout(() => { if (!(root && root.classList.contains('on'))) b.classList.remove('lit'); }, 2600);
+    }, 350);
+  }
+
   function lit(on) {
     const b = document.getElementById('egFounderBtn');
     if (b) b.classList.toggle('lit', !!on);
@@ -389,7 +418,7 @@
   }
 
   let checking = false;
-  async function mayShow() {
+  async function mayShow(arrive) {
     if (checking || document.getElementById('egFounderBtn') || !desktop()) return;
     const sb = window.egSupa;
     if (!sb) return;
@@ -398,7 +427,7 @@
       const { data: { session } } = await sb.auth.getSession();
       if (!session) return;
       const { data, error } = await sb.from('eg_founder_guide').select('slug').limit(1);
-      if (!error && data && data.length) { inject(); askDoors(); }
+      if (!error && data && data.length) { inject(arrive === true); askDoors(); }
     } catch (e) {
       console.warn('[founder_menu]', e);
     } finally {
