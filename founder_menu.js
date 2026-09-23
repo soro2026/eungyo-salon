@@ -1,6 +1,6 @@
 /* ─────────────────────────────────────────────────────────────────────
    founder_menu.js — 타륜 › EG파운더 전용메뉴
-   2026.09.19 · 파이스 · 0919 왼쪽 슬라이드 넷 (0918 도시별현황 · 지구 임장 위에)
+   2026.09.19 · 파이스 · 0919 왼쪽 슬라이드 넷 (0918 도시별현황 · EG에스테이트 투어 위에)
 
    ① 타륜 배낭(PERA) 목록의 가이드북 다음에 「EG파운더 전용메뉴」 카드를 세운다 (0917 소로 — 이름표 없이 · 무늬 타륜)
       ⭐ 보이는 조건 = eg_founder_guide 를 읽을 수 있는 계정 (RLS 가 정한다)
@@ -17,7 +17,7 @@
       ⚠ 창을 둘로 띄우지 않는다. 창이 둘이면 닫는 차례와 지구 멈춤·되살림이 엉킨다.
       같은 #fgRoot 안에 iframe 여러 장을 두고 보이는 쪽만 바꾼다 — 전부 읽던 자리가 산다.
 
-   ⭐ 0918 지구 임장 — [보기]를 누르면 서류가 오른쪽으로 접히고 지구가 그 건물로 난다
+   ⭐ 0918 EG에스테이트 투어 — [보기]를 누르면 서류가 오른쪽으로 접히고 지구가 그 건물로 난다
       접힘(.dock) = 흐림·어둠을 걷고 · 지구를 되살리고 · 판을 오른쪽 460 으로 · 바깥은 손이 통과한다
       비행은 terra 의 창구 window.egFlyToBuilding 하나로만 부른다 (terra.html 블록 A 끝)
 
@@ -268,7 +268,7 @@
       console.warn('[founder_menu] window.egFlyToBuilding 창구가 없다 — terra.html 판을 확인할 것');
       return;
     }
-    try { await window.egFlyToBuilding(b); } catch (e) { console.warn('[founder_menu] 임장', e); }
+    try { await window.egFlyToBuilding(b); } catch (e) { console.warn('[founder_menu] 에스테이트 투어', e); }
   }
 
   function open(which) {
