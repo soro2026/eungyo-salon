@@ -91,6 +91,21 @@
   .enter:focus-visible{ outline:2px solid var(--gold-ink); outline-offset:3px; }
   .enter:disabled{ opacity:.45; cursor:default; }
 
+  /* 0923 개찰구 — 실명은 본인확인용으로 따로 · 불릴 이름은 손님이 고른다 */
+  .picks{ display:flex; flex-direction:column; gap:10px; margin-top:4px; }
+  .pick{
+    text-align:left; background:transparent; cursor:pointer;
+    border:1px solid var(--rule); color:var(--ink-6);
+    font-family:var(--f-body); font-weight:400; font-size:.98rem; padding:12px 14px;
+    transition:border-color .2s ease, background .2s ease, color .2s ease;
+  }
+  .pick b{ font-weight:600; color:var(--ink); }
+  .pick:hover{ border-color:var(--gold-ink); }
+  .pick:focus-visible{ outline:2px solid var(--gold-ink); outline-offset:2px; }
+  .pick[aria-pressed="true"]{ border-color:var(--gold-ink); background:rgba(201,168,76,.14); color:var(--ink); }
+  .pick[aria-pressed="true"]::before{ content:"✦ "; color:var(--gold-ink); }
+  .field input[readonly]{ color:var(--ink-6); }
+
   /* 0923 개찰구 — 메일 확인 숫자 (가입 화면 안에서 한 번) */
   .mail-row{ display:flex; align-items:flex-end; gap:10px; }
   .mail-row input{ flex:1; min-width:0; }
@@ -145,7 +160,7 @@
 
   <div class="crest">
     <div class="emblem"><span>EG</span></div>
-    <div class="wordmark">Eungyo · Salon</div>
+    <div class="wordmark">EG Universe</div>
   </div>
 
   <!-- 초대 확인 중 -->
@@ -175,8 +190,23 @@
 
     <div class="rule"></div>
 
-    <div class="field">
-      <label for="nick">EG유니버스에서 불릴 이름</label>
+    <div class="field" id="real-field" hidden>
+      <label for="real">실명</label>
+      <input id="real" type="text" autocomplete="name" maxlength="20" placeholder="실명">
+      <div class="hint">결제 등 본인확인이 필요한 경우에만 사용합니다. 사이트 내부에서는 닉네임으로 활동하실 수 있습니다.</div>
+    </div>
+
+    <div class="field" id="call-field" hidden>
+      <label>EG유니버스에서 불릴 이름</label>
+      <div class="picks" role="group" aria-label="불릴 이름 고르기">
+        <button type="button" class="pick" data-call="real" aria-pressed="false">실명 그대로 — <b id="call-real"></b></button>
+        <button type="button" class="pick" data-call="nick" aria-pressed="false">닉네임 따로 정하기</button>
+      </div>
+      <div class="hint" id="call-hint">지도와 이웃에게 보이는 이름입니다. 나중에 바꾸실 수 있습니다.</div>
+    </div>
+
+    <div class="field" id="nick-field">
+      <label for="nick" id="nick-label">EG유니버스에서 불릴 이름</label>
       <input id="nick" type="text" autocomplete="nickname" placeholder="닉네임" maxlength="24">
       <div class="hint" id="nick-hint">나중에 언제든 바꾸실 수 있습니다.</div>
     </div>
@@ -274,7 +304,10 @@
       PASS = data;
       const b = data.building || {};
       document.title = 'EG유니버스 — ' + (data.guest_name || '') + ' 님, 탑승을 준비합니다';
-      $('nick').value = data.guest_name || '';
+      /* ⭐ 0923 — 실명은 표의 이름으로 채우되 고칠 수 있게. 불릴 이름은 손님이 직접 고른다(미리 골라 두지 않는다) */
+      $('real').value = data.guest_name || '';
+      $('call-real').textContent = data.guest_name || '';
+      $('real-field').hidden = false; $('call-field').hidden = false; $('nick-field').hidden = true;
       $('maison-tag').textContent = (CITY_EN[b.city] || b.city || '') + ' · ' + (b.name || '');
       $('maison-block').querySelector('.maison-sub').textContent =
         (data.founder || '') + ' 파운더님의 건물, ' + (CITY_KO[b.city] || '') + ' ' + (b.label || '') + '에 집이 기다리고 있습니다.';
@@ -282,7 +315,6 @@
       $('code-send').hidden = false;
       $('footnote').innerHTML = (data.stay_days === 21 ? '3주' : '2주') + ' 동안 머무실 수 있습니다.<br>머무는 동안 당신을 평가하거나 비교하지 않습니다.';
       show('s-form');
-      if(data.guest_name) checkNick();
     }catch(e){ shut('잠시 문이 열리지 않았습니다', '잠시 뒤 다시 들어와 주십시오.'); }
   }
 
@@ -331,6 +363,28 @@
       hint.className = 'hint ok'; hint.textContent = '메일 주소를 확인했습니다.';
     }catch(e){ hint.className = 'hint warn'; hint.textContent = '확인하지 못했습니다. 잠시 뒤 다시 눌러 주십시오.'; btn.disabled = false; }
   }
+  /* 불릴 이름 — 실명 그대로 · 닉네임 따로 */
+  let CALL = null;
+  function pickCall(which){
+    CALL = which;
+    $('call-hint').className = 'hint'; $('call-hint').textContent = '지도와 이웃에게 보이는 이름입니다. 나중에 바꾸실 수 있습니다.';
+    document.querySelectorAll('.pick').forEach(b => b.setAttribute('aria-pressed', b.dataset.call === which ? 'true' : 'false'));
+    $('nick-field').hidden = false;
+    if(which === 'real'){
+      $('nick-label').textContent = '불릴 이름';
+      $('nick').value = $('real').value.trim(); $('nick').readOnly = true;
+    } else {
+      $('nick-label').textContent = '닉네임';
+      $('nick').readOnly = false; $('nick').value = ''; $('nick').focus();
+    }
+    checkNick();
+  }
+  document.querySelectorAll('.pick').forEach(b => b.addEventListener('click', () => pickCall(b.dataset.call)));
+  $('real').addEventListener('input', () => {
+    $('call-real').textContent = $('real').value.trim();
+    if(CALL === 'real'){ $('nick').value = $('real').value.trim(); checkNick(); }
+  });
+
   $('code-send').addEventListener('click', sendCode);
   $('code-check').addEventListener('click', checkCode);
   $('code').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') checkCode(); });
@@ -393,6 +447,8 @@
     if(pw.length<8){ $('pw-hint').className='hint warn'; $('pw-hint').textContent='여덟 자 이상으로 정해주세요.'; bad=true; } else $('pw-hint').textContent='';
     if(pw!==pw2){ $('pw2-hint').className='hint warn'; $('pw2-hint').textContent='두 비밀번호가 다릅니다.'; bad=true; } else $('pw2-hint').textContent='';
     if(!$('c-terms').checked || !$('c-privacy').checked){ msg.textContent='두 약관에 동의하셔야 들어오실 수 있습니다.'; bad=true; }
+    if(PASS && !$('real').value.trim()){ msg.textContent='실명을 적어 주십시오.'; bad=true; }
+    if(PASS && !CALL){ $('call-hint').className='hint warn'; $('call-hint').textContent='불릴 이름을 골라 주십시오.'; bad=true; }
     if(PASS && !mailOk){ $('email-hint').className='hint warn'; $('email-hint').textContent='메일로 받은 확인 숫자를 먼저 넣어 주십시오.'; bad=true; }
     if(bad) return;
 
@@ -412,7 +468,7 @@
 
       if(data.session && PASS){
         /* ⭐ 0923 개찰구 — 마지막 손은 표로 입장 */
-        const { data: pe, error: pErr } = await sb.rpc('eg_pass_enter', { p_code: pass });
+        const { data: pe, error: pErr } = await sb.rpc('eg_pass_enter', { p_code: pass, p_real_name: $('real').value.trim() });
         if(pErr){
           btn.disabled=false; btn.textContent='EG유니버스에 들어서기';
           msg.textContent = '가입은 되었지만 탑승하지 못했습니다 — ' + pErr.message + ' 개찰구에서 번호를 다시 넣어 주십시오.';

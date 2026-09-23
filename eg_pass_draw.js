@@ -44,7 +44,7 @@ function drawPass(ctx, W, H, P, F) {
   ctx.fillText(P.kind === 'beta' ? 'BETA BOARDING PASS  |  베타 초대권 · 3주' : 'BOARDING PASS  |  준회원 바우처 · 2주', CUT - 40, 82);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#E9D9A8'; ctx.font = '400 22px ' + S;
-  ctx.fillText(P.kind === 'beta' ? 'BETA · 3 WEEKS' : 'ASSOCIATE · 2 WEEKS', CUT + 44, 82);
+  ctx.fillText(P.kind === 'beta' ? 'BETA · 3 WEEKS' : 'PRE-MEMBER · 2 WEEKS', CUT + 44, 82);   /* 0923 소로 — 이름표와 같은 말 */
 
   /* 절취선 + 위아래 홈 */
   ctx.save();

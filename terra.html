@@ -998,6 +998,7 @@ window.EGQ = (function(){
     flex-shrink:0; background:rgba(255,210,63,.16) }
   #maison .m-res .nm{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
   #maison .m-res .sl{ font-size:11.5px; color:var(--cream-dim); flex-shrink:0 }
+  #maison .m-res .sl.gst{ color:#8FB6D6; font-style:italic; letter-spacing:.02em }   /* 0923 손님 이름표 — 표 바탕 기요셰의 푸른 결 */
   #maison .m-empty{ font-size:14px; color:var(--cream-dim); padding:14px 2px; line-height:1.7 }
   #maison .m-enter{
     font-family:var(--sans);font-size:14px;font-weight:bold;letter-spacing:.03em;
@@ -4303,8 +4304,10 @@ function openMaison(b){
   const intro = document.getElementById("mIntro");
   intro.innerHTML = "";
   if (sold){
-    intro.textContent = res_.length + "명이 살고 있습니다. 남은 자리 "
-                      + (b.slots - res_.length) + "칸.";
+    /* ⭐ 0923 — 남은 자리는 정회원(슬롯 있는 분)만 센다. 손님(guest · pre-member)은 슬롯을 먹지 않는다 (0919 17호) */
+    const mem = res_.filter(r => r.slot != null).length, gst = res_.length - mem;
+    intro.textContent = (mem ? mem + "명이 살고 있습니다. " : "") + "남은 자리 " + (b.slots - mem) + "칸."
+                      + (gst ? " 머무는 손님 " + gst + "명." : "");
   } else {
     const p = bldPitch(b);
     intro.textContent = (p ? p + "\n" : "") + b.slots + "가구"
@@ -4328,7 +4331,10 @@ function openMaison(b){
       btn.className = "m-res" + (cls || "");
       btn.innerHTML =
         (r.avatar ? '<img class="av" src="'+r.avatar+'" alt="">' : '<span class="av"></span>')
-        + '<span class="nm"></span><span class="sl">'+ r.slot +'호</span>';
+        + '<span class="nm"></span>'
+        /* ⭐ 0923 — 손님은 호수 대신 이름표: 베타 guest · 준회원 pre-member (다른 색 · 0919 17호) */
+        + (r.slot != null ? '<span class="sl">' + r.slot + '호</span>'
+                          : '<span class="sl gst">' + (r.stay === 'pre-member' ? 'pre-member' : 'guest') + '</span>');
       btn.querySelector('.nm').textContent = r.nickname || "이름 없는 콩파뇽";
       btn.addEventListener("click", ()=> enterMaison(r));
       return btn;
