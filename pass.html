@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#101B30">
+<title>EG유니버스 — 개찰구</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Noto+Serif+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<!-- ═════════════════════════════════════════════════
+     pass.html — 개찰구 (2026.09.23 · 파이스)
+     0919 저녁 결정문 15~18호 · 두 표 공용(베타 초대권 · 준회원 바우처)
+
+     번호를 넣으면 → 손님 이름이 박힌 그 표가 인쇄되듯 내려온다 → [탑승하기]
+       로그인한 분      eg_pass_enter 한 손으로 입장 → 곧장 terra.html (첫 화면)
+       처음 오신 분     signup.html?pass=… (메일 여섯 자리 확인 뒤 가입 · 같은 손으로 입장)
+       계정이 있는 분   로그인 → 이 자리로 되돌아온다 (index 는 이제 로그인 문 — egAfterLogin 의 eg-after-login)
+     휴대폰(짧은 변 < 600)은 칸을 그리지 않는다 — eg_device.js 한 벌
+     ⚠ 표 그림은 eg_pass_draw.js — 대시보드와 같은 표. 여기서 표를 새로 그리지 않는다.
+     ═════════════════════════════════════════════════ -->
+<style>
+  :root{
+    --night:#101B30;        /* 개찰구의 밤 — 표 머리 남색보다 한 뼘 어둡게 */
+    --navy:#16243D;         /* 표 머리 · 번호 글자 */
+    --gold:#C2921F;         /* 표의 금띠 */
+    --gold-soft:#E9D9A8;    /* 표 머리의 옅은 금 글자 */
+    --paper:#F8F3E6;        /* 표 종이 */
+    --line:#C9B98A;         /* 표의 선 */
+    --mist:#9EA8BA;         /* 밤 위의 작은 글자 */
+    --wine:#5C1A2B;         /* 준회원 바우처 머리 */
+    --serif:'Noto Serif KR', serif;
+    --mono:'IBM Plex Mono', monospace;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ min-height:100%; }
+  body{
+    background:var(--night); color:var(--paper); font-family:var(--serif);
+    -webkit-font-smoothing:antialiased; min-height:100dvh;
+    display:flex; flex-direction:column;
+  }
+  /* 표 머리처럼 — 맨 위의 금띠 한 줄 */
+  body::before{ content:""; display:block; height:5px; background:var(--gold); }
+
+  .gate{ flex:1; width:100%; max-width:980px; margin:0 auto; padding:64px 28px 56px;
+         display:flex; flex-direction:column; align-items:center; }
+
+  .mark{ font-family:var(--serif); font-weight:700; font-size:15px; letter-spacing:.62em; padding-left:.62em;
+         color:var(--gold-soft); margin-bottom:46px; }
+
+  h1{ font-weight:500; font-size:28px; line-height:1.45; text-align:center; letter-spacing:-.005em; text-wrap:balance; }
+  .sub{ margin-top:12px; color:var(--mist); font-size:15px; line-height:1.75; text-align:center; text-wrap:pretty; }
+
+  /* ── 번호 띠 — 표의 「PASS No.」 흰 띠를 그대로 옮겼다 ── */
+  .band{
+    margin-top:38px; display:flex; align-items:center; gap:14px;
+    background:#FFFFFF; border:1.5px solid var(--line); border-radius:8px;
+    padding:14px 26px; box-shadow:0 2px 10px rgba(60,45,10,.18);
+    font-family:var(--mono); font-weight:700; font-size:44px; color:var(--navy);
+  }
+  .band .fix{ letter-spacing:.14em; }
+  .band .dash{ color:var(--line); }
+  .band input{
+    width:5.2ch; border:0; background:transparent; outline:none;
+    font:inherit; color:inherit; letter-spacing:.14em; text-transform:uppercase;
+    border-bottom:2px solid transparent; padding:0 0 2px;
+  }
+  .band input::placeholder{ color:#D8CDAE; }
+  .band input:focus{ border-bottom-color:var(--gold); }
+
+  .go{
+    margin-top:30px; min-width:240px; cursor:pointer;
+    background:var(--gold); color:var(--night); border:0; border-radius:4px;
+    font-family:var(--serif); font-weight:700; font-size:17px; letter-spacing:.06em; padding:14px 30px;
+    transition:filter .2s ease, transform .2s ease;
+  }
+  .go:hover:not(:disabled){ filter:brightness(1.08); }
+  .go:active:not(:disabled){ transform:translateY(1px); }
+  .go:focus-visible, .link:focus-visible{ outline:2px solid var(--gold-soft); outline-offset:3px; }
+  .go:disabled{ opacity:.5; cursor:default; }
+  .go.quiet{ background:transparent; color:var(--gold-soft); border:1px solid rgba(233,217,168,.5); }
+
+  .msg{ margin-top:18px; min-height:24px; font-size:14.5px; line-height:1.7; text-align:center; color:#F0B9A2; }
+  .msg.calm{ color:var(--mist); }
+
+  .must{ margin-top:auto; padding-top:56px; color:var(--mist); font-size:13px; line-height:1.7; text-align:center; opacity:.85; }
+
+  /* ── 표가 내려오는 자리 ── */
+  #stage{ display:none; width:100%; flex-direction:column; align-items:center; }
+  #stage.on{ display:flex; }
+  .slot{ width:100%; max-width:920px; height:0; border-top:2px solid rgba(233,217,168,.35); border-radius:2px; }
+  .paper{ width:100%; max-width:920px; overflow:hidden; }
+  .paper canvas{ display:block; width:100%; height:auto; border-radius:18px;
+                 box-shadow:0 18px 50px rgba(0,0,0,.45); }
+  .paper.print canvas{ animation:print 1.05s cubic-bezier(.22,.8,.26,1) both; }
+  @keyframes print{
+    from{ clip-path:inset(0 0 100% 0); transform:translateY(-14px); }
+    to{   clip-path:inset(0 0 0 0);    transform:none; }
+  }
+  .greet{ margin-top:30px; font-size:19px; line-height:1.7; text-align:center; text-wrap:balance; }
+  .greet b{ font-weight:700; color:var(--gold-soft); }
+  .acts{ margin-top:6px; display:flex; flex-direction:column; align-items:center; gap:12px; }
+  .link{ background:none; border:0; cursor:pointer; color:var(--mist); font-family:var(--serif); font-size:14.5px;
+         text-decoration:underline; text-underline-offset:4px; text-decoration-color:rgba(158,168,186,.5); }
+  .link:hover{ color:var(--gold-soft); }
+  .who{ color:var(--mist); font-size:13.5px; }
+  .again{ margin-top:26px; }
+
+  /* 문이 열리는 순간 */
+  #door{ position:fixed; inset:0; background:var(--night); display:none; align-items:center; justify-content:center;
+         flex-direction:column; gap:16px; z-index:10; }
+  #door.on{ display:flex; animation:fade .5s ease both; }
+  #door p{ font-size:22px; }
+  #door span{ color:var(--mist); font-size:14px; }
+  @keyframes fade{ from{ opacity:0; } to{ opacity:1; } }
+
+  /* 휴대폰 — 칸을 그리지 않는다 */
+  #phone{ display:none; }
+  body.phone #entry, body.phone #stage{ display:none !important; }
+  body.phone #phone{ display:block; }
+
+  @media (max-width:720px){
+    .band{ font-size:30px; padding:12px 18px; gap:10px; }
+    h1{ font-size:23px; }
+  }
+  @media (prefers-reduced-motion:reduce){
+    .paper.print canvas, #door.on{ animation:none; }
+  }
+</style>
+<script src="eg_device.js"></script>
+</head>
+<body>
+<main class="gate">
+  <div class="mark">EG UNIVERSE</div>
+
+  <!-- 휴대폰 -->
+  <section id="phone">
+    <h1>큰 화면에서 표를 넣어 주십시오</h1>
+    <p class="sub">EG유니버스는 노트북이나 데스크톱에서 웹으로 접속합니다.<br>
+      큰 화면 앞에서 <b style="font-family:var(--mono);color:var(--gold-soft)">app.egsalon.com/pass</b> 를 열어 같은 번호를 넣어 주십시오.</p>
+  </section>
+
+  <!-- 번호 넣기 -->
+  <section id="entry" style="display:flex;flex-direction:column;align-items:center;width:100%">
+    <h1>받으신 표의 번호를 넣어 주십시오</h1>
+    <p class="sub">베타 초대권이나 준회원 바우처의 「PASS No.」 칸에 적힌 여덟 글자입니다.</p>
+    <label class="band" for="c1">
+      <span class="fix">EG</span><span class="dash">-</span>
+      <input id="c1" maxlength="12" autocomplete="off" spellcheck="false" placeholder="0000" aria-label="번호 앞 네 글자">
+      <span class="dash">-</span>
+      <input id="c2" maxlength="12" autocomplete="off" spellcheck="false" placeholder="0000" aria-label="번호 뒤 네 글자">
+    </label>
+    <button class="go" id="check" type="button">표 확인하기</button>
+    <div class="msg" id="msg" role="status" aria-live="polite"></div>
+  </section>
+
+  <!-- 표 -->
+  <section id="stage" aria-live="polite">
+    <div class="slot" aria-hidden="true"></div>
+    <div class="paper" id="paper"></div>
+    <p class="greet" id="greet"></p>
+    <div class="acts" id="acts"></div>
+    <div class="msg" id="msg2" role="status"></div>
+    <button class="link again" id="again" type="button">다른 번호 넣기</button>
+  </section>
+
+  <p class="must">※ EG유니버스는 노트북이나 데스크톱에서 웹으로 접속합니다. 모바일에서는 접속할 수 없으니 착오 없으시길 바랍니다.</p>
+</main>
+
+<div id="door" role="status"><p>문이 열립니다</p><span id="door-sub"></span></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="eg_pass_draw.js?v=0923a"></script>
+<script>
+(function(){
+  "use strict";
+  const sb = window.supabase.createClient('https://cyhlotwdisjvoxvfkpnd.supabase.co',
+    'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR',
+    { auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true } });
+  const $ = (id) => document.getElementById(id);
+  const CITY_KO = { paris:'파리', london:'런던', newyork:'뉴욕' };
+
+  /* 휴대폰이면 칸을 그리지 않는다 — 판정은 eg_device.js 한 벌 */
+  if (typeof egIsPhone === 'function' && egIsPhone()) { document.body.classList.add('phone'); return; }
+
+  let CODE = null, T = null, ME = null;
+
+  const md = (s) => { const p = String(s || '').split('-'); return p.length === 3 ? (+p[1]) + '월 ' + (+p[2]) + '일' : ''; };
+  const say = (el, t, calm) => { el.textContent = t || ''; el.classList.toggle('calm', !!calm); };
+
+  /* 번호 다듬기 — 붙여넣은 「EG-J5T6-GHHE」도, 「j5t6ghhe」도 두 칸으로 나눈다 */
+  function split(raw) {
+    let x = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (x.length === 10 && x.startsWith('EG')) x = x.slice(2);
+    return [x.slice(0, 4), x.slice(4, 8)];
+  }
+  function fill(raw) { const [a, b] = split(raw); $('c1').value = a; $('c2').value = b; }
+  function code() { const a = $('c1').value, b = $('c2').value; return (a.length === 4 && b.length === 4) ? 'EG-' + a + '-' + b : null; }
+
+  ['c1', 'c2'].forEach((id, i) => {
+    const el = $(id);
+    el.addEventListener('input', () => {
+      const raw = el.value;
+      if (raw.replace(/[^A-Za-z0-9]/g, '').length > 4) { fill(raw); $('c2').focus(); return; }   /* 붙여넣기 */
+      el.value = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+      if (i === 0 && el.value.length === 4) $('c2').focus();
+      say($('msg'), '');
+    });
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') check();
+      if (e.key === 'Backspace' && i === 1 && !el.value) $('c1').focus();
+    });
+  });
+  $('check').addEventListener('click', check);
+  $('again').addEventListener('click', () => {
+    $('stage').classList.remove('on'); $('entry').style.display = 'flex';
+    $('c1').value = ''; $('c2').value = ''; $('c1').focus(); say($('msg'), '');
+    history.replaceState(null, '', 'pass.html');
+  });
+
+  const WHY = {
+    not_found: '이 번호의 표를 찾지 못했습니다. 표에 적힌 여덟 글자를 다시 확인해 주십시오.',
+    too_many:  '여러 번 틀려 잠시 닫혔습니다. 10분 뒤에 다시 넣어 주십시오.'
+  };
+
+  async function check() {
+    const c = code();
+    if (!c) { say($('msg'), '네 글자씩, 여덟 글자를 모두 넣어 주십시오.'); return; }
+    const btn = $('check'); btn.disabled = true; btn.textContent = '확인하는 중';
+    try {
+      const { data, error } = await sb.rpc('eg_pass_peek', { p_code: c });
+      if (error) throw error;
+      if (!data.ok) { say($('msg'), WHY[data.reason] || '표를 확인하지 못했습니다.'); return; }
+      CODE = data.code; T = data;
+      history.replaceState(null, '', 'pass.html?code=' + encodeURIComponent(CODE));
+      await showTicket();
+    } catch (e) {
+      say($('msg'), '표를 확인하지 못했습니다. 잠시 뒤 다시 눌러 주십시오.');
+    } finally { btn.disabled = false; btn.textContent = '표 확인하기'; }
+  }
+
+  async function showTicket() {
+    const b = T.building || {};
+    const P = { kind: T.kind, guest: T.guest_name || '', building: b.name || '',
+      where: (CITY_KO[b.city] || '') + ' ' + b.bno + '번지 · ' + (b.label || ''),
+      founder: T.founder || '', from: md(T.from), to: md(T.to), code: T.code, url: 'app.egsalon.com/pass' };
+    if (T.kind === 'associate' && T.value != null) P.value = Number(T.value).toLocaleString('ko-KR');
+
+    const cv = await EGPass.render(P);
+    cv.setAttribute('role', 'img');
+    cv.setAttribute('aria-label', (T.kind === 'beta' ? '베타 초대권 · ' : '준회원 바우처 · ') + P.guest + ' 님 · ' + P.building + ' · ' + T.code);
+    const paper = $('paper'); paper.innerHTML = ''; paper.classList.remove('print');
+    paper.appendChild(cv); void paper.offsetWidth; paper.classList.add('print');
+
+    $('entry').style.display = 'none'; $('stage').classList.add('on');
+    $('greet').innerHTML = '<b>' + esc(P.guest) + '</b> 님, ' + esc(P.founder) + ' 파운더님이 '
+      + esc(CITY_KO[b.city] || '') + '의 <b>' + esc(P.building) + '</b>에 초대하셨습니다.';
+    await paintActs();
+  }
+
+  async function paintActs() {
+    const acts = $('acts'); acts.innerHTML = ''; say($('msg2'), '');
+    const { data: s } = await sb.auth.getSession();
+    const session = s && s.session;
+    ME = null;
+    if (session) {
+      try { const { data: u } = await sb.from('users').select('nickname').eq('id', session.user.id).maybeSingle(); ME = (u && u.nickname) || session.user.email; } catch (_) { ME = session.user.email; }
+    }
+
+    if (T.state === 'before') { say($('msg2'), md(T.from) + '에 문이 열립니다. 그날 같은 번호로 다시 오십시오.', true); return; }
+    if (T.state === 'after')  { say($('msg2'), '이 표의 입력 유효기간은 ' + md(T.to) + '까지였습니다.', true); return; }
+    if (T.state === 'entered') {
+      say($('msg2'), '이미 사용된 표입니다.', true);
+      if (session) acts.appendChild(btn('지구로 가기', 'go quiet', () => location.replace('terra.html')));
+      return;
+    }
+
+    if (session) {
+      acts.appendChild(btn('탑승하기', 'go', board));
+      const who = document.createElement('p'); who.className = 'who';
+      who.textContent = (ME || '지금 계정') + ' 님으로 탑승합니다.';
+      acts.appendChild(who);
+    } else {
+      acts.appendChild(btn('가입하고 탑승하기', 'go', () => { location.href = 'signup.html?pass=' + encodeURIComponent(CODE); }));
+      acts.appendChild(btn('EG 계정이 있으시면 로그인하고 탑승하기', 'link', () => {
+        try { localStorage.setItem('eg-after-login', 'pass.html?code=' + CODE); } catch (_) {}
+        location.href = 'index.html';
+      }));
+    }
+  }
+
+  async function board(e) {
+    const b = e.currentTarget; b.disabled = true; b.textContent = '문을 여는 중';
+    try {
+      const { data, error } = await sb.rpc('eg_pass_enter', { p_code: CODE });
+      if (error) throw error;
+      $('door-sub').textContent = (CITY_KO[data.city] || '') + ' ' + (data.building || '') + '의 집으로 모십니다';
+      $('door').classList.add('on');
+      setTimeout(() => location.replace('terra.html'), 1400);   /* 첫 화면은 지구 — 로그인 문(index)을 거치지 않는다 */
+    } catch (err) {
+      say($('msg2'), (err && err.message) || '탑승하지 못했습니다. 잠시 뒤 다시 눌러 주십시오.');
+      b.disabled = false; b.textContent = '탑승하기';
+    }
+  }
+
+  function btn(t, cls, fn) { const b = document.createElement('button'); b.type = 'button'; b.className = cls; b.textContent = t; b.addEventListener('click', fn); return b; }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c])); }
+
+  /* 주소에 번호가 딸려 오면(표의 링크 · 로그인 뒤 되돌아옴) 곧바로 확인 */
+  const q = new URLSearchParams(location.search).get('code');
+  if (q) { fill(q); check(); } else { $('c1').focus(); }
+})();
+</script>
+</body>
+</html>
