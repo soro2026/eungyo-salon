@@ -61,7 +61,7 @@
   if (window.__egFounderMenu) return;
   window.__egFounderMenu = true;
 
-  const V = '0919a';
+  const V = '0923c';                                  /* ⚠ 0923 계약서 화면(fresh)을 고쳐 문서 꼬리표를 올렸다 */
   const GUIDE = 'founder_guide.html?embed=1&v=' + V;
   const CITY  = 'founder_city.html?embed=1&v=' + V;
   const CONT  = 'founder_contract.html?embed=1&v=' + V;
@@ -227,8 +227,21 @@
   }
   const showGuide = () => show('guide');
   const showCity  = () => show('city');
-  /* ⭐ 계약서는 늘 펴진 채로 뜬다 — 지구를 보고 계시다 신청하셨을 수 있다 */
-  function showContract() { dock(false); show('contract'); }
+  /* ⭐ 계약서는 늘 펴진 채로 뜬다 — 지구를 보고 계시다 신청하셨을 수 있다
+     ⭐⭐ 0923 소로 — 두 번째 신청에서 옛 계약서가 떠 있었다. 계약서 창은 한 번 만들면 살아 있어서
+        첫 계약서에 서명한 뒤의 종이를 그대로 들고 있었다. 새로 신청하고 왔으면(fresh)
+        옛 창을 걷고 새 종이를 편다 — 계약서 화면은 fresh 를 보고 목록을 건너뛰어 새 계약서를 바로 연다 */
+  function showContract(fresh) {
+    dock(false);
+    if (fresh) {
+      if (!root) build();
+      if (fCont) { fCont.remove(); fCont = null; }
+      fCont = frame(CONT + '&fresh=1', '파운더 계약서');
+      fCont.classList.add('off');
+      root.appendChild(fCont);
+    }
+    show('contract');
+  }
   function showDash()     { dock(false); show('dash'); }
   /* 계약서에서 돌아오면 매물이 하나 잠겨 있다 — 목록을 다시 세운다 */
   function backToCity() { show('city'); tell(fCity, { type: 'fc-reload' }); }
@@ -325,7 +338,7 @@
       case 'cd-close':  close();               break;
       case 'fg-link':   DOORS.city = true; showCity();        break;   /* ⑧ 을 지나오셨다 */
       case 'fc-back':   showGuide();           break;
-      case 'fc-contract': DOORS.contract = true; showContract(); break; /* 신청이 섰다 */
+      case 'fc-contract': DOORS.contract = true; showContract(true); break; /* 신청이 섰다 — 새 종이로 */
       case 'ct-back':   backToCity();          break;
       case 'ct-signed': askDoors();            break;
       case 'fc-fly':    fly(e.data.building);  break;
