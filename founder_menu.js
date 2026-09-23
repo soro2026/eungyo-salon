@@ -1,8 +1,15 @@
 /* ─────────────────────────────────────────────────────────────────────
-   founder_menu.js — 타륜 › EG파운더 전용메뉴
-   2026.09.19 · 파이스 · 0919 왼쪽 슬라이드 넷 (0918 도시별현황 · EG에스테이트 투어 위에)
+   founder_menu.js — 좌측 상단 크라이슬러 버튼 › EG파운더 전용메뉴
+   2026.09.23 · 파이스 (0923 타륜에서 꺼냄) · 2026.09.19 · 0919 왼쪽 슬라이드 넷 (0918 도시별현황 · EG에스테이트 투어 위에)
 
-   ① 타륜 배낭(PERA) 목록의 가이드북 다음에 「EG파운더 전용메뉴」 카드를 세운다 (0917 소로 — 이름표 없이 · 무늬 타륜)
+   ① ⭐⭐ 0923 소로 — 타륜에서 꺼냈다. 화면 좌측 상단의 크라이슬러 빌딩 버튼 하나가 입구다
+      (타륜이 너무 복잡해졌고, EG 행정은 따로 구분한다). 마우스를 올리면 아래층부터 창에 불이 켜지고
+      왕관 아치가 흰 금빛으로, 끝으로 첨탑에 별 하나. 메뉴가 열려 있는 동안은 불이 켜진 채로(.lit).
+      ⚠ 옛 입구(타륜 배낭의 #dockFounderGuide 카드 · 작은 타륜 = 대시보드 직행)는 걷었다 —
+        확정 뒤에는 첫 문이 대시보드라 버튼 하나로 충분하다
+      이웃 — 현지 시계(#obsClock)는 버튼 오른쪽으로 비켜서고(body.eg-fbtn · --eg-fb-clock),
+             별 항해 중(body.on-voyage)에는 항해 표지가 그 자리를 쓰니 버튼이 숨는다.
+             살롱지기 나침반이 켜진 화면에서는 나침반 옆으로 한 칸 비켜선다
       ⭐ 보이는 조건 = eg_founder_guide 를 읽을 수 있는 계정 (RLS 가 정한다)
          지금은 살롱지기만 · 뒤에 제안서를 받은 분께 RLS 를 열면 그분들께도 저절로 선다
       ⭐ 데스크톱에서만 (소로 0916 — 파운더 메뉴는 웹 · 데스크톱)
@@ -98,6 +105,31 @@
   '#fgRoot.dock{ background:transparent; -webkit-backdrop-filter:none; backdrop-filter:none; pointer-events:none; }' +
   '#fgRoot.dock .fg-rail{ display:none; }' +
   '#fgRoot.dock iframe, #fgRoot.dock.rail iframe{ pointer-events:auto; left:auto; right:0; width:' + DOCK_W + 'px; }';
+
+  /* ── 0923 크라이슬러 버튼 — 메뉴 본체(build)보다 먼저 선다 ── */
+  const BTN_CSS = '' +
+  '#egFounderBtn{ position:fixed; top:12px; left:14px; z-index:30; height:52px; width:auto; margin:0; padding:0;' +
+  '  border:0; background:none; cursor:pointer; display:block; line-height:0;' +
+  '  filter:drop-shadow(0 2px 5px rgba(0,0,0,.65));' +
+  '  transition:filter .5s ease, transform .5s cubic-bezier(.4,0,.2,1), opacity .4s ease; }' +
+  '#egFounderBtn:hover, #egFounderBtn.lit{ transform:translateY(-1px);' +
+  '  filter:drop-shadow(0 0 7px rgba(255,196,84,.55)) drop-shadow(0 2px 5px rgba(0,0,0,.6)); }' +
+  '#egFounderBtn:focus-visible{ outline:1px solid rgba(255,201,92,.7); outline-offset:4px; border-radius:4px; }' +
+  '#egFounderBtn svg{ display:block; height:100%; width:auto; overflow:visible; }' +
+  '#egFounderBtn .body, #egFounderBtn .bar{ fill:#ece5d3; }' +
+  '#egFounderBtn .pil{ fill:#141a26; }' +
+  '#egFounderBtn .w{ fill:#1b2231; transition:fill .28s ease 0ms; }' +
+  '#egFounderBtn .tip{ fill:#fff6d8; opacity:0; transform-origin:30px 1.6px; transform:scale(.2); transition:opacity .2s, transform .2s; }' +
+  /* ⭐ 켤 때만 층마다 늦게(--d) — 끌 때는 한꺼번에 */
+  '#egFounderBtn:hover .w, #egFounderBtn.lit .w{ fill:#ffc95c; transition:fill .16s ease var(--d); }' +
+  '#egFounderBtn:hover .c, #egFounderBtn.lit .c{ fill:#ffecb8; }' +      /* 왕관은 흰 금빛 — 진짜 크라이슬러의 밤 */
+  '#egFounderBtn:hover .tip, #egFounderBtn.lit .tip{ opacity:1; transform:scale(1);' +
+  '  transition:opacity .25s ease var(--d), transform .35s ease var(--d); }' +
+  'body.on-voyage #egFounderBtn{ opacity:0; pointer-events:none; }' +
+  'body.eg-fbtn #obsClock{ left:var(--eg-fb-clock, 66px); }';
+
+  /* 60 × 90 판 — 창 12 · 아치 창 · 왕관 아치 둘 · 첨탑 별. 켜지는 차례는 --d (아래층부터) */
+  const BTN_SVG = '<svg viewBox="0 0 60 90" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path class="body" d="M4.5 84.4H55.5V88H4.5Z M7.5 46.7H52.5V84.6H7.5Z M14.2 41.8H45.8V46.9H14.2Z M17.2 35.9H42.8V42.0H17.2Z M20.4 29.2H39.6V36.1H20.4Z M22.2 24.6H37.8V29.4H22.2Z M23.20 24.80 C23.20 19.85 27.82 17.06 30.00 15.80 C32.18 17.06 36.80 19.85 36.80 24.80Z M25.90 18.20 C25.90 14.35 28.69 12.18 30.00 11.20 C31.31 12.18 34.10 14.35 34.10 18.20Z M28.7 13.5 L30 1.2 L31.3 13.5Z"/><path class="pil" d="M22.3 33.3H23.5V84.4H22.3ZM36.5 33.3H37.7V84.4H36.5Z"/><path class="w" style="--d:0ms" d="M11.5 76.2H18.0V82.2H11.5Z"/><path class="w" style="--d:34ms" d="M42.0 76.2H48.5V82.2H42.0Z"/><path class="w" style="--d:68ms" d="M26.4 72.0H33.6V78.8H26.4Z"/><path class="w" style="--d:102ms" d="M11.5 67.4H18.0V73.5H11.5Z"/><path class="w" style="--d:136ms" d="M42.0 67.4H48.5V73.5H42.0Z"/><path class="w" style="--d:170ms" d="M26.4 62.3H33.6V68.9H26.4Z"/><path class="w" style="--d:204ms" d="M11.5 58.6H18.0V64.6H11.5Z"/><path class="w" style="--d:238ms" d="M42.0 58.6H48.5V64.6H42.0Z"/><path class="w" style="--d:272ms" d="M26.4 52.7H33.6V59.2H26.4Z"/><path class="w" style="--d:306ms" d="M11.5 49.8H18.0V55.8H11.5Z"/><path class="w" style="--d:340ms" d="M42.0 49.8H48.5V55.8H42.0Z"/><path class="w" style="--d:374ms" d="M26.4 43.0H33.6V49.7H26.4Z"/><path class="w" style="--d:408ms" d="M25.60 40.00 C25.60 33.79 28.59 28.13 30.00 26.20 C31.41 28.13 34.40 33.79 34.40 40.00Z"/><path class="w c" style="--d:442ms" d="M25.30 24.80 C25.30 21.70 28.50 19.47 30.00 18.60 C31.50 19.47 34.70 21.70 34.70 24.80Z"/><path class="w c" style="--d:476ms" d="M28.10 18.20 C28.10 16.20 29.39 14.76 30.00 14.20 C30.61 14.76 31.90 16.20 31.90 18.20Z"/><path class="bar" d="M28.4 30.6H29.5V40.2H28.4ZM30.5 30.6H31.6V40.2H30.5Z"/><circle class="tip" style="--d:510ms" cx="30" cy="1.6" r="1.3"/></svg>';
 
   let root = null, rail = null;
   let fGuide = null, fCity = null, fCont = null, fDash = null;
@@ -225,27 +257,8 @@
       console.warn('[founder_menu] 문', e);            /* ⭐ 조용히 진다 — 문을 못 물어도 신청안내는 열린다 */
     }
     paintRail();
-    paintHelm();
   }
 
-  /* ⭐ 작은 타륜 무늬 = 대시보드 직행 (확정 뒤에만 손이 닿는다) */
-  function paintHelm() {
-    const card = document.getElementById('dockFounderGuide');
-    if (!card) return;
-    const go = card.querySelector('.dock-go');
-    if (!go) return;
-    if (DOORS.dash) {
-      go.style.pointerEvents = 'auto';
-      go.style.cursor = 'pointer';
-      go.dataset.egDash = '1';
-      go.setAttribute('title', '파운더 대시보드');
-    } else {
-      go.style.pointerEvents = 'none';
-      go.style.cursor = '';
-      delete go.dataset.egDash;
-      go.removeAttribute('title');
-    }
-  }
 
   /* ── 접기 · 펴기 ── */
   function dock(on) {
@@ -275,6 +288,7 @@
     build();
     pauseGlobe();
     root.classList.add('on');
+    lit(true);                                         /* 열려 있는 동안 빌딩은 불이 켜진 채로 */
     askDoors().then(() => {
       const first = order().filter((k) => DOORS[k])[0] || 'guide';
       const go = which && DOORS[which] ? which : first;
@@ -287,6 +301,7 @@
   function close() {
     if (!root || !root.classList.contains('on')) return;
     dock(false);                                       /* 접힌 채로 닫지 않는다 — 다음에 열면 온전한 서류 */
+    lit(false);
     root.classList.remove('show');
     setTimeout(() => { root.classList.remove('on'); resumeGlobe(); }, 300);
   }
@@ -317,37 +332,65 @@
     e.stopPropagation();
   }, true);
 
-  /* ── 타륜 칸 ──
-     ⭐ 0917 소로 — 위의 작은 이름표는 두지 않는다. 배낭 목록(가이드북 다음)에 카드 한 장으로 잇는다.
-        제목은 「EG파운더 전용메뉴」 + 원문 「Founder only」. 오른쪽 작은 타륜은 무늬 — 확정 전에는 카드 본체가 받는다 */
+  /* ── 입구 — 0923 좌측 상단 크라이슬러 버튼 ──
+     ⭐ 타륜 배낭의 카드를 걷고 버튼 하나로 옮겼다 (소로 — EG 행정은 따로)
+     누르면   닫혀 있을 때 → 연다 (첫 문 — 확정 뒤에는 대시보드)
+             접혀 있을 때(에스테이트 투어) → 서류를 편다
+             펴져 있을 때 → 닫는다 */
   function inject() {
-    if (document.getElementById('dockFounderGuide')) return;
-    const pera = document.getElementById('dockPera');
-    if (!pera) return;
-    const card = document.createElement('div');
-    card.className = 'dock-card nogo orn';
-    card.id = 'dockFounderGuide';
-    card.setAttribute('role', 'button');
-    card.tabIndex = 0;
-    card.innerHTML = '<div class="dock-main"><span>EG파운더 전용메뉴</span></div>';
-    /* ⭐ 0917 소로 — 크레덴시알 · 타벨라이처럼 원문 「Founder only」 + 오른쪽 무늬 타륜
-       ⚠ terra 의 applyDockLatin · dockHelmSvg 는 감싸인 스크립트 안이라 창에서 안 보인다 → terra 가 내어 준
-         window.egDockOrnament 한 손잡이로 붙인다. 아직 없으면 잠깐 기다렸다 다시 (최대 10초) */
-    const ornament = () => {
-      try {
-        if (typeof window.egDockOrnament === 'function') { window.egDockOrnament(card, 'founder'); paintHelm(); return true; }
-      } catch (_) {}
-      return false;
-    };
-    const guide = document.getElementById('dockGuide');
-    if (guide && guide.parentNode === pera) guide.insertAdjacentElement('afterend', card);
-    else pera.appendChild(card);
-    if (!ornament()) { let n = 0; const iv = setInterval(() => { if (ornament() || ++n >= 20) clearInterval(iv); }, 500); }
+    if (document.getElementById('egFounderBtn')) return;
+    if (!document.getElementById('egFounderBtnCss')) {
+      const st = document.createElement('style');
+      st.id = 'egFounderBtnCss';
+      st.textContent = BTN_CSS;
+      document.head.appendChild(st);
+    }
+    const b = document.createElement('button');
+    b.id = 'egFounderBtn';
+    b.type = 'button';
+    b.title = 'EG파운더';
+    b.setAttribute('aria-label', 'EG파운더 전용메뉴');
+    b.innerHTML = BTN_SVG;
+    b.addEventListener('click', onBtn);
+    document.body.appendChild(b);
+    document.body.classList.add('eg-fbtn');
+    place();
+    /* 살롱지기 판정은 늦게 끝난다 — 나침반이 켜지는 순간 한 칸 비켜선다 */
+    const cb = document.getElementById('compassBtn');
+    if (cb && window.MutationObserver) new MutationObserver(place).observe(cb, { attributes: true, attributeFilter: ['style', 'class'] });
+    window.addEventListener('resize', place);
+  }
+
+  /* 자리 — 나침반이 있으면 그 옆, 없으면 구석. 현지 시계는 버튼 오른쪽 끝 + 16 */
+  function place() {
+    const b = document.getElementById('egFounderBtn');
+    if (!b) return;
+    const cb = document.getElementById('compassBtn');
+    const withCompass = !!(cb && getComputedStyle(cb).display !== 'none');
+    b.style.left = withCompass ? '50px' : '14px';
+    requestAnimationFrame(() => {
+      const r = b.getBoundingClientRect();
+      if (r.width) document.body.style.setProperty('--eg-fb-clock', Math.round(r.right + 16) + 'px');
+    });
+  }
+
+  function lit(on) {
+    const b = document.getElementById('egFounderBtn');
+    if (b) b.classList.toggle('lit', !!on);
+  }
+
+  function onBtn() {
+    if (root && root.classList.contains('on')) {
+      if (docked) dock(false);
+      else close();
+      return;
+    }
+    open();
   }
 
   let checking = false;
   async function mayShow() {
-    if (checking || document.getElementById('dockFounderGuide') || !desktop()) return;
+    if (checking || document.getElementById('egFounderBtn') || !desktop()) return;
     const sb = window.egSupa;
     if (!sb) return;
     checking = true;
@@ -362,18 +405,6 @@
       checking = false;
     }
   }
-
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest) return;
-    const helm = e.target.closest('#dockFounderGuide .dock-go[data-eg-dash]');
-    if (helm) { e.stopPropagation(); open('dash'); return; }   /* ⭐ 작은 타륜 → 대시보드 직행 */
-    if (e.target.closest('#dockFounderGuide')) open();
-  });
-  document.addEventListener('keydown', (e) => {
-    if ((e.key === 'Enter' || e.key === ' ') && e.target.closest && e.target.closest('#dockFounderGuide')) {
-      e.preventDefault(); open();
-    }
-  });
 
   if (window.egSupa && window.egSupa.auth && window.egSupa.auth.onAuthStateChange) {
     window.egSupa.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_IN' || ev === 'INITIAL_SESSION') mayShow(); });
