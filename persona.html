@@ -263,6 +263,20 @@
            border:1px solid var(--c-accent); background:var(--c-accent); color:#fff; cursor:pointer; }
   .pl-cta[disabled]{ opacity:.55; cursor:default; }
   .pl-note{ font-size:12px; color:var(--c-sub); margin-top:8px; line-height:1.6; }
+  /* ══ 정회원 신청 (0923) ══ */
+  .ap-sec{ padding:14px 0; border-bottom:1px solid var(--c-cbor); }
+  .ap-sec:last-of-type{ border-bottom:0; }
+  .ap-h{ font-family:'Gowun Batang',serif; font-size:14.5px; color:var(--c-ink); margin-bottom:8px; }
+  .ap-h i{ font-style:normal; color:var(--c-accent); margin-right:6px; }
+  .ap-p{ font-size:13px; line-height:1.75; color:var(--c-ink); margin:0; }
+  .ap-p.sub{ color:var(--c-sub); font-size:12.5px; }
+  .ap-amt{ font-family:'Gowun Batang',serif; font-size:21px; color:var(--c-ink); }
+  .ap-box{ background:var(--c-cbg); border:1px solid var(--c-cbor); border-radius:10px; padding:10px 12px;
+           font-size:12px; line-height:1.7; color:var(--c-sub); margin:6px 0 10px; }
+  .ap-box b{ color:var(--c-ink); font-weight:600; }
+  .ap-chk{ display:flex; gap:9px; align-items:flex-start; font-size:13.5px; color:var(--c-ink); cursor:pointer; line-height:1.55; }
+  .ap-chk input{ margin-top:3px; accent-color:var(--c-accent); width:16px; height:16px; flex:none; }
+  .ap-chk.all{ font-family:'Gowun Batang',serif; font-size:14.5px; padding:12px 0 4px; }
 
   /* 가름선 — 벽에 그은 한 줄 */
   .e-rule{
@@ -1225,6 +1239,12 @@
         <div class="hint">불러오는 중입니다.</div>
   </div>
 </div>
+<!-- ⭐ 0923 — 정회원 신청. 차례 = 구독 신청서 샘플 여섯 절 (결정문 0922 8호 · 요건 가~마)
+     ⚠ 계좌 · 카드 번호는 EG 가 받지 않는다 — 효성 간편서명동의 화면에서 손님이 직접 (0920 요약 5호) -->
+<div class="sheet" id="sheet-apply" hidden>
+  <div class="sheet-head"><b>정회원 신청</b><span class="sheet-x" onclick="closeSheet()">×</span></div>
+  <div class="sheet-body" id="apply-body"></div>
+</div>
 <div class="sheet" id="sheet-terms" hidden>
   <div class="sheet-head"><b>이용약관 · 개인정보</b><span class="sheet-x" onclick="closeSheet()">×</span></div>
   <div class="sheet-body">
@@ -1888,8 +1908,7 @@ function drawPlan(focus){
     out.push(`<div class="pl-sec" id="pl-apply"><div class="pl-gift">
       <div class="pl-h" style="margin:0">${head}</div>
       ${(gift1 || gift2) ? `<ol>${gift1}${gift2}</ol>` : ''}
-      <button type="button" class="pl-cta" disabled>정회원 신청</button>
-      <div class="pl-note">신청 화면을 준비하고 있습니다. 곧 이 버튼으로 바로 신청하실 수 있습니다.</div>
+      <button type="button" class="pl-cta" data-open-apply>정회원 신청</button>
     </div></div>`);
   }
 
@@ -1902,6 +1921,83 @@ function drawPlan(focus){
   el.innerHTML = out.join('');
   if(focus){ document.getElementById('pl-' + focus)?.scrollIntoView({ block:'start' }); }
 }
+
+
+/* ══ 정회원 신청 화면 (0923) ═════════════════════════════════════════
+   여섯 절 = 구독 신청서 샘플 (결정문 0922 8호) — 요건 가~마에 하나씩.
+     1 신청 서비스(다·라)  2 결제 수단  3 출금 정보(나)  4 자동이체 동의(가)  5 개인정보(마)  6 다음 단계
+   ⭐ 출금일은 손님이 고르지 않는다 — EG 가 셈해 적는다 (0922 10호)
+   ⭐ 서명하는 자리에서는 실제 금액을 또렷이 (0923 12호) — 들머리 혜택은 구독 관리 쪽
+   ⚠ 마지막 문(효성 간편동의 링크)은 개통 뒤에 연다 — HYOSUNG_* Secrets 가 서야 한다
+   ══════════════════════════════════════════════════════════════════ */
+const AP_LIVE = false;   /* ⭐ 개통 날 true — 그 전엔 마지막 버튼이 잠겨 있다 */
+
+function drawApply(){
+  const el = document.getElementById('apply-body');
+  if(!el || !MEM) return;
+  const ap = MEM.apply_preview || {}, full = MEM.unit || 30030;
+  const rule = ap.next_rule_day || ap.first_pay_day;
+  const day = rule ? Number(String(rule).slice(8,10)) : null;
+  const today = new Date(); const td = `${today.getFullYear()}. ${String(today.getMonth()+1).padStart(2,'0')}. ${String(today.getDate()).padStart(2,'0')}`;
+
+  el.innerHTML = `
+  <div class="ap-sec">
+    <div class="ap-h"><i>1</i>신청 서비스</div>
+    <div class="pl-row"><span>업체</span><span>이지EG유니버스</span></div>
+    <div class="pl-row"><span>서비스</span><span>EG유니버스 정회원</span></div>
+    <div class="pl-row"><span>매월 회비</span><span>${won(full)} <small style="color:var(--c-sub)">(부가세 포함)</small></span></div>
+    <div class="pl-row"><span>첫 달 회비</span><span class="ap-amt">${won(ap.charge ?? full)}</span></div>
+    ${ap.deduct > 0 ? `<p class="ap-p sub">남은 체험 기간 ${ap.remain_days}일 × 1,001원 = ${won(ap.deduct)}을 뺀 금액입니다. 둘째 달부터는 ${won(full)}입니다.</p>` : ''}
+    <div class="pl-row" style="margin-top:6px"><span>출금일</span><span>매월 ${day ?? '—'}일</span></div>
+    <p class="ap-p sub">출금일은 신청하신 날에 맞춰 정해집니다. 첫 달 회비는 신청 뒤 영업일 기준 2~3일 안에, 둘째 달부터는 매월 ${day ?? '—'}일에 출금됩니다. 그날이 휴일이면 다음 영업일에 출금됩니다.</p>
+  </div>
+
+  <div class="ap-sec">
+    <div class="ap-h"><i>2</i>결제 수단</div>
+    <p class="ap-p">계좌 자동이체 또는 신용카드 정기결제 가운데 하나를 고르실 수 있습니다. 다음 단계의 효성CMS 화면에서 고르십니다.</p>
+  </div>
+
+  <div class="ap-sec">
+    <div class="ap-h"><i>3</i>출금 정보</div>
+    <p class="ap-p">예금주, 생년월일, 휴대전화, 금융기관과 계좌번호(또는 카드번호)는 효성CMS 화면에서 휴대폰 본인인증과 함께 직접 입력하십니다. EG유니버스는 계좌번호와 카드번호를 받거나 보관하지 않습니다.</p>
+  </div>
+
+  <div class="ap-sec">
+    <div class="ap-h"><i>4</i>자동이체 동의</div>
+    <div class="ap-box">본인은 이지EG유니버스의 <b>EG유니버스 정회원</b> 월 회비를 위 조건에 따라 본인이 지정하는 계좌 또는 카드에서 매월 출금하는 데 동의합니다. 첫 달은 <b>${won(ap.charge ?? full)}</b>, 둘째 달부터는 매월 <b>${day ?? '—'}일 ${won(full)}</b>이며, 체험 기간이 남아 있으면 남은 일수 × 1,001원을 뺀 금액을 첫 달에 출금합니다. 해지는 구독 관리에서 언제든 신청하실 수 있습니다.</div>
+    <label class="ap-chk"><input type="checkbox" class="ap-c" data-k="auto"> 자동이체 출금에 동의합니다. (필수)</label>
+  </div>
+
+  <div class="ap-sec">
+    <div class="ap-h"><i>5</i>개인정보</div>
+    <div class="ap-box"><b>수집 · 이용</b> — 수집하는 곳: 이지EG유니버스 · 목적: 회비 출금과 결제 내역 관리 · 항목: 이름, 휴대전화, 결제 수단 정보(마스킹), 출금 내역 · 보관: 탈퇴 뒤 관계 법령이 정한 기간까지</div>
+    <label class="ap-chk"><input type="checkbox" class="ap-c" data-k="privacy"> 개인정보 수집 · 이용에 동의합니다. (필수)</label>
+    <div class="ap-box" style="margin-top:10px"><b>제3자 제공</b> — 받는 곳: 효성에프엠에스(주) · 목적: 자동이체 · 정기결제 처리와 본인 확인 · 항목: 이름, 생년월일, 휴대전화, 금융기관, 계좌번호 또는 카드번호 · 보관: 출금 서비스 해지 뒤 관계 법령이 정한 기간까지</div>
+    <label class="ap-chk"><input type="checkbox" class="ap-c" data-k="third"> 개인정보 제3자 제공에 동의합니다. (필수)</label>
+    <p class="ap-p sub" style="margin-top:8px">동의하지 않으실 수 있으나, 동의하지 않으시면 정회원 회비를 자동이체로 납부하실 수 없습니다.</p>
+  </div>
+
+  <label class="ap-chk all"><input type="checkbox" id="ap-all"> 위 내용을 모두 확인했고 모두 동의합니다.</label>
+
+  <div class="ap-sec" style="border-bottom:0">
+    <div class="ap-h"><i>6</i>다음 단계</div>
+    <p class="ap-p">아래 버튼을 누르시면 효성CMS 화면이 열립니다. 휴대폰 본인인증, 결제 수단 입력, 전자서명을 마치시면 그 순간부터 정회원이 됩니다. 매월 출금 2일 전에는 금액과 날짜를 미리 알려 드립니다.</p>
+    <p class="ap-p sub" style="margin-top:6px">신청일 ${td}</p>
+    <button type="button" class="pl-cta" id="ap-go" disabled>동의하고 결제 수단 등록하기</button>
+    ${AP_LIVE ? '' : '<div class="pl-note">결제 수단 등록 창은 개통 준비 중입니다. 곧 이 버튼으로 이어집니다.</div>'}
+  </div>`;
+
+  const cs = [...el.querySelectorAll('.ap-c')], all = el.querySelector('#ap-all'), go = el.querySelector('#ap-go');
+  const sync = () => { const ok = cs.every(c => c.checked); all.checked = ok; go.disabled = !(ok && AP_LIVE); };
+  cs.forEach(c => c.addEventListener('change', sync));
+  all.addEventListener('change', () => { cs.forEach(c => c.checked = all.checked); sync(); });
+  go.addEventListener('click', () => { /* ⏳ 개통 날 — 동의 기록 + 간편동의 링크 (hyosung Edge) */ });
+}
+
+document.addEventListener('click', e => {
+  if(!e.target.closest('[data-open-apply]')) return;
+  openSheet('apply'); drawApply();
+});
 
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-plan]'); if(!b) return;
