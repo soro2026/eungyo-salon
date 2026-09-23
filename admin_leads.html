@@ -277,6 +277,14 @@ textarea{ resize:vertical; line-height:1.6; }
 .fd .step.on{ color:#dfe9db; }
 .fd .step .d{ margin-left:auto; font-size:11.5px; color:#7d8a78; font-variant-numeric:tabular-nums; }
 .fd .acts{ display:flex; gap:7px; flex-wrap:wrap; margin-top:9px; }
+/* 0923 — 한 사람의 계약이 여럿일 때 · 맨 앞 계약 아래로 나머지를 줄 세운다 */
+.fd .more{ margin-top:11px; padding-top:9px; border-top:1px dashed #2e3a2e; }
+.fd .more .mh{ font-size:11px; color:#7d8a78; letter-spacing:.12em; margin-bottom:6px; }
+.fd .orow{ padding:7px 0; border-bottom:1px solid #1f281f; font-size:12.5px; line-height:1.65; color:#cfd9cb; }
+.fd .orow:last-child{ border-bottom:0; }
+.fd .orow .lb{ color:#8a9086; font-size:12px; }
+.fd .orow .st{ color:#e0c27a; }
+.fd .orow .acts{ margin-top:6px; }
 .fd .warnline{ margin-top:7px; font:400 12px/1.6 system-ui,sans-serif; color:#d8a55a; }
 .fd .nolink{ font:400 12.5px/1.7 system-ui,sans-serif; color:#8a9086; }
 .lead .next{ display:inline-block; margin-left:7px; padding:1px 8px; border-radius:3px;
@@ -701,8 +709,31 @@ function founderPanel(r){
   if(res.confirmed_at)
     h += `<button class="b sm" data-act="unconfirm" data-res="${esc(res.id)}">확정 취소</button>`;
   h += `<button class="b sm" data-act="unlink">연결 풀기</button>`;
-  h += '</div></div>';
+  h += '</div>' + othersHtml(t, res) + '</div>';
   return h;
+}
+
+/* ⭐ 0923 소로 — 입금 확인 대기가 몇 건이든 새 계약서는 열린다. 그래서 한 사람의 계약이 여럿이 된다.
+     맨 앞(res)은 소로 손이 필요한 계약(입금 대기 · 먼저 온 것) — 나머지를 그 아래 한 줄씩, 줄마다 단추 */
+function othersHtml(t, res){
+  const others = (t.list || []).filter(x => !res || x.id !== res.id);
+  if(!others.length) return '';
+  const won2 = n => Number(n||0).toLocaleString('ko-KR');
+  let h = `<div class="more"><div class="mh">이 분의 다른 계약 ${others.length}건</div>`;
+  for(const x of others){
+    const c = x.contract;
+    const st = x.status === 'confirmed' ? '확정'
+             : x.status === 'claimed'   ? (c && c.paid ? '입금 확인 대기' : '이체 전')
+             : '계약서 작성 중';
+    h += `<div class="orow">${esc(c ? c.no : '서명 전')} · ${x.n}채 ${x.slots}슬롯 · ${won2(x.amount)}원 · <span class="st">${st}</span>
+      <div class="lb">${esc(x.labels || '')}</div>`;
+    if(x.status === 'claimed' && c && c.paid)
+      h += `<div class="acts"><button class="b gold sm" data-act="confirm" data-res="${esc(x.id)}">입금을 확인했습니다</button></div>`;
+    else if(x.status === 'confirmed')
+      h += `<div class="acts"><button class="b sm" data-act="unconfirm" data-res="${esc(x.id)}">확정 취소</button></div>`;
+    h += '</div>';
+  }
+  return h + '</div>';
 }
 
 function updateFoot(){
@@ -837,13 +868,17 @@ async function unlinkAccount(row){
 
 /* 입금 확인 — 돈이 오간 자리라 확인 판을 한 겹 둔다 (0918 소로) */
 async function confirmPaid(row, res, btn){
-  const t = TRACK.get(row.id); if(!t || !t.res) return;
+  const t = TRACK.get(row.id); if(!t) return;
   const won2 = n => Number(n||0).toLocaleString('ko-KR');
-  const items = (t.items||[]).map(b=>'  · '+b.label+' ('+b.slots+'슬롯)').join('\n');
+  /* ⭐ 0923 — 계약이 여럿일 수 있다. 누른 줄(res)의 계약으로 확인 판을 그린다 */
+  const x = (t.list || []).find(v => v.id === res);
+  if(!x){ toast('그 계약을 찾지 못했습니다 — 새로고침해 주십시오', true); return; }
+  const c0 = x.contract || {};
+  const items = String(x.labels || '').split(' · ').filter(Boolean).map(s=>'  · '+s).join('\n');
   const ok = confirm(
     `입금을 확인하고 계약을 확정합니다.\n\n` +
-    `${t.contract ? t.contract.no + '\n' : ''}${t.contract && t.contract.name ? t.contract.name + '\n' : ''}` +
-    `${won2(t.res.amount)}원 · ${(t.items||[]).length}채 · ${t.res.slots}슬롯\n${items}\n\n` +
+    `${c0.no ? c0.no + '\n' : ''}${c0.name ? c0.name + '\n' : ''}` +
+    `${won2(x.amount)}원 · ${x.n}채 · ${x.slots}슬롯\n${items}\n\n` +
     `확정하면 건물이 그분의 것이 되고 준비 기간 6주가 시작됩니다.\n` +
     `개관일은 뒤에 협의하여 따로 꽂습니다.`);
   if(!ok) return;
