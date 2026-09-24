@@ -5089,17 +5089,18 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
            이면 기체에서 볼 때 글씨가 왼쪽→오른쪽으로 바로 읽힌다. */
       var H = p.plate || Math.max(30, Math.min(90, r * 0.5));
       var cv = document.createElement("canvas"), g = cv.getContext("2d");
-      var f1 = "700 150px 'Pretendard', 'Noto Sans KR', sans-serif", f2 = "500 88px 'Pretendard', 'Noto Sans KR', sans-serif";
+      /* ⭐ 0925a — 소로 「투명 바탕에 흰 고딕 · 실제 간판 느낌」(구글 어스 영상 샘플).
+         바탕판을 걷고 글씨만 선다. ⚠ 밝은 밀밭 · 석회암 위에서 안 묻히게 옅은 그림자를 깐다. */
+      var f1 = "800 160px 'Pretendard', 'Noto Sans KR', sans-serif", f2 = "700 92px 'Pretendard', 'Noto Sans KR', sans-serif";
       g.font = f1; var w1 = g.measureText(p.name).width;
       g.font = f2; var w2 = p.who ? g.measureText(p.who).width : 0;
-      var pad = 70, ch = p.who ? 360 : 260, cw = Math.ceil(Math.max(w1, w2) + pad * 2);
+      var pad = 60, ch = p.who ? 360 : 240, cw = Math.ceil(Math.max(w1, w2) + pad * 2);
       cv.width = cw; cv.height = ch;
-      g.fillStyle = "rgba(242,198,107,0.94)";
-      (function (x, y, w, h, rr) { g.beginPath(); g.moveTo(x + rr, y); g.arcTo(x + w, y, x + w, y + h, rr); g.arcTo(x + w, y + h, x, y + h, rr);
-        g.arcTo(x, y + h, x, y, rr); g.arcTo(x, y, x + w, y, rr); g.closePath(); g.fill(); })(0, 0, cw, ch, 36);
-      g.fillStyle = "#3A2604"; g.textAlign = "center"; g.textBaseline = "middle";
-      g.font = f1; g.fillText(p.name, cw / 2, p.who ? 130 : ch / 2);
-      if (p.who) { g.font = f2; g.fillText(p.who, cw / 2, 270); }
+      g.textAlign = "center"; g.textBaseline = "middle";
+      g.shadowColor = "rgba(0,0,0,0.45)"; g.shadowBlur = 18; g.shadowOffsetX = 0; g.shadowOffsetY = 4;
+      g.fillStyle = "#FFFFFF";
+      g.font = f1; g.fillText(p.name, cw / 2, p.who ? 125 : ch / 2);
+      if (p.who) { g.font = f2; g.fillText(p.who, cw / 2, 275); }
       var W = H * cw / ch;
       var ptop = top, pbot = Math.max(base + 40, ptop - H); ptop = pbot + H;
       var brg = 0;
