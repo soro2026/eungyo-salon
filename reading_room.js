@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0924g";
+  var VERSION = "0925a";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -945,6 +945,81 @@
       [51.50880, -0.18100, "켄싱턴 가든 · 북쪽", 150],
       [51.50792, -0.17759, "피터 팬 동상", 150],
       [51.50580, -0.17618, "롱 워터", 150]
+    ]
+  }, {
+    /* ══ ⭐⭐⭐ 0925a — 「산티아고 순례 비행」 · EG가이드북 낭독 노선의 첫 뼈대 ══════════════
+       가이드비행 결정문 v1.0(0910밤2) + 런던 결정문 9 · 10호(0924밤 — 800km 한 줄 · 형편대로 날고 저장).
+       ⭐ 한 줄이다 — 1일 단위로 끊지 않는다. 이어 타기(saveWhere · 길목마다)가 이미 서 있다.
+       ⭐ 이륙 없음 — 생장 상공에서 뜬 채 시작한다(clmb 표가 없으니 TAKEOFF 가 안 선다).
+       ⭐ 도착 — 오브라도이로 광장. ⚠ 지금 판은 마지막 길목에서 **멈춘다**(liner 의 u=1). 착륙은 다음 손.
+       ⭐ 길목 44 = 끝마을 33(「Day 01 · 론세스바예스」 — 기내 지도 이름표가 곧 Day 표기)
+         + 고개 · 곳 11(오리손 · 레푀데르 · 페르돈 · 이라체 · 사아군 · 철 십자가 · 몰리나세카 · 멜리데
+         · 라바코야 공항 · 몬테 도 고소). 끝마을 목록은 브라이얼리 33구간 어림 — 확정은 소로.
+       ⭐ 높이(넷째 칸 · 타원체 m) — 결정문 2호 「도시는 낮게 · 시골은 높게」.
+           입체 도시(팜플로나 · 로그로뇨 · 부르고스 · 레온 · 폰페라다 · 산티아고 · 몬테 도 고소) 지면 +250
+           시골 지면 +600 · 고개(레푀데르 1,430 · 페르돈 · 철 십자가 1,500 · 오 세브레이로) 지면 +650
+           (지오이드 +50 을 얹었다) · 길목 사이는 곧게(cruiseH · 0924a) · 가장 가파른 곳 분당 100m 안팎.
+       ⭐ 속도 kmh 70 고정(결정문 6-1 · felt 를 안 적는다) — 곧게 658km · 9시간 24분.
+       ⚠⚠ 좌표는 **지도 어림**이다. 소로 시승 뒤 구글 어스로 다시 찍는다(0823 문법). */
+    code: "camino_santiago",
+    craft: "bre",
+    name: "산티아고 순례 비행",
+    face: "생장 하늘에서 오브라도이로까지 800km · 노란 화살표를 따라 · 브레게 14",
+    kind: "tour",
+    kmh: 70,
+    bankGain: 22,
+    bankBody: 20,
+    look: 1.0,
+    mode: "msl",
+    msl: 1200,                        /* ⚠ 넷째 칸이 없는 길목의 값 — 이 노선은 모든 길목에 적었다 */
+    floor: 150,
+    agl: 600, aglLow: 300, aglHigh: 1200,  /* ⚠ msl 노선이라 안 읽는다. 그물로만 둔다 */
+    loop: false,
+    legs: [
+      [43.1633, -1.2376, "생장피에드포르 상공", 830],
+      [43.1010, -1.2650, "오리손", 1440],
+      [43.0450, -1.2930, "레푀데르 고개", 2130],
+      [43.0092, -1.3197, "Day 01 · 론세스바예스", 1600],
+      [42.9303, -1.5033, "Day 02 · 수비리", 1180],
+      [42.8183, -1.6440, "Day 03 · 팜플로나", 750],
+      [42.7360, -1.7280, "알토 델 페르돈 · 바람의 순례자", 1470],
+      [42.6717, -1.8156, "Day 04 · 푸엔테 라 레이나", 1000],
+      [42.6710, -2.0310, "Day 05 · 에스테야", 1080],
+      [42.6600, -2.0480, "이라체 · 포도주 샘", 1130],
+      [42.5689, -2.1922, "Day 06 · 로스 아르코스", 1090],
+      [42.4650, -2.4450, "Day 07 · 로그로뇨", 680],
+      [42.4163, -2.7338, "Day 08 · 나헤라", 1140],
+      [42.4406, -2.9536, "Day 09 · 산토 도밍고 데 라 칼사다", 1290],
+      [42.4203, -3.1906, "Day 10 · 벨로라도", 1420],
+      [42.3756, -3.4369, "Day 11 · 산 후안 데 오르테가", 1650],
+      [42.3407, -3.7042, "Day 12 · 부르고스", 1160],
+      [42.3386, -3.9247, "Day 13 · 오르니요스 델 카미노", 1480],
+      [42.2881, -4.1386, "Day 14 · 카스트로헤리스", 1460],
+      [42.2672, -4.4061, "Day 15 · 프로미스타", 1430],
+      [42.3383, -4.6031, "Day 16 · 카리온 데 로스 콘데스", 1490],
+      [42.3620, -4.8930, "Day 17 · 테라디요스 데 로스 템플라리오스", 1530],
+      [42.3713, -5.0300, "사아군", 1470],
+      [42.4230, -5.2200, "Day 18 · 엘 부르고 라네로", 1530],
+      [42.4990, -5.4170, "Day 19 · 만시야 데 라스 물라스", 1450],
+      [42.5987, -5.5671, "Day 20 · 레온", 1140],
+      [42.4950, -5.8120, "Day 21 · 산 마르틴 델 카미노", 1520],
+      [42.4589, -6.0563, "Day 22 · 아스토르가", 1520],
+      [42.4817, -6.2840, "Day 23 · 라바날 델 카미노", 1800],
+      [42.4886, -6.3617, "크루스 데 페로 · 철 십자가", 2200],
+      [42.5380, -6.5190, "몰리나세카", 1250],
+      [42.5460, -6.5960, "Day 24 · 폰페라다", 840],
+      [42.6060, -6.8110, "Day 25 · 비야프랑카 델 비에르소", 1160],
+      [42.7077, -7.0431, "Day 26 · 오 세브레이로", 2000],
+      [42.7560, -7.2370, "Day 27 · 트리아카스텔라", 1320],
+      [42.7800, -7.4140, "Day 28 · 사리아", 1100],
+      [42.8075, -7.6158, "Day 29 · 포르토마린", 1030],
+      [42.8733, -7.8697, "Day 30 · 팔라스 데 레이", 1220],
+      [42.9140, -8.0150, "멜리데", 1100],
+      [42.9270, -8.1640, "Day 31 · 아르수아", 1040],
+      [42.9050, -8.3610, "Day 32 · 페드로우소", 920],
+      [42.8963, -8.4152, "라바코야 · 산티아고 공항", 1020],
+      [42.8870, -8.4950, "몬테 도 고소 · 기쁨의 언덕", 670],
+      [42.8806, -8.5445, "Day 33 · 산티아고 데 콤포스텔라", 560]
     ]
   }, {
     /* ══ 0821a — 두 번째 노선. 「안데스 우편비행」 ═══════════════════════
@@ -4943,6 +5018,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⚠ 이름표는 깊이 검사를 끈다 — 건물 뒤에 있어도 보인다. 줄과 고리는 가려지면 옅게. */
   var PIN = null;
   var PIN_AALT = null;               /* ⭐ 0924g — 기체의 해발(타원체) 고도. 명패 높이가 본다 */
+  var PIN_ALAT = null, PIN_ALON = null;   /* ⭐ 0925a — 기체 위치. 명패가 어느 쪽을 보고 설지 */
   function pinKm(a, p) {
     var k = Math.cos(p.lat * Math.PI / 180);
     return Math.sqrt(Math.pow((a.lat - p.lat) * 110.574, 2) + Math.pow((a.lon - p.lon) * 111.32 * k, 2));
@@ -4990,21 +5066,47 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
           return [C.Cartesian3.fromDegrees(p.lon, p.lat, base), C.Cartesian3.fromDegrees(p.lon, p.lat, base + (top - base) * grow())];
         }, false),
         width: 2, material: gold, depthFailMaterial: dim } });
+      /* ══ ⭐⭐⭐ 0925a — 소로 0925 「명패가 늘 카메라를 보니 물리적으로 낯설다 · 방향 고정 · 글씨는 크게」 ══
+         옛 판 = 글씨표(label) 15px · 늘 카메라를 본다 · 건물 뒤에서도 비친다.
+         ⭐ 새 판 = 세상에 선 판(plane). 글씨를 그림으로 한 번 굽고, 크기는 **미터**로 적는다.
+         ⭐ 방향 — 핀이 솟는 그 순간 기체가 있는 쪽을 보고 선 뒤 얼린다(도로 표지판 · 모혼).
+           방송은 한 곳에 한 번뿐이라 정주행이든 역주행이든 늘 앞면으로 맞는다.
+         ⭐ 높이 — 판의 윗변 = top(기체 −35m · 0924g 그대로) · 판은 그 아래로 걸린다 · 아랫변은 바닥 +40 위.
+         ⭐ 크기 — p.plate(글씨판 높이 m) · 없으면 고리 반지름의 절반(30~90m). 다가갈수록 저절로 커진다.
+         ⭐ 깊이 검사를 켠다 — 건물 뒤로 가면 정말 가려진다.
+         ⚠ 셈 — PlaneGraphics 는 판의 x → 법선 기준 왼쪽 축이다. 법선 = 기체 쪽(+X, heading = 방위 − 90°)
+           이면 기체에서 볼 때 글씨가 왼쪽→오른쪽으로 바로 읽힌다. */
+      var H = p.plate || Math.max(30, Math.min(90, r * 0.5));
+      var cv = document.createElement("canvas"), g = cv.getContext("2d");
+      var f1 = "700 150px 'Pretendard', 'Noto Sans KR', sans-serif", f2 = "500 88px 'Pretendard', 'Noto Sans KR', sans-serif";
+      g.font = f1; var w1 = g.measureText(p.name).width;
+      g.font = f2; var w2 = p.who ? g.measureText(p.who).width : 0;
+      var pad = 70, ch = p.who ? 360 : 260, cw = Math.ceil(Math.max(w1, w2) + pad * 2);
+      cv.width = cw; cv.height = ch;
+      g.fillStyle = "rgba(242,198,107,0.94)";
+      (function (x, y, w, h, rr) { g.beginPath(); g.moveTo(x + rr, y); g.arcTo(x + w, y, x + w, y + h, rr); g.arcTo(x + w, y + h, x, y + h, rr);
+        g.arcTo(x, y + h, x, y, rr); g.arcTo(x, y, x + w, y, rr); g.closePath(); g.fill(); })(0, 0, cw, ch, 36);
+      g.fillStyle = "#3A2604"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.font = f1; g.fillText(p.name, cw / 2, p.who ? 130 : ch / 2);
+      if (p.who) { g.font = f2; g.fillText(p.who, cw / 2, 270); }
+      var W = H * cw / ch;
+      var ptop = top, pbot = Math.max(base + 40, ptop - H); ptop = pbot + H;
+      var brg = 0;
+      if (PIN_ALAT != null) {
+        var dy = (PIN_ALAT - p.lat) * 110574, dx = (PIN_ALON - p.lon) * 111320 * Math.cos(p.lat * Math.PI / 180);
+        brg = Math.atan2(dx, dy);          /* 핀에서 기체로 · 북에서 시계 방향 */
+      }
+      var ppos = C.Cartesian3.fromDegrees(p.lon, p.lat, pbot + H / 2);
       var e3 = viewer.entities.add({
-        position: C.Cartesian3.fromDegrees(p.lon, p.lat, top),
-        label: {
-          text: p.name + (p.who ? "\n" + p.who : ""),
-          font: "500 15px 'Pretendard', 'Noto Sans KR', sans-serif",
-          fillColor: C.Color.fromCssColorString("#3A2604"),
-          showBackground: true,
-          backgroundColor: C.Color.fromCssColorString("#F2C66B").withAlpha(0.94),
-          backgroundPadding: new C.Cartesian2(12, 8),
-          verticalOrigin: C.VerticalOrigin.BOTTOM,
-          horizontalOrigin: C.HorizontalOrigin.CENTER,
-          pixelOffset: new C.Cartesian2(0, -6),
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        position: ppos,
+        orientation: C.Transforms.headingPitchRollQuaternion(ppos, new C.HeadingPitchRoll(brg - Math.PI / 2, 0, 0)),
+        plane: {
+          plane: new C.Plane(C.Cartesian3.UNIT_X, 0),
+          dimensions: new C.Cartesian2(W, H),
+          material: new C.ImageMaterialProperty({ image: cv, transparent: true }),
           show: new C.CallbackProperty(function () { return grow() > 0.9; }, false)
         } });
+      top = pbot;                          /* 빛줄기는 판의 아랫변까지 */
       PIN = { ents: [e1, e2, e3], ref: e.ref, p: p, dmin: 1e9, endT: 0 };
     } catch (err) { console.warn("[EG] 핀을 못 꽂았습니다:", err); pinOff(); }
   }
@@ -5088,6 +5190,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     if (now - PA_T < 1000) return;
     PA_T = now;
     if (ctx.aalt != null) PIN_AALT = ctx.aalt;   /* ⭐ 0924g */
+    if (ctx.lat != null) { PIN_ALAT = ctx.lat; PIN_ALON = ctx.lon; }   /* ⭐ 0925a */
     pinTick(now, ctx);                 /* ⭐ 0924d — 지나간 핀을 걷는다 */
     /* ⚠ 첫 판정에서는 고도를 **재기만** 한다. 지난 값이 없으면 통과를 잴 수 없고,
        0 을 지난 값으로 쓰면 「방금 올라왔다」가 된다(0825i 의 land3k 병과 같은 뿌리). */
