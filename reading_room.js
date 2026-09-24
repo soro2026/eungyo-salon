@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0924a";
+  var VERSION = "0924b";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -5219,8 +5219,10 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   function paDuck(on) {
     try {
       var a = ensureAC(), t = a.currentTime;
-      if (engGain) engGain.gain.linearRampToValueAtTime(engBase * (on ? PA_DUCK : 1), t + 0.5);
-      if (musGain) musGain.gain.linearRampToValueAtTime(MUSIC_VOL * (on ? PA_DUCK : 1), t + 0.5);
+      /* ⭐⭐ 0924b — **지금 채널의 소리만** 눕히고 되돌린다. 옛 판은 채널을 안 봐서, 음악이나 끔에서
+         방송이 끝나면 엔진음을 원래 크기로 되살렸다(0821k 짝 수칙의 반쪽만 지켰다). */
+      if (engGain) engGain.gain.linearRampToValueAtTime(CH === 0 ? engBase * (on ? PA_DUCK : 1) : 0, t + 0.5);
+      if (musGain) musGain.gain.linearRampToValueAtTime(CH === 1 ? MUSIC_VOL * (on ? PA_DUCK : 1) : 0, t + 0.5);
     } catch (e) { }
   }
 
@@ -9941,7 +9943,13 @@ function paintBook() {
     try {
       var a = ensureAC();
       windBp.frequency.setTargetAtTime(480 + t * 1100, a.currentTime, 0.8);
-      windGain.gain.setTargetAtTime(engBase * (SPEC.wind || 0) * (0.5 + 1.3 * t), a.currentTime, 0.8);
+      /* ⭐⭐ 0924b — 소로 0924 「복엽기 오디오 고장 — 버튼이 안 먹히고 전부 기내 소음」.
+         ⚠⚠ 바람은 엔진음의 둘째 갈래인데 **채널을 안 봤다.** setChannel 은 engGain 만 끄고,
+           이 손이 매 프레임 바람을 도로 켰다. 복엽기(wind 1)는 50~70km/h 에서도 엔진음의
+           절반 크기라 음악 · 끔으로 돌려도 「쉬이」가 남았다. 제트기는 wind 0 이라 안 드러났다.
+         ⭐ 소음 채널(CH 0)일 때만 바람이 든다. */
+      windGain.gain.setTargetAtTime(CH === 0 ? engBase * (SPEC.wind || 0) * (0.5 + 1.3 * t) : 0,
+                                    a.currentTime, 0.8);
     } catch (e) { }
   }
   /* ⭐ 갈래 하나를 고른다 — 단추가 셋을 돌린다. 브라우저에 기억한다.
@@ -9965,6 +9973,10 @@ function paintBook() {
     var out = 0.9;
     if (prev === 0 && engGain) {
       try { engGain.gain.linearRampToValueAtTime(0, ensureAC().currentTime + out); } catch (e) { }
+    }
+    /* ⭐ 0924b — 바람도 함께 재운다(엔진음의 둘째 갈래). 다시 드는 것은 windTune 이 CH 를 보고 한다 */
+    if (prev === 0 && windGain) {
+      try { windGain.gain.setTargetAtTime(0, ensureAC().currentTime, out / 3); } catch (e) { }
     }
     if (prev === 1) musicStop(false);
 
