@@ -981,7 +981,50 @@
        h = 바닥 어림(타원체 m) — 타일이 덜 실렸을 때만 쓴다 · plate = 글씨판 높이(m) · r = 고리 반지름(m) */
     pins: [
       { lat: 43.1633, lon: -1.2376, name: "생장피에드포르", who: "0.0 km", near: 5, r: 250, plate: 120, h: 230 },
-      { lat: 43.0092, lon: -1.3197, name: "론세스바예스", who: "Day 01", near: 5, r: 250, plate: 120, h: 1000 }
+      /* ⭐ 0925a 온 노선 — Day 끝마을 33(near 5 · 글씨판 120m) · 고개와 곳 10(near 2.5 · 90m) · 길목 좌표와 같다 */
+      { lat: 43.1010, lon: -1.2650, name: "오리손", near: 2.5, r: 250, plate: 90, h: 840 },
+      { lat: 43.0450, lon: -1.2930, name: "레푀데르 고개", near: 2.5, r: 250, plate: 90, h: 1480 },
+      { lat: 43.0092, lon: -1.3197, name: "론세스바예스", who: "Day 01", near: 5, r: 250, plate: 120, h: 1002 },
+      { lat: 42.9303, lon: -1.5033, name: "수비리", who: "Day 02", near: 5, r: 250, plate: 120, h: 576 },
+      { lat: 42.8183, lon: -1.6440, name: "팜플로나", who: "Day 03", near: 5, r: 250, plate: 120, h: 500 },
+      { lat: 42.7360, lon: -1.7280, name: "알토 델 페르돈", who: "바람의 순례자", near: 2.5, r: 250, plate: 90, h: 820 },
+      { lat: 42.6717, lon: -1.8156, name: "푸엔테 라 레이나", who: "Day 04", near: 5, r: 250, plate: 120, h: 396 },
+      { lat: 42.6710, lon: -2.0310, name: "에스테야", who: "Day 05", near: 5, r: 250, plate: 120, h: 476 },
+      { lat: 42.6600, lon: -2.0480, name: "이라체", who: "포도주 샘", near: 2.5, r: 250, plate: 90, h: 530 },
+      { lat: 42.5689, lon: -2.1922, name: "로스 아르코스", who: "Day 06", near: 5, r: 250, plate: 120, h: 494 },
+      { lat: 42.4650, lon: -2.4450, name: "로그로뇨", who: "Day 07", near: 5, r: 250, plate: 120, h: 434 },
+      { lat: 42.4163, lon: -2.7338, name: "나헤라", who: "Day 08", near: 5, r: 250, plate: 120, h: 535 },
+      { lat: 42.4406, lon: -2.9536, name: "산토 도밍고 데 라 칼사다", who: "Day 09", near: 5, r: 250, plate: 120, h: 689 },
+      { lat: 42.4203, lon: -3.1906, name: "벨로라도", who: "Day 10", near: 5, r: 250, plate: 120, h: 822 },
+      { lat: 42.3756, lon: -3.4369, name: "산 후안 데 오르테가", who: "Day 11", near: 5, r: 250, plate: 120, h: 1050 },
+      { lat: 42.3407, lon: -3.7042, name: "부르고스", who: "Day 12", near: 5, r: 250, plate: 120, h: 910 },
+      { lat: 42.3386, lon: -3.9247, name: "오르니요스 델 카미노", who: "Day 13", near: 5, r: 250, plate: 120, h: 875 },
+      { lat: 42.2881, lon: -4.1386, name: "카스트로헤리스", who: "Day 14", near: 5, r: 250, plate: 120, h: 858 },
+      { lat: 42.2672, lon: -4.4061, name: "프로미스타", who: "Day 15", near: 5, r: 250, plate: 120, h: 830 },
+      { lat: 42.3383, lon: -4.6031, name: "카리온 데 로스 콘데스", who: "Day 16", near: 5, r: 250, plate: 120, h: 890 },
+      { lat: 42.3620, lon: -4.8930, name: "테라디요스 데 로스 템플라리오스", who: "Day 17", near: 5, r: 250, plate: 120, h: 930 },
+      { lat: 42.3713, lon: -5.0300, name: "사아군", near: 2.5, r: 250, plate: 90, h: 870 },
+      { lat: 42.4230, lon: -5.2200, name: "엘 부르고 라네로", who: "Day 18", near: 5, r: 250, plate: 120, h: 930 },
+      { lat: 42.4990, lon: -5.4170, name: "만시야 데 라스 물라스", who: "Day 19", near: 5, r: 250, plate: 120, h: 850 },
+      { lat: 42.5987, lon: -5.5671, name: "레온", who: "Day 20", near: 5, r: 250, plate: 120, h: 890 },
+      { lat: 42.4950, lon: -5.8120, name: "산 마르틴 델 카미노", who: "Day 21", near: 5, r: 250, plate: 120, h: 920 },
+      { lat: 42.4589, lon: -6.0563, name: "아스토르가", who: "Day 22", near: 5, r: 250, plate: 120, h: 920 },
+      { lat: 42.4817, lon: -6.2840, name: "라바날 델 카미노", who: "Day 23", near: 5, r: 250, plate: 120, h: 1200 },
+      { lat: 42.4886, lon: -6.3617, name: "크루스 데 페로", who: "철 십자가", near: 2.5, r: 250, plate: 90, h: 1550 },
+      { lat: 42.5380, lon: -6.5190, name: "몰리나세카", near: 2.5, r: 250, plate: 90, h: 650 },
+      { lat: 42.5460, lon: -6.5960, name: "폰페라다", who: "Day 24", near: 5, r: 250, plate: 120, h: 590 },
+      { lat: 42.6060, lon: -6.8110, name: "비야프랑카 델 비에르소", who: "Day 25", near: 5, r: 250, plate: 120, h: 560 },
+      { lat: 42.7077, lon: -7.0431, name: "오 세브레이로", who: "Day 26", near: 5, r: 250, plate: 120, h: 1350 },
+      { lat: 42.7560, lon: -7.2370, name: "트리아카스텔라", who: "Day 27", near: 5, r: 250, plate: 120, h: 715 },
+      { lat: 42.7800, lon: -7.4140, name: "사리아", who: "Day 28", near: 5, r: 250, plate: 120, h: 500 },
+      { lat: 42.8075, lon: -7.6158, name: "포르토마린", who: "Day 29", near: 5, r: 250, plate: 120, h: 430 },
+      { lat: 42.8733, lon: -7.8697, name: "팔라스 데 레이", who: "Day 30", near: 5, r: 250, plate: 120, h: 615 },
+      { lat: 42.9140, lon: -8.0150, name: "멜리데", near: 2.5, r: 250, plate: 90, h: 505 },
+      { lat: 42.9270, lon: -8.1640, name: "아르수아", who: "Day 31", near: 5, r: 250, plate: 120, h: 440 },
+      { lat: 42.9050, lon: -8.3610, name: "페드로우소", who: "Day 32", near: 5, r: 250, plate: 120, h: 320 },
+      { lat: 42.8963, lon: -8.4152, name: "라바코야", who: "산티아고 공항", near: 2.5, r: 250, plate: 90, h: 420 },
+      { lat: 42.8870, lon: -8.4950, name: "몬테 도 고소", who: "기쁨의 언덕", near: 2.5, r: 250, plate: 90, h: 420 },
+      { lat: 42.8806, lon: -8.5445, name: "산티아고 데 콤포스텔라", who: "Day 33 · 오브라도이로", near: 5, r: 250, plate: 120, h: 310 }
     ],
     legs: [
       /* ⭐ 0925a — 소로 「출발은 생장보다 1km 뒤에서」 — 생장 → 오리손 방향을 거꾸로 1km(북북동) */
@@ -5144,7 +5187,9 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     var L = ctx.rp;
     if (!L || !L.length || ctx.lat == null) return;
     if (RP_SRC !== L) { RP_SRC = L; RP_DONE = {}; }
-    if (PIN) return;
+    /* ⭐ 0925a — 방송 핀이 서 있으면 안 끼어든다. 노선 핀이면 **이미 지나쳤을 때만** 다음에게 자리를 준다
+       (에스테야 → 이라체 1.7km · 레푀데르 → 론세스바예스 4.5km — 기다리면 다음 핀이 놓친다) */
+    if (PIN && (!PIN.keep || pinKm(ctx, PIN.p) <= PIN.dmin + 0.2)) return;
     for (var i = 0; i < L.length; i++) {
       if (RP_DONE[i]) continue;
       if (pinKm(ctx, L[i]) <= (L[i].near || 3)) {
