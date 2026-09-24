@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0924d";
+  var VERSION = "0924f";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -2230,7 +2230,22 @@
       var hh = viewer.scene.sampleHeight(
         Cesium.Cartographic.fromDegrees(p[1], p[0]),
         BODYENT ? [BODYENT] : undefined);
-      return Cesium.defined(hh) ? hh : null;
+      if (!Cesium.defined(hh)) return null;
+      /* ══ ⭐⭐ 0924e/f — 덜 실린 타일의 판독을 알아본다 ═══════════════════════════
+         ⭐ 근본 처방은 아래 0924f(「고도는 땅에 붙어 있을 때만 따라 올린다」)다. 이 줄은 그 짝이다.
+         ⭐ 까닭 — 가장 거친 3D 타일은 지구를 큰 판자로 이은 다면체라, 판자 가운데를 찌르면
+           실제 지표보다 수 km~수십 km **아래**가 나온다(맨해튼 −16,904m 가 그 값이었다).
+           그런 판독은 「틀린 땅」이 아니라 「아직 안 온 땅」이다 — 버리고 다음 차례에 다시 잰다.
+         ⭐ 문턱 — 지구에서 가장 높은 땅 8,849m · 가장 낮은 뭍 −430m(사해). 그 밖의 값은 지표일 수 없다.
+           null 을 내면 부르는 쪽이 「못 쟀다」로 알고 다음 차례에 다시 잰다(옛 길 그대로).
+         ⚠ 멀쩡한 값은 어떤 노선에서도 안 걸린다 — 안데스 최고봉 아콩카과도 6,961m 다.
+         ⚠ 거를 때마다 한 줄 남긴다(열 번까지). 다음 시승에서 콘솔이 이 전말을 확인해 준다. */
+      if (hh > 9000 || hh < -500) {
+        if ((window.EG_BADGROUND = (window.EG_BADGROUND || 0) + 1) <= 10)
+          console.warn("[EG] ⚠ 덜 실린 타일을 찔렀습니다 — " + Math.round(hh) + "m · 타일이 오면 다시 잽니다");
+        return null;
+      }
+      return hh;
     }
     function sampleOne(sg, uu, segKm0) {
       var kmAt = LOOK_KM[laIdx], sg2 = sg, uu2 = uu, sk = segKm0;
@@ -2659,7 +2674,22 @@
             var dH = gUp - SEAT_H;
             try { console.log("[EG] 발밑이 자랐습니다 " + Math.round(SEAT_H)
               + "m → " + Math.round(gUp) + "m (타일이 더 실렸습니다)"); } catch (e4) { }
-            SEAT_H = gUp; groundH = gUp; alt += dH;
+            SEAT_H = gUp; groundH = gUp;
+            /* ══ ⭐⭐⭐ 0924f — **고도는 땅에 붙어 있을 때만 따라 올린다** (소로 0924 「근본 문제 파악」) ══
+               ⚠⚠ 0827i 는 인천 활주로를 위해 지은 손이다. 활주로 위 기체는 땅에 붙어 있으니
+                 발밑이 자라면 함께 올라야 한다 — 거기까지는 맞다.
+               ⚠⚠⚠ 그런데 **순항 중인 기체에도 걸려 있었다.** 여섯 노선이 모두 msl(해발로 정한 높이)이라
+                 땅을 따라 고도를 옮길 까닭이 없는데, 여기서 alt += dH 가 그대로 탔다.
+               ⭐ 맨해튼 「처음부터」 16,954m 의 전말 —
+                 ① 막 연 자리의 가장 거친 타일은 지구를 수백 km 판자로 이은 다면체라, 판자 가운데가
+                    실제 지표보다 수십 km 꺼져 있다 → 발밑 −16,904m 로 앉음(고도는 250 그대로)
+                 ② 타일이 실려 발밑이 0 으로 「자람」 → 이 줄이 고도를 +16,904 → 약 17,150m
+                 ③ 그 뒤 분당 400m 로 내려오는 중 → 소로 화면 16,954m · V/S −400
+               ⭐ 안데스 이어 타기의 「곳은 맞는데 고도 · 속도 엉망」도 같은 전말이다 — 다른 비행을 돌고 오면
+                 안데스 타일이 식어 있어 ①이 나고, 속도는 땅 위 높이(rel)에 물려 함께 흔들렸다.
+               ⭐ 처방 — 발밑 값(SEAT_H · groundH)은 늘 고친다. **고도는 이륙 활주 중(TAKEOFF)에만** 옮긴다.
+                 순항 기체의 고도는 cruiseH() 와 걸음(분당 400m)이 정한다. 땅이 자랐다고 하늘이 옮겨 가지 않는다. */
+            if (TAKEOFF) alt += dH;
             if (RUN_H !== null) RUN_H += dH;
             if (DEP_H !== null) DEP_H += dH;
           }
@@ -2818,7 +2848,7 @@
               var hh0 = viewer.scene.sampleHeight(
                 Cesium.Cartographic.fromDegrees(route.arr.td[1], route.arr.td[0]),
                 BODYENT ? [BODYENT] : undefined);
-              if (Cesium.defined(hh0)) {
+              if (Cesium.defined(hh0) && hh0 < 9000 && hh0 > -500) {   /* ⭐ 0924e — 지구에 없는 땅은 안 붙든다 */
                 RWY_H = hh0;
                 console.log("[EG] 활주로 표고 " + Math.round(RWY_H) + "m — 지면을 찔러 쟀습니다");
               }
@@ -4929,7 +4959,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       var base = 0;
       try {
         var hh = viewer.scene.sampleHeight(C.Cartographic.fromDegrees(p.lon, p.lat));
-        if (isFinite(hh)) base = hh;
+        if (isFinite(hh) && hh < 9000 && hh > -500) base = hh;   /* ⭐ 0924e — 핀도 엉터리 땅엔 안 선다 */
         else if (p.h != null) base = p.h;
       } catch (_) { if (p.h != null) base = p.h; }
       var top = base + (p.top || 260), t0 = Date.now();
