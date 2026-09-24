@@ -952,7 +952,7 @@
        ⭐ 한 줄이다 — 1일 단위로 끊지 않는다. 이어 타기(saveWhere · 길목마다)가 이미 서 있다.
        ⭐ 이륙 없음 — 생장 상공에서 뜬 채 시작한다(clmb 표가 없으니 TAKEOFF 가 안 선다).
        ⭐ 도착 — 오브라도이로 광장. ⚠ 지금 판은 마지막 길목에서 **멈춘다**(liner 의 u=1). 착륙은 다음 손.
-       ⭐ 출발 = 생장 1km 뒤 상공 · 생장 핀 「0.0 km」 위를 지나며 길이 시작된다.
+       ⭐ 출발 = 생장 3km 뒤 상공 · 생장 핀 「0.0 km」 위를 지나며 길이 시작된다.
        ⭐ 길목 45 = 출발점 + 끝마을 33(「Day 01 · 론세스바예스」 — 기내 지도 이름표가 곧 Day 표기)
          + 고개 · 곳 11(오리손 · 레푀데르 · 페르돈 · 이라체 · 사아군 · 철 십자가 · 몰리나세카 · 멜리데
          · 라바코야 공항 · 몬테 도 고소). 끝마을 목록은 브라이얼리 33구간 어림 — 확정은 소로.
@@ -979,56 +979,61 @@
     /* ══ ⭐⭐ 0925a 노선 핀 — 방송과 떼어 노선에 직접 심는다(소로 0925 「지금 바로 · 1~2개라도」) ══
        기체가 near(km) 안에 들면 솟고, 지나 멀어지면 걷힌다. 방송이 붙으면 그때 목소리만 얹힌다.
        h = 바닥 어림(타원체 m) — 타일이 덜 실렸을 때만 쓴다 · plate = 글씨판 높이(m) · r = 고리 반지름(m) */
+    /* ══ ⭐⭐ 0925a 2.5km 이정표 — 구간 도보 거리(km) · 브라이얼리 33구간 어림 · ⚠ 확정은 소로 ══
+       Day 끝마을 사이 도보 거리를 비행선 위에 비율대로 편다 → Day 마을 위에서 순례자의 누적 km 와 맞는다.
+       합 770.8km · 이정표 308 안팎(Day 마을과 겹치는 자리는 뺀다) */
+    stageKm: [24.7, 21.9, 20.4, 23.8, 21.9, 21.3, 27.6, 29.4, 21.0, 22.0, 23.9, 25.8, 21.0, 19.9, 24.7, 19.3, 26.6, 30.5, 19.1, 18.6, 24.6, 23.7, 20.6, 32.1, 24.2, 28.4, 20.8, 18.3, 22.4, 24.8, 28.8, 19.3, 19.4],
     pins: [
-      { lat: 43.1633, lon: -1.2376, name: "생장피에드포르", who: "0.0 km", near: 5, r: 250, plate: 120, h: 230 },
-      /* ⭐ 0925a 온 노선 — Day 끝마을 33(near 5 · 글씨판 120m) · 고개와 곳 10(near 2.5 · 90m) · 길목 좌표와 같다 */
-      { lat: 43.1010, lon: -1.2650, name: "오리손", near: 2.5, r: 250, plate: 90, h: 840 },
-      { lat: 43.0450, lon: -1.2930, name: "레푀데르 고개", near: 2.5, r: 250, plate: 90, h: 1480 },
-      { lat: 43.0092, lon: -1.3197, name: "론세스바예스", who: "Day 01", near: 5, r: 250, plate: 120, h: 1002 },
-      { lat: 42.9303, lon: -1.5033, name: "수비리", who: "Day 02", near: 5, r: 250, plate: 120, h: 576 },
-      { lat: 42.8183, lon: -1.6440, name: "팜플로나", who: "Day 03", near: 5, r: 250, plate: 120, h: 500 },
-      { lat: 42.7360, lon: -1.7280, name: "알토 델 페르돈", who: "바람의 순례자", near: 2.5, r: 250, plate: 90, h: 820 },
-      { lat: 42.6717, lon: -1.8156, name: "푸엔테 라 레이나", who: "Day 04", near: 5, r: 250, plate: 120, h: 396 },
-      { lat: 42.6710, lon: -2.0310, name: "에스테야", who: "Day 05", near: 5, r: 250, plate: 120, h: 476 },
-      { lat: 42.6600, lon: -2.0480, name: "이라체", who: "포도주 샘", near: 2.5, r: 250, plate: 90, h: 530 },
-      { lat: 42.5689, lon: -2.1922, name: "로스 아르코스", who: "Day 06", near: 5, r: 250, plate: 120, h: 494 },
-      { lat: 42.4650, lon: -2.4450, name: "로그로뇨", who: "Day 07", near: 5, r: 250, plate: 120, h: 434 },
-      { lat: 42.4163, lon: -2.7338, name: "나헤라", who: "Day 08", near: 5, r: 250, plate: 120, h: 535 },
-      { lat: 42.4406, lon: -2.9536, name: "산토 도밍고 데 라 칼사다", who: "Day 09", near: 5, r: 250, plate: 120, h: 689 },
-      { lat: 42.4203, lon: -3.1906, name: "벨로라도", who: "Day 10", near: 5, r: 250, plate: 120, h: 822 },
-      { lat: 42.3756, lon: -3.4369, name: "산 후안 데 오르테가", who: "Day 11", near: 5, r: 250, plate: 120, h: 1050 },
-      { lat: 42.3407, lon: -3.7042, name: "부르고스", who: "Day 12", near: 5, r: 250, plate: 120, h: 910 },
-      { lat: 42.3386, lon: -3.9247, name: "오르니요스 델 카미노", who: "Day 13", near: 5, r: 250, plate: 120, h: 875 },
-      { lat: 42.2881, lon: -4.1386, name: "카스트로헤리스", who: "Day 14", near: 5, r: 250, plate: 120, h: 858 },
-      { lat: 42.2672, lon: -4.4061, name: "프로미스타", who: "Day 15", near: 5, r: 250, plate: 120, h: 830 },
-      { lat: 42.3383, lon: -4.6031, name: "카리온 데 로스 콘데스", who: "Day 16", near: 5, r: 250, plate: 120, h: 890 },
-      { lat: 42.3620, lon: -4.8930, name: "테라디요스 데 로스 템플라리오스", who: "Day 17", near: 5, r: 250, plate: 120, h: 930 },
-      { lat: 42.3713, lon: -5.0300, name: "사아군", near: 2.5, r: 250, plate: 90, h: 870 },
-      { lat: 42.4230, lon: -5.2200, name: "엘 부르고 라네로", who: "Day 18", near: 5, r: 250, plate: 120, h: 930 },
-      { lat: 42.4990, lon: -5.4170, name: "만시야 데 라스 물라스", who: "Day 19", near: 5, r: 250, plate: 120, h: 850 },
-      { lat: 42.5987, lon: -5.5671, name: "레온", who: "Day 20", near: 5, r: 250, plate: 120, h: 890 },
-      { lat: 42.4950, lon: -5.8120, name: "산 마르틴 델 카미노", who: "Day 21", near: 5, r: 250, plate: 120, h: 920 },
-      { lat: 42.4589, lon: -6.0563, name: "아스토르가", who: "Day 22", near: 5, r: 250, plate: 120, h: 920 },
-      { lat: 42.4817, lon: -6.2840, name: "라바날 델 카미노", who: "Day 23", near: 5, r: 250, plate: 120, h: 1200 },
-      { lat: 42.4886, lon: -6.3617, name: "크루스 데 페로", who: "철 십자가", near: 2.5, r: 250, plate: 90, h: 1550 },
-      { lat: 42.5380, lon: -6.5190, name: "몰리나세카", near: 2.5, r: 250, plate: 90, h: 650 },
-      { lat: 42.5460, lon: -6.5960, name: "폰페라다", who: "Day 24", near: 5, r: 250, plate: 120, h: 590 },
-      { lat: 42.6060, lon: -6.8110, name: "비야프랑카 델 비에르소", who: "Day 25", near: 5, r: 250, plate: 120, h: 560 },
-      { lat: 42.7077, lon: -7.0431, name: "오 세브레이로", who: "Day 26", near: 5, r: 250, plate: 120, h: 1350 },
-      { lat: 42.7560, lon: -7.2370, name: "트리아카스텔라", who: "Day 27", near: 5, r: 250, plate: 120, h: 715 },
-      { lat: 42.7800, lon: -7.4140, name: "사리아", who: "Day 28", near: 5, r: 250, plate: 120, h: 500 },
-      { lat: 42.8075, lon: -7.6158, name: "포르토마린", who: "Day 29", near: 5, r: 250, plate: 120, h: 430 },
-      { lat: 42.8733, lon: -7.8697, name: "팔라스 데 레이", who: "Day 30", near: 5, r: 250, plate: 120, h: 615 },
-      { lat: 42.9140, lon: -8.0150, name: "멜리데", near: 2.5, r: 250, plate: 90, h: 505 },
-      { lat: 42.9270, lon: -8.1640, name: "아르수아", who: "Day 31", near: 5, r: 250, plate: 120, h: 440 },
-      { lat: 42.9050, lon: -8.3610, name: "페드로우소", who: "Day 32", near: 5, r: 250, plate: 120, h: 320 },
-      { lat: 42.8963, lon: -8.4152, name: "라바코야", who: "산티아고 공항", near: 2.5, r: 250, plate: 90, h: 420 },
-      { lat: 42.8870, lon: -8.4950, name: "몬테 도 고소", who: "기쁨의 언덕", near: 2.5, r: 250, plate: 90, h: 420 },
-      { lat: 42.8806, lon: -8.5445, name: "산티아고 데 콤포스텔라", who: "Day 33 · 오브라도이로", near: 5, r: 250, plate: 120, h: 310 }
+      { lat: 43.1633, lon: -1.2376, name: "생장피에드포르", who: "0.0 km", near: 5, r: 250, plate: 400, h: 230 },
+      /* ⭐ 0925a 온 노선 — Day 끝마을 33(near 5 · 글씨판 400m) · 고개와 곳 10(near 2.5 · 300m) — 0925 소로 「엄청 크게 잡고 줄여 간다」 · 길목 좌표와 같다 */
+      { lat: 43.1010, lon: -1.2650, name: "오리손", near: 2.5, r: 250, plate: 300, h: 840 },
+      { lat: 43.0450, lon: -1.2930, name: "레푀데르 고개", near: 2.5, r: 250, plate: 300, h: 1480 },
+      { lat: 43.0092, lon: -1.3197, name: "론세스바예스", who: "Day 01", near: 5, r: 250, plate: 400, h: 1002 },
+      { lat: 42.9303, lon: -1.5033, name: "수비리", who: "Day 02", near: 5, r: 250, plate: 400, h: 576 },
+      { lat: 42.8183, lon: -1.6440, name: "팜플로나", who: "Day 03", near: 5, r: 250, plate: 400, h: 500 },
+      { lat: 42.7360, lon: -1.7280, name: "알토 델 페르돈", who: "바람의 순례자", near: 2.5, r: 250, plate: 300, h: 820 },
+      { lat: 42.6717, lon: -1.8156, name: "푸엔테 라 레이나", who: "Day 04", near: 5, r: 250, plate: 400, h: 396 },
+      { lat: 42.6710, lon: -2.0310, name: "에스테야", who: "Day 05", near: 5, r: 250, plate: 400, h: 476 },
+      { lat: 42.6600, lon: -2.0480, name: "이라체", who: "포도주 샘", near: 2.5, r: 250, plate: 300, h: 530 },
+      { lat: 42.5689, lon: -2.1922, name: "로스 아르코스", who: "Day 06", near: 5, r: 250, plate: 400, h: 494 },
+      { lat: 42.4650, lon: -2.4450, name: "로그로뇨", who: "Day 07", near: 5, r: 250, plate: 400, h: 434 },
+      { lat: 42.4163, lon: -2.7338, name: "나헤라", who: "Day 08", near: 5, r: 250, plate: 400, h: 535 },
+      { lat: 42.4406, lon: -2.9536, name: "산토 도밍고 데 라 칼사다", who: "Day 09", near: 5, r: 250, plate: 400, h: 689 },
+      { lat: 42.4203, lon: -3.1906, name: "벨로라도", who: "Day 10", near: 5, r: 250, plate: 400, h: 822 },
+      { lat: 42.3756, lon: -3.4369, name: "산 후안 데 오르테가", who: "Day 11", near: 5, r: 250, plate: 400, h: 1050 },
+      { lat: 42.3407, lon: -3.7042, name: "부르고스", who: "Day 12", near: 5, r: 250, plate: 400, h: 910 },
+      { lat: 42.3386, lon: -3.9247, name: "오르니요스 델 카미노", who: "Day 13", near: 5, r: 250, plate: 400, h: 875 },
+      { lat: 42.2881, lon: -4.1386, name: "카스트로헤리스", who: "Day 14", near: 5, r: 250, plate: 400, h: 858 },
+      { lat: 42.2672, lon: -4.4061, name: "프로미스타", who: "Day 15", near: 5, r: 250, plate: 400, h: 830 },
+      { lat: 42.3383, lon: -4.6031, name: "카리온 데 로스 콘데스", who: "Day 16", near: 5, r: 250, plate: 400, h: 890 },
+      { lat: 42.3620, lon: -4.8930, name: "테라디요스 데 로스 템플라리오스", who: "Day 17", near: 5, r: 250, plate: 400, h: 930 },
+      { lat: 42.3713, lon: -5.0300, name: "사아군", near: 2.5, r: 250, plate: 300, h: 870 },
+      { lat: 42.4230, lon: -5.2200, name: "엘 부르고 라네로", who: "Day 18", near: 5, r: 250, plate: 400, h: 930 },
+      { lat: 42.4990, lon: -5.4170, name: "만시야 데 라스 물라스", who: "Day 19", near: 5, r: 250, plate: 400, h: 850 },
+      { lat: 42.5987, lon: -5.5671, name: "레온", who: "Day 20", near: 5, r: 250, plate: 400, h: 890 },
+      { lat: 42.4950, lon: -5.8120, name: "산 마르틴 델 카미노", who: "Day 21", near: 5, r: 250, plate: 400, h: 920 },
+      { lat: 42.4589, lon: -6.0563, name: "아스토르가", who: "Day 22", near: 5, r: 250, plate: 400, h: 920 },
+      { lat: 42.4817, lon: -6.2840, name: "라바날 델 카미노", who: "Day 23", near: 5, r: 250, plate: 400, h: 1200 },
+      { lat: 42.4886, lon: -6.3617, name: "크루스 데 페로", who: "철 십자가", near: 2.5, r: 250, plate: 300, h: 1550 },
+      { lat: 42.5380, lon: -6.5190, name: "몰리나세카", near: 2.5, r: 250, plate: 300, h: 650 },
+      { lat: 42.5460, lon: -6.5960, name: "폰페라다", who: "Day 24", near: 5, r: 250, plate: 400, h: 590 },
+      { lat: 42.6060, lon: -6.8110, name: "비야프랑카 델 비에르소", who: "Day 25", near: 5, r: 250, plate: 400, h: 560 },
+      { lat: 42.7077, lon: -7.0431, name: "오 세브레이로", who: "Day 26", near: 5, r: 250, plate: 400, h: 1350 },
+      { lat: 42.7560, lon: -7.2370, name: "트리아카스텔라", who: "Day 27", near: 5, r: 250, plate: 400, h: 715 },
+      { lat: 42.7800, lon: -7.4140, name: "사리아", who: "Day 28", near: 5, r: 250, plate: 400, h: 500 },
+      { lat: 42.8075, lon: -7.6158, name: "포르토마린", who: "Day 29", near: 5, r: 250, plate: 400, h: 430 },
+      { lat: 42.8733, lon: -7.8697, name: "팔라스 데 레이", who: "Day 30", near: 5, r: 250, plate: 400, h: 615 },
+      { lat: 42.9140, lon: -8.0150, name: "멜리데", near: 2.5, r: 250, plate: 300, h: 505 },
+      { lat: 42.9270, lon: -8.1640, name: "아르수아", who: "Day 31", near: 5, r: 250, plate: 400, h: 440 },
+      { lat: 42.9050, lon: -8.3610, name: "페드로우소", who: "Day 32", near: 5, r: 250, plate: 400, h: 320 },
+      { lat: 42.8963, lon: -8.4152, name: "라바코야", who: "산티아고 공항", near: 2.5, r: 250, plate: 300, h: 420 },
+      { lat: 42.8870, lon: -8.4950, name: "몬테 도 고소", who: "기쁨의 언덕", near: 2.5, r: 250, plate: 300, h: 420 },
+      { lat: 42.8806, lon: -8.5445, name: "산티아고 데 콤포스텔라", who: "Day 33 · 오브라도이로", near: 5, r: 250, plate: 400, h: 310 }
     ],
     legs: [
-      /* ⭐ 0925a — 소로 「출발은 생장보다 1km 뒤에서」 — 생장 → 오리손 방향을 거꾸로 1km(북북동) */
-      [43.1719, -1.2338, "생장 뒤 1km", 830],
+      /* ⭐ 0925a — 소로 「출발은 생장보다 1km 뒤에서」 → 시승 「타일이 실리는 동안 생장을 500m 넘게 지나친다」
+         → **3km 뒤**(생장 → 오리손 방향을 거꾸로 · 북북동). 70km/h 로 2분 반의 여유 · 공중에 세우지 않는다(결정문 4호) */
+      [43.1891, -1.2262, "생장 뒤 3km", 830],
       [43.1633, -1.2376, "생장피에드포르", 830],
       [43.1010, -1.2650, "오리손", 1440],
       [43.0450, -1.2930, "레푀데르 고개", 2130],
@@ -3107,7 +3112,13 @@
         paTick(now, { phase: _ph, min: flown / 60, seg: seg, alt: rel,
                         /* ⭐ 0825i — 이륙 노선이 아직 안 굴렀으면 false. 다른 노선은 이미 날고 있다 */
                         rolling: TAKEOFF ? !!ROLLING : true,
-                        sun: sunAltDeg(lat, lon), lat: lat, lon: lon, aalt: alt, rp: route.pins || null });   /* ⭐ 0925a 노선 핀   /* ⭐ 0924d 핀까지의 거리 · 0924g 명패 높이 */
+                        sun: sunAltDeg(lat, lon), lat: lat, lon: lon, aalt: alt, rp: route.pins || null, rm: route.stageKm ? msOf(route) : null });   /* ⭐ 0924d 핀 거리 · 0924g 명패 높이 · 0925a 노선 핀 */
+        } else if (route.pins || route.stageKm) {
+          /* ⭐⭐ 0925a — 소로 시승 「8km 를 날았는데 팻말이 하나도 없다」.
+             ⚠⚠ 진범 — paTick 이 **방송이 한 편이라도 있을 때만** 도는 문(PA_LIST.length) 안에 있었다.
+               산티아고는 방송이 0편이라 노선 핀 · 이정표가 한 번도 불리지 않았다(크기 탓이 아니었다).
+             ⭐ 방송 없는 노선은 이 문으로 — 핀 · 이정표만 1초에 한 번 */
+          rmTick(now, { lat: lat, lon: lon, aalt: alt, rp: route.pins || null, rm: route.stageKm ? msOf(route) : null });
         }
         /* ══ ⭐⭐ 0822e 관측 장치 — 「짐작으로 고치지 않는다」 ════════════════════
            0822d 시승에서 15~16분 지점에 900km/h 로 돌변했다(소로). 고도는 안 변했다니
@@ -5029,6 +5040,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⚠ 못 받아도 방은 그냥 선다. 방송이 없는 비행이 될 뿐이고, 그것이 못 뜨는 것보다 낫다. */
   function paLoad(code) {
     RP_SRC = null; RP_DONE = {};   /* ⭐ 0925a — 비행마다 노선 핀을 새로 */
+    msOff(); MS_SRC = null; MS_DONE = {};
     PA_LIST = []; PA_DONE = {}; PA_Q = []; PA_SEEN = {}; PA_NOW = null; PA_DIM = false;
     pinOff();                                          /* ⭐ 0924d */
     PA_MOVE = 0; PA_WHY = 0; PA_PH = ""; PA_MIN = 0;   /* ⭐ 0827e — 진단값도 함께 씻는다 */
@@ -5144,8 +5156,12 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       g.fillStyle = "#FFFFFF";
       g.font = f1; g.fillText(p.name, cw / 2, p.who ? 125 : ch / 2);
       if (p.who) { g.font = f2; g.fillText(p.who, cw / 2, 275); }
-      var W = H * cw / ch;
-      var ptop = top, pbot = Math.max(base + 40, ptop - H); ptop = pbot + H;
+      /* ⭐ 0925a — 소로 「아예 엄청 크게 잡고 줄여 가는 방향」. 판은 늘 기체 아래(윗변 = 기체 −35)에 걸린다.
+         ⚠ 핀 자리가 곧 길목이라 기체가 판 바로 위를 지난다 — 옛 판처럼 바닥에 닿으면 위로 밀어 올리면
+           낮게 나는 도시(지면 +250)에서 400m 판이 기체를 뚫고 솟는다. 그래서 **밀어 올리지 않고 줄인다.** */
+      var ptop = top;
+      if (ptop - H < base + 20) H = Math.max(30, ptop - base - 20);
+      var pbot = ptop - H, W = H * cw / ch;
       var brg = 0;
       if (PIN_ALAT != null) {
         var dy = (PIN_ALAT - p.lat) * 110574, dx = (PIN_ALON - p.lon) * 111320 * Math.cos(p.lat * Math.PI / 180);
@@ -5179,6 +5195,122 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     if (away || now - PIN.endT > 60000) pinOff();
   }
 
+  /* ══ ⭐⭐⭐ 0925a 2.5km 이정표 — 모혼(순례길 돌 이정표)을 하늘에 ═══════════════════════
+     소로 0925 — 「지나온 것은 걷읍시다 · 진짜 노란 화살표와 파란 조개가 있으면」.
+     ⭐ 그림 — 노란 화살표(위) · 파란 네모 안 노란 가리비 · 흰 숫자 「12.5 km」. 빛줄기 · 고리 없음.
+     ⭐ 화살표는 **다음 길을 가리킨다** — 솟는 순간, 기체에서 이정표로 오는 방위와
+       이정표에서 2km 앞 길의 방위를 견주어 그만큼 기울여 굽는다(곧으면 위 · 오른쪽으로 굽으면 오른쪽).
+     ⭐ 자기 칸이다 — 이름 명패의 「늘 하나만」과 안 섞인다. 이정표도 늘 하나 · 지나면 걷는다.
+     ⭐ 높이 — 기체보다 60m 아래가 판의 윗변 · 판 높이 60m(명패 120m 의 절반). */
+  var MS = null, MS_SRC = null, MS_DONE = {};
+  function msOf(route) {
+    if (route._ms) return route._ms;
+    var legs = route.legs, N = legs.length, bnd = [], i, j, per = 40;
+    for (i = 0; i < N; i++) if (/^Day \d/.test(legs[i][2]) || legs[i][2] === "생장피에드포르") bnd.push(i);
+    /* 비행선 누적 km(길목마다) — 곡선을 per 점씩 떠서 잰다 */
+    var pts = [], legKm = [0], acc = 0, prev = curveOf(route, 0, 0);
+    pts.push([prev[0], prev[1], 0]);
+    for (i = 0; i < N - 1; i++) {
+      for (j = 1; j <= per; j++) {
+        var c = curveOf(route, i, j / per);
+        acc += gcKm(prev[0], prev[1], c[0], c[1]); pts.push([c[0], c[1], acc]); prev = c;
+      }
+      legKm.push(acc);
+    }
+    function at(fk) {                  /* 비행 km → 점 */
+      var lo = 0, hi = pts.length - 1;
+      if (fk <= 0) return pts[0]; if (fk >= pts[hi][2]) return pts[hi];
+      while (hi - lo > 1) { var m = (lo + hi) >> 1; if (pts[m][2] < fk) lo = m; else hi = m; }
+      var a = pts[lo], b = pts[hi], t = (fk - a[2]) / Math.max(1e-9, b[2] - a[2]);
+      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, fk];
+    }
+    var sk = route.stageKm, out = [], walk = 0;
+    for (var st = 0; st < sk.length && st + 1 < bnd.length; st++) {
+      var f0 = legKm[bnd[st]], f1 = legKm[bnd[st + 1]], w0 = walk, w1 = walk + sk[st];
+      for (var k = Math.ceil((w0 + 0.001) / 2.5) * 2.5; k < w1 - 0.3; k += 2.5) {
+        var fk = f0 + (f1 - f0) * (k - w0) / sk[st], q = at(fk), ah = at(fk + 2);
+        out.push({ lat: q[0], lon: q[1], km: k, alat: ah[0], alon: ah[1] });
+      }
+      walk = w1;
+    }
+    route._ms = out;
+    try { console.log("%c[EG] 🐚 이정표 " + out.length + "개 · 도보 " + walk.toFixed(1) + "km · 비행선 " + acc.toFixed(1) + "km", "color:#c9a84c"); } catch (e) { }
+    return out;
+  }
+  function msOff() {
+    if (!MS) return;
+    try { if (viewer) viewer.entities.remove(MS.ent); } catch (e) { }
+    MS = null;
+  }
+  function msBrg(la1, lo1, la2, lo2) {
+    return Math.atan2((lo2 - lo1) * 111320 * Math.cos(la1 * Math.PI / 180), (la2 - la1) * 110574);
+  }
+  function msOn(m) {
+    var C = window.Cesium;
+    if (!viewer || !C || PIN_AALT == null || PIN_ALAT == null) return;
+    msOff();
+    try {
+      var bIn = msBrg(PIN_ALAT, PIN_ALON, m.lat, m.lon), bOut = msBrg(m.lat, m.lon, m.alat, m.alon);
+      var turn = bOut - bIn; while (turn > Math.PI) turn -= 2 * Math.PI; while (turn < -Math.PI) turn += 2 * Math.PI;
+      var cw = 560, ch = 640, X = 280, cv = document.createElement("canvas"), g = cv.getContext("2d");
+      cv.width = cw; cv.height = ch;
+      var YEL = "#F7C600", BLU = "#1D4F9E";
+      /* ① 노란 화살표 — 가운데(210,110)를 축으로 turn 만큼 */
+      g.save(); g.translate(X, 110); g.rotate(turn);
+      g.shadowColor = "rgba(0,0,0,0.4)"; g.shadowBlur = 12; g.fillStyle = YEL;
+      g.beginPath(); g.moveTo(0, -95); g.lineTo(62, -22); g.lineTo(22, -22); g.lineTo(22, 90);
+      g.lineTo(-22, 90); g.lineTo(-22, -22); g.lineTo(-62, -22); g.closePath(); g.fill(); g.restore();
+      /* ② 파란 네모 + 노란 가리비 — 부챗살이 한 점(아래)으로 모인다 */
+      g.save(); g.shadowColor = "rgba(0,0,0,0.4)"; g.shadowBlur = 14; g.fillStyle = BLU;
+      (function (x, y, w, h, rr) { g.beginPath(); g.moveTo(x + rr, y); g.arcTo(x + w, y, x + w, y + h, rr); g.arcTo(x + w, y + h, x, y + h, rr);
+        g.arcTo(x, y + h, x, y, rr); g.arcTo(x, y, x + w, y, rr); g.closePath(); g.fill(); })(X - 150, 225, 300, 300, 26);
+      g.restore();
+      g.strokeStyle = YEL; g.lineCap = "round"; g.lineWidth = 13;
+      var ox = X, oy = 442, R = 128;
+      for (var r = 0; r < 9; r++) {
+        var an = -Math.PI / 2 + (r - 4) * (Math.PI / 11);
+        g.beginPath(); g.moveTo(ox + Math.cos(an) * 18, oy + Math.sin(an) * 18);
+        g.lineTo(ox + Math.cos(an) * R, oy + Math.sin(an) * R); g.stroke();
+      }
+      g.beginPath(); g.arc(ox, oy, R, -Math.PI / 2 - 4 * Math.PI / 11 - 0.05, -Math.PI / 2 + 4 * Math.PI / 11 + 0.05); g.lineWidth = 10; g.stroke();
+      /* ③ 흰 숫자 */
+      g.shadowColor = "rgba(0,0,0,0.5)"; g.shadowBlur = 16; g.shadowOffsetY = 4;
+      g.fillStyle = "#FFFFFF"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.font = "800 84px 'Pretendard', 'Noto Sans KR', sans-serif";
+      g.fillText(m.km.toFixed(1) + " km", X, 590);
+      var H = 200, W = H * cw / ch, cz = PIN_AALT - 60 - H / 2;   /* ⭐ 0925a 소로 「60 → 200」 */
+      var pos = C.Cartesian3.fromDegrees(m.lon, m.lat, cz);
+      var ent = viewer.entities.add({
+        position: pos,
+        orientation: C.Transforms.headingPitchRollQuaternion(pos, new C.HeadingPitchRoll(bIn + Math.PI - Math.PI / 2, 0, 0)),
+        plane: { plane: new C.Plane(C.Cartesian3.UNIT_X, 0), dimensions: new C.Cartesian2(W, H),
+                 material: new C.ImageMaterialProperty({ image: cv, transparent: true }) } });
+      MS = { ent: ent, m: m, dmin: 1e9 };
+    } catch (err) { console.warn("[EG] 이정표를 못 세웠습니다:", err); msOff(); }
+  }
+  function msTick(ctx) {
+    var L = ctx.rm;
+    if (!L || !L.length || ctx.lat == null) return;
+    if (MS_SRC !== L) { MS_SRC = L; MS_DONE = {}; }
+    if (MS) {
+      var d = pinKm(ctx, MS.m); if (d < MS.dmin) MS.dmin = d;
+      if (d > MS.dmin + 0.3) msOff();          /* ⭐ 지났으면 걷는다(소로 0925) */
+      else return;
+    }
+    for (var i = 0; i < L.length; i++) {
+      if (MS_DONE[i]) continue;
+      if (pinKm(ctx, L[i]) <= 3) { MS_DONE[i] = true; msOn(L[i]); return; }
+    }
+  }
+
+  var RM_T = 0;
+  function rmTick(now, ctx) {
+    if (now - RM_T < 1000) return;
+    RM_T = now;
+    if (ctx.aalt != null) PIN_AALT = ctx.aalt;
+    if (ctx.lat != null) { PIN_ALAT = ctx.lat; PIN_ALON = ctx.lon; }
+    pinTick(now, ctx); rpTick(ctx); msTick(ctx);
+  }
   /* ══ ⭐⭐ 0925a 노선 핀 — route.pins ═══════════════════════════════════════
      ⭐ 방송 핀과 같은 pinOn 을 쓴다(빛줄기 · 고리 · 세상에 선 판). 늘 하나만 선다는 규칙도 같다.
      ⚠ 방송 핀이 서 있으면 끼어들지 않는다. 한 번 선 핀은 이 비행에서 다시 안 선다(RP_DONE). */
@@ -5272,6 +5404,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     if (ctx.lat != null) { PIN_ALAT = ctx.lat; PIN_ALON = ctx.lon; }   /* ⭐ 0925a */
     pinTick(now, ctx);                 /* ⭐ 0924d — 지나간 핀을 걷는다 */
     rpTick(ctx);                       /* ⭐ 0925a — 노선 핀(방송 없이 서는 것) */
+    msTick(ctx);                       /* ⭐ 0925a — 2.5km 이정표(자기 칸 · 명패와 안 섞인다) */
     /* ⚠ 첫 판정에서는 고도를 **재기만** 한다. 지난 값이 없으면 통과를 잴 수 없고,
        0 을 지난 값으로 쓰면 「방금 올라왔다」가 된다(0825i 의 land3k 병과 같은 뿌리). */
     if (PA_ALT === null) { PA_ALT = ctx.alt; PA_SUN = ctx.sun; return; }
@@ -10936,6 +11069,7 @@ function paintBook() {
        여기서 안 거두면 방은 걷혔는데 브레게 14 만 terra 지구 위를 계속 난다. */
     bodyOff();
     pinOff();                        /* ⭐ 0924d — 핀도 viewer 를 놓기 전에 걷는다 */
+    msOff();                         /* ⭐ 0925a — 이정표도 */
     viewer = null;
     OUT = false; BARE = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
     /* ⭐ 0827t — 통로도 함께 씻는다. ⚠ 걷다 나가면 다음 탑승이 통로에서 시작된다 */
