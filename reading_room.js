@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0924f";
+  var VERSION = "0924g";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -2979,7 +2979,7 @@
         paTick(now, { phase: _ph, min: flown / 60, seg: seg, alt: rel,
                         /* ⭐ 0825i — 이륙 노선이 아직 안 굴렀으면 false. 다른 노선은 이미 날고 있다 */
                         rolling: TAKEOFF ? !!ROLLING : true,
-                        sun: sunAltDeg(lat, lon), lat: lat, lon: lon });   /* ⭐ 0924d — 핀까지의 거리 */
+                        sun: sunAltDeg(lat, lon), lat: lat, lon: lon, aalt: alt });   /* ⭐ 0924d 핀까지의 거리 · 0924g 명패 높이 */
         }
         /* ══ ⭐⭐ 0822e 관측 장치 — 「짐작으로 고치지 않는다」 ════════════════════
            0822d 시승에서 15~16분 지점에 900km/h 로 돌변했다(소로). 고도는 안 변했다니
@@ -4942,6 +4942,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⭐ 바닥 높이는 그 자리 3D 타일을 한 번 잰다(sampleHeight). 못 재면 pin.h, 그것도 없으면 0.
      ⚠ 이름표는 깊이 검사를 끈다 — 건물 뒤에 있어도 보인다. 줄과 고리는 가려지면 옅게. */
   var PIN = null;
+  var PIN_AALT = null;               /* ⭐ 0924g — 기체의 해발(타원체) 고도. 명패 높이가 본다 */
   function pinKm(a, p) {
     var k = Math.cos(p.lat * Math.PI / 180);
     return Math.sqrt(Math.pow((a.lat - p.lat) * 110.574, 2) + Math.pow((a.lon - p.lon) * 111.32 * k, 2));
@@ -4956,13 +4957,26 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     if (!p || !viewer || !C) return;
     pinOff();
     try {
-      var base = 0;
-      try {
-        var hh = viewer.scene.sampleHeight(C.Cartographic.fromDegrees(p.lon, p.lat));
-        if (isFinite(hh) && hh < 9000 && hh > -500) base = hh;   /* ⭐ 0924e — 핀도 엉터리 땅엔 안 선다 */
-        else if (p.h != null) base = p.h;
-      } catch (_) { if (p.h != null) base = p.h; }
-      var top = base + (p.top || 260), t0 = Date.now();
+      /* ══ ⭐⭐ 0924g — 소로 0924 시승 「빅벤 · 수정궁 고리가 공중에 · 명패가 하늘을 찌른다」 ══
+         ⚠⚠ 옛 판은 핀 **한가운데 한 점**만 쟀다. 빅벤은 좌표가 탑 한가운데라 레이저가 **탑 꼭대기**에
+           맞았고, 고리가 시계판 높이에 걸렸다. 하이드 파크는 나무 우듬지였을 것이다.
+           그리고 우리 기체를 셈에서 안 뺐다(0821N 의 그 함정이 여기 또 있었다).
+         ⭐ 바닥 — 가운데 + 고리 둘레 여덟 점을 재서 **가장 낮은 값**을 땅으로 삼는다.
+           건물 하나가 끼어도 둘레 어딘가는 길 · 강 · 풀밭이다. 덜 실린 타일(0924e 문턱)은 뺀다.
+         ⭐ 명패 — 「바닥 + 260m」를 걷었다. **방송이 켜지는 순간 기체 고도보다 35m 아래**에 단다.
+           런던 저층부는 템스 위 100m 로 난다 — 옛 판은 명패가 기체보다 한참 위에 떴다.
+           ⚠ 바닥보다 40m 는 늘 위다(낮게 나는 곳에서 명패가 땅에 파묻히지 않게). */
+      var r0 = p.r || 70, base = null, sx = r0 / (111320 * Math.cos(p.lat * Math.PI / 180)), sy = r0 / 110574;
+      for (var si = -1; si < 8; si++) {
+        var la = p.lat, lo = p.lon;
+        if (si >= 0) { var an = si / 8 * 2 * Math.PI; la += sy * Math.sin(an); lo += sx * Math.cos(an); }
+        try {
+          var hh = viewer.scene.sampleHeight(C.Cartographic.fromDegrees(lo, la), BODYENT ? [BODYENT] : undefined);
+          if (C.defined(hh) && hh < 9000 && hh > -500 && (base === null || hh < base)) base = hh;
+        } catch (_) { }
+      }
+      if (base === null) base = (p.h != null) ? p.h : 0;
+      var top = (PIN_AALT != null) ? Math.max(base + 40, PIN_AALT - 35) : base + 200, t0 = Date.now();
       var grow = function () { var k = Math.min(1, (Date.now() - t0) / 1500); return 1 - (1 - k) * (1 - k); };
       var gold = C.Color.fromCssColorString("#E0A33A"), dim = gold.withAlpha(0.4);
       var r = p.r || 70, kx = r / (111320 * Math.cos(p.lat * Math.PI / 180)), ky = r / 110574, ring = [];
@@ -5073,6 +5087,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     PA_PH = ctx.phase; PA_MIN = ctx.min;
     if (now - PA_T < 1000) return;
     PA_T = now;
+    if (ctx.aalt != null) PIN_AALT = ctx.aalt;   /* ⭐ 0924g */
     pinTick(now, ctx);                 /* ⭐ 0924d — 지나간 핀을 걷는다 */
     /* ⚠ 첫 판정에서는 고도를 **재기만** 한다. 지난 값이 없으면 통과를 잴 수 없고,
        0 을 지난 값으로 쓰면 「방금 올라왔다」가 된다(0825i 의 land3k 병과 같은 뿌리). */
