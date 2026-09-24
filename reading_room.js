@@ -952,7 +952,8 @@
        ⭐ 한 줄이다 — 1일 단위로 끊지 않는다. 이어 타기(saveWhere · 길목마다)가 이미 서 있다.
        ⭐ 이륙 없음 — 생장 상공에서 뜬 채 시작한다(clmb 표가 없으니 TAKEOFF 가 안 선다).
        ⭐ 도착 — 오브라도이로 광장. ⚠ 지금 판은 마지막 길목에서 **멈춘다**(liner 의 u=1). 착륙은 다음 손.
-       ⭐ 길목 44 = 끝마을 33(「Day 01 · 론세스바예스」 — 기내 지도 이름표가 곧 Day 표기)
+       ⭐ 출발 = 생장 1km 뒤 상공 · 생장 핀 「0.0 km」 위를 지나며 길이 시작된다.
+       ⭐ 길목 45 = 출발점 + 끝마을 33(「Day 01 · 론세스바예스」 — 기내 지도 이름표가 곧 Day 표기)
          + 고개 · 곳 11(오리손 · 레푀데르 · 페르돈 · 이라체 · 사아군 · 철 십자가 · 몰리나세카 · 멜리데
          · 라바코야 공항 · 몬테 도 고소). 끝마을 목록은 브라이얼리 33구간 어림 — 확정은 소로.
        ⭐ 높이(넷째 칸 · 타원체 m) — 결정문 2호 「도시는 낮게 · 시골은 높게」.
@@ -975,8 +976,17 @@
     floor: 150,
     agl: 600, aglLow: 300, aglHigh: 1200,  /* ⚠ msl 노선이라 안 읽는다. 그물로만 둔다 */
     loop: false,
+    /* ══ ⭐⭐ 0925a 노선 핀 — 방송과 떼어 노선에 직접 심는다(소로 0925 「지금 바로 · 1~2개라도」) ══
+       기체가 near(km) 안에 들면 솟고, 지나 멀어지면 걷힌다. 방송이 붙으면 그때 목소리만 얹힌다.
+       h = 바닥 어림(타원체 m) — 타일이 덜 실렸을 때만 쓴다 · plate = 글씨판 높이(m) · r = 고리 반지름(m) */
+    pins: [
+      { lat: 43.1633, lon: -1.2376, name: "생장피에드포르", who: "0.0 km", near: 5, r: 250, plate: 120, h: 230 },
+      { lat: 43.0092, lon: -1.3197, name: "론세스바예스", who: "Day 01", near: 5, r: 250, plate: 120, h: 1000 }
+    ],
     legs: [
-      [43.1633, -1.2376, "생장피에드포르 상공", 830],
+      /* ⭐ 0925a — 소로 「출발은 생장보다 1km 뒤에서」 — 생장 → 오리손 방향을 거꾸로 1km(북북동) */
+      [43.1719, -1.2338, "생장 뒤 1km", 830],
+      [43.1633, -1.2376, "생장피에드포르", 830],
       [43.1010, -1.2650, "오리손", 1440],
       [43.0450, -1.2930, "레푀데르 고개", 2130],
       [43.0092, -1.3197, "Day 01 · 론세스바예스", 1600],
@@ -3054,7 +3064,7 @@
         paTick(now, { phase: _ph, min: flown / 60, seg: seg, alt: rel,
                         /* ⭐ 0825i — 이륙 노선이 아직 안 굴렀으면 false. 다른 노선은 이미 날고 있다 */
                         rolling: TAKEOFF ? !!ROLLING : true,
-                        sun: sunAltDeg(lat, lon), lat: lat, lon: lon, aalt: alt });   /* ⭐ 0924d 핀까지의 거리 · 0924g 명패 높이 */
+                        sun: sunAltDeg(lat, lon), lat: lat, lon: lon, aalt: alt, rp: route.pins || null });   /* ⭐ 0925a 노선 핀   /* ⭐ 0924d 핀까지의 거리 · 0924g 명패 높이 */
         }
         /* ══ ⭐⭐ 0822e 관측 장치 — 「짐작으로 고치지 않는다」 ════════════════════
            0822d 시승에서 15~16분 지점에 900km/h 로 돌변했다(소로). 고도는 안 변했다니
@@ -4975,6 +4985,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   /* ⭐ 싣기 — 두 표를 한 번씩 읽어 합친다. 방에 들어올 때 한 번뿐이다.
      ⚠ 못 받아도 방은 그냥 선다. 방송이 없는 비행이 될 뿐이고, 그것이 못 뜨는 것보다 낫다. */
   function paLoad(code) {
+    RP_SRC = null; RP_DONE = {};   /* ⭐ 0925a — 비행마다 노선 핀을 새로 */
     PA_LIST = []; PA_DONE = {}; PA_Q = []; PA_SEEN = {}; PA_NOW = null; PA_DIM = false;
     pinOff();                                          /* ⭐ 0924d */
     PA_MOVE = 0; PA_WHY = 0; PA_PH = ""; PA_MIN = 0;   /* ⭐ 0827e — 진단값도 함께 씻는다 */
@@ -5117,9 +5128,31 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     var d = pinKm(ctx, PIN.p);
     if (d < PIN.dmin) PIN.dmin = d;
     if (PA_NOW && PA_NOW.ref === PIN.ref) { PIN.endT = 0; return; }
+    /* ⭐ 0925a 노선 핀은 방송 시계(60초)를 안 본다 — 지나 멀어질 때만 걷는다 */
+    if (PIN.keep) { if (d > PIN.dmin + 0.4 && d > (PIN.p.near || 0.8) + 0.3) pinOff(); return; }
     if (!PIN.endT) PIN.endT = now;
     var away = d > PIN.dmin + 0.4 && d > (PIN.p.near || 0.8) + 0.3;
     if (away || now - PIN.endT > 60000) pinOff();
+  }
+
+  /* ══ ⭐⭐ 0925a 노선 핀 — route.pins ═══════════════════════════════════════
+     ⭐ 방송 핀과 같은 pinOn 을 쓴다(빛줄기 · 고리 · 세상에 선 판). 늘 하나만 선다는 규칙도 같다.
+     ⚠ 방송 핀이 서 있으면 끼어들지 않는다. 한 번 선 핀은 이 비행에서 다시 안 선다(RP_DONE). */
+  var RP_SRC = null, RP_DONE = {};
+  function rpTick(ctx) {
+    var L = ctx.rp;
+    if (!L || !L.length || ctx.lat == null) return;
+    if (RP_SRC !== L) { RP_SRC = L; RP_DONE = {}; }
+    if (PIN) return;
+    for (var i = 0; i < L.length; i++) {
+      if (RP_DONE[i]) continue;
+      if (pinKm(ctx, L[i]) <= (L[i].near || 3)) {
+        RP_DONE[i] = true;
+        pinOn({ cue: { pin: L[i] }, ref: "rp:" + i });
+        if (PIN) PIN.keep = true;
+        return;
+      }
+    }
   }
 
   /* ⭐ 판정 — ctx 는 지금의 비행 상태 한 줌이다.
@@ -5192,6 +5225,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     if (ctx.aalt != null) PIN_AALT = ctx.aalt;   /* ⭐ 0924g */
     if (ctx.lat != null) { PIN_ALAT = ctx.lat; PIN_ALON = ctx.lon; }   /* ⭐ 0925a */
     pinTick(now, ctx);                 /* ⭐ 0924d — 지나간 핀을 걷는다 */
+    rpTick(ctx);                       /* ⭐ 0925a — 노선 핀(방송 없이 서는 것) */
     /* ⚠ 첫 판정에서는 고도를 **재기만** 한다. 지난 값이 없으면 통과를 잴 수 없고,
        0 을 지난 값으로 쓰면 「방금 올라왔다」가 된다(0825i 의 land3k 병과 같은 뿌리). */
     if (PA_ALT === null) { PA_ALT = ctx.alt; PA_SUN = ctx.sun; return; }
