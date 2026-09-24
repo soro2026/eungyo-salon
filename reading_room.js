@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0924c";
+  var VERSION = "0924d";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -2949,7 +2949,7 @@
         paTick(now, { phase: _ph, min: flown / 60, seg: seg, alt: rel,
                         /* ⭐ 0825i — 이륙 노선이 아직 안 굴렀으면 false. 다른 노선은 이미 날고 있다 */
                         rolling: TAKEOFF ? !!ROLLING : true,
-                        sun: sunAltDeg(lat, lon) });
+                        sun: sunAltDeg(lat, lon), lat: lat, lon: lon });   /* ⭐ 0924d — 핀까지의 거리 */
         }
         /* ══ ⭐⭐ 0822e 관측 장치 — 「짐작으로 고치지 않는다」 ════════════════════
            0822d 시승에서 15~16분 지점에 900km/h 로 돌변했다(소로). 고도는 안 변했다니
@@ -4871,6 +4871,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⚠ 못 받아도 방은 그냥 선다. 방송이 없는 비행이 될 뿐이고, 그것이 못 뜨는 것보다 낫다. */
   function paLoad(code) {
     PA_LIST = []; PA_DONE = {}; PA_Q = []; PA_SEEN = {}; PA_NOW = null; PA_DIM = false;
+    pinOff();                                          /* ⭐ 0924d */
     PA_MOVE = 0; PA_WHY = 0; PA_PH = ""; PA_MIN = 0;   /* ⭐ 0827e — 진단값도 함께 씻는다 */
     PA_ALT = null;                                     /* ⭐ 0827k — 「아직 안 쟀다」로 되돌린다 */
     var q1 = "/rest/v1/eg_flight_pa?select=ref,kind,voice_role,title,text_ko,cue"
@@ -4904,6 +4905,77 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     });
   }
 
+  /* ══ ⭐⭐ 0924d — 방송이 켜는 핀 ═══════════════════════════════════════════════
+     ⭐ 소로 0924 시안 판정 「대박 · 좋습니다」 — 금빛 바닥 고리 + 빛줄기 + 이름표(장소 · 사람).
+     ⭐ 늘 **하나만** 선다. 방송이 시작되면 솟고(1.5초), 기체가 지나 멀어지면 걷힌다.
+       도시를 핀 숲으로 만들지 않는다 — 화면에는 늘 「지금 이야기하는 곳」 하나뿐.
+     ⭐ 바닥 높이는 그 자리 3D 타일을 한 번 잰다(sampleHeight). 못 재면 pin.h, 그것도 없으면 0.
+     ⚠ 이름표는 깊이 검사를 끈다 — 건물 뒤에 있어도 보인다. 줄과 고리는 가려지면 옅게. */
+  var PIN = null;
+  function pinKm(a, p) {
+    var k = Math.cos(p.lat * Math.PI / 180);
+    return Math.sqrt(Math.pow((a.lat - p.lat) * 110.574, 2) + Math.pow((a.lon - p.lon) * 111.32 * k, 2));
+  }
+  function pinOff() {
+    if (!PIN) return;
+    try { if (viewer) PIN.ents.forEach(function (x) { viewer.entities.remove(x); }); } catch (e) { }
+    PIN = null;
+  }
+  function pinOn(e) {
+    var p = (e.cue || {}).pin, C = window.Cesium;
+    if (!p || !viewer || !C) return;
+    pinOff();
+    try {
+      var base = 0;
+      try {
+        var hh = viewer.scene.sampleHeight(C.Cartographic.fromDegrees(p.lon, p.lat));
+        if (isFinite(hh)) base = hh;
+        else if (p.h != null) base = p.h;
+      } catch (_) { if (p.h != null) base = p.h; }
+      var top = base + (p.top || 260), t0 = Date.now();
+      var grow = function () { var k = Math.min(1, (Date.now() - t0) / 1500); return 1 - (1 - k) * (1 - k); };
+      var gold = C.Color.fromCssColorString("#E0A33A"), dim = gold.withAlpha(0.4);
+      var r = p.r || 70, kx = r / (111320 * Math.cos(p.lat * Math.PI / 180)), ky = r / 110574, ring = [];
+      for (var i = 0; i <= 48; i++) {
+        var a = i / 48 * 2 * Math.PI;
+        ring.push(C.Cartesian3.fromDegrees(p.lon + kx * Math.cos(a), p.lat + ky * Math.sin(a), base + 3));
+      }
+      var e1 = viewer.entities.add({ polyline: { positions: ring, width: 3, material: gold, depthFailMaterial: dim } });
+      var e2 = viewer.entities.add({ polyline: {
+        positions: new C.CallbackProperty(function () {
+          return [C.Cartesian3.fromDegrees(p.lon, p.lat, base), C.Cartesian3.fromDegrees(p.lon, p.lat, base + (top - base) * grow())];
+        }, false),
+        width: 2, material: gold, depthFailMaterial: dim } });
+      var e3 = viewer.entities.add({
+        position: C.Cartesian3.fromDegrees(p.lon, p.lat, top),
+        label: {
+          text: p.name + (p.who ? "\n" + p.who : ""),
+          font: "500 15px 'Pretendard', 'Noto Sans KR', sans-serif",
+          fillColor: C.Color.fromCssColorString("#3A2604"),
+          showBackground: true,
+          backgroundColor: C.Color.fromCssColorString("#F2C66B").withAlpha(0.94),
+          backgroundPadding: new C.Cartesian2(12, 8),
+          verticalOrigin: C.VerticalOrigin.BOTTOM,
+          horizontalOrigin: C.HorizontalOrigin.CENTER,
+          pixelOffset: new C.Cartesian2(0, -6),
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          show: new C.CallbackProperty(function () { return grow() > 0.9; }, false)
+        } });
+      PIN = { ents: [e1, e2, e3], ref: e.ref, p: p, dmin: 1e9, endT: 0 };
+    } catch (err) { console.warn("[EG] 핀을 못 꽂았습니다:", err); pinOff(); }
+  }
+  /* ⭐ 걷기 — 방송이 끝났고, 가장 가까웠던 때보다 400m 넘게 멀어졌고, near 밖이면 걷는다.
+     ⚠ 경로에서 먼 핀(할렘 …)은 안 멀어질 수 있다 → 방송이 끝나고 60초면 걷는다. */
+  function pinTick(now, ctx) {
+    if (!PIN || ctx.lat == null) return;
+    var d = pinKm(ctx, PIN.p);
+    if (d < PIN.dmin) PIN.dmin = d;
+    if (PA_NOW && PA_NOW.ref === PIN.ref) { PIN.endT = 0; return; }
+    if (!PIN.endT) PIN.endT = now;
+    var away = d > PIN.dmin + 0.4 && d > (PIN.p.near || 0.8) + 0.3;
+    if (away || now - PIN.endT > 60000) pinOff();
+  }
+
   /* ⭐ 판정 — ctx 는 지금의 비행 상태 한 줌이다.
      ⚠ 조건이 **하나라도 안 맞으면 false.** 「거의 맞으면 튼다」가 없다. */
   function paReady(e, ctx) {
@@ -4919,6 +4991,16 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     if (c.phase && c.phase !== ctx.phase) return false;
     if (c.min != null && ctx.min < c.min) return false;
     if (c.leg != null && ctx.seg < c.leg) return false;
+    /* ══ ⭐⭐ 0924d — 방송이 켜는 핀(소로 0924 「3D 타일에 표시가 없으니 어딘지 헷갈린다 ·
+         방송이 실제 장소보다 너무 빠르다」) ═══════════════════════════════════════
+       ⭐ 관광 노선은 길목 번호가 아니라 **핀까지의 거리**가 방아쇠다. c.leg 는 이제 「창의 앞문」 —
+         같은 곳이 정주행 · 역주행에 두 번 나오니, 제 라운드 안에서만 거리를 본다.
+       ⭐ 핀이 경로에서 먼 곳(할렘 · 그래머시 …)은 영영 near 안에 못 든다 → leg_max 에서 틀어 준다.
+       ⚠ near 가 없는 방송(인천–파리)은 이 줄을 안 탄다. 한 톨도 안 바뀐다. */
+    if (c.pin && c.near != null) {
+      if (ctx.lat == null) return false;
+      if (!(pinKm(ctx, c.pin) <= c.near || (c.leg_max != null && ctx.seg >= c.leg_max))) return false;
+    }
     if (c.alt != null) {
       /* ⭐ 통과다 — 지금 값 하나로는 못 잰다. 지난 판정과 견준다 */
       var up = (c.dir !== "down");
@@ -4961,6 +5043,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     PA_PH = ctx.phase; PA_MIN = ctx.min;
     if (now - PA_T < 1000) return;
     PA_T = now;
+    pinTick(now, ctx);                 /* ⭐ 0924d — 지나간 핀을 걷는다 */
     /* ⚠ 첫 판정에서는 고도를 **재기만** 한다. 지난 값이 없으면 통과를 잴 수 없고,
        0 을 지난 값으로 쓰면 「방금 올라왔다」가 된다(0825i 의 land3k 병과 같은 뿌리). */
     if (PA_ALT === null) { PA_ALT = ctx.alt; PA_SUN = ctx.sun; return; }
@@ -5034,6 +5117,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   var PA_DUCK = 0.4;
   function paPlay(e) {
     PA_NOW = e;
+    pinOn(e);                          /* ⭐ 0924d — 무음이어도 핀은 선다. 소리를 끄셔도 어딘지는 보여 드린다 */
     PA_MOVE = performance.now();      /* ⭐ 0827e — 무슨 일이 일어났다. 정체 셈이 여기서 0 이 된다 */
     paApply((e.cue || {}).sets);          /* ⭐ 조명은 방송과 함께 바뀐다 — 실물이 그렇다 */
     paSay(e);
@@ -5288,6 +5372,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     paSrc = null; paGain = null; paLp = null; paHp = null; paVerb = null; paWet = null;
     paPk = null; paSh = null; paHiss = null; paHissG = null;
     PA_NOW = null; PA_Q = [];
+    pinOff();                          /* ⭐ 0924d */
     paSayOff();
   }
 
@@ -10622,6 +10707,7 @@ function paintBook() {
     /* ⚠⚠ 0821L — 기체도 **viewer 를 놓기 전에** 거둔다. 구름과 같은 갈래다.
        여기서 안 거두면 방은 걷혔는데 브레게 14 만 terra 지구 위를 계속 난다. */
     bodyOff();
+    pinOff();                        /* ⭐ 0924d — 핀도 viewer 를 놓기 전에 걷는다 */
     viewer = null;
     OUT = false; BARE = false; side = -1; swapping = false;   /* 다음 탑승은 기내 · 왼창에서 */
     /* ⭐ 0827t — 통로도 함께 씻는다. ⚠ 걷다 나가면 다음 탑승이 통로에서 시작된다 */
