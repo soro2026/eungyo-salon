@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0924b";
+  var VERSION = "0924c";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -5008,7 +5008,10 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⚠⚠ 소로 판정 — **출발 방송 셋(before_roll)에는 안 울린다.** 셋이 연달아 나가는데
        끝 챠임과 다음 시작 챠임이 붙으면 딩동딩동딩동이 된다. 정확한 판정이다. */
   function paChime(after, closing) {
-    if (!sndOn || CH === 2) { if (after) after(); return; }
+    /* ⭐⭐ 0924c — 소로 0924 「음악 모드로 켜 둬도 방송은 나오나요?」 → 안 나왔다.
+       ⚠ sndOn 의 속뜻은 「엔진음 채널인가」(CH 0)다. 그걸 「소리가 켜졌나」로 읽어 음악 중에도 건너뛰었다.
+       ⭐ 실물 기내처럼 음악 이어폰에도 방송은 끼어든다. 건너뛰는 것은 무음(CH 2)뿐이다. */
+    if (CH === 2) { if (after) after(); return; }
     try {
       var a = ensureAC(), t0 = a.currentTime, hi = 1046.5, lo = 784.0;
       (closing ? [[lo, 0], [hi, 0.34]] : [[hi, 0], [lo, 0.34]]).forEach(function (p) {
@@ -5079,7 +5082,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     }, 60000);
     /* ⚠ 소리를 끄셨으면 그냥 지나간다. 자막을 끈 뒤로는 보여 드릴 것이 없다 —
        ⭐ 그래도 PA_DONE 은 찍혔으므로 되풀이되지 않는다(17호: 놓치면 그만이다). */
-    if (!sndOn || CH === 2) { EGR_later(done, 1200); return; }
+    if (CH === 2) { EGR_later(done, 1200); return; }   /* ⭐ 0924c — 무음일 때만 건너뛴다(위 paChime 과 짝) */
     paChime(function () {
       if (PA_NOW !== e) return;            /* ⚠ 그 사이에 방을 나가셨으면 물러난다(41호 ㉤) */
       paDuck(true);
