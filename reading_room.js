@@ -7450,6 +7450,13 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
           return [C.Cartesian3.fromDegrees(p.lon, p.lat, base), C.Cartesian3.fromDegrees(p.lon, p.lat, base + (top - base) * grow())];
         }, false),
         width: 2, material: gold, depthFailMaterial: dim } });
+      /* ⭐⭐⭐ 0925b fps — 소로 「산티아고는 하늘만 봐도 15~17(파리 28)」.
+         ⚠ 진범 — CallbackProperty 가 달린 물체는 Cesium 이 「늘 변하는 것」으로 보고 **매 프레임 형상을 새로 짓는다.**
+           솟는 1.5초에만 필요한데 명패가 떠 있는 내내 살아 있었다(산티아고 판 show · 모든 노선 빛줄기).
+         ⭐ 처방 — 다 솟으면 고정값으로 얼린다. 모양은 같고 셈만 멈춘다 */
+      setTimeout(function () {
+        try { e2.polyline.positions = [C.Cartesian3.fromDegrees(p.lon, p.lat, base), C.Cartesian3.fromDegrees(p.lon, p.lat, top)]; } catch (_) { }
+      }, 1700);
       /* ══ ⭐⭐⭐ 0925a — 소로 0925 「명패가 늘 카메라를 보니 물리적으로 낯설다 · 방향 고정 · 글씨는 크게」 ══
          옛 판 = 글씨표(label) 15px · 늘 카메라를 본다 · 건물 뒤에서도 비친다.
          ⭐ 새 판 = 세상에 선 판(plane). 글씨를 그림으로 한 번 굽고, 크기는 **미터**로 적는다.
@@ -7551,8 +7558,9 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
           plane: new C.Plane(C.Cartesian3.UNIT_X, 0),
           dimensions: new C.Cartesian2(W, H),
           material: new C.ImageMaterialProperty({ image: cv, transparent: true }),
-          show: new C.CallbackProperty(function () { return grow() > 0.9; }, false)
+          show: false          /* ⭐ 0925b — 콜백 대신 1.4초 뒤 한 번 켠다(매 프레임 형상 새로 짓기 걷음) */
         } });
+      setTimeout(function () { try { e3.plane.show = true; } catch (_) { } }, 1400);
       PIN = { ents: [e1, e2, e3], ref: e.ref, p: p, dmin: 1e9, endT: 0,
               line: LINE, gline: gline, gi: 0, gt: Date.now(),
               refit: function (g) {
