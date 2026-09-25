@@ -8820,10 +8820,25 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   }
   /* ⭐ 있던 곳을 적는 손 — 셋이 함께 부른다(길목 넘김 · 멈춤 · 나가기).
      ⚠ 노선 코드를 반드시 함께 보낸다. 겹열쇠라 없으면 서버가 조용히 물러난다. */
-  function writeResume() {
+  function writeResume(keep) {
     if (!flight || !flight.where) return;
     var w = flight.where();
-    saveWhere(flight.routeCode, w.seg, w.u, w.flown, w.dist);
+    if (keep) keepWhere(flight.routeCode, w.seg, w.u, w.flown, w.dist);
+    else saveWhere(flight.routeCode, w.seg, w.u, w.flown, w.dist);
+  }
+  /* ══ ⭐⭐⭐ 0925 두 겹 저장 — 소로 「8차에 저장하고 9차에 저장 안 하면 8차는 남아 있어야 한다」 ══
+     ⚠⚠ 옛 판은 자리가 한 줄뿐이었고 「그냥 나가기」가 그 줄을 **지웠다**(0823b).
+        아이패드가 버거워 급히 「그냥 나가기」를 눌렀더니 산티아고 5일차까지가 통째로 사라졌다.
+        모든 비행이 같은 표 · 같은 손이라 어느 노선에서든 같은 일이 난다.
+     ⭐ 지금 자리 = 길목마다 자동(saveWhere) / 저장한 자리 = 손님이 「저장」할 때만(keepWhere · s_*)
+     ⭐ 「그냥 나가기」 = 저장한 자리로 **되돌린다**(revert) · 저장한 적 없을 때만 지운다
+     ⚠ 「출발점으로」 · 「처음부터」는 손님이 확인을 거쳐 새로 시작을 고른 것 — 지금처럼 비운다(clear) */
+  function keepWhere(code, seg, u, flown, dist) {
+    if (!code || TRIAL) return SAVE_LAST;
+    SAVE_LAST = rpc("keep_my_flight_resume", { p_route: code, p_seg: seg, p_u: u,
+                                               p_flown: flown | 0, p_dist: +dist || 0 })
+      .catch(function () { });
+    return SAVE_LAST;
   }
   /* ⭐⭐ 0823a — 탭이 닫히는 순간의 한 발. **약속을 못 기다리는 곳**이라 동기로 쏜다.
      ⚠ egr_fetch 는 egr_token() 약속을 먼저 기다린다 — pagehide 에서는 그 사이에 창이 죽는다.
@@ -8891,7 +8906,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   /* ⭐ 좌석의 「저장」 단추가 부른다 — 나가지 않고도 눌러 안심할 수 있게 */
   function saveNow() {
     if (!flight) return;
-    writeResume();
+    writeResume(true);                 /* ⭐ 0925 좌석 「저장」 = 저장한 자리까지 */
     saySaved();
   }
   /* ⭐⭐ 나가기 물음 (소로 0822) — × 를 누르면 바로 안 나간다.
@@ -8908,7 +8923,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       if (rt && rt.legs) for (var pi = Math.min(w.seg, rt.legs.length - 1); pi >= 0; pi--) if (rt.legs[pi][2]) { place = rt.legs[pi][2]; break; }   /* ⭐ 0925a 이름 있는 곳까지 거슬러 */
     } catch (e) { }
     ask("여기까지 비행을 저장하시겠습니까?", place, [
-      { label: "저장하고 나가기", go: function () { leave(); } },
+      { label: "저장하고 나가기", go: function () { leave({ keep: true }); } },
       { label: "그냥 나가기", sub: true, go: function () { leave({ discard: true }); } }
     ]);
   }
@@ -12861,7 +12876,11 @@ function paintBook() {
        ⭐ 갈래는 기체가 정한다 — plateBy "cabin"(승무원이 정하는 기체 = 방송표가
          있는 기체)이면 옛 방송을 안 튼다. 표가 하나 늘어도 코드를 다시 안 연다.
        ⚠ 관광 기체(제트기·복엽기)는 한 톨도 안 바뀐다 — 거기는 이것이 유일한 방송이다. */
-    if (SPEC.plateBy === "cabin") {
+    /* ⭐⭐ 0925 — 소로 「복엽기 비행에서는 처음 시작할 때 기장의 영어 인사방송이 안 나와야 하는데 계속 나온다」.
+       0827k 에 「관광 기체는 이것이 유일한 방송」이라 남겨 두었는데, 그 뒤 복엽기 노선들(파리 · 런던 · 맨해튼 ·
+       산티아고)에 방송표가 섰다 — 옛 영어 방송이 새 방송 앞에 깔리고 있었다.
+       ⭐ 복엽기(CRAFT "bre")는 옛 방송을 틀지 않는다. 제트기 관광 노선은 지금대로 */
+    if (SPEC.plateBy === "cabin" || CRAFT === "bre") {
       if (CH === 0) engineStart(); else if (CH === 1) musicStart();
       return;
     }
@@ -13438,12 +13457,15 @@ function paintBook() {
       try {
         var rc = flight && flight.routeCode;
         /* ⚠⚠ 조금 전에 떠난 저장을 **기다렸다** 지운다. 안 기다리면 되살아난다 */
+        /* ⭐⭐ 0925 — 지우지 않고 **저장한 자리로 되돌린다**(revert). 저장한 적이 없을 때만 지워진다 */
         if (rc) SAVE_LAST.then(function () {
-          return rpc("clear_my_flight_resume", { p_route: rc });
+          return rpc("revert_my_flight_resume", { p_route: rc });
         }).catch(function () { });
       } catch (e) { }
+    } else if (opt.keep) {
+      try { writeResume(true); } catch (e) { }   /* ⭐ 0925 「저장하고 나가기」 = 저장한 자리까지 */
     } else {
-      try { writeResume(); } catch (e) { }
+      try { writeResume(); } catch (e) { }       /* 오류 · 재입장 — 지금 자리만(사고로 안 잃게) */
     }
     try { if (flight) { flight.stop(); flight = null; } } catch (e) { }
     EGR_off();
