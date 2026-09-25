@@ -6019,6 +6019,11 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   100%{transform:none}
 }
 #readingRoom.craft-bre.jolt{animation:egrJolt .55s cubic-bezier(.2,.7,.3,1) 1}
+/* ⭐⭐ 0925b fps — 소로 「복엽기만 17 · 제트기 33~40」(하늘만 보고 일곱 노선 실측).
+   ⚠ 진범 — 방(ROOT)을 통째로 끝없이 흔드는 egrHum 이 **밖에서 볼 때도** 돌았다.
+     화면 꽉 찬 층이 매 프레임 움직이면 브라우저가 화면 전체를 다시 합성한다(Cesium 과 그래픽 카드를 나눠 쓴다).
+   ⭐ 처방(소로 콜) — 흔들림은 기내에서만. 밖(C) · 몸 보기(B)에서는 멈춘다. 기내 탑승감은 그대로 */
+#readingRoom.craft-bre.out,#readingRoom.craft-bre.bodyview{animation:none}
 /* ══ 0821f — 계기 바늘 · 호박 램프 · 붉은 불빛 ═══════════════════
    ⚠ 판(#plate z-index 6·7) 위에 선다. 모니터(11)보다는 아래여야 조작판이 안 가린다 */
 /* ⚠⚠ 0821h 진범 — 여기 z-index 가 **8** 이었는데, #egrMon(모니터)도 **8** 이다.
@@ -13386,7 +13391,7 @@ function paintBook() {
       if (!ROOT || !SPEC.shake) return;
       EGR_later(function () {
         if (!ROOT || !SPEC.shake) return;
-        if (!PAUSED && !OUT && !editing) {
+        if (!PAUSED && !OUT && !BODY && !editing) {   /* ⭐ 0925b — 몸 보기(B)에서도 덜컹 쉼 */
           ROOT.style.setProperty("--jY", (4 + Math.random() * 7).toFixed(1) + "px");
           ROOT.style.setProperty("--jR", ((Math.random() < 0.5 ? -1 : 1) * (0.15 + Math.random() * 0.3)).toFixed(2) + "deg");
           ROOT.classList.add("jolt");
