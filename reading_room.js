@@ -7087,8 +7087,10 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       var fit = function (g) {
         H = Hmax;
         if (p.plate) {                   /* 산티아고(크기를 적은 명패) — 기체 아래에 걸린다 */
-          if (ptop - H < g + 80) H = Math.max(30, ptop - g - 80);   /* ⭐ 0925a 소로 콜 — 여유 20 → 80 · 한 번 재고 고정 */
-          pbot = ptop - H;
+          /* ⭐ 0925a 소로 「오리손 글씨가 갑자기 쬐끄맣게」 — 가파른 비탈에서 「줄인다」가 30m 까지 내려갔다.
+             ⭐ 이제 **줄이지 않고 올린다.** 크기는 적힌 대로 · 아랫변이 땅 +80m 아래면 판째 밀어 올린다.
+               비탈에서는 판 윗부분이 기체보다 솟아 복엽기가 글씨를 뚫고 지나간다(소로가 좋아한 장면) */
+          pbot = Math.max(ptop - H, g + 80);
         } else {
           /* ⭐⭐ 0925a — 소로 「런던 글씨가 전부 건물에 박힌다」 → 「지붕 +30m」안은 뉴욕(원 WTC 541m)에서 무너진다
              ⭐ 구글 어스 샘플의 문법 — 방향 · 원근은 땅에 고정, **가림은 없다**(WALL STREET 가 빌딩 위에 그려진다).
@@ -7334,8 +7336,15 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
        조각은 문단 경계에서 2분 안팎으로 자르고, 앞 조각(follow)이 끝난 지 gap 초가 지나야 나간다.
        ⚠ 앞 조각이 안 나갔으면 뒤 조각도 안 나간다 — 책은 차례가 목숨이다 */
     if (c.follow) {
+      /* ⭐ 0925a 그물 — 앞 방송이 **실려 있지 않으면**(안 구운 도입) 기다리지 않는다 · 자리(leg)만 본다.
+         이어 타기로 앞 방송이 「지나감」으로 찍혔는데 튼 적이 없어도(PA_END 없음) 기다리지 않는다 */
       var fe = PA_END[c.follow];
-      if (!fe || Date.now() - fe < (c.gap != null ? c.gap : 60) * 1000) return false;
+      var there = PA_LIST.some(function (x) { return x.ref === c.follow; });
+      var busy = (PA_NOW && PA_NOW.ref === c.follow) || PA_Q.some(function (x) { return x.ref === c.follow; });
+      if (busy) return false;              /* ⚠ 앞 조각이 지금 나가는 중이거나 줄 서 있다 — 기다린다 */
+      if (there && !(PA_DONE[c.follow] && !fe)) {
+        if (!fe || Date.now() - fe < (c.gap != null ? c.gap : 60) * 1000) return false;
+      }
     }
     /* ══ ⭐⭐ 0924d — 방송이 켜는 핀(소로 0924 「3D 타일에 표시가 없으니 어딘지 헷갈린다 ·
          방송이 실제 장소보다 너무 빠르다」) ═══════════════════════════════════════
