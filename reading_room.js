@@ -6893,6 +6893,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   var PA_DONE = {};                 /* 이 비행에서 이미 튼 것. ref → true */
   var PA_Q = [];                    /* 대기열 — ⚠ 둘까지만. 셋째는 버린다(놓치면 그만이다) */
   var PA_NOW = null;                /* 지금 트는 중인 방송 */
+  var PA_END = {};                   /* ⭐ 0925a — ref → 끝난 시각(ms). 가이드북 조각이 「앞 조각 끝나고 60초 뒤」를 잰다 */
   var PA_T = 0;                     /* 마지막 판정 시각 */
   var PA_DIM = false;               /* ⭐ 기내가 지금 소등인가 — **방송이 정한다** */
   /* ⭐⭐ 0827e 진단용 — paWhyHold 가 읽는다. ⚠ 셈을 새로 하지 않는다.
@@ -6941,7 +6942,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   function paLoad(code) {
     RP_SRC = null; RP_DONE = {};   /* ⭐ 0925a — 비행마다 노선 핀을 새로 */
     msOff(); MS_SRC = null; MS_DONE = {};
-    PA_LIST = []; PA_DONE = {}; PA_Q = []; PA_SEEN = {}; PA_NOW = null; PA_DIM = false;
+    PA_LIST = []; PA_DONE = {}; PA_Q = []; PA_SEEN = {}; PA_NOW = null; PA_DIM = false; PA_END = {};
     pinOff();                                          /* ⭐ 0924d */
     PA_MOVE = 0; PA_WHY = 0; PA_PH = ""; PA_MIN = 0;   /* ⭐ 0827e — 진단값도 함께 씻는다 */
     PA_ALT = null;                                     /* ⭐ 0827k — 「아직 안 쟀다」로 되돌린다 */
@@ -7272,6 +7273,13 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     if (c.phase && c.phase !== ctx.phase) return false;
     if (c.min != null && ctx.min < c.min) return false;
     if (c.leg != null && ctx.seg < c.leg) return false;
+    /* ⭐⭐ 0925a 가이드북 낭독(산티아고) — 소로 「2분 듣고 1분 쉬고 또 2분」.
+       조각은 문단 경계에서 2분 안팎으로 자르고, 앞 조각(follow)이 끝난 지 gap 초가 지나야 나간다.
+       ⚠ 앞 조각이 안 나갔으면 뒤 조각도 안 나간다 — 책은 차례가 목숨이다 */
+    if (c.follow) {
+      var fe = PA_END[c.follow];
+      if (!fe || Date.now() - fe < (c.gap != null ? c.gap : 60) * 1000) return false;
+    }
     /* ══ ⭐⭐ 0924d — 방송이 켜는 핀(소로 0924 「3D 타일에 표시가 없으니 어딘지 헷갈린다 ·
          방송이 실제 장소보다 너무 빠르다」) ═══════════════════════════════════════
        ⭐ 관광 노선은 길목 번호가 아니라 **핀까지의 거리**가 방아쇠다. c.leg 는 이제 「창의 앞문」 —
@@ -7413,6 +7421,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       if (fired) return;
       fired = true;
       PA_NOW = null;
+      PA_END[e.ref] = Date.now();     /* ⭐ 0925a — 가이드북 다음 조각이 이 시각부터 쉼을 잰다 */
       PA_MOVE = performance.now();    /* ⭐ 0827e — 끝난 것도 「일어난 일」이다 */
       /* ⚠ 0821k 수칙 — 켜는 줄을 지었으면 끄는 줄도 짝으로. 잡음은 제 손으로 멈춘다 */
       try { if (paHiss) { paHiss.stop(); } } catch (x) { }
