@@ -7633,6 +7633,17 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
         });
         paAudio.addEventListener("ended", done);
         paAudio.addEventListener("error", done);
+        /* ⭐⭐ 0925a — 소로 「화살표 → 살표 · 쓸모없다는 말 → ㄹ모 없다는 말」.
+           ⚠ 머리를 「playing」 신호에 걸어 두었는데, 그 신호는 소리가 이미 흘러나온 뒤에 늦게 온다.
+             기장 녹음은 앞 여백이 거의 없어 첫 음절이 음량 0 에 먹혔다.
+           ⭐ 재생을 누르는 **그 순간** 제 음량으로 세운다(딱 소리만 막게 0.02초). playing 쪽 손은 risen 이라 물러난다 */
+        try {
+          var t0a = ensureAC().currentTime;
+          paGain.gain.cancelScheduledValues(t0a);
+          paGain.gain.setValueAtTime(0.0001, t0a);
+          paGain.gain.linearRampToValueAtTime(PA_VOL, t0a + PA_RISE);
+          risen = true;
+        } catch (x) { }
         paAudio.play().catch(function () { done(); });
         /* ⚠ 그물 — 끝났다는 말이 안 오면 다섯 자에 1초로 어림해 넘긴다 */
         /* ⚠⚠ 0825i 진범 — 그물이 **글자 수 어림**이었다. standby 71자 × 220 = 15.6초인데
@@ -7852,8 +7863,8 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
        duration 을 미리 받아 시각을 못 박으면 그 둘에서 어긋난다.
      ⚠ 머리도 든다. 0.12초 — 첫 숨이 「퍽」 하고 붙는 것도 같은 갈래다. */
   var PA_VOL  = 0.37;               /* ⭐ 0825m 소로 — 「방송 볼륨 50% 줄이고」. paVol(v) */
-  var PA_FADE = 0.45;               /* 꼬리를 눕히는 시간(초). egReading.paFade(s) */
-  var PA_RISE = 0.12;               /* 머리를 드는 시간(초) */
+  var PA_FADE = 0.12;               /* 꼬리를 눕히는 시간(초). egReading.paFade(s) · ⭐ 0925a 0.45 → 0.12(소로 「마지막 글자가 흐려진다」) */
+  var PA_RISE = 0.02;               /* 머리를 드는 시간(초) · ⭐ 0925a 0.12 → 0.02 */
   var PA_WET  = 0.20;               /* ⭐ 잔향 섞는 양. egReading.paVerb(v) */
   var PA_TONE = 0.75;               /* ⭐ 0825i 스피커 티 — 0 이면 스튜디오. egReading.paTone(v) */
   var PA_HISS = 0.012;              /* ⭐ 0825i 배선 잡음 — 아주 옅게. egReading.paHiss(v) */
