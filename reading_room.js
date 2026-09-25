@@ -6993,6 +6993,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   function pinOff() {
     if (!PIN) return;
     try { if (viewer) PIN.ents.forEach(function (x) { viewer.entities.remove(x); }); } catch (e) { }
+    try { if (viewer && PIN.prim) viewer.scene.primitives.remove(PIN.prim); } catch (e) { }   /* ⭐ 0925a 가림 없는 판 */
     PIN = null;
   }
   function pinOn(e) {
@@ -7072,7 +7073,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
            밀어 올리지 않고 줄인다(윗변 = 기체 −35 그대로). 서 있는 동안 pinTick 이 3초에 한 점씩 되짚어
            땅이 올라오면 다시 줄인다. */
       var ptop = top, Hmax = H, W0 = H * cw / ch, b90 = brg + Math.PI / 2, cosL = Math.cos(p.lat * Math.PI / 180);
-      var LINE = (p.plate ? [-0.5, -0.25, 0.25, 0.5] : [-0.5, -0.25, 0, 0.25, 0.5]).map(function (f) {   /* ⭐ 도시는 한가운데도(빅벤 탑) */
+      var LINE = (p.plate ? [-0.5, -0.25, 0.25, 0.5] : []).map(function (f) {   /* ⭐ 도시는 안 잰다 — 가림 없는 판(아래) */
         var dm = f * W0; return [p.lat + dm * Math.cos(b90) / 110574, p.lon + dm * Math.sin(b90) / (111320 * cosL)];
       });
       var gline = base;
@@ -7089,16 +7090,38 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
           if (ptop - H < g + 80) H = Math.max(30, ptop - g - 80);   /* ⭐ 0925a 소로 콜 — 여유 20 → 80 · 한 번 재고 고정 */
           pbot = ptop - H;
         } else {
-          /* ⭐⭐ 0925a — 소로 「런던 글씨가 전부 건물에 박힌다」(세인트 폴 · 빅벤 · 시티).
-             도시에서 재는 「땅」은 지붕이고, 템스 위 100m 로 나는 기체 아래에는 판 들어갈 자리가 없다.
-             ⭐ 도시 명패(크기를 안 적은 방송 핀)는 기체 아래 규칙을 버리고 **판 줄 위 가장 높은 지붕 +30m** 에 선다.
-               옥상 간판처럼 — 도시 핀은 대개 길에서 비켜 서서 기체가 옆으로 스친다 */
-          pbot = g + 30;
+          /* ⭐⭐ 0925a — 소로 「런던 글씨가 전부 건물에 박힌다」 → 「지붕 +30m」안은 뉴욕(원 WTC 541m)에서 무너진다
+             ⭐ 구글 어스 샘플의 문법 — 방향 · 원근은 땅에 고정, **가림은 없다**(WALL STREET 가 빌딩 위에 그려진다).
+             ⭐ 도시 명패는 가림 없는 판(아래 Primitive · depthTest 끔)이라 지붕을 잴 까닭이 없다.
+               기체 눈높이 바로 아래(윗변 = 기체 −35)에 건다 · 바닥 +10 아래로는 안 내린다 */
+          pbot = Math.max(base + 10, ptop - H);
         }
         ptop = pbot + H; W = H * cw / ch; top = pbot;   /* 빛줄기는 판의 아랫변까지 */
       };
       fit(gline);
       var ppos = C.Cartesian3.fromDegrees(p.lon, p.lat, pbot + H / 2);
+      if (!p.plate) {
+        /* ⭐⭐ 0925a 가림 없는 고정 판 — Entity 의 plane 은 가림 끄기를 못 받는다 → 한 단계 아래 Primitive 로 직접 그린다.
+           축 — 판의 x → 기체 쪽에서 본 오른쪽, y → 위, z → 기체 쪽(법선). Entity 판과 같은 셈(0925a)이라 글씨가 바로 읽힌다. */
+        var Fm = C.Transforms.headingPitchRollToFixedFrame(ppos, new C.HeadingPitchRoll(brg - Math.PI / 2, 0, 0));
+        var Rl = C.Matrix4.fromRotationTranslation(new C.Matrix3(0, 0, 1,  1, 0, 0,  0, 1, 0), C.Cartesian3.ZERO);
+        var Sc = C.Matrix4.fromScale(new C.Cartesian3(W, H, 1));
+        var Mm = C.Matrix4.multiply(Fm, C.Matrix4.multiply(Rl, Sc, new C.Matrix4()), new C.Matrix4());
+        var prim = viewer.scene.primitives.add(new C.Primitive({
+          geometryInstances: new C.GeometryInstance({ geometry: new C.PlaneGeometry({ vertexFormat: C.MaterialAppearance.MaterialSupport.TEXTURED.vertexFormat }) }),
+          appearance: new C.MaterialAppearance({
+            material: C.Material.fromType("Image", { image: cv.toDataURL("image/png") }),
+            materialSupport: C.MaterialAppearance.MaterialSupport.TEXTURED,
+            translucent: true, faceForward: false, closed: false,
+            renderState: { depthTest: { enabled: false }, depthMask: false, cull: { enabled: false },
+                           blending: C.BlendingState.ALPHA_BLEND }
+          }),
+          modelMatrix: Mm, asynchronous: false, show: false
+        }));
+        setTimeout(function () { try { prim.show = true; } catch (_) { } }, 1400);   /* 빛줄기가 다 솟은 뒤 */
+        PIN = { ents: [e1, e2], prim: prim, ref: e.ref, p: p, dmin: 1e9, endT: 0 };
+        return;
+      }
       var e3 = viewer.entities.add({
         position: ppos,
         orientation: C.Transforms.headingPitchRollQuaternion(ppos, new C.HeadingPitchRoll(brg - Math.PI / 2, 0, 0)),
