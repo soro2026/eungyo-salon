@@ -7539,7 +7539,8 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
        거친 타일의 낮은 값은 여유 80m 가 삼킨다. 땅 재기는 핀마다 한 번뿐이다. */
     if (PA_NOW && PA_NOW.ref === PIN.ref) { PIN.endT = 0; return; }
     /* ⭐ 0925a 노선 핀은 방송 시계(60초)를 안 본다 — 지나 멀어질 때만 걷는다 */
-    if (PIN.keep) { if (d > PIN.dmin + 0.4 && d > (PIN.p.near || 0.8) + 0.3) pinOff(); return; }
+    /* ⭐ 0925 밤 소로 「목적지 명패는 지나면 바로 없앤다」(fps) — 옛 판은 지나고도 near+0.3km(5km 넘게) 뒤에 남았다 */
+    if (PIN.keep) { if (d > PIN.dmin + 0.15) pinOff(); return; }
     if (!PIN.endT) PIN.endT = now;
     var away = d > PIN.dmin + 0.4 && d > (PIN.p.near || 0.8) + 0.3;
     if (away || now - PIN.endT > 60000) pinOff();
@@ -7666,7 +7667,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     if (MS_SRC !== L) { MS_SRC = L; MS_DONE = {}; }
     if (MS) {
       var d = pinKm(ctx, MS.m); if (d < MS.dmin) MS.dmin = d;
-      if (d > MS.dmin + 0.3) msOff();          /* ⭐ 지났으면 걷는다(소로 0925) */
+      if (d > MS.dmin + 0.05) msOff();         /* ⭐ 지났으면 **바로** 걷는다(소로 0925 밤 · fps) */
       else {
         /* ⭐ 0925a — 되짚기는 걷었다(소로 콜). 거친 타일의 낮은 값은 여유 50m 가 삼킨다 */
         return;
@@ -7674,7 +7675,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     }
     for (var i = 0; i < L.length; i++) {
       if (MS_DONE[i]) continue;
-      if (pinKm(ctx, L[i]) <= 3) { MS_DONE[i] = true; msOn(L[i]); return; }
+      if (pinKm(ctx, L[i]) <= 1) { MS_DONE[i] = true; msOn(L[i]); return; }   /* ⭐ 0925 밤 소로 — 3km → 1km 앞 */
     }
   }
 
