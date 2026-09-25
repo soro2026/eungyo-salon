@@ -5921,6 +5921,13 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   padding:9px 13px;color:#8f9aa6;white-space:pre;letter-spacing:.02em;
   font:11px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 #readingRoom.fps #egrFps{display:block}
+/* ⭐ 0925 밤 — 소로 「콘솔 말고 비행 화면에」 · 타일 촘촘함 단추 줄(fps 가리기) */
+#egrSse{position:fixed;left:18px;top:150px;z-index:27;display:none;gap:6px;align-items:center;
+  font:12px/1 "Pretendard",sans-serif;color:#9aa4b0;background:rgba(10,14,20,.72);padding:6px 8px;border-radius:8px}
+#readingRoom.fps #egrSse{display:flex}
+#egrSse button{font:12px/1 "Pretendard",sans-serif;color:#e6d9ae;background:rgba(255,255,255,.06);
+  border:1px solid rgba(201,168,76,.35);border-radius:6px;padding:5px 9px;cursor:pointer}
+#egrSse button.on{background:#c9a84c;color:#141414;border-color:#c9a84c}
 /* ⭐ 0823f 배속 배지 — fps 계기 바로 아래. ⚠ 켜 두고 잊으시면 안 되니 눈에 든다.
    ⚠ pointer-events 를 안 연다 — 누르는 물건이 아니라 알리는 물건이다(41호 ㉢ 갈래) */
 #egrWarp{position:fixed;left:18px;top:96px;z-index:27;pointer-events:none;
@@ -6830,6 +6837,25 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     FPSEL.title = "\ub204\ub974\uba74 \ub2e4\uc2dc \uc7ac\uae30 (F \ub85c \uc5ec\ub2eb\uae30)";
     ROOT.appendChild(FPSEL);
     EGR_on(FPSEL, "click", function () { fpsReset(); });
+    /* ⭐ 0925 밤 — 타일 촘촘함 단추(20 · 40 · 80). 누르면 바로 바뀌고 fps 를 새로 잰다 */
+    var SSEEL = document.createElement("div");
+    SSEEL.id = "egrSse";
+    SSEEL.innerHTML = '<span>\ud0c0\uc77c</span>' + [20, 40, 80].map(function (v) {
+      return '<button type="button" data-v="' + v + '">' + v + '</button>'; }).join("");
+    ROOT.appendChild(SSEEL);
+    var ssePaint = function () {
+      var cur = window.egTileset ? window.egTileset.maximumScreenSpaceError : 20;
+      SSEEL.querySelectorAll("button").forEach(function (b) { b.classList.toggle("on", +b.dataset.v === cur); });
+    };
+    EGR_on(SSEEL, "click", function (ev) {
+      var b = ev.target && ev.target.closest ? ev.target.closest("button") : null;
+      if (!b || !window.egTileset) return;
+      ev.stopPropagation();
+      window.egTileset.maximumScreenSpaceError = +b.dataset.v;
+      ssePaint(); fpsReset();
+      console.log("[EG] 타일 SSE " + b.dataset.v + " (단추)");
+    });
+    ssePaint();
   }
 
   /* ══ 판 세우기 ═══════════════════════════════════════════════
@@ -13660,6 +13686,13 @@ function paintBook() {
                          if (arguments.length) PA_VOL = Math.max(0, Math.min(1, +v || 0));
                          console.log("[EG] 방송 볼륨 " + PA_VOL.toFixed(2));
                          return PA_VOL;
+                       },
+                       /* ⭐ 0925 밤 — fps 가리기 손잡이. egReading.sse(40) → 타일을 덜 촘촘히(가볍게) · 인자 없으면 지금 값 */
+                       sse: function (v) {
+                         var ts = window.egTileset; if (!ts) return null;
+                         if (arguments.length) ts.maximumScreenSpaceError = Math.max(4, Math.min(256, +v || 20));
+                         console.log("[EG] 타일 SSE " + ts.maximumScreenSpaceError + " (기본 20 · 클수록 가볍고 무뎌진다)");
+                         return ts.maximumScreenSpaceError;
                        },
                        paFade: function (v) {
                          if (arguments.length) PA_FADE = Math.max(0, Math.min(3, +v || 0));
