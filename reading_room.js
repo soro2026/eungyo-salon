@@ -7072,7 +7072,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
            밀어 올리지 않고 줄인다(윗변 = 기체 −35 그대로). 서 있는 동안 pinTick 이 3초에 한 점씩 되짚어
            땅이 올라오면 다시 줄인다. */
       var ptop = top, Hmax = H, W0 = H * cw / ch, b90 = brg + Math.PI / 2, cosL = Math.cos(p.lat * Math.PI / 180);
-      var LINE = [-0.5, -0.25, 0.25, 0.5].map(function (f) {
+      var LINE = (p.plate ? [-0.5, -0.25, 0.25, 0.5] : [-0.5, -0.25, 0, 0.25, 0.5]).map(function (f) {   /* ⭐ 도시는 한가운데도(빅벤 탑) */
         var dm = f * W0; return [p.lat + dm * Math.cos(b90) / 110574, p.lon + dm * Math.sin(b90) / (111320 * cosL)];
       });
       var gline = base;
@@ -7084,8 +7084,18 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       });
       var pbot, W;
       var fit = function (g) {
-        H = Hmax; if (ptop - H < g + 20) H = Math.max(30, ptop - g - 20);
-        W = H * cw / ch; pbot = ptop - H; top = pbot;   /* 빛줄기는 판의 아랫변까지 */
+        H = Hmax;
+        if (p.plate) {                   /* 산티아고(크기를 적은 명패) — 기체 아래에 걸린다 */
+          if (ptop - H < g + 80) H = Math.max(30, ptop - g - 80);   /* ⭐ 0925a 소로 콜 — 여유 20 → 80 · 한 번 재고 고정 */
+          pbot = ptop - H;
+        } else {
+          /* ⭐⭐ 0925a — 소로 「런던 글씨가 전부 건물에 박힌다」(세인트 폴 · 빅벤 · 시티).
+             도시에서 재는 「땅」은 지붕이고, 템스 위 100m 로 나는 기체 아래에는 판 들어갈 자리가 없다.
+             ⭐ 도시 명패(크기를 안 적은 방송 핀)는 기체 아래 규칙을 버리고 **판 줄 위 가장 높은 지붕 +30m** 에 선다.
+               옥상 간판처럼 — 도시 핀은 대개 길에서 비켜 서서 기체가 옆으로 스친다 */
+          pbot = g + 30;
+        }
+        ptop = pbot + H; W = H * cw / ch; top = pbot;   /* 빛줄기는 판의 아랫변까지 */
       };
       fit(gline);
       var ppos = C.Cartesian3.fromDegrees(p.lon, p.lat, pbot + H / 2);
@@ -7112,15 +7122,8 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     if (!PIN || ctx.lat == null) return;
     var d = pinKm(ctx, PIN.p);
     if (d < PIN.dmin) PIN.dmin = d;
-    /* ⭐ 0925a — 판 줄 땅 되짚기 · 3초에 한 점 · 올라온 것만 믿는다 */
-    if (PIN.line && Date.now() - PIN.gt >= 3000) {   /* ⚠ now 는 performance.now 일 수 있다 — 시계를 섞지 않는다 */
-      PIN.gt = Date.now();
-      var q = PIN.line[PIN.gi++ % PIN.line.length];
-      try {
-        var hq = viewer.scene.sampleHeight(window.Cesium.Cartographic.fromDegrees(q[1], q[0]), BODYENT ? [BODYENT] : undefined);
-        if (hq != null && hq < 9000 && hq > PIN.gline + 5) { PIN.gline = hq; PIN.refit(hq); }
-      } catch (_) { }
-    }
+    /* ⭐ 0925a — 판 줄 땅 되짚기는 걷었다(소로 「처음 한 번 정해서 고정하면 안 되나」 · 콜).
+       거친 타일의 낮은 값은 여유 80m 가 삼킨다. 땅 재기는 핀마다 한 번뿐이다. */
     if (PA_NOW && PA_NOW.ref === PIN.ref) { PIN.endT = 0; return; }
     /* ⭐ 0925a 노선 핀은 방송 시계(60초)를 안 본다 — 지나 멀어질 때만 걷는다 */
     if (PIN.keep) { if (d > PIN.dmin + 0.4 && d > (PIN.p.near || 0.8) + 0.3) pinOff(); return; }
@@ -7231,7 +7234,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       g.fillText(m.km.toFixed(1) + " km", X, 590);
       var H = 200, W = H * cw / ch, gz = msGround(m);   /* ⭐ 0925a 소로 「60 → 200」 */
       /* ⭐ 0925a — 판의 아랫변 = 땅 +15m(길가에 선 표석). 땅을 못 재면 옛 자리(기체 −60 아래) */
-      var cz = (gz !== null) ? gz + 15 + H / 2 : PIN_AALT - 60 - H / 2;
+      var cz = (gz !== null) ? gz + 50 + H / 2 : PIN_AALT - 60 - H / 2;   /* ⭐ 0925a 소로 콜 — 15 → 50 · 한 번 재고 고정 */
       var pos = C.Cartesian3.fromDegrees(m.lon, m.lat, cz);
       var ent = viewer.entities.add({
         position: pos,
@@ -7249,12 +7252,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       var d = pinKm(ctx, MS.m); if (d < MS.dmin) MS.dmin = d;
       if (d > MS.dmin + 0.3) msOff();          /* ⭐ 지났으면 걷는다(소로 0925) */
       else {
-        /* ⭐ 0925a — 타일은 실릴수록 위로 올라온다(0827i). 땅이 5m 넘게 올라오면 표석도 따라 올린다 · 내려가는 것은 안 믿는다 */
-        var g2 = (Date.now() - (MS.gt || 0) >= 3000) ? (MS.gt = Date.now(), msGround(MS.m)) : null;   /* ⭐ 3초에 한 점 */
-        if (g2 !== null && (MS.gz === null || g2 > MS.gz + 5)) {
-          MS.gz = g2;
-          try { MS.ent.position = window.Cesium.Cartesian3.fromDegrees(MS.m.lon, MS.m.lat, g2 + 15 + MS.H / 2); } catch (_) { }
-        }
+        /* ⭐ 0925a — 되짚기는 걷었다(소로 콜). 거친 타일의 낮은 값은 여유 50m 가 삼킨다 */
         return;
       }
     }
