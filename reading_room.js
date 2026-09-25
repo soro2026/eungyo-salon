@@ -7010,9 +7010,9 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
            런던 저층부는 템스 위 100m 로 난다 — 옛 판은 명패가 기체보다 한참 위에 떴다.
            ⚠ 바닥보다 40m 는 늘 위다(낮게 나는 곳에서 명패가 땅에 파묻히지 않게). */
       var r0 = p.r || 70, base = null, sx = r0 / (111320 * Math.cos(p.lat * Math.PI / 180)), sy = r0 / 110574;
-      for (var si = -1; si < 8; si++) {
+      for (var si = -1; si < 4; si++) {   /* ⭐ 0925a 둘레 여덟 → 넷(아래 판 줄 넷과 합쳐 아홉 그대로) */
         var la = p.lat, lo = p.lon;
-        if (si >= 0) { var an = si / 8 * 2 * Math.PI; la += sy * Math.sin(an); lo += sx * Math.cos(an); }
+        if (si >= 0) { var an = si / 4 * 2 * Math.PI; la += sy * Math.sin(an); lo += sx * Math.cos(an); }
         try {
           var hh = viewer.scene.sampleHeight(C.Cartographic.fromDegrees(lo, la), BODYENT ? [BODYENT] : undefined);
           if (C.defined(hh) && hh < 9000 && hh > -500 && (base === null || hh < base)) base = hh;
@@ -7060,14 +7060,34 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       /* ⭐ 0925a — 소로 「아예 엄청 크게 잡고 줄여 가는 방향」. 판은 늘 기체 아래(윗변 = 기체 −35)에 걸린다.
          ⚠ 핀 자리가 곧 길목이라 기체가 판 바로 위를 지난다 — 옛 판처럼 바닥에 닿으면 위로 밀어 올리면
            낮게 나는 도시(지면 +250)에서 400m 판이 기체를 뚫고 솟는다. 그래서 **밀어 올리지 않고 줄인다.** */
-      var ptop = top;
-      if (ptop - H < base + 20) H = Math.max(30, ptop - base - 20);
-      var pbot = ptop - H, W = H * cw / ch;
       var brg = 0;
       if (PIN_ALAT != null) {
         var dy = (PIN_ALAT - p.lat) * 110574, dx = (PIN_ALON - p.lon) * 111320 * Math.cos(p.lat * Math.PI / 180);
         brg = Math.atan2(dx, dy);          /* 핀에서 기체로 · 북에서 시계 방향 */
       }
+      /* ══ ⭐⭐ 0925a — 소로 「오리손 글씨가 땅에 박힌다」 ══
+         ⚠ 옛 판은 판 아래 땅을 **가운데(둘레 최저값)**로만 봤다. 판은 폭이 1km 가까워 비탈에 걸치면
+           한쪽 끝이 솟은 땅에 먹힌다(오리손 「ㄴ」). 멀리서 잰 땅은 덜 실려 더 낮다(0827i).
+         ⭐ 처방 — 판이 설 방향을 정한 뒤 **판 줄(양끝 · 사이) 넉 점**을 재서 가장 높은 땅 위 20m 로 판을 맞춘다.
+           밀어 올리지 않고 줄인다(윗변 = 기체 −35 그대로). 서 있는 동안 pinTick 이 3초에 한 점씩 되짚어
+           땅이 올라오면 다시 줄인다. */
+      var ptop = top, Hmax = H, W0 = H * cw / ch, b90 = brg + Math.PI / 2, cosL = Math.cos(p.lat * Math.PI / 180);
+      var LINE = [-0.5, -0.25, 0.25, 0.5].map(function (f) {
+        var dm = f * W0; return [p.lat + dm * Math.cos(b90) / 110574, p.lon + dm * Math.sin(b90) / (111320 * cosL)];
+      });
+      var gline = base;
+      LINE.forEach(function (q) {
+        try {
+          var hh = viewer.scene.sampleHeight(C.Cartographic.fromDegrees(q[1], q[0]), BODYENT ? [BODYENT] : undefined);
+          if (C.defined(hh) && hh < 9000 && hh > -500 && hh > gline) gline = hh;
+        } catch (_) { }
+      });
+      var pbot, W;
+      var fit = function (g) {
+        H = Hmax; if (ptop - H < g + 20) H = Math.max(30, ptop - g - 20);
+        W = H * cw / ch; pbot = ptop - H; top = pbot;   /* 빛줄기는 판의 아랫변까지 */
+      };
+      fit(gline);
       var ppos = C.Cartesian3.fromDegrees(p.lon, p.lat, pbot + H / 2);
       var e3 = viewer.entities.add({
         position: ppos,
@@ -7078,8 +7098,12 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
           material: new C.ImageMaterialProperty({ image: cv, transparent: true }),
           show: new C.CallbackProperty(function () { return grow() > 0.9; }, false)
         } });
-      top = pbot;                          /* 빛줄기는 판의 아랫변까지 */
-      PIN = { ents: [e1, e2, e3], ref: e.ref, p: p, dmin: 1e9, endT: 0 };
+      PIN = { ents: [e1, e2, e3], ref: e.ref, p: p, dmin: 1e9, endT: 0,
+              line: LINE, gline: gline, gi: 0, gt: Date.now(),
+              refit: function (g) {
+                fit(g);
+                try { e3.position = C.Cartesian3.fromDegrees(p.lon, p.lat, pbot + H / 2); e3.plane.dimensions = new C.Cartesian2(W, H); } catch (_) { }
+              } };
     } catch (err) { console.warn("[EG] 핀을 못 꽂았습니다:", err); pinOff(); }
   }
   /* ⭐ 걷기 — 방송이 끝났고, 가장 가까웠던 때보다 400m 넘게 멀어졌고, near 밖이면 걷는다.
@@ -7088,6 +7112,15 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     if (!PIN || ctx.lat == null) return;
     var d = pinKm(ctx, PIN.p);
     if (d < PIN.dmin) PIN.dmin = d;
+    /* ⭐ 0925a — 판 줄 땅 되짚기 · 3초에 한 점 · 올라온 것만 믿는다 */
+    if (PIN.line && Date.now() - PIN.gt >= 3000) {   /* ⚠ now 는 performance.now 일 수 있다 — 시계를 섞지 않는다 */
+      PIN.gt = Date.now();
+      var q = PIN.line[PIN.gi++ % PIN.line.length];
+      try {
+        var hq = viewer.scene.sampleHeight(window.Cesium.Cartographic.fromDegrees(q[1], q[0]), BODYENT ? [BODYENT] : undefined);
+        if (hq != null && hq < 9000 && hq > PIN.gline + 5) { PIN.gline = hq; PIN.refit(hq); }
+      } catch (_) { }
+    }
     if (PA_NOW && PA_NOW.ref === PIN.ref) { PIN.endT = 0; return; }
     /* ⭐ 0925a 노선 핀은 방송 시계(60초)를 안 본다 — 지나 멀어질 때만 걷는다 */
     if (PIN.keep) { if (d > PIN.dmin + 0.4 && d > (PIN.p.near || 0.8) + 0.3) pinOff(); return; }
@@ -7147,9 +7180,12 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⚠ 기체는 셈에서 뺀다(0821N) · 덜 실린 타일 문턱(0924e)은 pinOn 과 같다 */
   function msGround(m) {
     var C = window.Cesium, g = null, sx = 60 / (111320 * Math.cos(m.lat * Math.PI / 180)), sy = 60 / 110574;
-    for (var si = -1; si < 6; si++) {
+    /* ⚠⚠⚠ 0925a 오후 — 소로 「산티아고만 화면이 툭툭 끊긴다(런던 · 알프스는 멀쩡)」.
+       진범 — 옛 판은 여기서 **일곱 점을 한 프레임에** 쐈고, 모혼은 늘 하나가 서 있어 **매초** 불렸다.
+       0819 수칙 「sampleHeight 는 장면을 찌르는 값비싼 손 · 한 프레임에 한 점씩」을 제 손으로 어겼다.
+       ⭐ 처방 — **가운데 한 점만** 잰다. 되짚기는 msTick 이 3초에 한 번. */
+    for (var si = -1; si < 0; si++) {
       var la = m.lat, lo = m.lon;
-      if (si >= 0) { var an = si / 6 * 2 * Math.PI; la += sy * Math.sin(an); lo += sx * Math.cos(an); }
       try {
         var hh = viewer.scene.sampleHeight(C.Cartographic.fromDegrees(lo, la), BODYENT ? [BODYENT] : undefined);
         if (C.defined(hh) && hh < 9000 && hh > -500 && (g === null || hh < g)) g = hh;
@@ -7214,7 +7250,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       if (d > MS.dmin + 0.3) msOff();          /* ⭐ 지났으면 걷는다(소로 0925) */
       else {
         /* ⭐ 0925a — 타일은 실릴수록 위로 올라온다(0827i). 땅이 5m 넘게 올라오면 표석도 따라 올린다 · 내려가는 것은 안 믿는다 */
-        var g2 = msGround(MS.m);
+        var g2 = (Date.now() - (MS.gt || 0) >= 3000) ? (MS.gt = Date.now(), msGround(MS.m)) : null;   /* ⭐ 3초에 한 점 */
         if (g2 !== null && (MS.gz === null || g2 > MS.gz + 5)) {
           MS.gz = g2;
           try { MS.ent.position = window.Cesium.Cartesian3.fromDegrees(MS.m.lon, MS.m.lat, g2 + 15 + MS.H / 2); } catch (_) { }
@@ -12070,7 +12106,7 @@ function paintBook() {
           || (Math.min(ay, by) > MAPBOX.h + 400) || (Math.max(ay, by) < -400);
     }
     for (s = 0; s < segN; s++) {
-      if (zi >= 4 && outside(s)) continue;
+      if ((zi >= 4 || route.dense) && outside(s)) continue;   /* ⭐ 0925a 촘촘한 노선(1,900 조각)은 배율과 상관없이 화면 밖을 안 그린다 */
       d = "";
       for (j = 0; j <= per; j++) {
         p = curveOf(route, s, j / per);
