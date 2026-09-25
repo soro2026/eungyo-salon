@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0925a";
+  var VERSION = "0925b";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -5922,7 +5922,8 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   font:11px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 #readingRoom.fps #egrFps{display:block}
 /* ⭐ 0925 밤 — 소로 「콘솔 말고 비행 화면에」 · 타일 촘촘함 단추 줄(fps 가리기) */
-#egrSse{position:fixed;left:18px;top:150px;z-index:27;display:none;gap:6px;align-items:center;
+/* ⚠ 0925b — pointer-events:auto 빠져 클릭이 안 닿았다(0825o 병 세 번째) */
+#egrSse{position:fixed;left:18px;top:150px;z-index:27;display:none;gap:6px;align-items:center;pointer-events:auto;
   font:12px/1 "Pretendard",sans-serif;color:#9aa4b0;background:rgba(10,14,20,.72);padding:6px 8px;border-radius:8px}
 #readingRoom.fps #egrSse{display:flex}
 #egrSse button{font:12px/1 "Pretendard",sans-serif;color:#e6d9ae;background:rgba(255,255,255,.06);
