@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0926a";
+  var VERSION = "0926b";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -13449,6 +13449,45 @@ function paintBook() {
   }
 
   /* ══ 창구 ══════════════════════════════════════════════════════ */
+  /* ══ ⭐⭐ 0926a 비행 중 EG 명패 끄기 — 소로 「인물장소만 빼고 나머지는 명패 없이 핀만」 ══
+     ⭐ 독서비행 안에서만이다(소로). 들어갈 때 끄고 나올 때 되살린다 — 짝으로 단다.
+     ⭐ terra 가 세운 핀만 만진다(_terra · _maison · _sign · _popup · _palais · pin-*).
+       인물장소(_spot)와 이 방이 세운 노선 명패는 건드리지 않는다.
+     ⚠ 카메라가 내려오며 핀이 뒤늦게 서기도 한다 — 비행 중에 새로 선 것도 붙잡아 끈다 */
+  var HOSTLBL = { v: null, off: null, hid: [] };
+  function hostPinOf(e) {
+    if (!e || e._spot) return false;
+    return !!(e._terra || e._maison || e._sign || e._popup || e._palais
+      || (typeof e.id === "string" && e.id.indexOf("pin-") === 0));
+  }
+  function hostLblHide(e) {
+    try {
+      if (!hostPinOf(e) || !e.label || e._egLblHid) return;
+      e._egLblHid = true; e._egLblWas = e.label.show;
+      e.label.show = false; HOSTLBL.hid.push(e);
+    } catch (x) { }
+  }
+  function hostLabelsOff(v) {
+    hostLabelsOn();
+    if (!v || !v.entities) return;
+    HOSTLBL.v = v;
+    try { v.entities.values.forEach(hostLblHide); } catch (x) { }
+    try {
+      HOSTLBL.off = v.entities.collectionChanged.addEventListener(function (c, added) {
+        (added || []).forEach(hostLblHide);
+      });
+    } catch (x) { }
+  }
+  function hostLabelsOn() {
+    try { if (HOSTLBL.off) HOSTLBL.off(); } catch (x) { }
+    HOSTLBL.off = null;
+    HOSTLBL.hid.forEach(function (e) {
+      try { e.label.show = (e._egLblWas === undefined) ? true : e._egLblWas; } catch (x) { }
+      try { delete e._egLblHid; delete e._egLblWas; } catch (x) { }
+    });
+    HOSTLBL.hid = []; HOSTLBL.v = null;
+  }
+
   function enter(hostViewer, code) {
     if (!hostViewer) { console.error("[EG] 독서비행 — viewer 를 못 받았습니다."); return false; }
     if (ROOT) leave();
@@ -13468,6 +13507,7 @@ function paintBook() {
     try { hostViewer.camera.completeFlight(); } catch (e) { }
     try { if (typeof window.stopOrbit === "function") window.stopOrbit(); } catch (e) { }
     try { hostViewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY); } catch (e) { }
+    try { hostLabelsOff(hostViewer); } catch (e) { }   /* ⭐ 0926a 비행 중 EG 명패 끄기(인물장소만 남김) */
     saveCam(hostViewer);
 
     /* ⚠ 이 지구가 곧 창밖이다. 재우면 창이 얼어붙는다 */
@@ -13516,6 +13556,7 @@ function paintBook() {
     /* ⭐ 0825f — 방송도 함께 재운다. ⚠⚠ 0821k 의 수칙 — **소리 가지를 새로 달면
        끄는 줄부터 짝으로 단다.** 안 그러면 방은 걷혔는데 기장 목소리만 terra 위에 남는다. */
     try { paHush(); } catch (e) { }
+    try { hostLabelsOn(); } catch (e) { }   /* ⭐ 0926a 끈 명패를 되살린다 — 짝 */
     /* ⭐ 있던 곳을 적어 둔다 — flight 를 세우기 **전**이어야 값이 살아 있다
        ⚠⚠ 0823b — 「그냥 나가기」(opt.discard)면 적는 대신 **지운다.**
          길목 자동 저장(26호)이 이미 적어 둔 것이 있으므로, 안 적기만 해서는 부족하다.
