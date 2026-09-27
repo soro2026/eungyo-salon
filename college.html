@@ -2082,9 +2082,12 @@ async function loadCohorts(){
   const { data } = await supa.from('college_cohorts')
     .select('id,book_id,cohort_no,kind,status,start_date,announce_at,apply_start,apply_end,confirm_start,confirm_end,min_members,session_plan,hall_pin_id')
     .in('status',['announced','recruiting','running']);
+  /* 0927 — 책마다 포스터 파일 짝표. 포스터는 7월 기수 번호로 올라가 있는데 그 기수(월든 0기 등)가 지워져도
+   *  포스터는 남아야 한다. 짝표에 없는 책은 같은 책의 가장 먼저 선 기수 번호를 쓴다. */
+  const BOOK_POSTER={194:1, 120:2, 39:3, 46:4, 51:5};   /* 월든 · 소크라테스 · 모비 딕 · 카라마조프 · 전쟁과 평화 */
   POSTER_OF={}; const first={};
   (data||[]).forEach(c=>{ if(!first[c.book_id]||c.id<first[c.book_id]) first[c.book_id]=c.id; });
-  (data||[]).forEach(c=>{ POSTER_OF[c.id]=first[c.book_id]; });
+  (data||[]).forEach(c=>{ POSTER_OF[c.id]=BOOK_POSTER[c.book_id]||first[c.book_id]; });
   cohortsEvery=(data||[]).filter(c=>c.cohort_no>0||isSalonKeeper);
   cohortsAll=cohortsEvery.filter(c=>!HERE||c.hall_pin_id===HERE.id);
 }
