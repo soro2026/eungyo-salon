@@ -2035,6 +2035,9 @@ async function loadCohorts(){
   const { data } = await supa.from('college_cohorts')
     .select('id,book_id,cohort_no,kind,status,start_date,announce_at,apply_start,apply_end,confirm_start,confirm_end,min_members,session_plan,hall_pin_id')
     .in('status',['announced','recruiting','running']);
+  POSTER_OF={}; const first={};
+  (data||[]).forEach(c=>{ if(!first[c.book_id]||c.id<first[c.book_id]) first[c.book_id]=c.id; });
+  (data||[]).forEach(c=>{ POSTER_OF[c.id]=first[c.book_id]; });
   cohortsEvery=(data||[]).filter(c=>c.cohort_no>0||isSalonKeeper);
   cohortsAll=cohortsEvery.filter(c=>!HERE||c.hall_pin_id===HERE.id);
 }
@@ -2223,7 +2226,11 @@ function resetSticker(){
 
 /* ── 1층 · 포스터 무대 — 실사 포스터(Storage) + 상세 모달 ── */
 let slideIdx=0, slideTm=null, modalCohort=null, slideCount=0;
-const POSTER = id => ASSET(`posters/${id}.webp`);
+/* 0927 — 포스터는 기수 번호로 걸려 있다(posters/1.webp = 월든). 새 기수(세 도시 · 다음 기수)는
+ *  같은 책의 가장 먼저 선 기수의 포스터를 물려받는다. 그 기수에 포스터를 새로 올리면 그것이 이긴다… 는
+ *  아직 아니다 — 지금은 늘 물려받는다(한 책 한 포스터). */
+let POSTER_OF={};
+const POSTER = id => ASSET(`posters/${POSTER_OF[id]||id}.webp`);
 /* ══════════════════════════════════════════════════════════════════
  *  클래스 구간 판정 (0730)
  *  날짜가 구간을 정한다 — 매달 손으로 열고 닫지 않는다.
