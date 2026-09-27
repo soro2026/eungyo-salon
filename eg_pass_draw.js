@@ -7,7 +7,7 @@
      표를 고칠 때는 여기 한 곳만 — 대시보드도 곧 이 파일을 부르게 바꾼다(대청소 명단).
 
    쓰는 법   const cv = await EGPass.render(P);     // 1600 × 800 캔버스
-             P = { kind:'beta'|'associate', guest, building, where, founder,
+             P = { kind:'beta'|'associate', guest, building, where, founder, leader?(셀장 표면 셀장 이름만 · 0927),
                    from, to, code, url, value(준회원만 · 쉼표 찍힌 글자) }
    ═════════════════════════════════════════════════ */
 (function(){
@@ -65,7 +65,8 @@ function drawPass(ctx, W, H, P, F) {
   rule(X, 310, 660);
 
   label(760, 196, 'INVITED BY', '초대한 분');
-  founderLine(760, 268, 40, 340);
+  if (P.leader) tagLine(760, 268, 40, 340, P.leader, 'CELL LEADER', INK);   /* ⭐ 0927 소로 — 셀장이 건넨 표는 셀장 이름 하나만 */
+  else founderLine(760, 268, 40, 340);
   rule(760, 310, 340);
 
   label(X, 362, 'TO', '도착');
@@ -150,6 +151,17 @@ function drawPass(ctx, W, H, P, F) {
     ctx.fillStyle = INK; ctx.font = '500 ' + s + 'px ' + S; ctx.fillText(P.founder, x, y);
     let fx = x + ctx.measureText(P.founder).width + s * 0.32;
     ctx.fillStyle = SOFT; ctx.font = '500 ' + Math.round(s * 0.5) + 'px ' + S;
+    for (const ch of tag) { ctx.fillText(ch, fx, y); fx += ctx.measureText(ch).width + 2; }
+  }
+  /* 이름 + 영문 작은 꼬리표 (0927 — 셀장 표) */
+  function tagLine(x, y, size, max, name, tag, color) {
+    let s = size;
+    const w = (z) => { ctx.font = '500 ' + z + 'px ' + S; const a = ctx.measureText(name).width;
+                       ctx.font = '500 ' + Math.round(z * 0.5) + 'px ' + S; return a + z * 0.32 + ctx.measureText(tag).width + tag.length * 2; };
+    while (s > 16 && w(s) > max) s -= 2;
+    ctx.fillStyle = color; ctx.font = '500 ' + s + 'px ' + S; ctx.fillText(name, x, y);
+    let fx = x + ctx.measureText(name).width + s * 0.32;
+    ctx.fillStyle = SOFT; ctx.font = '500 ' + Math.max(11, Math.round(s * 0.5)) + 'px ' + S;
     for (const ch of tag) { ctx.fillText(ch, fx, y); fx += ctx.measureText(ch).width + 2; }
   }
   /* 고유 명칭은 크게, 격(MAISON · HOUSE · LOFT · TOWER)은 2/3 크기로 (0919 소로) */
