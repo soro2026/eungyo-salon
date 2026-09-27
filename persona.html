@@ -2097,6 +2097,24 @@ function drawLeader(){
       `<td>${t.status === 'entered' ? ldMd(t.entered_on) + ' 입장' : '입장 전'}</td>` +
       `<td>${t.status === 'entered' ? '' : `<button type="button" class="ld-mini" data-ldpass="${t.id}">표 받기</button>`}</td></tr>`).join('') + `</table></div>`);
   }
+  /* 우리 셀 이웃 (15호) — 정회원: 이름 · 몇 개월차 · 결제일 · 결제 마무리 여부 / 손님: 이름 · 이름표 · 체류 D-n. 자화상은 싣지 않는다 */
+  for(const c of LEAD.cells){
+    const pp = c.people || {}, M = pp.members || [], G = pp.guests || [];
+    const rows = [];
+    for(const m of M){
+      const bits = [m.slot + '번 자리']; if(m.months) bits.push(m.months + '개월차'); if(m.pay_day) bits.push('매달 ' + m.pay_day + '일 결제');
+      rows.push(`<tr><td>${plEsc(m.name)}${m.name === LEAD.me ? ' <span style="color:var(--c-sub)">(나)</span>' : ''}</td><td>정회원</td>` +
+        `<td${m.unpaid ? ' style="color:var(--c-accent)"' : ''}>${bits.join(' · ')}${m.unpaid ? '<br>결제가 아직 마무리되지 않았습니다' : ''}</td></tr>`);
+    }
+    for(const g of G){
+      rows.push(`<tr><td>${plEsc(g.name)}${g.name === LEAD.me ? ' <span style="color:var(--c-sub)">(나)</span>' : ''}</td><td>${plEsc(g.kind)}</td>` +
+        `<td>${g.applied ? '정회원 신청 · 자리 배정 전' : '<span style="white-space:nowrap">체류 D-' + g.stay_days + '</span>'}</td></tr>`);
+    }
+    out.push(`<div class="pl-sec"><div class="pl-h">우리 셀 이웃${LEAD.cells.length > 1 ? ' · ' + plEsc(c.label) : ''}</div>` +
+      (rows.length ? `<table class="pl-hist">${rows.join('')}</table>` +
+          `<div class="pl-note">체류가 얼마 남지 않은 손님께는 먼저 안부를 건네 주십시오.</div>`
+        : `<div class="pl-note" style="margin:0">아직 이 셀에 오신 이웃이 없습니다. 표를 건네신 분이 들어오시면 여기에 나타납니다.</div>`) + `</div>`);
+  }
   el.innerHTML = out.join('');
 }
 async function ldShowPass(id){
