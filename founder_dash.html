@@ -45,6 +45,10 @@
      ⑨ ⭐ 곧 체류를 마치는 베타 손님 (0927 · 신청안내 ⑤의 약속) — D-3 이하 · 정회원 신청 전 베타 손님만 맨 위 띠에
         [바우처 건네기] = eg_founder_voucher_issue(그 건물, 그분 이름) · 받은 분은 교양 자화상 「준회원 바우처」에 번호를 넣는다
 
+     ⑩ ⭐ 자리 알림 (0927 · 신청안내 ⑦ · ⑧의 약속) — 정회원 자리 = 셀 판 filled 의 합 (새 셈 없음)
+        70% 이상  「내 건물」 그 줄에 금빛 한 줄
+        가득      맨 위 띠 — 손님은 그 건물에서 머물고, 정회원이 되실 때 EG 본부 건물에 입주(⑧ · 0927 소로)
+
      부모와 주고받는 말
        보냄  cd-close     창을 닫는다
      ───────────────────────────────────────────────────────────────────── -->
@@ -269,6 +273,10 @@
   .fd-soonrow span{ flex:1 1 auto; font:400 12.5px/1.6 var(--serif); color:var(--soft); }
   .fd-soonrow em{ font:500 13px/1 var(--mono); font-style:normal; color:var(--gold-ink); }
   .fd-soonrow .fd-nmbtn{ margin-top:0; }
+  .fd-full{ margin:0 0 30px; padding:15px 20px 14px; border:1px solid var(--line2); border-left:3px solid var(--navy);
+    border-radius:5px; background:#FFFFFF; font:400 13px/1.85 var(--serif); color:var(--muted); word-break:keep-all; }
+  .fd-full b{ display:block; font:700 14.5px/1.5 var(--serif); color:var(--navy); margin-bottom:2px; }
+  .fd-bld .seat{ display:block; margin-top:6px; font:400 12.5px/1.6 var(--serif); color:var(--gold-ink); }
   .fd-soon .fd-pass{ margin:0; border:0; border-radius:0; border-top:1px solid #EFE4C8; }
   @media (max-width:640px){ .fd-cell{ grid-template-columns:1fr; gap:12px 0; } }
 
@@ -656,6 +664,20 @@
     return h;
   }
   /* ── 곧 체류를 마치는 베타 손님 (0927) — 교양 자화상과 같은 D-n · D-3 부터 (eg_my_membership 10호와 같은 문턱) ── */
+  /* ── 자리 알림 (0927) — 정회원 자리는 셀 판 filled 의 합 ── */
+  function seatOf(bid) {
+    const C = CL[bid]; if (!C) return null;
+    const filled = (C.board || []).reduce((a, c) => a + (c.filled || 0), 0);
+    return { filled: filled, slots: C.slots };
+  }
+  function fullHtml(D) {
+    const L = (D.buildings || []).filter((b) => { const s = seatOf(b.id); return s && s.slots > 0 && s.filled >= s.slots; });
+    if (!L.length) return '';
+    const names = L.map((b) => (b.name || '').trim() || grade(b.city, b.slots));
+    return '<div class="fd-full"><b>' + esc(names.join(', ')) + '의 정회원 자리가 모두 찼습니다</b>' +
+      '이미 사시는 분들은 그대로 계십니다. 이제부터 파운더님의 초대로 오신 분은 손님으로 지내시는 동안에는 파운더님의 건물에서 머무시고, ' +
+      '정회원이 되실 때 EG 본부 건물에 입주합니다. EG도시별현황에서 다음 건물을 세우실 수 있습니다.</div>';
+  }
   function soonList(D) {
     const out = [];
     for (const b of (D.buildings || [])) {
@@ -1087,6 +1109,12 @@ function drawPass(ctx, W, H, P, F) {
         cell = (nm ? '<b>' + esc(nm) + '</b>' : '<b class="none">이름을 기다리는 ' + g + '</b>') + where +
           (b.can_rename ? '<button class="fd-nmbtn' + (nm ? ' plain' : '') + '" type="button" data-name="' + b.id + '">' + (nm ? '이름 고치기' : '이름 짓기') + '</button>' : '');
       }
+      const st = seatOf(b.id);
+      if (st && st.slots > 0 && EDIT !== b.id) {
+        if (st.filled >= st.slots) cell += '<span class="seat">정회원 자리가 모두 찼습니다 (' + num(st.filled) + ' / ' + num(st.slots) + ')</span>';
+        else if (st.filled >= Math.ceil(st.slots * 0.7))
+          cell += '<span class="seat">정회원 자리가 70% 찼습니다 (' + num(st.filled) + ' / ' + num(st.slots) + '). 다음 건물을 미리 둘러보셔도 좋습니다.</span>';
+      }
       h += '<tr><td class="nm">' + cell + '</td>' +
         '<td class="r mono">' + num(b.slots) + '</td>' +
         '<td class="r mono">' + num(b.voucher_first) + '장</td>' +
@@ -1106,7 +1134,7 @@ function drawPass(ctx, W, H, P, F) {
     }
     $('fdWho').textContent = (D.name || '') + ' 파운더님';
     const anyClosed = (D.buildings || []).some((b) => !b.is_open);
-    let h = soonHtml(D);   /* ⭐ 0927 — 곧 체류를 마치는 베타 손님이 계시면 맨 위 */
+    let h = soonHtml(D) + fullHtml(D);   /* ⭐ 0927 — 곧 체류를 마치는 베타 손님 · 가득 찬 건물이 있으면 맨 위 */
     if (anyClosed) {
       h += '<p class="fd-hello"><b>' + esc(D.name || '') + ' 파운더님, 환영합니다.</b><br>' +
         '개관까지 하실 일을 차례대로 모아 두었습니다. 개관한 뒤에는 이 자리에 이번 달 인원과 정산이 나타납니다.</p>';
