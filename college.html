@@ -2368,6 +2368,8 @@ function phaseOf(c){
   const t=TODAY();
   /* 공개 전 — 손님에게는 없는 것, 살롱지기에게는 점검용으로 보인다 */
   if(c.announce_at   && t <  c.announce_at)   return isSalonKeeper?'preview':'hidden';
+  /* 0927 — 날짜 없는 예고. 포스터는 돌되 날짜는 아직 없다(2027년 1월부터 차례로). 날짜를 채우면 저절로 예약이 열린다 */
+  if(!c.apply_start && !c.confirm_start && !c.start_date) return 'teaser';
   if(c.apply_start   && t <  c.apply_start)   return 'teaser';
   if(c.apply_end     && t <= c.apply_end)     return 'reserving';
   if(c.confirm_start && t <  c.confirm_start) return 'reserving';   /* 틈 없이 잇는다 */
@@ -2377,12 +2379,13 @@ function phaseOf(c){
 }
 /* 예고 구간에는 상세 페이지를 열지 않는다 — 「스르르 예고편만」 */
 const isTeaser=c=>phaseOf(c)==='teaser';
+const LATER_NOTE='2027년 1월부터 차례로 열립니다';   /* 날짜 없는 예고의 안내 — 한 곳에서 고친다 */
 
 function renderStage(){
   /* 예고 전(hidden)은 목록에 없다. 정렬은 구간 우선 → 개강 이른 순 */
   const list=cohortsAll.filter(c=>phaseOf(c)!=='hidden')
     .sort((a,b)=>(PH_ORDER[phaseOf(a)]??9)-(PH_ORDER[phaseOf(b)]??9)
-      || String(a.start_date||'').localeCompare(String(b.start_date||'')));
+      || String(a.start_date||'9999').localeCompare(String(b.start_date||'9999')));   /* 0927 날짜 없는 예고는 뒤로 */
   const wrap=document.getElementById('slides');
   const nav=document.getElementById('stageNav');
   if(!list.length){
@@ -2403,7 +2406,7 @@ function renderStage(){
       <div class="s-badge ${bd[0]}">${bd[1]}</div>
       <div class="s-title">${esc(b.title||'')}</div>
       <div class="s-author">${esc(b.author||'')}</div>
-      <div class="s-meta">${esc(b.weeks_raw||'')} 과정 · ${c.cohort_no}기${c.start_date?' · '+dstr(c.start_date)+' 개강':''}</div>
+      <div class="s-meta">${esc(b.weeks_raw||'')} 과정 · ${c.cohort_no}기${c.start_date?' · '+dstr(c.start_date)+' 개강':' · '+LATER_NOTE}</div>
       <div class="s-note">${tz?'예고':'눌러서 자세히 보기'}</div>
     </div>`;
   }).join('');
@@ -2791,7 +2794,7 @@ function openClass(cid){
   /* 예고 구간 — 상세 페이지를 잠근다. 포스터와 제목만 보는 때다 */
   if(isTeaser(c)){
     toast(c.apply_start ? `${dstr(c.apply_start)}부터 예약이 열립니다`
-                        : '아직 예고 중입니다');
+                        : LATER_NOTE);
     return;
   }
   classCohort=c;
@@ -2939,7 +2942,7 @@ function renderApply(c,b){
     ac.innerHTML=shelf;
   }else if(ph==='teaser'){
     h.textContent='예고';
-    p.innerHTML=`${c.apply_start?'<b>'+dstr(c.apply_start)+'</b>부터 예약이 열립니다.':'곧 예약이 열립니다.'}`;
+    p.innerHTML=`${c.apply_start?'<b>'+dstr(c.apply_start)+'</b>부터 예약이 열립니다.':LATER_NOTE}`;
     ac.innerHTML=shelf;
   }else if(ph==='prep'){
     h.textContent='개강을 준비하고 있습니다';
