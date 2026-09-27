@@ -645,6 +645,22 @@ window.EGQ = (function(){
     .tour-list{ transform:none !important;transition:opacity .2s ease !important; }
     .tour-list.in{ transform:none !important; }
   }
+  /* ⭐ 0927 — 타륜이 오른쪽에 섰으니 「다른 도시」·「다른 인물」도 다른 판(.tour-list)과 같은 자리 · 같은 몸짓.
+       0918 규칙(나침반 판 왼쪽 축)이 남아 왼쪽 구석에서 튀어나왔다. 앞의 !important 를 뒤에서 덮는다. */
+  #cityList, #starList{ left:auto !important; right:244px !important; top:92px !important;
+    transform-origin:right center !important; transform:translateX(20px) scale(.97) !important; }
+  #cityList.in, #starList.in{ transform:translateX(0) scale(1) !important; }
+  @media (max-width:640px){
+    #cityList, #starList{ left:16px !important; right:auto !important; top:80px !important; }
+  }
+  @media (prefers-reduced-motion:reduce){
+    #cityList, #starList{ transform:none !important; } #cityList.in, #starList.in{ transform:none !important; }
+  }
+  .city-sec{ font-family:var(--sans); font-size:10px; letter-spacing:.16em; color:var(--cream-dim);
+    padding:8px 11px 4px; }
+  .city-sec + .city-item{ margin-top:0; }
+  .city-rule{ height:1px; background:var(--line); margin:6px 8px; }
+  .city-item .eg{ font-family:var(--sans); font-size:10.5px; color:var(--gold); letter-spacing:.06em; }
 
   /* ── 레이어 토글: 인물 장소 / 콩파뇽 집 ── */
   .layer-btn{
@@ -3622,9 +3638,32 @@ async function loadCityList(){
   renderCityList();
 }
 
+/* 0927 소로 — 맨 위는 EG 콜레주가 있는 세 도시(파리 · 런던 · 뉴욕). 인물 장소가 아니라 그 도시 콜레주 앞으로 내린다.
+   뉴욕은 인물 도시 목록(voyage_cities)에 없으므로 콜레주 핀 좌표로 가는 한 줄을 스스로 세운다.
+   ⚠ terraPins 는 블록 8(울타리 안)의 이름 — 여기선 창구 window.terraPins 로 읽는다(0927 두 번 넘어짐) */
+const EG_CITIES = [ ["paris","파리"], ["london","런던"], ["newyork","뉴욕"] ];
+function jumpToCollegeCity(city, ko){
+  const pins = Object.values(window.terraPins || {}).filter(p=>p.kind === "college" && p.city === city)
+                 .sort((a,b)=>(a.sort||0)-(b.sort||0));
+  const base = CITIES.find(x=>x.city === city) || { city, label_ko:ko };
+  const pin = pins[0];
+  jumpToCity(pin ? Object.assign({}, base, { center_lat:pin.lat, center_lng:pin.lng, range:700 }) : base);
+}
 function renderCityList(){
   const box = document.getElementById("cityList");
   box.innerHTML = "";
+  const h1 = document.createElement("div"); h1.className = "city-sec"; h1.textContent = "EG 콜레주";
+  box.appendChild(h1);
+  EG_CITIES.forEach(([city, ko])=>{
+    const it = document.createElement("div");
+    it.className = "city-item" + (city === currentCity ? " active" : "");
+    it.innerHTML = '<span>'+ko+'</span><span class="eg">콜레주 앞으로</span>';
+    it.addEventListener("click", ()=>{ jumpToCollegeCity(city, ko); toggleCityList(false); });
+    box.appendChild(it);
+  });
+  const rule = document.createElement("div"); rule.className = "city-rule"; box.appendChild(rule);
+  const h2 = document.createElement("div"); h2.className = "city-sec"; h2.textContent = "별들이 거닌 도시";
+  box.appendChild(h2);
   CITIES.forEach(c=>{
     const it = document.createElement("div");
     it.className = "city-item" + (c.city === currentCity ? " active" : "");
