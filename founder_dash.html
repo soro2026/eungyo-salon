@@ -35,10 +35,11 @@
 
      ⑧ ⭐ 셀과 셀장 (0927 · 파이스) — rpc eg_founder_cells(건물) 한 손이 셀 판을 통째로 준다
         셀마다 바우처 흐름(베타 초대권 · 준회원 바우처) · 아홉 칸 자리 · 돌보는 손님 · 베타 셀장 체류
-        손 셋 — eg_cell_leader_assign(셀장 세우기) · eg_founder_bundle_give(바우처 묶음 발행) · eg_founder_cell_move(소속 셀 변경하기)
+        손 셋 — eg_cell_leader_assign(셀장 세우기) · eg_founder_bundle_give(초대권 · 바우처 묶음 발행) · eg_founder_cell_move(소속 셀 변경하기)
         ⭐ 누가 셀장이 될 수 있는가 · 몇 매를 발행할 수 있는가 · 빈자리 — 전부 DB 가 판정한다. 이 파일은 고른 것을 건넬 뿐이다
         ⭐ 소속 셀 변경은 확인 창을 한 번 거친다 — 셀장과 먼저 조율(0927 소로) · 알림 편지는 DB 가 타벨라이로 보낸다
         용어는 0927 소로 검증본 그대로 — 바꾸려면 소로께 먼저
+        ⭐ 베타는 「초대권」, 준회원은 「바우처」(0927 소로 · 전수 조사). 두 종류를 한 낱말로 부르지 않는다
 
      부모와 주고받는 말
        보냄  cd-close     창을 닫는다
@@ -495,14 +496,16 @@
       (g.length ? '<span>돌보는 손님 guest ' + gb + ' · pre-member ' + gp + '</span>' : '') + '</div>';
   }
   function flowHtml(t) {
-    const rows = [['베타 초대권', t && t.beta], ['준회원 바우처', t && t.associate]].filter((r) => r[1] && r[1].given > 0);
-    if (!rows.length) return '<p class="fd-flownone">아직 발행한 바우처 묶음이 없습니다.</p>';
-    let h = '<table class="fd-flow"><thead><tr><th></th><th>바우처<br>발행 매수</th><th>출력 및<br>배포</th><th>사용 완료<br>(입장)</th><th>잔여<br>바우처 수</th></tr></thead><tbody>';
-    for (const [nm, x] of rows) {
+    /* ⭐ 0927 소로 — 베타는 초대권, 준회원은 바우처. 머리도 종류마다 제 이름으로 */
+    const rows = [['베타 초대권', '초대권', t && t.beta], ['준회원 바우처', '바우처', t && t.associate]].filter((r) => r[2] && r[2].given > 0);
+    if (!rows.length) return '<p class="fd-flownone">아직 발행한 묶음이 없습니다.</p>';
+    let h = '<table class="fd-flow">';
+    rows.forEach(([nm, w, x], k) => {
       const left = Math.max(0, x.given - x.returned - x.issued);
-      h += '<tr><td>' + nm + '</td><td>' + num(x.given) + '</td><td>' + num(x.issued) + '</td><td>' + num(x.entered) + '</td><td class="left">' + num(left) + '</td></tr>';
-    }
-    return h + '</tbody></table>';
+      h += '<tr><th' + (k ? ' style="padding-top:12px"' : '') + '></th><th' + (k ? ' style="padding-top:12px"' : '') + '>' + w + '<br>발행 매수</th><th>출력 및<br>배포</th><th>사용 완료<br>(입장)</th><th>잔여<br>' + w + ' 수</th></tr>' +
+        '<tr><td>' + nm + '</td><td>' + num(x.given) + '</td><td>' + num(x.issued) + '</td><td>' + num(x.entered) + '</td><td class="left">' + num(left) + '</td></tr>';
+    });
+    return h + '</table>';
   }
   function personHtml(bid, p, member, C) {
     let info;
@@ -565,7 +568,7 @@
     const bld = (D.buildings || []).find((b) => b.id === bid) || {};
     const betaOk = beta.start_on && D.today <= beta.end_on && bld.open_at === beta.open_on;
     const st = C.assoc_stock || {};
-    return '<div class="fd-clform"><h6>바우처 묶음 배포 — ' + esc(cellLabel(c)) + ' · 셀장 ' + esc(c.leader_name) + ' 님</h6>' +
+    return '<div class="fd-clform"><h6>초대권 · 바우처 묶음 배포 — ' + esc(cellLabel(c)) + ' · 셀장 ' + esc(c.leader_name) + ' 님</h6>' +
       '<div class="fd-clrow"><select id="fdClKind">' +
         (betaOk ? '<option value="beta">베타 초대권</option>' : '') + '<option value="associate">준회원 바우처</option></select>' +
       '<label>묶음 배포할 매수</label><input id="fdClQty" type="text" inputmode="numeric" maxlength="3" autocomplete="off" placeholder="0"><label>매</label></div>' +
@@ -609,7 +612,7 @@
         h += '<div class="fd-cell"><div class="who"><b>' + esc(cellLabel(c)) + '</b>' + who + '</div><div>' +
           flowHtml(c.tickets) + seatsHtml(c) +
           '<div class="fd-clact">' +
-            (c.leader_id && !giving ? '<button class="fd-nmbtn" type="button" data-clgive="' + key + '">바우처 묶음 발행</button>' : '') +
+            (c.leader_id && !giving ? '<button class="fd-nmbtn" type="button" data-clgive="' + key + '">초대권 · 바우처 묶음 발행</button>' : '') +
             ((c.members || []).length || (c.guests || []).length
               ? '<button class="fd-nmbtn plain" type="button" data-clroster="' + key + '">' + (open ? '명단 접기' : '명단 보기') + '</button>' : '') +
           '</div>' + (giving ? bundleFormHtml(b.id, c, C, D) : '');
