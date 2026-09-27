@@ -1453,13 +1453,13 @@ if(IN_TERRA) document.body.classList.add('in-terra');
 const TOD=['m','d','e','n'].includes(P.get('tod')) ? P.get('tod') : todPhase();
 /* 그림 물리기 — 후보 순서대로 시도, 없으면 다음 (낮판 폴백) */
 let gateTok=0;   /* 0927 — 늦게 도착한 앞 그림이 뒤 그림을 덮지 않게 */
-function setGate(cands){
+function setGate(cands,onPick){
   const halves=document.querySelectorAll('#gate .gate-half');
   const tok=++gateTok;
   const step=i=>{
     if(i>=cands.length) return;
     const im=new Image();
-    im.onload=()=>{ if(tok!==gateTok) return; halves.forEach(h=>h.style.backgroundImage=`url(${cands[i]})`); };
+    im.onload=()=>{ if(tok!==gateTok) return; halves.forEach(h=>h.style.backgroundImage=`url(${cands[i]})`); onPick&&onPick(cands[i]); };
     im.onerror=()=>step(i+1);
     im.src=cands[i];
   };
@@ -1480,10 +1480,22 @@ function setBg(el,cands,done){
  *  파일 college_gate_{도시}_{m|d|e|n}.webp — 없으면 그 도시 낮판 → 옛 파리 대문(college_gate_*.webp) 순으로 물린다. */
 function gateForHere(){
   const c=HERE&&HERE.city;
+  /* 0927 소로 — 파리는 이미 지어 둔 네 판(아침 · 낮 · 저녁 · 밤)을 그대로.
+   *  런던 · 뉴욕은 낮 · 밤 두 판 — 아침은 낮판, 저녁은 밤판(가로등이 켜질 때)이 대신 걸린다 */
+  const GT=(TOD==='n'||TOD==='e')?'n':'d';
   const cands=[];
-  if(c&&c!=='paris') cands.push(`college_gate_${c}_${TOD}.webp`,`college_gate_${c}_d.webp`);
+  if(c&&c!=='paris') cands.push(`college_gate_${c}_${GT}.webp`,`college_gate_${c}_d.webp`);
   cands.push(`college_gate_${TOD}.webp`,'college_gate_d.webp');
-  setGate(cands);
+  /* 명판 — 파리 대문 그림은 명판이 비어 있어 코드가 도시 이름을 얹는다(#parisMark, 0721 편집기 자리).
+   *  도시 대문(런던 · 뉴욕)은 명판이 그림에 새겨져 있으니 얹지 않는다 — 두 글자가 겹쳤다(0927). */
+  const EN={paris:'PARIS',london:'LONDON',newyork:'NEW YORK'};
+  const mark=document.getElementById('parisMark');
+  setGate(cands, src=>{
+    if(!mark) return;
+    const own=c&&c!=='paris'&&src.indexOf(`college_gate_${c}_`)===0;
+    mark.style.display=own?'none':'';
+    mark.textContent=EN[c]||'PARIS';
+  });
 }
 setBg(document.getElementById('canvas1'),[`college_hall1_${TOD}.webp`,'college_hall1_d.webp']);
 setBg(document.getElementById('bg2'),
