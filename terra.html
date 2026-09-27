@@ -4253,7 +4253,9 @@ function enterCollege(){
   const ep = document.getElementById("elevPick"); if (ep) ep.style.display = "none";
   const lp = document.getElementById("livingPick"); if (lp) lp.style.display = "none";
   /* ⚠ ×의 글씨는 paintDoorExit 한 곳에서만 정한다 (0814) */
-  setDoorFrame("college.html?terra=1&v=" + Date.now());
+  /* 0927 — 기수는 콜레주 건물에 걸린다. 핀으로 들어온 그 콜레주를 넘긴다(콜레주 도시별 개막 결정문 2·4호) */
+  const hall = (currentPark && currentPark.kind === "college") ? "&hall=" + currentPark.id : "";
+  setDoorFrame("college.html?terra=1" + hall + "&v=" + Date.now());
   dw.classList.add("popup","in","open");   // popup=문짝 숨김 / open=iframe 노출 (openPopup 혈통)
   doorState = "open";
 }
@@ -6194,7 +6196,7 @@ const STORY_DOOR = {
      카테고리 진열은 분더카머 3층 치타델레가 맡는다(0807 갈라섬). 철거는 대청소 등재. */
   museum:       { label:"📚 서고로 들어가기",   url:p=>p.target_url || ("bibliotheca.html?code="+encodeURIComponent(p.code)) },
   constellatio: { label:"✨ 천문대에 오르기",   url:p=>"observatorium.html?code="+encodeURIComponent(p.code) },
-  college:      { label:"📖 콜레주에 들어가기", url:p=>p.target_url || "college.html" }
+  college:      { label:"📖 콜레주에 들어가기", url:p=>p.target_url || ("college.html?hall=" + p.id) }
 };
 
 function openPinStory(p){
@@ -6889,6 +6891,19 @@ let myLabs = [];
 /* 콜레주 판을 편다 — 미술관·음악관과 한 문법(openTourPanel 혈통).
    ⚠ 저 둘은 「오늘 어디가 열리나」를 묻지만, 콜레주는 「내가 무엇을 듣고 있나」를 묻는다.
      그래서 목록이 비어도 판은 열린다 — 맨 끝의 「콜레주로 들어가기」가 늘 서 있기 때문이다. */
+/* 0927 콜레주 도시별 개막 — 타륜 「콜레주로 들어가기」는 내 거주 도시 콜레주로(결정문 4호).
+   다른 도시 콜레주는 손님이 직접 날아가 들어간다 — 발품은 처음 한 번, 입회 뒤엔 위 LAB 목록이 한 번에 데려다준다.
+   ⚠ 옛 줄은 loadDock 안의 지역 pinOf 를 불러 ReferenceError 로 조용히 죽어 있었다(0927 대청소 발견). */
+let EG_HOME_CITY = null;
+async function collegePinForMe(){
+  if (!EG_HOME_CITY){
+    try{ const { data } = await supa.rpc("eg_my_home_city"); EG_HOME_CITY = data || "paris"; }
+    catch(e){ EG_HOME_CITY = "paris"; }
+  }
+  const list = Object.values(terraPins).filter(p=>p.kind === "college")
+                     .sort((a,b)=>(a.sort||0)-(b.sort||0));
+  return list.find(p=>p.city === EG_HOME_CITY) || list[0] || null;
+}
 async function openCollegePanel(){
   const box = document.getElementById("collegeList");
   const btn = document.getElementById("navCollege");
@@ -6939,7 +6954,7 @@ async function openCollegePanel(){
   const gl = document.createElement("div"); gl.className = "ti-work";
   gl.textContent = "3층 복도 · 이달의 기수"; go.appendChild(gl);
   go.addEventListener("click", ()=>{ shut();
-    const p = pinOf("college"); if (p) flyToPark(p); else location.href = "college.html"; });
+    collegePinForMe().then(p=>{ if (p) flyToPark(p); else location.href = "college.html"; }); });
   box.appendChild(go);
 }
 
