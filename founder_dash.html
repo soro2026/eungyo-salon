@@ -35,6 +35,7 @@
 
      ⑧ ⭐ 셀과 셀장 (0927 · 파이스) — rpc eg_founder_cells(건물) 한 손이 셀 판을 통째로 준다
         셀마다 바우처 흐름(베타 초대권 · 준회원 바우처) · 아홉 칸 자리 · 돌보는 손님 · 베타 셀장 체류
+        반납 받기 — eg_founder_return_accept (셀장이 셀장 시트에서 신청 · 11호 · 그새 뽑힌 만큼은 빼고 받는다)
         손 셋 — eg_cell_leader_assign(셀장 세우기) · eg_founder_bundle_give(초대권 · 바우처 묶음 발행) · eg_founder_cell_move(소속 셀 변경하기)
         ⭐ 누가 셀장이 될 수 있는가 · 몇 매를 발행할 수 있는가 · 빈자리 — 전부 DB 가 판정한다. 이 파일은 고른 것을 건넬 뿐이다
         ⭐ 소속 셀 변경은 확인 창을 한 번 거친다 — 셀장과 먼저 조율(0927 소로) · 알림 편지는 DB 가 타벨라이로 보낸다
@@ -263,6 +264,11 @@
   .fd-clok{ margin:0 0 14px; padding:11px 16px; border-radius:4px; background:#FBF8F0;
     font:400 13px/1.7 var(--serif); color:var(--gold-ink); word-break:keep-all; }
   .fd-cell.wait{ background:#FFFFFF; }
+  .fd-ret{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin:12px 0 0; padding:10px 12px; border-radius:4px;
+    background:#FBF8F0; border:1px solid #EFE4C8; font:400 13px/1.7 var(--serif); color:var(--gold-ink); word-break:keep-all; }
+  .fd-ret span{ flex:1 1 auto; }
+  .fd-ret i{ font-style:normal; color:var(--muted); }
+  .fd-ret .fd-nmbtn{ margin-top:0; }
   /* ── 곧 체류를 마치는 베타 손님 (0927) — 신청안내 ⑤의 약속 ── */
   .fd-soon{ margin:0 0 30px; border:1px solid #E3D4AE; border-radius:5px; overflow:hidden; background:#FBF8F0; }
   .fd-soon .say{ margin:0; padding:15px 20px 13px; font:400 13px/1.85 var(--serif); color:var(--gold-ink); word-break:keep-all; border-bottom:1px solid #EFE4C8; }
@@ -541,7 +547,7 @@
       info = '<span>' + bits.join(' · ') + '</span>';
       if (p.pay_state === 'failed') info = '<span class="warn">' + bits.join(' · ') + ' — 결제가 아직 마무리되지 않았습니다</span>';
     } else {
-      info = '<span>' + esc(p.kind) + ' · 체류 D-' + num(p.stay_days) + '</span>';
+      info = '<span>' + esc(p.kind) + ' · <span style="white-space:nowrap">체류 D-' + num(p.stay_days) + '</span></span>';
     }
     const open = CLFORM && CLFORM.type === 'move' && CLFORM.bid === bid && CLFORM.uid === p.uid;
     let h = '<div class="fd-person"><b>' + esc(p.name) + '</b>' + info +
@@ -629,12 +635,16 @@
         }
         let who;
         if (!c.leader_id) who = '<span class="none">셀장 없음 — 파운더님이 맡고 계십니다</span>';
-        else if (c.leader_kind === 'guest') who = '<span class="gold">셀장 ' + esc(c.leader_name) + ' · guest · 체류 D-' + num(c.leader_stay_days) + '</span>';
+        else if (c.leader_kind === 'guest') who = '<span class="gold">셀장 ' + esc(c.leader_name) + ' · guest · <span style="white-space:nowrap">체류 D-' + num(c.leader_stay_days) + '</span></span>';
         else who = '<span>셀장 ' + esc(c.leader_name) + ' · 정회원</span>';
         const key = b.id + '|' + c.cell_no, open = !!CLOPEN[key];
         const giving = CLFORM && CLFORM.type === 'bundle' && CLFORM.bid === b.id && CLFORM.cell === c.cell_no;
         h += '<div class="fd-cell"><div class="who"><b>' + esc(cellLabel(c)) + '</b>' + who + '</div><div>' +
-          flowHtml(c.tickets) + seatsHtml(c) +
+          flowHtml(c.tickets) +
+          (c.returns || []).map((r) => '<div class="fd-ret"><span>반납 신청 · ' + (r.kind === 'beta' ? '초대권' : '바우처') + ' ' + num(r.qty) + '매' +
+            (r.note ? ' — <i>「' + esc(r.note) + '」</i>' : '') + '</span>' +
+            '<button class="fd-nmbtn" type="button" data-clret="' + r.id + '"' + (CLBUSY ? ' disabled' : '') + '>반납 받기</button></div>').join('') +
+          seatsHtml(c) +
           '<div class="fd-clact">' +
             (c.leader_id && !giving ? '<button class="fd-nmbtn" type="button" data-clgive="' + key + '">초대권 · 바우처 묶음 발행</button>' : '') +
             ((c.members || []).length || (c.guests || []).length
@@ -1320,6 +1330,10 @@ function drawPass(ctx, W, H, P, F) {
       }
       CLFORM = { type: 'move', bid: Number(b), uid: uid, member: mem === '1', from: from }; CLERR = ''; CLOK = ''; draw(DATA); return; }
     if (e.target.closest('[data-clcancel]')) { if (CLBUSY) return; CLFORM = null; CLERR = ''; draw(DATA); return; }
+    const rt = e.target.closest('[data-clret]');
+    if (rt) { CLFORM = null; clRun('eg_founder_return_accept', { p_id: rt.getAttribute('data-clret') },
+      (d) => (d.kind === 'beta' ? '초대권' : '바우처') + ' ' + num(d.qty) + '매를 돌려받았습니다.' +
+             (d.qty < d.asked ? ' 신청 뒤 ' + num(d.asked - d.qty) + '매가 이미 뽑혀 남은 만큼만 받았습니다.' : '') + ' 셀장께 타벨라이 편지가 한 통 갔습니다.'); return; }
     if (e.target.closest('#fdClLeadGo')) { clLead(); return; }
     if (e.target.closest('#fdClGiveGo')) { clGive(); return; }
     if (e.target.closest('#fdClMoveGo')) { clMove(); return; }

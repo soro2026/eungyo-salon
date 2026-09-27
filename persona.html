@@ -2033,6 +2033,7 @@ document.addEventListener('click', e => {
    ⭐ 표 그림은 eg_pass_draw.js (EGPass.render) — 대시보드 · 개찰구와 같은 표
    ══════════════════════════════════════════════════════════════════ */
 let LEAD = null, LDBUSY = false, LDERR = '', LDPASS = null, LDPICK = '';
+let LDRET = null, LDRETERR = '';   /* 반납 신청 창 — 'cell|kind' (0927 · 11호) */
 const LD_CITY = { paris:'파리', london:'런던', newyork:'뉴욕' };
 const ldMd = d => { if(!d) return ''; const p = String(d).slice(0,10).split('-'); return `${+p[1]}월 ${+p[2]}일`; };
 const ldLeft = x => Math.max(0, (x.given||0) - (x.returned||0) - (x.issued||0));
@@ -2060,8 +2061,17 @@ function drawLeader(){
     for(const [k, ko] of [['beta','초대권'], ['associate','바우처']]){
       const x = c[k] || {}; if(!(x.given > 0)) continue;
       const left = ldLeft(x), open = k === 'beta' ? !!x.open : true;
+      const rq = (c.returns || []).find(r => r.kind === k), rk = c.cell_id + '|' + k;
       rows.push(`<div class="pl-row"><span>${ko}</span><span>남은 ${left}매 · 뽑음 ${x.issued} · 입장 ${x.entered}</span></div>` +
-        `<div class="pl-row"><span></span><span style="color:var(--c-sub);font-size:12px">${k === 'beta' && !open ? '베타 기간이 끝났습니다' : '입력 유효기간 ' + ldMd(x.from) + ' ~ ' + ldMd(x.to)}</span></div>`);
+        `<div class="pl-row"><span></span><span style="color:var(--c-sub);font-size:12px">${k === 'beta' && !open ? '베타 기간이 끝났습니다' : '입력 유효기간 ' + ldMd(x.from) + ' ~ ' + ldMd(x.to)}</span></div>` +
+        (rq ? `<div class="pl-row"><span></span><span style="font-size:12px;color:var(--c-accent)">반납 신청 ${rq.qty}매 · 파운더님이 받으시기를 기다립니다 <button type="button" class="ld-mini" data-ldretcancel="${rq.id}">거두기</button></span></div>`
+            : (left > 0 && LDRET !== rk ? `<div class="pl-row"><span></span><span><button type="button" class="ld-mini" data-ldret="${rk}">반납 신청</button></span></div>` : '')) +
+        (LDRET === rk && !rq ? `<div class="pl-note" style="margin:6px 0 0">쓰지 않을 ${ko}${k === 'beta' ? '을' : '를'} 파운더님께 돌려드립니다. 몇 매를 돌려드릴까요?</div>` +
+            `<input id="ld-ret-qty" class="pl-in nm" type="text" inputmode="numeric" maxlength="3" autocomplete="off" placeholder="${left}매까지">` +
+            `<input id="ld-ret-note" class="pl-in nm" type="text" maxlength="200" autocomplete="off" placeholder="파운더님께 한 줄 (적지 않으셔도 됩니다)" style="margin-top:8px">` +
+            `<button type="button" class="pl-cta" id="ld-ret-go"${LDBUSY ? ' disabled' : ''}>${LDBUSY ? '보내는 중입니다' : '반납 신청하기'}</button>` +
+            `<button type="button" class="ld-mini" data-ldretclose="1" style="margin-top:8px">닫기</button>` +
+            (LDRETERR ? `<div class="pl-note" style="color:var(--c-accent)">${plEsc(LDRETERR)}</div>` : '') : ''));
       if(left > 0 && open) opts.push({ v: c.cell_id + '|' + k, t: (LEAD.cells.length > 1 ? c.label + ' · ' : '') + ko + ' (남은 ' + left + '매)' });
     }
     out.push(`<div class="pl-sec"><div class="pl-h">${plEsc(c.building || '')} · ${plEsc(c.label)}</div>` +
@@ -2124,7 +2134,24 @@ async function ldIssue(){
     const j = document.getElementById('ld-name'); if(j){ j.value = nm; j.focus(); }
   }
 }
+async function ldRetGo(){
+  if(LDBUSY || !LDRET) return;
+  const [cell, kind] = LDRET.split('|');
+  const raw = (document.getElementById('ld-ret-qty')?.value || '').trim(), note = (document.getElementById('ld-ret-note')?.value || '').trim();
+  if(!/^\d{1,3}$/.test(raw) || +raw < 1){ LDRETERR = '돌려드릴 매수를 적어 주십시오.'; drawLeader(); document.getElementById('ld-ret-qty')?.focus(); return; }
+  LDBUSY = true; LDRETERR = ''; drawLeader();
+  try{
+    await sbFetch('/rest/v1/rpc/eg_leader_return_request', { method:'POST', body: JSON.stringify({ p_cell_id: cell, p_kind: kind, p_qty: +raw, p_note: note || null }) });
+    LDBUSY = false; LDRET = null; await loadLeader();
+  }catch(e){ LDBUSY = false; LDRETERR = (e && e.message) || '보내지 못했습니다. 잠시 뒤 다시 눌러 주십시오.'; drawLeader(); }
+}
 document.addEventListener('click', e => {
+  const rt = e.target.closest('[data-ldret]'); if(rt){ LDRET = rt.dataset.ldret; LDRETERR = ''; drawLeader(); document.getElementById('ld-ret-qty')?.focus(); return; }
+  if(e.target.closest('[data-ldretclose]')){ LDRET = null; LDRETERR = ''; drawLeader(); return; }
+  if(e.target.closest('#ld-ret-go')){ ldRetGo(); return; }
+  const rc = e.target.closest('[data-ldretcancel]');
+  if(rc){ (async () => { try{ await sbFetch('/rest/v1/rpc/eg_leader_return_cancel', { method:'POST', body: JSON.stringify({ p_id: rc.dataset.ldretcancel }) }); await loadLeader(); }
+                         catch(err){ LDRETERR = (err && err.message) || ''; drawLeader(); } })(); return; }
   if(e.target.closest('#ld-go')){ ldIssue(); return; }
   const p = e.target.closest('[data-ldpass]'); if(p){ ldShowPass(p.dataset.ldpass); return; }
 });
