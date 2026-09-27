@@ -40,6 +40,10 @@
         ⭐ 소속 셀 변경은 확인 창을 한 번 거친다 — 셀장과 먼저 조율(0927 소로) · 알림 편지는 DB 가 타벨라이로 보낸다
         용어는 0927 소로 검증본 그대로 — 바꾸려면 소로께 먼저
         ⭐ 베타는 「초대권」, 준회원은 「바우처」(0927 소로 · 전수 조사). 두 종류를 한 낱말로 부르지 않는다
+        ⭐ 남은 날은 교양 자화상과 같은 D-n (마지막 날 − 오늘) — 셈은 DB(eg_founder_cells.stay_days)가 한다
+
+     ⑨ ⭐ 곧 체류를 마치는 베타 손님 (0927 · 신청안내 ⑤의 약속) — D-3 이하 · 정회원 신청 전 베타 손님만 맨 위 띠에
+        [바우처 건네기] = eg_founder_voucher_issue(그 건물, 그분 이름) · 받은 분은 교양 자화상 「준회원 바우처」에 번호를 넣는다
 
      부모와 주고받는 말
        보냄  cd-close     창을 닫는다
@@ -255,6 +259,17 @@
   .fd-clok{ margin:0 0 14px; padding:11px 16px; border-radius:4px; background:#FBF8F0;
     font:400 13px/1.7 var(--serif); color:var(--gold-ink); word-break:keep-all; }
   .fd-cell.wait{ background:#FFFFFF; }
+  /* ── 곧 체류를 마치는 베타 손님 (0927) — 신청안내 ⑤의 약속 ── */
+  .fd-soon{ margin:0 0 30px; border:1px solid #E3D4AE; border-radius:5px; overflow:hidden; background:#FBF8F0; }
+  .fd-soon .say{ margin:0; padding:15px 20px 13px; font:400 13px/1.85 var(--serif); color:var(--gold-ink); word-break:keep-all; border-bottom:1px solid #EFE4C8; }
+  .fd-soon .say b{ display:block; font:700 14.5px/1.5 var(--serif); color:var(--navy); margin-bottom:2px; }
+  .fd-soonrow{ display:flex; flex-wrap:wrap; align-items:center; gap:4px 14px; padding:11px 20px 10px; border-bottom:1px solid #EFE4C8; background:#FFFFFF; }
+  .fd-soonrow:last-child{ border-bottom:0; }
+  .fd-soonrow b{ min-width:96px; font:500 14px/1.5 var(--serif); color:var(--ink); }
+  .fd-soonrow span{ flex:1 1 auto; font:400 12.5px/1.6 var(--serif); color:var(--soft); }
+  .fd-soonrow em{ font:500 13px/1 var(--mono); font-style:normal; color:var(--gold-ink); }
+  .fd-soonrow .fd-nmbtn{ margin-top:0; }
+  .fd-soon .fd-pass{ margin:0; border:0; border-radius:0; border-top:1px solid #EFE4C8; }
   @media (max-width:640px){ .fd-cell{ grid-template-columns:1fr; gap:12px 0; } }
 
   .fd-empty{ padding:70px 20px; text-align:center; font:400 14.5px/2 var(--serif); color:var(--soft); word-break:keep-all; }
@@ -283,6 +298,7 @@
   let PASS = null;   /* { id, url, file } — 지금 보여 주는 표 그림 */
   let TK = null, TKOPEN = false, TKERR = '', TKBUSY = false, TKEDIT = null, TKLAST = null, TKB = null;   /* 초대권 */
   let VC = null, VCERR = '', VCBUSY = false, VCB = null, VCTAB = 'out', VCLAST = null, VCMOVE = null;   /* 준회원 바우처 */
+  let SOONBUSY = null, SOONERR = '';   /* 곧 체류를 마치는 손님 (0927) */
   let CL = {}, CLOPEN = {}, CLFORM = null, CLERR = '', CLBUSY = false, CLOK = '';   /* 셀 판 (0927) — CL[건물id] = eg_founder_cells */
   let CAL = false, PICK = null, CALERR = '', CALBUSY = false;          /* 달력 — 열렸는가 · 고른 날 */   /* EDIT — 지금 이름을 적고 있는 건물 id */
   const num = (n) => Number(n || 0).toLocaleString('ko-KR');
@@ -422,7 +438,7 @@
     if (VCERR) h += '<p class="fd-nmerr">' + esc(VCERR) + '</p>';
 
     /* 표 그림 */
-    if (PASS && PASS.kind === 'associate')
+    if (PASS && PASS.kind === 'associate' && PASS.at !== 'soon')
       h += '<div class="fd-pass"><img alt="준회원 바우처" src="' + PASS.url + '">' +
         '<div class="fd-passact"><a class="fd-nmbtn" href="' + PASS.url + '" download="' + esc(PASS.file) + '">내려받기</a>' +
         '<button class="fd-nmbtn plain" type="button" id="fdPassClose">접기</button>' +
@@ -517,7 +533,7 @@
       info = '<span>' + bits.join(' · ') + '</span>';
       if (p.pay_state === 'failed') info = '<span class="warn">' + bits.join(' · ') + ' — 결제가 아직 마무리되지 않았습니다</span>';
     } else {
-      info = '<span>' + esc(p.kind) + ' · 체류 ' + num(p.stay_days) + '일 남음</span>';
+      info = '<span>' + esc(p.kind) + ' · 체류 D-' + num(p.stay_days) + '</span>';
     }
     const open = CLFORM && CLFORM.type === 'move' && CLFORM.bid === bid && CLFORM.uid === p.uid;
     let h = '<div class="fd-person"><b>' + esc(p.name) + '</b>' + info +
@@ -546,7 +562,7 @@
     for (const c of (C.board || [])) for (const m of (c.members || [])) cands.push({ uid: m.uid, name: m.name, tag: '정회원 · ' + m.slot + '번 자리' });
     if (w.open) {
       const gs = [].concat(...(C.board || []).map((c) => c.guests || []), C.waiting || []);
-      for (const g of gs) if (g.kind === 'guest') cands.push({ uid: g.uid, name: g.name, tag: 'guest · 체류 ' + g.stay_days + '일 남음' });
+      for (const g of gs) if (g.kind === 'guest') cands.push({ uid: g.uid, name: g.name, tag: 'guest · 체류 D-' + g.stay_days });
     }
     const cells = (C.board || []).map((c) => '<option value="' + c.cell_no + '"' + (CLFORM.cell === c.cell_no ? ' selected' : '') + '>' +
       esc(cellLabel(c)) + (c.leader_name ? ' — 지금 셀장 ' + esc(c.leader_name) + ' 님' : ' — 셀장 없음') + '</option>').join('');
@@ -605,7 +621,7 @@
         }
         let who;
         if (!c.leader_id) who = '<span class="none">셀장 없음 — 파운더님이 맡고 계십니다</span>';
-        else if (c.leader_kind === 'guest') who = '<span class="gold">셀장 ' + esc(c.leader_name) + ' · guest · 체류 ' + num(c.leader_stay_days) + '일 남음</span>';
+        else if (c.leader_kind === 'guest') who = '<span class="gold">셀장 ' + esc(c.leader_name) + ' · guest · 체류 D-' + num(c.leader_stay_days) + '</span>';
         else who = '<span>셀장 ' + esc(c.leader_name) + ' · 정회원</span>';
         const key = b.id + '|' + c.cell_no, open = !!CLOPEN[key];
         const giving = CLFORM && CLFORM.type === 'bundle' && CLFORM.bid === b.id && CLFORM.cell === c.cell_no;
@@ -639,6 +655,57 @@
     }
     return h;
   }
+  /* ── 곧 체류를 마치는 베타 손님 (0927) — 교양 자화상과 같은 D-n · D-3 부터 (eg_my_membership 10호와 같은 문턱) ── */
+  function soonList(D) {
+    const out = [];
+    for (const b of (D.buildings || [])) {
+      const C = CL[b.id]; if (!C) continue;
+      const push = (g, c) => { if (g.kind === 'guest' && !g.applied && g.stay_days <= 3)
+        out.push({ bid: b.id, building: (b.name || '').trim() || grade(b.city, b.slots), cell: c ? cellLabel(c) : '배정 전', g: g }); };
+      for (const c of (C.board || [])) for (const g of (c.guests || [])) push(g, c);
+      for (const g of (C.waiting || [])) push(g, null);
+    }
+    return out.sort((a, b) => a.g.stay_days - b.g.stay_days);
+  }
+  function soonHtml(D) {
+    const L = soonList(D); if (!L.length) return '';
+    const V = D.voucher || {}, sent = (VC && VC.list) || [];
+    let h = '<div class="fd-soon"><p class="say"><b>곧 체류를 마치는 베타 손님 ' + L.length + '분</b>' +
+      '체류가 사흘 안에 끝나는 분들입니다. 준회원 바우처를 한 장 건네시면, 체류가 끝난 뒤 2주를 더 머물며 천천히 정하실 수 있습니다. ' +
+      '받으신 분은 교양 자화상의 「준회원 바우처」에 번호를 넣으시면 됩니다.</p>';
+    for (const x of L) {
+      const had = sent.find((t) => t.building_id === x.bid && t.guest_name === x.g.name && t.status !== 'entered');
+      const key = x.bid + '|' + x.g.uid;
+      h += '<div class="fd-soonrow"><b>' + esc(x.g.name) + '</b><span>' + esc(x.building) + ' · ' + esc(x.cell) + '</span><em>D-' + num(x.g.stay_days) + '</em>' +
+        (had
+          ? '<button class="fd-nmbtn plain" type="button" data-soonpass="' + had.id + '">바우처를 건네셨습니다 · 표 받기</button>'
+          : (V.left > 0
+             ? '<button class="fd-nmbtn" type="button" data-soongive="' + key + '"' + (SOONBUSY ? ' disabled' : '') + '>' + (SOONBUSY === key ? '뽑는 중입니다' : '바우처 건네기') + '</button>'
+             : '<span style="flex:0 0 auto">남은 바우처가 없습니다</span>')) + '</div>';
+    }
+    if (SOONERR) h += '<p class="fd-nmerr" style="margin:0;padding:10px 20px">' + esc(SOONERR) + '</p>';
+    if (PASS && PASS.at === 'soon')
+      h += '<div class="fd-pass"><img alt="준회원 바우처" src="' + PASS.url + '">' +
+        '<div class="fd-passact"><a class="fd-nmbtn" href="' + PASS.url + '" download="' + esc(PASS.file) + '">내려받기</a>' +
+        '<button class="fd-nmbtn plain" type="button" id="fdPassClose">접기</button>' +
+        '<span>내려받은 그림을 카카오톡이나 메일로 직접 건네 주십시오.</span></div></div>';
+    return h + '</div>';
+  }
+  async function soonGive(key) {
+    if (SOONBUSY) return;
+    const [bid, uid] = key.split('|');
+    const x = soonList(DATA).find((y) => String(y.bid) === bid && y.g.uid === uid); if (!x) return;
+    SOONBUSY = key; SOONERR = ''; draw(DATA);
+    try {
+      const { data, error } = await SB.rpc('eg_founder_voucher_issue', { p_building: x.bid, p_name: x.g.name });
+      if (error) throw error;
+      SOONBUSY = null; await reload();
+      if (data && data.id) await showPass(data.id, 'associate', 'soon');
+    } catch (e) {
+      SOONBUSY = null; SOONERR = (e && e.message) || '뽑지 못했습니다. 잠시 뒤 다시 눌러 주십시오.'; draw(DATA);
+    }
+  }
+
   async function clRun(fn, args, okMsg) {
     if (CLBUSY) return;
     CLBUSY = true; CLERR = ''; draw(DATA);
@@ -889,7 +956,7 @@ function drawPass(ctx, W, H, P, F) {
   }
 }
 
-  async function showPass(id, kind) {
+  async function showPass(id, kind, at) {   /* at — 'soon' 이면 맨 위 띠 안에 그린다 (0927) */
     kind = kind || 'beta';
     const src = kind === 'associate' ? ((VC && VC.list) || []) : ((TK && TK.list) || []);
     const t = src.find((x) => x.id === id); if (!t || !DATA) return;
@@ -912,7 +979,7 @@ function drawPass(ctx, W, H, P, F) {
     const blob = await new Promise((ok) => cv.toBlob(ok, 'image/png'));
     if (PASS && PASS.url) { try { URL.revokeObjectURL(PASS.url); } catch (_) {} }
     const stem = kind === 'associate' ? 'EG준회원바우처_' : 'EG베타초대권_';
-    PASS = { id: id, kind: kind, url: URL.createObjectURL(blob),
+    PASS = { id: id, kind: kind, at: at || '', url: URL.createObjectURL(blob),
              file: stem + t.guest_name.replace(/[\\\/:*?"<>|\s]+/g, '') + '_' + t.code + '.png' };
     if (kind === 'associate') VCLAST = id; else TKLAST = id;
     draw(DATA);
@@ -1039,7 +1106,7 @@ function drawPass(ctx, W, H, P, F) {
     }
     $('fdWho').textContent = (D.name || '') + ' 파운더님';
     const anyClosed = (D.buildings || []).some((b) => !b.is_open);
-    let h = '';
+    let h = soonHtml(D);   /* ⭐ 0927 — 곧 체류를 마치는 베타 손님이 계시면 맨 위 */
     if (anyClosed) {
       h += '<p class="fd-hello"><b>' + esc(D.name || '') + ' 파운더님, 환영합니다.</b><br>' +
         '개관까지 하실 일을 차례대로 모아 두었습니다. 개관한 뒤에는 이 자리에 이번 달 인원과 정산이 나타납니다.</p>';
@@ -1202,6 +1269,11 @@ function drawPass(ctx, W, H, P, F) {
     if (e.target.closest('[data-vcmvcancel]')) { if (VCBUSY) return; VCMOVE = null; VCERR = ''; draw(DATA); return; }
     const vs = e.target.closest('[data-vcmvsave]');
     if (vs) { vcMove(vs.getAttribute('data-vcmvsave')); return; }
+    /* ── 곧 체류를 마치는 손님 (0927) ── */
+    const sg = e.target.closest('[data-soongive]');
+    if (sg) { soonGive(sg.getAttribute('data-soongive')); return; }
+    const sp = e.target.closest('[data-soonpass]');
+    if (sp) { showPass(sp.getAttribute('data-soonpass'), 'associate', 'soon'); return; }
     /* ── 셀과 셀장 (0927) ── */
     const cl = e.target.closest('[data-cllead]');
     if (cl) { if (CLBUSY) return; const bid = Number(cl.getAttribute('data-cllead'));

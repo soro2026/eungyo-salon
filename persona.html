@@ -263,6 +263,9 @@
            border:1px solid var(--c-accent); background:var(--c-accent); color:#fff; cursor:pointer; }
   .pl-cta[disabled]{ opacity:.55; cursor:default; }
   .pl-note{ font-size:12px; color:var(--c-sub); margin-top:8px; line-height:1.6; }
+  .pl-in{ width:100%; box-sizing:border-box; font:inherit; font-size:15px; letter-spacing:.08em; padding:10px 12px;
+          border:1px solid var(--c-cbor); border-radius:10px; background:transparent; color:var(--c-ink); text-transform:uppercase; }
+  .pl-in:focus{ outline:none; border-color:var(--c-accent); }
   /* ══ 정회원 신청 (0923) ══ */
   .ap-sec{ padding:14px 0; border-bottom:1px solid var(--c-cbor); }
   .ap-sec:last-of-type{ border-bottom:0; }
@@ -1802,6 +1805,7 @@ window.addEventListener('message', (e) => {
    ⚠ 「베타」를 화면에 쓰지 않는다 — 「체험 기간」으로 통일 (12호).
    ══════════════════════════════════════════════════════════════════ */
 let MEM = null;
+let PL_VCDONE = '', PL_VCBUSY = false;   /* 준회원 바우처 사용 (0927) */
 const PL_BANK = { '002':'산업','003':'기업','004':'국민','007':'수협','011':'농협','012':'농협','020':'우리',
   '023':'SC제일','027':'씨티','031':'아이엠','032':'부산','034':'광주','035':'제주','037':'전북','039':'경남',
   '045':'새마을금고','048':'신협','050':'저축은행','071':'우체국','081':'하나','088':'신한','089':'케이뱅크',
@@ -1912,10 +1916,15 @@ function drawPlan(focus){
     </div></div>`);
   }
 
-  /* 준회원 바우처 — 베타 D-3 부터 */
-  if((m.buttons || []).includes('voucher')){
+  /* 준회원 바우처 — 베타 D-3 부터 · ⭐ 0927 번호 넣는 자리 개통 (eg_pass_enter 한 손 — 체험 끝에 14일을 이어 붙인다) */
+  if(PL_VCDONE){
+    out.push(`<div class="pl-sec"><div class="pl-h">준회원 바우처</div><div class="pl-note" style="margin:0">${plEsc(PL_VCDONE)}</div></div>`);
+  } else if((m.buttons || []).includes('voucher')){
     out.push(`<div class="pl-sec" id="pl-voucher"><div class="pl-h">준회원 바우처</div>
-      <div class="pl-note" style="margin:0">받으신 바우처 번호를 넣는 자리를 준비하고 있습니다.</div></div>`);
+      <div class="pl-note" style="margin:0 0 10px">파운더님께 받으신 준회원 바우처의 번호를 넣어 주십시오. 체험 기간이 끝나는 날에 이어 2주를 더 머무실 수 있습니다.</div>
+      <input id="pl-vc-code" class="pl-in" type="text" maxlength="16" autocomplete="off" spellcheck="false" placeholder="EG-0000-0000">
+      <button type="button" class="pl-cta" id="pl-vc-go">바우처 사용하기</button>
+      <div class="pl-note" id="pl-vc-say"></div></div>`);
   }
 
   el.innerHTML = out.join('');
@@ -1998,6 +2007,30 @@ document.addEventListener('click', e => {
   if(!e.target.closest('[data-open-apply]')) return;
   openSheet('apply'); drawApply();
 });
+
+/* ── 준회원 바우처 사용 (0927) ── 번호 판정 · 체류 이어 붙이기 · 한 사람 한 번은 전부 DB 가 한다 */
+async function plVoucherUse(){
+  const i = document.getElementById('pl-vc-code'), say = document.getElementById('pl-vc-say'), go = document.getElementById('pl-vc-go');
+  if(!i || PL_VCBUSY) return;
+  const code = (i.value || '').replace(/\s+/g, '').toUpperCase();
+  if(!code){ if(say) say.textContent = '바우처 번호를 넣어 주십시오.'; i.focus(); return; }
+  PL_VCBUSY = true; if(go){ go.disabled = true; go.textContent = '확인하는 중입니다'; } if(say) say.textContent = '';
+  try{
+    const r = await sbFetch('/rest/v1/rpc/eg_pass_enter', { method:'POST', body: JSON.stringify({ p_code: code }) });
+    let until = '';
+    if(r && r.trial_ends_at){ const d = new Date(new Date(r.trial_ends_at).getTime() - 86400000);
+      until = new Intl.DateTimeFormat('ko-KR', { timeZone:'Asia/Seoul', month:'long', day:'numeric' }).format(d); }
+    PL_VCDONE = '바우처를 사용했습니다. ' + (until ? until + '까지 머무실 수 있습니다.' : '2주를 더 머무실 수 있습니다.');
+    PL_VCBUSY = false;
+    await loadPlan();
+  }catch(e){
+    PL_VCBUSY = false;
+    if(go){ go.disabled = false; go.textContent = '바우처 사용하기'; }
+    if(say) say.textContent = (e && e.message) || '확인하지 못했습니다. 잠시 뒤 다시 눌러 주십시오.';
+  }
+}
+document.addEventListener('click', e => { if(e.target.closest('#pl-vc-go')) plVoucherUse(); });
+document.addEventListener('keydown', e => { if(e.key === 'Enter' && e.target && e.target.id === 'pl-vc-code'){ e.preventDefault(); plVoucherUse(); } });
 
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-plan]'); if(!b) return;
