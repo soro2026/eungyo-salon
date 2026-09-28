@@ -2985,13 +2985,16 @@ function drawPlateSigns(b){
   const draft = (PICK_BLD && PICK_BLD === b && b.platesDraft) ? b.platesDraft : null;
   const plates = draft ? draft.plates : b.wall.plates;
   const meIdx  = plateMeIdx(plates, draft ? draft.me_idx : b.wall.me_idx);
+  /* ⚠ 0928 — 짚기 막대로 고른 건물은 저장 뒤에도 빈자리를 「자리 n」으로 보인다.
+     입주자 0명인 창고 건물은 저장하는 순간 명패가 다 숨어 다시 고를 수가 없었다(젠가 첫 시험). */
+  const editing = !!(PICK_BLD && PICK_BLD === b);
   const HM = signHM(b);
   plateAssign(b, plates, meIdx).forEach(({ idx, r }) => {
     let text = r ? (r.nickname || "이름 없는 콩파뇽") : null;
     /* 뽑기 미리보기에서는 빈 자리도 보여 준다 — 자리가 어디 앉았는지 눈으로 고르시게 */
-    if (!text && draft) text = (idx === meIdx) ? "★ 본인 자리" : "자리 " + (idx + 1);
+    if (!text && editing) text = (idx === meIdx) ? "★ 본인 자리" : "자리 " + (idx + 1);
     if (!text) return;
-    if (draft && idx === meIdx && r) text = "★ " + text;
+    if (editing && idx === meIdx && r) text = "★ " + text;
     const a  = plates[idx];
     const cv = (draft && idx === PLATE_SEL) ? signPlateSel(text) : signPlate(text);
     const widthM = HM * (cv.width / cv.height);
@@ -5100,11 +5103,12 @@ function pickBarOpen(b){
   PICK_TOUCHED = { out:new Set(), wide:new Set() };
   document.getElementById("pickBar").classList.add("in");
   pickBarPaint(); pickHint();
+  drawWallSigns();   /* 0928 — 고르는 순간 저장된 명패 자리를 「자리 n」으로 펼친다 */
 }
 function pickBarClose(){
   /* ⭐ 0928 — 저장 안 한 명패 뽑기는 막대를 닫으면 버린다(서버 값으로 돌아감) */
-  const hadDraft = !!(PICK_BLD && PICK_BLD.platesDraft);
-  if (hadDraft) PICK_BLD.platesDraft = null;
+  const hadDraft = !!(PICK_BLD && (PICK_BLD.platesDraft || (PICK_BLD.wall && PICK_BLD.wall.plates)));   /* 저장된 자리 미리보기도 걷는다 */
+  if (PICK_BLD && PICK_BLD.platesDraft) PICK_BLD.platesDraft = null;
   PLATE_SEL = null;
   PICK_BLD = null; SHOW_ALL_SLOTS = false;
   gridEnts.forEach(e=> viewer.entities.remove(e)); gridEnts = [];
@@ -5350,10 +5354,12 @@ function plateMoveTo(lat, lng, h){
    · 손질(지붕 · 벽 짚기 · 🎲 명패 · 이름 · 소개)이 끝나면 [🌸 출고 대기](ready)
    · 매물이 팔리는 순간 DB가 같은 도시 · 같은 크기의 출고 대기 중 먼저 누른 것을 매물로 내보낸다 */
 let NEW_BLD = null;
+/* ⚠ 0928 — 여행 도시(bronxville 등)까지 보면 젠가가 「bronxville 1번」이 된다. 건물 도시 셋 안에서만 고른다. */
+const EG_BLD_CITIES = ["paris", "london", "newyork"];
 function cityAt(lat, lng){
   if (!Array.isArray(CITIES)) return null;
   let best = null, bd = Infinity;
-  CITIES.forEach(c => { if (c.center_lat == null || c.center_lng == null) return;
+  CITIES.forEach(c => { if (c.center_lat == null || c.center_lng == null || !EG_BLD_CITIES.includes(c.city)) return;
     const d = kmBetween(lat, lng, c.center_lat, c.center_lng); if (d < bd){ bd = d; best = c; } });
   return (best && bd <= 60) ? best.city : null;
 }
