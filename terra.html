@@ -1884,6 +1884,11 @@ window.EGQ = (function(){
     <button id="pickAll">◻︎ 전체 슬롯</button>
     <button id="pickSave" class="save">⭐ 서버에 저장</button>
   </div>
+  <div class="row" id="plateRow" style="display:none">
+    <button id="plUp" title="1m 위로">▲</button><button id="plDn" title="1m 아래로">▼</button>
+    <button id="plLt" title="1m 왼쪽으로 (밖에서 바라볼 때)">◀</button><button id="plRt" title="1m 오른쪽으로 (밖에서 바라볼 때)">▶</button>
+    <button id="plOff" title="명패 놓기">✕ 놓기</button>
+  </div>
 </div>
 <div id="editHint">📍 <b>편집 모드</b> — 옮길 건물 핀을 누른 뒤, 그 건물 <b>지붕</b>을 클릭하세요</div>
 
@@ -2860,6 +2865,7 @@ function sampleSigns(b){
      격자·간판을 그리는 손이 블록 13에 있고, 부팅이 블록 13에서 먼저 돈다.
      블록 14에 두면 첫 그리기에서 「선언 전 참조」로 터진다(딱지 0817). */
 let PICK = "roof", PFACE = 0, PICK_BLD = null, PICK_DIRTY = false;
+let PLATE_SEL = null;                /* ⭐ 0928 — 편집 중 고른 명패 한 장(자리 번호) */
 let SHOW_ALL_SLOTS = false;          // ⭐ 0830 — 빈 칸까지 전부 보기
 /* ⭐ 이번에 실제로 짚은 면만 기억한다 — 저장이 안 짚은 면을 덮지 않게 */
 let PICK_TOUCHED = { out:new Set(), wide:new Set() };
@@ -2959,6 +2965,14 @@ function plateAssign(b, plates, meIdx){
   }
   return seat.map((r, i) => ({ idx:i, r }));
 }
+/* 0928 — 고른 명패는 하늘색 테두리 (편집 모드 버튼 색과 같다) */
+function signPlateSel(text){
+  const base = signPlate(text);
+  const cv = document.createElement('canvas'); cv.width = base.width; cv.height = base.height;
+  const g = cv.getContext('2d'); g.drawImage(base, 0, 0);
+  g.lineWidth = 28; g.strokeStyle = '#7fb3d5'; g.strokeRect(14, 14, cv.width - 28, cv.height - 28);
+  return cv;
+}
 function drawPlateSigns(b){
   const draft = (PICK_BLD && PICK_BLD === b && b.platesDraft) ? b.platesDraft : null;
   const plates = draft ? draft.plates : b.wall.plates;
@@ -2971,7 +2985,7 @@ function drawPlateSigns(b){
     if (!text) return;
     if (draft && idx === meIdx && r) text = "★ " + text;
     const a  = plates[idx];
-    const cv = signPlate(text);
+    const cv = (draft && idx === PLATE_SEL) ? signPlateSel(text) : signPlate(text);
     const widthM = HM * (cv.width / cv.height);
     const A = signOffset(a.lat, a.lng, a.az + 90, widthM/2);
     const B = signOffset(a.lat, a.lng, a.az - 90, widthM/2);
@@ -2987,6 +3001,7 @@ function drawPlateSigns(b){
       }
     });
     e._sign = { bld:b, res:r };
+    e._plate = { b, idx };                                   /* 0928 — 편집 모드에서 눌러 고른다 */
     signEnts.push(e);
   });
 }
@@ -4972,6 +4987,11 @@ function pickBarPaint(){
     });
     document.getElementById("pickSave").onclick = savePickedWall;
     document.getElementById("pickPlates").onclick = platesGenerate;   /* 0928 */
+    document.getElementById("plUp").onclick = ()=> plateNudge(0,  1);
+    document.getElementById("plDn").onclick = ()=> plateNudge(0, -1);
+    document.getElementById("plLt").onclick = ()=> plateNudge( 1, 0);   /* 밖에서 보면 az+90 쪽이 왼쪽 */
+    document.getElementById("plRt").onclick = ()=> plateNudge(-1, 0);
+    document.getElementById("plOff").onclick = ()=>{ if (PLATE_SEL != null) plateSelect(PLATE_SEL); };
     document.getElementById("pickAll").onclick = ()=>{
       SHOW_ALL_SLOTS = !SHOW_ALL_SLOTS; pickBarPaint(); drawWallSigns();
     };
@@ -4979,6 +4999,8 @@ function pickBarPaint(){
   PICKS.forEach(p=> document.getElementById("pick-"+p.key).classList.toggle("on", PICK === p.key));
   PICK_FACE_KO.forEach((_,f)=> document.getElementById("face-"+f).classList.toggle("on", PFACE === f));
   fr.style.opacity = (PICK === "wall" || PICK === "wide") ? "1" : ".32";
+  const pr = document.getElementById("plateRow");
+  if (pr) pr.style.display = (PLATE_SEL != null) ? "" : "none";
   const ab = document.getElementById("pickAll");
   ab.classList.toggle("on", SHOW_ALL_SLOTS);
   ab.textContent = SHOW_ALL_SLOTS ? "◼︎ 전체 슬롯" : "◻︎ 전체 슬롯";
@@ -4994,7 +5016,8 @@ function pickHint(){
 }
 /* 건물을 편집 대상으로 고르면 짚기 막대가 선다 */
 function pickBarOpen(b){
-  PICK_BLD = b; PICK_DIRTY = false;
+  if (PICK_BLD && PICK_BLD !== b && PICK_BLD.platesDraft) PICK_BLD.platesDraft = null;   /* 0928 — 다른 건물로 넘어가면 저장 안 한 다듬기는 버린다 */
+  PICK_BLD = b; PICK_DIRTY = false; PLATE_SEL = null;
   b.wall = b.wall || {};
   b.wallServer = JSON.parse(JSON.stringify(b.wall));   /* 서버가 준 원본을 따로 든다 */
   PICK_TOUCHED = { out:new Set(), wide:new Set() };
@@ -5005,6 +5028,7 @@ function pickBarClose(){
   /* ⭐ 0928 — 저장 안 한 명패 뽑기는 막대를 닫으면 버린다(서버 값으로 돌아감) */
   const hadDraft = !!(PICK_BLD && PICK_BLD.platesDraft);
   if (hadDraft) PICK_BLD.platesDraft = null;
+  PLATE_SEL = null;
   PICK_BLD = null; SHOW_ALL_SLOTS = false;
   gridEnts.forEach(e=> viewer.entities.remove(e)); gridEnts = [];
   document.getElementById("pickBar").classList.remove("in");
@@ -5168,12 +5192,80 @@ async function platesGenerate(){
     drawWallSigns(); return;
   }
   const me_idx = plateMeIdx(plates, null);
-  b.platesDraft = { plates, me_idx };
+  b.platesDraft = { plates, me_idx }; PLATE_SEL = null;
   PICK_DIRTY = true; pickBarPaint(); drawWallSigns();
   const perFace = [0,1,2,3].map(f => PICK_FACE_KO[f] + " " + plates.filter(p => p.face === f).length).join(" · ");
   hint.innerHTML = "🎲 명패 자리 <b>" + plates.length + "곳</b> (" + perFace + ") · 벽에 붙은 후보 "
     + (tried - lost) + "/" + tried + "<br>★ = 본인 자리(가장 높은 곳) · 마음에 안 들면 [🎲] 한 번 더 · 좋으면 [⭐ 서버에 저장]";
   console.log("[EG] 명패 자리 뽑기", b.name || b.bno, plates);
+}
+
+/* ══ 0928 명패 한 장 다듬기 — 소로 「위치는 확정하고 디테일로 위아래 · 좌우」 ══
+   · 편집 모드에서 명패를 누르면 고름(하늘색 테두리) → [▲][▼][◀][▶] 한 번에 1m · 움직인 자리에서 다시 벽을 더듬어 붙는다
+   · 고른 채로 벽을 클릭하면 그 자리로 한 번에 건너가 붙는다
+   · 저장한 명패도 다시 골라 다듬는다(고르는 순간 미리보기 판이 열린다) · ★ 본인 자리는 옮겨도 ★ 그대로
+   · ◀ ▶ 는 밖에서 벽을 바라보는 사람의 왼쪽 · 오른쪽 */
+function plateX(b, p){
+  if (p.x != null) return p.x;
+  const rad = Cesium.Math.toRadians(p.az);
+  const dN = (p.lat - b.lat) * 111320, dE = (p.lng - b.lng) * 111320 * Math.cos(Cesium.Math.toRadians(b.lat));
+  return -dN * Math.sin(rad) + dE * Math.cos(rad);
+}
+function plateSnap(b, face, az, x, h){
+  const w = b.wall || {}, out = ((w.out || [])[face] != null) ? w.out[face] : 23;
+  const rad = Cesium.Math.toRadians(az), cosLat = Math.cos(Cesium.Math.toRadians(b.lat));
+  const s0 = signOffset(b.lat, b.lng, az, out + 6);
+  const s1 = signOffset(s0.lat, s0.lng, az + 90, x);
+  const t0 = signOffset(b.lat, b.lng, az + 90, x);
+  const org = Cesium.Cartesian3.fromDegrees(s1.lng, s1.lat, h);
+  const tgt = Cesium.Cartesian3.fromDegrees(t0.lng, t0.lat, h);
+  const dir = Cesium.Cartesian3.normalize(Cesium.Cartesian3.subtract(tgt, org, new Cesium.Cartesian3()), new Cesium.Cartesian3());
+  const hit = tileHitFromRay(new Cesium.Ray(org, dir));
+  if (!hit) return null;
+  const c = Cesium.Cartographic.fromCartesian(hit);
+  const lat = Cesium.Math.toDegrees(c.latitude), lng = Cesium.Math.toDegrees(c.longitude);
+  const dN = (lat - b.lat) * 111320, dE = (lng - b.lng) * 111320 * cosLat;
+  const along = dN * Math.cos(rad) + dE * Math.sin(rad);
+  if (along < 3 || along > out + 5.5 || Math.abs(c.height - h) > 2.5) return null;
+  const p = signOffset(lat, lng, az, 0.3);
+  return { lat:+p.lat.toFixed(7), lng:+p.lng.toFixed(7), h:+c.height.toFixed(1), az, face, x:+x.toFixed(1) };
+}
+function plateDraftEnsure(b){
+  if (!b.platesDraft && b.wall && Array.isArray(b.wall.plates))
+    b.platesDraft = JSON.parse(JSON.stringify({ plates:b.wall.plates, me_idx:plateMeIdx(b.wall.plates, b.wall.me_idx) }));
+  return b.platesDraft;
+}
+function plateSelect(idx){
+  const b = PICK_BLD; if (!b || !plateDraftEnsure(b)) return;
+  PLATE_SEL = (PLATE_SEL === idx) ? null : idx;          /* 같은 명패를 한 번 더 누르면 놓는다 */
+  pickBarPaint(); drawWallSigns();
+  document.getElementById("editHint").innerHTML = (PLATE_SEL == null)
+    ? "명패를 놓았습니다 — 다른 명패를 누르거나 [⭐ 서버에 저장]"
+    : "🔹 <b>명패 " + (idx + 1) + "</b>" + (idx === b.platesDraft.me_idx ? " (★ 본인 자리)" : "")
+      + " 고름 — [▲][▼][◀][▶] 1m씩 · 벽을 클릭하면 그 자리로 · 한 번 더 누르면 놓기";
+}
+function plateNudge(dx, dh){
+  const b = PICK_BLD, d = b && b.platesDraft; if (!d || PLATE_SEL == null) return;
+  const p = d.plates[PLATE_SEL], x = plateX(b, p) + dx, h = p.h + dh;
+  let q = plateSnap(b, p.face, p.az, x, h), hint;
+  if (q){ hint = "✅ 벽에 붙음"; }
+  else {                                                   /* 벽을 못 찾으면 그 자리에서 그대로 민다 */
+    const m = signOffset(p.lat, p.lng, p.az + 90, dx);
+    q = Object.assign({}, p, { lat:+m.lat.toFixed(7), lng:+m.lng.toFixed(7), h:+h.toFixed(1), x:+x.toFixed(1) });
+    hint = "⚠️ 이 자리에선 벽을 못 찾아 그대로 옮겼습니다 — 떠 보이면 벽을 직접 클릭하세요";
+  }
+  d.plates[PLATE_SEL] = q; PICK_DIRTY = true; pickBarPaint(); drawWallSigns();
+  document.getElementById("editHint").innerHTML = "🔹 명패 " + (PLATE_SEL + 1) + " · 높이 <code>" + q.h.toFixed(1) + "m</code> · " + hint;
+}
+function plateMoveTo(lat, lng, h){
+  const b = PICK_BLD, d = b && b.platesDraft; if (!d || PLATE_SEL == null) return false;
+  const p = d.plates[PLATE_SEL];
+  const m = signOffset(lat, lng, p.az, 0.3);                /* 짚은 표면에서 0.3m — 뽑기와 같은 틈 */
+  const q = Object.assign({}, p, { lat:+m.lat.toFixed(7), lng:+m.lng.toFixed(7), h:+h.toFixed(1), x:null });
+  q.x = +plateX(b, q).toFixed(1);
+  d.plates[PLATE_SEL] = q; PICK_DIRTY = true; pickBarPaint(); drawWallSigns();
+  document.getElementById("editHint").innerHTML = "🔹 명패 " + (PLATE_SEL + 1) + " → 클릭한 벽으로 · 높이 <code>" + q.h.toFixed(1) + "m</code>";
+  return true;
 }
 
 async function savePickedWall(){
@@ -5201,7 +5293,7 @@ async function savePickedWall(){
       { p_city:b.city, p_bno:b.bno, p_patch:patch });
     if (error) throw error;
     b.wall = data;
-    b.platesDraft = null;
+    b.platesDraft = null; PLATE_SEL = null;
     b.wallServer = JSON.parse(JSON.stringify(data));
     PICK_TOUCHED = { out:new Set(), wide:new Set() };
     PICK_DIRTY = false; pickBarPaint(); drawWallSigns();
@@ -5219,6 +5311,10 @@ async function savePickedWall(){
 
 function handleEditClick(click){
   const picked = viewer.scene.pick(click.position);
+  /* ⭐ 0928 — 짚기 막대의 건물 명패를 누르면 그 명패를 고른다 */
+  if (Cesium.defined(picked) && picked.id && picked.id._plate && PICK_BLD && picked.id._plate.b === PICK_BLD){
+    plateSelect(picked.id._plate.idx); return;
+  }
   if (Cesium.defined(picked) && picked.id && editKindOf(picked.id)){
     selectForEdit(picked.id);            // 핀 클릭 → 선택
     /* ⭐ 0831 — 짚기 막대는 여러 유닛짜리 건물에만 선다.
@@ -5229,6 +5325,15 @@ function handleEditClick(click){
           admin_add_building 의 도시 제약만 풀면 이 편집기가 그대로 따라붙는다. */
     if (picked.id._maison && (picked.id._maison.units || 1) > 1) pickBarOpen(picked.id._maison);
     else pickBarClose();
+    return;
+  }
+  /* ⭐ 0928 — 명패를 고른 채 벽을 누르면 그 명패만 그 자리로 (지붕 · 벽값은 건드리지 않는다) */
+  if (PICK_BLD && PLATE_SEL != null && viewer.scene.pickPositionSupported){
+    const c = viewer.scene.pickPosition(click.position);
+    if (Cesium.defined(c)){
+      const g = Cesium.Cartographic.fromCartesian(c);
+      plateMoveTo(Cesium.Math.toDegrees(g.latitude), Cesium.Math.toDegrees(g.longitude), g.height);
+    }
     return;
   }
   /* ⭐ 짚기 막대가 열려 있으면 클릭은 「한 축」으로 간다 — 지붕 말고는 옮기지 않는다 */
