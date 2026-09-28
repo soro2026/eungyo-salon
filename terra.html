@@ -5229,6 +5229,34 @@ function tileHitFromRay(ray){
   }
   return null;
 }
+/* ⭐ 0928 벽 방향 재기 — 격자 방향(SIGN_GRID_AZ)을 짐작하지 않고 벽을 직접 잰다.
+   · 맨해튼 남쪽 끝은 격자와 따로 놀아 명패가 벽에 비스듬히 꽂혔다(배터리 파크 시험)
+   · 찾은 자리의 좌우 1.5m 에 광선을 두 줄 더 쏘아 벽이 누운 방향을 재고, 그 수직(밖을 향함)을 명패의 얼굴로 삼는다
+   · 둘 중 하나라도 못 잡거나 너무 비스듬(75° 넘게)하면 광선 방향을 그대로 쓴다 */
+function wallFacing(lat, lng, h, rayAz){
+  const cosLat = Math.cos(Cesium.Math.toRadians(lat));
+  const shoot = (side) => {
+    const o0 = signOffset(lat, lng, rayAz, 6), o1 = signOffset(o0.lat, o0.lng, rayAz + 90, side);
+    const t0 = signOffset(lat, lng, rayAz + 180, 6), t1 = signOffset(t0.lat, t0.lng, rayAz + 90, side);
+    const org = Cesium.Cartesian3.fromDegrees(o1.lng, o1.lat, h), tgt = Cesium.Cartesian3.fromDegrees(t1.lng, t1.lat, h);
+    const dir = Cesium.Cartesian3.normalize(Cesium.Cartesian3.subtract(tgt, org, new Cesium.Cartesian3()), new Cesium.Cartesian3());
+    const hit = tileHitFromRay(new Cesium.Ray(org, dir));
+    if (!hit) return null;
+    const c = Cesium.Cartographic.fromCartesian(hit);
+    return { n:(Cesium.Math.toDegrees(c.latitude) - lat) * 111320, e:(Cesium.Math.toDegrees(c.longitude) - lng) * 111320 * cosLat };
+  };
+  const A = shoot(1.5), B = shoot(-1.5);
+  if (!A || !B) return rayAz;
+  const tn = B.n - A.n, te = B.e - A.e;
+  if (Math.hypot(tn, te) < 0.5) return rayAz;
+  let nn = -te, ne = tn;                                    /* 벽에 수직 */
+  const rr = Cesium.Math.toRadians(rayAz);
+  if (nn * Math.cos(rr) + ne * Math.sin(rr) < 0){ nn = -nn; ne = -ne; }   /* 밖을 향하게 */
+  const az = (Cesium.Math.toDegrees(Math.atan2(ne, nn)) + 360) % 360;
+  let d = Math.abs(az - rayAz) % 360; if (d > 180) d = 360 - d;
+  return d > 75 ? rayAz : +az.toFixed(1);
+}
+
 async function platesGenerate(){
   const b = PICK_BLD, hint = document.getElementById("editHint");
   if (!b){ hint.innerHTML = "⚠️ 먼저 건물 핀을 고르세요"; return; }
@@ -5269,9 +5297,10 @@ async function platesGenerate(){
         const along = dN * Math.cos(rad) + dE * Math.sin(rad);
         /* 중심에서 3m 안(건물을 뚫고 지나감) · 출발점 밖(옆 건물) · 높이가 크게 어긋남(지붕 · 땅) → 버린다 */
         if (along < 3 || along > out[f] + 5.5 || Math.abs(c.height - h) > 2.5){ lost++; continue; }
-        const p = signOffset(lat, lng, az, 0.3);                  // 벽에서 0.3m — 짚기와 같은 틈
+        const faz = wallFacing(lat, lng, c.height, az);          // ⭐ 0928 벽이 실제로 보는 쪽
+        const p = signOffset(lat, lng, faz, 0.3);                 // 벽에서 0.3m — 짚기와 같은 틈
         faces[f].push({ lat:+p.lat.toFixed(7), lng:+p.lng.toFixed(7), h:+c.height.toFixed(1),
-                        az, face:f, x:+x.toFixed(1) });
+                        az:faz, ray:az, face:f, x:+x.toFixed(1) });
       }
     }
     await new Promise(r => setTimeout(r, 0));
@@ -5305,7 +5334,7 @@ async function platesGenerate(){
    · ◀ ▶ 는 밖에서 벽을 바라보는 사람의 왼쪽 · 오른쪽 */
 function plateX(b, p){
   if (p.x != null) return p.x;
-  const rad = Cesium.Math.toRadians(p.az);
+  const rad = Cesium.Math.toRadians(p.ray != null ? p.ray : p.az);
   const dN = (p.lat - b.lat) * 111320, dE = (p.lng - b.lng) * 111320 * Math.cos(Cesium.Math.toRadians(b.lat));
   return -dN * Math.sin(rad) + dE * Math.cos(rad);
 }
@@ -5325,8 +5354,9 @@ function plateSnap(b, face, az, x, h){
   const dN = (lat - b.lat) * 111320, dE = (lng - b.lng) * 111320 * cosLat;
   const along = dN * Math.cos(rad) + dE * Math.sin(rad);
   if (along < 3 || along > out + 5.5 || Math.abs(c.height - h) > 2.5) return null;
-  const p = signOffset(lat, lng, az, 0.3);
-  return { lat:+p.lat.toFixed(7), lng:+p.lng.toFixed(7), h:+c.height.toFixed(1), az, face, x:+x.toFixed(1) };
+  const faz = wallFacing(lat, lng, c.height, az);            /* 0928 벽이 실제로 보는 쪽 */
+  const p = signOffset(lat, lng, faz, 0.3);
+  return { lat:+p.lat.toFixed(7), lng:+p.lng.toFixed(7), h:+c.height.toFixed(1), az:faz, ray:az, face, x:+x.toFixed(1) };
 }
 function plateDraftEnsure(b){
   if (!b.platesDraft && b.wall && Array.isArray(b.wall.plates))
@@ -5345,10 +5375,10 @@ function plateSelect(idx){
 function plateNudge(dx, dh){
   const b = PICK_BLD, d = b && b.platesDraft; if (!d || PLATE_SEL == null) return;
   const p = d.plates[PLATE_SEL], x = plateX(b, p) + dx, h = p.h + dh;
-  let q = plateSnap(b, p.face, p.az, x, h), hint;
+  let q = plateSnap(b, p.face, (p.ray != null ? p.ray : p.az), x, h), hint;
   if (q){ hint = "✅ 벽에 붙음"; }
   else {                                                   /* 벽을 못 찾으면 그 자리에서 그대로 민다 */
-    const m = signOffset(p.lat, p.lng, p.az + 90, dx);
+    const m = signOffset(p.lat, p.lng, (p.ray != null ? p.ray : p.az) + 90, dx);
     q = Object.assign({}, p, { lat:+m.lat.toFixed(7), lng:+m.lng.toFixed(7), h:+h.toFixed(1), x:+x.toFixed(1) });
     hint = "⚠️ 이 자리에선 벽을 못 찾아 그대로 옮겼습니다 — 떠 보이면 벽을 직접 클릭하세요";
   }
@@ -5358,8 +5388,10 @@ function plateNudge(dx, dh){
 function plateMoveTo(lat, lng, h){
   const b = PICK_BLD, d = b && b.platesDraft; if (!d || PLATE_SEL == null) return false;
   const p = d.plates[PLATE_SEL];
-  const m = signOffset(lat, lng, p.az, 0.3);                /* 짚은 표면에서 0.3m — 뽑기와 같은 틈 */
-  const q = Object.assign({}, p, { lat:+m.lat.toFixed(7), lng:+m.lng.toFixed(7), h:+h.toFixed(1), x:null });
+  const ray = (p.ray != null ? p.ray : p.az);
+  const faz = wallFacing(lat, lng, h, ray);                 /* 0928 클릭한 벽이 보는 쪽으로 돌려 세운다 */
+  const m = signOffset(lat, lng, faz, 0.3);                 /* 짚은 표면에서 0.3m — 뽑기와 같은 틈 */
+  const q = Object.assign({}, p, { lat:+m.lat.toFixed(7), lng:+m.lng.toFixed(7), h:+h.toFixed(1), az:faz, ray, x:null });
   q.x = +plateX(b, q).toFixed(1);
   d.plates[PLATE_SEL] = q; PICK_DIRTY = true; pickBarPaint(); drawWallSigns();
   document.getElementById("editHint").innerHTML = "🔹 명패 " + (PLATE_SEL + 1) + " → 클릭한 벽으로 · 높이 <code>" + q.h.toFixed(1) + "m</code>";
