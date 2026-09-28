@@ -1015,6 +1015,24 @@ window.EGQ = (function(){
   #maison .m-res .nm{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
   #maison .m-res .sl{ font-size:11.5px; color:var(--cream-dim); flex-shrink:0 }
   #maison .m-res .sl.gst{ color:#8FB6D6; font-style:italic; letter-spacing:.02em }   /* 0923 손님 이름표 — 표 바탕 기요셰의 푸른 결 */
+  /* ⭐ 0928 셀 명단 판 — 셀 머리 · 접힘 줄 · 정회원 금빛 점 */
+  #maison .m-cellbox{ margin:0 0 8px }
+  #maison .m-cell{ display:flex; align-items:baseline; gap:10px; width:100%; text-align:left;
+    padding:4px 2px 8px; font-family:var(--serif); font-size:14px; color:var(--cream);
+    background:transparent; border:none; border-bottom:1px solid rgba(255,210,63,.18); margin-bottom:8px }
+  #maison .m-cell .ct{ color:#ffd23f; letter-spacing:.02em }
+  #maison .m-cell .cl{ color:var(--cream-dim); font-size:12.5px }
+  #maison .m-cell .cn{ margin-left:auto; color:var(--cream-dim); font-size:12.5px }
+  #maison .m-cell.fold{ cursor:pointer; padding:9px 11px; border:1px solid rgba(255,210,63,.14);
+    border-radius:9px; background:rgba(255,255,255,.02); margin-bottom:6px; transition:.16s }
+  #maison .m-cell.fold::before{ content:"▸"; color:#ffd23f; font-size:11px; margin-right:-2px; transition:transform .16s }
+  #maison .m-cellbox.open .m-cell.fold::before{ transform:rotate(90deg) }
+  #maison .m-cell.fold:hover{ background:rgba(255,210,63,.08); border-color:rgba(255,210,63,.35) }
+  #maison .m-cellbody{ display:none; padding-left:10px }
+  #maison .m-cellbox.open .m-cellbody{ display:block }
+  #maison .m-res .gd{ width:6px; height:6px; border-radius:50%; background:#ffd23f; flex-shrink:0;
+    box-shadow:0 0 5px rgba(255,210,63,.55); margin-right:-4px }
+  #maison .m-res .gd.off{ background:transparent; box-shadow:none }
   #maison .m-empty{ font-size:14px; color:var(--cream-dim); padding:14px 2px; line-height:1.7 }
   #maison .m-enter{
     font-family:var(--sans);font-size:14px;font-weight:bold;letter-spacing:.03em;
@@ -4292,6 +4310,93 @@ function enterCollege(p){
   const hall = (p && p.kind === "college" && p.id) ? "?hall=" + p.id : "";
   window.enterRoomUrl("college.html" + hall, "콜레주 드 콤포스텔라");
 }
+/* ⭐ 0928 셀 명단 판 (소로) — 호실 줄을 걷고 셀 단위로.
+   차례: 파운더(머리) → 내 셀 이름 · 셀장 → 내 이름 → 같은 셀 이웃 → 다른 셀(접힘 · 누르면 펼침)
+   · 규칙 하나 — 건물 크기와 상관없이 내 셀만 펼친다. 내 셀은 몇 분이든 다 펼친다.
+   · 차별의 느낌이 없게 — 호수 · guest/pre-member 이름표를 걷고, 정회원 곁에 금빛 점 하나만. 셀 안에서는 정회원이 앞.
+   · 돌봄 셀이 아직 없는 손님 = 「파운더님과 함께」 (cell = null)
+   · 이 건물에 살지 않는 분이 들여다보면 파운더의 셀 · 파운더가 안 살면 사람 있는 가장 앞 셀 */
+function drawCellList(list, b, res_){
+  list.innerHTML = "";
+  const meRow = res_.find(r => r.uid && r.uid === myUidCache);
+  const groups = new Map();
+  res_.forEach(r => {
+    const k = (r.cell == null) ? "none" : String(r.cell);
+    if (!groups.has(k)) groups.set(k, { key:k, cell:r.cell, name:r.cell_name, leader:r.leader, people:[] });
+    groups.get(k).people.push(r);
+  });
+  /* 정회원 먼저(자리 순) · 손님은 들어온 차례 — RPC 가 이미 그 순서로 준다. 한 번 더 굳힌다. */
+  groups.forEach(g => g.people.sort((x, y) =>
+      ((x.slot == null) - (y.slot == null)) || ((x.slot || 0) - (y.slot || 0))
+      || String(x.since || "").localeCompare(String(y.since || ""))));
+  const ownerNick = bldOwner(b);
+  const ownerRow  = res_.find(r => r.nickname && r.nickname === ownerNick);
+  const openKey = meRow ? ((meRow.cell == null) ? "none" : String(meRow.cell))
+                : ownerRow ? ((ownerRow.cell == null) ? "none" : String(ownerRow.cell))
+                /* 0928 소로 — 파운더가 소유만 하고 살지 않는 건물: 사람이 있는 가장 앞 번호 셀 · 「파운더님과 함께」는 셀이 없을 때만 */
+                : ([...groups.values()].filter(g => g.key !== "none").sort((x, y) => x.cell - y.cell)[0] || groups.get("none") || {}).key || null;
+  const title = g => (g.key === "none") ? "파운더님과 함께" : (g.name || (g.cell + "셀"));
+
+  const row = (r, cls) => {
+    const btn = document.createElement("button");
+    btn.className = "m-res" + (cls || "");
+    btn.innerHTML =
+      (r.avatar ? '<img class="av" src="' + r.avatar + '" alt="">' : '<span class="av"></span>')
+      + '<span class="gd' + (r.slot != null ? '" title="정회원">' : ' off">') + '</span>'   /* 점 자리는 모두에게 — 이름 줄이 가지런하게 */
+      + '<span class="nm"></span>';
+    btn.querySelector('.nm').textContent = r.nickname || "이름 없는 콩파뇽";
+    btn.addEventListener("click", () => enterMaison(r));
+    return btn;
+  };
+  const head = (g, folded) => {
+    const h = document.createElement(folded ? "button" : "div");
+    h.className = "m-cell" + (folded ? " fold" : "");
+    const t = document.createElement("span"); t.className = "ct"; t.textContent = title(g);
+    h.appendChild(t);
+    if (g.leader && g.key !== "none"){
+      const l = document.createElement("span"); l.className = "cl"; l.textContent = "셀장 " + g.leader;
+      h.appendChild(l);
+    }
+    if (folded){
+      const n = document.createElement("span"); n.className = "cn"; n.textContent = g.people.length + "명";
+      h.appendChild(n);
+    }
+    return h;
+  };
+
+  /* ① 펼친 셀 — 내 셀(또는 파운더의 셀) */
+  const openG = openKey != null ? groups.get(openKey) : null;
+  if (openG){
+    const box = document.createElement("div");
+    box.className = "m-cellbox open";
+    box.appendChild(head(openG, false));
+    if (meRow){
+      const wrap = document.createElement("div");
+      wrap.className = "m-me";
+      wrap.appendChild(row(meRow, " me"));
+      box.appendChild(wrap);
+    }
+    openG.people.filter(r => r !== meRow).forEach(r => box.appendChild(row(r)));
+    list.appendChild(box);
+  }
+  /* ② 다른 셀 — 한 줄로 접힘 · 누르면 펼침 · 「파운더님과 함께」는 맨 끝 */
+  const rest = [...groups.values()].filter(g => g !== openG)
+    .sort((x, y) => (x.key === "none") - (y.key === "none") || (x.cell || 0) - (y.cell || 0));
+  rest.forEach(g => {
+    const box = document.createElement("div");
+    box.className = "m-cellbox";
+    const h = head(g, true);
+    const body = document.createElement("div");
+    body.className = "m-cellbody";
+    let drawn = false;
+    h.addEventListener("click", () => {
+      if (!drawn){ g.people.forEach(r => body.appendChild(row(r))); drawn = true; }
+      box.classList.toggle("open");
+    });
+    box.appendChild(h); box.appendChild(body);
+    list.appendChild(box);
+  });
+}
 function openMaison(b){
   closeStory();
   currentMaison = b;
@@ -4339,10 +4444,9 @@ function openMaison(b){
   const intro = document.getElementById("mIntro");
   intro.innerHTML = "";
   if (sold){
-    /* ⭐ 0923 — 남은 자리는 정회원(슬롯 있는 분)만 센다. 손님(guest · pre-member)은 슬롯을 먹지 않는다 (0919 17호) */
-    const mem = res_.filter(r => r.slot != null).length, gst = res_.length - mem;
-    intro.textContent = (mem ? mem + "명이 살고 있습니다. " : "") + "남은 자리 " + (b.slots - mem) + "칸."
-                      + (gst ? " 머무는 손님 " + gst + "명." : "");
+    /* ⭐ 0928 소로 — 공실 · 머무는 손님 수는 걷는다. 셈은 파운더 대시보드가 한다.
+       이웃에게는 「함께 지내는 이웃」 한마디만 — 정회원 · 준회원 · 베타 모두, 아래 명단과 같은 수. */
+    intro.textContent = res_.length ? "함께 지내는 이웃 " + res_.length + "명" : "";
   } else {
     const p = bldPitch(b);
     intro.textContent = (p ? p + "\n" : "") + b.slots + "가구"
@@ -4355,35 +4459,7 @@ function openMaison(b){
   }
 
   const list = document.getElementById("mList");
-  if (list){
-    list.innerHTML = "";
-    /* ⭐ 나는 맨 위 한 줄에만 뜬다. 호수는 안 바뀌고 순서만 올라온다.
-       보는 사람마다 다른 명단을 보되, 호수는 모두에게 같다. */
-    const meRow = res_.find(r => r.uid && r.uid === myUidCache);
-    const rest  = meRow ? res_.filter(r => r !== meRow) : res_;
-    const row = (r, cls) => {
-      const btn = document.createElement("button");
-      btn.className = "m-res" + (cls || "");
-      btn.innerHTML =
-        (r.avatar ? '<img class="av" src="'+r.avatar+'" alt="">' : '<span class="av"></span>')
-        + '<span class="nm"></span>'
-        /* ⭐ 0923 — 손님은 호수 대신 이름표: 베타 guest · 준회원 pre-member (다른 색 · 0919 17호) */
-        + (r.slot != null ? '<span class="sl">' + r.slot + '호</span>'
-                          : '<span class="sl gst">' + (r.stay === 'pre-member' ? 'pre-member' : 'guest') + '</span>');
-      btn.querySelector('.nm').textContent = r.nickname || "이름 없는 콩파뇽";
-      btn.addEventListener("click", ()=> enterMaison(r));
-      return btn;
-    };
-    if (meRow){
-      const wrap = document.createElement("div");
-      wrap.className = "m-me";
-      wrap.appendChild(row(meRow, " me"));
-      list.appendChild(wrap);
-    }
-    rest.forEach(r => list.appendChild(row(r)));
-    /* ⚠ 0923 소로 — 매물의 「자세히 보기」를 걷었다. 0831 판(openBuildingDetail)이 누구에게나
-         옛 값과 바우처 장수를 보여 주고 있었다. 값은 제안서를 받은 분의 파운더 메뉴 안에서만 (0917 · 0918) */
-  }
+  if (list) drawCellList(list, b, res_);
   const en = document.getElementById("mEnter");
   if (en) en.style.display = "none";
   document.getElementById("maison").classList.add("in");
