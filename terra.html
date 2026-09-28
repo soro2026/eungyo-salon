@@ -1880,6 +1880,7 @@ window.EGQ = (function(){
   <div class="row" id="pickRow"></div>
   <div class="row faceRow" id="faceRow"></div>
   <div class="row">
+    <button id="pickPlates" title="면마다 4×4 후보를 실제 벽에 붙이고 넷씩 고릅니다 · 누를 때마다 다시 뽑기">🎲 명패 자리 뽑기</button>
     <button id="pickAll">◻︎ 전체 슬롯</button>
     <button id="pickSave" class="save">⭐ 서버에 저장</button>
   </div>
@@ -2910,6 +2911,86 @@ function drawSlotGrid(){
   console.log("[EG] 빈 칸 격자 " + gridEnts.length + "개" + (Object.keys(prov).length ? " (임시)" : ""));
 }
 
+/* ══════════════════ 0928 벽 명패 16곳 (벽명패개편 결정문 0925 · 0928 소로) ══════════════════
+   ⭐ 216칸 격자를 걷고 건물마다 명패 자리 16곳 — eg_buildings.wall.plates [{lat,lng,h,az,face,x}] · wall.me_idx
+   ⭐ 자리는 짚기 막대 [🎲 명패 자리 뽑기]가 실제 3D 벽에 붙여 찍는다 — 면마다 4×4 후보 → 벽에 붙은 것 중 넷
+   ⭐ 들여다보는 분 본인 명패는 늘 me_idx(16곳 중 가장 높은 자리) · 나머지 15곳은 그날의 이웃
+   ⭐ 추첨은 하루 단위 고정 · 그날의 이웃은 누가 보든 같다(날짜 + 건물이 씨앗) · 본인이 뽑히면 다음 분에게 넘긴다
+   ⭐ 정회원 · 준회원 · 베타 차별 없이 — 메종이 있는 분은 모두 벽에 오른다
+   ⚠ plates 가 없는 건물은 옛 격자(sampleSigns)로 — 한 채씩 뽑아 저장하면 저절로 갈아탄다 */
+function egDayKey(){
+  const d = new Date(Date.now() + 9*3600*1000);            // 한국 날짜로 하루를 센다
+  return d.toISOString().slice(0, 10);
+}
+function egHash(str){
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return h >>> 0;
+}
+function egRand(seed){                                      // mulberry32 — 같은 씨앗이면 같은 수열
+  let a = seed >>> 0;
+  return function(){ a = (a + 0x6D2B79F5) >>> 0; let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function plateMeIdx(plates, me_idx){
+  if (me_idx != null && plates[me_idx]) return me_idx;
+  let k = 0; plates.forEach((p, i) => { if (p.h > plates[k].h) k = i; });
+  return k;
+}
+/* 명패 자리 → 사람. 돌려주는 것: [{idx, r}] (r 이 null 이면 빈 자리)
+   ⭐ 모두가 같은 줄을 섞는다 — 그날 i번 자리에 걸린 이웃은 누가 보든 같다.
+   ⭐ 들여다보는 분이 이 건물에 살면 본인만 본인 자리(meIdx)로 옮겨 앉는다.
+      본인이 이미 그날의 16명 안이면 본인 자리에 있던 이웃과 자리를 바꾸고(얼굴은 그대로),
+      밖이면 본인 자리의 이웃 한 분이 그 사람 화면에서만 비켜 선다. */
+function plateAssign(b, plates, meIdx){
+  const res = residentsOf(b);
+  const meRow = res.find(r => r.uid && myUidCache && r.uid === myUidCache);
+  /* 씨앗 앞에서 줄을 한 번 세운다 — RPC 순서가 바뀌어도 그날의 추첨은 같게 */
+  const pool = res.slice()
+                  .sort((x, y) => String(x.uid || x.nickname).localeCompare(String(y.uid || y.nickname)));
+  const rnd = egRand(egHash(egDayKey() + "|" + b.city + "|" + b.bno));
+  for (let i = pool.length - 1; i > 0; i--){ const j = Math.floor(rnd() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  const seat = plates.map((p, i) => pool[i] || null);
+  if (meRow){
+    const j = seat.indexOf(meRow);
+    if (j >= 0){ seat[j] = seat[meIdx]; seat[meIdx] = meRow; }
+    else seat[meIdx] = meRow;
+  }
+  return seat.map((r, i) => ({ idx:i, r }));
+}
+function drawPlateSigns(b){
+  const draft = (PICK_BLD && PICK_BLD === b && b.platesDraft) ? b.platesDraft : null;
+  const plates = draft ? draft.plates : b.wall.plates;
+  const meIdx  = plateMeIdx(plates, draft ? draft.me_idx : b.wall.me_idx);
+  const HM = signHM(b);
+  plateAssign(b, plates, meIdx).forEach(({ idx, r }) => {
+    let text = r ? (r.nickname || "이름 없는 콩파뇽") : null;
+    /* 뽑기 미리보기에서는 빈 자리도 보여 준다 — 자리가 어디 앉았는지 눈으로 고르시게 */
+    if (!text && draft) text = (idx === meIdx) ? "★ 본인 자리" : "자리 " + (idx + 1);
+    if (!text) return;
+    if (draft && idx === meIdx && r) text = "★ " + text;
+    const a  = plates[idx];
+    const cv = signPlate(text);
+    const widthM = HM * (cv.width / cv.height);
+    const A = signOffset(a.lat, a.lng, a.az + 90, widthM/2);
+    const B = signOffset(a.lat, a.lng, a.az - 90, widthM/2);
+    const e = viewer.entities.add({
+      id: "sign-" + b.city + "-" + b.bno + "-p" + idx + (draft ? "-d" : ""),
+      wall:{
+        positions: Cesium.Cartesian3.fromDegreesArray([A.lng, A.lat, B.lng, B.lat]),
+        minimumHeights:[a.h - HM/2, a.h - HM/2],
+        maximumHeights:[a.h + HM/2, a.h + HM/2],
+        material: new Cesium.ImageMaterialProperty({ image: cv, transparent: true }),
+        outline: false,
+        distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, SIGN_D)
+      }
+    });
+    e._sign = { bld:b, res:r };
+    signEnts.push(e);
+  });
+}
+
 async function drawWallSigns(){
   signEnts.forEach(e=> viewer.entities.remove(e)); signEnts = [];
   const blds = viewer.entities.values
@@ -2918,9 +2999,14 @@ async function drawWallSigns(){
   if (!blds.length) return;
   const names = [];
   blds.forEach(b => residentsOf(b).forEach(r => r.nickname && names.push(r.nickname)));
+  names.push("★ 본인 자리 0123456789");
   try{ await document.fonts.load('700 200px "Nanum Myeongjo"', names.join('')); }catch(e){}
 
   blds.forEach(b=>{
+    /* ⭐ 0928 — 명패 자리 16곳이 선 건물(또는 뽑기 미리보기 중인 건물)은 새 벽으로 */
+    const hasPlates = (b.wall && Array.isArray(b.wall.plates) && b.wall.plates.length)
+                   || (PICK_BLD === b && b.platesDraft);
+    if (hasPlates && !SHOW_ALL_SLOTS){ drawPlateSigns(b); return; }
     const pick = sampleSigns(b);
     residentsOf(b).forEach(r=>{
       if (!r.slot) return;
@@ -4885,6 +4971,7 @@ function pickBarPaint(){
       fr.appendChild(b);
     });
     document.getElementById("pickSave").onclick = savePickedWall;
+    document.getElementById("pickPlates").onclick = platesGenerate;   /* 0928 */
     document.getElementById("pickAll").onclick = ()=>{
       SHOW_ALL_SLOTS = !SHOW_ALL_SLOTS; pickBarPaint(); drawWallSigns();
     };
@@ -4915,9 +5002,13 @@ function pickBarOpen(b){
   pickBarPaint(); pickHint();
 }
 function pickBarClose(){
+  /* ⭐ 0928 — 저장 안 한 명패 뽑기는 막대를 닫으면 버린다(서버 값으로 돌아감) */
+  const hadDraft = !!(PICK_BLD && PICK_BLD.platesDraft);
+  if (hadDraft) PICK_BLD.platesDraft = null;
   PICK_BLD = null; SHOW_ALL_SLOTS = false;
   gridEnts.forEach(e=> viewer.entities.remove(e)); gridEnts = [];
   document.getElementById("pickBar").classList.remove("in");
+  if (hadDraft) drawWallSigns();
 }
 
 /* 클릭 하나에서 한 축만 꺼낸다 */
@@ -4996,10 +5087,101 @@ function applyPick(lat, lng, h){
 }
 
 /* ⭐ 서버에 앉힌다 — 한 축씩 덧쓴다(patch). 짚지 않은 값은 그대로 남는다. */
+/* ══ 0928 🎲 명패 자리 뽑기 — 면마다 4×4 후보를 실제 3D 벽에 붙이고, 붙은 것 중 넷을 고른다 ══
+   ⭐ 소로 0928 「건물마다 비슷한 위치면 촌스럽다 · 랜덤하게 뜨는 것처럼」 · 「벽이 불균일해도 붙일 수 있으면 최고」
+   · 후보 점마다 벽 바깥 6m 에서 건물 중심을 향해 광선을 쏘아 처음 닿는 3D 타일 표면을 찾는다
+     → 위로 갈수록 좁아지는 탑 · 돌출 · 발코니에도 제 표면에 붙는다
+   · 허공(창 틈 · 벽 없음) · 옆 건물 · 지붕 위로 빗나간 점은 스스로 버린다
+   · 넷은 서로 겹치지 않게(같은 줄이면 옆으로 11m 이상) · 본인 자리 = 16곳 중 가장 높은 곳
+   · [다시 뽑기]는 같은 단추를 한 번 더 · 마음에 들면 [⭐ 서버에 저장]
+   ⚠ 타일이 곱게 내려와 있어야 벽을 찾는다 — 건물 가까이(1km 안)에서 누른다 */
+function tileHitFromRay(ray){
+  let hits = [];
+  try{ hits = viewer.scene.drillPickFromRay(ray, 6) || []; }catch(e){ return null; }
+  for (const h of hits){
+    const o = h && h.object;
+    const isTile = o && ((Cesium.Cesium3DTileFeature && o instanceof Cesium.Cesium3DTileFeature)
+                      || (o.primitive && o.primitive instanceof Cesium.Cesium3DTileset)
+                      || (o.content && o.content.tileset));
+    if (isTile && h.position) return h.position;
+  }
+  return null;
+}
+async function platesGenerate(){
+  const b = PICK_BLD, hint = document.getElementById("editHint");
+  if (!b){ hint.innerHTML = "⚠️ 먼저 건물 핀을 고르세요"; return; }
+  const w = b.wall || {};
+  if (w.ceil == null || w.floor == null){
+    hint.innerHTML = "⚠️ 이 건물은 아직 <b>천장 · 바닥</b>을 짚지 않았습니다 — 먼저 짚어 저장한 뒤 뽑으세요"; return;
+  }
+  hint.innerHTML = "🎲 벽을 더듬는 중… (후보 64점)";
+  /* 명패 · 격자가 광선을 가로막지 않게 잠시 걷는다 */
+  signEnts.forEach(e => viewer.entities.remove(e)); signEnts = [];
+  gridEnts.forEach(e => viewer.entities.remove(e)); gridEnts = [];
+  await new Promise(r => requestAnimationFrame(() => r()));
+  const out  = w.out  || [23,23,23,23];
+  const wide = w.wide || [12,12,12,12];
+  const span = w.ceil - w.floor;
+  const HM = signHM(b);
+  const faces = [[],[],[],[]]; let tried = 0, lost = 0;
+  const cosLat = Math.cos(Cesium.Math.toRadians(b.lat));
+  for (let f = 0; f < 4; f++){
+    const az = SIGN_AZ_FACE(f), rad = Cesium.Math.toRadians(az);
+    for (let row = 0; row < 4; row++){
+      for (let col = 0; col < 4; col++){
+        tried++;
+        /* 칸 가운데서 조금씩 흔든다 — 격자 냄새를 지운다 */
+        const h = w.floor + span * ((row + 0.5 + (Math.random() - 0.5) * 0.6) / 4);
+        const x = wide[f] * (-1 + 2 * (col + 0.5 + (Math.random() - 0.5) * 0.5) / 4) * 0.92;
+        const s0 = signOffset(b.lat, b.lng, az, out[f] + 6);
+        const s1 = signOffset(s0.lat, s0.lng, az + 90, x);
+        const t0 = signOffset(b.lat, b.lng, az + 90, x);          // 같은 옆 자리의 건물 중심선
+        const org = Cesium.Cartesian3.fromDegrees(s1.lng, s1.lat, h);
+        const tgt = Cesium.Cartesian3.fromDegrees(t0.lng, t0.lat, h);
+        const dir = Cesium.Cartesian3.normalize(Cesium.Cartesian3.subtract(tgt, org, new Cesium.Cartesian3()), new Cesium.Cartesian3());
+        const hit = tileHitFromRay(new Cesium.Ray(org, dir));
+        if (!hit){ lost++; continue; }
+        const c = Cesium.Cartographic.fromCartesian(hit);
+        const lat = Cesium.Math.toDegrees(c.latitude), lng = Cesium.Math.toDegrees(c.longitude);
+        const dN = (lat - b.lat) * 111320, dE = (lng - b.lng) * 111320 * cosLat;
+        const along = dN * Math.cos(rad) + dE * Math.sin(rad);
+        /* 중심에서 3m 안(건물을 뚫고 지나감) · 출발점 밖(옆 건물) · 높이가 크게 어긋남(지붕 · 땅) → 버린다 */
+        if (along < 3 || along > out[f] + 5.5 || Math.abs(c.height - h) > 2.5){ lost++; continue; }
+        const p = signOffset(lat, lng, az, 0.3);                  // 벽에서 0.3m — 짚기와 같은 틈
+        faces[f].push({ lat:+p.lat.toFixed(7), lng:+p.lng.toFixed(7), h:+c.height.toFixed(1),
+                        az, face:f, x:+x.toFixed(1) });
+      }
+    }
+    await new Promise(r => setTimeout(r, 0));
+  }
+  /* 면마다 넷 — 겹치지 않게 */
+  const plates = [];
+  faces.forEach(list => {
+    for (let i = list.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
+    const got = [];
+    const clash = (a, q) => Math.abs(a.h - q.h) < HM * 1.4 && Math.abs(a.x - q.x) < 11;
+    list.forEach(q => { if (got.length < 4 && !got.some(a => clash(a, q))) got.push(q); });
+    plates.push(...got);
+  });
+  if (!plates.length){
+    hint.innerHTML = "⚠️ 벽을 한 점도 못 찾았습니다 — 건물 <b>가까이</b> 가서 타일이 곱게 내려온 뒤 다시 누르세요";
+    drawWallSigns(); return;
+  }
+  const me_idx = plateMeIdx(plates, null);
+  b.platesDraft = { plates, me_idx };
+  PICK_DIRTY = true; pickBarPaint(); drawWallSigns();
+  const perFace = [0,1,2,3].map(f => PICK_FACE_KO[f] + " " + plates.filter(p => p.face === f).length).join(" · ");
+  hint.innerHTML = "🎲 명패 자리 <b>" + plates.length + "곳</b> (" + perFace + ") · 벽에 붙은 후보 "
+    + (tried - lost) + "/" + tried + "<br>★ = 본인 자리(가장 높은 곳) · 마음에 안 들면 [🎲] 한 번 더 · 좋으면 [⭐ 서버에 저장]";
+  console.log("[EG] 명패 자리 뽑기", b.name || b.bno, plates);
+}
+
 async function savePickedWall(){
   const b = PICK_BLD; if (!b) return;
   const w = b.wall || {}, patch = {};
   ["roof","ceil","floor"].forEach(k=>{ if (w[k] != null) patch[k] = w[k]; });
+  /* ⭐ 0928 — 뽑아 둔 명패 자리 16곳 */
+  if (b.platesDraft){ patch.plates = b.platesDraft.plates; patch.me_idx = b.platesDraft.me_idx; }
   /* ⚠⚠ 0830 소로 — 「동면 박힌 게 안 빠져나온다」. 서버 값을 화면이 덮어쓰고 있었다.
      out·wide 는 네 칸짜리 배열이라 통째로 보내면 **안 짚은 면까지 화면의 옛 값**으로
      덮인다. 다른 손이 서버에서 고친 면이 있으면 그게 사라진다.
@@ -5019,13 +5201,15 @@ async function savePickedWall(){
       { p_city:b.city, p_bno:b.bno, p_patch:patch });
     if (error) throw error;
     b.wall = data;
+    b.platesDraft = null;
     b.wallServer = JSON.parse(JSON.stringify(data));
     PICK_TOUCHED = { out:new Set(), wide:new Set() };
     PICK_DIRTY = false; pickBarPaint(); drawWallSigns();
     document.getElementById("editHint").innerHTML =
       "⭐ <b>저장 완료</b> — 천장 <code>" + (data.ceil!=null?Math.round(data.ceil):"?")
       + "</code> · 바닥 <code>" + (data.floor!=null?Math.round(data.floor):"?") + "</code>"
-      + " · 벽 [" + (data.out||[]).map(v=>v.toFixed(0)).join(",") + "]";
+      + " · 벽 [" + (data.out||[]).map(v=>v.toFixed(0)).join(",") + "]"
+      + (Array.isArray(data.plates) ? " · 명패 자리 <b>" + data.plates.length + "곳</b>" : "");
     console.log("[EG] wall 저장", b.city, b.bno, data);
   }catch(e){
     console.warn("wall 저장 실패", e);
