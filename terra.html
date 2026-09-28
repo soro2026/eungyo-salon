@@ -5389,14 +5389,14 @@ async function renderStockBoard(){
       + '<tr class="goal"><td>목표</td><td></td><td>' + STOCK_GOAL.avail + '</td><td>' + STOCK_GOAL.ready + '</td><td></td><td></td></tr></table>';
   }catch(e){ el.textContent = "현황표를 못 불러왔습니다"; console.warn("[EG] 현황표", e); }
 }
-/* ⚠ 0928 — 여행 도시(bronxville 등)까지 보면 젠가가 「bronxville 1번」이 된다. 건물 도시 셋 안에서만 고른다. */
-const EG_BLD_CITIES = ["paris", "london", "newyork"];
+/* ⚠ 0928 — 여행 도시 목록(CITIES)에는 뉴욕이 없다(뉴욕 곁엔 bronxville 뿐).
+   거기 기대면 젠가가 「bronxville 1번」이 되고, 걸러 내면 맨해튼이 「도시 밖」이 된다.
+   건물 도시 셋의 중심을 직접 든다. 60km 안이면 그 도시. */
+const EG_BLD_CITIES = { paris:[48.853, 2.344], london:[51.50056, -0.12667], newyork:[40.758, -73.9855] };
 function cityAt(lat, lng){
-  if (!Array.isArray(CITIES)) return null;
   let best = null, bd = Infinity;
-  CITIES.forEach(c => { if (c.center_lat == null || c.center_lng == null || !EG_BLD_CITIES.includes(c.city)) return;
-    const d = kmBetween(lat, lng, c.center_lat, c.center_lng); if (d < bd){ bd = d; best = c; } });
-  return (best && bd <= 60) ? best.city : null;
+  Object.entries(EG_BLD_CITIES).forEach(([c, [la, ln]]) => { const d = kmBetween(lat, lng, la, ln); if (d < bd){ bd = d; best = c; } });
+  return (best && bd <= 60) ? best : null;
 }
 async function newBuildingAt(click){
   const h = document.getElementById("editHint");
