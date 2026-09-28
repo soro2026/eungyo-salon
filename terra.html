@@ -5257,12 +5257,61 @@ function wallFacing(lat, lng, h, rayAz){
   return d > 75 ? rayAz : +az.toFixed(1);
 }
 
+/* ⭐ 0928 발자국 재기 — 벽 · 폭을 짚지 않은 건물(새 건물)은 🎲 가 스스로 잰다
+   · 건물 10 시험: 기본값(중심에서 23m)보다 넓은 건물은 광선이 건물 속에서 출발해 명패가 속으로 숨었다
+   · 핀에서 네 방향으로 3m씩 나가며 지붕 위에서 광선을 떨어뜨린다 → 바닥 높이 아래로 뚝 떨어지는 곳 = 벽 끝
+   · 폭도 같은 손으로 좌우를 재서 짧은 쪽을 쓴다(핀이 한가운데가 아니어도 벽 안에 머물게)
+   · 잰 값은 짚은 값처럼 저장된다(PICK_TOUCHED) — 다듬기 때도 같은 벽을 쓴다 */
+function dropHit(lat, lng, fromH){
+  const org = Cesium.Cartesian3.fromDegrees(lng, lat, fromH);
+  const tgt = Cesium.Cartesian3.fromDegrees(lng, lat, -50);
+  const dir = Cesium.Cartesian3.normalize(Cesium.Cartesian3.subtract(tgt, org, new Cesium.Cartesian3()), new Cesium.Cartesian3());
+  const hit = tileHitFromRay(new Cesium.Ray(org, dir));
+  return hit ? Cesium.Cartographic.fromCartesian(hit).height : -999;
+}
+function edgeFrom(lat, lng, az, fromH, lowH, maxM){
+  for (let d = 3; d <= maxM; d += 3){
+    const p = signOffset(lat, lng, az, d);
+    if (dropHit(p.lat, p.lng, fromH) < lowH) return d - 1.5;
+  }
+  return null;
+}
+async function measureFootprint(b){
+  const w = b.wall, top = (w.roof != null ? w.roof : w.ceil) + 60, low = w.floor - 3;
+  const out = [], wide = [];
+  for (let f = 0; f < 4; f++){
+    const az = SIGN_AZ_FACE(f);
+    out[f] = edgeFrom(b.lat, b.lng, az, top, low, 150);
+    await new Promise(r => setTimeout(r, 0));
+  }
+  for (let f = 0; f < 4; f++){
+    const az = SIGN_AZ_FACE(f), mid = signOffset(b.lat, b.lng, az, (out[f] || 20) * 0.5);
+    const L = edgeFrom(mid.lat, mid.lng, az + 90, top, low, 150), R = edgeFrom(mid.lat, mid.lng, az - 90, top, low, 150);
+    wide[f] = (L != null && R != null) ? Math.min(L, R) : (L || R);
+    await new Promise(r => setTimeout(r, 0));
+  }
+  if (out.some(v => v == null) || wide.some(v => v == null)) return false;
+  w.out  = out.map(v => +v.toFixed(1));
+  w.wide = wide.map(v => +v.toFixed(1));
+  [0,1,2,3].forEach(f => { PICK_TOUCHED.out.add(f); PICK_TOUCHED.wide.add(f); });
+  return true;
+}
+
 async function platesGenerate(){
   const b = PICK_BLD, hint = document.getElementById("editHint");
   if (!b){ hint.innerHTML = "⚠️ 먼저 건물 핀을 고르세요"; return; }
   const w = b.wall || {};
   if (w.ceil == null || w.floor == null){
     hint.innerHTML = "⚠️ 이 건물은 아직 <b>천장 · 바닥</b>을 짚지 않았습니다 — 먼저 짚어 저장한 뒤 뽑으세요"; return;
+  }
+  /* ⭐ 0928 — 벽 · 폭이 비어 있으면(새 건물) 먼저 발자국을 잰다 */
+  if (!Array.isArray(w.out) || !Array.isArray(w.wide)){
+    hint.innerHTML = "📏 건물 발자국을 재는 중…";
+    signEnts.forEach(e => viewer.entities.remove(e)); signEnts = [];
+    await new Promise(r => requestAnimationFrame(() => r()));
+    const ok = await measureFootprint(b);
+    if (!ok){ hint.innerHTML = "⚠️ 발자국을 못 쟀습니다 — 건물 가까이 가서 다시 누르거나, [벽] · [폭]을 면마다 짚어 주세요"; drawWallSigns(); return; }
+    console.log("[EG] 발자국", b.bno, w.out, w.wide);
   }
   hint.innerHTML = "🎲 벽을 더듬는 중… (후보 64점)";
   /* 명패 · 격자가 광선을 가로막지 않게 잠시 걷는다 */
