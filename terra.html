@@ -1204,6 +1204,15 @@ window.EGQ = (function(){
 #pickBar .faceRow{ opacity:.32; transition:opacity .15s }
   #editToggle.on{ background:#7fb3d5; color:#05070f; border-color:#7fb3d5 }
   /* 0928 — 새 건물 크기 · 창고 출고 단추 (안내 줄 안) */
+  /* 0928 도시별 현황표 — 나침반 살롱지기 구획 · 목표(매물 10 · 출고 대기 10)에 못 미치면 분홍 */
+  #stockBoard{ margin:6px 4px 10px; font-size:12px; color:var(--cream, #efe6d2) }
+  #stockBoard table{ width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums }
+  #stockBoard th{ font-weight:500; font-size:10.5px; color:rgba(239,230,210,.55); padding:3px 4px; text-align:right; white-space:nowrap }
+  #stockBoard th:first-child, #stockBoard td:first-child{ text-align:left }
+  #stockBoard td{ padding:4px 4px; text-align:right; border-top:1px solid rgba(255,255,255,.07); white-space:nowrap }
+  #stockBoard td.low{ color:#f4a7c0; font-weight:600 }
+  #stockBoard td .hd{ font-size:10.5px; color:rgba(239,230,210,.6); font-weight:400 }
+  #stockBoard .goal td{ color:rgba(239,230,210,.45); font-size:10.5px; border-top:none }
   #editHint .nb-size{ font:inherit; font-size:12.5px; padding:3px 10px; margin:0 2px; border-radius:7px; cursor:pointer;
     background:rgba(244,167,192,.16); color:#ffd9e6; border:1px solid rgba(244,167,192,.55) }
   #editHint .nb-size:hover{ background:#f4a7c0; color:#3a0f22 }
@@ -1889,7 +1898,7 @@ window.EGQ = (function(){
     <button id="pickPlates" title="면마다 4×4 후보를 실제 벽에 붙이고 넷씩 고릅니다 · 누를 때마다 다시 뽑기">🎲 명패 자리 뽑기</button>
     <button id="pickAll">◻︎ 전체 슬롯</button>
     <button id="pickSave" class="save">⭐ 서버에 저장</button>
-    <button id="pickStock" style="display:none" title="창고 건물 — 다 손질했으면 출고 대기로">🌸 출고 대기</button>
+    <button id="pickStock" style="display:none" title="공사를 마치면 출고 대기로 (진열대가 10채 미만이면 곧바로 매물)">✅ 공사 완료</button>
   </div>
   <div class="row" id="plateRow" style="display:none">
     <button id="plUp" title="1m 위로">▲</button><button id="plDn" title="1m 아래로">▼</button>
@@ -2018,6 +2027,7 @@ window.EGQ = (function(){
       <div class="nav-label">살롱지기</div>
       <button class="nav-item toggle" id="navEdit">📍 좌표 편집 <span class="dot" aria-hidden="true"></span></button>
       <button class="nav-item" id="navNewBld">🏗 새 건물 세우기 <span class="dot" aria-hidden="true"></span></button>
+      <div id="stockBoard" aria-label="도시별 매물 현황"></div>
       <!-- 0801 천문대 순회 — 살롱지기 검수용. 순번을 건드리지 않고 보기만 한다 (당번은 그대로)
            ⚠ v137~139 세 판 동안 <select>로 지었다가 팝업이 끝내 안 열렸다.
              같은 구획의 「대시보드」 접이식은 멀쩡하므로 그 증명된 패턴으로 갈아탔다. -->
@@ -3151,17 +3161,23 @@ const STOCK_PINK = "#f4a7c0";
 function addStockPin(b, dd){
   const ready = b.status === 'ready';
   const old = viewer.entities.getById("maison-" + b.city + "-" + b.bno);
-  if (old) viewer.entities.remove(old);
+  /* ⚠ 0928 — 있던 핀의 자리(지붕 높이로 끌어올려진 자리)를 물려받는다.
+     새로 fromDegrees(lng,lat)로 세우면 해발 0m 바닥에 꽂힌다(젠가 출고 대기 때 핀이 떨어진 까닭). */
+  let pos = Cesium.Cartesian3.fromDegrees(b.lng, b.lat);
+  if (old){
+    try{ const p = old.position && old.position.getValue(viewer.clock.currentTime); if (p) pos = p; }catch(e){}
+    viewer.entities.remove(old);
+  }
   const ent = viewer.entities.add({
     id:"maison-" + b.city + "-" + b.bno,
-    position: Cesium.Cartesian3.fromDegrees(b.lng, b.lat),
+    position: pos,
     point:{ pixelSize: 10,
             color: Cesium.Color.fromCssColorString(ready ? STOCK_PINK : "#0a0e1a"),
             outlineColor: Cesium.Color.fromCssColorString(ready ? "#5a1d33" : STOCK_PINK),
             outlineWidth: ready ? 2 : 3,
             disableDepthTestDistance:Number.POSITIVE_INFINITY,
             distanceDisplayCondition: dd },
-    label:{ text: (ready ? "🌸 출고 대기 · " : "🌱 창고 · ") + bldName(b) + " · " + b.slots,
+    label:{ text: (ready ? "🌸 출고 대기 · " : "🏗 공사 중 · ") + bldName(b) + " · " + b.slots,   /* 0928 소로 — 공사 중 / 출고 대기 */
             font:"600 11px 'Helvetica Neue','Apple SD Gothic Neo','Malgun Gothic',sans-serif",
             fillColor: Cesium.Color.fromCssColorString("#3a0f22"),
             showBackground:true,
@@ -4866,6 +4882,7 @@ async function setupAdminEdit(){
     if (cb) cb.style.display = "block";
   }
   buildAdminLinks();                                             /* 0728: 대시보드 10종 */
+  renderStockBoard();                                            /* 0928: 도시별 현황표 */
   try{ buildShotSwitches(); }catch(e){ console.warn("촬영 스위치 실패:", e); }   /* 0902: 촬영 · 핀 종족 — ⚠ 여기서 죽어도 goToMyHome 은 가야 한다 */
   const btn = document.getElementById("navEdit");
   btn.addEventListener("click", ()=>{
@@ -4892,7 +4909,7 @@ async function setupAdminEdit(){
       const u = +bt.dataset.u;
       if (!u){ NEW_BLD = null; h.innerHTML = "📍 <b>편집 모드</b> — 옮길 건물 핀을 누른 뒤, 그 건물 <b>지붕</b>을 클릭하세요"; return; }
       NEW_BLD.units = u;
-      h.innerHTML = "🏗 <b>" + (u*27) + "슬롯</b> 새 건물 — 세울 빌딩의 <b>지붕</b>을 클릭하세요 (창고로 들어갑니다 · 손님에겐 안 보임)";
+      h.innerHTML = "🏗 <b>" + (u*27) + "슬롯</b> 새 건물 — 세울 빌딩의 <b>지붕</b>을 클릭하세요 (공사 중으로 들어갑니다 · 손님에겐 안 보임)";
     });
   });
   /* ── 천문대 순회 접이 목록 (0801 착공 · 0802 창구 시공) ──
@@ -5076,7 +5093,7 @@ function pickBarPaint(){
   if (ps){
     const st = PICK_BLD && PICK_BLD.status;
     ps.style.display = (st === 'stock' || st === 'ready') ? "" : "none";
-    ps.textContent = (st === 'ready') ? "↩ 창고로 되돌리기" : "🌸 출고 대기";
+    ps.textContent = (st === 'ready') ? "↩ 공사 중으로 되돌리기" : "✅ 공사 완료";
     ps.classList.toggle("on", st === 'ready');
   }
   const pr = document.getElementById("plateRow");
@@ -5354,6 +5371,24 @@ function plateMoveTo(lat, lng, h){
    · 손질(지붕 · 벽 짚기 · 🎲 명패 · 이름 · 소개)이 끝나면 [🌸 출고 대기](ready)
    · 매물이 팔리는 순간 DB가 같은 도시 · 같은 크기의 출고 대기 중 먼저 누른 것을 매물로 내보낸다 */
 let NEW_BLD = null;
+/* ⭐ 0928 도시별 현황표 — 완료 · 매물(예약) · 출고 대기 · 공사 중 · 도합 · 목표는 매물 10 · 출고 대기 10 */
+const STOCK_GOAL = { avail:10, ready:10 };
+async function renderStockBoard(){
+  const el = document.getElementById("stockBoard"); if (!el) return;
+  try{
+    const { data, error } = await supa.rpc('admin_stock_board');
+    if (error) throw error;
+    const KO = { paris:"파리", london:"런던", newyork:"뉴욕" };
+    const td = (v, low, extra) => '<td' + (low ? ' class="low"' : '') + '>' + v + (extra || '') + '</td>';
+    el.innerHTML = '<table><tr><th></th><th>완료</th><th>매물</th><th>출고 대기</th><th>공사 중</th><th>도합</th></tr>'
+      + (data || []).map(r => '<tr><td>' + (KO[r.city] || r.city) + '</td>'
+          + td(r.sold)
+          + td(r.avail, r.avail < STOCK_GOAL.avail, r.held ? ' <span class="hd">(예약 ' + r.held + ')</span>' : '')
+          + td(r.ready, r.ready < STOCK_GOAL.ready)
+          + td(r.stock) + td(r.total) + '</tr>').join('')
+      + '<tr class="goal"><td>목표</td><td></td><td>' + STOCK_GOAL.avail + '</td><td>' + STOCK_GOAL.ready + '</td><td></td><td></td></tr></table>';
+  }catch(e){ el.textContent = "현황표를 못 불러왔습니다"; console.warn("[EG] 현황표", e); }
+}
 /* ⚠ 0928 — 여행 도시(bronxville 등)까지 보면 젠가가 「bronxville 1번」이 된다. 건물 도시 셋 안에서만 고른다. */
 const EG_BLD_CITIES = ["paris", "london", "newyork"];
 function cityAt(lat, lng){
@@ -5376,11 +5411,12 @@ async function newBuildingAt(click){
   try{
     const { data, error } = await supa.rpc('admin_stock_add', { p_city:city, p_lat:lat, p_lng:lng, p_units:units });
     if (error) throw error;
+    renderStockBoard();
     await streamPinsNear(lng, lat, { force:true });
     const ent = viewer.entities.getById("maison-" + data.city + "-" + data.bno);
     const b = ent && ent._maison;
     if (b && units > 1){ selectForEdit(ent); pickBarOpen(b); }
-    h.innerHTML = "🌱 <b>창고에 한 채</b> — " + data.city + " " + data.bno + "번 · " + data.slots + "슬롯"
+    h.innerHTML = "🏗 <b>공사 중 한 채</b> — " + data.city + " " + data.bno + "번 · " + data.slots + "슬롯"
       + (units > 1 ? " · 이제 천장 · 바닥 · 벽 · 폭을 짚고 🎲 명패 자리를 뽑으세요" : " · 지붕 자리가 맞는지 보세요");
   }catch(e){
     console.error("[EG] 새 건물 실패", e);
@@ -5395,11 +5431,26 @@ async function stockToggle(b){
     const { data, error } = await supa.rpc('admin_stock_ready', { p_id:b.id, p_ready:toReady });
     if (error) throw error;
     b.status = data;
-    addStockPin(b, range(PIN_RANGE.building));
+    renderStockBoard();
+    /* 0928 — 진열대가 10채 미만이면 곧바로 매물로 나간다 → 손님 핀으로 다시 불러온다 */
+    if (data === 'available'){
+      pickBarClose(); clearSel();
+      await streamPinsNear(b.lng, b.lat, { force:true });
+      h.innerHTML = "🏷️ <b>곧바로 매물로</b> — " + bldName(b) + " · 진열대가 10채 미만이라 창고를 거치지 않고 나갔습니다";
+      return;
+    }
+    const ent = addStockPin(b, range(PIN_RANGE.building));
+    /* 0928 — 바꾼 핀 하나만 지붕 높이로 다시 앉힌다(clampSpotsToSurface 와 같은 손) */
+    try{
+      if (ent && viewer.scene.clampToHeightMostDetailed){
+        const [c] = await viewer.scene.clampToHeightMostDetailed([Cesium.Cartesian3.fromDegrees(b.lng, b.lat)]);
+        if (Cesium.defined(c)) ent.position = c;
+      }
+    }catch(e){ console.warn("창고 핀 앉히기 실패", e); }
     pickBarPaint();
     h.innerHTML = toReady
-      ? "🌸 <b>출고 대기</b> — " + bldName(b) + " · 같은 도시 · 같은 크기 매물이 팔리면 먼저 누른 차례대로 나갑니다"
-      : "↩ <b>창고로</b> 되돌렸습니다 — " + bldName(b);
+      ? "🌸 <b>출고 대기</b> — " + bldName(b) + " · 진열대가 꽉 차서 줄을 섰습니다 · 매물이 팔리면 먼저 선 차례대로 나갑니다"
+      : "↩ <b>공사 중</b>으로 되돌렸습니다 — " + bldName(b);
   }catch(e){ h.innerHTML = "❌ 출고 전환 실패 — " + (e.message || e); }
 }
 
@@ -5466,9 +5517,9 @@ function handleEditClick(click){
     const sb = picked.id._maison;
     if (sb && (sb.units || 1) === 1 && (sb.status === 'stock' || sb.status === 'ready')){
       const h = document.getElementById("editHint");
-      h.innerHTML = (sb.status === 'ready' ? "🌸 <b>출고 대기</b>" : "🌱 <b>창고</b>") + " · " + bldName(sb)
+      h.innerHTML = (sb.status === 'ready' ? "🌸 <b>출고 대기</b>" : "🏗 <b>공사 중</b>") + " · " + bldName(sb)
         + " — 지붕을 눌러 자리를 고치거나 <button class='nb-size' id='nbStock'>"
-        + (sb.status === 'ready' ? "↩ 창고로" : "🌸 출고 대기") + "</button>";
+        + (sb.status === 'ready' ? "↩ 공사 중으로" : "✅ 공사 완료") + "</button>";
       document.getElementById("nbStock").onclick = (ev)=>{ ev.stopPropagation(); stockToggle(sb); };
     }
     return;
