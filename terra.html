@@ -1065,11 +1065,13 @@ window.EGQ = (function(){
   #hallNote .hn-orig:empty{display:none}
   #hallNote .hn-prog{border-top:1px solid rgba(90,66,30,.28)}
   #hallNote .f-row{display:grid;grid-template-columns:74px 1fr;gap:12px;align-items:baseline;
-    border-bottom:1px dotted rgba(90,66,30,.3);padding:12px 2px;font-family:var(--serif);font-size:14.5px;line-height:1.5}
+    border-bottom:1px dotted rgba(90,66,30,.3);padding:12px 2px;font-family:var(--sans);font-size:14.5px;line-height:1.5;font-weight:500}
+  #hallNote .f-row .fm{display:block;margin-top:3px;font-size:12px;font-weight:400;color:#7a6a4f}
+  #hallNote .f-row .fs{display:block;margin-top:5px;font-size:12.5px;font-weight:400;color:#5a4a30;line-height:1.55}
   #hallNote .f-row .fd{font-family:var(--sans);font-size:12px;letter-spacing:.04em;color:#7a6a4f;white-space:nowrap}
   #hallNote .f-row.today .fd{color:#8a2d1c;font-weight:700}
   #hallNote .f-row.today .ft{font-weight:600}
-  #hallNote .hn-note{margin-top:14px;font-family:var(--serif);font-size:12.5px;color:#7a6a4f}
+  #hallNote .hn-note{margin-top:14px;font-family:var(--sans);font-size:12.5px;color:#7a6a4f}
   /* ⭐ 0929 EG인문학 포럼 판 — 종이빛(소로). 오래된 강의 안내문 한 장 */
   #maison.paper{
     background:linear-gradient(to left,rgba(246,240,226,.985),rgba(240,232,214,.96));
@@ -1081,17 +1083,17 @@ window.EGQ = (function(){
   #maison.paper .m-door{color:#8a5a1c}
   #maison.paper .m-nick{color:#231c12}
   #maison.paper .m-orig{color:#7a6a4f;font-style:italic}
-  #maison.paper .m-intro{color:#4e4331}
+  #maison.paper .m-intro{color:#4e4331;font-family:var(--sans);font-size:14.5px}
   #maison.paper .f-prog{border-top:1px solid rgba(90,66,30,.28)}
   #maison.paper .f-row{display:grid;grid-template-columns:78px 1fr;gap:12px;align-items:baseline;width:100%;
     text-align:left;background:none;border:0;border-bottom:1px dotted rgba(90,66,30,.3);
-    padding:12px 2px;cursor:pointer;color:#2c2519;font-family:var(--serif);font-size:14.5px;line-height:1.5}
+    padding:12px 2px;cursor:pointer;color:#2c2519;font-family:var(--sans);font-size:14.5px;line-height:1.5;font-weight:500}
   #maison.paper .f-row:hover{background:rgba(138,90,28,.07)}
   #maison.paper .f-row .fd{font-family:var(--sans);font-size:12px;letter-spacing:.04em;color:#7a6a4f;white-space:nowrap}
   #maison.paper .f-row.today .fd{color:#8a2d1c;font-weight:700}
   #maison.paper .f-row.today .ft{font-weight:600}
-  #maison.paper .f-note{margin-top:12px;font-family:var(--serif);font-size:12.5px;color:#7a6a4f}
-  #maison.paper .f-wait{font-family:var(--serif);font-size:14px;color:#7a6a4f;padding:12px 0}
+  #maison.paper .f-note{margin-top:12px;font-family:var(--sans);font-size:12.5px;color:#7a6a4f}
+  #maison.paper .f-wait{font-family:var(--sans);font-size:14px;color:#7a6a4f;padding:12px 0}
   #maison.paper .m-enter{background:#2c2519;color:#f3ecdc}
   #maison.paper .m-enter:hover{background:#4a3c26}
 
@@ -3673,13 +3675,15 @@ async function openForumPanel(p){
   }
 }
 
+window.openForumPanel = openForumPanel;   /* 블록 8(타륜)이 부른다 */
+
 // 전당 핀 클릭 → doorway에 palais.html iframe 직행
 function openPalais(p){
   closeStory(); closeMaison();
   currentPopup = null;
   viewer.useDefaultRenderLoop = false;
   const dw = document.getElementById("doorway");
-  document.getElementById("doorTitle").textContent = (p.name||"") + " 전당";
+  document.getElementById("doorTitle").textContent = "EG인문학 포럼";   /* 0929 — 옛 「… 전당」 걷음 */
   const dp = document.getElementById("doorPick"); if (dp) dp.style.display = "none";
   const ep = document.getElementById("elevPick"); if (ep) ep.style.display = "none";
   const lp = document.getElementById("livingPick"); if (lp) lp.style.display = "none";
@@ -7110,7 +7114,14 @@ async function showHallNote(p){
       row.className = "f-row" + (k === 0 ? " today" : "");
       row.innerHTML = '<span class="fd"></span><span class="ft"></span>';
       row.querySelector(".fd").textContent = dl;
-      row.querySelector(".ft").textContent = isArt ? artLine(w) : songLine(w);
+      const ft = row.querySelector(".ft");
+      ft.textContent = isArt ? artLine(w) : songLine(w);
+      if (isArt && w){
+        /* 0929 소로 — 미술은 한 줄로 끝나 섭섭하다 → 화가 · 연도 · 사조 + 한 줄 장면 */
+        const meta = [w.artist, w.period, w.movement].filter(Boolean).join(" · ");
+        if (meta){ const a = document.createElement("span"); a.className = "fm"; a.textContent = meta; ft.appendChild(a); }
+        if (w.scene){ const sc = document.createElement("span"); sc.className = "fs"; sc.textContent = w.scene; ft.appendChild(sc); }
+      }
       box.appendChild(row);
     }
   }
@@ -7795,7 +7806,8 @@ let gArts = null;
 async function loadGalerieArts(){
   if (gArts) return gArts;
   try{
-    const r = await fetch(SUPA_URL + "/rest/v1/heritage_items?select=id,name,artist"
+    /* 0929 — 대문 안내문에 화가 · 연도 · 사조 · 한 줄 장면(4겹 첫 겹)을 함께 싣는다 */
+    const r = await fetch(SUPA_URL + "/rest/v1/heritage_items?select=id,name,artist,period,movement,scene:layers->>scene"
       + "&category=eq.visual&status=eq.active&order=id",
       { headers:{ apikey:SUPA_KEY, Authorization:"Bearer " + SUPA_KEY } });
     const j = await r.json();
@@ -7965,8 +7977,9 @@ async function openTourPanel(kind){
       closeTourLists();
       try{ document.getElementById("egDock").classList.remove("open"); }catch(e){}
       const pin = terraPins[p.code];
-      /* 0929 — 날아가지 않고 곧장 대문 + 이레 안내문 */
-      openHallGate(Object.assign({ kind: isArt ? "heritage" : "concert" }, p, pin || {}));
+      /* 0929 소로 — 타륜 판은 지도로 데려다준다(핀을 누르면 대문 + 이레 안내문). 곧장 가는 문은 작은 타륜 */
+      if (pin) flyToPark(pin);
+      else openHallGate(Object.assign({ kind: isArt ? "heritage" : "concert" }, p));
     });
     box.appendChild(b);
   }
@@ -8482,10 +8495,11 @@ function dockAgoraItems(){
       html: '<div class="dock-main"><span>EG팝업스토어</span><span class="chev" aria-hidden="true">›</span></div>'
           + '<div class="dock-sub" id="agoraPopupSub">출판사</div>',
       onClick: ()=> goMyPopupHall() },
-    { id:"palais", sec:"agora", cls:"uni nogo", elId:"navPalais", after:"subPalais",
-      html: '<div class="dock-main"><span>지식채널 전당</span><span class="chev" aria-hidden="true">›</span></div>'
-          + '<div class="dock-sub" id="agoraPalaisSub">지식채널</div>',
-      onClick: ()=> toggleOrgList("palais") }
+    /* ⭐ 0929 — 옛 「지식채널 전당」 목록(도시마다 한 줄)을 걷고 내 거주 도시 EG인문학 포럼 한 채로 */
+    { id:"palais", sec:"agora", cls:"uni nogo", elId:"navPalais",
+      html: '<div class="dock-main"><span>EG인문학 포럼</span><span class="chev" aria-hidden="true">›</span></div>'
+          + '<div class="dock-sub" id="agoraPalaisSub">하루 한 편 · 강연과 토론</div>',
+      onClick: ()=> goMyForum() }
   ];
 }
 
@@ -8521,6 +8535,22 @@ async function goMyPopupHall(){
   }
   window.openPopupHall(h);
 }
+/* ⭐ 0929 내 도시 EG인문학 포럼 — 타륜에서 누르면 그 건물로 날아가며 종이 판(상영표)이 올라온다 */
+async function goMyForum(){
+  closeOrgLists();
+  try{ closeTourLists(); }catch(e){}
+  const city = await egHomeCity();
+  let f = null;
+  try{
+    const { data } = await supa.from("palais_orgs").select("code,name,lat,lng,city,source_code,epoch").eq("city", city).limit(1);
+    f = (data && data[0]) || null;
+    if (!f){ const r2 = await supa.from("palais_orgs").select("code,name,lat,lng,city,source_code,epoch").eq("city","paris").limit(1); f = (r2.data && r2.data[0]) || null; }
+  }catch(e){ console.warn("포럼 로드 실패:", e); }
+  if (!f) return;
+  try{ document.getElementById("egDock").classList.remove("open"); }catch(e){}
+  if (typeof viewer !== "undefined" && viewer && f.lat != null) flyToPark({ code:"palais-" + f.city, lat:f.lat, lng:f.lng });
+  window.openForumPanel(f);
+}
 function fillAgoraCounts(){
   loadMyPopupHall().then(function(h){
     const el = document.getElementById("agoraPopupSub");
@@ -8528,7 +8558,7 @@ function fillAgoraCounts(){
     const n = (h && Array.isArray(h.stores)) ? h.stores.length : 0;
     el.textContent = n ? "출판사 " + n + "곳" : "아직 없습니다";
   }).catch(function(){});
-  const map = { palais:{ el:"agoraPalaisSub", unit:"지식채널" } };
+  const map = {};   /* 0929 — 포럼 줄은 고정 문구(하루 한 편 · 강연과 토론) */
   Object.keys(map).forEach(function(k){
     loadOrgs(k).then(function(rows){
       const el = document.getElementById(map[k].el);
