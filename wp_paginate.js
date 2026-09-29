@@ -234,12 +234,16 @@ function paginate(STREAM, R) {
          면 아래에 「텍스트」가 아니라 「야구장」이 떠 있어야 한다. */
       const unit = !it.num;
       sectLabel = unit ? it.name : it.num + ' ' + it.name;
-      if (entries[ei]) { if (entries[ei].ref == null) entries[ei].ref = pages.length; ei++; }
+      /* ⚠ 0929 — 쪽 번호는 본문 면을 **연 뒤에** 적는다. openBody 가 줄 서 있던 삽화를 먼저 세우므로
+         앞에서 적으면 꼭지가 아니라 그 앞 삽화 자리를 가리킨다(조개 → 크레덴시알이 118–119 에 멈춤).
+         색지(차림)가 이미 적었으면(ref != null) 그대로 둔다 */
+      const ent = entries[ei]; if (ent) ei++;
       markNext = true;
       /* ⭐ 색지가 이미 이름을 말했으면 절 머리를 다시 세우지 않는다 */
-      openBody(it.cover
+      const opened = openBody(it.cover
         ? { cap: PLATE_H }
         : { head: { num: it.num, name: it.name, unit }, cap: PLATE_H - (unit ? UNIT_H : HEAD_H) });
+      if (ent && ent.ref == null) ent.ref = pages.indexOf(opened);
       return;
     }
 
