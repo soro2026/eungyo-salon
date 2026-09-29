@@ -91,8 +91,8 @@ button.primary:hover{background:var(--gold);}
 .film .mv{display:flex;flex-direction:column;gap:2px;}
 .film input{width:100%;font-size:12.5px;padding:5px 8px;}
 /* 0929 — 뜨는 날 · 유튜브 제목 */
-.film .when{font-size:11.5px;color:var(--gold-l);text-align:center;line-height:1.25;white-space:nowrap}
-.film .when.today{color:#1a1206;background:var(--gold-l);border-radius:6px;padding:4px 0;font-weight:600}
+.film .when{font-size:11.5px;color:var(--gold);text-align:center;line-height:1.25;white-space:nowrap}
+.film .when.today{color:#1a1206;background:var(--gold);border-radius:6px;padding:4px 0;font-weight:600}
 .film .when.off{color:var(--dim)}
 .film input.yt-title::placeholder{color:rgba(240,228,200,.78)}
 .film .yid{font-family:Menlo,Consolas,monospace;font-size:11.5px;letter-spacing:.02em;}
@@ -484,6 +484,38 @@ async function patchFilm(id, patch){
 }
 
 /* 차례 바꾸기 — 이웃과 sort를 맞바꾼다. 값이 같으면 10씩 다시 매긴다 */
+/* ⭐ 0929 소로 — 영상을 새로 걸거나 · 내리거나 · 지워도 이미 잡힌 날짜가 뒤엉키지 않게.
+   오늘의 한 편을 맨 앞에 두고 앞으로의 차례대로 줄을 다시 세운 뒤, 기산일을 오늘로 옮긴다.
+   → 새 영상은 늘 맨 뒷날에 붙고, 오늘 · 내일 · 모레는 그대로 남는다.
+   기산일은 이 포럼과 이 포럼을 빌려 쓰는 도시(source_code)가 함께 옮긴다 — 세 도시가 같은 날 같은 한 편.
+   ⚠ ▲▼ 손 옮기기는 예전 그대로(일부러 차례를 바꾸는 손이므로). */
+function kstToday(){ return new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Seoul'}); }
+function todayIndexOf(list){
+  const L=list.length; if(!L) return 0;
+  const ev=$('f_epoch').value;
+  const base=ev ? new Date(ev+'T00:00:00+09:00') : new Date();
+  const d=Math.floor((Date.now()-base)/86400000);
+  return ((d%L)+L)%L;
+}
+async function rescheduleKeepingToday(prevActive, mutate){
+  const i0=todayIndexOf(prevActive);
+  const rotated=prevActive.slice(i0).concat(prevActive.slice(0,i0));
+  const finalActive=mutate(rotated.slice());
+  const rest=FILMS.filter(f=>!finalActive.includes(f));
+  const order=finalActive.concat(rest);
+  for(let k=0;k<order.length;k++){
+    const want=k*10;
+    if(order[k].sort!==want){ order[k].sort=want; await patchFilm(order[k].id,{sort:want}); }
+  }
+  FILMS=order;
+  const today=kstToday();
+  const { error } = await supa.from('palais_orgs').update({ epoch:today })
+    .or('code.eq.'+CUR_ORG+',source_code.eq.'+CUR_ORG);
+  if(error){ toast('기산일을 옮기지 못했어요: '+error.message,'bad'); return false; }
+  $('f_epoch').value=today;
+  return true;
+}
+
 async function moveFilm(id, dir){
   const i=FILMS.findIndex(f=>f.id===id);
   const j=i+dir;
@@ -511,14 +543,23 @@ $('filmList').addEventListener('click', async e=>{
   if(act==='toggle'){
     const f=FILMS.find(x=>x.id===id); if(!f) return;
     const next = f.status==='active' ? 'off' : 'active';
-    if(await patchFilm(id,{status:next})){ renderFilms(); toast(next==='active'?'다시 걸었어요.':'내려두었어요 — 기록은 남습니다.','ok'); }
+    const prev=FILMS.filter(x=>x.status==='active');
+    if(await patchFilm(id,{status:next})){
+      /* 0929 — 내리면 그 자리만 빠지고, 다시 걸면 맨 뒷날로 */
+      await rescheduleKeepingToday(prev, r => next==='active' ? r.concat([f]) : r.filter(x=>x!==f));
+      renderFilms(); toast(next==='active'?'다시 걸었어요 — 맨 뒷날에 붙었습니다.':'내려두었어요 — 기록은 남습니다.','ok');
+    }
     return;
   }
   if(act==='del'){
     if(!confirm('이 영상을 목록에서 지울까요?\n(내려두기만 하려면 「걸려 있음」을 눌러 주세요.)')) return;
+    const prev=FILMS.filter(x=>x.status==='active');
+    const gone=FILMS.find(x=>x.id===id);
     const { error } = await supa.from('palais_films').delete().eq('id',id);
     if(error){ toast('지우지 못했어요: '+error.message,'bad'); return; }
-    FILMS=FILMS.filter(x=>x.id!==id); renderFilms(); toast('지웠어요.','ok');
+    FILMS=FILMS.filter(x=>x.id!==id);
+    await rescheduleKeepingToday(prev, r => r.filter(x=>x!==gone));   /* 0929 — 남은 날짜는 그대로 */
+    renderFilms(); toast('지웠어요.','ok');
   }
 });
 
@@ -552,8 +593,10 @@ $('btnAddFilm').addEventListener('click', async ()=>{
     .insert({ org:CUR_ORG, video_id:yid, sort, status:'active' })
     .select().single();
   if(error){ toast('걸지 못했어요: '+error.message,'bad'); return; }
+  const prev=FILMS.filter(x=>x.status==='active');
   FILMS.push(data); $('f_newUrl').value='';
-  renderFilms(); fillYtTitles(); toast('걸었어요. 제목은 비워 두면 유튜브가 알려줍니다.','ok');
+  await rescheduleKeepingToday(prev, r => r.concat([data]));   /* 0929 — 새 영상은 맨 뒷날에 */
+  renderFilms(); fillYtTitles(); toast('걸었어요 — 맨 뒷날에 붙었습니다.','ok');
 });
 
 /* ── 저장 ── */
