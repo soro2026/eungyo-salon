@@ -1013,6 +1013,10 @@ window.EGQ = (function(){
   #maison .m-res .av{ width:26px;height:26px;border-radius:50%;object-fit:cover;
     flex-shrink:0; background:rgba(255,210,63,.16) }
   #maison .m-res .nm{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+  /* 0929 EG팝업스토어 판 — 로고 동그라미 · 샘플전시 괄호 */
+  #maison .m-res .av.logo{ width:34px; height:34px; object-fit:contain; padding:5px; box-sizing:border-box;
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,210,63,.25) }
+  #maison .m-res .nm .bd{ margin-left:6px; font-size:12.5px; color:var(--cream-dim) }
   #maison .m-res .sl{ font-size:11.5px; color:var(--cream-dim); flex-shrink:0 }
   #maison .m-res .sl.gst{ color:#8FB6D6; font-style:italic; letter-spacing:.02em }   /* 0923 손님 이름표 — 표 바탕 기요셰의 푸른 결 */
   /* ⭐ 0928 셀 명단 판 — 셀 머리 · 접힘 줄 · 정회원 금빛 점 */
@@ -3177,16 +3181,7 @@ function addStockPin(b, dd){
             outlineWidth: ready ? 2 : 3,
             disableDepthTestDistance:Number.POSITIVE_INFINITY,
             distanceDisplayCondition: dd },
-    label:{ text: (ready ? "🌸 출고 대기 · " : "🏗 공사 중 · ") + bldName(b) + " · " + b.slots,   /* 0928 소로 — 공사 중 / 출고 대기 */
-            font:"600 11px 'Helvetica Neue','Apple SD Gothic Neo','Malgun Gothic',sans-serif",
-            fillColor: Cesium.Color.fromCssColorString("#3a0f22"),
-            showBackground:true,
-            backgroundColor: Cesium.Color.fromCssColorString(STOCK_PINK).withAlpha(.92),
-            backgroundPadding:new Cesium.Cartesian2(8,4),
-            pixelOffset:new Cesium.Cartesian2(0,-16),
-            verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
-            disableDepthTestDistance:Number.POSITIVE_INFINITY,
-            distanceDisplayCondition: dd }
+    /* ⭐ 0929 소로 — 분홍 이름표 걷음(시각적으로 피곤). 핀만 · 눌러 열면 판이 공사 중 / 출고 대기를 알려 준다 */
   });
   ent._maison = b; ent._stock = true;
   return ent;
@@ -3415,8 +3410,14 @@ function openPopupHall(h){
   stores.forEach(st => {
     const btn = document.createElement("button");
     btn.className = "m-res";
-    btn.innerHTML = '<span class="av"></span><span class="gd off"></span><span class="nm"></span>';
-    btn.querySelector(".nm").textContent = st.name || st.code;
+    /* ⭐ 0929 소로 — 동그라미에 출판사 로고(popup-assets/<code>/logo.webp) · 이름 뒤 괄호에 badge(샘플전시) */
+    btn.innerHTML = '<img class="av logo" alt=""><span class="nm"></span>';
+    const lg = btn.querySelector(".av");
+    lg.src = POPUP_ST_BASE + encodeURIComponent(st.code) + "/logo.webp";
+    lg.onerror = () => { lg.replaceWith(Object.assign(document.createElement("span"), { className:"av" })); };
+    const nm = btn.querySelector(".nm");
+    nm.textContent = st.name || st.code;
+    if (st.badge){ const bd = document.createElement("span"); bd.className = "bd"; bd.textContent = "(" + st.badge + ")"; nm.appendChild(bd); }
     btn.addEventListener("click", () => openPopup({ code: st.code, name: st.name, city: h.city, city_ko: h.city_ko }));
     box.appendChild(btn);
   });
@@ -3441,7 +3442,9 @@ function openPopup(p){
   const ep = document.getElementById("elevPick"); if (ep) ep.style.display = "none";
   const lp = document.getElementById("livingPick"); if (lp) lp.style.display = "none";
   const ex = document.getElementById("doorExit"); if (ex) ex.title = "도시로 나가기";   // 팝업은 도시로 나감
-  setDoorFrame("popup_shell_v0_4.html?org=" + encodeURIComponent(p.code) + "&v=" + Date.now());
+  /* 0929 — 문패 도시(EG × LONDON 등)는 들어온 도시로 넘긴다 */
+  setDoorFrame("popup_shell_v0_4.html?org=" + encodeURIComponent(p.code)
+               + (p.city ? "&city=" + encodeURIComponent(p.city) : "") + "&v=" + Date.now());
   dw.classList.add("popup","in","open");   // popup=문짝 숨김 / open=열린 상태로 iframe 노출
   doorState = 'open';
 }

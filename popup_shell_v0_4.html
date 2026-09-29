@@ -861,6 +861,10 @@ html:not(.edit-on) #bm-intro-btn{ display:none !important; }
  * ============================================================ */
 /* ⭐ (2)회차: ?org= URL 스위치 — 25개 출판사 복제 척추 (기본 munhak) */
 const ORG_CODE = (new URLSearchParams(location.search).get('org') || 'munhak').trim();
+/* ⭐ 0929 — 입점처는 한 벌(파리 원본)이지만 문패는 들어온 도시로. terra 가 &city=london 처럼 넘긴다.
+   「EG × PARIS」가 런던 · 뉴욕에서도 찍히던 것을 바로잡는다. 없으면 DB 값 그대로. */
+const CITY_OVR = ({ paris:['파리','PARIS'], london:['런던','LONDON'], newyork:['뉴욕','NEW YORK'] })
+                 [(new URLSearchParams(location.search).get('city') || '').trim()] || null;
 /* ⭐ (2)회차 저녁 대전환: 이미지 = Supabase Storage 우물 (GitHub는 폴백)
  * 경로 계약(v111 §3): {org}/{slot}.webp · 공용 _shared/flowerNN.webp
  * SB_URL(1656행)은 뒤에 선언되므로 TDZ 회피 위해 여기서 베이스를 독립 상수로 둠 */
@@ -1994,8 +1998,8 @@ async function loadOrg(){
       if (error || !data){
         console.warn('[popup_orgs] 로드 실패/없음 — 씨앗(munhak) 유지:', ORG_CODE, error && error.message);
       } else {
-        POPUP.city          = data.city_ko || POPUP.city;
-        POPUP.cityEn        = data.city_en || POPUP.cityEn;
+        POPUP.city          = (CITY_OVR && CITY_OVR[0]) || data.city_ko || POPUP.city;
+        POPUP.cityEn        = (CITY_OVR && CITY_OVR[1]) || data.city_en || POPUP.cityEn;
         POPUP.org.code      = data.code;
         POPUP.org.name      = data.name;
         POPUP.org.logo      = data.logo;
