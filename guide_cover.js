@@ -230,4 +230,145 @@
   });
 
   window.EGGuideCover = { open, close, openBook };
+
+  /* ══ ⭐ 0929 — 가이드북 낭독 (EGGuideVoice) ═══════════════════════════════
+     녹음은 산티아고 순례 비행의 조각(voice_takes · scope pa · camino_*)을 그대로 쓴다.
+     끈 = voice_takes.gb_slug(꼭지) · gb_at(책 본문의 첫 구절 — 책이 🔊 을 세우는 자리)
+     같은 꼭지 조각은 ref 순서로 잇는다.
+     ⭐ 책의 🔊 을 누르면 그 조각부터 꼭지 끝까지. 다음 꼭지로 멋대로 넘어가지 않는다.
+     ⭐ 소리는 이 창(terra)에서 튼다 — 책(iframe)을 덮어도 이어진다(소로 0929).
+     ⭐ 띠 — 듣는 동안 화면 아래 「🐚 🔊 크레덴시알 (2/2) ■」. 띠 = 그 꼭지로 책 펴기 · ■ = 멈춤.
+     ⭐ 물러남 — 이 창에서 **8초 넘는** 소리(비행 방송 · 음악 · 대문 오디오 소개)가 나서면 비켜 준다.
+       짧은 효과음(도장 · 봉투)에는 비키지 않는다.
+       ⚠ 다른 iframe 안의 소리(포럼 유튜브 등)는 이 창에서 못 본다. */
+  const SUPA = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+  const KEY  = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+  const SHELL = '<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg"><rect width="300" height="300" rx="34" fill="#1D4F9E"/><g fill="none" stroke="#F7C600" stroke-linecap="round"><path stroke-width="17" d="M134 210L34 164M136 205L53 133M140 202L81 109M145 200L114 94M150 199L150 89M155 200L186 94M160 202L219 109M164 205L247 133M166 210L266 164"/><path stroke-width="14" d="M31 170A128 128 0 0 1 269 170"/></g></svg>';
+  let TAKES = null, loading = null;               /* { slug: [{ ref, url, label }] } */
+  let GV = null;                                  /* 지금 트는 것 { slug, list, i, audio } */
+  let chip = null;
+
+  function vLoad() {
+    if (TAKES) return Promise.resolve(TAKES);
+    if (loading) return loading;
+    loading = fetch(SUPA + '/rest/v1/voice_takes?select=ref,title,url,gb_slug&gb_slug=not.is.null&active=eq.true&order=ref',
+      { headers: { apikey: KEY, Authorization: 'Bearer ' + KEY } })
+      .then((r) => { if (!r.ok) throw new Error('voice_takes ' + r.status); return r.json(); })
+      .then((rows) => {
+        const m = {};
+        rows.forEach((r) => {
+          const label = String(r.title || '').split('가이드북 ')[1] || r.ref;
+          (m[r.gb_slug] = m[r.gb_slug] || []).push({ ref: r.ref, url: r.url, label: label.trim() });
+        });
+        TAKES = m; return m;
+      })
+      .catch((e) => { console.warn('[EG] 가이드북 낭독 목록을 못 받았습니다', e); loading = null; return {}; });
+    return loading;
+  }
+  function vHas(slug) { return !!(TAKES && TAKES[slug] && TAKES[slug].length); }
+  function vState() {
+    if (!GV) return null;
+    const it = GV.list[GV.i];
+    return { slug: GV.slug, ref: it.ref, i: GV.i, n: GV.list.length, label: it.label };
+  }
+  function vTell() {
+    const st = vState();
+    try { window.dispatchEvent(new CustomEvent('egguidevoice', { detail: st })); } catch (_) {}
+    try {
+      if (frame && frame.contentWindow) {
+        const W = frame.contentWindow;
+        W.dispatchEvent(new W.CustomEvent('egguidevoice', { detail: st ? JSON.parse(JSON.stringify(st)) : null }));
+      }
+    } catch (_) {}
+    vChip(st);
+  }
+  function vChip(st) {
+    if (!chip) {
+      const css = document.createElement('style');
+      css.textContent = `
+  #gvChip{ position:fixed; left:50%; bottom:22px; transform:translate(-50%,12px); z-index:90020;
+    display:flex; align-items:center; gap:10px; padding:7px 8px 7px 9px; border-radius:22px;
+    background:#1D4F9E; color:#fff; font:500 13px/1 'Noto Sans KR', sans-serif; letter-spacing:.01em;
+    box-shadow:0 4px 18px rgba(0,0,0,.35); opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; }
+  #gvChip.on{ opacity:1; transform:translate(-50%,0); pointer-events:auto; }
+  #gvChip .gv-go{ display:flex; align-items:center; gap:8px; cursor:pointer; }
+  #gvChip .gv-go svg{ width:20px; height:20px; border-radius:3px; display:block; }
+  #gvChip .gv-go:hover .gv-t{ text-decoration:underline; text-underline-offset:3px; }
+  #gvChip .gv-x{ width:26px; height:26px; border-radius:50%; border:none; cursor:pointer; padding:0;
+    background:rgba(255,255,255,.16); color:#F7C600; font-size:11px; line-height:26px; text-align:center; }
+  #gvChip .gv-x:hover{ background:rgba(255,255,255,.3); }`;
+      document.head.appendChild(css);
+      chip = document.createElement('div');
+      chip.id = 'gvChip';
+      chip.setAttribute('role', 'region');
+      chip.setAttribute('aria-label', '가이드북 낭독');
+      chip.innerHTML = '<span class="gv-go" role="button" tabindex="0" title="가이드북에서 이 꼭지 펴기">' + SHELL
+        + '<span aria-hidden="true">🔊</span><span class="gv-t"></span></span>'
+        + '<button class="gv-x" type="button" aria-label="낭독 멈추기" title="멈추기">■</button>';
+      document.body.appendChild(chip);
+      chip.querySelector('.gv-x').addEventListener('click', (e) => { e.stopPropagation(); vStop(); });
+      chip.querySelector('.gv-go').addEventListener('click', () => {
+        if (!GV) return;
+        if (typeof window.openGuideAt === 'function') window.openGuideAt(GV.slug); else openBook(GV.slug);
+      });
+    }
+    if (st) { chip.querySelector('.gv-t').textContent = st.label; chip.classList.add('on'); }
+    else chip.classList.remove('on');
+  }
+  function vNext() {
+    if (!GV) return;
+    const it = GV.list[GV.i];
+    const a = new Audio(it.url);
+    a.__egGuideVoice = true;
+    a.addEventListener('ended', () => {
+      if (!GV || GV.audio !== a) return;
+      if (GV.i + 1 < GV.list.length) { GV.i++; vNext(); } else vStop();
+    });
+    a.addEventListener('error', () => { if (GV && GV.audio === a) { console.warn('[EG] 낭독 조각을 못 틀었습니다', it.ref); vStop(); } });
+    GV.audio = a;
+    vTell();
+    const p = a.play(); if (p && p.catch) p.catch(() => { if (GV && GV.audio === a) vStop(); });
+  }
+  /* slug 꼭지를 fromRef 조각부터(없으면 처음부터) */
+  function vPlay(slug, fromRef) {
+    return vLoad().then(() => {
+      if (!vHas(slug)) return false;
+      const list = TAKES[slug];
+      const i = fromRef ? Math.max(0, list.findIndex((x) => x.ref === fromRef)) : 0;
+      if (GV && GV.slug === slug && GV.i === i) return true;   /* 이미 그 조각 — 처음으로 돌리지 않는다 */
+      vStop(true);
+      GV = { slug, list, i, audio: null };
+      vNext();
+      return true;
+    });
+  }
+  function vStop(quiet) {
+    if (!GV) return;
+    const a = GV.audio; GV = null;
+    try { if (a) { a.pause(); a.removeAttribute('src'); a.load(); } } catch (_) {}
+    if (quiet) vChip(null); else vTell();
+  }
+  /* 다른 소리가 나서면 비켜 준다 — 이 창의 모든 audio · video 의 play 를 한 번 거친다.
+     ⚠ 길이를 알고 나서 가른다: 8초 넘는(또는 끝없는) 소리만. 음소거 · 볼륨 0 은 소리가 아니다 */
+  (function () {
+    const P = HTMLMediaElement.prototype, orig = P.play;
+    if (P.__egGuideVoiceHook) return;
+    P.__egGuideVoiceHook = true;
+    P.play = function () {
+      try {
+        const m = this;
+        if (GV && !m.__egGuideVoice && !m.muted && m.volume > 0) {
+          const judge = () => {
+            if (!GV || m.paused || m.muted || m.volume === 0) return;
+            const d = m.duration;
+            if (!isFinite(d) || d > 8) vStop();
+          };
+          if (m.readyState >= 1) judge(); else m.addEventListener('loadedmetadata', judge, { once: true });
+        }
+      } catch (_) {}
+      return orig.apply(this, arguments);
+    };
+  })();
+
+  window.EGGuideVoice = { load: vLoad, has: vHas, play: vPlay, stop: vStop, state: vState };
 })();
