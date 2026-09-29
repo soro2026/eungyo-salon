@@ -3192,8 +3192,10 @@ async function streamPinsNear(lng, lat, opts){
     clearPins();
     await Promise.allSettled([ loadCityMarkers(null, near), loadMaisons(null, near), loadPopups(null, near), loadPalais(null, near) ]);
     setCityByCoord(lng, lat);
-    /* 앉히기는 여기서 한 번 — 카메라가 이 자리에 있으니 타일은 이미 와 있고, 비용은 거의 0 */
-    await clampSpotsToSurface();
+    /* 앉히기는 여기서 한 번 — 카메라가 이 자리에 있으니 타일은 이미 와 있고, 비용은 거의 0
+       ⚠⚠ 0929 — 기다리지 않는다. 비행 중에는 타일이 늦어 이 한 줄이 15~20초 줄을 막고,
+         그 뒤의 핀 요청까지 붙잡았다(타륜 → 파리 라탱 핀이 늦게 뜨던 뿌리). 핀은 이미 서 있고 높이만 나중에 맞춘다. */
+    clampSpotsToSurface().catch(()=>{});
   })();
   try{ await PIN_STREAM.busy; } finally { PIN_STREAM.busy = null; }
 }
@@ -6675,6 +6677,9 @@ function freeCamera(){
 function flyToPark(p, opts){
   try{ hideParkNote(); }catch(e){}   /* 다른 곳으로 떠나면 안내판은 걷는다 (0728) */
   if (!p) return;
+  /* ⭐ 0929 — 도착지 핀을 비행과 나란히 부른다(arriveHome 과 같은 손).
+     예전엔 카메라가 멈추기를 기다렸는데, 도착하자마자 궤도가 돌아 「멈춤」이 좀처럼 오지 않았다. */
+  try{ if (p.lng != null && p.lat != null) streamPinsNear(Number(p.lng), Number(p.lat), { force:true }); }catch(e){}
   if (!(opts && opts.nolog)) logPush("pin:"+p.code, ()=> flyToPark(p, { nolog:true }));
   currentPark = p;
   closeStadCard();
