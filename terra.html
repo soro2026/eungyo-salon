@@ -3348,7 +3348,9 @@ function makePopupPlate(bgColor, logoImg){
 async function loadPopups(city, nearQ){
   let rows = [];
   try{
-    const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_popups", {
+    /* ⭐ 0929 소로 — 출판사 핀 아홉을 도시마다 EG팝업스토어 한 채로. 핀은 건물(popup_halls),
+         입점처(stores)는 누르면 거주지처럼 판에 줄 선다. 옛 get_popups 는 옛 페이지(star_voyage 등)가 쓰니 그대로 둔다. */
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/get_popup_halls", {
       method:"POST",
       headers:{ "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY },
       body: JSON.stringify(pinArgs(city, nearQ))   /* ⭐ 0907 — 반경 안만 */
@@ -3361,14 +3363,14 @@ async function loadPopups(city, nearQ){
   for (const p of rows){
     const bg = popupColor(p);   // 출판사 고유색 (pin_color 지정값 → 없으면 코드 해시)
     const ent = viewer.entities.add({
-      id: "popup-"+(p.city||city||"x")+"-"+p.code,
+      id: "popup-"+(p.city||city||"x")+"-hall",
       position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),   // height 생략 → 표면 클램프 대상
       point:{ pixelSize:9, color:Cesium.Color.fromCssColorString(bg),
               outlineColor:Cesium.Color.fromCssColorString("#05070f"), outlineWidth:2,
               disableDepthTestDistance:Number.POSITIVE_INFINITY,
               distanceDisplayCondition:near },   // 다른 핀과 같은 원 + 고유색 · 호버 부풀기는 hover 핸들러가 자동 처리
       label: {
-        text: p.name || p.code,
+        text: p.name || "EG팝업스토어",
         font: "bold 14px 'Helvetica Neue',Arial,sans-serif",   // 메종(13px)보다 한 급 큼
         fillColor: Cesium.Color.WHITE,
         /* 0903 — 먹 테두리를 걷었다. 0801에 terra 핀에서 이미 걷어낸 것인데
@@ -3389,7 +3391,47 @@ async function loadPopups(city, nearQ){
   applyLayerVisibility();
 }
 // 팝업 핀 클릭 → doorway에 셸을 iframe으로 직행(문짝 없음). 렌더 정지=과금 0.
+/* ⭐ 0929 EG팝업스토어 판 — 건물 핀을 누르면 거주지(#maison) 판이 스르륵 올라오고 입점처가 줄 선다.
+   입점처를 누르면 그 스토어로. 뉴욕 · 런던 줄은 파리 원본(code)을 열고 문패만 그 도시(city_ko).
+   ⚠ 판은 openMaison 과 한 벌을 빌린다 — currentMaison 은 건드리지 않는다. */
+function openPopupHall(h){
+  closeStory();
+  const stores = Array.isArray(h.stores) ? h.stores : [];
+  document.getElementById("mDoor").textContent =
+    ({paris:"파리 라탱", london:"런던 웨스트민스터", newyork:"뉴욕 맨해튼"}[h.city] || h.city_ko || h.city)
+    + " · 입점 " + stores.length + "곳";
+  document.getElementById("mNick").textContent = h.name || "EG팝업스토어";
+  document.getElementById("mOrig").textContent = "EG Pop-up Store";
+  const _mAv = document.getElementById("mAvatar");
+  if (_mAv){ _mAv.removeAttribute("src"); _mAv.style.display = "none"; }
+  const own = document.getElementById("mOwner"); if (own) own.textContent = "";
+  const intro = document.getElementById("mIntro");
+  intro.style.whiteSpace = "pre-line";
+  intro.textContent = "출판사들이 새 책을 펼쳐 두는 곳입니다.";
+  const list = document.getElementById("mList");
+  list.innerHTML = "";
+  const box = document.createElement("div");
+  box.className = "m-cellbox open";
+  stores.forEach(st => {
+    const btn = document.createElement("button");
+    btn.className = "m-res";
+    btn.innerHTML = '<span class="av"></span><span class="gd off"></span><span class="nm"></span>';
+    btn.querySelector(".nm").textContent = st.name || st.code;
+    btn.addEventListener("click", () => openPopup({ code: st.code, name: st.name, city: h.city, city_ko: h.city_ko }));
+    box.appendChild(btn);
+  });
+  if (!stores.length){
+    const e0 = document.createElement("div"); e0.className = "m-cell"; e0.textContent = "입점처를 기다리고 있습니다";
+    box.appendChild(e0);
+  }
+  list.appendChild(box);
+  const en = document.getElementById("mEnter"); if (en) en.style.display = "none";
+  document.getElementById("maison").classList.add("in");
+}
+window.openPopupHall = openPopupHall;   /* 블록 8(타륜)이 부른다 */
+
 function openPopup(p){
+  if (p && Array.isArray(p.stores)){ openPopupHall(p); return; }   /* 0929 — 건물 핀이면 판부터 */
   closeStory(); closeMaison();
   currentPopup = p;
   viewer.useDefaultRenderLoop = false;
@@ -8204,10 +8246,11 @@ const DOCK_SKELETON = [
    지구를 한 줄도 켜지 않으므로 타일 오기 전에도 열린다 — egOpenOrg가 viewer 없으면 생짜 이동. */
 function dockAgoraItems(){
   return [
-    { id:"popup",  sec:"agora", cls:"uni nogo", elId:"navPopups", after:"subPopups",
-      html: '<div class="dock-main"><span>신간 팝업스토어</span><span class="chev" aria-hidden="true">›</span></div>'
+    /* ⭐ 0929 — 출판사 목록(9줄)을 걷고 내 거주 도시 EG팝업스토어 한 채로(콜레주와 같은 길) */
+    { id:"popup",  sec:"agora", cls:"uni nogo", elId:"navPopups",
+      html: '<div class="dock-main"><span>EG팝업스토어</span><span class="chev" aria-hidden="true">›</span></div>'
           + '<div class="dock-sub" id="agoraPopupSub">출판사</div>',
-      onClick: ()=> toggleOrgList("popup") },
+      onClick: ()=> goMyPopupHall() },
     { id:"palais", sec:"agora", cls:"uni nogo", elId:"navPalais", after:"subPalais",
       html: '<div class="dock-main"><span>지식채널 전당</span><span class="chev" aria-hidden="true">›</span></div>'
           + '<div class="dock-sub" id="agoraPalaisSub">지식채널</div>',
@@ -8217,9 +8260,44 @@ function dockAgoraItems(){
 
 /* 곳 수는 목록이 도착하면 채운다 — 첫 그림을 두 번의 왕복만큼 기다리게 하지 않는다.
    egOrgs가 창 안에서 한 번만 받으므로 다시 그려도 망을 또 타지 않는다. */
+/* ⭐ 0929 내 도시 EG팝업스토어 — 타륜에서 누르면 그 건물로 날아가며 판이 올라온다 */
+async function egHomeCity(){
+  if (!EG_HOME_CITY){
+    try{ const { data } = await supa.rpc("eg_my_home_city"); EG_HOME_CITY = data || "paris"; }
+    catch(e){ EG_HOME_CITY = "paris"; }
+  }
+  return EG_HOME_CITY;
+}
+let myPopupHall = null;
+async function loadMyPopupHall(){
+  if (myPopupHall) return myPopupHall;
+  const city = await egHomeCity();
+  try{
+    const { data } = await supa.rpc("get_popup_halls", { p_city: city });
+    myPopupHall = (data && data[0]) || null;
+    if (!myPopupHall){ const r2 = await supa.rpc("get_popup_halls", { p_city: "paris" }); myPopupHall = (r2.data && r2.data[0]) || null; }
+  }catch(e){ console.warn("팝업스토어 로드 실패:", e); }
+  return myPopupHall;
+}
+async function goMyPopupHall(){
+  closeOrgLists();
+  try{ closeTourLists(); }catch(e){}
+  const h = await loadMyPopupHall();
+  if (!h) return;
+  try{ document.getElementById("egDock").classList.remove("open"); }catch(e){}
+  if (typeof viewer !== "undefined" && viewer){
+    flyToPark({ code: "popup-hall-" + h.city, lat: h.lat, lng: h.lng });
+  }
+  window.openPopupHall(h);
+}
 function fillAgoraCounts(){
-  const map = { popup:{ el:"agoraPopupSub", unit:"출판사" },
-                palais:{ el:"agoraPalaisSub", unit:"지식채널" } };
+  loadMyPopupHall().then(function(h){
+    const el = document.getElementById("agoraPopupSub");
+    if (!el) return;
+    const n = (h && Array.isArray(h.stores)) ? h.stores.length : 0;
+    el.textContent = n ? "출판사 " + n + "곳" : "아직 없습니다";
+  }).catch(function(){});
+  const map = { palais:{ el:"agoraPalaisSub", unit:"지식채널" } };
   Object.keys(map).forEach(function(k){
     loadOrgs(k).then(function(rows){
       const el = document.getElementById(map[k].el);
