@@ -291,7 +291,11 @@ const SUPA_URL='https://cyhlotwdisjvoxvfkpnd.supabase.co';
 const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
 const BUCKET='popup-assets', PREFIX='palais/';
 const sb=supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{storageKey:'eungyo-auth',persistSession:true}});
-const ORG=(new URLSearchParams(location.search).get('org')||'ildangbaek').toLowerCase();
+const ORG_ASKED=(new URLSearchParams(location.search).get('org')||'ildangbaek').toLowerCase();
+/* ⭐ 0929 — 뉴욕 · 런던 포럼은 파리 한 벌(source_code)을 빌린다: 그림 · 상영 목록 · 방명록.
+   이름 · 스크린 좌표는 들어온 도시 줄의 것. 도시가 독립하면 source_code 만 떼면 된다.
+   ⚠ loadOrg 가 받기 전 첫 그림은 원본 추정(도시 꼬리 _nyc · _ldn 을 뗀 이름)으로 — 캄캄한 첫 순간을 막는다. */
+let ORG=ORG_ASKED.replace(/_(nyc|ldn)$/,'');
 
 let PALAIS={ name:'', epoch:null, curation:[], letters:[] };
 /* ⭐ 0808 소로 — 상영 목록이 palais_orgs.curation(jsonb 배열)에서 palais_films 표로 옮겨왔다.
@@ -669,8 +673,10 @@ async function loadFilms(){
 }
 
 async function loadOrg(){
-  const { data, error } = await sb.from('palais_orgs').select('*').eq('code',ORG).maybeSingle();
-  if(error||!data){ console.warn('전당을 찾지 못했습니다:',ORG,error&&error.message); return; }
+  const { data, error } = await sb.from('palais_orgs').select('*').eq('code',ORG_ASKED).maybeSingle();
+  if(error||!data){ console.warn('전당을 찾지 못했습니다:',ORG_ASKED,error&&error.message); return; }
+  const src = (data.source_code || data.code || ORG_ASKED).toLowerCase();
+  if (src !== ORG){ ORG = src; applyTOD(); }
   PALAIS={ name:data.name||'', epoch:data.epoch||null,
            curation:Array.isArray(data.curation)?data.curation:[],
            letters:Array.isArray(data.letters)?data.letters:[] };
