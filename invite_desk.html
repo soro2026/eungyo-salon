@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>초대 편지 책상 · EG유니버스</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Noto+Serif+KR:wght@400;500;700&family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="eg_pass_draw.js?v=0929"></script>
+<!--
+  ⭐ 0929 소로 — 초대 편지 책상(살롱지기 전용).
+  존경하는 분께 드리는 초대권(invitatio): 성함 · 메일 · 모실 집 → 초대권 뽑기 → 탑승권 미리보기
+  → 메일 보내기(문안은 이 책상에서 · 탑승권 첨부 · application-mail type invitatio) / 그림만 받기
+  · 모실 집 = eg_invitatio_homes() — 소로 · 본부 건물만(파운더 건물 · 시험 건물 제외)
+  · 편지 = invitatio.html?no=번호 · 끝의 문은 빈 개찰구(번호는 손님이 손수 넣는다 — 소로 「그 재미」)
+-->
+<style>
+  :root{ --paper:#F8F4EB; --paper2:#FFFDF7; --ink:#1A1916; --ink2:#3A342B; --dim:#8B8478; --gold:#8A6414; --line:rgba(26,25,22,.12); --blue:#1D4F9E; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:#EDE6D6; color:var(--ink); font-family:'Gowun Batang',serif; }
+  .wrap{ max-width:900px; margin:0 auto; padding:34px 22px 100px; }
+  h1{ font-family:'Noto Serif KR',serif; font-weight:700; font-size:22px; margin:0 0 4px; letter-spacing:.02em; }
+  .lede{ color:var(--ink2); font-size:14px; margin:0 0 26px; }
+  .card{ background:var(--paper); border:1px solid rgba(26,25,22,.08); border-radius:12px; padding:24px 26px; margin-bottom:20px;
+    box-shadow:0 1px 3px rgba(0,0,0,.05); }
+  .lbl{ font-size:11px; letter-spacing:.16em; color:var(--gold); margin:0 0 8px; }
+  .row{ display:grid; grid-template-columns:110px 1fr; gap:12px 14px; align-items:center; }
+  .row label{ font-size:14px; color:var(--ink2); }
+  input,select,textarea{ font-family:inherit; font-size:15px; color:var(--ink); background:var(--paper2);
+    border:1px solid rgba(26,25,22,.2); border-radius:7px; padding:9px 11px; width:100%; outline:none; }
+  input:focus,select:focus,textarea:focus{ border-color:var(--gold); }
+  textarea{ line-height:1.8; min-height:330px; resize:vertical; }
+  .btns{ display:flex; gap:8px; flex-wrap:wrap; margin-top:18px; }
+  .btn{ font-family:inherit; font-size:14px; padding:9px 18px; border-radius:8px; cursor:pointer;
+    border:1px solid rgba(26,25,22,.25); background:transparent; color:var(--ink2); }
+  .btn.main{ background:var(--ink); color:var(--paper); border-color:var(--ink); }
+  .btn:disabled{ opacity:.45; cursor:default; }
+  .msg{ font-size:13px; margin-top:12px; min-height:1.4em; color:var(--ink2); }
+  .msg.bad{ color:#A5372B; } .msg.ok{ color:var(--blue); }
+  #ticket canvas{ width:100%; height:auto; display:block; border-radius:10px; box-shadow:0 6px 24px rgba(0,0,0,.18); }
+  #step2{ display:none; } #step2.on{ display:block; }
+  .note{ font-size:12.5px; color:var(--dim); line-height:1.7; margin-top:8px; }
+  table{ width:100%; border-collapse:collapse; font-size:13.5px; }
+  th,td{ text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+  th{ font-weight:400; color:var(--dim); font-size:12px; }
+  td.code{ font-family:'IBM Plex Mono',monospace; font-size:12.5px; }
+  .st-in{ color:var(--blue); } .st-wait{ color:var(--dim); }
+  #gate{ max-width:520px; margin:18vh auto; text-align:center; font-size:15px; line-height:1.9; color:var(--ink2); }
+  a{ color:var(--gold); }
+</style>
+</head>
+<body>
+<div id="gate">초대 편지 책상을 여는 중입니다…</div>
+<div class="wrap" id="desk" hidden>
+  <h1>초대 편지 책상</h1>
+  <p class="lede">존경하는 분께 드리는 초대권입니다. 1년 동안 머무시고, 기록은 개관일에도 이어집니다.</p>
+
+  <!-- ① 누구를 어디로 -->
+  <div class="card">
+    <div class="lbl">누구를 · 어디로</div>
+    <div class="row">
+      <label for="nm">성함</label><input id="nm" autocomplete="off" placeholder="실명">
+      <label for="em">메일</label><input id="em" type="email" autocomplete="off" placeholder="초대장을 받으실 주소">
+      <label for="home">모실 집</label><select id="home"></select>
+    </div>
+    <div class="btns"><button class="btn main" id="issue">초대권 뽑기</button></div>
+    <div class="msg" id="m1"></div>
+  </div>
+
+  <!-- ② 탑승권 · 메일 -->
+  <div id="step2">
+    <div class="card">
+      <div class="lbl">탑승권</div>
+      <div id="ticket"></div>
+      <div class="btns">
+        <button class="btn" id="dl">그림만 받기</button>
+        <button class="btn" id="copy">편지 링크 복사</button>
+      </div>
+      <p class="note" id="letterUrl"></p>
+    </div>
+    <div class="card">
+      <div class="lbl">메일 — 한 분마다 손으로 다듬으셔도 됩니다</div>
+      <div class="row" style="margin-bottom:12px;">
+        <label>받는 분</label><div id="to" style="font-size:14px;color:var(--ink2);"></div>
+        <label for="subj">제목</label><input id="subj">
+      </div>
+      <textarea id="body"></textarea>
+      <div class="btns"><button class="btn main" id="send">메일 보내기</button></div>
+      <div class="msg" id="m2"></div>
+    </div>
+  </div>
+
+  <!-- ③ 보낸 초대장 -->
+  <div class="card">
+    <div class="lbl">보낸 초대장</div>
+    <div id="list"></div>
+  </div>
+</div>
+
+<script>
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const sb = supabase.createClient(SUPA_URL, SUPA_KEY, { auth: { storageKey: 'eungyo-auth', persistSession: true } });
+const $ = (id) => document.getElementById(id);
+const CITY_KO = { paris:'파리', london:'런던', newyork:'뉴욕' };
+const md = (s) => { const p = String(s || '').split('-'); return p.length === 3 ? (+p[1]) + '월 ' + (+p[2]) + '일' : ''; };
+const ymd = (t) => t ? new Date(t).toLocaleDateString('ko-KR', { timeZone:'Asia/Seoul', year:'numeric', month:'numeric', day:'numeric' }) : '';
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]);
+const say = (el, t, cls) => { el.className = 'msg' + (cls ? ' ' + cls : ''); el.textContent = t; };
+
+let HOMES = [], T = null, CV = null;
+
+/* 메일 기본 문안 — 한 분마다 고쳐 쓰셔도 된다(보내는 것은 이 칸의 글 그대로) */
+function draft(t){
+  const url = 'https://app.egsalon.com/invitatio.html?no=' + t.code;
+  return {
+    subject: t.name + ' 님께 드리는 초대장',
+    text:
+`${t.name} 님께
+
+소로 조신영입니다.
+
+반년 넘게 한 칸 한 칸 지어 온 집이 있어, ${t.name} 님께 꼭 보여 드리고 싶었습니다. 짧은 편지를 적어 두었으니 아래를 눌러 읽어 주세요.
+
+   ${url}
+
+이 메일에 탑승권 한 장을 함께 넣어 두었습니다. 편지 끝의 문을 여시면 개찰구가 나오고, 탑승권에 적힌 번호를 넣으시면 됩니다.
+
+EG유니버스는 PC·노트북에서 열립니다. 3D 지구를 실시간으로 그리는 곳이라 넉넉한 메모리가 필요합니다. 이 메일을 폰으로 보고 계신다면 편지는 지금 읽으시고, 문은 큰 화면 앞에서 열어 주세요.
+
+다음부터는 app.egsalon.com 으로 들어오시면 됩니다. 즐겨찾기(Ctrl+D)에 넣어 두시면 편합니다.
+
+소로(小路) 조신영 올림`
+  };
+}
+
+async function boot(){
+  const gate = $('gate');
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { gate.innerHTML = '살롱지기만 들어오는 방입니다.<br><a href="index.html">로그인</a>한 뒤 다시 열어 주십시오.'; return; }
+  const { data: isAdmin } = await sb.rpc('eg_is_admin');
+  if (!isAdmin) { gate.textContent = '살롱지기만 들어오는 방입니다.'; return; }
+
+  const { data: homes, error } = await sb.rpc('eg_invitatio_homes');
+  if (error) { gate.textContent = '모실 집 목록을 받지 못했습니다 — ' + error.message; return; }
+  HOMES = homes || [];
+  let lastCity = '';
+  $('home').innerHTML = HOMES.map((h) => {
+    const head = h.city !== lastCity ? (lastCity = h.city, '') : '';
+    return `<option value="${h.id}"${h.is_home ? ' selected' : ''}>${esc(CITY_KO[h.city] || h.city)} · ${esc(h.name)}${h.is_home ? ' — 소로가 사는 집' : ''}</option>`;
+  }).join('');
+  gate.remove(); $('desk').hidden = false;
+  loadList();
+}
+
+async function issue(){
+  const name = $('nm').value.trim(), email = $('em').value.trim(), home = +$('home').value;
+  if (!name) return say($('m1'), '성함을 적어 주십시오.', 'bad');
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return say($('m1'), '메일 주소를 다시 확인해 주십시오.', 'bad');
+  const b = $('issue'); b.disabled = true; b.textContent = '뽑는 중…';
+  try {
+    const { data, error } = await sb.rpc('eg_invitatio_issue', { p_name: name, p_email: email, p_building: home });
+    if (error) throw error;
+    T = data;
+    say($('m1'), '초대권을 뽑았습니다 — ' + data.code, 'ok');
+    await paint();
+    const d = draft(T);
+    $('to').textContent = T.name + ' · ' + T.email;
+    $('subj').value = d.subject; $('body').value = d.text;
+    $('letterUrl').textContent = '편지 — https://app.egsalon.com/invitatio.html?no=' + T.code;
+    $('step2').classList.add('on'); $('send').disabled = false; $('send').textContent = '메일 보내기'; say($('m2'), '');
+    $('step2').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    ['nm','em'].forEach((k) => $(k).value = '');
+    loadList();
+  } catch (e) {
+    say($('m1'), '뽑지 못했습니다 — ' + (e.message || e), 'bad');
+  } finally { b.disabled = false; b.textContent = '초대권 뽑기'; }
+}
+
+async function paint(){
+  const b = T.building || {};
+  const P = { kind: 'invitatio', guest: T.name, building: b.name || '',
+    where: (CITY_KO[b.city] || '') + ' ' + b.bno + '번지 · ' + (b.label || ''),
+    founder: T.founder || '조신영', from: md(T.valid_from), to: md(T.valid_to), code: T.code, url: 'app.egsalon.com/pass' };
+  CV = await EGPass.render(P);
+  $('ticket').innerHTML = ''; $('ticket').appendChild(CV);
+}
+const fileName = () => 'EG초대권_' + String(T.name).replace(/[\\\/:*?"<>|\s]+/g, '') + '_' + T.code + '.png';
+
+async function send(){
+  if (!T || !CV) return;
+  const subj = $('subj').value.trim(), text = $('body').value;
+  if (!subj || !text.trim()) return say($('m2'), '제목과 본문을 채워 주십시오.', 'bad');
+  if (!confirm(T.name + ' 님(' + T.email + ')께 초대장을 보냅니다.')) return;
+  const b = $('send'); b.disabled = true; b.textContent = '보내는 중…';
+  try {
+    const { data, error } = await sb.functions.invoke('application-mail', {
+      body: { type: 'invitatio', code: T.code, subject: subj, text, png: CV.toDataURL('image/png'), filename: fileName() } });
+    if (error) throw error;
+    if (!data || !data.ok) throw new Error((data && (data.error || (data.resend && data.resend.body))) || '보내지 못했습니다');
+    say($('m2'), '보냈습니다 — ' + data.to, 'ok'); b.textContent = '보냈습니다';
+  } catch (e) {
+    say($('m2'), '보내지 못했습니다 — ' + (e.message || e), 'bad'); b.disabled = false; b.textContent = '메일 보내기';
+  }
+}
+
+function download(){
+  if (!CV) return;
+  const a = document.createElement('a'); a.href = CV.toDataURL('image/png'); a.download = fileName(); a.click();
+}
+async function copyLink(){
+  if (!T) return;
+  const u = 'https://app.egsalon.com/invitatio.html?no=' + T.code;
+  try { await navigator.clipboard.writeText(u); say($('m1'), '편지 링크를 복사했습니다.', 'ok'); }
+  catch (_) { prompt('편지 링크', u); }
+}
+
+async function loadList(){
+  const { data, error } = await sb.rpc('eg_invitatio_list');
+  if (error) { $('list').textContent = '목록을 받지 못했습니다.'; return; }
+  if (!data || !data.length) { $('list').innerHTML = '<p class="note">아직 보낸 초대장이 없습니다.</p>'; return; }
+  $('list').innerHTML = '<table><tr><th>성함</th><th>메일</th><th>집</th><th>번호</th><th>뽑은 날</th><th>입장</th></tr>'
+    + data.map((r) => `<tr><td>${esc(r.guest_name)}</td><td>${esc(r.guest_email)}</td>`
+      + `<td>${esc(CITY_KO[r.city] || '')} · ${esc(r.building || '')}</td><td class="code">${esc(r.code)}</td>`
+      + `<td>${ymd(r.issued_at)}</td>`
+      + `<td class="${r.status === 'entered' ? 'st-in' : 'st-wait'}">${r.status === 'entered' ? '들어오심 · ' + ymd(r.entered_at) : '기다리는 중'}</td></tr>`).join('')
+    + '</table>';
+}
+
+$('issue').onclick = issue;
+$('send').onclick = send;
+$('dl').onclick = download;
+$('copy').onclick = copyLink;
+boot();
+</script>
+</body>
+</html>
