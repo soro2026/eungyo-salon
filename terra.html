@@ -1044,6 +1044,30 @@ window.EGQ = (function(){
     padding:15px;cursor:pointer;transition:background .2s;
   }
   #maison .m-enter:hover{background:#ffdf6b}
+  /* ⭐ 0929 EG인문학 포럼 판 — 종이빛(소로). 오래된 강의 안내문 한 장 */
+  #maison.paper{
+    background:linear-gradient(to left,rgba(246,240,226,.985),rgba(240,232,214,.96));
+    border-left:1px solid rgba(120,92,48,.35);
+    color:#2c2519;
+  }
+  #maison.paper .close{background:rgba(90,66,30,.08);color:#6b5a3e}
+  #maison.paper .close:hover{background:rgba(90,66,30,.16);color:#2c2519}
+  #maison.paper .m-door{color:#8a5a1c}
+  #maison.paper .m-nick{color:#231c12}
+  #maison.paper .m-orig{color:#7a6a4f;font-style:italic}
+  #maison.paper .m-intro{color:#4e4331}
+  #maison.paper .f-prog{border-top:1px solid rgba(90,66,30,.28)}
+  #maison.paper .f-row{display:grid;grid-template-columns:78px 1fr;gap:12px;align-items:baseline;width:100%;
+    text-align:left;background:none;border:0;border-bottom:1px dotted rgba(90,66,30,.3);
+    padding:12px 2px;cursor:pointer;color:#2c2519;font-family:var(--serif);font-size:14.5px;line-height:1.5}
+  #maison.paper .f-row:hover{background:rgba(138,90,28,.07)}
+  #maison.paper .f-row .fd{font-family:var(--sans);font-size:12px;letter-spacing:.04em;color:#7a6a4f;white-space:nowrap}
+  #maison.paper .f-row.today .fd{color:#8a2d1c;font-weight:700}
+  #maison.paper .f-row.today .ft{font-weight:600}
+  #maison.paper .f-note{margin-top:12px;font-family:var(--serif);font-size:12.5px;color:#7a6a4f}
+  #maison.paper .f-wait{font-family:var(--serif);font-size:14px;color:#7a6a4f;padding:12px 0}
+  #maison.paper .m-enter{background:#2c2519;color:#f3ecdc}
+  #maison.paper .m-enter:hover{background:#4a3c26}
 
   /* ── 대문 오버레이: 좌우로 갈라지는 두 문짝 + 그 뒤 분더카머 ── */
   #doorway{
@@ -2551,7 +2575,7 @@ window.egSupa = supa;
       else if (picked.id._maison) openMaison(picked.id._maison);
       else if (picked.id._sign) openMaison(picked.id._sign.bld);   /* ⭐ 간판도 현관을 연다 */
       else if (picked.id._popup) openPopup(picked.id._popup);
-      else if (picked.id._palais) openPalais(picked.id._palais);
+      else if (picked.id._palais) openForumPanel(picked.id._palais);   /* 0929 — 판부터(프로그램 안내) */
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
   let hoveredEnt = null;
@@ -2613,7 +2637,7 @@ function buildJourney(){
       else if (picked.id._maison) openMaison(picked.id._maison);
       else if (picked.id._sign) openMaison(picked.id._sign.bld);   /* ⭐ 간판도 현관을 연다 */
       else if (picked.id._popup) openPopup(picked.id._popup);
-      else if (picked.id._palais) openPalais(picked.id._palais);
+      else if (picked.id._palais) openForumPanel(picked.id._palais);   /* 0929 — 판부터(프로그램 안내) */
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
@@ -3391,6 +3415,7 @@ async function loadPopups(city, nearQ){
    ⚠ 판은 openMaison 과 한 벌을 빌린다 — currentMaison 은 건드리지 않는다. */
 function openPopupHall(h){
   closeStory();
+  document.getElementById("maison").classList.remove("paper");
   const stores = Array.isArray(h.stores) ? h.stores : [];
   document.getElementById("mDoor").textContent =
     ({paris:"파리 라탱", london:"런던 웨스트민스터", newyork:"뉴욕 맨해튼"}[h.city] || h.city_ko || h.city)
@@ -3500,7 +3525,7 @@ async function loadPalais(city, nearQ){
   let rows = [];
   try{
     /* ⭐ 0830 — city 를 안 주면 전 도시를 부른다 (뉴욕·런던 전당이 안 뜨던 뿌리) */
-    const res = await fetch(SUPA_URL + "/rest/v1/palais_orgs?select=code,name,lat,lng,city"
+    const res = await fetch(SUPA_URL + "/rest/v1/palais_orgs?select=code,name,lat,lng,city,source_code,epoch"
                  + (city ? "&city=eq." + encodeURIComponent(city) : ""), {
       headers:{ "apikey":SUPA_KEY, "Authorization":"Bearer "+SUPA_KEY }
     });
@@ -3537,6 +3562,80 @@ async function loadPalais(city, nearQ){
   }
   applyLayerVisibility();
 }
+/* ⭐ 0929 소로 — EG인문학 포럼 판. 핀을 누르면 팝업스토어처럼 판이 올라오고 앞으로의 상영 안내가 줄 선다.
+   「오늘 · 9/30(수) · 10/1(목) …」 — 셈은 palais.html todaysPick 과 한 벌: 걸린 것만 · 순서대로 · (오늘 − 기산일) % 편수.
+   상영 목록은 원본(source_code · 파리 한 벌)에서 · 기산일은 들어온 도시 줄의 것.
+   판 바탕은 종이빛(#maison.paper) — 다른 판을 열 때 걷힌다. */
+const FORUM_YT_TITLE = {};
+async function openForumPanel(p){
+  closeStory();
+  const M = document.getElementById("maison");
+  M.classList.add("paper");
+  document.getElementById("mDoor").textContent =
+    ({paris:"파리 라탱", london:"런던 웨스트민스터", newyork:"뉴욕 맨해튼"}[p.city] || p.city || "") + " · 오늘의 한 편";
+  document.getElementById("mNick").textContent = "EG인문학 포럼";
+  document.getElementById("mOrig").textContent = "EG Liberal Arts Forum";
+  const _mAv = document.getElementById("mAvatar");
+  if (_mAv){ _mAv.removeAttribute("src"); _mAv.style.display = "none"; }
+  const own = document.getElementById("mOwner"); if (own) own.textContent = "";
+  const intro = document.getElementById("mIntro");
+  intro.style.whiteSpace = "pre-line";
+  intro.textContent = "강연이나 토론 한 편을 매일 새로 걸어 둡니다.";
+  const list = document.getElementById("mList");
+  list.innerHTML = '<div class="f-wait">상영표를 펴는 중…</div>';
+  const en = document.getElementById("mEnter");
+  if (en){ en.style.display = ""; en.textContent = "포럼으로 들어가기 →"; en.onclick = () => openPalais(p); }
+  M.classList.add("in");
+
+  let films = [];
+  try{
+    const src = p.source_code || p.code;
+    const r = await fetch(SUPA_URL + "/rest/v1/palais_films?select=name,video_id&status=eq.active&org=eq."
+                          + encodeURIComponent(src) + "&order=sort.asc,id.asc",
+                          { headers:{ apikey:SUPA_KEY, Authorization:"Bearer " + SUPA_KEY } });
+    films = r.ok ? await r.json() : [];
+  }catch(e){ console.warn("상영표 로드 실패:", e); }
+  if (!M.classList.contains("paper")) return;          /* 그사이 다른 판으로 바뀌었다 */
+  list.innerHTML = "";
+  const L = films.length;
+  if (!L){ list.innerHTML = '<div class="f-wait">곧 첫 상영이 걸립니다</div>'; return; }
+  const base = p.epoch ? new Date(p.epoch + "T00:00:00+09:00") : new Date();
+  const days = Math.floor((Date.now() - base) / 86400000);
+  const i0 = ((days % L) + L) % L;
+  const WD = "일월화수목금토";
+  const box = document.createElement("div");
+  box.className = "f-prog";
+  for (let k = 0; k < Math.min(L, 14); k++){
+    const f = films[(i0 + k) % L];
+    const row = document.createElement("button");
+    row.className = "f-row" + (k === 0 ? " today" : "");
+    let dl = "오늘";
+    if (k > 0){
+      const d = new Date(new Date(Date.now() + k * 86400000).toLocaleString("en-US", { timeZone:"Asia/Seoul" }));
+      dl = (d.getMonth() + 1) + "/" + d.getDate() + "(" + WD[d.getDay()] + ")";
+    }
+    row.innerHTML = '<span class="fd"></span><span class="ft"></span>';
+    row.querySelector(".fd").textContent = dl;
+    const ft = row.querySelector(".ft");
+    ft.textContent = f.name || FORUM_YT_TITLE[f.video_id] || "…";
+    if (!f.name && !FORUM_YT_TITLE[f.video_id] && f.video_id){
+      fetch("https://www.youtube.com/oembed?url=https%3A//www.youtube.com/watch%3Fv%3D" + f.video_id + "&format=json")
+        .then(r => r.ok ? r.json() : null)
+        .then(j => { if (j && j.title){ FORUM_YT_TITLE[f.video_id] = j.title; ft.textContent = j.title; } })
+        .catch(() => {});
+    }
+    row.addEventListener("click", () => openPalais(p));
+    box.appendChild(row);
+  }
+  list.appendChild(box);
+  if (L > 1){
+    const n = document.createElement("div");
+    n.className = "f-note";
+    n.textContent = L + "편이 하루에 한 편씩 돌아갑니다";
+    list.appendChild(n);
+  }
+}
+
 // 전당 핀 클릭 → doorway에 palais.html iframe 직행
 function openPalais(p){
   closeStory(); closeMaison();
@@ -4615,6 +4714,7 @@ function drawCellList(list, b, res_){
 }
 function openMaison(b){
   closeStory();
+  document.getElementById("maison").classList.remove("paper");   /* 0929 — 포럼 판의 종이빛 걷기 */
   currentMaison = b;
   const res_ = residentsOf(b);
   const sold = (b.status === 'sold') || res_.length > 0;
