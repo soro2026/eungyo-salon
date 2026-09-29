@@ -1664,6 +1664,15 @@ window.EGQ = (function(){
        평소엔 숨고, 줄에 마우스를 얹으면 작은 타륜 왼쪽에 떠오른다(벽지가 되지 않게 — 0912 서고 3호).
        조개에 얹으면 「가이드북에서 읽기」 · 누르면 그 꼭지가 지도 위 책 판으로(지도는 닻을 내린다). */
   .dock-card.has-shell{ padding-right:64px; }
+  .dock-card.nogo.orn.has-shell{ padding-right:64px; }       /* 배낭 카드 — nogo.orn(38px)보다 세게 */
+  .dock-card.has-shell.shell-solo{ padding-right:38px; }      /* 작은 타륜이 없는 줄 — 조개가 타륜 자리로 */
+  .dock-shell.solo{ right:12px; }
+  #egDock .nav-item.has-shell{ position:relative; }
+  .dock-shell.nav{ right:30px; }
+  #egDock .nav-item:hover .dock-shell{ opacity:1; transform:translateY(-50%); }
+  .dock-card.arena.has-shell{ padding-right:12px; }           /* 매치업 카드는 가운데 정렬 그대로 */
+  .dock-shell.corner{ top:10px; right:10px; transform:translateY(4px); }
+  .dock-card:hover .dock-shell.corner{ transform:none; }
   .dock-shell{ position:absolute; top:50%; right:36px; width:20px; height:20px; cursor:pointer;
     opacity:0; transform:translateY(calc(-50% + 4px)); transition:opacity .2s ease, transform .25s ease; }
   .dock-shell svg{ width:100%; height:100%; display:block; border-radius:3px;
@@ -7421,30 +7430,10 @@ function wireTerra(){
       if (was && !orbiting){ try{ startOrbit(was.c, was.r, was.r, was.rate, was.spin); }catch(_){} }
     });
   };
-  (function(){
-    const SHELL_SVG = '<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg"><rect width="300" height="300" rx="34" fill="#1D4F9E"/><g fill="none" stroke="#F7C600" stroke-linecap="round"><path stroke-width="17" d="M134 210L34 164M136 205L53 133M140 202L81 109M145 200L114 94M150 199L150 89M155 200L186 94M160 202L219 109M164 205L247 133M166 210L266 164"/><path stroke-width="14" d="M31 170A128 128 0 0 1 269 170"/></g></svg>';
-    const SHELLS = [
-      { card:"dockCredencial", slug:"u4-1-cred" }
-    ];
-    for (const k of SHELLS){
-      const el = document.getElementById(k.card);
-      if (!el || el.querySelector(".dock-shell")) continue;
-      const b = document.createElement("div");
-      b.className = "dock-shell";
-      b.dataset.tip = "가이드북에서 읽기";
-      b.setAttribute("role","button");
-      b.setAttribute("tabindex","0");
-      b.setAttribute("aria-label","가이드북에서 읽기");
-      b.innerHTML = SHELL_SVG;
-      b.addEventListener("click", (e)=>{ e.stopPropagation(); openGuideAt(k.slug); });
-      b.addEventListener("keydown", (e)=>{
-        if (e.key === "Enter" || e.key === " "){ e.preventDefault(); e.stopPropagation(); openGuideAt(k.slug); }
-      });
-      el.classList.add("has-shell");
-      const go = el.querySelector(".dock-go");
-      el.insertBefore(b, go || null);
-    }
-  })();
+  /* 배낭 두 카드는 정적 마크업이라 여기서 붙인다 — 우주 카드는 renderDock 이 붙인다 */
+  addDockShell(document.getElementById("dockCredencial"), "credencial");
+  addDockShell(document.getElementById("dockMail"),       "tabellae");
+  addDockShell(document.getElementById("navCity"),        "cities");
   { const mc = document.getElementById("mailClose");
     if (mc) mc.addEventListener("click", closeMailCard); }
   { const mb = document.getElementById("mailCard");
@@ -8237,6 +8226,47 @@ window.egDockOrnament = function(el, latinId){
   }
 };
 
+/* ══ ⭐ 0929 — 파란 조개 짝표 · 타륜 메뉴 줄 → 가이드북 꼭지(eg_guidebook.slug) ══════════════
+   소로 확인(0929). 짝을 바꿀 때는 이 표 한 줄만 고친다.
+   ⚠ 달지 않는 줄 — 가이드북(제 몸이 책) · 팝업스토어(꼭지 없음)
+   ⭐ 포럼은 꼭지가 없어 Ⅰ-1 「쓸모없다는 말」로 — 포럼 꼭지가 쓰이면 옮긴다(소로 0929)
+   ⭐ 르 그랑 투르 머리는 Ⅳ-1 「여행」 머리 · 뮤세움은 「서가」(일곱 도서관 — 분더카머 2층 서가 아님) */
+function dockShellSlug(key){
+  return ({
+    credencial:"u4-1-cred",   tabellae:"u4-7-tab",
+    stadium:"u4-6-stad",
+    spoon:"u4-7-spoon",       museum:"u4-6-shelf",
+    constellatio:"u4-4-obs",  tour:"s4-1",
+    heritage:"u4-2-art",      tourmusic:"u4-3-hall",    tourread:"u4-1-flight",
+    sunset:"u4-1-vesper",     wunder:"s5-3",            persona:"s5-5",
+    college:"u4-6-coll",      ecole:"u4-7-ecole",       salon:"u4-7-salon",
+    palais:"s1-1",
+    cities:"u4-1-cities"      /* 떠나기 › 다른 도시(#navCity) — 소로 0929 */
+  })[key] || null;
+}
+function addDockShell(el, key){
+  const slug = dockShellSlug(key);
+  if (!el || !slug || el.querySelector(".dock-shell")) return;
+  const b = document.createElement("div");
+  b.className = "dock-shell";
+  b.dataset.tip = "가이드북에서 읽기";
+  b.setAttribute("role","button");
+  b.setAttribute("tabindex","0");
+  b.setAttribute("aria-label","가이드북에서 읽기");
+  b.innerHTML = '<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg"><rect width="300" height="300" rx="34" fill="#1D4F9E"/><g fill="none" stroke="#F7C600" stroke-linecap="round"><path stroke-width="17" d="M134 210L34 164M136 205L53 133M140 202L81 109M145 200L114 94M150 199L150 89M155 200L186 94M160 202L219 109M164 205L247 133M166 210L266 164"/><path stroke-width="14" d="M31 170A128 128 0 0 1 269 170"/></g></svg>';
+  /* ⚠ 클릭 · 키 모두 stopPropagation — 없으면 카드 본체(비행 · 판 · 수첩)까지 함께 열린다 */
+  b.addEventListener("click", (e)=>{ e.stopPropagation(); if (window.openGuideAt) openGuideAt(slug); });
+  b.addEventListener("keydown", (e)=>{
+    if (e.key === "Enter" || e.key === " "){ e.preventDefault(); e.stopPropagation(); if (window.openGuideAt) openGuideAt(slug); }
+  });
+  el.classList.add("has-shell");
+  if (el.classList.contains("arena")) b.classList.add("corner");      /* 매치업 카드 — 오른쪽 위 모서리에 조용히(0730 「소란」) */
+  const go = el.querySelector(".dock-go");
+  if (el.classList.contains("nav-item")) { b.classList.add("nav"); el.appendChild(b); }   /* 떠나기 단추 — › 바로 왼쪽 */
+  else if (go) el.insertBefore(b, go);
+  else { if (!b.classList.contains("corner")) { b.classList.add("solo"); el.classList.add("shell-solo"); } el.appendChild(b); }
+}
+
 function renderDock(items){
   const dock = document.getElementById("dockUni");   /* 0728: 우주 목록만 다시 그린다 (나침반 구획 보존) */
   if (!dock) return;
@@ -8267,6 +8297,7 @@ function renderDock(items){
       if (it.onClick) el.addEventListener("click", it.onClick);
       applyDockLatin(el, it.id);                   /* 0817 — 원어 병기는 여기 한 곳에서 (DOCK_LATIN) */
       addDockShortcut(el, it.id);
+      addDockShell(el, it.id);                     /* 0929 — 파란 조개(가이드북 문) */
       dock.appendChild(el);
       if (it.after){                               /* 펼침 목록은 카드 뒤 형제로 (옛 나침반 문법 승계) */
         const box = document.createElement("div");
