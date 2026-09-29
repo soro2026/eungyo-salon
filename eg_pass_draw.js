@@ -7,7 +7,7 @@
      표를 고칠 때는 여기 한 곳만 — 대시보드도 곧 이 파일을 부르게 바꾼다(대청소 명단).
 
    쓰는 법   const cv = await EGPass.render(P);     // 1600 × 800 캔버스
-             P = { kind:'beta'|'associate', guest, building, where, founder, leader?(셀장 표면 셀장 이름만 · 0927),
+             P = { kind:'beta'|'associate'|'invitatio'(0929), guest, building, where, founder, leader?(셀장 표면 셀장 이름만 · 0927),
                    from, to, code, url, value(준회원만 · 쉼표 찍힌 글자) }
    ═════════════════════════════════════════════════ */
 (function(){
@@ -23,16 +23,19 @@ function drawPass(ctx, W, H, P, F) {
   /* 종이 */
   ctx.clearRect(0, 0, W, H);
   const BETA = P.kind === 'beta';
-  ctx.fillStyle = BETA ? PAPER : '#FFFFFF';          /* 종이 — 베타는 크림, 준회원 바우처는 흰색 (0919 소로) */
+  /* ⭐ 0929 초대권(invitatio) — 소로가 존경하는 분께 드리는 표. 크림 종이 · 먹빛 머리띠에 금 글씨 · 액면 「존경을 담아」 */
+  const VIP = P.kind === 'invitatio', INKBAND = '#1A1916';
+  const CREAM = BETA || VIP;
+  ctx.fillStyle = CREAM ? PAPER : '#FFFFFF';          /* 종이 — 베타는 크림, 준회원 바우처는 흰색 (0919 소로) */
   rr(ctx, 0, 0, W, H, R); ctx.fill();
-  if (!BETA) { ctx.strokeStyle = LINE; ctx.lineWidth = 3; rr(ctx, 1.5, 1.5, W - 3, H - 3, R); ctx.stroke(); }   /* 흰 종이는 흰 배경에서 윤곽이 사라진다 */
+  if (!CREAM) { ctx.strokeStyle = LINE; ctx.lineWidth = 3; rr(ctx, 1.5, 1.5, W - 3, H - 3, R); ctx.stroke(); }   /* 흰 종이는 흰 배경에서 윤곽이 사라진다 */
 
   /* 바탕 — 크레덴시알 수첩의 쌍핵 지문 기요셰 (18호 정본값 · 진하기 .3 · 간격 3 · 3색) 를 표 크기로 옮긴다 (0919 소로) */
   guilloche();
 
   /* 머리 띠 */
   ctx.save(); rr(ctx, 0, 0, W, H, R); ctx.clip();
-  ctx.fillStyle = P.kind === 'beta' ? NAVY : WINE; ctx.fillRect(0, 0, W, 132);   /* 머리 색 — 베타는 남색, 준회원 바우처는 포도주 (0919 소로) */
+  ctx.fillStyle = VIP ? INKBAND : P.kind === 'beta' ? NAVY : WINE; ctx.fillRect(0, 0, W, 132);   /* 머리 색 — 베타는 남색, 준회원 바우처는 포도주 (0919 소로) */
   ctx.fillStyle = GOLD2; ctx.fillRect(0, 132, W, 5);
   ctx.restore();
 
@@ -41,10 +44,10 @@ function drawPass(ctx, W, H, P, F) {
   spaced('EG UNIVERSE', 64, 84, 17);         /* 자간은 한 자씩 직접 띄운다 — 브라우저를 가리지 않는다 (0919 소로) */
   ctx.fillStyle = '#E9D9A8'; ctx.font = '400 25px ' + S;
   ctx.textAlign = 'right';
-  ctx.fillText(P.kind === 'beta' ? 'BETA BOARDING PASS  |  베타 초대권 · 3주' : 'BOARDING PASS  |  준회원 바우처 · 2주', CUT - 40, 82);
+  ctx.fillText(VIP ? 'BOARDING PASS  |  초대권 · 1년' : P.kind === 'beta' ? 'BETA BOARDING PASS  |  베타 초대권 · 3주' : 'BOARDING PASS  |  준회원 바우처 · 2주', CUT - 40, 82);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#E9D9A8'; ctx.font = '400 22px ' + S;
-  ctx.fillText(P.kind === 'beta' ? 'BETA · 3 WEEKS' : 'PRE-MEMBER · 2 WEEKS', CUT + 44, 82);   /* 0923 소로 — 이름표와 같은 말 */
+  ctx.fillText(VIP ? 'INVITATION · 1 YEAR' : P.kind === 'beta' ? 'BETA · 3 WEEKS' : 'PRE-MEMBER · 2 WEEKS', CUT + 44, 82);   /* 0923 소로 — 이름표와 같은 말 */
 
   /* 절취선 + 위아래 홈 */
   ctx.save();
@@ -55,7 +58,7 @@ function drawPass(ctx, W, H, P, F) {
   ctx.beginPath(); ctx.arc(CUT, 0, 26, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.arc(CUT, H, 26, 0, Math.PI * 2); ctx.fill();
   ctx.globalCompositeOperation = 'source-over';
-  if (!BETA) { ctx.strokeStyle = LINE; ctx.lineWidth = 3;          /* 흰 종이 — 아래 홈에도 테두리를 잇는다 */
+  if (!CREAM) { ctx.strokeStyle = LINE; ctx.lineWidth = 3;          /* 흰 종이 — 아래 홈에도 테두리를 잇는다 */
     ctx.beginPath(); ctx.arc(CUT, H, 26, Math.PI, Math.PI * 2); ctx.stroke(); }
 
   /* ── 본권 ── */
@@ -78,7 +81,7 @@ function drawPass(ctx, W, H, P, F) {
   label(760, 362, 'VALID', '본 PASS의 입력 유효기간');
   ctx.fillStyle = INK; ctx.font = '500 ' + fit(ctx, P.from + ' — ' + P.to, 500, 38, 340, S) + 'px ' + S;
   ctx.fillText(P.from + ' — ' + P.to, 760, 428);
-  const stay = P.kind === 'beta' ? '도착한 날로부터 3주 체류 가능합니다.' : '도착한 날로부터 2주 체류 가능합니다.';
+  const stay = VIP ? '도착한 날로부터 1년 머무실 수 있습니다.' : P.kind === 'beta' ? '도착한 날로부터 3주 체류 가능합니다.' : '도착한 날로부터 2주 체류 가능합니다.';
   ctx.fillStyle = SOFT; ctx.font = '400 ' + fit(ctx, stay, 400, 24, 340, S) + 'px ' + S;
   ctx.fillText(stay, 760, 470);
   rule(760, 496, 340);
@@ -92,7 +95,13 @@ function drawPass(ctx, W, H, P, F) {
   spaced(P.code, X + 28, 631, GAP);
 
   /* 액면 — 준회원 바우처에만 (0919 소로). ⚠ 금액은 부르는 쪽이 DB 값을 넘긴다 — 여기에 숫자를 적지 않는다 */
-  if (P.value) {
+  /* ⭐ 0929 초대권 — 액면 자리에 금액 대신 「존경을 담아」(소로) */
+  if (VIP) {
+    label(760, 548, 'VALUE', '액면');
+    ctx.fillStyle = SOFT; ctx.font = '500 20px ' + M; ls(ctx, 1.5); ctx.fillText('WITH RESPECT', 760, 598); ls(ctx, 0);
+    ctx.fillStyle = NAVY; ctx.font = '700 ' + fit(ctx, '존경을 담아', 700, 50, 340, S) + 'px ' + S;
+    ctx.fillText('존경을 담아', 760, 648);
+  } else if (P.value) {
     label(760, 548, 'VALUE', '액면');
     ctx.fillStyle = SOFT; ctx.font = '500 26px ' + M; ctx.fillText('KRW', 760, 630);
     const kw = ctx.measureText('KRW').width;
@@ -103,7 +112,7 @@ function drawPass(ctx, W, H, P, F) {
   /* 아랫줄 — 들어오는 길 */
   ctx.fillStyle = GOLD2; ctx.fillRect(X, 676, CUT - X - 50, 2);
   ctx.fillStyle = INK; ctx.font = '400 27px ' + S;
-  if (BETA) {
+  if (BETA || VIP) {
     const b = P.url, c = '  에 들어와 위 번호를 입력해 주십시오';
     let x = X;
     ctx.fillStyle = NAVY; ctx.font = '700 29px ' + M; ctx.fillText(b, x, 722); x += ctx.measureText(b).width;
@@ -114,8 +123,8 @@ function drawPass(ctx, W, H, P, F) {
     way(745, '기존 이용자의 경우', '', '교양 자화상의 「준회원 바우처 입력」에 위 번호를 입력해 주십시오');
   }
   /* 필독 — 노트북 · 데스크톱 전용 (0919 소로) */
-  ctx.fillStyle = GOLD; ctx.font = '400 ' + (BETA ? 20 : 18) + 'px ' + S;
-  ctx.fillText('※ EG유니버스는 노트북이나 데스크톱에서 웹으로 접속합니다. 모바일에서는 접속할 수 없으니 착오 없으시길 바랍니다.', X, BETA ? 764 : 776);
+  ctx.fillStyle = GOLD; ctx.font = '400 ' + (CREAM ? 20 : 18) + 'px ' + S;
+  ctx.fillText('※ EG유니버스는 노트북이나 데스크톱에서 웹으로 접속합니다. 모바일에서는 접속할 수 없으니 착오 없으시길 바랍니다.', X, CREAM ? 764 : 776);
 
   /* ── 부권 ── */
   const SX = CUT + 44, SW = W - SX - 50;
@@ -244,7 +253,7 @@ function drawPass(ctx, W, H, P, F) {
 
   /* 글꼴 조각을 그릴 글자로 먼저 부른다 — 한글 웹폰트는 쓰는 글자만 내려온다 (대시보드와 같은 까닭) */
   async function loadFonts(P) {
-    const all = Object.values(P).join(' ') + ' 님 받는 분 초대한 도착 본 PASS의 입력 유효기간 번호 액면 처음 오시는 분 기존 이용자의 경우 에서 교양 자화상의 「준회원 바우처 입력」 준회원 바우처 2주 베타 초대권 3주 에 들어와 위 번호를 입력해 주십시오 도착한 날로부터 2주 3주 체류 가능합니다. ※ EG유니버스는 노트북이나 데스크톱에서 웹으로 접속합니다. 모바일에서는 접속할 수 없으니 착오 없으시길 바랍니다.';
+    const all = Object.values(P).join(' ') + ' 님 받는 분 초대한 도착 본 PASS의 입력 유효기간 번호 액면 처음 오시는 분 기존 이용자의 경우 에서 교양 자화상의 「준회원 바우처 입력」 준회원 바우처 2주 베타 초대권 3주 에 들어와 위 번호를 입력해 주십시오 도착한 날로부터 2주 3주 체류 가능합니다. 초대권 1년 머무실 수 있습니다 존경을 담아 WITH RESPECT INVITATION YEAR ※ EG유니버스는 노트북이나 데스크톱에서 웹으로 접속합니다. 모바일에서는 접속할 수 없으니 착오 없으시길 바랍니다.';
     try {
       await Promise.all([
         document.fonts.load('400 30px "Noto Serif KR"', all), document.fonts.load('500 30px "Noto Serif KR"', all),
