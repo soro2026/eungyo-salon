@@ -170,6 +170,7 @@
      표지를 거치지 않고 책이 곧장 펴진다. 덮으면 onClose 로 지도에 알린다(닻을 올린다). */
   let onBookClose = null;
   function openBook(slug, onClose) {
+    build();   /* ⚠ 0929 — 옷(CSS)은 build 가 입힌다. 조개는 표지를 건너뛰고 오므로 여기서도 입힌다(두 번 입히지 않는다) */
     onBookClose = (typeof onClose === 'function') ? onClose : null;
     if (slug && frame) {
       try { frame.contentWindow.egOpenSlug(slug); } catch (_) {}
