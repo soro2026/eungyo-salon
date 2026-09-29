@@ -87,10 +87,14 @@
 
   #rJump{ flex:0 0 auto; padding:12px 18px; display:flex; gap:6px; flex-wrap:wrap;
     border-bottom:1px solid rgba(26,25,22,.10); }
-  #rPage{ width:58px; background:#FFFDF7; border:1px solid rgba(26,25,22,.18);
+  #rPage{ flex:1 1 100%; background:#FFFDF7; border:1px solid rgba(26,25,22,.18);
     color:#1A1916; padding:5px 8px; border-radius:5px; font-family:'EB Garamond',serif;
-    font-size:14px; text-align:center; outline:none; }
+    font-size:14px; outline:none; font-family:'Gowun Batang',serif; font-size:13px; padding:7px 10px; }
   #rPage:focus{ border-color:#8A6414; }
+  #rPage::placeholder{ color:#A79E8C; }
+  #rList .e.off{ display:none; }
+  #rList .nohit{ padding:18px; font-size:12.5px; color:#9A9080; }
+  #rList mark{ background:rgba(138,100,20,.18); color:inherit; border-radius:2px; padding:0 1px; }
   #rJump button{ background:transparent; border:1px solid rgba(26,25,22,.18);
     color:#3A342B; padding:5px 11px; border-radius:5px; cursor:pointer;
     font-family:'Gowun Batang',serif; font-size:12px; }
@@ -159,9 +163,8 @@
     <span id="rClose">✕</span>
   </div>
   <div id="rJump">
-    <input id="rPage" inputmode="numeric" placeholder="쪽">
-    <button id="rGo">가기</button>
-    <button id="rBack">방금 자리</button>
+    <input id="rPage" type="search" placeholder="목차에서 검색" aria-label="목차에서 검색 — 숫자를 넣고 Enter 는 그 쪽으로" autocomplete="off">
+    <button id="rBack">마지막 읽은 페이지</button>
     <button id="rTop">처음</button>
   </div>
   <div id="rList"></div>
@@ -615,7 +618,7 @@ function bar(){
     + (LATER.length ? `<br><br><span class="l">④ 통독에서 볼 자리 ${LATER.length}</span><br>`
         + LATER.map(x => '· ' + esc(x)).join('<br>') : '')
     + `<br><br>← → · Space · 면 가장자리 클릭 &nbsp;|&nbsp; <b>T</b> 리모컨 &nbsp; `
-    + `<b>Shift+←→</b> 장 건너뛰기 &nbsp; <b>B</b> 방금 자리 &nbsp; <b>Home</b> 처음 &nbsp;|&nbsp; `
+    + `<b>Shift+←→</b> 장 건너뛰기 &nbsp; <b>B</b> 마지막 읽은 페이지 &nbsp; <b>Home</b> 처음 &nbsp;|&nbsp; `
     + `<b>I</b> 검산 &nbsp; <b>M</b> 소리 ${muted?'꺼짐':'켜짐'} &nbsp; <b>R</b> 다시 자르기`;
 }
 
@@ -653,6 +656,8 @@ function buildRemote(){
   rList.querySelectorAll('.e').forEach(el => {
     el.onclick = () => { const e = TOC[+el.dataset.i]; jump(spreadOf(e.ref || 0)); };
   });
+  /* 다시 짠 뒤에도 치던 검색은 살려 둔다 */
+  const q = document.getElementById('rPage'); if (q && q.value) filterRemote(q.value);
 }
 
 const SPOT = { endpaper:'면지', tocLeft:'차례', toc:'차례', divider:'장 표지', dividerBack:'장 표지',
@@ -691,10 +696,53 @@ const toggleRemote = (on) => {
 
 document.getElementById('rTab').onclick   = () => toggleRemote();
 document.getElementById('rClose').onclick = () => toggleRemote(false);
-document.getElementById('rGo').onclick    = () => jumpFolio(document.getElementById('rPage').value);
-document.getElementById('rPage').onkeydown = (e) => {
+/* ⭐ 0929 소로 — 「쪽 찾기」를 「목차에서 검색」으로.
+   글자를 치면 차례가 그 이름을 가진 꼭지만 남기고(장 머리는 길잡이로 함께), Enter 는 첫 꼭지로 간다.
+   ⚠ 샛문 — 숫자만 넣고 Enter 는 예전처럼 그 쪽으로(jumpFolio) */
+const vKey = (t) => String(t || '').replace(/\s+/g, '').toLowerCase();
+function filterRemote(q){
+  const k = vKey(q);
+  const rows = rList.querySelectorAll('.e');
+  let first = -1, n = 0, chapOf = -1;
+  const keep = new Set();
+  TOC.forEach((e, i) => {
+    if (e.chapter) chapOf = i;
+    const hit = !k || /^\d+$/.test(k) || vKey(e.name).includes(k);
+    if (hit) { keep.add(i); if (chapOf >= 0) keep.add(chapOf); if (k && first < 0 && !/^\d+$/.test(k)) first = i; n++; }
+  });
+  rows.forEach((el) => {
+    const i = +el.dataset.i, e = TOC[i];
+    el.classList.toggle('off', !keep.has(i));
+    const t = el.querySelector('.t');
+    if (!k || /^\d+$/.test(k)) { t.textContent = e.name; return; }
+    const at0 = e.name.replace(/\s+/g, '').toLowerCase().indexOf(k);
+    t.innerHTML = at0 < 0 ? esc(e.name) : markName(e.name, k);
+  });
+  let nh = rList.querySelector('.nohit');
+  if (k && !/^\d+$/.test(k) && !n) {
+    if (!nh) { nh = document.createElement('div'); nh.className = 'nohit'; rList.appendChild(nh); }
+    nh.textContent = '「' + q.trim() + '」 — 목차에 없는 이름입니다';
+  } else if (nh) nh.remove();
+  return first;
+}
+/* 띄어쓰기를 건너뛰며 맞춘 자리에 <mark> — 이름의 띄어쓰기는 그대로 둔다 */
+function markName(name, k){
+  const idx = []; for (let i = 0; i < name.length; i++) if (!/\s/.test(name[i])) idx.push(i);
+  const flat = idx.map((i) => name[i].toLowerCase()).join('');
+  const p = flat.indexOf(k); if (p < 0) return esc(name);
+  const a = idx[p], b = idx[p + k.length - 1] + 1;
+  return esc(name.slice(0, a)) + '<mark>' + esc(name.slice(a, b)) + '</mark>' + esc(name.slice(b));
+}
+const rPage = document.getElementById('rPage');
+rPage.oninput = () => filterRemote(rPage.value);
+rPage.onkeydown = (e) => {
   e.stopPropagation();
-  if (e.key === 'Enter') jumpFolio(e.target.value);
+  if (e.key === 'Escape') { rPage.value = ''; filterRemote(''); return; }
+  if (e.key !== 'Enter') return;
+  const v = rPage.value.trim();
+  if (/^\d+$/.test(v)) { jumpFolio(v); return; }
+  const i = filterRemote(v);
+  if (i >= 0) jump(spreadOf(TOC[i].ref || 0));
 };
 document.getElementById('rBack').onclick = () => { const p = prevAt; if (p != null) { prevAt = at; at = p; draw(); } };
 document.getElementById('rTop').onclick  = () => jump(0);
