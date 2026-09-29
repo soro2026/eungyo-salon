@@ -83,13 +83,18 @@ button.primary:hover{background:var(--gold);}
 /* 0808 — 상영 목록. 새 어휘를 만들지 않고 card·field·hint 문법을 잇는다 */
 .film-add{display:flex;gap:8px;margin-bottom:14px;}
 .film-add input{flex:1;}
-.film{display:grid;grid-template-columns:26px 1fr 128px 62px 92px 30px;gap:8px;
+.film{display:grid;grid-template-columns:26px 1fr 96px 128px 62px 92px 30px;gap:8px;
   align-items:center;padding:8px 0;border-bottom:1px solid rgba(201,162,39,.16);}
 .film:last-child{border-bottom:0;}
 .film.off{opacity:.42;}
 .film .no{font-size:11px;color:var(--dim);text-align:center;letter-spacing:.04em;}
 .film .mv{display:flex;flex-direction:column;gap:2px;}
 .film input{width:100%;font-size:12.5px;padding:5px 8px;}
+/* 0929 — 뜨는 날 · 유튜브 제목 */
+.film .when{font-size:11.5px;color:var(--gold-l);text-align:center;line-height:1.25;white-space:nowrap}
+.film .when.today{color:#1a1206;background:var(--gold-l);border-radius:6px;padding:4px 0;font-weight:600}
+.film .when.off{color:var(--dim)}
+.film input.yt-title::placeholder{color:rgba(240,228,200,.78)}
 .film .yid{font-family:Menlo,Consolas,monospace;font-size:11.5px;letter-spacing:.02em;}
 .film button{font-size:11px;padding:4px 8px;border-radius:6px;cursor:pointer;
   background:transparent;border:1px solid rgba(201,162,39,.4);color:var(--gold-l);}
@@ -274,6 +279,7 @@ async function pickOrg(code){
   $('f_lng').value   = data.lng??'';
   $('f_yt').value    = data.yt_channel||'';
   $('f_epoch').value = data.epoch||'';
+  $('f_epoch').onchange = ()=> renderFilms();   /* 0929 — 기산일을 바꾸면 뜨는 날도 곧바로 다시 센다 */
   RECT = Object.assign({L:14.6,T:53.1,W:71.0,H:18.6}, data.screen_rect||{});
   syncRectInputs(); placeRectBox();
   await loadFilms();          /* 0808 — 상영 목록은 palais_films 표에서 온다 */
@@ -409,6 +415,16 @@ async function loadFilms(){
   if(error){ toast('상영 목록을 못 불러왔어요: '+error.message,'bad'); renderFilms(); return; }
   FILMS = data || [];
   renderFilms();
+  fillYtTitles();
+}
+/* ⭐ 0929 — 제목 칸이 빈 영상은 유튜브에 제목을 물어 흐린 글씨로 보인다(저장하지 않음 · 화면에서 쓰는 방식과 같게) */
+async function fillYtTitles(){
+  const need=FILMS.filter(f=>!f.name && f.video_id && !f._yt);
+  if(!need.length) return;
+  await Promise.all(need.map(f=>
+    fetch('https://www.youtube.com/oembed?url=https%3A//www.youtube.com/watch%3Fv%3D'+f.video_id+'&format=json')
+      .then(r=>r.ok?r.json():null).then(j=>{ if(j&&j.title) f._yt=j.title; }).catch(()=>{})));
+  renderFilms();
 }
 
 function renderFilms(){
@@ -419,16 +435,37 @@ function renderFilms(){
     box.innerHTML='<div class="film-none">아직 걸린 영상이 없습니다. 위에 링크를 붙여넣어 보세요.</div>';
     return;
   }
+  /* ⭐ 0929 소로 — 영상마다 「뜨는 날」을 보인다. 셈은 palais.html todaysPick 과 한 벌:
+     걸려 있는 것만 · 순서대로 · (오늘 − 기산일) % 편수. 기산일은 위 칸(f_epoch) 값. */
+  const liveList=FILMS.filter(f=>f.status==='active');
+  const epochV=$('f_epoch') && $('f_epoch').value;
+  const base=epochV ? new Date(epochV+'T00:00:00+09:00') : new Date();
+  const days=Math.floor((Date.now()-base)/86400000);
+  const L=liveList.length;
+  const iToday=L ? ((days%L)+L)%L : 0;
+  const WD='일월화수목금토';
+  const whenOf=f=>{
+    if(f.status!=='active' || !L) return {t:'순회 밖', c:'off'};
+    const k=liveList.indexOf(f), off=((k-iToday)%L+L)%L;
+    if(off===0) return {t:'오늘', c:'today'};
+    if(off===1) return {t:'내일', c:''};
+    const d=new Date(Date.now()+off*86400000);
+    const kd=new Date(d.toLocaleString('en-US',{timeZone:'Asia/Seoul'}));
+    return {t:(kd.getMonth()+1)+'/'+kd.getDate()+'('+WD[kd.getDay()]+')', c:''};
+  };
   let n=0;
   box.innerHTML=FILMS.map(f=>{
     const on=f.status==='active';
     if(on) n++;
+    const w=whenOf(f);
+    const ph=f._yt ? f._yt : '제목 — 비우면 유튜브에서 가져옵니다';
     return `<div class="film${on?'':' off'}" data-id="${f.id}">
       <div class="mv">
         <button data-act="up"   title="위로">▲</button>
         <button data-act="down" title="아래로">▼</button>
       </div>
-      <input data-col="name" value="${esc(f.name||'')}" placeholder="제목 — 비우면 유튜브에서 가져옵니다">
+      <input data-col="name" class="${f._yt?'yt-title':''}" value="${esc(f.name||'')}" placeholder="${esc(ph)}" title="${esc(f.name||f._yt||'')}">
+      <div class="when ${w.c}" title="${L?L+'일마다 돌아옵니다':''}">${w.t}</div>
       <input data-col="video_id" class="yid" value="${esc(f.video_id||'')}">
       <input data-col="start_seconds" type="number" min="0" step="1" value="${f.start_seconds||0}" title="시작 지점(초)">
       <button data-act="toggle">${on?'걸려 있음':'내려둠'}</button>
@@ -516,7 +553,7 @@ $('btnAddFilm').addEventListener('click', async ()=>{
     .select().single();
   if(error){ toast('걸지 못했어요: '+error.message,'bad'); return; }
   FILMS.push(data); $('f_newUrl').value='';
-  renderFilms(); toast('걸었어요. 제목은 비워 두면 유튜브가 알려줍니다.','ok');
+  renderFilms(); fillYtTitles(); toast('걸었어요. 제목은 비워 두면 유튜브가 알려줍니다.','ok');
 });
 
 /* ── 저장 ── */
