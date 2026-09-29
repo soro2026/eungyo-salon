@@ -1044,6 +1044,32 @@ window.EGQ = (function(){
     padding:15px;cursor:pointer;transition:background .2s;
   }
   #maison .m-enter:hover{background:#ffdf6b}
+  /* ⭐ 0929 대문 옆 공연 안내문(#hallNote) — 포럼 판과 같은 종이빛 */
+  #hallNote{position:fixed;top:0;right:0;bottom:0;z-index:57;width:min(380px,86vw);
+    background:linear-gradient(to left,rgba(246,240,226,.985),rgba(240,232,214,.96));
+    border-left:1px solid rgba(120,92,48,.35);color:#2c2519;
+    transform:translateX(100%);transition:transform .7s cubic-bezier(.22,.61,.36,1);
+    padding:64px 30px 32px;overflow-y:auto;scrollbar-width:none;box-shadow:-8px 0 30px rgba(0,0,0,.25)}
+  #hallNote::-webkit-scrollbar{display:none}
+  #hallNote.in{transform:none}
+  #hallNote .hn-close{position:absolute;top:16px;right:18px;width:30px;height:30px;border:0;border-radius:50%;
+    background:rgba(90,66,30,.08);color:#6b5a3e;font-size:17px;cursor:pointer}
+  #hallNote .hn-close:hover{background:rgba(90,66,30,.16);color:#2c2519}
+  #hallNote .hn-voice{position:absolute;top:18px;right:58px;border:1px solid rgba(90,66,30,.35);border-radius:15px;
+    background:rgba(255,255,255,.35);color:#4e3a1c;font-family:var(--sans);font-size:12px;padding:5px 12px;cursor:pointer}
+  #hallNote .hn-voice:hover,#hallNote .hn-voice.on{background:#2c2519;color:#f3ecdc;border-color:#2c2519}
+  #hallNote .hn-door{font-family:var(--sans);font-size:11px;letter-spacing:.22em;color:#8a5a1c;margin-bottom:12px}
+  #hallNote .hn-name{font-family:var(--sans),system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    font-size:26px;line-height:1.25;color:#231c12;margin:0 0 4px}
+  #hallNote .hn-orig{font-family:var(--serif);font-style:italic;font-size:13.5px;color:#7a6a4f;margin-bottom:24px}
+  #hallNote .hn-orig:empty{display:none}
+  #hallNote .hn-prog{border-top:1px solid rgba(90,66,30,.28)}
+  #hallNote .f-row{display:grid;grid-template-columns:74px 1fr;gap:12px;align-items:baseline;
+    border-bottom:1px dotted rgba(90,66,30,.3);padding:12px 2px;font-family:var(--serif);font-size:14.5px;line-height:1.5}
+  #hallNote .f-row .fd{font-family:var(--sans);font-size:12px;letter-spacing:.04em;color:#7a6a4f;white-space:nowrap}
+  #hallNote .f-row.today .fd{color:#8a2d1c;font-weight:700}
+  #hallNote .f-row.today .ft{font-weight:600}
+  #hallNote .hn-note{margin-top:14px;font-family:var(--serif);font-size:12.5px;color:#7a6a4f}
   /* ⭐ 0929 EG인문학 포럼 판 — 종이빛(소로). 오래된 강의 안내문 한 장 */
   #maison.paper{
     background:linear-gradient(to left,rgba(246,240,226,.985),rgba(240,232,214,.96));
@@ -2145,6 +2171,17 @@ window.EGQ = (function(){
     매달 초 새로운 클래스가 열리고, 개강일은 매월 5일입니다.</p>
   </div>
   <button class="cc-enter" onclick="enterCollege()">대문 열고 들어가기 →</button>
+</aside>
+
+<!-- ⭐ 0929 대문 옆 공연 안내문 — 음악관 · 미술관 대문 위에 1초 뒤 스르르. 문(50)보다 위 · 문지기(62)보다 아래 -->
+<aside id="hallNote" aria-live="polite">
+  <button class="hn-close" id="hnClose" aria-label="닫기">×</button>
+  <button class="hn-voice" id="hnVoice" type="button" style="display:none">🔊 오디오 소개 듣기</button>
+  <div class="hn-door" id="hnDoor"></div>
+  <h2 class="hn-name" id="hnName"></h2>
+  <div class="hn-orig" id="hnOrig"></div>
+  <div class="hn-prog" id="hnProg"></div>
+  <div class="hn-note" id="hnFoot">대문을 누르면 들어갑니다</div>
 </aside>
 
 <aside id="maison">
@@ -4931,6 +4968,7 @@ function doorBackOrExit(){
 }
 
 function exitDoorway(){
+  try{ document.getElementById("hallNote").classList.remove("in"); }catch(e){}   /* 0929 — 대문 안내문도 함께 걷는다 */
   // 빠른 길(enter=1)로 들어왔으면 지도를 안 거치고 곧장 메인 메뉴로
   if (EGQ.enter){
     location.href = 'index.html'; return;
@@ -7023,7 +7061,92 @@ const STORY_DOOR = {
   college:      { label:"📖 콜레주에 들어가기", url:p=>p.target_url || ("college.html?hall=" + p.id) }
 };
 
+/* ⭐⭐ 0929 소로 — 음악관 · 미술관: 대문을 곧바로 띄우고, 1초 뒤 대문 옆에 이레 치 안내문이 스르르.
+   건물 소개 글은 걷고 오른쪽 위 「오디오 소개 듣기」 하나(voice_takes · scope place · ref kind/code).
+   편성 셈은 songOfHall · artOfMuseum 과 한 벌 — (D + k + floor(no × N ÷ H)) mod N. D 만 k 날 앞으로 민다.
+   ⚠ 공식이 사는 곳이 또 하나 늘었다(concert.html · galerie.html · admin 들과 함께 고칠 것).
+   손님이 대문을 누르면(창 안으로 초점이 넘어가면) 안내문은 저절로 물러난다. */
+let hallNoteTimer = null, hallNoteFor = null;
+function hideHallNote(){
+  clearTimeout(hallNoteTimer); hallNoteFor = null;
+  const el = document.getElementById("hallNote"); if (el) el.classList.remove("in");
+}
+function openHallGate(p){
+  if (!p || (p.kind !== "concert" && p.kind !== "heritage")) return false;
+  const d = STORY_DOOR[p.kind];
+  hideHallNote();
+  enterRoomUrl(d.url(p), p.name || "");
+  hallNoteFor = p.code;
+  const my = p.code;
+  hallNoteTimer = setTimeout(()=>{ if (hallNoteFor === my) showHallNote(p); }, 1000);
+  return true;
+}
+async function showHallNote(p){
+  const isArt = p.kind === "heritage";
+  const el = document.getElementById("hallNote"); if (!el) return;
+  const halls = isArt ? await loadGalerieHallsAll() : concertHalls();
+  const list  = isArt ? await loadGalerieArts()     : await loadConcertSongs();
+  if (hallNoteFor !== p.code) return;                 /* 그사이 문을 나섰다 */
+  const m = p.meta || {};
+  document.getElementById("hnDoor").textContent = isArt ? "미술관 · 이레의 전시" : "음악관 · 이레의 공연";
+  document.getElementById("hnName").textContent = m.title_ko || p.name || "";
+  document.getElementById("hnOrig").textContent = m.title || m.name_en || "";
+  const box = document.getElementById("hnProg"); box.innerHTML = "";
+  const H = halls.length, N = (list || []).length;
+  const hall = halls.find(h => h.code === p.code) || p;
+  const no = Number(((hall.meta || m)[isArt ? "museum_no" : "hall_no"]) || 0);
+  const WD = "일월화수목금토";
+  if (!H || !N){
+    box.innerHTML = '<div class="hn-note">편성을 준비하고 있습니다</div>';
+  } else {
+    for (let k = 0; k < 7; k++){
+      const w = list[((concertDay() + k + Math.floor(no * N / H)) % N + N) % N];
+      let dl = "오늘";
+      if (k > 0){
+        const dd = new Date(new Date(Date.now() + k * 86400000).toLocaleString("en-US", { timeZone:"Asia/Seoul" }));
+        dl = (dd.getMonth() + 1) + "/" + dd.getDate() + "(" + WD[dd.getDay()] + ")";
+      }
+      const row = document.createElement("div");
+      row.className = "f-row" + (k === 0 ? " today" : "");
+      row.innerHTML = '<span class="fd"></span><span class="ft"></span>';
+      row.querySelector(".fd").textContent = dl;
+      row.querySelector(".ft").textContent = isArt ? artLine(w) : songLine(w);
+      box.appendChild(row);
+    }
+  }
+  /* 오디오 소개 — 구워진 곳에만 선다 */
+  const vb = document.getElementById("hnVoice");
+  vb.style.display = "none"; vb.classList.remove("on");
+  const ref = p.kind + "/" + p.code;
+  try{
+    const r = await fetch(SUPA_URL + "/rest/v1/voice_takes?select=url,dur_sec&scope=eq.place&active=is.true&limit=1&ref=eq."
+                          + encodeURIComponent(ref), { headers:{ apikey:SUPA_KEY, Authorization:"Bearer " + SUPA_KEY } });
+    const t = r.ok ? (await r.json())[0] : null;
+    if (t && t.url && hallNoteFor === p.code){
+      vb.style.display = "";
+      vb.onclick = ()=>{
+        if (typeof storyAudio !== "undefined" && storyAudio && voiceRef === ref){
+          if (storyAudio.paused) storyAudio.play().catch(()=>{}); else storyAudio.pause();
+        } else startVoice(ref, t.url, m.title_ko || p.name, Number(t.dur_sec) || 0, "place");
+        vb.classList.toggle("on", !!(storyAudio && !storyAudio.paused));
+      };
+    }
+  }catch(e){ console.warn("[EG] 대문 안내문 낭독 로드 실패:", e); }
+  if (hallNoteFor === p.code) el.classList.add("in");
+}
+(function wireHallNote(){
+  const c = document.getElementById("hnClose"); if (c) c.addEventListener("click", hideHallNote);
+  /* 손님이 대문(창 안)을 누르면 초점이 iframe 으로 넘어간다 — 그때 안내문은 물러난다 */
+  window.addEventListener("blur", ()=>{
+    setTimeout(()=>{
+      const a = document.activeElement;
+      if (a && a.id === "doorFrame" && document.getElementById("hallNote").classList.contains("in")) hideHallNote();
+    }, 0);
+  });
+})();
+
 function openPinStory(p){
+  if (openHallGate(p) && (p.kind === "concert" || p.kind === "heritage")) return;   /* 0929 — 음악관 · 미술관은 대문 + 안내문 */
   const m = (p && p.meta) || {};
   const d = STORY_DOOR[p.kind];
   openStory({
@@ -7842,8 +7965,8 @@ async function openTourPanel(kind){
       closeTourLists();
       try{ document.getElementById("egDock").classList.remove("open"); }catch(e){}
       const pin = terraPins[p.code];
-      if (pin) flyToPark(pin);
-      else location.href = (isArt ? "galerie.html?code=" : "concert.html?code=") + encodeURIComponent(p.code);
+      /* 0929 — 날아가지 않고 곧장 대문 + 이레 안내문 */
+      openHallGate(Object.assign({ kind: isArt ? "heritage" : "concert" }, p, pin || {}));
     });
     box.appendChild(b);
   }
@@ -7979,6 +8102,11 @@ function egDirectOpen(id){
      ⚠ 신호 이름은 분더카머 ▲ · 배낭 키와 같은 `jump=1` 하나다. 지금 이 신호를 읽는 방은
        persona 뿐이고, 나머지는 조용히 무시한다 — 읽는 방이 늘 때 여기를 다시 고치지 않아도 된다.
      ⚠ heritage 처럼 이미 물음표를 가진 주소가 있으므로 물음표 유무를 보고 붙인다. */
+  /* 0929 — 오늘의 음악관 · 미술관은 대문 + 이레 안내문 */
+  if (id === "tourmusic" || id === "heritage"){
+    const g = (id === "tourmusic") ? concertGate() : galerieGate();
+    if (g && openHallGate(Object.assign({ kind: id === "tourmusic" ? "concert" : "heritage" }, g, terraPins[g.code] || {}))) return;
+  }
   const jurl = url + (url.indexOf("?") >= 0 ? "&" : "?") + "jump=1";
   enterRoomUrl(jurl, DOCK_NAME[id] || "");
 }
