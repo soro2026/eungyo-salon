@@ -1659,6 +1659,22 @@ window.EGQ = (function(){
      ⚠ 무늬가 앉을 오른쪽 자리 — nogo가 걷어낸 여백(12px)을 되살린다 */
   .dock-card.nogo.orn{ padding-right:38px; }
   .dock-card.waiting .dock-sub{ opacity:.55; font-style:italic; }
+  /* ⭐ 0929 — 파란 조개(가이드북 문). 소로 — 「논리로 먼저 이해해야 움직이는 손님을 위한 배려」.
+       순례길 표지석의 그 조개 — 산티아고 순례 비행 모혼(reading_room.js 0925a)과 같은 색 · 같은 부챗살.
+       평소엔 숨고, 줄에 마우스를 얹으면 작은 타륜 왼쪽에 떠오른다(벽지가 되지 않게 — 0912 서고 3호).
+       조개에 얹으면 「가이드북에서 읽기」 · 누르면 그 꼭지가 지도 위 책 판으로(지도는 닻을 내린다). */
+  .dock-card.has-shell{ padding-right:64px; }
+  .dock-shell{ position:absolute; top:50%; right:36px; width:20px; height:20px; cursor:pointer;
+    opacity:0; transform:translateY(calc(-50% + 4px)); transition:opacity .2s ease, transform .25s ease; }
+  .dock-shell svg{ width:100%; height:100%; display:block; border-radius:3px;
+    box-shadow:0 1px 2px rgba(40,30,10,.35); }
+  .dock-card:hover .dock-shell, .dock-shell:focus-visible{ opacity:1; transform:translateY(-50%); }
+  .dock-shell::after{ content:attr(data-tip); position:absolute; right:calc(100% + 7px); top:50%;
+    transform:translateY(-50%); white-space:nowrap; font-size:11.5px; letter-spacing:.02em; color:#fff;
+    background:#1D4F9E; padding:3px 8px; border-radius:4px; opacity:0; pointer-events:none;
+    transition:opacity .15s ease; }
+  .dock-shell:hover::after, .dock-shell:focus-visible::after{ opacity:1; }
+  @media (prefers-reduced-motion:reduce){ .dock-shell{ transition:none; } }
   .dock-count{ margin-top:6px; font-variant-numeric:tabular-nums; font-size:16.5px;
     letter-spacing:.05em; color:#8a5f18; font-weight:700; }
   /* 0817 — 24시간 전에는 초 대신 일정. 시계와 같은 크기·무게로 그 자리에 선다 */
@@ -7391,6 +7407,44 @@ function wireTerra(){
       m.innerHTML = dockHelmSvg(false);
       g.appendChild(m);
     } }
+  /* ⭐ 0929 — 파란 조개 · 가이드북의 그 꼭지로 (CSS .dock-shell 머리말 참고)
+       꼭지 짝 — eg_guidebook.slug. 줄을 늘릴 때는 SHELLS 에 한 줄씩 더한다.
+       ⚠ 닻 — 책이 펴져 있는 동안 궤도 회전을 멈춘다(소로 「단단히 붙들어」).
+         덮으면 멈춘 그 자리 · 그 방향에서 다시 돈다(orbitHeading 은 stopOrbit 이 지우지 않는다).
+       ⚠ 클릭 · 키 모두 stopPropagation — 없으면 #egDock 위임으로 번져 크레덴시알 카드까지 뜬다. */
+  window.openGuideAt = function(slug){
+    if (!window.EGGuideCover || !EGGuideCover.openBook) return;
+    let was = null;
+    try{ if (orbiting && orbitCenter) was = { c:orbitCenter, r:orbitRange, rate:orbitRate, spin:orbitSpin }; }catch(_){}
+    try{ stopOrbit(); }catch(_){}
+    EGGuideCover.openBook(slug, ()=>{
+      if (was && !orbiting){ try{ startOrbit(was.c, was.r, was.r, was.rate, was.spin); }catch(_){} }
+    });
+  };
+  (function(){
+    const SHELL_SVG = '<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg"><rect width="300" height="300" rx="34" fill="#1D4F9E"/><g fill="none" stroke="#F7C600" stroke-linecap="round"><path stroke-width="17" d="M134 210L34 164M136 205L53 133M140 202L81 109M145 200L114 94M150 199L150 89M155 200L186 94M160 202L219 109M164 205L247 133M166 210L266 164"/><path stroke-width="14" d="M31 170A128 128 0 0 1 269 170"/></g></svg>';
+    const SHELLS = [
+      { card:"dockCredencial", slug:"u4-1-cred" }
+    ];
+    for (const k of SHELLS){
+      const el = document.getElementById(k.card);
+      if (!el || el.querySelector(".dock-shell")) continue;
+      const b = document.createElement("div");
+      b.className = "dock-shell";
+      b.dataset.tip = "가이드북에서 읽기";
+      b.setAttribute("role","button");
+      b.setAttribute("tabindex","0");
+      b.setAttribute("aria-label","가이드북에서 읽기");
+      b.innerHTML = SHELL_SVG;
+      b.addEventListener("click", (e)=>{ e.stopPropagation(); openGuideAt(k.slug); });
+      b.addEventListener("keydown", (e)=>{
+        if (e.key === "Enter" || e.key === " "){ e.preventDefault(); e.stopPropagation(); openGuideAt(k.slug); }
+      });
+      el.classList.add("has-shell");
+      const go = el.querySelector(".dock-go");
+      el.insertBefore(b, go || null);
+    }
+  })();
   { const mc = document.getElementById("mailClose");
     if (mc) mc.addEventListener("click", closeMailCard); }
   { const mb = document.getElementById("mailCard");
@@ -9051,7 +9105,7 @@ window.openPinStory  = openPinStory;
 window.closeTourLists = closeTourLists;
 })();
 </script>
-<script src="guide_cover.js?v=0915"></script>
+<script src="guide_cover.js?v=0929"></script>
 <!-- 0917 — 타륜 › EG파운더 전용메뉴 · 파운더 신청안내. 배선은 전부 founder_menu.js 에 산다 (읽을 수 있는 계정 · 데스크톱에만 칸이 선다) -->
 <script src="founder_menu.js?v=0923c"></script>
 </body>

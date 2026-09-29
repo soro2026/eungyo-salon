@@ -166,7 +166,14 @@
     setTimeout(() => { showSide(next); setTimeout(() => { busy = false; }, 280); }, 280);
   }
 
-  function openBook() {
+  /* ⭐ 0929 — 꼭지로 펴기. 타륜 메뉴의 파란 조개가 slug 와 「덮을 때 부를 손」을 들고 온다.
+     표지를 거치지 않고 책이 곧장 펴진다. 덮으면 onClose 로 지도에 알린다(닻을 올린다). */
+  let onBookClose = null;
+  function openBook(slug, onClose) {
+    onBookClose = (typeof onClose === 'function') ? onClose : null;
+    if (slug && frame) {
+      try { frame.contentWindow.egOpenSlug(slug); } catch (_) {}
+    }
     if (!bookEl) {
       bookEl = document.createElement('div');
       bookEl.id = 'gcBook';
@@ -176,7 +183,7 @@
       frame = document.createElement('iframe');
       frame.title = 'EG가이드북';
       frame.setAttribute('allowtransparency', 'true');
-      frame.src = BOOK;                         /* 한 번만 싣는다 — 덮었다 다시 펴도 읽던 자리가 산다 */
+      frame.src = BOOK + (slug ? '&at=' + encodeURIComponent(slug) : '');                         /* 한 번만 싣는다 — 덮었다 다시 펴도 읽던 자리가 산다 */
       frame.addEventListener('load', focusBook);
       bookEl.appendChild(frame);
       document.body.appendChild(bookEl);
@@ -194,6 +201,8 @@
     if (!bookEl || !bookEl.classList.contains('on')) return;
     bookEl.classList.remove('show');
     setTimeout(() => bookEl.classList.remove('on'), quick ? 0 : 300);
+    const cb = onBookClose; onBookClose = null;
+    if (cb) { try { cb(); } catch (_) {} }
   }
 
   /* 키 — 책이 열려 있으면 키는 책(iframe) 몫이다. 표지만 떠 있을 때만 받는다.

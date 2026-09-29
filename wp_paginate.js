@@ -102,8 +102,8 @@ function paginate(STREAM, R) {
   const eH = (e) => e.chapter ? 74 : (e.unit ? 32 : 38);
   const entries = [];
   STREAM.forEach(it => {
-    if (it.k === 'chapter') entries.push({ chapter: true, num: it.num, name: it.name });
-    else if (it.k === 'section') entries.push({ num: it.num, name: it.name, unit: !it.num, course: !!it.cover });
+    if (it.k === 'chapter') entries.push({ chapter: true, slug: it.slug, num: it.num, name: it.name });
+    else if (it.k === 'section') entries.push({ slug: it.slug, num: it.num, name: it.name, unit: !it.num, course: !!it.cover });
   });
   const chunks = []; let bin = [], acc = 0;
   entries.forEach(e => {

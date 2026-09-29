@@ -184,6 +184,7 @@ function buildStream(rows, plates) {
         held = []; sinceCh = 0;
         emit({
           k: 'chapter',
+          slug: row.slug,                 /* ⭐ 0929 — 차례가 꼭지 이름을 실어 나른다(타륜 조개 → 그 꼭지) */
           num: row.num,
           name: row.title,
           hue: row.color || HUE[row.num] || HUE_FALLBACK,
@@ -194,12 +195,12 @@ function buildStream(rows, plates) {
            이름이 두 번 나오면 색지가 무안해진다 */
         const course = COURSE_CHAPTER && chapNum === COURSE_CHAPTER;
         if (course) emit({ k: 'course', num: row.num, name: row.title });
-        emit({ k: 'section', num: row.num, name: row.title, cover: course });
+        emit({ k: 'section', slug: row.slug, num: row.num, name: row.title, cover: course });
       } else if (row.level === 'unit') {
         /* ⭐ 건물 — 번호를 뗀 절 머리. 0914 소로 결정
            번호 줄이 없으므로 paginate 가 3행으로 잡고,
            러닝 푸터의 이름도 이 건물이 가져간다. */
-        emit({ k: 'section', num: null, name: row.title });
+        emit({ k: 'section', slug: row.slug, num: null, name: row.title });
       } else {
         later.push(`모르는 층 — ord ${row.ord} level「${row.level}」`);
         return;

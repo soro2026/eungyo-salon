@@ -155,8 +155,8 @@
 <div id="bar"></div>
 <div id="boot">서고에서 원고를 받는 중입니다</div>
 
-<script src="wp_stream.js?v=0914"></script>
-<script src="wp_paginate.js?v=0916"></script>
+<script src="wp_stream.js?v=0929"></script>
+<script src="wp_paginate.js?v=0929"></script>
 <script>
 /* ─────────────────────────────────────────────────────────────────────
    whitepaper.html — EG백서를 책으로 읽는 한 장
@@ -417,6 +417,16 @@ function playTurn(){
 /* ── 책 ────────────────────────────────────────────────────── */
 
 let SPREADS = [], PAGES = [], TOC = [], at = 0, prevAt = null, turning = false, LATER = [], CHECK = '';
+/* ⭐ 0929 — 꼭지로 여는 문. ① 주소 ?at=<slug>  ② 이미 펴 둔 책은 egOpenSlug(slug)
+   (terra 의 guide_cover.js 가 부른다 — 책은 한 번만 싣고 다시 펴므로 ②가 주로 쓰인다) */
+let WANT_SLUG = new URLSearchParams(location.search).get('at');
+window.egOpenSlug = function (slug) {
+  if (!slug) return;
+  if (!TOC.length) { WANT_SLUG = slug; return; }   /* 아직 조판 중 — 끝나면 typeset 이 편다 */
+  const e = TOC.find((x) => x.slug === slug);
+  if (e) jump(spreadOf(e.ref || 0));
+  else console.warn('[EG백서] 없는 꼭지 — ' + slug);
+};
 let LATE_RETYPE = false;   /* 0916 — 글꼴이 늦게 와서 다시 자르는 일은 한 번만 */
 const L = document.getElementById('L'), R = document.getElementById('R');
 const leaf = document.getElementById('leaf');
@@ -652,6 +662,12 @@ async function typeset(opt){
       if (s >= 0 && s < SPREADS.length) at = s;
     } catch(e){}
     if (at >= SPREADS.length) at = 0;
+    /* ⭐ 0929 — 타륜 메뉴의 파란 조개가 꼭지를 들고 왔으면 읽던 자리보다 그 꼭지가 먼저다 */
+    if (WANT_SLUG && !anchor) {
+      const e = TOC.find((x) => x.slug === WANT_SLUG);
+      if (e) at = spreadOf(e.ref || 0);
+      WANT_SLUG = null;
+    }
     if (anchor) {
       const k = SPREADS.findIndex((sp) => sp.some((pg) => pg && pg.paras &&
         pg.paras.some((x) => x.text && x.text.replace(/\*\*/g, '').includes(anchor))));
