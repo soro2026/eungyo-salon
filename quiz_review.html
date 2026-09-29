@@ -115,7 +115,6 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&':'
 /* 카리 원고의 *강조* · **굵게** 만 살린다 */
 const rich = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\*(.+?)\*/g, '<em>$1</em>');
 const TYPE = { subjective:'주관식', multiple_choice:'객관식', ox:'O · X' };
-const LAYER = [['knowledge','지식'], ['thought','생각'], ['connection','연결'], ['curation','큐레이션']];
 
 async function boot(){
   const gate = document.getElementById('gate');
@@ -124,7 +123,7 @@ async function boot(){
   const { data: isAdmin } = await sb.rpc('eg_is_admin');
   if (!isAdmin) { gate.innerHTML = '살롱지기만 들어오는 방입니다.'; return; }
 
-  const cols = 'id,tier,category,difficulty,question_type,keyword,zone_keyword,question_text,answer,initials,aliases,choices,correct_index,ox_explanation,figures,library,created_at';
+  const cols = 'id,tier,category,difficulty,question_type,keyword,zone_keyword,question_text,answer,initials,aliases,choices,correct_index,ox_explanation,created_at';
   const [qr, mr] = await Promise.all([
     sb.from('questions').select(cols).order('created_at').order('id').limit(2000),
     sb.from('quiz_review_marks').select('question_id,seen,note,fixed').limit(5000),
@@ -199,12 +198,8 @@ function bodyHTML(q){
 }
 function card(q){
   const m = MARK[q.id] || {};
-  const lib = (q.library && typeof q.library === 'object') ? q.library : {};
   const al = (Array.isArray(q.aliases) ? q.aliases : []).filter((x) => x && x !== q.answer);
-  const figs = Array.isArray(q.figures) ? q.figures.filter(Boolean) : [];
-  const layers = LAYER.map(([k, name]) => lib[k]
-    ? `<div class="rv"><div class="lbl">${name}</div><p>${rich(lib[k])}</p></div>`
-    : `<div class="rv"><div class="lbl">${name}</div><p class="miss">비어 있습니다</p></div>`).join('');
+  /* ⭐ 0929 소로 — 「문제와 정답으로 마친다 · 4겹까지는 읽을 여유도 없고 복잡해 보인다」 → 돌아보기(4겹)는 싣지 않는다 */
   return `<article class="card${m.seen ? ' seen' : ''}" data-id="${q.id}">
     <div class="top">
       <span class="no">No. ${String(q._no).padStart(3, '0')}</span>
@@ -217,8 +212,6 @@ function card(q){
     ${bodyHTML(q)}
     ${q.question_type === 'ox' ? '' : `<div class="lbl">정답</div><div class="ans">${esc(q.answer)}</div>
       <div class="alias">${al.length ? '허용 답 — ' + al.map(esc).join(' · ') : ''}</div>`}
-    <div class="rev"><div class="lbl" style="color:var(--ink2);letter-spacing:.2em;">이 문제 돌아보기</div>${layers}
-      ${figs.length ? `<div class="fig">인물 — ${figs.map(esc).join(' · ')}</div>` : ''}</div>
     <div class="act">
       <button class="btn seen-b${m.seen ? ' seenon' : ''}">${m.seen ? '✓ 봤음' : '봤음'}</button>
       <button class="btn memo${m.note ? ' has' : ''}">✎ 메모</button>
