@@ -95,7 +95,17 @@ const guessKind = u => (KIND_BY_HOST.find(([re]) => re.test(u)) || [null,'기타
 const today = () => new Date().toLocaleDateString('sv-SE', { timeZone:'Asia/Seoul' });  /* YYYY-MM-DD */
 
 const P = new URLSearchParams(location.search);
-const PAGE = { url:(P.get('u')||'').trim(), title:(P.get('t')||'').trim(), sel:(P.get('s')||'').trim() };
+const PAGE = { url:(P.get('u')||'').trim(), title:(P.get('t')||'').trim(), sel:(P.get('s')||'').trim(), from:null };
+
+/* 1001 — 사람의 집으로 담는다. 행사 페이지에서 눌러도 주최자 한 분에 주소 하나.
+   눌렀던 원래 주소는 raw.event_url 에 남긴다. 밭이 늘면 여기에 한 줄씩. */
+const HOME_RULES = [
+  [/^https?:\/\/(www\.)?event-us\.kr\/([^\/?#]+)\/event\//i, m => 'https://event-us.kr/' + m[2]],
+];
+for (const [re, fn] of HOME_RULES){
+  const m = PAGE.url.match(re);
+  if (m){ PAGE.from = PAGE.url; PAGE.url = fn(m); break; }
+}
 
 async function boot(){
   const { data:{ session } } = await sb.auth.getSession();
@@ -158,7 +168,7 @@ async function drawCatch(){
   const kind = guessKind(PAGE.url);
   const sel = PAGE.sel;
   $('#main').innerHTML = `
-    <div class="src"><b>PAGE</b>${esc(PAGE.title || '')}<br>${esc(PAGE.url)}</div>
+    <div class="src"><b>PAGE</b>${esc(PAGE.title || '')}<br>${esc(PAGE.url)}${PAGE.from ? '<br><span style="color:var(--dim)">행사 페이지에서 눌러 주최자의 집으로 담습니다</span>' : ''}</div>
 
     <label>이름 <i>사람 이름 · 닉네임 (모르면 비워도 됩니다)</i></label>
     <input id="f-name" autocomplete="off">
@@ -201,7 +211,17 @@ async function drawCatch(){
   $('#ways').addEventListener('click', e => { const b = e.target.closest('button'); if(b) setWay(b.dataset.w); });
   $('#f-mail').addEventListener('input', e => { if(e.target.value.trim()) setWay('메일'); else if(way==='메일') setWay('없음'); });
 
-  $('#go').addEventListener('click', save);
+  $('#go').addEventListener('click', requestSave);
+}
+
+/* 1001 — 마지막 글자가 사라지던 병.
+   한글은 마지막 글자가 「조합 중」인 채로 Ctrl+Enter 를 누르면 그 글자가 아직 값에 안 들어가 있다.
+   담기 전에 입력 칸에서 손을 떼게(blur) 해 조합을 마치고, 한 박자 쉰 뒤 읽는다. */
+let saving = false;
+function requestSave(){
+  if (saving) return; saving = true;
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  setTimeout(async () => { try { await save(); } finally { saving = false; } }, 60);
 }
 
 async function save(){
@@ -217,7 +237,7 @@ async function save(){
     scale: v('#f-scale') || null, about: v('#f-about') || null,
     email: mail || null, contact_way: mail ? '메일' : (on ? on.dataset.w : '없음'),
     memo: v('#f-memo') || null, found_by: '소로 · 담기 단추',
-    raw: { page_title: PAGE.title, selection: PAGE.sel || null, caught_at: new Date().toISOString() }
+    raw: { page_title: PAGE.title, selection: PAGE.sel || null, event_url: PAGE.from || null, caught_at: new Date().toISOString() }
   };
   const { error } = await sb.from('eg_leads').insert(row);
   if(error){
@@ -232,7 +252,7 @@ async function save(){
 
 document.addEventListener('keydown', e => {
   if(e.key === 'Escape') window.close();
-  if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)) save();
+  if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); requestSave(); }
 });
 
 boot();
