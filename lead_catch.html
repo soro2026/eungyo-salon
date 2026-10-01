@@ -109,6 +109,11 @@ const KIND_BY_HOST = [
 ];
 const KINDS = ['이벤터스','온오프믹스','소모임','문토','텀블벅','프립','네이버카페','다음카페','독립서점',
                '메일리','스티비','브런치','유튜브','인스타','스레드','블로그','팟캐스트','기타'];
+/* 1001 오후 — 페이지 제목에서 사이트 꼬리와 알림 숫자를 떼어 채널명만 남긴다 */
+const cleanTitle = t => String(t||'').trim()
+  .replace(/^\(\d+\)\s*/, '')
+  .replace(/\s*[:|\-–—]\s*(네이버\s*블로그|NAVER\s*블로그|naver\s*blog|YouTube|브런치스토리|브런치|brunch|티스토리|tistory|Instagram.*|이벤터스|온오프믹스|텀블벅)\s*$/i, '')
+  .trim();
 const guessKind = u => (KIND_BY_HOST.find(([re]) => re.test(u)) || [null,'기타'])[1];
 
 const today = () => new Date().toLocaleDateString('sv-SE', { timeZone:'Asia/Seoul' });  /* YYYY-MM-DD */
@@ -256,10 +261,14 @@ async function drawCatch(){
     <div class="keys">Ctrl + Enter 담기 · Esc 닫기</div>
     <div class="err" id="err"></div>`;
 
-  /* 미리 채우기 — 긁어 둔 글이 있으면 「다루는 것」에, 없으면 페이지 제목 */
-  $('#f-about').value = sel || PAGE.title;
+  /* 미리 채우기 — 긁어 둔 글이 있으면 「다루는 것」에, 없으면 페이지 제목
+     1001 오후 — 이름 · 채널 칸에도 제목에서 꼬리(「 : 네이버 블로그」 등)를 뗀 채널명을 넣는다. 소로가 보고 고친다 */
+  const chName = cleanTitle(PAGE.title);
+  $('#f-ch').value = chName;
+  $('#f-name').value = chName;
+  $('#f-about').value = sel || chName || PAGE.title;
   countToday().then(n => { const m = $('#mini'); if (m) m.textContent = `오늘 ${n} / ${DAILY}`; });
-  $('#f-name').focus();
+  $('#f-name').focus(); $('#f-name').select();   /* 이름 칸은 칠해 둔다 — 바로 치면 바뀌고, 그대로 두려면 손대지 않으면 된다 */
 
   let way = '없음';
   const setWay = w => { way = w; document.querySelectorAll('#ways button').forEach(b => b.classList.toggle('on', b.dataset.w===w)); };
