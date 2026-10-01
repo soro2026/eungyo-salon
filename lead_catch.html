@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EG 명단에 담기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Nanum+Myeongjo:wght@400;800&family=EB+Garamond:ital@0;1&display=swap" rel="stylesheet">
+<!--
+  EG 명단에 담기 (1001)
+  소로가 브라우저로 직접 둘러보다 「이분이다」 싶은 페이지에서 즐겨찾기 단추를 누르면
+  이 창이 작게 열려 그 페이지를 eg_leads 에 한 줄로 담는다.
+  ⭐ 사람이 고르고, 기계는 받아 적기만 한다 — 담는 순간이 곧 고른 것(status 미접촉 = 발송 대기)
+  ⭐ 메일은 소로가 눈으로 확인한 것만 적는다
+  살롱지기(eg_is_admin)만. 주소 없이 열면 설치 안내 + 오늘 담은 분.
+-->
+<style>
+  :root{ --paper:#F8F4EB; --paper2:#FFFDF7; --ink:#1A1916; --ink2:#3A342B; --dim:#8B8478; --gold:#8A6414;
+         --line:rgba(26,25,22,.12); --blue:#1D4F9E; --red:#9B2C2C; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; background:var(--paper); color:var(--ink); font-family:'Gowun Batang',serif; }
+  body{ padding:18px 20px 22px; }
+  h1{ margin:0 0 2px; font-family:'Nanum Myeongjo',serif; font-weight:800; font-size:18px; letter-spacing:.02em; }
+  h1 small{ font-family:'EB Garamond',serif; font-weight:400; font-size:11.5px; color:var(--gold); letter-spacing:.22em; margin-left:6px; }
+  .sub{ font-size:12px; color:var(--dim); margin-bottom:14px; }
+  .src{ font-size:12px; color:var(--ink2); background:var(--paper2); border:1px solid var(--line); border-radius:8px;
+        padding:8px 10px; margin-bottom:14px; word-break:break-all; line-height:1.5; }
+  .src b{ color:var(--gold); font-weight:400; font-family:'EB Garamond',serif; letter-spacing:.08em; margin-right:6px; }
+  label{ display:block; font-size:12px; color:var(--ink2); margin:10px 0 4px; }
+  label i{ font-style:normal; color:var(--dim); font-size:11px; margin-left:4px; }
+  input,select,textarea{ width:100%; font-family:inherit; font-size:14px; color:var(--ink); background:var(--paper2);
+        border:1px solid rgba(26,25,22,.18); border-radius:7px; padding:8px 10px; outline:none; }
+  input:focus,select:focus,textarea:focus{ border-color:var(--gold); }
+  textarea{ resize:vertical; min-height:62px; line-height:1.5; }
+  .row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .ways{ display:flex; gap:6px; }
+  .ways button{ flex:1; font-family:inherit; font-size:13px; padding:7px 0; border-radius:18px; cursor:pointer;
+        border:1px solid rgba(26,25,22,.18); background:transparent; color:var(--ink2); }
+  .ways button.on{ background:var(--ink); color:var(--paper); border-color:var(--ink); }
+  .warn{ font-size:11.5px; color:var(--dim); margin-top:4px; }
+  .go{ margin-top:16px; width:100%; font-family:'Nanum Myeongjo',serif; font-weight:800; font-size:15px; letter-spacing:.06em;
+        padding:11px 0; border:none; border-radius:9px; background:var(--ink); color:var(--paper); cursor:pointer; }
+  .go:disabled{ opacity:.45; cursor:default; }
+  .keys{ text-align:center; font-size:11px; color:var(--dim); margin-top:7px; }
+  .note{ background:var(--paper2); border:1px solid var(--line); border-radius:9px; padding:14px 16px; font-size:13.5px; line-height:1.65; }
+  .note.dup{ border-color:rgba(138,100,20,.45); }
+  .note.ok{ text-align:center; font-size:15px; padding:26px 16px; }
+  .note.ok .n{ display:block; font-family:'EB Garamond',serif; color:var(--gold); font-size:13px; letter-spacing:.1em; margin-top:6px; }
+  .bm{ display:inline-block; margin:10px 0 6px; padding:9px 18px; border-radius:20px; background:var(--blue); color:#fff;
+        text-decoration:none; font-family:'Nanum Myeongjo',serif; font-weight:800; font-size:14px; cursor:grab; }
+  ol{ margin:8px 0 0 18px; padding:0; } ol li{ margin:3px 0; }
+  .today{ margin-top:16px; }
+  .today h2{ font-family:'Nanum Myeongjo',serif; font-weight:800; font-size:14px; margin:0 0 6px; }
+  .today h2 span{ font-family:'EB Garamond',serif; font-weight:400; color:var(--gold); margin-left:6px; }
+  .li{ display:grid; grid-template-columns:62px 1fr auto; gap:8px; font-size:12.5px; padding:6px 0; border-bottom:1px solid var(--line); }
+  .li .k{ color:var(--dim); } .li .m{ color:var(--gold); font-size:11.5px; white-space:nowrap; }
+  .li a{ color:var(--ink); text-decoration:none; } .li a:hover{ text-decoration:underline; }
+  .gate{ font-size:14px; line-height:1.7; }
+  .gate a{ color:var(--blue); }
+  .err{ color:var(--red); font-size:12.5px; margin-top:8px; }
+</style>
+</head>
+<body>
+<h1>EG 명단에 담기<small>CATCH</small></h1>
+<div class="sub" id="sub">사람이 고르고, 기계는 받아 적기만 합니다.</div>
+<div id="main"><div class="gate">문을 여는 중입니다…</div></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+const sb = createClient('https://cyhlotwdisjvoxvfkpnd.supabase.co', 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR', {
+  auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
+});
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ⚠ admin_leads.html 의 urlKey 와 한 글자도 달라선 안 된다(표의 생성 칸과 같은 식) */
+function urlKey(u){
+  let s = String(u||'').trim().toLowerCase();
+  s = s.replace(/^https?:\/\//,'').replace(/^www\./,'').replace(/[?#].*$/,'').replace(/\/+$/,'');
+  return s || null;
+}
+
+/* 주소로 종류를 짐작한다 — 틀리면 소로가 고친다 */
+const KIND_BY_HOST = [
+  [/event-us\.kr/,'이벤터스'], [/onoffmix\.com/,'온오프믹스'], [/somoim\.co\.kr/,'소모임'], [/munto\.kr/,'문토'],
+  [/tumblbug\.com/,'텀블벅'], [/frip\.co\.kr/,'프립'], [/brunch\.co\.kr/,'브런치'], [/maily\.so/,'메일리'],
+  [/stibee\.com/,'스티비'], [/cafe\.naver\.com/,'네이버카페'], [/cafe\.daum\.net/,'다음카페'],
+  [/blog\.naver\.com|tistory\.com/,'블로그'], [/youtube\.com|youtu\.be/,'유튜브'], [/instagram\.com/,'인스타'],
+  [/threads\.(net|com)/,'스레드'], [/podbbang\.com|podcasts\.apple|spotify\.com\/show/,'팟캐스트'],
+];
+const KINDS = ['이벤터스','온오프믹스','소모임','문토','텀블벅','프립','네이버카페','다음카페','독립서점',
+               '메일리','스티비','브런치','유튜브','인스타','스레드','블로그','팟캐스트','기타'];
+const guessKind = u => (KIND_BY_HOST.find(([re]) => re.test(u)) || [null,'기타'])[1];
+
+const today = () => new Date().toLocaleDateString('sv-SE', { timeZone:'Asia/Seoul' });  /* YYYY-MM-DD */
+
+const P = new URLSearchParams(location.search);
+const PAGE = { url:(P.get('u')||'').trim(), title:(P.get('t')||'').trim(), sel:(P.get('s')||'').trim() };
+
+async function boot(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if(!session){
+    $('#main').innerHTML = `<div class="gate">살롱지기만 쓰는 창입니다.<br>
+      이 브라우저에서 <a href="https://app.egsalon.com/" target="_blank">app.egsalon.com</a> 에 lonelywalden 으로 로그인한 뒤 다시 눌러 주십시오.</div>`;
+    return;
+  }
+  const { data:isAdmin } = await sb.rpc('eg_is_admin');
+  if(!isAdmin){ $('#main').innerHTML = '<div class="gate">살롱지기만 쓰는 창입니다.</div>'; return; }
+  if(PAGE.url) await drawCatch(); else await drawHome();
+}
+
+/* ── 주소 없이 열었을 때: 설치 안내 + 오늘 담은 분 ───────────────────────── */
+async function drawHome(){
+  const here = location.origin + location.pathname;
+  const bm = `javascript:(()=>{const s=String(getSelection()).trim().slice(0,600);window.open('${here}?u='+encodeURIComponent(location.href)+'&t='+encodeURIComponent(document.title)+'&s='+encodeURIComponent(s),'egcatch','width=480,height=760');})();`;
+  $('#main').innerHTML = `
+    <div class="note">
+      아래 파란 단추를 <b>마우스로 끌어서</b> 브라우저 위쪽 즐겨찾기 막대에 놓아 주십시오. 한 번이면 됩니다.
+      <div><a class="bm" id="bm" href="#">EG 담기</a></div>
+      <ol>
+        <li>즐겨찾기 막대가 안 보이면 <b>Ctrl + Shift + B</b></li>
+        <li>둘러보다 「이분이다」 싶은 페이지에서 <b>EG 담기</b>를 누른다</li>
+        <li>모임 이름이나 소개를 마우스로 긁어 둔 채 누르면, 그 글이 「다루는 것」에 미리 들어간다</li>
+      </ol>
+    </div>
+    <div class="today" id="today"></div>`;
+  $('#bm').setAttribute('href', bm);
+  $('#bm').addEventListener('click', e => { e.preventDefault(); alert('누르지 말고, 즐겨찾기 막대로 끌어다 놓아 주십시오.'); });
+  await drawToday();
+}
+
+async function drawToday(){
+  const box = $('#today'); if(!box) return;
+  const { data, error } = await sb.from('eg_leads')
+    .select('id,name,channel_name,kind,url,email,contact_way,created_at')
+    .eq('found_at', today()).order('created_at', { ascending:false }).limit(200);
+  if(error){ box.innerHTML = `<div class="err">오늘 담은 분을 불러오지 못했습니다 — ${esc(error.message)}</div>`; return; }
+  const rows = data || [];
+  box.innerHTML = `<h2>오늘 담은 분<span>${rows.length}</span></h2>` + (rows.length ? rows.map(r => `
+    <div class="li"><span class="k">${esc(r.kind||'')}</span>
+      <a href="${esc(r.url||'#')}" target="_blank">${esc(r.name||r.channel_name||'(이름 없음)')}${r.channel_name && r.name ? ' · '+esc(r.channel_name) : ''}</a>
+      <span class="m">${r.email ? '메일 ✓' : (r.contact_way==='DM만' ? 'DM만' : '메일 아직')}</span></div>`).join('')
+    : '<div class="sub">아직 없습니다.</div>');
+}
+
+/* ── 단추로 열렸을 때: 담기 ──────────────────────────────────────────── */
+async function drawCatch(){
+  const key = urlKey(PAGE.url);
+  const { data:dup } = await sb.from('eg_leads').select('id,name,channel_name,status,found_at').eq('url_key', key).maybeSingle();
+  if(dup){
+    $('#main').innerHTML = `
+      <div class="src"><b>PAGE</b>${esc(PAGE.title || PAGE.url)}</div>
+      <div class="note dup">이미 담긴 분입니다.<br>
+        <b>${esc(dup.name || dup.channel_name || '(이름 없음)')}</b> · ${esc(dup.status)} · ${esc(dup.found_at || '')} 담음</div>
+      <div class="keys">Esc 로 닫기</div>`;
+    return;
+  }
+  const kind = guessKind(PAGE.url);
+  const sel = PAGE.sel;
+  $('#main').innerHTML = `
+    <div class="src"><b>PAGE</b>${esc(PAGE.title || '')}<br>${esc(PAGE.url)}</div>
+
+    <label>이름 <i>사람 이름 · 닉네임 (모르면 비워도 됩니다)</i></label>
+    <input id="f-name" autocomplete="off">
+
+    <label>모임 · 채널 이름</label>
+    <input id="f-ch" autocomplete="off">
+
+    <div class="row">
+      <div><label>종류</label>
+        <select id="f-kind">${KINDS.map(k=>`<option${k===kind?' selected':''}>${k}</option>`).join('')}</select></div>
+      <div><label>규모 <i>예) 모임 12회 · 구독 3천</i></label>
+        <input id="f-scale" autocomplete="off"></div>
+    </div>
+
+    <label>다루는 것 <i>한 줄이면 충분합니다 — 편지 첫 문단의 재료</i></label>
+    <textarea id="f-about"></textarea>
+
+    <label>메일 <i>눈으로 확인한 주소만</i></label>
+    <input id="f-mail" type="email" autocomplete="off" placeholder="공개된 문의 메일 — 아직 모르면 비워 두기">
+    <div class="ways" id="ways">
+      <button type="button" data-w="메일">메일</button>
+      <button type="button" data-w="DM만">DM만</button>
+      <button type="button" data-w="없음" class="on">아직</button>
+    </div>
+    <div class="warn">메일 칸을 채우면 「메일」로 저절로 바뀝니다.</div>
+
+    <label>메모</label>
+    <input id="f-memo" autocomplete="off" placeholder="눈에 띈 점 한 줄">
+
+    <button class="go" id="go">담기</button>
+    <div class="keys">Ctrl + Enter 담기 · Esc 닫기</div>
+    <div class="err" id="err"></div>`;
+
+  /* 미리 채우기 — 긁어 둔 글이 있으면 「다루는 것」에, 없으면 페이지 제목 */
+  $('#f-about').value = sel || PAGE.title;
+  $('#f-name').focus();
+
+  let way = '없음';
+  const setWay = w => { way = w; document.querySelectorAll('#ways button').forEach(b => b.classList.toggle('on', b.dataset.w===w)); };
+  $('#ways').addEventListener('click', e => { const b = e.target.closest('button'); if(b) setWay(b.dataset.w); });
+  $('#f-mail').addEventListener('input', e => { if(e.target.value.trim()) setWay('메일'); else if(way==='메일') setWay('없음'); });
+
+  $('#go').addEventListener('click', save);
+}
+
+async function save(){
+  const go = $('#go'); if(!go || go.disabled) return;
+  const v = id => $(id).value.trim();
+  const name = v('#f-name'), ch = v('#f-ch'), mail = v('#f-mail');
+  if(!name && !ch){ $('#err').textContent = '이름이나 모임 · 채널 이름 가운데 하나는 적어 주십시오.'; $('#f-name').focus(); return; }
+  if(mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)){ $('#err').textContent = '메일 모양이 어긋났습니다.'; $('#f-mail').focus(); return; }
+  const on = document.querySelector('#ways button.on');
+  go.disabled = true; go.textContent = '담는 중…';
+  const row = {
+    name: name || null, channel_name: ch || null, kind: $('#f-kind').value, url: PAGE.url,
+    scale: v('#f-scale') || null, about: v('#f-about') || null,
+    email: mail || null, contact_way: mail ? '메일' : (on ? on.dataset.w : '없음'),
+    memo: v('#f-memo') || null, found_by: '소로 · 담기 단추',
+    raw: { page_title: PAGE.title, selection: PAGE.sel || null, caught_at: new Date().toISOString() }
+  };
+  const { error } = await sb.from('eg_leads').insert(row);
+  if(error){
+    go.disabled = false; go.textContent = '담기';
+    $('#err').textContent = /duplicate|unique/i.test(error.message) ? '이미 담긴 분입니다.' : '담지 못했습니다 — ' + error.message;
+    return;
+  }
+  const { count } = await sb.from('eg_leads').select('id', { count:'exact', head:true }).eq('found_at', today());
+  $('#main').innerHTML = `<div class="note ok">담았습니다 ✓<span class="n">TODAY · ${count ?? ''}</span></div>`;
+  setTimeout(() => window.close(), 1100);
+}
+
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape') window.close();
+  if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)) save();
+});
+
+boot();
+</script>
+</body>
+</html>
