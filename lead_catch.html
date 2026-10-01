@@ -50,6 +50,15 @@
         text-decoration:none; font-family:'Nanum Myeongjo',serif; font-weight:800; font-size:14px; cursor:grab; }
   ol{ margin:8px 0 0 18px; padding:0; } ol li{ margin:3px 0; }
   .today{ margin-top:16px; }
+  /* 1001 — 오늘의 30칸 */
+  .bar30{ display:grid; grid-template-columns:repeat(30,1fr); gap:2px; margin:6px 0 4px; }
+  .bar30 i{ height:12px; border-radius:2px; background:rgba(26,25,22,.10); }
+  .bar30 i.on{ background:var(--gold); }
+  .bar30.full i.on{ background:var(--blue); }
+  .goal{ font-size:12px; color:var(--ink2); display:flex; justify-content:space-between; }
+  .goal b{ font-family:'EB Garamond',serif; font-weight:400; color:var(--gold); font-size:14px; letter-spacing:.04em; }
+  .done{ text-align:center; font-family:'Nanum Myeongjo',serif; font-weight:800; color:var(--blue); font-size:13.5px; margin:6px 0 2px; }
+  .mini{ font-size:11.5px; color:var(--dim); text-align:right; margin:-8px 0 10px; }
   .today h2{ font-family:'Nanum Myeongjo',serif; font-weight:800; font-size:14px; margin:0 0 6px; }
   .today h2 span{ font-family:'EB Garamond',serif; font-weight:400; color:var(--gold); margin-left:6px; }
   .li{ display:grid; grid-template-columns:62px 1fr auto; gap:8px; font-size:12.5px; padding:6px 0; border-bottom:1px solid var(--line); }
@@ -93,6 +102,19 @@ const KINDS = ['이벤터스','온오프믹스','소모임','문토','텀블벅'
 const guessKind = u => (KIND_BY_HOST.find(([re]) => re.test(u)) || [null,'기타'])[1];
 
 const today = () => new Date().toLocaleDateString('sv-SE', { timeZone:'Asia/Seoul' });  /* YYYY-MM-DD */
+
+/* 1001 — 하루 몫. 블로그를 매일의 본밭으로 삼고 하루 30분씩 추린다(소로). 바꿀 땐 이 한 줄. */
+const DAILY = 30;
+const bar30 = n => {
+  const k = Math.min(n, DAILY);
+  return `<div class="goal"><span>오늘의 몫</span><b>${n} / ${DAILY}</b></div>
+    <div class="bar30${n >= DAILY ? ' full' : ''}">${Array.from({length:DAILY}, (_, i) => `<i${i < k ? ' class="on"' : ''}></i>`).join('')}</div>
+    ${n >= DAILY ? '<div class="done">오늘 몫 끝 — 수고하셨습니다</div>' : ''}`;
+};
+const countToday = async () => {
+  const { count } = await sb.from('eg_leads').select('id', { count:'exact', head:true }).eq('found_at', today());
+  return count ?? 0;
+};
 
 const P = new URLSearchParams(location.search);
 const PAGE = { url:(P.get('u')||'').trim(), title:(P.get('t')||'').trim(), sel:(P.get('s')||'').trim(), from:null };
@@ -146,7 +168,7 @@ async function drawToday(){
     .eq('found_at', today()).order('created_at', { ascending:false }).limit(200);
   if(error){ box.innerHTML = `<div class="err">오늘 담은 분을 불러오지 못했습니다 — ${esc(error.message)}</div>`; return; }
   const rows = data || [];
-  box.innerHTML = `<h2>오늘 담은 분<span>${rows.length}</span></h2>` + (rows.length ? rows.map(r => `
+  box.innerHTML = bar30(rows.length) + `<h2 style="margin-top:12px">오늘 담은 분<span>${rows.length}</span></h2>` + (rows.length ? rows.map(r => `
     <div class="li"><span class="k">${esc(r.kind||'')}</span>
       <a href="${esc(r.url||'#')}" target="_blank">${esc(r.name||r.channel_name||'(이름 없음)')}${r.channel_name && r.name ? ' · '+esc(r.channel_name) : ''}</a>
       <span class="m">${r.email ? '메일 ✓' : (r.contact_way==='DM만' ? 'DM만' : '메일 아직')}</span></div>`).join('')
@@ -168,6 +190,7 @@ async function drawCatch(){
   const kind = guessKind(PAGE.url);
   const sel = PAGE.sel;
   $('#main').innerHTML = `
+    <div class="mini" id="mini"></div>
     <div class="src"><b>PAGE</b>${esc(PAGE.title || '')}<br>${esc(PAGE.url)}${PAGE.from ? '<br><span style="color:var(--dim)">행사 페이지에서 눌러 주최자의 집으로 담습니다</span>' : ''}</div>
 
     <label>이름 <i>사람 이름 · 닉네임 (모르면 비워도 됩니다)</i></label>
@@ -204,6 +227,7 @@ async function drawCatch(){
 
   /* 미리 채우기 — 긁어 둔 글이 있으면 「다루는 것」에, 없으면 페이지 제목 */
   $('#f-about').value = sel || PAGE.title;
+  countToday().then(n => { const m = $('#mini'); if (m) m.textContent = `오늘 ${n} / ${DAILY}`; });
   $('#f-name').focus();
 
   let way = '없음';
@@ -245,9 +269,9 @@ async function save(){
     $('#err').textContent = /duplicate|unique/i.test(error.message) ? '이미 담긴 분입니다.' : '담지 못했습니다 — ' + error.message;
     return;
   }
-  const { count } = await sb.from('eg_leads').select('id', { count:'exact', head:true }).eq('found_at', today());
-  $('#main').innerHTML = `<div class="note ok">담았습니다 ✓<span class="n">TODAY · ${count ?? ''}</span></div>`;
-  setTimeout(() => window.close(), 1100);
+  const n = await countToday();
+  $('#main').innerHTML = `<div class="note ok">담았습니다 ✓</div><div style="margin-top:12px">${bar30(n)}</div>`;
+  setTimeout(() => window.close(), n >= DAILY ? 2200 : 1300);
 }
 
 document.addEventListener('keydown', e => {
