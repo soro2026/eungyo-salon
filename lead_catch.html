@@ -211,23 +211,32 @@ async function drawHome(){
   await drawToday();
 }
 
+/* 1001 밤 — 날짜 넘기기. 기본은 지금 담는 날 · ◀ ▶ 로 지난 날 몫도 열어 고친다 */
+let VIEW_DAY = null;
 async function drawToday(){
   const box = $('#today'); if(!box) return;
   const wd = await workDay();
+  const day = VIEW_DAY || wd.d;
   const { data, error } = await sb.from('eg_leads')
     .select('id,name,channel_name,kind,url,email,contact_way,created_at')
-    .eq('found_at', wd.d).order('created_at', { ascending:false }).limit(200);
+    .eq('found_at', day).order('created_at', { ascending:false }).limit(200);
   if(error){ box.innerHTML = `<div class="err">담은 분을 불러오지 못했습니다 — ${esc(error.message)}</div>`; return; }
   const rows = data || [];
-  const shut = wd.d !== today() ? `<div class="sub" style="margin-bottom:6px">${dayLabel(today())} 몫은 ${DAILY}명으로 닫혔습니다 ✓</div>` : '';
-  box.innerHTML = shut + bar30(rows.length, wd.d) + `<h2 style="margin-top:12px">${dayLabel(wd.d)} 몫으로 담은 분<span>${rows.length}</span></h2>` + (rows.length ? rows.map(r => `
+  const shut = !VIEW_DAY && wd.d !== today() ? `<div class="sub" style="margin-bottom:6px">${dayLabel(today())} 몫은 ${DAILY}명으로 닫혔습니다 ✓</div>` : '';
+  const nav = `<div class="daynav" style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 8px;font-size:12.5px">
+      <button type="button" class="fix" data-day="${addDays(day,-1)}">◀ ${dayLabel(addDays(day,-1))}</button>
+      ${day !== wd.d ? `<button type="button" class="fix" data-day="${wd.d}">지금 담는 날로</button>` : '<span></span>'}
+      <button type="button" class="fix" data-day="${addDays(day,1)}">${dayLabel(addDays(day,1))} ▶</button></div>`;
+  box.innerHTML = shut + nav + bar30(rows.length, day) + `<h2 style="margin-top:12px">${dayLabel(day)} 몫으로 담은 분<span>${rows.length}</span></h2>` + (rows.length ? rows.map(r => `
     <div class="li"><span class="k">${esc(r.kind||'')}</span>
       <a href="${esc(r.url||'#')}" target="_blank">${esc(r.name||r.channel_name||'(이름 없음)')}${r.channel_name && r.name ? ' · '+esc(r.channel_name) : ''}</a>
-      <span class="m">${r.email ? '메일 ✓' : (r.contact_way==='DM만' ? 'DM만' : '메일 아직')}</span>
+      <span class="m"${r.email ? '' : ' style="color:var(--red)"'}>${r.email ? '메일 ✓' : (r.contact_way==='DM만' ? 'DM만' : '메일 아직')}</span>
       <button type="button" class="fix" data-fix="${r.id}">고치기</button></div>`).join('')
     : '<div class="sub">아직 없습니다.</div>');
   /* 1001 밤 — 잘못 담은 분 고치기 */
   box.onclick = async e => {
+    const d = e.target.closest('[data-day]');
+    if (d){ VIEW_DAY = d.dataset.day === wd.d ? null : d.dataset.day; await drawToday(); return; }
     const b = e.target.closest('[data-fix]'); if(!b) return;
     await openEdit(Number(b.dataset.fix));
   };
