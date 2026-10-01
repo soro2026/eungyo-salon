@@ -121,16 +121,26 @@ const today = () => new Date().toLocaleDateString('sv-SE', { timeZone:'Asia/Seou
 /* 1001 — 하루 몫. 블로그를 매일의 본밭으로 삼는다(소로). 바꿀 땐 이 한 줄 — 칸 수도 따라 바뀐다.
    1001 오후 — 30 → 50 으로 올림(소로) */
 const DAILY = 50;
-const bar30 = n => {
-  const k = Math.min(n, DAILY);
-  return `<div class="goal"><span>오늘의 몫</span><b>${n} / ${DAILY}</b></div>
-    <div class="bar30${n >= DAILY ? ' full' : ''}" style="grid-template-columns:repeat(${DAILY},1fr)">${Array.from({length:DAILY}, (_, i) => `<i${i < k ? ' class="on"' : ''}></i>`).join('')}</div>
-    ${n >= DAILY ? '<div class="done">오늘 몫 끝 — 수고하셨습니다</div>' : ''}`;
-};
-const countToday = async () => {
-  const { count } = await sb.from('eg_leads').select('id', { count:'exact', head:true }).eq('found_at', today());
+/* 1001 저녁 — 작업일. 몫이 찬 날은 닫고, 그다음 담는 분은 아직 몫이 안 찬 가장 이른 날로 센다(소로).
+   오늘 50이 차면 내일 몫으로, 내일도 차면 모레 몫으로 — 미리 담아 두기 */
+const addDays = (d, n) => { const x = new Date(d + 'T12:00:00+09:00'); x.setDate(x.getDate() + n); return x.toLocaleDateString('sv-SE', { timeZone:'Asia/Seoul' }); };
+const dayLabel = d => { const x = new Date(d + 'T12:00:00+09:00'); return `${x.getMonth()+1}/${x.getDate()}(${'일월화수목금토'[x.getDay()]})`; };
+const countOn = async d => {
+  const { count } = await sb.from('eg_leads').select('id', { count:'exact', head:true }).eq('found_at', d);
   return count ?? 0;
 };
+const workDay = async () => {
+  for (let i = 0; i < 90; i++) { const d = addDays(today(), i); const c = await countOn(d); if (c < DAILY) return { d, c }; }
+  return { d: addDays(today(), 90), c: 0 };
+};
+const bar30 = (n, d) => {
+  const k = Math.min(n, DAILY);
+  const ahead = d && d !== today();
+  return `<div class="goal"><span>${d ? dayLabel(d) + ' 몫' : '오늘의 몫'}${ahead ? ' — 미리 담는 중' : ''}</span><b>${n} / ${DAILY}</b></div>
+    <div class="bar30${n >= DAILY ? ' full' : ''}" style="grid-template-columns:repeat(${DAILY},1fr)">${Array.from({length:DAILY}, (_, i) => `<i${i < k ? ' class="on"' : ''}></i>`).join('')}</div>
+    ${n >= DAILY ? `<div class="done">${d ? dayLabel(d) : '오늘'} 몫 끝 — 다음에 담는 분은 ${d ? dayLabel(addDays(d,1)) : '내일'} 몫으로 셉니다</div>` : ''}`;
+};
+const countToday = async () => (await workDay()).c;
 
 const P = new URLSearchParams(location.search);
 const PAGE = { url:(P.get('u')||'').trim(), title:(P.get('t')||'').trim(), sel:(P.get('s')||'').trim(), from:null };
@@ -198,12 +208,14 @@ async function drawHome(){
 
 async function drawToday(){
   const box = $('#today'); if(!box) return;
+  const wd = await workDay();
   const { data, error } = await sb.from('eg_leads')
     .select('id,name,channel_name,kind,url,email,contact_way,created_at')
-    .eq('found_at', today()).order('created_at', { ascending:false }).limit(200);
-  if(error){ box.innerHTML = `<div class="err">오늘 담은 분을 불러오지 못했습니다 — ${esc(error.message)}</div>`; return; }
+    .eq('found_at', wd.d).order('created_at', { ascending:false }).limit(200);
+  if(error){ box.innerHTML = `<div class="err">담은 분을 불러오지 못했습니다 — ${esc(error.message)}</div>`; return; }
   const rows = data || [];
-  box.innerHTML = bar30(rows.length) + `<h2 style="margin-top:12px">오늘 담은 분<span>${rows.length}</span></h2>` + (rows.length ? rows.map(r => `
+  const shut = wd.d !== today() ? `<div class="sub" style="margin-bottom:6px">${dayLabel(today())} 몫은 ${DAILY}명으로 닫혔습니다 ✓</div>` : '';
+  box.innerHTML = shut + bar30(rows.length, wd.d) + `<h2 style="margin-top:12px">${dayLabel(wd.d)} 몫으로 담은 분<span>${rows.length}</span></h2>` + (rows.length ? rows.map(r => `
     <div class="li"><span class="k">${esc(r.kind||'')}</span>
       <a href="${esc(r.url||'#')}" target="_blank">${esc(r.name||r.channel_name||'(이름 없음)')}${r.channel_name && r.name ? ' · '+esc(r.channel_name) : ''}</a>
       <span class="m">${r.email ? '메일 ✓' : (r.contact_way==='DM만' ? 'DM만' : '메일 아직')}</span></div>`).join('')
@@ -267,7 +279,7 @@ async function drawCatch(){
   $('#f-ch').value = chName;
   $('#f-name').value = chName;
   $('#f-about').value = sel || chName || PAGE.title;
-  countToday().then(n => { const m = $('#mini'); if (m) m.textContent = `오늘 ${n} / ${DAILY}`; });
+  workDay().then(w => { const m = $('#mini'); if (m) m.textContent = `${w.d !== today() ? dayLabel(w.d) + ' 몫 · 미리 ' : '오늘 '}${w.c} / ${DAILY}`; });
   $('#f-name').focus(); $('#f-name').select();   /* 이름 칸은 칠해 둔다 — 바로 치면 바뀌고, 그대로 두려면 손대지 않으면 된다 */
 
   let way = '없음';
@@ -306,7 +318,9 @@ async function save(){
   if(mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)){ $('#err').textContent = '메일 모양이 어긋났습니다.'; $('#f-mail').focus(); return; }
   const on = document.querySelector('#ways button.on');
   go.disabled = true; go.textContent = '담는 중…';
+  const wd = await workDay();   /* 1001 저녁 — 몫이 안 찬 가장 이른 날로 센다 */
   const row = {
+    found_at: wd.d,
     name: name || null, channel_name: ch || null, kind: $('#f-kind').value, url: PAGE.url,
     scale: v('#f-scale') || null, about: v('#f-about') || null,
     email: mail || null, contact_way: mail ? '메일' : (on ? on.dataset.w : '없음'),
@@ -319,8 +333,8 @@ async function save(){
     $('#err').textContent = /duplicate|unique/i.test(error.message) ? '이미 담긴 분입니다.' : '담지 못했습니다 — ' + error.message;
     return;
   }
-  const n = await countToday();
-  $('#main').innerHTML = `<div class="note ok">담았습니다 ✓</div><div style="margin-top:12px">${bar30(n)}</div>`;
+  const n = await countOn(wd.d);
+  $('#main').innerHTML = `<div class="note ok">담았습니다 ✓ — ${dayLabel(wd.d)} 몫</div><div style="margin-top:12px">${bar30(n, wd.d)}</div>`;
   setTimeout(() => window.close(), n >= DAILY ? 2200 : 1300);
 }
 
