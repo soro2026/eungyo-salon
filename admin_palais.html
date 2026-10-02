@@ -83,7 +83,7 @@ button.primary:hover{background:var(--gold);}
 /* 0808 — 상영 목록. 새 어휘를 만들지 않고 card·field·hint 문법을 잇는다 */
 .film-add{display:flex;gap:8px;margin-bottom:14px;}
 .film-add input{flex:1;}
-.film{display:grid;grid-template-columns:26px 1fr 96px 128px 62px 92px 30px;gap:8px;
+.film{display:grid;grid-template-columns:26px 1fr 96px 128px 66px 74px 92px 30px;gap:8px;
   align-items:center;padding:8px 0;border-bottom:1px solid rgba(201,162,39,.16);}
 .film:last-child{border-bottom:0;}
 .film.off{opacity:.42;}
@@ -96,6 +96,17 @@ button.primary:hover{background:var(--gold);}
 .film .when.off{color:var(--dim)}
 .film input.yt-title::placeholder{color:rgba(240,228,200,.78)}
 .film .yid{font-family:Menlo,Consolas,monospace;font-size:11.5px;letter-spacing:.02em;}
+.film .st{text-align:center;font-family:Menlo,Consolas,monospace;font-size:11.5px;}
+/* 1002 — 미리보기(음악관 콘솔과 한 벌) */
+#pv{position:fixed;inset:0;z-index:40;display:none;place-items:center;
+  background:rgba(6,4,3,.92);backdrop-filter:blur(6px);padding:5vw;}
+#pv.on{display:grid;}
+.pv-box{width:min(92vw,720px);}
+.pv-t{font-size:13px;color:var(--gold-l);margin-bottom:11px;text-align:center;line-height:1.6;}
+.pv-f{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:10px;overflow:hidden;}
+.pv-f iframe{width:100%;height:100%;border:0;display:block;}
+.pv-x{display:block;margin:16px auto 0;font-size:12px;padding:6px 18px;border-radius:6px;cursor:pointer;
+  background:transparent;border:1px solid rgba(201,162,39,.4);color:var(--gold-l);}
 .film button{font-size:11px;padding:4px 8px;border-radius:6px;cursor:pointer;
   background:transparent;border:1px solid rgba(201,162,39,.4);color:var(--gold-l);}
 .film button:hover{background:rgba(201,162,39,.14);}
@@ -201,7 +212,7 @@ button.primary:hover{background:var(--gold);}
     </div>
     <div id="filmList"></div>
     <div class="hint">순번 = (오늘 − 기산일) % 편수. 하루 한 편씩 위에서 아래로 돌고, 끝나면 처음으로 돌아갑니다.<br>
-      제목을 비워 두면 <b>유튜브에서 알아서 가져옵니다</b>. 시작 지점(초)을 적으면 그 대목부터 틀립니다.<br>
+      제목을 비워 두면 <b>유튜브에서 알아서 가져옵니다</b>. 시작 지점은 <b>4:32</b> 처럼 적어도 되고 초로 적어도 됩니다. <b>미리보기로 꼭 한 번 틀어 보세요</b> — 광고 · 길이는 눈으로만 확인됩니다.<br>
       <b>내린 영상은 사라지지 않습니다</b> — 순회에서만 빠지고, 언제든 다시 올릴 수 있어요.</div>
   </div>
 
@@ -467,12 +478,39 @@ function renderFilms(){
       <input data-col="name" class="${f._yt?'yt-title':''}" value="${esc(f.name||'')}" placeholder="${esc(ph)}" title="${esc(f.name||f._yt||'')}">
       <div class="when ${w.c}" title="${L?L+'일마다 돌아옵니다':''}">${w.t}</div>
       <input data-col="video_id" class="yid" value="${esc(f.video_id||'')}">
-      <input data-col="start_seconds" type="number" min="0" step="1" value="${f.start_seconds||0}" title="시작 지점(초)">
+      <input data-col="start_seconds" class="st" value="${fmtSec(f.start_seconds||0)}" placeholder="0:00" title="시작 지점 — 4:32 처럼 적어도 되고 초로 적어도 됩니다">
+      <button data-act="pv" title="이 시작 지점부터 틀어 보기">미리보기</button>
       <button data-act="toggle">${on?'걸려 있음':'내려둠'}</button>
       <button data-act="del" class="x" title="목록에서 지우기">×</button>
     </div>`;
   }).join('');
 }
+/* 1002 — 시작 지점: 4:32 → 272 · 1:02:10 → 3730 · 272 → 272 (음악관 콘솔과 같은 셈) */
+function toSec(v){
+  v=String(v??'').trim(); if(!v) return 0;
+  if(/^\d+$/.test(v)) return parseInt(v,10);
+  if(!/^\d{1,2}(:\d{1,2}){1,2}$/.test(v)) return null;
+  return v.split(':').map(Number).reduce((a,b)=>a*60+b,0);
+}
+function fmtSec(n){
+  n=Math.max(0,parseInt(n,10)||0);
+  const h=Math.floor(n/3600), m=Math.floor(n%3600/60), x=String(n%60).padStart(2,'0');
+  return h ? h+':'+String(m).padStart(2,'0')+':'+x : m+':'+x;
+}
+/* 1002 — 미리보기: 칸에 적힌 그대로(저장 전이어도) 틀어 본다 */
+function previewFilm(row, id){
+  const f=FILMS.find(x=>x.id===id); if(!f) return;
+  const vid=parseYtId(row.querySelector('[data-col="video_id"]').value) || f.video_id;
+  const sec=toSec(row.querySelector('[data-col="start_seconds"]').value) || 0;
+  if(!vid){ toast('영상 ID가 없습니다.','bad'); return; }
+  const title=f.name || f._yt || vid;
+  $('pvTitle').innerHTML=esc(title)+(sec?'<br><span style="opacity:.6;font-size:11.5px">'+fmtSec(sec)+'부터</span>':'');
+  $('pvFrame').innerHTML=
+    '<iframe src="https://www.youtube.com/embed/'+vid+'?autoplay=1&start='+sec+'&rel=0&modestbranding=1"'+
+    ' allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>';
+  $('pv').classList.add('on');
+}
+function closePv(){ $('pv').classList.remove('on'); $('pvFrame').innerHTML=''; }
 function esc(v){ return String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 /* 한 칸 고치기 — 그 행만 간다 */
@@ -487,7 +525,7 @@ async function patchFilm(id, patch){
 /* ⭐ 0929 소로 — 영상을 새로 걸거나 · 내리거나 · 지워도 이미 잡힌 날짜가 뒤엉키지 않게.
    오늘의 한 편을 맨 앞에 두고 앞으로의 차례대로 줄을 다시 세운 뒤, 기산일을 오늘로 옮긴다.
    → 새 영상은 늘 맨 뒷날에 붙고, 오늘 · 내일 · 모레는 그대로 남는다.
-   기산일은 이 포럼과 이 포럼을 빌려 쓰는 도시(source_code)가 함께 옮긴다 — 세 도시가 같은 날 같은 한 편.
+   (1002) 기산일은 도시마다 따로 — 아래 rescheduleKeepingToday 머리글 참고.
    ⚠ ▲▼ 손 옮기기는 예전 그대로(일부러 차례를 바꾸는 손이므로). */
 function kstToday(){ return new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Seoul'}); }
 function todayIndexOf(list){
@@ -498,9 +536,14 @@ function todayIndexOf(list){
   return ((d%L)+L)%L;
 }
 async function rescheduleKeepingToday(prevActive, mutate){
-  const i0=todayIndexOf(prevActive);
-  const rotated=prevActive.slice(i0).concat(prevActive.slice(0,i0));
-  const finalActive=mutate(rotated.slice());
+  /* ⭐ 1002 소로 — 도시마다 제 자리에서 돈다(파리 1 · 런던 5 · 뉴욕 9 …).
+     목록은 한 벌, 기산일은 도시마다 따로. 걸기 · 내리기 · 지우기 때
+     ① 줄은 돌리지 않는다 — 새 영상은 목록 맨 끝, 곧 마지막으로 올라간 편 바로 뒤(12 → 13 → 1)
+     ② 도시마다 「오늘 보던 한 편」이 새 줄에서 몇 번째인지 찾아, 그 도시 기산일 = 오늘 − 그 칸수
+     → 어느 도시든 오늘 한 편은 그대로, 런던 · 뉴욕은 제 길을 돌다 13번을 지나간다(12 → 13 → 1).
+     오늘 보던 편이 지워졌으면 그 다음 차례의 편이 오늘이 된다. */
+  const L0=prevActive.length;
+  const finalActive=mutate(prevActive.slice());
   const rest=FILMS.filter(f=>!finalActive.includes(f));
   const order=finalActive.concat(rest);
   for(let k=0;k<order.length;k++){
@@ -509,10 +552,32 @@ async function rescheduleKeepingToday(prevActive, mutate){
   }
   FILMS=order;
   const today=kstToday();
-  const { error } = await supa.from('palais_orgs').update({ epoch:today })
+  const { data:orgs, error:e1 } = await supa.from('palais_orgs').select('code,epoch')
     .or('code.eq.'+CUR_ORG+',source_code.eq.'+CUR_ORG);
-  if(error){ toast('기산일을 옮기지 못했어요: '+error.message,'bad'); return false; }
-  $('f_epoch').value=today;
+  if(e1 || !orgs){ toast('도시 기산일을 읽지 못했어요: '+(e1?e1.message:''),'bad'); return false; }
+  const dayMs=86400000;
+  const tBase=new Date(today+'T00:00:00Z').getTime();
+  const shift=k=>new Date(tBase - k*dayMs).toISOString().slice(0,10);
+  for(const o of orgs){
+    let k=0;
+    if(L0 && finalActive.length){
+      const base=o.epoch ? new Date(o.epoch+'T00:00:00+09:00') : new Date();
+      const d=Math.floor((Date.now()-base)/dayMs);
+      const iCity=((d%L0)+L0)%L0;
+      /* 오늘 보던 편부터 차례대로 — 새 줄에 남아 있는 첫 편을 찾는다 */
+      for(let s=0;s<L0;s++){
+        const f=prevActive[(iCity+s)%L0];
+        const j=finalActive.indexOf(f);
+        if(j>=0){ k=j; break; }
+      }
+    }
+    const ep=shift(k);
+    if(o.epoch!==ep){
+      const { error } = await supa.from('palais_orgs').update({ epoch:ep }).eq('code',o.code);
+      if(error){ toast('기산일을 옮기지 못했어요('+o.code+'): '+error.message,'bad'); return false; }
+    }
+    if(o.code===CUR_ORG) $('f_epoch').value=ep;
+  }
   return true;
 }
 
@@ -540,6 +605,7 @@ $('filmList').addEventListener('click', async e=>{
   const act=btn.dataset.act;
   if(act==='up')   return moveFilm(id,-1);
   if(act==='down') return moveFilm(id, 1);
+  if(act==='pv') return previewFilm(row, id);
   if(act==='toggle'){
     const f=FILMS.find(x=>x.id===id); if(!f) return;
     const next = f.status==='active' ? 'off' : 'active';
@@ -547,7 +613,7 @@ $('filmList').addEventListener('click', async e=>{
     if(await patchFilm(id,{status:next})){
       /* 0929 — 내리면 그 자리만 빠지고, 다시 걸면 맨 뒷날로 */
       await rescheduleKeepingToday(prev, r => next==='active' ? r.concat([f]) : r.filter(x=>x!==f));
-      renderFilms(); toast(next==='active'?'다시 걸었어요 — 맨 뒷날에 붙었습니다.':'내려두었어요 — 기록은 남습니다.','ok');
+      renderFilms(); toast(next==='active'?'다시 걸었어요 — 목록 맨 끝에 붙었습니다.':'내려두었어요 — 기록은 남습니다.','ok');
     }
     return;
   }
@@ -574,7 +640,12 @@ $('filmList').addEventListener('change', async e=>{
     if(!yid){ toast('유튜브 ID를 못 읽었어요.','bad'); const f=FILMS.find(x=>x.id===id); inp.value=f?f.video_id:''; return; }
     val=yid; inp.value=yid;
   }
-  if(col==='start_seconds') val=Math.max(0, parseInt(val||'0',10) || 0);
+  if(col==='start_seconds'){
+    const sec=toSec(val);
+    const f=FILMS.find(x=>x.id===id);
+    if(sec===null){ toast('시작 지점은 4:32 또는 272 처럼 적어 주세요.','bad'); inp.value=fmtSec(f?f.start_seconds||0:0); return; }
+    val=sec; inp.value=fmtSec(sec);
+  }
   if(col==='name') val = val || null;
   if(await patchFilm(id,{[col]:val})) toast('저장됐어요.','ok');
 });
@@ -625,6 +696,15 @@ $('btnSave').addEventListener('click', async ()=>{
 
 bindSlots();
 loadOrgs('ildangbaek');
+</script>
+<div id="pv"><div class="pv-box">
+  <div class="pv-t" id="pvTitle"></div>
+  <div class="pv-f" id="pvFrame"></div>
+  <button class="pv-x" onclick="closePv()">닫기</button>
+</div></div>
+<script>
+document.getElementById('pv').addEventListener('click',e=>{ if(e.target.id==='pv') closePv(); });
+addEventListener('keydown',e=>{ if(e.key==='Escape') closePv(); });
 </script>
 </body>
 </html>
