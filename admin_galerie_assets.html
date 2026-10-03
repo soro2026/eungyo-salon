@@ -19,6 +19,7 @@
  *
  *  ⚠ 로테이션 공식은 galerie.html과 반드시 같아야 한다.
  *      그림 = 배열[ (KST날수 + floor(museum_no × N ÷ H)) mod N ]
+ *      배열 = 켜진 그림을 hang_order(거는 순서)로 줄 세운 것 · 비면 맨 뒤 · 같으면 id (1003)
  *    한쪽만 고치면 콘솔이 거짓말을 한다. 음악관에서 같은 공식이 세 곳에 산다.
  *
  *  ⚠ 자르는 규칙이 둘이다 — 헷갈리지 말 것
@@ -681,15 +682,16 @@ async function runPlan(){
 async function loadArts(){
   const { data, error } = await supa.from('heritage_items')
     .select('id,name,artist,period,img,status,ratio,zoom_src')
-    .eq('category','visual').order('id');
+    .eq('category','visual')
+    .order('hang_order',{ ascending:true, nullsFirst:false }).order('id');   /* 1003 — 거는 순서가 축 */
   if(error){ toast('작품 목록을 못 읽었습니다: '+esc(error.message)); return; }
   ARTS=data||[];
   renderArts(); paintNextId();
 }
 
-/* ⚠ id는 반드시 htg_pNNN 오름차순이어야 한다. 작품 배열의 축이 id이고,
-     이 순서가 흔들리면 그날 전 관의 그림이 통째로 어긋난다.
-     새 작품은 언제나 끝에 붙으므로 기존 순번을 밀지 않는다. */
+/* 1003 — 작품 배열의 축은 이제 hang_order(거는 순서)다. id는 이름표일 뿐이다.
+     순서를 바꿀 때는 hang_order만 고친다 — galerie.html · terra.html 과 같은 셈이어야 한다.
+     새 작품은 hang_order가 비어 맨 뒤에 붙고, 같으면 id 순이다. */
 function nextArtId(){
   let max=0;
   for(const a of ARTS){
