@@ -119,6 +119,12 @@ select.pick{font:inherit;font-size:12.5px;color:#f0e8d4;background:var(--ink);
   margin-top:14px;overflow:hidden;display:none;}
 #bar.on{display:block;}
 #bar i{display:block;height:100%;width:0;background:var(--gold);transition:width .25s;}
+/* ── 1004 작품 찾기 ── */
+#artFind{display:flex;align-items:center;gap:10px;margin:18px 0 6px;}
+#artSearch{flex:1;font:inherit;font-size:14px;padding:11px 14px;border-radius:10px;
+  background:rgba(255,255,255,.04);border:1px solid rgba(201,162,74,.35);color:#f0e8d4;outline:none;}
+#artSearch:focus{border-color:var(--gold-l);}
+#artFindN{font-size:12px;opacity:.6;white-space:nowrap;}
 /* ── 1003 액자 투척함 — 파일 이름이 제 줄을 찾는다 ── */
 #artBulk{border:1px dashed rgba(201,162,74,.45);border-radius:12px;margin:6px 0 18px;
   padding:22px 16px;text-align:center;cursor:pointer;transition:all .2s;
@@ -297,6 +303,12 @@ input[type=file]{display:none;}
         </div>
         <div id="artBar"><i></i></div>
         <div id="artPlan"></div>
+        <div id="artFind">
+          <input id="artSearch" type="search" spellcheck="false" autocomplete="off"
+            placeholder="🔍 작품명 · 화가 · 파일 이름(htg_p037 · 37 · judith) 찾기"
+            oninput="findArt()" onkeydown="if(event.key==='Escape'){this.value='';findArt();}">
+          <span id="artFindN"></span>
+        </div>
         <div id="artList"><div class="empty">불러오는 중…</div></div>
 
         <div class="newart">
@@ -761,6 +773,7 @@ function renderArts(){
   }).join('');
   /* ⚠ 빈 칸은 paintZoom이 곧바로 되돌아 나온다 — 스물다섯 번을 헛치지 않는다 */
   ARTS.forEach(a=>paintZoom(a.id));
+  findArt();   /* 1004 — 다시 그려도 찾던 낱말은 그대로 */
   /* 섬네일에 직접 던지기 */
   ARTS.forEach(a=>{
     const el=document.getElementById('th-'+a.id); if(!el) return;
@@ -769,6 +782,30 @@ function renderArts(){
     el.addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();el.style.opacity=1;
       if(e.dataTransfer.files[0]) uploadArt(a.id, e.dataTransfer.files[0]);});
   });
+}
+
+/* 1004 ⭐ 작품 찾기 — 줄을 다시 그리지 않고 숨기기만 한다(쓰다 만 칸이 날아가지 않게)
+     작품명 · 화가 · 연도 · 번호(htg_p037 · p037 · 37) · 원판 파일 이름 · 액자 파일 이름을 본다 */
+function findArt(){
+  const raw=(document.getElementById('artSearch')||{}).value||'';
+  const q=raw.toLowerCase().replace(/\s+/g,'');
+  let shown=0;
+  for(const a of ARTS){
+    const row=document.getElementById('ar-'+a.id); if(!row) continue;
+    let hit=true;
+    if(q){
+      const num=(String(a.id).match(/(\d+)$/)||[,''])[1];
+      const imgFile=String(a.img||'').split('/').pop();
+      const hay=[a.name,a.artist,a.period,a.id,imgFile,a.zoom_src]
+        .map(v=>String(v||'').toLowerCase().replace(/\s+/g,'')).join('|');
+      /* 세 자리 이하 숫자는 번호로만(37 → p037 · 푸생 1637은 안 걸림) · 네 자리는 연도로도 */
+      hit = /^\d{1,3}$/.test(q) ? parseInt(num,10)===parseInt(q,10) : hay.includes(q);
+    }
+    row.style.display = hit ? '' : 'none';
+    if(hit) shown++;
+  }
+  const n=document.getElementById('artFindN');
+  if(n) n.textContent = q ? `${shown} / ${ARTS.length}` : `${ARTS.length}점`;
 }
 
 function pickArtImg(id){ pickTarget={art:true,id}; document.getElementById('filePick').click(); }
