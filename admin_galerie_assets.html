@@ -119,6 +119,17 @@ select.pick{font:inherit;font-size:12.5px;color:#f0e8d4;background:var(--ink);
   margin-top:14px;overflow:hidden;display:none;}
 #bar.on{display:block;}
 #bar i{display:block;height:100%;width:0;background:var(--gold);transition:width .25s;}
+/* ── 1003 액자 투척함 — 파일 이름이 제 줄을 찾는다 ── */
+#artBulk{border:1px dashed rgba(201,162,74,.45);border-radius:12px;margin:6px 0 18px;
+  padding:22px 16px;text-align:center;cursor:pointer;transition:all .2s;
+  background:rgba(201,162,74,.04);}
+#artBulk.drag{border-color:var(--gold-l);background:rgba(201,162,74,.12);}
+#artBulk .bt{font-size:13px;color:var(--gold-l);letter-spacing:.06em;}
+#artBulk .bs{font-size:11.5px;color:rgba(232,221,196,.5);margin-top:8px;line-height:1.8;}
+#artBar{height:3px;background:rgba(201,162,74,.15);border-radius:3px;
+  margin:0 0 14px;overflow:hidden;display:none;}
+#artBar.on{display:block;}
+#artBar i{display:block;height:100%;width:0;background:var(--gold);transition:width .25s;}
 
 /* ── 작품 ── */
 .song-row{border-bottom:1px solid rgba(201,162,74,.13);padding:15px 0;
@@ -279,6 +290,13 @@ input[type=file]{display:none;}
           벽에 걸리는 것은 액자 낀 이 그림이고, 손님이 <b>가까이 다가갈 때만</b> 그 원판이 뜹니다.
           <b>비워 두셔도 무방합니다</b> — 없으면 지금 그림을 그대로 씁니다.
         </div>
+        <div id="artBulk">
+          <div class="bt">⇣ 액자 그림을 한꺼번에 떨어뜨리기</div>
+          <div class="bs">파일 이름(htg_p026.webp)을 보고 제 줄을 찾아 겁니다 · 여러 장도 한 번에<br>
+            던지기 전에 어느 파일이 어느 작품으로 가는지 먼저 보여 드립니다 · 선반 · 벽 자리는 그대로 둡니다</div>
+        </div>
+        <div id="artBar"><i></i></div>
+        <div id="artPlan"></div>
         <div id="artList"><div class="empty">불러오는 중…</div></div>
 
         <div class="newart">
@@ -304,6 +322,7 @@ input[type=file]{display:none;}
 
 <input type="file" id="filePick" accept="image/*">
 <input type="file" id="bulkPick" accept="image/*" multiple>
+<input type="file" id="artBulkPick" accept="image/*" multiple>
 <div id="pv"><div class="pv-box">
   <div class="pv-t" id="pvTitle"></div>
   <img id="pvImg" src="" alt="">
@@ -370,6 +389,7 @@ async function init(){
   await loadArts();
   await loadHalls();
   wireBulk();
+  wireArtBulk();     /* 1003 — 액자 투척함 */
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -752,6 +772,83 @@ function renderArts(){
 }
 
 function pickArtImg(id){ pickTarget={art:true,id}; document.getElementById('filePick').click(); }
+
+/* ═══════════════════════════════════════════════════════════
+   1003 ⭐ 액자 투척함 — 파일 이름이 제 줄을 찾는다 (소로 「스르륵」)
+   htg_p026.webp 처럼 이름에 번호가 있으면 그 줄의 그림으로 구워 건다.
+   굽기는 uploadArt 와 같다(안 자름 · 긴 변만 줄임). 상태(선반 · 벽)는 건드리지 않는다 —
+   켜기는 따로, 한날 한꺼번에.
+   ═══════════════════════════════════════════════════════════ */
+let ART_PLAN=null;
+function wireArtBulk(){
+  const b=document.getElementById('artBulk'); if(!b) return;
+  const pick=document.getElementById('artBulkPick');
+  b.addEventListener('click',()=>pick.click());
+  b.addEventListener('dragover',e=>{e.preventDefault();b.classList.add('drag');});
+  b.addEventListener('dragleave',()=>b.classList.remove('drag'));
+  b.addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();b.classList.remove('drag');
+    makeArtPlan([...e.dataTransfer.files]);});
+  pick.addEventListener('change',e=>{ makeArtPlan([...e.target.files]); e.target.value=''; });
+}
+function makeArtPlan(files){
+  files=files.filter(f=>/^image\//.test(f.type));
+  const box=document.getElementById('artPlan');
+  if(!files.length){ toast('그림 파일이 아닙니다'); return; }
+  const rows=[], jobs=[], seen=new Set();
+  for(const f of files){
+    const m=f.name.match(/htg_p(\d{1,4})/i);
+    const id=m ? 'htg_p'+String(parseInt(m[1],10)).padStart(3,'0') : null;
+    const a=id ? ARTS.find(x=>x.id===id) : null;
+    let why='';
+    if(!m) why='이름에 번호(htg_pNNN)가 없음';
+    else if(!a) why=id+' 줄이 없음';
+    else if(seen.has(id)) why='같은 번호가 두 번';
+    else if(f.size>32*1024*1024) why='32MB 넘음';
+    if(why){
+      rows.push(`<div class="plan-row skip"><span class="pf">${esc(f.name)}</span>
+        <span class="pa">→</span><span class="pt">${esc(why)} · 건너뜀</span></div>`);
+      continue;
+    }
+    seen.add(id); jobs.push({ file:f, id });
+    rows.push(`<div class="plan-row"><span class="pf">${esc(f.name)}</span>
+      <span class="pa">→</span><span class="pt">「${esc(a.name)}」 · ${a.status==='active'?'벽':'선반'} · ${a.img?'교체':'새로'}</span></div>`);
+  }
+  ART_PLAN={ jobs };
+  box.innerHTML=`<div class="plan">${rows.join('')}</div>
+    <div class="plan-btns">
+      <button class="btn" onclick="runArtPlan()" ${jobs.length?'':'disabled'}>이대로 ${jobs.length}장 걸기</button>
+      <button class="btn ghost" onclick="document.getElementById('artPlan').innerHTML=''">그만두기</button>
+    </div>`;
+}
+async function runArtPlan(){
+  if(!ART_PLAN || !ART_PLAN.jobs.length) return;
+  const jobs=ART_PLAN.jobs; ART_PLAN=null;
+  const bar=document.getElementById('artBar'), fill=bar.querySelector('i');
+  bar.classList.add('on'); fill.style.width='0%';
+  document.getElementById('artPlan').innerHTML='<div class="hint" style="margin:14px 0 0;text-align:center">거는 중…</div>';
+  let done=0, fail=0, before=0, after=0; const bad=[];
+  for(const j of jobs){
+    try{
+      const r=await bake(j.file,'fit');
+      const path=`${j.id}.webp`;
+      const { error } = await supa.storage.from(ART_BUCKET)
+        .upload(path, r.blob, { upsert:true, contentType:'image/webp', cacheControl:'300' });
+      if(error) throw error;
+      const ratio = r.outW>=r.outH ? 'landscape' : 'portrait';
+      const { error:e2 } = await supa.from('heritage_items')
+        .update({ img:PUB(ART_BUCKET,path), ratio }).eq('id', j.id);
+      if(e2) throw e2;
+      before+=j.file.size; after+=r.blob.size; done++;
+    }catch(e){ fail++; bad.push(j.id); console.warn('[EG] 액자 투척 실패', j.id, e); }
+    fill.style.width=Math.round((done+fail)/jobs.length*100)+'%';
+  }
+  setTimeout(()=>bar.classList.remove('on'), 900);
+  document.getElementById('artPlan').innerHTML='';
+  let msg=`<b>${done}장</b> 제 줄에 걸렸습니다 ✔ · ${kb(before)} → <b>${kb(after)}</b>`;
+  if(fail) msg+=`<br>⚠ ${fail}장 실패 — ${bad.join(' · ')}`;
+  toast(msg);
+  await loadArts(); renderToday();
+}
 
 /* ── 📁 원판 올리기 (0810) ────────────────────────────────────────
    위키미디어에 없는 작품을 위한 두 번째 길. 파리 뮈제·라익스·메트처럼
