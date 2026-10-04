@@ -7129,7 +7129,8 @@ async function showHallNote(p){
   const list  = isArt ? await loadGalerieArts()     : await loadConcertSongs();
   if (hallNoteFor !== p.code) return;                 /* 그사이 문을 나섰다 */
   const m = p.meta || {};
-  document.getElementById("hnDoor").textContent = isArt ? "미술관 · 이레의 전시" : "음악관 · 이레의 공연";
+  /* 1004 밤 소로 — 「2주치 보여주면 안될까」 → 이레(7) → 열나흘(14). 판은 세로로 스크롤된다 */
+  document.getElementById("hnDoor").textContent = isArt ? "미술관 · 열나흘의 전시" : "음악관 · 열나흘의 공연";
   document.getElementById("hnName").textContent = m.title_ko || p.name || "";
   document.getElementById("hnOrig").textContent = m.title || m.name_en || "";
   const box = document.getElementById("hnProg"); box.innerHTML = "";
@@ -7140,7 +7141,7 @@ async function showHallNote(p){
   if (!H || !N){
     box.innerHTML = '<div class="hn-note">편성을 준비하고 있습니다</div>';
   } else {
-    for (let k = 0; k < 7; k++){
+    for (let k = 0; k < 14; k++){
       const w = list[((concertDay() + k + Math.floor(no * N / H)) % N + N) % N];
       let dl = "오늘";
       if (k > 0){
@@ -7804,17 +7805,21 @@ function concertHalls(){
    한 곳만 고치면 타륜은 브람스라 적고 홀에 들어가면 쇼팽이 흐른다 — 아무도 못 알아챈다.
    (함정 M — 두 곳에 같은 판정 규칙이 살면 반드시 대조) */
 function concertDay(){ return Math.floor((Date.now() + 9*3600*1000) / 86400000); }
-let cSongs = null;
+/* ⚠ 1004 밤 — 창을 오래 켜 두면 무대 곡 수가 바뀐 것을 모른 채 옛 목록으로 셈했다
+   (대문은 말러 · 홀 안은 라흐마니노프). 10분이 지나면 다시 읽는다.
+   ⚠ 다시 읽는 동안에도 옛 목록을 비우지 않는다 — songOfHall 이 곧바로(기다리지 않고) 읽는 곳이 있다. */
+let cSongs = null, cSongsAt = 0;
+const LIST_TTL = 10 * 60 * 1000;
 async function loadConcertSongs(){
-  if (cSongs) return cSongs;
+  if (cSongs && Date.now() - cSongsAt < LIST_TTL) return cSongs;
   try{
     /* 0929 — 대문 안내문에 작곡 연도 · 연주 · 한 줄 장면(라이너 노트 첫 줄)을 함께 싣는다 */
     const r = await fetch(SUPA_URL + "/rest/v1/heritage_items?select=id,name,artist,period,origin,scene:liner_note->>scene"
       + "&category=eq.record&status=eq.active&order=id",
       { headers:{ apikey:SUPA_KEY, Authorization:"Bearer " + SUPA_KEY } });
     const j = await r.json();
-    cSongs = Array.isArray(j) ? j : [];
-  }catch(e){ console.warn("음악관 곡 로드 실패:", e); cSongs = []; }
+    if (Array.isArray(j)){ cSongs = j; cSongsAt = Date.now(); } else if (!cSongs) cSongs = [];
+  }catch(e){ console.warn("음악관 곡 로드 실패:", e); if (!cSongs) cSongs = []; }
   return cSongs;
 }
 /* 0802 소로 — 곡명만으로는 누구 것인지 모른다. 작곡자를 앞에 세운다.
@@ -7868,17 +7873,17 @@ async function loadGalerieHallsAll(){
   }catch(e){ console.warn("미술관 목록 로드 실패:", e); gHallsAll = []; }
   return gHallsAll;
 }
-let gArts = null;
+let gArts = null, gArtsAt = 0;   /* 1004 밤 — cSongs 와 같이 10분마다 다시 읽는다 */
 async function loadGalerieArts(){
-  if (gArts) return gArts;
+  if (gArts && Date.now() - gArtsAt < LIST_TTL) return gArts;
   try{
     /* 0929 — 대문 안내문에 화가 · 연도 · 사조 · 한 줄 장면(4겹 첫 겹)을 함께 싣는다 */
     const r = await fetch(SUPA_URL + "/rest/v1/heritage_items?select=id,name,artist,period,movement,scene:layers->>scene"
       + "&category=eq.visual&status=eq.active&order=hang_order.asc.nullslast,id.asc",   /* 1003 — 거는 순서가 축 */
       { headers:{ apikey:SUPA_KEY, Authorization:"Bearer " + SUPA_KEY } });
     const j = await r.json();
-    gArts = Array.isArray(j) ? j : [];
-  }catch(e){ console.warn("미술관 작품 로드 실패:", e); gArts = []; }
+    if (Array.isArray(j)){ gArts = j; gArtsAt = Date.now(); } else if (!gArts) gArts = [];
+  }catch(e){ console.warn("미술관 작품 로드 실패:", e); if (!gArts) gArts = []; }
   return gArts;
 }
 /* 화가 성 + 작품명 — songLine과 같은 규칙. 「빈센트 반 고흐」 → 「고흐 · 별이 빛나는 밤」 */
