@@ -441,17 +441,22 @@ async function load(){
   /* 미술 4겹 · 곡 4겹 — 한 표(heritage_items)에 살고 칸 이름만 다르다.
      ⚠ 미술은 layers · 곡은 liner_note. 이 한 칸이 두 우주를 가른다.
      ⚠ 원고가 없는 것은 목록에 안 선다 — 카리가 4겹을 채우는 순간 저절로 나타난다. */
+  /* ⭐⭐ 1004 — 선반(shelf)도 싣는다. 새 그림 쉰 점(p026~075)은 4겹이 다 찼지만
+       벽에 걸리기 전(shelf)이다. 켜는 날 소리가 함께 나가려면 **켜기 전에** 구워 둬야 한다.
+     ⚠ 선반 것은 따로 한 무리(newKo)로 세운다 — 지금 굽는 것이라 맨 앞에 둔다(0825a 방송과 같은 갈래).
+       켜면(active) 저절로 제 무리로 옮겨 간다. 무리는 해시에 안 들어가므로 「낡음」이 서지 않는다.
+     ⚠ voice_bake(art · song)는 status를 묻지 않는다 — 선반 것도 그대로 구워진다(1004 실측). */
   const SHELF = [
-    { cat:'visual', col:'layers',     scope:'art',  ko:'미술 4겹' },
-    { cat:'record', col:'liner_note', scope:'song', ko:'음악 4겹' }
+    { cat:'visual', col:'layers',     scope:'art',  ko:'미술 4겹', newKo:'🖼 미술 4겹 · 새 그림(선반)' },
+    { cat:'record', col:'liner_note', scope:'song', ko:'음악 4겹', newKo:'🎻 음악 4겹 · 새 곡(선반)' }
   ];
   for (const sh of SHELF){
     const { data:rows2 } = await sb.from('heritage_items')
-      .select(`id,name,artist,${sh.col}`).eq('category', sh.cat).eq('status','active');
+      .select(`id,name,artist,status,${sh.col}`).eq('category', sh.cat).in('status',['active','shelf']);
     for (const a of (rows2||[])){
       const text = narrationOfLayers(a[sh.col]);
       if(!text) continue;
-      next.push({ scope:sh.scope, ref:a.id, group:sh.ko,
+      next.push({ scope:sh.scope, ref:a.id, group:(a.status==='shelf' ? sh.newKo : sh.ko),
         name:a.name, sub:(a.artist || a.id), sort:a.id,
         text, hash: await sha256(text) });
     }
@@ -587,7 +592,9 @@ function paintList(){
     .sort((a,b) => (mCount[b]-mCount[a]) || a.localeCompare(b,'ko'));
   /* ⭐ 0825a — 방송 셋을 **맨 앞**에 세운다. 지금 굽는 것이 그것이라서다.
      ⚠ 다 구우면 접어 두시면 된다(무리 이름을 누르면 접힌다). */
-  const GROUPS = PA_ROUTE_GROUPS.concat([CAT_GROUP], PA_GROUPS, FAMILY.map(f=>f.ko), ['미술 4겹','음악 4겹'], MARKER_GROUPS);
+  /* ⭐ 1004 — 선반 두 무리를 맨 앞에. 비어 있으면 저절로 안 선다(grp.length 0). */
+  const GROUPS = ['🖼 미술 4겹 · 새 그림(선반)','🎻 음악 4겹 · 새 곡(선반)'].concat(
+    PA_ROUTE_GROUPS, [CAT_GROUP], PA_GROUPS, FAMILY.map(f=>f.ko), ['미술 4겹','음악 4겹'], MARKER_GROUPS);
   const bySort = (a,b) => (a.sort > b.sort ? 1 : a.sort < b.sort ? -1 : 0);
   flat = [];
   let html = '';
