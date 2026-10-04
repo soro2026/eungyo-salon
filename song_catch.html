@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EG 음반 담기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Nanum+Myeongjo:wght@400;800&family=EB+Garamond:ital@0;1&display=swap" rel="stylesheet">
+<!--
+  EG 음반 담기 (1004 밤 · 소로)
+  > 「링크 열어서 [담기] 누르면 곡과 연주자 모든 정보가 담길 수 있는 콘솔 — 영업에서 쓰는 EG 담기처럼」
+  유튜브 영상 화면에서 즐겨찾기 단추 「EG 음반 담기」를 누르면 이 창이 작게 열린다.
+  단추는 그 영상의 제목 · 채널 · 설명 전문 · 길이 · 지금 재생 위치를 이 창으로 넘긴다.
+  ⭐ 사람이 고르고, 기계는 받아 적기만 한다 — 곡명 · 작곡가 · 연주 칸 정리는 파이스, 4겹은 카리가 이 재료로.
+  ⭐ 담는 곳 = heritage_items.yt_meta (손님 화면은 안 읽는다)
+     · 이미 음악관에 있는 영상 → 그 곡의 yt_meta 만 채운다(곡명 · 무대 상태 · 시작 지점은 안 건드림)
+     · 처음 보는 영상 → 새 곡으로 무대 뒤(shelf)에 들인다(admin_tour_assets.html 입고와 같은 꼴)
+  ⚠ 곡 번호(htg_mNNN)는 끝에 붙인다 — 곡 배열의 축이 id다(결정문 3-3).
+  살롱지기(eg_is_admin)만. 주소 없이 열면 설치 안내 + 정보가 아직 없는 곡 목록.
+-->
+<style>
+  :root{ --paper:#F8F4EB; --paper2:#FFFDF7; --ink:#1A1916; --ink2:#3A342B; --dim:#8B8478; --gold:#8A6414;
+         --line:rgba(26,25,22,.12); --blue:#1D4F9E; --red:#9B2C2C; --green:#2F6B3A; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; background:var(--paper); color:var(--ink); font-family:'Gowun Batang',serif; }
+  body{ padding:18px 20px 22px; }
+  h1{ margin:0 0 2px; font-family:'Nanum Myeongjo',serif; font-weight:800; font-size:18px; letter-spacing:.02em; }
+  h1 small{ font-family:'EB Garamond',serif; font-weight:400; font-size:11.5px; color:var(--gold); letter-spacing:.22em; margin-left:6px; }
+  .sub{ font-size:12px; color:var(--dim); margin-bottom:14px; }
+  .note{ background:var(--paper2); border:1px solid var(--line); border-radius:9px; padding:14px 16px; font-size:13.5px; line-height:1.65; }
+  .note.dup{ border-color:rgba(138,100,20,.45); }
+  .note.ok{ text-align:center; font-size:15px; padding:26px 16px; }
+  .note.ok .n{ display:block; font-family:'EB Garamond',serif; color:var(--gold); font-size:13px; letter-spacing:.1em; margin-top:6px; }
+  .bm{ display:inline-block; margin:10px 0 6px; padding:9px 18px; border-radius:20px; background:var(--blue); color:#fff;
+        text-decoration:none; font-family:'Nanum Myeongjo',serif; font-weight:800; font-size:14px; cursor:grab; }
+  ol{ margin:8px 0 0 18px; padding:0; } ol li{ margin:3px 0; }
+  .warn{ font-size:11.5px; color:var(--dim); margin-top:6px; }
+  .gate{ font-size:14px; line-height:1.7; } .gate a{ color:var(--blue); }
+  .err{ color:var(--red); font-size:12.5px; margin-top:8px; }
+  .k{ display:grid; grid-template-columns:54px 1fr; gap:6px 10px; font-size:13px; margin:12px 0 4px; }
+  .k b{ font-weight:400; color:var(--dim); font-size:12px; padding-top:1px; }
+  .k span{ word-break:break-word; }
+  .desc{ white-space:pre-wrap; font-size:12px; line-height:1.55; color:var(--ink2); background:var(--paper2);
+        border:1px solid var(--line); border-radius:8px; padding:9px 11px; max-height:300px; overflow:auto; }
+  .desc.none{ color:var(--red); }
+  label{ display:block; font-size:12px; color:var(--ink2); margin:12px 0 4px; }
+  label i{ font-style:normal; color:var(--dim); font-size:11px; margin-left:4px; }
+  input,textarea{ width:100%; font-family:inherit; font-size:14px; color:var(--ink); background:var(--paper2);
+        border:1px solid rgba(26,25,22,.18); border-radius:7px; padding:8px 10px; outline:none; }
+  input:focus,textarea:focus{ border-color:var(--gold); }
+  textarea{ resize:vertical; min-height:44px; line-height:1.5; }
+  .chk{ display:flex; gap:8px; align-items:center; font-size:12.5px; color:var(--ink2); margin-top:10px; }
+  .chk input{ width:auto; }
+  .go{ margin-top:16px; width:100%; font-family:'Nanum Myeongjo',serif; font-weight:800; font-size:15px; letter-spacing:.06em;
+        padding:11px 0; border:none; border-radius:9px; background:var(--ink); color:var(--paper); cursor:pointer; }
+  .go:disabled{ opacity:.45; cursor:default; }
+  .keys{ text-align:center; font-size:11px; color:var(--dim); margin-top:7px; }
+  .tag{ display:inline-block; font-size:11px; padding:1px 8px; border-radius:10px; border:1px solid var(--line); color:var(--dim); margin-left:6px; }
+  .tag.on{ border-color:var(--green); color:var(--green); }
+  .list{ margin-top:16px; }
+  .list h2{ font-family:'Nanum Myeongjo',serif; font-weight:800; font-size:14px; margin:0 0 6px; }
+  .list h2 span{ font-family:'EB Garamond',serif; font-weight:400; color:var(--gold); margin-left:6px; }
+  .li{ display:grid; grid-template-columns:70px 1fr auto; gap:8px; align-items:center; font-size:12.5px; padding:6px 0; border-bottom:1px solid var(--line); }
+  .li .id{ color:var(--dim); font-family:'EB Garamond',serif; }
+  .li a{ color:var(--blue); text-decoration:none; font-size:12px; white-space:nowrap; }
+  .li a:hover{ text-decoration:underline; }
+</style>
+</head>
+<body>
+<h1>EG 음반 담기<small>RECORD</small></h1>
+<div class="sub" id="sub">소로님은 고르고, 기계는 받아 적기만 합니다.</div>
+<div id="main"><div class="gate">문을 여는 중입니다…</div></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+const sb = createClient('https://cyhlotwdisjvoxvfkpnd.supabase.co', 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR', {
+  auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
+});
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const mmss = n => { n = Math.max(0, parseInt(n,10)||0); const h=Math.floor(n/3600), m=Math.floor(n%3600/60), s=n%60;
+  return (h? h+':'+String(m).padStart(2,'0') : m) + ':' + String(s).padStart(2,'0'); };
+/* 4:32 → 272 · 1:02:10 → 3730 · 272 → 272 (admin_tour_assets.html toSec 과 같은 규칙) */
+const toSec = s => { s=String(s||'').trim(); if(!s) return 0; if(/^\d+$/.test(s)) return parseInt(s,10);
+  if(!/^\d{1,2}(:\d{1,2}){1,2}$/.test(s)) return null; return s.split(':').map(Number).reduce((a,b)=>a*60+b,0); };
+
+const P = new URLSearchParams(location.search);
+const V = {
+  id:   (P.get('v')||'').trim(),
+  title:(P.get('t')||'').trim(),
+  channel:(P.get('c')||'').trim(),
+  desc: (P.get('d')||'').trim(),
+  len:  parseInt(P.get('len')||'0',10) || 0,
+  at:   parseInt(P.get('s')||'0',10) || 0,
+};
+
+async function boot(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if(!session){
+    $('#main').innerHTML = `<div class="gate">살롱지기만 쓰는 창입니다.<br>
+      이 브라우저에서 <a href="https://app.egsalon.com/" target="_blank">app.egsalon.com</a> 에 lonelywalden 으로 로그인한 뒤 다시 눌러 주십시오.</div>`;
+    return;
+  }
+  const { data:isAdmin } = await sb.rpc('eg_is_admin');
+  if(!isAdmin){ $('#main').innerHTML = '<div class="gate">살롱지기만 쓰는 창입니다.</div>'; return; }
+  if(/^[\w-]{11}$/.test(V.id)) await drawCatch(); else await drawHome();
+}
+
+/* ── 주소 없이 열었을 때: 설치 안내 + 정보가 아직 없는 곡 ─────────────── */
+async function drawHome(){
+  const here = location.origin + location.pathname;
+  /* 단추 — 영상 화면의 플레이어에게 직접 묻는다(제목 · 채널 · 설명 전문 · 길이 · 지금 위치).
+     ⚠ 유튜브는 한 화면 안에서 영상을 갈아 끼우므로, 플레이어가 아는 영상 번호가 주소의 v= 와 다르면
+       플레이어 답을 버리고 화면 글자에서 줍는다. 설명은 4000자에서 자른다(주소 길이). */
+  const bm = `javascript:(()=>{const u=new URL(location.href);let v=u.searchParams.get('v')||'';if(!v){const m=location.pathname.match(/\\/(?:shorts|live|embed)\\/([\\w-]{11})/);if(m)v=m[1]}const p=document.getElementById('movie_player');let r=null;try{r=p&&p.getPlayerResponse?p.getPlayerResponse():null}catch(e){}let vd=(r&&r.videoDetails)||{};if(vd.videoId&&v&&vd.videoId!==v)vd={};if(!v)v=vd.videoId||'';if(!v){alert('유튜브 영상 화면에서 눌러 주십시오.');return}let d=vd.shortDescription||'';if(!d){const e=document.querySelector('ytd-text-inline-expander #expanded, ytd-text-inline-expander, #description-inline-expander, #description');d=e?(e.innerText||e.textContent||''):''}const t=vd.title||document.title.replace(/^\\(\\d+\\)\\s*/,'').replace(/\\s*-\\s*YouTube\\s*$/,'');let c=vd.author||'';if(!c){const a=document.querySelector('ytd-channel-name a, #owner #channel-name a');c=a?a.textContent.trim():''}let s=0;try{s=Math.floor(p.getCurrentTime())}catch(e){}window.open('${here}?v='+encodeURIComponent(v)+'&t='+encodeURIComponent(t)+'&c='+encodeURIComponent(c)+'&len='+(vd.lengthSeconds||'')+'&s='+s+'&d='+encodeURIComponent(String(d).trim().slice(0,4000)),'egsong','width=540,height=860');})();`;
+  $('#main').innerHTML = `
+    <div class="note">
+      아래 파란 단추를 <b>마우스로 끌어서</b> 브라우저 위쪽 즐겨찾기 막대에 놓아 주십시오. 한 번이면 됩니다.
+      <div><a class="bm" id="bm" href="#">EG 음반 담기</a></div>
+      <ol>
+        <li>즐겨찾기 막대가 안 보이면 <b>Ctrl + Shift + B</b></li>
+        <li>유튜브에서 영상을 열고 <b>EG 음반 담기</b>를 누른다</li>
+        <li>제목 · 채널 · 설명 전문 · 길이가 이 창에 담겨 뜬다 → <b>[담기]</b></li>
+        <li>이미 음악관에 있는 영상이면 그 곡에 정보만 채운다 · 처음 보는 영상이면 새 곡으로 <b>무대 뒤</b>에 들인다</li>
+        <li>전곡인지 · 몇 악장인지 한 마디 남기고 싶으면 「한 마디」 칸에 — 비워도 된다</li>
+      </ol>
+      <div class="warn">⚠ 영업용 「EG 담기」와는 다른 단추입니다. 둘 다 즐겨찾기 막대에 나란히 두시면 됩니다.</div>
+    </div>
+    <div class="list" id="list"></div>`;
+  $('#bm').setAttribute('href', bm);
+  $('#bm').addEventListener('click', e => { e.preventDefault(); alert('누르지 말고, 즐겨찾기 막대로 끌어다 놓아 주십시오.'); });
+  await drawList();
+}
+
+/* 정보가 아직 없는 곡 — 위에서부터 차례로 열어 단추만 누르면 된다 */
+async function drawList(){
+  const { data, error } = await sb.from('heritage_items')
+    .select('id,name,status,video_id,start_seconds,yt_meta')
+    .eq('category','record').order('id');
+  if(error){ $('#list').innerHTML = `<div class="err">곡 목록을 못 읽었습니다 — ${esc(error.message)}</div>`; return; }
+  const all = data || [];
+  const left = all.filter(r => r.video_id && !r.yt_meta);
+  $('#list').innerHTML = `<h2>정보가 아직 없는 곡<span>${left.length} / ${all.length}</span></h2>`
+    + (left.length ? left.map(r => `<div class="li"><span class="id">${esc(r.id.replace('htg_',''))}</span>
+        <span>${esc(r.name)}${r.status==='shelf'?'<span class="tag">무대 뒤</span>':''}</span>
+        <a href="https://www.youtube.com/watch?v=${esc(r.video_id)}${r.start_seconds?'&t='+r.start_seconds+'s':''}" target="_blank">영상 열기 ↗</a></div>`).join('')
+      : `<div class="note ok">모든 곡에 정보가 담겼습니다 ✓</div>`);
+}
+
+/* ── 영상에서 눌렀을 때 ───────────────────────────────────────────── */
+let HIT = null;
+async function drawCatch(){
+  const { data:rows, error } = await sb.from('heritage_items')
+    .select('id,name,status,start_seconds,yt_meta').eq('category','record').eq('video_id', V.id);
+  if(error){ $('#main').innerHTML = `<div class="err">음악관을 못 읽었습니다 — ${esc(error.message)}</div>`; return; }
+  HIT = (rows||[])[0] || null;
+  const had = !!(HIT && HIT.yt_meta);
+  const head = HIT
+    ? `<div class="note dup"><b>${esc(HIT.id)}</b> — 이미 음악관에 있는 곡입니다${HIT.status==='shelf'?' (무대 뒤)':HIT.status==='active'?' (무대)':''}<br>
+         <span style="color:var(--ink2)">${esc(HIT.name)}</span>
+         <span class="tag ${had?'on':''}">${had?'정보 담김 · 다시 담으면 새로 덮습니다':'정보 아직'}</span></div>`
+    : `<div class="note">처음 보는 영상입니다 — <b>새 곡으로 무대 뒤</b>에 들입니다.</div>`;
+  const startBox = HIT
+    ? `<label class="chk"><input type="checkbox" id="useAt"> 시작 지점도 지금 위치(${mmss(V.at)})로 바꾸기 <i>(지금 ${mmss(HIT.start_seconds||0)})</i></label>`
+    : `<label>시작 지점 <i>광고 · 박수를 건너뛸 때 — 지금 재생 위치가 들어 있습니다</i></label>
+       <input id="start" value="${V.at > 2 ? mmss(V.at) : '0:00'}">`;
+  $('#main').innerHTML = `${head}
+    <div class="k">
+      <b>제목</b><span>${esc(V.title) || '<i style="color:var(--red)">없음</i>'}</span>
+      <b>채널</b><span>${esc(V.channel) || '—'}</span>
+      <b>길이</b><span>${V.len ? mmss(V.len) : '—'}</span>
+      <b>영상</b><span style="font-family:'EB Garamond',serif">${esc(V.id)}</span>
+    </div>
+    <label>설명 <i>${V.desc.length.toLocaleString()}자 — 연주자 · 악단 · 지휘 · 해 · 장소가 대개 여기 있습니다</i></label>
+    <div class="desc ${V.desc?'':'none'}">${V.desc ? esc(V.desc) : '설명을 줍지 못했습니다. 영상 아래 「더보기」를 한 번 펼친 뒤 다시 눌러 주십시오.'}</div>
+    <label>한 마디 <i>비워도 됩니다 — 전곡 · 2악장만 · 앙코르 포함 등</i></label>
+    <textarea id="memo" placeholder="예: 전곡 · 끝에 앙코르 있음">${esc((HIT && HIT.yt_meta && HIT.yt_meta.memo) || '')}</textarea>
+    ${startBox}
+    <button class="go" id="go">${HIT ? (had ? '정보 다시 담기' : '정보 담기') : '무대 뒤에 담기'}</button>
+    <div class="keys">Ctrl + Enter 로도 담깁니다</div>
+    <div class="err" id="err"></div>`;
+  $('#go').onclick = save;
+  document.addEventListener('keydown', e => { if(e.key==='Enter' && (e.ctrlKey||e.metaKey)) save(); });
+}
+
+let busy = false;
+async function save(){
+  if(busy) return; busy = true;
+  const btn = $('#go'); btn.disabled = true; btn.textContent = '담는 중…';
+  const fail = m => { $('#err').textContent = m; btn.disabled = false; btn.textContent = '다시 담기'; busy = false; };
+  const meta = {
+    title: V.title, channel: V.channel, description: V.desc,
+    length_sec: V.len || null, memo: ($('#memo').value||'').trim() || null,
+    url: 'https://www.youtube.com/watch?v=' + V.id,
+    caught_at: new Date().toISOString()
+  };
+  let id, label;
+  if(HIT){
+    const patch = { yt_meta: meta };
+    if($('#useAt') && $('#useAt').checked) patch.start_seconds = V.at;
+    const { error } = await sb.from('heritage_items').update(patch).eq('id', HIT.id);
+    if(error) return fail('담지 못했습니다 — ' + error.message);
+    id = HIT.id; label = '정보를 담았습니다';
+  }else{
+    const sec = toSec($('#start').value);
+    if(sec === null) return fail('시작 지점을 알아보지 못했습니다 — 4:32 처럼 적어 주세요');
+    /* 다음 번호 — 끝에 붙인다 */
+    const { data:ids, error:e1 } = await sb.from('heritage_items').select('id').eq('category','record');
+    if(e1) return fail('번호를 매기지 못했습니다 — ' + e1.message);
+    let max = 0; for(const r of (ids||[])){ const m = String(r.id).match(/^htg_m(\d+)$/); if(m) max = Math.max(max, +m[1]); }
+    id = 'htg_m' + String(max+1).padStart(3,'0');
+    const { error } = await sb.from('heritage_items').insert({
+      id, category:'record', status:'shelf',
+      name: V.title || ('유튜브 ' + V.id), artist:'', period:null,
+      video_id: V.id, start_seconds: sec, grade:'gold', yt_meta: meta
+    });
+    if(error) return fail('담지 못했습니다 — ' + error.message);
+    label = '무대 뒤에 들였습니다';
+  }
+  /* 「잘 됐겠지」 금지 — 다시 읽어 확인 */
+  const { data:chk } = await sb.from('heritage_items').select('id,yt_meta').eq('id', id).single();
+  if(!chk || !chk.yt_meta) return fail('담았으나 확인하지 못했습니다 — 창을 닫고 다시 눌러 주십시오');
+  $('#main').innerHTML = `<div class="note ok">♪ ${label}<span class="n">${esc(id)}</span></div>`;
+  setTimeout(() => window.close(), 1400);
+}
+
+boot();
+</script>
+</body>
+</html>
