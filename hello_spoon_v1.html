@@ -1284,6 +1284,25 @@ body.bowed #sndBtn{display:none}
 
       if (wantDate || wantNo != null){
         SPOON = data[0]; SLOT = null;                 /* 콕 집어 본다 */
+      } else if (data.some(s => s.open_on && s.open_on <= todayYmd())){
+        /* ⭐⭐ 1006 — 날짜로 못 박는다(결정문 85호). 「오늘이거나 그 앞」에 연 회차 가운데 가장 최근 하나.
+             오늘의 한 줄(daily_lines.show_on)과 같은 문법이다. 개막일 · 슬롯 셈에 기대지 않으니
+             새 회차를 넣어도 다른 잔으로 건너뛰지 않고, 여는 날 전에는 어디에도 새지 않는다.
+             마지막 잔이 지나면 그 잔에 머문다 — 강물은 뒤로 안 흐른다(0526 · 0807 그대로).
+           ⚠ 여는 날(open_on)이 박힌 회차가 하나도 오지 않았을 때만 아래 옛 길(개막일 슬롯)로 돈다 — 안전망.
+           ⚠ 회차당 한 번 퀴즈의 열쇠는 spoon_id(UNIQUE user_id, spoon_id)라 이 길과 엉키지 않는다(1006 실측).
+           ⚠ admin_hansfoon_assets.html 편성표도 같은 규칙으로 센다(공식이 사는 곳 둘). */
+        const today  = todayYmd();
+        const opened = data.filter(s => s.open_on && s.open_on <= today)
+                           .sort((a, b) => (a.open_on < b.open_on ? 1 : -1));
+        SPOON = opened[0];
+        const nth = Math.round((Date.parse(today) - Date.parse(SPOON.open_on)) / 86400000);
+        SLOT = { idx: null, nth, span: null, dated: true };
+        const next = data.filter(s => s.open_on && s.open_on > today)
+                         .sort((a, b) => (a.open_on < b.open_on ? -1 : 1))[0];
+        console.log('[한스푼] 날짜 회차 — 연 날 ' + SPOON.open_on
+          + (next ? ' · 다음 잔 ' + next.open_on + ' (' + next.spoon_no + '번)'
+                  : '  ⚠ 다음 잔이 아직 없습니다 — 이 잔에 머뭅니다'));
       } else {
         SLOT = spoonSlot(window.EG_DAY());
         const N = data.length;                        /* spoon_no 순 정렬 → 인덱스=회차 */
@@ -1303,7 +1322,7 @@ body.bowed #sndBtn{display:none}
       }
       QUIZ.answer = SPOON.quiz_answer;
       console.log('[한스푼] 회차', SPOON.spoon_no, '·', SPOON.subject,
-        SLOT ? `(슬롯 ${SLOT.idx} · ${SLOT.nth+1}/${SLOT.span}일째)` : '(콕 집음)');
+        SLOT ? (SLOT.dated ? `(연 날부터 ${SLOT.nth+1}일째)` : `(슬롯 ${SLOT.idx} · ${SLOT.nth+1}/${SLOT.span}일째)`) : '(콕 집음)');
     } catch(e){ console.warn('한스푼 fetch 예외:', e); }
   }
 
@@ -1324,7 +1343,8 @@ body.bowed #sndBtn{display:none}
         let t = d.toISOString().slice(0,10).replace(/-/g,' · ') + ' · ' + wd;
         /* 슬롯 안 며칠째인지 조용히 알린다 — 「늦지 않았다」는 말이다(결정문 3호).
            ⚠ 「오늘은 휴식입니다」라고 쓰지 않는다. 첫날에는 아무것도 안 적는다. */
-        if (SLOT && SLOT.nth > 0) t += ' · ' + ['', '이틀째', '사흘째'][SLOT.nth];
+        /* ⚠ 1006 — 날짜 회차는 마지막 잔에 여러 날 머물 수 있다. 「사흘째」 너머는 아무것도 적지 않는다. */
+        if (SLOT && SLOT.nth > 0 && SLOT.nth <= 2) t += ' · ' + ['', '이틀째', '사흘째'][SLOT.nth];
         hd.textContent = t;
       }
     }

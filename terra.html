@@ -204,13 +204,30 @@ window.EGQ = (function(){
       }
     }
 
-    fetch(SUPA_URL + "/rest/v1/daily_lines?select=body,source&active=eq.true&order=sort", {
+    /* ⭐⭐ 1006 — 순환에서 날짜 직진으로(결정문 81호).
+         날짜(show_on)가 박힌 줄 가운데 「오늘이거나 그 앞」에서 가장 최근 줄 하나.
+         한 번 지나간 줄은 다시 오지 않고, 날짜가 떨어지면 마지막 줄에 머문다.
+       ⚠ 날짜가 박힌 줄이 아직 하나도 오지 않았으면(첫 줄의 날 전) 날짜 없는 옛 줄만으로
+         예전처럼 D mod n 순환 — 안전망. 날짜 박힌 미래 줄은 이 순환에 절대 섞이지 않는다.
+       ⚠ admin_daily_lines.html의 「오늘 뜨는 문장」과 같은 규칙이어야 한다(공식이 사는 곳 둘).
+       ⏱ ?ttline= 미리보기는 D를 그날로 바꾸므로 이 규칙을 그대로 탄다. */
+    fetch(SUPA_URL + "/rest/v1/daily_lines?select=body,source,show_on&active=eq.true&order=sort", {
       headers:{ apikey:SUPA_KEY, Authorization:"Bearer " + SUPA_KEY }
     })
     .then(function(r){ return r.ok ? r.json() : []; })
     .then(function(rows){
       if(!rows || !rows.length) return;
-      var it = rows[((D % rows.length) + rows.length) % rows.length];
+      var today = new Date(D * 86400000).toISOString().slice(0,10);   /* KST 날짜 — D는 KST 날수 */
+      var it = null, best = "";
+      for(var i=0; i<rows.length; i++){
+        var s = rows[i].show_on;
+        if(s && s <= today && s > best){ best = s; it = rows[i]; }
+      }
+      if(!it){
+        var plain = rows.filter(function(x){ return !x.show_on; });
+        if(!plain.length) return;
+        it = plain[((D % plain.length) + plain.length) % plain.length];
+      }
       if(!it || !it.body) return;
       whenReady(function(el){ layLine(el, it); });
     })
@@ -224,7 +241,14 @@ window.EGQ = (function(){
          없으면 한가운데에 가장 가까운 공백에서 접는다. 짧은 문장(15자 이하)은 한 줄. */
       var body = String(it.body).trim();
       var a = body, b = "";
-      if(body.length > 15){
+      /* ⭐ 1006 — body에 \n이 있으면 그 자리에서 먼저 접는다(결정문 83호 · 접는 자리는 사람이 고른다).
+         없을 때만 아래 옛 규칙(가운데 마침표 · 한가운데 공백)으로 접는다. */
+      var nl = body.indexOf("\n");
+      if(nl > 0){
+        a = body.slice(0, nl).trim();
+        b = body.slice(nl + 1).replace(/\s*\n\s*/g, " ").trim();
+      }
+      else if(body.length > 15){
         var m = body.slice(0, -1).lastIndexOf(". ");            /* 끝 마침표는 제외 */
         if(m > 3){ a = body.slice(0, m+1); b = body.slice(m+2); }
         else{

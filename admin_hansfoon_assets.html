@@ -568,7 +568,82 @@ function slotLastDay(idx){
 
 let SPOONS = [];
 
+/* ══ 편성표 · 날짜판 (1006 · 결정문 85호) ══════════════════════════════
+   ⭐ 회차마다 여는 날(open_on)이 박혔다. 셸(hello_spoon_v1.html)과 같은 규칙으로 센다 —
+     「오늘이거나 그 앞」에 연 회차 가운데 가장 최근 하나가 오늘의 잔, 다음 여는 날 전날까지 떠 있다.
+     마지막 잔은 다음 회차가 들어올 때까지 머문다.
+   ⚠ 초안(draft) 회차는 손님에게 안 보인다 — 표에는 흐리게 「초안」으로만 세운다.
+   ⚠ 여는 날이 박힌 공개 회차가 하나도 없으면 옛 편성표(개막일 슬롯 · 아래 renderSchedSlot)로 돈다.
+   ⚠ 카페 순회(날수 mod 곳수)는 한 글자도 안 고쳤다 — 두 층이 다른 속도로 도는 것은 그대로다. */
 async function renderSched(){
+  const box = document.getElementById('schedBox');
+  const dry = document.getElementById('dryLine');
+  if(!box) return;
+
+  const { data, error } = await supa.from('spoons')
+    .select('spoon_no,subject,category,headline,open_on,status')
+    .not('spoon_no','is',null).order('spoon_no');
+  if(error){ box.innerHTML = '<div class="empty">회차를 못 읽었습니다: '+esc(error.message)+'</div>'; return; }
+
+  const all   = data || [];
+  const dayOf = s => Math.floor(Date.parse(s) / 86400000);       /* 'YYYY-MM-DD' → 날수(KST 날짜와 같은 눈금) */
+  const today = kstDay();
+  const pub   = all.filter(s => s.status === 'published' && s.open_on)
+                   .sort((a,b) => (a.open_on < b.open_on ? -1 : 1));
+  if(!pub.some(s => dayOf(s.open_on) <= today)){ return renderSchedSlot(); }
+
+  /* 오늘의 잔 = 공개 회차 가운데 오늘이거나 그 앞에 연 가장 최근 하나 */
+  let curIdx = -1;
+  pub.forEach((s,i) => { if(dayOf(s.open_on) <= today) curIdx = i; });
+  const drafts = all.filter(s => s.status !== 'published' && s.open_on);
+
+  const act   = HALLS.filter(h => h.active);
+  const cafes = [...HALLS].sort((a,b) => spoonNo(a) - spoonNo(b)).filter(h => h.active);
+  const cafeOf = d => cafes.length ? cafes[((d % cafes.length) + cafes.length) % cafes.length] : null;
+
+  /* 오늘의 잔부터 앞으로 — 공개 회차와 초안을 여는 날 순으로 한 줄씩 */
+  const line = [...pub.slice(curIdx), ...drafts.filter(s => s.open_on > pub[curIdx].open_on)]
+                 .sort((a,b) => (a.open_on < b.open_on ? -1 : 1));
+  const rows = [];
+  line.slice(0, 40).forEach((s, k) => {
+    const start = dayOf(s.open_on);
+    const nextPub = pub.find(p => p.open_on > s.open_on);
+    const last  = nextPub ? dayOf(nextPub.open_on) - 1 : null;     /* 마지막 잔은 끝이 없다 */
+    const isCur = (s === pub[curIdx]);
+    const isDraft = s.status !== 'published';
+    const from  = Math.max(start, today);
+    const until = last == null ? from : last;
+    const names = [];
+    for(let d = from; d <= until && names.length < 4; d++){
+      const c = cafeOf(d);
+      names.push(`${wdayKo(d)} ${c ? esc(c.name) : '—'}`);
+    }
+    if(last == null) names.push('<span style="opacity:.6">… 다음 회차가 올 때까지</span>');
+    const spanTxt = last == null ? '머묾' : `${last - start + 1}일`;
+    rows.push(`<tr class="${isCur?'now':''} ${isDraft?'dry':''}">
+      <td class="dt">${ymd(from)}<span class="wd">${wdayKo(from)}</span>
+        <div class="span">${spanTxt}</div></td>
+      <td><span class="no">${s.spoon_no}</span>
+        <span class="sj">${esc(s.subject||'')}${isCur?'<span class="badge">오늘</span>':''}${isDraft?'<span class="badge">초안 · 손님에게 안 보임</span>':''}</span>
+        <span class="hl">${esc((s.headline||'').split('\n')[0])}</span></td>
+      <td class="cf">${names.join('<br>')}</td>
+      <td class="cat">${esc(s.category||'')}</td>
+    </tr>`);
+  });
+
+  box.innerHTML = `<table class="sched">
+    <tr><th>날짜</th><th>회차 · 글</th><th>카페</th><th>분야</th></tr>${rows.join('')}</table>`;
+
+  const lastPub = pub[pub.length - 1];
+  const left = pub.length - 1 - curIdx;
+  dry.innerHTML = `여는 날이 박힌 공개 회차 <b>${pub.length}</b>편 · 남은 회차 <b>${left}</b>개`
+    + (drafts.length ? ` · 초안 <b>${drafts.length}</b>편(공개 전)` : '')
+    + `<br>마지막 잔은 <b>${ymd(dayOf(lastPub.open_on))} (${wdayKo(dayOf(lastPub.open_on))})</b>에 열리고, 다음 회차가 들어올 때까지 머뭅니다`
+    + (left < 3 ? ' <span class="w">⚠ 곧 마지막 잔입니다</span>' : '');
+}
+
+/* ══ 옛 편성표 · 개막일 슬롯 (0807) — 여는 날이 박힌 공개 회차가 하나도 없을 때만 돈다 ══ */
+async function renderSchedSlot(){
   const box = document.getElementById('schedBox');
   const dry = document.getElementById('dryLine');
   if(!box) return;

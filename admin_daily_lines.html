@@ -8,8 +8,14 @@
  *  admin_daily_lines.html v1.4 — ⏱ 미리보기 · ✈ 자산 8칸 · 위상 강제(0805) — 0805
  *  EG 로딩 화면(terra.html)의 「오늘의 한 줄」 관리 콘솔.
  *
+ *  ⭐⭐ 1006 — 순환에서 날짜 직진으로(결정문 81호).
+ *     오늘 뜰 문장 = 날짜(show_on)가 박힌 활성 문장 가운데 「오늘이거나 그 앞」의 가장 최근 하나.
+ *     한 번 지나간 문장은 다시 오지 않고, 날짜가 떨어지면 마지막 문장에 머문다.
+ *     날짜 박힌 문장이 아직 하나도 오지 않았을 때만 아래 옛 규칙(날짜 없는 문장만으로 순환)이 돈다.
+ *     하루에 한 문장만 — show_on에 자물쇠(같은 날짜 두 줄 금지)가 걸려 있다.
+ *
  *  ⭐ 하루 하나 고정이다. 무작위 뽑기가 아니다.
- *     오늘 뜰 문장 = 활성 목록[ KST날수 mod 활성 문장 수 ]
+ *     (옛 규칙) 오늘 뜰 문장 = 날짜 없는 활성 목록[ KST날수 mod 그 수 ]
  *     ⚠ 문장을 넣거나 빼면 나눗셈의 분모가 바뀌어 내일 순서가 통째로 밀린다.
  *       그것이 병이 아니다 — 어차피 하루 하나이고 순서에 뜻이 없다.
  *
@@ -86,7 +92,10 @@
   .row.off{opacity:.4}
   .row.duty{background:linear-gradient(to right,rgba(201,162,39,.09),var(--panel))}
   .row .no{font-size:11px;color:var(--dim);min-width:26px;padding-top:3px;font-variant-numeric:tabular-nums}
-  .row .txt{flex:1;line-height:1.65}
+  .row .txt{flex:1;line-height:1.65;white-space:pre-line}
+  .row .no.d{min-width:64px;color:var(--gold-soft);letter-spacing:.04em}
+  .row.past .txt{opacity:.55}
+  .today .body{white-space:pre-line}
   .row .txt .s{display:block;font-size:11.5px;color:var(--dim);margin-top:5px;letter-spacing:.1em}
   .row .acts{display:flex;gap:6px;flex-shrink:0}
   /* 제자리 고치기 — 줄이 편집칸으로 바뀐다 */
@@ -142,6 +151,8 @@
   <h1>오늘의 한 줄</h1>
   <div class="sub">
     EG에 들어설 때 하늘과 함께 뜨는 문장입니다. 하루에 하나만 뜨고, 그날은 몇 번을 들어와도 같은 문장입니다.<br>
+    문장마다 <b>뜨는 날</b>이 박혀 있고, 날짜 순으로 하루에 한 줄씩 지나갑니다 — 지나간 줄은 다시 오지 않습니다.
+    문장 안에서 줄을 바꾸면(Enter) 비행 화면이 그 자리에서 두 줄로 접습니다.<br>
     ⚠ 번역문에는 역자의 권리가 붙습니다. 원문이 공유 저작물이어도 번역은 아닐 수 있으니, 옮긴 문장을 그대로 넣지 마십시오.
   </div>
 
@@ -165,6 +176,8 @@
     <div class="count" id="fCount">0자</div>
     <label>출처 — 저자 · 작품</label>
     <input id="fSrc" placeholder="헨리 데이비드 소로 · 월든">
+    <label>뜨는 날 — 비우면 날짜 없는 옛 줄로 들어갑니다(날짜 박힌 줄이 오기 시작하면 뜨지 않습니다)</label>
+    <input type="date" id="fDate">
     <button id="btnAdd">더하기</button>
   </div>
 
@@ -216,6 +229,23 @@ function kstDay(){
 
 function dutyIndex(n){ return n ? ((kstDay() % n) + n) % n : -1; }
 
+/* ⭐ 1006 — terra.html todaysLine()과 같은 규칙. 활성 문장만 받는다. */
+function dayToYmd(day){ return new Date(day * 86400000).toISOString().slice(0,10); }
+function pickDuty(on){
+  const today = dayToYmd(kstDay());
+  let it = null;
+  on.forEach(r => { if(r.show_on && r.show_on <= today && (!it || r.show_on > it.show_on)) it = r; });
+  if(it) return it;
+  const plain = on.filter(r => !r.show_on);
+  const di = dutyIndex(plain.length);
+  return di >= 0 ? plain[di] : null;
+}
+const WD = ['일','월','화','수','목','금','토'];
+function dateLabel(s){                       /* '2026-10-12' → '10.12 월' */
+  const d = new Date(s + 'T00:00:00Z');
+  return (d.getUTCMonth()+1) + '.' + d.getUTCDate() + ' ' + WD[d.getUTCDay()];
+}
+
 function say(t, ok){
   const m = $('#msg');
   m.textContent = t; m.className = 'msg ' + (ok ? 'ok' : 'err');
@@ -233,16 +263,22 @@ $('#fBody').addEventListener('input', e=>{
 
 async function load(){
   const { data, error } = await supa.from('daily_lines')
-    .select('id,body,source,active,sort').order('sort');
+    .select('id,body,source,active,sort,show_on').order('sort');
   if(error){ say('불러오지 못했습니다 — ' + error.message); return; }
-  ROWS = data || [];
+  /* 날짜 박힌 줄은 날짜 순으로 앞에, 날짜 없는 옛 줄은 그 뒤에 sort 순으로 */
+  ROWS = (data || []).sort((a,b) => {
+    if(a.show_on && b.show_on) return a.show_on < b.show_on ? -1 : 1;
+    if(a.show_on) return -1;
+    if(b.show_on) return 1;
+    return (a.sort||0) - (b.sort||0);
+  });
   draw();
 }
 
 function draw(){
   const on = ROWS.filter(r=>r.active);
-  const di = dutyIndex(on.length);
-  const duty = di >= 0 ? on[di] : null;
+  const duty = pickDuty(on);
+  const todayY = dayToYmd(kstDay());
 
   $('#tBody').textContent = duty ? duty.body : '문장이 없습니다';
   $('#tSrc').textContent  = duty && duty.source ? duty.source : '';
@@ -256,10 +292,12 @@ function draw(){
   list.innerHTML = '';
   ROWS.forEach((r, i)=>{
     const el = document.createElement('div');
-    el.className = 'row' + (r.active ? '' : ' off') + (duty && r.id === duty.id ? ' duty' : '');
+    el.className = 'row' + (r.active ? '' : ' off') + (duty && r.id === duty.id ? ' duty' : '')
+                 + (r.show_on && r.show_on < todayY && !(duty && r.id === duty.id) ? ' past' : '');
 
     const no = document.createElement('div');
-    no.className = 'no'; no.textContent = (i+1);
+    if(r.show_on){ no.className = 'no d'; no.textContent = dateLabel(r.show_on); }
+    else         { no.className = 'no';   no.textContent = (i+1); }
 
     const txt = document.createElement('div');
     txt.className = 'txt';
@@ -285,6 +323,8 @@ function draw(){
     const eb = document.createElement('textarea'); eb.value = r.body;
     const es = document.createElement('input');    es.value = r.source || '';
     es.placeholder = '출처 — 저자 · 작품';
+    const ed = document.createElement('input'); ed.type = 'date'; ed.value = r.show_on || '';
+    ed.title = '뜨는 날 — 비우면 날짜 없는 옛 줄';
     const ea = document.createElement('div'); ea.className = 'eacts';
     const save = document.createElement('button'); save.className = 'mini'; save.textContent = '저장';
     const cancel = document.createElement('button'); cancel.className = 'mini'; cancel.textContent = '되돌리기';
@@ -296,7 +336,7 @@ function draw(){
     };
     eb.addEventListener('input', recount); recount();
     ea.append(save, cancel, ec);
-    edit.append(eb, es, ea);
+    edit.append(eb, es, ed, ea);
 
     const fix = document.createElement('button');
     fix.className = 'mini'; fix.textContent = '고치기';
@@ -306,13 +346,13 @@ function draw(){
       eb.focus();
     };
     const close = ()=>{ el.classList.remove('editing'); acts.style.display = ''; };
-    cancel.onclick = ()=>{ eb.value = r.body; es.value = r.source || ''; recount(); close(); };
+    cancel.onclick = ()=>{ eb.value = r.body; es.value = r.source || ''; ed.value = r.show_on || ''; recount(); close(); };
     save.onclick = async ()=>{
       const body = eb.value.trim();
       if(!body){ say('문장이 비었습니다'); return; }
       const { error } = await supa.from('daily_lines')
-        .update({ body, source: es.value.trim() || null }).eq('id', r.id);
-      if(error){ say('고치지 못했습니다 — ' + error.message); return; }
+        .update({ body, source: es.value.trim() || null, show_on: ed.value || null }).eq('id', r.id);
+      if(error){ say(dupMsg(error) || ('고치지 못했습니다 — ' + error.message)); return; }
       say('고쳤습니다', true);
       close(); load();
     };
@@ -339,15 +379,23 @@ function draw(){
 async function add(){
   const body = $('#fBody').value.trim();
   const src  = $('#fSrc').value.trim();
+  const day  = $('#fDate').value || null;
   if(!body){ say('문장을 적어 주십시오'); return; }
   const nextSort = ROWS.length ? Math.max(...ROWS.map(r=>r.sort||0)) + 1 : 1;
   const { error } = await supa.from('daily_lines')
-    .insert({ body, source: src || null, sort: nextSort });
-  if(error){ say('넣지 못했습니다 — ' + error.message); return; }
-  $('#fBody').value = ''; $('#fSrc').value = '';
+    .insert({ body, source: src || null, sort: nextSort, show_on: day });
+  if(error){ say(dupMsg(error) || ('넣지 못했습니다 — ' + error.message)); return; }
+  $('#fBody').value = ''; $('#fSrc').value = ''; $('#fDate').value = '';
   $('#fCount').textContent = '0자'; $('#fCount').className = 'count';
   say('넣었습니다', true);
   load();
+}
+
+/* 하루 한 문장 자물쇠(daily_lines_show_on_key)에 걸렸을 때 */
+function dupMsg(error){
+  return (error && /daily_lines_show_on_key|duplicate key/.test(error.message || ''))
+    ? '그날에는 이미 문장이 있습니다 — 하루에 한 줄만 뜹니다. 다른 날을 고르거나 그날 문장을 고쳐 주십시오.'
+    : null;
 }
 
 async function toggle(r){
