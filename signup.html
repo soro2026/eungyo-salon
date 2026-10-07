@@ -122,7 +122,7 @@
   .code-row.on{ display:flex; }
   .code-row input{ font-family:var(--f-mono); letter-spacing:.32em; font-size:1.1rem; }
   .field input:disabled{ color:var(--ink-6); }
-  .form-msg{ margin-top:16px; text-align:center; font-family:var(--f-mono); font-size:10.5px; letter-spacing:.04em; color:var(--warn); min-height:14px; line-height:1.5; }
+  .form-msg{ margin-top:22px; margin-bottom:-12px; text-align:center; font-family:var(--f-mono); font-size:12px; letter-spacing:.02em; color:var(--warn); min-height:14px; line-height:1.6; }
   .footnote{ margin-top:30px; text-align:center; font-weight:400; font-size:.8rem; color:var(--ink-4); line-height:1.7; }
 
   /* 상태 화면 */
@@ -241,8 +241,8 @@
       <label class="consent"><input type="checkbox" id="c-privacy"><span><a data-doc="privacy">개인정보처리방침</a>에 동의합니다.</span></label>
     </div>
 
+    <div class="form-msg" id="form-msg"></div>   <!-- 1007 저녁 — 단추 「위」로 옮김(소로 · 빠진 칸이 단추 곁에서 보이게) -->
     <button class="enter" id="submit">EG유니버스에 들어서기</button>
-    <div class="form-msg" id="form-msg"></div>
 
     <p class="footnote" id="footnote">소속 건물이 문을 열기 전까지는 무료입니다.<br>머무는 동안 당신을 평가하거나 비교하지 않습니다.</p>
   </section>
@@ -463,17 +463,19 @@
     const msg = $('form-msg');
     msg.textContent='';
 
-    let bad=false;
-    if(!nick){ $('nick-hint').className='hint warn'; $('nick-hint').textContent='이름을 남겨주세요.'; bad=true; }
-    if(nickOk===false && nick){ $('nick-hint').className='hint warn'; $('nick-hint').textContent='다른 이름을 골라주세요.'; bad=true; }
-    if(!validEmail(email)){ $('email-hint').className='hint warn'; $('email-hint').textContent='이메일 주소를 확인해주세요.'; bad=true; } else $('email-hint').textContent='';
-    if(pw.length<8){ $('pw-hint').className='hint warn'; $('pw-hint').textContent='여덟 자 이상으로 정해주세요.'; bad=true; } else $('pw-hint').textContent='';
-    if(pw!==pw2){ $('pw2-hint').className='hint warn'; $('pw2-hint').textContent='두 비밀번호가 다릅니다.'; bad=true; } else $('pw2-hint').textContent='';
-    if(!$('c-terms').checked || !$('c-privacy').checked){ msg.textContent='두 약관에 동의하셔야 들어오실 수 있습니다.'; bad=true; }
-    if(PASS && !$('real').value.trim()){ msg.textContent='실명을 적어 주십시오.'; bad=true; }
-    if(PASS && !CALL){ $('call-hint').className='hint warn'; $('call-hint').textContent='불릴 이름을 골라 주십시오.'; bad=true; }
-    if(PASS && !mailOk){ $('email-hint').className='hint warn'; $('email-hint').textContent='메일로 받은 확인 숫자를 먼저 넣어 주십시오.'; bad=true; }
-    if(bad) return;
+    /* ⭐ 1007 저녁 — 빠진 칸은 칸 밑 작은 글씨에 더해, 단추 바로 위에 첫째 하나를 또렷이 (소로) */
+    let bad=false, first='';
+    const need = t => { bad=true; if(!first) first=t; };
+    if(PASS && !$('real').value.trim()){ need('실명을 적어 주십시오.'); }
+    if(PASS && !CALL){ $('call-hint').className='hint warn'; $('call-hint').textContent='불릴 이름을 골라 주십시오.'; need('불릴 이름을 골라 주십시오.'); }
+    if(!nick){ $('nick-hint').className='hint warn'; $('nick-hint').textContent='이름을 남겨주세요.'; need('이름을 남겨 주십시오.'); }
+    if(nickOk===false && nick){ $('nick-hint').className='hint warn'; $('nick-hint').textContent='다른 이름을 골라주세요.'; need('다른 이름을 골라 주십시오.'); }
+    if(!validEmail(email)){ $('email-hint').className='hint warn'; $('email-hint').textContent='이메일 주소를 확인해주세요.'; need('이메일 주소를 확인해 주십시오.'); } else $('email-hint').textContent='';
+    if(PASS && validEmail(email) && !mailOk){ $('email-hint').className='hint warn'; $('email-hint').textContent='메일로 받은 확인 숫자를 먼저 넣어 주십시오.'; need('메일로 받은 확인 숫자 여섯 자리를 넣고 「확인」을 먼저 눌러 주십시오.'); }
+    if(pw.length<8){ $('pw-hint').className='hint warn'; $('pw-hint').textContent='여덟 자 이상으로 정해주세요.'; need('비밀번호를 여덟 자 이상으로 정해 주십시오.'); } else $('pw-hint').textContent='';
+    if(pw!==pw2){ $('pw2-hint').className='hint warn'; $('pw2-hint').textContent='두 비밀번호가 다릅니다.'; need('두 비밀번호가 다릅니다.'); } else $('pw2-hint').textContent='';
+    if(!$('c-terms').checked || !$('c-privacy').checked){ need('두 약관에 동의하셔야 들어오실 수 있습니다.'); }
+    if(bad){ msg.textContent = first; return; }
 
     const btn = $('submit');
     btn.disabled=true; btn.textContent='문을 여는 중…';
