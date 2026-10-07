@@ -1058,7 +1058,7 @@
   .hint{ color:var(--ink-dim); font-size:12px; line-height:1.7; }
 
 </style>
-<script src="eg_pass_draw.js?v=0927a"></script>   <!-- ⭐ 0927 셀장 시트의 표 그림 — 대시보드 · 개찰구와 같은 표 -->
+<script src="eg_pass_draw.js?v=1006a"></script>   <!-- ⭐ 0927 셀장 시트의 표 그림 — 대시보드 · 개찰구와 같은 표 · 1006 벗 초대장 -->
 </head>
 <body>
 <!-- ⭐ 0818 소로 — 「파파팍 튀는 느낌」. 직행은 카메라가 즉시 앉으므로 자리 잡기 전 한 프레임이
@@ -1142,10 +1142,11 @@
         <span class="cm-t cut">구독 관리</span>
         <span class="cm-v cut" id="r-plan-side"></span>
       </button>
-      <button class="cm" type="button" data-act="invite">
+      <!-- ⭐ 1006 — 옛 「조용한 초대장」(0814 · ?from= 주소 복사 · 받는 곳이 없던 빈 문)을 걷고 벗 초대장이 섰다 -->
+      <button class="cm" type="button" data-sheet="ami">
         <span class="cm-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8l1.9 4.3 4.7.5-3.5 3.2 1 4.6L12 13l-4.1 2.4 1-4.6L5.4 7.6l4.7-.5z"/><path d="M18.6 17.4v3.4M16.9 19.1h3.4"/><path d="M4.4 15.6v2.2M3.3 16.7h2.2"/></svg></span>
-        <span class="cm-t cut">조용한 초대장</span>
-        <span class="cm-v cut"></span>
+        <span class="cm-t cut">벗 초대장</span>
+        <span class="cm-v cut" id="r-ami-side"></span>
       </button>
       <button class="cm" type="button" data-sheet="terms">
         <span class="cm-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.9l7.2 2.6v6.1c0 4-3 7.4-7.2 8.5-4.2-1.1-7.2-4.5-7.2-8.5V5.5z"/><path d="M9.2 11.9l1.9 1.9 3.7-3.8"/></svg></span>
@@ -1266,6 +1267,11 @@
 <div class="sheet" id="sheet-leader" hidden>
   <div class="sheet-head"><b>셀장</b><span class="sheet-x" onclick="closeSheet()">×</span></div>
   <div class="sheet-body" id="leader-body"><div class="hint">불러오는 중입니다.</div></div>
+</div>
+<!-- ⭐ 1006 — 벗 초대장 시트. 정회원이 벗의 이름을 적어 한 장씩 뽑는다 (eg_ami_list · eg_ami_issue) -->
+<div class="sheet" id="sheet-ami" hidden>
+  <div class="sheet-head"><b>벗 초대장</b><span class="sheet-x" onclick="closeSheet()">×</span></div>
+  <div class="sheet-body" id="ami-body"><div class="hint">불러오는 중입니다.</div></div>
 </div>
 <div class="sheet" id="sheet-terms" hidden>
   <div class="sheet-head"><b>이용약관 · 개인정보</b><span class="sheet-x" onclick="closeSheet()">×</span></div>
@@ -2182,6 +2188,99 @@ document.addEventListener('click', e => {
 document.addEventListener('change', e => { if(e.target && e.target.id === 'ld-kind'){ LDPICK = e.target.value; LDERR = ''; drawLeader(); } });
 document.addEventListener('keydown', e => { if(e.key === 'Enter' && e.target && e.target.id === 'ld-name'){ e.preventDefault(); ldIssue(); } });
 
+/* ══ 벗 초대장 (1006 · 지문 상속) ════════════════════════════════════
+   ⭐ 정회원 콩파뇽이 벗의 이름을 적어 한 장씩 뽑는다. 판정 · 남은 장수 · 뽑기는 전부 DB(eg_ami_list · eg_ami_issue)
+   ⭐ 표의 지문은 그 콩파뇽의 파운더 · 건넨 콩파뇽에게는 몫이 없다(소로 — 「나눠지지 않는 쪽이 훨씬 강렬」)
+   ⭐ 시스템 메일을 보내지 않는다 — 그림과 번호를 콩파뇽이 손수 건넨다
+   ⭐ 한 달 장수는 eg_settings 'ami_monthly' 한 칸(개관 3 → 2 → 1). 여기에 숫자를 적지 않는다
+   ⭐ 정회원이 아니면 안내만 — 「정회원이 되시면 한 달에 n장」
+   ══════════════════════════════════════════════════════════════════ */
+let AMI = null, AMBUSY = false, AMERR = '', AMPASS = null;
+const amToday = () => new Intl.DateTimeFormat('en-CA', { timeZone:'Asia/Seoul' }).format(new Date());   /* YYYY-MM-DD */
+const amKst = iso => { if(!iso) return ''; return new Intl.DateTimeFormat('ko-KR', { timeZone:'Asia/Seoul', month:'long', day:'numeric' }).format(new Date(iso)); };
+async function loadAmi(){
+  if(!getUser()) return;
+  try{ AMI = await sbFetch('/rest/v1/rpc/eg_ami_list', { method:'POST', body:'{}' }); }
+  catch(e){ console.warn('[EG] 벗 초대장', e); return; }
+  setText('r-ami-side', AMI && AMI.paid ? '이번 달 ' + Math.max(0, AMI.limit - AMI.used) + '장' : '');
+  if(SHEET && SHEET.id === 'sheet-ami') drawAmi();
+}
+function drawAmi(){
+  const el = document.getElementById('ami-body'); if(!el) return;
+  if(!AMI){ el.innerHTML = '<div class="hint">불러오는 중입니다.</div>'; return; }
+  const out = [];
+  out.push(`<div class="pl-note" style="margin:0 0 4px">EG에서 지내 보시니 좋으셨다면, 아끼는 벗 한 분께 이 여정을 건네 보십시오. 벗의 이름을 적어 초대장을 뽑으시면 탑승권 한 장이 나옵니다. 그 그림을 카카오톡이나 메일로 손수 건네 주시면, 벗은 탑승권의 번호로 개찰구를 지나 3주 동안 EG에 머뭅니다.</div>`);
+  out.push(`<div class="pl-note">벗은 지금 계신 건물의 이웃으로 모십니다. 초대장의 입력 유효기간은 뽑은 날부터 30일이고, EG에 처음 오시는 분만 쓰실 수 있습니다.</div>`);
+  if(!AMI.paid){
+    out.push(`<div class="pl-sec"><div class="pl-h">정회원께 드리는 초대장</div>` +
+      `<div class="pl-note" style="margin:0">정회원이 되시면 한 달에 ${AMI.limit}장을 벗에게 건네실 수 있습니다.</div>` +
+      `<button type="button" class="pl-cta" data-open-apply>정회원 신청</button></div>`);
+  }else{
+    const left = Math.max(0, AMI.limit - AMI.used);
+    out.push(`<div class="pl-sec"><div class="pl-h">한 장 뽑기</div>` +
+      `<div class="pl-row"><span>이번 달</span><span>남은 ${left}장 · 건넨 ${AMI.used}장</span></div>` +
+      (left > 0
+        ? `<input id="am-name" class="pl-in nm" type="text" maxlength="20" autocomplete="off" placeholder="벗의 이름">` +
+          `<button type="button" class="pl-cta" id="am-go"${AMBUSY ? ' disabled' : ''}>${AMBUSY ? '뽑는 중입니다' : '벗 초대장 뽑기'}</button>`
+        : `<div class="pl-note" style="margin:0">이번 달 초대장을 모두 건네셨습니다. 다음 달 1일에 다시 채워집니다.</div>`) +
+      (AMERR ? `<div class="pl-note" style="color:var(--c-accent)">${plEsc(AMERR)}</div>` : '') +
+      (AMPASS ? `<div class="ld-pass"><img alt="벗 초대장" src="${AMPASS.url}"><a class="pl-cta" href="${AMPASS.url}" download="${plEsc(AMPASS.file)}">내려받기</a>` +
+                `<button type="button" class="ld-mini" data-amcopy="${plEsc(AMPASS.code)}" style="margin-top:8px">번호 복사 · ${plEsc(AMPASS.code)}</button>` +
+                `<div class="pl-note">내려받은 그림을 카카오톡이나 메일로 벗에게 직접 건네 주십시오.</div></div>` : '') +
+      `</div>`);
+  }
+  const T = AMI.tickets || [], today = amToday();
+  if(T.length){
+    out.push(`<div class="pl-sec"><div class="pl-h">건넨 초대장</div><table class="pl-hist">` + T.map(t => {
+      const gone = t.status !== 'entered' && String(t.valid_to) < today;
+      return `<tr><td>${plEsc(t.guest_name)} 님<br><span class="ld-code" style="color:var(--c-sub);font-size:11.5px">${plEsc(t.code)}</span></td>` +
+        `<td>${t.status === 'entered' ? amKst(t.entered_at) + ' 입장' : gone ? '기한 지남' : ldMd(t.valid_to) + '까지'}</td>` +
+        `<td>${t.status === 'entered' || gone ? '' : `<button type="button" class="ld-mini" data-ampass="${plEsc(t.code)}">표 받기</button>`}</td></tr>`;
+    }).join('') + `</table></div>`);
+  }
+  el.innerHTML = out.join('');
+}
+async function amShowPass(code){
+  const t = ((AMI && AMI.tickets) || []).find(x => x.code === code); if(!t || !window.EGPass) return;
+  const b = t.building || {};
+  const P = { kind:'ami', guest: t.guest_name, building: b.name || '',
+    where: (LD_CITY[b.city] || b.city || '') + ' ' + b.bno + '번지 · ' + (b.label || ''),
+    founder: AMI.friend || '',                       /* ⭐ 「초대한 분」 자리는 건넨 콩파뇽 */
+    from: ldMd(t.valid_from), to: ldMd(t.valid_to), code: t.code, url: 'app.egsalon.com/pass' };
+  try{
+    const cv = await window.EGPass.render(P);
+    const blob = await new Promise(ok => cv.toBlob(ok, 'image/png'));
+    if(AMPASS && AMPASS.url) try{ URL.revokeObjectURL(AMPASS.url); }catch(_){}
+    AMPASS = { code: t.code, url: URL.createObjectURL(blob),
+      file: 'EG벗초대장_' + t.guest_name.replace(/[\\\/:*?"<>|\s]+/g, '') + '_' + t.code + '.png' };
+  }catch(e){ console.warn('[EG] 벗 초대장 그림', e); }
+  drawAmi();
+  document.querySelector('#ami-body .ld-pass')?.scrollIntoView({ block:'nearest', behavior:'smooth' });
+}
+async function amIssue(){
+  if(AMBUSY) return;
+  const i = document.getElementById('am-name'); const nm = (i?.value || '').trim();
+  if(!nm){ AMERR = '벗의 이름을 적어 주십시오.'; drawAmi(); document.getElementById('am-name')?.focus(); return; }
+  AMBUSY = true; AMERR = ''; drawAmi();
+  try{
+    const r = await sbFetch('/rest/v1/rpc/eg_ami_issue', { method:'POST', body: JSON.stringify({ p_name: nm }) });
+    AMBUSY = false; await loadAmi();
+    if(r && r.code) await amShowPass(r.code);
+  }catch(e){
+    AMBUSY = false; AMERR = (e && e.message) || '뽑지 못했습니다. 잠시 뒤 다시 눌러 주십시오.'; drawAmi();
+    const j = document.getElementById('am-name'); if(j){ j.value = nm; j.focus(); }
+  }
+}
+document.addEventListener('click', e => {
+  if(e.target.closest('#am-go')){ amIssue(); return; }
+  const p = e.target.closest('[data-ampass]'); if(p){ amShowPass(p.dataset.ampass); return; }
+  const c = e.target.closest('[data-amcopy]');
+  if(c){ const code = c.dataset.amcopy;
+    (async () => { try{ await navigator.clipboard.writeText(code); c.textContent = '복사했습니다 · ' + code; }
+                   catch(_){ c.textContent = code; } })(); return; }
+});
+document.addEventListener('keydown', e => { if(e.key === 'Enter' && e.target && e.target.id === 'am-name'){ e.preventDefault(); amIssue(); } });
+
 /* ── 준회원 바우처 사용 (0927) ── 번호 판정 · 체류 이어 붙이기 · 한 사람 한 번은 전부 DB 가 한다 */
 async function plVoucherUse(){
   const i = document.getElementById('pl-vc-code'), say = document.getElementById('pl-vc-say'), go = document.getElementById('pl-vc-go');
@@ -2519,13 +2618,7 @@ document.getElementById('tr-drop')?.addEventListener('click', e => {
 document.addEventListener('click', () => openTDrop(false));
 document.getElementById('tr-back')?.addEventListener('click', () => showPanel('root'));
 
-/* 조용한 초대장 — 설정 한 줄로 접었다(0814 압축). 문구는 옛 카드 그대로 */
-function openInvite(){
-  const nick = (document.getElementById('p-nick')?.textContent || '').trim();
-  const url  = 'egsalon.com?from=' + (nick || 'eg');
-  try{ navigator.clipboard.writeText('https://' + url); alert('초대장을 복사했습니다.\n' + url); }
-  catch(e){ alert(url); }
-}
+/* ⚠ 1006 — 옛 「조용한 초대장」(openInvite · ?from= 주소 복사)은 걷었다. 그 자리는 벗 초대장(drawAmi) */
 
 // ── 로그아웃 (로컬 세션 제거 후 로그인 화면으로) ──
 function doLogout(){
@@ -2544,7 +2637,7 @@ function doLogout(){
 console.log('%c[EG] persona · 쪽지함 액자 머리 종이빛', 'color:#8a6d1f');
 
 document.addEventListener('DOMContentLoaded', () => {
-  loadPersona(); initWalletScroll(); loadMailSummary(); loadPoster(); loadPlan(); loadLeader();
+  loadPersona(); initWalletScroll(); loadMailSummary(); loadPoster(); loadPlan(); loadLeader(); loadAmi();
   /* 글 편 수는 열지 않아도 읽히게 — 긷고 나서 곁값을 적는다.
      ⚠ loadWritings 가 스스로 paintWritingSide 를 부른다. 여기서 또 부르면
        센 곳이 둘이 된다. 그림이 없으면 조용히 지나간다(#wlist 가 아직 없다). */
@@ -2670,6 +2763,7 @@ function openSheet(k){
   document.body.style.overflow = 'hidden';
   if(k === 'cred' && typeof drawPoster === 'function') drawPoster();
   if(k === 'leader' && typeof drawLeader === 'function') drawLeader();
+  if(k === 'ami' && typeof drawAmi === 'function') drawAmi();
   /* ⚠ 0816 — 글모음은 시트가 아니라 벽의 액자다. FRAMED.writing.draw 가 부른다.
        여기 남겨 두면 같은 문이 둘이 된다(v166 — 같은 문을 두 개 달지 않는다). */
 }
@@ -2749,7 +2843,6 @@ document.getElementById('e-back')?.addEventListener('click', () => showPanel('ro
 document.addEventListener('click', e => {
   const b = e.target.closest('.cm'); if(!b) return;
   if(b.dataset.go){ showPanel(b.dataset.go); return; }      /* 벽을 간다 */
-  if(b.dataset.act === 'invite'){ openInvite(); return; }   /* 바로 하는 일 */
   if(b.dataset.sheet) openSheet(b.dataset.sheet);           /* 팝업을 연다 */
 });
 /* ⚠ Esc — 팝업이 떠 있으면 팝업을 닫고, 아니면 뿌리 단으로 돌아간다 */

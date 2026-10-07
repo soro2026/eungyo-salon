@@ -7,7 +7,7 @@
      표를 고칠 때는 여기 한 곳만 — 대시보드도 곧 이 파일을 부르게 바꾼다(대청소 명단).
 
    쓰는 법   const cv = await EGPass.render(P);     // 1600 × 800 캔버스
-             P = { kind:'beta'|'associate'|'invitatio'(0929), guest, building, where, founder, leader?(셀장 표면 셀장 이름만 · 0927),
+             P = { kind:'beta'|'associate'|'invitatio'(0929)|'ami'(1006 벗 초대장 · founder 자리에 건넨 콩파뇽), guest, building, where, founder, leader?(셀장 표면 셀장 이름만 · 0927),
                    from, to, code, url, value(준회원만 · 쉼표 찍힌 글자) }
    ═════════════════════════════════════════════════ */
 (function(){
@@ -25,7 +25,9 @@ function drawPass(ctx, W, H, P, F) {
   const BETA = P.kind === 'beta';
   /* ⭐ 0929 초대권(invitatio) — 소로가 존경하는 분께 드리는 표. 크림 종이 · 먹빛 머리띠에 금 글씨 · 액면 「존경을 담아」 */
   const VIP = P.kind === 'invitatio', INKBAND = '#1A1916';
-  const CREAM = BETA || VIP;
+  /* ⭐ 1006 벗 초대장(ami) — 정회원 콩파뇽이 벗에게 건네는 표. 크림 종이 · 숲빛 머리띠 · 액면 「우정을 담아」(소로) */
+  const AMI = P.kind === 'ami', FOREST = '#1F3D2C';
+  const CREAM = BETA || VIP || AMI;
   ctx.fillStyle = CREAM ? PAPER : '#FFFFFF';          /* 종이 — 베타는 크림, 준회원 바우처는 흰색 (0919 소로) */
   rr(ctx, 0, 0, W, H, R); ctx.fill();
   if (!CREAM) { ctx.strokeStyle = LINE; ctx.lineWidth = 3; rr(ctx, 1.5, 1.5, W - 3, H - 3, R); ctx.stroke(); }   /* 흰 종이는 흰 배경에서 윤곽이 사라진다 */
@@ -35,7 +37,7 @@ function drawPass(ctx, W, H, P, F) {
 
   /* 머리 띠 */
   ctx.save(); rr(ctx, 0, 0, W, H, R); ctx.clip();
-  ctx.fillStyle = VIP ? INKBAND : P.kind === 'beta' ? NAVY : WINE; ctx.fillRect(0, 0, W, 132);   /* 머리 색 — 베타는 남색, 준회원 바우처는 포도주 (0919 소로) */
+  ctx.fillStyle = VIP ? INKBAND : AMI ? FOREST : P.kind === 'beta' ? NAVY : WINE; ctx.fillRect(0, 0, W, 132);   /* 머리 색 — 베타는 남색, 준회원 바우처는 포도주 (0919 소로) */
   ctx.fillStyle = GOLD2; ctx.fillRect(0, 132, W, 5);
   ctx.restore();
 
@@ -44,10 +46,10 @@ function drawPass(ctx, W, H, P, F) {
   spaced('EG UNIVERSE', 64, 84, 17);         /* 자간은 한 자씩 직접 띄운다 — 브라우저를 가리지 않는다 (0919 소로) */
   ctx.fillStyle = '#E9D9A8'; ctx.font = '400 25px ' + S;
   ctx.textAlign = 'right';
-  ctx.fillText(VIP ? 'BOARDING PASS  |  초대권 · 1년' : P.kind === 'beta' ? 'BETA BOARDING PASS  |  베타 초대권 · 3주' : 'BOARDING PASS  |  준회원 바우처 · 2주', CUT - 40, 82);
+  ctx.fillText(VIP ? 'BOARDING PASS  |  초대권 · 1년' : AMI ? 'BOARDING PASS  |  벗 초대장 · 3주' : P.kind === 'beta' ? 'BETA BOARDING PASS  |  베타 초대권 · 3주' : 'BOARDING PASS  |  준회원 바우처 · 2주', CUT - 40, 82);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#E9D9A8'; ctx.font = '400 22px ' + S;
-  ctx.fillText(VIP ? 'INVITATION · 1 YEAR' : P.kind === 'beta' ? 'BETA · 3 WEEKS' : 'PRE-MEMBER · 2 WEEKS', CUT + 44, 82);   /* 0923 소로 — 이름표와 같은 말 */
+  ctx.fillText(VIP ? 'INVITATION · 1 YEAR' : AMI ? 'FRIEND · 3 WEEKS' : P.kind === 'beta' ? 'BETA · 3 WEEKS' : 'PRE-MEMBER · 2 WEEKS', CUT + 44, 82);   /* 0923 소로 — 이름표와 같은 말 */
 
   /* 절취선 + 위아래 홈 */
   ctx.save();
@@ -68,7 +70,8 @@ function drawPass(ctx, W, H, P, F) {
   rule(X, 310, 660);
 
   label(760, 196, 'INVITED BY', '초대한 분');
-  if (P.leader) tagLine(760, 268, 40, 340, P.leader, 'CELL LEADER', INK);   /* ⭐ 0927 소로 — 셀장이 건넨 표는 셀장 이름 하나만 */
+  if (AMI) tagLine(760, 268, 40, 340, P.founder, 'COMPAGNON', INK);          /* ⭐ 1006 — 벗 초대장은 건넨 콩파뇽 이름 하나만 */
+  else if (P.leader) tagLine(760, 268, 40, 340, P.leader, 'CELL LEADER', INK);   /* ⭐ 0927 소로 — 셀장이 건넨 표는 셀장 이름 하나만 */
   else founderLine(760, 268, 40, 340);
   rule(760, 310, 340);
 
@@ -81,7 +84,7 @@ function drawPass(ctx, W, H, P, F) {
   label(760, 362, 'VALID', '본 PASS의 입력 유효기간');
   ctx.fillStyle = INK; ctx.font = '500 ' + fit(ctx, P.from + ' — ' + P.to, 500, 38, 340, S) + 'px ' + S;
   ctx.fillText(P.from + ' — ' + P.to, 760, 428);
-  const stay = VIP ? '도착한 날로부터 1년 머무실 수 있습니다.' : P.kind === 'beta' ? '도착한 날로부터 3주 체류 가능합니다.' : '도착한 날로부터 2주 체류 가능합니다.';
+  const stay = VIP ? '도착한 날로부터 1년 머무실 수 있습니다.' : (AMI || P.kind === 'beta') ? '도착한 날로부터 3주 체류 가능합니다.' : '도착한 날로부터 2주 체류 가능합니다.';
   ctx.fillStyle = SOFT; ctx.font = '400 ' + fit(ctx, stay, 400, 24, 340, S) + 'px ' + S;
   ctx.fillText(stay, 760, 470);
   rule(760, 496, 340);
@@ -101,6 +104,11 @@ function drawPass(ctx, W, H, P, F) {
     ctx.fillStyle = SOFT; ctx.font = '500 20px ' + M; ls(ctx, 1.5); ctx.fillText('WITH RESPECT', 760, 598); ls(ctx, 0);
     ctx.fillStyle = NAVY; ctx.font = '700 ' + fit(ctx, '존경을 담아', 700, 50, 340, S) + 'px ' + S;
     ctx.fillText('존경을 담아', 760, 648);
+  } else if (AMI) {                                   /* ⭐ 1006 벗 초대장 — 「우정을 담아」(소로) */
+    label(760, 548, 'VALUE', '액면');
+    ctx.fillStyle = SOFT; ctx.font = '500 20px ' + M; ls(ctx, 1.5); ctx.fillText('WITH FRIENDSHIP', 760, 598); ls(ctx, 0);
+    ctx.fillStyle = FOREST; ctx.font = '700 ' + fit(ctx, '우정을 담아', 700, 50, 340, S) + 'px ' + S;
+    ctx.fillText('우정을 담아', 760, 648);
   } else if (P.value) {
     label(760, 548, 'VALUE', '액면');
     ctx.fillStyle = SOFT; ctx.font = '500 26px ' + M; ctx.fillText('KRW', 760, 630);
@@ -112,7 +120,7 @@ function drawPass(ctx, W, H, P, F) {
   /* 아랫줄 — 들어오는 길 */
   ctx.fillStyle = GOLD2; ctx.fillRect(X, 676, CUT - X - 50, 2);
   ctx.fillStyle = INK; ctx.font = '400 27px ' + S;
-  if (BETA || VIP) {
+  if (BETA || VIP || AMI) {
     const b = P.url, c = '  에 들어와 위 번호를 입력해 주십시오';
     let x = X;
     ctx.fillStyle = NAVY; ctx.font = '700 29px ' + M; ctx.fillText(b, x, 722); x += ctx.measureText(b).width;
@@ -253,7 +261,7 @@ function drawPass(ctx, W, H, P, F) {
 
   /* 글꼴 조각을 그릴 글자로 먼저 부른다 — 한글 웹폰트는 쓰는 글자만 내려온다 (대시보드와 같은 까닭) */
   async function loadFonts(P) {
-    const all = Object.values(P).join(' ') + ' 님 받는 분 초대한 도착 본 PASS의 입력 유효기간 번호 액면 처음 오시는 분 기존 이용자의 경우 에서 교양 자화상의 「준회원 바우처 입력」 준회원 바우처 2주 베타 초대권 3주 에 들어와 위 번호를 입력해 주십시오 도착한 날로부터 2주 3주 체류 가능합니다. 초대권 1년 머무실 수 있습니다 존경을 담아 WITH RESPECT INVITATION YEAR ※ EG유니버스는 노트북이나 데스크톱에서 웹으로 접속합니다. 모바일에서는 접속할 수 없으니 착오 없으시길 바랍니다.';
+    const all = Object.values(P).join(' ') + ' 님 받는 분 초대한 도착 본 PASS의 입력 유효기간 번호 액면 처음 오시는 분 기존 이용자의 경우 에서 교양 자화상의 「준회원 바우처 입력」 준회원 바우처 2주 베타 초대권 3주 에 들어와 위 번호를 입력해 주십시오 도착한 날로부터 2주 3주 체류 가능합니다. 초대권 1년 머무실 수 있습니다 존경을 담아 WITH RESPECT INVITATION YEAR 벗 초대장 우정을 담아 WITH FRIENDSHIP FRIEND WEEKS COMPAGNON ※ EG유니버스는 노트북이나 데스크톱에서 웹으로 접속합니다. 모바일에서는 접속할 수 없으니 착오 없으시길 바랍니다.';
     try {
       await Promise.all([
         document.fonts.load('400 30px "Noto Serif KR"', all), document.fonts.load('500 30px "Noto Serif KR"', all),
