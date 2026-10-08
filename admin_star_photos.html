@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>별 사진실 · 은교살롱 admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700&display=swap" rel="stylesheet">
+<!--
+  1008 · 별 사진실 (파이스)
+  포토카드(stars.photo_url)와 액자 사진(stars.framed_url)이 빈 별을 10명씩 한 판으로 세우는 방.
+  ⭐ 순서 — 옛 별(id ≤ 252)의 빈칸 먼저, 그다음 1008에 뜬 별을 id 순으로. 채팅의 주문서 판 번호와 같다.
+  ⭐ 칸에 그림을 끌어 놓으면(또는 눌러 고르면) 브라우저가 webp로 구워 star-photos 에 올리고 그 별의 칸에 넣는다.
+     파일 이름은 star_{id}_{시각}.webp / framed_{id}_{시각}.webp — constella.html · star.html 이 쓰던 이름 꼴 그대로.
+  ⭐ 판은 열 때 한 번 정한다 — 채워도 줄이 밀리지 않는다. 「새로 불러오기」를 누르면 남은 별로 다시 판을 짠다.
+  ⭐ 겉은 별 대기실과 같은 종이 결 — 검은 바탕 금지(소로 「눈 피곤」).
+-->
+<style>
+  :root{
+    --paper:#f8f4ea; --paper-2:#ece4d3; --card:rgba(255,255,255,.55);
+    --ink:#2b2318; --ink-2:#4e4331; --ink-3:#6b5d45; --mute:#a8987a;
+    --gold:#8a5f18; --line:rgba(158,127,58,.28); --line-2:rgba(158,127,58,.16);
+    --ok:#3f6b45; --ok-bg:rgba(63,107,69,.10); --red:#9c3b22;
+    --serif:"Nanum Myeongjo",Georgia,"Apple SD Gothic Neo",serif;
+    --sans:"Helvetica Neue","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;min-height:100vh;padding:0 0 80px;
+    background:linear-gradient(165deg,var(--paper),var(--paper-2));background-attachment:fixed;
+    color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1000px;margin:0 auto;padding:28px 20px;}
+
+  #gate{display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:80vh;text-align:center;gap:12px;padding:24px;font-family:var(--serif);}
+  #gate .msg{color:var(--ink-3);font-size:14px;line-height:1.8;}
+  #gate a{color:var(--gold);}
+
+  .head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    padding-bottom:14px;margin-bottom:18px;border-bottom:1px solid var(--line);}
+  .head h1{margin:0;font-family:var(--serif);font-size:24px;font-weight:700;letter-spacing:.04em;}
+  .head .sub{display:block;margin-top:6px;font-size:12.5px;color:var(--ink-3);font-family:var(--serif);font-weight:400;}
+  .btn{background:var(--card);border:1px solid var(--line);color:var(--ink-2);border-radius:8px;
+    padding:7px 14px;cursor:pointer;font-size:12.5px;font-family:var(--sans);}
+  .btn:hover{border-color:var(--gold);color:var(--ink);}
+  .btn:disabled{opacity:.35;cursor:default;}
+
+  .tally{display:flex;gap:28px;flex-wrap:wrap;margin:4px 0 18px;font-family:var(--serif);}
+  .tally .n{font-family:var(--sans);font-size:26px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;}
+  .tally .l{font-size:13px;color:var(--ink-3);margin-left:4px;}
+  .note{font-family:var(--serif);font-size:13px;line-height:1.85;color:var(--ink-2);
+    background:var(--card);border:1px solid var(--line-2);border-radius:10px;padding:12px 16px;margin-bottom:18px;}
+
+  .pager{display:flex;align-items:center;justify-content:center;gap:14px;margin:6px 0 16px;}
+  .pager .pg{font-family:var(--serif);font-size:16px;font-weight:700;color:var(--ink);min-width:120px;text-align:center;}
+  .pager .pg small{display:block;font-size:12px;font-weight:400;color:var(--ink-3);margin-top:2px;}
+
+  .row{display:grid;grid-template-columns:34px 1fr 128px 128px;gap:16px;align-items:center;
+    padding:14px 12px;border-bottom:1px solid var(--line-2);}
+  .row:first-child{border-top:1px solid var(--line-2);}
+  .row.done{opacity:.55;}
+  .no{font-family:var(--sans);font-size:13px;color:var(--mute);text-align:right;font-variant-numeric:tabular-nums;}
+  .who .nm{font-family:var(--serif);font-size:16px;font-weight:700;color:var(--ink);}
+  .who .yr{font-size:12.5px;color:var(--ink-3);margin-left:6px;font-variant-numeric:tabular-nums;}
+  .who .en{display:block;margin-top:4px;font-size:12.5px;color:var(--ink-3);}
+  .who .id{font-size:11px;color:var(--mute);margin-left:6px;}
+
+  .slot{position:relative;height:150px;border:1.5px dashed var(--line);border-radius:10px;
+    background:rgba(255,255,255,.35);display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:4px;cursor:pointer;overflow:hidden;text-align:center;transition:.15s;}
+  .slot:hover{border-color:var(--gold);}
+  .slot.over{border-color:var(--gold);background:rgba(138,95,24,.10);}
+  .slot .k{font-family:var(--serif);font-size:13px;font-weight:700;color:var(--ink-2);}
+  .slot .h{font-size:11px;color:var(--mute);line-height:1.5;}
+  .slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:rgba(255,255,255,.6);}
+  .slot .tag{position:absolute;left:6px;bottom:6px;font-size:10.5px;padding:2px 7px;border-radius:10px;
+    background:rgba(255,255,255,.85);color:var(--ink-3);z-index:2;}
+  .slot.filled{border-style:solid;border-color:var(--line-2);}
+  .slot.busy::after{content:"올리는 중…";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(248,244,234,.85);font-family:var(--serif);font-size:13px;color:var(--ink-2);z-index:3;}
+  .slot .ok{position:absolute;right:6px;top:6px;z-index:2;font-size:11px;padding:2px 7px;border-radius:10px;
+    background:var(--ok-bg);color:var(--ok);}
+  .slot .err{position:absolute;inset:auto 6px 6px 6px;z-index:3;font-size:11px;color:var(--red);
+    background:rgba(255,255,255,.92);border-radius:6px;padding:3px 5px;}
+
+  .empty{text-align:center;padding:44px 0;color:var(--mute);font-family:var(--serif);font-size:14px;}
+  .heads{display:grid;grid-template-columns:34px 1fr 128px 128px;gap:16px;padding:0 12px 6px;
+    font-size:11.5px;letter-spacing:.1em;color:var(--mute);}
+  .heads span:nth-child(3),.heads span:nth-child(4){text-align:center;}
+</style>
+</head>
+<body>
+
+<div id="gate" style="display:none;">
+  <div class="msg">
+    별 사진실은 살롱지기 전용입니다.<br>
+    소로 계정으로 로그인한 뒤 다시 열어 주십시오.<br><br>
+    <a href="index.html">← 은교살롱 입구로</a>
+  </div>
+</div>
+
+<div id="room" class="wrap" style="display:none;">
+  <div class="head">
+    <h1>별 사진실<span class="sub">포토카드와 액자 사진을 기다리는 별들</span></h1>
+    <button class="btn" onclick="loadQueue()">새로 불러오기</button>
+  </div>
+
+  <div class="tally">
+    <div><span class="n" id="tStars">–</span><span class="l">명 남음</span></div>
+    <div><span class="n" id="tCard">–</span><span class="l">포토카드 빈칸</span></div>
+    <div><span class="n" id="tFrame">–</span><span class="l">액자 빈칸</span></div>
+  </div>
+
+  <div class="note">
+    채팅의 주문서와 같은 판 번호로 열 분씩 섭니다. GPT에서 받은 그림을 그 분의 <b>카드 칸</b> · <b>액자 칸</b>에 끌어 놓으면(또는 눌러 고르면)
+    가벼운 webp로 구워 바로 그 별에 들어갑니다. 이미 찬 칸에 다시 놓으면 바꿉니다. 채워도 줄은 밀리지 않습니다.
+  </div>
+
+  <div class="pager">
+    <button class="btn" id="prev" onclick="go(-1)">‹ 앞 판</button>
+    <div class="pg" id="pg">–</div>
+    <button class="btn" id="next" onclick="go(1)">뒤 판 ›</button>
+  </div>
+
+  <div class="heads"><span></span><span>별</span><span>포토카드</span><span>액자 사진</span></div>
+  <div id="host"><div class="empty">불러오는 중…</div></div>
+</div>
+
+<input type="file" id="pick" accept="image/*" style="display:none">
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
+});
+const PER = 10;               // 한 판에 열 분
+const OLD_MAX_ID = 252;       // 1008 이전에 뜬 별 — 이 빈칸을 먼저 채운다
+let QUEUE = [], page = 0, pickTarget = null;
+
+function esc(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function yr(n){ if (n == null) return '?'; return n < 0 ? `BC ${-n}` : String(n); }
+function latin(st){
+  const al = Array.isArray(st.aliases) ? st.aliases : [];
+  return al.filter(a => /[A-Za-zÀ-ž]/.test(a) && !/[가-힣]/.test(a)).sort((a,b) => b.length - a.length)[0] || '';
+}
+
+async function init(){
+  const { data:{ session } } = await supa.auth.getSession();
+  if (!session){ gate(); return; }
+  const { data:u } = await supa.from('users').select('is_admin').eq('id', session.user.id).single();
+  if (!u || !u.is_admin){ gate(); return; }
+  document.getElementById('gate').style.display = 'none';
+  document.getElementById('room').style.display = '';
+  await loadQueue();
+}
+function gate(){
+  document.getElementById('gate').style.display = 'flex';
+  document.getElementById('room').style.display = 'none';
+}
+
+/* 판은 불러올 때 한 번 짠다 — 채워도 밀리지 않게 */
+async function loadQueue(){
+  const { data, error } = await supa.from('stars')
+    .select('id,name,birth,death,aliases,photo_url,framed_url').order('id');
+  if (error){ document.getElementById('host').innerHTML = `<div class="empty">별을 불러오지 못했습니다 — ${esc(error.message)}</div>`; return; }
+  const need = (data || []).filter(s => !s.photo_url || !s.framed_url);
+  need.sort((a, b) => ((a.id > OLD_MAX_ID) - (b.id > OLD_MAX_ID)) || (a.id - b.id));
+  QUEUE = need;
+  page = Math.min(page, Math.max(0, Math.ceil(QUEUE.length / PER) - 1));
+  render();
+}
+
+function tally(){
+  document.getElementById('tStars').textContent = QUEUE.filter(s => !s.photo_url || !s.framed_url).length;
+  document.getElementById('tCard').textContent  = QUEUE.filter(s => !s.photo_url).length;
+  document.getElementById('tFrame').textContent = QUEUE.filter(s => !s.framed_url).length;
+}
+
+function go(d){ page = Math.max(0, Math.min(page + d, Math.ceil(QUEUE.length / PER) - 1)); render(); window.scrollTo({top:0}); }
+
+function slotHtml(st, kind){
+  const url = kind === 'card' ? st.photo_url : st.framed_url;
+  const label = kind === 'card' ? '포토카드' : '액자';
+  return `<div class="slot ${url ? 'filled' : ''}" data-id="${st.id}" data-kind="${kind}">
+      ${url ? `<img src="${esc(url)}" alt="" loading="lazy"><span class="tag">다시 놓으면 바꿈</span>`
+            : `<span class="k">${label}</span><span class="h">끌어 놓기<br>또는 눌러 고르기</span>`}
+    </div>`;
+}
+
+function render(){
+  tally();
+  const pages = Math.max(1, Math.ceil(QUEUE.length / PER));
+  const rows = QUEUE.slice(page * PER, page * PER + PER);
+  const left = rows.filter(s => !s.photo_url || !s.framed_url).length;
+  document.getElementById('pg').innerHTML = `${page + 1}판 <small>${pages}판 가운데 · 이 판 남은 별 ${left}</small>`;
+  document.getElementById('prev').disabled = page === 0;
+  document.getElementById('next').disabled = page >= pages - 1;
+  const host = document.getElementById('host');
+  if (!rows.length){ host.innerHTML = '<div class="empty">모든 별이 얼굴을 찾았습니다.</div>'; return; }
+  host.innerHTML = rows.map((s, i) => `
+    <div class="row ${s.photo_url && s.framed_url ? 'done' : ''}" id="row-${s.id}">
+      <div class="no">${page * PER + i + 1}</div>
+      <div class="who">
+        <span class="nm">${esc(s.name)}</span><span class="yr">${yr(s.birth)}–${yr(s.death)}</span><span class="id">#${s.id}</span>
+        <span class="en">${esc(latin(s))}</span>
+      </div>
+      ${slotHtml(s, 'card')}
+      ${slotHtml(s, 'frame')}
+    </div>`).join('');
+}
+
+/* ── 끌어 놓기 · 눌러 고르기 ── */
+const host = () => document.getElementById('host');
+document.addEventListener('dragover', e => { e.preventDefault(); });
+document.addEventListener('drop', e => { if (!e.target.closest('.slot')) e.preventDefault(); });
+document.addEventListener('DOMContentLoaded', () => {
+  const h = host();
+  h.addEventListener('dragover', e => { const s = e.target.closest('.slot'); if (s){ e.preventDefault(); s.classList.add('over'); } });
+  h.addEventListener('dragleave', e => { const s = e.target.closest('.slot'); if (s) s.classList.remove('over'); });
+  h.addEventListener('drop', e => {
+    const s = e.target.closest('.slot'); if (!s) return;
+    e.preventDefault(); s.classList.remove('over');
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) place(s, f);
+  });
+  h.addEventListener('click', e => {
+    const s = e.target.closest('.slot'); if (!s || s.classList.contains('busy')) return;
+    pickTarget = s; document.getElementById('pick').click();
+  });
+  document.getElementById('pick').addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    if (f && pickTarget) place(pickTarget, f);
+    e.target.value = ''; pickTarget = null;
+  });
+});
+
+/* 그림 → webp (긴 변 1600px 이하, 투명 유지). webp를 못 굽는 브라우저면 원본 그대로 */
+async function toWebp(file){
+  try{
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+    const w = Math.round(bmp.width * k), h = Math.round(bmp.height * k);
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    c.getContext('2d').drawImage(bmp, 0, 0, w, h);
+    const blob = await new Promise(r => c.toBlob(r, 'image/webp', 0.9));
+    if (blob && blob.type === 'image/webp') return { blob, ext:'webp', type:'image/webp' };
+  }catch(e){ console.warn('[사진실] webp 굽기 실패 — 원본으로 올림', e); }
+  const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+  return { blob:file, ext, type:file.type || 'image/png' };
+}
+
+async function place(slot, file){
+  if (!file.type.startsWith('image/')){ flash(slot, '그림 파일이 아닙니다'); return; }
+  const id = Number(slot.dataset.id), kind = slot.dataset.kind;
+  const st = QUEUE.find(s => s.id === id); if (!st) return;
+  slot.classList.add('busy');
+  try{
+    const { blob, ext, type } = await toWebp(file);
+    const path = `${kind === 'card' ? 'star' : 'framed'}_${id}_${Date.now()}.${ext}`;
+    const up = await supa.storage.from('star-photos').upload(path, blob, { contentType:type, upsert:false });
+    if (up.error) throw up.error;
+    const url = supa.storage.from('star-photos').getPublicUrl(path).data.publicUrl;
+    const col = kind === 'card' ? 'photo_url' : 'framed_url';
+    const { data:back, error } = await supa.from('stars').update({ [col]: url }).eq('id', id).select('id,' + col).single();
+    if (error) throw error;
+    if (!back || back[col] !== url) throw new Error('별 칸에 들어가지 않았습니다');
+    st[col] = url;
+    const row = document.getElementById('row-' + id);
+    slot.outerHTML = slotHtml(st, kind);
+    if (row && st.photo_url && st.framed_url) row.classList.add('done');
+    const s2 = row && row.querySelector(`.slot[data-kind="${kind}"]`);
+    if (s2){ const ok = document.createElement('span'); ok.className = 'ok'; ok.textContent = '✓ 들어감'; s2.appendChild(ok); }
+    tally();
+    const left = QUEUE.slice(page * PER, page * PER + PER).filter(s => !s.photo_url || !s.framed_url).length;
+    document.querySelector('#pg small').textContent = `${Math.max(1, Math.ceil(QUEUE.length / PER))}판 가운데 · 이 판 남은 별 ${left}`;
+  }catch(e){
+    console.error('[사진실]', e);
+    slot.classList.remove('busy');
+    flash(slot, '올리지 못했습니다 — ' + (e.message || e));
+  }
+}
+function flash(slot, msg){
+  const m = document.createElement('span'); m.className = 'err'; m.textContent = msg;
+  slot.appendChild(m); setTimeout(() => m.remove(), 6000);
+}
+
+init();
+</script>
+</body>
+</html>
