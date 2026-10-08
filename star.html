@@ -217,6 +217,13 @@ body.is-admin .framed-wrap:hover .framed-upload{display:flex}
 }
 .cur-chip:hover{background:var(--hover)}
 
+/* 1008 — 책갈피 장면(가이드북 낭독 칸 · 비행 방송 칸)의 녹음. 글 칸(68px + 12px) 줄에 맞춰 선다 */
+.voice-row{display:flex;align-items:center;gap:12px;margin:0 0 14px 80px}
+.voice-btn{font-family:inherit;font-size:13px;font-weight:700;color:var(--accent);background:transparent;
+  border:1px solid var(--bullet);border-radius:999px;padding:6px 16px;cursor:pointer;transition:.15s}
+.voice-btn:hover,.voice-btn.on{background:var(--hover)}
+.voice-dur{font-size:12px;color:var(--ink-faint);font-variant-numeric:tabular-nums}
+
 /* 보물 순례 */
 .treasure-path{margin-top:16px;padding-top:14px;border-top:1px dashed var(--dash)}
 .tp-label{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--ink-faint);margin-bottom:8px}
@@ -1383,7 +1390,8 @@ async function loadFloor0(starId) {
           <span class="scene-count">${esc(workLabel(r.work))}</span>
         </div>
         <div class="scene-layers">
-          ${layerHtml('지식', r.knowledge)}
+          ${r.question_type === 'pa' ? voiceHtml(r.curation_links && r.curation_links.voice) : ''}
+          ${layerHtml(r.question_type === 'pa' ? (r.work === 'EG가이드북' ? '낭독' : '방송') : '지식', r.knowledge)}
           ${layerHtml('사유', r.thought)}
           ${layerHtml('연결', r.connection)}
           ${layerHtml('큐레이션', r.curation)}
@@ -1396,6 +1404,14 @@ async function loadFloor0(starId) {
 
   /* ⭐ 접기·펴기는 위임 한 곳에서. 줄마다 onclick을 박으면 줄이 늘 때마다 핸들도 는다.
      ⚠ 펼친 판 안을 눌러도 안 닫힌다 — .scene-line을 눌렀을 때만 여닫는다. */
+  /* 1008 — ▶ 듣기. 줄 여닫기 위임과 따로 둔다(단추는 펼친 판 안에 있다) */
+  body.addEventListener('click', e => {
+    const vb = e.target.closest('.voice-btn');
+    if (!vb) return;
+    e.stopPropagation();
+    toggleVoice(vb);
+  });
+
   body.addEventListener('click', e => {
     const line = e.target.closest('.scene-line');
     if (!line) return;
@@ -1467,6 +1483,38 @@ function renderCurationLinksStar(links) {
 
 /* ⚠ 0814 — links 인자를 걷었다. 큐레이션 링크는 4겹 **안**이 아니라 아래에
      따로 선다(소로 시안). 안에 넣으면 「큐레이션」 층만 두 배로 길어진다. */
+/* ══ 1008 책갈피 녹음 ═════════════════════════════════════════════════════
+   get_star_questions 가 pa 장면의 녹음을 curation_links.voice {url, dur, ref} 로 실어 보낸다.
+   한 번에 한 소리만 — 다른 단추를 누르면 앞의 소리는 멈춘다. 같은 단추를 다시 누르면 멈춤/이어 듣기. */
+let _voiceAudio = null, _voiceBtn = null;
+function voiceHtml(v) {
+  if (!v || !v.url) return '';
+  const e = s => String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const sec = Math.round(Number(v.dur) || 0);
+  const dur = sec >= 60 ? `${Math.floor(sec / 60)}분 ${sec % 60}초` : (sec ? `${sec}초` : '');
+  return `<div class="voice-row">
+      <button type="button" class="voice-btn" data-src="${e(v.url)}">▶ 듣기</button>
+      <span class="voice-dur">${dur}</span>
+    </div>`;
+}
+function setVoiceBtn(btn, on) {
+  if (!btn) return;
+  btn.classList.toggle('on', on);
+  btn.textContent = on ? '❚❚ 멈춤' : '▶ 듣기';
+}
+function toggleVoice(btn) {
+  if (_voiceBtn === btn && _voiceAudio) {
+    if (_voiceAudio.paused) { _voiceAudio.play().then(() => setVoiceBtn(btn, true)).catch(() => setVoiceBtn(btn, false)); }
+    else { _voiceAudio.pause(); setVoiceBtn(btn, false); }
+    return;
+  }
+  if (_voiceAudio) { _voiceAudio.pause(); setVoiceBtn(_voiceBtn, false); }
+  const a = new Audio(btn.dataset.src);
+  _voiceAudio = a; _voiceBtn = btn;
+  a.addEventListener('ended', () => { setVoiceBtn(btn, false); if (_voiceAudio === a) { _voiceAudio = null; _voiceBtn = null; } });
+  a.play().then(() => setVoiceBtn(btn, true)).catch(err => { console.warn('[별] 녹음 재생 실패:', err); setVoiceBtn(btn, false); });
+}
+
 function layerHtml(label, text) {
   if (!text) return '';
   return `
