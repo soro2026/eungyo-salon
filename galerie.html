@@ -365,7 +365,7 @@ const CODE=qs.get('code')||'orsay';
 /* HALLS — 관 전체 명단. 당번 판정이 boot() 밖(stampHere)에서 필요해 전역으로 올렸다.
    ⚠ active로 거르지 않는다. terra.html의 loadGalerieHallsAll()이 잠든 관까지 싣고
      그 길이로 나머지를 구하므로, 여기서 걸러내면 당번이 타륜과 어긋난다. */
-let HALL=null, HALLS=null, ART=null, ARTS=null, RECT=null, RECT0=null, moved=false, IS_ADMIN=false, UID=null, MY_RENT=null;
+let HALL=null, HALLS=null, ART=null, ARTS=null, RECT=null, RECT0=null, moved=false, IS_ADMIN=false, UID=null, MY_RENT=null, MY_RENTS=[];   /* 1008 — 곁에 둔 그림 일곱 점(최근 → 오래된) · MY_RENT = 그중 맨 앞(벽에 걸린 한 점) */
 let PLQ=null, PLQ0=null;          /* 명패 좌표 {X:가운데%, Y:윗변%} · null이면 액자를 따라간다 */
 
 /* ── 시각 — egSky 한 벌. 없으면 낮 (함정 F: 시각은 새로 재지 마라) ── */
@@ -545,13 +545,14 @@ async function boot(){
 }
 /* 내 거실의 미술 1점 — 교체식이므로 살아 있는 것은 최대 하나다 */
 async function loadMyRent(){
-  if(!UID){ MY_RENT=null; return; }
+  if(!UID){ MY_RENT=null; MY_RENTS=[]; return; }
   const { data } = await supa.from('heritage_rentals')
     .select('item_id, heritage_items!inner(name,category)')
     .eq('user_id',UID).is('returned_at',null)
     .eq('heritage_items.category','visual')
-    .order('created_at',{ascending:false}).limit(1);   /* ⚠ 칼럼 실측: rented_at 아님 */
-  MY_RENT = (data && data[0]) ? { item_id:data[0].item_id, name:data[0].heritage_items.name } : null;
+    .order('created_at',{ascending:false}).limit(7);   /* ⚠ 칼럼 실측: rented_at 아님 · 1008 일곱 점 */
+  MY_RENTS = (data||[]).map(r => ({ item_id:r.item_id, name:r.heritage_items.name }));
+  MY_RENT  = MY_RENTS[0] || null;
 }
 
 /* ── 작품 걸기 ──────────────────────────────────────────────
@@ -671,6 +672,7 @@ let ART_PRICE=null;
 async function paintRentLine(){
   const el=$('#pRent'); if(!ART){ el.textContent=''; return; }
   if(MY_RENT && MY_RENT.item_id===ART.id){ el.textContent='🍎 거실에 걸려 있음'; return; }
+  if(MY_RENTS.some(r=>r.item_id===ART.id)){ el.textContent='🍎 거실 아카이브에 있음'; return; }
   if(ART_PRICE==null){
     const { data } = await supa.rpc('art_price', { p_item_id: ART.id });
     ART_PRICE = (data!=null) ? Number(data) : 1;
@@ -1074,18 +1076,25 @@ function openLayers(){
 }
 function closeLayers(){ $('#layers').classList.remove('on'); }
 
-/* ══ 대여 — 교체식. RPC(rent_item)가 반납·차감·대여를 한 트랜잭션으로 ══ */
+/* ══ 대여 — 일곱 점(1008). RPC(rent_item)가 반납·차감·대여를 한 트랜잭션으로 ══
+   새 그림은 거실 벽에 걸리고, 있던 그림은 거실 아카이브로 물러난다.
+   여덟째가 들어오면 가장 오래 곁에 둔 한 점이 미술관으로 돌아간다. */
 function askRent(){
   if(editing) return;
   if(EG_TT_DAY!=null){ toast('⏱ 시간 여행 중에는 빌릴 수 없습니다'); return; }
   if(!ART) return;
   if(!UID){ toast('입장 후 빌릴 수 있습니다'); return; }
   if(MY_RENT && MY_RENT.item_id===ART.id){ toast('이미 거실에 걸려 있습니다'); return; }
+  if(MY_RENTS.some(r=>r.item_id===ART.id)){ toast('이미 거실 아카이브에 있는 그림입니다'); return; }
   const price=(ART_PRICE!=null?ART_PRICE:1).toFixed(2);
   $('#rpT').textContent='〈'+ART.name+'〉을 거실에 들일까요?';
-  $('#rpS').innerHTML=(MY_RENT
-      ? '지금 거실의 〈'+escapeHtml(MY_RENT.name)+'〉은 미술관으로 돌아갑니다.<br>'
-      : '분더카머 1층 거실에 걸립니다.<br>')
+  const oldest = MY_RENTS.length>=7 ? MY_RENTS[MY_RENTS.length-1] : null;
+  $('#rpS').innerHTML='분더카머 1층 거실 벽에 걸립니다.<br>'
+    + (oldest
+      ? '곁에는 일곱 점까지 둘 수 있어, 가장 오래된 〈'+escapeHtml(oldest.name)+'〉은 미술관으로 돌아갑니다.<br>'
+      : MY_RENT
+        ? '지금의 〈'+escapeHtml(MY_RENT.name)+'〉은 거실 아카이브로 물러납니다.<br>'
+        : '')
     + '황금사과 <b>'+price+'알</b>이 듭니다.';
   $('#rpGo').textContent='🍎 '+price+'알로 들이기';
   $('#rentPop').classList.add('on');
@@ -1100,8 +1109,8 @@ async function confirmRent(){
   const old=data && data.swapped_out;
   const paid=(data && data.price!=null)?Number(data.price).toFixed(2):'';
   toast(old
-    ? '〈'+old+'〉이 돌아가고 〈'+(data.name||ART.name)+'〉이 거실에 걸립니다 🍎'+paid
-    : '〈'+(data.name||ART.name)+'〉이 분더카머로 떠납니다 🍎'+paid);
+    ? '〈'+old+'〉이 미술관으로 돌아가고 〈'+(data.name||ART.name)+'〉이 거실에 걸립니다 🍎'+paid
+    : '〈'+(data.name||ART.name)+'〉이 분더카머 거실에 걸립니다 🍎'+paid);
   ART_PRICE=null;                        /* 방금의 대여가 장작이다 — 값을 다시 잰다 */
   await loadMyRent(); await paintRentLine();
 }

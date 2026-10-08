@@ -256,6 +256,27 @@ html, body {
 .floor-content[data-floor="1"] .sl-plaque .p-voice.on{ display:block; }
 .floor-content[data-floor="1"] .sl-plaque .p-voice:hover{ color:#f6ecd2; }
 .floor-content[data-floor="1"] .sl-plaque .p-voice .vd{ opacity:.55; margin-left:.4em; font-size:.92em; }
+/* ⭐ 1008 — 아카이브. 곁에 둔 그림 일곱 점을 같은 벽 같은 자리에서 ‹ › 로 넘겨 본다.
+   명패 맨 아래 한 줄(「아카이브 · 7점」)이 문이고, 열리면 그림 양옆에 화살표가 선다.
+   ⚠ 화살표는 .sl-art 안에 산다 — 그림이 움직이면(redraw · 편집) 함께 따라간다. */
+.floor-content[data-floor="1"] .sl-plaque .p-arch{
+  margin-top:.5em; font-size:.42em; letter-spacing:.12em; color:rgba(232,214,168,.78);
+  cursor:pointer; user-select:none; font-family:'Cormorant Garamond','Noto Serif KR',serif;
+}
+.floor-content[data-floor="1"] .sl-plaque .p-arch:hover{ color:#f6ecd2; }
+.floor-content[data-floor="1"] .sl-plaque.ink-dark .p-arch{ color:rgba(90,70,26,.85); }
+.floor-content[data-floor="1"] .sl-plaque.ink-dark .p-arch:hover{ color:#3a2c10; }
+.floor-content[data-floor="1"] .sl-art .sl-nav{
+  position:absolute; top:50%; width:38px; height:38px; margin-top:-19px; border-radius:50%;
+  border:1px solid rgba(232,214,168,.55); background:rgba(26,19,14,.55); color:#f2ead6;
+  font-family:'Cormorant Garamond',serif; font-size:24px; line-height:34px; text-align:center;
+  cursor:pointer; user-select:none; backdrop-filter:blur(2px); transition:background .2s ease, transform .2s ease;
+}
+.floor-content[data-floor="1"] .sl-art .sl-nav:hover{ background:rgba(201,168,76,.55); }
+.floor-content[data-floor="1"] .sl-art .sl-nav.prev{ left:-58px; }
+.floor-content[data-floor="1"] .sl-art .sl-nav.next{ right:-58px; }
+.floor-content[data-floor="1"] .sl-art .sl-nav.prev:hover{ transform:translateX(-2px); }
+.floor-content[data-floor="1"] .sl-art .sl-nav.next:hover{ transform:translateX(2px); }
 /* 흰 벽에 상아색을 얹으면 글자가 벽에 먹힌다 — 재서 뒤집는다 */
 .floor-content[data-floor="1"] .sl-plaque.ink-dark{ text-shadow:0 1px 2px rgba(255,255,255,.32); }
 .floor-content[data-floor="1"] .sl-plaque.ink-dark .p-name{ color:#2a2318; }
@@ -3259,22 +3280,46 @@ const Salon = (() => {
     }
   }
 
-  async function loadArt(stage, oid){
-    stage.querySelectorAll('.sl-art, .sl-empty, .sl-plaque').forEach(el => el.remove());
+  /* ⭐ 1008 소로 — 곁에 둔 그림은 일곱 점까지(rent_item이 넘치면 가장 오래된 것부터 돌려보낸다).
+       벽에는 가장 최근 한 점. 명패 아래 [아카이브]를 누르면 ‹ › 로 나머지를 넘겨 본다.
+       손님(방문객)도 똑같이 넘겨 본다 — 주인장의 그림 취향이 드러나는 방.
+     ⚠ 그림(visual)만 센다 — 옛 음반 대여가 섞이면 벽에 곡이 걸린다(1008 전에는 거르지 않았다). */
+  let ARTS = [], ART_I = 0, ARCH_OPEN = false;
 
-    let item = null;
+  async function loadArt(stage, oid){
+    ARTS = []; ART_I = 0; ARCH_OPEN = false;
     if (oid){
       try{
         const rows = await sbFetch(
           `/rest/v1/heritage_rentals?user_id=eq.${oid}&returned_at=is.null`
-          + `&select=item_id,created_at&order=created_at.desc&limit=1`);
-        const id = rows?.[0]?.item_id;
-        if (id){
-          const it = await sbFetch(`/rest/v1/heritage_items?id=eq.${encodeURIComponent(id)}&select=*`);
-          item = it?.[0] || null;
+          + `&select=item_id,created_at,heritage_items!inner(category)&heritage_items.category=eq.visual`
+          + `&order=created_at.desc&limit=7`);
+        const ids = (rows || []).map(r => r.item_id);
+        if (ids.length){
+          const its = await sbFetch(`/rest/v1/heritage_items?id=in.(${ids.map(encodeURIComponent).join(',')})&select=*`);
+          const by = {}; (its || []).forEach(it => { by[it.id] = it; });
+          ARTS = ids.map(id => by[id]).filter(Boolean);       /* 들인 차례(최근 → 오래된) 그대로 */
         }
       }catch(e){ console.warn('[거실] 그림 조회 실패', e); }
     }
+    drawArt(stage);
+  }
+
+  /* 아카이브 넘기기 — 끝에서 처음으로 돈다. 닫으면 가장 최근 그림으로 돌아간다 */
+  function stepArt(stage, d){
+    if (ARTS.length < 2) return;
+    ART_I = (ART_I + d + ARTS.length) % ARTS.length;
+    drawArt(stage);
+  }
+  function toggleArch(stage){
+    ARCH_OPEN = !ARCH_OPEN;
+    if (!ARCH_OPEN) ART_I = 0;
+    drawArt(stage);
+  }
+
+  function drawArt(stage){
+    stage.querySelectorAll('.sl-art, .sl-empty, .sl-plaque').forEach(el => el.remove());
+    const item = ARTS[ART_I] || null;
     ART = item;
     const a = artBox(), x = a.x;
 
@@ -3293,6 +3338,16 @@ const Salon = (() => {
     wrap.style.cssText = `left:${x}%; top:${a.top}%; height:${a.h}%;`;
     wrap.innerHTML = `<img src="${item.img}" alt="${esc2(item.name)}"><div class="sl-h"></div>`;
     wrap.onclick = ()=> { if (!EDITING) openZoom(item); };
+    if (ARCH_OPEN && ARTS.length > 1 && !EDITING){
+      const nav = (cls, d, label)=>{
+        const b = document.createElement('div');
+        b.className = 'sl-nav ' + cls; b.textContent = label;
+        b.title = d < 0 ? '앞 그림' : '다음 그림';
+        b.onclick = (e)=>{ e.stopPropagation(); stepArt(stage, d); };
+        wrap.appendChild(b);
+      };
+      nav('prev', -1, '‹'); nav('next', 1, '›');
+    }
     stage.appendChild(wrap);
     if (EDITING) armArt(stage, wrap);
 
@@ -3301,9 +3356,14 @@ const Salon = (() => {
     pl.style.cssText = `left:${x}%; top:${a.top + a.h + 1.4}%;`;
     pl.innerHTML = `<div class="p-name">${esc2(item.name || '무제')}</div>`
                  + `<div class="p-artist">${esc2(item.artist || '')}</div>`
-                 + `<div class="p-voice" id="sl-voice"></div>`;
+                 + `<div class="p-voice" id="sl-voice"></div>`
+                 + (ARTS.length > 1
+                     ? `<div class="p-arch">${ARCH_OPEN ? `${ART_I + 1} / ${ARTS.length} · 닫기` : `아카이브 · ${ARTS.length}점`}</div>`
+                     : '');
     pl.onclick = (e)=>{ e.stopPropagation(); if (!EDITING) openNote(item); };
     pl.querySelector('.p-voice').onclick = (e)=>{ e.stopPropagation(); toggleArtVoice(); };
+    const arch = pl.querySelector('.p-arch');
+    if (arch) arch.onclick = (e)=>{ e.stopPropagation(); if (!EDITING) toggleArch(stage); };
     stage.appendChild(pl);
     paintArtVoice(item);
   }
