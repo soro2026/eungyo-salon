@@ -144,6 +144,35 @@ html,body{height:100%;background:#000;overflow:hidden;
   padding-left:clamp(8px,1.4vw,14px);border-left:1px solid rgba(201,162,74,.22);
   cursor:pointer;transition:color .25s;}
 #linerBtn .bar-voice:hover{color:var(--gold-l);}
+/* ⭐ 1008 — 레코드장에 담기. 그날 그 홀에서 들은 곡만 거실 레코드장(일곱 장)에 꽂는다.
+   「만나고 나서 간직한다」 — 담는 문은 무대 앞에만 있다(별 페이지에는 없다). */
+#linerBtn .bar-keep{flex:none;font-size:clamp(9.5px,1.5vmin,11.5px);
+  letter-spacing:.06em;color:rgba(201,162,74,.88);white-space:nowrap;
+  padding-left:clamp(8px,1.4vw,14px);border-left:1px solid rgba(201,162,74,.22);
+  cursor:pointer;transition:color .25s;}
+#linerBtn .bar-keep:hover{color:var(--gold-l);}
+#linerBtn .bar-keep.done{color:rgba(232,221,196,.5);cursor:default;}
+#keepPop{position:fixed;inset:0;z-index:46;display:none;place-items:center;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);}
+#keepPop.on{display:grid;}
+.kp-box{width:min(92vw,430px);background:#f6efdd;color:#2a2318;border-radius:18px;
+  padding:26px 26px 22px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.5);
+  font-family:'Noto Serif KR','Nanum Myeongjo',serif;}
+.kp-t{font-size:15px;font-weight:700;line-height:1.7;word-break:keep-all;}
+.kp-s{font-size:12.5px;color:rgba(42,35,24,.65);margin-top:12px;line-height:1.9;word-break:keep-all;}
+.kp-n{margin-top:16px;padding-top:14px;border-top:1px solid rgba(122,90,26,.18);font-size:11.5px;color:rgba(42,35,24,.6);line-height:1.8;}
+.kp-dots{display:flex;gap:7px;justify-content:center;margin-bottom:6px;}
+.kp-dots i{width:9px;height:9px;border-radius:50%;border:1px solid rgba(42,35,24,.35);display:block;}
+.kp-dots i.on{background:#2a2318;border-color:#2a2318;}
+.kp-dots i.new{background:#c9a84c;border-color:#9a7a2a;}
+.kp-dots i.out{background:rgba(42,35,24,.18);border-color:rgba(42,35,24,.25);}
+.kp-btns{display:flex;gap:10px;justify-content:center;margin-top:22px;}
+.kp-btns button{font:inherit;font-size:12.5px;letter-spacing:.06em;border-radius:18px;padding:9px 20px;cursor:pointer;}
+.kp-go{background:#2f4a7a;color:#f2f0ea;border:none;}
+.kp-no{background:none;border:1px solid rgba(122,90,26,.4);color:rgba(42,35,24,.7);}
+#kToast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(10px);z-index:47;
+  background:rgba(20,16,11,.9);color:#f0e6d2;border:1px solid rgba(201,162,74,.4);border-radius:22px;
+  padding:9px 18px;font-size:12.5px;opacity:0;pointer-events:none;transition:opacity .3s,transform .3s;}
+#kToast.on{opacity:1;transform:translateX(-50%) translateY(0);}
 @media (max-width:620px){
   #linerBtn{max-width:calc(100vw - 28px);}
   #linerBtn .bar-go{display:none;}
@@ -278,6 +307,8 @@ html,body{height:100%;background:#000;overflow:hidden;
     </span>
     <span class="bar-voice" id="barVoice" hidden
           onclick="event.stopPropagation();toggleSongVoice()"></span>
+    <span class="bar-keep" id="barKeep" hidden
+          onclick="event.stopPropagation();askKeep()"></span>
     <span class="bar-go">곡 소개</span>
   </button>
 </div>
@@ -294,6 +325,16 @@ html,body{height:100%;background:#000;overflow:hidden;
     <button id="linerClose">닫기</button>
   </div>
 </div>
+
+<!-- 레코드장에 담기 (1008) -->
+<div id="keepPop" onclick="if(event.target===this)closeKeep()">
+  <div class="kp-box">
+    <div class="kp-t" id="kpT"></div>
+    <div class="kp-s" id="kpS"></div>
+    <div class="kp-btns"><button class="kp-go" id="kpGo" onclick="confirmKeep()"></button><button class="kp-no" onclick="closeKeep()">그만두기</button></div>
+  </div>
+</div>
+<div id="kToast"></div>
 
 <!-- 스크린 좌표 편집기 (살롱지기 전용) -->
 <button id="editOpen">⚙ 스크린 맞추기</button>
@@ -486,6 +527,7 @@ async function boot(){
   $('#barTitle').textContent = SONG.name || '';
   $('#barSub').textContent   = [SONG.artist, SONG.period].filter(Boolean).join(' · ');
   loadSongVoice();      /* 0807 — 구워진 곡에만 「▶ 이 곡 이야기」가 선다 */
+  loadMyRecs();         /* 1008 — 손님이면 「🍎 레코드장에 담기」가 선다 */
   /* 스크린 좌표 — 홀마다 그림이 다르므로 meta가 있으면 그것이 먼저다 */
   const r = HALL.meta && HALL.meta.screen_rect;
   if(r) RECT = Object.assign({}, RECT, r);
@@ -522,6 +564,82 @@ function enterHall(){
 }
 $('#gate').addEventListener('click', enterHall);
 $('#gate').addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' ') enterHall(); });
+
+/* ══ 레코드장에 담기 (1008 소로) ═════════════════════════════════════
+   「즐겨찾기처럼, 특정 곡을 내 분더카머 1층 거실에서 들을 수 있게」.
+   ⭐ 담는 문은 무대 앞에만 — 그날 그 홀에서 만난 곡만 간직한다(0816 「곡은 만나는 날에만」을 지킨다).
+   ⭐ 거실 레코드장은 일곱 장. 여덟째가 들어오면 가장 오래된 판이 음악관으로 돌아간다(rent_item).
+   ⭐ 값은 그림과 같은 온도(art_price). 손님(입장 안 한 분)에게는 안 보인다. */
+let ME=null, MY_RECS=[], KEEP_PRICE=null;
+function escK(t){ return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function josa(w,a,b){
+  const c=String(w||'').trim().replace(/[〉」』)\]\s.]+$/,'').slice(-1);
+  const k=c.charCodeAt(0);
+  if(k>=0xAC00 && k<=0xD7A3) return ((k-0xAC00)%28) ? a : b;
+  return a+'('+b+')';
+}
+async function loadMyRecs(){
+  const el=$('#barKeep'); if(!el || !SONG) return;
+  try{
+    const { data:{ user } } = await supa.auth.getUser();
+    if(!user){ el.hidden=true; return; }
+    ME=user;
+    const { data } = await supa.from('heritage_rentals')
+      .select('item_id, created_at, heritage_items!inner(name,category)')
+      .eq('user_id',user.id).is('returned_at',null)
+      .eq('heritage_items.category','record')
+      .order('created_at',{ascending:false}).limit(7);
+    MY_RECS=(data||[]).map(r=>({ item_id:r.item_id, name:r.heritage_items.name }));
+    paintKeep();
+  }catch(e){ console.warn('[레코드장] 못 읽었습니다 — 담기 칸은 접습니다', e); }
+}
+function paintKeep(){
+  const el=$('#barKeep'); if(!el || !SONG || !ME) return;
+  const has=MY_RECS.some(r=>r.item_id===SONG.id);
+  el.textContent = has ? '🍎 레코드장에 있음' : '🍎 레코드장에 담기';
+  el.classList.toggle('done', has);
+  el.hidden=false;
+}
+function kToast(m){
+  const t=$('#kToast'); t.textContent=m; t.classList.add('on');
+  clearTimeout(kToast._t); kToast._t=setTimeout(()=>t.classList.remove('on'), 2600);
+}
+async function askKeep(){
+  if(!SONG || !ME) return;
+  if(MY_RECS.some(r=>r.item_id===SONG.id)){ kToast('이미 거실 레코드장에 있는 곡입니다'); return; }
+  if(KEEP_PRICE==null){
+    try{ const { data } = await supa.rpc('art_price', { p_item_id:SONG.id }); KEEP_PRICE=(data!=null)?Number(data):1; }
+    catch(e){ KEEP_PRICE=1; }
+  }
+  const price=KEEP_PRICE.toFixed(2), n=MY_RECS.length, oldest=n>=7 ? MY_RECS[n-1] : null;
+  $('#kpT').textContent='〈'+SONG.name+'〉'+josa(SONG.name,'을','를')+' 레코드장에 담을까요?';
+  $('#kpS').innerHTML=
+      (oldest
+        ? '거실 레코드장에 꽂히고,<br>일곱 장이 다 차서 가장 오래된 〈'+escK(oldest.name)+'〉'+josa(oldest.name,'은','는')+' 음악관으로 돌아갑니다.<br>'
+        : '분더카머 거실 레코드장에 꽂힙니다.<br>감상 모드에서 언제든 다시 들을 수 있습니다.<br>')
+    + '황금사과 <b>'+price+'알</b>이 듭니다.'
+    + '<div class="kp-n"><div class="kp-dots">'
+    + Array.from({length:7},(_,i)=>'<i class="'+(i<n ? (oldest && i===6 ? 'out' : 'on') : (i===n ? 'new' : ''))+'"></i>').join('')
+    + '</div>거실 레코드장에는 일곱 장까지 꽂을 수 있습니다 · '
+    + (n ? '지금 <b>'+n+'장</b>' : '지금은 비어 있습니다') + '</div>';
+  $('#kpGo').textContent='🍎 '+price+'알로 담기';
+  $('#keepPop').classList.add('on');
+}
+function closeKeep(){ $('#keepPop').classList.remove('on'); }
+async function confirmKeep(){
+  closeKeep();
+  if(!SONG || !ME) return;
+  const nick=localStorage.getItem('eg_nickname')||'';
+  const { data, error } = await supa.rpc('rent_item', { p_item_id:SONG.id, p_user_id:ME.id, p_nickname:nick });
+  if(error){ kToast(error.message||'담지 못했습니다'); return; }
+  const old=data && data.swapped_out, nw=(data && data.name)||SONG.name;
+  const paid=(data && data.price!=null) ? Number(data.price).toFixed(2) : '';
+  kToast(old
+    ? '〈'+old+'〉'+josa(old,'이','가')+' 음악관으로 돌아가고 〈'+nw+'〉'+josa(nw,'이','가')+' 레코드장에 꽂힙니다 🍎'+paid
+    : '〈'+nw+'〉'+josa(nw,'이','가')+' 거실 레코드장에 꽂힙니다 🍎'+paid);
+  KEEP_PRICE=null;
+  await loadMyRecs();
+}
 
 /* ── 재생 ── */
 function play(){
