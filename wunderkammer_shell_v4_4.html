@@ -318,6 +318,10 @@ html, body {
 .sl-music .lm-wall{ position:absolute; background:#000; overflow:hidden;
   box-shadow:inset 0 0 60px rgba(0,0,0,.9), 0 0 40px rgba(255,200,100,.15); }
 .sl-music .lm-wall iframe{ position:absolute; inset:0; width:100%; height:100%; border:0; }
+/* 유리막 — 음악관 스크린(#ytGuard · 0808)과 같은 법. 손을 대도 유튜브 제목 · 단추가 안 뜬다.
+   한 번 누르면 멈춤/다시 · 두 번 누르면 8초 걷힘(슬라이드바가 필요할 때) · 손이 떠나면 다시 덮인다 */
+.sl-music .lm-guard{ position:absolute; inset:0; z-index:3; cursor:pointer; background:transparent; }
+.sl-music .lm-guard.off{ display:none; }
 .sl-music .lm-hint{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center;
   color:#7a6644; font-size:12px; letter-spacing:.2em; padding:14px; line-height:1.9; font-style:italic; }
 .sl-music .lm-tube{ position:absolute; aspect-ratio:1; border-radius:50%; pointer-events:none; mix-blend-mode:screen; opacity:.45; transition:opacity 1.2s; }
@@ -3620,12 +3624,66 @@ const Salon = (() => {
       tellParent({ eg:'media-start' });                               /* 낭독은 물러난다 */
       const st = it.start_seconds || 0;
       wall.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(it.video_id)}?autoplay=1&start=${st}&rel=0&modestbranding=1&playsinline=1&enablejsapi=1"
-        allow="autoplay; encrypted-media; fullscreen" allowfullscreen title="${esc2(it.name)}"></iframe>`;
+        allow="autoplay; encrypted-media; fullscreen" allowfullscreen title="${esc2(it.name)}"></iframe><div class="lm-guard"></div>`;
       room.classList.add('playing');
+      lmWireGuard(box);
+      lmListen(box);
     }
     plate.innerHTML = `${esc2(it.name)}${it.origin ? `<small>${esc2(it.origin)}</small>` : ''}`;
     box.scrollTo({ top:0, behavior:'smooth' });                      /* 판을 고르면 스크린 앞으로 올라간다 */
   }
+  /* ── 유리막 배선 (음악관 0808 이식) ──
+     ⚠ 재생 중인지는 유튜브가 보내는 infoDelivery(playerState)가 사실이다 — 자체 플래그는 연타가 어긋나지 않게 미리 뒤집기만.
+     ⭐ 멈추면 진공관 불빛과 바늘도 쉰다(.playing 을 상태에 맞춘다) */
+  let LM_YT_PLAYING = false, LM_GUARD_T = null, LM_TAP_T = null;
+  function lmFrame(box){ return box && box.querySelector('.lm-wall iframe'); }
+  function lmCmd(box, func, args){
+    const f = lmFrame(box); if (!f || !f.contentWindow) return;
+    try{ f.contentWindow.postMessage(JSON.stringify({ event:'command', func, args:args || [] }), '*'); }catch(e){}
+  }
+  function lmListen(box){
+    setTimeout(()=>{
+      const f = lmFrame(box); if (!f || !f.contentWindow) return;
+      try{ f.contentWindow.postMessage('{"event":"listening","id":1,"channel":"widget"}', '*'); }catch(e){}
+    }, 900);
+  }
+  function lmWireGuard(box){
+    const g = box.querySelector('.lm-guard'), wall = box.querySelector('.lm-wall');
+    if (!g) return;
+    LM_YT_PLAYING = true;
+    g.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      clearTimeout(LM_TAP_T);
+      LM_TAP_T = setTimeout(()=>{
+        lmCmd(box, LM_YT_PLAYING ? 'pauseVideo' : 'playVideo');
+        LM_YT_PLAYING = !LM_YT_PLAYING;
+        box.querySelector('.lm-room').classList.toggle('playing', LM_YT_PLAYING);
+        if (LM_YT_PLAYING) tellParent({ eg:'media-start' });
+      }, 220);
+    });
+    g.addEventListener('dblclick', (e)=>{
+      e.stopPropagation();
+      clearTimeout(LM_TAP_T);                       /* 미뤄 둔 멈춤을 무른다 */
+      g.classList.add('off');                       /* 조작할 수 있게 걷는다 */
+      clearTimeout(LM_GUARD_T);
+      LM_GUARD_T = setTimeout(()=> g.classList.remove('off'), 8000);
+    });
+    wall.addEventListener('mouseleave', ()=>{ clearTimeout(LM_GUARD_T); g.classList.remove('off'); });
+  }
+  window.addEventListener('message', (e)=>{
+    if (typeof e.data !== 'string') return;
+    const box = document.querySelector('.sl-music'), f = lmFrame(box);
+    if (!f || e.source !== f.contentWindow) return;                /* 청음실 스크린이 보낸 것만 */
+    let y = null; try{ y = JSON.parse(e.data); }catch(_){ return; }
+    if (y && y.event === 'infoDelivery' && y.info && typeof y.info.playerState === 'number'){
+      const st = y.info.playerState;
+      if (st === 1){ LM_YT_PLAYING = true; tellParent({ eg:'media-start' }); }
+      else if (st === 2 || st === 0) LM_YT_PLAYING = false;
+      else return;
+      box.querySelector('.lm-room').classList.toggle('playing', LM_YT_PLAYING);
+    }
+  });
+
   function lmStop(box){
     LM_NOW = null;
     const wall = box && box.querySelector('.lm-wall'); if (!wall) return;
