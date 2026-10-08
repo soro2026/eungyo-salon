@@ -1800,7 +1800,7 @@ function drawStar(s, t) {
   // 인물 별
   const fig = s.figure;
   const grade = s.grade;          /* 0814 — 놓을 때 굴린 값. 매 프레임 다시 굴리지 않는다 */
-  const isFiltered = searchQuery && !fig.name.includes(searchQuery);
+  const isFiltered = searchQuery && !starMatches(fig, searchQuery);   /* 1008 — 별칭까지 */
   if (isFiltered) return;
 
   // 8가지 펄스 패턴 적용
@@ -2431,15 +2431,38 @@ canvas.addEventListener('touchend', e => {
 }, { passive: false });
 
 // ── 검색 ─────────────────────────────────────────────────────────
+/* 1008 — 이름만 보던 검색이 별칭까지 본다(드보르작 · 차이코프스키 · R. 슈트라우스 · Dvořák).
+   견줄 때 띄어쓰기 · 마침표 · 하이픈 · 가운뎃점을 걷고, 영문 대소문자와 악센트(ř · ë)를 가리지 않는다. */
+function searchKey(t) {
+  return String(t || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[\s.\-·・'’]/g, '');
+}
+function starKeys(fig) {
+  if (!fig._searchKeys) {
+    const al = Array.isArray(fig.aliases) ? fig.aliases : [];
+    fig._searchKeys = [fig.name, ...al].map(searchKey).filter(Boolean);
+  }
+  return fig._searchKeys;
+}
+let _lastQ = null, _lastK = '';   /* 그리기는 매 프레임 부르므로 검색어 손질은 한 번만 */
+function starMatches(fig, q) {
+  if (q !== _lastQ) { _lastQ = q; _lastK = searchKey(q); }
+  const k = _lastK;
+  if (!k) return true;
+  return starKeys(fig).some(x => x.includes(k));
+}
+
 function searchStar(q) {
   searchQuery = q.trim();
   stars.forEach(s => {
     if (s.type !== 'figure') return;
-    s.highlighted = searchQuery ? s.figure.name.includes(searchQuery) : false;
+    s.highlighted = searchQuery ? starMatches(s.figure, searchQuery) : false;
   });
   // 검색된 별로 뷰 이동
   if (searchQuery) {
-    const found = stars.find(s => s.type === 'figure' && s.figure.name.includes(searchQuery));
+    const found = stars.find(s => s.type === 'figure' && starMatches(s.figure, searchQuery));
     if (found) {
       viewX = found.x - (canvas.width / scale) / 2;
       viewY = found.y - (canvas.height / scale) / 2;
