@@ -280,24 +280,41 @@ html, body {
 .floor-content[data-floor="1"].listening .sl-listen{ opacity:0; pointer-events:none; }
 
 .floor-content[data-floor="1"] .sl-music{
-  position:absolute; inset:0; z-index:40; display:flex; flex-direction:column; align-items:center;
-  padding:clamp(14px,3vh,30px) 16px clamp(16px,3vh,28px); gap:clamp(10px,2vh,18px);
-  background:radial-gradient(120% 90% at 50% 30%, rgba(40,28,18,.55), rgba(10,7,5,.92));
+  /* ⭐ 1008 오후 소로 — 「좌우 스피커가 화면을 꽉 채워야」. 방 그림을 화면 폭 가득 펴고,
+     레코드장은 그 아래 — 살짝 스크롤해 내려 본다. 단추들은 그림 꼭대기에 얹는다. */
+  position:absolute; inset:0; z-index:40; display:block;
+  overflow-y:auto; overflow-x:hidden; scroll-behavior:smooth;
+  scrollbar-width:none; -ms-overflow-style:none;
+  background:#0d0906;
   opacity:0; pointer-events:none; transition:opacity .9s ease .15s;
   font-family:'Noto Serif KR','Nanum Myeongjo',serif; color:#f0ebe0;
 }
 .floor-content[data-floor="1"].listening .sl-music{ opacity:1; pointer-events:auto; }
-.sl-music .lm-top{ display:flex; align-items:center; justify-content:space-between; width:min(100%,1200px); gap:12px; }
+.floor-content[data-floor="1"] .sl-music::-webkit-scrollbar{ display:none; width:0; height:0; }
+.sl-music .lm-top{ position:absolute; left:0; right:0; top:0; z-index:4;
+  display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+  padding:clamp(14px,3vh,28px) 92px 56px clamp(18px,4vw,48px);    /* 오른쪽 92px — terra의 × 자리를 비운다 */
+  background:linear-gradient(180deg, rgba(10,7,5,.72) 0%, rgba(10,7,5,.35) 55%, transparent 100%);
+  pointer-events:none; }
+.sl-music .lm-top > *{ pointer-events:auto; }
 .sl-music .lm-eye{ font-family:'Cormorant Garamond',serif; font-size:12px; letter-spacing:.32em; color:rgba(201,168,76,.85); }
 .sl-music .lm-eye b{ display:block; font-family:'Noto Serif KR','Nanum Myeongjo',serif; font-weight:400; letter-spacing:.08em; font-size:15px; color:#f2ead6; margin-top:4px; }
 .sl-music .lm-tools{ display:flex; gap:8px; }
 .sl-music .lm-btn{ background:rgba(20,14,8,.6); border:1px solid rgba(201,168,76,.35); color:rgba(232,221,196,.85);
   border-radius:18px; padding:7px 15px; font:inherit; font-size:12px; letter-spacing:.06em; cursor:pointer; }
 .sl-music .lm-btn:hover{ border-color:#c9a84c; color:#f6ecd2; }
-.sl-music .lm-room{ position:relative; aspect-ratio:1672/941; flex:0 0 auto;
-  width:min(100%, 1200px, calc((100vh - 330px) * 1672 / 941));
-  background-size:cover; background-position:center; border-radius:4px;
-  box-shadow:0 18px 50px rgba(0,0,0,.55); }
+.sl-music .lm-room{ position:relative; aspect-ratio:1672/941; width:100%;
+  background-size:cover; background-position:center; }
+/* 방 아래 끝 — 「아래에 레코드장이 있다」는 작은 손짓. 누르면 내려간다 */
+.sl-music .lm-cue{ position:absolute; left:50%; bottom:clamp(10px,2.4vh,22px); transform:translateX(-50%); z-index:3;
+  background:rgba(20,14,8,.55); border:1px solid rgba(201,168,76,.4); color:rgba(240,230,205,.9);
+  border-radius:18px; padding:6px 16px; font:inherit; font-size:12px; letter-spacing:.12em; cursor:pointer;
+  backdrop-filter:blur(3px); animation:lm-bob 2.6s ease-in-out infinite; }
+.sl-music .lm-cue:hover{ border-color:#c9a84c; color:#fff6dd; }
+@keyframes lm-bob{ 0%,100%{ transform:translate(-50%,0) } 50%{ transform:translate(-50%,4px) } }
+.sl-music .lm-below{ display:flex; flex-direction:column; align-items:center; gap:18px;
+  padding:clamp(22px,4vh,36px) 16px clamp(36px,7vh,64px);
+  background:linear-gradient(180deg,#120c08,#0d0906); }
 .sl-music .lm-wall{ position:absolute; background:#000; overflow:hidden;
   box-shadow:inset 0 0 60px rgba(0,0,0,.9), 0 0 40px rgba(255,200,100,.15); }
 .sl-music .lm-wall iframe{ position:absolute; inset:0; width:100%; height:100%; border:0; }
@@ -3607,6 +3624,7 @@ const Salon = (() => {
       room.classList.add('playing');
     }
     plate.innerHTML = `${esc2(it.name)}${it.origin ? `<small>${esc2(it.origin)}</small>` : ''}`;
+    box.scrollTo({ top:0, behavior:'smooth' });                      /* 판을 고르면 스크린 앞으로 올라간다 */
   }
   function lmStop(box){
     LM_NOW = null;
@@ -3635,10 +3653,13 @@ const Salon = (() => {
           ${LM_TUBES.map(k => `<div class="lm-tube" data-k="${k}"></div>`).join('')}
           <div class="lm-vu l"><svg viewBox="0 0 100 50"><path class="lm-needle" d="M 50 48 L 50 8"/></svg></div>
           <div class="lm-vu r"><svg viewBox="0 0 100 50"><path class="lm-needle" d="M 50 48 L 50 8"/></svg></div>
+          <button class="lm-cue" type="button">▾ 레코드장</button>
         </div>
-        <div class="lm-plate"></div>
-        <div class="lm-shelf"></div>
-        <div class="lm-empty" style="display:none"></div>`;
+        <div class="lm-below">
+          <div class="lm-plate"></div>
+          <div class="lm-shelf"></div>
+          <div class="lm-empty" style="display:none"></div>
+        </div>`;
       root.appendChild(box);
       try{ LM_ROOM_I = Math.max(0, LM_ROOMS.findIndex(r => r.id === localStorage.getItem('eg-listen-room'))); }catch(e){ LM_ROOM_I = 0; }
       box.querySelector('.lm-swap').onclick = (e)=>{
@@ -3648,12 +3669,18 @@ const Salon = (() => {
         lmApplyRoom(box);
       };
       box.querySelector('.lm-back').onclick = (e)=>{ e.stopPropagation(); closeListen(root); };
+      box.querySelector('.lm-cue').onclick = (e)=>{
+        e.stopPropagation();
+        const below = box.querySelector('.lm-below');
+        box.scrollTo({ top: below.offsetTop - 24, behavior:'smooth' });
+      };
       box.addEventListener('click', e => e.stopPropagation());
     }
     lmApplyRoom(box);
     lmStop(box);
     await loadRecs();
     lmPaintShelf(box);
+    box.scrollTop = 0;
     requestAnimationFrame(()=> root.classList.add('listening'));
   }
   function closeListen(root){
