@@ -142,15 +142,6 @@
   .warns h3{margin:0 0 8px;font-size:13px;}
   .warns ul{margin:0;padding-left:18px;font-size:12px;color:var(--chalk-dim);line-height:1.9;}
   .warns .clean-msg{font-size:13px;color:var(--ok);}
-  /* ⓪ 별 대기실 (1008) */
-  .wait-note{font-size:11.5px;color:var(--chalk-dim);line-height:1.7;margin:-4px 0 12px;}
-  .badge.kb{background:rgba(248,244,238,.07);color:var(--chalk-dim);font-weight:600;margin:1px 0;}
-  .wl-sample{font-size:11px;color:var(--chalk-dim);max-width:300px;line-height:1.5;}
-  .wait-foot{display:flex;align-items:center;gap:10px;margin-top:10px;}
-  .wait-foot .hint{font-size:11px;color:var(--chalk-dim);}
-  .back-btn{background:none;border:1px solid rgba(82,183,136,.35);color:var(--ok);
-    border-radius:5px;padding:3px 8px;cursor:pointer;font-size:10px;font-family:inherit;}
-  .back-btn:hover{background:rgba(82,183,136,.15);}
   .loading{text-align:center;padding:40px 0;color:var(--chalk-dim);}
   .foot{text-align:center;font-size:11px;color:var(--chalk-dim);margin-top:30px;opacity:.5;}
 </style>
@@ -174,33 +165,6 @@
 
   <!-- ① 요약 카드 -->
   <div id="summary-host"><div class="loading">불러오는 중…</div></div>
-
-  <!-- ⓪ 별 대기실 (1008) — 여섯 갈래의 주인공 가운데 아직 하늘에 없는 이름 · 뷰 eg_star_waitlist
-       풍경(4겹) = 켜진 그림 · 곡 / 한스푼 / 콘스텔라티오에 보이는 문항. 한 장이라도 있으면 「준비됨」.
-       예외 장부 = eg_star_skip (생존 인물 · 무명 · 같은 분 다른 이름) -->
-  <div class="section" id="wait-section">
-    <h2>🪑 별 대기실 <span class="hint" id="wait-hint"></span></h2>
-    <div class="wait-note">그림 · 곡 · 한 줄 · 한스푼 · 포럼 · 콜레주의 주인공 가운데 아직 하늘에 없는 분이 저절로 모입니다.
-      풍경(4겹)이 한 장이라도 있으면 <b>준비됨</b> — 사진만 구우면 별이 뜰 수 있습니다. 풍경이 없으면 <b>카리 차례</b>입니다.</div>
-    <div class="filter-bar">
-      <div class="filter-tabs" id="wait-tabs">
-        <button class="ftab on" data-w="ready" onclick="setWaitTab('ready')">준비됨</button>
-        <button class="ftab" data-w="kari" onclick="setWaitTab('kari')">카리 차례</button>
-        <button class="ftab" data-w="skip" onclick="setWaitTab('skip')">예외 장부</button>
-      </div>
-      <div class="search-wrap">
-        <input type="text" id="wait-search" placeholder="이름 찾기…" oninput="renderWait()">
-      </div>
-    </div>
-    <div class="field-filter" id="wait-kinds"></div>
-    <div style="margin-top:12px;">
-      <div class="tbl-scroll"><div id="wait-host"><div class="loading">불러오는 중…</div></div></div>
-      <div class="wait-foot">
-        <button class="check-btn" onclick="copyWaitNames()">보이는 이름 복사</button>
-        <span class="hint" id="wait-copied"></span>
-      </div>
-    </div>
-  </div>
 
   <!-- ② 분야별 현황 -->
   <div class="section" id="field-section" style="display:none;">
@@ -310,111 +274,9 @@ function showGate(){
 async function loadAll(){
   await loadContentNames();
   await loadVoyageIds();
-  await Promise.all([loadSummary(), loadFieldStats(), loadWait()]);
+  await Promise.all([loadSummary(), loadFieldStats()]);
   await loadTable();
   renderWarns();
-}
-
-// ── ⓪ 별 대기실 (1008) ──
-// 뷰 eg_star_waitlist 가 여섯 갈래를 모아 준다 — 이 화면은 읽고, 예외 장부(eg_star_skip)만 쓴다.
-// 별을 세우는 손은 여기 없다: 소로 OK → 파이스가 별 생성 규정대로 세운다.
-let WAIT = [], SKIP = [], waitTab = 'ready', waitKind = '';
-const WAIT_KINDS = ['그림','곡','한 줄','한스푼','포럼','콜레주'];
-
-async function loadWait(){
-  const [w, s] = await Promise.all([
-    supa.from('eg_star_waitlist').select('*').limit(3000),
-    supa.from('eg_star_skip').select('*').order('created_at', { ascending:false })
-  ]);
-  if (w.error){
-    document.getElementById('wait-host').innerHTML = `<div class="loading" style="color:var(--bad)">오류: ${esc(w.error.message)}</div>`;
-    return;
-  }
-  WAIT = w.data || []; SKIP = s.data || [];
-  renderWaitKinds(); renderWait();
-}
-function setWaitTab(t){
-  waitTab = t;
-  document.querySelectorAll('#wait-tabs .ftab').forEach(b => b.classList.toggle('on', b.dataset.w === t));
-  document.getElementById('wait-copied').textContent = '';
-  renderWait();
-}
-function setWaitKind(k){
-  waitKind = k;
-  document.querySelectorAll('#wait-kinds .fftab').forEach(b => b.classList.toggle('on', b.dataset.k === k));
-  renderWait();
-}
-function renderWaitKinds(){
-  const n = k => WAIT.filter(r => (r.kinds||[]).includes(k)).length;
-  document.getElementById('wait-kinds').innerHTML =
-    `<button class="fftab${waitKind===''?' on':''}" data-k="" onclick="setWaitKind('')">모든 갈래</button>` +
-    WAIT_KINDS.map(k => `<button class="fftab${waitKind===k?' on':''}" data-k="${esc(k)}" onclick="setWaitKind(this.dataset.k)">${esc(k)} ${n(k)}</button>`).join('');
-}
-function waitRows(){
-  const q = (document.getElementById('wait-search').value || '').trim();
-  return WAIT
-    .filter(r => (waitTab === 'ready' ? r.stage === '준비됨' : r.stage !== '준비됨')
-              && (!waitKind || (r.kinds||[]).includes(waitKind))
-              && (!q || String(r.name).includes(q)))
-    .sort((a,b) => (b.scenery - a.scenery) || (b.works - a.works) || String(a.name).localeCompare(String(b.name), 'ko'));
-}
-function renderWait(){
-  const host = document.getElementById('wait-host');
-  const ready = WAIT.filter(r => r.stage === '준비됨').length;
-  document.getElementById('wait-hint').textContent =
-    `· ${WAIT.length}명 · 준비됨 ${ready} · 카리 차례 ${WAIT.length - ready} · 예외 ${SKIP.length}`;
-  document.getElementById('wait-kinds').style.display = (waitTab === 'skip') ? 'none' : '';
-
-  if (waitTab === 'skip'){
-    const q = (document.getElementById('wait-search').value || '').trim();
-    const rows = SKIP.filter(r => !q || String(r.name).includes(q));
-    if (!rows.length){ host.innerHTML = '<div class="loading">예외 장부가 비어 있습니다.</div>'; return; }
-    let h = `<table><thead><tr><th>이름</th><th>까닭</th><th>적은 날</th><th></th></tr></thead><tbody>`;
-    for (const r of rows){
-      const d = r.created_at ? new Date(r.created_at).toLocaleDateString('ko-KR') : '';
-      h += `<tr><td class="star-name">${esc(r.name)}</td><td class="wl-sample">${esc(r.reason)}</td>`
-         + `<td class="star-field">${esc(d)}</td>`
-         + `<td class="c"><button class="back-btn" data-n="${esc(r.name)}" onclick="unskipName(this.dataset.n)">대기실로</button></td></tr>`;
-    }
-    host.innerHTML = h + `</tbody></table>`;
-    return;
-  }
-
-  const rows = waitRows();
-  if (!rows.length){ host.innerHTML = '<div class="loading">해당하는 분이 없습니다.</div>'; return; }
-  let h = `<table><thead><tr><th>이름</th><th>갈래</th><th class="c">작품</th><th class="c">풍경</th><th>맛보기</th><th></th></tr></thead><tbody>`;
-  for (const r of rows){
-    const kinds = (r.kinds||[]).map(k => `<span class="badge kb">${esc(k)}</span>`).join(' ');
-    const sc = r.scenery > 0
-      ? `<span class="badge ok" title="그림 · 곡 ${r.art} · 한스푼 ${r.spoon} · 문항 ${r.quiz}">${r.scenery}</span>`
-      : `<span class="badge warn">0</span>`;
-    const sample = (r.sample||[]).map(esc).join(' · ');
-    h += `<tr><td class="star-name">${esc(r.name)}</td><td>${kinds}</td><td class="c">${r.works}</td>`
-       + `<td class="c">${sc}</td><td class="wl-sample">${sample}</td>`
-       + `<td class="c"><button class="del-btn" data-n="${esc(r.name)}" onclick="skipName(this.dataset.n)">예외로</button></td></tr>`;
-  }
-  host.innerHTML = h + `</tbody></table>`;
-}
-async function skipName(name){
-  const reason = prompt(`「${name}」 님을 대기실에서 내려 예외 장부에 적습니다.\n까닭을 짧게 적어 주십시오.\n(예: 생존 인물 · 무명 · 같은 분 다른 이름 — ○○○)`);
-  if (reason === null) return;
-  if (!reason.trim()){ alert('까닭을 적어 주셔야 장부에 남습니다.'); return; }
-  const { error } = await supa.from('eg_star_skip').insert({ name, reason: reason.trim() });
-  if (error){ alert('오류: ' + error.message); return; }
-  await loadWait();
-}
-async function unskipName(name){
-  if (!confirm(`「${name}」 님을 예외 장부에서 지우고 대기실로 되돌립니다.`)) return;
-  const { error } = await supa.from('eg_star_skip').delete().eq('name', name);
-  if (error){ alert('오류: ' + error.message); return; }
-  await loadWait();
-}
-function copyWaitNames(){
-  const names = (waitTab === 'skip') ? SKIP.map(r => r.name) : waitRows().map(r => r.name);
-  const done = () => { document.getElementById('wait-copied').textContent = `${names.length}명 복사했습니다`; };
-  if (navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(names.join('\n')).then(done, () => { prompt('복사가 막혔습니다. 아래를 직접 복사해 주십시오.', names.join(', ')); });
-  } else { prompt('아래를 복사해 주십시오.', names.join(', ')); }
 }
 
 // 3D 입주 = star_places에 대표지(is_representative)를 가진 별 = 별 여행에서 갈 수 있는 별

@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>별 대기실 · 은교살롱 admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700&display=swap" rel="stylesheet">
+<!--
+  1008 · 별 대기실 (파이스)
+  그림 · 곡 · 한 줄 · 한스푼 · 포럼 · 콜레주의 주인공 가운데 아직 하늘에 없는 분이 저절로 모이는 방.
+  ⭐ 읽는 곳 — 뷰 eg_star_waitlist (여섯 갈래를 모으고, stars 이름 · 별칭과 예외 장부에 있는 분을 뺀다)
+     쓰는 곳 — eg_star_skip (예외 장부) 하나뿐. 별을 세우는 손은 여기 없다: 소로 OK → 파이스가 별 생성 규정대로.
+  ⭐ 풍경 = 4겹을 가진 것 — 켜진 그림 · 곡 / 한스푼 / 콘스텔라티오에 보이는 문항. 한 장이라도 있으면 「준비됨」.
+  ⭐ 겉은 살롱지기 서랍과 같은 종이 결(1007) — 먹색 글씨 · 명조 · 강조는 금빛 하나. 검은 바탕 금지(소로 「눈 피곤」).
+  ⚠ 같은 분이 두 이름으로 앉을 수 있다(서가 「몽테뉴」 · 한 줄 「미셸 드 몽테뉴」). 별을 세울 때 별칭에 짧은 이름을 넣으면 둘 다 일어난다.
+-->
+<style>
+  :root{
+    --paper:#f8f4ea; --paper-2:#ece4d3; --card:rgba(255,255,255,.55);
+    --ink:#2b2318; --ink-2:#4e4331; --ink-3:#6b5d45; --mute:#a8987a;
+    --gold:#8a5f18; --line:rgba(158,127,58,.28); --line-2:rgba(158,127,58,.16);
+    --ok:#3f6b45; --ok-bg:rgba(63,107,69,.10); --warn:#9a6a14; --warn-bg:rgba(154,106,20,.10);
+    --red:#9c3b22;
+    --serif:"Nanum Myeongjo",Georgia,"Apple SD Gothic Neo",serif;
+    --sans:"Helvetica Neue","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; min-height:100vh; padding:0 0 80px;
+    background:linear-gradient(165deg,var(--paper),var(--paper-2)); background-attachment:fixed;
+    color:var(--ink); font-family:var(--sans); -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1000px;margin:0 auto;padding:28px 20px;}
+
+  #gate{display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:80vh;text-align:center;gap:12px;padding:24px;font-family:var(--serif);}
+  #gate .msg{color:var(--ink-3);font-size:14px;line-height:1.8;}
+  #gate a{color:var(--gold);}
+
+  .head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    padding-bottom:14px;margin-bottom:18px;border-bottom:1px solid var(--line);}
+  .head h1{margin:0;font-family:var(--serif);font-size:24px;font-weight:700;letter-spacing:.04em;}
+  .head .sub{display:block;margin-top:6px;font-size:12.5px;color:var(--ink-3);font-family:var(--serif);font-weight:400;letter-spacing:0;}
+  .btn{background:var(--card);border:1px solid var(--line);color:var(--ink-2);border-radius:8px;
+    padding:7px 14px;cursor:pointer;font-size:12.5px;font-family:var(--sans);}
+  .btn:hover{border-color:var(--gold);color:var(--gold);}
+
+  .tally{display:flex;gap:28px;flex-wrap:wrap;margin:4px 0 18px;font-family:var(--serif);}
+  .tally .t{display:flex;align-items:baseline;gap:8px;}
+  .tally .n{font-family:var(--sans);font-size:26px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;}
+  .tally .t.ready .n{color:var(--ok);}
+  .tally .t.kari .n{color:var(--warn);}
+  .tally .l{font-size:13px;color:var(--ink-3);}
+
+  .note{font-family:var(--serif);font-size:13px;line-height:1.85;color:var(--ink-2);
+    background:var(--card);border:1px solid var(--line-2);border-radius:10px;padding:12px 16px;margin-bottom:18px;}
+  .note b{color:var(--gold);}
+
+  .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px;}
+  .tabs{display:flex;gap:4px;}
+  .tab{background:none;border:1px solid var(--line);color:var(--ink-3);border-radius:8px;
+    padding:7px 16px;cursor:pointer;font-family:var(--serif);font-size:13.5px;font-weight:700;}
+  .tab:hover{color:var(--gold);border-color:var(--gold);}
+  .tab.on{background:#fffdf7;color:var(--gold);border-color:var(--gold);}
+  .find{flex:1;min-width:180px;max-width:300px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;
+    background:rgba(255,255,255,.6);color:var(--ink);font-size:13px;font-family:var(--sans);outline:none;}
+  .find::placeholder{color:var(--mute);}
+  .find:focus{border-color:var(--gold);background:#fffdf7;}
+
+  .kinds{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+  .kind{background:none;border:1px solid var(--line-2);color:var(--ink-3);border-radius:20px;
+    padding:4px 12px;cursor:pointer;font-size:12px;font-family:var(--sans);}
+  .kind:hover{border-color:var(--gold);color:var(--gold);}
+  .kind.on{background:var(--gold);border-color:var(--gold);color:#fffdf7;}
+
+  .sheet{background:rgba(255,255,255,.62);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  table{width:100%;border-collapse:collapse;}
+  th{font-size:11px;font-weight:600;color:var(--mute);text-align:left;padding:10px 14px;
+    border-bottom:1px solid var(--line);letter-spacing:.06em;background:rgba(236,228,211,.5);}
+  td{padding:11px 14px;border-bottom:1px solid var(--line-2);vertical-align:top;font-size:13px;color:var(--ink-2);}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:rgba(255,253,247,.7);}
+  td.c, th.c{text-align:center;}
+  .nm{font-family:var(--serif);font-size:15px;font-weight:700;color:var(--ink);white-space:nowrap;}
+  .tag{display:inline-block;margin:1px 2px 1px 0;padding:2px 8px;border-radius:4px;font-size:11px;
+    background:rgba(158,127,58,.10);color:var(--ink-3);}
+  .num{font-variant-numeric:tabular-nums;}
+  .sc{display:inline-block;min-width:26px;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;}
+  .sc.ok{background:var(--ok-bg);color:var(--ok);}
+  .sc.zero{background:var(--warn-bg);color:var(--warn);}
+  .sample{font-size:12px;color:var(--ink-3);line-height:1.6;max-width:360px;}
+  .act{background:none;border:1px solid var(--line);color:var(--ink-3);border-radius:6px;
+    padding:4px 10px;cursor:pointer;font-size:11.5px;font-family:var(--sans);white-space:nowrap;}
+  .act:hover{border-color:var(--red);color:var(--red);}
+  .act.back:hover{border-color:var(--ok);color:var(--ok);}
+  .empty{text-align:center;padding:44px 0;color:var(--mute);font-family:var(--serif);font-size:14px;}
+
+  .foot{display:flex;align-items:center;gap:12px;margin-top:12px;}
+  .foot .msg{font-size:12px;color:var(--ink-3);}
+</style>
+</head>
+<body>
+
+<div id="gate" style="display:none;">
+  <div class="msg">
+    별 대기실은 살롱지기 전용입니다.<br>
+    소로 계정으로 로그인한 뒤 다시 열어 주십시오.<br><br>
+    <a href="index.html">← 은교살롱 입구로</a>
+  </div>
+</div>
+
+<div id="room" class="wrap" style="display:none;">
+  <div class="head">
+    <h1>별 대기실<span class="sub">하늘에 오르기를 기다리는 분들</span></h1>
+    <button class="btn" onclick="loadWait()">새로 불러오기</button>
+  </div>
+
+  <div class="tally">
+    <div class="t"><span class="n" id="tAll">–</span><span class="l">명 대기</span></div>
+    <div class="t ready"><span class="n" id="tReady">–</span><span class="l">준비됨</span></div>
+    <div class="t kari"><span class="n" id="tKari">–</span><span class="l">카리 차례</span></div>
+    <div class="t"><span class="n" id="tSkip">–</span><span class="l">예외 장부</span></div>
+  </div>
+
+  <div class="note">
+    그림 · 곡 · 한 줄 · 한스푼 · 포럼 · 콜레주의 주인공 가운데 아직 하늘에 없는 분이 저절로 모입니다.<br>
+    풍경(4겹)이 한 장이라도 있으면 <b>준비됨</b> — 사진만 구우면 별이 뜰 수 있습니다. 풍경이 없으면 <b>카리 차례</b>입니다.
+  </div>
+
+  <div class="bar">
+    <div class="tabs" id="tabs">
+      <button class="tab on" data-w="ready" onclick="setTab('ready')">준비됨</button>
+      <button class="tab" data-w="kari" onclick="setTab('kari')">카리 차례</button>
+      <button class="tab" data-w="skip" onclick="setTab('skip')">예외 장부</button>
+    </div>
+    <input class="find" id="find" type="text" placeholder="이름 찾기" oninput="render()">
+  </div>
+  <div class="kinds" id="kinds"></div>
+
+  <div class="sheet"><div id="host"><div class="empty">불러오는 중…</div></div></div>
+
+  <div class="foot">
+    <button class="btn" onclick="copyNames()">보이는 이름 복사</button>
+    <span class="msg" id="copied"></span>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
+});
+
+const KINDS = ['그림','곡','한 줄','한스푼','포럼','콜레주'];
+let WAIT = [], SKIP = [], tab = 'ready', kind = '';
+
+function esc(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function init(){
+  const { data:{ session } } = await supa.auth.getSession();
+  if (!session){ gate(); return; }
+  const { data:u } = await supa.from('users').select('is_admin').eq('id', session.user.id).single();
+  if (!u || !u.is_admin){ gate(); return; }
+  document.getElementById('gate').style.display = 'none';
+  document.getElementById('room').style.display = '';
+  await loadWait();
+}
+function gate(){
+  document.getElementById('gate').style.display = 'flex';
+  document.getElementById('room').style.display = 'none';
+}
+
+async function loadWait(){
+  const [w, s] = await Promise.all([
+    supa.from('eg_star_waitlist').select('*').limit(3000),
+    supa.from('eg_star_skip').select('*').order('created_at', { ascending:false })
+  ]);
+  if (w.error){
+    document.getElementById('host').innerHTML = `<div class="empty" style="color:var(--red)">불러오지 못했습니다 — ${esc(w.error.message)}</div>`;
+    return;
+  }
+  WAIT = w.data || []; SKIP = s.data || [];
+  const ready = WAIT.filter(r => r.stage === '준비됨').length;
+  document.getElementById('tAll').textContent   = WAIT.length;
+  document.getElementById('tReady').textContent = ready;
+  document.getElementById('tKari').textContent  = WAIT.length - ready;
+  document.getElementById('tSkip').textContent  = SKIP.length;
+  renderKinds(); render();
+}
+
+function setTab(t){
+  tab = t;
+  document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('on', b.dataset.w === t));
+  document.getElementById('copied').textContent = '';
+  renderKinds(); render();
+}
+function setKind(k){
+  kind = k;
+  document.querySelectorAll('#kinds .kind').forEach(b => b.classList.toggle('on', b.dataset.k === k));
+  render();
+}
+function inTab(r){ return tab === 'ready' ? r.stage === '준비됨' : r.stage !== '준비됨'; }
+function renderKinds(){
+  const box = document.getElementById('kinds');
+  if (tab === 'skip'){ box.innerHTML = ''; return; }
+  const base = WAIT.filter(inTab);
+  const n = k => base.filter(r => (r.kinds||[]).includes(k)).length;
+  box.innerHTML =
+    `<button class="kind${kind===''?' on':''}" data-k="" onclick="setKind(this.dataset.k)">모든 갈래 ${base.length}</button>` +
+    KINDS.filter(k => n(k) > 0)
+      .map(k => `<button class="kind${kind===k?' on':''}" data-k="${esc(k)}" onclick="setKind(this.dataset.k)">${esc(k)} ${n(k)}</button>`).join('');
+}
+function rows(){
+  const q = (document.getElementById('find').value || '').trim();
+  return WAIT
+    .filter(r => inTab(r) && (!kind || (r.kinds||[]).includes(kind)) && (!q || String(r.name).includes(q)))
+    .sort((a,b) => (b.scenery - a.scenery) || (b.works - a.works) || String(a.name).localeCompare(String(b.name), 'ko'));
+}
+
+function render(){
+  const host = document.getElementById('host');
+  if (tab === 'skip'){
+    const q = (document.getElementById('find').value || '').trim();
+    const list = SKIP.filter(r => !q || String(r.name).includes(q));
+    if (!list.length){ host.innerHTML = '<div class="empty">예외 장부가 비어 있습니다.</div>'; return; }
+    let h = '<table><thead><tr><th>이름</th><th>까닭</th><th>적은 날</th><th></th></tr></thead><tbody>';
+    for (const r of list){
+      const d = r.created_at ? new Date(r.created_at).toLocaleDateString('ko-KR') : '';
+      h += `<tr><td class="nm">${esc(r.name)}</td><td class="sample">${esc(r.reason)}</td><td class="num">${esc(d)}</td>`
+         + `<td class="c"><button class="act back" data-n="${esc(r.name)}" onclick="unskip(this.dataset.n)">대기실로</button></td></tr>`;
+    }
+    host.innerHTML = h + '</tbody></table>';
+    return;
+  }
+  const list = rows();
+  if (!list.length){ host.innerHTML = '<div class="empty">해당하는 분이 없습니다.</div>'; return; }
+  let h = '<table><thead><tr><th>이름</th><th>갈래</th><th class="c">작품</th><th class="c">풍경</th><th>맛보기</th><th></th></tr></thead><tbody>';
+  for (const r of list){
+    const tags = (r.kinds||[]).map(k => `<span class="tag">${esc(k)}</span>`).join('');
+    const sc = r.scenery > 0
+      ? `<span class="sc ok" title="그림 · 곡 ${r.art} · 한스푼 ${r.spoon} · 문항 ${r.quiz}">${r.scenery}</span>`
+      : `<span class="sc zero">0</span>`;
+    const sample = (r.sample||[]).map(esc).join(' · ');
+    h += `<tr><td class="nm">${esc(r.name)}</td><td>${tags}</td><td class="c num">${r.works}</td>`
+       + `<td class="c">${sc}</td><td class="sample">${sample}</td>`
+       + `<td class="c"><button class="act" data-n="${esc(r.name)}" onclick="skip(this.dataset.n)">예외로</button></td></tr>`;
+  }
+  host.innerHTML = h + '</tbody></table>';
+}
+
+async function skip(name){
+  const reason = prompt(`「${name}」 님을 대기실에서 내려 예외 장부에 적습니다.\n까닭을 짧게 적어 주십시오.\n(예: 생존 인물 · 무명 · 같은 분 다른 이름 — ○○○)`);
+  if (reason === null) return;
+  if (!reason.trim()){ alert('까닭을 적어 주셔야 장부에 남습니다.'); return; }
+  const { error } = await supa.from('eg_star_skip').insert({ name, reason: reason.trim() });
+  if (error){ alert('적지 못했습니다 — ' + error.message); return; }
+  await loadWait();
+}
+async function unskip(name){
+  if (!confirm(`「${name}」 님을 예외 장부에서 지우고 대기실로 되돌립니다.`)) return;
+  const { error } = await supa.from('eg_star_skip').delete().eq('name', name);
+  if (error){ alert('되돌리지 못했습니다 — ' + error.message); return; }
+  await loadWait();
+}
+function copyNames(){
+  const q = (document.getElementById('find').value || '').trim();
+  const names = (tab === 'skip') ? SKIP.filter(r => !q || String(r.name).includes(q)).map(r => r.name)
+                                 : rows().map(r => r.name);
+  const done = () => { document.getElementById('copied').textContent = `${names.length}명을 복사했습니다`; };
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(names.join('\n')).then(done, () => prompt('복사가 막혔습니다. 아래를 직접 복사해 주십시오.', names.join(', ')));
+  } else { prompt('아래를 복사해 주십시오.', names.join(', ')); }
+}
+
+init();
+</script>
+</body>
+</html>
