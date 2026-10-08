@@ -147,6 +147,14 @@ html,body{height:100%;background:#0d0a07;color:#e8ddc4;
 .rp-t{font-size:15px;font-weight:700;line-height:1.7;}
 .rp-s{font-size:12.5px;color:rgba(42,35,24,.65);margin-top:12px;line-height:1.9;word-break:keep-all;}
 .rp-btns{display:flex;gap:10px;justify-content:center;margin-top:22px;}
+/* 1008 — 거실 소장 칸. 일곱 점까지 · 지금 몇 점인지 · 새 그림이 앉을 자리(금빛) */
+.rp-n{margin-top:16px;padding-top:14px;border-top:1px solid rgba(122,90,26,.18);
+  font-size:11.5px;color:rgba(42,35,24,.6);line-height:1.8;}
+.rp-dots{display:flex;gap:7px;justify-content:center;margin-bottom:6px;}
+.rp-dots i{width:9px;height:9px;border-radius:50%;border:1px solid rgba(42,35,24,.35);display:block;}
+.rp-dots i.on{background:#2a2318;border-color:#2a2318;}
+.rp-dots i.new{background:#c9a84c;border-color:#9a7a2a;}
+.rp-dots i.out{background:rgba(42,35,24,.18);border-color:rgba(42,35,24,.25);}
 .rp-btns button{font:inherit;font-size:12.5px;letter-spacing:.06em;border-radius:18px;
   padding:10px 22px;cursor:pointer;border:none;}
 .rp-go{background:var(--ink);color:#f2f0ea;}
@@ -1079,6 +1087,14 @@ function closeLayers(){ $('#layers').classList.remove('on'); }
 /* ══ 대여 — 일곱 점(1008). RPC(rent_item)가 반납·차감·대여를 한 트랜잭션으로 ══
    새 그림은 거실 벽에 걸리고, 있던 그림은 거실 아카이브로 물러난다.
    여덟째가 들어오면 가장 오래 곁에 둔 한 점이 미술관으로 돌아간다. */
+/* 1008 — 그림 이름 뒤 조사. 끝 글자의 받침을 보고 고른다(〈소녀〉를 · 〈방랑자〉는).
+   한글이 아니면 「을(를)」처럼 둘 다 적는다. */
+function josa(w, a, b){
+  const c=String(w||'').trim().replace(/[〉」』)\]\s.]+$/,'').slice(-1);
+  const k=c.charCodeAt(0);
+  if(k>=0xAC00 && k<=0xD7A3) return ((k-0xAC00)%28) ? a : b;
+  return a+'('+b+')';
+}
 function askRent(){
   if(editing) return;
   if(EG_TT_DAY!=null){ toast('⏱ 시간 여행 중에는 빌릴 수 없습니다'); return; }
@@ -1087,15 +1103,22 @@ function askRent(){
   if(MY_RENT && MY_RENT.item_id===ART.id){ toast('이미 거실에 걸려 있습니다'); return; }
   if(MY_RENTS.some(r=>r.item_id===ART.id)){ toast('이미 거실 아카이브에 있는 그림입니다'); return; }
   const price=(ART_PRICE!=null?ART_PRICE:1).toFixed(2);
-  $('#rpT').textContent='〈'+ART.name+'〉을 거실에 들일까요?';
-  const oldest = MY_RENTS.length>=7 ? MY_RENTS[MY_RENTS.length-1] : null;
-  $('#rpS').innerHTML='분더카머 1층 거실 벽에 걸립니다.<br>'
-    + (oldest
-      ? '곁에는 일곱 점까지 둘 수 있어, 가장 오래된 〈'+escapeHtml(oldest.name)+'〉은 미술관으로 돌아갑니다.<br>'
-      : MY_RENT
-        ? '지금의 〈'+escapeHtml(MY_RENT.name)+'〉은 거실 아카이브로 물러납니다.<br>'
-        : '')
-    + '황금사과 <b>'+price+'알</b>이 듭니다.';
+  $('#rpT').textContent='〈'+ART.name+'〉'+josa(ART.name,'을','를')+' 거실에 들일까요?';
+  const n=MY_RENTS.length;
+  const oldest = n>=7 ? MY_RENTS[n-1] : null;
+  const nm = r => '〈'+escapeHtml(r.name)+'〉';
+  $('#rpS').innerHTML=
+      (oldest
+        ? '이 그림이 거실 벽에 걸리고,<br>일곱 점이 다 차서 가장 오래된 '+nm(oldest)+josa(oldest.name,'은','는')+' 미술관으로 돌아갑니다.<br>'
+        : MY_RENT
+          ? '이 그림이 거실 벽에 걸리고,<br>'+nm(MY_RENT)+josa(MY_RENT.name,'은','는')+' 거실 아카이브로 옮겨 갑니다.<br>'
+          : '이 그림이 거실 벽에 걸립니다.<br>')
+    + '황금사과 <b>'+price+'알</b>이 듭니다.'
+    /* 소장 칸 — 채운 점(지금) · 금빛(새 그림이 앉을 자리) · 흐린 점(돌아갈 그림) */
+    + '<div class="rp-n"><div class="rp-dots">'
+    + Array.from({length:7},(_,i)=> '<i class="'+(i<n ? (oldest && i===6 ? 'out' : 'on') : (i===n ? 'new' : ''))+'"></i>').join('')
+    + '</div>거실에는 일곱 점까지 소장할 수 있습니다 · '
+    + (n ? '지금 <b>'+n+'점</b>' : '지금은 비어 있습니다') + '</div>';
   $('#rpGo').textContent='🍎 '+price+'알로 들이기';
   $('#rentPop').classList.add('on');
 }
@@ -1108,9 +1131,10 @@ async function confirmRent(){
   if(error){ toast(error.message||'대여하지 못했습니다'); return; }
   const old=data && data.swapped_out;
   const paid=(data && data.price!=null)?Number(data.price).toFixed(2):'';
+  const nw=(data.name||ART.name);
   toast(old
-    ? '〈'+old+'〉이 미술관으로 돌아가고 〈'+(data.name||ART.name)+'〉이 거실에 걸립니다 🍎'+paid
-    : '〈'+(data.name||ART.name)+'〉이 분더카머 거실에 걸립니다 🍎'+paid);
+    ? '〈'+old+'〉'+josa(old,'이','가')+' 미술관으로 돌아가고 〈'+nw+'〉'+josa(nw,'이','가')+' 거실에 걸립니다 🍎'+paid
+    : '〈'+nw+'〉'+josa(nw,'이','가')+' 거실에 걸립니다 🍎'+paid);
   ART_PRICE=null;                        /* 방금의 대여가 장작이다 — 값을 다시 잰다 */
   await loadMyRent(); await paintRentLine();
 }
