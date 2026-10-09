@@ -6193,11 +6193,9 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
 #egrEng .n{display:block;letter-spacing:.2em}
 #egrEng .d{display:block;margin-top:.42em;font-size:.5em;letter-spacing:.34em;opacity:.72}
 #readingRoom.out #egrEng,#readingRoom.bare #egrEng{display:none}
-/* ⭐⭐ 0821L — 감상 중(B)에는 기록판을 걷는다. 기체를 보려고 세운 화면인데
-   920×660 판이 한복판을 덮으면 볼 것이 안 보인다.
-   ⚠ 걷는 것이지 잃는 것이 아니다 — B 를 다시 누르면 그 자리에 그대로 있다.
-   ⚠ 계기판·지도판은 안 걷는다(47호 — 밖에서도 곁에 있다). 가리면 V 로 걷는다. */
-#readingRoom.bodyview #egrDesk{display:none}
+/* ⭐ 1009 — 0821L 「감상 중(B)에는 기록판을 걷는다」를 거둔다 (소로 1009).
+   ⚠ B 에서 READ ▸ 를 누르면 판이 숨은 채로 펼쳐져, 표지를 누르다 「책 고르기」 검색만 떴다.
+   ⭐ 기록판은 어디서든 끌어 옮길 수 있다 — 기체를 가리면 비켜 두면 된다. 밖에서도 읽고 쓴다. */
 /* ⚠ 0828d — 기체 감상(B)에서 좌·우 좌석 화살표를 걷는다 (소로 0828 · 화면 실측).
    ⭐ 밖에서 기체를 보는 중인데 「왼쪽 창 · 오른쪽 창」이 떠 있으면 눌러도 화면이 안 바뀐다 —
      안 바뀌는 것이 아니라 **지금 보고 있는 것과 상관이 없다.**
