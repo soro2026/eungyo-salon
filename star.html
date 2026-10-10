@@ -110,19 +110,28 @@ body::-webkit-scrollbar{display:none}
   border:1px solid var(--edge);
   background-image:repeating-linear-gradient(45deg,var(--band) 0 8px,var(--hover) 8px 16px);
 }
-.framed-empty-add{font-size:11px;font-weight:700}
-/* ⚠ 액자를 덮지 않는다 — 틀이 없어졌으므로 띠도 그림 아래로 내려선다 */
-.framed-upload{
-  position:absolute;left:50%;transform:translateX(-50%);bottom:-9px;
-  display:none;align-items:center;justify-content:center;gap:4px;white-space:nowrap;
-  padding:4px 10px;border-radius:999px;background:rgba(20,14,6,.82);color:#fff;
-  font-size:10.5px;cursor:pointer;
-}
-/* ⚠⚠ 0814 실물 — 여기가 hover만 열어도, JS가 인라인 display를 박으면 **인라인이 이긴다.**
-     그래서 「액자 변경」 띠가 늘 떠 초상 아래를 가리고 있었다.
-   ⭐ 권한은 body.is-admin이 이미 안다. 여닫는 일은 CSS 한 곳에서만 한다. */
-body.is-admin .framed-wrap:hover .framed-upload{display:flex}
-.framed-upload-text{font-weight:700}
+/* ⭐ 1010 소로 — 「액자를 누르면 화면 가득 크게」 · 살롱지기도 손님과 똑같이 본다.
+     옛 「액자 변경」 띠 · 빈 칸 「액자 올리기」는 걷었다 — 사진은 별 사진실(admin_star_photos.html)에서만 올린다. */
+.framed-img{cursor:zoom-in}
+
+/* ── 액자 크게 보기 ── 미술관(galerie) 크게 보기와 같은 어둠 · 같은 명패 결 */
+#framedZoom{display:none;position:fixed;inset:0;z-index:300;
+  background:rgba(4,3,2,.95);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  align-items:center;justify-content:center;cursor:zoom-out;
+  padding:max(56px, env(safe-area-inset-top)) 16px max(64px, calc(40px + env(safe-area-inset-bottom)))}
+#framedZoom.on{display:flex}
+#framedZoomImg{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;
+  filter:drop-shadow(0 18px 50px rgba(0,0,0,.7)) drop-shadow(0 3px 10px rgba(0,0,0,.5));
+  user-select:none;-webkit-user-drag:none;opacity:0;transform:scale(.97);
+  transition:opacity .28s ease, transform .28s ease}
+#framedZoom.on #framedZoomImg.ready{opacity:1;transform:none}
+#framedZoomCap{position:fixed;left:0;right:0;bottom:max(18px, env(safe-area-inset-bottom));
+  text-align:center;font-family:'Gowun Batang',serif;font-size:14px;letter-spacing:.06em;
+  color:rgba(232,221,196,.8);text-shadow:0 1px 8px #000;pointer-events:none}
+#framedZoomX{position:fixed;left:16px;top:max(16px, env(safe-area-inset-top));
+  font-family:inherit;font-size:12px;color:rgba(233,207,156,.85);background:rgba(10,8,5,.6);
+  border:1px solid rgba(233,207,156,.35);border-radius:16px;padding:6px 13px;cursor:pointer}
+#framedZoomX:hover{border-color:rgba(233,207,156,.75)}
 
 .star-meta{flex:1;min-width:0}
 .star-name{
@@ -462,13 +471,8 @@ body.is-admin .framed-wrap:hover .framed-upload{display:flex}
     <!-- ① 머리 -->
     <div class="star-header">
       <div class="framed-wrap" id="framed-wrap">
-        <img class="framed-img" id="framed-img" alt="" style="display:none;">
+        <img class="framed-img" id="framed-img" alt="" style="display:none;" onclick="openFramedZoom()">
         <div class="framed-empty" id="framed-empty"><span>✦</span></div>
-        <div class="framed-upload" id="framed-upload" onclick="triggerFramedUpload()">
-          <span style="font-size:14px;">📷</span>
-          <span class="framed-upload-text">액자 변경</span>
-        </div>
-        <input type="file" id="framed-input" accept="image/*" style="display:none" onchange="uploadFramed(event)">
       </div>
       <div class="star-meta">
         <div class="star-name" id="star-name">로딩 중...</div>
@@ -575,6 +579,13 @@ body.is-admin .framed-wrap:hover .framed-upload{display:flex}
     <button class="submit-btn" id="submit-btn" onclick="submitContent()">✦ 기고하기</button>
     <div id="submit-msg" style="margin-top:11px;font-size:12px;text-align:center;display:none;"></div>
   </div>
+</div>
+
+<!-- 액자 크게 보기 (1010) — 어디를 눌러도 닫힌다 · Esc 도 -->
+<div id="framedZoom" onclick="closeFramedZoom()" role="dialog" aria-modal="true" aria-label="액자 크게 보기">
+  <button id="framedZoomX" type="button" onclick="closeFramedZoom()">← 별로</button>
+  <img id="framedZoomImg" alt="" draggable="false">
+  <div id="framedZoomCap"></div>
 </div>
 
 <!-- 황금사과 출금(합류) 팝업 -->
@@ -1046,53 +1057,50 @@ async function loadVoyageLink(starId) {
 
 
 
-// ── 사진#2 (액자) 표시·업로드 ──────────────────────────────────
+// ── 사진#2 (액자) 표시 · 크게 보기 ─────────────────────────────
+/* ⭐ 1010 소로 — 「액자 누르면 화면 가득」 · 살롱지기의 「액자 변경 / 액자 올리기」는 걷었다.
+     사진은 별 사진실에서만 올린다 — 탐구 페이지는 손님도 살롱지기도 똑같이 보는 곳. */
 function updateFramed(star) {
   const img = document.getElementById('framed-img');
   const empty = document.getElementById('framed-empty');
-  const admin = document.body.classList.contains('is-admin');
   if (star.framed_url) {
     img.src = star.framed_url; img.alt = star.name || '';
     img.style.display = 'block';
     empty.style.display = 'none';
-    /* 여닫기는 CSS가 한다(body.is-admin + hover) — 여기서 display를 만지면 그 규칙이 죽는다 */
   } else {
     img.removeAttribute('src');
     img.style.display = 'none';
-    /* 액자가 비었을 때는 빈 칸 자체가 올리는 문이 된다 — 띠는 CSS가 닫아 둔다 */
     empty.style.display = 'flex';
-    if (admin) {                                      // 소로면 빈 칸이 곧 올리기 버튼
-      empty.innerHTML = '<span style="font-size:18px;">📷</span><span class="framed-empty-add">액자 올리기</span>';
-      empty.style.cursor = 'pointer';
-      empty.onclick = triggerFramedUpload;
-    } else {                                          // 일반 회원은 그냥 빈 칸(추적용)
-      empty.innerHTML = '<span>✦</span>';
-      empty.style.cursor = 'default';
-      empty.onclick = null;
-    }
+    empty.innerHTML = '<span>✦</span>';
+    empty.style.cursor = 'default';
+    empty.onclick = null;
   }
 }
 
-function triggerFramedUpload() {
-  if (!document.body.classList.contains('is-admin')) return;
-  document.getElementById('framed-input').click();
+function openFramedZoom() {
+  if (!currentStar || !currentStar.framed_url) return;
+  const box = document.getElementById('framedZoom');
+  const big = document.getElementById('framedZoomImg');
+  big.classList.remove('ready');
+  big.onload = () => big.classList.add('ready');
+  big.src = currentStar.framed_url;
+  big.alt = currentStar.name || '';
+  if (big.complete && big.naturalWidth) big.classList.add('ready');
+  document.getElementById('framedZoomCap').textContent = currentStar.name || '';
+  box.classList.add('on');
+  document.body.style.overflow = 'hidden';
 }
 
-async function uploadFramed(event) {
-  const file = event.target.files[0];
-  if (!file || !currentStar) return;
-  if (!document.body.classList.contains('is-admin')) return;
-  const ext = file.name.split('.').pop();
-  const fileName = `framed_${currentStar.id}_${Date.now()}.${ext}`;
-  const { error } = await supa.storage.from('star-photos').upload(fileName, file, { upsert: true });
-  if (error) { console.error(error); alert('업로드 실패. 다시 시도해주세요.'); return; }
-  const { data: urlData } = supa.storage.from('star-photos').getPublicUrl(fileName);
-  const url = urlData.publicUrl;
-  await supa.from('stars').update({ framed_url: url }).eq('id', currentStar.id);
-  currentStar.framed_url = url;
-  updateFramed(currentStar);
-  event.target.value = '';
+function closeFramedZoom(e) {
+  if (e) e.stopPropagation();
+  const box = document.getElementById('framedZoom');
+  if (!box.classList.contains('on')) return;
+  box.classList.remove('on');
+  document.getElementById('framedZoomImg').classList.remove('ready');
+  document.body.style.overflow = '';
 }
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeFramedZoom(); });
 
 // ── 사진 업로드 ────────────────────────────────────────────────
 
