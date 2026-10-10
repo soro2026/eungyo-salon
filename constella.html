@@ -371,19 +371,8 @@ html, body {
   width:100%;height:100%;display:flex;align-items:center;
   justify-content:center;font-size:56px;opacity:0.18;
 }
-.eg-photo-hint {
-  position:absolute;left:0;right:0;bottom:0;display:flex;
-  align-items:center;justify-content:center;padding:10px 0 9px;
-  background:linear-gradient(transparent,rgba(0,0,0,0.5));
-  color:rgba(255,255,255,0.6);font-size:11px;font-weight:700;
-  letter-spacing:0.1em;transition:all 0.2s; z-index:6; cursor:pointer;
-}
-/* ⚠ 0814 소로 — 「사진 변경」이 친절하게 늘 떠 있었다. 초상 아래를 계속 가린다.
-     ⭐ 얹을 때만 나타난다. 카드 위에 손이 있을 때만. */
-.eg-photo-hint { opacity:0; transition:opacity .18s ease, background .18s ease, color .18s ease; }
-.eg-photo:hover .eg-photo-hint,
-.eg-card:hover .eg-photo-hint { opacity:1; }
-.eg-photo-hint:hover { background:linear-gradient(transparent,rgba(0,0,0,0.72));color:rgba(255,255,255,0.98); }
+/* ⭐ 1010 소로 — 살롱지기의 「📷 사진 변경 · 사진 추가」를 걷었다. 사진은 별 사진실(admin_star_photos.html)에서만 올린다.
+     별 모달은 손님도 살롱지기도 똑같이 본다. */
 /* 사진 없는 별 — 하단 인물명 세리프 (호메로스 카드 결과 통일) */
 .eg-front-nameplate {
   position:absolute; left:0; right:0; bottom:0;
@@ -793,7 +782,6 @@ html, body {
         <div class="eg-card-face" id="eg-card-front">
           <div class="eg-photo" id="eg-photo">
             <div class="eg-photo-empty" id="eg-photo-empty">✦</div>
-            <div class="eg-photo-hint">📷 사진 추가</div>
           </div>
           <!-- 사진 없는 별 — 인물명 세리프 (사진 있으면 숨김) -->
           <div class="eg-front-nameplate" id="eg-front-nameplate"></div>
@@ -873,9 +861,6 @@ html, body {
 
 
     <div class="eg-flip-hint">눌러서 뒤집기 · 마우스로 기울이기</div>
-
-    <!-- 숨긴 파일 인풋 -->
-    <input type="file" id="modal-photo-input" accept="image/*" style="display:none" onchange="uploadModalPhoto(event)">
 
   </div><!-- .modal-card-container -->
 </div><!-- #star-modal -->
@@ -1017,10 +1002,6 @@ function initModalCard(fig) {
     empty.textContent = '✦';
     photo.appendChild(empty);
   }
-  const hint = document.createElement('div');
-  hint.className = 'eg-photo-hint';
-  hint.textContent = '📷 사진 추가';
-  photo.appendChild(hint);
 
   // 앞면 정보
   document.getElementById('eg-name').textContent = fig.name;
@@ -1066,13 +1047,6 @@ function initModalCard(fig) {
       empty.style.color = p.text;
       empty.textContent = '✦';
       newPhoto.appendChild(empty);
-    }
-    if (isAdmin) {
-      const h = document.createElement('div');
-      h.className = 'eg-photo-hint';
-      h.textContent = fig.photo_url ? '📷 사진 변경' : '📷 사진 추가';
-      h.onclick = (e) => { e.stopPropagation(); triggerModalPhotoUpload(); };
-      newPhoto.appendChild(h);
     }
   }
 
@@ -1130,7 +1104,7 @@ function initModalCard(fig) {
   // 앞면 클릭 → 뒷면으로 (뒷면에선 카드 클릭 무시, ↻ 버튼으로만 복귀)
   newScene.addEventListener('click', e => {
     if (isFlipped) return;
-    if (e.target.closest('button, a, .eg-photo-hint')) return;
+    if (e.target.closest('button, a')) return;
     isFlipped = true;
     if (newFlipper) newFlipper.style.transform = 'rotateY(180deg)';
     if (newGlare) newGlare.style.opacity = 0;
@@ -1144,32 +1118,6 @@ function initModalCard(fig) {
     if (newGlare) newGlare.style.opacity = 0;
     if (newShine) newShine.style.opacity = 0;
   };
-}
-
-// ── 사진 업로드 ───────────────────────────────────────────────
-function triggerModalPhotoUpload() {
-  if (!currentUser || !isAdmin) return;
-  document.getElementById('modal-photo-input').click();
-}
-async function uploadModalPhoto(event) {
-  const file = event.target.files[0];
-  if (!file || !currentStarData) return;
-  const ext = file.name.split('.').pop();
-  const fileName = `star_${currentStarData.id}_${Date.now()}.${ext}`;
-  const { data, error } = await supa.storage.from('star-photos').upload(fileName, file, {upsert:true});
-  if (error) { console.error(error); return; }
-  const { data: urlData } = supa.storage.from('star-photos').getPublicUrl(fileName);
-  const photoUrl = urlData.publicUrl;
-  await supa.from('stars').update({photo_url:photoUrl}).eq('id',currentStarData.id);
-  currentStarData.photo_url = photoUrl;
-  FIGURES.forEach(f => { if (f.id === currentStarData.id) f.photo_url = photoUrl; });
-  // 카드 이미지 갱신
-  const ph = document.getElementById('eg-photo');
-  if (ph) {
-    ph.innerHTML = `<img src="${photoUrl}" alt="${currentStarData.name}" style="width:100%;height:100%;object-fit:cover;object-position:center top;">
-    <div class="eg-photo-hint">📷 사진 변경</div>`;
-  }
-  event.target.value = '';
 }
 
 function openStarModal(fig) {
