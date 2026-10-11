@@ -14,6 +14,9 @@
   · 탭 — 시범경기(preseason) · 정규시즌(rookie)
   · 카드마다 ✓ 봤음 · ✎ 메모 → quiz_review_marks(살롱지기만 읽고 씀)
   · 메모 = 파이스의 작업 목록(소로가 정리 → 파이스가 DB 에서 고친다 · fixed=true)
+  ⭐ 1011 소로 — 「파이스의 수정 후 피드백은 붉은 색으로」
+  · 파이스는 고친 뒤 quiz_review_marks.reply(+ replied_at)에 처리 결과를 적는다 → 메모 아래 붉은 글씨
+  · 메모 칸은 소로의 것 · 회신 칸은 파이스의 것 — 섞지 않는다(소로가 메모를 고쳐도 회신은 남는다 · 「고침」만 내린다)
 -->
 <style>
   :root{ --paper:#F8F4EB; --paper2:#FFFDF7; --ink:#1A1916; --ink2:#3A342B; --dim:#8B8478; --gold:#8A6414; --line:rgba(26,25,22,.10); --blue:#1D4F9E; }
@@ -81,6 +84,11 @@
   textarea.on{ display:block; }
   .saved{ font-size:11px; color:var(--dim); align-self:center; min-width:48px; }
   .fixed{ font-size:11px; color:var(--blue); align-self:center; }
+  /* 1011 — 파이스 회신(붉은 글씨) */
+  .reply{ margin-top:10px; padding:8px 12px; border-left:3px solid #A8322A; background:rgba(168,50,42,.05); border-radius:0 6px 6px 0;
+    font-size:13.5px; line-height:1.7; color:#A8322A; white-space:pre-wrap; }
+  .reply b{ font-weight:700; }
+  .reply .when{ color:rgba(168,50,42,.7); font-size:12px; }
   #gate{ max-width:520px; margin:18vh auto; text-align:center; font-size:15px; line-height:1.9; color:var(--ink2); }
   #empty{ text-align:center; color:var(--dim); padding:60px 0; font-size:14px; }
 </style>
@@ -126,7 +134,7 @@ async function boot(){
   const cols = 'id,tier,category,difficulty,question_type,keyword,zone_keyword,question_text,answer,initials,aliases,choices,correct_index,ox_explanation,created_at';
   const [qr, mr] = await Promise.all([
     sb.from('questions').select(cols).order('created_at').order('id').limit(2000),
-    sb.from('quiz_review_marks').select('question_id,seen,note,fixed').limit(5000),
+    sb.from('quiz_review_marks').select('question_id,seen,note,fixed,reply,replied_at').limit(5000),
   ]);
   if (qr.error) { gate.textContent = '문항을 못 받았습니다 — ' + qr.error.message; return; }
   Q = qr.data || [];
@@ -196,6 +204,13 @@ function bodyHTML(q){
   }
   return '<div class="lbl">힌트</div>' + hintHTML(q);
 }
+/* 1011 — 파이스 회신 한 칸(붉은 글씨) · 날짜는 「10/11」 꼴 */
+function replyHTML(m){
+  if (!m || !m.reply) return '';
+  let when = '';
+  if (m.replied_at) { const d = new Date(m.replied_at); if (!isNaN(d)) when = ` <span class="when">· ${d.getMonth() + 1}/${d.getDate()}</span>`; }
+  return `<div class="reply"><b>파이스</b>${when} — ${esc(m.reply)}</div>`;
+}
 function card(q){
   const m = MARK[q.id] || {};
   const al = (Array.isArray(q.aliases) ? q.aliases : []).filter((x) => x && x !== q.answer);
@@ -219,6 +234,7 @@ function card(q){
       <span class="saved"></span>
       ${m.fixed ? '<span class="fixed">고침 ✓</span>' : ''}
     </div>
+    ${replyHTML(m)}
   </article>`;
 }
 function render(){
