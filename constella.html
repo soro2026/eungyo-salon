@@ -553,6 +553,28 @@ html, body {
 }
 .eg-mine{ font-family:'Pretendard',sans-serif; font-size:11px; color:var(--ink-soft); text-align:center; margin-top:7px; }
 
+/* ══ 1011 밤 · 별과 별 사이 — 이야기 한 장을 두 별이 함께 갖는다 (star_links)
+   ⭐ 거미줄은 하늘에, 이야기는 카드에. 카드에는 한 장만 — 「✦ 선 N개 보기」가 하늘에 그물을 편다.
+   ⚠ 색은 박지 않는다. 카드 팔레트 변수(--ink · --accent · --hairline)를 그대로 받는다. */
+.eg-links{ margin:18px 0 0; padding:13px 0 0; border-top:1px solid var(--hairline); }
+.eg-links-top{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+.eg-links-title{ font-family:'Pretendard',sans-serif; font-size:10px; font-weight:700; letter-spacing:.16em; color:var(--subtle); }
+.eg-links-web{
+  border:none; background:none; padding:0; cursor:pointer;
+  font-family:'Pretendard',sans-serif; font-size:11px; font-weight:700; color:var(--accent);
+}
+.eg-links-web:hover, .eg-link-to:hover{ text-decoration:underline; text-underline-offset:3px; }
+.eg-link-line{ margin-top:8px; font-family:'Pretendard',sans-serif; font-size:12.5px; line-height:1.5; color:var(--ink); }
+.eg-link-head{ font-weight:700; }
+.eg-link-to{
+  border:none; background:none; padding:0; margin-left:6px; cursor:pointer;
+  font:inherit; font-weight:600; color:var(--accent);
+}
+.eg-link-story{
+  margin:6px 0 0; font-family:'Gowun Batang',serif; font-size:13px;
+  line-height:1.7; color:var(--ink-soft);
+}
+
 /* Company 섹션 — 밝은 카드 배경용 */
 .stock-section {
   background: rgba(0,0,0,0.045);
@@ -807,6 +829,20 @@ html, body {
               <h1 class="eg-name" id="eg-name">—</h1>
               <div class="eg-dates" id="eg-dates">—</div>
               <p class="eg-comment" id="eg-comment"></p>
+            </div>
+
+            <!-- 1011 밤 · 별과 별 사이 — 이야기가 있는 별에서만 선다(renderStarLinks).
+                 ⚠ initModalCard가 카드 장면을 통째로 복제해 갈아 끼우므로, 여기 단추의 손잡이는
+                   복제가 끝난 뒤 renderStarLinks가 단다. 속성 onclick은 복제를 견딘다. -->
+            <div class="eg-links" id="eg-links" style="display:none;">
+              <div class="eg-links-top">
+                <span class="eg-links-title">별과 별 사이</span>
+                <button class="eg-links-web" id="eg-links-web" onclick="showStarWeb()">✦ 선 보기</button>
+              </div>
+              <div class="eg-link-line">
+                <span class="eg-link-head" id="eg-link-head"></span><button class="eg-link-to" id="eg-link-to"></button>
+              </div>
+              <p class="eg-link-story" id="eg-link-story"></p>
             </div>
 
             <!-- 남는 높이를 먹어 아래 것들을 바닥으로 민다 -->
@@ -1120,7 +1156,7 @@ function initModalCard(fig) {
   };
 }
 
-function openStarModal(fig) {
+function openStarModal(fig, opts) {
   currentStarData = fig;
 
   // 카드 초기화
@@ -1131,6 +1167,9 @@ function openStarModal(fig) {
 
   // 3D 카드
   initModalCard(fig);
+
+  // 1011 밤 · 별과 별 사이 — 복제가 끝난 카드에 이야기 한 장(선을 타고 왔으면 그 선의 이야기)
+  renderStarLinks(fig, opts && opts.viaLinkId);
 
   // 기본 정보
   document.getElementById('modal-name').textContent = fig.name;
@@ -1307,6 +1346,298 @@ function closeModal() {
   document.getElementById('star-modal').classList.remove('show');
   currentStarData = null;
 }
+
+/* ══ 1011 밤 · 별과 별 사이 (star_links · star_link_trails) ═══════════════════
+   소로 「이 위대한 인생들이 어찌 하나만 연결되리오」 — 바흐 한 분에게서만 선이 열한 갈래.
+   ⭐ 거미줄은 하늘에, 이야기는 카드에.
+     카드      그 별의 이야기 한 장(열 때마다 돌아가며 · 선을 타고 왔으면 그 선의 이야기가 맨 위)
+     ✦ 선 N개 보기   카드가 내려가고 하늘이 어두워지며 금빛 선이 하나씩 뻗는다 · 끝 별 곁에 이름과 머리말
+     건너기    상대 이름(카드) 또는 선 끝 별(하늘)을 누르면 그 별로 날아가 카드를 연다
+   ⭐ 건넌 선만 하늘에 남는다 — 7일에 걸쳐 날마다 옅어지고, 다시 건너면 처음 밝기 · 7일이 새로(소로 1011).
+     로그인 손님은 star_link_trails 에 남고(손님 각자 것만), 비로그인은 이 창에서만 남는다.
+   ⚠ 이야기는 카리가 쓰고 파이스가 사실을 대 본다 — 다리는 비유가 아니라 사실(규칙 B). */
+const TRAIL_MS = 7 * 24 * 3600 * 1000;
+let linksByStar = new Map();   // 별 id → 그 별이 가진 이야기들
+let linkById    = new Map();
+let linkCursor  = new Map();   // 별 id → 다음에 보여 줄 이야기 차례(이 창 안에서만)
+let trailMap    = new Map();   // 이야기 id → 마지막으로 건넌 때(ms)
+let starById    = new Map();   // 별 id → 하늘에 놓인 별(initStars가 채움)
+let starWeb     = null;        // 펼친 그물 { centerId, links, targets, t0, tClose, hits }
+
+async function loadStarLinks() {
+  const { data, error } = await supa.from('star_links')
+    .select('id,star_a,star_b,head,story').eq('active', true).order('id');
+  if (error) { console.warn('star_links 로드 실패:', error); return; }
+  linksByStar = new Map(); linkById = new Map();
+  (data || []).forEach(L => {
+    linkById.set(L.id, L);
+    [L.star_a, L.star_b].forEach(id => {
+      if (!linksByStar.has(id)) linksByStar.set(id, []);
+      linksByStar.get(id).push(L);
+    });
+  });
+  if (currentUser) {
+    const { data: tr } = await supa.from('star_link_trails').select('link_id,crossed_at');
+    (tr || []).forEach(r => {
+      const t = Date.parse(r.crossed_at);
+      if (Date.now() - t < TRAIL_MS) trailMap.set(r.link_id, t);
+    });
+  }
+}
+
+function otherEnd(L, starId) { return L.star_a === starId ? L.star_b : L.star_a; }
+
+function renderStarLinks(fig, viaLinkId) {
+  const box = document.getElementById('eg-links');
+  if (!box) return;
+  const links = linksByStar.get(fig.id) || [];
+  if (!links.length) { box.style.display = 'none'; return; }
+
+  let L = viaLinkId ? links.find(l => l.id === viaLinkId) : null;
+  if (!L) {
+    const i = (linkCursor.get(fig.id) || 0) % links.length;
+    L = links[i];
+    linkCursor.set(fig.id, i + 1);
+  }
+  const other = FIGURES.find(f => f.id === otherEnd(L, fig.id));
+
+  document.getElementById('eg-link-head').textContent = L.head;
+  const to = document.getElementById('eg-link-to');
+  to.textContent = '✦ ' + (other ? other.name : '');
+  to.onclick = (e) => { e.stopPropagation(); crossLink(L, fig.id); };
+  document.getElementById('eg-link-story').textContent = L.story;
+  document.getElementById('eg-links-web').textContent = `✦ 선 ${links.length}개 보기`;
+  box.style.display = 'block';
+}
+
+// 하늘 위 한 별로 부드럽게 날아간다 — 하늘이 도는 중이라 매 프레임 별 자리를 다시 잰다
+function flyToStar(target, done, duration = 900) {
+  const startX = viewX, startY = viewY;
+  const t0 = performance.now();
+  function step(now) {
+    const p = Math.min((now - t0) / duration, 1);
+    const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+    const tx = target.x - (canvas.width / scale) / 2;
+    const ty = target.y - (canvas.height / scale) / 2;
+    viewX = startX + (tx - startX) * e;
+    viewY = startY + (ty - startY) * e;
+    clampView();
+    if (p < 1) requestAnimationFrame(step);
+    else if (done) done();
+  }
+  requestAnimationFrame(step);
+}
+
+// 선을 건넌다 — 남기고, 날아가고, 그 별의 카드를 그 선의 이야기로 연다
+function crossLink(L, fromId) {
+  const target = starById.get(otherEnd(L, fromId));
+  if (!target) return;
+  closeModal();
+  if (starWeb) closeStarWeb();
+  trailMap.set(L.id, Date.now());                 // 금빛 그대로 — 7일이 새로 시작
+  if (currentUser) {
+    supa.from('star_link_trails')
+      .upsert({ user_id: currentUser.id, link_id: L.id, crossed_at: new Date().toISOString() },
+              { onConflict: 'user_id,link_id' })
+      .then(({ error }) => { if (error) console.warn('건넌 선 남기기 실패:', error); });
+  }
+  flyToStar(target, () => {
+    target.highlighted = true;
+    setTimeout(() => { target.highlighted = false; openStarModal(target.figure, { viaLinkId: L.id }); }, 250);
+  });
+}
+
+// ✦ 선 N개 보기 — 카드가 내려가고, 그 별과 선 끝 별들이 한눈에 들어오게 하늘을 맞춘다
+function showStarWeb() {
+  const fig = currentStarData;
+  if (!fig) return;
+  const links = linksByStar.get(fig.id) || [];
+  const center = starById.get(fig.id);
+  if (!links.length || !center) return;
+  closeModal();
+
+  const targets = new Map();
+  links.forEach(L => targets.set(otherEnd(L, fig.id), L));
+  starWeb = { centerId: fig.id, links, targets, t0: performance.now() + 450, tClose: 0, hits: [] };
+
+  /* 그물 전체가 들어오는 배율과 자리.
+     ⚠ 위는 머리띠, 아래는 검색창이 덮는다 — 그 사이(안전 칸)에 맞춘다. 검색창 밑에 깔린 별은 눌리지 않는다(1011 시험에서 밟음).
+     ⚠ 바흐처럼 시대를 건너 퍼진 그물은 평소 최소 배율(0.45)로 다 안 들어온다 — 그물을 펼 때만 0.3까지 물러선다.
+       하늘이 어두워진 동안이라 연대기 띠의 바깥 둘레가 드러나도 거슬리지 않는다. */
+  const pts = [center, ...links.map(L => starById.get(otherEnd(L, fig.id))).filter(Boolean)];
+  const xs = pts.map(s => s.x), ys = pts.map(s => s.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const bw = Math.max(200, maxX - minX), bh = Math.max(200, maxY - minY);
+  const sb = document.querySelector('.search-wrap');
+  const safeTop = 96;
+  const safeBottom = Math.max(safeTop + 200, (sb ? sb.getBoundingClientRect().top : canvas.height) - 24);
+  const availW = Math.max(240, canvas.width - 2 * 180);           // 양옆에 이름표 자리
+  const availH = Math.max(160, safeBottom - safeTop - 40);
+  const targetScale = Math.max(0.3, Math.min(1.2, availW / bw, availH / bh));
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  const midY = (safeTop + safeBottom) / 2;
+  starWeb.safeTop = safeTop; starWeb.safeBottom = safeBottom;
+  const sS = scale, sX = viewX, sY = viewY, t0 = performance.now();
+  (function fit(now) {
+    const p = Math.min((now - t0) / 700, 1);
+    const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+    scale = sS + (targetScale - sS) * e;
+    const tx = cx - (canvas.width / scale) / 2, ty = cy - midY / scale;
+    viewX = sX + (tx - sX) * e;
+    viewY = sY + (ty - sY) * e;
+    clampView();
+    if (p < 1) requestAnimationFrame(fit);
+  })(t0);
+}
+
+function closeStarWeb() {
+  if (starWeb && !starWeb.tClose) starWeb.tClose = performance.now();
+}
+
+function toScreen(x, y) { return { x: (x - viewX) * scale, y: (y - viewY) * scale }; }
+
+// 건넌 선 — 월드 좌표(배율 안)에서 별 뒤에 옅게. 7일에 걸쳐 날마다 옅어진다
+function drawTrails() {
+  if (!trailMap.size) return;
+  const now = Date.now();
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 1.4 / scale;
+  for (const [linkId, at] of trailMap) {
+    const age = (now - at) / TRAIL_MS;
+    if (age >= 1) continue;
+    const L = linkById.get(linkId);
+    if (!L) continue;
+    const a = starById.get(L.star_a), b = starById.get(L.star_b);
+    if (!a || !b) continue;
+    ctx.strokeStyle = `rgba(232,200,120,${(0.7 * (1 - age)).toFixed(3)})`;
+    ctx.beginPath();
+    ctx.moveTo(a.x - viewX, a.y - viewY);
+    ctx.lineTo(b.x - viewX, b.y - viewY);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// 펼친 그물 — 화면 좌표에서. 하늘을 어둡게 덮고, 선을 하나씩 뻗고, 끝 별에 이름과 머리말
+function drawStarWeb() {
+  if (!starWeb) return;
+  const now = performance.now();
+  let k = Math.min(1, Math.max(0, (now - starWeb.t0 + 450) / 350));
+  if (starWeb.tClose) {
+    const c = 1 - Math.min(1, (now - starWeb.tClose) / 400);
+    if (c <= 0) { starWeb = null; return; }
+    k *= c;
+  }
+  const center = starById.get(starWeb.centerId);
+  if (!center) return;
+  const C = toScreen(center.x, center.y);
+  const el = now - starWeb.t0;
+  const hits = [];
+
+  ctx.save();
+  ctx.fillStyle = `rgba(2,4,12,${(0.55 * k).toFixed(3)})`;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.lineCap = 'round';
+  ctx.textBaseline = 'alphabetic';
+
+  starWeb.links.forEach((L, i) => {
+    const other = starById.get(otherEnd(L, starWeb.centerId));
+    if (!other) return;
+    const O = toScreen(other.x, other.y);
+    const raw = Math.min(1, Math.max(0, (el - i * 90) / 700));
+    if (raw <= 0) return;
+    const p = 1 - Math.pow(1 - raw, 3);
+    const ex = C.x + (O.x - C.x) * p, ey = C.y + (O.y - C.y) * p;
+
+    ctx.strokeStyle = `rgba(232,200,120,${(0.8 * k).toFixed(3)})`;
+    ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.moveTo(C.x, C.y); ctx.lineTo(ex, ey); ctx.stroke();
+    // 뻗어 가는 끝의 불씨
+    ctx.fillStyle = `rgba(255,236,180,${(0.9 * k).toFixed(3)})`;
+    ctx.beginPath(); ctx.arc(ex, ey, 1.8, 0, Math.PI * 2); ctx.fill();
+
+    if (raw >= 1) {
+      const la = Math.min(1, (el - i * 90 - 700) / 300) * k;
+      if (la <= 0) return;
+      const g = ctx.createRadialGradient(O.x, O.y, 0, O.x, O.y, 14);
+      g.addColorStop(0, `rgba(255,236,180,${(0.85 * la).toFixed(3)})`);
+      g.addColorStop(1, 'rgba(255,236,180,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(O.x, O.y, 14, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = `rgba(255,248,231,${la.toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(O.x, O.y, 2.6, 0, Math.PI * 2); ctx.fill();
+
+      // 이름과 머리말 — 별에서 바깥쪽(그물 중심 반대편)으로 · 이미 놓인 이름표와 겹치면 비켜 선다
+      const name = other.figure.name;
+      ctx.font = "bold 12.5px 'Pretendard','Apple SD Gothic Neo',sans-serif";
+      const wName = ctx.measureText(name).width;
+      ctx.font = "12px 'Gowun Batang',serif";
+      const wHead = ctx.measureText(L.head).width;
+      const w = Math.max(wName, wHead);
+      const right = O.x >= C.x;
+      const top = starWeb.safeTop || 0, bottom = (starWeb.safeBottom || canvas.height) - 6;
+      const tries = [];
+      [right, !right].forEach(r => [0, 1, -1, 2, -2, 3, -3].forEach(d => tries.push({ r, dy: d * 36 })));
+      let lx = 0, ly = 0;
+      for (const tr of tries) {
+        lx = tr.r ? O.x + 12 : O.x - 12 - w;
+        lx = Math.max(8, Math.min(canvas.width - w - 8, lx));
+        ly = Math.max(top + 15, Math.min(bottom - 21, O.y - 4 + tr.dy));
+        const box = { x: lx - 4, y: ly - 15, w: w + 8, h: 36 };
+        const clash = hits.some(h => box.x < h.x + h.w && h.x < box.x + box.w && box.y < h.y + h.h && h.y < box.y + box.h)
+                   || (box.x < C.x + 90 && C.x - 90 < box.x + box.w && box.y < C.y - 4 && C.y - 34 < box.y + box.h);
+        if (!clash) break;
+      }
+      if (Math.abs(ly - (O.y - 4)) > 6) {          // 비켜 선 이름표는 가는 실로 제 별에 묶는다
+        const ax = lx > O.x ? lx - 3 : lx + w + 3;
+        ctx.strokeStyle = `rgba(232,200,120,${(0.35 * la).toFixed(3)})`;
+        ctx.lineWidth = 0.8;
+        ctx.beginPath(); ctx.moveTo(O.x, O.y); ctx.lineTo(ax, ly - 4); ctx.stroke();
+      }
+      ctx.textAlign = 'left';
+      ctx.font = "bold 12.5px 'Pretendard','Apple SD Gothic Neo',sans-serif";
+      ctx.fillStyle = `rgba(255,248,231,${(0.95 * la).toFixed(3)})`;
+      ctx.fillText(name, lx, ly);
+      ctx.font = "12px 'Gowun Batang',serif";
+      ctx.fillStyle = `rgba(232,200,120,${(0.95 * la).toFixed(3)})`;
+      ctx.fillText(L.head, lx, ly + 16);
+      hits.push({ x: lx - 4, y: ly - 15, w: w + 8, h: 36, link: L, sx: O.x, sy: O.y });
+    }
+  });
+
+  // 그물의 중심 별
+  const cg = ctx.createRadialGradient(C.x, C.y, 0, C.x, C.y, 22);
+  cg.addColorStop(0, `rgba(255,236,180,${(0.9 * k).toFixed(3)})`);
+  cg.addColorStop(1, 'rgba(255,236,180,0)');
+  ctx.fillStyle = cg;
+  ctx.beginPath(); ctx.arc(C.x, C.y, 22, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = `rgba(255,252,240,${k.toFixed(3)})`;
+  ctx.beginPath(); ctx.arc(C.x, C.y, 3.4, 0, Math.PI * 2); ctx.fill();
+  ctx.font = "bold 14px 'Pretendard','Apple SD Gothic Neo',sans-serif";
+  ctx.textAlign = 'center';
+  ctx.fillStyle = `rgba(255,248,231,${k.toFixed(3)})`;
+  ctx.fillText(center.figure.name, C.x, C.y - 18);
+  ctx.restore();
+
+  starWeb.hits = hits;
+}
+
+/* 그물을 편 하늘에서 누른 곳 — 선 끝 별(이름표 포함)이면 건넌다 · 다른 별이면 그 카드 · 빈 하늘이면 접는다.
+   true 를 돌려주면 평소 클릭 처리를 건너뛴다. */
+function webTap(px, py) {
+  if (!starWeb || starWeb.tClose) return false;
+  const hit = starWeb.hits.find(h => (px >= h.x && px <= h.x + h.w && py >= h.y && py <= h.y + h.h)
+                                  || Math.hypot(px - h.sx, py - h.sy) < 22);
+  if (hit) { crossLink(hit.link, starWeb.centerId); return true; }
+  const { x: wx, y: wy } = screenToWorld(px, py);
+  const s = findNearestFigureStar(wx, wy, 28);
+  closeStarWeb();
+  if (s) { hideTooltip(); openStarModal(s.figure); }
+  return true;
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && starWeb) closeStarWeb(); });
 
 // 모달 배경 클릭 시 닫기
 document.getElementById('star-modal').addEventListener('click', function(e) {
@@ -1633,6 +1964,8 @@ function initStars() {
   });
 
   document.getElementById('star-count-num').textContent = FIGURES.length;
+  // 1011 밤 · 별과 별 사이 — 선의 두 끝을 매 프레임 찾으므로 별 id로 곧장 집는다
+  starById = new Map(stars.filter(s => s.type === 'figure').map(s => [s.figure.id, s]));
 }
 
 // 새 별 위치 Supabase에 저장
@@ -2162,10 +2495,12 @@ function loop() {
   ctx.save();
   ctx.scale(scale, scale);
   drawBgLayers(t, skyA);           // 원경·중경·근경 — 배경별 3겹 (시차 + 차등 자전 + 무한)
+  drawTrails();                    // 1011 밤 — 손님이 건넌 선(7일에 걸쳐 옅어짐) · 별 뒤에
   stars.forEach(s => drawStar(s, t));
   ctx.restore();
   // 유성은 scale 무관하게 화면 좌표로
   drawShootingStars();
+  drawStarWeb();                   // 1011 밤 — 펼친 그물(화면 좌표 · 맨 위)
   animFrame = requestAnimationFrame(loop);
 }
 
@@ -2281,6 +2616,7 @@ canvas.addEventListener('mousemove', e => {
 canvas.addEventListener('mouseup', e => {
   if (!dragMoved) {
     const { x, y } = getPointerPos(e);
+    if (webTap(x, y)) { isDragging = false; return; }   // 1011 밤 — 그물을 편 하늘
     const { x: wx, y: wy } = screenToWorld(x, y);
     const s = findNearestFigureStar(wx, wy, 28);
     if (s) { hideTooltip(); openStarModal(s.figure); }
@@ -2328,6 +2664,7 @@ canvas.addEventListener('touchend', e => {
   if (!touchMoved && e.changedTouches.length === 1) {
     const x = e.changedTouches[0].clientX;
     const y = e.changedTouches[0].clientY;
+    if (webTap(x, y)) return;   // 1011 밤 — 그물을 편 하늘
     const { x: wx, y: wy } = screenToWorld(x, y);
     const s = findNearestFigureStar(wx, wy, 44);
     if (s) { hideTooltip(); openStarModal(s.figure); }
@@ -2583,6 +2920,7 @@ setTimeout(spawnShootingStar, 3000);
 (async () => {
   await initAuth();
   await loadStars();
+  await loadStarLinks();   // 1011 밤 · 별과 별 사이 — 이야기와 (로그인이면) 건넌 선
 
   /* ══ EG Credencial — ⭐ 천문대 입국 도장 (0804 소로 결정)
      밤하늘이 열리는 이 순간이 「천문대에 도착한 것」이다.
