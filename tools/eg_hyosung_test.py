@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # ================================================================
-#  EG유니버스 · 효성CMS 시험 도구 (서버판)  v1.0  (2026-10-12 · 파이스)
+#  EG유니버스 · 효성CMS 시험 도구 (서버판)  v1.1  (2026-10-12 · 파이스)
+#  v1.1 — [A] 계좌 회원 직접 등록 · 계좌 · 생년월일은 화면 · 기록에서 가림
 #  네이버 클라우드 eg-hyosung(고정 IP 211.233.214.68)에서 돌립니다.
 #  시험 서버 전용 — 운영 서버 주소는 이 파일에 없습니다.
 #  열쇠는 이 파일에 없습니다. 처음 열 때 한 번 넣으면
@@ -17,7 +18,7 @@ import sys
 import urllib.error
 import urllib.request
 
-VERSION = 'v1.0 · 2026-10-12'
+VERSION = 'v1.1 · 2026-10-12'
 HOST_API = 'https://api-test.hyosungcms.co.kr'
 HOST_VIEW = 'https://view-test.hyosungcms.co.kr'
 OUR_IP = '211.233.214.68'          # 효성에 등록한 고정 IP (1012 등록 완료)
@@ -125,6 +126,22 @@ def check_ip():
 
 
 # ---------------------------------------------------------------- 효성 두드리기
+SECRET_FIELDS = ('paymentNumber', 'payerNumber', 'password')
+
+
+def masked(body):
+    if not isinstance(body, dict):
+        return body
+    out = {}
+    for k, v in body.items():
+        if k in SECRET_FIELDS and v:
+            v = str(v)
+            out[k] = '*' * max(len(v) - 4, 0) + v[-4:] if k == 'paymentNumber' else '*' * len(v)
+        else:
+            out[k] = v
+    return out
+
+
 def call(method, url, body=None):
     data = None
     sent = ''
@@ -133,8 +150,8 @@ def call(method, url, body=None):
         'Accept': 'application/json',
     }
     if body is not None:
-        sent = json.dumps(body, ensure_ascii=False)
-        data = sent.encode('utf-8')
+        data = json.dumps(body, ensure_ascii=False).encode('utf-8')
+        sent = json.dumps(masked(body), ensure_ascii=False)
         headers['Content-Type'] = 'application/json; charset=utf-8'
     log(f'-> {method} {url}')
     if sent:
@@ -358,6 +375,54 @@ def step_card_cancel():
     show(res, f"카드 승인 취소 · {t['id']}")
 
 
+# ---------------------------------------------------------------- [A] 계좌 회원 직접 등록
+BANKS = [('004', '국민'), ('011', '농협'), ('088', '신한'), ('020', '우리'), ('081', '하나'),
+         ('003', '기업'), ('090', '카카오'), ('092', '토스'), ('089', '케이'), ('071', '우체국')]
+
+
+def step_cms_member():
+    line()
+    say('[A] 계좌 회원 직접 등록 — 링크 화면을 거치지 않고 서버가 효성에 청합니다.', 'c')
+    say('   배치 회원은 다음 날 선다고 합니다. 내일 [3]으로 섰는지 봅니다.', 'd')
+    say('   은행 번호 — ' + ' · '.join(f'{c} {n}' for c, n in BANKS), 'd')
+    bank = ask('은행 번호 세 자리', '011')
+    if not (len(bank) == 3 and bank.isdigit()):
+        say('   은행 번호는 세 자리 숫자로 넣어 주세요.', 'r')
+        return
+    acct = ask('계좌번호 (숫자만 · 화면 · 기록에는 뒤 넷만 남습니다)').replace('-', '').replace(' ', '')
+    if not acct.isdigit():
+        say('   계좌번호는 숫자로만 넣어 주세요.', 'r')
+        return
+    holder = ask('예금주 이름', '조신영')
+    birth = ask('예금주 생년월일 여섯 자리 (예: 700101 · 화면 · 기록에서 가립니다)')
+    if not (len(birth) == 6 and birth.isdigit()):
+        say('   생년월일은 여섯 자리 숫자로 넣어 주세요.', 'r')
+        return
+    phone = ask('휴대폰 번호 (숫자만 · 없으면 엔터)').replace('-', '')
+    mid = 'EGC' + datetime.datetime.now().strftime('%m%d%H%M%S')
+    day = datetime.date.today().day
+    if day >= 25:
+        day = 1
+    body = {
+        'memberId': mid,
+        'memberName': holder,
+        'paymentKind': 'CMS',
+        'paymentCompany': bank,
+        'paymentNumber': acct,
+        'payerName': holder,
+        'payerNumber': birth,
+        'defaultAmount': 30030,
+        'paymentDay': day,
+    }
+    if phone:
+        body['phone'] = phone
+    res = call('POST', api('/members'), body)
+    if show(res, '계좌 회원 직접 등록'):
+        S['memberId'] = mid
+        save_state()
+        say(f'   회원 번호 {mid} 를 적어 두었습니다. [3] · [4]가 이 번호로 이어집니다.', 'y')
+
+
 # ---------------------------------------------------------------- [0] 직접 두드리기
 def step_raw():
     line()
@@ -389,6 +454,7 @@ MENU = [
     ('5', '배치 출금 결과 보기', step_cms_result),
     ('6', '카드 승인', step_card),
     ('7', '카드 승인 취소', step_card_cancel),
+    ('A', '계좌 회원 직접 등록', step_cms_member),
     ('0', '직접 두드리기', step_raw),
 ]
 
@@ -415,7 +481,7 @@ def main():
             ask_keys()
             K = load_keys()
             continue
-        fn = next((f for n, _, f in MENU if n == c), None)
+        fn = next((f for n, _, f in MENU if n == c.upper()), None)
         if not fn:
             say('   목록의 번호를 눌러 주세요.', 'd')
             continue
