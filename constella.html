@@ -1432,6 +1432,12 @@ function flyToStar(target, done, duration = 900) {
 function crossLink(L, fromId) {
   const target = starById.get(otherEnd(L, fromId));
   if (!target) return;
+  /* 1016 아침 · 선을 건너면 검색을 푼다 — 검색이 남아 있으면 건너간 별이 하늘에 그려지지 않는다 */
+  if (searchQuery) {
+    const inp = document.querySelector('.search-input');
+    if (inp) inp.value = '';
+    searchStar('');
+  }
   closeModal();
   if (starWeb) closeStarWeb();
   trailMap.set(L.id, Date.now());                 // 금빛 그대로 — 7일이 새로 시작
@@ -2070,6 +2076,7 @@ function drawStar(s, t) {
   const twinkle = Math.sin(t * s.twinkleSpeed * 60 + s.twinklePhase);
 
   if (s.type === 'bg') {
+    if (searchQuery) return;       // 1016 아침 · 검색 중에는 분위기 별을 감춘다
     const a = s.alpha + twinkle * 0.04;
     ctx.beginPath();
     ctx.arc(sx, sy, s.r, 0, Math.PI * 2);
@@ -2494,8 +2501,12 @@ function loop() {
   drawMoon(t);                     // 0723심야: 화면공간 왕복(재출근 보장) + 시차 0.85·줌 반응 — 하늘에 합류
   ctx.save();
   ctx.scale(scale, scale);
-  drawBgLayers(t, skyA);           // 원경·중경·근경 — 배경별 3겹 (시차 + 차등 자전 + 무한)
-  drawTrails();                    // 1011 밤 — 손님이 건넌 선(7일에 걸쳐 옅어짐) · 별 뒤에
+  /* 1016 아침 · 검색 중에는 찾은 별만 — 분위기 별(배경 3겹 · bg 별)과 건넌 선을 감춘다(소로).
+     달과 은하수는 남긴다. 검색창을 비우면 하늘이 그대로 돌아온다. */
+  if (!searchQuery) {
+    drawBgLayers(t, skyA);         // 원경·중경·근경 — 배경별 3겹 (시차 + 차등 자전 + 무한)
+    drawTrails();                  // 1011 밤 — 손님이 건넌 선(7일에 걸쳐 옅어짐) · 별 뒤에
+  }
   stars.forEach(s => drawStar(s, t));
   ctx.restore();
   // 유성은 scale 무관하게 화면 좌표로
