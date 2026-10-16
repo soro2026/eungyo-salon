@@ -2942,6 +2942,84 @@ setTimeout(spawnShootingStar, 3000);
        진입 → 포토카드 → 탐구 페이지 도달 시, 각인에 「그날 첫 인물」 이름. ══ */
   if (window.EGStamp) EGStamp.offer({ supa, area:'observatorium' });
 })();
+
+/* ── 1017 — 🎬 하늘 녹화 (홈페이지 후킹 영상 ④ 밤하늘 · 살롱지기만) ──
+   terra.html 의 F9 와 같은 손이다. F9 한 번 = 시작, 한 번 더 = 멈춤 → 다운로드 폴더에 eg_sky_NN.webm.
+   ⚠ 별 캔버스만 찍으면 그 뒤의 #sky(CSS 어둠 그라데이션)가 빠져 바탕이 까맣게 나온다.
+     그래서 녹화용 캔버스를 따로 두고, 매 프레임 #sky 를 먼저 칠한 뒤 별 캔버스를 얹어 그것을 찍는다.
+   ⭐ 별자리 그물(drawStarWeb)·은하수·이름표는 전부 별 캔버스 위에 그려지므로 그대로 들어간다.
+     검색창·모달·툴팁·REC 표시(HTML)는 들어가지 않는다.
+   저장하지 않는다 · 손님(isAdmin=false)에게는 F9 가 아무 일도 하지 않는다. */
+(function(){
+  let rec = null, chunks = [], no = 0, raf = 0, rc = null, rx = null, t0 = 0, tick = 0;
+  const dot = document.createElement('div');
+  dot.style.cssText = 'position:fixed;left:14px;top:14px;z-index:99999;display:none;padding:4px 10px;border-radius:14px;'
+    + 'background:rgba(0,0,0,.55);color:#ff6b6b;font:600 12px/1.4 system-ui,sans-serif;letter-spacing:.04em;pointer-events:none';
+  document.body.appendChild(dot);
+
+  function paintSky(c, W, H){
+    c.fillStyle = '#050810'; c.fillRect(0, 0, W, H);              /* body 바탕 --ink */
+    /* #sky — radial-gradient(ellipse at 50% 42%, rgba(14,18,34,.9) 0%, rgba(2,4,12,1) 72%) · farthest-corner */
+    const s = Math.sqrt(1 + Math.pow(0.58 / 0.42, 2));
+    c.save(); c.translate(W * 0.5, H * 0.42); c.scale(W * 0.5 * s, H * 0.42 * s);
+    const g = c.createRadialGradient(0, 0, 0, 0, 0, 1);
+    g.addColorStop(0, 'rgba(14,18,34,0.9)'); g.addColorStop(0.72, 'rgba(2,4,12,1)'); g.addColorStop(1, 'rgba(2,4,12,1)');
+    c.fillStyle = g; c.fillRect(-2, -2, 4, 4);
+    c.restore();
+    c.fillStyle = 'rgba(2,4,12,0.38)'; c.fillRect(0, 0, W, H);    /* #sky::after */
+  }
+  function frame(){
+    if (!rec) return;
+    paintSky(rx, rc.width, rc.height);
+    rx.drawImage(canvas, 0, 0, rc.width, rc.height);
+    raf = requestAnimationFrame(frame);
+  }
+  function start(){
+    if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream){ alert('이 브라우저는 녹화를 못 합니다 — 크롬으로'); return; }
+    rc = document.createElement('canvas');
+    rc.width = canvas.width; rc.height = canvas.height;           /* 창 크기를 바꿔도 녹화 판 크기는 시작 때 그대로 */
+    rx = rc.getContext('2d');
+    paintSky(rx, rc.width, rc.height); rx.drawImage(canvas, 0, 0);
+    const stream = rc.captureStream(30);
+    const mime = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(m => MediaRecorder.isTypeSupported(m)) || '';
+    try { rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 16e6 }); }
+    catch (e) { alert('녹화를 못 열었습니다: ' + e.message); rec = null; return; }
+    chunks = [];
+    rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop = () => {
+      const blob = new Blob(chunks, { type: 'video/webm' });
+      no += 1;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'eg_sky_' + String(no).padStart(2, '0') + '.webm';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      dot.textContent = '저장 · ' + a.download + ' · ' + (blob.size / 1048576).toFixed(1) + 'MB';
+      dot.style.color = '#f0c0b0';
+      setTimeout(() => { if (!rec) dot.style.display = 'none'; }, 3500);
+    };
+    rec.start(250);
+    t0 = performance.now();
+    dot.style.color = '#ff6b6b'; dot.style.display = 'block'; dot.textContent = '● REC 0:00';
+    tick = setInterval(() => {
+      const sec = Math.floor((performance.now() - t0) / 1000);
+      dot.textContent = '● REC ' + Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+    }, 250);
+    raf = requestAnimationFrame(frame);
+  }
+  function stop(){
+    if (!rec) return;
+    const r = rec; rec = null;
+    cancelAnimationFrame(raf); clearInterval(tick);
+    try { r.stop(); } catch (e) {}
+  }
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'F9' || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    if (!isAdmin) return;                                          /* 손님에게는 아무 일도 없다 */
+    e.preventDefault();
+    rec ? stop() : start();
+  });
+})();
 </script>
 
 <!-- 폰에서 방을 나가는 문 (0730) — 액자 밖 + 폰일 때만 뜬다. eg_back.js 참조 -->
