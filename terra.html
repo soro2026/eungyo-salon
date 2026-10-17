@@ -4020,6 +4020,27 @@ function buildShotSwitches(){
   let hiq = null;
   const hiqBtn = cbtn("🎞 고화질 촬영 (F4)", ()=> hiqToggle());
   box.appendChild(hiqBtn);
+  /* 1017 소로 — 「켰는지 모르겠다」. 화면 위 가운데에 표지를 띄운다. HTML 이라 F9 영상에는 안 들어가고,
+     탭 녹화(eg-rec) 중에는 감춘다. 타일이 다 실렸는지도 알려 준다 — 「준비됨」이 뜨면 F9. */
+  const hiqTag = document.createElement("div");
+  hiqTag.style.cssText = "position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:99999;display:none;"
+    + "padding:7px 16px;border-radius:18px;background:rgba(20,14,8,.78);border:1px solid rgba(255,224,138,.55);"
+    + "color:#ffe08a;font:600 13px/1.4 system-ui,'Apple SD Gothic Neo',sans-serif;letter-spacing:.03em;pointer-events:none;"
+    + "box-shadow:0 4px 18px rgba(0,0,0,.35)";
+  document.body.appendChild(hiqTag);
+  const hiqCss = document.createElement("style");
+  hiqCss.textContent = "body.eg-rec #egHiqTag{display:none !important}";
+  document.head.appendChild(hiqCss); hiqTag.id = "egHiqTag";
+  let hiqTimer = null;
+  function hiqPaint(){
+    if (!hiq){ hiqTag.style.display = "none"; clearInterval(hiqTimer); hiqTimer = null; return; }
+    const ts = window.egTileset, sz = viewer.canvas.width + "×" + viewer.canvas.height;
+    const ready = !ts || ts.tilesLoaded;
+    hiqTag.textContent = ready ? "🎞 고화질 " + sz + " · ✓ 준비됨 — F9 로 녹화" : "🎞 고화질 " + sz + " · 타일 싣는 중…";
+    hiqTag.style.color = ready ? "#b8f5a0" : "#ffe08a";
+    hiqTag.style.borderColor = ready ? "rgba(184,245,160,.6)" : "rgba(255,224,138,.55)";
+    hiqTag.style.display = "block";
+  }
   function hiqToggle(){
     const sc = viewer.scene, ts = window.egTileset;
     if (!hiq){
@@ -4035,6 +4056,7 @@ function buildShotSwitches(){
       if (ts){ ts.maximumScreenSpaceError = 4; ts.dynamicScreenSpaceError = false; }
       hiqBtn.textContent = "🎞 고화질 촬영 켬 · F4 끄기"; hiqBtn.style.color = "#ffe08a";
       setTimeout(()=> camSay("고화질 " + viewer.canvas.width + "×" + viewer.canvas.height + " · 선명해지면 F9"), 300);
+      hiqPaint(); clearInterval(hiqTimer); hiqTimer = setInterval(hiqPaint, 400);
     } else {
       viewer.useBrowserRecommendedResolution = hiq.rbr;
       viewer.resolutionScale = hiq.rs;
@@ -4044,6 +4066,9 @@ function buildShotSwitches(){
       hiq = null;
       hiqBtn.textContent = "🎞 고화질 촬영 (F4)"; hiqBtn.style.color = "";
       camSay("고화질 끔");
+      hiqPaint();
+      hiqTag.textContent = "고화질 촬영 끔"; hiqTag.style.color = "#e8ddc4"; hiqTag.style.borderColor = "rgba(232,221,196,.4)";
+      hiqTag.style.display = "block"; setTimeout(()=>{ if (!hiq) hiqTag.style.display = "none"; }, 1500);
     }
   }
   /* ⭐ 0905d — 두 가지 필름.
