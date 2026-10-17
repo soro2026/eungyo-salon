@@ -4010,6 +4010,42 @@ function buildShotSwitches(){
   const recBtn = cbtn("● 녹화 시작", ()=> rec ? recStop() : recStart());
   recBtn.style.color = "#f0c0b0";
   box.appendChild(recBtn);
+
+  /* ⭐ 1017 — 🎞 고화질 촬영 (F4). 홈페이지 영상 ①(라탱 상공)이 뭉개지고 명패 글자에 톱니가 선 원인:
+       Cesium 기본값 useBrowserRecommendedResolution = 화면 배율을 무시하고 CSS 화소로만 그린다
+       + 안티에일리어싱 없음 + 먼 타일을 성기게(dynamicSSE). 그 화면을 캡컷이 2304 로 키우니 톱니가 섰다.
+     켜면: 화면 화소를 2배까지(가로 최대 3840) 올려 그리고 · FXAA · 타일 SSE 4(촘촘) · dynamicSSE 끔.
+     타일이 새로 실리는 데 몇 초 걸리므로 F4 → 선명해지면 F9. 무거우니 촬영 때만 — 끄면 그대로 돌아온다.
+     ⚠ 저장하지 않는다. 새로고침하면 꺼진다(손님 화면과 무관). */
+  let hiq = null;
+  const hiqBtn = cbtn("🎞 고화질 촬영 (F4)", ()=> hiqToggle());
+  box.appendChild(hiqBtn);
+  function hiqToggle(){
+    const sc = viewer.scene, ts = window.egTileset;
+    if (!hiq){
+      hiq = { rbr: viewer.useBrowserRecommendedResolution, rs: viewer.resolutionScale,
+              fxaa: sc.postProcessStages.fxaa.enabled, msaa: sc.msaaSamples,
+              sse: ts && ts.maximumScreenSpaceError, dyn: ts && ts.dynamicScreenSpaceError };
+      const dpr = window.devicePixelRatio || 1;
+      const target = Math.min(2, 3840 / Math.max(1, viewer.canvas.clientWidth));   /* CSS 화소 대비 배율 */
+      viewer.useBrowserRecommendedResolution = false;
+      viewer.resolutionScale = target / dpr;
+      sc.postProcessStages.fxaa.enabled = true;
+      try { if (sc.msaaSupported !== false) sc.msaaSamples = 4; } catch(e){}
+      if (ts){ ts.maximumScreenSpaceError = 4; ts.dynamicScreenSpaceError = false; }
+      hiqBtn.textContent = "🎞 고화질 촬영 켬 · F4 끄기"; hiqBtn.style.color = "#ffe08a";
+      setTimeout(()=> camSay("고화질 " + viewer.canvas.width + "×" + viewer.canvas.height + " · 선명해지면 F9"), 300);
+    } else {
+      viewer.useBrowserRecommendedResolution = hiq.rbr;
+      viewer.resolutionScale = hiq.rs;
+      sc.postProcessStages.fxaa.enabled = hiq.fxaa;
+      try { sc.msaaSamples = hiq.msaa; } catch(e){}
+      if (ts){ ts.maximumScreenSpaceError = hiq.sse; ts.dynamicScreenSpaceError = hiq.dyn; }
+      hiq = null;
+      hiqBtn.textContent = "🎞 고화질 촬영 (F4)"; hiqBtn.style.color = "";
+      camSay("고화질 끔");
+    }
+  }
   /* ⭐ 0905d — 두 가지 필름.
        F9        캔버스만 (지구 · 핀 · 기체) — 기내 같은 HTML 층은 안 들어간다
        Shift+F9  탭 전체 (기내 창밖 · 계기판 · 얹는층까지) — 크롬이 「이 탭」 공유 창을 한 번 띄운다 */
@@ -4028,7 +4064,10 @@ function buildShotSwitches(){
       stream = viewer.canvas.captureStream(30);
     }
     const mime = ["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm"].find(m=> MediaRecorder.isTypeSupported(m)) || "";
-    try{ rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 16e6 }); }
+    /* 1017 — 판이 커지면 비트도 키운다(고화질 촬영 때 3840 폭이면 16Mbps 로는 다시 뭉갠다) */
+    const px = tab ? (screen.width * screen.height * (window.devicePixelRatio||1) ** 2) : (viewer.canvas.width * viewer.canvas.height);
+    const bps = Math.round(Math.min(80e6, Math.max(16e6, px * 30 * 0.2)));
+    try{ rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bps }); }
     catch(e){ camSay("녹화를 못 열었습니다: " + e.message); rec = null; return; }
     recChunks = [];
     rec.ondataavailable = (e)=>{ if (e.data && e.data.size) recChunks.push(e.data); };
@@ -4097,6 +4136,7 @@ function buildShotSwitches(){
   document.addEventListener("keydown", (e)=>{
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === "F9"){ e.preventDefault(); rec ? recStop() : recStart(e.shiftKey || doorIsOpen()); return; }
+    if (e.key === "F4"){ e.preventDefault(); hiqToggle(); return; }   /* 1017 고화질 촬영 */
     /* F10 — 녹화와 무관하게 관리자 알림판을 껐다 켠다 (윈도우 화면 녹화로 찍을 때) */
     if (e.key === "F10"){ e.preventDefault(); document.body.classList.toggle("eg-quiet"); return; }
     if (document.body.classList.contains("reading-on")) return;
