@@ -291,25 +291,28 @@ html, body {
 }
 .floor-content[data-floor="1"].listening .sl-music{ opacity:1; pointer-events:auto; }
 .floor-content[data-floor="1"] .sl-music::-webkit-scrollbar{ display:none; width:0; height:0; }
-.sl-music .lm-top{ position:absolute; left:0; right:0; top:0; z-index:4;
-  display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
-  padding:clamp(14px,3vh,28px) 92px 56px clamp(18px,4vw,48px);    /* 오른쪽 92px — terra의 × 자리를 비운다 */
-  background:linear-gradient(180deg, rgba(10,7,5,.72) 0%, rgba(10,7,5,.35) 55%, transparent 100%);
-  pointer-events:none; }
-.sl-music .lm-top > *{ pointer-events:auto; }
-.sl-music .lm-eye{ font-family:'Cormorant Garamond',serif; font-size:12px; letter-spacing:.32em; color:rgba(201,168,76,.85); }
-.sl-music .lm-eye b{ display:block; font-family:'Noto Serif KR','Nanum Myeongjo',serif; font-weight:400; letter-spacing:.08em; font-size:15px; color:#f2ead6; margin-top:4px; }
-.sl-music .lm-tools{ display:flex; gap:8px; }
-.sl-music .lm-btn{ background:rgba(20,14,8,.6); border:1px solid rgba(201,168,76,.35); color:rgba(232,221,196,.85);
+/* ⭐ 1017 소로 — 위쪽 방 이름 · 단추를 걷고 아래 띠 하나로 모은다. 위는 스크린과 스피커만.
+   「▾ 레코드장」 손짓이 앉던 자리 그대로 · 녹화(terra F9) 중에는 띠째 사라진다(body.eg-rec). */
+.sl-music .lm-dock{ position:absolute; left:50%; bottom:clamp(10px,2.4vh,22px); transform:translateX(-50%); z-index:4;
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:6px;
+  max-width:calc(100% - 24px); padding:5px 6px 5px 14px; border-radius:22px;
+  background:rgba(20,14,8,.55); border:1px solid rgba(201,168,76,.32); backdrop-filter:blur(3px);
+  transition:opacity .4s; }
+.sl-music .lm-dock .lm-roomname{ font-size:12.5px; letter-spacing:.06em; color:#f2ead6; padding-right:6px; white-space:nowrap; }
+body.eg-rec .sl-music .lm-dock{ opacity:0; pointer-events:none; }
+@media (max-width:700px){   /* 폰 — 방 그림이 낮아 띠가 방을 덮지 않게 한 줄로만 · 방 이름은 접는다 */
+  .sl-music .lm-dock{ flex-wrap:nowrap; gap:4px; padding:3px; bottom:6px; }
+  .sl-music .lm-dock .lm-roomname{ display:none; }
+  .sl-music .lm-dock .lm-btn, .sl-music .lm-dock .lm-cue{ font-size:11px; padding:5px 10px; letter-spacing:.02em; }
+}
+.sl-music .lm-btn{ white-space:nowrap; background:rgba(20,14,8,.6); border:1px solid rgba(201,168,76,.35); color:rgba(232,221,196,.85);
   border-radius:18px; padding:7px 15px; font:inherit; font-size:12px; letter-spacing:.06em; cursor:pointer; }
 .sl-music .lm-btn:hover{ border-color:#c9a84c; color:#f6ecd2; }
 .sl-music .lm-room{ position:relative; aspect-ratio:1672/941; width:100%;
   background-size:cover; background-position:center; }
 /* 방 아래 끝 — 「아래에 레코드장이 있다」는 작은 손짓. 누르면 내려간다 */
-.sl-music .lm-cue{ position:absolute; left:50%; bottom:clamp(10px,2.4vh,22px); transform:translateX(-50%); z-index:3;
-  background:rgba(20,14,8,.55); border:1px solid rgba(201,168,76,.4); color:rgba(240,230,205,.9);
-  border-radius:18px; padding:6px 16px; font:inherit; font-size:12px; letter-spacing:.12em; cursor:pointer;
-  backdrop-filter:blur(3px); animation:lm-bob 2.6s ease-in-out infinite; }
+.sl-music .lm-cue{ background:rgba(201,168,76,.14); border:1px solid rgba(201,168,76,.45); color:rgba(240,230,205,.95);
+  border-radius:18px; padding:6px 14px; font:inherit; font-size:12px; letter-spacing:.12em; cursor:pointer; white-space:nowrap; }
 .sl-music .lm-cue:hover{ border-color:#c9a84c; color:#fff6dd; }
 @keyframes lm-bob{ 0%,100%{ transform:translate(-50%,0) } 50%{ transform:translate(-50%,4px) } }
 .sl-music .lm-below{ display:flex; flex-direction:column; align-items:center; gap:18px;
@@ -3710,19 +3713,17 @@ const Salon = (() => {
       box = document.createElement('div');
       box.className = 'sl-music';
       box.innerHTML = `
-        <div class="lm-top">
-          <div class="lm-eye">CHAMBRE DE MUSIQUE<b class="lm-roomname"></b></div>
-          <div class="lm-tools">
-            <button class="lm-btn lm-swap" type="button">방 바꾸기</button>
-            <button class="lm-btn lm-back" type="button">그림으로 돌아가기</button>
-          </div>
-        </div>
         <div class="lm-room">
           <div class="lm-wall"></div>
           ${LM_TUBES.map(k => `<div class="lm-tube" data-k="${k}"></div>`).join('')}
           <div class="lm-vu l"><svg viewBox="0 0 100 50"><path class="lm-needle" d="M 50 48 L 50 8"/></svg></div>
           <div class="lm-vu r"><svg viewBox="0 0 100 50"><path class="lm-needle" d="M 50 48 L 50 8"/></svg></div>
-          <button class="lm-cue" type="button">▾ 레코드장</button>
+          <div class="lm-dock">
+            <span class="lm-roomname"></span>
+            <button class="lm-btn lm-swap" type="button">방 바꾸기</button>
+            <button class="lm-btn lm-back" type="button">그림으로</button>
+            <button class="lm-cue" type="button">▾ 레코드장</button>
+          </div>
         </div>
         <div class="lm-below">
           <div class="lm-plate"></div>

@@ -4073,10 +4073,13 @@ function buildShotSwitches(){
      소로 신고 — 인천-파리 노선 왼쪽 아래 문구 때문에 촬영 불가. 방 코드는 안 건드리고
      body 에 꼬리표 하나 달아 CSS 로 덮는다. 방이 매초 textContent 만 바꾸므로 display 는 살아남는다. */
   const recCss = document.createElement("style");
-  recCss.textContent = "body.eg-rec #egrHold, body.eg-rec #egrWarp, body.eg-quiet #egrHold, body.eg-quiet #egrWarp { display:none !important }";
+  recCss.textContent = "body.eg-rec #egrHold, body.eg-rec #egrWarp, body.eg-quiet #egrHold, body.eg-quiet #egrWarp { display:none !important }"
+    + " body.eg-rec #doorActions { opacity:0 !important; pointer-events:none !important }";   /* 1017 — 녹화 중엔 액자의 × · ⋮ 도 감춘다 */
   document.head.appendChild(recCss);
-  recStart = async function(tab){ await _recStartCore(tab); if (rec){ recDot.style.display = recTab ? "none" : "block"; recDot.textContent = "● REC 0:00"; document.body.classList.add("eg-rec"); } };   /* 탭 녹화 땐 표지도 찍히므로 안 띄운다 — 크롬 위쪽 「공유 중」 띠가 대신 알려 준다 */
-  recStop  = function(){ _recStopCore(); recDot.style.display = "none"; document.body.classList.remove("eg-rec"); };
+  /* 1017 — 액자 안 방(분더카머 등)에도 같은 꼬리표를 단다. 방은 그것을 보고 제 단추 띠를 감춘다. 같은 출처라 손이 닿는다 */
+  const doorRec = (on)=>{ try{ const b = document.getElementById("doorFrame").contentDocument.body; if (b) b.classList.toggle("eg-rec", on); }catch(e){} };
+  recStart = async function(tab){ await _recStartCore(tab); if (rec){ recDot.style.display = recTab ? "none" : "block"; recDot.textContent = "● REC 0:00"; document.body.classList.add("eg-rec"); doorRec(true); } };   /* 탭 녹화 땐 표지도 찍히므로 안 띄운다 — 크롬 위쪽 「공유 중」 띠가 대신 알려 준다 */
+  recStop  = function(){ _recStopCore(); recDot.style.display = "none"; document.body.classList.remove("eg-rec"); doorRec(false); };
   setInterval(()=>{ if (rec && recDot.style.display !== "none") recDot.textContent = "● REC " + recBtn.textContent.replace(/^.*· /,""); }, 500);
 
   /* ⭐ 1017 — 액자(#doorway) 안의 방은 HTML 이라 지구 캔버스 녹화로는 안 찍힌다(뒤의 지구가 찍힌다).
