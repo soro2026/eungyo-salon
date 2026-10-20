@@ -5327,6 +5327,8 @@ async function setupAdminEdit(){
         b.textContent = (p.code === duty ? "● " : "") + p.name + t;
         b.addEventListener("click", ()=>{
           if (typeof window.flyToPark !== "function") return;
+          /* 1020 소로 — 누른 곳에 핀을 세운다(촬영 당번). 지금 밤이 아니어도. 새로고침하면 원래 당번으로 */
+          if (typeof window.EG_OBS_SET === "function") window.EG_OBS_SET(p.code);
           window.flyToPark(p);
           obsBox.classList.remove("on"); obsFold.classList.remove("open");
           try{ document.getElementById("egDock").classList.remove("open"); }catch(e){}
@@ -6725,8 +6727,9 @@ function obsLocalLabel(p){
 }
 /* ⭐ 1020 소로 — 촬영용 지정 천문대. 홈페이지 Today는 천문대를 날짜로 하나 고른다(35곳 · KST날수 % 35).
      그 곳을 찍으려면 지금 밤이 아니어도 그 핀이 서 있어야 한다 → 주소에 ?obs=<code> 를 붙이면 그 곳이 당번이 된다.
-   ⚠ 주소에 붙였을 때만 — 손님 화면에는 아무 일도 없다. 10분 교대 보초도 같은 곳을 돌려준다. */
-const OBS_FORCE = (function(){ try{ return new URLSearchParams(location.search).get("obs") || ""; }catch(e){ return ""; } })();
+   ⚠ 주소에 붙였을 때만 — 손님 화면에는 아무 일도 없다. 10분 교대 보초도 같은 곳을 돌려준다.
+   ⭐ 살롱지기 타륜 「천문대 순회」에서 한 곳을 누르면 그 곳이 촬영 당번이 된다(EG_OBS_SET · 새로고침하면 원래 당번). */
+let OBS_FORCE = (function(){ try{ return new URLSearchParams(location.search).get("obs") || ""; }catch(e){ return ""; } })();
 function pickObservatory(rows){
   if (!rows || !rows.length) return null;
   if (OBS_FORCE){ const f = rows.find(p => p.code === OBS_FORCE); if (f) return f; }
@@ -9389,6 +9392,7 @@ window.flyToParisOverview = flyToParisOverview;
    (v137~140 네 판이 실패한 곳이 정확히 여기다 — 창구 자체가 없었다.) */
 window.EG_OBS        = ()=> obsAll;
 window.EG_OBS_DUTY   = ()=> obsOnDuty;
+window.EG_OBS_SET    = (code)=>{ OBS_FORCE = code || ""; refreshObservatory(); };   /* 1020 — 촬영 당번 (순회 목록이 부른다) */
 window.obsLocalLabel = obsLocalLabel;
 window.flyToPark     = flyToPark;
 /* ⚠⚠ 0807 — 「한 건물 한 핀」(0806)이 이 창구가 없어 도시·인물 이동을 통째로 죽였다.
