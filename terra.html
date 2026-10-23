@@ -4072,6 +4072,80 @@ function buildShotSwitches(){
       hiqTag.style.display = "block"; setTimeout(()=>{ if (!hiq) hiqTag.style.display = "none"; }, 1500);
     }
   }
+  /* ⭐ 1023 파이원 — ☀ 촬영용 해 (F3). 소로 「촬영 시간 맞추기 어렵다 — 촬영할 때만 늘 낮으로」.
+       지구 시계(0722 SYSTEM_CLOCK · 실제 지금)를 이 창에서만 잠시 바꿔 끼운다. 누를 때마다
+         아침(그 땅의 해 뜨고 30분 뒤) → 오후(현지 태양시 15시) → 해 질 녘(해 지기 40분 전) → 실제 지금.
+       앞의 셋은 그 시각에서 출발해 실제 속도로 흐른다 — 해가 지는 모습을 그대로 찍어 고속으로 감으면 된다(소로).
+       해 뜨고 지는 시각은 카메라가 서 있는 땅의 위도 · 경도로 셈한다(NOAA 근사식 · 몇 분 오차).
+       표지는 HTML 이라 F9 영상에 안 들어가고, 탭 녹화(eg-rec) 중에는 감춘다.
+       ⚠ 저장하지 않는다. 새로고침하면 실제 지금으로 돌아온다(손님 화면과 무관 · 살롱지기만). */
+  let sunMode = 0, sunSet = 0, sunNoon = 720, sunTimer = null;
+  const SUN_NAME = ["", "아침", "오후", "해 질 녘"];
+  const sunBtn = cbtn("☀ 촬영용 해 (F3)", ()=> sunCycle());
+  box.appendChild(sunBtn);
+  const sunTag = document.createElement("div");
+  sunTag.id = "egSunTag";
+  sunTag.style.cssText = hiqTag.style.cssText;
+  sunTag.style.top = "52px"; sunTag.style.display = "none";   /* 고화질 표지(14px) 바로 아래 */
+  document.body.appendChild(sunTag);
+  const sunCss = document.createElement("style");
+  sunCss.textContent = "body.eg-rec #egSunTag{display:none !important}";
+  document.head.appendChild(sunCss);
+  function sunDay(){ const d = new Date(); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); }
+  function sunTimes(lat, lng){            /* 오늘(UTC) 그 땅의 남중 · 해돋이 · 해넘이 — UTC 자정부터 몇 분 */
+    const y = new Date().getUTCFullYear();
+    const doy = Math.round((sunDay() - Date.UTC(y, 0, 1)) / 864e5) + 1;
+    const g = 2*Math.PI/365 * (doy - 1);
+    const eot = 229.18*(0.000075 + 0.001868*Math.cos(g) - 0.032077*Math.sin(g) - 0.014615*Math.cos(2*g) - 0.040849*Math.sin(2*g));
+    const dec = 0.006918 - 0.399912*Math.cos(g) + 0.070257*Math.sin(g) - 0.006758*Math.cos(2*g)
+              + 0.000907*Math.sin(2*g) - 0.002697*Math.cos(3*g) + 0.00148*Math.sin(3*g);
+    const la = lat*Math.PI/180;
+    let c = Math.cos(90.833*Math.PI/180) / (Math.cos(la)*Math.cos(dec)) - Math.tan(la)*Math.tan(dec);
+    c = Math.max(-1, Math.min(1, c));
+    const ha = Math.acos(c)*180/Math.PI;
+    const noon = 720 - 4*lng - eot;
+    return { noon: noon, rise: noon - 4*ha, set: noon + 4*ha };
+  }
+  function sunPaint(){
+    if (!sunMode){ sunTag.style.display = "none"; clearInterval(sunTimer); sunTimer = null; return; }
+    const nowMin = (Cesium.JulianDate.toDate(viewer.clock.currentTime).getTime() - sunDay()) / 60000;
+    const lm = ((Math.round(nowMin - sunNoon + 720) % 1440) + 1440) % 1440;   /* 현지 태양시 */
+    let t = "☀ 촬영용 해 · " + SUN_NAME[sunMode] + " · 현지 " + String(Math.floor(lm/60)).padStart(2,"0") + ":" + String(lm%60).padStart(2,"0");
+    if (sunMode === 3){
+      const left = Math.round(sunSet - nowMin);
+      t += left > 0 ? " · 해 지기까지 " + left + "분" : " · 해 졌음";
+    }
+    sunTag.textContent = t + " — F3 다음";
+    sunTag.style.color = sunMode === 3 ? "#ffc58a" : "#ffe08a";
+    sunTag.style.borderColor = sunMode === 3 ? "rgba(255,197,138,.6)" : "rgba(255,224,138,.55)";
+    sunTag.style.display = "block";
+  }
+  function sunCycle(){
+    sunMode = (sunMode + 1) % 4;
+    if (!sunMode){
+      viewer.clock.clockStep = Cesium.ClockStep.SYSTEM_CLOCK;
+      viewer.clock.multiplier = 1;
+      viewer.clock.shouldAnimate = true;
+      sunBtn.textContent = "☀ 촬영용 해 (F3)"; sunBtn.style.color = "";
+      camSay("해 — 실제 지금으로");
+      sunPaint();
+      sunTag.textContent = "☀ 실제 지금으로 돌아옴"; sunTag.style.color = "#e8ddc4"; sunTag.style.borderColor = "rgba(232,221,196,.4)";
+      sunTag.style.display = "block"; setTimeout(()=>{ if (!sunMode) sunTag.style.display = "none"; }, 1500);
+      return;
+    }
+    const cg = viewer.camera.positionCartographic;
+    const lat = Cesium.Math.toDegrees(cg.latitude), lng = Cesium.Math.toDegrees(cg.longitude);
+    const st = sunTimes(lat, lng);
+    sunSet = st.set; sunNoon = st.noon;
+    const start = sunMode === 1 ? st.rise + 30 : sunMode === 2 ? st.noon + 180 : st.set - 40;
+    viewer.clock.clockStep = Cesium.ClockStep.SYSTEM_CLOCK_MULTIPLIER;
+    viewer.clock.multiplier = 1;
+    viewer.clock.currentTime = Cesium.JulianDate.fromDate(new Date(sunDay() + start*60000));
+    viewer.clock.shouldAnimate = true;
+    sunBtn.textContent = "☀ 촬영용 해 · " + SUN_NAME[sunMode] + " · F3 다음"; sunBtn.style.color = "#ffe08a";
+    camSay("해 — " + SUN_NAME[sunMode]);
+    sunPaint(); clearInterval(sunTimer); sunTimer = setInterval(sunPaint, 1000);
+  }
   /* ⭐ 0905d — 두 가지 필름.
        F9        캔버스만 (지구 · 핀 · 기체) — 기내 같은 HTML 층은 안 들어간다
        Shift+F9  탭 전체 (기내 창밖 · 계기판 · 얹는층까지) — 크롬이 「이 탭」 공유 창을 한 번 띄운다 */
@@ -4163,6 +4237,7 @@ function buildShotSwitches(){
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === "F9"){ e.preventDefault(); rec ? recStop() : recStart(e.shiftKey || doorIsOpen()); return; }
     if (e.key === "F4"){ e.preventDefault(); hiqToggle(); return; }   /* 1017 고화질 촬영 */
+    if (e.key === "F3"){ e.preventDefault(); sunCycle(); return; }    /* 1023 파이원 — 촬영용 해 */
     /* F10 — 녹화와 무관하게 관리자 알림판을 껐다 켠다 (윈도우 화면 녹화로 찍을 때) */
     if (e.key === "F10"){ e.preventDefault(); document.body.classList.toggle("eg-quiet"); return; }
     if (document.body.classList.contains("reading-on")) return;
