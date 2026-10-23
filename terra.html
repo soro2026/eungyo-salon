@@ -4202,6 +4202,17 @@ function buildShotSwitches(){
     try{ if (navigator.clipboard) navigator.clipboard.writeText("cam=" + q); }catch(e){}
     spotFlash("📍 지금 자리 cam=" + q + " · " + compassName(hd) + "쪽을 봄 · 복사됨", 12000);
   }
+  /* 1023 소로 — 「주소를 찍어도 라탱으로 떨어지고 이동하지 않는다」. ?cam 이 있으면 F2 를 안 눌러도,
+     첫 비행이 내려앉아 카메라가 2초 멈춘 뒤(문 연 지 15초 넘어서) 저절로 그 자리로 간다. 45초면 기다림을 끊고 간다. */
+  if (CAM_Q){
+    let last = null, still = 0;
+    const auto = setInterval(()=>{
+      const p = viewer.camera.positionWC, t = performance.now();
+      if (last && Cesium.Cartesian3.distance(p, last) < 0.5) still++; else still = 0;
+      last = Cesium.Cartesian3.clone(p);
+      if ((still >= 4 && t > 15000) || t > 45000){ clearInterval(auto); camSpot(); }
+    }, 500);
+  }
   /* ⭐ 0905d — 두 가지 필름.
        F9        캔버스만 (지구 · 핀 · 기체) — 기내 같은 HTML 층은 안 들어간다
        Shift+F9  탭 전체 (기내 창밖 · 계기판 · 얹는층까지) — 크롬이 「이 탭」 공유 창을 한 번 띄운다 */
