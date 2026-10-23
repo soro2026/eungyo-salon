@@ -4159,6 +4159,49 @@ function buildShotSwitches(){
     camSay("해 — 해 지기 " + next + "분 전");
     sunPaint();
   }
+  /* ⭐ 1023 파이원 — 📍 촬영 자리 (F2). 소로 「그랜드캐니언 — 어디가 남쪽인지 알 길이 없다」.
+       주소에 ?cam=위도,경도,높이m,방위°,숙임° 을 붙여 열고 F2 를 누르면 그 자리 · 그 방향으로 날아간다.
+       방위 0 = 북 · 90 = 동 · 180 = 남 · 270 = 서 / 숙임은 음수일수록 아래로(-90 = 바로 아래).
+       Shift+F2 — 지금 자리를 같은 꼴로 표지에 띄우고 클립보드에 넣는다(파이원에게 보내면 자리를 다듬어 돌려준다).
+       ⚠ 주소에 붙였을 때만 · 저장하지 않는다 · 살롱지기만. 표지는 HTML 이라 F9 영상에 안 들어간다. */
+  const CAM_Q = (function(){ try{ return new URLSearchParams(location.search).get("cam") || ""; }catch(e){ return ""; } })();
+  const camSpotBtn = cbtn("📍 촬영 자리 (F2) · 지금 자리 (Shift+F2)", ()=> camSpot());
+  box.appendChild(camSpotBtn);
+  const spotTag = document.createElement("div");
+  spotTag.id = "egSpotTag";
+  spotTag.style.cssText = hiqTag.style.cssText;
+  spotTag.style.top = "90px"; spotTag.style.display = "none"; spotTag.style.pointerEvents = "auto"; spotTag.style.userSelect = "all";
+  document.body.appendChild(spotTag);
+  const spotCss = document.createElement("style");
+  spotCss.textContent = "body.eg-rec #egSpotTag{display:none !important}";
+  document.head.appendChild(spotCss);
+  let spotTimer = null;
+  function spotFlash(t, ms){
+    spotTag.textContent = t; spotTag.style.display = "block";
+    clearTimeout(spotTimer); spotTimer = setTimeout(()=>{ spotTag.style.display = "none"; }, ms || 6000);
+  }
+  function compassName(d){ const n = ["북","북동","동","남동","남","남서","서","북서"]; return n[Math.round((((d % 360) + 360) % 360) / 45) % 8]; }
+  function camSpot(){
+    const v = CAM_Q.split(",").map(Number);
+    if (v.length < 3 || v.some(isNaN)){ spotFlash("📍 주소에 ?cam=위도,경도,높이,방위,숙임 이 없습니다"); return; }
+    try{ camStop(); }catch(e){}
+    const lat = v[0], lng = v[1], h = v[2], hd = v.length > 3 ? v[3] : 0, pt = v.length > 4 ? v[4] : -30;
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(lng, lat, h),
+      orientation: { heading: Cesium.Math.toRadians(hd), pitch: Cesium.Math.toRadians(pt), roll: 0 },
+      duration: 4
+    });
+    camSay("촬영 자리로");
+    spotFlash("📍 촬영 자리로 · " + compassName(hd) + "쪽 " + Math.round(hd) + "° · 높이 " + Math.round(h).toLocaleString() + "m");
+  }
+  function camHere(){
+    const c = viewer.camera.positionCartographic;
+    const hd = Cesium.Math.toDegrees(viewer.camera.heading);
+    const q = [Cesium.Math.toDegrees(c.latitude).toFixed(5), Cesium.Math.toDegrees(c.longitude).toFixed(5),
+               Math.round(c.height), Math.round(hd), Math.round(Cesium.Math.toDegrees(viewer.camera.pitch))].join(",");
+    try{ if (navigator.clipboard) navigator.clipboard.writeText("cam=" + q); }catch(e){}
+    spotFlash("📍 지금 자리 cam=" + q + " · " + compassName(hd) + "쪽을 봄 · 복사됨", 12000);
+  }
   /* ⭐ 0905d — 두 가지 필름.
        F9        캔버스만 (지구 · 핀 · 기체) — 기내 같은 HTML 층은 안 들어간다
        Shift+F9  탭 전체 (기내 창밖 · 계기판 · 얹는층까지) — 크롬이 「이 탭」 공유 창을 한 번 띄운다 */
@@ -4250,6 +4293,7 @@ function buildShotSwitches(){
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === "F9"){ e.preventDefault(); rec ? recStop() : recStart(e.shiftKey || doorIsOpen()); return; }
     if (e.key === "F4"){ e.preventDefault(); hiqToggle(); return; }   /* 1017 고화질 촬영 */
+    if (e.key === "F2"){ e.preventDefault(); e.shiftKey ? camHere() : camSpot(); return; }    /* 1023 파이원 — 촬영 자리 · Shift 는 지금 자리 */
     if (e.key === "F3"){ e.preventDefault(); e.shiftKey ? sunNudge() : sunCycle(); return; }    /* 1023 파이원 — 촬영용 해 · Shift 는 10분씩 */
     /* F10 — 녹화와 무관하게 관리자 알림판을 껐다 켠다 (윈도우 화면 녹화로 찍을 때) */
     if (e.key === "F10"){ e.preventDefault(); document.body.classList.toggle("eg-quiet"); return; }
