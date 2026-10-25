@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "1025a";
+  var VERSION = "1025b";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -8733,7 +8733,12 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   }
   var ORB0 = { yaw: 40, pit: 12 }; /* 다음 탑승이 여기서 시작한다 */
   /* ⚠ ?v= 분 단위 — 격납고에서 갈아 끼우면 1분 안에 닿는다(기내 원판과 같은 문법) */
-  function bodyUrl() { return hangarBase() + BODYCRAFT + "_body.glb?v=" + Math.floor(Date.now() / 60000); }
+  /* ⭐⭐ 1025b 파이원 — 꼬리표를 **창을 열 때 한 번만** 정한다.
+       ⚠ 분마다 바뀌면 B 를 다시 누를 때마다 주소가 새것이라 브라우저가 받아 둔 것을 못 쓴다 —
+         787(lin_body.glb)은 33.4MB 라 소로가 「동체가 3분 후에야 나타남」을 보셨다(1025 인천→파리 촬영).
+       ⭐ 격납고에서 갈아 끼운 기체는 창을 새로 열면 닿는다. */
+  var BODY_V = Math.floor(Date.now() / 60000);
+  function bodyUrl() { return hangarBase() + BODYCRAFT + "_body.glb?v=" + BODY_V; }
   /* ⚠⚠⚠ 0821M 진범 — **Entity 로 세우면 기체가 한 프레임 뒤처진다.**
        Cesium 의 clock.onTick 에는 Viewer 가 저를 먼저 걸어 두었고(Viewer 가 만들어질 때),
        그 손이 dataSourceDisplay.update() 로 Entity 의 화면 자리를 정한다.
@@ -8747,12 +8752,21 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
      ⭐⭐ 처방 — Primitive 로 세운다. visualizer 를 안 거치므로 modelMatrix 에 적은 값이
        **그 프레임 그림에 그대로 쓰인다.** 카메라와 기체가 같은 프레임의 같은 값을 본다.
        구름(CloudCollection)을 primitives 에 넣은 것과 같은 문법이고, 더 가볍기까지 하다. */
+  /* ⭐⭐⭐ 1025b 파이원 — 기체 받기 번호표. 소로 1025 「이륙 직후에 동체가 분리되어 파충류 탈피하듯
+       1번 동체를 벗어던지고 2번 동체로 비행 — 이때부터 엔진 회전 멈춤」.
+     ⚠ 진범 — 33MB 를 받는 몇 분 사이 B 를 다시 누르면(bodyOff → BODYWAIT 풀림 → bodyOn) 두 번째 받기가 떠났고,
+       두 응답이 다 「방이 있고 감상 중」 검사를 통과해 **둘 다 primitives 에 섰다.** 먼저 선 것은 BODYENT 에서
+       밀려나 손을 놓친 채 제자리에 남고(허물), 팬은 그 첫 기체의 마디에 묶여 있어 새 기체의 팬은 안 돌았다.
+     ⭐ 받기마다 번호표를 주고, 끈 뒤(bodyOff) · 새 받기 뒤에 온 응답은 세우지 않고 버린다. 기체는 늘 하나다. */
+  var BODYTOK = 0;
   function bodyOn() {
     if (!viewer || BODYENT || BODYWAIT || !SPEC.body) return;
     BODYWAIT = true;
+    var tok = ++BODYTOK;
     try {
       Cesium.Model.fromGltfAsync({ url: bodyUrl(), scale: 1, incrementallyLoadTextures: false })
         .then(function (m) {
+          if (tok !== BODYTOK || BODYENT) { try { m.destroy(); } catch (e) { } return; }   /* ⭐ 1025b — 헌 번호표 */
           BODYWAIT = false;
           /* ⚠ 늦게 온 응답은 방이 아직 있고 아직 감상 중일 때만 받는다(41호 ㉤).
              5.4MB 라 몇 초 걸린다 — 그 사이 소로가 B 를 다시 누르면 세우면 안 된다. */
@@ -8782,9 +8796,10 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
           BODYGEN++;
           applySkin();                   /* ⭐ 빛도 거칠기도 여기 한 손에서 나간다(22호) */
           PROPND = null; PROPTRY = 0;
+          FANS = null; FANTRY = 0; FAN_M0 = null;   /* ⭐ 1025b — 팬은 **이** 기체의 마디에 다시 묶는다 */
           try { console.log("[EG] 기체가 섰습니다 — 세대 " + BODYGEN + " · " + bodyUrl()); } catch (e) { }
         })
-        .catch(function (e) { BODYWAIT = false; console.warn("[EG] 기체를 못 세웠습니다:", e); });
+        .catch(function (e) { if (tok === BODYTOK) BODYWAIT = false; console.warn("[EG] 기체를 못 세웠습니다:", e); });
     } catch (e) { BODYWAIT = false; console.warn("[EG] 기체를 못 세웠습니다:", e); }
   }
   /* ══ ⭐⭐ 0822c — 질감을 기체에 내보내는 손. **여기 한 곳뿐이다** ═══════════
@@ -8828,6 +8843,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   function bodyOff() {
     if (BODYENT && viewer) { try { viewer.scene.primitives.remove(BODYENT); } catch (e) { } }
     BODYENT = null; BODYWAIT = false;
+    BODYTOK++;                       /* ⭐ 1025b — 아직 오는 중인 받기는 와도 버린다 */
     PROPND = null; PROPTRY = 0; PROP_TR = null;
     FANS = null; FANTRY = 0; FAN_M0 = null;   /* ⭐ 0824a 팬도 함께 놓는다 */
     /* ⭐ 0825e — 바퀴 시계를 놓는다. ⚠ 세대 도장이 이미 기억을 무르므로 값은 안 지운다.
@@ -13861,6 +13877,10 @@ function paintBook() {
     BODY = false; BODYWAS = false;   /* ⭐ 0821L — 다음 탑승은 조종석에서 시작한다 */
     ORB.yaw = ORB0.yaw; ORB.pit = ORB0.pit;
     INSEL = null; LAMPEL = null; BLKEL = null;   /* ⚠ 0821f — 방과 함께 걷힌다. 다음 탑승이 다시 세운다 */
+    /* ⭐⭐ 1025b 파이원 — 얹는층(기내식 그림)도 방과 함께 걷는다. 소로 1025 「기내식 시간에 트레이만 내려오고
+       물수건 · 음료 · 식사 등이 보이지 않음」. ⚠ 여기서 안 놓으면 다음 탑승의 mountDish 가 「이미 있다」고 물러나,
+       쟁반 그림이 **떼어 낸 옛 방**에 칠해졌다 — 식탁(기내 판)은 내려오는데 음식만 안 보인다. */
+    DISH_EL = null; DISH_SH = null; DISH_H4 = []; DISH_NOW = null; DISH_I = -1; dgrab = null;
     SHUT = []; GEAR_LOCK = null; editing = false; egrab = null; IS_ADMIN = false; cvW = 0; cvH = 0; PAUSED = false;
     PREVIEW = null; themeNow = ""; themeMon = ""; RESUME = null;   /* ⚠ 다음 탑승은 진짜 시각으로 */
     TRAY = null; PLATE_NOW = null; MEAL_NOW = null;                                /* ⭐ 0826d — 내리면 식탁은 접힌다 */
