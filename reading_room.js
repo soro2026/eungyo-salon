@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "0926b";
+  var VERSION = "1025a";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -4563,6 +4563,7 @@
        ⚠ 첫 프레임은 hd 와 같게 두어 turnRate 가 0 에서 시작하게 한다 — 들어서자마자
          기울어 있으면 「탑승한 순간 이미 선회 중」이 된다. */
     var wantPrev = hd;
+    var JUMP_T = 0;                       /* ⭐ 1025a 관리자 점프한 시각(ms) — 잠깐 높이를 곧장 앉힌다 */
     /* ⭐⭐ 0819f — 고도의 정본은 rel(지면 위)이 아니라 alt(해발)다.
        rel 로 들면 지면이 계단일 때 카메라도 계단이 된다 — 소로 시승의 멀미가 그것.
        alt 는 ㉡의 걸음(분당 400m)으로만 움직이므로 지면이 어떻게 날뛰어도 잔잔하다. */
@@ -5345,6 +5346,13 @@
            ⚠ 이 한 줄이 없으면 위의 표(clmb)가 groundH 0 을 기준으로 기체를 앉힌다.
              길어야 서너 프레임이고, 그동안 계기판은 「—」다(아래 onTick 의 settled). */
         if (!settled) wantAlt = alt;
+        /* ⭐ 1025a 점프 — 암전 동안(1.5초)은 걸음(분당 400m) 없이 그 자리 높이에 곧장 앉힌다.
+           ⚠ 안 그러면 파리 250m 에서 몽마르트르 400m 로 뛴 기체가 몇십 초를 언덕 속에서 기어오른다.
+           ⚠ 표(이륙·착륙)가 쥔 때는 안 건드린다 — 그쪽은 이미 곧장 앉힌다. */
+        if (JUMP_T) {
+          if (performance.now() - JUMP_T > 1500) JUMP_T = 0;
+          else if (settled && !LDG && !CLB) alt = wantAlt;
+        }
         var dA = wantAlt - alt;
         /* ⭐ 0825b — 오를 때만 고도별 걸음. **내려올 때는 400 그대로**다(33호 ㉡ 은 멀미의 그물이다) */
         var step = (dA > 0 ? climbCap(alt) : CLIMB) * dt;
@@ -5679,6 +5687,25 @@
                  HOLD_T = 0; PA_CLEAR = 0; ROLLING = false; LIFT = 0; LIFT_KM = 0;
                  DEP_H = null; GEARDN = 0; GEAR_H = -1; settled = false;
                }
+             },
+             /* ══ ⭐⭐ 1025a 점프 — 촬영 손(살롱지기만 · 소로 1025 파리 촬영 중) ══
+                ⭐ goTo 와 **다른 손이다.** 곳(seg·u)만 옮기고 총계(시간·거리)는 그대로 둔다 —
+                  「출발점으로」는 비행 한 회를 닫는 손이고, 이것은 같은 비행 안에서 자리만 옮긴다.
+                ⭐ 방위를 그 자리 접선으로 곧장 세운다. 안 세우면 옛 방위에서 새 방위로 도는 동안
+                  turnRate 가 튀어 기체가 한쪽으로 홱 눕는다(뱅크는 방위가 도는 빠르기에서 나온다).
+                ⚠ 이륙 표는 끈다 — 점프는 언제나 하늘에서 하늘로다. 활주로에 내려앉는 손이 아니다. */
+             jump: function (s2, u2) {
+               seg = LOOP ? (((s2 | 0) % N + N) % N)
+                          : Math.max(0, Math.min(SEGN - 1, s2 | 0));
+               u = Math.min(0.999, Math.max(0, +u2 || 0));
+               savedSeg = seg; ARRIVED = false; TOUCH = 0; RUN_H = null; TAKEOFF = false;
+               var p0 = onCurve(seg, u), p1 = (u < 0.97) ? onCurve(seg, u + 0.02)
+                      : onCurve(LOOP ? (seg + 1) % N : Math.min(seg + 1, SEGN - 1), 0.02);
+               lat = p0[0]; lon = p0[1];
+               if (Math.abs(p1[0] - lat) > 1e-7 || Math.abs(p1[1] - lon) > 1e-7) hd = bearing(lat, lon, p1[0], p1[1]);
+               wantPrev = hd; roll = 0; trS = 0; sway = 0; rollView = 0;
+               JUMP_T = performance.now();
+               return { seg: seg, u: u };
              },
              /* ⭐⭐ 0823f 배속 — 시험 장치. 값을 밖에 안 흘리고 손잡이만 낸다 */
              warp: function (v) { if (v != null) WARP = v; return WARP; },
@@ -6470,6 +6497,13 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
   font:600 18px 'Noto Sans KR',serif;letter-spacing:.02em}
 #egrCtl .ico{font-size:19px}
 #egrCtl .ico.on{color:var(--accent,#c9a961)}
+/* ⭐ 1025a 촬영 손 — 📍 핀 끄기는 살롱지기에게만 선다 · 끈 동안은 빗금. 항로도는 누르면 점프(십자 커서) */
+#egrCtl #egrPins{display:none;position:relative}
+#egrMon.adm #egrCtl #egrPins{display:block}
+#egrCtl #egrPins.on{opacity:.6}
+#egrCtl #egrPins.on::after{content:"";position:absolute;left:9px;right:9px;top:50%;
+  border-top:2px solid var(--accent,#c9a961);transform:rotate(-45deg)}
+#egrMon.adm #egrMap{cursor:crosshair}
 /* ⭐ 0823b — 글자 단추(저장). .lv(확대판)와 같은 크기·자간으로 한 줄에 앉는다 */
 #egrCtl .txt{min-width:72px;font:600 18px 'Noto Sans KR',sans-serif;letter-spacing:.02em;
   color:var(--accent2,#c9b586)}
@@ -7435,6 +7469,68 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     try { if (viewer && PIN.prim) viewer.scene.primitives.remove(PIN.prim); } catch (e) { }   /* ⭐ 0925a 가림 없는 판 */
     PIN = null;
   }
+  /* ══ ⭐⭐ 1025a 핀 끄기 — 촬영 손(살롱지기만 · 소로 1025 파리 촬영 중) ══════════════
+     > 「파리에 보여지는 핀들(인물장소, 메종, 등등)이 영상 촬영에 좀 방해 — 비행 중에 핀을 끄는 버튼」
+     ⭐ 지구 위 Entity 를 **전부** 숨긴다 — terra 가 세운 것(인물장소 _spot · 메종 · 간판 · 팝업 ·
+       전당 · terra · 도시 점 · 건물 명패)과 이 방이 세운 명패(PIN)·이정표(MS)까지 한 손에.
+       ⚠ 종류를 골라 끄면 다음에 새 종류가 생길 때 그것만 화면에 남는다 — 촬영 화면은 「아무것도 없음」이 정답이다.
+     ⭐ 기체(BODYENT)·구름은 Entity 가 아니라 Primitive 라 이 손에 안 걸린다. 명패의 가림 없는 판(PIN.prim)만 따로 끈다.
+     ⭐ e.show 만 바꾼다 — 지우지 않으므로 다시 누르면 있던 그대로 돌아온다(끄기 전 값을 기억한다).
+       0926a 명패 끄기(HOSTLBL · label.show)와 칸이 달라 안 엉킨다.
+     ⚠ 늦게 서는 핀(카메라가 내려오며 서는 것 · 비행 중 솟는 명패)은 collectionChanged 가 그 자리에서 잡고,
+       terra 가 제 규칙으로 도로 켜는 경우는 1초에 한 번 훑어 다시 끈다(rmTick).
+     ⚠ 저장하지 않는다 — 방을 나가면 되살린다(leave 의 짝). 촬영 상태가 다음 비행·손님 화면에 새지 않게. */
+  var PINHIDE = { on: false, off: null, hid: [] }, PIN_SWEEP_T = 0;
+  function pinHideOne(e) {
+    try {
+      if (!e) return;
+      if (!e._egPinHid) { e._egPinHid = true; e._egPinWas = e.show; PINHIDE.hid.push(e); }
+      if (e.show) e.show = false;
+    } catch (x) { }
+  }
+  function pinSweep() {
+    if (!PINHIDE.on || !viewer || !viewer.entities) return;
+    try { viewer.entities.values.forEach(pinHideOne); } catch (x) { }
+    try { if (PIN && PIN.prim && PIN.prim.show) PIN.prim.show = false; } catch (x) { }
+  }
+  function pinsHide(on) {
+    on = !!on;
+    if (on === PINHIDE.on) return on;
+    if (on) {
+      if (!viewer || !viewer.entities) return false;
+      PINHIDE.on = true;
+      pinSweep();
+      try {
+        PINHIDE.off = viewer.entities.collectionChanged.addEventListener(function (c, added) {
+          if (PINHIDE.on) (added || []).forEach(pinHideOne);
+        });
+      } catch (x) { }
+    } else {
+      PINHIDE.on = false;
+      try { if (PINHIDE.off) PINHIDE.off(); } catch (x) { }
+      PINHIDE.off = null;
+      PINHIDE.hid.forEach(function (e) {
+        try { e.show = (e._egPinWas === undefined) ? true : e._egPinWas; } catch (x) { }
+        try { delete e._egPinHid; delete e._egPinWas; } catch (x) { }
+      });
+      PINHIDE.hid = [];
+      try { if (PIN && PIN.prim) PIN.prim.show = true; } catch (x) { }
+    }
+    paintPinBtn();
+    return PINHIDE.on;
+  }
+  function paintPinBtn() {
+    var b = MONEL && MONEL.querySelector("#egrPins");
+    if (!b) return;
+    b.classList.toggle("on", PINHIDE.on);
+    b.title = PINHIDE.on ? "핀 다시 켜기 (P) · 살롱지기" : "지구 위 핀 끄기 (P) · 살롱지기";
+  }
+  function togglePins() {
+    if (!ROOT || !IS_ADMIN) return;      /* ⚠ 손님에게는 아무 일도 안 일어난다(49호 문법) */
+    var on = pinsHide(!PINHIDE.on);
+    say(on ? "핀을 껐습니다 — 다시 누르면 켜집니다" : "핀을 다시 켰습니다");
+    console.log("[EG] 📍 핀 " + (on ? "끔 · " + PINHIDE.hid.length + "개" : "켬"));
+  }
   function pinOn(e) {
     var p = (e.cue || {}).pin, C = window.Cesium;
     if (!p || !viewer || !C) return;
@@ -7576,7 +7672,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
           }),
           modelMatrix: Mm, asynchronous: false, show: false
         }));
-        setTimeout(function () { try { prim.show = true; } catch (_) { } }, 1400);   /* 빛줄기가 다 솟은 뒤 */
+        setTimeout(function () { try { prim.show = !PINHIDE.on; } catch (_) { } }, 1400);   /* 빛줄기가 다 솟은 뒤 · ⭐ 1025a 핀 끄기 중이면 안 켠다 */
         PIN = { ents: [e1, e2], prim: prim, ref: e.ref, p: p, dmin: 1e9, endT: 0 };
         return;
       }
@@ -9075,6 +9171,135 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       }, 120);
     }, 300);
   }
+  /* ══ ⭐⭐ 1025a 항로도 점프 — 촬영 손(살롱지기만 · 소로 1025 파리 촬영 중) ══════════════
+     > 「한 바퀴 도는데 꽤 시간이 걸려서 노트르담 장면 포착이 어려워 —
+     >  관리자 모드에서 모니터의 특정 지점을 찍으면 그곳으로 점프」
+     ⭐ 항로도를 누르면 그 점에서 가장 가까운 **항로 위** 곳으로 옮겨 앉는다(암전 0.3초 → 옮김 → 0.7초 뒤 밝음).
+       길목 이름이나 점을 누르면 그 길목에 정확히 앉는다.
+     ⭐⭐ 파리처럼 같은 곳을 두 번 지나는 노선(정 · 역)은 **지금 곳에서 앞으로 가서 먼저 닿는 쪽**을 고른다 —
+       「다음에 노트르담을 지나는 그 자리」가 된다.
+     ⭐ 확대(+)해서 누르면 더 정확하다. 지도가 보이는 그대로를 셈하므로 배율과 상관없이 맞는다.
+     ⚠ 총계(시간 · 거리)는 안 건드린다(flight.jump). 「출발점으로」와 다른 손이다.
+     ⚠ 손님에게는 아무 일도 안 일어난다 — 누르는 순간 IS_ADMIN 을 본다(열쇠가 늦게 와도 된다). */
+  /* 화면 좌표 → 모니터 원판(880×580) 좌표. ⭐ 좌석의 사다리꼴(matrix3d)도 창밖의 scale 도 한 셈으로 푼다 —
+     화면 x = (m11·X + m21·Y + m41) / (m14·X + m24·Y + m44) · y 도 같은 꼴. 두 식을 X·Y 에 대해 푼다.
+     ⚠ #egrMon 은 transform-origin 0 0 · left/top 0 의 fixed 라 원점이 곧 화면 원점이다(6126행 CSS). */
+  function monLocal(cx, cy) {
+    var D = window.DOMMatrix || window.WebKitCSSMatrix;
+    if (!MONEL || !D) return null;
+    var tf = getComputedStyle(MONEL).transform, m = new D(tf && tf !== "none" ? tf : undefined);
+    var a1 = m.m11 - cx * m.m14, b1 = m.m21 - cx * m.m24, c1 = cx * m.m44 - m.m41;
+    var a2 = m.m12 - cy * m.m14, b2 = m.m22 - cy * m.m24, c2 = cy * m.m44 - m.m42;
+    var det = a1 * b2 - a2 * b1;
+    if (!det) return null;
+    return [(c1 * b2 - c2 * b1) / det, (a1 * c2 - a2 * c1) / det];
+  }
+  /* 모니터 원판 좌표 → 항로도 svg(812×318) 좌표 */
+  function mapLocal(cx, cy) {
+    var box = MONEL && MONEL.querySelector("#egrMap"), P = monLocal(cx, cy);
+    if (!box || !P) return null;
+    var bx = P[0] - MONEL.clientLeft - box.offsetLeft - box.clientLeft;
+    var by = P[1] - MONEL.clientTop - box.offsetTop - box.clientTop;
+    var cw = box.clientWidth || MAPBOX.w, ch = box.clientHeight || MAPBOX.h;
+    var k = Math.min(cw / MAPBOX.w, ch / MAPBOX.h);               /* preserveAspectRatio meet */
+    return [(bx - (cw - MAPBOX.w * k) / 2) / k, (by - (ch - MAPBOX.h * k) / 2) / k];
+  }
+  /* 앞으로 몇 구간 가야 닿나 — 고리는 감아서 센다. liner 는 그대로 거리 */
+  function aheadOf(route, from, to) {
+    var n = segCount(route);
+    return (route.loop === false) ? Math.abs(to - from) : (((to - from) % n) + n) % n;
+  }
+  /* 누른 svg 점에서 가장 가까운 항로 위 곳 [seg, u, 거리px] — 같은 곳을 두 번 지나면 앞쪽 */
+  function jumpPick(route, vx, vy, curSeg) {
+    if (!MAPF) return null;
+    var segN = segCount(route), per = route.dense ? 3 : 24, s, j, p, dx, dy, d2;
+    var segBest = [];                     /* 구간마다 [d2, u] */
+    var gmin = 1e18;
+    for (s = 0; s < segN; s++) {
+      var bd = 1e18, bu = 0;
+      for (j = 0; j <= per; j++) {
+        p = curveOf(route, s, j / per);
+        dx = MAPF.x(p[1]) - vx; dy = MAPF.y(p[0]) - vy; d2 = dx * dx + dy * dy;
+        if (d2 < bd) { bd = d2; bu = j / per; }
+      }
+      /* ⭐ 다듬기 — 고른 칸 앞뒤로 열두 걸음 더 촘촘히 */
+      var u0 = Math.max(0, bu - 1 / per), u1 = Math.min(1, bu + 1 / per);
+      for (j = 0; j <= 12; j++) {
+        var uu = u0 + (u1 - u0) * j / 12;
+        p = curveOf(route, s, uu);
+        dx = MAPF.x(p[1]) - vx; dy = MAPF.y(p[0]) - vy; d2 = dx * dx + dy * dy;
+        if (d2 < bd) { bd = d2; bu = uu; }
+      }
+      segBest.push([bd, bu]);
+      if (bd < gmin) gmin = bd;
+    }
+    /* ⭐ 가장 가까운 것에서 8px 안에 드는 것들 가운데 지금 곳에서 앞으로 가장 먼저 닿는 것 */
+    var lim = Math.pow(Math.sqrt(gmin) + 8, 2), pick = -1, pa = 1e9;
+    for (s = 0; s < segN; s++) {
+      if (segBest[s][0] > lim) continue;
+      var a = aheadOf(route, curSeg, s);
+      if (a < pa) { pa = a; pick = s; }
+    }
+    if (pick < 0) return null;
+    return [pick, Math.min(0.999, segBest[pick][1]), Math.sqrt(segBest[pick][0])];
+  }
+  function doJump(s2, u2, why) {
+    if (!ROOT || !flight || !flight.jump || swapping) return;
+    swapping = true;
+    var fade = ROOT.querySelector("#readingFade");
+    if (fade) fade.classList.add("on");
+    EGR_later(function () {
+      var r = null;
+      try { r = flight.jump(s2, u2); } catch (e) { console.warn("[EG] 점프 실패:", e); }
+      try {
+        var rt = flight.route;
+        if (r) console.log("%c[EG] ↷ 점프 — " + why + " · 길목 " + r.seg + " (" + legNameOf(rt, r.seg, -1)
+          + " → " + legNameOf(rt, r.seg + 1, 1) + ") · u " + r.u.toFixed(3), "color:#c9a961");
+        if (r) say("↷ " + legNameOf(rt, r.seg, -1) + " → " + legNameOf(rt, r.seg + 1, 1));
+      } catch (e) { }
+      EGR_later(function () {
+        if (fade) fade.classList.remove("on");
+        EGR_later(function () { swapping = false; }, 320);
+      }, 700);
+    }, 300);
+  }
+  function onMapJump(e) {
+    if (!IS_ADMIN || !flight || !flight.jump || !flight.route) return;   /* ⚠ 손님은 여기서 끝 */
+    if (editing) return;                  /* ⚠ 편집기 중에는 모니터를 끄는 손이 먼저다 */
+    var rt = flight.route, cur = 0;
+    try { cur = flight.where().seg; } catch (x) { }
+    /* ⭐ 길목 이름 · 점을 눌렀으면 그 길목 — 같은 이름이 둘이면(정 · 역) 앞쪽 */
+    var t = e.target, id = (t && t.id) || "", mm = /^egrW[pt](\d+)$/.exec(id);
+    if (mm) {
+      /* ⚠ 돌아오는 길의 이름은 끝에 「↩」가 붙는다(노트르담 · 시테섬 ↩) — 떼고 견준다 */
+      var bare = function (x) { return String(x || "").replace(/\s*↩\s*$/, ""); };
+      var nm = bare((rt.legs[+mm[1]] || [])[2]), best = +mm[1], ba = 1e9;
+      if (nm) for (var i = 0; i < rt.legs.length; i++) {
+        if (bare(rt.legs[i][2]) !== nm) continue;
+        var ai = aheadOf(rt, cur, i);
+        if (ai < ba) { ba = ai; best = i; }
+      }
+      doJump(best, 0, "길목 「" + (nm || best) + "」");
+      return;
+    }
+    var v = mapLocal(e.clientX, e.clientY);
+    if (!v) return;
+    if (v[0] < -20 || v[0] > MAPBOX.w + 20 || v[1] < -20 || v[1] > MAPBOX.h + 20) {
+      /* ⚠ 지도 안을 눌렀는데 셈이 밖을 낸다 — 변환을 잘못 푼 것이다. 숫자를 남겨 둔다 */
+      console.warn("[EG] 점프 — 누른 곳 셈이 지도 밖입니다", v, getComputedStyle(MONEL).transform);
+      return;
+    }
+    var pk = jumpPick(rt, v[0], v[1], cur);
+    if (!pk) return;
+    if (pk[2] > 40) { say("항로 선 가까이를 눌러 주십시오"); return; }
+    doJump(pk[0], pk[1], "지도 (" + Math.round(v[0]) + ", " + Math.round(v[1]) + ") · 선에서 " + pk[2].toFixed(1) + "px");
+  }
+  /* ⭐ 살롱지기 표시 — 열쇠가 늦게 와도(loadEngrave) 모니터가 먼저 섰어도 둘 다 이 한 손을 부른다 */
+  function paintAdm() {
+    if (!MONEL) return;
+    MONEL.classList.toggle("adm", !!IS_ADMIN);
+    paintPinBtn();
+  }
   function togglePause() {
     PAUSED = !PAUSED;
     syncCtl();                       /* ⭐ 모니터 안 단추도 함께 */
@@ -9242,7 +9467,8 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       /* ⭐⭐ 열쇠가 **먼저**다. 방이 걷혔든 각인이 없든 이 한 줄은 선다.
          ⚠ 늦게 온 응답으로 방을 만지는 것과 열쇠를 쥐는 것은 다른 일이다. */
       IS_ADMIN = !!row.is_admin;
-      if (IS_ADMIN) console.log("[EG] 관리자 열쇠 — F(계기) · G(구름) · E(편집기)가 열렸습니다");
+      if (IS_ADMIN) console.log("[EG] 관리자 열쇠 — F(계기) · G(구름) · E(편집기) · P(핀 끄기) · 항로도 누르기(점프)가 열렸습니다");
+      try { paintAdm(); } catch (e) { }   /* ⭐ 1025a — 📍 단추 · 점프 십자 커서 */
       if (!ENGEL || !ROOT || !document.body.contains(ROOT)) return;   /* 늦게 온 응답 */
       ENG_NICK = row.nickname || "";
       ENG_SINCE = row.created_at || "";
@@ -11742,6 +11968,8 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
          ⚠ 팔걸이를 재 보았다 — 판 86.8~99.8% 로 **화면 띠(20~76%) 밖**이었다. */
       + '<button id="egrRead" class="ico" type="button" title="독서등">&#128161;</button>'
       + '<button id="egrRst" class="ico" type="button" title="출발점으로 (R)">&#8634;</button>'
+      /* ⭐ 1025a 촬영 손 — 지구 위 핀 끄기. 살롱지기에게만 선다(CSS #egrMon.adm) */
+      + '<button id="egrPins" class="ico" type="button" title="지구 위 핀 끄기 (P) · 살롱지기">&#128205;</button>'
       + '</div></div>'
       + '<div id="egrMap"></div>'
       /* ⭐ 0820y — 지도 위 두 배지. **지도 밖 형제**다(위 CSS 주석의 까닭) */
@@ -11780,6 +12008,10 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     mountDesk();                      /* ⭐ 독서일지 판 — 모니터 밖 별도 판 */
     EGR_on(MONEL.querySelector("#egrZin"), "click", function () { setZoom(zi + 1, route); });
     EGR_on(MONEL.querySelector("#egrZout"), "click", function () { setZoom(zi - 1, route); });
+    /* ⭐ 1025a 촬영 손 둘 — 항로도를 누르면 점프 · 📍 로 핀 끄기. 둘 다 누르는 순간 IS_ADMIN 을 본다 */
+    EGR_on(MONEL.querySelector("#egrMap"), "click", onMapJump);
+    EGR_on(MONEL.querySelector("#egrPins"), "click", togglePins);
+    paintAdm();
     /* ⭐ 0819U 소로 — 「모니터에 음악 켜기 버튼」. 손이 한 곳에 모인다 */
     EGR_on(MONEL.querySelector("#egrSnd"), "click", function () { setChannel(CH + 1); });
     /* ══ ⭐⭐ 0825m 창밖 모니터를 옮기고 키운다 (소로 0825) ═══════════════════════
@@ -11946,6 +12178,8 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
        3,000m 아래에서 저절로 ×1 이 되면 배지도 저절로 사라진다 — 화면과 셈이 안 갈린다. */
     paintWarp((s.alt < 3000) ? 1 : s.warp);
     paintMap(s, route);              /* ⭐ 항로도 — 확대 중이면 지도가 따라 흐른다 */
+    /* ⭐ 1025a 핀 끄기 중이면 1초에 한 번 훑는다 — terra 가 제 규칙으로 도로 켠 것을 다시 끈다 */
+    if (PINHIDE.on) { var pnow = performance.now(); if (pnow - PIN_SWEEP_T > 1000) { PIN_SWEEP_T = pnow; pinSweep(); } }
     paintWhere();                    /* ⭐ 기록판 아래줄 — 지금 나는 곳이 흐른다 */
   }
   /* ══ 독서일지 판 (0820a) — 비너스 시안 넉 벌 ═══════════════════════
@@ -13040,6 +13274,7 @@ function paintBook() {
         layout(); say("기내 " + (PA_DIM ? "소등" : "점등"));
       }
       else if (k === "f") { adminKey(); toggleFps(); }        /* ⭐ 0820i — 관리자만 */
+      else if (k === "p") { adminKey(); togglePins(); }       /* ⭐ 1025a 핀 끄기 — 관리자만 · 촬영 손 */
       /* ⭐⭐ 0825p 구조 — Shift+H. ⚠ 콘솔을 못 여는 곳(폰·태블릿)에서도 되찾아야 한다.
          모니터를 화면 밖으로 밀어 놓으면 잡을 데가 없어지는데, 그때 이 키가 유일한 길이다. */
       else if (k === "h" && e.shiftKey) { monOutReset(); say("모니터를 제자리로"); }
@@ -13561,6 +13796,7 @@ function paintBook() {
        끄는 줄부터 짝으로 단다.** 안 그러면 방은 걷혔는데 기장 목소리만 terra 위에 남는다. */
     try { paHush(); } catch (e) { }
     try { hostLabelsOn(); } catch (e) { }   /* ⭐ 0926a 끈 명패를 되살린다 — 짝 */
+    try { pinsHide(false); } catch (e) { }  /* ⭐ 1025a 끈 핀을 되살린다 — 짝 (pinOff 보다 먼저 · viewer 를 놓기 전) */
     /* ⭐ 있던 곳을 적어 둔다 — flight 를 세우기 **전**이어야 값이 살아 있다
        ⚠⚠ 0823b — 「그냥 나가기」(opt.discard)면 적는 대신 **지운다.**
          길목 자동 저장(26호)이 이미 적어 둔 것이 있으므로, 안 적기만 해서는 부족하다.
