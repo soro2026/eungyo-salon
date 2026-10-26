@@ -52,25 +52,33 @@
     background:#15120d; border:1px solid var(--line); border-radius:8px;
     padding:8px; text-align:center; font-size:.72rem;
   }
+  .slot.warn{border-color:var(--bad)}
   .slot .eg{color:var(--gold); font-weight:700; font-size:.8rem; letter-spacing:.03em}
-  .slot .ti{color:#c9bfad; margin:3px 0 6px; height:2.6em; overflow:hidden; line-height:1.3}
+  .slot .ti{color:#c9bfad; margin:3px 0 2px; height:2.6em; overflow:hidden; line-height:1.3}
+  .slot .lv{color:#8a8272; font-size:.68rem; margin-bottom:6px}
   .slot .thumb{
     width:100%; aspect-ratio:1/4.2; background:#0c0a07; border-radius:4px;
     display:flex; align-items:center; justify-content:center; overflow:hidden;
     border:1px solid #2a251c;
   }
   .slot .thumb img{width:100%; height:100%; object-fit:contain}
-  .slot .st{margin-top:5px; font-size:.68rem; min-height:1.2em}
+  .slot .ratio{margin-top:5px; font-size:.7rem; min-height:1.2em; color:#8a8272}
+  .slot .ratio.good{color:var(--ok)} .slot .ratio.off{color:var(--bad); font-weight:700}
+  .slot .st{margin-top:3px; font-size:.68rem; min-height:1.2em}
   .slot .st.up{color:var(--ok)} .slot .st.err{color:var(--bad)} .slot .st.wait{color:#8a8272}
-  .miss{color:var(--bad); font-size:.8rem; margin-top:8px}
+  .miss{color:var(--bad); font-size:.8rem; margin-top:8px; line-height:1.6}
   .foot{max-width:1180px; margin-top:6px; color:#6f6858; font-size:.76rem; line-height:1.6}
   .prog{font-size:.85rem; color:var(--gold); margin-top:10px}
+  .booklist{margin-top:10px; font-size:.82rem; line-height:1.8; color:#c9bfad}
+  .booklist b{color:var(--gold)}
+  .booklist .lvtag{color:#8a8272; font-size:.76rem}
+  .tally{font-size:.84rem; color:#b7ad9c; margin-top:10px}
 </style>
 </head>
 <body>
 
 <h1>콜레주 드 콤포스텔라 · 책등 입고</h1>
-<div class="sub">학장실 전용 — 6권 시트를 시대순 자리에 맞춰 자동 분할·입고합니다. 잉크 남빛 총서, EG001–EG273.</div>
+<div class="sub">학장실 전용 — 6권 시트를 시대 순서 자리에 맞춰 자동 분할·입고합니다. 서가 차례는 DB(era_order)에서 그대로 읽어 옵니다.</div>
 
 <div id="loginBox" class="card">
   <h2>학장 인증</h2>
@@ -86,20 +94,22 @@
 <div id="app">
   <div class="card">
     <h2>1. 시트 선택</h2>
+    <div id="loadInfo" class="status"></div>
     <div class="row">
       <div style="flex:1; min-width:260px">
-        <label>몇 번째 시트를 입고할까요? (6권 × 45장 + 마지막 3권 = 46시트)</label>
+        <label>몇 번째 시트를 입고할까요? (23장 × 앞·뒤 두 장, 제23장만 한 장 반 = 46시트)</label>
         <select id="sheetSel"></select>
       </div>
       <button id="loadSheet">이 시트 열기</button>
     </div>
-    <div id="sheetHint" class="sub" style="margin-top:10px"></div>
+    <div id="tally" class="tally"></div>
+    <div id="sheetHint" class="booklist"></div>
   </div>
 
   <div id="workCard" class="card" style="display:none">
     <h2>2. 시트 이미지 올리기 <span id="workTitle" style="color:#9a9284; font-size:.85rem"></span></h2>
     <div id="dropzone" class="dropzone">
-      여기에 6권 시트 이미지를 끌어다 놓거나 클릭해서 선택하세요<br>
+      여기에 시트 이미지를 끌어다 놓거나 클릭해서 선택하세요<br>
       <span style="font-size:.78rem">(책과 책 사이 흰 여백이 있는 그 이미지 그대로)</span>
     </div>
     <input id="fileInput" type="file" accept="image/*" style="display:none">
@@ -107,47 +117,63 @@
     <div id="slots" class="slots"></div>
     <div id="missBox" class="miss"></div>
     <div class="row" style="margin-top:16px">
-      <button id="uploadBtn" disabled>이 6권 입고하기</button>
+      <button id="uploadBtn" disabled>이 시트 입고하기</button>
       <button id="resetBtn" class="ghost">다시 올리기</button>
     </div>
     <div id="uploadProg" class="prog"></div>
   </div>
 
   <div class="foot">
-    · 파일은 <b>spine_{id}.webp</b> 이름으로 <b>college-assets</b> 버킷 <b>spines/</b> 폴더에 올라갑니다.<br>
+    · 파일은 <b>spine_{id}.webp</b> 이름으로 <b>college-assets</b> 버킷 <b>spines/</b> 폴더에 올라갑니다(같은 이름이면 덮어씀).<br>
     · 자동 분할은 흰 여백(순백 세로줄)을 감지해 실제 책 폭대로 자릅니다. 균등분할이 아닙니다.<br>
     · 감지된 책이 시트 정원과 다르면 붉은 경고가 뜹니다 — 그럴 땐 여백을 더 확실히 준 이미지로 다시 구워 주세요.<br>
-    · 입고 후 파이스가 pub_year·era_order·spine_url 컬럼을 채웁니다.
+    · 조각마다 <b>폭 ÷ 키</b>를 재어 두께 단계와 맞춰 봅니다. 목표 1단계 0.14 · 2단계 0.20 · 3단계 0.27 · 4단계 0.36 · 5단계 0.46 —
+      이웃 단계와의 한가운데를 넘으면 붉게 표시합니다(다시 굽기 권장).<br>
+    · 「✓ 새 책등」은 2026-10-25 이후에 올라간 파일입니다. 그 전 파일은 옛 책등(7월)입니다.
   </div>
 </div>
 
 <script>
-const SHEETS6 = [[[100, "EG100", "길가메시 서사시"], [92, "EG092", "일리아스"], [93, "EG093", "오디세이아"], [94, "EG094", "오레스테이아 3부작"], [125, "EG125", "논어"], [95, "EG095", "테바이 3부작"]], [[96, "EG096", "에우리피데스 선집"], [163, "EG163", "역사(헤로도토스)"], [164, "EG164", "펠로폰네소스 전쟁사"], [127, "EG127", "노자 도덕경"], [120, "EG120", "소크라테스 4부작"], [121, "EG121", "국가"]], [[215, "EG215", "동물지 선집"], [122, "EG122", "니코마코스 윤리학"], [97, "EG097", "시학"], [126, "EG126", "맹자"], [128, "EG128", "장자"], [129, "EG129", "대학·중용"]], [[216, "EG216", "유클리드 원론"], [168, "EG168", "사기 열전"], [124, "EG124", "사물의 본성에 관하여"], [166, "EG166", "갈리아 전쟁기"], [98, "EG098", "아이네이스"], [99, "EG099", "변신 이야기"]], [[165, "EG165", "플루타르코스 영웅전"], [123, "EG123", "명상록"], [131, "EG131", "고백록(아우구스티누스)"], [116, "EG116", "두보 시선"], [169, "EG169", "삼국유사"], [267, "EG267", "동방견문록"]], [[101, "EG101", "신곡"], [268, "EG268", "이븐 바투타 여행기"], [102, "EG102", "캔터베리 이야기"], [238, "EG238", "다빈치 노트북"], [135, "EG135", "유토피아"], [167, "EG167", "로마사 논고"]], [[134, "EG134", "군주론"], [220, "EG220", "천구의 회전에 관하여"], [223, "EG223", "르네상스 미술가 열전"], [132, "EG132", "수상록"], [193, "EG193", "난중일기"], [104, "EG104", "셰익스피어 희극·로맨스"]], [[103, "EG103", "셰익스피어 4대 비극"], [170, "EG170", "징비록"], [68, "EG068", "돈키호테"], [221, "EG221", "별들의 전령"], [137, "EG137", "방법서설+성찰"], [139, "EG139", "리바이어던"]], [[106, "EG106", "몰리에르 선집"], [105, "EG105", "실낙원"], [133, "EG133", "팡세"], [136, "EG136", "에티카"], [218, "EG218", "프린키피아"], [117, "EG117", "하이쿠 선집"]], [[273, "EG273", "오쿠로 가는 좁은 길"], [138, "EG138", "캉디드"], [140, "EG140", "사회계약론"], [141, "EG141", "에밀"], [227, "EG227", "라오콘"], [59, "EG059", "젊은 베르테르의 슬픔"]], [[142, "EG142", "국부론"], [171, "EG171", "로마제국 쇠망사"], [192, "EG192", "열하일기"], [143, "EG143", "순수이성비판"], [243, "EG243", "고백록(루소)"], [173, "EG173", "프랑스혁명에 관한 성찰"]], [[250, "EG250", "프랭클린 자서전"], [83, "EG083", "홍루몽"], [60, "EG060", "빌헬름 마이스터"], [191, "EG191", "연려실기술"], [107, "EG107", "파우스트"], [26, "EG026", "오만과 편견"]], [[130, "EG130", "목민심서"], [144, "EG144", "의지와 표상"], [259, "EG259", "엘리아 수필선"], [70, "EG070", "약혼자들"], [5, "EG005", "적과 흑"], [2, "EG002", "파리의 노트르담"]], [[3, "EG003", "고리오 영감"], [174, "EG174", "미국의 민주주의"], [4, "EG004", "잃어버린 환상"], [6, "EG006", "파르마의 수도원"], [202, "EG202", "비글호 항해기"], [198, "EG198", "자연+자기신뢰"]], [[55, "EG055", "죽은 혼"], [36, "EG036", "포 단편선"], [27, "EG027", "제인 에어"], [28, "EG028", "폭풍의 언덕"], [149, "EG149", "죽음에 이르는 병"], [260, "EG260", "시민 불복종+산책"]], [[37, "EG037", "주홍 글자"], [30, "EG030", "데이비드 코퍼필드"], [39, "EG039", "모비딕"], [40, "EG040", "필경사 바틀비"], [194, "EG194", "월든"], [232, "EG232", "음악적 아름다움"]], [[175, "EG175", "앙시앵 레짐"], [7, "EG007", "마담 보바리"], [108, "EG108", "악의 꽃"], [145, "EG145", "자유론"], [204, "EG204", "종의 기원"], [172, "EG172", "이탈리아 르네상스의 문화"]], [[29, "EG029", "위대한 유산"], [1, "EG001", "레미제라블"], [56, "EG056", "아버지와 아들"], [50, "EG050", "지하로부터의 수기"], [47, "EG047", "죄와 벌"], [146, "EG146", "자본론"]], [[51, "EG051", "전쟁과 평화"], [48, "EG048", "백치"], [8, "EG008", "감정 교육"], [205, "EG205", "인간의 유래"], [49, "EG049", "악령"], [31, "EG031", "미들마치"]], [[109, "EG109", "랭보 시선"], [52, "EG052", "안나 카레니나"], [9, "EG009", "목로주점"], [113, "EG113", "입센 선집"], [199, "EG199", "파브르 곤충기"], [46, "EG046", "카라마조프가의 형제들"]], [[11, "EG011", "여자의 일생"], [147, "EG147", "차라투스트라"], [38, "EG038", "허클베리 핀의 모험"], [10, "EG010", "제르미날"], [12, "EG012", "벨아미"], [53, "EG053", "이반 일리치의 죽음"]], [[148, "EG148", "도덕의 계보"], [75, "EG075", "굶주림"], [235, "EG235", "반 고흐, 영혼의 편지"], [32, "EG032", "테스"], [269, "EG269", "서유견문"], [242, "EG242", "예술이란 무엇인가"]], [[200, "EG200", "시튼 동물기"], [33, "EG033", "어둠의 심연"], [54, "EG054", "체호프 단편선"], [114, "EG114", "체호프 4대 희곡"], [150, "EG150", "꿈의 해석"], [62, "EG062", "부덴브로크가의 사람들"]], [[252, "EG252", "헬렌 켈러 자서전"], [230, "EG230", "베토벤의 생애"], [157, "EG157", "프로테스탄트 윤리"], [231, "EG231", "슈바이처의 바흐"], [195, "EG195", "소로 일기 선집"], [257, "EG257", "미켈란젤로+톨스토이"]], [[266, "EG266", "정통"], [14, "EG014", "좁은 문"], [228, "EG228", "예술의 정신적인 것"], [236, "EG236", "로댕의 예술론"], [13, "EG013", "잃어버린 시간을 찾아서"], [80, "EG080", "마음"]], [[63, "EG063", "변신+단편선"], [225, "EG225", "미술사의 기초 개념"], [188, "EG188", "한국통사"], [206, "EG206", "상대성이론"], [187, "EG187", "서구의 몰락"], [176, "EG176", "중세의 가을"]], [[65, "EG065", "데미안+싯다르타"], [82, "EG082", "아큐정전"], [237, "EG237", "세잔과의 대화"], [35, "EG035", "율리시스"], [112, "EG112", "황무지+사중주"], [110, "EG110", "두이노의 비가"]], [[239, "EG239", "건축을 향하여"], [61, "EG061", "마의 산"], [34, "EG034", "댈러웨이 부인+등대로"], [41, "EG041", "위대한 개츠비"], [64, "EG064", "성"], [255, "EG255", "링컨"]], [[272, "EG272", "지혜의 일곱 기둥"], [151, "EG151", "존재와 시간"], [251, "EG251", "간디 자서전"], [181, "EG181", "광기와 우연의 역사"], [111, "EG111", "예이츠 시선"], [67, "EG067", "서부 전선 이상 없다"]], [[43, "EG043", "음향과 분노"], [258, "EG258", "자기만의 방"], [264, "EG264", "행복의 정복"], [91, "EG091", "밤 끝으로의 여행"], [23, "EG023", "인간의 조건(말로)"], [253, "EG253", "빈센트 반 고흐"]], [[234, "EG234", "기술복제시대의 예술작품"], [256, "EG256", "퀴리 부인"], [270, "EG270", "그리스 기행"], [17, "EG017", "구토"], [182, "EG182", "호모 루덴스"], [44, "EG044", "분노의 포도"]], [[19, "EG019", "인간의 대지+야간비행"], [15, "EG015", "이방인"], [153, "EG153", "시지프 신화"], [244, "EG244", "어제의 세계"], [229, "EG229", "음악의 시학"], [18, "EG018", "어린 왕자"]], [[66, "EG066", "유리알 유희"], [77, "EG077", "픽션들"], [214, "EG214", "생명이란 무엇인가"], [159, "EG159", "서양철학사"], [24, "EG024", "타인의 피"], [233, "EG233", "모차르트"]], [[152, "EG152", "실존주의는 휴머니즘"], [161, "EG161", "미메시스"], [69, "EG069", "그리스인 조르바"], [247, "EG247", "죽음의 수용소에서"], [265, "EG265", "나는 왜 쓰는가"], [16, "EG016", "페스트"]], [[245, "EG245", "안네의 일기"], [246, "EG246", "이것이 인간인가"], [162, "EG162", "중력과 은총"], [189, "EG189", "백범일지"], [81, "EG081", "설국"], [118, "EG118", "하늘과 바람과 별과 시"]], [[45, "EG045", "1984"], [158, "EG158", "제2의 성"], [196, "EG196", "모래 군의 열두 달"], [201, "EG201", "솔로몬의 반지"], [222, "EG222", "서양미술사"], [179, "EG179", "전체주의의 기원"]], [[90, "EG090", "하드리아누스 회상록"], [178, "EG178", "문학과 예술의 사회사"], [42, "EG042", "노인과 바다"], [115, "EG115", "고도를 기다리며"], [154, "EG154", "철학적 탐구"], [87, "EG087", "카인의 후예"]], [[78, "EG078", "페드로 파라모"], [58, "EG058", "닥터 지바고"], [155, "EG155", "인간의 조건(아렌트)"], [71, "EG071", "표범"], [86, "EG086", "광장"], [224, "EG224", "예술과 환영"]], [[186, "EG186", "역사란 무엇인가"], [160, "EG160", "낭만적 거짓과 소설적 진실"], [254, "EG254", "고뇌와 환희"], [190, "EG190", "뜻으로 본 한국역사"], [197, "EG197", "침묵의 봄"], [219, "EG219", "과학혁명의 구조"]], [[183, "EG183", "혁명의 시대"], [20, "EG020", "새들은 페루에 가서 죽다"], [261, "EG261", "작가수첩"], [180, "EG180", "예루살렘의 아이히만"], [84, "EG084", "침묵"], [76, "EG076", "백년의 고독"]], [[57, "EG057", "거장과 마르가리타"], [177, "EG177", "물질문명과 자본주의"], [208, "EG208", "이중나선"], [119, "EG119", "김수영 시선"], [85, "EG085", "토지"], [207, "EG207", "부분과 전체"]], [[213, "EG213", "인간의 그늘에서"], [72, "EG072", "보이지 않는 도시들"], [226, "EG226", "다른 방식으로 보기"], [248, "EG248", "수용소군도"], [203, "EG203", "자연의 지혜"], [21, "EG021", "자기 앞의 생"]], [[211, "EG211", "이기적 유전자"], [185, "EG185", "치즈와 구더기"], [262, "EG262", "무소유"], [240, "EG240", "사진에 관하여"], [271, "EG271", "파타고니아"], [25, "EG025", "인생 사용법"]], [[89, "EG089", "난장이가 쏘아올린 작은 공"], [156, "EG156", "정신의 삶"], [217, "EG217", "괴델 에셔 바흐"], [209, "EG209", "코스모스"], [241, "EG241", "밝은 방"], [74, "EG074", "참을 수 없는 존재의 가벼움"]], [[22, "EG022", "연인"], [212, "EG212", "시간의 역사"], [88, "EG088", "그 많던 싱아"], [184, "EG184", "극단의 시대"], [249, "EG249", "자유를 향한 머나먼 길"], [210, "EG210", "파인만의 물리 이야기"]], [[73, "EG073", "눈먼 자들의 도시"], [263, "EG263", "인연"], [79, "EG079", "염소의 축제"]]];
-
 const SUPA_URL='https://cyhlotwdisjvoxvfkpnd.supabase.co';
 const SUPA_KEY='sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
 const BUCKET='college-assets';
+const NEW_SINCE=new Date('2026-10-25T00:00:00+09:00');   // 이 시각 이후 파일 = 새 프롬프트로 구운 책등
 const supa=supabase.createClient(SUPA_URL,SUPA_KEY,{
   auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
 });
 
+// 두께 단계 — 1025 오후 결정문 §5 · v303 §7 (목표 폭 ÷ 키)
+const LEVEL_NAME=['','얇은 책','보통','두꺼운 책','벽돌책','여러 권'];
+const LEVEL_TARGET=[0,0.14,0.20,0.27,0.36,0.46];
+function levelBand(lv){
+  const t=LEVEL_TARGET;
+  const lo= lv>1 ? (t[lv-1]+t[lv])/2 : t[1]-(t[2]-t[1])/2;
+  const hi= lv<5 ? (t[lv]+t[lv+1])/2 : t[5]+(t[5]-t[4])/2;
+  return [lo,hi];
+}
+
 const $=s=>document.querySelector(s);
-let CUR_SHEET=null;      // 현재 시트 [[id,eg,title],...]
-let PIECES=[];           // 잘린 조각 [{id,eg,title,blob,url}]
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const egNo=id=>'EG'+String(id).padStart(3,'0');
+
+let SHEETS=[];           // [{no, chapter, half, books:[{id,eg,title,author,year,lv,era}]}]
+let FILES={};            // id → updated_at(Date)
+let CUR_SHEET=null;      // 현재 시트 객체
+let PIECES=[];           // 잘린 조각 [{id,eg,title,blob,url,ratio,ok}]
 
 // ---- 인증 ----
 async function checkSession(){
   const { data:{ session } }=await supa.auth.getSession();
   if(!session){ $('#sessionInfo').textContent='로그인이 필요합니다.'; return false; }
-  // is_admin 확인
   const { data, error }=await supa.from('users').select('is_admin,nickname').eq('id',session.user.id).single();
   if(error || !data?.is_admin){
-    $('#sessionInfo').innerHTML='<span style="color:var(--bad)">관리자 권한이 없습니다. ('+(data?.nickname||session.user.email)+')</span>';
+    $('#sessionInfo').innerHTML='<span style="color:var(--bad)">관리자 권한이 없습니다. ('+esc(data?.nickname||session.user.email)+')</span>';
     return false;
   }
-  $('#sessionInfo').innerHTML='<span style="color:var(--ok)">학장 인증됨 — '+(data.nickname||'')+'</span>';
+  $('#sessionInfo').innerHTML='<span style="color:var(--ok)">학장 인증됨 — '+esc(data.nickname||'')+'</span>';
   $('#loginForm').style.display='none';
   $('#app').style.display='block';
+  await loadShelf();
   return true;
 }
 $('#loginBtn').onclick=async()=>{
@@ -157,31 +183,97 @@ $('#loginBtn').onclick=async()=>{
   $('#loginStatus').textContent=''; await checkSession();
 };
 
-// ---- 시트 셀렉트 채우기 ----
-(function fillSel(){
-  const sel=$('#sheetSel');
-  SHEETS6.forEach((sheet,i)=>{
-    const first=sheet[0][1], last=sheet[sheet.length-1][1];
+// ---- 서가 읽기: DB era_order → 장마다 6권씩 ----
+async function loadShelf(){
+  $('#loadInfo').textContent='서가 차례를 DB에서 읽는 중…'; $('#loadInfo').className='status';
+  const { data, error }=await supa.from('college_books')
+    .select('id,title,author,year_raw,era_order,era_chapter,spine_thickness')
+    .order('era_order',{ascending:true});
+  if(error){ $('#loadInfo').textContent='서가를 읽지 못했습니다: '+error.message; $('#loadInfo').className='status bad'; return; }
+
+  // 장 묶기 (era_order 순서를 그대로 지킨다)
+  const chapters=[];
+  data.forEach(b=>{
+    let ch=chapters[chapters.length-1];
+    if(!ch || ch.name!==b.era_chapter){ ch={name:b.era_chapter, books:[]}; chapters.push(ch); }
+    ch.books.push({
+      id:b.id, eg:egNo(b.id), title:b.title, author:b.author||'', year:b.year_raw||'',
+      lv:b.spine_thickness||0, era:b.era_order
+    });
+  });
+
+  // 장마다 6권씩 — 장을 넘어 섞지 않는다
+  SHEETS=[]; const odd=[];
+  chapters.forEach(ch=>{
+    for(let i=0;i<ch.books.length;i+=6){
+      SHEETS.push({ no:SHEETS.length+1, chapter:ch.name, half:(i===0?'앞':'뒤'), books:ch.books.slice(i,i+6) });
+    }
+    if(ch.books.length!==12) odd.push(ch.name+' '+ch.books.length+'권');
+  });
+
+  const noLv=data.filter(b=>!b.spine_thickness).length;
+  let info='✓ '+data.length+'권 · '+chapters.length+'장 · '+SHEETS.length+'시트';
+  let bad=false;
+  if(odd.length && !(odd.length===1 && odd[0].startsWith('제23장'))){ info+=' — ⚠ 12권이 아닌 장: '+odd.join(', '); bad=true; }
+  if(noLv){ info+=' — ⚠ 두께 단계 없는 책 '+noLv+'권'; bad=true; }
+  $('#loadInfo').textContent=info; $('#loadInfo').className='status '+(bad?'bad':'ok');
+
+  await loadFiles();
+  fillSel();
+  // 아직 새 책등이 안 오른 첫 시트를 기본으로
+  const firstTodo=SHEETS.findIndex(s=>!sheetDone(s));
+  $('#sheetSel').value=String(firstTodo<0?0:firstTodo);
+  showHint(SHEETS[+$('#sheetSel').value]);
+}
+
+// ---- 스토리지: 어느 책등이 새로 올랐나 ----
+async function loadFiles(){
+  FILES={};
+  const { data, error }=await supa.storage.from(BUCKET).list('spines',{ limit:1000, sortBy:{column:'name',order:'asc'} });
+  if(error){ console.warn('책등 목록을 읽지 못함',error); return; }
+  data.forEach(f=>{
+    const m=/^spine_(\d+)\.webp$/.exec(f.name);
+    if(m) FILES[+m[1]]=new Date(f.updated_at||f.created_at);
+  });
+}
+const isNew=id=>FILES[id] && FILES[id]>=NEW_SINCE;
+const sheetDone=s=>s.books.every(b=>isNew(b.id));
+
+function fillSel(){
+  const sel=$('#sheetSel'); const keep=sel.value; sel.innerHTML='';
+  let done=0;
+  SHEETS.forEach((s,i)=>{
+    const n=s.books.filter(b=>isNew(b.id)).length;
+    if(n===s.books.length) done++;
+    const mark= n===s.books.length ? '✓ ' : (n ? '△ ' : '');
     const o=document.createElement('option');
     o.value=i;
-    o.textContent=(i+1)+'번 시트  ['+first+'–'+last+']  '+sheet.length+'권 — '+sheet.map(b=>b[2]).slice(0,3).join(', ')+(sheet.length>3?' …':'');
+    o.textContent=mark+s.no+'번 시트 · '+s.chapter+' ('+s.half+') · '+s.books[0].eg+'–'+s.books[s.books.length-1].eg+' · '+s.books.length+'권';
     sel.appendChild(o);
   });
-})();
+  if(keep!=='') sel.value=keep;
+  const books=SHEETS.reduce((a,s)=>a+s.books.length,0);
+  const newBooks=SHEETS.reduce((a,s)=>a+s.books.filter(b=>isNew(b.id)).length,0);
+  $('#tally').textContent='새 책등 '+newBooks+' / '+books+'권 · 다 오른 시트 '+done+' / '+SHEETS.length+'장   (✓ 다 오름 · △ 일부만)';
+}
 
-let LOADED_IDX=null;   // 실제로 화면에 로드된 시트 번호 (셀렉트값과 다를 수 있음)
+function showHint(s){
+  if(!s){ $('#sheetHint').innerHTML=''; return; }
+  $('#sheetHint').innerHTML='이 시트에 담긴 책 (왼→오 순서 그대로 구워야 합니다):<br>'+
+    s.books.map((b,i)=>(i+1)+'. <b>'+b.eg+'</b> '+[b.title,b.author,b.year].filter(Boolean).map(esc).join(' — ')+
+      ' <span class="lvtag">· 두께 '+b.lv+' '+(LEVEL_NAME[b.lv]||'?')+(isNew(b.id)?' · ✓ 새 책등':'')+'</span>').join('<br>');
+}
 
 function loadSheet(i){
-  LOADED_IDX=i;
-  CUR_SHEET=SHEETS6[i];
+  CUR_SHEET=SHEETS[i];
   PIECES=[];
   $('#workCard').style.display='block';
-  $('#workTitle').textContent='('+CUR_SHEET.length+'권: '+CUR_SHEET[0][1]+'–'+CUR_SHEET[CUR_SHEET.length-1][1]+')';
+  $('#workTitle').textContent='('+CUR_SHEET.no+'번 · '+CUR_SHEET.chapter+' '+CUR_SHEET.half+' · '+CUR_SHEET.books.length+'권: '+
+    CUR_SHEET.books[0].eg+'–'+CUR_SHEET.books[CUR_SHEET.books.length-1].eg+')';
   $('#uploadBtn').disabled=true;
   $('#splitStatus').textContent=''; $('#missBox').textContent=''; $('#uploadProg').textContent='';
+  showHint(CUR_SHEET);
   renderSlots(null);
-  $('#sheetHint').innerHTML='이 시트에 담긴 책 (왼→오 순서 그대로 구워야 합니다):<br>'+
-    CUR_SHEET.map(b=>'<b style="color:var(--gold)">'+b[1]+'</b> '+b[2]).join(' · ');
 }
 
 // "이 시트 열기" 버튼 + 셀렉트 변경 둘 다 → 즉시 로드 (밀림 사고 원천 차단)
@@ -190,13 +282,22 @@ $('#sheetSel').onchange=()=>{ loadSheet(+$('#sheetSel').value); };
 
 function renderSlots(pieces){
   const host=$('#slots');
-  host.innerHTML=CUR_SHEET.map((b,idx)=>{
+  host.innerHTML=CUR_SHEET.books.map((b,idx)=>{
     const p=pieces&&pieces[idx];
     const thumb=p? '<img src="'+p.url+'">':'';
-    return '<div class="slot">'+
-      '<div class="eg">'+b[1]+'</div>'+
-      '<div class="ti">'+b[2]+'</div>'+
+    let ratio='';
+    if(p){
+      const [lo,hi]=levelBand(b.lv);
+      ratio= p.ok
+        ? '<div class="ratio good">'+p.ratio.toFixed(3)+' ✓</div>'
+        : '<div class="ratio off">'+p.ratio.toFixed(3)+' ⚠ ('+lo.toFixed(2)+'–'+hi.toFixed(2)+')</div>';
+    }
+    return '<div class="slot'+(p&&!p.ok?' warn':'')+'">'+
+      '<div class="eg">'+b.eg+'</div>'+
+      '<div class="ti">'+esc(b.title)+'</div>'+
+      '<div class="lv">두께 '+b.lv+' · '+(LEVEL_NAME[b.lv]||'?')+' · 목표 '+(LEVEL_TARGET[b.lv]||0).toFixed(2)+'</div>'+
       '<div class="thumb">'+thumb+'</div>'+
+      (p? ratio : '<div class="ratio"></div>')+
       '<div class="st wait" id="st'+idx+'">'+(p?'분할됨':'대기')+'</div>'+
     '</div>';
   }).join('');
@@ -208,11 +309,12 @@ dz.onclick=()=>$('#fileInput').click();
 dz.ondragover=e=>{e.preventDefault(); dz.classList.add('hot')};
 dz.ondragleave=()=>dz.classList.remove('hot');
 dz.ondrop=e=>{e.preventDefault(); dz.classList.remove('hot'); if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);};
-$('#fileInput').onchange=e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); };
+$('#fileInput').onchange=e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); e.target.value=''; };
 $('#resetBtn').onclick=()=>{ PIECES=[]; renderSlots(null); $('#splitStatus').textContent=''; $('#missBox').textContent=''; $('#uploadBtn').disabled=true; $('#uploadProg').textContent=''; };
 
 // ---- 자동 분할 (파이썬 알고리즘의 JS 포팅) ----
 async function handleFile(file){
+  if(!CUR_SHEET){ return; }
   $('#splitStatus').textContent='이미지 분석 중…'; $('#splitStatus').className='status';
   const img=await loadImg(file);
   const cv=document.createElement('canvas'); cv.width=img.width; cv.height=img.height;
@@ -239,7 +341,7 @@ async function handleFile(file){
   if(inb) segs.push([st,w]);
   segs=segs.filter(([a,b])=>b-a>=MINW);
 
-  const need=CUR_SHEET.length;
+  const need=CUR_SHEET.books.length;
   if(segs.length!==need){
     $('#splitStatus').textContent='감지된 책 '+segs.length+'권 (시트 정원 '+need+'권과 다름)'; $('#splitStatus').className='status bad';
     $('#missBox').innerHTML='⚠ 책 사이 흰 여백이 끊긴 것 같습니다. 여백을 더 확실히 준 이미지로 다시 구워 주세요. '+
@@ -249,7 +351,7 @@ async function handleFile(file){
   }
   $('#missBox').textContent='';
 
-  // 각 구간 잘라 세로 트리밍 → webp blob
+  // 각 구간 잘라 세로 트리밍 → 폭÷키 재기 → webp blob
   PIECES=[];
   for(let i=0;i<segs.length;i++){
     const [a,b]=segs[i];
@@ -259,6 +361,12 @@ async function handleFile(file){
     const rowWhite=y=>{ let wc=0; for(let x=x0;x<x1;x++){const o=(y*w+x)*4; if(data[o]>=WHITE&&data[o+1]>=WHITE&&data[o+2]>=WHITE)wc++;} return wc/(x1-x0)>GAPTHR; };
     while(top<h && rowWhite(top)) top++;
     while(bot>top && rowWhite(bot-1)) bot--;
+    // 두께 재기 — 여백(PAD) 붙이기 전의 책 몸통 그대로
+    const meta=CUR_SHEET.books[i];
+    const ratio=(b-a)/Math.max(1,bot-top);
+    const [lo,hi]=levelBand(meta.lv);
+    const ok= meta.lv>=1 && meta.lv<=5 && ratio>=lo && ratio<=hi;
+
     top=Math.max(0,top-PAD); bot=Math.min(h,bot+PAD);
     const cw=x1-x0, ch=bot-top;
     const oc=document.createElement('canvas'); oc.width=cw; oc.height=ch;
@@ -268,11 +376,19 @@ async function handleFile(file){
     floodTransparent(octx, cw, ch);
     const blob=await new Promise(res=>oc.toBlob(res,'image/webp',0.92));
     const url=URL.createObjectURL(blob);
-    const meta=CUR_SHEET[i];
-    PIECES.push({id:meta[0], eg:meta[1], title:meta[2], blob, url});
+    PIECES.push({id:meta.id, eg:meta.eg, title:meta.title, blob, url, ratio, ok});
   }
   renderSlots(PIECES);
-  $('#splitStatus').textContent='✓ '+PIECES.length+'권 분할 완료. 미리보기를 확인하고 입고하세요.'; $('#splitStatus').className='status ok';
+  const off=PIECES.filter(p=>!p.ok);
+  if(off.length){
+    $('#splitStatus').textContent='✓ '+PIECES.length+'권 분할 완료 — 그런데 두께가 어긋난 책 '+off.length+'권'; $('#splitStatus').className='status bad';
+    $('#missBox').innerHTML='⚠ 두께 경고: '+off.map(p=>{
+      const b=CUR_SHEET.books.find(x=>x.id===p.id);
+      return p.eg+' '+esc(p.title)+' — 잰 값 '+p.ratio.toFixed(3)+' / 목표 '+(LEVEL_TARGET[b.lv]||0).toFixed(2)+'(두께 '+b.lv+')';
+    }).join('<br>')+'<br>다시 굽기를 권합니다. 그래도 올리시려면 입고 버튼을 누르면 한 번 더 묻습니다.';
+  }else{
+    $('#splitStatus').textContent='✓ '+PIECES.length+'권 분할 완료 · 두께 모두 맞음. 미리보기를 확인하고 입고하세요.'; $('#splitStatus').className='status ok';
+  }
   $('#uploadBtn').disabled=false;
 }
 
@@ -312,6 +428,8 @@ function floodTransparent(ctx, W, H){
 
 // ---- 업로드 ----
 $('#uploadBtn').onclick=async()=>{
+  const off=PIECES.filter(p=>!p.ok);
+  if(off.length && !confirm('두께가 어긋난 책이 '+off.length+'권 있습니다 ('+off.map(p=>p.eg).join(', ')+').\n그래도 이 시트를 입고할까요?')) return;
   $('#uploadBtn').disabled=true;
   let ok=0, fail=0;
   for(let i=0;i<PIECES.length;i++){
@@ -327,6 +445,7 @@ $('#uploadBtn').onclick=async()=>{
   $('#uploadProg').innerHTML+= fail===0
     ? '<br><span style="color:var(--ok)">✓ 이 시트 '+ok+'권 전부 입고 완료. 다음 시트로 넘어가세요.</span>'
     : '<br><span style="color:var(--bad)">일부 실패 — 콘솔(F12) 확인 후 다시 시도하세요.</span>';
+  await loadFiles(); fillSel(); showHint(CUR_SHEET);
 };
 
 checkSession();
