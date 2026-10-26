@@ -508,6 +508,12 @@ function panelLum(data, W, a, b, top, y0, y1){
 }
 
 // 세로쓰기 — cols[0] 이 오른쪽 열
+function vSize(cols, box, maxSz){        // drawVertical 과 같은 셈 — 글자 크기만 돌려준다
+  const [x0,y0,x1,y1]=box, bw=x1-x0, bh=y1-y0;
+  const units=c=>c.replace(/ /g,'').length+.2*(c.split(' ').length-1);
+  const n=Math.max(...cols.map(units));
+  return Math.floor(Math.min(maxSz, bh/(n*1.06), bw/(cols.length*1.12+.05)));
+}
 function drawVertical(ctx, cols, box, maxSz){
   const [x0,y0,x1,y1]=box, bw=x1-x0, bh=y1-y0;
   const units=c=>c.replace(/ /g,'').length+.2*(c.split(' ').length-1);
@@ -558,19 +564,31 @@ function drawSpineText(ctx, meta, w, h, P, stroke){
   const thin=meta.lv===1;
   // 제목
   const parts=spineTitleParts(meta.title);
-  const tb=[pad, P.title[0]+(P.title[1]-P.title[0])*.05, w-pad, P.title[1]-(P.title[1]-P.title[0])*.05];
+  let tb=[pad, P.title[0]+(P.title[1]-P.title[0])*.05, w-pad, P.title[1]-(P.title[1]-P.title[0])*.05];
+  const maxT=Math.min(w*.55, h*.085);
+  const joined=parts.join(' ');
+  const midSplit=t=>{ let bestI=-1;
+    for(let i=0;i<t.length;i++) if(t[i]===' ' && (bestI<0 || Math.abs(i-t.length/2)<Math.abs(bestI-t.length/2))) bestI=i;
+    return bestI<0 ? null : [t.slice(0,bestI), t.slice(bestI+1)]; };
   let cols;
   if(parts.length>1 && !thin) cols=parts;
   else{
-    const joined=parts.join(' ');
     cols=[joined];
-    if(!thin && joined.replace(/ /g,'').length>=7 && joined.indexOf(' ')>=0){
-      let bestI=-1;
-      for(let i=0;i<joined.length;i++) if(joined[i]===' ' && (bestI<0 || Math.abs(i-joined.length/2)<Math.abs(bestI-joined.length/2))) bestI=i;
-      cols=[joined.slice(0,bestI), joined.slice(bestI+1)];
+    if(!thin && joined.replace(/ /g,'').length>=7 && joined.indexOf(' ')>=0) cols=midSplit(joined);
+  }
+  /* 1026 — 얇은 책등의 긴 제목: 한 줄로는 글자가 깨알이 된다(EG315 22자 → 10px).
+     한 줄 글자 크기가 책 키의 4.5%보다 작으면 두 줄로 나눈다 — 「+」 두 작품이면 작품마다 한 줄, 아니면 가운데 빈칸에서.
+     두 줄일 때는 옆 여백을 조금 줄여 글자를 키운다. */
+  if(thin){
+    const two= parts.length===2 ? parts : midSplit(joined);
+    const one=vSize([joined], tb, maxT);
+    if(two && one < h*.045){
+      const pad2=Math.max(4, Math.floor(w*.07));
+      const tb2=[pad2, tb[1], w-pad2, tb[3]];
+      if(vSize(two, tb2, maxT) > one){ cols=two; tb=tb2; }
     }
   }
-  drawVertical(ctx, cols, tb, Math.min(w*.55, h*.085));
+  drawVertical(ctx, cols, tb, maxT);
   // 지은이 · 해
   ctx.font=fontOf(Math.max(10,w*.16),700);
   let lines=[];
