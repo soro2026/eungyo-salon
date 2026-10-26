@@ -72,6 +72,7 @@
   .slot .thumb img{height:94%; width:auto; max-width:100%; object-fit:contain; object-position:bottom}
   .slot .ratio{margin-top:5px; font-size:.7rem; min-height:1.2em; color:#8a7f6e}
   .slot .ratio.good{color:var(--ok)} .slot .ratio.off{color:var(--bad); font-weight:700}
+  .slot .ratio.fit{color:#9a6a12; font-weight:700}
   .slot .st{margin-top:3px; font-size:.68rem; min-height:1.2em}
   .slot .st.up{color:var(--ok)} .slot .st.err{color:var(--bad)} .slot .st.wait{color:#8a7f6e}
   .miss{color:var(--bad); font-size:.8rem; margin-top:8px; line-height:1.6}
@@ -117,6 +118,7 @@
   <div id="workCard" class="card" style="display:none">
     <h2>2. 시트 이미지 올리기 <span id="workTitle" style="color:#7a7062; font-size:.85rem"></span></h2>
     <label class="check"><input id="typeOn" type="checkbox" checked> 책등에 DB 글자를 금박으로 얹기 — 글자 없이 구운 시트일 때 (제목 · 지은이 · 해 · EG 번호)</label>
+    <label class="check"><input id="fitOn" type="checkbox" checked> 두께가 어긋난 책은 콘솔이 목표 두께로 맞추기 — 가로만 줄이거나 늘림 (글자는 맞춘 뒤에 얹음)</label>
     <div id="dropzone" class="dropzone">
       여기에 시트 이미지를 끌어다 놓거나 클릭해서 선택하세요<br>
       <span style="font-size:.78rem">(책과 책 사이 흰 여백이 있는 그 이미지 그대로)</span>
@@ -300,7 +302,9 @@ function renderSlots(pieces){
     let ratio='';
     if(p){
       const [lo,hi]=levelBand(b.lv);
-      ratio= p.ok
+      ratio= p.fitted
+        ? '<div class="ratio fit">'+p.ratio.toFixed(3)+' → '+p.fitRatio.toFixed(3)+' 맞춤</div>'
+        : p.ok
         ? '<div class="ratio good">'+p.ratio.toFixed(3)+' ✓</div>'
         : '<div class="ratio off">'+p.ratio.toFixed(3)+' ⚠ ('+lo.toFixed(2)+'–'+hi.toFixed(2)+')</div>';
     }
@@ -363,6 +367,15 @@ async function handleFile(file){
   }
   $('#missBox').textContent='';
 
+  // 이 시트 책을 DB에서 새로 읽는다 — 창을 연 뒤 두께 · 제목을 고쳤어도 바로 따라가게
+  try{
+    const ids=CUR_SHEET.books.map(b=>b.id);
+    const { data:fresh }=await supa.from('college_books').select('id,title,author,year_raw,spine_thickness').in('id',ids);
+    (fresh||[]).forEach(f=>{ const b=CUR_SHEET.books.find(x=>x.id===f.id); if(!b) return;
+      b.title=f.title; b.author=f.author||''; b.year=f.year_raw||''; b.lv=f.spine_thickness||0; });
+    showHint(CUR_SHEET);
+  }catch(e){ console.warn('시트 책을 다시 읽지 못함 — 처음 읽은 값으로 간다', e); }
+
   // 금박 글자 — 서체부터 불러 둔다(시트에 쓰일 글자만)
   const typeOn=$('#typeOn').checked;
   let fontWarn='';
@@ -386,20 +399,27 @@ async function handleFile(file){
     const ratio=(b-a)/Math.max(1,bot-top);
     const [lo,hi]=levelBand(meta.lv);
     const ok= meta.lv>=1 && meta.lv<=5 && ratio>=lo && ratio<=hi;
-    const bTop=top, bBot=bot;
+    const bTop=top, bBot=bot, bh=bBot-bTop;
+
+    // ── 두께 맞춤 (1026) — 범위를 벗어나면 그 단계 목표로 가로만 맞춘다. 같은 단계 책이 똑같지 않게 책마다 ±5% ──
+    const fit= $('#fitOn').checked && !ok && meta.lv>=1 && meta.lv<=5;
+    const jitter=.95+((meta.id*7919)%11)/100;                // 0.95~1.05, 책 번호로 정해짐(다시 올려도 같음)
+    const bw= fit ? Math.max(12, Math.round(LEVEL_TARGET[meta.lv]*jitter*bh)) : (b-a);
 
     top=Math.max(0,top-PAD); bot=Math.min(h,bot+PAD);
-    const cw=x1-x0, ch=bot-top;
+    const cw=bw+2*PAD, ch=bot-top;
     const oc=document.createElement('canvas'); oc.width=cw; oc.height=ch;
     const octx=oc.getContext('2d');
-    octx.drawImage(cv, x0,top,cw,ch, 0,0,cw,ch);
-    // ── 금박 글자 (DB 그대로) ──
-    if(typeOn) typesetBook(octx, data, w, a, b, bTop, bBot, a-x0, bTop-top, meta);
+    octx.fillStyle='#fff'; octx.fillRect(0,0,cw,ch);
+    octx.imageSmoothingQuality='high';
+    octx.drawImage(cv, a,top,b-a,ch, PAD,0,bw,ch);              // 책 몸통만 가로로 bw 에 맞춰 옮긴다
+    // ── 금박 글자 (DB 그대로) — 맞춘 폭 위에 쓴다 ──
+    if(typeOn) typesetBook(octx, data, w, a, b, bTop, bBot, PAD, bTop-top, meta, bw);
     // ── 배경 흰색 → 투명 (모서리에서 스며드는 flood fill, 밝은 표지 보호) ──
     floodTransparent(octx, cw, ch);
     const blob=await new Promise(res=>oc.toBlob(res,'image/webp',0.92));
     const url=URL.createObjectURL(blob);
-    PIECES.push({id:meta.id, eg:meta.eg, title:meta.title, blob, url, ratio, ok});
+    PIECES.push({id:meta.id, eg:meta.eg, title:meta.title, blob, url, ratio, ok: ok||fit, fitted:fit, fitRatio: bw/bh});
   }
   renderSlots(PIECES);
   if(fontWarn){ $('#missBox').innerHTML='⚠ '+fontWarn+'<br>'; }
@@ -411,7 +431,8 @@ async function handleFile(file){
       return p.eg+' '+esc(p.title)+' — 잰 값 '+p.ratio.toFixed(3)+' / 목표 '+(LEVEL_TARGET[b.lv]||0).toFixed(2)+'(두께 '+b.lv+')';
     }).join('<br>')+'<br>다시 굽기를 권합니다. 그래도 올리시려면 입고 버튼을 누르면 한 번 더 묻습니다.';
   }else{
-    $('#splitStatus').textContent='✓ '+PIECES.length+'권 분할 완료 · 두께 모두 맞음. 미리보기를 확인하고 입고하세요.'; $('#splitStatus').className='status ok';
+    const nFit=PIECES.filter(p=>p.fitted).length;
+    $('#splitStatus').textContent='✓ '+PIECES.length+'권 분할 완료 · 두께 모두 맞음'+(nFit?' (콘솔이 맞춘 책 '+nFit+'권)':'')+'. 미리보기를 확인하고 입고하세요.'; $('#splitStatus').className='status ok';
   }
   $('#uploadBtn').disabled=false;
 }
@@ -561,8 +582,8 @@ function drawSpineText(ctx, meta, w, h, P, stroke){
   ctx.__stroke=false;
 }
 
-function typesetBook(octx, data, W, a, b, top, bot, offX, offY, meta){
-  const w=b-a, h=bot-top;
+function typesetBook(octx, data, W, a, b, top, bot, offX, offY, meta, drawW){
+  const w=drawW||(b-a), h=bot-top;                      // 칸(y) · 밝기는 원본에서 찾고, 글자는 맞춘 폭(drawW)에 쓴다
   const P=findPanels(data, W, a, b, top, bot);
   const lum=panelLum(data, W, a, b, top, P.title[0], P.title[1]);
   const light=lum>175, mid=!light && lum>=95;
