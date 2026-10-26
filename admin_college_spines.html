@@ -5,28 +5,35 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>콜레주 책등 입고 · 학장실</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- 1026 — 책등 금박 글자 서체. 캔버스에 쓰기 전에 document.fonts.load 로 글자마다 불러온다. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;700&display=swap" rel="stylesheet">
 <style>
+  /* 1026 — 밝은 종이 바탕(소로: 검은 바탕 흰 글씨 콘솔은 눈이 피곤하다) */
   :root{
-    --ink:#2E4A7A; --gold:#b8945a; --paper:#f4efe6;
-    --dark:#1a1712; --line:#3a352c; --ok:#4a7c59; --bad:#a4433a;
+    --ink:#2E4A7A; --gold:#8a6420; --paper:#2b2620;
+    --dark:#f5f0e6; --line:#d8cfbf; --ok:#3f7a50; --bad:#b03a2e;
   }
   *{box-sizing:border-box; margin:0; padding:0}
   body{
-    font-family:'Nanum Myeongjo',serif; background:var(--dark);
+    font-family:'Noto Serif KR','Nanum Myeongjo',serif; background:var(--dark);
     color:var(--paper); min-height:100vh; padding:28px 20px 80px;
   }
   h1{font-size:1.5rem; letter-spacing:.02em; margin-bottom:4px; color:var(--gold)}
-  .sub{color:#9a9284; font-size:.86rem; margin-bottom:22px}
+  .sub{color:#7a7062; font-size:.86rem; margin-bottom:22px}
   .card{
-    background:#231f18; border:1px solid var(--line); border-radius:10px;
+    background:#fffdf8; border:1px solid var(--line); border-radius:10px;
     padding:20px 22px; margin-bottom:18px; max-width:1180px;
   }
-  .card h2{font-size:1.05rem; color:var(--gold); margin-bottom:14px; font-weight:400}
-  label{display:block; font-size:.82rem; color:#b7ad9c; margin:10px 0 5px}
+  .card h2{font-size:1.05rem; color:var(--gold); margin-bottom:14px; font-weight:500}
+  label{display:block; font-size:.82rem; color:#6f6658; margin:10px 0 5px}
   input,select{
-    width:100%; padding:10px 12px; background:#15120d; border:1px solid var(--line);
+    width:100%; padding:10px 12px; background:#fff; border:1px solid var(--line);
     border-radius:6px; color:var(--paper); font-family:inherit; font-size:.95rem;
   }
+  label.check{display:flex; gap:8px; align-items:center; font-size:.88rem; color:var(--paper); margin:4px 0 10px; cursor:pointer}
+  label.check input{width:auto}
   button{
     padding:10px 18px; background:var(--ink); color:#fff; border:none;
     border-radius:6px; font-family:inherit; font-size:.92rem; cursor:pointer;
@@ -34,7 +41,7 @@
   }
   button:hover{filter:brightness(1.15)}
   button:disabled{opacity:.4; cursor:not-allowed}
-  button.ghost{background:transparent; border:1px solid var(--line); color:#b7ad9c}
+  button.ghost{background:transparent; border:1px solid var(--line); color:#6f6658}
   .row{display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap}
   .row > *{flex:0 0 auto}
   #loginBox{max-width:420px}
@@ -43,36 +50,36 @@
   .status.ok{color:var(--ok)} .status.bad{color:var(--bad)}
   .dropzone{
     border:2px dashed var(--line); border-radius:10px; padding:38px 20px;
-    text-align:center; color:#8a8272; cursor:pointer; transition:all .2s;
-    background:#1c1912; margin-top:8px;
+    text-align:center; color:#8a7f6e; cursor:pointer; transition:all .2s;
+    background:#faf6ee; margin-top:8px;
   }
-  .dropzone.hot{border-color:var(--gold); color:var(--gold); background:#221d13}
+  .dropzone.hot{border-color:var(--gold); color:var(--gold); background:#f6eedc}
   .slots{display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-top:16px}
   .slot{
-    background:#15120d; border:1px solid var(--line); border-radius:8px;
+    background:#fbf8f2; border:1px solid var(--line); border-radius:8px;
     padding:8px; text-align:center; font-size:.72rem;
   }
   .slot.warn{border-color:var(--bad)}
   .slot .eg{color:var(--gold); font-weight:700; font-size:.8rem; letter-spacing:.03em}
-  .slot .ti{color:#c9bfad; margin:3px 0 2px; height:2.6em; overflow:hidden; line-height:1.3}
-  .slot .lv{color:#8a8272; font-size:.68rem; margin-bottom:6px}
+  .slot .ti{color:#3d362c; margin:3px 0 2px; height:2.6em; overflow:hidden; line-height:1.3}
+  .slot .lv{color:#8a7f6e; font-size:.68rem; margin-bottom:6px}
   .slot .thumb{
-    width:100%; aspect-ratio:1/4.2; background:#0c0a07; border-radius:4px;
+    width:100%; aspect-ratio:1/4.2; background:#e9e2d4; border-radius:4px; cursor:zoom-in;
     display:flex; align-items:center; justify-content:center; overflow:hidden;
-    border:1px solid #2a251c;
+    border:1px solid #d8cfbf;
   }
   .slot .thumb img{width:100%; height:100%; object-fit:contain}
-  .slot .ratio{margin-top:5px; font-size:.7rem; min-height:1.2em; color:#8a8272}
+  .slot .ratio{margin-top:5px; font-size:.7rem; min-height:1.2em; color:#8a7f6e}
   .slot .ratio.good{color:var(--ok)} .slot .ratio.off{color:var(--bad); font-weight:700}
   .slot .st{margin-top:3px; font-size:.68rem; min-height:1.2em}
-  .slot .st.up{color:var(--ok)} .slot .st.err{color:var(--bad)} .slot .st.wait{color:#8a8272}
+  .slot .st.up{color:var(--ok)} .slot .st.err{color:var(--bad)} .slot .st.wait{color:#8a7f6e}
   .miss{color:var(--bad); font-size:.8rem; margin-top:8px; line-height:1.6}
-  .foot{max-width:1180px; margin-top:6px; color:#6f6858; font-size:.76rem; line-height:1.6}
+  .foot{max-width:1180px; margin-top:6px; color:#7a7062; font-size:.76rem; line-height:1.6}
   .prog{font-size:.85rem; color:var(--gold); margin-top:10px}
-  .booklist{margin-top:10px; font-size:.82rem; line-height:1.8; color:#c9bfad}
+  .booklist{margin-top:10px; font-size:.82rem; line-height:1.8; color:#3d362c}
   .booklist b{color:var(--gold)}
-  .booklist .lvtag{color:#8a8272; font-size:.76rem}
-  .tally{font-size:.84rem; color:#b7ad9c; margin-top:10px}
+  .booklist .lvtag{color:#8a7f6e; font-size:.76rem}
+  .tally{font-size:.84rem; color:#6f6658; margin-top:10px}
 </style>
 </head>
 <body>
@@ -107,7 +114,8 @@
   </div>
 
   <div id="workCard" class="card" style="display:none">
-    <h2>2. 시트 이미지 올리기 <span id="workTitle" style="color:#9a9284; font-size:.85rem"></span></h2>
+    <h2>2. 시트 이미지 올리기 <span id="workTitle" style="color:#7a7062; font-size:.85rem"></span></h2>
+    <label class="check"><input id="typeOn" type="checkbox" checked> 책등에 DB 글자를 금박으로 얹기 — 글자 없이 구운 시트일 때 (제목 · 지은이 · 해 · EG 번호)</label>
     <div id="dropzone" class="dropzone">
       여기에 시트 이미지를 끌어다 놓거나 클릭해서 선택하세요<br>
       <span style="font-size:.78rem">(책과 책 사이 흰 여백이 있는 그 이미지 그대로)</span>
@@ -129,7 +137,10 @@
     · 감지된 책이 시트 정원과 다르면 붉은 경고가 뜹니다 — 그럴 땐 여백을 더 확실히 준 이미지로 다시 구워 주세요.<br>
     · 조각마다 <b>폭 ÷ 키</b>를 재어 두께 단계와 맞춰 봅니다. 목표 1단계 0.14 · 2단계 0.20 · 3단계 0.27 · 4단계 0.36 · 5단계 0.46 —
       이웃 단계와의 한가운데를 넘으면 붉게 표시합니다(다시 굽기 권장).<br>
-    · 「✓ 새 책등」은 2026-10-25 이후에 올라간 파일입니다. 그 전 파일은 옛 책등(7월)입니다.
+    · 「✓ 새 책등」은 2026-10-25 이후에 올라간 파일입니다. 그 전 파일은 옛 책등(7월)입니다.<br>
+    · <b>금박 글자</b>(1026): AI는 한글을 자꾸 잘못 그려서, 책등은 글자 없이 굽고 글자는 여기서 DB 그대로 얹습니다.
+      제목은 세로로 제목 칸에, 지은이 · 해는 아래 칸에, EG 번호는 맨 아래 명판에 섭니다. 괄호 속 설명은 책등에 쓰지 않고, 「+」로 묶인 책은 두 줄로 나눕니다.
+      미리보기 그림을 누르면 크게 열립니다.
   </div>
 </div>
 
@@ -284,7 +295,7 @@ function renderSlots(pieces){
   const host=$('#slots');
   host.innerHTML=CUR_SHEET.books.map((b,idx)=>{
     const p=pieces&&pieces[idx];
-    const thumb=p? '<img src="'+p.url+'">':'';
+    const thumb=p? '<img src="'+p.url+'" onclick="window.open(this.src)" title="크게 보기">':'';
     let ratio='';
     if(p){
       const [lo,hi]=levelBand(b.lv);
@@ -351,7 +362,15 @@ async function handleFile(file){
   }
   $('#missBox').textContent='';
 
-  // 각 구간 잘라 세로 트리밍 → 폭÷키 재기 → webp blob
+  // 금박 글자 — 서체부터 불러 둔다(시트에 쓰일 글자만)
+  const typeOn=$('#typeOn').checked;
+  let fontWarn='';
+  if(typeOn){
+    $('#splitStatus').textContent='금박 글자 서체를 불러오는 중…';
+    fontWarn=await loadSpineFont(CUR_SHEET.books);
+  }
+
+  // 각 구간 잘라 세로 트리밍 → 폭÷키 재기 → (금박 글자) → webp blob
   PIECES=[];
   for(let i=0;i<segs.length;i++){
     const [a,b]=segs[i];
@@ -366,12 +385,15 @@ async function handleFile(file){
     const ratio=(b-a)/Math.max(1,bot-top);
     const [lo,hi]=levelBand(meta.lv);
     const ok= meta.lv>=1 && meta.lv<=5 && ratio>=lo && ratio<=hi;
+    const bTop=top, bBot=bot;
 
     top=Math.max(0,top-PAD); bot=Math.min(h,bot+PAD);
     const cw=x1-x0, ch=bot-top;
     const oc=document.createElement('canvas'); oc.width=cw; oc.height=ch;
     const octx=oc.getContext('2d');
     octx.drawImage(cv, x0,top,cw,ch, 0,0,cw,ch);
+    // ── 금박 글자 (DB 그대로) ──
+    if(typeOn) typesetBook(octx, data, w, a, b, bTop, bBot, a-x0, bTop-top, meta);
     // ── 배경 흰색 → 투명 (모서리에서 스며드는 flood fill, 밝은 표지 보호) ──
     floodTransparent(octx, cw, ch);
     const blob=await new Promise(res=>oc.toBlob(res,'image/webp',0.92));
@@ -379,10 +401,11 @@ async function handleFile(file){
     PIECES.push({id:meta.id, eg:meta.eg, title:meta.title, blob, url, ratio, ok});
   }
   renderSlots(PIECES);
+  if(fontWarn){ $('#missBox').innerHTML='⚠ '+fontWarn+'<br>'; }
   const off=PIECES.filter(p=>!p.ok);
   if(off.length){
     $('#splitStatus').textContent='✓ '+PIECES.length+'권 분할 완료 — 그런데 두께가 어긋난 책 '+off.length+'권'; $('#splitStatus').className='status bad';
-    $('#missBox').innerHTML='⚠ 두께 경고: '+off.map(p=>{
+    $('#missBox').innerHTML+='⚠ 두께 경고: '+off.map(p=>{
       const b=CUR_SHEET.books.find(x=>x.id===p.id);
       return p.eg+' '+esc(p.title)+' — 잰 값 '+p.ratio.toFixed(3)+' / 목표 '+(LEVEL_TARGET[b.lv]||0).toFixed(2)+'(두께 '+b.lv+')';
     }).join('<br>')+'<br>다시 굽기를 권합니다. 그래도 올리시려면 입고 버튼을 누르면 한 번 더 묻습니다.';
@@ -390,6 +413,186 @@ async function handleFile(file){
     $('#splitStatus').textContent='✓ '+PIECES.length+'권 분할 완료 · 두께 모두 맞음. 미리보기를 확인하고 입고하세요.'; $('#splitStatus').className='status ok';
   }
   $('#uploadBtn').disabled=false;
+}
+
+// ════════════════════════════════════════════════════════════════
+// 금박 글자 (1026) — 글자 없이 구운 책등에 DB 제목 · 지은이 · 해 · EG 번호를 얹는다.
+//   AI 그림은 한글을 모양으로 그려 오자를 낸다(학→확, 김만중→집만종). 글자는 여기서 서체로 쓴다.
+//   칸 찾기: 책 가운데 띠의 가로 밝기 변화(금줄 · 띠)를 끊는 자리로 보고, 그 사이 빈 칸 중
+//            제목 칸(위 14~62%) · 지은이 칸(60~84%) · 명판(84~98%)에서 가장 긴 칸을 고른다.
+// ════════════════════════════════════════════════════════════════
+const SPINE_FONT='"Noto Serif KR", serif';
+const fontOf=(sz,wt)=>(wt||700)+' '+Math.max(6,Math.round(sz))+'px '+SPINE_FONT;
+
+function spineTitleParts(t){
+  t=String(t||'').replace(/\s*\([^)]*\)\s*/g,' ').trim();        // 괄호 속 설명은 책등에 쓰지 않음
+  return t.split('+').map(x=>x.trim()).filter(Boolean);
+}
+async function loadSpineFont(books){
+  const text=books.map(b=>spineTitleParts(b.title).join('')+(b.author||'')+(b.year||'')+b.eg).join('')+'EG0123456789c.';
+  try{
+    await document.fonts.load(fontOf(40,700), text);
+    await document.fonts.load(fontOf(40,500), text);
+    if(!document.fonts.check(fontOf(40,700), text)) return '금박 글자 서체(Noto Serif KR)를 다 불러오지 못했습니다 — 입고 전에 미리보기 글자 모양을 꼭 확인하세요.';
+  }catch(e){ return '금박 글자 서체를 불러오지 못했습니다('+e.message+') — 미리보기를 꼭 확인하세요.'; }
+  return '';
+}
+
+// 책 한 권의 칸 찾기 — 돌려주는 y 는 책 위끝 기준
+function findPanels(data, W, a, b, top, bot){
+  const w=b-a, h=bot-top;
+  const xs=Math.floor(a+w*.3), xe=Math.max(xs+1,Math.floor(a+w*.7));
+  const prof=new Float32Array(h);
+  for(let y=0;y<h;y++){
+    let sum=0; const row=(top+y)*W;
+    for(let x=xs;x<xe;x++){ const o=(row+x)*4; sum+=(data[o]+data[o+1]+data[o+2])/3; }
+    prof[y]=sum/(xe-xs);
+  }
+  const raw=new Float32Array(h);
+  for(let y=1;y<h;y++) raw[y]=Math.abs(prof[y]-prof[y-1]);
+  const edge=new Float32Array(h);
+  for(let y=0;y<h;y++){ const p=raw[Math.max(0,y-1)], q=raw[y], r=raw[Math.min(h-1,y+1)]; edge[y]=(p+q+r)/3; }
+  const sorted=Array.from(edge).sort((x,y)=>x-y);
+  const thr=Math.max(6, sorted[Math.floor(sorted.length*.85)]);
+  const cuts=[[0,0]];
+  for(let y=0;y<h;y++){
+    if(edge[y]<=thr) continue;
+    const last=cuts[cuts.length-1];
+    if(cuts.length>1 && y-last[1]<=4) last[1]=y; else cuts.push([y,y]);
+  }
+  cuts.push([h-1,h-1]);
+  const gaps=[];
+  for(let i=0;i<cuts.length-1;i++) gaps.push([cuts[i][1]+1, cuts[i+1][0]-1]);
+  const best=(lo,hi)=>{
+    let g=null;
+    gaps.forEach(c=>{ const mid=(c[0]+c[1])/2, len=c[1]-c[0];
+      if(mid>=lo*h && mid<=hi*h && len>h*.04 && (!g || len>g[1]-g[0])) g=c; });
+    return g;
+  };
+  return {
+    title:  best(.14,.62) || [Math.round(h*.17),Math.round(h*.59)],
+    author: best(.60,.84) || [Math.round(h*.63),Math.round(h*.81)],
+    cart:   best(.84,.98) || [Math.round(h*.87),Math.round(h*.93)]
+  };
+}
+function panelLum(data, W, a, b, top, y0, y1){
+  const w=b-a; let sum=0, n=0;
+  for(let y=top+y0;y<top+y1;y++){
+    for(let x=Math.floor(a+w*.25);x<Math.floor(a+w*.75);x++){
+      const o=(y*W+x)*4; sum+=data[o]*.299+data[o+1]*.587+data[o+2]*.114; n++;
+    }
+  }
+  return n? sum/n : 0;
+}
+
+// 세로쓰기 — cols[0] 이 오른쪽 열
+function drawVertical(ctx, cols, box, maxSz){
+  const [x0,y0,x1,y1]=box, bw=x1-x0, bh=y1-y0;
+  const units=c=>c.replace(/ /g,'').length+.2*(c.split(' ').length-1);
+  const n=Math.max(...cols.map(units)), ncol=cols.length;
+  const sz=Math.floor(Math.min(maxSz, bh/(n*1.06), bw/(ncol*1.12+.05)));
+  ctx.font=fontOf(sz,700); ctx.textAlign='center'; ctx.textBaseline='middle';
+  const colw=sz*1.12, total=colw*ncol;
+  cols.forEach((col,ci)=>{
+    const cx=x0+bw/2+total/2-colw*(ci+.5);
+    let y= ncol===1 ? y0+(bh-units(col)*sz*1.06)/2 : y0+(bh-n*sz*1.06)/2;
+    for(const ch of col){
+      if(ch===' '){ y+=sz*.22; continue; }
+      ctx.fillText(ch, cx, y+sz*.53);
+      ctx.strokeText && ctx.__stroke && ctx.strokeText(ch, cx, y+sz*.53);
+      y+=sz*1.06;
+    }
+  });
+}
+function drawLines(ctx, lines, box, maxSz){
+  const [x0,y0,x1,y1]=box, bw=x1-x0, bh=y1-y0;
+  let sz=Math.floor(maxSz);
+  while(sz>8){
+    ctx.font=fontOf(sz,700);
+    const mw=Math.max(...lines.map(l=>ctx.measureText(l).width));
+    if(mw<=bw*.86 && lines.length*sz*1.25<=bh) break;
+    sz--;
+  }
+  ctx.font=fontOf(sz,700); ctx.textAlign='center'; ctx.textBaseline='middle';
+  let y=y0+(bh-lines.length*sz*1.25)/2+sz*.62;
+  lines.forEach(l=>{ ctx.fillText(l,(x0+x1)/2,y); ctx.__stroke && ctx.strokeText(l,(x0+x1)/2,y); y+=sz*1.25; });
+}
+function wrap2(ctx, s, maxw){
+  if(ctx.measureText(s).width<=maxw || s.indexOf(' ')<0) return [s];
+  const words=s.split(' '); let best=null;
+  for(let i=1;i<words.length;i++){
+    const A=words.slice(0,i).join(' '), B=words.slice(i).join(' ');
+    const m=Math.max(ctx.measureText(A).width, ctx.measureText(B).width);
+    if(!best || m<best[0]) best=[m,[A,B]];
+  }
+  return best[1];
+}
+
+// 글자 모양(흰 글씨) 한 벌을 그린다 — stroke=true 면 테두리까지(그늘용)
+function drawSpineText(ctx, meta, w, h, P, stroke){
+  ctx.fillStyle='#fff'; ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.lineJoin='round';
+  ctx.__stroke=!!stroke;
+  const pad=Math.max(6, Math.floor(w*.12));
+  const thin=meta.lv===1;
+  // 제목
+  const parts=spineTitleParts(meta.title);
+  const tb=[pad, P.title[0]+(P.title[1]-P.title[0])*.05, w-pad, P.title[1]-(P.title[1]-P.title[0])*.05];
+  let cols;
+  if(parts.length>1 && !thin) cols=parts;
+  else{
+    const joined=parts.join(' ');
+    cols=[joined];
+    if(!thin && joined.replace(/ /g,'').length>=7 && joined.indexOf(' ')>=0){
+      let bestI=-1;
+      for(let i=0;i<joined.length;i++) if(joined[i]===' ' && (bestI<0 || Math.abs(i-joined.length/2)<Math.abs(bestI-joined.length/2))) bestI=i;
+      cols=[joined.slice(0,bestI), joined.slice(bestI+1)];
+    }
+  }
+  drawVertical(ctx, cols, tb, Math.min(w*.55, h*.085));
+  // 지은이 · 해
+  ctx.font=fontOf(Math.max(10,w*.16),700);
+  let lines=[];
+  if(meta.author) lines=lines.concat(wrap2(ctx, meta.author, w-2*pad));
+  if(meta.year) lines.push(meta.year);
+  if(lines.length) drawLines(ctx, lines, [pad*.5, P.author[0], w-pad*.5, P.author[1]], Math.min(w*.22, 28));
+  // 명판
+  drawLines(ctx, [meta.eg], [pad*.7, P.cart[0], w-pad*.7, P.cart[1]], Math.min(w*.2, 24));
+  ctx.__stroke=false;
+}
+
+function typesetBook(octx, data, W, a, b, top, bot, offX, offY, meta){
+  const w=b-a, h=bot-top;
+  const P=findPanels(data, W, a, b, top, bot);
+  const lum=panelLum(data, W, a, b, top, P.title[0], P.title[1]);
+  const light=lum>175, mid=!light && lum>=95;
+
+  const mk=()=>{ const c=document.createElement('canvas'); c.width=w; c.height=h; return c; };
+  // 1) 글자 모양
+  const mask=mk(); drawSpineText(mask.getContext('2d'), meta, w, h, P, false);
+  // 2) 눌린 그늘 — 아래·오른쪽 1px, 중간 밝기 가죽은 테두리까지 짙게
+  const sh=mk(), sx=sh.getContext('2d');
+  sx.filter='blur(0.8px)';
+  sx.drawImage(mask,1,1);
+  if(mid){ const m2=mk(); drawSpineText(m2.getContext('2d'), meta, w, h, P, true); sx.drawImage(m2,0,0); }
+  sx.filter='none';
+  sx.globalCompositeOperation='source-in';
+  sx.fillStyle='rgba(24,12,2,'+((mid)?.9:.55)+')'; sx.fillRect(0,0,w,h);
+  // 3) 금빛 — 세로 그라데이션 + 잔결
+  const g=mk(), gx=g.getContext('2d');
+  const C= light ? [[140,98,34],[112,76,22],[82,54,16]] : [[255,238,170],[232,196,108],[184,140,62]];
+  const gr=gx.createLinearGradient(0,0,0,h);
+  gr.addColorStop(0,'rgb('+C[0]+')'); gr.addColorStop(.5,'rgb('+C[1]+')'); gr.addColorStop(1,'rgb('+C[2]+')');
+  gx.fillStyle=gr; gx.fillRect(0,0,w,h);
+  const id=gx.getImageData(0,0,w,h), d=id.data;
+  for(let i=0;i<d.length;i+=4){
+    const k=1+(Math.random()+Math.random()+Math.random()-1.5)*.06;
+    d[i]=Math.min(255,d[i]*k); d[i+1]=Math.min(255,d[i+1]*k); d[i+2]=Math.min(255,d[i+2]*k);
+  }
+  gx.putImageData(id,0,0);
+  gx.globalCompositeOperation='destination-in'; gx.drawImage(mask,0,0);
+  // 4) 책 위에 얹기
+  octx.drawImage(sh, offX, offY);
+  octx.save(); octx.globalAlpha=.96; octx.drawImage(g, offX, offY); octx.restore();
 }
 
 function loadImg(file){
