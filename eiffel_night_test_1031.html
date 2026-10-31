@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>에펠탑 밤 시험 · 1031</title>
+<!-- 1031 파이스 — 탐험대 에펠탑 상황판 시제품.
+     확인할 것 셋: ① 구글 타일이 셰이더로 밤처럼 어두워지는지 ② 불빛이 스티커가 아니라 전구처럼 번지는지
+                 ③ 1층 띠의 「EG유니버스 탐험대원」 · 꼭대기 폴라리스 자리
+     ⚠ 구글 키가 앱 주소에만 열려 있어서 app.egsalon.com 아래에서만 타일이 뜬다.
+     ⚠ 불빛 자리는 에펠탑의 공개된 치수(밑변 125m · 1층 57m · 2층 115m · 3층 276m)로 계산한다 —
+       구글 타일에서 탑 모양을 따내지 않는다(구글 약관 3.2.3(c)). -->
+<script>window.CESIUM_BASE_URL = "https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/";</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Widgets/widgets.css" rel="stylesheet">
+<style>
+  html, body, #v { margin:0; width:100%; height:100%; overflow:hidden; background:#000;
+    font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+  #panel { position:absolute; top:12px; left:12px; z-index:10; width:270px;
+    background:#f6f3ea; color:#2a2620; border-radius:10px; padding:12px 14px;
+    font-size:13px; line-height:1.5; box-shadow:0 2px 14px rgba(0,0,0,.45); }
+  #panel h1 { font-size:14px; margin:0 0 4px; }
+  #panel .sub { font-size:11px; color:#7a6f5c; margin-bottom:6px; }
+  #panel label { display:block; margin-top:8px; font-weight:600; }
+  #panel input[type=range] { width:100%; }
+  #panel button { margin:4px 4px 0 0; padding:5px 9px; border:1px solid #b9ab8a; background:#fff;
+    color:#2a2620; border-radius:6px; font-size:12px; cursor:pointer; }
+  #panel button.on { background:#2a2620; color:#f6f3ea; border-color:#2a2620; }
+  #msg { margin-top:10px; font-size:12px; color:#8a5a14; white-space:pre-line; }
+  #fold { position:absolute; top:10px; right:10px; border:0; background:transparent; font-size:14px; cursor:pointer; }
+  #panel.min > :not(h1):not(#fold) { display:none; }
+  @media (max-width:520px){ #panel { width:calc(100% - 52px); } }
+</style>
+</head>
+<body>
+<div id="v"></div>
+<div id="panel">
+  <button id="fold" title="접기">–</button>
+  <h1>에펠탑 밤 시험 · 1031</h1>
+  <div class="sub">탐험대 상황판 시제품 — 지도 데이터 © Google</div>
+
+  <label>밤의 깊이 <span id="nightVal">80</span></label>
+  <input id="night" type="range" min="0" max="100" value="80">
+
+  <label>대원 불빛 수</label>
+  <div id="counts">
+    <button data-n="10">10</button><button data-n="100" class="on">100</button><button data-n="500">500</button><button data-n="1000">1000</button>
+  </div>
+
+  <label>보기</label>
+  <div>
+    <button id="bloomBtn" class="on">번짐 켜짐</button>
+    <button id="namesBtn" class="on">이름 켜짐</button>
+    <button id="orbitBtn" class="on">돌기</button>
+  </div>
+
+  <label>전야</label>
+  <div><button id="eveBtn">전야 점등 — 폴라리스 · 반짝임</button></div>
+
+  <div id="msg">구글 타일을 불러오는 중입니다…</div>
+</div>
+
+<script>
+(async function () {
+  "use strict";
+
+  /* ── 값 ─────────────────────────────────────────────── */
+  const GOOGLE_API_KEY = "AIzaSyAAKQijLeTABmyi25BX4_qGsgghOhQCa6A";   // terra.html 과 같은 키
+  const TOWER = { lon: 2.294481, lat: 48.858370 };                   // 에펠탑 한가운데
+  const GROUND_PROBE = { lon: 2.29588, lat: 48.85742 };              // 샹드마르스 잔디 — 땅 높이를 재는 곳
+  const FACE_BEARINGS = [313, 43, 133, 223];                          // 네 면이 바라보는 방위(트로카데로 · 북동 · 샹드마르스 · 남서)
+  const FRIEZE_H = 52;                                                // 1층 아래 띠 높이(m)
+  const POLARIS_H = 336;                                              // 꼭대기 별 높이(m)
+  /* 탑의 반폭(가운데에서 면까지, m) — 공개 치수로 만든 꺾은선 */
+  const PROFILE = [[0, 62.5], [57, 35.3], [115, 20.5], [190, 13.5], [276, 9.3], [300, 4.5], [330, 0.8]];
+  const NAMES = ["노란화살표","새벽길","월든의아침","뒷방의몽테뉴","책방고양이","폴라리스","안데스우편기",
+    "라탱산책","청음실","별지기","카타딘","오두막","엘리펀트섬","순례자","밤의독서","몽블랑","헌책방",
+    "플루트","델프트블루","실스마리아","프로코프","리스본일몰","마우나케아","인듀어런스"];
+
+  const msg = (t) => { document.getElementById("msg").textContent = t; };
+  const lerpProfile = (h) => {
+    for (let i = 1; i < PROFILE.length; i++) {
+      const [h0, w0] = PROFILE[i - 1], [h1, w1] = PROFILE[i];
+      if (h <= h1) return w0 + (w1 - w0) * (h - h0) / (h1 - h0);
+    }
+    return PROFILE[PROFILE.length - 1][1];
+  };
+  const rng = (seed) => () => {                      // 번호마다 늘 같은 자리 — 받은 자리는 바뀌지 않는다
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+
+  /* ── 뷰어 — 밤 하늘 ─────────────────────────────────── */
+  const viewer = new Cesium.Viewer("v", {
+    baseLayer: false, animation: false, timeline: false, geocoder: false, homeButton: false,
+    sceneModePicker: false, baseLayerPicker: false, navigationHelpButton: false,
+    fullscreenButton: false, infoBox: false, selectionIndicator: false
+  });
+  const scene = viewer.scene;
+  scene.globe.show = false;                          // 구글 타일이 땅을 맡는다
+  if (scene.skyAtmosphere) scene.skyAtmosphere.show = false;
+  if (scene.sun) scene.sun.show = false;
+  if (scene.moon) scene.moon.show = false;
+  scene.backgroundColor = Cesium.Color.fromCssColorString("#03050b");
+  if (scene.fog) scene.fog.enabled = false;
+
+  /* ── 구글 타일 + 밤 셰이더 ──────────────────────────── */
+  const nightShader = new Cesium.CustomShader({
+    lightingModel: Cesium.LightingModel.UNLIT,
+    uniforms: { u_night: { type: Cesium.UniformType.FLOAT, value: 0.8 } },
+    fragmentShaderText: `
+      void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material) {
+        vec3 c = material.diffuse;
+        float l = dot(c, vec3(0.299, 0.587, 0.114));
+        vec3 night = mix(vec3(l), c, 0.25) * vec3(0.42, 0.52, 0.85) * 0.22;
+        material.diffuse = mix(c, night, u_night);
+      }`
+  });
+
+  let tileset = null, shaderOk = false;
+  try {
+    try { tileset = await Cesium.createGooglePhotorealistic3DTileset(GOOGLE_API_KEY); }
+    catch (e) { tileset = await Cesium.createGooglePhotorealistic3DTileset({ key: GOOGLE_API_KEY }); }
+    tileset.showCreditsOnScreen = true;              // 구글 출처 표시 — 약관 3.2.2(b)
+    try { tileset.skipLevelOfDetail = false; tileset.maximumScreenSpaceError = 8; } catch (e) {}
+    try { tileset.customShader = nightShader; shaderOk = true; }
+    catch (e) { console.warn("셰이더 적용 실패", e); }
+    scene.primitives.add(tileset);
+  } catch (e) {
+    msg("구글 타일을 열지 못했습니다.\n이 파일은 app.egsalon.com 아래에서 열어야 합니다.\n(" + (e && e.message ? e.message : e) + ")");
+  }
+
+  /* ── 번짐(bloom) ───────────────────────────────────── */
+  const bloom = scene.postProcessStages.bloom;
+  bloom.enabled = true;
+  bloom.uniforms.glowOnly = false;
+  bloom.uniforms.contrast = 119;
+  bloom.uniforms.brightness = -0.35;
+  bloom.uniforms.delta = 1.0;
+  bloom.uniforms.sigma = 3.2;
+  bloom.uniforms.stepSize = 1.0;
+
+  /* ── 땅 높이 ───────────────────────────────────────── */
+  let groundH = 79;                                  // 못 재면 쓰는 값(해수면 약 35m + 파리 지오이드 약 44m)
+  let enu = null;
+  const setFrame = () => {
+    enu = Cesium.Transforms.eastNorthUpToFixedFrame(Cesium.Cartesian3.fromDegrees(TOWER.lon, TOWER.lat, groundH));
+  };
+  const local = (x, y, z) => Cesium.Matrix4.multiplyByPoint(enu, new Cesium.Cartesian3(x, y, z), new Cesium.Cartesian3());
+  setFrame();
+
+  /* ── 대원 불빛 · 이름 · 띠 · 폴라리스 ───────────────── */
+  const points = scene.primitives.add(new Cesium.PointPrimitiveCollection());
+  const labels = scene.primitives.add(new Cesium.LabelCollection());
+  const frieze = scene.primitives.add(new Cesium.LabelCollection());
+  const sparkles = scene.primitives.add(new Cesium.PointPrimitiveCollection());
+  const stars = scene.primitives.add(new Cesium.BillboardCollection());
+  let count = 100, showNames = true, eveUntil = 0, polarisOn = false;
+  let lights = [];
+
+  function facePoint(faceIdx, h, t, out) {
+    const th = Cesium.Math.toRadians(FACE_BEARINGS[faceIdx]);
+    const nx = Math.sin(th), ny = Math.cos(th);      // 면이 바라보는 쪽
+    const rx = -Math.cos(th), ry = Math.sin(th);     // 밖에서 볼 때 왼쪽 → 오른쪽
+    const w = lerpProfile(h);
+    return local(nx * (w + out) + rx * (t * w), ny * (w + out) + ry * (t * w), h);
+  }
+
+  function seatOf(no) {                              // 대원 번호 → 탑 위 자리 (몇 명이 와도 들어간다)
+    const r = rng(no * 2654435761);
+    const face = no % 4;                             // 네 면을 번갈아
+    let h;
+    for (let k = 0; k < 40; k++) {                   // 넓은 아래쪽에 더 많이
+      h = 8 + r() * 285;
+      if (r() < lerpProfile(h) / 62.5) break;
+    }
+    let t;
+    if (h < 57) { const s = r() < 0.5 ? -1 : 1; t = s * (0.62 + r() * 0.34); }   // 1층 아래는 다리 위에만
+    else t = (r() * 2 - 1) * 0.94;
+    return { face, h, t, tone: r(), phase: r() * 6.283 };
+  }
+
+  const WARM = [Cesium.Color.fromCssColorString("#ffd27a"), Cesium.Color.fromCssColorString("#ffe8b0"), Cesium.Color.fromCssColorString("#ffb85c")];
+
+  function build() {
+    points.removeAll(); labels.removeAll(); frieze.removeAll(); sparkles.removeAll(); stars.removeAll();
+    lights = [];
+    for (let no = 1; no <= count; no++) {
+      const s = seatOf(no);
+      const pos = facePoint(s.face, s.h, s.t, 3);
+      const col = WARM[Math.floor(s.tone * WARM.length)];
+      const p = points.add({ position: pos, pixelSize: 6 + s.tone * 3, color: col,
+        outlineColor: col.withAlpha(0.35), outlineWidth: 3 });
+      const nm = "No." + String(no).padStart(3, "0") + " " + NAMES[(no - 1) % NAMES.length];
+      const l = labels.add({ position: pos, text: nm, font: "11px sans-serif",
+        fillColor: Cesium.Color.fromCssColorString("#ffeccc"), outlineColor: Cesium.Color.BLACK, outlineWidth: 2,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset: new Cesium.Cartesian2(8, -4),
+        horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
+        distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 900),
+        translucencyByDistance: new Cesium.NearFarScalar(250, 1.0, 900, 0.0), show: showNames });
+      lights.push({ p, l, base: col, phase: s.phase });
+    }
+    /* 1층 아래 띠 — 네 면 각인 자리 (시제품은 글자 표시로 자리만 본다) */
+    for (let f = 0; f < 4; f++) {
+      frieze.add({ position: facePoint(f, FRIEZE_H, 0, 4), text: "EG유니버스 탐험대원",
+        font: "bold 20px serif", fillColor: Cesium.Color.fromCssColorString("#e9c46a"),
+        outlineColor: Cesium.Color.fromCssColorString("#2a1d05"), outlineWidth: 3,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        horizontalOrigin: Cesium.HorizontalOrigin.CENTER, verticalOrigin: Cesium.VerticalOrigin.BOTTOM });
+      frieze.add({ position: facePoint(f, FRIEZE_H, 0, 4), text: "2026 · 폴라리스호",
+        font: "13px serif", fillColor: Cesium.Color.fromCssColorString("#d9b45a"),
+        outlineColor: Cesium.Color.fromCssColorString("#2a1d05"), outlineWidth: 2,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        horizontalOrigin: Cesium.HorizontalOrigin.CENTER, verticalOrigin: Cesium.VerticalOrigin.TOP,
+        pixelOffset: new Cesium.Cartesian2(0, 4) });
+    }
+    /* 전야의 반짝임용 흰 점 — 평소엔 꺼 둔다 */
+    for (let i = 0; i < 700; i++) {
+      const r = rng(900000 + i);
+      const face = i % 4, h = 10 + r() * 300;
+      const t = h < 57 ? (r() < 0.5 ? -1 : 1) * (0.6 + r() * 0.38) : (r() * 2 - 1) * 0.96;
+      sparkles.add({ position: facePoint(face, h, t, 2.5), pixelSize: 3, color: Cesium.Color.WHITE.withAlpha(0), show: true });
+    }
+    /* 꼭대기 폴라리스 */
+    stars.add({ position: local(0, 0, POLARIS_H), image: starImage(), scale: 0.55,
+      color: polarisOn ? Cesium.Color.WHITE : Cesium.Color.WHITE.withAlpha(0.12) });
+  }
+
+  function starImage() {                             // 여덟 갈래 빛 — 캔버스로 그린다
+    const c = document.createElement("canvas"); c.width = c.height = 128;
+    const g = c.getContext("2d"), m = 64;
+    const rad = g.createRadialGradient(m, m, 0, m, m, 46);
+    rad.addColorStop(0, "rgba(255,255,255,1)"); rad.addColorStop(0.18, "rgba(255,246,214,0.95)");
+    rad.addColorStop(0.45, "rgba(255,214,140,0.35)"); rad.addColorStop(1, "rgba(255,200,120,0)");
+    g.fillStyle = rad; g.beginPath(); g.arc(m, m, 46, 0, 6.283); g.fill();
+    g.strokeStyle = "rgba(255,248,225,0.95)"; g.lineCap = "round";
+    for (let k = 0; k < 8; k++) {
+      const a = k * Math.PI / 4, len = k % 2 ? 34 : 60;
+      g.lineWidth = k % 2 ? 2 : 3.5;
+      g.beginPath(); g.moveTo(m, m); g.lineTo(m + Math.cos(a) * len, m + Math.sin(a) * len); g.stroke();
+    }
+    return c;
+  }
+
+  build();
+
+  /* 타일이 서면 땅 높이를 한 번 재고 자리를 다시 놓는다 (시각화용 높이 맞춤) */
+  if (tileset) {
+    try {
+      await tileset.readyPromise?.catch(() => {});
+      const res = await scene.sampleHeightMostDetailed([Cesium.Cartographic.fromDegrees(GROUND_PROBE.lon, GROUND_PROBE.lat)]);
+      if (res && res[0] && Number.isFinite(res[0].height)) { groundH = res[0].height; setFrame(); build(); }
+    } catch (e) { console.warn("땅 높이 재기 실패 — 기본값으로", e); }
+    msg((shaderOk ? "밤 셰이더를 걸었습니다." : "⚠ 셰이더를 걸지 못했습니다.") +
+        "\n땅 높이 " + groundH.toFixed(1) + "m · 불빛 " + count + "개" +
+        "\n\n볼 것: ① 땅과 건물이 밤처럼 어두운지 ② 불빛이 번지는지 ③ 띠 글씨와 꼭대기 별 자리");
+  }
+
+  /* ── 카메라 — 탑을 가운데 두고 천천히 돈다 ─────────── */
+  let heading = Cesium.Math.toRadians(313), orbit = true, last = performance.now();
+  const center = () => local(0, 0, 150);
+  scene.preRender.addEventListener(() => {
+    const now = performance.now(), dt = (now - last) / 1000; last = now;
+    if (orbit) heading += dt * (2 * Math.PI / 90);   // 90초에 한 바퀴
+    viewer.camera.lookAt(center(), new Cesium.HeadingPitchRange(heading, Cesium.Math.toRadians(-8), 640));
+
+    /* 불빛이 숨 쉬듯 */
+    const tsec = now / 1000, eve = now < eveUntil;
+    for (const L of lights) {
+      const a = 0.78 + 0.22 * Math.sin(tsec * 1.3 + L.phase);
+      L.p.color = eve && Math.sin(tsec * 23 + L.phase * 9) > 0.6 ? Cesium.Color.WHITE : L.base.withAlpha(a);
+    }
+    /* 전야 — 탑 전체 반짝임(실제 에펠탑의 정각 5분 반짝임을 20초로) */
+    const n = sparkles.length;
+    for (let i = 0; i < n; i++) {
+      const sp = sparkles.get(i);
+      if (!eve) { if (sp.color.alpha !== 0) sp.color = Cesium.Color.WHITE.withAlpha(0); continue; }
+      const on = Math.sin(tsec * 31 + i * 12.9898) > 0.82;
+      sp.color = Cesium.Color.WHITE.withAlpha(on ? 1 : 0);
+    }
+  });
+
+  /* ── 손잡이 ───────────────────────────────────────── */
+  const $ = (id) => document.getElementById(id);
+  $("night").addEventListener("input", (e) => {
+    const v = +e.target.value; $("nightVal").textContent = v;
+    try { nightShader.setUniform("u_night", v / 100); } catch (err) {}
+  });
+  document.querySelectorAll("#counts button").forEach((b) => b.addEventListener("click", () => {
+    document.querySelectorAll("#counts button").forEach((x) => x.classList.remove("on"));
+    b.classList.add("on"); count = +b.dataset.n; build();
+  }));
+  $("bloomBtn").addEventListener("click", (e) => {
+    bloom.enabled = !bloom.enabled; e.target.classList.toggle("on", bloom.enabled);
+    e.target.textContent = bloom.enabled ? "번짐 켜짐" : "번짐 꺼짐";
+  });
+  $("namesBtn").addEventListener("click", (e) => {
+    showNames = !showNames; for (const L of lights) L.l.show = showNames;
+    e.target.classList.toggle("on", showNames); e.target.textContent = showNames ? "이름 켜짐" : "이름 꺼짐";
+  });
+  $("orbitBtn").addEventListener("click", (e) => {
+    orbit = !orbit; e.target.classList.toggle("on", orbit); e.target.textContent = orbit ? "돌기" : "멈춤";
+  });
+  $("eveBtn").addEventListener("click", () => {
+    polarisOn = true; eveUntil = performance.now() + 20000;
+    if (stars.length) { const s = stars.get(0); s.color = Cesium.Color.WHITE; s.scale = 0.8; }
+  });
+  $("fold").addEventListener("click", () => {
+    const p = $("panel"); p.classList.toggle("min"); $("fold").textContent = p.classList.contains("min") ? "+" : "–";
+  });
+})();
+</script>
+</body>
+</html>
