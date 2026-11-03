@@ -27,7 +27,10 @@
        ② 장식(40일) 탑 전체에 색 전구 + 화면을 보는 이름표 — 크리스마스트리처럼 날마다 조금씩 차오름
           초반이 초라하지 않게 이름을 되풀이해 「우레와 같은 박수」 — 1명 30개 · 2명 50 · 3명 60 … 108명 324
           번호는 대원마다 하나뿐(「내 장식」) · 나머지는 번호 없는 박수 장식 → 다가가 보면 몇 분인지 정직하게 보인다
-       때 — 출항하는 날 새김 + 장식 · 귀환 전야 폴라리스 · 반짝임 · 1월 중순 장식을 걷고 띠만. -->
+       때 — 출항하는 날 새김 + 장식 · 귀환 전야 폴라리스 · 반짝임 · 1월 중순 장식을 걷고 띠만.
+     ⭐ 1104 07:2x 소로 — 홈페이지 상영(?live) : 손님은 만질 수 없으니 카메라 넷이 같은 속도로 돌고 5초씩 차례로
+       ① 위에서 내려다보기 ② 명패 띠 ③ 크리스마스트리 ④ 꼭대기 숫자 · 시계 하나를 넷이 함께 써서 「넷이 동시에 돈다」
+       이름 · 숫자는 eg_tower_crew()(출항한 대원의 번호 · 닉네임)에서 · 단계는 날짜로 · ?demo=N 은 예시 화면(번호 N명) -->
 <script>window.CESIUM_BASE_URL = "https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/";</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Widgets/widgets.css" rel="stylesheet">
@@ -87,11 +90,18 @@
   #editBar #ebDone { display:block; width:100%; margin-top:10px; padding:10px; background:#2e7d72; color:#fff; border-color:#2e7d72;
     font-size:14px; font-weight:700; }
   #editBar .eb-tip { margin-top:6px; font-size:11px; color:#7a6f5c; text-align:center; }
+  body.live #panel, body.live #editBar, body.live #stageTag { display:none !important; }
+  #fade { position:absolute; inset:0; background:#000; opacity:0; pointer-events:none; z-index:8; }
+  #demoTag { position:absolute; right:14px; top:12px; z-index:9; padding:5px 11px; border-radius:16px; display:none;
+    background:rgba(246,243,234,.9); color:#2a2620; font-size:12px; font-weight:700; pointer-events:none; }
+  body.live.demo #demoTag { display:block; }
   @media (max-width:560px){ #panel { width:calc(100% - 24px); max-height:46%; } }
 </style>
 </head>
 <body>
 <div id="v"></div>
+<div id="fade"></div>
+<div id="demoTag">예시 화면</div>
 <div id="stageTag">출항 뒤 — 띠에 새기고 트리에 장식</div>
 <div id="editBar" hidden>
   <div class="eb-head"><b id="ebTitle">띠 맞추는 중</b><span id="ebWhere"></span></div>
@@ -205,6 +215,12 @@
 
   const $ = (id) => document.getElementById(id);
   const msg = (t) => { $("msg").textContent = t; };
+  /* 상영 모드 — 홈페이지에 끼워 넣는 화면(만질 수 없음 · 카메라 넷이 차례로) */
+  const Q = new URLSearchParams(location.search);
+  const LIVE = Q.has("live");
+  const DEMO = Q.has("demo") ? Math.max(0, parseInt(Q.get("demo"), 10) || 0) : null;
+  if (LIVE) document.body.classList.add("live");
+  if (LIVE && DEMO !== null) document.body.classList.add("demo");
   const rad = Cesium.Math.toRadians;
   const lerpProfile = (h) => {
     for (let i = 1; i < PROFILE.length; i++) {
@@ -266,6 +282,7 @@
   ssc.enableCollisionDetection = false;
   ssc.minimumZoomDistance = 8;
   ssc.maximumZoomDistance = 4000;
+  if (LIVE) ssc.enableInputs = false;              // 상영 모드 — 손님은 만질 수 없다
   viewer.screenSpaceEventHandler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
 
   /* ── 구글 타일 + 밤 셰이더 ──────────────────────────── */
@@ -441,6 +458,10 @@
     return c;
   }
   let stage = "sailed", count = 1, eveUntil = 0, lights = [], faceRefs = [];
+  /* 탑에 오른 대원 — 상영 모드(예시 아님)는 eg_tower_crew() 그대로, 그 밖엔 예시 1 … count */
+  let liveRoster = null;                             // [{ no, nick }] — 출항한 대원만
+  const USE_DB = LIVE && DEMO === null;
+  const rosterNow = () => USE_DB ? (liveRoster || []) : Array.from({ length: count }, (_, i) => ({ no: i + 1, nick: NAMES[i % NAMES.length] }));
 
   /* 명패 띠 — 1층 띠 자리 전체가 명패판 · 면마다 그 띠를 그 면 사람 수만큼 나눠 가득 채운다.
      ⭐ 1104 07:1x 소로 — 1~4명 면마다 1장(띠 전체가 한 사람 명패) · 5~8명 2장(반씩) · 9~12명 3장 … 108명 27장
@@ -583,13 +604,15 @@
     bulbsByFace.forEach((c) => c.removeAll()); tagsByFace.forEach((c) => c.removeAll());
     lights = [];
     const eve = stage === "eve";
-    const n = stage === "notice" ? 0 : Math.min(count, PER_RING * 2);
-    const nameOf = (no) => NAMES[(no - 1) % NAMES.length];
+    const roster = stage === "notice" ? [] : rosterNow().filter((r) => r.no <= PER_RING * 2);
+    const n = roster.reduce((m, r) => Math.max(m, r.no), 0);   // 칸 셈은 가장 큰 번호로(빠진 번호는 빈 판)
+    const nick = new Map(roster.map((r) => [r.no, r.nick]));
+    const nameOf = (no) => nick.get(no) || NAMES[(no - 1) % NAMES.length];
 
     /* ① 각인 — 면마다 띠를 그 면 사람 수만큼 나눠 가득 · 2층 띠는 109번째 대원이 오면 */
     const rings = n > PER_RING ? 2 : 1;
     const owner = {};                                // "ring|면|차례" → 대원 번호
-    for (let no = 1; no <= n; no++) { const s = slotOf(no); owner[[s.ring, s.face, s.idx].join("|")] = no; }
+    for (const r of roster) { const s = slotOf(r.no); owner[[s.ring, s.face, s.idx].join("|")] = r.no; }
     for (let ring = 0; ring < rings; ring++) {
       const kind = ring === 0 ? "band" : "r2", k = platesPerFace(n, ring);
       for (let f = 0; f < 4; f++) for (let idx = 0; idx < k; idx++) {
@@ -612,8 +635,8 @@
     }
 
     /* ② 트리 장식 — 출항 뒤 · 귀환 전야에만 (1월 중순 뒤엔 걷는다) */
-    if (n > 0 && (stage === "sailed" || stage === "eve")) {
-      const total = ornamentCount(n);
+    if (roster.length > 0 && (stage === "sailed" || stage === "eve")) {
+      const total = ornamentCount(roster.length);
       const add = (seatNo, text, own) => {
         const S = ornSeat(seatNo);
         const pos = facePoint(S.face, S.h, S.t, 3);
@@ -628,8 +651,8 @@
           distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, own ? 480 : 300) });
         lights.push({ p, base: S.col, phase: S.phase });
       };
-      for (let no = 1; no <= n; no++) add(OWN_SEAT(no), "No." + String(no).padStart(3, "0") + " " + nameOf(no), true);   // 내 장식 — 번호는 하나뿐
-      for (let j = 0; j < total - n; j++) add(CHEER_SEAT0 + j, nameOf((j % n) + 1), false);                             // 박수 장식 — 번호 없이 이름만
+      for (const r of roster) add(OWN_SEAT(r.no), "No." + String(r.no).padStart(3, "0") + " " + nameOf(r.no), true);   // 내 장식 — 번호는 하나뿐
+      for (let j = 0; j < total - roster.length; j++) add(CHEER_SEAT0 + j, nameOf(roster[j % roster.length].no), false);  // 박수 장식 — 번호 없이 이름만
     }
 
     /* 면마다 기준점 — 카메라 반대쪽 면은 숨긴다 */
@@ -643,8 +666,8 @@
     }
     /* 꼭대기 숫자 — 공고 날(0명)엔 없음 · 첫 대원이 오르면 1부터 · 1월 중순 뒤에도 마지막 수로 남는다 */
     countBoard.removeAll();
-    if (n > 0) {
-      const img = countCanvas(String(n), eve);
+    if (roster.length > 0) {
+      const img = countCanvas(String(roster.length), eve);   // 꼭대기 숫자는 실제로 오른 분의 수
       countBoard.add({ position: local(0, 0, V.numH), image: img, sizeInMeters: true,
         width: V.numS * img.width / img.height, height: V.numS, verticalOrigin: Cesium.VerticalOrigin.CENTER });
     }
@@ -682,6 +705,26 @@
   let orbit = false, last = performance.now();
   faceView(0, false);
 
+  /* ── 상영 감독 — 카메라 넷이 같은 시계로 돌고, 5초씩 차례로 화면에 나온다 ─────
+     넷째로 넘어가는 순간 그 카메라가 그동안 쭉 돌고 있던 바로 그 각도에서 이어진다(시계 하나를 넷이 함께 쓴다). */
+  const SHOT_MS = 5000, REV_S = 90, FADE_MS = 350;
+  const SHOTS = [
+    { name: "위에서", h: () => 185, pitch: -38, range: 700 },
+    { name: "명패 띠", h: () => bandRef(0).hRel, pitch: -4, range: 108 },
+    { name: "트리", h: () => 175, pitch: -6, range: 720 },
+    { name: "꼭대기 숫자", h: () => V.numH - 28, pitch: 14, range: 175 }
+  ];
+  const t0 = performance.now();
+  let lastShot = -1;
+  function direct(now) {
+    const t = now - t0, k = Math.floor(t / SHOT_MS) % SHOTS.length, inShot = t % SHOT_MS;
+    const S = SHOTS[k], heading = bearing(0) + 180 + (t / 1000 / REV_S) * 360;
+    viewer.camera.lookAtTransform(frameAt(S.h()), new Cesium.HeadingPitchRange(rad(heading), rad(S.pitch), S.range));
+    const o = inShot < FADE_MS ? 1 - inShot / FADE_MS : inShot > SHOT_MS - FADE_MS ? (inShot - (SHOT_MS - FADE_MS)) / FADE_MS : 0;
+    $("fade").style.opacity = o.toFixed(3);
+    if (k !== lastShot) { lastShot = k; if (k === 2 && stage === "eve") eveUntil = now + 4500; }   // 귀환 전야엔 트리 장면마다 반짝임
+  }
+
   document.querySelectorAll("#faces button").forEach((b) => b.addEventListener("click", () => {
     document.querySelectorAll("#faces button").forEach((x) => x.classList.remove("on"));
     b.classList.add("on"); faceView(+b.dataset.f, true);
@@ -694,7 +737,8 @@
 
   scene.preRender.addEventListener(() => {
     const now = performance.now(), dt = Math.min(0.1, (now - last) / 1000); last = now;
-    if (orbit && !Cesium.Matrix4.equals(viewer.camera.transform, Cesium.Matrix4.IDENTITY)) {
+    if (LIVE) direct(now);
+    else if (orbit && !Cesium.Matrix4.equals(viewer.camera.transform, Cesium.Matrix4.IDENTITY)) {
       viewer.camera.rotateRight(dt * (2 * Math.PI / 90));   // 90초에 한 바퀴
     }
     /* 띠는 카메라 쪽 면만 — 뒷면 글자가 탑 사이로 거꾸로 비치지 않게 */
@@ -868,6 +912,7 @@
   });
   const clickH = new Cesium.ScreenSpaceEventHandler(scene.canvas);
   clickH.setInputAction((click) => {
+    if (LIVE) return;
     const picked = scene.pick(click.position);
     if (!Cesium.defined(picked) || !picked.id) return;   // 탑의 다른 곳을 눌러도 아무 일 없음 — 튀지 않게
     let t = null;
@@ -913,6 +958,29 @@
   $("fold").addEventListener("click", () => {
     const p = $("panel"); p.classList.toggle("min"); $("fold").textContent = p.classList.contains("min") ? "+" : "–";
   });
+
+  /* ── 상영 모드 — 단계는 날짜(KST)로 · 명부는 DB에서 · 10분마다 다시 읽는다 ──
+     공고 날 = 아직 아무도 출항 전 · 출항 뒤 = 11/14 ~ 12/23 · 귀환 전야 = 12/24 ~ 1/15(폴라리스 · 트리 장면마다 반짝임)
+     1월 중순 뒤 = 1/16부터(장식을 걷고 띠만) — 1031 「1월 중순까지 트리」 · 날짜는 소로 확인 ◻ */
+  function stageByDate(hasCrew) {
+    const k = new Date(Date.now() + 9 * 3600 * 1000), md = (k.getUTCMonth() + 1) * 100 + k.getUTCDate(), y = k.getUTCFullYear();
+    if (!hasCrew) return "notice";
+    if ((y === 2026 && md >= 1224) || (y === 2027 && md <= 115)) return "eve";
+    if (y >= 2027) return "after";
+    return "sailed";
+  }
+  async function loadLive() {
+    if (USE_DB && supa) {
+      try {
+        const { data, error } = await supa.rpc("eg_tower_crew");
+        if (!error && Array.isArray(data)) liveRoster = data.map((r) => ({ no: r.crew_no, nick: r.nickname }));
+      } catch (e) { console.warn("명부 읽기 실패", e); }
+    } else if (DEMO !== null) count = DEMO;
+    const forced = Q.get("stage");
+    const st = forced && STAGE_TAG[forced] ? forced : stageByDate(rosterNow().length > 0);
+    stage = st; buildCrew();
+  }
+  if (LIVE) { await loadLive(); setInterval(loadLive, 10 * 60 * 1000); }
 
   /* 타일이 서면 땅 높이를 한 번 잰다 — 확정한 땅 높이가 있으면 그것이 이긴다(재기는 참고로만) */
   if (tileset) {
