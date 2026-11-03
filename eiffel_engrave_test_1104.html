@@ -169,6 +169,10 @@
     <input id="out" type="range" min="0" max="10" step="0.5">
     <div class="row"><span>꼭대기 타이틀 크기</span><b id="titleSVal"></b></div>
     <input id="titleS" type="range" min="40" max="200" step="5">
+    <div class="row"><span>꼭대기 숫자 높이</span><b id="numHVal"></b></div>
+    <input id="numH" type="range" min="320" max="440" step="1">
+    <div class="row"><span>꼭대기 숫자 크기</span><b id="numSVal"></b></div>
+    <input id="numS" type="range" min="8" max="70" step="1">
     <div class="row"><span>꼭대기 별 높이</span><b id="phVal"></b></div>
     <input id="ph" type="range" min="300" max="360" step="1">
   </details>
@@ -196,7 +200,7 @@
   const NAMES = ["lonelywalden","노란화살표","새벽길","월든의아침","뒷방의몽테뉴","책방고양이","안데스우편기",
     "라탱산책","청음실","별지기","카타딘","오두막","엘리펀트섬","순례자","밤의독서","몽블랑","헌책방",
     "플루트","델프트블루","실스마리아","프로코프","리스본일몰","마우나케아","인듀어런스"];
-  const START = { rot: 0, groundH: 79, friezeH: 52, bandH: 7, bandW: 80, out: 2, titleS: 100, polarisH: 336 };
+  const START = { rot: 0, groundH: 79, friezeH: 52, bandH: 7, bandW: 80, out: 2, titleS: 100, polarisH: 336, numH: 362, numS: 28 };
   const V = Object.assign({}, START, { line2: true, plate: true });
 
   const $ = (id) => document.getElementById(id);
@@ -225,7 +229,7 @@
   const SUPA_URL = "https://cyhlotwdisjvoxvfkpnd.supabase.co";
   const SUPA_KEY = "sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR";
   const TUNE_KEY = "eiffel_tune";
-  const TUNE_FIELDS = ["rot", "groundH", "friezeH", "bandH", "bandW", "out", "titleS", "polarisH", "line2", "plate", "anchors", "blocks"];
+  const TUNE_FIELDS = ["rot", "groundH", "friezeH", "bandH", "bandW", "out", "titleS", "polarisH", "numH", "numS", "line2", "plate", "anchors", "blocks"];
   V.anchors = {};                                    // 면마다 붙인 띠 자리 { 면번호: {lon, lat, alt} } — alt 는 타원체 높이(m)
   V.blocks = {};                                     // 면마다 옮긴 명패 묶음 자리 { "r1-면" · "r2-면": {lon, lat, alt} } — 안 옮기면 띠를 따라 선다
   let supa = null, saved = null, isAdmin = false;
@@ -420,6 +424,22 @@
   const ghostSource = new Cesium.CustomDataSource(); viewer.dataSources.add(ghostSource);   // 맞추는 동안 보이는 빈 칸 27개
   const sparkles = scene.primitives.add(new Cesium.PointPrimitiveCollection());
   const stars = scene.primitives.add(new Cesium.BillboardCollection());
+  /* 꼭대기 숫자 — 지금 탐험대원 수(1104 소로 「탑 꼭대기 헤드 정도 크기로 · 처음 1로 시작」)
+     어느 쪽에서 보든 읽히게 늘 화면을 본다 · 크기는 미터로(멀어지면 탑과 함께 작아진다) */
+  const countBoard = scene.primitives.add(new Cesium.BillboardCollection());
+  function countCanvas(text, glow) {
+    const H = 256, c = document.createElement("canvas"), g = c.getContext("2d");
+    const font = '800 220px "Nanum Myeongjo", serif';
+    g.font = font; c.width = Math.ceil(g.measureText(text).width) + 80; c.height = H;
+    g.font = font; g.textAlign = "center"; g.textBaseline = "middle";
+    const x = c.width / 2, y = H / 2 + 8;
+    g.lineJoin = "round"; g.lineWidth = 16; g.strokeStyle = "rgba(20,12,3,0.85)"; g.strokeText(text, x, y);
+    const gold = g.createLinearGradient(0, 30, 0, H - 30);
+    if (glow) { gold.addColorStop(0, "#ffffff"); gold.addColorStop(1, "#ffe7a6"); }
+    else { gold.addColorStop(0, "#fff1c4"); gold.addColorStop(0.5, "#e8bd52"); gold.addColorStop(1, "#a8782a"); }
+    g.fillStyle = gold; g.fillText(text, x, y);
+    return c;
+  }
   let stage = "sailed", count = 1, eveUntil = 0, lights = [], faceRefs = [];
 
   /* 명패 띠 — 1층 띠 자리 전체가 명패판 · 면마다 그 띠를 그 면 사람 수만큼 나눠 가득 채운다.
@@ -621,6 +641,13 @@
       const t = h < 57 ? (r() < 0.5 ? -1 : 1) * (0.6 + r() * 0.38) : (r() * 2 - 1) * 0.96;
       sparkles.add({ position: facePoint(face, h, t, 2.5), pixelSize: 3, color: Cesium.Color.WHITE.withAlpha(0) });
     }
+    /* 꼭대기 숫자 — 공고 날(0명)엔 없음 · 첫 대원이 오르면 1부터 · 1월 중순 뒤에도 마지막 수로 남는다 */
+    countBoard.removeAll();
+    if (n > 0) {
+      const img = countCanvas(String(n), eve);
+      countBoard.add({ position: local(0, 0, V.numH), image: img, sizeInMeters: true,
+        width: V.numS * img.width / img.height, height: V.numS, verticalOrigin: Cesium.VerticalOrigin.CENTER });
+    }
     /* 꼭대기 폴라리스 — 귀환 전야에 켜진다 */
     stars.add({ position: local(0, 0, V.polarisH), image: STAR_IMG, scale: eve ? 0.8 : 0.5,
       color: eve ? Cesium.Color.WHITE : Cesium.Color.WHITE.withAlpha(0.14) });
@@ -727,7 +754,7 @@
   /* 좌표 조절 — 값이 바뀌면 띠 · 이름 · 별을 다시 놓는다 */
   const SLIDERS = [
     ["rot", "rot", "°", false], ["ground", "groundH", "m", false], ["fh", "friezeH", "m", false],
-    ["bh", "bandH", "m", false], ["bw", "bandW", "%", false], ["out", "out", "m", false], ["titleS", "titleS", "%", false], ["ph", "polarisH", "m", false]
+    ["bh", "bandH", "m", false], ["bw", "bandW", "%", false], ["out", "out", "m", false], ["titleS", "titleS", "%", false], ["numH", "numH", "m", false], ["numS", "numS", "m", false], ["ph", "polarisH", "m", false]
   ];
   const showVals = () => { for (const [id, key, unit] of SLIDERS) { $(id).value = V[key]; $(id + "Val").textContent = V[key] + unit; } };
   let rebuildTimer = 0;
