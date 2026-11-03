@@ -1540,6 +1540,9 @@ window.EGQ = (function(){
      열두 번째 우주로 읽혀 도장 받으러 가는 곳이 된다(결정문 4호가 막으려던 것).
      황금사과 알림도 도착해 내 것이 된 것이므로 이 배낭 안에 든다. */
   #dockPera{ padding-bottom:3px; }
+  #dockPolaris[hidden]{ display:none; }
+  #dockPolaris .dock-main span::before{ content:""; display:inline-block; width:7px; height:7px; margin:0 7px 1px 0; border-radius:50%;
+    background:#f2c94c; box-shadow:0 0 0 2px rgba(242,201,76,.28); vertical-align:middle; }
   #dockPera .dock-sec{ padding-top:2px; }
   .cred-ko{ font-family:var(--serif); font-size:9.5px; font-weight:400;
     letter-spacing:.02em; color:#a8987a; }
@@ -2141,6 +2144,13 @@ window.EGQ = (function(){
   <div id="dockPera">
     <div class="dock-sec"><span class="dock-sec-la">PERA</span><span class="dock-sec-ko">배낭</span></div>
     <div id="dockApple"></div>
+    <!-- ⭐ 1103 소로 — 폴라리스호. 아직 대원이 아니면 「탐험대원 모집」(홈페이지 공고를 새 탭으로 →
+         로그인된 채라 가입을 건너뛰고 곧장 승선 확인) · 오른 분은 「탐험대원 No.」(승선 완료 화면).
+         12/5 마지막 배가 떠나면 모집 줄은 저절로 숨는다. 판단은 eg_board_peek 한 곳. -->
+    <div class="dock-card nogo orn" id="dockPolaris" role="button" tabindex="0" hidden>
+      <div class="dock-main"><span id="polMain">폴라리스호 · 탐험대원 모집</span></div>
+      <div class="dock-sub" id="polSub">매주 토요일 출항 · 12월 5일 마지막 배</div>
+    </div>
     <!-- ⚠ 0817 소로 — 라틴 대문자 제목을 걷고 우주 카드(EG콘스텔라티오)와 같은
          한글 제목 + 설명 줄로 통일한다. 배낭 두 카드가 함께 간다. -->
     <div class="dock-card nogo orn" id="dockCredencial" role="button" tabindex="0">
@@ -9562,5 +9572,41 @@ window.closeTourLists = closeTourLists;
 <script src="guide_cover.js?v=0929b"></script>
 <!-- 0917 — 타륜 › EG파운더 전용메뉴 · 파운더 신청안내. 배선은 전부 founder_menu.js 에 산다 (읽을 수 있는 계정 · 데스크톱에만 칸이 선다) -->
 <script src="founder_menu.js?v=0923c"></script>
+<script>
+/* ⭐ 1103 소로 — 배낭의 폴라리스호 한 줄. supa(이 문서의 한 클라이언트)를 그대로 쓴다. */
+(function(){
+  const card = document.getElementById('dockPolaris');
+  if(!card || typeof supa === 'undefined') return;
+  const WD = ['일','월','화','수','목','금','토'];
+  const mdw = s => { const d = new Date(s + 'T00:00:00+09:00'); return (d.getMonth()+1) + '월 ' + d.getDate() + '일(' + WD[d.getDay()] + ')'; };
+  let go = null;
+  async function paint(){
+    try{
+      const { data:ss } = await supa.auth.getSession();
+      if(!ss || !ss.session){ card.hidden = true; return; }
+      const { data:pk, error } = await supa.rpc('eg_board_peek');
+      if(error || !pk || !pk.ok){ card.hidden = true; return; }
+      if(pk.crew){
+        document.getElementById('polMain').textContent = '탐험대원 No.' + String(pk.crew.no).padStart(3, '0');
+        document.getElementById('polSub').textContent = pk.crew.voyage_name + ' · ' + mdw(pk.crew.voyage_date) + ' 출항';
+        go = () => window.open('board.html', '_blank');
+        card.hidden = false;
+      } else if(pk.open){
+        document.getElementById('polMain').textContent = '폴라리스호 · 탐험대원 모집';
+        document.getElementById('polSub').textContent = (pk.voyage ? pk.voyage.name + ' · ' + mdw(pk.voyage.date) + ' 출항' : '매주 토요일 출항') + ' · 12월 5일 마지막 배';
+        go = () => window.open('https://egsalon.com/expedition.html', '_blank', 'noopener');
+        card.hidden = false;
+      } else {
+        card.hidden = true;
+      }
+    }catch(e){ card.hidden = true; }
+  }
+  card.addEventListener('click', () => { if(go) go(); });
+  card.addEventListener('keydown', e => { if((e.key === 'Enter' || e.key === ' ') && go){ e.preventDefault(); go(); } });
+  paint();
+  /* 다른 탭에서 승선을 마치고 돌아오면 줄을 다시 그린다 */
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) paint(); });
+})();
+</script>
 </body>
 </html>
