@@ -76,24 +76,33 @@
   .field input:hover{ border-color:var(--line-strong); }
   .field input:focus{ outline:none; border-color:var(--ink); box-shadow:0 0 0 3px rgba(242,201,76,.6); }
   .field input[readonly], .field input:disabled{ background:var(--paper-2); color:var(--ink-soft); }
+  /* 칸 설명은 칸 이름 바로 밑에 — 그 칸 전체에 대한 말이라는 게 보이게 (1103 소로 「설명이 두 칸에 걸쳐 혼돈」) */
+  .desc{ margin:-2px 0 10px; font-size:.9rem; line-height:1.6; color:var(--ink-dim); }
+  .auth-steps{ margin:-2px 0 12px; padding:12px 14px 12px 14px; background:var(--paper-2); border-radius:4px; list-style:none; counter-reset:st; }
+  .auth-steps li{ counter-increment:st; position:relative; padding-left:26px; font-size:.9rem; line-height:1.6; color:var(--ink-soft); margin:3px 0; }
+  .auth-steps li::before{ content:counter(st); position:absolute; left:0; top:2px; width:18px; height:18px; border-radius:50%; background:var(--ink); color:var(--paper); font-size:.72rem; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  .auth-steps .after{ padding-left:0; margin-top:8px; color:var(--ink-dim); }
+  .auth-steps .after::before{ display:none; }
+  .auth-steps[hidden]{ display:none; }
   .hint{ margin-top:7px; font-size:.88rem; line-height:1.55; color:var(--ink-dim); }
   .hint:empty{ display:none; }
   .hint.ok{ color:var(--ok); font-weight:500; }
   .hint.warn{ color:var(--warn); font-weight:500; }
 
   /* 불릴 이름 — 둘 가운데 하나 */
-  .picks{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .picks{ display:grid; grid-template-columns:1fr; gap:8px; }
   .pick{
-    min-height:50px; padding:10px 14px; text-align:left; cursor:pointer;
+    min-height:50px; padding:10px 14px 10px 44px; text-align:left; cursor:pointer; position:relative;
     background:var(--field); border:1px solid var(--line); border-radius:4px;
     font-family:var(--sans); font-size:.98rem; color:var(--ink-soft); line-height:1.4;
     transition:border-color .15s ease, background .15s ease, color .15s ease;
   }
-  .pick b{ font-weight:600; color:inherit; }
+  .pick b{ font-weight:600; color:inherit; margin-left:4px; }
+  .pick::before{ content:""; position:absolute; left:15px; top:50%; width:16px; height:16px; margin-top:-8px; border-radius:50%; border:1.5px solid var(--line-strong); background:var(--field); }
+  .pick[aria-pressed="true"]::before{ border-color:var(--arrow); background:var(--arrow); box-shadow:inset 0 0 0 3px var(--ink); }
   .pick:hover{ border-color:var(--line-strong); }
   .pick:focus-visible{ outline:none; box-shadow:0 0 0 3px rgba(242,201,76,.6); border-color:var(--ink); }
   .pick[aria-pressed="true"]{ background:var(--ink); border-color:var(--ink); color:var(--paper); }
-  @media (max-width:380px){ .picks{ grid-template-columns:1fr; } }
 
   /* 메일 + 확인 숫자 */
   .mail-row{ display:flex; gap:8px; }
@@ -211,17 +220,18 @@
     <div class="fields">
       <div class="field" id="real-field" hidden>
         <label for="real">실명</label>
+        <p class="desc">결제처럼 본인 확인이 필요할 때만 씁니다. 다른 분들께는 보이지 않습니다.</p>
         <input id="real" type="text" autocomplete="name" maxlength="20" placeholder="홍길동">
-        <div class="hint">결제처럼 본인 확인이 필요할 때만 씁니다. EG유니버스 안에서는 아래 이름으로 불립니다.</div>
       </div>
 
       <div class="field" id="call-field" hidden>
         <span class="label" id="call-label">EG유니버스에서 불릴 이름</span>
+        <p class="desc">지도와 이웃에게 보이는 이름입니다. 둘 가운데 하나를 골라 주십시오. 나중에 언제든 바꾸실 수 있습니다.</p>
         <div class="picks" role="group" aria-labelledby="call-label">
           <button type="button" class="pick" data-call="real" aria-pressed="false">실명 그대로 <b id="call-real"></b></button>
           <button type="button" class="pick" data-call="nick" aria-pressed="false">닉네임 따로 정하기</button>
         </div>
-        <div class="hint" id="call-hint">지도와 이웃에게 보이는 이름입니다. 나중에 바꾸실 수 있습니다.</div>
+        <div class="hint" id="call-hint"></div>
       </div>
 
       <div class="field" id="nick-field">
@@ -232,12 +242,17 @@
 
       <div class="field">
         <label for="email" id="email-label">초대장을 받으신 메일 주소</label>
+        <ol class="auth-steps" id="email-steps" hidden>
+          <li>메일 주소를 적고 <b>[인증 숫자 받기]</b>를 누릅니다.</li>
+          <li>메일로 온 여섯 자리 숫자를 아래 칸에 넣고 <b>[확인]</b>을 누릅니다.</li>
+          <li class="after">숫자는 10분 동안 쓰실 수 있습니다. 메일이 보이지 않으면 스팸함도 한 번 봐 주십시오.</li>
+        </ol>
         <div class="mail-row">
           <input id="email" type="email" autocomplete="email" placeholder="name@example.com">
-          <button class="mini" id="code-send" type="button" hidden>확인 숫자 받기</button>
+          <button class="mini" id="code-send" type="button" hidden>인증 숫자 받기</button>
         </div>
         <div class="code-row mail-row" id="code-row">
-          <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="여섯 자리" aria-label="메일로 받은 확인 숫자">
+          <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="여섯 자리 숫자" aria-label="메일로 받은 인증 숫자">
           <button class="mini" id="code-check" type="button">확인</button>
         </div>
         <div class="hint" id="email-hint"></div>
@@ -344,7 +359,7 @@
       $('maison-tag').textContent = (CITY_EN[b.city] || b.city || '') + ' · ' + (b.name || '');
       $('maison-block').querySelector('.maison-sub').textContent =
         (data.founder || '') + ' 파운더님의 건물, ' + (CITY_KO[b.city] || '') + ' ' + (b.label || '') + '에 집이 기다리고 있습니다.';
-      $('email-label').textContent = '쓰실 메일 주소';
+      $('email-label').textContent = '이메일 인증'; $('email-steps').hidden = false;
       $('code-send').hidden = false;
       $('footnote').innerHTML = (data.stay_days === 21 ? '3주' : '2주') + ' 동안 머무실 수 있습니다.<br>머무는 동안 당신을 평가하거나 비교하지 않습니다.';
       /* ⭐ 0929 초대권(invitatio) — 소로가 존경하는 분께. 표가 이미 그분 메일함으로 갔으니
@@ -360,9 +375,9 @@
           const same = ()=> $('email').value.trim().toLowerCase() === m;
           const paint = ()=>{
             if($('email').disabled) return;                 /* 확인 숫자로 이미 맞춘 뒤 */
-            mailOk = same(); $('code-send').hidden = mailOk;
-            if(mailOk){ $('code-row').classList.remove('on'); hint.className = 'hint ok'; hint.textContent = '초대장을 받으신 주소입니다. 확인 숫자 없이 들어오실 수 있습니다.'; }
-            else { hint.className = 'hint'; hint.textContent = '다른 주소로 가입하시면 확인 숫자를 한 번 받으셔야 합니다.'; }
+            mailOk = same(); $('code-send').hidden = mailOk; $('email-steps').hidden = mailOk;
+            if(mailOk){ $('code-row').classList.remove('on'); hint.className = 'hint ok'; hint.textContent = '초대장을 받으신 주소입니다. 인증 없이 들어오실 수 있습니다.'; }
+            else { hint.className = 'hint'; hint.textContent = '다른 주소로 가입하시면 이메일 인증을 한 번 거치셔야 합니다.'; }
           };
           $('email').value = m; paint();
           $('email').addEventListener('input', paint);
@@ -392,13 +407,13 @@
         hint.textContent = data.reason === 'wait' ? (data.seconds + '초 뒤에 다시 받으실 수 있습니다.')
                          : (OPEN && data.reason === 'exists') ? '이미 가입된 주소입니다. 로그인해 주십시오.'
                          : (MAIL_WHY[data.reason] || '보내지 못했습니다.');
-        btn.disabled = false; btn.textContent = '확인 숫자 받기'; return;
+        btn.disabled = false; btn.textContent = '인증 숫자 받기'; return;
       }
       hint.className = 'hint ok'; hint.textContent = '메일로 여섯 자리 숫자를 보냈습니다. 10분 안에 넣어 주십시오.';
       $('code-row').classList.add('on'); $('code').focus();
       let n = 60; btn.textContent = n + '초';
       const t = setInterval(()=>{ n--; if(n <= 0){ clearInterval(t); btn.disabled = false; btn.textContent = '다시 받기'; } else btn.textContent = n + '초'; }, 1000);
-    }catch(e){ hint.className = 'hint warn'; hint.textContent = '보내지 못했습니다. 잠시 뒤 다시 눌러 주십시오.'; btn.disabled = false; btn.textContent = '확인 숫자 받기'; }
+    }catch(e){ hint.className = 'hint warn'; hint.textContent = '보내지 못했습니다. 잠시 뒤 다시 눌러 주십시오.'; btn.disabled = false; btn.textContent = '인증 숫자 받기'; }
   }
   async function checkCode(){
     const email = $('email').value.trim(); const hint = $('email-hint');
@@ -417,14 +432,14 @@
       }
       mailOk = true;
       $('email').disabled = true; $('code-row').classList.remove('on'); $('code-send').hidden = true;
-      hint.className = 'hint ok'; hint.textContent = '메일 주소를 확인했습니다.';
+      hint.className = 'hint ok'; hint.textContent = '이메일 인증을 마쳤습니다.';
     }catch(e){ hint.className = 'hint warn'; hint.textContent = '확인하지 못했습니다. 잠시 뒤 다시 눌러 주십시오.'; btn.disabled = false; }
   }
   /* 불릴 이름 — 실명 그대로 · 닉네임 따로 */
   let CALL = null;
   function pickCall(which){
     CALL = which;
-    $('call-hint').className = 'hint'; $('call-hint').textContent = '지도와 이웃에게 보이는 이름입니다. 나중에 바꾸실 수 있습니다.';
+    $('call-hint').className = 'hint'; $('call-hint').textContent = '';
     document.querySelectorAll('.pick').forEach(b => b.setAttribute('aria-pressed', b.dataset.call === which ? 'true' : 'false'));
     $('nick-field').hidden = false;
     if(which === 'real'){
@@ -464,7 +479,7 @@
     $('real-field').hidden = false; $('call-field').hidden = false; $('nick-field').hidden = true;
     $('maison-tag').textContent = '파리 · 라탱 지구';
     $('maison-block').querySelector('.maison-sub').textContent = '당신의 집 한 채가 기다리고 있습니다.';
-    $('email-label').textContent = '쓰실 메일 주소';
+    $('email-label').textContent = '이메일 인증'; $('email-steps').hidden = false;
     $('code-send').hidden = false;
     $('footnote').innerHTML = '12월 24일까지 무료로 머무실 수 있습니다.<br>머무는 동안 당신을 평가하거나 비교하지 않습니다.';
     show('s-form');
@@ -530,7 +545,7 @@
     if(!nick){ $('nick-hint').className='hint warn'; $('nick-hint').textContent='이름을 남겨주세요.'; need('이름을 남겨 주십시오.'); }
     if(nickOk===false && nick){ $('nick-hint').className='hint warn'; $('nick-hint').textContent='다른 이름을 골라주세요.'; need('다른 이름을 골라 주십시오.'); }
     if(!validEmail(email)){ $('email-hint').className='hint warn'; $('email-hint').textContent='이메일 주소를 확인해주세요.'; need('이메일 주소를 확인해 주십시오.'); } else $('email-hint').textContent='';
-    if(PAPER && validEmail(email) && !mailOk){ $('email-hint').className='hint warn'; $('email-hint').textContent='메일로 받은 확인 숫자를 먼저 넣어 주십시오.'; need('메일로 받은 확인 숫자 여섯 자리를 넣고 「확인」을 먼저 눌러 주십시오.'); }
+    if(PAPER && validEmail(email) && !mailOk){ $('email-hint').className='hint warn'; $('email-hint').textContent='메일로 받은 인증 숫자를 먼저 넣어 주십시오.'; need('이메일 인증을 먼저 마쳐 주십시오 — 메일로 온 여섯 자리를 넣고 [확인]을 누르시면 됩니다.'); }
     if(pw.length<8){ $('pw-hint').className='hint warn'; $('pw-hint').textContent='여덟 자 이상으로 정해주세요.'; need('비밀번호를 여덟 자 이상으로 정해 주십시오.'); } else $('pw-hint').textContent='';
     if(pw!==pw2){ $('pw2-hint').className='hint warn'; $('pw2-hint').textContent='두 비밀번호가 다릅니다.'; need('두 비밀번호가 다릅니다.'); } else $('pw2-hint').textContent='';
     if(!$('c-terms').checked || !$('c-privacy').checked){ need('두 약관에 동의하셔야 들어오실 수 있습니다.'); }
