@@ -487,7 +487,13 @@
 
   async function verify(){
     if(pass){ return verifyPass(); }
-    if(!token){ return verifyOpen(); }
+    if(!token){
+      /* ⭐ 1103 — 이미 로그인한 분이 공고의 [폴라리스호에 오르기]로 오시면 가입을 건너뛰고 곧장 승선 확인으로 */
+      if(BOARD){
+        try{ const { data } = await sb.auth.getSession(); if(data && data.session){ location.replace('board.html'); return; } }catch(e){}
+      }
+      return verifyOpen();
+    }
     try{
       const { data, error } = await sb.rpc('verify_invite', { p_token: token });
       if(error || !data || !data.valid){ show('s-invalid'); return; }

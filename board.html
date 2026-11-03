@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#0b0907">
+<title>EG유니버스 — 폴라리스호 승선</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+  /* ══ 1103 오후 — 가입 화면 새 옷 (소로 「디자인 싹 갈아 엎어」 · 「작은 글씨가 흐려서 안 보임」)
+       홈페이지(egsalon.com)와 같은 피 — 먹색 밤 · 종이 · 노란 화살표 · 본명조 + 프리텐다드
+       힘은 노란 화살표 하나에만. 글씨는 모두 읽히는 크기와 진하기로 ══ */
+  :root{
+    --night:#0b0907;  --night-2:#16120d;
+    --paper:#f4efe6;  --paper-2:#ebe4d7;  --field:#fbf8f2;
+    --ink:#1d1812;    --ink-soft:#3a332b; --ink-dim:#655b50;
+    --line:#cbbfac;   --line-strong:#9c8e79;
+    --arrow:#f2c94c;  --arrow-deep:#e0b432;
+    --ok:#3d6634;     --warn:#a8441c;
+    --serif:'Noto Serif KR', 'Nanum Myeongjo', serif;
+    --sans:'Pretendard', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html{ background:var(--night); }
+  body{
+    font-family:var(--sans); color:var(--ink); background:var(--night);
+    min-height:100dvh; display:flex; justify-content:center; align-items:flex-start;
+    padding:clamp(28px, 6vh, 64px) 16px 56px;
+    -webkit-font-smoothing:antialiased; word-break:keep-all;
+  }
+  .stage{ width:100%; max-width:520px; margin:auto 0; }
+
+  /* 문패 — 노란 화살표 하나 + 이름 (힘은 여기 한 곳) */
+  .crest{ display:flex; align-items:center; gap:14px; margin:0 4px 22px; color:var(--paper); }
+  .crest svg{ width:46px; height:26px; flex:0 0 auto; }
+  .crest .name{ font-family:var(--serif); font-weight:500; font-size:1.06rem; letter-spacing:.02em; }
+
+  /* 종이 한 장 */
+  .sheet{ background:var(--paper); border-radius:6px; padding:clamp(28px, 5vw, 46px) clamp(20px, 5vw, 44px) clamp(30px, 5vw, 40px); }
+
+  /* 승선 한 줄 띠 — 공고의 [폴라리스호에 오르기]로 온 분(?board=1)께만 */
+  .board-band{ list-style:none; display:flex; margin:0 0 30px; padding:0 0 22px; border-bottom:1px solid var(--line); }
+  .board-band[hidden]{ display:none; }
+  .board-band li{ flex:1 1 0; position:relative; padding-top:20px; text-align:center; font-size:.86rem; color:var(--ink-dim); white-space:nowrap; }
+  .board-band li::before{ content:""; position:absolute; top:4px; left:50%; width:10px; height:10px; margin-left:-5px; border-radius:50%; background:var(--paper); border:1.5px solid var(--line-strong); z-index:1; }
+  .board-band li::after{ content:""; position:absolute; top:9px; left:-50%; width:100%; height:1.5px; background:var(--line); }
+  .board-band li:first-child::after{ display:none; }
+  .board-band li.done{ color:var(--ink-soft); }
+  .board-band li.done::before{ background:var(--ink-soft); border-color:var(--ink-soft); }
+  .board-band li.on{ color:var(--ink); font-weight:700; }
+  .board-band li.on::before{ width:14px; height:14px; top:2px; margin-left:-7px; background:var(--arrow); border-color:var(--ink); }
+
+  /* 글 */
+  h1{ font-family:var(--serif); font-weight:600; font-size:clamp(1.5rem, 4.6vw, 1.86rem); line-height:1.42; color:var(--ink); letter-spacing:-.01em; text-wrap:balance; }
+  .lede{ margin-top:12px; font-size:1.02rem; line-height:1.7; color:var(--ink-soft); text-wrap:pretty; }
+
+  /* 집 한 줄 */
+  #maison-block{ margin-top:24px; padding:14px 16px; background:var(--paper-2); border-radius:4px; display:flex; flex-direction:column; gap:3px; }
+  .maison-tag{ font-family:var(--serif); font-weight:600; font-size:.98rem; color:var(--ink); }
+  .maison-sub{ font-size:.95rem; line-height:1.6; color:var(--ink-soft); }
+
+  /* 칸 */
+  .fields{ margin-top:30px; }
+  .field{ margin:0 0 22px; }
+  .field > label, .field .label{ display:block; font-size:.95rem; font-weight:600; color:var(--ink); margin-bottom:8px; }
+  .field input{
+    width:100%; height:50px; padding:0 14px;
+    background:var(--field); border:1px solid var(--line); border-radius:4px;
+    font-family:var(--sans); font-size:1rem; color:var(--ink);
+    transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  .field input::placeholder{ color:#9a8f81; }
+  .field input:hover{ border-color:var(--line-strong); }
+  .field input:focus{ outline:none; border-color:var(--ink); box-shadow:0 0 0 3px rgba(242,201,76,.6); }
+  .field input[readonly], .field input:disabled{ background:var(--paper-2); color:var(--ink-soft); }
+  /* 칸 설명은 칸 이름 바로 밑에 — 그 칸 전체에 대한 말이라는 게 보이게 (1103 소로 「설명이 두 칸에 걸쳐 혼돈」) */
+  .desc{ margin:-2px 0 10px; font-size:.9rem; line-height:1.6; color:var(--ink-dim); }
+  .auth-steps{ margin:-2px 0 12px; padding:12px 14px 12px 14px; background:var(--paper-2); border-radius:4px; list-style:none; counter-reset:st; }
+  .auth-steps li{ counter-increment:st; position:relative; padding-left:26px; font-size:.9rem; line-height:1.6; color:var(--ink-soft); margin:3px 0; }
+  .auth-steps li::before{ content:counter(st); position:absolute; left:0; top:2px; width:18px; height:18px; border-radius:50%; background:var(--ink); color:var(--paper); font-size:.72rem; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  .auth-steps .after{ padding-left:0; margin-top:8px; color:var(--ink-dim); }
+  .auth-steps .after::before{ display:none; }
+  .auth-steps[hidden]{ display:none; }
+  .hint{ margin-top:7px; font-size:.88rem; line-height:1.55; color:var(--ink-dim); }
+  .hint:empty{ display:none; }
+  .hint.ok{ color:var(--ok); font-weight:500; }
+  .hint.warn{ color:var(--warn); font-weight:500; }
+
+  /* 불릴 이름 — 둘 가운데 하나 */
+  .picks{ display:grid; grid-template-columns:1fr; gap:8px; }
+  .pick{
+    min-height:50px; padding:10px 14px 10px 44px; text-align:left; cursor:pointer; position:relative;
+    background:var(--field); border:1px solid var(--line); border-radius:4px;
+    font-family:var(--sans); font-size:.98rem; color:var(--ink-soft); line-height:1.4;
+    transition:border-color .15s ease, background .15s ease, color .15s ease;
+  }
+  .pick b{ font-weight:600; color:inherit; margin-left:4px; }
+  .pick::before{ content:""; position:absolute; left:15px; top:50%; width:16px; height:16px; margin-top:-8px; border-radius:50%; border:1.5px solid var(--line-strong); background:var(--field); }
+  .pick[aria-pressed="true"]::before{ border-color:var(--arrow); background:var(--arrow); box-shadow:inset 0 0 0 3px var(--ink); }
+  .pick:hover{ border-color:var(--line-strong); }
+  .pick:focus-visible{ outline:none; box-shadow:0 0 0 3px rgba(242,201,76,.6); border-color:var(--ink); }
+  .pick[aria-pressed="true"]{ background:var(--ink); border-color:var(--ink); color:var(--paper); }
+
+  /* 메일 + 확인 숫자 */
+  .mail-row{ display:flex; gap:8px; }
+  .mail-row input{ flex:1; min-width:0; }
+  .mini{
+    flex:0 0 auto; height:50px; padding:0 16px; cursor:pointer; white-space:nowrap;
+    background:transparent; border:1px solid var(--ink); border-radius:4px; color:var(--ink);
+    font-family:var(--sans); font-size:.95rem; font-weight:600;
+    transition:background .15s ease, color .15s ease;
+  }
+  .mini:hover:not(:disabled){ background:var(--ink); color:var(--paper); }
+  .mini:focus-visible{ outline:none; box-shadow:0 0 0 3px rgba(242,201,76,.6); }
+  .mini:disabled{ opacity:.45; cursor:default; }
+  .code-row{ display:none; margin-top:8px; }
+  .code-row.on{ display:flex; }
+  .code-row input:placeholder-shown{ letter-spacing:normal; }
+  .code-row input{ letter-spacing:.3em; font-variant-numeric:tabular-nums; font-size:1.1rem; }
+
+  /* 동의 */
+  .consents{ margin:6px 0 0; padding-top:20px; border-top:1px solid var(--line); }
+  .consent{ display:flex; align-items:center; gap:12px; padding:7px 0; font-size:.98rem; color:var(--ink-soft); cursor:pointer; }
+  .consent input{
+    appearance:none; -webkit-appearance:none; flex:0 0 auto; width:22px; height:22px; margin:0;
+    border:1.5px solid var(--line-strong); border-radius:4px; background:var(--field); cursor:pointer; position:relative;
+  }
+  .consent input:checked{ background:var(--ink); border-color:var(--ink); }
+  .consent input:checked::after{ content:""; position:absolute; left:6.5px; top:2.5px; width:5px; height:10px; border:solid var(--arrow); border-width:0 2.5px 2.5px 0; transform:rotate(45deg); }
+  .consent input:focus-visible{ outline:none; box-shadow:0 0 0 3px rgba(242,201,76,.6); }
+  .consent a{ color:var(--ink); font-weight:600; text-decoration:underline; text-decoration-color:var(--line-strong); text-underline-offset:3px; cursor:pointer; }
+  .consent a:hover{ text-decoration-color:var(--ink); }
+
+  /* 들어서기 */
+  .form-msg{ margin-top:18px; min-height:1.3em; font-size:.95rem; font-weight:500; line-height:1.55; color:var(--warn); text-align:center; }
+  .enter{
+    display:block; width:100%; height:56px; margin-top:12px; cursor:pointer;
+    background:var(--arrow); border:none; border-radius:4px; color:var(--night);
+    font-family:var(--sans); font-size:1.08rem; font-weight:700; letter-spacing:.01em;
+    transition:background .15s ease;
+  }
+  .enter:hover:not(:disabled){ background:var(--arrow-deep); }
+  .enter:focus-visible{ outline:none; box-shadow:0 0 0 3px var(--paper), 0 0 0 5px var(--night); }
+  .enter:disabled{ opacity:.5; cursor:default; }
+  .footnote{ margin-top:22px; text-align:center; font-size:.92rem; line-height:1.7; color:var(--ink-dim); }
+
+  /* 상태 화면 */
+  .screen{ display:none; }
+  .screen.on{ display:block; }
+  .center{ text-align:center; }
+  .center-note{ margin-top:14px; text-align:center; font-size:1rem; line-height:1.75; color:var(--ink-soft); }
+  .center-note b{ color:var(--ink); }
+  #s-invalid a, #s-done a{ color:var(--ink); font-weight:600; text-underline-offset:3px; }
+  .spinner{ width:26px; height:26px; margin:26px auto 4px; border:2px solid var(--line); border-top-color:var(--ink); border-radius:50%; animation:spin 1s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  /* 약관 */
+  .scrim{ position:fixed; inset:0; background:rgba(11,9,7,.72); display:none; align-items:center; justify-content:center; padding:20px; z-index:50; }
+  .scrim.on{ display:flex; }
+  .doc{ width:100%; max-width:600px; max-height:84dvh; overflow-y:auto; background:var(--paper); border-radius:6px; padding:34px clamp(20px, 5vw, 36px); }
+  .doc h2{ font-family:var(--serif); font-weight:600; font-size:1.3rem; color:var(--ink); margin-bottom:4px; }
+  .doc .doc-eyebrow{ font-size:.9rem; color:var(--ink-dim); margin-bottom:18px; }
+  .doc h3{ font-size:1rem; font-weight:700; color:var(--ink); margin:22px 0 8px; }
+  .doc p{ font-size:.96rem; line-height:1.8; color:var(--ink-soft); margin:8px 0; }
+  .doc ul{ margin:8px 0; list-style:none; }
+  .doc li{ font-size:.95rem; line-height:1.75; color:var(--ink-soft); padding-left:16px; position:relative; margin:4px 0; }
+  .doc li::before{ content:"·"; position:absolute; left:3px; font-weight:700; color:var(--ink); }
+  .doc .promise{ font-weight:700; color:var(--ink); }
+  .doc code{ font-size:.86em; background:var(--paper-2); padding:1px 5px; border-radius:3px; color:var(--ink); }
+  .doc-close{ display:block; margin:26px auto 0; height:46px; padding:0 34px; cursor:pointer; background:var(--ink); color:var(--paper); border:none; border-radius:4px; font-family:var(--sans); font-size:.98rem; font-weight:600; }
+  .doc-close:focus-visible{ outline:none; box-shadow:0 0 0 3px rgba(242,201,76,.7); }
+
+  @media (prefers-reduced-motion:reduce){ .spinner{ animation:none; } }
+
+  /* ══ 1103 저녁 — 승선 화면 (board.html) · 가입 화면과 같은 옷 위에 승선 칸만 더한다 ══ */
+  .voyage-tag{ margin-top:20px; padding:14px 16px; background:var(--night); color:var(--paper); border-radius:4px; display:flex; flex-direction:column; gap:2px; }
+  .voyage-tag .k{ font-size:.84rem; color:rgba(244,239,230,.7); }
+  .voyage-tag .v{ font-family:var(--serif); font-weight:600; font-size:1.06rem; }
+  .voyage-tag .v b{ color:var(--arrow); font-weight:600; }
+
+  .blk{ margin-top:28px; }
+  .blk > h2{ font-size:1rem; font-weight:700; color:var(--ink); margin-bottom:10px; }
+  .issue{ list-style:none; counter-reset:is; border-top:1px solid var(--line); }
+  .issue li{ counter-increment:is; display:grid; grid-template-columns:28px 1fr; gap:4px; padding:12px 0; border-bottom:1px solid var(--line); }
+  .issue li::before{ content:counter(is); font-family:var(--serif); font-weight:600; color:var(--ink-dim); padding-top:1px; }
+  .issue b{ display:block; font-weight:600; font-size:.98rem; color:var(--ink); }
+  .issue span{ display:block; margin-top:3px; font-size:.9rem; line-height:1.6; color:var(--ink-soft); }
+
+  .fare{ padding:18px 18px 16px; background:var(--paper-2); border-radius:4px; }
+  .fare .row{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .fare .label{ font-size:.92rem; font-weight:600; color:var(--ink-soft); }
+  .fare .big{ font-family:var(--serif); font-weight:600; font-size:clamp(1.9rem, 6vw, 2.3rem); color:var(--ink); letter-spacing:-.01em; }
+  .fare .big small{ margin-left:6px; font-family:var(--sans); font-size:.86rem; font-weight:500; color:var(--ink-dim); letter-spacing:0; }
+  .fare .split{ margin-top:4px; font-size:.9rem; color:var(--ink-dim); }
+  .fare .when{ margin-top:12px; padding-top:12px; border-top:1px dashed var(--line-strong); font-size:.92rem; line-height:1.7; color:var(--ink-soft); }
+  .fare .when b{ color:var(--ink); font-weight:600; }
+  .after-line{ margin-top:12px; font-size:.95rem; line-height:1.7; color:var(--ink-soft); }
+  .after-line b{ color:var(--ink); }
+
+  .next{ padding:16px 18px; border:1px solid var(--ink); border-radius:4px; }
+  .next ol{ list-style:none; display:flex; flex-wrap:wrap; gap:6px 0; margin:6px 0 10px; font-size:.95rem; font-weight:600; color:var(--ink); }
+  .next ol li + li::before{ content:"→"; margin:0 8px; color:var(--ink-dim); font-weight:400; }
+  .next p{ font-size:.93rem; line-height:1.7; color:var(--ink-soft); }
+  .next p b{ color:var(--ink); }
+
+  /* 승선 완료 */
+  .crew-no{ margin:22px 0 4px; text-align:center; font-family:var(--serif); font-weight:600; font-size:clamp(2.2rem, 9vw, 3rem); letter-spacing:.02em; color:var(--ink); }
+  .crew-no small{ display:block; font-family:var(--sans); font-size:.9rem; font-weight:600; letter-spacing:0; color:var(--ink-dim); margin-bottom:2px; }
+  .crew-voy{ text-align:center; font-size:1.02rem; color:var(--ink-soft); }
+  .crew-voy b{ color:var(--ink); }
+  .done-box{ margin-top:24px; }
+  .phone-note{ margin-top:14px; padding:12px 14px; background:var(--paper-2); border-radius:4px; font-size:.92rem; line-height:1.65; color:var(--ink-soft); }
+  .ghost{ display:block; width:100%; height:50px; margin-top:10px; background:transparent; border:1px solid var(--ink); border-radius:4px; color:var(--ink); font-family:var(--sans); font-size:.98rem; font-weight:600; cursor:pointer; text-align:center; line-height:48px; text-decoration:none; }
+  .ghost:hover{ background:var(--ink); color:var(--paper); }
+  .ghost:focus-visible{ outline:none; box-shadow:0 0 0 3px rgba(242,201,76,.6); }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <div class="crest">
+    <svg viewBox="0 0 46 26" aria-hidden="true"><path d="M2 13.5 C 12 12.2, 24 12.8, 33 13.1" fill="none" stroke="#f2c94c" stroke-width="5" stroke-linecap="round"/><path d="M27 4.5 L 41.5 13.2 L 27.5 22" fill="none" stroke="#f2c94c" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span class="name">EG유니버스 탐험대 · 폴라리스호</span>
+  </div>
+
+  <main class="sheet">
+
+  <ol class="board-band" id="band" aria-label="승선 순서">
+    <li class="done">가입</li>
+    <li class="on" aria-current="step">승선 확인</li>
+    <li>결제</li>
+    <li>승선 완료</li>
+  </ol>
+
+  <!-- 여는 중 -->
+  <section id="s-load" class="screen on center">
+    <h1 id="load-title">승선을 준비하고 있습니다</h1>
+    <div class="spinner"></div>
+  </section>
+
+  <!-- 로그인 전 -->
+  <section id="s-login" class="screen center">
+    <h1>먼저 EG유니버스에<br>들어와 주십시오</h1>
+    <p class="center-note">폴라리스호는 EG유니버스에 가입하신 분이 오르는 배입니다.</p>
+    <a class="enter" href="signup.html?board=1" style="display:block;line-height:56px;text-decoration:none;margin-top:26px">가입하고 오르기</a>
+    <a class="ghost" href="index.html">이미 회원이시면 로그인</a>
+    <p class="footnote">로그인하신 뒤 이 화면(app.egsalon.com/board.html)으로 다시 오시면 됩니다.</p>
+  </section>
+
+  <!-- 마감 -->
+  <section id="s-closed" class="screen center">
+    <h1>폴라리스호의 마지막 배가<br>떠났습니다</h1>
+    <p class="center-note">승선은 12월 5일 자정까지였습니다.<br>12월 24일까지는 EG유니버스를 자유롭게 둘러보실 수 있습니다.</p>
+    <a class="ghost" href="index.html" style="margin-top:24px">EG유니버스로 들어가기</a>
+  </section>
+
+  <!-- 승선 확인 (앞 한 장) -->
+  <section id="s-confirm" class="screen">
+    <h1>승선 확인</h1>
+    <p class="lede">결제 화면으로 가기 전에, 대원에게 지급되는 것과 결제하실 금액을 한 번 확인해 주십시오.</p>
+
+    <div class="voyage-tag">
+      <span class="k">지금 오르시면</span>
+      <span class="v" id="voy-line">—</span>
+    </div>
+
+    <div class="blk">
+      <h2>승선하는 대원에게 지급되는 것</h2>
+      <ol class="issue">
+        <li><div><b>정회원 첫 달</b><span>2026년 12월 25일 ~ 2027년 1월 24일</span></div></li>
+        <li><div><b>크리스마스이브까지 탐험</b><span>오른 날부터 12월 24일 귀환까지 · 하루 한 장의 미션 카드</span></div></li>
+        <li><div><b>귀환 기념품</b><span>포토카드 35종 가운데 10장 · 명화 엽서 20종 가운데 5장 — 직접 고르시면 만들어 2~3주 뒤 댁으로 보내 드립니다</span></div></li>
+        <li><div><b>황금사과 15알로 출항</b><span>EG 안에서 그림을 거실에 들이고, 별 곁에 서는 데 씁니다 · 소감 한 편마다 한 알씩 더</span></div></li>
+        <li><div><b>탐험대원 No.와 에펠탑의 이름</b><span>대원 명부에 번호가 남고, 출항하는 날 에펠탑에 이름이 새겨집니다 · 귀환하는 밤, 모든 이름에 불이 켜집니다</span></div></li>
+      </ol>
+    </div>
+
+    <div class="blk">
+      <h2>탐험대 참가비</h2>
+      <div class="fare">
+        <div class="row"><span class="label">오늘 결제하실 금액</span></div>
+        <div class="big" id="fare-big">15,015원<small>(부가세 포함)</small></div>
+        <div class="split" id="fare-split">회비 13,650원 + 부가세 1,365원</div>
+        <div class="when"><b>계좌</b> — 효성에 등록이 끝나는 대로 출금합니다. 보통 영업일 사나흘 안입니다.<br><b>카드</b> — 서명하시는 자리에서 바로 승인됩니다.</div>
+      </div>
+      <p class="after-line" id="after-line"><b>12월 25일부터 정회원</b> · 매월 25일 30,030원(회비 27,300원 + 부가세 2,730원) · 첫 정기 결제는 2027년 1월 25일입니다.</p>
+    </div>
+
+    <div class="field" id="real-field" hidden style="margin-top:26px">
+      <label for="real">실명</label>
+      <p class="desc">결제 화면에 적히는 이름입니다. 다른 분들께는 보이지 않습니다.</p>
+      <input id="real" type="text" autocomplete="name" maxlength="20" placeholder="홍길동">
+    </div>
+
+    <div class="blk next">
+      <h2 style="margin-bottom:0">다음은 효성CMS 결제 화면입니다</h2>
+      <ol><li>본인인증</li><li>계좌 · 카드 고르기</li><li>서명</li></ol>
+      <p>그 화면에는 금액이 따로 보이지 않습니다. <b>위 금액에 대한 동의입니다.</b> 서명을 마치면 이 화면으로 돌아옵니다.</p>
+    </div>
+
+    <div class="form-msg" id="confirm-msg" role="alert"></div>
+    <button class="enter" id="go-pay" type="button">확인했습니다 — 결제 화면으로</button>
+    <p class="footnote">탐험을 이어 가기 어려우시면 편지 한 통 주세요.<br>참가비는 결제 수수료를 뺀 나머지를 보내 드립니다.</p>
+  </section>
+
+  <!-- 승선 완료 (뒤 한 장) -->
+  <section id="s-done" class="screen">
+    <h1 class="center" id="done-title">폴라리스호에 오르셨습니다</h1>
+    <div class="crew-no" id="crew-no"><small>탐험대원</small>No. —</div>
+    <p class="crew-voy" id="crew-voy">—</p>
+
+    <div class="done-box">
+      <div class="fare">
+        <div class="row"><span class="label">탐험대 참가비</span></div>
+        <div class="big">15,015원<small>(부가세 포함)</small></div>
+        <div class="split">회비 13,650원 + 부가세 1,365원</div>
+        <div class="when" id="pay-when">—</div>
+      </div>
+      <p class="after-line"><b>12월 25일부터 정회원</b> · 매월 25일 30,030원 · 첫 정기 결제는 2027년 1월 25일입니다.</p>
+      <p class="after-line">출항하는 날 에펠탑에 이름이 새겨지고, 그 전까지는 짐을 풀며 EG유니버스를 둘러보시면 됩니다.</p>
+    </div>
+
+    <p class="phone-note" id="phone-note" hidden>탐험은 3D 지구를 그리는 곳이라 노트북이나 데스크톱에서 열립니다. 큰 화면에서 <b>app.egsalon.com</b> 으로 들어와 주십시오.</p>
+    <a class="enter" id="go-in" href="index.html" style="display:block;line-height:56px;text-decoration:none;text-align:center;margin-top:24px">EG유니버스로 들어가기</a>
+  </section>
+
+  <!-- 서명 마무리 기다림 · 막힘 -->
+  <section id="s-wait" class="screen center">
+    <h1 id="wait-title">서명을 확인하고 있습니다</h1>
+    <p class="center-note" id="wait-note">효성에서 마무리하는 데 몇 초가 걸릴 수 있습니다.</p>
+    <div class="spinner" id="wait-spin"></div>
+    <button class="enter" id="wait-again" type="button" hidden style="margin-top:24px">다시 확인하기</button>
+    <a class="ghost" id="wait-back" href="board.html" hidden>승선 확인으로 돌아가기</a>
+  </section>
+
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="eg_device.js?v=20260729"></script>
+<script>
+(function(){
+  "use strict";
+  /* ══ board.html — 폴라리스호 승선 한 줄의 둘째 · 넷째 칸 (1103 저녁 · 파이스)
+       ② 승선 확인(앞 한 장) — 지급품 · 참가비 · 출금 · 효성 화면 안내 → [확인했습니다] → 효성 간편동의 링크
+       ④ 승선 완료(뒤 한 장) — 효성에서 돌아오면(?done=1) board 손으로 대원 명부에 오른 것을 확인
+       숫자는 DB(eg_board_peek) 한 곳에서 읽는다 · 효성과의 일은 hyosung-agreement 가 맡는다
+       ⚠ 금액은 결정문 1102 「세 곳 같은 숫자」 — 홈페이지 공고 · 이 화면 · 승선 완료 ══ */
+  const SUPABASE_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+  const FN = SUPABASE_URL + '/functions/v1/hyosung-agreement';
+  const RETURN_URL = 'https://app.egsalon.com/board.html?done=1';
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth:{ storageKey:'eungyo-auth', persistSession:true, autoRefreshToken:true }
+  });
+  const $ = id => document.getElementById(id);
+  const DONE = new URLSearchParams(location.search).get('done') === '1';
+  const WD = ['일','월','화','수','목','금','토'];
+  const won = n => Number(n).toLocaleString('ko-KR') + '원';
+  const mdw = s => { const d = new Date(s + 'T00:00:00+09:00'); return (d.getMonth()+1) + '월 ' + d.getDate() + '일(' + WD[d.getDay()] + ')'; };
+  const pad3 = n => String(n).padStart(3, '0');
+  let PEEK = null, TOKEN = null;
+
+  function show(id){ document.querySelectorAll('.screen').forEach(s => s.classList.remove('on')); $(id).classList.add('on'); window.scrollTo(0, 0); }
+  function band(step){   /* 1 가입 · 2 승선 확인 · 3 결제 · 4 승선 완료 */
+    [...$('band').children].forEach((li, i) => {
+      li.classList.toggle('done', i + 1 < step); li.classList.toggle('on', i + 1 === step);
+      if(i + 1 === step) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
+    });
+  }
+  async function call(body){
+    const r = await fetch(FN, { method:'POST', headers:{ 'Content-Type':'application/json', 'apikey':SUPABASE_KEY, 'Authorization':'Bearer ' + TOKEN }, body:JSON.stringify(body) });
+    let j = null; try{ j = await r.json(); }catch(e){}
+    return { status:r.status, body:j || {} };
+  }
+
+  function paint(){
+    const f = PEEK.fare;
+    $('fare-big').innerHTML = won(f.amount) + '<small>(부가세 포함)</small>';
+    $('fare-split').textContent = '회비 ' + won(f.dues) + ' + 부가세 ' + won(f.vat);
+    $('after-line').innerHTML = '<b>12월 25일부터 정회원</b> · 매월 25일 ' + won(f.monthly) + '(회비 ' + won(f.monthly_dues) + ' + 부가세 ' + won(f.monthly_vat) + ') · 첫 정기 결제는 2027년 1월 25일입니다.';
+    if(PEEK.voyage){
+      $('voy-line').innerHTML = mdw(PEEK.voyage.date) + ' 출항 · <b>' + PEEK.voyage.name + '</b>' + (PEEK.voyage.no === 4 ? ' · 마지막 배' : '');
+    }
+    $('real-field').hidden = !!PEEK.has_real_name;
+  }
+
+  function showDone(o){
+    band(4);
+    $('crew-no').innerHTML = '<small>탐험대원</small>No. ' + pad3(o.crew_no);
+    $('crew-voy').innerHTML = '<b>' + o.voyage_name + '</b> · ' + mdw(o.voyage_date) + ' 출항';
+    const card = (o.payment_kind || '').toUpperCase() === 'CARD';
+    const cst = o.card && o.card.state;
+    if(card && (cst === 'failed' || (PEEK && PEEK.retry))){
+      $('done-title').textContent = '자리는 잡혔습니다 — 결제만 한 번 더';
+      $('pay-when').innerHTML = '<b>카드 승인이 되지 않았습니다.</b> 원정대 자리는 그대로 지켜 둡니다. 아래 단추로 결제 화면을 다시 여시고, 이번에는 계좌를 골라 주십시오.';
+      $('go-in').textContent = '결제 화면 다시 열기'; $('go-in').href = 'board.html';
+    } else if(card){
+      $('pay-when').innerHTML = '<b>카드</b> — 승인되었습니다.';
+    } else {
+      $('pay-when').innerHTML = '<b>계좌</b> — 효성에 등록이 끝나는 대로 출금합니다. 보통 영업일 사나흘 안이며, 출금되면 은행에서 문자가 갑니다.';
+    }
+    const phone = (typeof window.egIsPhone === 'function') ? window.egIsPhone() : false;
+    $('phone-note').hidden = !phone;
+    show('s-done');
+  }
+
+  /* 효성에서 돌아온 뒤 — 서명이 끝났는지 보고 대원 명부로 */
+  let tries = 0;
+  async function finish(){
+    band(4); show('s-wait');
+    $('wait-spin').hidden = false; $('wait-again').hidden = true; $('wait-back').hidden = true;
+    $('wait-title').textContent = '서명을 확인하고 있습니다';
+    $('wait-note').textContent = '효성에서 마무리하는 데 몇 초가 걸릴 수 있습니다.';
+    try{
+      const r = await call({ action:'board' });
+      const b = r.body;
+      if(b.state === 'aboard'){ if(b.card && b.card.state === 'failed' && PEEK) PEEK.retry = true; return showDone(b); }
+      if(b.state === 'closed'){ return show('s-closed'); }
+      if(b.state === 'waiting' && ++tries < 4){ setTimeout(finish, 3000); return; }
+      $('wait-spin').hidden = true;
+      if(b.state === 'waiting' || b.state === 'none'){
+        $('wait-title').textContent = '서명이 아직 끝나지 않았습니다';
+        $('wait-note').textContent = '효성 결제 화면에서 서명까지 마치셨다면 잠시 뒤 다시 확인해 주십시오. 중간에 닫으셨다면 승선 확인으로 돌아가 결제 화면을 다시 여시면 됩니다.';
+      } else {
+        $('wait-title').textContent = '확인하지 못했습니다';
+        $('wait-note').textContent = '잠시 뒤 다시 확인해 주십시오. 계속되면 이 화면을 닫지 마시고 EG유니버스 편지함으로 알려 주십시오.';
+      }
+      $('wait-again').hidden = false; $('wait-back').hidden = false;
+    }catch(e){
+      $('wait-spin').hidden = true; $('wait-title').textContent = '확인하지 못했습니다';
+      $('wait-note').textContent = '연결이 잠시 끊겼습니다. 다시 확인해 주십시오.';
+      $('wait-again').hidden = false;
+    }
+  }
+  $('wait-again').addEventListener('click', () => { tries = 0; finish(); });
+
+  /* [확인했습니다 — 결제 화면으로] */
+  $('go-pay').addEventListener('click', async () => {
+    const msg = $('confirm-msg'); msg.textContent = '';
+    const btn = $('go-pay'); btn.disabled = true; btn.textContent = '결제 화면을 여는 중…';
+    const reset = () => { btn.disabled = false; btn.textContent = '확인했습니다 — 결제 화면으로'; };
+    try{
+      if(!PEEK.has_real_name){
+        const v = $('real').value.trim();
+        if(!v){ msg.textContent = '실명을 적어 주십시오.'; return reset(); }
+        const { error } = await sb.rpc('eg_board_set_real_name', { p_real: v });
+        if(error){ msg.textContent = error.message; return reset(); }
+        PEEK.has_real_name = true;
+      }
+      const r = await call({ action:'create', return_url:RETURN_URL });
+      if(r.body.ok && r.body.url){ band(3); location.href = r.body.url; return; }
+      const why = r.body.why;
+      if(why === 'already_signed'){ return finish(); }
+      if(why === 'already_crew'){ return finish(); }
+      if(why === 'closed'){ return show('s-closed'); }
+      msg.textContent = why === '실명이 없음' ? '실명을 적어 주십시오.' : '결제 화면을 열지 못했습니다. 잠시 뒤 다시 눌러 주십시오.';
+      reset();
+    }catch(e){ msg.textContent = '연결이 잠시 끊겼습니다. 다시 눌러 주십시오.'; reset(); }
+  });
+
+  /* 처음 */
+  (async () => {
+    const { data } = await sb.auth.getSession();
+    if(!data || !data.session){ band(1); return show('s-login'); }
+    TOKEN = data.session.access_token;
+    const { data:pk, error } = await sb.rpc('eg_board_peek');
+    if(error || !pk || !pk.ok){ $('load-title').textContent = '잠시 문이 열리지 않았습니다'; return; }
+    PEEK = pk; paint();
+    if(DONE) return finish();
+    if(pk.crew && !pk.retry){
+      /* 이미 대원 — 승선 완료를 보여 준다 */
+      return finish();
+    }
+    if(!pk.open) return show('s-closed');
+    band(2); show('s-confirm');
+  })();
+})();
+</script>
+</body>
+</html>
