@@ -55,12 +55,50 @@
   #panel.min > :not(h1):not(#fold) { display:none; }
   #stageTag { position:absolute; right:14px; bottom:34px; z-index:9; padding:6px 12px; border-radius:20px;
     background:rgba(246,243,234,.92); color:#2a2620; font-size:13px; font-weight:700; pointer-events:none; }
+  #editBar { position:absolute; left:50%; bottom:22px; transform:translateX(-50%); z-index:11; width:420px; max-width:calc(100% - 24px);
+    box-sizing:border-box; background:#f6f3ea; color:#2a2620; border:2px solid #4fd3c4; border-radius:12px; padding:10px 14px 10px;
+    box-shadow:0 4px 18px rgba(0,0,0,.5); font-size:13px; }
+  #editBar[hidden] { display:none; }              /* ⚠ hidden 은 display 에 진다(1103 딱지) */
+  #editBar .eb-head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }
+  #editBar .eb-head span { font-size:12px; color:#5a4f3c; font-variant-numeric:tabular-nums; }
+  #editBar .eb-body { display:flex; gap:12px; align-items:center; }
+  #editBar .eb-pad { display:grid; grid-template-columns:repeat(3, 64px); grid-template-rows:repeat(3, 46px); gap:4px; }
+  #editBar .eb-dot { display:flex; align-items:center; justify-content:center; color:#4fd3c4; font-size:14px; }
+  #editBar button { border:1px solid #b9ab8a; background:#fff; color:#2a2620; border-radius:8px; font-size:13px; cursor:pointer; padding:4px 6px; line-height:1.15; }
+  #editBar .eb-pad button { font-size:14px; font-weight:700; }
+  #editBar .eb-pad button:active, #editBar .eb-side button:active { background:#e6f8f5; }
+  #editBar .eb-side { display:flex; flex-direction:column; gap:5px; flex:1; }
+  #editBar .eb-side > button { padding:8px 6px; }
+  #editBar .eb-step { display:flex; gap:4px; }
+  #editBar .eb-step button { flex:1; padding:6px 4px; }
+  #editBar .eb-step button.on { background:#2a2620; color:#f6f3ea; border-color:#2a2620; }
+  #editBar .eb-small { font-size:12px !important; color:#7a6f5c !important; }
+  #editBar #ebDone { display:block; width:100%; margin-top:10px; padding:10px; background:#2e7d72; color:#fff; border-color:#2e7d72;
+    font-size:14px; font-weight:700; }
+  #editBar .eb-tip { margin-top:6px; font-size:11px; color:#7a6f5c; text-align:center; }
   @media (max-width:560px){ #panel { width:calc(100% - 24px); max-height:46%; } }
 </style>
 </head>
 <body>
 <div id="v"></div>
 <div id="stageTag">출항 뒤 — 이름이 새겨짐</div>
+<div id="editBar" hidden>
+  <div class="eb-head"><b id="ebTitle">띠 맞추는 중</b><span id="ebWhere"></span></div>
+  <div class="eb-body">
+    <div class="eb-pad">
+      <span></span><button data-mv="up">▲<br>위</button><span></span>
+      <button data-mv="left">◀ 왼쪽</button><span class="eb-dot">●</span><button data-mv="right">오른쪽 ▶</button>
+      <span></span><button data-mv="down">아래<br>▼</button><span></span>
+    </div>
+    <div class="eb-side">
+      <button data-mv="out">밖으로 ↗</button><button data-mv="in">↙ 탑 쪽으로</button>
+      <div class="eb-step"><button data-st="1" class="on">1m씩</button><button data-st="0.2">20cm씩</button></div>
+      <button id="ebReset" class="eb-small">이 띠 처음 자리로</button>
+    </div>
+  </div>
+  <button id="ebDone">✓ 다 맞췄음 · 나가기</button>
+  <div class="eb-tip">키보드 화살표로도 움직입니다 · Esc 로 나가기 · 마음에 들면 왼쪽 판의 「확정」</div>
+</div>
 <div id="panel">
   <button id="fold" title="접기">–</button>
   <h1>에펠탑 각인 시험 · 셋째 판</h1>
@@ -95,12 +133,11 @@
     <button id="line2Btn" class="on">둘째 줄 있음</button><button id="plateBtn" class="on">바탕 있음</button>
   </div>
 
-  <span class="lab">띠 붙이기</span>
+  <span class="lab">띠 맞추기</span>
   <div id="bandPick">
     <button data-b="0">트로카데로</button><button data-b="2">샹드마르스</button><button data-b="1">북동</button><button data-b="3">남서</button>
   </div>
-  <div><button id="bandClear" disabled>고른 띠 처음 자리로</button><button id="bandDone" disabled>고르기 끝</button></div>
-  <div id="pickHint" class="how">띠를 고르고(단추나 탑 위의 띠를 눌러), 붙일 자리를 탑 위에서 누르세요.</div>
+  <div id="pickHint" class="how">맞출 띠를 고르세요 — 단추나 탑 위의 띠를 누르면 화면 아래에 화살표 판이 뜹니다.</div>
 
   <details id="adj">
     <summary>좌표 조절</summary>
@@ -562,48 +599,85 @@
   }
   showVals();
 
-  /* ── 띠 붙이기 — 뉴욕 벽 명패 편집기(terra 0928)처럼: 띠를 고르고 → 탑 위를 누르면 그 자리로 ── */
+  /* ── 띠 맞추기 — 고르면(민트빛) 화면 아래 화살표 판이 뜬다 ──────────────
+     1104 소로 — 「탑 위를 누른 자리로 붙이기」는 철골 구멍 사이로 앞 철골 · 안쪽 철골에 번갈아 맞아
+       깊이 · 높이 · 좌우가 확확 튀었다 → 편집 중에는 탑을 눌러도 띠가 움직이지 않는다.
+       움직임은 화살표 단추(또는 키보드 화살표)로만 — 위아래 · 왼쪽오른쪽 · 안팎, 1m 또는 20cm씩.
+     나가기 — 「다 맞췄음」 단추 · Esc · 고른 띠를 한 번 더 누르기. */
   const FACE_KO = ["트로카데로 쪽", "북동 쪽", "샹드마르스 쪽", "남서 쪽"];
   const hint = (t) => { $("pickHint").textContent = t; };
+  let step = 1;
   function selectBand(f) {
     selBand = f;
     document.querySelectorAll("#bandPick button").forEach((b) => b.classList.toggle("on", f !== null && +b.dataset.b === f));
-    $("bandClear").disabled = f === null || !(V.anchors && V.anchors[f]);
-    $("bandDone").disabled = f === null;
+    $("editBar").hidden = f === null;
     buildFrieze();
-    if (f === null) { hint("띠를 고르고(단추나 탑 위의 띠를 눌러), 붙일 자리를 탑 위에서 누르세요."); return; }
-    hint("「" + FACE_KO[f] + "」 띠를 골랐습니다(하늘색 테두리).\n탑 위에서 띠 한가운데가 올 자리를 누르세요. 몇 번이든 다시 누르면 됩니다.");
+    if (f === null) { hint("맞출 띠를 고르세요 — 단추나 탑 위의 띠를 누르면 화면 아래에 화살표 판이 뜹니다."); return; }
+    $("ebTitle").textContent = "「" + FACE_KO[f] + "」 띠 맞추는 중";
+    hint("「" + FACE_KO[f] + "」 띠를 고른 상태입니다(민트빛 테두리).\n화면 아래 화살표로 미세요.");
+    showWhere();
   }
+  /* 아직 안 옮긴 띠는 지금 서 있는 기본 자리를 그대로 옮길 자리로 삼는다 */
+  function anchorOf(f) {
+    V.anchors = V.anchors || {};
+    if (!V.anchors[f]) {
+      const mid = facePoint(f, V.friezeH, 0, 0);     // 표시할 때 「띠 띄우기」를 더하므로 여기선 면 위 점
+      const g = Cesium.Cartographic.fromCartesian(mid);
+      V.anchors[f] = { lon: Cesium.Math.toDegrees(g.longitude), lat: Cesium.Math.toDegrees(g.latitude), alt: V.groundH + V.friezeH };
+    }
+    return V.anchors[f];
+  }
+  function showWhere() {
+    const A = V.anchors && V.anchors[selBand];
+    const h = A ? A.alt - V.groundH : V.friezeH;
+    $("ebWhere").textContent = "땅에서 " + h.toFixed(1) + "m";
+  }
+  function nudge(dir) {
+    if (selBand === null) return;
+    const A = anchorOf(selBand);
+    const nrm = faceNormal(selBand), rgt = faceRight(selBand);
+    const mv = { left: [rgt, -step], right: [rgt, step], in: [nrm, -step], out: [nrm, step] }[dir];
+    if (dir === "up") A.alt = Math.round((A.alt + step) * 10) / 10;
+    else if (dir === "down") A.alt = Math.round((A.alt - step) * 10) / 10;
+    else if (mv) {
+      const p = Cesium.Cartesian3.fromDegrees(A.lon, A.lat, A.alt);
+      Cesium.Cartesian3.add(p, Cesium.Cartesian3.multiplyByScalar(mv[0], mv[1], new Cesium.Cartesian3()), p);
+      const g = Cesium.Cartographic.fromCartesian(p);
+      A.lon = +Cesium.Math.toDegrees(g.longitude).toFixed(7); A.lat = +Cesium.Math.toDegrees(g.latitude).toFixed(7);
+    }
+    if ([0, 1, 2, 3].every((f) => V.anchors[f])) { setFrame(); buildAll(); } else buildFrieze();
+    showWhere(); markDirty();
+  }
+  document.querySelectorAll("#editBar [data-mv]").forEach((b) => b.addEventListener("click", () => nudge(b.dataset.mv)));
+  document.querySelectorAll("#editBar [data-st]").forEach((b) => b.addEventListener("click", () => {
+    step = +b.dataset.st;
+    document.querySelectorAll("#editBar [data-st]").forEach((x) => x.classList.toggle("on", x === b));
+  }));
+  $("ebDone").addEventListener("click", () => selectBand(null));
+  $("ebReset").addEventListener("click", () => {
+    if (selBand === null || !V.anchors) return;
+    delete V.anchors[selBand]; setFrame(); buildAll(); showWhere(); markDirty();
+  });
   document.querySelectorAll("#bandPick button").forEach((b) => b.addEventListener("click", () => {
     const f = +b.dataset.b;
     if (selBand === f) { selectBand(null); return; }
     selectBand(f); faceView(f, true);                 // 그 면 앞으로 날아간다 — 묻힌 띠도 찾을 수 있게
   }));
-  $("bandDone").addEventListener("click", () => selectBand(null));
-  $("bandClear").addEventListener("click", () => {
-    if (selBand === null || !V.anchors) return;
-    delete V.anchors[selBand]; setFrame(); buildAll(); selectBand(selBand); markDirty();
-    hint("「" + FACE_KO[selBand] + "」 띠를 처음 자리로 돌렸습니다.");
+  window.addEventListener("keydown", (e) => {
+    if (selBand === null) return;
+    if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;   // 손잡이를 쥔 동안은 손잡이 몫
+    const k = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", PageUp: "out", PageDown: "in" }[e.key];
+    if (k) { e.preventDefault(); nudge(k); }
+    else if (e.key === "Escape") selectBand(null);
   });
   const clickH = new Cesium.ScreenSpaceEventHandler(scene.canvas);
   clickH.setInputAction((click) => {
     const picked = scene.pick(click.position);
-    if (Cesium.defined(picked) && picked.id && picked.id._face !== undefined) { selectBand(picked.id._face); return; }
-    if (selBand === null || !scene.pickPositionSupported) return;
-    const c = scene.pickPosition(click.position);
-    if (!Cesium.defined(c)) { hint("그 자리는 탑이 아니라 하늘입니다 — 탑 위를 눌러 주세요."); return; }
-    const g = Cesium.Cartographic.fromCartesian(c);
-    const was4 = towerCenter().fromBands;
-    V.anchors = V.anchors || {};
-    V.anchors[selBand] = { lon: +Cesium.Math.toDegrees(g.longitude).toFixed(7), lat: +Cesium.Math.toDegrees(g.latitude).toFixed(7),
-                           alt: Math.round(g.height * 10) / 10 };
-    const now4 = towerCenter().fromBands;
-    if (now4) { setFrame(); buildAll(); } else buildFrieze();
-    $("bandClear").disabled = false; markDirty();
-    const left = [0, 1, 2, 3].filter((f) => !V.anchors[f]).map((f) => FACE_KO[f]);
-    hint("「" + FACE_KO[selBand] + "」 띠를 붙였습니다 · 땅에서 " + (V.anchors[selBand].alt - V.groundH).toFixed(1) + "m" +
-      (now4 && !was4 ? "\n띠 넷이 다 붙어 탑 한가운데를 그 넷으로 다시 잡았습니다 — 이름과 별도 따라왔습니다." :
-       left.length ? "\n남은 띠: " + left.join(" · ") : "") + "\n마음에 들면 아래 「확정」.");
+    if (Cesium.defined(picked) && picked.id && picked.id._face !== undefined) {
+      const f = picked.id._face;
+      selectBand(selBand === f ? null : f);          // 고른 띠를 한 번 더 누르면 나가기
+    }
+    /* 탑의 다른 곳을 눌러도 아무 일 없음 — 띠가 튀지 않게 */
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
   /* 확정 — 손질한 값을 그 자리에서 박는다 */
