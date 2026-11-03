@@ -407,8 +407,31 @@
 
   /* ── 대원 이름 · 불빛 · 폴라리스 ───────────────────── */
   const points = scene.primitives.add(new Cesium.PointPrimitiveCollection());
-  /* 명패는 면마다 한 묶음 — 카메라 반대쪽 면은 묶음째 숨긴다(이름표 하나씩 show 를 끄면 이 Cesium 판에선 바탕만 꺼지고 글씨가 남는다) */
-  const labelsByFace = [0, 1, 2, 3].map(() => scene.primitives.add(new Cesium.LabelCollection()));
+  /* 명패는 면마다 한 묶음 — 카메라 반대쪽 면은 묶음째 숨긴다.
+     ⭐ 1104 소로 「명패가 마우스 방향에 따라 회전 중」 → 화면을 보는 이름표(Label)를 걷고,
+       띠처럼 탑 면에 붙은 판(wall)으로 바꿨다. 탑을 돌리면 명패도 제 면에 붙은 채 함께 돈다. */
+  const plateSources = [0, 1, 2, 3].map(() => { const ds = new Cesium.CustomDataSource(); viewer.dataSources.add(ds); return ds; });
+  const PLATE_H = 3.0;                               // 명패 높이(m) — 가까이 날아가면 읽히고 멀리서는 불빛만
+  const plateCache = new Map();
+  function plateCanvas(text, lit) {
+    const k = (lit ? "L|" : "S|") + text;
+    if (plateCache.has(k)) return plateCache.get(k);
+    const H = 72, pad = 22, font = '800 40px "Nanum Myeongjo", serif';
+    const c = document.createElement("canvas"), g = c.getContext("2d");
+    g.font = font; c.width = Math.ceil(g.measureText(text).width) + pad * 2; c.height = H;
+    const bg = g.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, lit ? "#5c4420" : "#4b3621"); bg.addColorStop(1, lit ? "#36260f" : "#2a1e12");
+    g.fillStyle = bg; g.fillRect(0, 0, c.width, H);
+    g.strokeStyle = "#b8913f"; g.lineWidth = 3; g.strokeRect(4.5, 4.5, c.width - 9, H - 9);   // 금선 테두리
+    g.font = font; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillStyle = "rgba(0,0,0,0.6)"; g.fillText(text, c.width / 2 + 2, H / 2 + 3);
+    const gold = g.createLinearGradient(0, 14, 0, H - 14);
+    if (lit) { gold.addColorStop(0, "#fffaf0"); gold.addColorStop(1, "#f6dc9a"); }
+    else { gold.addColorStop(0, "#f8e6a6"); gold.addColorStop(0.5, "#dcb24f"); gold.addColorStop(1, "#9a6f26"); }
+    g.fillStyle = gold; g.fillText(text, c.width / 2, H / 2 + 1);
+    plateCache.set(k, c);
+    return c;
+  }
   const sparkles = scene.primitives.add(new Cesium.PointPrimitiveCollection());
   const stars = scene.primitives.add(new Cesium.BillboardCollection());
   let stage = "sailed", count = 10, eveUntil = 0, lights = [], faceRefs = [];
@@ -451,30 +474,40 @@
   const STAR_IMG = starImage();
 
   function buildCrew() {
-    points.removeAll(); labelsByFace.forEach((c) => c.removeAll()); sparkles.removeAll(); stars.removeAll();
+    points.removeAll(); plateSources.forEach((ds) => ds.entities.removeAll()); sparkles.removeAll(); stars.removeAll();
     lights = [];
     const lit = stage === "eve";
     const n = stage === "notice" ? 0 : count;
     for (let no = 1; no <= n; no++) {
       const s = seatOf(no);
-      const pos = facePoint(s.face, s.h, s.t, V.nameOut);   // 1104 — 면에서 떨어진 거리는 조절판 「명패 띄우기」(모든 대원 함께)
+      const nm = "No." + String(no).padStart(3, "0") + " " + NAMES[(no - 1) % NAMES.length];
+      const img = plateCanvas(nm, lit);
+      const wM = PLATE_H * img.width / img.height;  // 글자 길이만큼 판이 길어진다
+      /* 판이 면 밖으로 삐져나가지 않게 — 면이 좁은 위쪽에서는 가운데로 당긴다 */
+      const faceW = lerpProfile(s.h);
+      const room = Math.max(0, faceW * 0.97 - wM / 2);
+      const x = Math.max(-room, Math.min(room, s.t * faceW));
+      const tAdj = faceW > 0 ? x / faceW : 0;
+      const pos = facePoint(s.face, s.h, tAdj, V.nameOut);   // 면에서 떨어진 거리는 조절판 「명패 띄우기」(모든 대원 함께)
+      const rgt = faceRight(s.face);
+      const half = Cesium.Cartesian3.multiplyByScalar(rgt, wM / 2, new Cesium.Cartesian3());
+      const left = Cesium.Cartesian3.subtract(pos, half, new Cesium.Cartesian3());
+      const right = Cesium.Cartesian3.add(pos, half, new Cesium.Cartesian3());
+      const alt = V.groundH + s.h;
+      plateSources[s.face].entities.add({
+        wall: {
+          positions: [left, right],                  // 밖에서 볼 때 왼쪽 → 오른쪽 — 글자가 바로 읽힌다
+          minimumHeights: [alt - PLATE_H / 2, alt - PLATE_H / 2], maximumHeights: [alt + PLATE_H / 2, alt + PLATE_H / 2],
+          material: new Cesium.ImageMaterialProperty({ image: img, transparent: false }),
+          distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 900)
+        }
+      });
+      /* 불빛 — 명패 왼쪽 끝에 하나 (전야에 켜진다) */
+      const dotPos = Cesium.Cartesian3.subtract(left, Cesium.Cartesian3.multiplyByScalar(rgt, 1.2, new Cesium.Cartesian3()), new Cesium.Cartesian3());
       const col = WARM[Math.floor(s.tone * WARM.length)];
       const p = points.add(lit
-        ? { position: pos, pixelSize: 6 + s.tone * 3, color: col, outlineColor: col.withAlpha(0.35), outlineWidth: 3 }
-        : { position: pos, pixelSize: 3, color: RIVET, outlineWidth: 0 });
-      const nm = "No." + String(no).padStart(3, "0") + " " + NAMES[(no - 1) % NAMES.length];
-      /* 1104 소로 — 명패도 띠처럼 바탕을 깔고 그 위에 글씨를(「지금 너무 흐림」) — 청동 바탕 · 금빛 글씨 */
-      const l = labelsByFace[s.face].add({ position: pos, text: nm,
-        font: (lit ? "800 17px" : "800 16px") + ' "Nanum Myeongjo", serif',
-        fillColor: lit ? Cesium.Color.fromCssColorString("#fff3d6") : Cesium.Color.fromCssColorString("#f1d48a"),
-        style: Cesium.LabelStyle.FILL,
-        showBackground: true,
-        backgroundColor: Cesium.Color.fromCssColorString(lit ? "#3a2a12" : "#2e2113").withAlpha(0.9),
-        backgroundPadding: new Cesium.Cartesian2(9, 5),
-        pixelOffset: new Cesium.Cartesian2(8, -3),
-        horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
-        distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, lit ? 900 : 520),
-        translucencyByDistance: new Cesium.NearFarScalar(180, 1.0, lit ? 900 : 520, 0.45) });
+        ? { position: dotPos, pixelSize: 6 + s.tone * 3, color: col, outlineColor: col.withAlpha(0.35), outlineWidth: 3 }
+        : { position: dotPos, pixelSize: 3, color: RIVET, outlineWidth: 0 });
       lights.push({ p, base: col, phase: s.phase });
     }
     /* 면마다 기준점 — 카메라 반대쪽 면의 명패는 숨긴다(띠와 같은 셈 · 뒤쪽 명패가 겹쳐 비치지 않게) */
@@ -544,7 +577,7 @@
       const v = Cesium.Cartesian3.subtract(camPos, R.pt, new Cesium.Cartesian3());
       return Cesium.Cartesian3.dot(Cesium.Cartesian3.normalize(v, v), R.nrm) > 0.1;   // 정면으로 보이는 면만 — 옆으로 누운 면의 명패가 겹쳐 쌓이지 않게
     });
-    labelsByFace.forEach((c, f) => { const on = !!vis[f]; if (c.show !== on) c.show = on; });
+    plateSources.forEach((ds, f) => { const on = !!vis[f]; if (ds.show !== on) ds.show = on; });
 
     /* 불빛 — 전야에만 숨 쉬고, 처음 20초는 반짝인다 */
     const tsec = now / 1000, sparkle = stage === "eve" && now < eveUntil;
