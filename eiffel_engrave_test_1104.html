@@ -95,7 +95,14 @@
     <button id="line2Btn" class="on">둘째 줄 있음</button><button id="plateBtn" class="on">바탕 있음</button>
   </div>
 
-  <details id="adj" open>
+  <span class="lab">띠 붙이기</span>
+  <div id="bandPick">
+    <button data-b="0">트로카데로</button><button data-b="2">샹드마르스</button><button data-b="1">북동</button><button data-b="3">남서</button>
+  </div>
+  <div><button id="bandClear" disabled>고른 띠 처음 자리로</button><button id="bandDone" disabled>고르기 끝</button></div>
+  <div id="pickHint" class="how">띠를 고르고(단추나 탑 위의 띠를 눌러), 붙일 자리를 탑 위에서 누르세요.</div>
+
+  <details id="adj">
     <summary>좌표 조절</summary>
     <div class="row"><span>탑 방향</span><b id="rotVal"></b></div>
     <input id="rot" type="range" min="-15" max="15" step="0.5">
@@ -165,15 +172,18 @@
   const SUPA_URL = "https://cyhlotwdisjvoxvfkpnd.supabase.co";
   const SUPA_KEY = "sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR";
   const TUNE_KEY = "eiffel_tune";
-  const TUNE_FIELDS = ["rot", "groundH", "friezeH", "bandH", "bandW", "out", "polarisH", "line2", "plate"];
+  const TUNE_FIELDS = ["rot", "groundH", "friezeH", "bandH", "bandW", "out", "polarisH", "line2", "plate", "anchors"];
+  V.anchors = {};                                    // 면마다 붙인 자리 { 면번호: {lon, lat, alt} } — alt 는 타원체 높이(m)
   let supa = null, saved = null, isAdmin = false;
   try {
     try { if (window.parent !== window && window.parent.egSupa) supa = window.parent.egSupa; } catch (_) {}
     if (!supa && window.supabase) supa = window.supabase.createClient(SUPA_URL, SUPA_KEY,
       { auth: { storageKey: "eungyo-auth", persistSession: true, autoRefreshToken: true } });
   } catch (e) { console.warn("클라이언트를 만들지 못함", e); }
-  const tuneNow = () => { const o = {}; for (const k of TUNE_FIELDS) o[k] = V[k]; return o; };
-  const applyTune = (val) => { for (const k of TUNE_FIELDS) if (val && val[k] !== undefined && val[k] !== null) V[k] = val[k]; };
+  /* 깊은 복사 — anchors 는 그 자리에서 고쳐 쓰므로 확정한 값과 한 덩이를 나눠 쓰면 「손질 없음」으로 속는다 */
+  const clone = (x) => JSON.parse(JSON.stringify(x));
+  const tuneNow = () => { const o = {}; for (const k of TUNE_FIELDS) o[k] = clone(V[k]); return o; };
+  const applyTune = (val) => { for (const k of TUNE_FIELDS) if (val && val[k] !== undefined && val[k] !== null) V[k] = clone(val[k]); };
   if (supa) {
     try {
       const { data } = await supa.from("eg_settings").select("val,updated_at").eq("key", TUNE_KEY).maybeSingle();
@@ -246,8 +256,19 @@
 
   /* ── 탑 좌표계 ─────────────────────────────────────── */
   let enu = null;
+  /* 탑 한가운데 — 띠 넷을 다 붙이면 그 넷의 가운데가 곧 탑의 가운데다(마주 보는 면의 바깥 방향이 서로 지워진다).
+     그 전에는 공개 좌표 TOWER. 이름 · 별 · 아직 안 붙인 띠가 이 가운데를 따라 선다. */
+  const towerCenter = () => {
+    const a = V.anchors || {};
+    if ([0, 1, 2, 3].every((f) => a[f])) {
+      return { lon: [0, 1, 2, 3].reduce((s, f) => s + a[f].lon, 0) / 4,
+               lat: [0, 1, 2, 3].reduce((s, f) => s + a[f].lat, 0) / 4, fromBands: true };
+    }
+    return { lon: TOWER.lon, lat: TOWER.lat, fromBands: false };
+  };
   const setFrame = () => {
-    enu = Cesium.Transforms.eastNorthUpToFixedFrame(Cesium.Cartesian3.fromDegrees(TOWER.lon, TOWER.lat, V.groundH));
+    const c = towerCenter();
+    enu = Cesium.Transforms.eastNorthUpToFixedFrame(Cesium.Cartesian3.fromDegrees(c.lon, c.lat, V.groundH));
   };
   const local = (x, y, z) => Cesium.Matrix4.multiplyByPoint(enu, new Cesium.Cartesian3(x, y, z), new Cesium.Cartesian3());
   const bearing = (f) => BASE_BEARINGS[f] + V.rot;
@@ -264,6 +285,11 @@
   function faceNormal(f) {
     const th = rad(bearing(f));
     const v = Cesium.Matrix4.multiplyByPointAsVector(enu, new Cesium.Cartesian3(Math.sin(th), Math.cos(th), 0), new Cesium.Cartesian3());
+    return Cesium.Cartesian3.normalize(v, v);
+  }
+  function faceRight(f) {                            // 밖에서 볼 때 왼쪽 → 오른쪽 (세계 좌표)
+    const th = rad(bearing(f));
+    const v = Cesium.Matrix4.multiplyByPointAsVector(enu, new Cesium.Cartesian3(-Math.cos(th), Math.sin(th), 0), new Cesium.Cartesian3());
     return Cesium.Cartesian3.normalize(v, v);
   }
 
@@ -299,23 +325,44 @@
     }
     return c;
   }
+  let selBand = null;                                // 붙이려고 고른 띠(면 번호)
   function buildFrieze() {
     for (const F of friezeEntities) viewer.entities.remove(F.e);
     friezeEntities.length = 0;
     const half = V.bandW / 100;
-    const widthM = 2 * lerpProfile(V.friezeH) * half;
-    const img = friezeCanvas(widthM);
-    const lo = V.groundH + V.friezeH - V.bandH / 2, hi = V.groundH + V.friezeH + V.bandH / 2;
+    const imgCache = {};
     for (let f = 0; f < 4; f++) {
-      const left = facePoint(f, V.friezeH, -half, V.out), right = facePoint(f, V.friezeH, half, V.out);
+      const A = V.anchors && V.anchors[f];
+      const hRel = A ? A.alt - V.groundH : V.friezeH;           // 땅에서 잰 띠 높이 — 너비를 이 높이의 탑 폭으로 잰다
+      const halfM = lerpProfile(hRel) * half;
+      const key = Math.round(halfM * 10);
+      const img = imgCache[key] || (imgCache[key] = friezeCanvas(2 * halfM));
+      const nrm = faceNormal(f), rgt = faceRight(f);
+      let mid, alt;
+      if (A) {
+        /* 붙인 자리 — 탑 위를 누른 그 점에서 면 바깥으로 「면에서 띄우기」만큼 */
+        const p = Cesium.Cartesian3.fromDegrees(A.lon, A.lat, A.alt);
+        mid = Cesium.Cartesian3.add(p, Cesium.Cartesian3.multiplyByScalar(nrm, V.out, new Cesium.Cartesian3()), new Cesium.Cartesian3());
+        alt = A.alt;
+      } else {
+        mid = facePoint(f, V.friezeH, 0, V.out);
+        alt = V.groundH + V.friezeH;
+      }
+      const off = Cesium.Cartesian3.multiplyByScalar(rgt, halfM, new Cesium.Cartesian3());
+      const left = Cesium.Cartesian3.subtract(mid, off, new Cesium.Cartesian3());
+      const right = Cesium.Cartesian3.add(mid, off, new Cesium.Cartesian3());
+      const lo = alt - V.bandH / 2, hi = alt + V.bandH / 2;
+      const isSel = selBand === f;
       const e = viewer.entities.add({
         wall: {
           positions: [left, right],                  // 밖에서 볼 때 왼쪽 → 오른쪽 — 글자가 바로 읽힌다
           minimumHeights: [lo, lo], maximumHeights: [hi, hi],
-          material: new Cesium.ImageMaterialProperty({ image: img, transparent: true })
+          material: new Cesium.ImageMaterialProperty({ image: img, transparent: true }),
+          outline: isSel, outlineColor: Cesium.Color.fromCssColorString("#7ff0ff"), outlineWidth: 2
         }
       });
-      friezeEntities.push({ e, mid: facePoint(f, V.friezeH, 0, V.out), nrm: faceNormal(f) });
+      e._face = f;                                   // 탑 위의 띠를 눌러 고를 수 있게
+      friezeEntities.push({ e, f, mid, nrm });
     }
   }
 
@@ -409,7 +456,7 @@
   buildAll();
 
   /* ── 카메라 — 탑을 가운데 두고 돌리고 다가간다 ─────── */
-  const frameAt = (h) => Cesium.Transforms.eastNorthUpToFixedFrame(Cesium.Cartesian3.fromDegrees(TOWER.lon, TOWER.lat, V.groundH + h));
+  const frameAt = (h) => { const c = towerCenter(); return Cesium.Transforms.eastNorthUpToFixedFrame(Cesium.Cartesian3.fromDegrees(c.lon, c.lat, V.groundH + h)); };
   function look(h, headingDeg, pitchDeg, range, fly) {
     const set = () => viewer.camera.lookAtTransform(frameAt(h), new Cesium.HeadingPitchRange(rad(headingDeg), rad(pitchDeg), range));
     if (!fly) { set(); return; }
@@ -443,7 +490,7 @@
     const camPos = viewer.camera.positionWC;
     for (const F of friezeEntities) {
       const toCam = Cesium.Cartesian3.subtract(camPos, F.mid, new Cesium.Cartesian3());
-      F.e.show = Cesium.Cartesian3.dot(Cesium.Cartesian3.normalize(toCam, toCam), F.nrm) > 0.12;
+      F.e.show = F.f === selBand || Cesium.Cartesian3.dot(Cesium.Cartesian3.normalize(toCam, toCam), F.nrm) > 0.12;   // 고른 띠는 늘 보인다
     }
     /* 불빛 — 전야에만 숨 쉬고, 처음 20초는 반짝인다 */
     const tsec = now / 1000, sparkle = stage === "eve" && now < eveUntil;
@@ -497,6 +544,50 @@
     });
   }
   showVals();
+
+  /* ── 띠 붙이기 — 뉴욕 벽 명패 편집기(terra 0928)처럼: 띠를 고르고 → 탑 위를 누르면 그 자리로 ── */
+  const FACE_KO = ["트로카데로 쪽", "북동 쪽", "샹드마르스 쪽", "남서 쪽"];
+  const hint = (t) => { $("pickHint").textContent = t; };
+  function selectBand(f) {
+    selBand = f;
+    document.querySelectorAll("#bandPick button").forEach((b) => b.classList.toggle("on", f !== null && +b.dataset.b === f));
+    $("bandClear").disabled = f === null || !(V.anchors && V.anchors[f]);
+    $("bandDone").disabled = f === null;
+    buildFrieze();
+    if (f === null) { hint("띠를 고르고(단추나 탑 위의 띠를 눌러), 붙일 자리를 탑 위에서 누르세요."); return; }
+    hint("「" + FACE_KO[f] + "」 띠를 골랐습니다(하늘색 테두리).\n탑 위에서 띠 한가운데가 올 자리를 누르세요. 몇 번이든 다시 누르면 됩니다.");
+  }
+  document.querySelectorAll("#bandPick button").forEach((b) => b.addEventListener("click", () => {
+    const f = +b.dataset.b;
+    if (selBand === f) { selectBand(null); return; }
+    selectBand(f); faceView(f, true);                 // 그 면 앞으로 날아간다 — 묻힌 띠도 찾을 수 있게
+  }));
+  $("bandDone").addEventListener("click", () => selectBand(null));
+  $("bandClear").addEventListener("click", () => {
+    if (selBand === null || !V.anchors) return;
+    delete V.anchors[selBand]; setFrame(); buildAll(); selectBand(selBand); markDirty();
+    hint("「" + FACE_KO[selBand] + "」 띠를 처음 자리로 돌렸습니다.");
+  });
+  const clickH = new Cesium.ScreenSpaceEventHandler(scene.canvas);
+  clickH.setInputAction((click) => {
+    const picked = scene.pick(click.position);
+    if (Cesium.defined(picked) && picked.id && picked.id._face !== undefined) { selectBand(picked.id._face); return; }
+    if (selBand === null || !scene.pickPositionSupported) return;
+    const c = scene.pickPosition(click.position);
+    if (!Cesium.defined(c)) { hint("그 자리는 탑이 아니라 하늘입니다 — 탑 위를 눌러 주세요."); return; }
+    const g = Cesium.Cartographic.fromCartesian(c);
+    const was4 = towerCenter().fromBands;
+    V.anchors = V.anchors || {};
+    V.anchors[selBand] = { lon: +Cesium.Math.toDegrees(g.longitude).toFixed(7), lat: +Cesium.Math.toDegrees(g.latitude).toFixed(7),
+                           alt: Math.round(g.height * 10) / 10 };
+    const now4 = towerCenter().fromBands;
+    if (now4) { setFrame(); buildAll(); } else buildFrieze();
+    $("bandClear").disabled = false; markDirty();
+    const left = [0, 1, 2, 3].filter((f) => !V.anchors[f]).map((f) => FACE_KO[f]);
+    hint("「" + FACE_KO[selBand] + "」 띠를 붙였습니다 · 땅에서 " + (V.anchors[selBand].alt - V.groundH).toFixed(1) + "m" +
+      (now4 && !was4 ? "\n띠 넷이 다 붙어 탑 한가운데를 그 넷으로 다시 잡았습니다 — 이름과 별도 따라왔습니다." :
+       left.length ? "\n남은 띠: " + left.join(" · ") : "") + "\n마음에 들면 아래 「확정」.");
+  }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
   /* 확정 — 손질한 값을 그 자리에서 박는다 */
   const hhmm = (iso) => { try { return new Date(iso).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; } };
