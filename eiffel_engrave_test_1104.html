@@ -19,7 +19,13 @@
      ⚠ 이름은 예시 — 진짜 명부(eg_crew)와는 아직 잇지 않았다.
      ⭐ 1104 06:5x 소로 — 이름을 탑 전체에 흩으니 철골 허공에 뜨고 멀리선 안 보였다 →
        이름은 1층 테두리(타이틀 띠 위)에 면마다 27칸(9칸 × 3줄) = 108칸, 넘치면 2층 테두리에 다시 108칸.
-       108은 한 둘레의 칸 수일 뿐 한정이 아니다(1026 철회 그대로). 불빛은 탑 전체에 흩어 둔다(귀환 전야). -->
+       108은 한 둘레의 칸 수일 뿐 한정이 아니다(1026 철회 그대로).
+     ⭐ 1104 07:0x 소로 — 두 겹:
+       ① 각인(30년) 1층 · 2층 띠 · 상아빛 판에 먹색 이름 · 빈 칸도 그려 둠(「이름을 기다리는 자리」 · 1022 「빈 자리 안 그림」을 바꿈)
+       ② 장식(40일) 탑 전체에 색 전구 + 화면을 보는 이름표 — 크리스마스트리처럼 날마다 조금씩 차오름
+          초반이 초라하지 않게 이름을 되풀이해 「우레와 같은 박수」 — 1명 30개 · 2명 50 · 3명 60 … 108명 324
+          번호는 대원마다 하나뿐(「내 장식」) · 나머지는 번호 없는 박수 장식 → 다가가 보면 몇 분인지 정직하게 보인다
+       때 — 출항하는 날 새김 + 장식 · 귀환 전야 폴라리스 · 반짝임 · 1월 중순 장식을 걷고 띠만. -->
 <script>window.CESIUM_BASE_URL = "https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/";</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Cesium.js"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.123.0/Widgets/widgets.css" rel="stylesheet">
@@ -84,7 +90,7 @@
 </head>
 <body>
 <div id="v"></div>
-<div id="stageTag">출항 뒤 — 이름이 새겨짐</div>
+<div id="stageTag">출항 뒤 — 띠에 새기고 트리에 장식</div>
 <div id="editBar" hidden>
   <div class="eb-head"><b id="ebTitle">띠 맞추는 중</b><span id="ebWhere"></span></div>
   <div class="eb-body">
@@ -110,12 +116,12 @@
 
   <span class="lab">단계</span>
   <div id="stages">
-    <button data-s="notice">공고 날</button><button data-s="sailed" class="on">출항 뒤</button><button data-s="eve">귀환 전야</button>
+    <button data-s="notice">공고 날</button><button data-s="sailed" class="on">출항 뒤</button><button data-s="eve">귀환 전야</button><button data-s="after">1월 중순 뒤</button>
   </div>
 
   <span class="lab">대원 수 (예시)</span>
   <div id="counts">
-    <button data-n="1">1</button><button data-n="10" class="on">10</button><button data-n="108">108</button><button data-n="216">216</button>
+    <button data-n="1" class="on">1</button><button data-n="3">3</button><button data-n="10">10</button><button data-n="108">108</button><button data-n="216">216</button>
   </div>
 
   <span class="lab">띠 앞으로</span>
@@ -185,7 +191,7 @@
   const BASE_BEARINGS = [313, 43, 133, 223];                          // 네 면이 바라보는 방위
   /* 탑의 반폭(가운데에서 면까지, m) — 공개 치수로 만든 꺾은선 */
   const PROFILE = [[0, 62.5], [57, 35.3], [115, 20.5], [190, 13.5], [276, 9.3], [300, 4.5], [330, 0.8]];
-  const NAMES = ["소로","노란화살표","새벽길","월든의아침","뒷방의몽테뉴","책방고양이","안데스우편기",
+  const NAMES = ["lonelywalden","노란화살표","새벽길","월든의아침","뒷방의몽테뉴","책방고양이","안데스우편기",
     "라탱산책","청음실","별지기","카타딘","오두막","엘리펀트섬","순례자","밤의독서","몽블랑","헌책방",
     "플루트","델프트블루","실스마리아","프로코프","리스본일몰","마우나케아","인듀어런스"];
   const START = { rot: 0, groundH: 79, friezeH: 52, bandH: 7, bandW: 80, out: 2, nameH: 1.6, polarisH: 336 };
@@ -413,13 +419,15 @@
   }
 
   /* ── 대원 명패 · 불빛 · 폴라리스 ───────────────────── */
-  const points = scene.primitives.add(new Cesium.PointPrimitiveCollection());
+  /* 장식 전구 · 이름표는 면마다 한 묶음 — 카메라 반대쪽 면은 묶음째 숨긴다(이름표 하나씩 끄면 바탕만 꺼지는 Cesium 버릇) */
+  const bulbsByFace = [0, 1, 2, 3].map(() => scene.primitives.add(new Cesium.PointPrimitiveCollection()));
+  const tagsByFace = [0, 1, 2, 3].map(() => scene.primitives.add(new Cesium.LabelCollection()));
   /* 명패는 면마다 한 묶음(데이터 소스) — 카메라 반대쪽 면은 묶음째 숨긴다 */
   const plateSources = [0, 1, 2, 3].map(() => { const ds = new Cesium.CustomDataSource(); viewer.dataSources.add(ds); return ds; });
   const ghostSource = new Cesium.CustomDataSource(); viewer.dataSources.add(ghostSource);   // 맞추는 동안 보이는 빈 칸 27개
   const sparkles = scene.primitives.add(new Cesium.PointPrimitiveCollection());
   const stars = scene.primitives.add(new Cesium.BillboardCollection());
-  let stage = "sailed", count = 10, eveUntil = 0, lights = [], faceRefs = [];
+  let stage = "sailed", count = 1, eveUntil = 0, lights = [], faceRefs = [];
 
   /* 칸 — 면마다 27칸(9칸 × 3줄), 네 면 108칸이 한 둘레. 첫 둘레는 1층(r1), 넘치면 2층(r2).
      ⭐ 대원 번호 → 칸은 둘레마다 고정된 뒤섞음 순서로 정한다(받은 칸은 30년).
@@ -487,42 +495,49 @@
     };
   }
 
-  /* 명패 그림 — 청동 판 · 금선 테두리 · 위에 작게 번호, 아래에 크게 이름 */
+  /* 명패 그림 — 상아빛 판 · 가는 청동 테두리 · 먹색 글씨(위에 작게 번호, 아래에 크게 이름)
+     1104 소로 — 「108칸 띠 전체를 다른 색으로 칠하고 검은 글씨로 하나씩 채우기」 · 빈 칸은 같은 판에 글씨 없이 */
   const plateCache = new Map();
-  function plateCanvas(noText, name, lit, aspect) {
-    const k = (lit ? "L|" : "S|") + noText + "|" + name + "|" + aspect.toFixed(2);
+  function plateCanvas(noText, name, aspect) {
+    const k = noText + "|" + name + "|" + aspect.toFixed(2);
     if (plateCache.has(k)) return plateCache.get(k);
     const H = 128, W = Math.max(160, Math.round(H * aspect));
     const c = document.createElement("canvas"); c.width = W; c.height = H;
     const g = c.getContext("2d");
     const bg = g.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, lit ? "#5c4420" : "#4b3621"); bg.addColorStop(1, lit ? "#36260f" : "#2a1e12");
+    bg.addColorStop(0, "#f8f1dc"); bg.addColorStop(1, "#e6d7b0");
     g.fillStyle = bg; g.fillRect(0, 0, W, H);
-    g.strokeStyle = "#b8913f"; g.lineWidth = 4; g.strokeRect(6, 6, W - 12, H - 12);
-    g.textAlign = "center"; g.textBaseline = "middle";
-    const draw = (text, size, weight, y, maxW) => {
-      const set = () => { g.font = weight + " " + size + 'px "Nanum Myeongjo", serif'; };
-      set(); while (g.measureText(text).width > maxW && size > 10) { size -= 2; set(); }
-      g.fillStyle = "rgba(0,0,0,0.6)"; g.fillText(text, W / 2 + 2, y + 3);
-      const gold = g.createLinearGradient(0, y - size / 2, 0, y + size / 2);
-      if (lit) { gold.addColorStop(0, "#fffaf0"); gold.addColorStop(1, "#f6dc9a"); }
-      else { gold.addColorStop(0, "#f8e6a6"); gold.addColorStop(0.5, "#dcb24f"); gold.addColorStop(1, "#9a6f26"); }
-      g.fillStyle = gold; g.fillText(text, W / 2, y);
-    };
-    draw(noText, 30, 700, H * 0.32, W - 30);
-    draw(name, 46, 800, H * 0.67, W - 30);
+    g.strokeStyle = "#7a5a2a"; g.lineWidth = 5; g.strokeRect(3, 3, W - 6, H - 6);
+    g.strokeStyle = "rgba(122,90,42,0.45)"; g.lineWidth = 2; g.strokeRect(11, 11, W - 22, H - 22);
+    if (name) {
+      g.textAlign = "center"; g.textBaseline = "middle";
+      const draw = (text, size, weight, y, maxW) => {
+        const set = () => { g.font = weight + " " + size + 'px "Nanum Myeongjo", serif'; };
+        set(); while (g.measureText(text).width > maxW && size > 10) { size -= 2; set(); }
+        g.fillStyle = "rgba(255,255,255,0.7)"; g.fillText(text, W / 2 + 1, y + 2);   // 새긴 홈 아래쪽에 닿는 빛
+        g.fillStyle = "#231a10"; g.fillText(text, W / 2, y);
+      };
+      draw(noText, 30, 700, H * 0.33, W - 34);
+      draw(name, 46, 800, H * 0.68, W - 34);
+    }
     plateCache.set(k, c);
     return c;
   }
 
-  /* 불빛 자리 — 탑 전체에 흩어 둔다(귀환 전야에만 켜진다) · 번호마다 늘 같은 자리 */
-  function lightSeat(no) {
-    const r = rng(no * 2654435761);
+  /* ── 트리 장식(40일) — 탑 전체에 색 전구 + 이름표 ─────────
+     장식 수 — 1명 30 · 2명 50 · 3명 62 · 10명 96 · 30명 128 · 48명쯤부터 한 사람에 3개 · 108명 324 · 216명 648 */
+  const ornamentCount = (n) => n <= 0 ? 0 : Math.max(Math.round(30 + 28.85 * Math.log(n)), 3 * n);
+  /* 장식 자리 — 탑 전체(띠 아래 네 다리는 빼고 · 1104 소로) · 자리 번호마다 늘 같은 곳
+     「내 장식」은 대원 번호의 자리(30년 고정 · 「내 자리로」가 여기로) · 박수 장식은 그 뒤 자리들을 차례로 */
+  const ORN_PALETTE = ["#e8433a", "#2fb36a", "#f2c230", "#3b82f6", "#fff6e0", "#e86ac0"].map((c) => Cesium.Color.fromCssColorString(c));
+  function ornSeat(k) {
+    const r = rng(k * 2654435761 + 17);
     let h = 62;
-    for (let k = 0; k < 60; k++) { h = 62 + r() * 231; if (r() <= lerpProfile(h) / lerpProfile(62)) break; }
-    return { face: no % 4, h, t: (r() * 2 - 1) * 0.94, tone: r(), phase: r() * 6.283 };
+    for (let i = 0; i < 60; i++) { h = 62 + r() * 238; if (r() <= lerpProfile(h) / lerpProfile(62)) break; }
+    return { face: k % 4, h, t: (r() * 2 - 1) * 0.9, col: ORN_PALETTE[Math.floor(r() * ORN_PALETTE.length)], phase: r() * 6.283 };
   }
-  const WARM = ["#ffd27a", "#ffe8b0", "#ffb85c"].map((c) => Cesium.Color.fromCssColorString(c));
+  const OWN_SEAT = (no) => no;                       // 내 장식 자리 = 대원 번호
+  const CHEER_SEAT0 = 100000;                        // 박수 장식 자리는 여기서부터
 
   function starImage() {                             // 여덟 갈래 빛 — 캔버스로 그린다
     const c = document.createElement("canvas"); c.width = c.height = 128;
@@ -553,29 +568,64 @@
     }
   }
 
+  const NIGHT_IVORY = new Cesium.Color(0.74, 0.70, 0.62, 1);
   function buildCrew() {
-    points.removeAll(); plateSources.forEach((ds) => ds.entities.removeAll()); sparkles.removeAll(); stars.removeAll();
+    plateSources.forEach((ds) => ds.entities.removeAll()); sparkles.removeAll(); stars.removeAll();
+    bulbsByFace.forEach((c) => c.removeAll()); tagsByFace.forEach((c) => c.removeAll());
     lights = [];
-    const lit = stage === "eve";
+    const eve = stage === "eve";
     const n = stage === "notice" ? 0 : Math.min(count, PER_RING * 2);
-    for (let no = 1; no <= n; no++) {
-      const s = slotOf(no), kind = s.ring === 0 ? "r1" : "r2";
-      const w = cellWall(kind, s.face, s.row, s.col);
-      const img = plateCanvas("No." + String(no).padStart(3, "0"), NAMES[(no - 1) % NAMES.length], lit, w.aspect);
-      const e = plateSources[s.face].entities.add({
-        wall: { positions: w.positions, minimumHeights: [w.lo, w.lo], maximumHeights: [w.hi, w.hi],
-          material: new Cesium.ImageMaterialProperty({ image: img, transparent: false }) }
-      });
-      e._block = { kind, f: s.face };                // 탑 위의 명패를 눌러 그 묶음을 고를 수 있게
-      /* 불빛 — 귀환 전야에만, 탑 전체에 흩어 */
-      if (lit) {
-        const L = lightSeat(no), col = WARM[Math.floor(L.tone * WARM.length)];
-        const p = points.add({ position: facePoint(L.face, L.h, L.t, 3), pixelSize: 6 + L.tone * 3, color: col,
-          outlineColor: col.withAlpha(0.35), outlineWidth: 3 });
-        lights.push({ p, base: col, phase: L.phase });
+    const nameOf = (no) => NAMES[(no - 1) % NAMES.length];
+
+    /* ① 각인 — 1층 둘레 108칸은 늘(빈 칸도) · 2층 둘레는 109번째 대원이 오면 */
+    const rings = n > PER_RING ? 2 : 1;
+    const owner = {};                                // "ring|면|줄|칸" → 대원 번호
+    for (let no = 1; no <= n; no++) { const s = slotOf(no); owner[[s.ring, s.face, s.row, s.col].join("|")] = no; }
+    for (let ring = 0; ring < rings; ring++) {
+      const kind = ring === 0 ? "r1" : "r2";
+      for (let f = 0; f < 4; f++) for (let row = 0; row < ROWS; row++) for (let col = 0; col < COLS; col++) {
+        const no = owner[[ring, f, row, col].join("|")];
+        const w = cellWall(kind, f, row, col);
+        const img = plateCanvas(no ? "No." + String(no).padStart(3, "0") : "", no ? nameOf(no) : "", w.aspect);
+        const phase = (f * 27 + row * 9 + col) * 0.618;
+        /* 귀환 전야에는 판이 숨 쉬듯 밝아졌다 어두워진다 — 평소엔 그대로 */
+        const color = new Cesium.CallbackProperty(() => {
+          if (eve) { const t = performance.now() / 1000, b = 0.82 + 0.18 * Math.sin(t * 2.2 + phase);
+                     return new Cesium.Color(1, 0.96 * b + 0.04, 0.82 * b + 0.12, 1); }
+          return night ? NIGHT_IVORY : Cesium.Color.WHITE;   // 밤엔 한 톤 눌러 번짐에 하얗게 타지 않게
+        }, false);
+        const e = plateSources[f].entities.add({
+          wall: { positions: w.positions, minimumHeights: [w.lo, w.lo], maximumHeights: [w.hi, w.hi],
+            material: new Cesium.ImageMaterialProperty({ image: img, transparent: false, color }) }
+        });
+        e._block = { kind, f };                      // 탑 위의 명패를 눌러 그 묶음을 고를 수 있게
       }
     }
-    /* 면마다 기준점 — 카메라 반대쪽 면의 명패는 숨긴다 */
+
+    /* ② 트리 장식 — 출항 뒤 · 귀환 전야에만 (1월 중순 뒤엔 걷는다) */
+    if (n > 0 && (stage === "sailed" || stage === "eve")) {
+      const total = ornamentCount(n);
+      const add = (seatNo, text, own) => {
+        const S = ornSeat(seatNo);
+        const pos = facePoint(S.face, S.h, S.t, 3);
+        const p = bulbsByFace[S.face].add({ position: pos, pixelSize: own ? 10 : 7, color: S.col,
+          outlineColor: S.col.withAlpha(0.35), outlineWidth: own ? 4 : 3 });
+        tagsByFace[S.face].add({ position: pos, text,
+          font: (own ? "800 15px" : "700 12px") + ' "Nanum Myeongjo", serif',
+          fillColor: own ? Cesium.Color.fromCssColorString("#231a10") : Cesium.Color.WHITE,
+          style: own ? Cesium.LabelStyle.FILL : Cesium.LabelStyle.FILL_AND_OUTLINE,
+          outlineColor: Cesium.Color.fromCssColorString("#1a1206"), outlineWidth: 3,
+          showBackground: own, backgroundColor: Cesium.Color.fromCssColorString("#f3e9cf").withAlpha(0.95),
+          backgroundPadding: new Cesium.Cartesian2(7, 4),
+          pixelOffset: new Cesium.Cartesian2(own ? 9 : 7, -2), horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
+          distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, own ? 480 : 300) });
+        lights.push({ p, base: S.col, phase: S.phase });
+      };
+      for (let no = 1; no <= n; no++) add(OWN_SEAT(no), "No." + String(no).padStart(3, "0") + " " + nameOf(no), true);   // 내 장식 — 번호는 하나뿐
+      for (let j = 0; j < total - n; j++) add(CHEER_SEAT0 + j, nameOf((j % n) + 1), false);                             // 박수 장식 — 번호 없이 이름만
+    }
+
+    /* 면마다 기준점 — 카메라 반대쪽 면은 숨긴다 */
     faceRefs = [0, 1, 2, 3].map((f) => ({ pt: facePoint(f, 90, 0, 0), nrm: faceNormal(f) }));
     /* 전야의 반짝임용 흰 점 — 평소엔 꺼 둔다 */
     for (let i = 0; i < 700; i++) {
@@ -584,13 +634,13 @@
       const t = h < 57 ? (r() < 0.5 ? -1 : 1) * (0.6 + r() * 0.38) : (r() * 2 - 1) * 0.96;
       sparkles.add({ position: facePoint(face, h, t, 2.5), pixelSize: 3, color: Cesium.Color.WHITE.withAlpha(0) });
     }
-    /* 꼭대기 폴라리스 — 전야 전에는 꺼진 별 */
-    stars.add({ position: local(0, 0, V.polarisH), image: STAR_IMG, scale: lit ? 0.8 : 0.5,
-      color: lit ? Cesium.Color.WHITE : Cesium.Color.WHITE.withAlpha(0.14) });
+    /* 꼭대기 폴라리스 — 귀환 전야에 켜진다 */
+    stars.add({ position: local(0, 0, V.polarisH), image: STAR_IMG, scale: eve ? 0.8 : 0.5,
+      color: eve ? Cesium.Color.WHITE : Cesium.Color.WHITE.withAlpha(0.14) });
     buildGhost();
   }
 
-  const STAGE_TAG = { notice: "공고 날 — 각인 띠와 꺼진 별만", sailed: "출항 뒤 — 이름이 새겨짐", eve: "귀환 전야 — 모든 이름에 불" };
+  const STAGE_TAG = { notice: "공고 날 — 띠의 빈 칸과 꺼진 별", sailed: "출항 뒤 — 띠에 새기고 트리에 장식", eve: "귀환 전야 — 폴라리스 점등 · 탑 전체 반짝임", after: "1월 중순 뒤 — 장식을 걷고 띠만" };
   function setStage(s) {
     stage = s;
     document.querySelectorAll("#stages button").forEach((b) => b.classList.toggle("on", b.dataset.s === s));
@@ -644,10 +694,15 @@
       return Cesium.Cartesian3.dot(Cesium.Cartesian3.normalize(v, v), R.nrm) > 0.1;   // 정면으로 보이는 면만 — 옆으로 누운 면의 명패가 겹쳐 쌓이지 않게
     });
     plateSources.forEach((ds, f) => { const on = !!vis[f] || (!!sel && sel.kind !== "band" && sel.f === f); if (ds.show !== on) ds.show = on; });
+    const visSide = faceRefs.map((R) => {
+      const v = Cesium.Cartesian3.subtract(camPos, R.pt, new Cesium.Cartesian3());
+      return Cesium.Cartesian3.dot(Cesium.Cartesian3.normalize(v, v), R.nrm) > -0.35;   // 장식은 옆면까지 — 트리가 둥글게 차 보이게
+    });
+    for (let f = 0; f < 4; f++) { const on = !!visSide[f]; if (bulbsByFace[f].show !== on) bulbsByFace[f].show = on; if (tagsByFace[f].show !== on) tagsByFace[f].show = on; }
 
-    /* 불빛 — 전야에만 숨 쉬고, 처음 20초는 반짝인다 */
+    /* 장식 전구 — 40일 내내 숨 쉬고, 귀환 전야 처음 20초는 반짝인다 */
     const tsec = now / 1000, sparkle = stage === "eve" && now < eveUntil;
-    if (stage === "eve") {
+    if (lights.length) {
       for (const L of lights) {
         const a = 0.78 + 0.22 * Math.sin(tsec * 1.3 + L.phase);
         L.p.color = sparkle && Math.sin(tsec * 23 + L.phase * 9) > 0.6 ? Cesium.Color.WHITE : L.base.withAlpha(a);
@@ -859,7 +914,7 @@
     }
     msg((shaderOk ? "밤 셰이더를 걸었습니다." : "⚠ 셰이더를 걸지 못했습니다.") +
         "\n땅 높이 " + V.groundH + "m" + (measured !== null ? " (잰 값 " + measured + "m)" : "") +
-        "\n\n볼 것: ① 1층 명패 줄이 띠 위 벽에 붙는지 ② 멀리서 금빛 줄로 보이는지 ③ 귀환 전야의 불");
+        "\n\n볼 것: ① 상아빛 108칸이 띠 위 벽에 붙는지 ② 대원 1 · 3 · 10 · 108명일 때 트리 ③ 귀환 전야 · 1월 중순 뒤");
   }
 })();
 </script>
