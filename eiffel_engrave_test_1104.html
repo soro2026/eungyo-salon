@@ -226,7 +226,7 @@
   const LIVE = Q.has("live");
   const DEMO = Q.has("demo") ? Math.max(0, parseInt(Q.get("demo"), 10) || 0) : null;
   if (LIVE) document.body.classList.add("live");
-  if (LIVE && DEMO !== null) document.body.classList.add("demo");
+  if (LIVE && DEMO !== null) document.body.classList.add("demo");   // 첫 출항 전 예시는 loadLive 에서
   const rad = Cesium.Math.toRadians;
   const lerpProfile = (h) => {
     for (let i = 1; i < PROFILE.length; i++) {
@@ -472,7 +472,12 @@
   /* 탑에 오른 대원 — 상영 모드(예시 아님)는 eg_tower_crew() 그대로, 그 밖엔 예시 1 … count */
   let liveRoster = null;                             // [{ no, nick }] — 출항한 대원만
   const USE_DB = LIVE && DEMO === null;
-  const rosterNow = () => USE_DB ? (liveRoster || []) : Array.from({ length: count }, (_, i) => ({ no: i + 1, nick: NAMES[i % NAMES.length] }));
+  /* 1104 소로 — 첫 출항(11/14) 전 홈페이지에는 「예시 화면」(대원 12명) · 출항 날부터 저절로 실제 탑으로 */
+  const FIRST_SAIL = "2026-11-14", PREVIEW_N = 12;
+  const kstDay = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  const previewNow = () => USE_DB && (liveRoster || []).length === 0 && kstDay() < FIRST_SAIL;
+  const example = (k) => Array.from({ length: k }, (_, i) => ({ no: i + 1, nick: NAMES[i % NAMES.length] }));
+  const rosterNow = () => previewNow() ? example(PREVIEW_N) : USE_DB ? (liveRoster || []) : example(count);
 
   /* 명패 띠 — 1층 띠 자리 전체가 명패판 · 면마다 그 띠를 그 면 사람 수만큼 나눠 가득 채운다.
      ⭐ 1104 07:1x 소로 — 1~4명 면마다 1장(띠 전체가 한 사람 명패) · 5~8명 2장(반씩) · 9~12명 3장 … 108명 27장
@@ -987,6 +992,7 @@
         if (!error && Array.isArray(data)) liveRoster = data.map((r) => ({ no: r.crew_no, nick: r.nickname }));
       } catch (e) { console.warn("명부 읽기 실패", e); }
     } else if (DEMO !== null) count = DEMO;
+    document.body.classList.toggle("demo", DEMO !== null || previewNow());   // 「예시 화면」 딱지
     const forced = Q.get("stage");
     const st = forced && STAGE_TAG[forced] ? forced : stageByDate(rosterNow().length > 0);
     stage = st; buildCrew();
