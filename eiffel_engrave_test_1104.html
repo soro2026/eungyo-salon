@@ -21,7 +21,7 @@
        이름은 1층 테두리(타이틀 띠 위)에 면마다 27칸(9칸 × 3줄) = 108칸, 넘치면 2층 테두리에 다시 108칸.
        108은 한 둘레의 칸 수일 뿐 한정이 아니다(1026 철회 그대로).
      ⭐ 1104 07:0x 소로 — 두 겹:
-       ① 각인(30년) 1층 · 2층 띠 · 상아빛 판에 먹색 이름 · 빈 칸도 그려 둠(「이름을 기다리는 자리」 · 1022 「빈 자리 안 그림」을 바꿈)
+       ① 각인(30년) 1층 · 2층 띠 · 상아빛 판에 먹색 이름 · 칸은 4칸씩 자란다(1~4명 4칸 · 5~8명 8칸 …) · 빈 칸은 그 묶음의 남은 자리뿐
        ② 장식(40일) 탑 전체에 색 전구 + 화면을 보는 이름표 — 크리스마스트리처럼 날마다 조금씩 차오름
           초반이 초라하지 않게 이름을 되풀이해 「우레와 같은 박수」 — 1명 30개 · 2명 50 · 3명 60 … 108명 324
           번호는 대원마다 하나뿐(「내 장식」) · 나머지는 번호 없는 박수 장식 → 다가가 보면 몇 분인지 정직하게 보인다
@@ -121,7 +121,7 @@
 
   <span class="lab">대원 수 (예시)</span>
   <div id="counts">
-    <button data-n="1" class="on">1</button><button data-n="3">3</button><button data-n="10">10</button><button data-n="108">108</button><button data-n="216">216</button>
+    <button data-n="1" class="on">1</button><button data-n="5">5</button><button data-n="10">10</button><button data-n="40">40</button><button data-n="108">108</button><button data-n="216">216</button>
   </div>
 
   <span class="lab">띠 앞으로</span>
@@ -435,21 +435,35 @@
   const COLS = 9, ROWS = 3, PER_FACE = COLS * ROWS, PER_RING = PER_FACE * 4, SLOT_SEED = 20261114;
   const COL_GAP = 0.35, ROW_GAP = 0.35;
   const RING2_H = 116;                               // 2층 바닥(115m) 바로 위 — 2층 묶음의 처음 자리
-  const permOf = (() => {
+  /* ⭐ 1104 07:1x 소로 — 칸은 4칸씩 자란다(살아 있는 것처럼).
+       대원 1~4명 → 4칸(면마다 1칸) · 5~8명 → 8칸 · … · 105~108명 → 108칸. 늘 「다음 4명」 자리까지만 열려 있다.
+     자라는 모양 — 네 면이 똑같이 · 타이틀 띠 바로 위 줄(아랫줄) 한가운데서 좌우로 번갈아 퍼지고,
+       한 줄이 차면 그 위 줄, 다시 맨 윗줄로 — 벽돌을 쌓듯 띠 위로 올라간다.
+     랜덤 — 새로 열린 4칸(면마다 1칸) 가운데 어느 면에 앉을지는 묶음마다 고정된 뒤섞음으로.
+     ⚠ 첫 출항(11/14) 전에 이 셈(GROW · SLOT_SEED)을 굳힌다. 그 뒤로 고치면 이미 새긴 이름이 칸을 옮긴다. */
+  const GROW = [];                                   // 묶음 번호(0~26) → 면 위 칸 (줄 0 = 맨 위 · 2 = 띠 바로 위)
+  for (const row of [2, 1, 0]) for (const col of [4, 3, 5, 2, 6, 1, 7, 0, 8]) GROW.push({ row, col });
+  const facesOfBatch = (() => {
     const cache = {};
-    return (ring) => {
-      if (cache[ring]) return cache[ring];
-      const a = Array.from({ length: PER_RING }, (_, i) => i), r = rng(SLOT_SEED + ring * 7919);
-      for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
-      return (cache[ring] = a);
+    return (ring, b) => {
+      const k = ring + "|" + b;
+      if (cache[k]) return cache[k];
+      const a = [0, 1, 2, 3], r = rng(SLOT_SEED + ring * 7919 + b * 131);
+      for (let i = 3; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+      return (cache[k] = a);
     };
   })();
   function slotOf(no) {
-    const ring = Math.floor((no - 1) / PER_RING);
-    const idx = permOf(ring)[(no - 1) % PER_RING];
-    const within = idx % PER_FACE;
-    return { ring, face: Math.floor(idx / PER_FACE), row: Math.floor(within / COLS), col: within % COLS };
+    const ring = Math.floor((no - 1) / PER_RING), m = (no - 1) % PER_RING;
+    const b = Math.floor(m / 4), g = GROW[b];
+    return { ring, batch: b, face: facesOfBatch(ring, b)[m % 4], row: g.row, col: g.col };
   }
+  /* 둘레마다 열린 묶음 수 — 그 둘레에 앉은 사람 수를 4로 나눠 올림(공고 날엔 1층 첫 4칸이 기다린다) */
+  const openBatches = (n, ring) => {
+    const inRing = Math.max(0, Math.min(PER_RING, n - ring * PER_RING));
+    if (ring === 0 && n === 0) return 1;
+    return Math.ceil(inRing / 4);
+  };
 
   /* 띠 한가운데(면 위 점)와 그 높이 — 명패 묶음의 처음 자리를 여기서 잰다 */
   function bandRef(f) {
@@ -577,13 +591,14 @@
     const n = stage === "notice" ? 0 : Math.min(count, PER_RING * 2);
     const nameOf = (no) => NAMES[(no - 1) % NAMES.length];
 
-    /* ① 각인 — 1층 둘레 108칸은 늘(빈 칸도) · 2층 둘레는 109번째 대원이 오면 */
+    /* ① 각인 — 열린 묶음의 칸만(4칸씩 자람) · 빈 칸은 그 묶음의 남은 자리뿐 · 2층 둘레는 109번째 대원이 오면 */
     const rings = n > PER_RING ? 2 : 1;
     const owner = {};                                // "ring|면|줄|칸" → 대원 번호
     for (let no = 1; no <= n; no++) { const s = slotOf(no); owner[[s.ring, s.face, s.row, s.col].join("|")] = no; }
     for (let ring = 0; ring < rings; ring++) {
       const kind = ring === 0 ? "r1" : "r2";
-      for (let f = 0; f < 4; f++) for (let row = 0; row < ROWS; row++) for (let col = 0; col < COLS; col++) {
+      for (let b = 0; b < openBatches(n, ring); b++) for (let f = 0; f < 4; f++) {
+        const { row, col } = GROW[b];
         const no = owner[[ring, f, row, col].join("|")];
         const w = cellWall(kind, f, row, col);
         const img = plateCanvas(no ? "No." + String(no).padStart(3, "0") : "", no ? nameOf(no) : "", w.aspect);
@@ -638,7 +653,7 @@
     buildGhost();
   }
 
-  const STAGE_TAG = { notice: "공고 날 — 띠의 빈 칸과 꺼진 별", sailed: "출항 뒤 — 띠에 새기고 트리에 장식", eve: "귀환 전야 — 폴라리스 점등 · 탑 전체 반짝임", after: "1월 중순 뒤 — 장식을 걷고 띠만" };
+  const STAGE_TAG = { notice: "공고 날 — 첫 4칸이 기다림 · 꺼진 별", sailed: "출항 뒤 — 띠에 새기고 트리에 장식", eve: "귀환 전야 — 폴라리스 점등 · 탑 전체 반짝임", after: "1월 중순 뒤 — 장식을 걷고 띠만" };
   function setStage(s) {
     stage = s;
     document.querySelectorAll("#stages button").forEach((b) => b.classList.toggle("on", b.dataset.s === s));
@@ -912,7 +927,7 @@
     }
     msg((shaderOk ? "밤 셰이더를 걸었습니다." : "⚠ 셰이더를 걸지 못했습니다.") +
         "\n땅 높이 " + V.groundH + "m" + (measured !== null ? " (잰 값 " + measured + "m)" : "") +
-        "\n\n볼 것: ① 상아빛 108칸이 띠 위 벽에 붙는지 ② 대원 1 · 3 · 10 · 108명일 때 트리 ③ 귀환 전야 · 1월 중순 뒤");
+        "\n\n볼 것: ① 대원 1 · 5 · 10 · 40명일 때 칸이 자라는 모양 ② 트리 ③ 귀환 전야 · 1월 중순 뒤");
   }
 })();
 </script>
