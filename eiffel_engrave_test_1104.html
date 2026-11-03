@@ -10,7 +10,9 @@
        ② 1층 아래 띠 「EG유니버스 탐험대원」을 탑의 네 면에 실제로 붙였다 — 탑이 돌면 글자도 면과 함께 돈다
        ③ 단계 셋 — 공고 날(이름 없음) · 출항 뒤(이름이 불 없이 새겨짐) · 귀환 전야(불이 켜짐 + 폴라리스)
           (1103 오전 결정문 §2 「출항하는 날 새기고, 귀환하는 밤 불을 켠다」)
-       ④ 좌표 조절판 — 소로가 눈으로 「여기」 하면 「값 복사」로 파이스에게 건넨다 (1031 결정문 §7)
+       ④ 좌표 조절판 — 소로가 눈으로 맞추고 그 자리에서 「확정」 → eg_settings 'eiffel_tune' 한 줄에 박힌다
+          (1104 소로 「복사 → 전달이 아니고, 내가 그 자리에서 옮겨서 붙이고 확정」)
+          다음에 열면 확정한 값으로 선다 · 확정은 살롱지기만(eg_settings 정책 = users.is_admin)
      ⚠ 구글 키가 앱 주소에만 열려 있어서 app.egsalon.com 아래에서만 타일이 뜬다.
      ⚠ 자리는 에펠탑의 공개된 치수(밑변 125m · 1층 57m · 2층 115m · 3층 276m)로 계산한다 —
        구글 타일에서 탑 모양을 따내지 않는다(구글 약관 3.2.3(c)).
@@ -36,10 +38,17 @@
   #panel button { margin:4px 4px 0 0; padding:5px 9px; border:1px solid #b9ab8a; background:#fff;
     color:#2a2620; border-radius:6px; font-size:12px; cursor:pointer; }
   #panel button.on { background:#2a2620; color:#f6f3ea; border-color:#2a2620; }
+  #panel button:disabled { opacity:.45; cursor:default; }
   #panel details { margin-top:10px; border-top:1px solid #d8ceb5; padding-top:6px; }
   #panel summary { cursor:pointer; font-weight:700; }
   #panel .row { display:flex; justify-content:space-between; font-size:12px; margin-top:6px; }
   #panel .row b { font-variant-numeric:tabular-nums; }
+  #saveRow { position:sticky; bottom:-12px; margin:10px -14px -12px; padding:8px 14px 12px;
+    background:#efe8d6; border-top:1px solid #d8ceb5; border-radius:0 0 10px 10px; }   /* 늘 보이게 — 판이 길어도 바닥에 붙는다 */
+  #panel #saveBtn { background:#7a4e12; color:#fff8e6; border-color:#7a4e12; font-weight:700; padding:6px 14px; }
+  #panel #saveBtn:disabled { background:#d8ceb5; border-color:#d8ceb5; color:#7a6f5c; cursor:default; }
+  #saveState { font-size:12px; margin-top:5px; color:#5a4f3c; }
+  #saveState.dirty { color:#a0400e; font-weight:700; }
   #msg { margin-top:10px; font-size:12px; color:#8a5a14; white-space:pre-line; }
   #fold { position:absolute; top:8px; right:8px; margin:0 !important; border:0 !important;
     background:transparent !important; font-size:15px; cursor:pointer; }
@@ -86,7 +95,7 @@
     <button id="line2Btn" class="on">둘째 줄 있음</button><button id="plateBtn" class="on">바탕 있음</button>
   </div>
 
-  <details id="adj">
+  <details id="adj" open>
     <summary>좌표 조절</summary>
     <div class="row"><span>탑 방향</span><b id="rotVal"></b></div>
     <input id="rot" type="range" min="-15" max="15" step="0.5">
@@ -102,12 +111,17 @@
     <input id="out" type="range" min="0" max="10" step="0.5">
     <div class="row"><span>꼭대기 별 높이</span><b id="phVal"></b></div>
     <input id="ph" type="range" min="300" max="360" step="1">
-    <div><button id="copyBtn">값 복사</button><button id="resetBtn">처음 값으로</button></div>
   </details>
+
+  <div id="saveRow">
+    <button id="saveBtn">확정</button><button id="revertBtn">확정한 값으로</button>
+    <div id="saveState">확정한 값을 불러오는 중입니다…</div>
+  </div>
 
   <div id="msg">구글 타일을 불러오는 중입니다…</div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (async function () {
   "use strict";
@@ -144,6 +158,29 @@
 
   /* 글씨체를 먼저 받아 둔다 — 캔버스와 이름표가 명조로 그려지게 */
   try { await Promise.all([document.fonts.load('800 80px "Nanum Myeongjo"'), document.fonts.load('700 30px "Nanum Myeongjo"')]); } catch (e) {}
+
+  /* ── 확정한 값 — eg_settings 'eiffel_tune' 한 줄 ──────────
+     타륜 안의 방으로 열리면 집주인의 클라이언트를 받아 쓴다(한 문서 · 한 클라이언트, terra 0818).
+     따로 열면 같은 storageKey 로 제 클라이언트를 만든다. */
+  const SUPA_URL = "https://cyhlotwdisjvoxvfkpnd.supabase.co";
+  const SUPA_KEY = "sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR";
+  const TUNE_KEY = "eiffel_tune";
+  const TUNE_FIELDS = ["rot", "groundH", "friezeH", "bandH", "bandW", "out", "polarisH", "line2", "plate"];
+  let supa = null, saved = null, isAdmin = false;
+  try {
+    try { if (window.parent !== window && window.parent.egSupa) supa = window.parent.egSupa; } catch (_) {}
+    if (!supa && window.supabase) supa = window.supabase.createClient(SUPA_URL, SUPA_KEY,
+      { auth: { storageKey: "eungyo-auth", persistSession: true, autoRefreshToken: true } });
+  } catch (e) { console.warn("클라이언트를 만들지 못함", e); }
+  const tuneNow = () => { const o = {}; for (const k of TUNE_FIELDS) o[k] = V[k]; return o; };
+  const applyTune = (val) => { for (const k of TUNE_FIELDS) if (val && val[k] !== undefined && val[k] !== null) V[k] = val[k]; };
+  if (supa) {
+    try {
+      const { data } = await supa.from("eg_settings").select("val,updated_at").eq("key", TUNE_KEY).maybeSingle();
+      if (data && data.val) { saved = data; applyTune(data.val); }
+    } catch (e) { console.warn("확정한 값 읽기 실패", e); }
+    try { const { data } = await supa.rpc("eg_is_admin"); isAdmin = !!data; } catch (e) {}
+  }
 
   /* ── 뷰어 ───────────────────────────────────────────── */
   const viewer = new Cesium.Viewer("v", {
@@ -437,14 +474,13 @@
     bloom.enabled = !bloom.enabled; e.target.classList.toggle("on", bloom.enabled);
     e.target.textContent = bloom.enabled ? "번짐 켜짐" : "번짐 꺼짐";
   });
-  $("line2Btn").addEventListener("click", (e) => {
-    V.line2 = !V.line2; e.target.classList.toggle("on", V.line2);
-    e.target.textContent = V.line2 ? "둘째 줄 있음" : "둘째 줄 없음"; buildFrieze();
-  });
-  $("plateBtn").addEventListener("click", (e) => {
-    V.plate = !V.plate; e.target.classList.toggle("on", V.plate);
-    e.target.textContent = V.plate ? "바탕 있음" : "글자만"; buildFrieze();
-  });
+  const showToggles = () => {
+    $("line2Btn").classList.toggle("on", V.line2); $("line2Btn").textContent = V.line2 ? "둘째 줄 있음" : "둘째 줄 없음";
+    $("plateBtn").classList.toggle("on", V.plate); $("plateBtn").textContent = V.plate ? "바탕 있음" : "글자만";
+  };
+  $("line2Btn").addEventListener("click", () => { V.line2 = !V.line2; showToggles(); buildFrieze(); markDirty(); });
+  $("plateBtn").addEventListener("click", () => { V.plate = !V.plate; showToggles(); buildFrieze(); markDirty(); });
+  showToggles();
 
   /* 좌표 조절 — 값이 바뀌면 띠 · 이름 · 별을 다시 놓는다 */
   const SLIDERS = [
@@ -457,32 +493,62 @@
     $(id).addEventListener("input", (e) => {
       V[key] = +e.target.value; $(id + "Val").textContent = V[key] + unit;
       clearTimeout(rebuildTimer); rebuildTimer = setTimeout(buildAll, 60);
+      markDirty();
     });
   }
   showVals();
-  $("copyBtn").addEventListener("click", async () => {
-    const out = JSON.stringify({ 탑방향: V.rot, 땅높이: V.groundH, 띠높이: V.friezeH, 띠두께: V.bandH, 띠너비: V.bandW,
-      면에서띄우기: V.out, 꼭대기별높이: V.polarisH, 둘째줄: V.line2, 바탕: V.plate });
-    let ok = false; try { await navigator.clipboard.writeText(out); ok = true; } catch (e) {}
-    msg((ok ? "값을 복사했습니다. 파이스 창에 붙여 넣어 주세요.\n" : "아래 값을 길게 눌러 복사해 주세요.\n") + out);
+
+  /* 확정 — 손질한 값을 그 자리에서 박는다 */
+  const hhmm = (iso) => { try { return new Date(iso).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; } };
+  function markDirty() {
+    const st = $("saveState");
+    const dirty = !saved || JSON.stringify(tuneNow()) !== JSON.stringify(Object.assign({}, tuneNow(), saved.val));
+    $("revertBtn").disabled = !saved || !dirty;
+    if (!isAdmin) {
+      $("saveBtn").disabled = true;
+      st.className = ""; st.textContent = "확정은 살롱지기만 할 수 있습니다." + (saved ? "\n지금 탑은 " + hhmm(saved.updated_at) + "에 확정한 값입니다." : "");
+      return;
+    }
+    $("saveBtn").disabled = !dirty;
+    if (dirty) { st.className = "dirty"; st.textContent = saved ? "확정하지 않은 손질이 있습니다." : "아직 확정한 값이 없습니다 — 처음 값으로 서 있습니다."; }
+    else { st.className = ""; st.textContent = "확정한 값 그대로입니다 · " + hhmm(saved.updated_at); }
+  }
+  $("saveBtn").addEventListener("click", async () => {
+    if (!supa || !isAdmin) return;
+    $("saveBtn").disabled = true; $("saveState").textContent = "확정하는 중…";
+    const row = { key: TUNE_KEY, val: tuneNow(), updated_at: new Date().toISOString() };
+    const { data, error } = await supa.from("eg_settings").upsert(row, { onConflict: "key" }).select("val,updated_at").maybeSingle();
+    if (error || !data) {
+      $("saveState").className = "dirty";
+      $("saveState").textContent = "⚠ 확정하지 못했습니다 — " + (error ? error.message : "돌아온 줄이 없음");
+      $("saveBtn").disabled = false; return;
+    }
+    saved = data; markDirty();
+    $("saveState").textContent = "확정했습니다 · " + hhmm(saved.updated_at) + "\n다음에 열면 이 자리로 섭니다.";
   });
-  $("resetBtn").addEventListener("click", () => { Object.assign(V, START, { groundH: measuredGround }); showVals(); buildAll(); });
+  $("revertBtn").addEventListener("click", () => {
+    if (!saved) return;
+    applyTune(saved.val); showVals(); showToggles(); buildAll(); markDirty();
+  });
+  markDirty();
   $("fold").addEventListener("click", () => {
     const p = $("panel"); p.classList.toggle("min"); $("fold").textContent = p.classList.contains("min") ? "+" : "–";
   });
 
-  /* 타일이 서면 땅 높이를 한 번 재고 자리를 다시 놓는다 */
-  let measuredGround = START.groundH;
+  /* 타일이 서면 땅 높이를 한 번 잰다 — 확정한 땅 높이가 있으면 그것이 이긴다(재기는 참고로만) */
   if (tileset) {
+    let measured = null;
     try {
       await tileset.readyPromise?.catch(() => {});
       const res = await scene.sampleHeightMostDetailed([Cesium.Cartographic.fromDegrees(GROUND_PROBE.lon, GROUND_PROBE.lat)]);
-      if (res && res[0] && Number.isFinite(res[0].height)) {
-        measuredGround = Math.round(res[0].height * 2) / 2; V.groundH = measuredGround; showVals(); buildAll(); faceView(0, false);
-      }
+      if (res && res[0] && Number.isFinite(res[0].height)) measured = Math.round(res[0].height * 2) / 2;
     } catch (e) { console.warn("땅 높이 재기 실패 — 기본값으로", e); }
+    if (measured !== null && !(saved && Number.isFinite(saved.val && saved.val.groundH))) {
+      V.groundH = measured; showVals(); buildAll(); faceView(0, false); markDirty();
+    }
     msg((shaderOk ? "밤 셰이더를 걸었습니다." : "⚠ 셰이더를 걸지 못했습니다.") +
-        "\n땅 높이 " + V.groundH + "m\n\n볼 것: ① 띠 글씨가 면에 붙어 함께 도는지 ② 다가가면 이름이 읽히는지 ③ 귀환 전야의 불");
+        "\n땅 높이 " + V.groundH + "m" + (measured !== null ? " (잰 값 " + measured + "m)" : "") +
+        "\n\n볼 것: ① 띠 글씨가 면에 붙어 함께 도는지 ② 다가가면 이름이 읽히는지 ③ 귀환 전야의 불");
   }
 })();
 </script>
