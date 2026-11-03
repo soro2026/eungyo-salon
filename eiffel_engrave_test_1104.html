@@ -368,23 +368,26 @@
 
   /* ── 대원 이름 · 불빛 · 폴라리스 ───────────────────── */
   const points = scene.primitives.add(new Cesium.PointPrimitiveCollection());
-  const labels = scene.primitives.add(new Cesium.LabelCollection());
+  /* 명패는 면마다 한 묶음 — 카메라 반대쪽 면은 묶음째 숨긴다(이름표 하나씩 show 를 끄면 이 Cesium 판에선 바탕만 꺼지고 글씨가 남는다) */
+  const labelsByFace = [0, 1, 2, 3].map(() => scene.primitives.add(new Cesium.LabelCollection()));
   const sparkles = scene.primitives.add(new Cesium.PointPrimitiveCollection());
   const stars = scene.primitives.add(new Cesium.BillboardCollection());
-  let stage = "sailed", count = 10, eveUntil = 0, lights = [];
+  let stage = "sailed", count = 10, eveUntil = 0, lights = [], faceRefs = [];
 
-  function seatOf(no) {                              // 대원 번호 → 탑 위 자리 (몇 명이 와도 들어간다)
+  /* 대원 번호 → 탑 위 자리 (몇 명이 와도 들어간다)
+     ⭐ 1104 소로 — 띠 아래 네 다리에는 이름을 두지 않는다(「너무 하대하는 느낌」). 1층 위부터 꼭대기 아래까지만.
+     ⚠ 자리는 조절판 값(띠 높이 등)과 묶지 않는다 — 띠를 손질해도 대원의 자리가 흔들리면 안 된다(받은 자리는 30년).
+     ⚠ 첫 출항(11/14) 전에 이 셈을 굳힌다. 그 뒤로 고치면 이미 새긴 이름이 자리를 옮긴다. */
+  const SEAT_MIN = 62, SEAT_MAX = 293;               // 1층 바닥(57m) 위 · 3층(276m) 지나 꼭대기 아래
+  function seatOf(no) {
     const r = rng(no * 2654435761);
     const face = no % 4;                             // 네 면을 번갈아
-    let h, t;
+    let h = SEAT_MIN;
     for (let k = 0; k < 60; k++) {
-      h = 8 + r() * 285;                             // 넓은 아래쪽에 더 많이
-      if (r() > lerpProfile(h) / 62.5) continue;
-      if (h < 57) { const s = r() < 0.5 ? -1 : 1; t = s * (0.62 + r() * 0.34); }   // 1층 아래는 다리 위에만
-      else t = (r() * 2 - 1) * 0.94;
-      if (Math.abs(h - V.friezeH) < V.bandH / 2 + 3 && Math.abs(t) < V.bandW / 100 + 0.04) continue;   // 띠 위는 비워 둔다
-      break;
+      h = SEAT_MIN + r() * (SEAT_MAX - SEAT_MIN);    // 넓은 아래쪽에 더 많이
+      if (r() <= lerpProfile(h) / lerpProfile(SEAT_MIN)) break;
     }
+    const t = (r() * 2 - 1) * 0.94;
     return { face, h, t, tone: r(), phase: r() * 6.283 };
   }
   const WARM = ["#ffd27a", "#ffe8b0", "#ffb85c"].map((c) => Cesium.Color.fromCssColorString(c));
@@ -409,7 +412,7 @@
   const STAR_IMG = starImage();
 
   function buildCrew() {
-    points.removeAll(); labels.removeAll(); sparkles.removeAll(); stars.removeAll();
+    points.removeAll(); labelsByFace.forEach((c) => c.removeAll()); sparkles.removeAll(); stars.removeAll();
     lights = [];
     const lit = stage === "eve";
     const n = stage === "notice" ? 0 : count;
@@ -421,16 +424,22 @@
         ? { position: pos, pixelSize: 6 + s.tone * 3, color: col, outlineColor: col.withAlpha(0.35), outlineWidth: 3 }
         : { position: pos, pixelSize: 3, color: RIVET, outlineWidth: 0 });
       const nm = "No." + String(no).padStart(3, "0") + " " + NAMES[(no - 1) % NAMES.length];
-      const l = labels.add({ position: pos, text: nm,
-        font: (lit ? "800 16px" : "700 15px") + ' "Nanum Myeongjo", serif',
-        fillColor: lit ? Cesium.Color.fromCssColorString("#fff3d6") : ENGRAVED,
-        outlineColor: Cesium.Color.fromCssColorString(lit ? "#000000" : "#20160a"), outlineWidth: 3,
-        style: Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset: new Cesium.Cartesian2(7, -3),
+      /* 1104 소로 — 명패도 띠처럼 바탕을 깔고 그 위에 글씨를(「지금 너무 흐림」) — 청동 바탕 · 금빛 글씨 */
+      const l = labelsByFace[s.face].add({ position: pos, text: nm,
+        font: (lit ? "800 17px" : "800 16px") + ' "Nanum Myeongjo", serif',
+        fillColor: lit ? Cesium.Color.fromCssColorString("#fff3d6") : Cesium.Color.fromCssColorString("#f1d48a"),
+        style: Cesium.LabelStyle.FILL,
+        showBackground: true,
+        backgroundColor: Cesium.Color.fromCssColorString(lit ? "#3a2a12" : "#2e2113").withAlpha(0.9),
+        backgroundPadding: new Cesium.Cartesian2(9, 5),
+        pixelOffset: new Cesium.Cartesian2(8, -3),
         horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
         distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, lit ? 900 : 520),
         translucencyByDistance: new Cesium.NearFarScalar(180, 1.0, lit ? 900 : 520, 0.45) });
       lights.push({ p, base: col, phase: s.phase });
     }
+    /* 면마다 기준점 — 카메라 반대쪽 면의 명패는 숨긴다(띠와 같은 셈 · 뒤쪽 명패가 겹쳐 비치지 않게) */
+    faceRefs = [0, 1, 2, 3].map((f) => ({ pt: facePoint(f, 150, 0, 0), nrm: faceNormal(f) }));
     /* 전야의 반짝임용 흰 점 — 평소엔 꺼 둔다 */
     for (let i = 0; i < 700; i++) {
       const r = rng(900000 + i);
@@ -492,6 +501,12 @@
       const toCam = Cesium.Cartesian3.subtract(camPos, F.mid, new Cesium.Cartesian3());
       F.e.show = F.f === selBand || Cesium.Cartesian3.dot(Cesium.Cartesian3.normalize(toCam, toCam), F.nrm) > 0.12;   // 고른 띠는 늘 보인다
     }
+    const vis = faceRefs.map((R) => {
+      const v = Cesium.Cartesian3.subtract(camPos, R.pt, new Cesium.Cartesian3());
+      return Cesium.Cartesian3.dot(Cesium.Cartesian3.normalize(v, v), R.nrm) > 0.1;   // 정면으로 보이는 면만 — 옆으로 누운 면의 명패가 겹쳐 쌓이지 않게
+    });
+    labelsByFace.forEach((c, f) => { const on = !!vis[f]; if (c.show !== on) c.show = on; });
+
     /* 불빛 — 전야에만 숨 쉬고, 처음 20초는 반짝인다 */
     const tsec = now / 1000, sparkle = stage === "eve" && now < eveUntil;
     if (stage === "eve") {
