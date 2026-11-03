@@ -211,6 +211,16 @@
   .fare-note p:first-child{ margin-top:0; }
   .fare-note .star{ margin-top:14px; font-size:.88rem; line-height:1.65; color:var(--ink-dim); }
 
+  /* 결제창이 떠 있는 동안 (노트북 · 데스크톱) — 1103 소로 「결제창 방식」 */
+  .paywait{ position:fixed; inset:0; z-index:60; display:none; align-items:center; justify-content:center; padding:20px; background:rgba(11,9,7,.74); }
+  .paywait.on{ display:flex; }
+  .paywait .card{ width:100%; max-width:440px; background:var(--paper); border-radius:6px; padding:30px 28px 26px; text-align:center; }
+  .paywait h2{ font-family:var(--serif); font-weight:600; font-size:1.3rem; line-height:1.5; color:var(--ink); }
+  .paywait p{ margin-top:12px; font-size:.95rem; line-height:1.7; color:var(--ink-soft); }
+  .paywait .spinner{ margin:18px auto 4px; }
+  .paywait .ghost{ margin-top:18px; }
+  .paywait .link{ display:inline-block; margin-top:14px; background:none; border:none; font-family:var(--sans); font-size:.9rem; color:var(--ink-dim); text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
+
   /* 승선 완료 */
   .crew-no{ margin:22px 0 4px; text-align:center; font-family:var(--serif); font-weight:600; font-size:clamp(2.2rem, 9vw, 3rem); letter-spacing:.02em; color:var(--ink); }
   .crew-no small{ display:block; font-family:var(--sans); font-size:.9rem; font-weight:600; letter-spacing:0; color:var(--ink-dim); margin-bottom:2px; }
@@ -349,6 +359,17 @@
   </main>
 </div>
 
+<!-- 결제창이 떠 있는 동안 뒤 화면 -->
+<div class="paywait" id="paywait" role="dialog" aria-modal="true" aria-labelledby="pw-title">
+  <div class="card">
+    <h2 id="pw-title">효성 결제창에서<br>서명을 진행하고 있습니다</h2>
+    <div class="spinner"></div>
+    <p>본인인증 → 계좌 · 카드 고르기 → 서명을 마치면 결제창이 저절로 닫히고, 이 화면이 승선 완료로 바뀝니다.</p>
+    <button class="ghost" id="pw-focus" type="button">결제창 다시 보기</button>
+    <button class="link" id="pw-done" type="button">서명을 마쳤는데 창이 그대로 있다면</button>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="eg_device.js?v=20260729"></script>
 <script>
@@ -368,6 +389,11 @@
   });
   const $ = id => document.getElementById(id);
   const DONE = new URLSearchParams(location.search).get('done') === '1';
+  /* ⭐ 결제창 안에서 효성이 돌려보낸 자리 — 뒤의 EG 화면에 「끝났다」고 알리고 창을 닫는다 */
+  if(DONE && window.name === 'eg_hyosung' && window.opener && !window.opener.closed){
+    try{ window.opener.postMessage({ eg:'board-done' }, location.origin); }catch(e){}
+    try{ window.close(); }catch(e){}
+  }
   const WD = ['일','월','화','수','목','금','토'];
   const won = n => Number(n).toLocaleString('ko-KR') + '원';
   const mdw = s => { const d = new Date(s + 'T00:00:00+09:00'); return (d.getMonth()+1) + '월 ' + d.getDate() + '일(' + WD[d.getDay()] + ')'; };
@@ -448,27 +474,70 @@
   $('wait-again').addEventListener('click', () => { tries = 0; finish(); });
 
   /* [확인했습니다 — 결제 화면으로] */
+  /* ── 결제창 (노트북 · 데스크톱) ─────────────────────────────── */
+  let POP = null, popTimer = null, finished = false;
+  function openPop(){
+    const phone = (typeof window.egIsPhone === 'function') ? window.egIsPhone() : false;
+    if(phone) return null;
+    const w = 520, h = 820;
+    const left = Math.max(0, (window.screenX || 0) + ((window.outerWidth || w) - w) / 2);
+    const top  = Math.max(0, (window.screenY || 0) + ((window.outerHeight || h) - h) / 2);
+    let p = null;
+    try{ p = window.open('', 'eg_hyosung', 'popup=yes,width=' + w + ',height=' + h + ',left=' + Math.round(left) + ',top=' + Math.round(top)); }catch(e){}
+    if(!p) return null;
+    try{
+      p.document.write('<!doctype html><meta charset="utf-8"><title>효성 결제창 · EG유니버스</title>'
+        + '<body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0907;color:#f4efe6;font-family:sans-serif">'
+        + '<p style="font-size:15px">효성 결제창을 여는 중입니다…</p></body>');
+      p.document.close();
+    }catch(e){}
+    return p;
+  }
+  function closePop(){ try{ if(POP && !POP.closed) POP.close(); }catch(e){} POP = null; $('paywait').classList.remove('on'); clearInterval(popTimer); }
+  function popDone(){
+    if(finished) return; finished = true;
+    clearInterval(popTimer); $('paywait').classList.remove('on');
+    try{ if(POP && !POP.closed) POP.close(); }catch(e){}
+    finish();
+  }
+  function watchPop(){
+    $('paywait').classList.add('on');
+    clearInterval(popTimer);
+    popTimer = setInterval(() => { if(!POP || POP.closed) popDone(); }, 800);   /* 손님이 창을 닫아도 서명 여부를 확인한다 */
+  }
+  window.addEventListener('message', ev => {
+    if(ev.origin === location.origin && ev.data && ev.data.eg === 'board-done') popDone();
+  });
+  $('pw-focus').addEventListener('click', () => { try{ POP && !POP.closed && POP.focus(); }catch(e){} });
+  $('pw-done').addEventListener('click', popDone);
+
   $('go-pay').addEventListener('click', async () => {
+    POP = openPop(); finished = false;
     const msg = $('confirm-msg'); msg.textContent = '';
     const btn = $('go-pay'); btn.disabled = true; btn.textContent = '결제 화면을 여는 중…';
     const reset = () => { btn.disabled = false; btn.textContent = '확인했습니다 — 결제 화면으로'; };
     try{
       if(!PEEK.has_real_name){
         const v = $('real').value.trim();
-        if(!v){ msg.textContent = '실명을 적어 주십시오.'; return reset(); }
+        if(!v){ closePop(); msg.textContent = '실명을 적어 주십시오.'; return reset(); }
         const { error } = await sb.rpc('eg_board_set_real_name', { p_real: v });
-        if(error){ msg.textContent = error.message; return reset(); }
+        if(error){ closePop(); msg.textContent = error.message; return reset(); }
         PEEK.has_real_name = true;
       }
       const r = await call({ action:'create', return_url:RETURN_URL });
-      if(r.body.ok && r.body.url){ band(3); location.href = r.body.url; return; }
+      if(r.body.ok && r.body.url){
+        band(3);
+        if(POP && !POP.closed){ POP.location.href = r.body.url; return watchPop(); }
+        location.href = r.body.url; return;            /* 휴대폰 · 결제창이 막힌 브라우저 — 같은 창으로 */
+      }
+      closePop();
       const why = r.body.why;
       if(why === 'already_signed'){ return finish(); }
       if(why === 'already_crew'){ return finish(); }
       if(why === 'closed'){ return show('s-closed'); }
       msg.textContent = why === '실명이 없음' ? '실명을 적어 주십시오.' : '결제 화면을 열지 못했습니다. 잠시 뒤 다시 눌러 주십시오.';
       reset();
-    }catch(e){ msg.textContent = '연결이 잠시 끊겼습니다. 다시 눌러 주십시오.'; reset(); }
+    }catch(e){ closePop(); msg.textContent = '연결이 잠시 끊겼습니다. 다시 눌러 주십시오.'; reset(); }
   });
 
   /* 처음 */
