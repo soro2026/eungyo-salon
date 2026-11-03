@@ -92,6 +92,11 @@
   #editBar .eb-tip { margin-top:6px; font-size:11px; color:#7a6f5c; text-align:center; }
   body.live #panel, body.live #editBar, body.live #stageTag { display:none !important; }
   #fade { position:absolute; inset:0; background:#000; opacity:0; pointer-events:none; z-index:8; }
+  #cover { position:absolute; inset:0; z-index:9; display:none; align-items:center; justify-content:center; flex-direction:column; gap:10px;
+    background:#03050b; color:#d9bf7a; font:16px "Nanum Myeongjo", serif; letter-spacing:.08em; transition:opacity .9s; pointer-events:none; }
+  #cover small { font:12px system-ui, sans-serif; color:#8a7a55; letter-spacing:.02em; }
+  body.live #cover { display:flex; }
+  #cover.gone { opacity:0; }
   #demoTag { position:absolute; right:14px; top:12px; z-index:9; padding:5px 11px; border-radius:16px; display:none;
     background:rgba(246,243,234,.9); color:#2a2620; font-size:12px; font-weight:700; pointer-events:none; }
   body.live.demo #demoTag { display:block; }
@@ -101,6 +106,7 @@
 <body>
 <div id="v"></div>
 <div id="fade"></div>
+<div id="cover">에펠탑을 불러오는 중입니다<small>처음 한 번은 몇 초 걸립니다</small></div>
 <div id="demoTag">예시 화면</div>
 <div id="stageTag">출항 뒤 — 띠에 새기고 트리에 장식</div>
 <div id="editBar" hidden>
@@ -310,7 +316,12 @@
     try { tileset = await Cesium.createGooglePhotorealistic3DTileset(GOOGLE_API_KEY); }
     catch (e) { tileset = await Cesium.createGooglePhotorealistic3DTileset({ key: GOOGLE_API_KEY }); }
     tileset.showCreditsOnScreen = true;              // 구글 출처 표시 — 약관 3.2.2(b)
-    try { tileset.skipLevelOfDetail = false; tileset.maximumScreenSpaceError = 6; } catch (e) {}
+    /* 1104 소로 「로딩 속도가 엄청 느린데 홈페이지도?」 — 상영 모드는 구글 기본 촘촘함(16) · 낮은 해상도부터 건너뛰며 받기
+       맞추는 시험판은 띠를 정확히 붙여야 하니 촘촘하게(6) 그대로 */
+    try {
+      if (LIVE) { tileset.skipLevelOfDetail = true; tileset.maximumScreenSpaceError = 16; tileset.cacheBytes = 768 * 1024 * 1024; }
+      else { tileset.skipLevelOfDetail = false; tileset.maximumScreenSpaceError = 6; }
+    } catch (e) {}
     try { tileset.customShader = nightShader; shaderOk = true; }
     catch (e) { console.warn("셰이더 적용 실패", e); }
     scene.primitives.add(tileset);
@@ -714,7 +725,7 @@
     { name: "트리", h: () => 175, pitch: -6, range: 720 },
     { name: "꼭대기 숫자", h: () => V.numH - 28, pitch: 14, range: 175 }
   ];
-  const t0 = performance.now();
+  let t0 = performance.now();
   let lastShot = -1;
   function direct(now) {
     const t = now - t0, k = Math.floor(t / SHOT_MS) % SHOTS.length, inShot = t % SHOT_MS;
@@ -981,6 +992,19 @@
     stage = st; buildCrew();
   }
   if (LIVE) { await loadLive(); setInterval(loadLive, 10 * 60 * 1000); }
+
+  if (LIVE) {
+    let lifted = false;
+    const lift = () => { if (lifted) return; lifted = true; t0 = performance.now(); $("cover").classList.add("gone"); };
+    try {
+      if (tileset) {
+        if (tileset.tilesLoaded) lift();             // 이미 다 섰으면 바로
+        if (tileset.initialTilesLoaded) tileset.initialTilesLoaded.addEventListener(lift);
+        if (tileset.allTilesLoaded) tileset.allTilesLoaded.addEventListener(lift);
+      }
+    } catch (e) {}
+    setTimeout(lift, 15000);
+  }
 
   /* 타일이 서면 땅 높이를 한 번 잰다 — 확정한 땅 높이가 있으면 그것이 이긴다(재기는 참고로만) */
   if (tileset) {
