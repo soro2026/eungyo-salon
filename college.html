@@ -1629,7 +1629,25 @@ function chainImg(img,cands,onFail){
 }
 /* LAB 목록 — 책 = LAB. lab_no 연번(초연 개설 순, 영구)이 문패 번호.
  *  같은 저자가 여러 LAB을 갖는다(도스토옙스키 LAB 004·0XX…). 내 클래스 LAB이 앞줄 */
+/* ⭐ 1104 소로 — 3층 복도는 「내가 걷는 LAB」만 세운다(최대 3문, 자리 규칙과 같은 수).
+ *  걷는 책이 없으면 샘플 복도 5문 — 『월든』 · 대화편 · 『모비 딕』 · 『카라마조프』 · 『전쟁과 평화』.
+ *  273개를 다 세우지 않는다. 쉬는 책 · 완주한 책은 「내 책」 판에서 본다. */
+const SAMPLE_LABS=[194,120,39,46,51];
 function buildLabs(){
+  const all=buildLabsAll();
+  const walking=all.filter(l=>l.cohorts.some(c=>['confirmed','active'].includes(myEnrollStat.get(c.id))));
+  if(walking.length) return walking.sort((a,b)=>(a.no||999)-(b.no||999));
+  return SAMPLE_LABS.map(id=>all.find(l=>l.bookId===id)).filter(Boolean);
+}
+/* 현장 LAB — 지구 위 핀이 있는 책(terra_pins kind=lab · meta.book_id). 문을 열면 그 무대로 날아간다 */
+let LAB_PINS={};
+async function loadLabPins(){
+  try{
+    const { data } = await supa.from('terra_pins').select('code,meta').eq('kind','lab').eq('active',true);
+    LAB_PINS={}; (data||[]).forEach(r=>{ const b=r.meta&&r.meta.book_id; if(b) LAB_PINS[b]=r.code; });
+  }catch(e){ LAB_PINS={}; }
+}
+function buildLabsAll(){
   const byBook={};
   /* 0927 — 예고 전(hidden) 기수는 복도에 문을 세우지 않는다 (예고를 2099로 내린 여섯 작품) */
   /* 1104 — 길은 책 하나에 하나: 통합이면 세 현관의 출발을 한 LAB으로 모은다 */
@@ -1640,6 +1658,13 @@ function buildLabs(){
     return { bookId:+bid, book:b, no:b.lab_no||null, author:b.author||'',
       code:(b.author_code||labCode(b.author||'')), cohorts:cs,
       mine:cs.some(c=>myEnrollCids.has(c.id)) };
+  });
+  /* 1104 — 샘플 책은 출발이 아직 없어도 문을 세운다 */
+  SAMPLE_LABS.forEach(id=>{
+    if(byBook[id]) return;
+    const b=bookOf(id); if(!b||!b.id) return;
+    labs.push({ bookId:id, book:b, no:b.lab_no||null, author:b.author||'',
+      code:(b.author_code||labCode(b.author||'')), cohorts:[], mine:false });
   });
   labs.forEach(l=>{ if(!l.code && l.book.author_code) l.code=l.book.author_code; });
   labs.sort((a,b)=>(b.mine?1:0)-(a.mine?1:0) || (a.no||999)-(b.no||999));
@@ -1740,8 +1765,16 @@ function doorHTML(lab,slot){
 /* 문 클릭 — 방 그림이 있는 LAB은 방(SALLE)으로, 없으면 기수 목록 모달로 */
 function openLab(bookId){
   if(document.body.classList.contains('lab-editing')) return;
-  const labs=buildLabs();
+  const labs=buildLabsAll();
   const lab=labs.find(l=>l.bookId===bookId); if(!lab) return;
+  /* ⭐ 1104 소로 — 현장 LAB은 문을 여는 순간 지구로 날아간다(액자를 닫고 그 책의 무대로).
+   *  거기서 핀 → 현관 → 「입장」에서 자격을 본다. 방 안은 여기서 열지 않는다.
+   *  ⚠ 액자 밖(콜레주를 따로 연 경우)에는 날 지구가 없다 — 방 대신 출발 목록 창을 연다. */
+  if(LAB_PINS[bookId]){
+    if(IN_TERRA){ try{ window.parent.postMessage({ eg:'lab-fly', code:LAB_PINS[bookId] }, '*'); }catch(e){} }
+    else openLabModal(lab);
+    return;
+  }
   if(lab.no){
     const probe=new Image();
     probe.onload =()=>openLabRoom(lab);
@@ -2079,7 +2112,7 @@ async function init(){
   }
   await resolveHall();
   gateForHere();
-  await Promise.all([loadBooks(), loadBells(), loadCohorts(), loadMyEnrollments(), loadLabLayout(), loadBannerCart()]);
+  await Promise.all([loadBooks(), loadBells(), loadCohorts(), loadMyEnrollments(), loadLabLayout(), loadBannerCart(), loadLabPins()]);
   renderShelf(); renderBanners(); renderStage(); renderBellHand(); renderCorridor();
   parallaxCalcAll(); wireParallax(1);
   classFromQuery();
@@ -3048,7 +3081,7 @@ function labFromQuery(){
   const q=new URLSearchParams(location.search).get('lab');
   if(!q) return;
   const no=+q; if(!no) return;
-  const L=(corLabs&&corLabs.length?corLabs:buildLabs()).find(x=>x.no===no);
+  const L=buildLabsAll().find(x=>x.no===no);   /* 1104 — 현관을 지나 온 문. 복도에 없는 책(완주)도 연다 */
   if(!L){ toast('그 연구실을 찾지 못했습니다'); return; }
   const gate=document.getElementById('gate');
   if(gate){ gate.classList.remove('on'); gate.classList.add('gone'); }
