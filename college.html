@@ -1154,6 +1154,10 @@ body.is-admin #ttBtn{display:block;}
 #bookPage .bp-cover.spine .bp-bk::before{display:none}
 #bookPage .bp-cover.spine img{height:min(56vh,460px);width:auto;max-width:none}
 #bookPage .bp-cover.spine figcaption{display:none}
+/* 1104 저녁 소로 — 개설된 책은 첫 화면 큰 표지 자리에 포스터(「포스터를 본 다음에 수강 신청」) */
+#bookPage .bp-cover.poster{width:clamp(270px,31vw,400px);transform:none;filter:drop-shadow(0 26px 50px rgba(0,0,0,.6))}
+#bookPage .bp-cover.poster img{border-radius:6px;box-shadow:0 0 0 6px rgba(10,8,5,.22)}
+#bookPage .bp-cover.poster .bp-bk::before{display:none}
 #bookPage .bp-plq .era{display:inline-flex;align-items:center;gap:10px;font-family:var(--serif);font-size:13px;letter-spacing:.22em;color:var(--gold)}
 #bookPage .bp-plq .era::before{content:'';width:28px;height:1px;background:currentColor;opacity:.7}
 #bookPage .bp-plq h2{margin-top:18px;font-family:var(--serif);font-weight:400;font-size:clamp(40px,6.4vw,82px);line-height:1.15;letter-spacing:-.01em;text-wrap:balance}
@@ -2965,13 +2969,18 @@ function bpHtml(b){
     +(b.founding?'<span class="gold">개막하는 다섯 권</span>':soon?'<span class="gold">곧 문을 엽니다</span>':'');
   let h='';
   /* ① 큰 표지 + 명패 + 단추 줄 */
-  h+=`<header class="bp-hero"><figure class="bp-cover${first&&first.cover_url?'':' spine'}">`
+  const plan0=Array.isArray(b.session_plan)?b.session_plan:[];
+  const heroPoster=c?POSTER(c.id)+'?v='+DAYV:'';     /* 개설된 책 — 포스터가 첫 화면에 선다 · 없으면 표지로 물린다 */
+  const coverFall=first&&first.cover_url?first.cover_url:SPINE(b.id);
+  h+=heroPoster
+    ? `<header class="bp-hero"><figure class="bp-cover poster"><span class="bp-bk"><img src="${esc(heroPoster)}" alt="${esc(b.title)} 포스터" onerror="var f=this.closest('.bp-cover');f.classList.remove('poster');${first&&first.cover_url?'':"f.classList.add('spine');"}this.src=${esc(JSON.stringify(coverFall))};this.onerror=null"></span></figure><div class="bp-plq">`
+    : `<header class="bp-hero"><figure class="bp-cover${first&&first.cover_url?'':' spine'}">`
     +(first&&first.cover_url
       ? `<span class="bp-bk"><img src="${esc(first.cover_url)}" alt="" onload="var f=this.closest('.bp-cover');if(f&&!f.classList.contains('spine'))f.style.maxWidth=Math.round(this.naturalWidth*1.7)+'px'" onerror="this.closest('.bp-cover').classList.add('spine');this.src=${esc(JSON.stringify(SPINE(b.id)))};this.onerror=null"></span>`
         +`<figcaption>${esc([first.publisher, first.translators?first.translators+' 옮김':''].filter(Boolean).join(' · '))}</figcaption>`
       : `<span class="bp-bk"><img src="${esc(SPINE(b.id))}" alt=""></span>`)
-    +`</figure><div class="bp-plq">`
-    +(b.era_chapter?`<p class="era">${esc(String(b.era_chapter).replace(/\s*·\s*/,' · '))}</p>`:'')
+    +`</figure><div class="bp-plq">`;
+  h+=(b.era_chapter?`<p class="era">${esc(String(b.era_chapter).replace(/\s*·\s*/,' · '))}</p>`:'')
     +`<h2>${esc(b.title)}</h2><p class="by">${esc([by,bpYear(b)].filter(Boolean).join(' · '))}</p><p class="tags">${tags}</p>`
     +(b.lede?`<p class="lede">${esc(b.lede)}</p>`:'')
     +`<div class="bp-act">${bpActHtml(b)}</div></div></header>`;
@@ -2984,8 +2993,8 @@ function bpHtml(b){
     +`<div><p class="nm">${esc(st.name)}</p><p class="life">${esc(bpLife(st))}</p>${st.description?`<p class="ds">${esc(bpPlain(st.description))}</p>`:''}`
     +`<p class="go">EG유니버스 하늘에 이 사람의 별이 떠 있습니다. 별을 펼치면 그 생애가 장면으로 이어지고, 그가 걸었던 땅으로 내려갈 수 있습니다.</p></div></div></section>`;
   /* ④ 포스터와 진도표 — 포스터 번호는 loadCohorts 의 짝표(POSTER_OF) 그대로 */
-  const plan=Array.isArray(b.session_plan)?b.session_plan:[];
-  const poster=c?POSTER(c.id):'';
+  const plan=plan0;
+  const poster='';   /* 1104 저녁 — 포스터는 첫 화면(표지 자리)으로 올라갔다. 여기는 진도표만 */
   if(poster||plan.length){
     h+=`<section class="bp-sec"><p class="bp-k">${b.founding?'개막하는 다섯 권':soon?'곧 문을 엽니다':'진도표'}</p><h3>${poster?'포스터와 진도표':esc((b.weeks_raw||'')+' 진도표')}</h3><div class="bp-pst${poster?'':' solo'}">`;
     if(poster) h+=`<div class="bp-pframe"><img src="${esc(poster)}?v=${DAYV}" alt="" loading="lazy" onerror="this.closest('.bp-pst').classList.add('solo');this.parentNode.remove()"></div>`;
