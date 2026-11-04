@@ -497,6 +497,10 @@ body.is-admin .hall-sticker{display:block;}
 .mode-tabs button{font-size:11.5px;letter-spacing:.14em;padding:8px 18px;
   color:rgba(233,207,156,.65);transition:background .25s,color .25s;}
 .mode-tabs button.at{background:rgba(201,162,74,.22);color:var(--gold-l);}
+.mode-tabs button+button{border-left:1px solid rgba(201,162,74,.22);}
+.mode-tabs button b{font-weight:600;color:var(--gold-l);margin-left:3px;letter-spacing:0;}
+.shelf-empty{max-width:520px;margin:40px auto 0;padding:26px 22px;text-align:center;font-size:13.5px;line-height:1.8;color:rgba(240,232,212,.82);
+  background:rgba(16,12,8,.6);border:1px solid rgba(201,162,74,.3);border-radius:14px;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);}
 #wing{transition:transform .65s cubic-bezier(.55,.05,.3,1),opacity .65s ease;}
 #wing.exit-l{transform:translateX(-14%);opacity:0;}
 #wing.enter-r{transform:translateX(14%);opacity:0;transition:none;}
@@ -1277,6 +1281,8 @@ body.is-admin #ttBtn{display:block;}
             <div class="mode-tabs">
               <button id="tab-era" class="at" onclick="setShelfMode('era')">문명의 강</button>
               <button id="tab-stream" onclick="setShelfMode('stream')">일곱 강줄기</button>
+              <button id="tab-open" onclick="setShelfMode('open')">개설 중인 책 <b id="tab-open-n"></b></button>
+              <button id="tab-mine" onclick="setShelfMode('mine')">내 개설 요청 <b id="tab-mine-n"></b></button>
             </div>
           </div>
           <div class="shelfwall" id="shelfwall"></div>
@@ -1284,7 +1290,7 @@ body.is-admin #ttBtn{display:block;}
         </div>
       </div>
       <button class="lift lift-up" onclick="goFloor(2)">▲ 3층 · 내 클래스</button>
-      <button class="lift lift-down" onclick="goFloor(0)">▼ 1층 · 모집 홀</button>
+      <!-- 1104 저녁 소로 — 위쪽 「▼ 1층 · 모집 홀」 삭제(오른쪽 층 점에 이미 있음) -->
     </section>
 
     <div class="slab"></div>
@@ -2750,12 +2756,28 @@ const ROMAN_N=n=>{ /* 1~39 로마자 */
 };
 const cleanYear=y=>String(y||'').replace(/c\./g,'').replace(/^AD\s*/,'').replace(/\s*\(사후 출간\)/,'').trim();
 
+/* 1104 저녁 소로 — 단추 넷: 문명의 강 · 일곱 강줄기 · 개설 중인 책 · 내 개설 요청. 뒤의 둘은 그 책들만 시대순으로 */
+const SHELF_OPEN=()=>books.filter(b=>bpCohortOf(b.id));
+const SHELF_MINE=()=>books.filter(b=>myBells.has(b.id));
+function updateShelfTabs(){
+  const o=document.getElementById('tab-open-n'), m=document.getElementById('tab-mine-n');
+  if(o) o.textContent=SHELF_OPEN().length||'';
+  if(m) m.textContent=myBells.size||'';
+}
 function renderShelf(){
   const wall=document.getElementById('shelfwall');
-  const era=SHELF_MODE==='era';
-  const list=era
-    ? [...books].sort((a,b)=>(a.era_order||999)-(b.era_order||999))
-    : books;
+  updateShelfTabs();
+  const era=SHELF_MODE!=='stream';
+  const byEra=l=>[...l].sort((a,b)=>(a.era_order||999)-(b.era_order||999));
+  const list=SHELF_MODE==='open' ? byEra(SHELF_OPEN())
+    : SHELF_MODE==='mine' ? byEra(SHELF_MINE())
+    : era ? byEra(books) : books;
+  if(!list.length){
+    wall.innerHTML=`<div class="shelf-empty">${SHELF_MODE==='mine'
+      ? '아직 개설을 요청한 책이 없습니다.<br>「문명의 강」에서 책을 눌러 개설을 요청할 수 있습니다.'
+      : '지금 개설 중인 책이 없습니다.'}</div>`;
+    return;
+  }
   const short=s=>String(s||'').replace(/^[IVX]+\. /,'');
   const eg=id=>'EG'+String(id).padStart(3,'0');
   const groupOf=b=> era ? (b.era_chapter||'') : (b.stream||'');
@@ -2795,7 +2817,7 @@ function renderShelf(){
     html+=`<div class="case">
       <div class="case-row">${cells}</div>
       <div class="plank">${labels}${range}</div>
-      <div class="case-label">${String(caseNo).padStart(2,'0')} / 28</div>
+      <div class="case-label">${String(caseNo).padStart(2,'0')} / ${String(Math.ceil(list.length/PER_SHELF)).padStart(2,'0')}</div>
     </div>`;
   }
   wall.innerHTML=html;
@@ -2807,9 +2829,8 @@ function setShelfMode(m){
   if(m===SHELF_MODE || wingBusy) return;
   wingBusy=true;
   SHELF_MODE=m;
-  const era=m==='era';
-  document.getElementById('tab-stream').classList.toggle('at',!era);
-  document.getElementById('tab-era').classList.toggle('at',era);
+  const era=m!=='stream';   /* 개설 중 · 내 요청도 시대순 방(문명의 강의 벽) */
+  ['era','stream','open','mine'].forEach(k=>document.getElementById('tab-'+k).classList.toggle('at',k===m));
   /* 배경: 전용 그림(hall2e)이 있으면 진짜 옆방 — 세피아 필터는 폴백일 때만 */
   const f2=document.getElementById('f2');
   const bg2=document.getElementById('bg2');
@@ -2827,13 +2848,15 @@ function setShelfMode(m){
   wing.classList.add('exit-l');
   setTimeout(()=>{
     /* 방 갈아끼우기 */
-    document.getElementById('lib-eyebrow').textContent = era ? 'FLEUVE DES CIVILISATIONS · 273' : 'BIBLIOTHÈQUE · 273';
-    document.getElementById('lib-sub').textContent = era
-      ? '문명의 강 · 길가메시에서 오늘까지, 시대순으로 흐릅니다'
-      : '일곱 강줄기 · 책등을 눌러 종을 달 수 있습니다';
-    document.getElementById('lib-tail').textContent = era
-      ? '강의 하구입니다 — 4천 년의 물길이 여기 닿았습니다 🌊'
-      : '서가의 끝입니다 — 273번째 책까지 함께 걸었습니다 ⚓';
+    const HEAD={
+      era:   ['FLEUVE DES CIVILISATIONS · 273','문명의 강 · 길가메시에서 오늘까지, 시대순으로 흐릅니다','강의 하구입니다 — 4천 년의 물길이 여기 닿았습니다 🌊'],
+      stream:['BIBLIOTHÈQUE · 273','일곱 강줄기 · 책등을 누르면 책 소개가 열립니다','서가의 끝입니다 — 273번째 책까지 함께 걸었습니다 ⚓'],
+      open:  ['COURS OUVERTS','개설 중인 책 · 수강 신청을 받고 있거나 곧 받는 책입니다',''],
+      mine:  ['MES DEMANDES','내 개설 요청 · 요청이 많은 책부터 진도표를 짓습니다','']
+    }[m];
+    document.getElementById('lib-eyebrow').textContent = HEAD[0];
+    document.getElementById('lib-sub').textContent = HEAD[1];
+    document.getElementById('lib-tail').textContent = HEAD[2];
     renderShelf();
     sc2.scrollTop=0;
     wing.classList.remove('exit-l');
@@ -3174,6 +3197,7 @@ function renderBellHand(){
     hand.classList.add('show');
   } else { hand.classList.remove('show'); closeReqList(); }
   if(document.getElementById('reqList').classList.contains('show')) renderReqList();
+  if(SHELF_MODE==='mine' && !wingBusy) renderShelf(); else updateShelfTabs();
 }
 /* 1104 저녁 소로 — 내 개설 요청 목록 · 책 이름을 누르면 그 책의 방 · 「취소」는 그 자리에서 */
 function renderReqList(){
