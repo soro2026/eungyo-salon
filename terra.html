@@ -7287,6 +7287,7 @@ function flyToPark(p, opts){
           if (ent && h) ent.position = Cesium.Cartesian3.fromDegrees(p.lng, p.lat, h);
           const orbitR = Number(cam.orbit) || (ALT + 20);
           try{ startOrbit(Cesium.Cartesian3.fromDegrees(p.lng, p.lat, h), orbitR); }catch(e){}
+          if (opts && opts.onLand && currentPark === p){ try{ opts.onLand(p); }catch(e){} }
         }
       });
     })();
@@ -7316,6 +7317,8 @@ function flyToPark(p, opts){
           if (ent && h) ent.position = Cesium.Cartesian3.fromDegrees(p.lng, p.lat, h);
           const orbitR = Number(cam.orbit) || (ALT + 20);
           try{ startOrbit(Cesium.Cartesian3.fromDegrees(p.lng, p.lat, h), orbitR); }catch(e){}
+          /* 1104 저녁 — 내려앉은 뒤 할 일(타륜 LAB → 현관). 그새 다른 곳으로 떠났으면 하지 않는다 */
+          if (opts && opts.onLand && currentPark === p){ try{ opts.onLand(p); }catch(e){} }
         }
       });
     }
@@ -8612,7 +8615,17 @@ async function openCollegePanel(){
       const l = document.createElement("div"); l.className = "ti-work";
       l.textContent = b.title || "";                    /* 책 제목은 DB 활자 — textContent로 */
       it.appendChild(l);
+      /* ⭐ 1104 저녁 소로 — 타륜의 LAB은 교실이 아니라 현관으로. 현장 LAB이면 그 무대로 날아가
+           내려앉는 대로 현관(LAB 입구)이 저절로 뜬다 — 핀을 한 번 더 누르지 않는다. 「입장하기」에서 자격을 본다.
+         ⚠ 무대 핀이 없는 책(본점 LAB)은 아직 입구 화면이 없어 예전대로 교실로 곧장 간다. */
       it.addEventListener("click", ()=>{ shut();
+        const lp = Object.values(terraPins).find(x=> x && x.kind === "lab" && x.meta && +x.meta.book_id === b.id);
+        if (lp){
+          try{ if (typeof doorState !== "undefined" && doorState !== "closed") exitDoorway(); }catch(e){}
+          egLabFocus(lp);
+          flyToPark(lp, { onLand: q=>{ freeCamera(); openLabGate(q); } });
+          return;
+        }
         enterRoomUrl("college.html?lab="+b.lab_no+"&v="+Date.now(), "콜레주 · LAB "+p3); });
       box.appendChild(it);
     }
