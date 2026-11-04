@@ -3902,6 +3902,35 @@ function openPalais(p){
    terra 핀은 _terra.kind 로 가른다(college·concert·heritage·museum·hansfoon·stadium·constellatio). */
 const PIN_SHOW = { city:true, spot:true, maison:true, sign:true, popup:true, palais:true,
   t_college:true, t_concert:true, t_heritage:true, t_museum:true, t_hansfoon:true, t_stadium:true, t_constellatio:true, t_lab:true };
+/* ⭐ 1104 소로 — 콜레주에서 날아온 LAB 무대에는 「우리 콜레주 핀」 하나만 선다.
+   인물 핀(오두막 터 이야기 등) · 건물 · 다른 EG 핀은 잠시 가린다.
+   · 나중에 흘러 들어오는 핀(streamPinsNear)도 들어오는 순간 가린다(collectionChanged).
+   · 그 무대를 떠나면(지표 거리 30km 밖) 또는 다른 핀으로 날면 저절로 풀린다.
+   ⚠ 거리는 지표 거리로 잰다 — 성층권 경유 비행의 중간 정지에서 3D 거리로 재면 엉뚱하게 풀린다. */
+function egLabHides(e){
+  if (e._terra) return e._terra.kind !== "lab";
+  return !!(e._spot || e._maison || e._sign || e._popup || e._palais
+    || (typeof e.id === "string" && e.id.startsWith("pin-")));
+}
+function egLabFocus(p){
+  window.EG_LAB_FOCUS = p || null;
+  if (p && !egLabFocus._wired){
+    egLabFocus._wired = true;
+    viewer.entities.collectionChanged.addEventListener((coll, added)=>{
+      if (window.EG_LAB_FOCUS) added.forEach(e=>{ if (egLabHides(e)) e.show = false; });
+    });
+    viewer.camera.moveEnd.addEventListener(()=>{
+      const f = window.EG_LAB_FOCUS; if (!f) return;
+      try{
+        const g = new Cesium.EllipsoidGeodesic(
+          Cesium.Cartographic.fromCartesian(viewer.camera.positionWC),
+          Cesium.Cartographic.fromDegrees(Number(f.lng), Number(f.lat)));
+        if (g.surfaceDistance > 30000) egLabFocus(null);
+      }catch(e){}
+    });
+  }
+  applyLayerVisibility();
+}
 function applyLayerVisibility(){
   viewer.entities.values.forEach(e=>{
     if (e._spot) e.show = showSpots && PIN_SHOW.spot;
@@ -3911,6 +3940,7 @@ function applyLayerVisibility(){
     else if (e._palais) e.show = PIN_SHOW.palais;
     else if (e._terra) { const k = "t_" + (e._terra.kind || ""); if (k in PIN_SHOW) e.show = PIN_SHOW[k]; }
     else if (typeof e.id === "string" && e.id.startsWith("pin-")) e.show = PIN_SHOW.city;
+    if (window.EG_LAB_FOCUS && egLabHides(e)) e.show = false;   /* 1104 — LAB 무대에서는 LAB 핀 하나만 */
   });
   const ls = document.getElementById("layerSpots");
   const lm = document.getElementById("layerMaisons");
@@ -7223,6 +7253,7 @@ function flyToPark(p, opts){
   currentPark = p;
   closeStadCard();
   try{ closeLabGate(); }catch(e){}   /* 1104 — 다른 곳으로 떠나면 LAB 현관은 걷는다 */
+  if (window.EG_LAB_FOCUS && p.kind !== "lab") egLabFocus(null);   /* 1104 — LAB 무대를 떠나면 가린 핀을 되돌린다 */
   try{ closeStory(); }catch(e){}
   try{ closeMaison(); }catch(e){}
   freeCamera();
@@ -8013,7 +8044,7 @@ function wireTerra(){
     if (d.eg === "lab-fly"){
       const lp = terraPins[d.code];
       try{ if (typeof doorState !== "undefined" && doorState !== "closed") exitDoorway(); }catch(e){}
-      if (lp) flyToPark(lp);
+      if (lp){ egLabFocus(lp); flyToPark(lp); }
     }
     if (d.type === "eg-game-done"){
       /* 경기 종료 → 문 닫고 곧장 지구 (구장 상공 회전 재개) */
