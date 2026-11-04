@@ -2911,8 +2911,10 @@ const bpLife=s=>(s.birth<0&&s.death!=null&&s.death<0)?'기원전 '+(-s.birth)+'�
 const bpPlain=t=>String(t||'').replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\*([^*]+)\*/g,'「$1」');
 const bpEdTitle=t=>String(t||'').replace(/\((양장본 )?Hard[Cc]over\)/g,'').replace(/\s+/g,' ').trim();
 /* 이 책의 출발 줄 — 지금 서 있는 콜레주(HERE)의 것이 먼저, 없으면 어느 도시든(하나의 길) */
+/* ⚠ 1104 저녁 — 공개 전 줄(preview · 살롱지기에게만 보임)은 「개설」이 아니다. 『일리아스』 · 『레미제라블』(공개일 2099)이
+ *    살롱지기 화면에서 「수강 신청하기」를 달고 「개설 중인 책 7」로 셈해지던 구멍(소로 발견) */
 function bpCohortOf(bid){
-  const cs=cohortsEvery.filter(c=>c.book_id===bid && phaseOf(c)!=='hidden');
+  const cs=cohortsEvery.filter(c=>c.book_id===bid && !['hidden','preview'].includes(phaseOf(c)));
   if(!cs.length) return null;
   const order={enrolling:1,reserving:2,prep:3,running:4,teaser:5,preview:6};
   cs.sort((a,b)=>((HERE&&a.hall_pin_id===HERE.id)?0:1)-((HERE&&b.hall_pin_id===HERE.id)?0:1)||(order[phaseOf(a)]||9)-(order[phaseOf(b)]||9)||a.id-b.id);
@@ -2933,6 +2935,8 @@ function bpActHtml(b){
   if(st==='finished')
     return `<span class="bp-badge">완독${me.finished_at?' · '+String(me.finished_at).slice(0,10).replace(/^(\d{4})-0?(\d+)-0?(\d+)$/,'$1년 $2월 $3일'):''}</span><button class="bp-btn line" type="button" onclick="bpWall(${b.id})">완독자 명단 보기</button>`;
   const c=bpCohortOf(b.id);
+  if(!c && isSalonKeeper && cohortsEvery.some(x=>x.book_id===b.id && phaseOf(x)==='preview'))
+    return `<span class="bp-badge">공개 전</span><span class="bp-say">출발 줄이 서 있지만 아직 공개하지 않았습니다.<br>살롱지기 화면에만 보이는 표시입니다.</span>`;
   if(!c){
     const mine=myBells.has(b.id), n=bellCounts[b.id]||0;
     const say=(n?`지금 <b>${n}명</b>이 개설을 요청했습니다.`:'아직 개설을 요청한 사람이 없습니다.')+'<br>요청이 많은 책부터 진도표를 짓습니다.';
