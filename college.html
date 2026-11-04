@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>콜레주 드 콤포스텔라</title>
+<script>
+/* ⭐ 1104 저녁 소로 — 「입장하기 → 파리 대문 → 3층 복도 잠깐 → 교실」이 허접해 보인다.
+ *  ?lab=N 으로 곧장 교실에 오는 문(LAB 입구 · 타륜)은 첫 그림부터 대문과 건물을 가린다.
+ *  교실이 뜬 뒤에 풀어 준다(labFromQuery) — 「← 3층 복도로」를 누르면 복도가 그대로 있다. */
+if(new URLSearchParams(location.search).get('lab')) document.documentElement.classList.add('lab-direct');
+</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -57,6 +63,10 @@ img{-webkit-user-drag:none;}
 #gate.opening #parisMark,#gate.opening .gate-hint,
 #gate.opening .corner-btn{opacity:0;transition:opacity .4s ease;}
 #gate.gone{visibility:hidden;}
+/* 1104 저녁 — 교실 직행(?lab=N): 대문 · 건물 · 층 점을 가리고 방과 같은 빛깔의 막을 친다 */
+html.lab-direct #gate,html.lab-direct #building,html.lab-direct #floorDots{visibility:hidden !important;}
+html.lab-direct body::after{content:"";position:fixed;inset:0;z-index:25;pointer-events:none;
+  background:linear-gradient(180deg,#141d31 0%,#0d0b07 100%);}
 .gate-hint{
   position:absolute;left:50%;bottom:clamp(26px,5vh,60px);transform:translateX(-50%);
   font-size:clamp(12px,1.3vw,15px);letter-spacing:.26em;text-indent:.26em;
@@ -2116,7 +2126,7 @@ async function init(){
   renderShelf(); renderBanners(); renderStage(); renderBellHand(); renderCorridor();
   parallaxCalcAll(); wireParallax(1);
   classFromQuery();
-  labFromQuery();
+  await labFromQuery();
 }
 async function loadBooks(){
   const { data, error } = await supa.from('college_books')
@@ -3077,12 +3087,13 @@ function classFromQuery(){
 }
 
 /* ── 타륜 쓩 — ?lab=NN 이면 대문·엘리베이터 없이 내 연구실 문 앞으로 (0802) ── */
-function labFromQuery(){
+async function labFromQuery(){
+  const unveil=()=>document.documentElement.classList.remove('lab-direct');
   const q=new URLSearchParams(location.search).get('lab');
-  if(!q) return;
-  const no=+q; if(!no) return;
+  if(!q){ unveil(); return; }
+  const no=+q; if(!no){ unveil(); return; }
   const L=buildLabsAll().find(x=>x.no===no);   /* 1104 — 현관을 지나 온 문. 복도에 없는 책(완주)도 연다 */
-  if(!L){ toast('그 연구실을 찾지 못했습니다'); return; }
+  if(!L){ unveil(); toast('그 연구실을 찾지 못했습니다'); return; }
   const gate=document.getElementById('gate');
   if(gate){ gate.classList.remove('on'); gate.classList.add('gone'); }
   document.getElementById('building').classList.add('on');
@@ -3091,7 +3102,8 @@ function labFromQuery(){
   curFloor=2; positionFloors(true);
   document.querySelectorAll('#floorDots .dot').forEach((d,i)=>d.classList.toggle('at',(2-i)===2));
   const sc=scOf(2); if(sc) sc.scrollTop=labFocusTop();
-  openLabRoom(L);
+  try{ await openLabRoom(L); }
+  finally{ unveil(); }     /* 교실이 덮은 뒤에 막을 걷는다 — 실패해도 걷는다(빈 화면에 갇히지 않게) */
 }
 
 function openGateModal(){ document.getElementById('gate-modal').classList.add('show'); }
@@ -4033,7 +4045,8 @@ function ttRefresh(){
   document.getElementById('ttPanel').classList.remove('show');
 }
 
-init();
+/* 1104 저녁 — 직행 막(lab-direct)은 init이 넘어져도 걷는다. 막 뒤에 갇히는 일만은 없게 */
+init().catch(e=>{ console.warn('[EG] college init:',e); document.documentElement.classList.remove('lab-direct'); });
 </script>
 
 <!-- 폰에서 방을 나가는 문 (0730) — 액자 밖 + 폰일 때만 뜬다. eg_back.js 참조 -->

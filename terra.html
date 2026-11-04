@@ -8565,6 +8565,7 @@ function rotateFrom(list, start){
 /* 0816 — 내 연구실 최대 셋. refreshDock이 담고 openCollegePanel이 읽는다(같은 블록).
    ⚠ 판을 열 때마다 다시 묻지 않으려고 여기 둔다 — 도크를 다시 그릴 때 함께 새로워진다. */
 let myLabs = [];
+let myLabsKeeper = false;   /* 1104 저녁 — 등록 없이 살롱지기 점검으로 띄운 LAB이면 true(「수강 중」 대신 「점검」) */
 
 /* 콜레주 판을 편다 — 미술관·음악관과 한 문법(openTourPanel 혈통).
    ⚠ 저 둘은 「오늘 어디가 열리나」를 묻지만, 콜레주는 「내가 무엇을 듣고 있나」를 묻는다.
@@ -9670,18 +9671,32 @@ async function loadDock(){
          미술관·음악관이 쓰는 그 판(openTourPanel 문법)을 그대로 입힌다.
        ⚠ 여기서 읽어 myLabs에 담아 둔다 — 판을 열 때 다시 묻지 않는다.
          카드의 둘째 줄도 같은 것을 쓰므로 물음은 한 번뿐이다. */
-    myLabs = [];
+    myLabs = []; myLabsKeeper = false;
     if (uid){
       try{
+        /* ⚠ 1104 저녁 — 「걷는 중」은 confirmed · active 둘이다(자리 규칙 결정문). active만 읽어
+             출발 전 월요일까지 기다리는 분의 판이 비어 있었다. */
         const { data:myEnr } = await supa.from("college_enrollments")
-          .select("cohort_id").eq("user_id", uid).eq("status","active");
+          .select("cohort_id").eq("user_id", uid).in("status", ["confirmed","active"]);
+        let bids = [];
         if (myEnr && myEnr.length){
           const cids = myEnr.map(e=>e.cohort_id);
           const { data:myCs } = await supa.from("college_cohorts").select("id,book_id").in("id", cids);
-          const bids = [...new Set((myCs||[]).map(c=>c.book_id))];
+          bids = [...new Set((myCs||[]).map(c=>c.book_id))];
+        } else {
+          /* ⭐ 1104 저녁 소로 — 살롱지기는 등록 없이 LAB 입구를 지난다(eg_college_lab_pass · keeper).
+               점검하러 타륜에서 곧장 교실로 갈 수 있게, 무대에 핀이 선 LAB(방이 지어진 책)을 띄운다. */
+          const { data:me } = await supa.from("users").select("is_admin").eq("id", uid).maybeSingle();
+          if (me && me.is_admin){
+            const { data:lp } = await supa.from("terra_pins").select("meta").eq("kind","lab").eq("active",true);
+            bids = [...new Set((lp||[]).map(x=>+(x.meta && x.meta.book_id)).filter(Boolean))];
+            myLabsKeeper = bids.length > 0;
+          }
+        }
+        if (bids.length){
           const { data:myBs } = await supa.from("college_books")
             .select("id,lab_no,title").in("id", bids);
-          myLabs = (myBs||[]).filter(b=>b.lab_no).slice(0,3);
+          myLabs = (myBs||[]).filter(b=>b.lab_no).sort((a,b)=>a.lab_no-b.lab_no).slice(0,3);
         }
       }catch(e){ console.warn("내 연구실 항목 로딩 실패:", e); }
     }
@@ -9697,7 +9712,7 @@ async function loadDock(){
           + (myLabs.length
                ? '<div class="dock-eta">'
                  + myLabs.map(b=>"LAB "+String(b.lab_no).padStart(3,"0")).join(" · ")
-                 + ' 수강 중</div>'
+                 + (myLabsKeeper ? ' 점검' : ' 수강 중') + '</div>'
                : ''),
       sub: "명저 273권을 탐구하는 EG학술원",
       onClick: ()=> openCollegePanel() });
