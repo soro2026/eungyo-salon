@@ -641,6 +641,25 @@ body.is-admin .hall-sticker{display:block;}
   font-size:12px;display:none;align-items:center;gap:7px;color:rgba(232,221,196,.85);}
 .bell-hand.show{display:inline-flex;}
 .bell-hand b{color:var(--gold-l);}
+/* 1104 저녁 소로 — 「내가 뭘 요청했는지 볼 수가 없으니 답답 · 취소할 방법이 없음」 → 누르면 내 개설 요청 목록 */
+button.bell-hand{font-family:inherit;cursor:pointer;transition:border-color .2s,background .2s}
+button.bell-hand:hover{border-color:rgba(201,162,74,.7)}
+.bell-hand .bh-more{margin-left:4px;padding-left:9px;border-left:1px solid rgba(201,162,74,.3);color:var(--gold-l)}
+.req-list{position:fixed;right:18px;bottom:66px;z-index:21;width:min(340px,calc(100vw - 36px));max-height:62vh;overflow-y:auto;
+  background:var(--paper);border:1px solid rgba(201,162,74,.35);border-radius:14px;box-shadow:0 10px 32px rgba(0,0,0,.55);
+  padding:14px 14px 10px;display:none;font-family:'Pretendard','Noto Sans KR','Apple SD Gothic Neo',sans-serif}
+.req-list.show{display:block}
+.req-list .rl-h{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;font-weight:700;color:var(--stone);padding:0 2px 10px;border-bottom:1px solid rgba(232,221,196,.12)}
+.req-list .rl-h small{font-weight:400;font-size:11.5px;color:rgba(232,221,196,.55)}
+.req-list .rl-row{display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px solid rgba(232,221,196,.08)}
+.req-list .rl-bk{flex:1;min-width:0;text-align:left;cursor:pointer}
+.req-list .rl-t{display:block;font-size:13.5px;color:#f0e8d4;line-height:1.45}
+.req-list .rl-a{display:block;margin-top:2px;font-size:11.5px;color:rgba(232,221,196,.55)}
+.req-list .rl-bk:hover .rl-t{color:var(--gold-l)}
+.req-list .rl-x{flex:none;font-size:12px;padding:6px 12px;border-radius:999px;border:1px solid rgba(232,221,196,.25);color:rgba(232,221,196,.85)}
+.req-list .rl-x:hover{border-color:var(--gold-l);color:var(--gold-l)}
+.req-list .rl-empty{padding:14px 2px 6px;font-size:12.5px;line-height:1.7;color:rgba(232,221,196,.7)}
+.req-list .rl-note{padding:10px 2px 2px;font-size:11.5px;line-height:1.6;color:rgba(232,221,196,.5)}
 
 /* 모달·토스트 */
 .modal-bg{position:fixed;inset:0;z-index:50;background:rgba(8,6,4,.6);
@@ -1337,7 +1356,8 @@ body.is-admin #ttBtn{display:block;}
   <button class="dot at" onclick="goFloor(0)" title="1층 · 모집 홀"><b>1</b><span>모집 홀</span></button>
 </div>
 
-<div class="bell-hand" id="bell-hand">개설 요청 <b id="bell-used">0</b> / 5</div>
+<button class="bell-hand" id="bell-hand" type="button" onclick="toggleReqList()" aria-expanded="false">개설 요청 <b id="bell-used">0</b> / 5<span class="bh-more">목록 보기</span></button>
+<div class="req-list" id="reqList" role="dialog" aria-label="내 개설 요청"></div>
 
 <!-- 클래스 상세 모달 (포스터 클릭) -->
 <!-- 흔적 입력 — SALLE 03의 문 안쪽 (0801) -->
@@ -3149,8 +3169,36 @@ function renderBellHand(){
   if(entered && currentUser){
     document.getElementById('bell-used').textContent=myBells.size;
     hand.classList.add('show');
-  } else hand.classList.remove('show');
+  } else { hand.classList.remove('show'); closeReqList(); }
+  if(document.getElementById('reqList').classList.contains('show')) renderReqList();
 }
+/* 1104 저녁 소로 — 내 개설 요청 목록 · 책 이름을 누르면 그 책의 방 · 「취소」는 그 자리에서 */
+function renderReqList(){
+  const box=document.getElementById('reqList');
+  const mine=[...myBells].map(id=>bookOf(id)).filter(b=>b&&b.id)
+    .sort((x,y)=>(x.era_order??1e9)-(y.era_order??1e9));
+  let h=`<div class="rl-h">내 개설 요청 <small>${mine.length} / ${BELL_LIMIT}권</small></div>`;
+  if(!mine.length) h+=`<div class="rl-empty">아직 개설을 요청한 책이 없습니다.<br>2층 서가에서 책을 눌러 요청할 수 있습니다.</div>`;
+  else h+=mine.map(b=>`<div class="rl-row"><button class="rl-bk" type="button" onclick="closeReqList();openBook(${b.id})">`
+      +`<span class="rl-t">『${esc(b.title||'')}』</span><span class="rl-a">${esc(b.author||'')}${bellCounts[b.id]?' · 요청 '+bellCounts[b.id]+'명':''}</span></button>`
+      +`<button class="rl-x" type="button" onclick="toggleBell(${b.id})">취소</button></div>`).join('')
+    +`<div class="rl-note">요청이 많은 책부터 진도표를 짓습니다. 취소하면 다른 책에 요청할 수 있습니다.</div>`;
+  box.innerHTML=h;
+}
+function toggleReqList(){
+  const box=document.getElementById('reqList');
+  if(box.classList.contains('show')){ closeReqList(); return; }
+  renderReqList(); box.classList.add('show');
+  document.getElementById('bell-hand').setAttribute('aria-expanded','true');
+}
+function closeReqList(){
+  const box=document.getElementById('reqList'); if(box) box.classList.remove('show');
+  const hand=document.getElementById('bell-hand'); if(hand) hand.setAttribute('aria-expanded','false');
+}
+document.addEventListener('click',e=>{
+  const box=document.getElementById('reqList');
+  if(box&&box.classList.contains('show')&&!box.contains(e.target)&&!e.target.closest('#bell-hand')) closeReqList();
+});
 /* ══════════════════════════════════════════════════════════════════
  *  클래스 상세 — 세 번째 뷰 (0730)
  *  포스터가 요약, 이 페이지가 전문. 날짜는 여기가 유일한 출처다.
