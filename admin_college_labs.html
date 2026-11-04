@@ -13,6 +13,7 @@
  *  문패:      college-assets/labs/plate_{lab_no 3자리}.webp
  *  메달리온:  college-assets/labs/medallion_{author_code}.webp (저자 공용)
  *  방 그림:   college-assets/labs/room_{lab_no 3자리}_v{1..7}_{m|d|e|n}.webp  (0730 추가)
+ *  LAB 입구:  college-assets/labs/gate_{lab_no 3자리}.webp  (1104 추가 — 현장 LAB 지구 핀의 문 앞 그림)
  *  쓰기 정책: can_write_college_asset (is_admin, SECURITY DEFINER)
  * ============================================================ */
 :root{--ink:#2E4A7A;--gold:#c9a24a;--gold-l:#e9cf9c;--bg:#14100b;--paper:#1e160e;}
@@ -115,6 +116,14 @@ a.back:hover{color:var(--gold-l);}
     </div>
 
     <div class="card">
+      <h2>LAB 입구 — 현장 LAB 핀의 문 앞</h2>
+      <div class="hint">지구 위 LAB 핀을 누르면 오른쪽에 뜨는 판의 그림입니다. 가로 3:2 webp 권장(예: 1536×1024).
+        아래 1/5은 이름 띠가 덮습니다 — 문은 가운데 위쪽에.
+        그림이 없으면 문패 · 메달리온이 대신 걸립니다. 방 그림(SALLE)은 여기에 쓰지 않습니다 — 문 안은 잠가 둡니다.</div>
+      <div id="gateList"><div class="empty">불러오는 중…</div></div>
+    </div>
+
+    <div class="card">
       <h2>방 그림 — SALLE 7장 × 시간대 4벌</h2>
       <div class="hint">941×1672 세로(9:16), 무텍스트. <b>가구가 놓일 벽·판·서랍장을 비워둔 채</b> 구워야
         그 위에 진도표·명패·서랍이 앉습니다.<br>
@@ -195,10 +204,23 @@ async function loadLabs(){
   buildRoomCard();
   const pbox=document.getElementById('plateList');
   const mbox=document.getElementById('medList');
+  const gbox=document.getElementById('gateList');
   if(!labs.length){
-    pbox.innerHTML=mbox.innerHTML='<div class="empty">아직 LAB 번호가 각인된 책이 없습니다.</div>';
+    pbox.innerHTML=mbox.innerHTML=gbox.innerHTML='<div class="empty">아직 LAB 번호가 각인된 책이 없습니다.</div>';
     return;
   }
+  /* LAB 입구 — LAB 번호별 (1104 소로 · 현장 LAB 지구 핀의 문 앞) */
+  gbox.innerHTML=labs.map(l=>{
+    const p=`labs/gate_${pad3(l.lab_no)}.webp`;
+    return `<div class="row">
+      <img class="thumb" id="gt-${l.lab_no}" alt="">
+      <div class="info"><b>LAB ${pad3(l.lab_no)} · ${esc(l.title)}</b>
+        <div class="meta">${esc(l.author)}</div></div>
+      <button class="btn" onclick="pickFile('${p}',()=>thumb('gt-${l.lab_no}','${p}'))">입구</button>
+      <button class="btn ghost" onclick="clearAsset('${p}',()=>thumb('gt-${l.lab_no}','${p}'))">내리기</button>
+    </div>`;
+  }).join('');
+  labs.forEach(l=>thumb('gt-'+l.lab_no,`labs/gate_${pad3(l.lab_no)}.webp`));
   /* 문패 — LAB 번호별 */
   pbox.innerHTML=labs.map(l=>{
     const p=`labs/plate_${pad3(l.lab_no)}.webp`;
