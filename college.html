@@ -1062,6 +1062,26 @@ body.is-admin #ttBtn{display:block;}
   .bnr.sway1,.bnr.sway2{animation:none;transform:none;}
   .slide{transition:opacity .3s;}
 }
+/* 1104 등록 확인장 */
+#seatCard{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;
+  background:rgba(8,12,22,.55);opacity:0;pointer-events:none;transition:opacity .35s ease}
+#seatCard.show{opacity:1;pointer-events:auto}
+#seatCard .sc-paper{width:min(420px,calc(100vw - 32px));background:#f6f0e2;color:#2a2418;border-radius:6px;
+  padding:30px 30px 24px;box-shadow:0 24px 60px rgba(0,0,0,.45);border:1px solid #c9b07a;
+  font-family:'Noto Serif KR',serif;transform:translateY(10px);transition:transform .35s ease}
+#seatCard.show .sc-paper{transform:none}
+#seatCard .sc-eye{font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:.32em;color:#9a7b3c;text-align:center}
+#seatCard .sc-title{font-size:22px;font-weight:700;text-align:center;margin:10px 0 16px}
+#seatCard .sc-book{text-align:center;font-size:17px;font-weight:600;padding-bottom:14px;border-bottom:1px solid #d9c9a3}
+#seatCard .sc-book span{display:block;font-size:12.5px;font-weight:400;color:#6b5d44;margin-top:4px}
+#seatCard .sc-rows{margin:14px 0 4px;font-size:13.5px;line-height:1.95}
+#seatCard .sc-rows div{display:flex;justify-content:space-between;gap:16px}
+#seatCard .sc-rows span{color:#7a6a4c}
+#seatCard .sc-rows b{font-weight:600;text-align:right}
+#seatCard .sc-line{margin:16px 0 8px;text-align:center;font-size:14px;line-height:1.75;color:#3a3122}
+#seatCard .sc-note{margin:0 0 18px;text-align:center;font-size:12px;line-height:1.7;color:#7a6a4c}
+#seatCard .sc-ok{display:block;margin:0 auto;padding:9px 34px;border:1px solid #9a7b3c;background:#2a2418;color:#f6f0e2;
+  border-radius:3px;font-size:13.5px;cursor:pointer;font-family:inherit}
 </style>
 <!-- EG 하늘 한 벌 (0729) — 시각 구간은 여기 하나에서만 정한다. eg_sky.js 참조 -->
 <script src="eg_sky.js?v=0806e"></script>
@@ -1612,7 +1632,8 @@ function chainImg(img,cands,onFail){
 function buildLabs(){
   const byBook={};
   /* 0927 — 예고 전(hidden) 기수는 복도에 문을 세우지 않는다 (예고를 2099로 내린 여섯 작품) */
-  cohortsAll.filter(c=>phaseOf(c)!=='hidden').forEach(c=>{ (byBook[c.book_id]=byBook[c.book_id]||[]).push(c); });
+  /* 1104 — 길은 책 하나에 하나: 통합이면 세 현관의 출발을 한 LAB으로 모은다 */
+  (COLLEGE_UNIFIED?cohortsEvery:cohortsAll).filter(c=>phaseOf(c)!=='hidden').forEach(c=>{ (byBook[c.book_id]=byBook[c.book_id]||[]).push(c); });
   const labs=Object.keys(byBook).map(bid=>{
     const b=bookOf(+bid);
     const cs=byBook[bid].sort((x,y)=>(x.cohort_no||0)-(y.cohort_no||0));
@@ -1702,16 +1723,16 @@ function jumpToLab(v){
 }
 function doorHTML(lab,slot){
   if(!lab) return '';
-  const active=lab.cohorts.find(c=>c.status==='running')||lab.cohorts.find(c=>c.status==='recruiting')||lab.cohorts[0];
-  const STATUS={announced:'다음 달 공개',recruiting:'예약 중',running:'진행 중'};
-  const dateLine=active.start_date?`${active.start_date} 개강`:(STATUS[active.status]||'');
-  const more=lab.cohorts.length>1?`<div class="rb-more">외 ${lab.cohorts.length-1}개 기수</div>`:'';
+  const active=repCohort(lab);
+  const STATUS={announced:'곧 문을 엽니다',recruiting:'등록 중',running:'길 위'};
+  const dateLine=active.start_date?`${dstr(active.start_date)} 출발`:(STATUS[active.status]||'');
+  const more=active.start_date?`<div class="rb-more">매주 월요일 출발</div>`:'';
   return `<div class="door-t${lab.mine?' lit':''}" data-slot="${slot}" data-code="${lab.code||''}"
     data-no="${lab.no||''}" data-author="${esc(lab.author)}" onclick="openLab(${lab.bookId})">
     <img class="med" alt="">
     <img class="plate" alt="LAB ${lab.no?pad3(lab.no):''} ${esc(lab.author)}">
     <div class="ribbon">
-      <div class="rb-book">${esc(lab.book.title||'')} · ${active.cohort_no}기</div>
+      <div class="rb-book">${esc(lab.book.title||'')}</div>
       <div class="rb-date">${esc(dateLine)}</div>${more}
     </div>
   </div>`;
@@ -1743,11 +1764,11 @@ function openLabModal(lab){
   document.getElementById('lm-rows').innerHTML=lab.cohorts.map(c=>{
     const b=bookOf(c.book_id);
     const bd=STATUS[c.status]||['announced',c.status];
-    const mine=myEnrollCids.has(c.id)?' · 내 클래스':'';
+    const mine=myEnrollCids.has(c.id)?' · 나의 출발':'';
     return `<button class="lab-row" onclick="closeLab();openClass(${c.id})">
       <div class="lr-main">
-        <div class="lr-title">${esc(b.title||'')} · ${c.cohort_no}기</div>
-        <div class="lr-meta">${esc(b.weeks_raw||'')} 과정${c.start_date?' · '+c.start_date+' 개강':''}${mine}</div>
+        <div class="lr-title">${esc(b.title||'')}${c.start_date?' · '+dstr(c.start_date)+' 출발':''}</div>
+        <div class="lr-meta">${esc(b.weeks_raw||'')} 과정${mine}</div>
       </div>
       <span class="s-badge ${bd[0]}">${bd[1]}</span>
     </button>`;
@@ -2019,6 +2040,8 @@ let cohortsAll=[], modalBook=null;
  *  cohortsEvery = 모든 콜레주의 기수(현수막 · 세 도시 동시 개막 판정용) · cohortsAll = 이 콜레주의 기수.
  *  0기(cohort_no=0)는 LAB — 살롱지기에게만 보인다. */
 let cohortsEvery=[], HERE=null, HALL_PINS=[], memState=null;
+/* 1104 — 콜레주는 하나 · 현관은 셋. eg_settings college_weekly.unified (도시 독립 때 false 한 줄) */
+let COLLEGE_UNIFIED=true;
 const CITY_KO={paris:'파리',newyork:'뉴욕',london:'런던'};
 /* 좌석(수강신청)은 정회원만 — 살아 있는 회비 · 파운더 90일 · 살롱지기. 예약 · 종은 누구나 (결정문 6호).
  *  DB 문지기 eg_college_seat_guard 가 같은 판정(eg_is_full_member)으로 한 번 더 막는다. */
@@ -2087,6 +2110,8 @@ async function loadCohorts(){
   POSTER_OF={}; const first={};
   (data||[]).forEach(c=>{ if(!first[c.book_id]||c.id<first[c.book_id]) first[c.book_id]=c.id; });
   (data||[]).forEach(c=>{ POSTER_OF[c.id]=BOOK_POSTER[c.book_id]||first[c.book_id]; });
+  try{ const { data:cw } = await supa.from('eg_settings').select('val').eq('key','college_weekly').maybeSingle();
+    if(cw&&cw.val&&cw.val.unified===false) COLLEGE_UNIFIED=false; }catch(e){}
   cohortsEvery=(data||[]).filter(c=>c.cohort_no>0||isSalonKeeper);
   cohortsAll=cohortsEvery.filter(c=>!HERE||c.hall_pin_id===HERE.id);
 }
@@ -2156,29 +2181,27 @@ async function saveBannerCart(){
 const KDAY=d=>{ if(!d) return ''; const [,m,dd]=String(d).split('-').map(Number); return `${m}월 ${dd}일`; };
 let bannerTm=null;
 function bannerCopy(){
-  /* 다가오는 첫 개막 — 모든 콜레주에서 개강이 가장 이른 공개 기수, 같은 날 · 같은 책이면 도시를 모은다 */
-  const up=cohortsEvery.filter(c=>c.cohort_no>0 && c.start_date &&
-      ['teaser','reserving','enrolling','prep'].includes(phaseOf(c)))
+  /* 1104 — 매주 월요일 출발. 첫째 현수막은 다가오는 출발(그 책의 첫 출발이면 「개막」), 둘째는 콜레주의 한 주 */
+  const open=cohortsEvery.filter(c=>c.cohort_no>0 && c.start_date &&
+      ['reserving','enrolling','prep'].includes(phaseOf(c)))
     .sort((a,b)=>String(a.start_date).localeCompare(String(b.start_date)));
-  const RHYTHM=[['예약','매월 1~20일'],['수강신청','매월 21~30일'],['개강','매월 5일']];
-  if(!up.length){
-    return [
-      { eyebrow:'COLLÈGE', title:'매달 5일,<br>새 클래스가 열립니다',
-        lines:['읽고 싶은 책에 종을 달아','다음 책을 불러 주세요'] },
-      { eyebrow:'CALENDRIER', title:'콜레주의 한 달', rows:RHYTHM,
-        foot:'파리 · 뉴욕 · 런던 — 도시마다 콜레주가 있습니다' } ];
+  const CAL={ eyebrow:'CALENDRIER', title:'콜레주의 한 주',
+    rows:[['출발','매주 월요일'],['등록','언제든'],['종','다섯 권까지']],
+    foot:'앞서 간 이도 뒤에 오는 이도 같은 길 위의 벗입니다' };
+  if(!open.length){
+    return [ { eyebrow:'COLLÈGE', title:'매주 월요일,<br>길을 나섭니다',
+               lines:['읽고 싶은 책에 종을 달아','다음 책을 불러 주세요'] }, CAL ];
   }
-  const f=up[0], bk=bookOf(f.book_id);
-  const same=up.filter(c=>c.start_date===f.start_date && c.book_id===f.book_id);
+  const f=open[0], bk=bookOf(f.book_id);
+  const same=open.filter(c=>c.start_date===f.start_date && c.book_id===f.book_id);
   const cities=[...new Set(same.map(c=>{ const h=HALL_PINS.find(x=>x.id===c.hall_pin_id); return h?(CITY_KO[h.city]||h.city):''; }).filter(Boolean))];
-  const where=cities.length>1 ? `${cities.join(' · ')} 동시 개강` : (cities[0]?`${cities[0]} 콜레주`:'');
-  const rng=(x,y)=>x?`${KDAY(x)}${y?' ~ '+KDAY(y):''}`:'';
-  return [
-    { eyebrow:'GRAND OUVERTURE', title:`${KDAY(f.start_date)} 개막`,
-      lines:[`『${esc(bk.title||'')}』`, esc(bk.author||''), where] },
-    { eyebrow:'CALENDRIER', title:'개막까지의 일정',
-      rows:[['예약',rng(f.apply_start,f.apply_end)],['수강신청',rng(f.confirm_start,f.confirm_end)],['개강',KDAY(f.start_date)]].filter(r=>r[1]),
-      foot:'그 뒤로는 매달 — 예약 1~20일 · 신청 21~30일 · 개강 5일' } ];
+  const firstEver=!cohortsEvery.some(c=>c.book_id===f.book_id && c.start_date && c.start_date<f.start_date);
+  if(firstEver){
+    return [ { eyebrow:'GRAND OUVERTURE', title:`${KDAY(f.start_date)} 개막`,
+               lines:[`『${esc(bk.title||'')}』`, esc(bk.author||''), cities.join(' · ')] }, CAL ];
+  }
+  return [ { eyebrow:'DÉPART', title:`${KDAY(f.start_date)} 출발`,
+             lines:[`『${esc(bk.title||'')}』`, esc(bk.author||''), '이번 주에 등록하시면 함께 떠납니다'] }, CAL ];
 }
 function bannerInner(it){
   let h=`<div class="bc-eye">${it.eyebrow}</div><div class="bc-title">${it.title}</div>`;
@@ -2351,10 +2374,10 @@ const TODAY=()=>window.EG_TT||((window.egSky&&egSky.today)?egSky.today()
 const PHASE={
   teaser   :['announced', '예고',            '예고편'],
   reserving:['recruiting','예약 중',          '예약중'],
-  enrolling:['recruiting','수강신청',         '신청중'],
-  prep     :['announced', '개강 준비',        '준비중'],
+  enrolling:['recruiting','등록 중',          '등록중'],
+  prep     :['announced', '출발 준비',        '준비중'],
   running  :['running',   '진행 중',          '진행중'],
-  held     :['announced', '개강 보류',        '보류중'],
+  held     :['announced', '출발 보류',        '보류중'],
   closed   :['running',   '마감',            '마감'],
   preview  :['announced', '미공개 · 살롱지기', '미공개']
 };
@@ -2378,11 +2401,16 @@ function phaseOf(c){
 }
 /* 예고 구간에는 상세 페이지를 열지 않는다 — 「스르르 예고편만」 */
 const isTeaser=c=>phaseOf(c)==='teaser';
-const LATER_NOTE='2027년 1월부터 차례로 열립니다';   /* 날짜 없는 예고의 안내 — 한 곳에서 고친다 */
+const LATER_NOTE='『월든』 다음으로 차례로 열립니다';   /* 날짜 없는 예고의 안내 — 한 곳에서 고친다 */
 
 function renderStage(){
   /* 예고 전(hidden)은 목록에 없다. 정렬은 구간 우선 → 개강 이른 순 */
-  const list=cohortsAll.filter(c=>phaseOf(c)!=='hidden')
+  /* 1104 — 매주 출발 줄이 쌓여도 무대에는 책마다 한 장. 이미 길 위(running)인 출발은 LAB에서 만난다 */
+  const pick={};
+  cohortsAll.filter(c=>!['hidden','running','closed'].includes(phaseOf(c))).forEach(c=>{
+    const k=c.book_id, cur=pick[k];
+    if(!cur || String(c.start_date||'9999')<String(cur.start_date||'9999')) pick[k]=c; });
+  const list=Object.values(pick)
     .sort((a,b)=>(PH_ORDER[phaseOf(a)]??9)-(PH_ORDER[phaseOf(b)]??9)
       || String(a.start_date||'9999').localeCompare(String(b.start_date||'9999')));   /* 0927 날짜 없는 예고는 뒤로 */
   const wrap=document.getElementById('slides');
@@ -2390,7 +2418,7 @@ function renderStage(){
   if(!list.length){
     wrap.innerHTML=`<div class="slide at">
       <div class="s-badge announced">서가는 열려 있습니다</div>
-      <div class="s-title">매달 5일,<br>새 클래스가 열립니다</div>
+      <div class="s-title">매주 월요일,<br>길을 나섭니다</div>
       <div class="s-note" style="margin-top:16px">읽고 싶은 책에 종을 달아<br>다음 책을 불러 주세요</div>
     </div>`;
     nav.innerHTML='';
@@ -2405,7 +2433,7 @@ function renderStage(){
       <div class="s-badge ${bd[0]}">${bd[1]}</div>
       <div class="s-title">${esc(b.title||'')}</div>
       <div class="s-author">${esc(b.author||'')}</div>
-      <div class="s-meta">${esc(b.weeks_raw||'')} 과정 · ${c.cohort_no}기${c.start_date?' · '+dstr(c.start_date)+' 개강':' · '+LATER_NOTE}</div>
+      <div class="s-meta">${esc(b.weeks_raw||'')} 과정 · ${c.start_date?dstr(c.start_date)+' 출발':LATER_NOTE}</div>
       <div class="s-note">${tz?'예고':'눌러서 자세히 보기'}</div>
     </div>`;
   }).join('');
@@ -2481,13 +2509,13 @@ function openCohort(cid){
   document.getElementById('cm-title').textContent=b.title||'';
   document.getElementById('cm-author').textContent=b.author||'';
   document.getElementById('cm-meta').innerHTML=
-    `${esc(b.stream||'')} · ${esc(b.weeks_raw||'')} 과정<br>${c.cohort_no}기${c.kind==='premiere'?' · 초연':''}`;
+    `${esc(b.stream||'')} · ${esc(b.weeks_raw||'')} 과정<br>매주 월요일 출발`;
 
   /* 날짜 — 신청·개강·완주. 기수마다 바뀌는 값은 전부 여기 모은다 */
   const wk=weeksOf(b.weeks_raw);
   const rows=[];
   if(c.apply_start) rows.push(`신청 <b>${dstr(c.apply_start)}${c.apply_end?' — '+dstr(c.apply_end,false):''}</b>`);
-  if(c.start_date)  rows.push(`개강 <b>${dstr(c.start_date)}</b>`);
+  if(c.start_date)  rows.push(`출발 <b>${dstr(c.start_date)}</b>`);
   const fin=endDate(c.start_date,wk);
   if(fin) rows.push(`완주 예정 <b>${fin}</b>`);
   if(c.kind==='premiere'&&c.min_members) rows.push(`최소 ${c.min_members}명이 모이면 개강합니다`);
@@ -2496,13 +2524,13 @@ function openCohort(cid){
   const note=document.getElementById('cm-note');
   const btn=document.getElementById('cm-btn');
   if(c.status==='recruiting'){
-    note.textContent='예약은 자리 표시입니다 — 21일에 좌석 확정이 열립니다';
+    note.textContent='등록하시면 다가오는 월요일에 함께 출발합니다';
     btn.style.display='';
   }else if(c.status==='announced'){
-    note.textContent='다음 달 1일, 예약이 열립니다';
+    note.textContent='곧 문을 엽니다';
     btn.style.display='none';
   }else{
-    note.textContent='지금 진행 중입니다 — 다음 기수에서 함께 읽을 수 있습니다';
+    note.textContent='이 출발은 이미 길 위에 있습니다 — 다음 월요일에 함께 떠나실 수 있습니다';
     btn.style.display='none';
   }
 
@@ -2754,13 +2782,42 @@ async function confirmSeat(cohortId){
   if(error){
     const m=String(error.message||'');
     toast(m.includes('THREE_LIMIT') ? '동시에 걸을 수 있는 책은 세 권까지입니다 — 한 권을 마치면 다음 책이 열립니다'
-        : m.includes('SEAT_MEMBERS_ONLY') ? '수강신청은 정회원부터입니다 — 예약은 그대로 남아 있습니다'
+        : m.includes('SEAT_MEMBERS_ONLY') ? '등록은 정회원부터입니다 — 예약은 그대로 남아 있습니다'
         : '잠시 후 다시 시도해 주세요');
     return;
   }
   await loadMyEnrollments();
-  toast('수강신청이 접수되었습니다');
+  showSeatCard(cohortId);
   if(classCohort&&classCohort.id===cohortId) renderApply(classCohort,bookOf(classCohort.book_id)||{});
+}
+/* ── 1104 등록 확인장 — 토스트 한 줄 대신 한 장. 같은 내용의 편지가 타벨라이로 간다(DB 일꾼) ── */
+function showSeatCard(cohortId){
+  const c=cohortsEvery.find(x=>x.id===cohortId)||cohortsAll.find(x=>x.id===cohortId); if(!c) return;
+  const b=bookOf(c.book_id)||{};
+  const h=HALL_PINS.find(x=>x.id===c.hall_pin_id);
+  const city=h?(CITY_KO[h.city]||h.city):'';
+  const plan=(c.session_plan&&c.session_plan.length)?c.session_plan:(b.session_plan||[]);
+  const r1=plan[0]&&plan[0].r?plan[0].r:'';
+  let due='';
+  if(c.start_date){ const d=new Date(c.start_date+'T00:00:00'); d.setDate(d.getDate()+6);
+    due=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  let el=document.getElementById('seatCard');
+  if(!el){ el=document.createElement('div'); el.id='seatCard'; document.body.appendChild(el); }
+  el.innerHTML=`<div class="sc-paper" role="dialog" aria-label="등록 확인장">
+      <div class="sc-eye">COLLÈGE DE COMPOSTELLA</div>
+      <div class="sc-title">등록되었습니다</div>
+      <div class="sc-book">『${esc(b.title||'')}』<span>${esc(b.author||'')}</span></div>
+      <div class="sc-rows">
+        ${c.start_date?`<div><span>출발</span><b>${dstr(c.start_date)}</b></div>`:''}
+        ${city?`<div><span>현관</span><b>${esc(city)} 콜레주</b></div>`:''}
+        ${r1?`<div><span>1주 차</span><b>${esc(r1)}</b></div>`:''}
+        ${due?`<div><span>1주 차를 지나는 날</span><b>${dstr(due)}</b></div>`:''}
+      </div>
+      <p class="sc-line">같은 책을 걷는 이들은 앞서 떠났든 뒤에 오든,<br>이 길 위에서 만나는 벗이 됩니다.</p>
+      <p class="sc-note">준비하실 것은 손에 드는 종이책 한 권입니다.<br>같은 내용의 확인 편지를 타벨라이로 보내 드렸습니다.</p>
+      <button class="sc-ok" onclick="document.getElementById('seatCard').classList.remove('show')">확인</button>
+    </div>`;
+  requestAnimationFrame(()=>el.classList.add('show'));
 }
 function renderBellHand(){
   const hand=document.getElementById('bell-hand');
@@ -2819,14 +2876,13 @@ function openClass(cid){
 
   /* 이 클래스에 대하여 */
   const f=[];
-  f.push(['기수', `${c.cohort_no}기${c.kind==='premiere'?' · 초연':(c.kind==='rerun'?' · 재연':'')}`]);
   if(c.apply_start) f.push(['예약', dstr(c.apply_start)+(c.apply_end?' — '+dstr(c.apply_end,false):'')]);
-  if(c.confirm_start) f.push(['수강신청', dstr(c.confirm_start)+(c.confirm_end?' — '+dstr(c.confirm_end,false):'')]);
-  if(c.start_date)  f.push(['개강', dstr(c.start_date)]);
+  if(c.confirm_start) f.push(['등록', dstr(c.confirm_start)+(c.confirm_end?' — '+dstr(c.confirm_end,false):'')]);
+  if(c.start_date)  f.push(['출발', dstr(c.start_date)+' · 그 뒤로 매주 월요일']);
   const fin=endDate(c.start_date,wk);
   if(fin) f.push(['완주 예정', fin]);
   if(c.kind==='premiere'&&c.min_members) f.push(['개강 조건', `최소 ${c.min_members}명이 모이면 개강합니다`]);
-  f.push(['자격', '수강신청은 정회원 · 예약은 누구나']);
+  f.push(['자격', '등록은 정회원 · 둘러보기는 누구나']);
   if(HERE) f.push(['콜레주', esc(CITY_KO[HERE.city]||HERE.city)+' 콜레주']);
   document.getElementById('cv-facts').innerHTML=
     f.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${v}</dd>`).join('');
@@ -2851,7 +2907,7 @@ function openClass(cid){
         ${due?`<span class="r-d">${due}</span>`:''}</div>`;
     }).join('');
   }else{
-    box.innerHTML=`<div class="cv-note" style="margin-top:0">세션표는 개강 전에 공개됩니다.
+    box.innerHTML=`<div class="cv-note" style="margin-top:0">세션표는 출발 전에 공개됩니다.
       ${b.weeks_raw?esc(b.weeks_raw)+' 과정입니다.':''}</div>`;
   }
 
@@ -2887,9 +2943,9 @@ function renderApply(c,b){
       p.textContent='3층 연구실 복도에서 이 방으로 들어가면 회차별 기록을 남길 수 있습니다.';
       ac.innerHTML=`<button class="btn btn-primary" onclick="closeClass();goFloor(2)">3층 · 내 클래스로</button>`;
     }else{
-      h.textContent='수강신청이 접수되었습니다';
-      p.innerHTML=`${c.start_date?'<b>'+dstr(c.start_date)+'</b> 개강합니다. ':''}`+
-        '개강일에 3층 연구실에 이 방이 열립니다.';
+      h.textContent='등록되었습니다';
+      p.innerHTML=`${c.start_date?'<b>'+dstr(c.start_date)+'</b>에 함께 출발합니다. ':''}`+
+        '출발하는 날 아침 3층 연구실에 이 방이 열립니다. 확인 편지를 타벨라이로 보내 드렸습니다.';
       ac.innerHTML=shelf;
     }
     return;
@@ -2898,21 +2954,20 @@ function renderApply(c,b){
   if(mine==='reserved'){
     if(ph==='enrolling' && !isFullMember()){
       h.textContent='정회원이 되시면 자리가 이어집니다';
-      p.innerHTML='예약해 두신 자리는 그대로 있습니다. 좌석을 확정하는 수강신청은 정회원부터입니다. '+
+      p.innerHTML='예약해 두신 자리는 그대로 있습니다. 등록은 정회원부터입니다. '+
         `${c.confirm_end?'<b>'+dstr(c.confirm_end)+'</b>까지 ':''}정회원이 되시면 이 자리에서 바로 마치실 수 있어요.`;
       ac.innerHTML=`<button class="btn btn-primary" onclick="goMembership()">정회원 안내 보기</button>`+shelf;
     }else if(ph==='enrolling'){
-      h.textContent='수강신청이 열렸습니다';
+      h.textContent='등록이 열렸습니다';
       p.textContent='예약해 두신 자리를 확정하시면 됩니다.';
-      ac.innerHTML=`<button class="btn btn-primary" onclick="confirmSeat(${c.id})">수강신청 완료하기</button>`;
+      ac.innerHTML=`<button class="btn btn-primary" onclick="confirmSeat(${c.id})">등록하기</button>`;
     }else if(ph==='reserving'){
       h.textContent='예약해 두셨습니다';
-      p.innerHTML=`${c.confirm_start?'<b>'+dstr(c.confirm_start)+'</b>':'수강신청 기간'}에 수강신청이 열립니다. `+
-        '그날 아침 쪽지와 메일로 알려드립니다.';
+      p.innerHTML=`${c.confirm_start?'<b>'+dstr(c.confirm_start)+'</b>부터':'곧'} 등록이 열립니다.`;
       ac.innerHTML=shelf;
     }else{
       h.textContent='예약해 두셨습니다';
-      p.textContent='수강신청 기간이 지났습니다. 다음 기수에 다시 열립니다.';
+      p.textContent='이번 출발의 등록은 닫혔습니다. 다음 월요일 출발에서 다시 열립니다.';
       ac.innerHTML=shelf;
     }
     return;
@@ -2921,20 +2976,19 @@ function renderApply(c,b){
   if(ph==='reserving'){
     h.textContent='예약해 두시겠습니까';
     p.innerHTML='예약은 자리 표시입니다 — 결제도 정원도 없습니다. '+
-      `${c.confirm_start?'<b>'+dstr(c.confirm_start)+'</b>':'수강신청 기간'}에 쪽지와 메일로 알려드리니, `+
-      '그때 신청을 마치시면 됩니다.';
+      `${c.confirm_start?'<b>'+dstr(c.confirm_start)+'</b>부터':'곧'} 등록이 열립니다.`;
     ac.innerHTML=`<button class="btn btn-primary" onclick="applyFromClass()">예약하기</button>`;
   }else if(ph==='enrolling' && !isFullMember()){
-    h.textContent='수강신청 기간입니다';
-    p.innerHTML='좌석을 확정하는 수강신청은 정회원부터입니다. 다음 기수부터는 예약 기간에 미리 자리를 표시해 두실 수 있어요.';
+    h.textContent='등록이 열려 있습니다';
+    p.innerHTML='콜레주 등록은 정회원부터입니다.';
     ac.innerHTML=`<button class="btn btn-primary" onclick="goMembership()">정회원 안내 보기</button>`+shelf;
   }else if(ph==='enrolling'){
-    h.textContent='수강신청 기간입니다';
-    p.innerHTML=`${c.confirm_end?'<b>'+dstr(c.confirm_end)+'</b>까지 신청할 수 있습니다. ':''}`+
-      `${c.start_date?dstr(c.start_date)+' 개강합니다.':''}`;
-    ac.innerHTML=`<button class="btn btn-primary" onclick="confirmSeat(${c.id})">수강신청</button>`;
+    h.textContent='등록이 열려 있습니다';
+    p.innerHTML=`${c.confirm_end?'<b>'+dstr(c.confirm_end)+'</b>까지 등록하시면 ':''}`+
+      `${c.start_date?'<b>'+dstr(c.start_date)+'</b>에 함께 출발합니다.':''}`;
+    ac.innerHTML=`<button class="btn btn-primary" onclick="confirmSeat(${c.id})">등록하기</button>`;
   }else if(ph==='preview'){
-    h.textContent='아직 공개되지 않은 기수입니다';
+    h.textContent='아직 공개되지 않은 출발입니다';
     p.innerHTML=`살롱지기에게만 보입니다. `+
       `${c.announce_at?'<b>'+dstr(c.announce_at)+'</b>부터 손님에게 예고편이 뜨고, ':''}`+
       `${c.apply_start?dstr(c.apply_start)+'부터 예약이 열립니다.':''}`;
@@ -2944,22 +2998,21 @@ function renderApply(c,b){
     p.innerHTML=`${c.apply_start?'<b>'+dstr(c.apply_start)+'</b>부터 예약이 열립니다.':LATER_NOTE}`;
     ac.innerHTML=shelf;
   }else if(ph==='prep'){
-    h.textContent='개강을 준비하고 있습니다';
-    p.innerHTML='수강신청이 마감되었습니다. '+
-      `${c.start_date?'<b>'+dstr(c.start_date)+'</b> 개강 예정이며, ':''}`+
-      '다음 기수는 개강 후에 다시 열립니다.';
+    h.textContent='출발을 준비하고 있습니다';
+    p.innerHTML=`${c.start_date?'<b>'+dstr(c.start_date)+'</b>에 출발합니다. ':''}`+
+      '다음 월요일 출발의 등록도 곧 열립니다.';
     ac.innerHTML=shelf;
   }else if(ph==='held'){
-    h.textContent='개강이 보류되었습니다';
-    p.textContent='신청 인원이 모이지 않아 다음 기수로 넘어갑니다. 예약해 두신 분의 자리는 그대로 이어집니다.';
+    h.textContent='출발이 미뤄졌습니다';
+    p.textContent='이 출발은 미뤄졌습니다. 예약해 두신 자리는 다음 월요일 출발로 이어집니다.';
     ac.innerHTML=shelf;
   }else if(ph==='running'){
-    h.textContent='지금 진행 중입니다';
-    p.textContent='다음 기수에서 함께 읽을 수 있습니다. 매월 새 기수가 열립니다.';
+    h.textContent='이 출발은 이미 길 위에 있습니다';
+    p.textContent='다음 월요일에 함께 떠나실 수 있습니다. 출발은 매주 월요일입니다.';
     ac.innerHTML=shelf;
   }else{
-    h.textContent='마감된 기수입니다';
-    p.textContent='다음 기수를 기다려 주십시오.';
+    h.textContent='닫힌 출발입니다';
+    p.textContent='다음 월요일 출발을 기다려 주십시오.';
     ac.innerHTML=shelf;
   }
 }
@@ -3041,13 +3094,16 @@ const SALLES=[
   { no:3, name:'이번 회차', render:()=>renderSalle3(), focus:'week',   fr:.72 },
   { no:4, name:'동료들',    render:()=>renderSalle4(), focus:'mates',  fr:1.46 },
   { no:5, name:'흔적의 책상', render:()=>renderSalle5(), focus:'traces', fr:1.49 },
-  { no:6, name:'앞서간 기수들', render:()=>renderSalle6(), focus:'past', fr:1.23 },
+  { no:6, name:'앞서 간 벗들', render:()=>renderSalle6(), focus:'past', fr:1.23 },
   { no:7, name:'완주자의 벽',  render:()=>renderSalle7(), focus:'wall', fr:1.85 }
 ];
 let ROOM=JSON.parse(JSON.stringify(ROOM_DEF));
 let roomLab=null, roomEditWired=false, roomHover=null, salleIdx=0, salleWalking=false;
 
-const repCohort=lab=>lab.cohorts.find(x=>x.status==='running')
+/* 1104 — 내가 떠난 출발이 먼저(진도표 날짜는 내 출발일로) · 없으면 지금 등록이 열린 출발 */
+const repCohort=lab=>lab.cohorts.find(x=>['confirmed','active'].includes(myEnrollStat.get(x.id)))
+  ||lab.cohorts.find(x=>phaseOf(x)==='enrolling')
+  ||lab.cohorts.find(x=>x.status==='running')
   ||lab.cohorts.find(x=>x.status==='recruiting')||lab.cohorts[0];
 
 /* ── SALLE 04 · 동료들 — 이 배를 함께 탄 이들의 명패 (0802)
@@ -3065,7 +3121,7 @@ function renderSalle4(){
   let body;
   if(!c){
     body=`<div class="mt-eyebrow">COMPAGNONS</div>
-      <div class="mt-empty">아직 항해 전입니다<br>개강과 함께 명패가 걸립니다</div>`;
+      <div class="mt-empty">아직 길에 오르기 전입니다<br>출발하는 날 명패가 걸립니다</div>`;
   }else if(!roomMates){
     body=`<div class="mt-eyebrow">COMPAGNONS</div>
       <div class="mt-empty">명패는 이 배에 오른<br>동료에게만 보입니다</div>`;
@@ -3107,7 +3163,7 @@ function playPageSound(){ try{ pageTurnAudio.currentTime=0; pageTurnAudio.play()
 function renderSalle5(){
   const c=repCohort(roomLab);
   if(!c) return `<div class="rv-tgt rv-traces" data-rk="traces">
-    <div class="tp-eyebrow">TRACES</div><div class="tp-msg">아직 항해 전입니다</div></div>`;
+    <div class="tp-eyebrow">TRACES</div><div class="tp-msg">아직 길에 오르기 전입니다</div></div>`;
   if(!myRoomEnr) return `<div class="rv-tgt rv-traces" data-rk="traces">
     <div class="tp-eyebrow">TRACES</div>
     <div class="tp-msg">흔적의 책상은 이 배에 오른<br>동료에게 열립니다</div></div>`;
@@ -3383,7 +3439,7 @@ function renderSalle6(){
     body=`<div class="pc-eyebrow">COHORTES</div>
       <div class="pc-grid">
         <div class="pc-card">
-          <div class="pc-no">${sim.cohort_no}기</div>
+          <div class="pc-no">${dot8(sim.start)} 출발</div>
           <div class="pc-dates">${dot8(sim.start)} ~ ${dot8(sim.end)}</div>
           <div class="pc-stats">참여 ${sim.n}명 · 완주 ${sim.n}명</div>
         </div>
@@ -3392,10 +3448,10 @@ function renderSalle6(){
     return `<div class="rv-tgt rv-past" data-rk="past">${body}</div>`;
   }
   const curLine = (cur && cur.status==='running')
-    ? `<div class="pc-now">${cur.cohort_no||1}기 항해 중 · ${dot8(cur.start_date)} 출발</div>` : '';
+    ? `<div class="pc-now">지금 길 위 · ${dot8(cur.start_date)} 출발</div>` : '';
   if(!roomPast || !roomPast.length){
     body=`<div class="pc-eyebrow">COHORTES</div>
-      <div class="pc-empty">아직 앞서간 기수가 없습니다<br>${cur?`${cur.cohort_no||1}기가 첫 기록을 만드는 중입니다`:'첫 기수의 출발을 기다리고 있습니다'}</div>${curLine}`;
+      <div class="pc-empty">아직 이 길을 먼저 지나간 벗이 없습니다<br>${cur?'지금 걷는 이들이 첫 흔적을 남기는 중입니다':'첫 출발을 기다리고 있습니다'}</div>${curLine}`;
   }else{
     /* 한 장 4기 · 내가 걸었던 기수가 있는 장으로 착지 (없으면 마지막 장) */
     const P=PC_PER, N=Math.ceil(roomPast.length/P);
@@ -3406,7 +3462,7 @@ function renderSalle6(){
     pcPage=Math.max(0,Math.min(pcPage,N-1));
     const cards=roomPast.slice(pcPage*P,pcPage*P+P).map(p=>
       `<div class="pc-card${p.is_mine?' mine':''}">
-        <div class="pc-no">${p.cohort_no}기${p.is_mine?'<span class="pc-mine">나의 기수</span>':''}</div>
+        <div class="pc-no">${dot8(p.start_date)} 출발${p.is_mine?'<span class="pc-mine">나의 출발</span>':''}</div>
         <div class="pc-dates">${dot8(p.start_date)} ~ ${dot8(p.end_date)}</div>
         <div class="pc-stats">참여 ${p.member_count}명 · 완주 ${p.finisher_count}명</div>
       </div>`).join('');
@@ -3444,7 +3500,7 @@ function renderSalle7(){
     const rows=sim.mates.map(m=>
       `<div class="wl-row">
         <span class="wl-name">${esc(m.nickname)}</span>
-        <span class="wl-meta">${sim.cohort_no}기 · ${dot8(sim.end)}</span>
+        <span class="wl-meta">${dot8(sim.end)} 완주</span>
       </div>`).join('');
     return `<div class="rv-tgt rv-wall" data-rk="wall">
       <div class="wl-eyebrow">FINISHERS</div>
@@ -3470,7 +3526,7 @@ function renderSalle7(){
     const rows=roomWall.slice(wlPage*P,wlPage*P+P).map(w=>
       `<div class="wl-row${w.is_me?' mine':''}">
         <span class="wl-name">${esc(w.nickname)}${w.is_me?'<span class="wl-mine">나의 각인</span>':''}</span>
-        <span class="wl-meta">${w.cohort_no}기 · ${dot8(w.completed_at)}</span>
+        <span class="wl-meta">${dot8(w.completed_at)} 완주</span>
       </div>`).join('');
     const nav = N>1
       ? `<div class="wl-nav">
@@ -3564,7 +3620,7 @@ function renderSalle1(){
   const c=repCohort(roomLab);
   let st='';
   if(c){ const nm=(PHASE[phaseOf(c)]||PHASE.teaser)[1];
-    st=`${c.cohort_no}기 · ${c.start_date?dstr(c.start_date)+' 개강 · ':''}${nm}`; }
+    st=`${c.start_date?dstr(c.start_date)+' 출발 · ':''}${nm}`; }
   if(c){ const purl=POSTER(c.id), probe=new Image();
     probe.onload=()=>{ const pi=document.getElementById('rvPosterImg');
       if(pi){ pi.src=purl; pi.closest('.rv-poster').style.display='block'; } };
@@ -3583,7 +3639,7 @@ function renderSalle2(){
   if(!plan.length)
     return `<div class="rv-tgt rv-board" data-rk="board">
       <div class="bd-head">진도표</div>
-      <div class="bd-sub">${esc(b.title||'')} — 진도표는 개강 전에 공개됩니다</div></div>`;
+      <div class="bd-sub">${esc(b.title||'')} — 진도표는 출발 전에 공개됩니다</div></div>`;
   const cols=plan.length>12?2:1, per=Math.ceil(plan.length/cols);
   const run=c&&phaseOf(c)==='running', today=TODAY();
   const dueIso=n=>{ const d=new Date(c.start_date+'T00:00:00');
@@ -3608,7 +3664,7 @@ function renderSalle2(){
   return `<div class="rv-tgt rv-board" data-rk="board">
     <div class="bd-head">진도표</div>
     <div class="bd-sub">${esc(b.title||'')} · ${esc(b.weeks_raw||'')} 과정${
-      (c&&c.start_date)?' · '+dstr(c.start_date)+' 개강':''}</div>
+      (c&&c.start_date)?' · '+dstr(c.start_date)+' 출발':''}</div>
     <div class="bd-grid c${cols}" style="grid-template-rows:repeat(${per},1fr)">${rows}</div>
   </div>`;
 }
