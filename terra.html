@@ -2366,7 +2366,7 @@ window.EGQ = (function(){
     <div class="lg-ko" id="lgKo"></div>
   </div>
   <div class="lg-body">
-    <div class="lg-tag">콜레주 드 콤포스텔라 · LAB</div>
+    <div class="lg-tag" id="lgTag"></div>
     <div class="lg-sub" id="lgSub"></div>
     <p class="lg-p" id="lgP"></p>
     <div class="lg-note" id="lgNote"></div>
@@ -5140,8 +5140,10 @@ function openLabGate(p){
   const m = (p && p.meta) || {};
   const no = m.lab_no || null;
   labGateTitle = p.name || "";
-  document.getElementById("lgEn").textContent = m.name_en || ("LAB " + labNo3(no));
-  document.getElementById("lgKo").textContent = p.name || "";
+  /* 1104 소로 — 그림 위 글씨는 코드가 얹는다(그림에는 글자를 넣지 않는다). 콜레주의 현장 LAB이라는 표기 */
+  document.getElementById("lgEn").textContent = "COLLÈGE DE COMPOSTELLA · LAB " + labNo3(no);
+  document.getElementById("lgKo").textContent = "현장 LAB " + labNo3(no);
+  document.getElementById("lgTag").textContent = m.place_en || m.name_en || "";
   document.getElementById("lgSub").textContent = m.place_ko ? "— " + m.place_ko : "";
   document.getElementById("lgP").textContent = "";
   const note = document.getElementById("lgNote"); note.className = "lg-note"; note.innerHTML = "";
@@ -5150,7 +5152,11 @@ function openLabGate(p){
   const th = document.getElementById("lgThumb");
   th.querySelectorAll("img,.lg-plate").forEach(x=>x.remove());
   const photo = new Image(); photo.className = "lg-photo"; photo.alt = "LAB 현관";
-  const cands = [LAB_ASSET("labs/gate_" + labNo3(no) + ".webp"), LAB_ASSET("labs/gate_" + labNo3(no) + "_d.webp")];
+  /* 시간대 4벌(아침 m · 낮 d · 저녁 e · 밤 n) — 위상은 egSky 하나에게 묻는다. 없으면 낮판 → 옛 이름 → 명패판 */
+  let slot = "d"; try{ slot = (window.egSky && egSky.phase && egSky.phase()) || "d"; }catch(e){}
+  const day = new Date().toISOString().slice(0,10).replace(/-/g,"");
+  const g3 = "labs/gate_" + labNo3(no);
+  const cands = [...new Set([g3 + "_" + slot + ".webp", g3 + "_d.webp", g3 + ".webp"])].map(x => LAB_ASSET(x) + "?v=" + day);
   let ci = 0;
   const plate = ()=>{
     const box = document.createElement("div"); box.className = "lg-plate";
@@ -5167,7 +5173,7 @@ function openLabGate(p){
     supa.from("college_books").select("title").eq("id", m.book_id).maybeSingle().then(({ data })=>{
       if (labGatePin !== p || !data || !data.title) return;
       labGateTitle = "『" + data.title + "』";
-      document.getElementById("lgKo").textContent = labGateTitle + " 연구실";
+      document.getElementById("lgKo").textContent = labGateTitle + " 현장 LAB";
       document.getElementById("lgP").textContent = "이 문 너머는 " + labGateTitle + labEul(data.title) + " 함께 걷는 분들의 방입니다.";
     }).catch(()=>{});
   }

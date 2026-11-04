@@ -13,7 +13,7 @@
  *  문패:      college-assets/labs/plate_{lab_no 3자리}.webp
  *  메달리온:  college-assets/labs/medallion_{author_code}.webp (저자 공용)
  *  방 그림:   college-assets/labs/room_{lab_no 3자리}_v{1..7}_{m|d|e|n}.webp  (0730 추가)
- *  LAB 입구:  college-assets/labs/gate_{lab_no 3자리}.webp  (1104 추가 — 현장 LAB 지구 핀의 문 앞 그림)
+ *  LAB 입구:  college-assets/labs/gate_{lab_no 3자리}_{m|d|e|n}.webp  (1104 추가 — 현장 LAB 지구 핀의 문 앞 그림 · 시간대 4벌)
  *  쓰기 정책: can_write_college_asset (is_admin, SECURITY DEFINER)
  * ============================================================ */
 :root{--ink:#2E4A7A;--gold:#c9a24a;--gold-l:#e9cf9c;--bg:#14100b;--paper:#1e160e;}
@@ -117,7 +117,8 @@ a.back:hover{color:var(--gold-l);}
 
     <div class="card">
       <h2>LAB 입구 — 현장 LAB 핀의 문 앞</h2>
-      <div class="hint">지구 위 LAB 핀을 누르면 오른쪽에 뜨는 판의 그림입니다. 가로 3:2 webp 권장(예: 1536×1024).
+      <div class="hint">지구 위 LAB 핀을 누르면 오른쪽에 뜨는 판의 그림입니다. 시간대 4벌(아침 · 낮 · 저녁 · 밤) — 낮판만 있어도 됩니다. 가로 3:2 webp 권장(예: 1536×1024).
+        이름 글씨(콜레주 · 현장 LAB)는 셸이 그림 위에 얹습니다 — 그림에는 글자를 넣지 않습니다.
         아래 1/5은 이름 띠가 덮습니다 — 문은 가운데 위쪽에.
         그림이 없으면 문패 · 메달리온이 대신 걸립니다. 방 그림(SALLE)은 여기에 쓰지 않습니다 — 문 안은 잠가 둡니다.</div>
       <div id="gateList"><div class="empty">불러오는 중…</div></div>
@@ -209,18 +210,7 @@ async function loadLabs(){
     pbox.innerHTML=mbox.innerHTML=gbox.innerHTML='<div class="empty">아직 LAB 번호가 각인된 책이 없습니다.</div>';
     return;
   }
-  /* LAB 입구 — LAB 번호별 (1104 소로 · 현장 LAB 지구 핀의 문 앞) */
-  gbox.innerHTML=labs.map(l=>{
-    const p=`labs/gate_${pad3(l.lab_no)}.webp`;
-    return `<div class="row">
-      <img class="thumb" id="gt-${l.lab_no}" alt="">
-      <div class="info"><b>LAB ${pad3(l.lab_no)} · ${esc(l.title)}</b>
-        <div class="meta">${esc(l.author)}</div></div>
-      <button class="btn" onclick="pickFile('${p}',()=>thumb('gt-${l.lab_no}','${p}'))">입구</button>
-      <button class="btn ghost" onclick="clearAsset('${p}',()=>thumb('gt-${l.lab_no}','${p}'))">내리기</button>
-    </div>`;
-  }).join('');
-  labs.forEach(l=>thumb('gt-'+l.lab_no,`labs/gate_${pad3(l.lab_no)}.webp`));
+  renderGateSlots(labs);
   /* 문패 — LAB 번호별 */
   pbox.innerHTML=labs.map(l=>{
     const p=`labs/plate_${pad3(l.lab_no)}.webp`;
@@ -321,6 +311,49 @@ function renderRoomSlots(){
         <div class="s-state">걸려 있음 · 클릭해 교체</div>
         <button class="btn ghost" style="margin-top:6px"
           onclick="event.stopPropagation();clearAsset('${path}',renderRoomSlots)">내리기</button>`; };
+      im.onerror=()=>{ el.innerHTML=`<div class="s-name">${slKo}</div>
+        <div class="s-state">${sl==='d'?'비어 있음 · 클릭해 걸기':'비어 있음 (낮판 폴백)'}</div>`; };
+      im.src=PUB(path)+'?v='+Date.now();
+    });
+  });
+}
+
+/* ── LAB 입구 4벌 — labs/gate_{NNN}_{m|d|e|n}.webp (1104 소로) ──
+ *  방 그림 칸과 같은 손: 칸을 누르거나 끌어다 놓으면 걸린다. 낮판이 기둥, 나머지는 있으면 걸림 */
+const gatePath=(no,sl)=>`labs/gate_${pad3(no)}_${sl}.webp`;
+let GATE_LABS=[];
+function renderGateSlots(labs){
+  if(labs) GATE_LABS=labs;
+  const box=document.getElementById('gateList'); if(!box) return;
+  box.innerHTML=GATE_LABS.map(l=>{
+    const cells=ROOM_SLOTS.map(([sl,slKo])=>
+      `<div class="slot tall rslot gslot" data-path="${gatePath(l.lab_no,sl)}" id="gt-${l.lab_no}-${sl}">
+        <div class="s-name">${slKo}</div>
+        <div class="s-state">확인 중…</div>
+      </div>`).join('');
+    return `<div class="room-block">
+      <div class="room-title">LAB ${pad3(l.lab_no)} · ${esc(l.title)} <span class="room-lat">${esc(l.author)}</span></div>
+      <div class="room-quad">${cells}</div>
+    </div>`;
+  }).join('');
+  const again=()=>renderGateSlots();
+  box.querySelectorAll('.gslot').forEach(el=>{
+    el.addEventListener('click',()=>pickFile(el.dataset.path,again));
+    el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('drag');});
+    el.addEventListener('dragleave',()=>el.classList.remove('drag'));
+    el.addEventListener('drop',e=>{e.preventDefault();el.classList.remove('drag');
+      if(e.dataTransfer.files[0]) upload(el.dataset.path,e.dataTransfer.files[0],again);});
+  });
+  GATE_LABS.forEach(l=>{
+    ROOM_SLOTS.forEach(([sl,slKo])=>{
+      const el=document.getElementById(`gt-${l.lab_no}-${sl}`); if(!el) return;
+      const path=gatePath(l.lab_no,sl);
+      const im=new Image();
+      im.onload=()=>{ el.innerHTML=`<img src="${im.src}" alt="">
+        <div class="s-name">${slKo}</div>
+        <div class="s-state">걸려 있음 · 클릭해 교체</div>
+        <button class="btn ghost" style="margin-top:6px"
+          onclick="event.stopPropagation();clearAsset('${path}',renderGateSlots)">내리기</button>`; };
       im.onerror=()=>{ el.innerHTML=`<div class="s-name">${slKo}</div>
         <div class="s-state">${sl==='d'?'비어 있음 · 클릭해 걸기':'비어 있음 (낮판 폴백)'}</div>`; };
       im.src=PUB(path)+'?v='+Date.now();
