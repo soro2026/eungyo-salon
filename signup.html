@@ -160,6 +160,15 @@
   /* 약관 */
   .scrim{ position:fixed; inset:0; background:rgba(11,9,7,.72); display:none; align-items:center; justify-content:center; padding:20px; z-index:50; }
   .scrim.on{ display:flex; }
+  /* 1107 — 닉네임 확인 창(소로 「강압적이지 않되 좋은 실수 방지」) */
+  .nick-ask{ width:100%; max-width:420px; background:var(--paper); border-radius:6px; padding:30px clamp(20px,5vw,30px) 24px; text-align:center; }
+  .nick-ask h2{ font-family:var(--serif); font-weight:600; font-size:1.18rem; line-height:1.55; color:var(--ink); word-break:keep-all; }
+  .nick-ask h2 b{ font-weight:700; }
+  .nick-ask p{ margin-top:10px; font-size:.95rem; line-height:1.7; color:var(--ink-soft); word-break:keep-all; }
+  .nick-ask .row{ display:flex; gap:10px; margin-top:22px; }
+  .nick-ask .row button{ flex:1; padding:13px 10px; border-radius:4px; font:inherit; font-size:.98rem; cursor:pointer; }
+  .nick-ask .yes{ background:var(--arrow); border:1px solid var(--arrow-deep); color:var(--ink); font-weight:600; }
+  .nick-ask .no{ background:transparent; border:1px solid var(--line-strong); color:var(--ink-soft); }
   .doc{ width:100%; max-width:600px; max-height:84dvh; overflow-y:auto; background:var(--paper); border-radius:6px; padding:34px clamp(20px, 5vw, 36px); }
   .doc h2{ font-family:var(--serif); font-weight:600; font-size:1.3rem; color:var(--ink); margin-bottom:4px; }
   .doc .doc-eyebrow{ font-size:.9rem; color:var(--ink-dim); margin-bottom:18px; }
@@ -221,8 +230,8 @@
       <!-- ⭐ 1107 가입서 새 판(결정문 1106오후 ⑦) — 전원 닉네임 · 실명은 등록만 · 「실명 그대로 / 닉네임」 고르기를 걷음 -->
       <div class="field" id="nick-field">
         <label for="nick" id="nick-label">닉네임</label>
-        <p class="desc">지도와 이웃에게 보이는 이름입니다. 나중에 언제든 바꾸실 수 있습니다.</p>
-        <input id="nick" type="text" autocomplete="nickname" placeholder="닉네임" maxlength="24">
+        <p class="desc">지도와 이웃에게 보이는 이름입니다. 가입 뒤 7일 동안은 직접 고치실 수 있고, 그 뒤로는 운영자(lonelywalden@gmail.com)에게 메일로 청해 주십시오.</p>
+        <input id="nick" type="text" autocomplete="nickname" placeholder="예: 월든걷는사람" maxlength="24">
         <div class="hint" id="nick-hint"></div>
       </div>
 
@@ -283,6 +292,15 @@
   </section>
 
   </main>
+</div>
+
+<!-- 1107 닉네임 확인 창 -->
+<div class="scrim" id="nick-scrim">
+  <div class="nick-ask" role="dialog" aria-modal="true" aria-labelledby="nick-ask-title">
+    <h2 id="nick-ask-title">〈<b id="nick-ask-name"></b>〉<span id="nick-ask-ro">으로</span> 정하시겠습니까?</h2>
+    <p>이 이름은 명패와 컴퍼니 명부에 오래 남습니다.</p>
+    <div class="row"><button type="button" class="no" id="nick-ask-no">고치기</button><button type="button" class="yes" id="nick-ask-yes">이대로 정하기</button></div>
+  </div>
 </div>
 
 <!-- 약관 -->
@@ -529,6 +547,7 @@
     if(pw!==pw2){ $('pw2-hint').className='hint warn'; $('pw2-hint').textContent='두 비밀번호가 다릅니다.'; need('두 비밀번호가 다릅니다.'); } else $('pw2-hint').textContent='';
     if(!$('c-terms').checked || !$('c-privacy').checked){ need('두 약관에 동의하셔야 들어오실 수 있습니다.'); }
     if(bad){ msg.textContent = first; return; }
+    if(NICK_OK !== nick){ askNick(nick); return; }   /* 1107 — 닉네임을 한 번 확인한다 */
 
     const btn = $('submit');
     btn.disabled=true; btn.textContent='가입하는 중…';
@@ -592,6 +611,18 @@
       : '당신의 자리가 마련되었습니다.';
   }
 
+  /* 1107 닉네임 확인 창 — 고치면 다시 묻는다 */
+  let NICK_OK = null;
+  function askNick(nick){
+    $('nick-ask-name').textContent = nick;
+    const c = nick.charCodeAt(nick.length - 1), j = (c >= 0xAC00 && c <= 0xD7A3) ? (c - 0xAC00) % 28 : -1;
+    $('nick-ask-ro').textContent = (j === 0 || j === 8) ? '로' : (j > 0 ? '으로' : '(으)로');   /* 받침 없음 · ㄹ → 로 */
+    $('nick-scrim').classList.add('on'); $('nick-ask-yes').focus();
+  }
+  $('nick-ask-yes').addEventListener('click', ()=>{ NICK_OK = $('nick').value.trim(); $('nick-scrim').classList.remove('on'); submit(); });
+  $('nick-ask-no').addEventListener('click', ()=>{ $('nick-scrim').classList.remove('on'); $('nick').focus(); $('nick').select(); });
+  $('nick-scrim').addEventListener('click', (e)=>{ if(e.target.id === 'nick-scrim') $('nick-ask-no').click(); });
+  $('nick').addEventListener('input', ()=>{ NICK_OK = null; });
   $('submit').addEventListener('click', submit);
   $('go-salon').addEventListener('click', ()=>{ location.href='index.html'; });
 
