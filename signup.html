@@ -328,7 +328,10 @@
        ?board=1  공고의 [폴라리스호에 오르기]로 온 분 — 가입이 끝나면 곧장 승선 확인으로
        ?by=017   초대해 주신 대원 번호 — 브라우저에 적어 두었다가 입장할 때 함께 넘긴다 */
   const QS = new URLSearchParams(location.search);
-  const BOARD = QS.get('board') === '1';
+  const BOARD = QS.get('board') === '1' || QS.get('board') === 'member';
+  /* ⭐ 1109 소로 — ?board=member 는 「탐험대 없이 정회원만」 신청으로 온 분 — 가입이 끝나면 정회원 신청 확인으로 */
+  const MEMBER_ONLY = QS.get('board') === 'member';
+  const BOARD_TO = MEMBER_ONLY ? 'board.html?plan=member' : 'board.html';
   const BY = (function(){
     const clean = s => String(s || '').replace(/[^0-9A-Za-z_-]/g, '').slice(0, 24);
     let b = clean(QS.get('by'));
@@ -464,6 +467,12 @@
       document.title = 'EG유니버스 — 폴라리스호 승선 · 가입';
       $('s-form').querySelector('h1').textContent = '폴라리스호에 오르기 전에';
       $('s-form').querySelector('.lede').textContent = '먼저 EG유니버스에 가입하십니다. 가입을 마치면 곧장 승선 확인으로 이어집니다.';
+      if(MEMBER_ONLY){
+        ['가입', '신청 확인', '결제', '신청 완료'].forEach((t, i) => { const li = $('board-band').children[i]; if(li) li.textContent = t; });
+        document.title = 'EG유니버스 — 정회원 신청 · 가입';
+        $('s-form').querySelector('h1').textContent = '정회원 신청 전에';
+        $('s-form').querySelector('.lede').textContent = '먼저 EG유니버스에 가입하십니다. 가입을 마치면 곧장 정회원 신청 확인으로 이어집니다.';
+      }
     }
     else $('s-form').querySelector('.lede').innerHTML =
       '12월 25일 정식 개관 전까지, EG유니버스의 모든 곳을 무료로 이용하실 수 있습니다.<br>가입은 휴대폰으로도 되고, 이용은 노트북이나 데스크톱에서 합니다.';
@@ -482,7 +491,7 @@
          [폴라리스호에 오르기]로 오시면 곧장 승선 확인, [먼저 둘러보기]로 오시면 곧장 EG 안으로 */
       try{
         const { data } = await sb.auth.getSession();
-        if(data && data.session){ location.replace(BOARD ? 'board.html' : 'index.html'); return; }
+        if(data && data.session){ location.replace(BOARD ? BOARD_TO : 'index.html'); return; }
       }catch(e){}
       return verifyOpen();
     }
@@ -582,7 +591,7 @@
           msg.textContent = '가입은 되었지만 집을 마련하지 못했습니다 — ' + oErr.message + ' 이 화면을 새로 열고 로그인해 주십시오.';
           return;
         }
-        if(BOARD){ location.replace('board.html'); return; }   /* 승선 한 줄 — 곧장 승선 확인으로 */
+        if(BOARD){ location.replace(BOARD_TO); return; }   /* 승선 한 줄 — 곧장 승선 확인으로 (정회원만이면 정회원 신청 확인) */
         show('s-done');
         $('done-title').textContent = '환영합니다, ' + nick + ' 님';
         $('done-note').textContent = (CITY_KO[oe.city] || '') + ' ' + (oe.building || '') + '에 당신의 자리가 마련되었습니다.';
