@@ -136,6 +136,10 @@
   .egm-paper::before{ content:''; position:absolute; left:0; right:0; bottom:100%; height:46px; pointer-events:none;
     background:linear-gradient(180deg, rgba(8,12,20,0), rgba(8,12,20,.94)); }
   .egm-paper .egm-mine{ margin-top:0; -webkit-line-clamp:3; }
+  /* 그림 먼저, 종이는 나중에 — 카드가 가운데 오면 그림 전체를 1.6초 보여 준 뒤 종이가 아래에서 스르르(1111 소로) */
+  .egm-paper{ transition:transform 1.2s cubic-bezier(.2,.75,.25,1), opacity 1.2s ease; }
+  .egm-card.rest .egm-paper{ transform:translateY(100%); opacity:0; pointer-events:none; }
+  .egm-face.front[data-act="peek"]{ cursor:pointer; }
   .egm-face.front.day{ background:#fbf3e6; color:#1d1812; }
   .egm-face.front.day .egm-art{ top:0; bottom:0; }
   .egm-face.front.day .egm-shade{ background:linear-gradient(180deg, rgba(0,0,0,.22) 0%, rgba(0,0,0,0) 24%); }
@@ -400,13 +404,13 @@
     let front = '';
     if (c.state === 'cleared'){
       const day = !!(c.art_d);
-      front = '<div class="egm-face front' + (day ? ' day' : '') + '">' + artDiv(c, 'd') + '<div class="egm-shade"></div>'
+      front = '<div class="egm-face front' + (day ? ' day' : '') + '" data-act="peek" data-no="' + c.no + '" title="누르면 그림만 보기 · 다시 누르면 소감">' + artDiv(c, 'd') + '<div class="egm-shade"></div>'
         + '<span class="egm-no">' + pad(c.no) + '</span><span class="egm-ttl">' + esc(c.title) + '</span><span class="egm-knd">' + esc(c.kind || '') + '</span>'
         + '<div class="egm-paper"><span class="egm-mine">' + esc(c.essay || '') + '</span><span class="egm-cday">' + esc(c.cleared_text || '') + ' 클리어</span>'
         + '<div class="egm-brow"><button class="egm-btn line" type="button" data-act="essay" data-no="' + c.no + '">내 소감</button>'
         + '<button class="egm-btn line" type="button" data-act="voices" data-no="' + c.no + '">대원들의 소감' + (c.voices_n ? ' ' + c.voices_n : '') + '</button></div></div></div>';
     }
-    return '<div class="egm-card' + (c.state === 'cleared' ? ' flipped' : '') + (c.state === 'open' || c.state === 'reached' ? ' open' : '') + '" id="egm-card-' + c.no + '">' + back + front + '</div>';
+    return '<div class="egm-card' + (c.state === 'cleared' ? ' flipped rest' : '') + (c.state === 'open' || c.state === 'reached' ? ' open' : '') + '" id="egm-card-' + c.no + '">' + back + front + '</div>';
   }
   function paintBoard(){
     $('egm-who').innerHTML = '탐험대원 No.' + String(B.crew.no).padStart(3, '0') + ' · ' + esc(B.crew.voyage_name)
@@ -441,6 +445,15 @@
       el.classList.toggle('away', a > 2);
       el.onclick = a === 0 ? null : () => { SEL = i; place(); };
     });
+    settle(1600);
+  }
+  let settleT = null;
+  function settle(ms){
+    clearTimeout(settleT);
+    const slots = document.querySelectorAll('#egm-slots .egm-slot');
+    slots.forEach(s => { const c = s.querySelector('.egm-card.flipped'); if (c) c.classList.add('rest'); });
+    const mid = slots[SEL] && slots[SEL].querySelector('.egm-card.flipped');
+    if (mid) settleT = setTimeout(() => mid.classList.remove('rest'), ms);
   }
   function step(d){ if (!B || !B.cards.length) return; SEL = (SEL + d + B.cards.length) % B.cards.length; place(); }
 
@@ -450,6 +463,7 @@
     if (act === 'prev') return step(-1);
     if (act === 'next') return step(1);
     if (act === 'close') return closeBoard();
+    if (act === 'peek'){ clearTimeout(settleT); const cd = b.closest('.egm-card'); if (cd) cd.classList.toggle('rest'); return; }
     if (act === 'link'){ location.href = b.dataset.href; return; }
     if (act === 'essay') return openEssayFor(no);
     if (act === 'voices') return openVoices(no);
@@ -512,7 +526,7 @@
     if (first){
       SEL = Math.max(0, B.cards.findIndex(x => x.no === no)); place();
       const el = $('egm-card-' + no);
-      if (el){ el.classList.remove('flipped'); void el.offsetWidth; requestAnimationFrame(() => el.classList.add('flipped')); }
+      if (el){ el.classList.remove('flipped'); void el.offsetWidth; requestAnimationFrame(() => { el.classList.add('flipped'); settle(2300); }); }
       const done = B.done_today || 0, max = B.daily_max || 2;
       setTimeout(() => toast('🍎 <b>황금사과 한 알</b>이 도착했습니다.' + (done >= max ? ' 오늘은 두 곳을 탐험하셨습니다.' : ' 오늘 한 곳을 더 탐험하실 수 있습니다.'), '확인', null, 6000), 800);
     } else {
