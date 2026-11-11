@@ -1519,6 +1519,16 @@ window.EGQ = (function(){
   /* ── 0803 저녁 — 도장 깃발. 방금 받은 그 도장의 자국이 30분 동안 좌상단에 선다.
      stamp_press와 같은 mask 문법 — 점이 아니라 무엇이 들어왔는지까지 말한다.
      우편함 깃발: 수첩을 펼치면 즉시 내려가고, 안 펼쳐도 30분이면 저절로 내려간다(3호). */
+  /* ⭐ 1111 소로 — 탐험대 대화방 새 글. 비어 있던 오른쪽 아래 모서리에 말풍선 하나(색이 아니라 사물로 구분 · 0728).
+       켤 때 한 번 돌출하고 가만히 선다 — 끝없이 뛰는 배지는 헌장 9.2-5가 금한다. */
+  #helmChat{ position:absolute; bottom:1px; right:1px; width:23px; height:23px; border-radius:50%;
+    display:none; align-items:center; justify-content:center; background:#f2c94c;
+    border:1.5px solid rgba(248,244,234,.92); box-shadow:0 2px 8px rgba(0,0,0,.45);
+    animation:ballPop .48s cubic-bezier(.34,1.5,.5,1) both; }
+  #helmChat.on{ display:flex; }
+  #helmChat svg{ width:13px; height:13px; }
+  .pol-new{ display:inline-block; margin-left:7px; padding:0 5px; border-radius:3px; background:#f2c94c; color:#1d1812;
+    font-family:'Pretendard', -apple-system, sans-serif; font-size:10px; font-weight:800; letter-spacing:.05em; line-height:16px; vertical-align:2px; }
   #helmStamp{ position:absolute; top:1px; left:1px; width:25px; height:25px; border-radius:50%;
     display:none; background:#FDFCFA; border:1px solid rgba(201,162,39,.55);
     box-shadow:0 2px 8px rgba(0,0,0,.4); cursor:pointer; }
@@ -2187,6 +2197,7 @@ window.EGQ = (function(){
   <span id="helmBadge" aria-label="오늘 경기가 있습니다"></span>
   <span id="helmApple" aria-label="도착한 황금사과">🍎</span>
   <span id="helmStamp" aria-label="방금 받은 도장 — 크레덴시알 펼치기"><i></i></span>
+  <span id="helmChat" aria-label="탐험대 대화방에 새 글이 있습니다"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2.5 h10 a1 1 0 0 1 1 1 v5 a1 1 0 0 1 -1 1 h-5.5 l-3 2.5 v-2.5 h-1.5 a1 1 0 0 1 -1 -1 v-5 a1 1 0 0 1 1 -1 z" fill="#1d1812"/></svg></span>
 </button>
 <div id="egDock">
   <!-- 0803 저녁 — PERA(배낭). 순례자가 크레덴시알과 함께 메는 가죽 배낭의 라틴어 이름.
@@ -9858,9 +9869,10 @@ window.closeTourLists = closeTourLists;
       if(error || !pk || !pk.ok){ card.hidden = true; return; }
       if(pk.crew){
         document.getElementById('polMain').textContent = '탐험대원 No.' + String(pk.crew.no).padStart(3, '0');
-        document.getElementById('polSub').textContent = pk.crew.voyage_name + ' · ' + mdw(pk.crew.voyage_date) + ' 출항';
-        go = () => window.open('board.html', '_blank');
+        document.getElementById('polSub').textContent = pk.crew.voyage_name + ' · ' + mdw(pk.crew.voyage_date) + ' 출항 · 대화방';
+        go = () => window.open('board.html' + (CHAT_NEW ? '#chat' : ''), '_blank');
         card.hidden = false;
+        chatPeek();
       } else if(pk.member){
         /* 1109 — 탐험대 없이 정회원만 신청한 분 */
         const again = pk.member.dues === 'failed';
@@ -9884,6 +9896,20 @@ window.closeTourLists = closeTourLists;
       }
     }catch(e){ card.hidden = true; }
   }
+  /* ⭐ 1111 소로 — 탐험대 대화방 새 글. 대원(운영자 포함)에게만 · 숫자 없이 NEW 하나 + 타륜 단추 말풍선.
+       방에 들어가 읽으면 board.html 이 eg_chat_seen 으로 지운다. 화면이 보이는 동안 90초마다 묻는다. */
+  let CHAT_NEW = false;
+  async function chatPeek(){
+    try{
+      const { data } = await supa.rpc('eg_chat_unread');
+      CHAT_NEW = !!(data && data.ok && data.new);
+    }catch(e){ CHAT_NEW = false; }
+    const main = document.getElementById('polMain');
+    const old = main.querySelector('.pol-new'); if(old) old.remove();
+    if(CHAT_NEW){ const b = document.createElement('span'); b.className = 'pol-new'; b.textContent = 'NEW'; main.appendChild(b); }
+    const dot = document.getElementById('helmChat'); if(dot) dot.classList.toggle('on', CHAT_NEW);
+  }
+  setInterval(() => { if(!document.hidden && !card.hidden) chatPeek(); }, 90000);
   card.addEventListener('click', () => { if(go) go(); });
   card.addEventListener('keydown', e => { if((e.key === 'Enter' || e.key === ' ') && go){ e.preventDefault(); go(); } });
   paint();
