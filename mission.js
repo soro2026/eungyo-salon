@@ -89,6 +89,14 @@
     background:#fbf8f2; cursor:pointer; font-size:22px; color:#1d1812; box-shadow:0 6px 18px rgba(0,0,0,.18); }
   .egm-nav:hover{ background:#1d1812; color:#f4efe6; }
   .egm-nav.l{ left:calc(50% - 250px); } .egm-nav.r{ right:calc(50% - 250px); }
+  /* 휴대폰 — 카드 380px가 판보다 넓어 양 끝이 잘렸다(1111) → 카드를 화면 폭에 맞춘다 */
+  @media (max-width:560px){
+    .egm-board{ width:calc(100% - 16px); max-height:calc(100% - 24px); padding:22px 14px 18px; }
+    .egm-slot{ --cw:min(380px, calc(100vw - 64px)); width:var(--cw); margin-left:calc(var(--cw) / -2); }
+    .egm-nav{ width:38px; height:38px; font-size:18px; }
+    .egm-nav.l{ left:0; } .egm-nav.r{ right:0; }
+    .egm-bx{ top:12px; right:12px; }
+  }
   .egm-chint{ text-align:center; font-size:13px; color:#6b6052; margin-top:2px; }
   .egm-next{ margin-top:20px; padding-top:16px; border-top:1px solid #cbbfac; font-size:14.5px; line-height:1.75; color:#3a332b; text-align:center; }
   .egm-next b{ color:#1d1812; }
@@ -123,9 +131,16 @@
   .egm-cday{ margin-top:8px; font-size:12.5px; }
   .egm-brow{ display:flex; gap:8px; margin-top:12px; }
   .egm-brow .egm-btn{ margin-top:0; height:42px; font-size:14px; }
+  /* 뒤집힌 면 아래 종이 — 그림 위에 글을 얹지 않고, 종이를 깔고 그 위에 쓴다(1111 소로: 글과 그림이 부딪힘) */
+  .egm-paper{ position:relative; margin:auto -18px -16px; padding:12px 18px 16px; background:rgba(8,12,20,.94); }
+  .egm-paper::before{ content:''; position:absolute; left:0; right:0; bottom:100%; height:46px; pointer-events:none;
+    background:linear-gradient(180deg, rgba(8,12,20,0), rgba(8,12,20,.94)); }
+  .egm-paper .egm-mine{ margin-top:0; -webkit-line-clamp:3; }
   .egm-face.front.day{ background:#fbf3e6; color:#1d1812; }
   .egm-face.front.day .egm-art{ top:0; bottom:0; }
-  .egm-face.front.day .egm-shade{ background:linear-gradient(180deg, rgba(251,246,236,0) 0%, rgba(251,246,236,0) 58%, rgba(251,246,236,.9) 72%, rgba(251,246,236,.97) 100%); }
+  .egm-face.front.day .egm-shade{ background:linear-gradient(180deg, rgba(0,0,0,.22) 0%, rgba(0,0,0,0) 24%); }
+  .egm-face.front.day .egm-paper{ background:#fbf3e6; box-shadow:0 -1px 0 rgba(29,24,18,.08); }
+  .egm-face.front.day .egm-paper::before{ background:linear-gradient(180deg, rgba(251,243,230,0), #fbf3e6); }
   .egm-face.front .egm-no{ text-shadow:0 1px 6px rgba(0,0,0,.35); }
   .egm-face.front.day .egm-ttl{ color:#fff; text-shadow:0 2px 12px rgba(0,0,0,.55); }
   .egm-face.front.day .egm-knd{ color:rgba(255,255,255,.9); text-shadow:0 1px 8px rgba(0,0,0,.5); }
@@ -265,6 +280,18 @@
   }
   function hideToast(){ if ($('egm-toast')) $('egm-toast').classList.remove('on'); }
 
+  /* ── 문서 사이 맞춤 (1111) ──
+     천문대 · 음악관은 타륜 안 액자(iframe)로 열린다. 액자 안에서 닿고 소감을 쓰면
+     바깥 타륜의 진행 중 표가 옛 상태로 남았다 → 바뀔 때마다 다른 문서에 알리고,
+     액자 안에서는 진행 중 표를 띄우지 않는다(표는 바깥 하나만). */
+  let BC = null;
+  try{ BC = new BroadcastChannel('egm'); BC.onmessage = () => refresh(); }catch(e){}
+  function ping(){
+    try{ if (BC){ BC.postMessage('changed'); return; } }catch(e){}
+    try{ if (window.parent !== window && window.parent.egMission) window.parent.egMission.refresh(); }catch(e){}
+  }
+  function embedded(){ try{ return window.parent !== window && !!window.parent.egMission; }catch(e){ return false; } }
+
   /* ── 진행 중 표 · 배낭 카드 ── */
   async function refresh(){
     const c = C(); if (!c) return null;
@@ -275,7 +302,7 @@
     const o = d && d.ok ? d.open : null;
     window.__egmOpen = o;
     const chip = $('egm-chip');
-    chip.classList.toggle('on', !!o && !$('egm-board').classList.contains('on'));
+    chip.classList.toggle('on', !!o && !$('egm-board').classList.contains('on') && !embedded());
     chip.classList.toggle('reached', !!(o && o.reached));
     if (o){
       $('egm-chip-s').textContent = o.reached ? '닿았습니다 · 소감 쓰기' : '진행 중';
@@ -375,9 +402,9 @@
       const day = !!(c.art_d);
       front = '<div class="egm-face front' + (day ? ' day' : '') + '">' + artDiv(c, 'd') + '<div class="egm-shade"></div>'
         + '<span class="egm-no">' + pad(c.no) + '</span><span class="egm-ttl">' + esc(c.title) + '</span><span class="egm-knd">' + esc(c.kind || '') + '</span>'
-        + '<span class="egm-mine">' + esc(c.essay || '') + '</span><span class="egm-cday">' + esc(c.cleared_text || '') + ' 클리어</span>'
+        + '<div class="egm-paper"><span class="egm-mine">' + esc(c.essay || '') + '</span><span class="egm-cday">' + esc(c.cleared_text || '') + ' 클리어</span>'
         + '<div class="egm-brow"><button class="egm-btn line" type="button" data-act="essay" data-no="' + c.no + '">내 소감</button>'
-        + '<button class="egm-btn line" type="button" data-act="voices" data-no="' + c.no + '">대원들의 소감' + (c.voices_n ? ' ' + c.voices_n : '') + '</button></div></div>';
+        + '<button class="egm-btn line" type="button" data-act="voices" data-no="' + c.no + '">대원들의 소감' + (c.voices_n ? ' ' + c.voices_n : '') + '</button></div></div></div>';
     }
     return '<div class="egm-card' + (c.state === 'cleared' ? ' flipped' : '') + (c.state === 'open' || c.state === 'reached' ? ' open' : '') + '" id="egm-card-' + c.no + '">' + back + front + '</div>';
   }
@@ -431,7 +458,7 @@
       try{
         const { data } = await C().rpc('eg_mission_start', { p_no: no });
         if (!data || !data.ok){ toast(esc((data && data.msg) || '미션을 시작하지 못했습니다. 잠시 뒤에 다시 눌러 주세요.'), null, null, 5000); b.disabled = false; return; }
-        await openBoard();
+        await openBoard(); ping();
         if (!data.reached) toast('미션을 시작했습니다. <b>단서</b>를 읽고 판을 접은 뒤 길을 떠나 보세요.', null, null, 5000);
       } finally { BUSY = false; }
     }
@@ -481,7 +508,7 @@
     if (!data || !data.ok){ $('egm-m-err').textContent = (data && data.msg) || '저장하지 못했습니다. 잠시 뒤에 다시 눌러 주세요.'; $('egm-m-err').hidden = false; hint(); return; }
     const no = CUR.no, first = !!data.first;
     closeModal();
-    await openBoard();
+    await openBoard(); ping();
     if (first){
       SEL = Math.max(0, B.cards.findIndex(x => x.no === no)); place();
       const el = $('egm-card-' + no);
@@ -524,7 +551,7 @@
       const d = r && r.data;
       if (d && d.reached && d.fresh){
         toast('<b>' + esc(d.reach_text || '찾았습니다') + '</b> · 물음 하나가 열렸습니다.', '소감 쓰기', () => openEssayFor(d.no), 0);
-        refresh();
+        refresh(); ping();
       }
     }catch(e){}
   }
