@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>비밀번호 새로 정하기 — EG유니버스</title>
+<!--
+  ⭐ 1112 비밀번호 찾기 — 새 비밀번호 화면
+  들어오는 길  index.html 「비밀번호를 잊으셨나요?」 → resetPasswordForEmail(redirectTo: 이 주소) → 메일 링크
+              → 이 화면 (주소 꼬리에 #access_token=…&type=recovery) → PASSWORD_RECOVERY 세션
+  하는 일      새 비밀번호 두 번(6자 이상) → supa.auth.updateUser({ password }) → 타륜(terra.html)
+  링크가 만료 · 이미 쓰였으면 → 그 자리에서 「메일 다시 받기」
+  ⚠ Supabase Auth › URL Configuration › Redirect URLs 에 https://app.egsalon.com/reset.html 이 있어야 한다
+  ⚠ 메일 링크 없이 이 주소만 열면 비밀번호 칸을 보여 주지 않는다(로그인해 있어도) — 다시 받기만
+-->
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --gold: #C9A84C; --gold-l: #E9C97E; --chalk: #F8F4EE; }
+  html, body { height: 100%; }
+  body {
+    background: radial-gradient(ellipse at 50% -10%, #12131f 0%, #0b0a0c 60%);
+    color: var(--chalk);
+    font-family: '-apple-system', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 40px 24px; min-height: 100%;
+  }
+  .logo {
+    width: 84px; height: 84px; border-radius: 50%; overflow: hidden; margin-bottom: 22px;
+    box-shadow: 0 0 34px rgba(201,168,76,0.28); border: 1px solid rgba(201,168,76,0.3);
+  }
+  .logo img { width: 100%; height: 100%; object-fit: cover; }
+  .title { font-size: 15px; letter-spacing: 0.28em; color: var(--gold-l); margin-bottom: 6px; font-weight: 500; }
+  .sub { font-size: 11px; letter-spacing: 0.16em; color: rgba(248,244,238,0.4); margin-bottom: 36px; }
+  .panel { width: 100%; max-width: 320px; display: none; }
+  .panel.open { display: block; }
+  .head { font-size: 16px; color: var(--gold-l); text-align: center; margin-bottom: 10px; letter-spacing: 0.04em; }
+  .desc {
+    font-size: 13px; line-height: 1.75; color: rgba(248,244,238,0.6);
+    text-align: center; margin-bottom: 18px; word-break: keep-all;
+  }
+  .input {
+    width: 100%; padding: 16px 18px; border-radius: 2px;
+    border: 1px solid rgba(239,231,214,0.18); background: rgba(255,255,255,0.02);
+    color: var(--chalk); font-size: 18px; font-weight: 600; letter-spacing: 0.01em;
+    outline: none; margin-bottom: 12px; font-family: inherit;
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+  .input:focus { border-color: var(--gold); background: rgba(201,168,76,0.05); }
+  .input::placeholder { color: rgba(239,231,214,0.32); font-weight: 400; }
+  .btn {
+    width: 100%; padding: 15px; border-radius: 2px; border: none;
+    background: var(--gold); color: #1a1714; font-size: 14.5px; font-weight: 600;
+    cursor: pointer; letter-spacing: 0.06em; margin-bottom: 12px; font-family: inherit;
+    transition: filter 0.2s ease;
+  }
+  .btn:hover { filter: brightness(1.1); }
+  .btn:disabled { filter: grayscale(0.6) brightness(0.8); cursor: default; }
+  .msg {
+    font-size: 12.5px; color: rgba(248,244,238,0.5); text-align: center;
+    margin-top: 6px; line-height: 1.7; min-height: 20px; word-break: keep-all;
+  }
+  .msg.error { color: #E8856A; }
+  .msg.success { color: var(--gold-l); }
+  .show {
+    display: flex; align-items: center; gap: 8px; justify-content: center;
+    font-size: 12px; color: rgba(248,244,238,0.5); margin: 2px 0 14px; cursor: pointer; user-select: none;
+  }
+  .link {
+    display: block; margin: 8px auto 0; padding: 4px 8px; background: none; border: none; cursor: pointer;
+    font-size: 12.5px; color: rgba(248,244,238,0.5); text-decoration: underline; text-underline-offset: 3px;
+    font-family: inherit;
+  }
+  .link:hover { color: var(--gold-l); }
+  .help {
+    font-size: 11.5px; line-height: 1.7; color: rgba(248,244,238,0.42);
+    text-align: center; margin-top: 16px; word-break: keep-all;
+  }
+  .help a { color: rgba(233,201,126,0.8); }
+</style>
+<script>
+  /* supabase 가 주소 꼬리의 토큰을 먹기 전에 읽어 둔다 */
+  window.EG_HASH = location.hash || '';
+  window.EG_QUERY = location.search || '';
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="logo"><img src="EG_logo01.webp" alt="EG유니버스"></div>
+<div class="title">EG유니버스</div>
+<div class="sub">은은하게 스며드는 교양</div>
+
+<!-- 잠깐 — 링크를 확인하는 동안 -->
+<div class="panel open" id="p-wait">
+  <div class="desc">링크를 확인하고 있습니다…</div>
+</div>
+
+<!-- 새 비밀번호 -->
+<form class="panel" id="p-new" onsubmit="doUpdate(event)">
+  <div class="head">새 비밀번호 정하기</div>
+  <div class="desc" id="new-desc">새로 쓰실 비밀번호를 두 번 넣어 주세요.<br>6자 이상이면 됩니다.</div>
+  <input class="input" id="pw1" type="password" autocomplete="new-password" placeholder="새 비밀번호 (6자 이상)">
+  <input class="input" id="pw2" type="password" autocomplete="new-password" placeholder="한 번 더">
+  <label class="show"><input type="checkbox" id="pw-show" onchange="egShowPw(this.checked)"> 비밀번호 보이기</label>
+  <button class="btn" id="new-btn" type="submit">새 비밀번호로 바꾸기</button>
+  <div class="msg" id="new-msg"></div>
+</form>
+
+<!-- 링크가 만료 · 이미 쓰임 · 링크 없이 들어옴 → 다시 받기 -->
+<form class="panel" id="p-again" onsubmit="doAgain(event)">
+  <div class="head" id="again-head">메일을 다시 받아 주세요</div>
+  <div class="desc" id="again-desc">이 링크는 시간이 지났거나 이미 한 번 쓰였습니다.<br>가입하신 이메일 주소를 넣으시면 새 메일을 보내 드립니다.</div>
+  <input class="input" id="again-email" type="email" autocomplete="username" placeholder="이메일 주소">
+  <button class="btn" id="again-btn" type="submit">메일 다시 받기</button>
+  <div class="msg" id="again-msg"></div>
+  <button class="link" type="button" onclick="location.replace('index.html')">로그인 화면으로</button>
+  <div class="help">가입하신 이메일이 기억나지 않으시면<br>운영자에게 메일 한 통 주세요 — <a href="mailto:lonelywalden@gmail.com">lonelywalden@gmail.com</a></div>
+</form>
+
+<script>
+const SUPA_URL = 'https://cyhlotwdisjvoxvfkpnd.supabase.co';
+const SUPA_KEY = 'sb_publishable_jYYfQV_wQgMRFjSUuDq7xA_gWc9vsnR';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, storageKey: 'eungyo-auth' }
+});
+
+const H = window.EG_HASH;
+const Q = window.EG_QUERY;
+const CAME_BY_LINK = /type=recovery/.test(H) || /[?&]code=/.test(Q);
+const LINK_ERROR = /error_code=|[#&]error=/.test(H) || /[?&]error=/.test(Q);
+let shown = false;
+
+function egOpen(id){
+  ['p-wait','p-new','p-again'].forEach(function(p){
+    document.getElementById(p).classList.toggle('open', p === id);
+  });
+  shown = true;
+  try { history.replaceState(null, '', location.pathname); } catch(e) {}   /* 토큰 꼬리를 주소창에서 지운다 */
+}
+function showNew(){
+  if (document.getElementById('p-new').classList.contains('open')) return;
+  egOpen('p-new');
+  setTimeout(function(){ document.getElementById('pw1').focus(); }, 30);
+}
+function showAgain(kind){
+  if (kind === 'nolink') {
+    document.getElementById('again-head').textContent = '비밀번호 새로 정하기';
+    document.getElementById('again-desc').innerHTML =
+      '이 화면은 비밀번호 메일의 링크를 눌러 들어오는 곳입니다.<br>가입하신 이메일 주소를 넣으시면 메일을 보내 드립니다.';
+  }
+  egOpen('p-again');
+}
+function egShowPw(on){
+  document.getElementById('pw1').type = on ? 'text' : 'password';
+  document.getElementById('pw2').type = on ? 'text' : 'password';
+}
+
+/* 메일 링크로 들어오면 supabase 가 PASSWORD_RECOVERY 를 알린다 */
+supa.auth.onAuthStateChange(function(event, session){
+  if (event === 'PASSWORD_RECOVERY') showNew();
+});
+
+(async function start(){
+  if (LINK_ERROR) { showAgain('expired'); return; }
+  if (!CAME_BY_LINK) { showAgain('nolink'); return; }
+
+  /* PKCE 로 온 경우(?code=) — 같은 브라우저에서 요청했을 때만 바꿀 수 있다 */
+  const code = (Q.match(/[?&]code=([^&]+)/) || [])[1];
+  if (code) {
+    const ex = await supa.auth.exchangeCodeForSession(decodeURIComponent(code));
+    if (ex.error) { showAgain('expired'); return; }
+  }
+  /* 토큰을 읽어 세션을 세울 시간을 조금 준다 */
+  for (let i = 0; i < 20 && !shown; i++) {
+    const { data } = await supa.auth.getSession();
+    if (data && data.session) { showNew(); return; }
+    await new Promise(function(r){ setTimeout(r, 150); });
+  }
+  if (!shown) showAgain('expired');
+})();
+
+async function doUpdate(ev){
+  if (ev && ev.preventDefault) ev.preventDefault();
+  const p1 = document.getElementById('pw1').value;
+  const p2 = document.getElementById('pw2').value;
+  const msg = document.getElementById('new-msg');
+  const btn = document.getElementById('new-btn');
+  if (p1.length < 6) { msg.textContent = '6자 이상으로 정해 주세요.'; msg.className = 'msg error'; return; }
+  if (p1 !== p2)     { msg.textContent = '두 칸의 비밀번호가 서로 다릅니다.'; msg.className = 'msg error'; return; }
+
+  btn.disabled = true; msg.textContent = '바꾸는 중...'; msg.className = 'msg';
+  const res = await supa.auth.updateUser({ password: p1 });
+  if (res.error) {
+    btn.disabled = false;
+    const m = (res.error.message || '');
+    if (/different from the old/i.test(m))       msg.textContent = '지금까지 쓰시던 비밀번호와 다른 것으로 정해 주세요.';
+    else if (/session|jwt|expired|not authenticated/i.test(m)) { showAgain('expired'); return; }
+    else if (/weak|characters|length/i.test(m))  msg.textContent = '조금 더 길게, 또는 숫자를 섞어 정해 주세요.';
+    else msg.textContent = '바꾸지 못했습니다. 잠시 뒤에 다시 해 보시고, 그래도 안 되면 운영자에게 알려 주세요.';
+    msg.className = 'msg error'; return;
+  }
+  msg.textContent = '새 비밀번호로 바꾸었습니다. 잠시 뒤 타륜으로 갑니다.';
+  msg.className = 'msg success';
+  setTimeout(function(){ location.replace('terra.html'); }, 1400);
+}
+
+async function doAgain(ev){
+  if (ev && ev.preventDefault) ev.preventDefault();
+  const email = document.getElementById('again-email').value.trim();
+  const msg = document.getElementById('again-msg');
+  const btn = document.getElementById('again-btn');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    msg.textContent = '이메일 주소를 확인해 주세요.'; msg.className = 'msg error'; return;
+  }
+  btn.disabled = true; msg.textContent = '보내는 중...'; msg.className = 'msg';
+  const redirectTo = location.origin + location.pathname;
+  const res = await supa.auth.resetPasswordForEmail(email, { redirectTo: redirectTo });
+  btn.disabled = false;
+  if (res.error) {
+    const m = (res.error.message || '') + ' ' + (res.error.status || '');
+    msg.textContent = /rate|seconds|429/i.test(m)
+      ? '방금 메일을 보냈습니다. 1분쯤 뒤에 다시 눌러 주세요.'
+      : '메일을 보내지 못했습니다. 잠시 뒤에 다시 해 보시고, 그래도 안 되면 운영자에게 알려 주세요.';
+    msg.className = 'msg error'; return;
+  }
+  msg.textContent = email + ' 로 새 메일을 보냈습니다. 메일함을 열어 보세요. 몇 분 안에 오지 않으면 스팸함도 살펴 주세요.';
+  msg.className = 'msg success';
+}
+</script>
+</body>
+</html>
