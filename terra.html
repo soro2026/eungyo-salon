@@ -3468,6 +3468,10 @@ function addStockPin(b, dd){
   return ent;
 }
 
+/* ⭐ 1112 소로 — 「각 핀이 한 사람의 집 · 예전처럼 대문도」 · 파운더 건물 · 매물은 한 켠으로(지우지 않음)
+   집 = eg_buildings 한 줄(status 'house' · 사는 사람 한 분). 핀을 누르면 그 집 대문 앞에 선다.
+   되살릴 때 — 이 값을 false 로 · DB get_buildings 의 kind = 'house' 조건을 걷는다(archive_1112 백업) */
+const FOUNDER_SHELVED = true;
 async function loadMaisons(city, nearQ){
   // ⭐ 0830 집합주택 — 한 채에 여럿이 산다. 좌표는 건물이 갖고 사람은 그 안의 슬롯이 된다.
   //    명패는 내 건물에만 뜬다. 남의 건물·빈 건물은 점 하나로 서 있고 눌러야 열린다.
@@ -3489,8 +3493,9 @@ async function loadMaisons(city, nearQ){
   const nearMine = range(PIN_RANGE.buildingMine);   /* 0830 — 10km */
   const myUid = await getMyUid().catch(()=>null);
   myUidCache = myUid;
-  /* ⭐ 0928 창고 — 살롱지기 눈에만 봉오리 분홍 핀. _ALL_BLD(파운더 셈)에는 섞지 않는다. */
-  if (myUid){
+  /* ⭐ 0928 창고 — 살롱지기 눈에만 봉오리 분홍 핀. _ALL_BLD(파운더 셈)에는 섞지 않는다.
+     1112 소로 — 파운더 · 매물은 한 켠으로(FOUNDER_SHELVED). 되살릴 때 false 로 */
+  if (myUid && !FOUNDER_SHELVED){
     try{
       const { data, error } = await supa.rpc('admin_stock_list', { p_city: city || null });
       if (!error && Array.isArray(data) && data.length){
@@ -3523,8 +3528,9 @@ async function loadMaisons(city, nearQ){
               distanceDisplayCondition:dd },
       label: mine ? {
               /* ⭐ 0831 — 윗장: 건물 이름 · 진한 금색.
-                 라벨 하나로는 배경을 두 겹으로 못 칠한다. 그래서 장을 나눈다. */
-              text: bldName(b),
+                 라벨 하나로는 배경을 두 겹으로 못 칠한다. 그래서 장을 나눈다.
+                 1112 — 집(house)은 건물 이름이 없으니 내 닉네임 한 장 */
+              text: (b.status === 'house') ? (myName || bldName(b)) : bldName(b),
               font:"bold 13px 'Helvetica Neue','Apple SD Gothic Neo','Malgun Gothic',sans-serif",
               fillColor:Cesium.Color.fromCssColorString("#1a1407"),
               showBackground:true,
@@ -3540,7 +3546,7 @@ async function loadMaisons(city, nearQ){
 
     /* ⭐ 아랫장: 내 닉네임 · 밝은 금색. 위에 딱 붙어 한 덩이로 보인다.
        ⚠ 따로 세워 두면 나중에 「내 건물이 여럿」이 될 때 이름표만 켜고 끌 수 있다. */
-    if (mine && myName){
+    if (mine && myName && b.status !== 'house'){   /* 1112 — 집은 윗장 하나로 */
       const tag = viewer.entities.add({
         id:"maisonTag-"+b.city+"-"+b.bno,
         position: Cesium.Cartesian3.fromDegrees(b.lng, b.lat),
@@ -5348,6 +5354,7 @@ function drawCellList(list, b, res_){
   });
 }
 function openMaison(b){
+  if (b && b.status === 'house'){ openHouse(b); return; }   /* 1112 — 한 사람 한 집은 대문부터 */
   closeStory();
   document.getElementById("maison").classList.remove("paper");   /* 0929 — 포럼 판의 종이빛 걷기 */
   currentMaison = b;
@@ -5417,6 +5424,27 @@ function openMaison(b){
   const en = document.getElementById("mEnter");
   if (en) en.style.display = "none";
   document.getElementById("maison").classList.add("in");
+}
+/* ⭐ 1112 소로 — 「예전처럼 대문도」 · 집 핀을 누르면 그 집 대문(wunderkammer.door_no) 앞에 선다.
+   대문을 누르면 openDoor 가 두 문짝을 가르고 그 뒤 분더카머가 드러난다(옛 노커 길 그대로).
+   내 집이면 ⋮ 안에 「✎ 대문 고르기」가 뜬다(refreshDoorPickBtn). */
+function openHouse(b){
+  const r = residentsOf(b)[0];
+  if (!r || !r.nickname) return;
+  closeStory();
+  closeMaison();
+  try{ document.getElementById("hallNote").classList.remove("in"); }catch(e){}
+  currentMaison = r;
+  viewer.useDefaultRenderLoop = false;
+  const dw = document.getElementById("doorway");
+  dw.classList.remove("open", "popup");
+  document.getElementById("doorTitle").textContent = r.nickname;
+  { const _ex = document.getElementById("doorExit"); if (_ex) _ex.title = "분더카머 떠나기"; }
+  if (typeof applyDoorImage === 'function') applyDoorImage(r);
+  if (typeof refreshDoorPickBtn === 'function') refreshDoorPickBtn(r);
+  document.getElementById("doorFrame").src = "about:blank";
+  dw.classList.add("in");
+  doorState = 'closed';
 }
 function closeMaison(){
   document.getElementById("maison").classList.remove("in");
