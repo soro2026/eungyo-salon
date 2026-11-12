@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "1025b";
+  var VERSION = "1112a";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -12684,6 +12684,15 @@ function paintBook() {
     BOOK = b; RECENT = b;
     /* ⭐ 표지가 모니터에 걸린다(20호 ⑤) — 좌석에서 꽂은 책도 곧 wunderkammer_books 다(22호) */
     closePick(); paintBook();
+    missionBook();
+  }
+  /* ⭐ 1112 — EG탐험대 07 「안데스를 넘는 책」. 좌석 모니터에 책을 거는 손(고르기 · READ · 기록판에서 고르기)에 표시 하나.
+     ⚠ 지난번 책이 저절로 걸려 있는 것만으로는 안 남는다 — 손님이 표지를 눌러 고르거나 READ 를 눌러야 한다.
+     ⚠ 진행 중인 카드가 없으면 서버가 버린다(eg_mission_mark). 대원이 아니면 아무 일도 없다. */
+  function missionBook() {
+    try {
+      if (window.egMission && BOOK) egMission.mark("flight_book", String(BOOK.id || BOOK.title || ""));
+    } catch (e) { /* 표시 하나 못 남겨도 비행은 그대로 */ }
   }
   
 /* ⚠ 0819U — loadNotes 를 걷었다. 회차 목록이 모니터 안에 있던 시절의 물건인데,
@@ -12692,6 +12701,7 @@ function paintBook() {
   
   function openWrite(row) {
     if (!BOOK || !DESK) return;
+    missionBook();
     var go = function (seq, body, sec, when) {
       WD.seq = seq; WD.dirty = false; WD.last = 0; WD.msgUntil = 0;
       /* ⭐ 지난 회차를 다시 열면 그때까지 걸린 시간부터 이어 센다.

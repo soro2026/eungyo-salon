@@ -601,7 +601,33 @@ function go(dir){
   setTimeout(() => { paint(fwd ? R : L, fwd ? tgt[1] : tgt[0], fwd ? 'right' : 'left'); }, 300);
   setTimeout(() => {
     at = n; leaf.classList.remove('on'); turning = false; draw();
+    if (fwd) guideReadEnd(n);
   }, 600);
+}
+
+/* ⭐ 1112 — EG탐험대 06 「허기」. 책장을 넘겨 한 꼭지의 마지막 글 면에 닿으면 표시 하나(guide_read · 꼭지 이름).
+   카드는 0 · Ⅰ-1 ~ Ⅰ-6 일곱 꼭지가 다 남았는지 서버(eg_mission_check)가 본다.
+   ⚠ 넘겨서 닿아야 남는다 — 차례 · 「마지막 읽은 페이지」로 건너뛰면 안 남는다.
+   ⚠ 표시는 타륜(부모 창)의 mission.js 가 남긴다. 이 창에는 로그인 손이 없다.
+     진행 중인 카드가 없으면 서버가 조용히 버린다(eg_mission_mark). */
+const GR_DONE = new Set();
+const GR_CONTENT = { body:1, solo:1, full:1, spread:1 };
+function guideReadEnd(n){
+  let M = null;
+  try { M = window.egMission || (window.parent !== window && window.parent.egMission) || null; } catch(e){}
+  if (!M || !M.mark) return;
+  TOC.forEach((e, i) => {
+    if (!e.slug || GR_DONE.has(e.slug)) return;
+    const a = e.ref || 0, b = (TOC[i+1] && TOC[i+1].ref != null) ? TOC[i+1].ref : PAGES.length;
+    let last = -1;
+    for (let k = a; k < b; k++) if (PAGES[k] && GR_CONTENT[PAGES[k].type]) last = k;
+    /* ⚠ 꼭지는 늘 새 글 면에서 열린다(wp_paginate openBody) — 그래서 [이 꼭지 첫 면, 다음 꼭지 첫 면) 이 꼭 맞다.
+       앞 꼭지에 줄 서 있던 삽화는 다음 꼭지 면을 열기 전에 서므로 앞 꼭지 몫으로 센다 */
+    if (last >= 0 && spreadOf(last) === n) {
+      GR_DONE.add(e.slug);
+      try { M.mark('guide_read', e.slug); } catch(err){}
+    }
+  });
 }
 
 function fit(){
