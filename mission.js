@@ -289,6 +289,7 @@
      바깥 타륜의 진행 중 표가 옛 상태로 남았다 → 바뀔 때마다 다른 문서에 알리고,
      액자 안에서는 진행 중 표를 띄우지 않는다(표는 바깥 하나만). */
   let BC = null;
+  let CHECKING = false;   /* check() 겹침 막기 (1112) */
   try{ BC = new BroadcastChannel('egm'); BC.onmessage = () => refresh(); }catch(e){}
   function ping(){
     try{ if (BC){ BC.postMessage('changed'); return; } }catch(e){}
@@ -304,6 +305,9 @@
     window.__egmNow = d;
     mount();
     const o = d && d.ok ? d.open : null;
+    /* 안전망(1112) — 진행 중인데 아직 안 닿은 카드면 서버에 한 번 물어본다.
+       mission.js 가 없는 화면에서 일을 마치고 돌아와도 여기서 닿음이 선다. */
+    if (o && !o.reached && !CHECKING) setTimeout(check, 0);
     window.__egmOpen = o;
     const chip = $('egm-chip');
     chip.classList.toggle('on', !!o && !$('egm-board').classList.contains('on') && !embedded());
@@ -561,13 +565,26 @@
     try{
       const { data } = await c.rpc('eg_mission_mark', { p_kind: kind, p_ref: ref || null });
       if (!data || !data.kept) return;
+      await check();
+    }catch(e){}
+  }
+
+  /* ⭐ 1112 — 서버가 판정하는 카드(03 들이기 · 04 경기 끝 · 05 수강 신청)는 기록을 따로 남기지 않는다.
+     일을 마친 화면이 check() 한 줄을 부르면 eg_mission_check 가 표(heritage_rentals · apple_log ·
+     college_enrollments)를 보고 닿음을 세운다. 처음 닿은 순간이면 그 자리에 「찾았습니다」. */
+  async function check(){
+    const c = C(); if (!c || CHECKING) return null;
+    CHECKING = true;
+    try{
       const r = await c.rpc('eg_mission_check', { p_no: null });
       const d = r && r.data;
       if (d && d.reached && d.fresh){
         toast('<b>' + esc(d.reach_text || '찾았습니다') + '</b> · 물음 하나가 열렸습니다.', '소감 쓰기', () => openEssayFor(d.no), 0);
         refresh(); ping();
       }
-    }catch(e){}
+      return d;
+    }catch(e){ return null; }
+    finally{ CHECKING = false; }
   }
 
   /* ── 처음 ── */
@@ -583,5 +600,5 @@
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
   }
 
-  window.egMission = { init, mark, openBoard, refresh, toast };
+  window.egMission = { init, mark, check, openBoard, refresh, toast };
 })();
