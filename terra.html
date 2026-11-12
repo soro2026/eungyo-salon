@@ -3030,7 +3030,7 @@ function bldHoverTip(ent, mv){
     document.body.appendChild(_bldTipEl);
   }
   const b = ent && ent._maison;
-  if (!b){ _bldTipEl.style.display = 'none'; return; }
+  if (!b || b.status === 'house'){ _bldTipEl.style.display = 'none'; return; }   /* 1112 — 집은 닉네임 이름표가 늘 서 있다 */
   /* ⭐ 0831 — 한글(큰) + 원어(작은) 두 줄. 「비어 있음」은 폐기 —
      매물에 「아무도 없다」를 붙이면 준비 안 된 표시로 읽힌다. */
   const n = residentsOf(b).length;
@@ -3526,7 +3526,21 @@ async function loadMaisons(city, nearQ){
               outlineWidth: lived ? (mine ? 3 : 2) : 2.5,
               disableDepthTestDistance:Number.POSITIVE_INFINITY,
               distanceDisplayCondition:dd },
-      label: mine ? {
+      label: (b.status === 'house' && lived) ? {
+              /* ⭐ 1112 소로 — 「유저가 사는 집에는 그 유저 닉네임을 띄워 준다」 · 내 집은 진한 금색, 이웃 집은 상아빛 */
+              text: (res_[0] && res_[0].nickname) || "",
+              font: mine ? "bold 13px 'Helvetica Neue','Apple SD Gothic Neo','Malgun Gothic',sans-serif"
+                         : "600 12px 'Helvetica Neue','Apple SD Gothic Neo','Malgun Gothic',sans-serif",
+              fillColor:Cesium.Color.fromCssColorString("#1a1407"),
+              showBackground:true,
+              backgroundColor: mine ? Cesium.Color.fromCssColorString("#f0b429").withAlpha(.97)
+                                    : Cesium.Color.fromCssColorString("#f3e6c4").withAlpha(.92),
+              backgroundPadding: mine ? new Cesium.Cartesian2(10,6) : new Cesium.Cartesian2(8,4),
+              pixelOffset:new Cesium.Cartesian2(0,-18),
+              verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
+              disableDepthTestDistance:Number.POSITIVE_INFINITY,
+              distanceDisplayCondition:dd
+            } : mine ? {
               /* ⭐ 0831 — 윗장: 건물 이름 · 진한 금색.
                  라벨 하나로는 배경을 두 겹으로 못 칠한다. 그래서 장을 나눈다.
                  1112 — 집(house)은 건물 이름이 없으니 내 닉네임 한 장 */
@@ -5435,6 +5449,7 @@ function openHouse(b){
   closeMaison();
   try{ document.getElementById("hallNote").classList.remove("in"); }catch(e){}
   currentMaison = r;
+  if (typeof _bldTipEl !== 'undefined' && _bldTipEl) _bldTipEl.style.display = 'none';   /* 1112 — 커서 이름표가 대문 · 1층까지 따라오지 않게 */
   viewer.useDefaultRenderLoop = false;
   const dw = document.getElementById("doorway");
   dw.classList.remove("open", "popup");
