@@ -309,6 +309,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="eg_device.js?v=20260729"></script>  <!-- 1113 — 휴대폰 가입이면 마침 화면 · 안내 메일을 큰 화면 쪽으로 (판정은 이 파일 한 곳) -->
 <script>
 (function(){
   "use strict";
@@ -583,6 +584,7 @@
         show('s-done');
         $('done-title').textContent = '환영합니다, ' + nick + ' 님';
         $('done-note').textContent = (CITY_KO[pe.city] || '') + ' ' + (pe.building || '') + '에 당신의 자리가 마련되었습니다.';
+        await phoneAfterJoin();
       } else if(data.session && OPEN){
         /* ⭐ 1103 무료 가입 — 마지막 손은 eg_open_enter (파리 직영 여섯 채를 차례로 · 12/24까지 · 초대 번호) */
         const { data: oe, error: oErr } = await sb.rpc('eg_open_enter', { p_real_name: $('real').value.trim(), p_by: BY });
@@ -591,13 +593,15 @@
           msg.textContent = '가입은 되었지만 집을 마련하지 못했습니다 — ' + oErr.message + ' 이 화면을 새로 열고 로그인해 주십시오.';
           return;
         }
-        if(BOARD){ location.replace(BOARD_TO); return; }   /* 승선 한 줄 — 곧장 승선 확인으로 (정회원만이면 정회원 신청 확인) */
+        if(BOARD){ await phoneAfterJoin(); location.replace(BOARD_TO); return; }   /* 승선 한 줄 — 곧장 승선 확인으로 (정회원만이면 정회원 신청 확인) · 1113 휴대폰이면 안내 메일 먼저 */
         show('s-done');
         $('done-title').textContent = '환영합니다, ' + nick + ' 님';
         $('done-note').textContent = (CITY_KO[oe.city] || '') + ' ' + (oe.building || '') + '에 당신의 자리가 마련되었습니다.';
+        await phoneAfterJoin();
       } else if(data.session){
         const { data: mv } = await sb.rpc('complete_maison_move_in', { p_token: token });
         finishDone(nick, mv && mv.maison_no);
+        await phoneAfterJoin();
       } else {
         try{ localStorage.setItem('eg-pending-invite', token); }catch(e){}
         show('s-done');
@@ -610,6 +614,18 @@
       btn.disabled=false; btn.textContent='가입하기';
       msg.textContent='잠시 문이 열리지 않았습니다. 다시 시도해 주세요.';
     }
+  }
+
+  /* ⭐ 1113 소로 — 휴대폰으로 가입을 마치면: 마침 화면을 큰 화면 안내로 바꾸고, 같은 안내를 메일로 한 번(eg_phone_guide_mail)
+     앱(terra)은 휴대폰을 폰 셸로 돌려보내므로, 휴대폰 가입 손님은 집 · 첫 편지를 컴퓨터에서 만난다. 컴퓨터 가입은 그대로. */
+  async function phoneAfterJoin(){
+    if(!(window.egIsPhone && egIsPhone())) return;
+    const next = $('done-next');
+    if(next){
+      next.hidden = false;
+      next.innerHTML = '이용은 <b>노트북이나 데스크톱</b>에서 합니다.<br>컴퓨터에서 <b>app.egsalon.com</b> 으로 들어오시면,<br>파리의 집과 첫 편지가 기다리고 있습니다.<br>같은 안내를 메일로도 보내 드렸습니다.';
+    }
+    try{ await Promise.race([ sb.rpc('eg_phone_guide_mail'), new Promise(r => setTimeout(r, 2500)) ]); }catch(e){}
   }
 
   function finishDone(nick, maisonNo){
