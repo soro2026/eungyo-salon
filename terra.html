@@ -3554,14 +3554,15 @@ async function loadMaisons(city, nearQ){
               disableDepthTestDistance:Number.POSITIVE_INFINITY,
               distanceDisplayCondition:dd },
       label: (b.status === 'house' && lived) ? {
-              /* ⭐ 1112 소로 — 「유저가 사는 집에는 그 유저 닉네임을 띄워 준다」 · 내 집은 진한 금색, 이웃 집은 상아빛 */
+              /* ⭐ 1112 소로 — 「유저가 사는 집에는 그 유저 닉네임을 띄워 준다」 · 내 집은 진한 금색
+                 이웃 집은 「깨끗한 화이트(완벽한 흰색)」 — 상아빛(#f3e6c4 .92)은 위성 사진 위에서 누렇게 보였다 */
               text: (res_[0] && res_[0].nickname) || "",
               font: mine ? "bold 13px 'Helvetica Neue','Apple SD Gothic Neo','Malgun Gothic',sans-serif"
                          : "600 12px 'Helvetica Neue','Apple SD Gothic Neo','Malgun Gothic',sans-serif",
               fillColor:Cesium.Color.fromCssColorString("#1a1407"),
               showBackground:true,
               backgroundColor: mine ? Cesium.Color.fromCssColorString("#f0b429").withAlpha(.97)
-                                    : Cesium.Color.fromCssColorString("#f3e6c4").withAlpha(.92),
+                                    : Cesium.Color.WHITE,
               backgroundPadding: mine ? new Cesium.Cartesian2(10,6) : new Cesium.Cartesian2(8,4),
               pixelOffset:new Cesium.Cartesian2(0,-18),
               verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
@@ -3668,7 +3669,12 @@ function makePopupPlate(bgColor, logoImg){
   return cv;
 }
 // ─── EG 팝업 핀을 DB(get_popups)에서 읽어 지구에 세움 ───
+/* ⭐ 1112 소로 — 「EG팝업스토어 핀을 가려 주세요. 나중에 인원 많아지면 출판사 협업용으로」
+   핀 · 타륜 줄을 함께 접는다(지우지 않음 — DB popup_halls · stores 그대로).
+   되살릴 때 — 이 값을 false 로 */
+const POPUP_SHELVED = true;
 async function loadPopups(city, nearQ){
+  if (POPUP_SHELVED) return;
   let rows = [];
   try{
     /* ⭐ 0929 소로 — 출판사 핀 아홉을 도시마다 EG팝업스토어 한 채로. 핀은 건물(popup_halls),
@@ -9363,7 +9369,8 @@ const DOCK_SKELETON = [
    밑그림과 실물 두 곳에서 만들면 갈린다. 한 곳에서만 만들어 양쪽이 같은 것을 쓴다.
    지구를 한 줄도 켜지 않으므로 타일 오기 전에도 열린다 — egOpenOrg가 viewer 없으면 생짜 이동. */
 function dockAgoraItems(){
-  return [
+  return (POPUP_SHELVED ? function(a){ return a.filter(function(it){ return it.id !== "popup"; }); }
+                        : function(a){ return a; })([
     /* ⭐ 0929 — 출판사 목록(9줄)을 걷고 내 거주 도시 EG팝업스토어 한 채로(콜레주와 같은 길) */
     { id:"popup",  sec:"agora", cls:"uni nogo", elId:"navPopups",
       html: '<div class="dock-main"><span>EG팝업스토어</span><span class="chev" aria-hidden="true">›</span></div>'
@@ -9374,7 +9381,7 @@ function dockAgoraItems(){
       html: '<div class="dock-main"><span>EG인문학 포럼</span><span class="chev" aria-hidden="true">›</span></div>'
           + '<div class="dock-sub" id="agoraPalaisSub">하루 한 편 · 강연과 토론</div>',
       onClick: ()=> goMyForum() }
-  ];
+  ]);
 }
 
 /* 곳 수는 목록이 도착하면 채운다 — 첫 그림을 두 번의 왕복만큼 기다리게 하지 않는다.
@@ -9426,7 +9433,7 @@ async function goMyForum(){
   window.openForumPanel(f);
 }
 function fillAgoraCounts(){
-  loadMyPopupHall().then(function(h){
+  if (!POPUP_SHELVED) loadMyPopupHall().then(function(h){
     const el = document.getElementById("agoraPopupSub");
     if (!el) return;
     const n = (h && Array.isArray(h.stores)) ? h.stores.length : 0;
