@@ -25,7 +25,10 @@
   const START = { rot: 0, groundH: 79, friezeH: 52, bandH: 7, bandW: 80, out: 2, titleS: 100, polarisH: 336, numH: 362, numS: 28 };
   const TUNE_KEY = "eiffel_tune";
   const TUNE_FIELDS = ["rot", "groundH", "friezeH", "bandH", "bandW", "out", "titleS", "polarisH", "numH", "numS", "line2", "plate", "anchors", "blocks"];
-  const NEAR_M = 4000;                               // 탑에서 이만큼 안에 카메라가 있으면 탑을 세우고(밤이면 밤빛)
+  const NEAR_M = 4000;                               // 탑에서 이만큼 안에 카메라가 있으면 탑을 세운다
+  /* ⭐ 1113 소로 — 「에펠탑 근처에 가면 어두워지는 게 아니라, 그냥 조명 효과는 빼 주세요. 어제 보니까 낮에도 괜찮더라고요」
+     → 밤빛(건물 어둡게 · 번짐)을 끈다. 탑 장식 · 명패 · 전구는 그대로. 다시 켜려면 true 로. */
+  const NIGHT_ON = false;
   const FONT = '"Nanum Myeongjo", serif';
 
   const lerpProfile = (h) => {
@@ -431,7 +434,7 @@
       if (now - lastNightCheck > 30000) {              // 해는 30초에 한 번만 본다
         lastNightCheck = now;
         const reading = document.body && document.body.classList.contains("reading-on");
-        setNight(reading ? 0 : nightAmount(Date.now()));
+        setNight(NIGHT_ON && !reading ? nightAmount(Date.now()) : 0);
       }
 
       for (const F of friezeEntities) {
