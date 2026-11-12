@@ -464,7 +464,7 @@ body.eg-rec .sl-music .lm-dock{ opacity:0; pointer-events:none; }
 .floor-content[data-floor="1"] .sl-dock{
   /* 1112 소로 — 한 기둥 · 한 간격. ⋮ 는 늘 같은 자리(--dock-t)에 박히고, 펼치면 위로 자라 ♪ 를 밀어 올린다
      (예전엔 가운데 정렬이라 펼치면 위아래로 자라 ♪ 밑으로 ⋮ 가 숨었다) */
-  position:absolute; right:var(--dock-r, 3%); top:var(--dock-t, 66%);
+  position:absolute; right:var(--dock-rx, var(--dock-r, 3%)); top:var(--dock-t, 66%);
   transform:translateY(calc(-100% + 17px));
   z-index:31; display:flex; flex-direction:column; align-items:center; gap:8px;
 }
@@ -1690,7 +1690,7 @@ body.eg-rec .sl-music .lm-dock{ opacity:0; pointer-events:none; }
 /* 조종간 — ⚖ 하나뿐이다(내 책을 만지는 문은 2층에 있다) */
 .floor-content[data-floor="4"] .f4-dock{
   /* 1112 소로 — 「1~4층 쭉 일렬로」 · 1층 ⋮ 와 같은 기둥 자리 · 맨 아래 단추가 --dock-t 에 박히고 위로 자란다 */
-  position:absolute; right:var(--dock-r, 3%); top:var(--dock-t, 66%); bottom:auto;
+  position:absolute; right:var(--dock-rx, var(--dock-r, 3%)); top:var(--dock-t, 66%); bottom:auto;
   transform:translateY(calc(-100% + 17px)); z-index:30; display:flex;
   flex-direction:column; align-items:center; gap:8px;
 }
@@ -1703,7 +1703,7 @@ body.eg-rec .sl-music .lm-dock{ opacity:0; pointer-events:none; }
 /* 집 갈아타기 — 도크 옆 작은 목록. 이 방 = 세 층이 함께 갈아탄다 */
 .floor-content[data-floor="4"] .f4-homes{
   /* 1112 — 기둥이 옮겨 갔으니 목록도 기둥 왼쪽 · 맨 아래 단추 높이에 맞춘다 */
-  position:absolute; right:calc(var(--dock-r, 3%) + 44px); bottom:calc(100% - var(--dock-t, 66%) - 17px); z-index:31;
+  position:absolute; right:calc(var(--dock-rx, var(--dock-r, 3%)) + 44px); bottom:calc(100% - var(--dock-t, 66%) - 17px); z-index:31;
   display:flex; flex-direction:column; gap:4px; padding:10px 12px; border-radius:10px;
   background:rgba(24,17,10,.92); border:1px solid rgba(201,162,74,.4);
   max-height:52vh; overflow-y:auto; scrollbar-width:none;
@@ -2299,7 +2299,7 @@ body.standalone #backBtn{display:block;}
    ⚠ 문을 하나로 묶지 않는다(0809 조항) — 자격이 셋 다 다르다 */
 .floor-content[data-floor="5"] .f5-dock{
   /* 1112 소로 — 「1~4층 쭉 일렬로」 · 1층 ⋮ 와 같은 기둥 자리 · 맨 아래 단추가 --dock-t 에 박히고 위로 자란다 */
-  position:absolute; right:var(--dock-r, 3%); top:var(--dock-t, 66%); bottom:auto;
+  position:absolute; right:var(--dock-rx, var(--dock-r, 3%)); top:var(--dock-t, 66%); bottom:auto;
   transform:translateY(calc(-100% + 17px)); z-index:30; display:flex;
   flex-direction:column; align-items:center; gap:8px;
 }
@@ -2312,7 +2312,7 @@ body.standalone #backBtn{display:block;}
 /* 집 갈아타기 — 이 방 = 네 층이 함께 갈아탄다 */
 .floor-content[data-floor="5"] .f5-homes{
   /* 1112 — 기둥이 옮겨 갔으니 목록도 기둥 왼쪽 · 맨 아래 단추 높이에 맞춘다 */
-  position:absolute; right:calc(var(--dock-r, 3%) + 44px); bottom:calc(100% - var(--dock-t, 66%) - 17px); z-index:31;
+  position:absolute; right:calc(var(--dock-rx, var(--dock-r, 3%)) + 44px); bottom:calc(100% - var(--dock-t, 66%) - 17px); z-index:31;
   display:flex; flex-direction:column; gap:4px; padding:10px 12px; border-radius:10px;
   background:rgba(24,17,10,.92); border:1px solid rgba(201,162,74,.4);
   max-height:52vh; overflow-y:auto; scrollbar-width:none;
@@ -2863,6 +2863,7 @@ function applyLiftPos(){
   r.setProperty('--lift-t', EG_POS.liftT + '%');
   r.setProperty('--dock-r', EG_POS.dockR + '%');
   r.setProperty('--dock-t', EG_POS.dockT + '%');
+  alignDockToLift();
   placeBookDockSoon();          /* ⭐ 엘리베이터가 움직이면 도크도 따라간다 */
 }
 
@@ -2870,7 +2871,21 @@ function applyLiftPos(){
    ⚠ 엘리베이터 곳은 소로가 끌어 정하는 값이라 도크에 상수를 박으면 언젠가 또 겹친다.
      그래서 실측해서 따라 붙인다 — 어디로 옮기셔도 한 기둥으로 함께 선다.
    ⭐ bottom 으로 앉히므로 메뉴가 위로 자란다. 단추가 늘어도 엘리베이터를 안 침범한다. */
+/* ⭐ 1112 소로(캡처 분홍 줄) — ♪·⋮ 기둥은 엘리베이터 판의 가운데 세로줄에 선다.
+   ⚠ 판 자리(liftR)와 도크 자리(dockR)를 따로 끌면 언젠가 또 어긋난다(실제로 2.4 · 1.181 로 비켜 있었다).
+     그래서 가로는 판을 실측해 따라간다 — 판을 옮기면 기둥도 함께 간다. 세로(--dock-t)만 따로 끈다.
+   ⚠ 판 폭은 화면마다 다르다(넓으면 85px · 좁으면 47px). 상수를 박지 않고 잰다. */
+function alignDockToLift(){
+  var lift = document.getElementById('roomLift');
+  if (!lift) return;
+  var host = lift.offsetParent; if (!host) return;
+  var hr = host.getBoundingClientRect(), lr = lift.getBoundingClientRect();
+  if (!lr.width || !hr.width) return;
+  var rx = (hr.right - lr.right) + (lr.width - 34) / 2;   /* 34 = 도크 단추 지름 */
+  document.documentElement.style.setProperty('--dock-rx', rx.toFixed(1) + 'px');
+}
 function placeBookDock(){
+  alignDockToLift();
   var dock = document.getElementById('bk-dock');
   var lift = document.getElementById('roomLift');
   if (!dock || !lift || dock.hidden) return;
