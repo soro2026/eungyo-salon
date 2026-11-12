@@ -199,7 +199,6 @@
       const ring = Math.floor((no - 1) / PER_RING), m = (no - 1) % PER_RING, b = Math.floor(m / 4);
       return { ring, face: facesOfBatch(ring, b)[m % 4], idx: b };
     }
-    const platesPerFace = (n, ring) => { if (ring === 0 && n === 0) return 1; return Math.ceil(Math.max(0, Math.min(PER_RING, n - ring * PER_RING)) / 4); };
     const layoutOf = (k) => { const rows = k <= 4 ? 1 : k <= 12 ? 2 : 3; return { rows, cols: Math.ceil(k / rows) }; };
     function bandRef(f) {
       const A = V.anchors && V.anchors[f];
@@ -250,8 +249,8 @@
           g.fillStyle = "rgba(255,255,255,0.7)"; g.fillText(text, W / 2 + 1, y + 2);
           g.fillStyle = "#231a10"; g.fillText(text, W / 2, y);
         };
-        draw(noText, 30, 700, H * 0.33, W - 34);
-        draw(name, 46, 800, H * 0.68, W - 34);
+        if (noText) { draw(noText, 30, 700, H * 0.33, W - 34); draw(name, 46, 800, H * 0.68, W - 34); }
+        else draw(name, 46, 800, H * 0.52, W - 34);   // 1112 박수 명패 — 번호 없이 이름만 가운데
       }
       plateCache.set(k, c);
       return c;
@@ -319,23 +318,30 @@
       const nick = new Map(R.map((r) => [r.no, r.nick]));
       const nameOf = (no) => nick.get(no) || NAMES[(no - 1) % NAMES.length];
 
-      /* ① 각인 */
-      const rings = n > PER_RING ? 2 : 1, owner = {};
-      for (const r of R) { const s = slotOf(r.no); owner[[s.ring, s.face, s.idx].join("|")] = r.no; }
+      /* ① 각인 — 1112 소로: 면마다 그 면에 앉은 사람 수만큼 띠를 나눈다(빈 칸 없음 · 5명이면 한 면 2장 · 세 면 1장)
+         아무도 안 앉은 면(4명이 되기 전)은 앞 순번 이름을 번호 없이 — 트리의 박수 장식과 같은 셈 · 번호 달린 명패는 한 사람에 하나 */
+      const rings = n > PER_RING ? 2 : 1, seats = {};
+      for (const r of R) { const s = slotOf(r.no), key = s.ring + "|" + s.face; (seats[key] = seats[key] || []).push(r.no); }
+      const byNo = R.map((r) => r.no).sort((a, b) => a - b);
+      let cheer = 0;
       for (let ring = 0; ring < rings; ring++) {
-        const k = platesPerFace(n, ring);
-        for (let f = 0; f < 4; f++) for (let idx = 0; idx < k; idx++) {
-          const no = owner[[ring, f, idx].join("|")];
-          const w = plateWall(ring, f, idx, k);
-          const img = plateCanvas(no ? "No." + String(no).padStart(3, "0") : "", no ? nameOf(no) : "", w.aspect);
-          const phase = (f * 27 + idx) * 0.618;
-          const color = new Cesium.CallbackProperty(() => {
-            if (eve) { const t = performance.now() / 1000, b = 0.82 + 0.18 * Math.sin(t * 2.2 + phase);
-                       return new Cesium.Color(1, 0.96 * b + 0.04, 0.82 * b + 0.12, 1); }
-            return nightNow > 0.2 ? NIGHT_IVORY : Cesium.Color.WHITE;   // 밤엔 한 톤 눌러 번짐에 하얗게 타지 않게
-          }, false);
-          plateSources[f].entities.add({ wall: { positions: w.positions, minimumHeights: [w.lo, w.lo], maximumHeights: [w.hi, w.hi],
-            material: new Cesium.ImageMaterialProperty({ image: img, transparent: false, color }) } });
+        for (let f = 0; f < 4; f++) {
+          const mine = (seats[ring + "|" + f] || []).sort((a, b) => a - b);
+          const list = mine.length ? mine.map((no) => ({ no, num: true }))
+                                   : [{ no: byNo.length ? byNo[cheer++ % byNo.length] : 0, num: false }];
+          const k = list.length;
+          for (let idx = 0; idx < k; idx++) {
+            const it = list[idx], w = plateWall(ring, f, idx, k);
+            const img = plateCanvas(it.num ? "No." + String(it.no).padStart(3, "0") : "", it.no ? nameOf(it.no) : "", w.aspect);
+            const phase = (f * 27 + idx) * 0.618;
+            const color = new Cesium.CallbackProperty(() => {
+              if (eve) { const t = performance.now() / 1000, b = 0.82 + 0.18 * Math.sin(t * 2.2 + phase);
+                         return new Cesium.Color(1, 0.96 * b + 0.04, 0.82 * b + 0.12, 1); }
+              return nightNow > 0.2 ? NIGHT_IVORY : Cesium.Color.WHITE;   // 밤엔 한 톤 눌러 번짐에 하얗게 타지 않게
+            }, false);
+            plateSources[f].entities.add({ wall: { positions: w.positions, minimumHeights: [w.lo, w.lo], maximumHeights: [w.hi, w.hi],
+              material: new Cesium.ImageMaterialProperty({ image: img, transparent: false, color }) } });
+          }
         }
       }
 
