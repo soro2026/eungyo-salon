@@ -272,7 +272,12 @@
   .pw-in{ width:100%; box-sizing:border-box; font:inherit; font-size:15px; padding:10px 12px; margin-bottom:8px;
           border:1px solid var(--c-cbor); border-radius:10px; background:transparent; color:var(--c-ink); }
   .pw-in:focus{ outline:none; border-color:var(--c-accent); }
-  .pw-show{ display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--c-sub); margin:2px 0 4px; cursor:pointer; }
+  .pw-field{ position:relative; }
+  .pw-field .pw-in{ padding-right:44px; }
+  .pw-eye{ position:absolute; right:6px; top:5px; width:34px; height:34px; border:0; background:transparent;
+           color:var(--c-sub); cursor:pointer; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:0; }
+  .pw-eye svg{ width:20px; height:20px; }
+  .pw-eye:hover, .pw-eye.on{ color:var(--c-accent); }
   .pw-msg{ font-size:13px; line-height:1.6; margin-top:10px; color:var(--c-sub); min-height:1.6em; }
   .pw-msg.err{ color:var(--c-accent); font-weight:600; }
   .pw-msg.ok{ color:#2f7a4a; font-weight:600; }
@@ -1294,9 +1299,11 @@
   <div class="sheet-body">
     <form onsubmit="savePassword(event)" autocomplete="off">
       <div class="pl-note" style="margin:0 0 12px">새로 쓰실 비밀번호를 두 번 적어 주세요. 6자 이상이면 됩니다. 바꾼 뒤에는 다음 로그인부터 새 비밀번호로 들어오시면 됩니다.</div>
-      <input class="pw-in" id="pw-new1" type="password" autocomplete="new-password" placeholder="새 비밀번호">
-      <input class="pw-in" id="pw-new2" type="password" autocomplete="new-password" placeholder="새 비밀번호 한 번 더">
-      <label class="pw-show"><input type="checkbox" onchange="pwShow(this.checked)"> 적은 글자 보기</label>
+      <!-- 1113 밤 소로 — 「적은 글자 보기 → 비밀번호 보이기(눈 마크)」. 눈을 누르면 두 칸이 함께 보이고 숨는다 -->
+      <div class="pw-field"><input class="pw-in" id="pw-new1" type="password" autocomplete="new-password" placeholder="새 비밀번호">
+        <button class="pw-eye" type="button" onclick="pwShow()" aria-label="비밀번호 보이기" title="비밀번호 보이기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg></button></div>
+      <div class="pw-field"><input class="pw-in" id="pw-new2" type="password" autocomplete="new-password" placeholder="새 비밀번호 한 번 더">
+        <button class="pw-eye" type="button" onclick="pwShow()" aria-label="비밀번호 보이기" title="비밀번호 보이기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg></button></div>
       <button class="pl-cta" id="pw-btn" type="submit">비밀번호 바꾸기</button>
       <div class="pw-msg" id="pw-msg"></div>
     </form>
@@ -2658,8 +2665,18 @@ document.getElementById('tr-back')?.addEventListener('click', () => showPanel('r
 // ── 비밀번호 바꾸기 (1113 밤 소로) ──
 /* ⭐ 로그인한 손님이 자기 비밀번호를 바꾼다. 메일을 거치지 않는다(다음 · 한메일은 재설정 메일이 막히기도 한다).
    ⚠ sbFetch 는 인증 오류 본문(msg · error_code)을 못 읽어 직접 부른다. */
-function pwShow(on){
-  ['pw-new1','pw-new2'].forEach(id => { const el = document.getElementById(id); if (el) el.type = on ? 'text' : 'password'; });
+const PW_EYE_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg>';
+const PW_EYE_SHUT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/><path d="M4 20L20 4"/></svg>';
+let PW_SHOWN = false;
+function pwShow(){
+  PW_SHOWN = !PW_SHOWN;
+  ['pw-new1','pw-new2'].forEach(id => { const el = document.getElementById(id); if (el) el.type = PW_SHOWN ? 'text' : 'password'; });
+  document.querySelectorAll('#sheet-password .pw-eye').forEach(b => {
+    b.classList.toggle('on', PW_SHOWN);
+    b.innerHTML = PW_SHOWN ? PW_EYE_SHUT : PW_EYE_OPEN;
+    const t = PW_SHOWN ? '비밀번호 숨기기' : '비밀번호 보이기';
+    b.setAttribute('aria-label', t); b.title = t;
+  });
 }
 async function savePassword(ev){
   if (ev && ev.preventDefault) ev.preventDefault();
