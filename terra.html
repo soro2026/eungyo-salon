@@ -9651,6 +9651,29 @@ async function loadDock(){
              done이면 저절로 false다(else에 안 들어가니 초기값 그대로). 여기서 덮지 않는다. */
         cdTarget = isNext ? m.match_date : null;
         ballOn = !done && !isNext;   /* 경기일 등불 — 실제 점등은 아래 items.push 직전에 한 번 */
+      } else {
+        /* ⭐ 1113 소로 — 「첫 경기를 치르지 않은 상태에서 '휴식일'이라 뜨면 사람들이 눌러 보지 않을 것」.
+           오늘 · 다음 경기가 없을 때 「휴식일」은 시즌이 끝난 뒤에만. ① 시즌을 연 적이 없으면 첫 경기 안내
+           ② 시범경기 중(start_date = 2099-12-29 묶음)이면 오늘 판은 구장에 들어갈 때 생기므로 「오늘의 시범경기」 */
+        try{
+          const { data: sn } = await supa.from("seasons").select("start_date,status")
+            .eq("user_id", uid).order("start_date", { ascending:false }).limit(1);
+          const s0 = sn && sn.length ? sn[0] : null;
+          if (!s0){
+            stadItem = { id:"stadium", sec:"arena", cls:"arena",
+              html: '<div class="dock-cap">EG STADIUM</div>'
+                  + '<div class="dock-main"><span>첫 경기를 기다립니다</span></div>'
+                  + '<div class="dock-sub">눌러서 시범경기 시작</div>',
+              onClick: openStadCard };
+          } else if (s0.status === "active" && s0.start_date === "2099-12-29"){
+            stadItem = { id:"stadium", sec:"arena", cls:"arena",
+              html: '<div class="dock-cap">PRESEASON</div>'
+                  + '<div class="dock-main"><span>오늘의 시범경기</span></div>'
+                  + '<div class="dock-sub">눌러서 한 판 치르기</div>',
+              onClick: openStadCard };
+            ballOn = true;
+          }
+        }catch(e){ /* 못 물으면 옛 「휴식일」 그대로 */ }
       }
     }
     /* 0801 — 타륜 우상단 야구공. 켜기만 하던 옛 코드는 경기가 끝나도 공이 남았다.
