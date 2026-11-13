@@ -258,6 +258,14 @@
       </div>
       <div class="egm-toast" id="egm-toast"><span id="egm-toast-t">—</span><button type="button" id="egm-toast-b">확인</button><button type="button" class="x" id="egm-toast-x" aria-label="닫기">✕</button></div>`;
     document.body.appendChild(root);
+    /* 1113 소로 — 소감을 쓰다 키를 누르니 뒤의 서가가 책을 마구 넘겼다(콜레주 ←→ 손이 글 칸을 안 봄).
+       글 칸에서 누른 키는 글 칸에서 끝낸다 — 어느 화면에 얹히든 뒤의 방이 못 듣는다. F키(녹화 등)만 위로 보낸다. */
+    root.addEventListener('keydown', e => {
+      const t = e.target;
+      if (!t || !(t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || t.isContentEditable)) return;
+      if (/^F\d+$/.test(e.key)) return;
+      e.stopPropagation();
+    });
     $('egm-chip').addEventListener('click', () => {
       /* 1113 — 가이드북을 펴 둔 채 누르면 판이 책 뒤에 열리므로, 책이 펴져 있을 때는 아무 일도 하지 않는다 */
       const bk = document.getElementById('gcBook');
