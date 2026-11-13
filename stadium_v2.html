@@ -5130,7 +5130,9 @@ async function updateResultExtras(myGame, otherGame) {
       const theirs = g.home_team === 'soro' ? g.away_score : g.home_score;
       if (mine > theirs) w++; else l++;
     });
-    rec.innerHTML = `${w}<span class="losses">−${l}</span>${week === 0 ? ' · 시범' : ''}`;
+    rec.innerHTML = `${w}<span class="losses">−${l}</span>`;
+    const lab = rec.parentElement && rec.parentElement.querySelector('.week-progress-label');
+    if (lab) lab.textContent = week === 0 ? '시범경기 전적' : '이번 주 진행';   // 1114 소로
   }
 
   // 2) 타구장 소식
@@ -5344,21 +5346,29 @@ async function updateWeekProgress() {
   
   if (!weekMatches) return;
   
+  /* 1114 소로 — 시범경기(week 0)는 「이번 주 1/2」가 아니다. 하루 한 판씩 깔리므로
+     깔린 수가 아니라 다섯 판(EG_PRESEASON_GAMES) 가운데 몇 판을 마쳤는지로 센다. */
+  const pre = (week === 0);
   const completed = weekMatches.filter(m => m.status === 'completed').length;
-  const total = weekMatches.length;
-  const remaining = total - completed;
-  
-  // 첫 번째 카드 (이번 주 진행)
+  const total = pre ? EG_PRESEASON_GAMES : weekMatches.length;
+  const shown = Math.min(completed, total);
+  const remaining = total - shown;
+
+  // 첫 번째 카드 (이번 주 진행 · 시범경기 진행)
   const infoCards = document.querySelectorAll('#screen-home .info-card');
   if (infoCards.length >= 1) {
     const weekCard = infoCards[0];
+    const labelEl = weekCard.querySelector('.info-card-label');
+    if (labelEl) labelEl.textContent = pre ? '시범경기 진행' : '이번 주 진행';
     const valueEl = weekCard.querySelector('.info-card-value');
     if (valueEl) {
-      valueEl.innerHTML = `${completed} <span style="color: var(--ink-tertiary); font-weight: 400">/</span> ${total}`;
+      valueEl.innerHTML = `${shown} <span style="color: var(--ink-tertiary); font-weight: 400">/</span> ${total}`;
     }
     const subEl = weekCard.querySelector('.info-card-sub');
     if (subEl) {
-      subEl.textContent = remaining > 0 ? `잔여 ${remaining}경기` : '주간 완료';
+      subEl.textContent = pre
+        ? (remaining > 0 ? `남은 ${remaining}판 · 하루 한 판` : '시범경기 마침')
+        : (remaining > 0 ? `잔여 ${remaining}경기` : '주간 완료');
     }
   }
 }
@@ -5706,11 +5716,12 @@ async function loadRecordsData() {
   /* 이번 **시즌** 내 경기 (0807 소로) — 주 2경기로 재면 「1승 1패 · 득점 3」이 되어
      아무 말도 못 한다. 루키 한 바퀴는 3주 6경기다. 순위표와 같은 창을 쓴다. */
   const _win = await egCurrentSeasonWindow(session.user.id);
-  const { data: weekMatches } = await supa
-    .from('matches')
-    .select('*')
-    .gte('week_num', _win.from).lte('week_num', _win.to)
-    .eq('is_my_game', true);
+  /* 1114 소로 — 시범경기 중에는 창이 1~3주로 잡혀 week 0 경기를 못 읽고 0승 0패로 보였다.
+     시범경기 동안은 week 0 만 읽는다. */
+  let _q = supa.from('matches').select('*').eq('is_my_game', true);
+  _q = _win.preseason ? _q.eq('week_num', 0)
+                      : _q.gte('week_num', _win.from).lte('week_num', _win.to);
+  const { data: weekMatches } = await _q;
   
   console.log('✅ 기록 로드:', { career, season, weekMatches });
   
