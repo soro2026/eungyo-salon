@@ -357,7 +357,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
 
-  var VERSION = "1112a";
+  var VERSION = "1113a";
 
   /* ══ ⭐⭐ 0827a — 판번호 어긋남 알림 ═══════════════════════════════════════
      ⚠⚠ 0826 에 세 번 헌 판으로 헤맸다. 그때 화면에 뜬 것은 「손이 없습니다」뿐이었다.
@@ -6034,7 +6034,49 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
    ⭐ 창 아래 호두나무 판 위에 옅게 한 줄 — 실제 기내에도 제조사 명판이 붙어 있다.
       숨기는 대신 제 곳을 주는 쪽이 이 집 문법이고, 실물에도 더 가깝다. */
 #readingRoom .cesium-viewer-bottom.eg-plaque{position:fixed;z-index:9;
-  left:auto;right:auto;bottom:auto;top:auto;pointer-events:auto;text-align:left}
+  left:auto;right:auto;bottom:auto;top:auto;pointer-events:none;text-align:left}
+/* ⚠⚠ 1113 소로 — 「기체 안에서 모니터가 안 눌린다」. 명판 상자가 왼쪽·위만 정해지고
+   오른쪽·아래가 비어 화면 끝까지 늘어나, z 9 로 모니터(z 8) 위를 통째로 덮고 있었다
+   (elementFromPoint 가 NOW READING 자리에서 .eg-plaque 를 돌려줌).
+   ⭐ 판은 손을 안 받고, 저작자 링크만 손을 받는다 — 표시는 그대로, 모니터는 다시 눌린다. */
+#readingRoom .cesium-viewer-bottom.eg-plaque a,
+#readingRoom .cesium-viewer-bottom.eg-plaque img,
+#readingRoom .cesium-viewer-bottom.eg-plaque .cesium-credit-expand-link{pointer-events:auto}
+/* ══ ⭐ 1113 소로 — EG탐험대 07 「비행 익히기」 일곱 칸 (왼쪽 위) ══
+   서버(eg_mission_now)가 open.panel='flight' 와 lights 를 줄 때만 선다. 남은 칸은 자세한 설명까지,
+   해 본 칸은 한 줄로 접힌다. 감추기(V)에서도 남는다 — 되돌리는 법을 알려 주는 판이니까. */
+#egrLearn{position:fixed;left:18px;top:18px;z-index:26;display:none;pointer-events:auto;
+  width:316px;max-width:calc(100vw - 36px);max-height:calc(100vh - 150px);overflow:auto;
+  background:rgba(12,16,24,.88);border:1px solid rgba(201,169,97,.55);border-radius:12px;
+  padding:13px 14px 12px;color:#efe6d2;box-shadow:0 10px 28px rgba(0,0,0,.45);
+  font:400 12.5px/1.6 'Noto Sans KR',system-ui,sans-serif;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+#egrLearn.on{display:block}
+#egrLearn .hd{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+#egrLearn .hd small{color:#c9a961;font:500 10.5px 'IBM Plex Mono',monospace;letter-spacing:.12em}
+#egrLearn .hd b{font:600 14px 'Noto Serif KR',serif;color:#f4ecd9}
+#egrLearn .hd .ct{margin-left:auto;font:500 12px 'IBM Plex Mono',monospace;color:#59c26b}
+#egrLearn .hd button{all:unset;cursor:pointer;font-size:11px;color:#b9ad93;padding:2px 7px;
+  border:1px solid rgba(201,169,97,.35);border-radius:6px}
+#egrLearn .hd button:hover{color:#f4ecd9;border-color:#c9a961}
+#egrLearn.fold ol,#egrLearn.fold .fin{display:none}
+#egrLearn.fold .hd{margin-bottom:0}
+#egrLearn ol{list-style:none;margin:0;padding:0}
+#egrLearn li{position:relative;padding:8px 8px 8px 30px;border-radius:8px;margin-bottom:4px;
+  background:rgba(255,255,255,.035)}
+#egrLearn li .bx{position:absolute;left:8px;top:10px;width:14px;height:14px;border-radius:4px;
+  border:1.5px solid rgba(239,230,210,.6);box-sizing:border-box}
+#egrLearn li kbd{display:inline-block;min-width:18px;padding:0 6px;margin-right:6px;border-radius:5px;
+  background:#efe6d2;color:#151a22;font:600 11px/18px 'IBM Plex Mono',monospace;text-align:center}
+#egrLearn li b{font-weight:600;color:#f4ecd9}
+#egrLearn li p{margin:5px 0 0;color:#cfc4ab;font-size:12px;line-height:1.65}
+#egrLearn li.now{background:rgba(201,169,97,.16);outline:1px solid rgba(201,169,97,.6)}
+#egrLearn li.done{background:transparent;padding-top:4px;padding-bottom:4px;opacity:.72}
+#egrLearn li.done .bx{background:#59c26b;border-color:#59c26b}
+#egrLearn li.done .bx::after{content:"";position:absolute;left:3.5px;top:0.5px;width:4px;height:8px;
+  border:solid #0d1a10;border-width:0 2px 2px 0;transform:rotate(45deg)}
+#egrLearn li.done b{color:#cfc4ab;font-weight:400}
+#egrLearn li.done kbd{background:rgba(239,230,210,.35)}
+#egrLearn .fin{margin:2px 0 0;color:#f2c94c;line-height:1.7}
 #readingRoom .cesium-viewer-bottom.eg-plaque .cesium-widget-credits{
   font-size:9px!important;opacity:.62;color:#efe6d2;
   text-shadow:0 1px 2px rgba(0,0,0,.55);line-height:1.5}
@@ -6819,7 +6861,9 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       + '<div id="egrSaved">여기까지 비행을 저장했습니다</div>'
       /* ⭐⭐ 0825f 기내 방송 자막 — ⚠ 방 안이라 KEEP 을 안 늘린다(41호 ㉢).
          ⭐ .out(창밖만)·.bodyview(기체 감상) 에서도 선다 — 방송은 어디서든 들리니까. */
-      + '<div id="egrPA"><b></b><i></i></div>';
+      + '<div id="egrPA"><b></b><i></i></div>'
+      /* ⭐ 1113 — EG탐험대 07 「비행 익히기」 판. 진행 중일 때만 선다(learnPaint) */
+      + '<div id="egrLearn"></div>';
     document.body.appendChild(ROOT);
     EXIT = document.createElement("button");
     EXIT.id = "readingExit"; EXIT.type = "button";
@@ -8869,6 +8913,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
       if (OUT !== BODYWAS) toggleOut();
     }
     ROOT.classList.toggle("bodyview", BODY);
+    if (BODY) egmCtl("b");           /* ⭐ 1113 탐험대 07 ② */
     skinShow();                    /* ⭐ 0822c — B 를 끄면 질감 판도 함께 걷힌다 */
     layout();
   }
@@ -10122,6 +10167,7 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     if (!ROOT) return;
     OUT = !OUT;
     ROOT.classList.toggle("out", OUT);
+    if (OUT && !BODY) egmCtl("c");   /* ⭐ 1113 탐험대 07 ① — B 가 부른 OUT 은 안 센다(BODY 가 먼저 선다) */
     /* ⭐ 0821j — 밖은 제 시점을 갖는다. 고개를 돌린 채 나가면 밖도 비뚤어져 보인다.
        ⚠ 그리고 밖에서는 모니터가 왼쪽 아래 제 자리로 서므로 --peek 을 반드시 1 로 푼다 */
     lookReset();
@@ -10135,6 +10181,11 @@ body.reading-look{user-select:none;-webkit-user-select:none;cursor:grabbing}
     if (!ROOT) return;
     BARE = !BARE;
     ROOT.classList.toggle("bare", BARE);
+    /* ⭐ 1113 탐험대 07 ④ — 「끄고 켜기」. 끈 것만으로는 안 센다. 밖에서 다시 켜는 손까지 해 보셔야
+       돌아오는 길을 아신다. 끈 순간 판이 「V 를 한 번 더」라고 말한다. */
+    if (BARE && OUT) { LEARN_VHALF = true; learnPaint(); }
+    else if (!BARE && OUT && LEARN_VHALF) { LEARN_VHALF = false; egmCtl("v"); }
+    else if (!BARE) { LEARN_VHALF = false; learnPaint(); }
   }
 
   /* ══ 창 덮개 (0819P) — 24호 · 손님이 여닫는다 ═══════════════════════
@@ -12022,14 +12073,14 @@ var CLOUDS = null;             /* CloudCollection — ⚠ 방 전용. 나갈 때
     setTheme(themeOf(plateKey(solarHour(route.legs[0][1]))));
     MONEL.querySelector("#egrMap").innerHTML = buildMap(route);
     mountDesk();                      /* ⭐ 독서일지 판 — 모니터 밖 별도 판 */
-    EGR_on(MONEL.querySelector("#egrZin"), "click", function () { setZoom(zi + 1, route); });
-    EGR_on(MONEL.querySelector("#egrZout"), "click", function () { setZoom(zi - 1, route); });
+    EGR_on(MONEL.querySelector("#egrZin"), "click", function () { setZoom(zi + 1, route); learnZoom("in"); });
+    EGR_on(MONEL.querySelector("#egrZout"), "click", function () { setZoom(zi - 1, route); learnZoom("out"); });
     /* ⭐ 1025a 촬영 손 둘 — 항로도를 누르면 점프 · 📍 로 핀 끄기. 둘 다 누르는 순간 IS_ADMIN 을 본다 */
     EGR_on(MONEL.querySelector("#egrMap"), "click", onMapJump);
     EGR_on(MONEL.querySelector("#egrPins"), "click", togglePins);
     paintAdm();
     /* ⭐ 0819U 소로 — 「모니터에 음악 켜기 버튼」. 손이 한 곳에 모인다 */
-    EGR_on(MONEL.querySelector("#egrSnd"), "click", function () { setChannel(CH + 1); });
+    EGR_on(MONEL.querySelector("#egrSnd"), "click", function () { setChannel(CH + 1); learnSound(CH); });
     /* ══ ⭐⭐ 0825m 창밖 모니터를 옮기고 키운다 (소로 0825) ═══════════════════════
        ⚠ 창밖(.out)에서만 듣는다 — 좌석에서는 사다리꼴에 박혀 있어 옮길 물건이 아니다.
        ⚠ 포인터를 잡아 둔다(setPointerCapture) — 빠르게 끌면 손이 판을 벗어나는데
@@ -12692,8 +12743,93 @@ function paintBook() {
   function missionBook() {
     try {
       if (window.egMission && BOOK) egMission.mark("flight_book", String(BOOK.id || BOOK.title || ""));
+      if (BOOK) learnLocal("flight_book");
     } catch (e) { /* 표시 하나 못 남겨도 비행은 그대로 */ }
   }
+
+  /* ══ ⭐⭐ 1113 소로 — EG탐험대 07 「비행 익히기」 일곱 칸 ═══════════════════════════
+     > 「비행의 기본 방법을 여기서 배우게 해 주면 좋을 듯 … 하나씩 해 보면 체크 박스가」
+     ⭐ 판정은 서버가 한다(eg_mission_check · judge marks_all). 여기는 손이 닿은 순간 표시 하나
+       (eg_mission_marks kind 'flight_ctl' · ref c/b/drag/v/zoom/sound, 책은 flight_book)를 남기고
+       판에 바로 체크를 그린다 — 서버 답은 뒤에서 따라와 판을 다시 칠한다(egm:now).
+     ⚠ 07 이 진행 중이 아니면(판이 없으면) 서버에 아무것도 안 보낸다. 손님마다 헛걸음을 만들지 않는다.
+     ⚠ − + 는 둘 다, 소리는 세 갈래(엔진음·음악·끔)를 단추로 한 바퀴 돌아야 센다 — 판의 글과 같게. */
+  var LEARN_HIT = {}, LEARN_ZM = {}, LEARN_SND = {}, LEARN_VHALF = false, LEARN_FOLD = false, LEARN_WAS = false, LEARN_NO = null;
+  function learnOpen() {
+    var o = window.__egmOpen;
+    if (!o) return null;
+    if (o.panel === "flight") return o;
+    /* ⚠ 닿고 나면 서버는 칸(lights · panel)을 더 안 준다. 이번 비행에서 판을 보던 그 카드면
+       「다 익혔습니다」 한 줄을 그리려고 붙든다 */
+    if (o.reached && LEARN_WAS && o.no === LEARN_NO) return o;
+    return null;
+  }
+  function learnItem(o, ref) {
+    var L = (o && o.lights) || [];
+    for (var i = 0; i < L.length; i++) if (L[i].ref === ref) return L[i];
+    return null;
+  }
+  function learnLocal(ref) {
+    var o = learnOpen(); if (!o || o.reached) return null;
+    var it = learnItem(o, ref); if (!it || it.done) return null;
+    it.done = true; learnPaint();
+    return it;
+  }
+  function egmCtl(ref) {
+    try {
+      if (LEARN_HIT[ref] || !learnLocal(ref)) return;
+      LEARN_HIT[ref] = true;
+      if (window.egMission) egMission.mark("flight_ctl", ref);
+    } catch (e) { /* 표시 하나 못 남겨도 비행은 그대로 */ }
+  }
+  function learnZoom(dir) { LEARN_ZM[dir] = 1; if (LEARN_ZM["in"] && LEARN_ZM.out) egmCtl("zoom"); }
+  function learnSound(ch) { LEARN_SND[ch] = 1; if (LEARN_SND[0] && LEARN_SND[1] && LEARN_SND[2]) egmCtl("sound"); }
+  function lesc(t) {
+    return String(t == null ? "" : t).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  function learnPaint() {
+    if (!ROOT) return;
+    var el = ROOT.querySelector("#egrLearn"); if (!el) return;
+    var o = learnOpen();
+    if (!o || (o.reached && !LEARN_WAS)) { el.className = ""; el.innerHTML = ""; return; }
+    var no = ("0" + o.no).slice(-2);
+    if (o.reached) {
+      el.className = "on";
+      el.innerHTML = '<div class="hd"><small>미션 ' + no + '</small><b>비행 익히기</b>'
+        + '<span class="ct">7 / 7</span><button type="button" data-x="close">닫기</button></div>'
+        /* ⚠ 기내에서는 진행 중 표·알림(mission.js)이 KEEP 밖이라 숨는다 — 내린 뒤에 노란 표로 선다 */
+        + '<p class="fin">일곱 칸을 다 익혔습니다. 비행은 그대로 이어 가셔도 됩니다. '
+        + '내리시면 화면 왼쪽 아래 노란 표에서 소감을 쓸 수 있습니다.</p>';
+      return;
+    }
+    LEARN_WAS = true; LEARN_NO = o.no;
+    var L = o.lights || [], done = 0, first = -1;
+    for (var i = 0; i < L.length; i++) { if (L[i].done) done++; else if (first < 0) first = i; }
+    var h = '<div class="hd"><small>미션 ' + no + '</small><b>비행 익히기</b>'
+      + '<span class="ct">' + done + ' / ' + L.length + '</span>'
+      + '<button type="button" data-x="fold">' + (LEARN_FOLD ? "펴기" : "접기") + '</button></div><ol>';
+    for (var j = 0; j < L.length; j++) {
+      var it = L[j], how = it.how || "";
+      if (it.ref === "v" && !it.done && LEARN_VHALF)
+        how = "모니터가 꺼졌습니다. V 를 한 번 더 누르면 모니터가 돌아오며 체크됩니다.";
+      h += '<li class="' + (it.done ? "done" : (j === first ? "now" : "")) + '"><span class="bx"></span>'
+        + '<kbd>' + lesc(it.key || (j + 1)) + '</kbd><b>' + lesc(it.label) + '</b>'
+        + (it.done ? '' : '<p>' + lesc(how) + '</p>') + '</li>';
+    }
+    el.className = "on" + (LEARN_FOLD ? " fold" : "");
+    el.innerHTML = h + '</ol>';
+  }
+  /* ⭐ 판 위 단추 둘 — 접기/펴기 · (다 마친 뒤) 닫기. 판은 방과 함께 새로 서므로 위임으로 한 번만 단다 */
+  document.addEventListener("click", function (e) {
+    var b = e.target && e.target.closest && e.target.closest("#egrLearn button[data-x]");
+    if (!b) return;
+    if (b.getAttribute("data-x") === "fold") { LEARN_FOLD = !LEARN_FOLD; learnPaint(); }
+    else { LEARN_WAS = false; learnPaint(); }
+  });
+  /* ⭐ mission.js 가 진행 중 표를 새로 칠할 때마다 판도 따라 칠한다 */
+  window.addEventListener("egm:now", function () { LEARN_HIT = {}; learnPaint(); });
   
 /* ⚠ 0819U — loadNotes 를 걷었다. 회차 목록이 모니터 안에 있던 시절의 물건인데,
      기록판(0819M)이 왼쪽에 그 목록을 이미 그린다(loadArchive). 남겨 두면
@@ -13425,7 +13561,7 @@ function paintBook() {
            #egrSkin 이 뺀다(판 자체도 pointerdown 을 끊는다 — 그물 두 겹, 0821h). */
       if (!BODY || !ROOT) return false;
       if (!t || !t.closest) return true;
-      return !t.closest("#egrSkin,#egrMon,#egrDesk,#readingExit,#readingMenu,.readingSeat,button,input,textarea,select,a");
+      return !t.closest("#egrSkin,#egrMon,#egrDesk,#egrLearn,#readingExit,#readingMenu,.readingSeat,button,input,textarea,select,a");
     }
     EGR_on(window, "pointerdown", function (e) {
       if (e.pointerType === "mouse" && e.button !== 0) return;
@@ -13439,6 +13575,7 @@ function paintBook() {
         if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
         og.moved = true;
         if (ROOT) ROOT.classList.add("looking");     /* ⭐ 손 모양만 빌린다 — 끄는 중이라는 표시 */
+        egmCtl("drag");                              /* ⭐ 1113 탐험대 07 ③ 시점 돌리기 */
       }
       og.x = e.clientX; og.y = e.clientY;
       /* ⭐ 화면 절반을 끌면 180° — 고갯짓과 같은 손맛으로 맞췄다 */
@@ -13470,7 +13607,7 @@ function paintBook() {
          기내는 개방 조종석(freelook 기체)만 — 제트기는 창틀이 시야를 정한다(8호) */
       if (!OUT && !SPEC.freelook) return false;
       if (!t || !t.closest) return true;
-      return !t.closest("#egrMon,#egrDesk,#readingExit,#readingMenu,.readingSeat,button,input,textarea,select,a");
+      return !t.closest("#egrMon,#egrDesk,#egrLearn,#readingExit,#readingMenu,.readingSeat,button,input,textarea,select,a");
     }
     EGR_on(window, "pointerdown", function (e) {
       if (e.pointerType === "mouse" && e.button !== 0) return;
@@ -13762,6 +13899,10 @@ function paintBook() {
     var rt = routeBy(code);
     applyCraft(rt.craft || "jet");
     mountStyle(); mountHtml();
+    /* ⭐ 1113 — EG탐험대 07 판. 지금 것을 먼저 그리고, 서버에 한 번 더 물어 새로 칠한다 */
+    LEARN_ZM = {}; LEARN_SND = {}; LEARN_VHALF = false; LEARN_WAS = false;
+    learnPaint();
+    try { if (window.egMission && egMission.refresh) egMission.refresh(); } catch (e) { }
 
     /* ⚠⚠⚠ 궤도 사슬부터 푼다. 순서가 중요하다(0818 밤 진범).
        ① completeFlight — 가려던 곳까지 보낸다. 취소하면 가던 길 한복판 좌표를 적게 된다

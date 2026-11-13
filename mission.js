@@ -333,14 +333,17 @@
       if (L){
         L.classList.toggle('on', !!lights);
         chip.classList.toggle('lit', !!lights);
-        L.innerHTML = lights ? lights.map(x => '<em class="' + (x.done ? 'done' : '') + '" title="' + esc(x.label || '') + (x.done ? ' · 읽음' : ' · 남음') + '"></em>').join('') : '';
+        const fl = !!(o && o.panel === 'flight');   /* 1113 — 07 비행 익히기: 꼭지가 아니라 칸 */
+        L.innerHTML = lights ? lights.map(x => '<em class="' + (x.done ? 'done' : '') + '" title="' + esc(x.label || '') + (x.done ? (fl ? ' · 해 봄' : ' · 읽음') : ' · 남음') + '"></em>').join('') : '';
         if (lights){
           const left = lights.filter(x => !x.done).map(x => x.label);
-          L.setAttribute('aria-label', left.length ? '남은 꼭지: ' + left.join(', ') : '일곱 꼭지를 다 읽었습니다');
+          L.setAttribute('aria-label', left.length ? (fl ? '남은 칸: ' : '남은 꼭지: ') + left.join(', ') : (fl ? '일곱 칸을 다 해 보았습니다' : '일곱 꼭지를 다 읽었습니다'));
         }
       }
     }
     paintDock(d);
+    /* 1113 — 독서비행 판(07 비행 익히기)이 따라 칠하도록 알린다 */
+    try{ window.dispatchEvent(new CustomEvent('egm:now', { detail: d })); }catch(e){}
     return d;
   }
   function nextText(n){
