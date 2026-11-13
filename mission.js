@@ -361,6 +361,8 @@
   function closeBoard(){
     $('egm-veil').classList.remove('on'); $('egm-board').classList.remove('on');
     refresh();
+    /* 1113 — 테라(지구)에서 판을 접으면 들어와 있는 동안 온 새 편지를 잰다. 액자 안 페이지에는 이 손이 없다 */
+    try{ if (typeof window.egMailRecheck === 'function') window.egMailRecheck(); }catch(e){}
   }
 
   function statusHtml(){

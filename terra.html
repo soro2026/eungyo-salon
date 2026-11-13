@@ -4910,6 +4910,7 @@ function renderStoryStars(figs){
 }
 
 function closeStory(){
+  try{ if (typeof window.egMailRecheck === 'function') window.egMailRecheck(); }catch(e){}   /* 1113 — 지구로 돌아오면 새 편지를 잰다 */
   document.getElementById("story").classList.remove("in");
   detachStoryVoice();      /* 0807 — 판만 닫는다. 소리는 미니 조종간이 이어받는다 */
 }
@@ -5180,6 +5181,7 @@ function openCollegeCard(){
   document.getElementById("collegeCard").classList.add("in");
 }
 function closeCollegeCard(){
+  try{ if (typeof window.egMailRecheck === 'function') window.egMailRecheck(); }catch(e){}   /* 1113 — 지구로 돌아오면 새 편지를 잰다 */
   document.getElementById("collegeCard").classList.remove("in");
 }
 function enterCollege(p){
@@ -5259,6 +5261,7 @@ function openLabGate(p){
   document.getElementById("labGate").classList.add("in");
 }
 function closeLabGate(){
+  try{ if (typeof window.egMailRecheck === 'function') window.egMailRecheck(); }catch(e){}   /* 1113 — 지구로 돌아오면 새 편지를 잰다 */
   const el = document.getElementById("labGate"); if (el) el.classList.remove("in");
 }
 function labGateNote(html){
@@ -5495,6 +5498,7 @@ function openHouse(b){
   doorState = 'closed';
 }
 function closeMaison(){
+  try{ if (typeof window.egMailRecheck === 'function') window.egMailRecheck(); }catch(e){}   /* 1113 — 지구로 돌아오면 새 편지를 잰다 */
   document.getElementById("maison").classList.remove("in");
 }
 
@@ -7438,6 +7442,7 @@ function openStadCard(){
   document.getElementById("stadCard").classList.add("in");
 }
 function closeStadCard(){
+  try{ if (typeof window.egMailRecheck === 'function') window.egMailRecheck(); }catch(e){}   /* 1113 — 지구로 돌아오면 새 편지를 잰다 */
   document.getElementById("stadCard").classList.remove("in");
   viewer.useDefaultRenderLoop = true;
   if (typeof refreshDock === "function") refreshDock(false);   /* 0728 */
@@ -7458,6 +7463,7 @@ function openCredCard(latest){
   document.getElementById("credCard").classList.add("in");
 }
 function closeCredCard(){
+  try{ if (typeof window.egMailRecheck === 'function') window.egMailRecheck(); }catch(e){}   /* 1113 — 지구로 돌아오면 새 편지를 잰다 */
   const f = document.getElementById("credFrame"); if (f) f.src = "about:blank";
   document.getElementById("credCard").classList.remove("in");
   viewer.useDefaultRenderLoop = true;
@@ -7524,6 +7530,32 @@ window.addEventListener("message", (e)=>{
       안 누르고 지구를 돌리거나 타륜의 다른 줄로 가면 조용히 접힌다.
       접혀도 잃는 것이 아니다 — 우편함 줄의 작은 봉투가 그것을 이어받는다. */
 let mailFlewThisSession = false;
+/* ⭐ 1113 소로 — 들어와 있는 동안 새 편지가 오면(수강 신청 확인장처럼 방금 한 일의 답장),
+   액자를 닫고 지구로 돌아오는 순간 봉투가 **한 번 더** 돈다. 같은 편지로는 두 번 돌지 않는다.
+   mailBaseline = 이 판에서 봉투가 이미 알린 가장 새 편지의 시각(처음엔 페이지를 연 시각).
+   부르는 곳 — closeStory · closeCollegeCard · closeLabGate · closeMaison · closeStadCard · closeCredCard
+              · mission.js closeBoard(테라에서만). 우편함을 닫을 때는 부르지 않는다(방금 읽고 나온 자리). */
+let mailBaseline = new Date();
+async function egUnreadLatest(){
+  try{ const { data, error } = await supa.rpc("eg_unread_latest"); if (error || !data) return null; return new Date(data); }
+  catch(e){ return null; }
+}
+let _mailRecheckT = null;
+function egMailRecheck(){
+  clearTimeout(_mailRecheckT);
+  _mailRecheckT = setTimeout(async ()=>{
+    try{
+      const { data:{ session } } = await supa.auth.getSession();
+      if (!session) return;
+      tickMailSeal();
+      const latest = await egUnreadLatest();
+      if (!latest || latest <= mailBaseline) return;
+      mailFlewThisSession = false;           /* 새 편지 — 이 판의 한 번을 다시 연다 */
+      flyMailEnvelope();
+    }catch(e){}
+  }, 700);
+}
+window.egMailRecheck = egMailRecheck;
 async function flyMailEnvelope(){
   if (mailFlewThisSession) return;
   const fly = document.getElementById("mailFly");
@@ -7536,6 +7568,7 @@ async function flyMailEnvelope(){
   }catch(e){ return; }
 
   mailFlewThisSession = true;
+  { const latest = await egUnreadLatest(); if (latest && latest > mailBaseline) mailBaseline = latest; }   /* 1113 — 알린 편지까지 */
   fly.classList.remove("rest","opening","tuck");
   void fly.offsetWidth;                          /* 애니메이션 되감기 */
   fly.classList.add("on");
@@ -10010,7 +10043,7 @@ window.closeTourLists = closeTourLists;
 })();
 </script>
 <!-- ⭐ 1111 — EG탐험대 미션 카드(카드판 · 진행 중 표 · 소감 창). 배선은 전부 mission.js -->
-<script src="mission.js?v=1112a"></script>
+<script src="mission.js?v=1113a"></script>
 <script>
 (function(){
   const card = document.getElementById('dockMission');
