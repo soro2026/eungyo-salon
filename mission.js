@@ -35,6 +35,13 @@
   .egm-chip.reached{ background:#f2c94c; color:#1d1812; border-color:#1d1812; }
   .egm-chip.reached small{ color:#3a332b; }
   .egm-chip.reached i{ background:#1d1812; box-shadow:none; }
+  /* 1113 소로 — 꼭지 여럿을 읽는 카드(06 허기)의 신호등. 읽은 꼭지는 초록, 남은 꼭지는 빈 칸 */
+  .egm-lights{ display:none; gap:5px; margin-left:4px; align-items:center; }
+  .egm-lights.on{ display:inline-flex; }
+  /* 가이드북은 화면 가득한 모달(z 90010)이라, 신호등이 켜진 동안만 표를 그 위로 올린다 — 읽는 동안 불이 하나씩 켜지는 게 보이게 */
+  .egm-chip.lit{ z-index:90030; }
+  .egm-lights em{ width:9px; height:9px; border-radius:50%; border:1.5px solid rgba(244,239,230,.55); box-sizing:border-box; flex:none; }
+  .egm-lights em.done{ background:#59c26b; border-color:#59c26b; box-shadow:0 0 6px rgba(89,194,107,.75); }
   .egm-toast{ position:fixed; left:50%; bottom:30px; transform:translate(-50%, 20px); opacity:0; pointer-events:none; z-index:9700;
     display:flex; align-items:center; gap:14px; padding:13px 16px 13px 20px; background:#f4efe6; border-radius:10px;
     box-shadow:0 14px 36px rgba(0,0,0,.4); transition:.3s ease; font-size:15px; line-height:1.5; max-width:calc(100% - 40px); }
@@ -217,7 +224,7 @@
     const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
     root = document.createElement('div'); root.className = 'egm';
     root.innerHTML = `
-      <div class="egm-chip" id="egm-chip" role="button" tabindex="0"><i></i><span><small id="egm-chip-s">진행 중</small> <b id="egm-chip-t">—</b></span></div>
+      <div class="egm-chip" id="egm-chip" role="button" tabindex="0"><i></i><span><small id="egm-chip-s">진행 중</small> <b id="egm-chip-t">—</b></span><span class="egm-lights" id="egm-lights"></span></div>
       <div class="egm-veil" id="egm-veil"></div>
       <section class="egm-board" id="egm-board" aria-label="미션 카드" role="dialog">
         <button class="egm-bx" type="button" id="egm-bx" aria-label="접기">✕</button>
@@ -251,7 +258,12 @@
       </div>
       <div class="egm-toast" id="egm-toast"><span id="egm-toast-t">—</span><button type="button" id="egm-toast-b">확인</button><button type="button" class="x" id="egm-toast-x" aria-label="닫기">✕</button></div>`;
     document.body.appendChild(root);
-    $('egm-chip').addEventListener('click', () => { const o = window.__egmOpen; if (o && o.reached) openEssayFor(o.no); else openBoard(); });
+    $('egm-chip').addEventListener('click', () => {
+      /* 1113 — 가이드북을 펴 둔 채 누르면 판이 책 뒤에 열리므로, 책이 펴져 있을 때는 아무 일도 하지 않는다 */
+      const bk = document.getElementById('gcBook');
+      if (bk && getComputedStyle(bk).display !== 'none') return;
+      const o = window.__egmOpen; if (o && o.reached) openEssayFor(o.no); else openBoard();
+    });
     $('egm-veil').addEventListener('click', closeBoard);
     $('egm-bx').addEventListener('click', closeBoard);
     $('egm-m-ta').addEventListener('input', hint);
@@ -315,6 +327,18 @@
     if (o){
       $('egm-chip-s').textContent = o.reached ? '닿았습니다 · 소감 쓰기' : '진행 중';
       $('egm-chip-t').textContent = pad(o.no) + ' ' + o.title;
+    }
+    /* 1113 — 신호등: 서버(eg_mission_now)가 open.lights 를 줄 때만. 마우스를 올리면 꼭지 이름 */
+    { const L = $('egm-lights'), lights = (o && !o.reached && Array.isArray(o.lights)) ? o.lights : null;
+      if (L){
+        L.classList.toggle('on', !!lights);
+        chip.classList.toggle('lit', !!lights);
+        L.innerHTML = lights ? lights.map(x => '<em class="' + (x.done ? 'done' : '') + '" title="' + esc(x.label || '') + (x.done ? ' · 읽음' : ' · 남음') + '"></em>').join('') : '';
+        if (lights){
+          const left = lights.filter(x => !x.done).map(x => x.label);
+          L.setAttribute('aria-label', left.length ? '남은 꼭지: ' + left.join(', ') : '일곱 꼭지를 다 읽었습니다');
+        }
+      }
     }
     paintDock(d);
     return d;
@@ -567,7 +591,8 @@
     try{
       const { data } = await c.rpc('eg_mission_mark', { p_kind: kind, p_ref: ref || null });
       if (!data || !data.kept) return;
-      await check();
+      const d = await check();
+      if (!d || !d.fresh) refresh();   /* 1113 — 아직 덜 닿았으면 신호등만 새로 켠다 */
     }catch(e){}
   }
 
