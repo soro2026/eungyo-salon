@@ -268,6 +268,14 @@
   .pl-in:focus{ outline:none; border-color:var(--c-accent); }
   select.pl-in{ text-transform:none; letter-spacing:0; font-size:14px; margin-bottom:8px; }
   .pl-in.nm{ text-transform:none; letter-spacing:0; }
+  /* 1113 밤 — 비밀번호 바꾸기 */
+  .pw-in{ width:100%; box-sizing:border-box; font:inherit; font-size:15px; padding:10px 12px; margin-bottom:8px;
+          border:1px solid var(--c-cbor); border-radius:10px; background:transparent; color:var(--c-ink); }
+  .pw-in:focus{ outline:none; border-color:var(--c-accent); }
+  .pw-show{ display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--c-sub); margin:2px 0 4px; cursor:pointer; }
+  .pw-msg{ font-size:13px; line-height:1.6; margin-top:10px; color:var(--c-sub); min-height:1.6em; }
+  .pw-msg.err{ color:var(--c-accent); font-weight:600; }
+  .pw-msg.ok{ color:#2f7a4a; font-weight:600; }
   .ld-pass{ margin-top:12px; }
   .ld-pass img{ display:block; width:100%; height:auto; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,.14); }
   .ld-pass a{ display:block; text-align:center; text-decoration:none; }
@@ -1149,6 +1157,12 @@
         <span class="cm-t cut">EG유니버스 초대장</span>
         <span class="cm-v cut" id="r-ami-side"></span>
       </button>
+      <!-- ⭐ 1113 밤 소로 — 「고객들이 교양 자화상에서 자신의 비번을 변경하는 시스템」 (시리우스님 첫 사례) -->
+      <button class="cm" type="button" data-sheet="password">
+        <span class="cm-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4.6" y="10.4" width="14.8" height="10" rx="2"/><path d="M8.2 10.4V7.6a3.8 3.8 0 0 1 7.6 0v2.8"/><path d="M12 14.4v2.4"/></svg></span>
+        <span class="cm-t cut">비밀번호 바꾸기</span>
+        <span class="cm-v cut"></span>
+      </button>
       <button class="cm" type="button" data-sheet="terms">
         <span class="cm-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.9l7.2 2.6v6.1c0 4-3 7.4-7.2 8.5-4.2-1.1-7.2-4.5-7.2-8.5V5.5z"/><path d="M9.2 11.9l1.9 1.9 3.7-3.8"/></svg></span>
         <span class="cm-t cut">이용약관</span>
@@ -1273,6 +1287,20 @@
 <div class="sheet" id="sheet-ami" hidden>
   <div class="sheet-head"><div><b>초대장</b><div class="sheet-sub">EG유니버스에 가족이나 가까운 벗을 초대해 보세요</div></div><span class="sheet-x" onclick="closeSheet()">×</span></div>
   <div class="sheet-body" id="ami-body"><div class="hint">불러오는 중입니다.</div></div>
+</div>
+<!-- ⭐ 1113 밤 — 비밀번호 바꾸기. 로그인한 채로 새 비밀번호 두 번 → PUT /auth/v1/user -->
+<div class="sheet" id="sheet-password" hidden>
+  <div class="sheet-head"><b>비밀번호 바꾸기</b><span class="sheet-x" onclick="closeSheet()">×</span></div>
+  <div class="sheet-body">
+    <form onsubmit="savePassword(event)" autocomplete="off">
+      <div class="pl-note" style="margin:0 0 12px">새로 쓰실 비밀번호를 두 번 적어 주세요. 6자 이상이면 됩니다. 바꾼 뒤에는 다음 로그인부터 새 비밀번호로 들어오시면 됩니다.</div>
+      <input class="pw-in" id="pw-new1" type="password" autocomplete="new-password" placeholder="새 비밀번호">
+      <input class="pw-in" id="pw-new2" type="password" autocomplete="new-password" placeholder="새 비밀번호 한 번 더">
+      <label class="pw-show"><input type="checkbox" onchange="pwShow(this.checked)"> 적은 글자 보기</label>
+      <button class="pl-cta" id="pw-btn" type="submit">비밀번호 바꾸기</button>
+      <div class="pw-msg" id="pw-msg"></div>
+    </form>
+  </div>
 </div>
 <div class="sheet" id="sheet-terms" hidden>
   <div class="sheet-head"><b>이용약관 · 개인정보</b><span class="sheet-x" onclick="closeSheet()">×</span></div>
@@ -2626,6 +2654,46 @@ document.addEventListener('click', () => openTDrop(false));
 document.getElementById('tr-back')?.addEventListener('click', () => showPanel('root'));
 
 /* ⚠ 1006 — 옛 「조용한 초대장」(openInvite · ?from= 주소 복사)은 걷었다. 그 자리는 벗 초대장(drawAmi) */
+
+// ── 비밀번호 바꾸기 (1113 밤 소로) ──
+/* ⭐ 로그인한 손님이 자기 비밀번호를 바꾼다. 메일을 거치지 않는다(다음 · 한메일은 재설정 메일이 막히기도 한다).
+   ⚠ sbFetch 는 인증 오류 본문(msg · error_code)을 못 읽어 직접 부른다. */
+function pwShow(on){
+  ['pw-new1','pw-new2'].forEach(id => { const el = document.getElementById(id); if (el) el.type = on ? 'text' : 'password'; });
+}
+async function savePassword(ev){
+  if (ev && ev.preventDefault) ev.preventDefault();
+  const p1 = document.getElementById('pw-new1').value, p2 = document.getElementById('pw-new2').value;
+  const msg = document.getElementById('pw-msg'), btn = document.getElementById('pw-btn');
+  const say = (t, cls) => { msg.textContent = t; msg.className = 'pw-msg' + (cls ? ' ' + cls : ''); };
+  if (p1.length < 6) { say('6자 이상으로 정해 주세요.', 'err'); return; }
+  if (p1 !== p2)     { say('두 칸의 비밀번호가 서로 다릅니다.', 'err'); return; }
+  const token = await getValidToken();
+  if (!token) { say('로그인이 풀렸습니다. 다시 로그인한 뒤 바꿔 주세요.', 'err'); return; }
+  btn.disabled = true; say('바꾸는 중입니다…');
+  try{
+    const r = await fetch(SUPABASE_URL + '/auth/v1/user', { method:'PUT',
+      headers:{ 'apikey':SUPABASE_KEY, 'Authorization':'Bearer ' + token, 'Content-Type':'application/json' },
+      body: JSON.stringify({ password: p1 }) });
+    if (!r.ok){
+      const e = await r.json().catch(() => ({}));
+      const m = String(e.msg || e.message || e.error_description || e.error_code || '');
+      btn.disabled = false;
+      if (/different from the old|same_password/i.test(m)) say('지금 쓰시는 비밀번호와 다른 것으로 정해 주세요.', 'err');
+      else if (/weak|characters|length|weak_password/i.test(m)) say('조금 더 길게, 또는 숫자를 섞어 정해 주세요.', 'err');
+      else if (/reauthentication/i.test(m)) say('보안 확인이 한 번 더 필요합니다. 운영자에게 편지 한 통 주세요.', 'err');
+      else if (r.status === 401 || /jwt|session|expired/i.test(m)) say('로그인이 풀렸습니다. 다시 로그인한 뒤 바꿔 주세요.', 'err');
+      else say('바꾸지 못했습니다. 잠시 뒤 다시 해 보시고, 그래도 안 되면 운영자에게 알려 주세요.', 'err');
+      return;
+    }
+    document.getElementById('pw-new1').value = ''; document.getElementById('pw-new2').value = '';
+    btn.disabled = false;
+    say('새 비밀번호로 바꾸었습니다. 다음 로그인부터 새 비밀번호를 쓰시면 됩니다.', 'ok');
+  }catch(e){
+    btn.disabled = false;
+    say('바꾸지 못했습니다. 인터넷 연결을 확인하고 다시 해 주세요.', 'err');
+  }
+}
 
 // ── 로그아웃 (로컬 세션 제거 후 로그인 화면으로) ──
 function doLogout(){
