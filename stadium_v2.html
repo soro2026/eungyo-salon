@@ -2456,7 +2456,7 @@ body{
       <button class="cta-primary" id="startSeasonBtn" onclick="startMySeason()">
         🌱 시범경기 시작하기
       </button>
-      <div class="matchup-tip">오늘부터 시범경기, 다가오는 화요일부터 루키리그</div>
+      <div class="matchup-tip">시범경기 다섯 판을 마치면, 다음 화요일부터 루키리그</div>
     </div>
   </div>
 
@@ -4422,6 +4422,9 @@ async function loadHomeData() {
     return;
   }
 
+  // 🌱 시범경기 다섯 판 (1113 소로) — 오늘 한 판 깔기 · 다섯 판 끝나면 졸업
+  await egPreseasonTick(session.user.id);
+
   // 결석 정산 — 지난 pending 경기를 먼저 굳히고(봇 completed / 소로 0-3 결석패), 그 위에서 홈·순위를 그린다
   await reconcileAbsences(session.user.id);
 
@@ -4539,6 +4542,11 @@ async function loadHomeData() {
         if (_tt) _tt.textContent = '승급 휴가';
         if (_sb) _sb.textContent = '졸업을 축하합니다 — 푹 쉬어 가세요';
         if (_op) _op.textContent = `${_seasonStart.slice(5,7)}.${_seasonStart.slice(8,10)} 화요일, ${_lgLabel}이(가) 개막합니다`;
+      } else if (_seasonLeague === 'ROOKIE' && _seasonStart && today < _seasonStart) {
+        // 🌱 1113 — 시범경기 다섯 판을 마치고 루키리그 개막을 기다리는 며칠
+        if (_tt) _tt.textContent = '시범경기를 마쳤습니다';
+        if (_sb) _sb.textContent = '다섯 판을 끝까지 치르셨습니다 — 개막까지 숨을 고르세요';
+        if (_op) _op.textContent = `${_seasonStart.slice(5,7)}.${_seasonStart.slice(8,10)} 화요일, 루키리그가 개막합니다`;
       } else if (onBreak) {
         if (_tt) _tt.textContent = '시즌 브레이크';
         if (_sb) _sb.textContent = '한 시즌을 마쳤습니다 — 다음 시즌까지 그라운드도 잠듭니다';
@@ -4629,6 +4637,70 @@ const EG_DAY_TEMPLATE = {
   6: [['soro','pascal',true],  ['socrates','proust',false]],
   7: [['pascal','soro',true],  ['proust','socrates',false]],
 };
+
+/* ══ 🌱 시범경기 다섯 판 졸업 (1113 소로) ══════════════════════════════
+   옛 규칙 — 「시범경기 시작하기」를 누른 날부터 그 주 일요일까지(월요일 쉼).
+            시작 요일에 따라 1~6판으로 들쭉날쭉했다(일·월에 시작하면 한 판).
+   새 규칙 — 날짜와 상관없이 하루 한 판씩, **끝까지 치른 시범경기 다섯 판**이면 졸업.
+            다섯 번째 판을 치른 날 다음에 오는 첫 화요일부터 루키리그(화·목).
+   ⭐ 시범경기 동안 active 시즌의 start_date 는 EG_PRESEASON_HOLD(2099-12-29 · 화요일)로 둔다.
+      getCurrentWeek 는 기준점이 미래라 0(시범)을 돌려주고, 졸업하는 날 진짜 화요일로 바꾼다.
+   ⭐ 시범경기 행은 미리 깔지 않는다 — 들어온 날 그날 한 판만 깐다. 지난 날 남은 시범 행은 걷는다
+      (시범경기는 결석 정산 대상이 아니라 원래도 패가 적히지 않았다).
+   ⚠ 서버 eg_mission_gate 'game_today'(미션 04)가 같은 HOLD 날짜로 시범경기 중인지 가린다 — 함께 고칠 것.
+   ⚠ extendMySeason 은 HOLD 시즌을 건드리지 않는다(아래 안전핀). */
+const EG_PRESEASON_HOLD = '2099-12-29';
+const EG_PRESEASON_GAMES = 5;
+async function egPreseasonTick(uid) {
+  try {
+    const todayStr = getToday();
+    const { data: sn } = await supa.from('seasons').select('id, start_date')
+      .eq('user_id', uid).eq('status', 'active').order('start_date', { ascending: false }).limit(1);
+    if (!sn || !sn.length || sn[0].start_date !== EG_PRESEASON_HOLD) return;   // 시즌 전이거나 이미 졸업
+
+    const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+    const isoDow = d => (d.getDay() === 0 ? 7 : d.getDay());
+    const today = new Date(todayStr + 'T00:00:00+09:00');
+
+    const { data: done } = await supa.from('matches').select('match_date, completed_at')
+      .eq('user_id', uid).eq('week_num', 0).eq('is_my_game', true).eq('status', 'completed')
+      .order('completed_at', { ascending: true });
+    const played = (done || []).length;
+
+    if (played >= EG_PRESEASON_GAMES) {
+      // 🎓 졸업 — 다섯 번째 판을 치른 날 다음 첫 화요일(그 화요일이 이미 지났으면 오늘 이후 첫 화요일 · 오늘이 화요일이면 오늘)
+      const fifth = new Date(done[EG_PRESEASON_GAMES - 1].match_date + 'T00:00:00+09:00');
+      let firstTue = addDays(fifth, ((2 - isoDow(fifth) + 7) % 7) || 7);
+      if (firstTue < today) firstTue = addDays(today, (2 - isoDow(today) + 7) % 7);
+      await supa.from('matches').delete().eq('user_id', uid).eq('week_num', 0).eq('status', 'pending');
+      const rows = [];
+      for (let w = 0; w < 6; w++) {
+        const wr = buildLeagueWeekRows('ROOKIE', uid, addDays(firstTue, w * 7), w + 1, fmt, addDays);
+        if (wr && wr.length) rows.push(...wr);
+      }
+      const { error } = await supa.from('matches').insert(rows);
+      if (error) { console.error('[시범경기] 졸업 일정 실패:', error); return; }
+      await supa.from('seasons').update({ start_date: fmt(firstTue) }).eq('id', sn[0].id);
+      localStorage.setItem('eg_my_season_start_tue', fmt(firstTue));
+      console.log(`[시범경기] 🎓 다섯 판 졸업 · 루키리그 개막 ${fmt(firstTue)} · ${rows.length}행`);
+      return;
+    }
+
+    // 시범경기 중 — 지난 날 남은 판은 걷고, 오늘 판이 없으면 한 판 깐다
+    await supa.from('matches').delete().eq('user_id', uid).eq('week_num', 0)
+      .eq('status', 'pending').lt('match_date', todayStr);
+    const { data: td } = await supa.from('matches').select('id').eq('user_id', uid).eq('match_date', todayStr).limit(1);
+    if (td && td.length) return;
+    const dow = isoDow(today);
+    const tpl = EG_DAY_TEMPLATE[dow === 1 ? 2 : dow];   // 월요일은 화요일 짝을 빌린다
+    const rows = tpl.map(([h, a, my]) => ({ user_id: uid, match_date: todayStr, week_num: 0, day_of_week: dow,
+      home_team: h, away_team: a, is_my_game: my, status: 'pending' }));
+    const { error } = await supa.from('matches').insert(rows);
+    if (error) console.error('[시범경기] 오늘 판 깔기 실패:', error);
+    else console.log(`[시범경기] 오늘 한 판 · 지금까지 ${played}판 / ${EG_PRESEASON_GAMES}판`);
+  } catch (e) { console.warn('[시범경기] 틱 실패 (무시):', e?.message || e); }
+}
 
 // ══════════════════════════════════════════════════════════════════
 // 🪜 리그 사다리 (0803 확정 · 0427 종합설계도 승수 존중)
@@ -4842,6 +4914,7 @@ async function extendMySeason(uid, todayStr) {
     .select('start_date, league').eq('user_id', uid)
     .eq('status', 'active').order('start_date', { ascending: false }).limit(1);
   if (!sn || !sn.length) return false;          // 시즌조차 없으면 진짜 신규 — startMySeason 몫
+  if (sn[0].start_date === EG_PRESEASON_HOLD) return false;   // 🌱 시범경기 중 — egPreseasonTick 몫 (1113)
   const startTue = sn[0].start_date
     ? new Date(sn[0].start_date + 'T00:00:00+09:00') : null;
   const league = sn[0].league || 'ROOKIE';
@@ -4898,46 +4971,28 @@ async function startMySeason() {
   const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
 
   const today = new Date(todayStr + 'T00:00:00+09:00');
-  const REG_WEEKS = 6;            // 정식 몇 주치 미리 INSERT
   const rows = [];
 
-  // 정식 시작 화요일 (오늘 이후 가장 가까운 화요일)
-  const daysToTue = ((2 - isoDow(today) + 7) % 7) || 7;
-  const firstTue = addDays(today, daysToTue);
-  // 개인 주차 기준점 저장 — getCurrentWeek/Index 가 이 값을 읽음
-  localStorage.setItem('eg_my_season_start_tue', fmt(firstTue));
+  /* 🌱 1113 소로 — 시범경기 다섯 판을 끝까지 치르면 졸업, 그다음 첫 화요일부터 루키리그.
+       시즌 기준점은 졸업하는 날까지 EG_PRESEASON_HOLD 로 둔다(getCurrentWeek = 0).
+       오늘 한 판만 깔고, 다음 판은 들어오는 날마다 egPreseasonTick 이 깐다. */
+  localStorage.setItem('eg_my_season_start_tue', EG_PRESEASON_HOLD);
 
   // active 시즌 보장 (없으면 ROOKIE 시즌 생성) — 경기 저장이 active 시즌을 요구함
   const { data: activeSeason } = await supa
     .from('seasons').select('id').eq('user_id', uid).eq('status', 'active').limit(1);
   if (!activeSeason || activeSeason.length === 0) {
     await supa.from('seasons').insert({
-      user_id: uid, league: 'ROOKIE', start_date: fmt(firstTue), status: 'active', season_num: 1
+      user_id: uid, league: 'ROOKIE', start_date: EG_PRESEASON_HOLD, status: 'active', season_num: 1
     });
   }
 
-  // 1) 시범경기 (week_num=0): 오늘 ~ 정식 화요일 전날, 월요일 휴식 제외
-  for (let d = new Date(today); d < firstTue; d = addDays(d, 1)) {
-    const dow = isoDow(d);
-    if (dow === 1) continue;
-    for (const [h, a, my] of DAY_TEMPLATE[dow])
-      rows.push({ user_id: uid, match_date: fmt(d), week_num: 0, day_of_week: dow,
+  // 시범경기 (week_num=0) — 오늘 한 판 (월요일은 화요일 짝을 빌린다)
+  {
+    const dow = isoDow(today);
+    for (const [h, a, my] of DAY_TEMPLATE[dow === 1 ? 2 : dow])
+      rows.push({ user_id: uid, match_date: todayStr, week_num: 0, day_of_week: dow,
                   home_team: h, away_team: a, is_my_game: my, status: 'pending' });
-  }
-  // 월요일 당일 입장 보정: 시범경기가 0개면 당일 1경기(화요일 템플릿 차용)
-  if (rows.length === 0)
-    for (const [h, a, my] of DAY_TEMPLATE[2])
-      rows.push({ user_id: uid, match_date: todayStr, week_num: 0, day_of_week: isoDow(today),
-                  home_team: h, away_team: a, is_my_game: my, status: 'pending' });
-
-  // 2) 정식 루키리그: firstTue 부터 REG_WEEKS 주 — 화·목 두 경기 (0806)
-  //    ⚠ 여기도 라우터를 쓴다. 연장(extendMySeason)과 생성이 다른 문법으로 심으면
-  //      한 사람의 일정 안에서 주차마다 규칙이 갈린다.
-  for (let w = 0; w < REG_WEEKS; w++) {
-    const weekTue = addDays(firstTue, w * 7);
-    const weekNum = w + 1;  // 개인 주차: 정식 첫 주 = WEEK 1
-    const wr = buildLeagueWeekRows('ROOKIE', uid, weekTue, weekNum, fmt, addDays);
-    if (wr && wr.length) rows.push(...wr);
   }
 
   const { error } = await supa.from('matches').insert(rows);
