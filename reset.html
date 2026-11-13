@@ -164,7 +164,12 @@ supa.auth.onAuthStateChange(function(event, session){
 
 (async function start(){
   if (LINK_ERROR) { showAgain('expired'); return; }
-  if (!CAME_BY_LINK) { showAgain('nolink'); return; }
+  /* 1113 밤 소로 — 「비밀번호를 본인이 변경하는 장치가 없다」. 로그인한 채로 이 주소(reset.html)에 오면
+     메일 링크 없이도 새 비밀번호를 정한다(임시 비밀번호를 받은 분이 자기 것으로 바꾸는 길) */
+  if (!CAME_BY_LINK) {
+    try { const { data } = await supa.auth.getSession(); if (data && data.session) { showNew(); return; } } catch (e) {}
+    showAgain('nolink'); return;
+  }
 
   /* PKCE 로 온 경우(?code=) — 같은 브라우저에서 요청했을 때만 바꿀 수 있다 */
   const code = (Q.match(/[?&]code=([^&]+)/) || [])[1];
