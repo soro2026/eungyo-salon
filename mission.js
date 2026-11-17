@@ -470,7 +470,7 @@
     }
     const n = B.next;
     $('egm-next').innerHTML = n ? (nextText(n).replace(n.date_text, '<b>' + esc(n.date_text) + '</b>')
-      + (String(n.date) <= '2026-12-14' ? '<br>미션 카드는 12월 14일까지 5일마다 다섯 장씩 새로 열립니다.' : '')) : '이제 모든 카드가 열렸습니다.';
+      + (String(n.date) <= '2026-12-19' ? '<br>미션 카드는 12월 19일까지 토요일마다 새로 열립니다.' : '')) : '이제 모든 카드가 열렸습니다.';
   }
   function place(){
     const slots = document.querySelectorAll('#egm-slots .egm-slot'); const n = slots.length;
