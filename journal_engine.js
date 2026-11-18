@@ -14,6 +14,26 @@
 //            homeTeam, awayTeam, homeScore, awayScore, persons:[..] }
 // ═══════════════════════════════════════════════════════════
 
+/* ⭐ 1118 소로 — 옛 museum.html(0807 은퇴 · 13칸 책장) 대신 오늘의 서고(bibliotheca.html).
+   타륜(terra) 안이면 terra 카드와 같은 셈(terraPins museum · sort · kstDayNo 나머지)으로 고르고 타륜 문(enterRoomUrl)으로 연다.
+   타륜 밖이거나 막히면 bibliotheca.html(트리니티)로. 한스푼 끝 화면(hello_spoon_v1 #toShelf)과 한 벌. */
+window.egGoShelf = function(e){
+  try{
+    const P = (window.parent !== window) ? window.parent : null;
+    if (P && P.terraPins && typeof P.enterRoomUrl === 'function'){
+      const ms = Object.values(P.terraPins).filter(function(p){ return p && p.kind === 'museum'; })
+                   .sort(function(x, y){ return (x.sort || 0) - (y.sort || 0); });
+      if (ms.length){
+        const day = Math.floor((Date.now() + 9*3600*1000) / 86400000);
+        const m = ms[((day % ms.length) + ms.length) % ms.length];
+        P.enterRoomUrl('bibliotheca.html?code=' + encodeURIComponent(m.code), m.name || 'EG뮤세움');
+        return false;
+      }
+    }
+  }catch(err){}
+  return true;   /* href 그대로 */
+};
+
 const EGJournal = (() => {
 
   // ── 시드 고정 난수 (xmur3 + mulberry32) ──
@@ -245,8 +265,8 @@ const EGJournal = (() => {
     '경기가 끝난 지금도, <a href="constella.html">콘스텔라티오</a>에서는 그들의 별빛이 깜빡인다.'
   ];
   const BRIDGE_BOOK = [
-    '오늘 만난 문장들은 책이 되어 <a href="museum.html">뮤세움 서가</a>에 꽂혔다.',
-    '<a href="museum.html">뮤세움 책장</a>에는 오늘의 책이 새로 한 권, 등을 보이고 서 있다.'
+    '오늘 만난 문장들은 책이 되어 <a href="bibliotheca.html" onclick="return window.egGoShelf ? window.egGoShelf(event) : true">뮤세움 서가</a>에 꽂혔다.',
+    '<a href="bibliotheca.html" onclick="return window.egGoShelf ? window.egGoShelf(event) : true">뮤세움 책장</a>에는 오늘의 책이 새로 한 권, 등을 보이고 서 있다.'
   ];
 
   // 인물 표기 다듬기 (씨앗 prefix → 표시명)
