@@ -189,6 +189,21 @@
   .egm-vwho b{ color:#1d1812; }
   .egm-vbody{ margin-top:6px; font-size:15px; line-height:1.75; white-space:pre-wrap; }
   .egm-vnone{ margin-top:14px; font-size:15px; color:#6b6052; line-height:1.7; }
+  /* ⭐ 1119 소로 — 소감 아래 공감 한마디 */
+  .egm-talk{ margin-top:12px; padding-top:10px; border-top:1px dashed #d9cfbf; }
+  .egm-tline{ margin-top:6px; font-size:14px; line-height:1.65; color:#2e2417; word-break:keep-all; overflow-wrap:anywhere; }
+  .egm-tline b{ color:#1d1812; }
+  .egm-tline .egm-tby{ font-size:12px; color:#8a7e6d; margin-left:4px; }
+  .egm-tline .egm-tlead{ display:inline-block; margin-left:4px; padding:0 6px; font-size:11px; line-height:17px; border-radius:999px; background:#1d1812; color:#f4efe6; vertical-align:1px; }
+  .egm-tline.fresh{ background:#fbf3d4; margin-left:-6px; margin-right:-6px; padding:2px 6px; border-radius:6px; }
+  .egm-tline .egm-tdel{ font:inherit; font-size:12px; color:#8a7e6d; background:none; border:0; padding:0 0 0 6px; cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
+  .egm-tform{ display:flex; gap:6px; margin-top:8px; }
+  .egm-tin{ flex:1; min-width:0; font:inherit; font-size:14px; padding:7px 10px; border:1px solid #cbbfac; border-radius:8px; background:#fffdf8; color:#1d1812; }
+  .egm-tin:focus{ outline:none; border-color:#1d1812; }
+  .egm-tsend{ flex:0 0 auto; font:inherit; font-size:13px; font-weight:600; padding:0 14px; border-radius:8px; border:1px solid #1d1812; background:#1d1812; color:#f4efe6; cursor:pointer; }
+  .egm-tsend:disabled{ opacity:.45; cursor:default; }
+  .egm-terr{ margin-top:4px; font-size:13px; color:#a8441c; }
+  .egm-dot{ display:inline-block; width:7px; height:7px; margin-left:6px; border-radius:50%; background:#e8b931; box-shadow:0 0 0 2px rgba(0,0,0,.25); vertical-align:2px; }
   `;
 
   const GUIDE = `
@@ -280,6 +295,19 @@
     $('egm-v-first').addEventListener('click', () => loadVoices(false));
     $('egm-v-new').addEventListener('click', () => loadVoices(true));
     $('egm-v-close').addEventListener('click', closeModal);
+    /* ⭐ 1119 소로 — 공감 한마디: 남기기 · 지우기 · 엔터(한글 조합 중이면 기다림) */
+    $('egm-v-list').addEventListener('click', async e => {
+      const s = e.target.closest('[data-tsend]'); if (s) return sendTalk(Number(s.dataset.tsend));
+      const d = e.target.closest('[data-tdel]'); if (!d) return;
+      if (!confirm('이 한마디를 지울까요?')) return;
+      await C().rpc('eg_mission_talk_delete', { p_id: Number(d.dataset.tdel) });
+      loadVoices(NEWEST, true);
+    });
+    $('egm-v-list').addEventListener('keydown', e => {
+      const t = e.target;
+      if (!t.classList || !t.classList.contains('egm-tin') || e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+      e.preventDefault(); sendTalk(Number(t.dataset.run));
+    });
     $('egm-mveil').addEventListener('click', () => { if ($('egm-voices').classList.contains('on')) closeModal(); });
     $('egm-toast-x').addEventListener('click', hideToast);
     const g = $('egm-guide');
@@ -449,7 +477,10 @@
         + '<span class="egm-no">' + pad(c.no) + '</span><span class="egm-ttl">' + esc(c.title) + '</span><span class="egm-knd">' + esc(c.kind || '') + '</span>'
         + '<div class="egm-paper"><span class="egm-mine">' + esc(c.essay || '') + '</span><span class="egm-cday">' + esc(c.cleared_text || '') + ' 클리어</span>'
         + '<div class="egm-brow"><button class="egm-btn line" type="button" data-act="essay" data-no="' + c.no + '">내 소감</button>'
-        + '<button class="egm-btn line" type="button" data-act="voices" data-no="' + c.no + '">대원들의 소감' + (c.voices_n ? ' ' + c.voices_n : '') + '</button></div></div></div>';
+        + '<button class="egm-btn line" type="button" data-act="voices" data-no="' + c.no + '">대원들의 소감' + (c.voices_n ? ' ' + c.voices_n : '') + (c.new_talk ? '<i class="egm-dot" title="내 소감에 새 한마디"></i>' : '') + '</button></div></div></div>';
+    } else if (B.leader && c.voices_n){
+      /* ⭐ 1119 소로 — 팀장은 마치지 않은 카드라도 대원들의 소감을 읽고 한마디를 남긴다 */
+      back = back.replace(/<\/div>$/, '<button class="egm-btn line" type="button" data-act="voices" data-no="' + c.no + '">대원들의 소감 ' + c.voices_n + '</button></div>');
     }
     return '<div class="egm-card' + (c.state === 'cleared' ? ' flipped rest' : '') + (c.state === 'open' || c.state === 'reached' ? ' open' : '') + '" id="egm-card-' + c.no + '">' + back + front + '</div>';
   }
@@ -583,17 +614,49 @@
     $('egm-mveil').classList.add('on'); $('egm-voices').classList.add('on');
     loadVoices(store.get('egm_voices_newest') === '1');
   }
-  async function loadVoices(newest){
+  /* ⭐ 1119 소로 — 소감마다 아래에 공감 한마디(300자) · 쓴 사람만 지운다 · 내 소감에 새로 달린 한마디는 옅은 노랑 */
+  function kwhen(iso){
+    const k = new Date(new Date(iso).getTime() + 9 * 3600 * 1000);
+    return (k.getUTCMonth() + 1) + '월 ' + k.getUTCDate() + '일 ' + String(k.getUTCHours()).padStart(2, '0') + ':' + String(k.getUTCMinutes()).padStart(2, '0');
+  }
+  function talkHtml(v){
+    const lines = (v.talk || []).map(t => '<div class="egm-tline' + (t.fresh ? ' fresh' : '') + '"><b>' + esc(t.nickname) + '</b>'
+      + (t.leader ? '<span class="egm-tlead">팀장</span>' : (t.crew_no ? '<span class="egm-tby">No.' + String(t.crew_no).padStart(3, '0') + '</span>' : ''))
+      + ' &nbsp;' + esc(t.body) + '<span class="egm-tby">' + kwhen(t.at) + '</span>'
+      + (t.mine ? '<button class="egm-tdel" type="button" data-tdel="' + t.id + '">지우기</button>' : '') + '</div>').join('');
+    return '<div class="egm-talk">' + lines
+      + '<div class="egm-tform"><input class="egm-tin" type="text" maxlength="300" data-run="' + v.run_id + '" placeholder="' + (v.mine ? '한마디 답하기' : '공감 한마디 남기기') + '" aria-label="공감 한마디">'
+      + '<button class="egm-tsend" type="button" data-tsend="' + v.run_id + '">남기기</button></div>'
+      + '<div class="egm-terr" hidden></div></div>';
+  }
+  async function loadVoices(newest, keep){
     NEWEST = newest; store.set('egm_voices_newest', newest ? '1' : '0');
     $('egm-v-first').classList.toggle('on', !newest); $('egm-v-new').classList.toggle('on', newest);
-    $('egm-v-list').innerHTML = '<div class="egm-vnone">불러오는 중…</div>';
+    const box = $('egm-voices'), top = box.scrollTop;
+    if (!keep) $('egm-v-list').innerHTML = '<div class="egm-vnone">불러오는 중…</div>';
     const { data } = await C().rpc('eg_mission_voices', { p_no: CUR.no, p_newest: newest });
     if (!data || !data.ok){ $('egm-v-list').innerHTML = '<div class="egm-vnone">' + esc((data && data.msg) || '잠시 문이 열리지 않았습니다.') + '</div>'; return; }
     const list = data.list || [];
     const others = list.filter(v => !v.mine).length;
     $('egm-v-list').innerHTML = (others ? '' : '<div class="egm-vnone">아직 이 카드를 마친 다른 대원이 없습니다. 당신이 이 카드의 첫 발자국입니다.</div>')
       + list.map(v => '<div class="egm-vitem' + (v.mine ? ' me' : '') + '"><div class="egm-vwho"><b>' + esc(v.nickname) + '</b>'
-        + (v.crew_no ? ' · No.' + String(v.crew_no).padStart(3, '0') : '') + (v.mine ? ' · 내 소감' : '') + '</div><div class="egm-vbody">' + esc(v.essay) + '</div></div>').join('');
+        + (v.crew_no ? ' · No.' + String(v.crew_no).padStart(3, '0') : '') + (v.mine ? ' · 내 소감' : '') + '</div><div class="egm-vbody">' + esc(v.essay) + '</div>'
+        + (v.run_id ? talkHtml(v) : '') + '</div>').join('');
+    if (keep) box.scrollTop = top;
+    /* 읽었으니 카드의 점을 끈다(서버는 이미 읽음으로 적었다) */
+    const c = B && B.cards && B.cards.find(x => x.no === CUR.no);
+    if (c && c.new_talk){ c.new_talk = 0; const d = document.querySelector('#egm-card-' + CUR.no + ' .egm-dot'); if (d) d.remove(); }
+  }
+  async function sendTalk(runId){
+    const inp = $('egm-v-list').querySelector('.egm-tin[data-run="' + runId + '"]'); if (!inp) return;
+    const btn = inp.parentNode.querySelector('.egm-tsend'), err = inp.closest('.egm-talk').querySelector('.egm-terr');
+    const body = inp.value.trim(); if (!body || btn.disabled) return;
+    btn.disabled = true; err.hidden = true;
+    try{
+      const { data } = await C().rpc('eg_mission_talk_post', { p_run_id: runId, p_body: body });
+      if (!data || !data.ok){ err.textContent = (data && data.msg) || '남기지 못했습니다. 잠시 뒤에 다시 눌러 주세요.'; err.hidden = false; return; }
+      await loadVoices(NEWEST, true);
+    } finally { btn.disabled = false; }
   }
 
   /* ── 그 자리에 닿았다 — 각 화면이 부르는 한 줄 ── */
