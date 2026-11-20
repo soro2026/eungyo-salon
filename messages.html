@@ -999,6 +999,42 @@ let editing = null;
 let people  = null;
 let HEAD    = null;                /* 내 닉네임·도시·번지 — eg_my_letterhead()가 싣는다 */
 
+/* ⭐ 1120 소로 — 「편지 쓰다가 음악당 들어가 보는 바람에 날아갔다」
+   쓰는 동안 그 기기(localStorage)에 저절로 맡겨 두고, 다시 열면 되살린다.
+   ⚠ 서버에는 보내지 않는다 — 부치기 전의 편지는 쓰는 사람의 책상 위에만 있다.
+   열쇠는 「나 · 받는 이」 — 답장 · 집에서 연 편지는 그분 몫, 받는 이를 고르는 새 편지는 new 한 칸.
+   지우는 때는 셋뿐: 부치기에 성공했을 때 · 본문을 다 비웠을 때 · 14일이 지났을 때.
+   ⚠ 「그만두기」 · 바깥 누르기로 닫아도 지우지 않는다(실수로 닫는 일이 더 잦다). 수정 편지는 맡기지 않는다. */
+let DRAFT_KEY = null;
+let DRAFT_READY = false;            /* 되살리기 전에는 맡기지도 지우지도 않는다(빈 칸이 맡긴 편지를 지우지 않게) */
+const DRAFT_DAYS = 14;
+function draftKeyFor(toId){
+  const u = getUser(); if(!u || !u.id) return null;
+  return 'eg_letter_draft:' + u.id + ':' + (toId ? 'to:' + toId : 'new');
+}
+function readDraft(k){
+  if(!k) return null;
+  try{
+    const d = JSON.parse(localStorage.getItem(k) || 'null');
+    if(!d || !d.body) return null;
+    if(Date.now() - (d.at || 0) > DRAFT_DAYS * 86400000){ localStorage.removeItem(k); return null; }
+    return d;
+  }catch(e){ return null; }
+}
+function saveDraft(){
+  if(editing || !DRAFT_KEY || !DRAFT_READY) return;
+  const body = document.getElementById('w-body').value;
+  try{
+    if(!body.trim()){ localStorage.removeItem(DRAFT_KEY); return; }
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({
+      body, at: Date.now(), po: poPick || null,
+      to: toPick ? { id: toPick.id, nickname: toPick.nickname } : null }));
+  }catch(e){}
+}
+function dropDraft(k){ try{ if(k) localStorage.removeItem(k); }catch(e){} }
+let _draftT = null;
+function saveDraftSoon(){ clearTimeout(_draftT); _draftT = setTimeout(saveDraft, 400); }
+
 /* ── 우표 자리 ──
    ⭐ 빈 자리·붙은 우표·못 떼는 우표를 한 곳에서 그린다.
       세 곳에 흩어 두면 자리가 조금씩 어긋난다. */
@@ -1090,6 +1126,7 @@ function setTo(id){
   const s = document.getElementById('w-to');
   if(toPick){ s.textContent = toPick.nickname; s.classList.add('filled'); }
   closeToBook();
+  saveDraft();                       /* ⭐ 1120 — 받는 이도 함께 맡긴다 */
 }
 
 /* 바깥을 누르면 펼친 것을 접는다 */
@@ -1133,6 +1170,7 @@ function editMsg(){
   const m = open;
   closeRead();
   editing = m;
+  DRAFT_KEY = null;                  /* ⭐ 1120 — 수정 편지는 맡기지 않는다 */
   poPick  = m.postage_code;
   toPick  = { id:m.who_id, nickname:m.who, locked:true };
   document.getElementById('w-to').textContent = m.who;
@@ -1156,6 +1194,7 @@ function editMsg(){
      답장인지는 본문이 말한다(맺음말을 셸이 안 붙이는 것과 같은 문법). */
 async function openCompose(toId, toName){
   editing = null; poPick = null; toPick = null;
+  DRAFT_KEY = draftKeyFor(toId); DRAFT_READY = false;
   const s = document.getElementById('w-to');
   s.className = 'to-slot'; s.textContent = '받는 이';
   document.getElementById('w-body').value = '';
@@ -1185,9 +1224,24 @@ async function openCompose(toId, toName){
   }else if(!people.length){
     s.textContent = '아직 없습니다';
   }
+  /* ⭐ 1120 — 맡겨 둔 편지가 있으면 되살린다. 그사이 손님이 이미 적기 시작했으면 덮지 않는다 */
+  const d = readDraft(DRAFT_KEY);
+  const bodyEl = document.getElementById('w-body');
+  if(d && !editing && !bodyEl.value.trim()){
+    bodyEl.value = d.body;
+    if(d.po && !poPick){ poPick = d.po; paintFrank(); }
+    if(!toId && d.to && people.some(x => x.id === d.to.id)){
+      toPick = { id: d.to.id, nickname: d.to.nickname };
+      s.textContent = d.to.nickname; s.classList.add('filled');
+    }
+    countBody();
+    toast('쓰던 편지를 되살렸습니다');
+  }
+  DRAFT_READY = true;
   if(document.getElementById('w-tobook').classList.contains('on')) paintToBook();
 }
 function closeCompose(){
+  clearTimeout(_draftT); saveDraft();   /* ⭐ 1120 — 닫혀도 편지는 책상 위에 남는다 */
   document.getElementById('writeModal').classList.remove('show');
   document.body.classList.remove('reading');
   document.getElementById('w-pobook').classList.remove('on');
@@ -1205,6 +1259,7 @@ function countBody(){
   t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px';
 }
 document.getElementById('w-body').addEventListener('input', countBody);
+document.getElementById('w-body').addEventListener('input', saveDraftSoon);   /* ⭐ 1120 */
 
 async function sendMsg(){
   if(busy) return;
@@ -1235,6 +1290,8 @@ async function sendMsg(){
                                  postage_code: po, postmark_code: pm }) });
       playSent();
       toast('우편함에 넣어 두었습니다');
+      dropDraft(DRAFT_KEY);             /* ⭐ 1120 — 부친 편지는 책상에서 걷는다 */
+      DRAFT_KEY = null;
     }
     closeCompose();
     if(tab === 'out' || wasEditing) await load();
@@ -1277,8 +1334,12 @@ function nextInBundle(){
   inBundle = false; document.body.classList.remove('bundling'); return false;
 }
 
+/* ⭐ 1120 — terra 가 액자를 걷거나 탭이 숨을 때도 한 번 더 맡긴다 */
+addEventListener('pagehide', () => { clearTimeout(_draftT); saveDraft(); });
+document.addEventListener('visibilitychange', () => { if(document.hidden){ clearTimeout(_draftT); saveDraft(); } });
+
 BUNDLE_PENDING = cameFromEnvelope();
-console.log('%c[EG] messages 0817b — 기간 거름망(⋯ 조종간) · 봉투가 id를 든다 · 편지 × 배지형', 'color:#8a6d1f');
+console.log('%c[EG] messages 1120 — 쓰던 편지 맡겨 두기(localStorage · 14일) · 0817b 기간 거름망', 'color:#8a6d1f');
 load();
 </script>
 <script>
