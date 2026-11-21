@@ -3544,12 +3544,19 @@ async function loadMaisons(city, nearQ){
     const dd = mine ? nearMine : near;
     const stock = (b.status === 'stock' || b.status === 'ready');
     if (stock){ addStockPin(b, dd); return; }
+    /* ⭐ 1121 소로 — 「실제 모습으로 보여야지, 북적이게 보이는 게 거짓 같아서」
+       명패 밝기 = get_buildings 의 glow(0.35 ~ 1) — 앱에 안 온 날이 쌓이면 흐려지고, 오면 다시 밝아진다.
+       사흘까지 1 → 21일에 0.35(바닥 · 사라지지 않는다) · 셈은 서버 한 곳(접속 시각은 안 내려온다).
+       ⚠ 내 집은 늘 밝게 — 들어온 그 순간 아직 app_open 이 안 찍혔을 수 있다.
+       ⚠ glow 가 없으면(옛 판 RPC) 1 — 폴백은 기본값 */
+    const glowRaw = Number(res_[0] && res_[0].glow);
+    const glow = (mine || !lived || !isFinite(glowRaw)) ? 1 : Math.max(.35, Math.min(1, glowRaw));
     const ent = viewer.entities.add({
       id:"maison-"+b.city+"-"+b.bno,
       position: Cesium.Cartesian3.fromDegrees(b.lng, b.lat),
       point:{ pixelSize: mine ? 11 : 9,
-              color: Cesium.Color.fromCssColorString(lived ? "#ffd23f" : "#0a0e1a"),
-              outlineColor: Cesium.Color.fromCssColorString(lived ? "#1a1407" : "#ffd23f"),
+              color: Cesium.Color.fromCssColorString(lived ? "#ffd23f" : "#0a0e1a").withAlpha(glow),
+              outlineColor: Cesium.Color.fromCssColorString(lived ? "#1a1407" : "#ffd23f").withAlpha(glow),
               outlineWidth: lived ? (mine ? 3 : 2) : 2.5,
               disableDepthTestDistance:Number.POSITIVE_INFINITY,
               distanceDisplayCondition:dd },
@@ -3559,10 +3566,10 @@ async function loadMaisons(city, nearQ){
               text: (res_[0] && res_[0].nickname) || "",
               font: mine ? "bold 13px 'Helvetica Neue','Apple SD Gothic Neo','Malgun Gothic',sans-serif"
                          : "600 12px 'Helvetica Neue','Apple SD Gothic Neo','Malgun Gothic',sans-serif",
-              fillColor:Cesium.Color.fromCssColorString("#1a1407"),
+              fillColor:Cesium.Color.fromCssColorString("#1a1407").withAlpha(.45 + .55 * glow),   /* 1121 — 글씨는 바탕보다 덜 흐려 이름은 읽힌다 */
               showBackground:true,
               backgroundColor: mine ? Cesium.Color.fromCssColorString("#f0b429").withAlpha(.97)
-                                    : Cesium.Color.WHITE,
+                                    : Cesium.Color.WHITE.withAlpha(glow),
               backgroundPadding: mine ? new Cesium.Cartesian2(10,6) : new Cesium.Cartesian2(8,4),
               pixelOffset:new Cesium.Cartesian2(0,-18),
               verticalOrigin:Cesium.VerticalOrigin.BOTTOM,
