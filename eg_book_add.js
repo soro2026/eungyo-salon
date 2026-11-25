@@ -216,8 +216,25 @@
      ⚠ 화면을 한 조각도 안 만진다. onStep 으로 어디까지 왔는지만 알린다
        ('cover' → 'seq' → 'insert')
      ⭐ v2.0 22호 — 넣는 곳은 언제나 wunderkammer_books 하나다.
-        비행기용 책 표를 따로 두지 않는다 */
+        비행기용 책 표를 따로 두지 않는다
+     ⭐ 1125 벤대끼님 — 『철학의 위안』이 서가에 세 권 섰다(11:39:46 · 11:40:01 · 11:40:28).
+        표지를 옮기는 동안(수 초 ~ 십수 초) 「들이는 중…」만 떠 있어 「들이기」를 거듭 눌렀고,
+        누를 때마다 들이기가 따로 하나씩 달렸다. 같은 사람 · 같은 책이 들어가는 중이면
+        새로 달리지 않고 이미 달리는 들이기를 함께 기다린다(부르는 화면 모두에 한 번에 걸린다) */
+  var INFLIGHT = {};
   function add(book, ownerId, onStep) {
+    if (book && ownerId) {
+      var k = ownerId + '|' + (keyIsbn(book.isbn)[0] || keyTitle(book.title) || '');
+      if (INFLIGHT[k]) return INFLIGHT[k];
+      var p = addOnce(book, ownerId, onStep);
+      INFLIGHT[k] = p;
+      var clear = function () { delete INFLIGHT[k]; };
+      p.then(clear, clear);
+      return p;
+    }
+    return addOnce(book, ownerId, onStep);
+  }
+  function addOnce(book, ownerId, onStep) {
     var c = need();
     var step = (typeof onStep === 'function') ? onStep : function () { };
     if (!book) return Promise.reject(new Error('고른 책이 없습니다'));
