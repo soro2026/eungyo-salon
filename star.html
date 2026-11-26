@@ -1442,8 +1442,28 @@ async function loadFloor0(starId) {
     if (!was) {
       item.classList.add('open');
       const d = item.querySelector('.scene-dot'); if (d) d.textContent = '✦';
+      egSceneWalk(item);
     }
   });
+
+  /* ⭐ 1126 — EG탐험대 17 「한 사람의 생애」. 이 별의 장면을 하나도 빠짐없이 펼치면 표시 하나.
+     며칠에 나눠 걸어도 되도록 펼친 장면을 이 브라우저에 쌓아 둔다(별마다 · 장면 제목 기준).
+     ⚠ 판정은 서버(eg_mission_check · mark star_last_scene). 진행 중인 카드가 없으면 서버가 안 남긴다.
+     ⚠ 이 방은 타륜 안 액자로 열린다 — 바깥 타륜의 mission.js 에 묻는다. */
+  function egSceneWalk(item){
+    try{
+      const items = Array.prototype.slice.call(body.querySelectorAll('.scene-item'));
+      const key = 'eg_scene_walk:' + starId;
+      const seen = new Set(JSON.parse(localStorage.getItem(key) || '[]'));
+      const t = item.querySelector('.scene-title');
+      seen.add((t && t.textContent) || String(items.indexOf(item)));
+      localStorage.setItem(key, JSON.stringify(Array.from(seen)));
+      const all = items.every(x => { const tt = x.querySelector('.scene-title'); return seen.has((tt && tt.textContent) || String(items.indexOf(x))); });
+      if (!all) return;
+      const M = window.egMission || (window.parent !== window && window.parent.egMission);
+      if (M && M.mark) M.mark('star_last_scene', String(starId));
+    }catch(e){ /* 저장소가 막혔거나 다른 출처면 넘긴다 */ }
+  }
 }
 
 // ── 별표 *...* → 굵은 강조 (뮤세움 renderMarkdown 이식, 소로 6/10) ──

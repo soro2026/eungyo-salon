@@ -911,6 +911,7 @@ function zoomAt(k, cx, cy){
   ZS.s = s2;
   zoomFrame();
   if(ZS.s > 1.6) wantDeep();
+  if(ZS.s >= 1.6) egArtSeen('zoom');            /* ⭐ 1126 — 붓 자국이 보일 만큼 */
 }
 
 /* 판 갈아 끼우기 — ⚠ src를 넣은 그 줄에서 naturalWidth를 재면 옛 그림 값이 잡힌다.
@@ -954,7 +955,7 @@ function openZoom(){
   if(im.complete) zoomFit(); else im.onload = zoomFit;
   z.classList.add('on');
 
-  if(!hasPlate) return;                        /* 원판이 없으면 여기까지. 예전과 같다 */
+  if(!hasPlate){ egArtSeen('zoom'); return; }  /* 원판이 없으면 여기까지. 예전과 같다 · 1126 더 당길 판이 없으니 연 것으로 가까이 */
   loadPlate(ZS.seq);
 }
 
@@ -1086,6 +1087,28 @@ function openLayers(){
   }
   $('#shBody').innerHTML=html;
   $('#layers').classList.add('on');
+  /* ⭐ 1126 — EG탐험대 19. 4겹 시트를 끝까지 내려 읽으면 「읽음」(글이 짧아 스크롤이 없으면 열자마자) */
+  const sh=$('#layers .sheet');
+  if(sh){
+    const chk=()=>{ if(sh.scrollTop + sh.clientHeight >= sh.scrollHeight - 30) egArtSeen('read'); };
+    sh.onscroll=chk; setTimeout(chk, 700);
+  }
+}
+/* ⭐ 1126 — EG탐험대 19 「그림 앞에 서기」. 같은 그림의 명패 이야기를 끝까지 읽고(read) 그림을 가까이 당겨 보면(zoom)
+   표시 하나. 순서는 상관없다. 판정은 서버(eg_mission_check · mark art_plaque). 진행 중인 카드가 없으면 서버가 안 남긴다. */
+let ART_SEEN={ key:null, read:false, zoom:false, sent:false };
+function egArtSeen(kind){
+  try{
+    if(!ART) return;
+    const k=String(ART.id ?? ART.name ?? '');
+    if(ART_SEEN.key!==k) ART_SEEN={ key:k, read:false, zoom:false, sent:false };
+    ART_SEEN[kind]=true;
+    if(ART_SEEN.read && ART_SEEN.zoom && !ART_SEEN.sent){
+      ART_SEEN.sent=true;
+      const M=window.egMission || (window.parent!==window && window.parent.egMission);
+      if(M && M.mark) M.mark('art_plaque', k);
+    }
+  }catch(e){}
 }
 function closeLayers(){ $('#layers').classList.remove('on'); }
 
