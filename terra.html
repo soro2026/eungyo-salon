@@ -4564,7 +4564,7 @@ function renderCityList(){
     const it = document.createElement("div");
     it.className = "city-item" + (city === currentCity ? " active" : "");
     it.innerHTML = '<span>'+ko+'</span><span class="eg">콜레주 앞으로</span>';
-    it.addEventListener("click", ()=>{ jumpToCollegeCity(city, ko); toggleCityList(false); });
+    it.addEventListener("click", ()=>{ window.__egCityTrip = null; jumpToCollegeCity(city, ko); toggleCityList(false); });
     box.appendChild(it);
   });
   const rule = document.createElement("div"); rule.className = "city-rule"; box.appendChild(rule);
@@ -4574,7 +4574,9 @@ function renderCityList(){
     const it = document.createElement("div");
     it.className = "city-item" + (c.city === currentCity ? " active" : "");
     it.innerHTML = '<span>'+c.label_ko+'</span><span class="cnt">'+c.pin_count+'곳</span>';
-    it.addEventListener("click", ()=>{ jumpToCity(c); toggleCityList(false); });
+    /* ⭐ 1126 — EG탐험대 12 「처음 가 보는 도시」. 「별들이 거닌 도시」 목록에서 날아간 도시만 센다.
+       별 카드에서 내려간 땅(18 「그 사람의 땅」 · jumpToStarPlace)과 섞이지 않게 거기서는 비운다. */
+    it.addEventListener("click", ()=>{ window.__egCityTrip = c.city; jumpToCity(c); toggleCityList(false); });
     box.appendChild(it);
   });
 }
@@ -4757,6 +4759,7 @@ function backToStar(){
 })();
 
 async function jumpToStarPlace(starId, opts){
+  window.__egCityTrip = null;   /* ⭐ 1126 — 12번은 도시 목록으로 날아간 길만 (위 renderCityList) */
   if (!(opts && opts.nolog) && window.logPush) window.logPush("star:"+starId, ()=> jumpToStarPlace(starId, { nolog:true }));
   let rep;
   try{
@@ -4805,6 +4808,12 @@ function openStory(spot){
      ⚠ paintVoice는 일부러 안 부른다 — 이 시점엔 판이 아직 안 열려서
        조종간이 잠깐 떴다 사라지는 깜빡임이 생긴다. 다시 그리는 일은 fillStoryVoice가 맡는다. */
   clearVoiceBtn();
+  /* ⭐ 1126 — EG탐험대 12 「처음 가 보는 도시」. 「별들이 거닌 도시」로 날아가 그 도시 장소(인물 장소 핀 · place_id)를 열면 표시 하나.
+     ⚠ EG 건물 핀(openPinStory)은 place_id 가 없어 세지 않는다. 판정은 서버(eg_mission_check · mark city_place). */
+  try{
+    if (spot && spot.place_id != null && window.__egCityTrip && window.egMission && window.egMission.mark)
+      window.egMission.mark("city_place", window.__egCityTrip + ":" + spot.place_id);
+  }catch(e){}
   const isCompagnon = (spot.source === 'compagnon');
   /* 콘서트홀(0731): 팝업 맨 아래에 입장 버튼. 다른 장소에선 숨는다.
      spot._concert는 terra 핀 클릭에서 meta로 빚어 넣어 준다. */
@@ -9306,7 +9315,7 @@ async function enterVesperRoom(spot){
     try{ stopOrbit(); }catch(e){}
     await loadScriptOnce("eg_geo.js?v=0818a");
     await loadScriptOnce("stamp_press.js?v=0820a");
-    await loadScriptOnce("vesper_room.js?v=0820c");   /* ⚠ 방 파일을 고치면 이 꼬리표도 함께 올린다 */
+    await loadScriptOnce("vesper_room.js?v=1126a");   /* ⚠ 방 파일을 고치면 이 꼬리표도 함께 올린다 */
     if (!window.egVesper) throw new Error("egVesper 창구가 안 열렸습니다");
     window.egVesper.enter(viewer, spot || null);
   }catch(err){

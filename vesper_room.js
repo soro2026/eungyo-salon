@@ -1477,6 +1477,9 @@ function bootRoom(hostViewer, spot){
            ⚠ 각인에 날짜를 넣지 않는다 — 수첩이 이미 날짜를 붙인다(두 번 적힌다).
            ⚠ 이미 오늘 것을 받았으면 부품이 아무것도 안 띄운다. 재촉하지 않는다. */
         if (status === "saved" && window.EGStamp) offerStamp();
+        /* ⭐ 1126 — EG탐험대 14 「해 지는 곳」. 교양일기를 저장하면 미션 카드에 묻는다(판정은 서버 · eg_diary saved).
+           방은 terra 안에서 돈다 — 같은 문서의 mission.js. 기내라 표가 숨어 있어도 닿음은 서고, 내리면 보인다. */
+        if (status === "saved" && window.egMission && window.egMission.check) setTimeout(function(){ window.egMission.check(); }, 1200);
       })
       .catch(function(e){ console.warn("[EG] 일기 저장 실패:", e);
         note(/JWT|auth|401/i.test(String(e && e.message)) ? "로그인이 필요합니다" : "저장하지 못했습니다"); })
